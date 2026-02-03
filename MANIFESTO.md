@@ -6,6 +6,8 @@
 
 We built Vertz because the way we write software has changed.
 
+While building our own products, we saw firsthand how much time teams waste fighting their tools instead of building what matters. We decided to do something about it.
+
 LLMs now write code alongside us. They're fast, capable, and getting better every day. But they have a problem: they can't run your code. They can't see that runtime error. They can't know that the DI container will fail to resolve a dependency until you tell them—and by then, you've wasted tokens, time, and patience.
 
 We spent countless hours watching LLMs get NestJS conventions wrong. Decorators in the wrong order. OpenAPI specs that didn't match the actual types. DTOs that looked right but broke at runtime. And every mistake meant more tokens, more iterations, more "actually, that's not quite right."
@@ -57,8 +59,8 @@ Vertz is designed so that every layer—from database to API to consumer—speak
 
 ## Who Vertz Is For
 
-- Developers who want to move fast without sacrificing safety
-- Teams who need guardrails and consistency as they scale
+- Developers who want to move fast without sacrificing safety or clean, simple code
+- Teams who need guardrails, consistency, and modular architecture as they scale
 - Anyone building with LLMs who's tired of the iteration tax
 - People who believe types should flow from backend to frontend
 - Those who think "it works on my machine" isn't good enough
@@ -79,6 +81,7 @@ That's the bar. That's what we're building toward.
 
 - A framework that hides complexity behind magic
 - Another decorator-heavy clone with different syntax
+- Complex to read for humans — it's clean enough for people, performant enough for agents
 - Just for humans anymore
 
 ---
