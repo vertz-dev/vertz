@@ -1,0 +1,416 @@
+# Vertz Core API Design Plan
+
+## Overview
+
+Vertz is a TypeScript-first backend framework with functional patterns, type-safe dependency injection, and schema validation. This document defines the core API design decisions.
+
+---
+
+## File Structure
+
+```
+src/
+├── env.ts
+├── app.ts
+├── middlewares/
+│   ├── request-id.middleware.ts
+│   ├── error-handler.middleware.ts
+│   └── auth.middleware.ts
+└── modules/
+    ├── core/
+    │   ├── core.module-def.ts
+    │   ├── core.module.ts
+    │   └── services/
+    │       └── db.service.ts
+    ├── user/
+    │   ├── user.module-def.ts
+    │   ├── user.module.ts
+    │   ├── services/
+    │   │   ├── user.service.ts
+    │   │   └── auth.service.ts
+    │   └── routers/
+    │       └── user.router.ts
+    └── order/
+        ├── order.module-def.ts
+        ├── order.module.ts
+        ├── services/
+        │   └── order.service.ts
+        └── routers/
+            └── order.router.ts
+```
+
+---
+
+## Environment Variables
+
+Validated with schema, auto-loads `.env` files.
+
+```tsx
+// env.ts
+import { vertz } from '@vertz/core';
+import { s } from '@vertz/schema';
+
+export const env = vertz.env({
+  load: ['.env', '.env.local', `.env.${process.env.NODE_ENV}`],
+  schema: s.object({
+    NODE_ENV: s.enum(['development', 'staging', 'production']),
+    PORT: s.number().default(3000),
+    DATABASE_URL: s.string().url(),
+    JWT_SECRET: s.string().min(32),
+    CORS_ORIGINS: s.string().transform((v) => v.split(',')),
+    LOG_LEVEL: s.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  }),
+});
+```
+
+**Validation on startup:**
+
+```
+$ vertz dev
+
+✗ Environment validation failed:
+
+  DATABASE_URL: Required
+  JWT_SECRET: Must be at least 32 characters (got 12)
+  LOG_LEVEL: Must be one of: debug, info, warn, error (got "verbose")
+```
+
+**Usage:** Both standalone import and injectable into modules.
+
+---
+
+## Middlewares
+
+Middlewares define `requires` and `provides` for typed state composition.
+
+```tsx
+// middlewares/request-id.middleware.ts
+import { vertz } from '@vertz/core';
+
+export const requestIdMiddleware = vertz.middleware({
+  provides: {} as { requestId: string },
+  handler: async (ctx, next) => {
+    ctx.state.requestId = crypto.randomUUID();
+    await next();
+  },
+});
+```
+
+```tsx
+// middlewares/auth.middleware.ts
+import { vertz } from '@vertz/core';
+import { User } from '../types';
+
+export const authMiddleware = vertz.middleware({
+  requires: {} as { requestId: string },
+  provides: {} as { user: User },
+  handler: async (ctx, next) => {
+    const token = ctx.raw.headers.get('authorization');
+    ctx.state.user = await verifyToken(token);
+    await next();
+  },
+});
+```
+
+```tsx
+// middlewares/admin.middleware.ts
+export const adminMiddleware = vertz.middleware({
+  requires: {} as { user: User },
+  provides: {} as { isAdmin: boolean },
+  handler: async (ctx, next) => {
+    ctx.state.isAdmin = ctx.state.user.role === 'admin';
+    await next();
+  },
+});
+```
+
+**Type errors on wrong ordering:**
+
+```tsx
+// ✗ Type error: authMiddleware requires { requestId }
+middlewares: [authMiddleware] // Error!
+
+// ✓ Works
+middlewares: [requestIdMiddleware, authMiddleware]
+```
+
+**State composes through levels:** Global → Router → Route
+
+---
+
+## Module Definition
+
+The "contract" file defining imports, options schema, and factories for services/routers.
+
+```tsx
+// user.module-def.ts
+import { vertz } from '@vertz/core';
+import { s } from '@vertz/schema';
+import { env } from '../../env';
+import { coreModuleDef } from '../core/core.module-def';
+
+export const userModuleDef = vertz.moduleDef({
+  name: 'user',
+  imports: {
+    env,
+    dbService: coreModuleDef.exports.dbService,
+  },
+  options: s.object({
+    requireEmailVerification: s.boolean().default(false),
+    maxLoginAttempts: s.number().default(5),
+  }),
+});
+```
+
+**Validations:**
+- `imports` must be from another module's `exports`
+- `options` schema validated at app registration time
+- Circular dependency detection at startup
+
+---
+
+## Services
+
+Business logic with typed dependency injection via `ctx`.
+
+```tsx
+// user.service.ts
+import { userModuleDef } from '../user.module-def';
+
+export const userService = userModuleDef.service({
+  inject: { dbService },
+  methods: (ctx) => ({
+    findById: async (id: string) => {
+      const [user] = await ctx.dbService.query<User>(
+        'SELECT * FROM users WHERE id = $1',
+        [id]
+      );
+      return user ?? null;
+    },
+    create: async (data: CreateUserDto) => {
+      if (ctx.options.requireEmailVerification) {
+        // send verification email
+      }
+      return ctx.dbService.query(...);
+    },
+  }),
+});
+```
+
+**`ctx` provides (module context):**
+- `ctx.options` - typed module options
+- `ctx.env` - typed environment variables
+- `ctx.dbService` - injected services
+- `ctx.[serviceName]` - other injected services
+
+**Validations:**
+- Services must be created from the module definition they belong to
+- Injected services must be declared in module's `imports`
+
+---
+
+## Routers
+
+HTTP route definitions with schema validation.
+
+```tsx
+// user.router.ts
+import { s } from '@vertz/schema';
+import { userModuleDef } from '../user.module-def';
+import { userService } from '../services/user.service';
+import { authService } from '../services/auth.service';
+import { authMiddleware } from '../../../middlewares/auth.middleware';
+
+export const userRouter = userModuleDef.router({
+  prefix: '/users',
+  inject: { userService, authService },
+});
+
+// GET /users/:id
+userRouter.get('/:id', {
+  params: s.object({ id: s.string().uuid() }),
+  middlewares: [authMiddleware],
+  handler: async (ctx) => {
+    return ctx.userService.findById(ctx.params.id);
+  },
+});
+
+// POST /users
+userRouter.post('/', {
+  body: s.object({
+    name: s.string().min(1).max(100),
+    email: s.string().email(),
+    password: s.string().min(8),
+  }),
+  handler: async (ctx) => {
+    return ctx.userService.create(ctx.body);
+  },
+});
+
+// POST /users/login
+userRouter.post('/login', {
+  body: s.object({
+    email: s.string().email(),
+    password: s.string(),
+  }),
+  handler: async (ctx) => {
+    return ctx.authService.login(ctx.body.email, ctx.body.password);
+  },
+});
+
+// POST /users/:id/activate (no body needed)
+userRouter.post('/:id/activate', {
+  params: s.object({ id: s.string().uuid() }),
+  middlewares: [authMiddleware],
+  handler: async (ctx) => {
+    return ctx.userService.activate(ctx.params.id);
+  },
+});
+```
+
+**Route `ctx` provides (request context):**
+- `ctx.params` - typed path parameters
+- `ctx.body` - typed request body
+- `ctx.query` - typed query parameters
+- `ctx.state` - mutable state from middlewares (typed)
+- `ctx.raw` - raw request object
+- `ctx.userService` - injected services
+- `ctx.options` - module options
+- `ctx.env` - environment variables
+
+**Schema placement:**
+- `params` - path parameters (required if path has `:paramName`)
+- `body` - request body (always optional, regardless of HTTP method)
+- `query` - query string parameters
+
+---
+
+## Module Assembly
+
+Wires services and routers together.
+
+```tsx
+// user.module.ts
+import { vertz } from '@vertz/core';
+import { userModuleDef } from './user.module-def';
+import { userService } from './services/user.service';
+import { authService } from './services/auth.service';
+import { userRouter } from './routers/user.router';
+
+export const userModule = vertz.module(userModuleDef, {
+  services: [userService, authService],
+  routers: [userRouter],
+  exports: [userService, authService],
+});
+```
+
+**Validations:**
+- `exports` must be subset of `services` (cannot export routers)
+- `services` must be created from this module's definition
+- Warning if orphan service exists (created but not registered)
+
+---
+
+## App Composition
+
+Entry point with builder pattern.
+
+```tsx
+// app.ts
+import { vertz } from '@vertz/core';
+import { env } from './env';
+import { requestIdMiddleware } from './middlewares/request-id.middleware';
+import { errorHandlerMiddleware } from './middlewares/error-handler.middleware';
+import { coreModule } from './modules/core/core.module';
+import { userModule } from './modules/user/user.module';
+import { orderModule } from './modules/order/order.module';
+
+const app = vertz
+  .app({
+    basePath: '/api',
+    version: 'v1',
+    cors: {
+      origins: env.CORS_ORIGINS,
+      credentials: true,
+    },
+    https: {
+      cert: './certs/cert.pem',
+      key: './certs/key.pem',
+    },
+    logging: {
+      level: env.LOG_LEVEL,
+    },
+  })
+  .middlewares([requestIdMiddleware, errorHandlerMiddleware])
+  .register(coreModule)
+  .register(userModule, {
+    requireEmailVerification: true,
+    maxLoginAttempts: 3,
+  })
+  .register(orderModule, {
+    maxItemsPerOrder: 50,
+  });
+
+app.listen(env.PORT);
+```
+
+**App config options:**
+- `basePath` - base path for all routes
+- `version` - API versioning
+- `cors` - CORS configuration
+- `https` - TLS certificates
+- `logging` - log levels and format
+
+---
+
+## Context Immutability
+
+**Frozen (immutable):**
+- `ctx.params`
+- `ctx.body`
+- `ctx.query`
+- `ctx.options`
+- `ctx.env`
+- `ctx.[serviceName]`
+
+**Mutable:**
+- `ctx.state` - for middleware communication
+
+**Enforcement:**
+- TypeScript: `DeepReadonly<T>` on ctx types
+- Runtime (prod): `Object.freeze()`
+- Runtime (dev): Proxy with helpful error messages
+
+```tsx
+// ✗ TypeScript error + runtime error
+ctx.params.id = 'hacked';
+
+// ✓ Works - state is mutable
+ctx.state.user = authenticatedUser;
+```
+
+---
+
+## Summary
+
+| File | Purpose |
+|---|---|
+| `env.ts` | Validated environment variables |
+| `*.middleware.ts` | State composition, typed requires/provides |
+| `*.module-def.ts` | Contract: imports, options schema, service/router factory |
+| `*.service.ts` | Business logic, accesses ctx (env, options, injected services) |
+| `*.router.ts` | Routes, schema validation, handlers with typed ctx |
+| `*.module.ts` | Assembly: wires services + routers |
+| `app.ts` | Entry: config, global middlewares, register modules |
+
+---
+
+## Open Items
+
+- [ ] Guards (authentication/authorization patterns)
+- [ ] Error handling and exceptions
+- [ ] Response types and transformations
+- [ ] Testing utilities
+- [ ] OpenAPI generation
+- [ ] WebSocket support
+- [ ] Background jobs / queues
