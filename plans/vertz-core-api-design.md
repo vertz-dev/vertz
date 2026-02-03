@@ -173,7 +173,9 @@ export const userModuleDef = vertz.moduleDef({
 
 ## Services
 
-Business logic with typed dependency injection via `ctx`.
+Business logic with typed dependency injection via `deps`.
+
+`deps` (dependencies) is the module-level context — created once at startup, contains options, env, and injected services. This is distinct from `ctx` (request context) used in router handlers.
 
 ```tsx
 // user.service.ts
@@ -181,7 +183,7 @@ import { userModuleDef } from './user.module-def';
 
 export const userService = userModuleDef.service({
   inject: { dbService },
-  methods: (ctx) => {
+  methods: (deps) => {
     // Private - not exposed on the service
     const hashPassword = (password: string) => {
       return bcrypt.hash(password, 10);
@@ -194,7 +196,7 @@ export const userService = userModuleDef.service({
     // Public - returned methods are the service API
     return {
       findById: async (id: string) => {
-        const [user] = await ctx.dbService.query<User>(
+        const [user] = await deps.dbService.query<User>(
           'SELECT * FROM users WHERE id = $1',
           [id]
         );
@@ -202,11 +204,11 @@ export const userService = userModuleDef.service({
       },
       create: async (data: CreateUserDto) => {
         const hashed = await hashPassword(data.password);
-        const user = await ctx.dbService.query<User>(
+        const user = await deps.dbService.query<User>(
           'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING *',
           [data.name, data.email, hashed]
         );
-        if (ctx.options.requireEmailVerification) {
+        if (deps.options.requireEmailVerification) {
           await sendWelcomeEmail(user);
         }
         return user;
@@ -219,11 +221,11 @@ export const userService = userModuleDef.service({
 Private methods live in the closure — `hashPassword` and `sendWelcomeEmail` are invisible outside.
 Only the returned object defines the public service API.
 
-**`ctx` provides (module context):**
-- `ctx.options` - typed module options
-- `ctx.env` - typed environment variables
-- `ctx.dbService` - injected services
-- `ctx.[serviceName]` - other injected services
+**`deps` provides (module dependencies, created once at startup):**
+- `deps.options` - typed module options
+- `deps.env` - typed environment variables
+- `deps.dbService` - injected services
+- `deps.[serviceName]` - other injected services
 
 **Validations:**
 - Services must be created from the module definition they belong to
@@ -385,21 +387,37 @@ app.listen(env.PORT);
 
 ---
 
-## Context Immutability
+## Two Contexts: `deps` vs `ctx`
 
-**All of ctx is immutable:**
-- `ctx.params`
-- `ctx.body`
-- `ctx.query`
-- `ctx.options`
-- `ctx.env`
-- `ctx.state` - composed from middleware return values
-- `ctx.[serviceName]`
+The framework uses two distinct naming conventions to avoid ambiguity:
+
+| | `deps` (dependencies) | `ctx` (request context) |
+|---|---|---|
+| Created | Once at startup | Per request |
+| Used by | Services | Router handlers, middlewares |
+| Contains | env, options, injected services | params, body, query, state, raw + service refs |
+| Services access request data | Via function arguments | N/A |
+
+```tsx
+// Service uses `deps` — static, startup-time
+methods: (deps) => ({
+  findById: async (id: string) => deps.dbService.query(...),
+})
+
+// Router handler uses `ctx` — per-request
+handler: async (ctx) => {
+  return ctx.userService.findById(ctx.params.id);
+}
+```
+
+## Immutability
+
+**Both `deps` and `ctx` are fully immutable.**
 
 Middlewares do not mutate `ctx.state` directly — they return their contribution and the framework composes the state.
 
 **Enforcement:**
-- TypeScript: `DeepReadonly<T>` on ctx types
+- TypeScript: `DeepReadonly<T>` on both deps and ctx types
 - Runtime (prod): `Object.freeze()`
 - Runtime (dev): Proxy with helpful error messages
 
@@ -407,6 +425,7 @@ Middlewares do not mutate `ctx.state` directly — they return their contributio
 // ✗ TypeScript error + runtime error
 ctx.params.id = 'hacked';
 ctx.state.user = someUser;
+deps.options.maxRetries = 10;
 
 // ✓ Middleware provides state by returning it
 handler: async (ctx) => {
@@ -423,8 +442,8 @@ handler: async (ctx) => {
 | `env.ts` | Validated environment variables |
 | `*.middleware.ts` | State composition, typed requires/provides |
 | `*.module-def.ts` | Contract: imports, options schema, service/router factory |
-| `*.service.ts` | Business logic, accesses ctx (env, options, injected services) |
-| `*.router.ts` | Routes, schema validation, handlers with typed ctx |
+| `*.service.ts` | Business logic, accesses deps (env, options, injected services) |
+| `*.router.ts` | Routes, schema validation, handlers with typed ctx (request context) |
 | `*.module.ts` | Assembly: wires services + routers |
 | `app.ts` | Entry: config, global middlewares, register modules |
 
