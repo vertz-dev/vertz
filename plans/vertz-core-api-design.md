@@ -26,12 +26,23 @@ src/
     │   ├── user.module.ts
     │   ├── user.service.ts
     │   ├── auth.service.ts
-    │   └── user.router.ts
+    │   ├── user.router.ts
+    │   └── schemas/
+    │       ├── create-user.schema.ts
+    │       ├── read-user.schema.ts
+    │       ├── update-user.schema.ts
+    │       ├── delete-user.schema.ts
+    │       ├── list-users.schema.ts
+    │       └── reset-password.schema.ts
     └── order/
         ├── order.module-def.ts
         ├── order.module.ts
         ├── order.service.ts
-        └── order.router.ts
+        ├── order.router.ts
+        └── schemas/
+            ├── create-order.schema.ts
+            ├── read-order.schema.ts
+            └── list-orders.schema.ts
 ```
 
 ---
@@ -233,6 +244,92 @@ Only the returned object defines the public service API.
 
 ---
 
+## Schemas
+
+One file per endpoint inside a `schemas/` folder. Each file exports schemas following the naming pattern `{operation}{Entity}{Part}`.
+
+**Naming conventions:**
+
+| Part | Usage |
+|---|---|
+| `Body` | Request body |
+| `Query` | Search/filter query parameters |
+| `Response` | Response payload |
+
+**CRUD operations:** `create`, `read`, `update`, `delete`, `list`
+
+**Non-CRUD operations:** Use natural speech order (verb + context + noun):
+
+```
+bulkCreateUsers    ✓   (not createBulkUsers)
+setActiveStatus    ✓   (not activeStatusSet)
+resetPassword      ✓   (not passwordReset)
+sendVerification   ✓   (not verificationSend)
+exportAsCsv        ✓   (not csvExport)
+```
+
+**File naming:** `{operation}-{entity}.schema.ts` (kebab-case)
+
+**Example — `schemas/create-user.schema.ts`:**
+
+```tsx
+import { s } from '@vertz/schema';
+
+export const createUserBody = s.object({
+  name: s.string().min(1).max(100),
+  email: s.string().email(),
+  password: s.string().min(8),
+});
+
+export const createUserResponse = s.object({
+  id: s.string().uuid(),
+  name: s.string(),
+  email: s.string(),
+  createdAt: s.date(),
+});
+```
+
+**Example — `schemas/list-users.schema.ts`:**
+
+```tsx
+import { s } from '@vertz/schema';
+import { createUserResponse } from './create-user.schema';
+
+export const listUsersQuery = s.object({
+  page: s.number().default(1),
+  limit: s.number().default(20),
+  search: s.string().optional(),
+  sortBy: s.enum(['name', 'createdAt']).default('createdAt'),
+});
+
+export const listUsersResponse = s.object({
+  items: s.array(createUserResponse),
+  total: s.number(),
+  page: s.number(),
+  limit: s.number(),
+});
+```
+
+**Example — `schemas/reset-password.schema.ts`:**
+
+```tsx
+import { s } from '@vertz/schema';
+
+export const resetPasswordBody = s.object({
+  currentPassword: s.string(),
+  newPassword: s.string().min(8),
+});
+```
+
+**Inline schemas:** Path params and headers are simple enough to define inline in the route definition.
+
+**Compiler enforcement:**
+- Each endpoint must have its own schema file
+- Schema naming must follow the `{operation}{Entity}{Part}` convention
+- If a route handler returns a value, a `response` schema is required
+
+---
+
 ## Routers
 
 HTTP route definitions with schema validation.
@@ -244,15 +341,29 @@ import { userModuleDef } from './user.module-def';
 import { userService } from './user.service';
 import { authService } from './auth.service';
 import { authMiddleware } from '../../middlewares/auth.middleware';
+import { createUserBody, createUserResponse } from './schemas/create-user.schema';
+import { readUserResponse } from './schemas/read-user.schema';
+import { listUsersQuery, listUsersResponse } from './schemas/list-users.schema';
+import { resetPasswordBody } from './schemas/reset-password.schema';
 
 export const userRouter = userModuleDef.router({
   prefix: '/users',
   inject: { userService, authService },
 });
 
+// GET /users
+userRouter.get('/', {
+  query: listUsersQuery,
+  response: listUsersResponse,
+  handler: async (ctx) => {
+    return ctx.userService.list(ctx.query);
+  },
+});
+
 // GET /users/:id
 userRouter.get('/:id', {
-  params: s.object({ id: s.string().uuid() }),
+  params: s.object({ id: s.string().uuid() }),  // Inline — simple enough
+  response: readUserResponse,
   middlewares: [authMiddleware],
   handler: async (ctx) => {
     return ctx.userService.findById(ctx.params.id);
@@ -261,33 +372,29 @@ userRouter.get('/:id', {
 
 // POST /users
 userRouter.post('/', {
-  body: s.object({
-    name: s.string().min(1).max(100),
-    email: s.string().email(),
-    password: s.string().min(8),
-  }),
+  body: createUserBody,
+  response: createUserResponse,
   handler: async (ctx) => {
     return ctx.userService.create(ctx.body);
   },
 });
 
-// POST /users/login
-userRouter.post('/login', {
-  body: s.object({
-    email: s.string().email(),
-    password: s.string(),
-  }),
+// POST /users/:id/reset-password
+userRouter.post('/:id/reset-password', {
+  params: s.object({ id: s.string().uuid() }),
+  body: resetPasswordBody,
+  middlewares: [authMiddleware],
   handler: async (ctx) => {
-    return ctx.authService.login(ctx.body.email, ctx.body.password);
+    return ctx.userService.resetPassword(ctx.params.id, ctx.body);
   },
 });
 
-// POST /users/:id/activate (no body needed)
+// POST /users/:id/activate (no body, no response body)
 userRouter.post('/:id/activate', {
   params: s.object({ id: s.string().uuid() }),
   middlewares: [authMiddleware],
   handler: async (ctx) => {
-    return ctx.userService.activate(ctx.params.id);
+    ctx.userService.activate(ctx.params.id);
   },
 });
 ```
@@ -303,9 +410,11 @@ userRouter.post('/:id/activate', {
 - `ctx.env` - environment variables
 
 **Schema placement:**
-- `params` - path parameters (required if path has `:paramName`)
-- `body` - request body (always optional, regardless of HTTP method)
-- `query` - query string parameters
+- `params` - path parameters, inline (required if path has `:paramName`)
+- `body` - request body from schema file (always optional, regardless of HTTP method)
+- `query` - query parameters from schema file
+- `response` - response schema from schema file (**required if handler returns a value**, enforced by compiler)
+- `headers` - request headers, inline
 
 ---
 
