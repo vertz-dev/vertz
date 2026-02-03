@@ -20,23 +20,18 @@ src/
     ├── core/
     │   ├── core.module-def.ts
     │   ├── core.module.ts
-    │   └── services/
-    │       └── db.service.ts
+    │   └── db.service.ts
     ├── user/
     │   ├── user.module-def.ts
     │   ├── user.module.ts
-    │   ├── services/
-    │   │   ├── user.service.ts
-    │   │   └── auth.service.ts
-    │   └── routers/
-    │       └── user.router.ts
+    │   ├── user.service.ts
+    │   ├── auth.service.ts
+    │   └── user.router.ts
     └── order/
         ├── order.module-def.ts
         ├── order.module.ts
-        ├── services/
-        │   └── order.service.ts
-        └── routers/
-            └── order.router.ts
+        ├── order.service.ts
+        └── order.router.ts
 ```
 
 ---
@@ -81,17 +76,20 @@ $ vertz dev
 
 ## Middlewares
 
-Middlewares define `requires` and `provides` for typed state composition.
+Middlewares use generics to define `Requires` and `Provides` types for typed state composition.
+The `handler` returns what it provides — TypeScript enforces the return type matches the `Provides` generic.
+There is no `next()` — the framework handles execution order.
 
 ```tsx
 // middlewares/request-id.middleware.ts
 import { vertz } from '@vertz/core';
 
-export const requestIdMiddleware = vertz.middleware({
-  provides: {} as { requestId: string },
-  handler: async (ctx, next) => {
-    ctx.state.requestId = crypto.randomUUID();
-    await next();
+export const requestIdMiddleware = vertz.middleware<
+  {}, // requires nothing
+  { requestId: string } // provides
+>({
+  handler: async (ctx) => {
+    return { requestId: crypto.randomUUID() };
   },
 });
 ```
@@ -101,25 +99,28 @@ export const requestIdMiddleware = vertz.middleware({
 import { vertz } from '@vertz/core';
 import { User } from '../types';
 
-export const authMiddleware = vertz.middleware({
-  requires: {} as { requestId: string },
-  provides: {} as { user: User },
-  handler: async (ctx, next) => {
+export const authMiddleware = vertz.middleware<
+  { requestId: string }, // requires
+  { user: User } // provides
+>({
+  handler: async (ctx) => {
     const token = ctx.raw.headers.get('authorization');
-    ctx.state.user = await verifyToken(token);
-    await next();
+    return { user: await verifyToken(token) };
   },
 });
 ```
 
 ```tsx
 // middlewares/admin.middleware.ts
-export const adminMiddleware = vertz.middleware({
-  requires: {} as { user: User },
-  provides: {} as { isAdmin: boolean },
-  handler: async (ctx, next) => {
-    ctx.state.isAdmin = ctx.state.user.role === 'admin';
-    await next();
+import { vertz } from '@vertz/core';
+import { User } from '../types';
+
+export const adminMiddleware = vertz.middleware<
+  { user: User }, // requires
+  { isAdmin: boolean } // provides
+>({
+  handler: async (ctx) => {
+    return { isAdmin: ctx.state.user.role === 'admin' };
   },
 });
 ```
@@ -148,6 +149,7 @@ import { vertz } from '@vertz/core';
 import { s } from '@vertz/schema';
 import { env } from '../../env';
 import { coreModuleDef } from '../core/core.module-def';
+import { dbService } from '../core/db.service';
 
 export const userModuleDef = vertz.moduleDef({
   name: 'user',
@@ -175,27 +177,47 @@ Business logic with typed dependency injection via `ctx`.
 
 ```tsx
 // user.service.ts
-import { userModuleDef } from '../user.module-def';
+import { userModuleDef } from './user.module-def';
 
 export const userService = userModuleDef.service({
   inject: { dbService },
-  methods: (ctx) => ({
-    findById: async (id: string) => {
-      const [user] = await ctx.dbService.query<User>(
-        'SELECT * FROM users WHERE id = $1',
-        [id]
-      );
-      return user ?? null;
-    },
-    create: async (data: CreateUserDto) => {
-      if (ctx.options.requireEmailVerification) {
-        // send verification email
-      }
-      return ctx.dbService.query(...);
-    },
-  }),
+  methods: (ctx) => {
+    // Private - not exposed on the service
+    const hashPassword = (password: string) => {
+      return bcrypt.hash(password, 10);
+    };
+
+    const sendWelcomeEmail = async (user: User) => {
+      // internal helper
+    };
+
+    // Public - returned methods are the service API
+    return {
+      findById: async (id: string) => {
+        const [user] = await ctx.dbService.query<User>(
+          'SELECT * FROM users WHERE id = $1',
+          [id]
+        );
+        return user ?? null;
+      },
+      create: async (data: CreateUserDto) => {
+        const hashed = await hashPassword(data.password);
+        const user = await ctx.dbService.query<User>(
+          'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING *',
+          [data.name, data.email, hashed]
+        );
+        if (ctx.options.requireEmailVerification) {
+          await sendWelcomeEmail(user);
+        }
+        return user;
+      },
+    };
+  },
 });
 ```
+
+Private methods live in the closure — `hashPassword` and `sendWelcomeEmail` are invisible outside.
+Only the returned object defines the public service API.
 
 **`ctx` provides (module context):**
 - `ctx.options` - typed module options
@@ -216,10 +238,10 @@ HTTP route definitions with schema validation.
 ```tsx
 // user.router.ts
 import { s } from '@vertz/schema';
-import { userModuleDef } from '../user.module-def';
-import { userService } from '../services/user.service';
-import { authService } from '../services/auth.service';
-import { authMiddleware } from '../../../middlewares/auth.middleware';
+import { userModuleDef } from './user.module-def';
+import { userService } from './user.service';
+import { authService } from './auth.service';
+import { authMiddleware } from '../../middlewares/auth.middleware';
 
 export const userRouter = userModuleDef.router({
   prefix: '/users',
@@ -272,7 +294,7 @@ userRouter.post('/:id/activate', {
 - `ctx.params` - typed path parameters
 - `ctx.body` - typed request body
 - `ctx.query` - typed query parameters
-- `ctx.state` - mutable state from middlewares (typed)
+- `ctx.state` - immutable state composed from middleware return values (typed)
 - `ctx.raw` - raw request object
 - `ctx.userService` - injected services
 - `ctx.options` - module options
@@ -293,9 +315,9 @@ Wires services and routers together.
 // user.module.ts
 import { vertz } from '@vertz/core';
 import { userModuleDef } from './user.module-def';
-import { userService } from './services/user.service';
-import { authService } from './services/auth.service';
-import { userRouter } from './routers/user.router';
+import { userService } from './user.service';
+import { authService } from './auth.service';
+import { userRouter } from './user.router';
 
 export const userModule = vertz.module(userModuleDef, {
   services: [userService, authService],
@@ -365,16 +387,16 @@ app.listen(env.PORT);
 
 ## Context Immutability
 
-**Frozen (immutable):**
+**All of ctx is immutable:**
 - `ctx.params`
 - `ctx.body`
 - `ctx.query`
 - `ctx.options`
 - `ctx.env`
+- `ctx.state` - composed from middleware return values
 - `ctx.[serviceName]`
 
-**Mutable:**
-- `ctx.state` - for middleware communication
+Middlewares do not mutate `ctx.state` directly — they return their contribution and the framework composes the state.
 
 **Enforcement:**
 - TypeScript: `DeepReadonly<T>` on ctx types
@@ -384,9 +406,12 @@ app.listen(env.PORT);
 ```tsx
 // ✗ TypeScript error + runtime error
 ctx.params.id = 'hacked';
+ctx.state.user = someUser;
 
-// ✓ Works - state is mutable
-ctx.state.user = authenticatedUser;
+// ✓ Middleware provides state by returning it
+handler: async (ctx) => {
+  return { user: await verifyToken(ctx.raw.headers.get('authorization')) };
+}
 ```
 
 ---
@@ -405,12 +430,67 @@ ctx.state.user = authenticatedUser;
 
 ---
 
+## Integration Testing
+
+Type-safe, unambiguous, LLM-friendly testing. Global mocks overridable per-test.
+
+```tsx
+// user.router.test.ts
+import { vertz } from '@vertz/core';
+import { userModule } from './user.module';
+
+describe('GET /users/:id', () => {
+  const app = vertz.testing.createApp({
+    modules: [userModule],
+    mocks: {
+      dbService: vertz.testing.mockService(dbService, {
+        query: async () => [{ id: '123', name: 'John', email: 'john@example.com' }],
+      }),
+    },
+  });
+
+  it('returns user by id', async () => {
+    const res = await app.get('/users/:id', {
+      params: { id: '123' },
+      state: { user: { id: 'auth-user', role: 'admin' } },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      id: '123',
+      name: 'John',
+      email: 'john@example.com',
+    });
+  });
+
+  it('returns 404 when user not found', async () => {
+    app.mock(dbService, { query: async () => [] });
+
+    const res = await app.get('/users/:id', {
+      params: { id: 'not-found' },
+      state: { user: { id: 'auth-user', role: 'admin' } },
+    });
+
+    expect(res.status).toBe(404);
+  });
+});
+```
+
+**Principles:**
+- `app.get('/users/:id', { params })` — typed, matches router definition
+- `params: { id: '123' }` — type error if param doesn't exist in route
+- `state: { user }` — type error if middleware hasn't provided it
+- `app.mock(dbService, { ... })` — override mock per test
+- Global mocks at app level, overridable per-test
+
+---
+
 ## Open Items
 
 - [ ] Guards (authentication/authorization patterns)
 - [ ] Error handling and exceptions
 - [ ] Response types and transformations
-- [ ] Testing utilities
+- [ ] Testing: auto-mock vs explicit mocks tradeoffs
 - [ ] OpenAPI generation
 - [ ] WebSocket support
 - [ ] Background jobs / queues
