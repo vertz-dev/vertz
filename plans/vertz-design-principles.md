@@ -1,6 +1,12 @@
 # Vertz Design Principles
 
-This document explains the reasoning behind Vertz's design decisions. Each principle traces back to a real problem we encountered — building products, working with LLMs, and watching teams fight their frameworks instead of shipping.
+This document explains the reasoning behind Vertz's design decisions. Each principle, decision, and convention traces back to a real problem we encountered — building products, working with LLMs, and watching teams fight their frameworks instead of shipping.
+
+---
+
+# Principles
+
+Foundational and non-negotiable. These shape every decision in the framework.
 
 ---
 
@@ -8,7 +14,7 @@ This document explains the reasoning behind Vertz's design decisions. Each princ
 
 Every design decision in Vertz traces back to one question: does the type system verify this?
 
-We chose functions over decorators because types flow through function arguments and return values — they don't flow through decorator chains. We chose generics over `as` notation because generics enforce contracts while `as` bypasses them. We chose builder patterns where compound configs would produce unreadable type errors. We chose middleware that returns its contribution instead of mutating state, because a return type is enforceable — a mutation is not.
+We chose functions over decorators because types flow through function arguments and return values — they don't flow through decorator chains. We chose generics over `as` notation because generics enforce contracts while `as` bypasses them. We chose middleware that returns its contribution instead of mutating state, because a return type is enforceable — a mutation is not.
 
 This isn't type safety for its own sake. It serves two goals:
 
@@ -17,6 +23,13 @@ This isn't type safety for its own sake. It serves two goals:
 2. **LLMs catch type errors naturally.** LLMs can run code if asked, but they rarely do during code generation. Type errors, on the other hand, are something LLMs naturally catch — they're inline, visible in the same context where code is being written.
 
 OpenAPI is not a plugin in Vertz — it's native and required. Every route with a return value must define a response schema. The compiler enforces this. The result: your API documentation is always in sync with your implementation, because they're derived from the same source of truth.
+
+**This principle is why:**
+- We use functions over decorators
+- We use generics over `as` notation
+- Middleware returns its `Provides` instead of mutating `ctx.state` via `next()`
+- Response schemas are required and compiler-enforced
+- OpenAPI generation is native, not a plugin
 
 ---
 
@@ -51,30 +64,25 @@ This extends to response schemas. If a route handler returns a value, the compil
 
 ---
 
-## 3. Middleware returns, not mutates
+## 3. Immutability by default
 
-We considered the standard `next()` pattern for middlewares but rejected it. The problem: when a middleware calls `next()` and mutates `ctx.state`, TypeScript has no way to verify that the middleware actually provided what it declared. It could call `next()` without setting `ctx.state.user`, and the route handler would fail at runtime.
+Both `deps` and `ctx` are frozen. Middleware doesn't mutate `ctx.state` — it returns its contribution, and the framework composes the state from return values.
 
-By making middleware return its contribution, the return type is enforced by the `Provides` generic. If the middleware declares `Provides: { user: User }`, TypeScript enforces the handler returns `{ user: User }`. The framework composes the state from return values.
+This prevents two categories of bugs:
+1. Shared state mutation between requests (memory leaks, data pollution)
+2. Middleware declaring it provides something but never actually setting it
 
-```tsx
-// The return type must match Provides — enforced by TypeScript
-export const authMiddleware = vertz.middleware<
-  { requestId: string },
-  { user: User }
->({
-  handler: async (ctx) => {
-    const token = ctx.raw.headers.get('authorization');
-    return { user: await verifyToken(token) };
-  },
-});
-```
-
-This also eliminates a class of LLM mistakes — forgetting to call `next()`, calling it in the wrong place, or mutating state after calling it.
+Enforcement is layered: TypeScript's `DeepReadonly<T>` at compile time, `Object.freeze()` at runtime in production, and a Proxy with helpful error messages in development.
 
 ---
 
-## 4. Compound config for simple types, builder for complex chains
+# Design Decisions
+
+Choices driven by the principles above. These explain why we picked one approach over another.
+
+---
+
+## 4. Optimize for type performance without sacrificing DX
 
 When a configuration object is small and flat, we use a compound (single object) pattern — it's easier to read and the type errors are manageable:
 
@@ -94,7 +102,7 @@ vertz.app({ ... })
   .register(userModule, { requireEmailVerification: true })
 ```
 
-The decision between compound and builder is driven by **type error readability**, not preference. If a compound config would produce an error message that requires scrolling to understand, we use a builder.
+The decision between compound and builder is driven by **type error readability**. If a compound config would produce an error message that requires scrolling to understand, we use a builder. If the type surface is small and flat, compound is simpler to read.
 
 ---
 
@@ -108,42 +116,17 @@ Reusing a name for a different concept creates subtle misunderstandings — for 
 
 ---
 
-## 6. Private by closure, not convention
+# Conventions
 
-Some frameworks use naming conventions for private methods (`_hashPassword`) or visibility modifiers (`private hashPassword()`). Both rely on discipline — nothing prevents external access.
-
-In Vertz, private service methods are private by closure. Functions defined inside the `methods` callback but not returned are genuinely inaccessible from outside:
-
-```tsx
-methods: (deps) => {
-  const hashPassword = (pw: string) => bcrypt.hash(pw, 10);
-
-  return {
-    create: async (data) => {
-      const hashed = await hashPassword(data.password);
-      // ...
-    },
-  };
-}
-```
-
-`hashPassword` doesn't exist on the service's public API. Not by convention — by language mechanics.
+Strong conventions where types and the compiler don't cover. These keep codebases consistent across teams and LLMs.
 
 ---
 
-## 7. Immutability by default
+## 6. Strong conventions where types and build don't cover
 
-Both `deps` and `ctx` are frozen. Middleware doesn't mutate `ctx.state` — it returns its contribution, and the framework composes the state from return values.
+Not everything can be enforced by the type system or the compiler. For these areas, Vertz defines strong conventions so that both humans and LLMs produce consistent, predictable code.
 
-This prevents two categories of bugs:
-1. Shared state mutation between requests (memory leaks, data pollution)
-2. Middleware declaring it provides something but never actually setting it
-
-Enforcement is layered: TypeScript's `DeepReadonly<T>` at compile time, `Object.freeze()` at runtime in production, and a Proxy with helpful error messages in development.
-
----
-
-## 8. Natural speech naming
+### Natural speech naming
 
 Schema and operation names follow how you'd say them in conversation:
 
@@ -163,9 +146,7 @@ activeStatusSet   ✗
 
 The pattern is **verb + context + noun**. This matters because LLMs generate names based on the description they're given. If the description says "bulk create users," the natural output is `bulkCreateUsers`. Fighting that order means fighting the LLM's instinct.
 
----
-
-## 9. Schemas live with their endpoint
+### One schema file per endpoint
 
 Each endpoint gets its own schema file in a `schemas/` folder:
 
@@ -181,11 +162,7 @@ Not a single file with all schemas, and not inline in the router. Separate files
 - Code review shows exactly what changed per endpoint
 - No merge conflicts from multiple people editing the same schema file
 
-If a route handler returns a value, the compiler requires a response schema. This is enforced, not optional — it guarantees OpenAPI docs match actual behavior.
-
----
-
-## 10. Flat modules, not subfolders
+### Flat modules, not subfolders
 
 Module folders are flat:
 
