@@ -474,4 +474,5 @@ Vitest is configured with `globals: true` — `vi`, `describe`, `it`, `expect` a
 - [ ] Snapshot testing support
 - [ ] Test coverage tooling integration
 - [ ] Testing WebSocket routes (future)
+- [ ] Testing SSE routes (future)
 - [ ] Testing background jobs (future)
