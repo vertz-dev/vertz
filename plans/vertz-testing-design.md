@@ -116,7 +116,7 @@ const res = await app
 
 ### Typed Request Data
 
-Params, body, and query are typed based on the route's schema definitions:
+Params, body, query, and headers are typed based on the route's schema definitions:
 
 ```tsx
 // Params typed per route
@@ -138,22 +138,41 @@ app.post('/users', {
 app.post('/users', {
   body: { name: 123 },         // ✗ Type error — name must be string
 });
+
+// Headers typed per route
+app.post('/webhooks/stripe', {
+  headers: {
+    'stripe-signature': 'whsec_test123',  // ✓ Required by route schema
+  },
+  body: { ... },
+});
 ```
 
 ### Typed Response
 
-`res.body` is typed based on the route's response schema:
+`res.body` is a union type — success responses are typed from the route's response schema, error responses follow a standard error shape:
 
 ```tsx
 const res = await app.get('/users/:id', { params: { id: '123' } });
 
-res.status;         // number
-res.body.id;        // string ✓
-res.body.name;      // string ✓
-res.body.email;     // string ✓
-res.body.createdAt; // Date ✓
-res.body.age;       // ✗ Type error — not in response schema
+if (res.ok) {
+  // res.body is typed as the route's response schema
+  res.body.id;        // string ✓
+  res.body.name;      // string ✓
+  res.body.email;     // string ✓
+  res.body.createdAt; // Date ✓
+  res.body.age;       // ✗ Type error — not in response schema
+}
+
+if (!res.ok) {
+  // res.body is typed as ErrorResponse
+  res.body.message;   // string ✓
+  res.body.code;      // string ✓ (e.g., 'NOT_FOUND', 'VALIDATION_ERROR')
+  res.body.details;   // unknown (optional, validation errors etc.)
+}
 ```
+
+`res.ok` is `true` for 2xx status codes, `false` otherwise. TypeScript narrows `res.body` based on the check — no manual casting needed.
 
 ### Response Validation
 
@@ -170,14 +189,12 @@ In test mode, the framework validates handler return values against the response
 
 ## Mocking
 
-### Three Levels
+### Two Scopes
 
-| Level | API | Scope |
+| Scope | API | Applies to |
 |---|---|---|
-| App-level | `.mock(service, impl)` | All tests in file |
-| App-level | `.mockMiddleware(middleware, result)` | All tests in file |
-| Per-request | `.mock(service, impl)` on request builder | Single request |
-| Per-request | `.mockMiddleware(middleware, result)` on request builder | Single request |
+| App-level | `.mock(service, impl)` / `.mockMiddleware(middleware, result)` | All requests |
+| Per-request | `.mock()` / `.mockMiddleware()` on request builder | Single request |
 
 Per-request overrides take precedence over app-level defaults.
 
@@ -393,8 +410,7 @@ describe('AuthService', () => {
     })
     .env({
       JWT_SECRET: 'a]eN9$mR!pL3xQ7v@wK2yB8cF0gH5jT',
-    })
-    .build();
+    });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -430,13 +446,28 @@ describe('AuthService', () => {
 | Middleware mock by reference | `.mockMiddleware(authMiddleware, ...)` — typed to Provides generic |
 | Non-mocked middlewares run | Real middleware execution by default, mock only what you need |
 | Prisma-like mock shape | Matches the ORM pattern used in services |
+| Vitest as test runner | Fast, ESM-native, TypeScript-first, `vi.fn()` built-in |
+| Union response body | `res.ok` narrows body to success or error type — no manual casting |
+| Typed request headers | Routes that define a `headers` schema get typed headers in tests |
+
+---
+
+## Test Runner
+
+Vertz uses **Vitest** as its test runner. Not configurable — one way to do things.
+
+Why Vitest:
+- ESM-native — matches Vertz's module system
+- TypeScript-first — no separate compilation step
+- `vi.fn()`, `vi.spyOn()` built-in — no extra mocking library
+- Compatible with `expect` API from Jest (familiar)
+- Fast watch mode with HMR
 
 ---
 
 ## Open Items
 
 - [ ] Auto-mock vs explicit mocks tradeoffs (full analysis needed)
-- [ ] Test runner recommendation (Vitest preferred?)
 - [ ] Snapshot testing support
 - [ ] Test coverage tooling integration
 - [ ] Testing WebSocket routes (future)
