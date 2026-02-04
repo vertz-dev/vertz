@@ -82,25 +82,20 @@ app.post('/orders')        // ✗ Type error — orderModule not registered
 
 ### Request Builder
 
-Each request returns a builder. Chain `.mock()` and `.mockMiddleware()` for per-request overrides. Execute with `.send()` or simply `await` (the builder is thenable).
+Each request returns a thenable builder. Chain `.mock()` and `.mockMiddleware()` for per-request overrides. `await` the builder to execute the request.
 
 ```tsx
-// Explicit .send()
-const res = await app
-  .get('/users/:id', { params: { id: '123' } })
-  .send();
-
-// Implicit — thenable, await triggers .send() automatically
+// Simple request
 const res = await app
   .get('/users/:id', { params: { id: '123' } });
 
-// Both work. The builder implements .then():
-// class RequestBuilder {
-//   then(resolve, reject) {
-//     return this.send().then(resolve, reject);
-//   }
-// }
+// With per-request overrides
+const res = await app
+  .get('/users/:id', { params: { id: '123' } })
+  .mockMiddleware(authMiddleware, { user: { id: 'viewer', role: 'viewer' } });
 ```
+
+The builder implements `.then()` internally — `await` triggers execution.
 
 ### Per-Request Overrides
 
@@ -116,8 +111,7 @@ const res = await app
     user: {
       findUnique: vi.fn().mockResolvedValueOnce(null),
     },
-  })
-  .send();
+  });
 ```
 
 ### Typed Request Data
@@ -431,7 +425,7 @@ describe('AuthService', () => {
 | Typed route strings | Autocomplete for registered routes, impossible to test non-existent routes |
 | Typed response body | `res.body` matches response schema, catches misuse in assertions |
 | Response validation in tests | Catches handler/schema mismatches that break OpenAPI docs |
-| `.send()` + thenable | Explicit when chaining overrides, implicit for simple requests |
+| Thenable builder (no `.send()`) | One way to execute — `await` the builder. No ambiguity |
 | Mock by reference | `.mock(dbService, ...)` not `.mock('dbService', ...)` — refactor-safe |
 | Middleware mock by reference | `.mockMiddleware(authMiddleware, ...)` — typed to Provides generic |
 | Non-mocked middlewares run | Real middleware execution by default, mock only what you need |
