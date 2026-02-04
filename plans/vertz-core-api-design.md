@@ -87,19 +87,20 @@ $ vertz dev
 
 ## Middlewares
 
-Middlewares use generics to define `Requires` and `Provides` types for typed state composition.
-The `handler` returns what it provides — TypeScript enforces the return type matches the `Provides` generic.
+Middlewares use schemas to define what they require and provide — same pattern as routes. No generics needed.
+The `handler` returns what it provides — the `provides` schema enforces the return type.
 There is no `next()` — the framework handles execution order.
 
 ```tsx
 // middlewares/request-id.middleware.ts
 import { vertz } from '@vertz/core';
+import { s } from '@vertz/schema';
 
-export const requestIdMiddleware = vertz.middleware<
-  {}, // requires nothing
-  { requestId: string } // provides
->({
-  handler: async (ctx) => {
+export const requestIdMiddleware = vertz.middleware({
+  provides: s.object({
+    requestId: s.string(),
+  }),
+  handler: async () => {
     return { requestId: crypto.randomUUID() };
   },
 });
@@ -108,15 +109,26 @@ export const requestIdMiddleware = vertz.middleware<
 ```tsx
 // middlewares/auth.middleware.ts
 import { vertz } from '@vertz/core';
-import { User } from '../types';
+import { s } from '@vertz/schema';
+import { tokenService } from '../modules/core/token.service';
 
-export const authMiddleware = vertz.middleware<
-  { requestId: string }, // requires
-  { user: User } // provides
->({
+export const authMiddleware = vertz.middleware({
+  inject: { tokenService },
+  headers: s.object({
+    authorization: s.string(),
+  }),
+  requires: s.object({
+    requestId: s.string(),
+  }),
+  provides: s.object({
+    user: s.object({
+      id: s.string(),
+      role: s.enum(['admin', 'user', 'viewer']),
+    }),
+  }),
   handler: async (ctx) => {
-    const token = ctx.raw.headers.get('authorization');
-    return { user: await verifyToken(token) };
+    const user = await ctx.tokenService.verify(ctx.headers.authorization);
+    return { user };
   },
 });
 ```
@@ -124,17 +136,33 @@ export const authMiddleware = vertz.middleware<
 ```tsx
 // middlewares/admin.middleware.ts
 import { vertz } from '@vertz/core';
-import { User } from '../types';
+import { s } from '@vertz/schema';
 
-export const adminMiddleware = vertz.middleware<
-  { user: User }, // requires
-  { isAdmin: boolean } // provides
->({
+export const adminMiddleware = vertz.middleware({
+  requires: s.object({
+    user: s.object({
+      id: s.string(),
+      role: s.enum(['admin', 'user', 'viewer']),
+    }),
+  }),
+  provides: s.object({
+    isAdmin: s.boolean(),
+  }),
   handler: async (ctx) => {
     return { isAdmin: ctx.state.user.role === 'admin' };
   },
 });
 ```
+
+**Middleware config:**
+- `inject` — services the middleware depends on (accessed via `ctx`)
+- `headers` — request headers this middleware validates and reads (typed on `ctx.headers`)
+- `params` — path params this middleware validates and reads (typed on `ctx.params`)
+- `query` — query params this middleware validates and reads (typed on `ctx.query`)
+- `requires` — state from previous middlewares (typed on `ctx.state`)
+- `provides` — state this middleware contributes (enforced on return value)
+
+All optional. A middleware can define only what it needs.
 
 **Type errors on wrong ordering:**
 
@@ -399,12 +427,52 @@ userRouter.post('/:id/activate', {
 });
 ```
 
+### Request Headers
+
+Routes that need specific headers define them with a schema. Validated and typed like params, body, and query:
+
+```tsx
+// webhooks/stripe.router.ts
+import { s } from '@vertz/schema';
+
+stripeRouter.post('/stripe', {
+  headers: s.object({
+    'stripe-signature': s.string(),
+  }),
+  body: stripeEventBody,
+  handler: async (ctx) => {
+    const signature = ctx.headers['stripe-signature']; // typed as string
+    const event = verifyStripeSignature(ctx.body, signature);
+    return processEvent(event);
+  },
+});
+```
+
+```tsx
+// API key validation on a specific route
+userRouter.get('/', {
+  headers: s.object({
+    'x-api-key': s.string().min(1),
+  }),
+  query: listUsersQuery,
+  response: listUsersResponse,
+  handler: async (ctx) => {
+    return ctx.userService.list(ctx.query);
+  },
+});
+```
+
+The schema only validates the headers it defines — extra headers are never stripped or rejected. Headers not in the schema are still accessible via `ctx.raw`.
+
+Most header-based logic (auth, request ID, etc.) belongs in middlewares, not route-level schemas. Route-level `headers` is for cases where a specific endpoint requires a specific header — webhook signatures, API keys for a particular route, content negotiation, etc.
+
 **Route `ctx` provides (request context):**
 - `ctx.params` - typed path parameters
 - `ctx.body` - typed request body
 - `ctx.query` - typed query parameters
+- `ctx.headers` - typed request headers (only if route defines a `headers` schema)
 - `ctx.state` - immutable state composed from middleware return values (typed)
-- `ctx.raw` - raw request object
+- `ctx.raw` - raw request object (all headers, full request)
 - `ctx.userService` - injected services
 - `ctx.options` - module options
 - `ctx.env` - environment variables
@@ -414,7 +482,7 @@ userRouter.post('/:id/activate', {
 - `body` - request body from schema file (always optional, regardless of HTTP method)
 - `query` - query parameters from schema file
 - `response` - response schema from schema file (**required if handler returns a value**, enforced by compiler)
-- `headers` - request headers, inline
+- `headers` - request headers, inline (only for route-specific headers; auth/common headers belong in middlewares)
 
 ---
 
@@ -503,8 +571,8 @@ The framework uses two distinct naming conventions to avoid ambiguity:
 | | `deps` (dependencies) | `ctx` (request context) |
 |---|---|---|
 | Created | Once at startup | Per request |
-| Used by | Services | Router handlers, middlewares |
-| Contains | env, options, injected services | params, body, query, state, raw + service refs |
+| Used by | Services, middlewares (injected services) | Router handlers, middlewares (request data) |
+| Contains | env, options, injected services | params, body, query, headers, state, raw + service refs |
 | Services access request data | Via function arguments | N/A |
 
 ```tsx
@@ -560,56 +628,85 @@ handler: async (ctx) => {
 
 ## Integration Testing
 
-Type-safe, unambiguous, LLM-friendly testing. Global mocks overridable per-test.
+Type-safe, unambiguous, LLM-friendly testing using Vitest. Builder pattern mirrors production app composition. See [Testing Design](./vertz-testing-design.md) for the full design.
 
 ```tsx
 // user.router.test.ts
 import { vertz } from '@vertz/core';
 import { userModule } from './user.module';
+import { coreModule } from '../core/core.module';
+import { dbService } from '../core/db.service';
+import { authMiddleware } from '../../middlewares/auth.middleware';
 
 describe('GET /users/:id', () => {
-  const app = vertz.testing.createApp({
-    modules: [userModule],
-    mocks: {
-      dbService: vertz.testing.mockService(dbService, {
-        query: async () => [{ id: '123', name: 'John', email: 'john@example.com' }],
-      }),
+  const mockDb = {
+    user: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
     },
+  };
+
+  const app = vertz.testing
+    .createApp()
+    .env({
+      DATABASE_URL: 'postgres://test:test@localhost/test',
+      JWT_SECRET: 'a]eN9$mR!pL3xQ7v@wK2yB8cF0gH5jT',
+      NODE_ENV: 'development',
+    })
+    .mock(dbService, mockDb)
+    .mockMiddleware(authMiddleware, {
+      user: { id: 'default-user', role: 'admin' },
+    })
+    .register(coreModule)
+    .register(userModule, {
+      requireEmailVerification: false,
+      maxLoginAttempts: 5,
+    });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
   it('returns user by id', async () => {
-    const res = await app.get('/users/:id', {
-      params: { id: '123' },
-      state: { user: { id: 'auth-user', role: 'admin' } },
+    mockDb.user.findUnique.mockResolvedValueOnce({
+      id: '123',
+      name: 'John',
+      email: 'john@example.com',
+      createdAt: new Date('2025-01-01'),
     });
+
+    const res = await app
+      .get('/users/:id', { params: { id: '123' } });
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       id: '123',
       name: 'John',
       email: 'john@example.com',
+      createdAt: expect.any(Date),
     });
   });
 
-  it('returns 404 when user not found', async () => {
-    app.mock(dbService, { query: async () => [] });
+  it('returns 403 for non-admin', async () => {
+    const res = await app
+      .get('/users/:id', { params: { id: '123' } })
+      .mockMiddleware(authMiddleware, {
+        user: { id: 'viewer', role: 'viewer' },
+      });
 
-    const res = await app.get('/users/:id', {
-      params: { id: 'not-found' },
-      state: { user: { id: 'auth-user', role: 'admin' } },
-    });
-
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(403);
   });
 });
 ```
 
-**Principles:**
-- `app.get('/users/:id', { params })` — typed, matches router definition
-- `params: { id: '123' }` — type error if param doesn't exist in route
-- `state: { user }` — type error if middleware hasn't provided it
-- `app.mock(dbService, { ... })` — override mock per test
-- Global mocks at app level, overridable per-test
+**Key design decisions:**
+- `app.get('/users/:id', { params })` — typed route strings with autocomplete
+- `.mock(dbService, ...)` — mock by reference, not string. Refactor-safe, typed.
+- `.mockMiddleware(authMiddleware, ...)` — typed to middleware's `Provides` generic
+- Per-request overrides via chained `.mockMiddleware()` on the request builder
+- `res.body` is a union: success type (from response schema) or error type (standard shape). `res.ok` narrows it.
+- No `.send()` — `await` the builder. One way to do things.
 
 ---
 
