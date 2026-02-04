@@ -6,9 +6,9 @@ TypeScript-first schema validation library for the Vertz framework. Follows the 
 
 Works standalone. Integrates natively with `@vertz/core` and `@vertz/compiler`.
 
-**All code is written from scratch** in `packages/schema/`. Every line is generated fresh following strict TDD.
+All code is written from scratch in `packages/schema/`. Every line is generated fresh following strict TDD — one test at a time, write one failing test, implement just enough to pass, refactor, repeat.
 
-**Development process: Strict TDD.** One test at a time — write one failing test, implement just enough to pass, refactor, repeat.
+See also: [Core API Design](./vertz-core-api-design.md) (consumer of this package), [Testing Design](./vertz-testing-design.md).
 
 ---
 
@@ -34,7 +34,7 @@ s.any()         s.unknown()     s.never()
 s.void()
 ```
 
-Convenience: `s.int()` → `s.number().int()`, `s.int32()` → `s.number().int().min(-2147483648).max(2147483647)`
+Convenience: `s.int()` → `s.number().int()`
 
 ### Composite Types
 
@@ -45,7 +45,8 @@ s.tuple([s.string(), s.number()])
 s.union([s.string(), s.number()])
 s.discriminatedUnion('type', [schemaA, schemaB])
 s.intersection(schemaA, schemaB)
-s.record(s.string())              // Record<string, string>
+s.record(s.string())              // Record<string, string> — single arg = value schema, implicit string key
+s.record(s.string(), s.number())  // Record<string, number> — two args = key schema + value schema
 s.map(s.string(), s.number())
 s.set(s.string())
 s.enum(['a', 'b', 'c'])
@@ -61,7 +62,7 @@ s.custom<T>((val): val is T => ...) // Arbitrary validation
 s.lazy(() => schema)              // Recursive types
 ```
 
-### String Formats (Zod v4 standalone style)
+### String Formats (standalone — one way to do things)
 
 ```typescript
 s.email()     s.uuid()      s.url()       s.hostname()
@@ -71,12 +72,19 @@ s.jwt()       s.cuid()      s.ulid()      s.nanoid()
 s.iso.date()  s.iso.time()  s.iso.datetime()  s.iso.duration()
 ```
 
+Each format is a **standalone factory method** — there is no `.email()`, `.uuid()`, `.url()`, etc. on `StringSchema`. One way to create an email schema: `s.email()`. This follows the framework's one-way principle: one obvious path per intent, no aliases that do the same thing from different entry points.
+
+Format schemas extend `StringSchema` internally, so all string methods (`.min()`, `.max()`, `.regex()`, `.trim()`, etc.) are available on them.
+
 ### Coercion
 
 ```typescript
 s.coerce.string()   s.coerce.number()
 s.coerce.boolean()  s.coerce.bigint()
+s.coerce.date()
 ```
+
+`s.date()` validates Date objects strictly — no string-to-Date coercion. Use `s.coerce.date()` for auto-coercion from strings/numbers.
 
 ### String Methods
 
@@ -128,7 +136,7 @@ Any schema can be given a name via `.id()`. Named schemas become `$ref` entries 
 
 ```typescript
 // Name a primitive — produces a $ref in JSON Schema output
-const UserId = s.string().uuid().id('UserId');
+const UserId = s.uuid().id('UserId');
 
 // Name a composite
 const Address = s.object({
@@ -279,8 +287,10 @@ abstract class Schema<O, I = O> { ... }
 
 1. Type check (is it the expected JS type?)
 2. Constraint validation (min, max, regex, etc.)
-3. Transforms (transform, pipe)
-4. Refinements (refine, superRefine, check)
+3. Refinements (refine, superRefine, check) — receive the **pre-transform** value
+4. Transforms (transform, pipe) — output may differ from input type
+
+Refinements validate the base-typed value before transforms alter it. This means `.refine()` on `s.string().transform(Number)` receives a `string`, not a `number`. To validate the transformed output, use `.pipe()` to chain into a second schema with its own refinements.
 
 ### Error System
 
@@ -333,45 +343,73 @@ Named schemas and lazy schemas both use `$ref`/`$defs` in the per-schema JSON Sc
 
 ```
 packages/schema/
-  src/
-    index.ts                          # Public API + factory object
-    core/
-      schema.ts                       # Base Schema<O, I>, Optional, Nullable, Default
-      types.ts                        # SchemaMetadata, SchemaType, ValidationRules
-      errors.ts                       # ErrorCode, ValidationIssue, ParseError
-      parse-context.ts                # ParseContext for issue collection
-      registry.ts                     # Named schema registry for $ref resolution
-    schemas/
-      string.ts                       number.ts
-      boolean.ts                      bigint.ts
-      symbol.ts                       date.ts
-      object.ts                       array.ts
-      tuple.ts                        enum.ts
-      union.ts                        discriminated-union.ts
-      intersection.ts                 record.ts
-      map.ts                          set.ts
-      literal.ts                      any.ts (Any, Unknown, Null, Undefined, Void, Never)
-      lazy.ts                         coerced.ts
-      custom.ts                       instanceof.ts
-      file.ts                         nan.ts
-    schemas/formats/
-      email.ts        uuid.ts         url.ts          hostname.ts
-      ipv4.ts         ipv6.ts         base64.ts       hex.ts
-      jwt.ts          cuid.ts         ulid.ts         nanoid.ts
-      iso.ts
-      index.ts
-    transforms/
-      transform.ts                    pipe.ts         preprocess.ts
-    refinements/
-      refine.ts                       super-refine.ts  check.ts
-    effects/
-      brand.ts                        readonly.ts      catch.ts
-    validation/
-      validators.ts                   formats.ts
-    utils/
-      type-inference.ts
-    introspection/
-      json-schema.ts
+├── src/
+│   ├── index.ts                    # Public API + factory object
+│   ├── core/
+│   │   ├── schema.ts               # Base Schema<O, I>, Optional, Nullable, Default
+│   │   ├── types.ts                # SchemaMetadata, SchemaType, ValidationRules
+│   │   ├── errors.ts               # ErrorCode, ValidationIssue, ParseError
+│   │   ├── parse-context.ts        # ParseContext for issue collection
+│   │   └── registry.ts             # Named schema registry for $ref resolution
+│   ├── schemas/
+│   │   ├── string.ts
+│   │   ├── number.ts
+│   │   ├── boolean.ts
+│   │   ├── bigint.ts
+│   │   ├── symbol.ts
+│   │   ├── date.ts
+│   │   ├── object.ts
+│   │   ├── array.ts
+│   │   ├── tuple.ts
+│   │   ├── enum.ts
+│   │   ├── union.ts
+│   │   ├── discriminated-union.ts
+│   │   ├── intersection.ts
+│   │   ├── record.ts
+│   │   ├── map.ts
+│   │   ├── set.ts
+│   │   ├── literal.ts
+│   │   ├── any.ts                  # Any, Unknown, Null, Undefined, Void, Never
+│   │   ├── lazy.ts
+│   │   ├── coerced.ts
+│   │   ├── custom.ts
+│   │   ├── instanceof.ts
+│   │   ├── file.ts
+│   │   ├── nan.ts
+│   │   └── formats/
+│   │       ├── index.ts
+│   │       ├── email.ts
+│   │       ├── uuid.ts
+│   │       ├── url.ts
+│   │       ├── hostname.ts
+│   │       ├── ipv4.ts
+│   │       ├── ipv6.ts
+│   │       ├── base64.ts
+│   │       ├── hex.ts
+│   │       ├── jwt.ts
+│   │       ├── cuid.ts
+│   │       ├── ulid.ts
+│   │       ├── nanoid.ts
+│   │       └── iso.ts
+│   ├── transforms/
+│   │   ├── transform.ts
+│   │   ├── pipe.ts
+│   │   └── preprocess.ts
+│   ├── refinements/
+│   │   ├── refine.ts
+│   │   ├── super-refine.ts
+│   │   └── check.ts
+│   ├── effects/
+│   │   ├── brand.ts
+│   │   ├── readonly.ts
+│   │   └── catch.ts
+│   ├── validation/
+│   │   ├── validators.ts
+│   │   └── formats.ts
+│   ├── utils/
+│   │   └── type-inference.ts
+│   └── introspection/
+│       └── json-schema.ts
 ```
 
 ---
@@ -441,11 +479,32 @@ All format validators: uuid, url, hostname, ipv4, ipv6, base64, hex, jwt, cuid, 
 
 `MapSchema`, `SetSchema`, `SymbolSchema`, `FileSchema`
 
+**Files:** `src/schemas/map.ts`, `src/schemas/set.ts`, `src/schemas/symbol.ts`, `src/schemas/file.ts`
+
+**Tests first:**
+- `__tests__/unit/schemas/map.test.ts`
+- `__tests__/unit/schemas/set.test.ts`
+- `__tests__/unit/schemas/symbol.test.ts`
+- `__tests__/unit/schemas/file.test.ts`
+
 ### Phase 7: JSON Schema Output Completions
 
-Fix/add: named schemas (`$ref`/`$defs` via `.id()`), tuple (`prefixItems`), discriminatedUnion (`discriminator`), intersection (`allOf`), strict (`additionalProperties: false`), nullable, record, lazy (`$ref`/`$defs`), number exclusiveMin/Max.
+Fix/add JSON Schema output for all schema types:
+- Named schemas → `$ref` + `$defs` via `.id()`
+- Tuple → `prefixItems` + `items` (for `.rest()`)
+- DiscriminatedUnion → `oneOf` + `discriminator`
+- Intersection → `allOf`
+- Strict object → `additionalProperties: false`
+- Nullable → `type: ["string", "null"]` or `anyOf`
+- Record → `additionalProperties` with value schema
+- Lazy/recursive → `$ref` + `$defs`
+- Number → `exclusiveMinimum`/`exclusiveMaximum` for `.gt()`/`.lt()`
+- Date → `type: "string", format: "date-time"` (JSON has no Date type)
 
-**Tests first:** `__tests__/integration/openapi-output.test.ts`, `__tests__/integration/named-schemas.test.ts`
+**Tests first:**
+- `__tests__/integration/openapi-output.test.ts`
+- `__tests__/integration/named-schemas.test.ts`
+- `__tests__/integration/recursive-schemas.test.ts`
 
 ---
 
@@ -577,4 +636,13 @@ After implementation:
 4. JSON Schema output matches OpenAPI v3.1 spec for all schema types
 5. Named schemas (`.id()`) produce correct `$ref`/`$defs` in JSON Schema output
 6. Zero runtime dependencies confirmed in `package.json`
-7. Existing `@vertz/core` and `@vertz/compiler` imports still work (backward compatible)
+
+---
+
+## Open Items
+
+- [ ] **Date serialization in responses** — Should `s.date()` output `type: "string", format: "date-time"` in JSON Schema (since JSON has no Date type)? Should the framework's response serialization layer auto-convert Date → ISO string, or should schema provide a `.toISOString()` convenience method on DateSchema?
+- [ ] **`.brand()` and JSON Schema** — Brands are type-level only. JSON Schema should ignore them (no output). Confirm this is correct.
+- [ ] **`.readonly()` and JSON Schema** — Should `.readonly()` emit `readOnly: true` in JSON Schema output? OpenAPI v3.1 supports `readOnly`.
+- [ ] **`s.lazy()` circular `$ref`** — How does `.toJSONSchema()` handle circular references? Needs a visited-set or depth limit to avoid infinite recursion.
+- [ ] **Core API plan alignment** — The [Core API Design](./vertz-core-api-design.md) has been updated to use standalone format factories (`s.email()`, `s.uuid()`, `s.url()`). Verify no remaining references to chained format methods across all plans.
