@@ -159,6 +159,7 @@ export const adminMiddleware = vertz.middleware({
 - `headers` — request headers this middleware validates and reads (typed on `ctx.headers`)
 - `params` — path params this middleware validates and reads (typed on `ctx.params`)
 - `query` — query params this middleware validates and reads (typed on `ctx.query`)
+- `body` — request body this middleware validates and reads (typed on `ctx.body`)
 - `requires` — state from previous middlewares (typed on `ctx.state`)
 - `provides` — state this middleware contributes (enforced on return value)
 
