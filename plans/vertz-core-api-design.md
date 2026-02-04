@@ -434,7 +434,7 @@ userRouter.get('/', {
 });
 ```
 
-Headers not defined in the schema are still accessible via `ctx.raw` — the schema only defines what gets **validated and typed** on `ctx.headers`.
+The schema only validates the headers it defines — extra headers are never stripped or rejected. Headers not in the schema are still accessible via `ctx.raw`.
 
 Most header-based logic (auth, request ID, etc.) belongs in middlewares, not route-level schemas. Route-level `headers` is for cases where a specific endpoint requires a specific header — webhook signatures, API keys for a particular route, content negotiation, etc.
 
