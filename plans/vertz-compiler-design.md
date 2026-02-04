@@ -18,7 +18,7 @@ See also: [Core API Design](./vertz-core-api-design.md), [Schema Design](./vertz
 
 Parse the functional API patterns:
 - `vertz.app()` + `.middlewares()` + `.register()` chains
-- `vertz.middleware({ requires, provides, handler })`
+- `vertz.middleware({ inject, headers, params, query, body, requires, provides, handler })`
 - `vertz.moduleDef({ name, imports, options })`
 - `moduleDef.service({ inject, methods })`
 - `moduleDef.router({ prefix, inject })` + `.get()/.post()` chains
@@ -75,6 +75,7 @@ These checks run on every compilation. If any fail, the build fails.
 | **Schemas compile** | All schema files produce valid JSON Schema. No "invalid schema" at boot. |
 | **Response schema exists** | If a handler returns data, there's a schema defining that shape. No undocumented responses. |
 | **Module exports valid** | Only actual services can be exported. No "export not found." |
+| **Module options valid** | `.register(module, options)` options match the module's options schema. No invalid config at boot. |
 
 ### Strict mode (opt-in via `defineConfig`)
 
@@ -121,11 +122,28 @@ For OpenAPI and schema registry output, the compiler **imports and executes** sc
 
 export interface AppIR {
   app: AppDefinition;
+  env?: EnvIR;
   modules: ModuleIR[];
   middleware: MiddlewareIR[];
   schemas: SchemaIR[];
   dependencyGraph: DependencyGraphIR;
   diagnostics: Diagnostic[];
+}
+
+export interface EnvIR {
+  sourceFile: string;
+  sourceLine: number;
+  sourceColumn: number;
+  loadFiles: string[];             // ['.env', '.env.local', '.env.${NODE_ENV}']
+  schema?: SchemaRef;              // the env validation schema
+  variables: EnvVariableIR[];
+}
+
+export interface EnvVariableIR {
+  name: string;
+  type: string;
+  hasDefault: boolean;
+  required: boolean;
 }
 
 export interface AppDefinition {
@@ -134,6 +152,8 @@ export interface AppDefinition {
   globalMiddleware: MiddlewareRef[];
   moduleRegistrations: ModuleRegistration[];
   sourceFile: string;
+  sourceLine: number;
+  sourceColumn: number;
 }
 
 export interface ModuleRegistration {
@@ -144,6 +164,8 @@ export interface ModuleRegistration {
 export interface ModuleIR {
   name: string;
   sourceFile: string;
+  sourceLine: number;
+  sourceColumn: number;
   imports: ImportRef[];
   options?: SchemaRef;
   services: ServiceIR[];
@@ -162,6 +184,8 @@ export interface ServiceIR {
   name: string;
   moduleName: string;
   sourceFile: string;
+  sourceLine: number;
+  sourceColumn: number;
   inject: InjectRef[];
   methods: ServiceMethodIR[];
 }
@@ -181,6 +205,8 @@ export interface RouterIR {
   name: string;
   moduleName: string;
   sourceFile: string;
+  sourceLine: number;
+  sourceColumn: number;
   prefix: string;
   inject: InjectRef[];
   routes: RouteIR[];
@@ -192,6 +218,7 @@ export interface RouteIR {
   fullPath: string;             // prefix + path
   sourceFile: string;
   sourceLine: number;
+  sourceColumn: number;
   operationId: string;          // auto: moduleName_handlerName
 
   params?: SchemaRef;
@@ -208,8 +235,13 @@ export interface RouteIR {
 export interface MiddlewareIR {
   name: string;
   sourceFile: string;
+  sourceLine: number;
+  sourceColumn: number;
   inject: InjectRef[];
   headers?: SchemaRef;
+  params?: SchemaRef;
+  query?: SchemaRef;
+  body?: SchemaRef;
   requires?: SchemaRef;
   provides?: SchemaRef;
 }
@@ -223,6 +255,8 @@ export interface SchemaIR {
   name: string;                  // export name (createUserBody)
   id?: string;                   // from .id() — for components/schemas
   sourceFile: string;
+  sourceLine: number;
+  sourceColumn: number;
   namingConvention: {
     operation?: string;          // create, read, update, list, delete
     entity?: string;             // User, Todo
@@ -329,10 +363,11 @@ getArrayElements(expr): Expression[]
 | Analyzer | Parses | Produces |
 |----------|--------|----------|
 | `AppAnalyzer` | `vertz.app()`, `.middlewares()`, `.register()` chains | `AppDefinition` |
+| `EnvAnalyzer` | `vertz.env()`, schema, `.env` file references | `EnvIR` |
 | `ModuleAnalyzer` | `vertz.moduleDef()`, `vertz.module()` | `ModuleIR[]` |
 | `ServiceAnalyzer` | `moduleDef.service()` | `ServiceIR[]` (nested in modules) |
 | `RouteAnalyzer` | `moduleDef.router()`, `.get()/.post()` chains | `RouterIR[]` (nested in modules) |
-| `MiddlewareAnalyzer` | `vertz.middleware()` | `MiddlewareIR[]` |
+| `MiddlewareAnalyzer` | `vertz.middleware()` — extracts `inject`, `headers`, `params`, `query`, `body`, `requires`, `provides` | `MiddlewareIR[]` |
 | `SchemaAnalyzer` | Schema files, naming conventions, `.toJSONSchema()` execution | `SchemaIR[]` |
 | `DependencyGraphAnalyzer` | All of the above | `DependencyGraphIR` |
 
@@ -489,6 +524,7 @@ The manifest enables:
 export class Compiler {
   async compile(): Promise<CompileResult> {
     // Phase 1: Analyze (ts-morph AST)
+    const env = await envAnalyzer.analyze();
     const schemas = await schemaAnalyzer.analyze();
     const middleware = await middlewareAnalyzer.analyze();
     const modules = await moduleAnalyzer.analyze();  // includes services, routers
@@ -496,7 +532,7 @@ export class Compiler {
     const depGraph = await depGraphAnalyzer.analyze(modules, middleware);
 
     // Phase 2: Build IR
-    const ir: AppIR = { app: appDef, modules, middleware, schemas, dependencyGraph: depGraph, diagnostics };
+    const ir: AppIR = { app: appDef, env, modules, middleware, schemas, dependencyGraph: depGraph, diagnostics };
 
     // Phase 3: Validate
     await namingValidator.validate(ir);
@@ -538,7 +574,9 @@ For watch mode, track file hashes and only re-analyze changed files + their depe
 - Schema file changed → re-analyze schema, re-run schema registry, OpenAPI, manifest generators
 - Router file changed → re-analyze routes for that module, re-run route table, OpenAPI, boot, manifest
 - Module file changed → re-analyze module, cascade to dependents
-- Full recompile if app entry point changes
+- Full recompile if app entry point or env file changes
+
+**Important:** Only analyzers are incremental — they produce partial IR updates that get merged into the full IR. Validators and generators always run on the complete merged IR, because cross-cutting checks (dead code, middleware chains, duplicate routes) need global visibility.
 
 ---
 
@@ -700,7 +738,17 @@ packages/compiler/
 │   ├── analyzers/
 │   │   ├── index.ts
 │   │   ├── base-analyzer.ts               # Shared ts-morph utilities
+│   │   ├── __tests__/
+│   │   │   ├── app-analyzer.test.ts
+│   │   │   ├── env-analyzer.test.ts
+│   │   │   ├── module-analyzer.test.ts
+│   │   │   ├── service-analyzer.test.ts
+│   │   │   ├── route-analyzer.test.ts
+│   │   │   ├── middleware-analyzer.test.ts
+│   │   │   ├── schema-analyzer.test.ts
+│   │   │   └── dependency-graph-analyzer.test.ts
 │   │   ├── app-analyzer.ts                # vertz.app() + .register() chains
+│   │   ├── env-analyzer.ts                # vertz.env() schema and variable analysis
 │   │   ├── module-analyzer.ts             # vertz.moduleDef(), vertz.module()
 │   │   ├── service-analyzer.ts            # moduleDef.service()
 │   │   ├── route-analyzer.ts              # moduleDef.router() + .get/.post chains
@@ -709,28 +757,40 @@ packages/compiler/
 │   │   └── dependency-graph-analyzer.ts   # Graph construction, topological sort, cycle detection
 │   ├── validators/
 │   │   ├── index.ts
+│   │   ├── __tests__/
+│   │   │   ├── naming-validator.test.ts
+│   │   │   ├── placement-validator.test.ts
+│   │   │   ├── module-validator.test.ts
+│   │   │   └── completeness-validator.test.ts
 │   │   ├── naming-validator.ts            # {operation}{Entity}{Part} conventions
 │   │   ├── placement-validator.ts         # schemas/ folder, one per endpoint
 │   │   ├── module-validator.ts            # exports, imports, circular deps
 │   │   └── completeness-validator.ts      # response schemas, dead code
 │   ├── generators/
 │   │   ├── index.ts
+│   │   ├── __tests__/
+│   │   │   ├── openapi-generator.test.ts
+│   │   │   ├── boot-generator.test.ts
+│   │   │   ├── route-table-generator.test.ts
+│   │   │   ├── schema-registry-generator.test.ts
+│   │   │   └── manifest-generator.test.ts
 │   │   ├── base-generator.ts              # File writing, import path resolution
 │   │   ├── openapi-generator.ts
 │   │   ├── boot-generator.ts
 │   │   ├── route-table-generator.ts
 │   │   ├── schema-registry-generator.ts
 │   │   └── manifest-generator.ts
-│   ├── rendering/
-│   │   ├── code-frame.tsx                 # Ink component: source code frame with syntax highlighting
-│   │   ├── diagnostic-list.tsx            # Ink component: renders diagnostics with code frames
-│   │   ├── progress.tsx                   # Ink component: compilation phase progress
-│   │   └── summary.tsx                    # Ink component: final diagnostic summary
 │   └── utils/
+│       ├── __tests__/
+│       │   ├── ast-helpers.test.ts
+│       │   └── import-resolver.test.ts
 │       ├── ast-helpers.ts                 # ts-morph helpers for call chain parsing
 │       ├── import-resolver.ts             # Cross-file import resolution
 │       ├── path-utils.ts                  # Relative path calculation
 │       └── schema-executor.ts             # Runtime schema import + .toJSONSchema()
+```
+
+Ink rendering components live in `@vertz/cli`, not in the compiler package. The compiler produces `Diagnostic[]` with `sourceContext` — the CLI renders them. This keeps the compiler as a pure library consumable by any tool without pulling in React/Ink.
 ```
 
 ---
@@ -743,7 +803,7 @@ Define all IR types. Create pipeline skeleton with stub analyzers/generators.
 
 **Files:** `src/ir/types.ts`, `src/compiler.ts`, `src/config.ts`, `src/errors.ts`, `src/analyzers/base-analyzer.ts`, `src/generators/base-generator.ts`
 
-**Tests:** `__tests__/unit/compiler.test.ts`, `__tests__/unit/ir/types.test.ts`
+**Tests:** `src/ir/__tests__/types.test.ts`, `src/__tests__/compiler.test.ts`
 
 ### Phase 2: AST Helpers
 
@@ -751,7 +811,7 @@ Build the shared ts-morph utilities for parsing functional call chains.
 
 **Files:** `src/utils/ast-helpers.ts`, `src/utils/import-resolver.ts`
 
-**Tests:** `__tests__/unit/utils/ast-helpers.test.ts` — test each helper on in-memory ts-morph source files
+**Tests:** `src/utils/__tests__/ast-helpers.test.ts` — test each helper on in-memory ts-morph source files
 
 ### Phase 3: Schema Analyzer
 
@@ -759,23 +819,23 @@ Discover schemas, validate naming, execute `.toJSONSchema()`.
 
 **Files:** `src/analyzers/schema-analyzer.ts`, `src/utils/schema-executor.ts`
 
-**Tests:** `__tests__/unit/analyzers/schema-analyzer.test.ts`
+**Tests:** `src/analyzers/__tests__/schema-analyzer.test.ts`
 
-### Phase 4: Module and Service Analyzer
+### Phase 4: Env, Module, and Service Analyzers
 
-Parse `vertz.moduleDef()`, `vertz.module()`, `moduleDef.service()`.
+Parse `vertz.env()`, `vertz.moduleDef()`, `vertz.module()`, `moduleDef.service()`.
 
-**Files:** `src/analyzers/module-analyzer.ts`, `src/analyzers/service-analyzer.ts`
+**Files:** `src/analyzers/env-analyzer.ts`, `src/analyzers/module-analyzer.ts`, `src/analyzers/service-analyzer.ts`
 
-**Tests:** `__tests__/unit/analyzers/module-analyzer.test.ts`, `__tests__/unit/analyzers/service-analyzer.test.ts`
+**Tests:** `src/analyzers/__tests__/env-analyzer.test.ts`, `src/analyzers/__tests__/module-analyzer.test.ts`, `src/analyzers/__tests__/service-analyzer.test.ts`
 
 ### Phase 5: Middleware Analyzer
 
-Parse `vertz.middleware()`, extract `requires`/`provides`.
+Parse `vertz.middleware()`, extract `inject`, `headers`, `params`, `query`, `body`, `requires`, `provides`.
 
 **Files:** `src/analyzers/middleware-analyzer.ts`
 
-**Tests:** `__tests__/unit/analyzers/middleware-analyzer.test.ts`
+**Tests:** `src/analyzers/__tests__/middleware-analyzer.test.ts`
 
 ### Phase 6: Route Analyzer
 
@@ -783,7 +843,7 @@ Parse `moduleDef.router()` and `.get()/.post()` chains.
 
 **Files:** `src/analyzers/route-analyzer.ts`
 
-**Tests:** `__tests__/unit/analyzers/route-analyzer.test.ts`
+**Tests:** `src/analyzers/__tests__/route-analyzer.test.ts`
 
 ### Phase 7: App Analyzer and Dependency Graph
 
@@ -791,7 +851,7 @@ Parse `vertz.app()`, build dependency graph with topological sort and cycle dete
 
 **Files:** `src/analyzers/app-analyzer.ts`, `src/analyzers/dependency-graph-analyzer.ts`
 
-**Tests:** `__tests__/unit/analyzers/app-analyzer.test.ts`, `__tests__/unit/analyzers/dependency-graph-analyzer.test.ts`
+**Tests:** `src/analyzers/__tests__/app-analyzer.test.ts`, `src/analyzers/__tests__/dependency-graph-analyzer.test.ts`
 
 ### Phase 8: Validators
 
@@ -799,7 +859,7 @@ Naming conventions, file placement, module rules, completeness checks.
 
 **Files:** `src/validators/*.ts`
 
-**Tests:** `__tests__/unit/validators/naming-validator.test.ts`, etc.
+**Tests:** `src/validators/__tests__/naming-validator.test.ts`, etc.
 
 ### Phase 9: OpenAPI Generator
 
@@ -807,7 +867,7 @@ Full OpenAPI 3.1 spec from IR.
 
 **Files:** `src/generators/openapi-generator.ts`
 
-**Tests:** `__tests__/unit/generators/openapi-generator.test.ts`, snapshot tests
+**Tests:** `src/generators/__tests__/openapi-generator.test.ts`, snapshot tests
 
 ### Phase 10: Boot Sequence and Route Table Generators
 
@@ -815,7 +875,7 @@ Pre-computed boot script and static route manifest.
 
 **Files:** `src/generators/boot-generator.ts`, `src/generators/route-table-generator.ts`
 
-**Tests:** `__tests__/unit/generators/boot-generator.test.ts`, `__tests__/unit/generators/route-table-generator.test.ts`
+**Tests:** `src/generators/__tests__/boot-generator.test.ts`, `src/generators/__tests__/route-table-generator.test.ts`
 
 ### Phase 11: Schema Registry and Manifest Generators
 
@@ -823,15 +883,15 @@ Pre-collected schemas and app manifest JSON.
 
 **Files:** `src/generators/schema-registry-generator.ts`, `src/generators/manifest-generator.ts`
 
-**Tests:** `__tests__/unit/generators/schema-registry-generator.test.ts`, `__tests__/unit/generators/manifest-generator.test.ts`
+**Tests:** `src/generators/__tests__/schema-registry-generator.test.ts`, `src/generators/__tests__/manifest-generator.test.ts`
 
 ### Phase 12: CLI Integration and Incremental Compilation
 
-Wire into `vertz dev` (watch + recompile) and `vertz build` (one-shot). Non-blocking typecheck. Ink rendering.
+Wire into `vertz dev` (watch + recompile) and `vertz build` (one-shot). Non-blocking typecheck. Ink rendering components in `@vertz/cli`.
 
-**Files:** CLI commands (in `@vertz/cli` package), `src/compiler.ts` incremental mode, `src/rendering/*.tsx`
+**Files:** CLI commands (in `@vertz/cli` package), `src/compiler.ts` incremental mode
 
-**Tests:** `__tests__/integration/compiler.integration.test.ts`
+**Tests:** `src/__tests__/compiler.integration.test.ts`
 
 ---
 
@@ -943,7 +1003,8 @@ After implementation:
 - [ ] **Manifest schema** — Publish a JSON Schema for the manifest format at `https://vertz.dev/manifest.schema.json`?
 - [ ] **Error exhaustiveness analysis** — How to infer throwable error types from service methods for strict mode
 - [ ] **Ink syntax highlighting library** — Evaluate `ink-syntax-highlight` or custom Prism/Shiki integration for terminal code frames
-- [ ] **Sourcemaps for generated files** — Additive, generator-level change. IR already carries `sourceFile`/`sourceLine`. Some IR types may need `sourceColumn` added. Use `magic-string` or similar to emit `.map` files alongside generated output.
+- [ ] **Sourcemaps for generated files** — Additive, generator-level change. IR already carries `sourceFile`/`sourceLine`/`sourceColumn`. Use `magic-string` or similar to emit `.map` files alongside generated output.
+- [ ] **SSE and WebSocket support** — API design TBD (route methods vs separate construct). IR needs to represent real-time endpoints. Impacts route analyzer, OpenAPI generator (async API?), route table, manifest.
 
 ## Resolved Items
 
@@ -953,3 +1014,9 @@ After implementation:
 - [x] **CLI renderer** — Ink (React for terminals)
 - [x] **Build-time safety model** — Always-on framework plumbing guarantees + opt-in strict mode
 - [x] **OTel placement** — Runtime responsibility (`@vertz/core`), not compiler
+- [x] **Source location consistency** — All IR types include `sourceFile`, `sourceLine`, `sourceColumn`
+- [x] **Middleware body schema** — `MiddlewareIR` includes `body`, `params`, `query` in addition to `headers`
+- [x] **Env analysis** — `EnvAnalyzer` and `EnvIR` capture env schema for strict mode and manifest
+- [x] **Rendering separation** — Ink components live in `@vertz/cli`, compiler produces `Diagnostic[]` only
+- [x] **Test location convention** — `__tests__/` subfolder inside each source directory
+- [x] **Module options validation** — Added to always-on safety guarantees
