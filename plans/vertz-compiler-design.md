@@ -943,6 +943,7 @@ After implementation:
 - [ ] **Manifest schema** — Publish a JSON Schema for the manifest format at `https://vertz.dev/manifest.schema.json`?
 - [ ] **Error exhaustiveness analysis** — How to infer throwable error types from service methods for strict mode
 - [ ] **Ink syntax highlighting library** — Evaluate `ink-syntax-highlight` or custom Prism/Shiki integration for terminal code frames
+- [ ] **Sourcemaps for generated files** — Additive, generator-level change. IR already carries `sourceFile`/`sourceLine`. Some IR types may need `sourceColumn` added. Use `magic-string` or similar to emit `.map` files alongside generated output.
 
 ## Resolved Items
 
