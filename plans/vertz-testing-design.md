@@ -222,12 +222,12 @@ Mock by service reference. The mock shape is typed to match the service's public
 
 ### Middleware Mocks
 
-Mock by middleware reference. The result is typed to match the middleware's `Provides` generic:
+Mock by middleware reference. The result is typed to match the middleware's `provides` schema:
 
 ```tsx
 // authMiddleware provides { user: User }
 .mockMiddleware(authMiddleware, {
-  user: { id: '1', role: 'admin' },    // ✓ Matches Provides type
+  user: { id: '1', role: 'admin' },    // ✓ Matches provides schema
 })
 
 // ✗ Type error — missing `user`
@@ -443,7 +443,7 @@ describe('AuthService', () => {
 | Response validation in tests | Catches handler/schema mismatches that break OpenAPI docs |
 | Thenable builder (no `.send()`) | One way to execute — `await` the builder. No ambiguity |
 | Mock by reference | `.mock(dbService, ...)` not `.mock('dbService', ...)` — refactor-safe |
-| Middleware mock by reference | `.mockMiddleware(authMiddleware, ...)` — typed to Provides generic |
+| Middleware mock by reference | `.mockMiddleware(authMiddleware, ...)` — typed to `provides` schema |
 | Non-mocked middlewares run | Real middleware execution by default, mock only what you need |
 | Prisma-like mock shape | Matches the ORM pattern used in services |
 | Vitest as test runner | Fast, ESM-native, TypeScript-first, `vi.fn()` built-in |
