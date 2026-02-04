@@ -87,19 +87,20 @@ $ vertz dev
 
 ## Middlewares
 
-Middlewares use generics to define `Requires` and `Provides` types for typed state composition.
-The `handler` returns what it provides — TypeScript enforces the return type matches the `Provides` generic.
+Middlewares use schemas to define what they require and provide — same pattern as routes. No generics needed.
+The `handler` returns what it provides — the `provides` schema enforces the return type.
 There is no `next()` — the framework handles execution order.
 
 ```tsx
 // middlewares/request-id.middleware.ts
 import { vertz } from '@vertz/core';
+import { s } from '@vertz/schema';
 
-export const requestIdMiddleware = vertz.middleware<
-  {}, // requires nothing
-  { requestId: string } // provides
->({
-  handler: async (ctx) => {
+export const requestIdMiddleware = vertz.middleware({
+  provides: s.object({
+    requestId: s.string(),
+  }),
+  handler: async () => {
     return { requestId: crypto.randomUUID() };
   },
 });
@@ -108,15 +109,26 @@ export const requestIdMiddleware = vertz.middleware<
 ```tsx
 // middlewares/auth.middleware.ts
 import { vertz } from '@vertz/core';
-import { User } from '../types';
+import { s } from '@vertz/schema';
+import { tokenService } from '../modules/core/token.service';
 
-export const authMiddleware = vertz.middleware<
-  { requestId: string }, // requires
-  { user: User } // provides
->({
-  handler: async (ctx) => {
-    const token = ctx.raw.headers.get('authorization');
-    return { user: await verifyToken(token) };
+export const authMiddleware = vertz.middleware({
+  inject: { tokenService },
+  headers: s.object({
+    authorization: s.string(),
+  }),
+  requires: s.object({
+    requestId: s.string(),
+  }),
+  provides: s.object({
+    user: s.object({
+      id: s.string(),
+      role: s.enum(['admin', 'user', 'viewer']),
+    }),
+  }),
+  handler: async (ctx, deps) => {
+    const user = await deps.tokenService.verify(ctx.headers.authorization);
+    return { user };
   },
 });
 ```
@@ -124,17 +136,33 @@ export const authMiddleware = vertz.middleware<
 ```tsx
 // middlewares/admin.middleware.ts
 import { vertz } from '@vertz/core';
-import { User } from '../types';
+import { s } from '@vertz/schema';
 
-export const adminMiddleware = vertz.middleware<
-  { user: User }, // requires
-  { isAdmin: boolean } // provides
->({
+export const adminMiddleware = vertz.middleware({
+  requires: s.object({
+    user: s.object({
+      id: s.string(),
+      role: s.enum(['admin', 'user', 'viewer']),
+    }),
+  }),
+  provides: s.object({
+    isAdmin: s.boolean(),
+  }),
   handler: async (ctx) => {
     return { isAdmin: ctx.state.user.role === 'admin' };
   },
 });
 ```
+
+**Middleware config:**
+- `inject` — services the middleware depends on (accessed via `deps`)
+- `headers` — request headers this middleware validates and reads (typed on `ctx.headers`)
+- `params` — path params this middleware validates and reads (typed on `ctx.params`)
+- `query` — query params this middleware validates and reads (typed on `ctx.query`)
+- `requires` — state from previous middlewares (typed on `ctx.state`)
+- `provides` — state this middleware contributes (enforced on return value)
+
+All optional. A middleware can define only what it needs.
 
 **Type errors on wrong ordering:**
 
@@ -543,7 +571,7 @@ The framework uses two distinct naming conventions to avoid ambiguity:
 | | `deps` (dependencies) | `ctx` (request context) |
 |---|---|---|
 | Created | Once at startup | Per request |
-| Used by | Services | Router handlers, middlewares |
+| Used by | Services, middlewares (injected services) | Router handlers, middlewares (request data) |
 | Contains | env, options, injected services | params, body, query, headers, state, raw + service refs |
 | Services access request data | Via function arguments | N/A |
 
