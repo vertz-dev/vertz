@@ -145,6 +145,7 @@ schemas/
 ```
 
 Not a single file with all schemas, and not inline in the router. Separate files because:
+- A single schema file inevitably grows large enough to split — and then you have two patterns for organizing schemas. Starting with one file per endpoint avoids that fork entirely.
 - An LLM generating a new endpoint creates one file — clear scope
 - Code review shows exactly what changed per endpoint
 - No merge conflicts from multiple people editing the same schema file
