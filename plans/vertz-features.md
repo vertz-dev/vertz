@@ -46,26 +46,19 @@ Standard error response shape across the framework. `res.ok` narrows response bo
 
 ## Route Splitting
 
-Deploy the same codebase as a monolith or split into multiple services — without changing application code. Select which modules and routes to boot per deployment:
+The developer writes one app. The compiler knows the full static dependency tree — every route, which router owns it, which services that router injects, which modules those services belong to, and what those modules import. This graph enables splitting at multiple levels without the developer changing application code.
 
-```tsx
-// Deploy everything
-const app = vertz.app({ ... })
-  .register(userModule)
-  .register(orderModule)
-  .register(paymentModule);
+### Compile-time splitting
 
-// Deploy only user routes
-const app = vertz.app({ ... })
-  .register(userModule);
+The compiler can generate separate bundles per module or per route group, each containing only the code and dependencies needed. The developer configures a split strategy; the compiler produces the output. One codebase, multiple deployments.
 
-// Deploy order + payment together
-const app = vertz.app({ ... })
-  .register(orderModule)
-  .register(paymentModule);
-```
+### Runtime splitting
 
-The module system makes this natural — each module is self-contained with its own services, routers, and dependencies. No code changes, no conditional imports. Just register what you need.
+On edge runtimes and workers, a request comes in, we match the route, look up which modules are needed from the static dependency tree, and instantiate only those. Lazy, on-demand, per-request — no booting the full app for a single endpoint.
+
+### What this requires from the architecture
+
+The splitting API is not designed yet. What matters now is that the framework and compiler are built so the dependency tree is **fully static and traversable** at compile time. No dynamic imports that hide dependencies. No runtime-only wiring that the compiler can't see. If the tree is complete, splitting is a compiler feature — not an application concern.
 
 ---
 
@@ -99,6 +92,10 @@ Validates schema naming conventions (`{operation}{Entity}{Part}`), file placemen
 ### OpenAPI Generation
 
 Generates OpenAPI spec from route definitions and schemas. Native — not a plugin. The spec is always accurate because it's derived from the same source as the runtime validation.
+
+### Static Dependency Tree
+
+The compiler builds a complete dependency graph — routes → routers → services → modules → imports. Fully resolved at compile time. This graph is the foundation for route splitting, tree-shaking, and bundle optimization. No dynamic imports that hide dependencies, no runtime-only wiring the compiler can't see.
 
 ### Circular Dependency Detection
 
