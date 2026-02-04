@@ -61,7 +61,7 @@ export const env = vertz.env({
   schema: s.object({
     NODE_ENV: s.enum(['development', 'staging', 'production']),
     PORT: s.number().default(3000),
-    DATABASE_URL: s.string().url(),
+    DATABASE_URL: s.url(),
     JWT_SECRET: s.string().min(32),
     CORS_ORIGINS: s.string().transform((v) => v.split(',')),
     LOG_LEVEL: s.enum(['debug', 'info', 'warn', 'error']).default('info'),
@@ -305,12 +305,12 @@ import { s } from '@vertz/schema';
 
 export const createUserBody = s.object({
   name: s.string().min(1).max(100),
-  email: s.string().email(),
+  email: s.email(),
   password: s.string().min(8),
 });
 
 export const createUserResponse = s.object({
-  id: s.string().uuid(),
+  id: s.uuid(),
   name: s.string(),
   email: s.string(),
   createdAt: s.date(),
@@ -390,7 +390,7 @@ userRouter.get('/', {
 
 // GET /users/:id
 userRouter.get('/:id', {
-  params: s.object({ id: s.string().uuid() }),  // Inline — simple enough
+  params: s.object({ id: s.uuid() }),  // Inline — simple enough
   response: readUserResponse,
   middlewares: [authMiddleware],
   handler: async (ctx) => {
@@ -409,7 +409,7 @@ userRouter.post('/', {
 
 // POST /users/:id/reset-password
 userRouter.post('/:id/reset-password', {
-  params: s.object({ id: s.string().uuid() }),
+  params: s.object({ id: s.uuid() }),
   body: resetPasswordBody,
   middlewares: [authMiddleware],
   handler: async (ctx) => {
@@ -419,7 +419,7 @@ userRouter.post('/:id/reset-password', {
 
 // POST /users/:id/activate (no body, no response body)
 userRouter.post('/:id/activate', {
-  params: s.object({ id: s.string().uuid() }),
+  params: s.object({ id: s.uuid() }),
   middlewares: [authMiddleware],
   handler: async (ctx) => {
     ctx.userService.activate(ctx.params.id);
