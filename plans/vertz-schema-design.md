@@ -86,6 +86,27 @@ s.coerce.date()
 
 `s.date()` validates Date objects strictly — no string-to-Date coercion. Use `s.coerce.date()` for auto-coercion from strings/numbers.
 
+### Date Methods
+
+```typescript
+.toISOString()   // transform: Date → ISO 8601 string (output type becomes string)
+```
+
+`.toISOString()` is a convenience transform for response schemas where the Date needs to be serialized as a string. It changes the output type from `Date` to `string`:
+
+```typescript
+// Response schema — createdAt is a Date internally, serialized as ISO string
+export const createUserResponse = s.object({
+  id: s.uuid(),
+  name: s.string(),
+  createdAt: s.date().toISOString(),
+});
+
+// Infer<typeof createUserResponse> = { id: string, name: string, createdAt: string }
+```
+
+JSON Schema output for `s.date()` is `{ type: "string", format: "date-time" }` — JSON has no native Date type, so the schema describes the wire format.
+
 ### String Methods
 
 ```typescript
@@ -641,7 +662,6 @@ After implementation:
 
 ## Open Items
 
-- [ ] **Date serialization in responses** — Should `s.date()` output `type: "string", format: "date-time"` in JSON Schema (since JSON has no Date type)? Should the framework's response serialization layer auto-convert Date → ISO string, or should schema provide a `.toISOString()` convenience method on DateSchema?
 - [ ] **`.brand()` and JSON Schema** — Brands are type-level only. JSON Schema should ignore them (no output). Confirm this is correct.
 - [ ] **`.readonly()` and JSON Schema** — Should `.readonly()` emit `readOnly: true` in JSON Schema output? OpenAPI v3.1 supports `readOnly`.
 - [ ] **`s.lazy()` circular `$ref`** — How does `.toJSONSchema()` handle circular references? Needs a visited-set or depth limit to avoid infinite recursion.
