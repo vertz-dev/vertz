@@ -463,11 +463,14 @@ Why Vitest:
 - Compatible with `expect` API from Jest (familiar)
 - Fast watch mode with HMR
 
+Vitest is configured with `globals: true` — `vi`, `describe`, `it`, `expect` are available without imports. No need to wrap Vitest primitives in a Vertz abstraction — `vi.fn()` is `vi.fn()`, not `vertz.fn()`. Adding a wrapper would create an abstraction layer with no clear benefit while hiding a well-documented API behind a proprietary one.
+
 ---
 
 ## Open Items
 
 - [ ] Auto-mock vs explicit mocks tradeoffs (full analysis needed)
+- [ ] HTTP request recording — VCR/nock-style snapshot of external HTTP calls for replay in tests
 - [ ] Snapshot testing support
 - [ ] Test coverage tooling integration
 - [ ] Testing WebSocket routes (future)
