@@ -189,3 +189,4 @@ Features planned but not yet designed:
 - [ ] MCP (Model Context Protocol) integration
 - [ ] SSR / fullstack deployment
 - [ ] Client SDK generation from OpenAPI
+- [ ] CLI generation from OpenAPI
