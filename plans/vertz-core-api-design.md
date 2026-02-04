@@ -126,8 +126,8 @@ export const authMiddleware = vertz.middleware({
       role: s.enum(['admin', 'user', 'viewer']),
     }),
   }),
-  handler: async (ctx, deps) => {
-    const user = await deps.tokenService.verify(ctx.headers.authorization);
+  handler: async (ctx) => {
+    const user = await ctx.tokenService.verify(ctx.headers.authorization);
     return { user };
   },
 });
@@ -155,7 +155,7 @@ export const adminMiddleware = vertz.middleware({
 ```
 
 **Middleware config:**
-- `inject` — services the middleware depends on (accessed via `deps`)
+- `inject` — services the middleware depends on (accessed via `ctx`)
 - `headers` — request headers this middleware validates and reads (typed on `ctx.headers`)
 - `params` — path params this middleware validates and reads (typed on `ctx.params`)
 - `query` — query params this middleware validates and reads (typed on `ctx.query`)
