@@ -15,7 +15,7 @@ See also: [Schema Design](./vertz-schema-design.md), [Core API Design](./vertz-c
 | Decision | Choice |
 |----------|--------|
 | Base class | Abstract `Schema<O, I = O>` with dual type parameters for input/output divergence |
-| Parse flow | Type check → Constraint validation → Refinements (pre-transform) → Transforms (post) |
+| Parse flow | Type check → Constraint validation → Refinements (pre-transform) → Transforms (post). Pipeline order is achieved via wrapper composition — each `.refine()`, `.transform()`, etc. returns a wrapper schema that delegates to the inner schema's `_runPipeline()` then applies its own logic |
 | Error system | `ErrorCode` enum + `ValidationIssue[]` aggregation + `ParseError extends Error` |
 | Named schemas | `.id(name)` stores metadata; JSON Schema uses `$defs`/`$ref`; compiler maps to `components/schemas` |
 | String formats | Standalone factory methods (`s.email()`, `s.uuid()`) — no chained `.email()` on StringSchema |
@@ -122,15 +122,9 @@ export abstract class Schema<O, I = O> {
   /** @internal */ _description: string | undefined;
   /** @internal */ _meta: Record<string, unknown> | undefined;
   /** @internal */ _examples: unknown[];
-  /** @internal */ _refinements: RefinementFn[];
-  /** @internal */ _transforms: TransformFn[];
-  /** @internal */ _effects: EffectDef[];
 
   constructor() {
     this._examples = [];
-    this._refinements = [];
-    this._transforms = [];
-    this._effects = [];
   }
 
   /**
@@ -177,31 +171,18 @@ export abstract class Schema<O, I = O> {
     }
   }
 
-  /** @internal Full pipeline: _parse → refinements → transforms → effects */
+  /**
+   * @internal Run the full validation pipeline for this schema.
+   *
+   * The base implementation just calls _parse() — type check + constraints.
+   * Wrapper schemas (RefinedSchema, TransformSchema, BrandedSchema, etc.)
+   * override _parse() to delegate to their inner schema's _runPipeline()
+   * and then apply their own logic. This composition-based approach means
+   * each wrapper handles exactly one concern, and the call chain naturally
+   * produces the correct order: _parse → refinements → transforms → effects.
+   */
   _runPipeline(value: unknown, ctx: ParseContext): O {
-    // 1. Type check + constraint validation (subclass _parse)
-    const parsed = this._parse(value, ctx);
-    if (ctx.hasIssues()) return parsed;
-
-    // 2. Refinements (receive pre-transform value)
-    for (const refine of this._refinements) {
-      refine(parsed, ctx);
-      if (ctx.hasIssues()) return parsed;
-    }
-
-    // 3. Transforms (may change output type)
-    let result: any = parsed;
-    for (const transform of this._transforms) {
-      result = transform(result, ctx);
-      if (ctx.hasIssues()) return result;
-    }
-
-    // 4. Effects (brand, readonly, catch — applied last)
-    for (const effect of this._effects) {
-      result = effect.apply(result, ctx);
-    }
-
-    return result;
+    return this._parse(value, ctx);
   }
 
   // --- Universal Methods ---
@@ -577,7 +558,8 @@ export class OptionalSchema<O, I> extends Schema<O | undefined, I | undefined> {
 
   _parse(value: unknown, ctx: ParseContext): O | undefined {
     if (value === undefined) return undefined;
-    return this._inner._parse(value, ctx);
+    // Delegate to _runPipeline so inner refinements/transforms/effects are applied
+    return this._inner._runPipeline(value, ctx);
   }
 
   _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
@@ -587,7 +569,12 @@ export class OptionalSchema<O, I> extends Schema<O | undefined, I | undefined> {
   }
 
   _clone(): OptionalSchema<O, I> {
-    return new OptionalSchema(this._inner);
+    const clone = new OptionalSchema(this._inner);
+    clone._id = this._id;
+    clone._description = this._description;
+    clone._meta = this._meta ? { ...this._meta } : undefined;
+    clone._examples = [...this._examples];
+    return clone;
   }
 
   /** Unwrap to get the inner schema. */
@@ -607,7 +594,8 @@ export class NullableSchema<O, I> extends Schema<O | null, I | null> {
 
   _parse(value: unknown, ctx: ParseContext): O | null {
     if (value === null) return null;
-    return this._inner._parse(value, ctx);
+    // Delegate to _runPipeline so inner refinements/transforms/effects are applied
+    return this._inner._runPipeline(value, ctx);
   }
 
   _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
@@ -620,7 +608,12 @@ export class NullableSchema<O, I> extends Schema<O | null, I | null> {
   }
 
   _clone(): NullableSchema<O, I> {
-    return new NullableSchema(this._inner);
+    const clone = new NullableSchema(this._inner);
+    clone._id = this._id;
+    clone._description = this._description;
+    clone._meta = this._meta ? { ...this._meta } : undefined;
+    clone._examples = [...this._examples];
+    return clone;
   }
 
   unwrap(): Schema<O, I> {
@@ -645,9 +638,10 @@ export class DefaultSchema<O, I> extends Schema<O, I | undefined> {
       const defaultVal = typeof this._default === 'function'
         ? (this._default as () => I)()
         : this._default;
-      return this._inner._parse(defaultVal, ctx);
+      // Delegate to _runPipeline so inner refinements/transforms/effects are applied
+      return this._inner._runPipeline(defaultVal, ctx);
     }
-    return this._inner._parse(value, ctx);
+    return this._inner._runPipeline(value, ctx);
   }
 
   _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
@@ -659,7 +653,12 @@ export class DefaultSchema<O, I> extends Schema<O, I | undefined> {
   }
 
   _clone(): DefaultSchema<O, I> {
-    return new DefaultSchema(this._inner, this._default);
+    const clone = new DefaultSchema(this._inner, this._default);
+    clone._id = this._id;
+    clone._description = this._description;
+    clone._meta = this._meta ? { ...this._meta } : undefined;
+    clone._examples = [...this._examples];
+    return clone;
   }
 
   unwrap(): Schema<O, I> {
@@ -890,9 +889,6 @@ export class StringSchema extends Schema<string, string> {
     clone._description = this._description;
     clone._meta = this._meta ? { ...this._meta } : undefined;
     clone._examples = [...this._examples];
-    clone._refinements = [...this._refinements];
-    clone._transforms = [...this._transforms];
-    clone._effects = [...this._effects];
     return clone;
   }
 }
@@ -998,11 +994,18 @@ export class NumberSchema extends Schema<number, number> {
       });
     }
 
-    if (this._rules.multipleOf !== undefined && value % this._rules.multipleOf.value !== 0) {
-      ctx.addIssue({
-        code: ErrorCode.NotMultipleOf,
-        message: this._rules.multipleOf.message ?? `Number must be a multiple of ${this._rules.multipleOf.value}`,
-      });
+    if (this._rules.multipleOf !== undefined) {
+      // Use epsilon-based comparison to handle IEEE 754 floating-point
+      // precision issues (e.g., 0.3 % 0.1 !== 0 due to rounding).
+      const step = this._rules.multipleOf.value;
+      const remainder = Math.abs(value % step);
+      const isMultiple = remainder < Number.EPSILON || Math.abs(remainder - Math.abs(step)) < Number.EPSILON;
+      if (!isMultiple) {
+        ctx.addIssue({
+          code: ErrorCode.NotMultipleOf,
+          message: this._rules.multipleOf.message ?? `Number must be a multiple of ${step}`,
+        });
+      }
     }
 
     if (this._rules.finite !== undefined && !Number.isFinite(value)) {
@@ -1129,6 +1132,10 @@ export class ObjectSchema<
     return new ObjectSchema({ ...this._shape, ...shape });
   }
 
+  merge<U extends ObjectShape>(other: ObjectSchema<U>): ObjectSchema<T & U> {
+    return new ObjectSchema({ ...this._shape, ...other._shape });
+  }
+
   pick<K extends keyof T>(keys: K[]): ObjectSchema<Pick<T, K>> {
     const picked: any = {};
     for (const key of keys) {
@@ -1217,7 +1224,14 @@ export class ObjectSchema<
 ```typescript
 // src/schemas/date.ts
 
+interface DateRules {
+  min?: { value: Date; message?: string };
+  max?: { value: Date; message?: string };
+}
+
 export class DateSchema extends Schema<Date, Date> {
+  /** @internal */ _rules: DateRules = {};
+
   _schemaType(): SchemaType {
     return SchemaType.Date;
   }
@@ -1233,7 +1247,34 @@ export class DateSchema extends Schema<Date, Date> {
       });
       return value as Date;
     }
+
+    if (this._rules.min !== undefined && value.getTime() < this._rules.min.value.getTime()) {
+      ctx.addIssue({
+        code: ErrorCode.TooSmall,
+        message: this._rules.min.message ?? `Date must be after ${this._rules.min.value.toISOString()}`,
+      });
+    }
+
+    if (this._rules.max !== undefined && value.getTime() > this._rules.max.value.getTime()) {
+      ctx.addIssue({
+        code: ErrorCode.TooBig,
+        message: this._rules.max.message ?? `Date must be before ${this._rules.max.value.toISOString()}`,
+      });
+    }
+
     return value;
+  }
+
+  min(date: Date, message?: string): DateSchema {
+    const clone = this._clone() as DateSchema;
+    clone._rules.min = { value: date, message };
+    return clone;
+  }
+
+  max(date: Date, message?: string): DateSchema {
+    const clone = this._clone() as DateSchema;
+    clone._rules.max = { value: date, message };
+    return clone;
   }
 
   /** Transform: Date → ISO 8601 string. Output type becomes string. */
@@ -1246,7 +1287,7 @@ export class DateSchema extends Schema<Date, Date> {
     return { type: 'string', format: 'date-time' };
   }
 
-  // _clone() follows same pattern
+  // _clone() follows same pattern — copies _rules, _id, _description, _meta, _examples
 }
 ```
 
@@ -1257,7 +1298,11 @@ export class DateSchema extends Schema<Date, Date> {
 
 export class CoercedStringSchema extends StringSchema {
   _parse(value: unknown, ctx: ParseContext): string {
-    // Coerce to string before validation
+    // Coerce to string before validation.
+    // Design decision: null and undefined both coerce to '' (empty string).
+    // This differs from Zod which uses String(value) for all inputs
+    // (producing "null"/"undefined"). Empty string is more useful for
+    // form handling where missing fields should be treated as blank.
     const coerced = value == null ? '' : String(value);
     return super._parse(coerced, ctx);
   }
@@ -1403,11 +1448,28 @@ export class DiscriminatedUnionSchema<
   D extends string,
   T extends Schema<any, any>[],
 > extends Schema<Infer<T[number]>, Input<T[number]>> {
+  /** @internal O(1) lookup map: discriminator value → schema */
+  private readonly _schemaMap: Map<string | number | boolean, Schema<any, any>>;
+
   constructor(
     private readonly _discriminator: D,
     private readonly _options: T,
   ) {
     super();
+    // Build lookup map at construction time for O(1) dispatch.
+    // Each option must be an ObjectSchema whose shape contains the discriminator
+    // key with a LiteralSchema value. The literal's value becomes the map key.
+    this._schemaMap = new Map();
+    for (const option of this._options) {
+      const shape = (option as any)._shape;
+      if (shape && shape[this._discriminator]) {
+        const discriminatorSchema = shape[this._discriminator];
+        // Extract the literal value from the discriminator field schema
+        if (discriminatorSchema && '_value' in discriminatorSchema) {
+          this._schemaMap.set(discriminatorSchema._value, option);
+        }
+      }
+    }
   }
 
   _schemaType(): SchemaType {
@@ -1434,13 +1496,10 @@ export class DiscriminatedUnionSchema<
       return value as any;
     }
 
-    // Find the matching schema by discriminator value
-    for (const option of this._options) {
-      const optionCtx = new ParseContext();
-      const result = option._runPipeline(value, optionCtx);
-      if (!optionCtx.hasIssues()) {
-        return result;
-      }
+    // O(1) lookup by discriminator value
+    const matchedSchema = this._schemaMap.get(discriminatorValue);
+    if (matchedSchema) {
+      return matchedSchema._runPipeline(value, ctx);
     }
 
     ctx.addIssue({
@@ -1708,12 +1767,11 @@ export const s = schema;
 // Type exports
 export type { Infer, Input, Output } from './utils/type-inference';
 export { Schema } from './core/schema';
-export { ParseError } from './core/errors';
-export type { ValidationIssue, ErrorCode } from './core/errors';
+export { ParseError, ErrorCode } from './core/errors';
+export type { ValidationIssue } from './core/errors';
 export type { SchemaMetadata, SafeParseResult } from './core/types';
 export { SchemaRegistry } from './core/registry';
-export { preprocess, toJSONSchema } from './transforms/preprocess';
-// Re-export toJSONSchema standalone function
+export { preprocess } from './transforms/preprocess';
 export { toJSONSchema } from './introspection/json-schema';
 ```
 
@@ -1921,6 +1979,10 @@ Each phase follows strict TDD — one test at a time. Write one failing test, im
   - Accepts valid Date instances
   - Rejects strings, numbers (strict — no auto-coercion)
   - Rejects invalid Date (NaN time)
+  - .min(date) — rejects dates before minimum
+  - .max(date) — rejects dates after maximum
+  - .min(date).max(date) — range validation
+  - Per-rule custom error messages for min/max
   - .toISOString() — transforms Date to ISO string, output type is string
   - .toJSONSchema() → `{ type: "string", format: "date-time" }`
 - `src/schemas/__tests__/nan.test.ts`
@@ -1954,6 +2016,8 @@ Each phase follows strict TDD — one test at a time. Write one failing test, im
   - Chaining: `s.string().optional().nullable()` — stacking wrappers
   - `.id(name)` registers in SchemaRegistry
   - Named schemas propagate id through .optional()/.nullable()/.default()
+  - Wrapper pipeline delegation: `s.string().refine(fn).optional()` — refinement on inner schema still executes
+  - Wrapper _clone preserves metadata: `.describe('x').optional()._clone()` retains description
 
 ### Phase 5: Object Schema
 
@@ -1976,6 +2040,7 @@ Each phase follows strict TDD — one test at a time. Write one failing test, im
   - .shape — returns shape definition
   - .keyof() — returns EnumSchema of keys
   - .extend(shape) — adds new properties
+  - .merge(otherObject) — combines two object schemas (later shape wins on conflict)
   - .pick(keys) — keeps only specified keys
   - .omit(keys) — removes specified keys
   - .partial() — makes all properties optional
@@ -2047,9 +2112,10 @@ Each phase follows strict TDD — one test at a time. Write one failing test, im
 
 **Tests:**
 - `src/schemas/__tests__/discriminated-union.test.ts`
-  - Dispatches to correct schema based on discriminator
+  - Dispatches to correct schema based on discriminator (O(1) via lookup map)
   - Rejects missing discriminator property
   - Rejects unknown discriminator value
+  - Lookup map built at construction from LiteralSchema discriminator fields
   - .toJSONSchema() → `{ oneOf: [...], discriminator: { propertyName: "..." } }`
 - `src/schemas/__tests__/intersection.test.ts`
   - Accepts values satisfying both schemas
@@ -2132,7 +2198,7 @@ Each phase follows strict TDD — one test at a time. Write one failing test, im
 
 **Tests:**
 - `src/schemas/__tests__/coerced.test.ts`
-  - CoercedString: number → string, boolean → string, null → ''
+  - CoercedString: number → string, boolean → string, null → '', undefined → '' (explicit design choice)
   - CoercedNumber: string → number, boolean → number
   - CoercedBoolean: 0/1/''/'hello' → boolean
   - CoercedBigInt: string → bigint, number → bigint, fails on non-coercible
@@ -2384,4 +2450,4 @@ Each format schema uses a regex or validation function for its format check. All
 - [ ] **Error message i18n** — All error messages are English strings. If internationalization is needed later, messages could be generated by a pluggable formatter keyed on ErrorCode. Deferred.
 - [ ] **`s.file()` runtime support** — File/Blob APIs vary by runtime. Need to verify `File` and `Blob` are available in Node 22+ (they are via `node:buffer`), Bun (native), and edge runtimes.
 - [ ] **`s.map()` JSON Schema** — Map has no direct JSON Schema representation. Current plan: output `{ type: "object" }` with a description noting it's a Map. Alternative: omit from JSON Schema entirely. Decide during implementation.
-- [ ] **Discriminated union optimization** — Current implementation tries each option sequentially. For large discriminated unions, build a lookup map keyed by discriminator value for O(1) dispatch. Implement during Phase 8 if performance warrants.
+- [x] **Discriminated union optimization** — ~~Current implementation tries each option sequentially.~~ Resolved: constructor now builds a `Map<discriminatorValue, Schema>` for O(1) dispatch. Each option's discriminator field must be a `LiteralSchema`.
