@@ -24,6 +24,7 @@ See also: [Core API Design](./vertz-core-api-design.md), [Schema Design](./vertz
 | Immutability | TypeScript DeepReadonly (compile-time) + Proxy (dev runtime). No freeze in production |
 | OpenAPI serving | Separate package, NOT in @vertz/core |
 | Lifecycle hooks | `onInit(deps) → state`, `methods(deps, state)`, `onDestroy(deps, state)` |
+| Build toolchain | Bunup (Bun's bundler + Oxc for `.d.ts`). Requires Bun installed to build; output is standard ESM consumable by any runtime |
 | Dependencies | Zero runtime deps except `@vertz/schema` (workspace) |
 
 ---
@@ -34,7 +35,7 @@ See also: [Core API Design](./vertz-core-api-design.md), [Schema Design](./vertz
 packages/core/
 ├── package.json
 ├── tsconfig.json
-├── tsup.config.ts
+├── bunup.config.ts
 ├── vitest.config.ts
 ├── src/
 │   ├── index.ts                           # Public API: exports vertz namespace + exceptions + types
@@ -707,7 +708,7 @@ Internally: builds a real app with mocked services/middleware, creates synthetic
     "@vertz/schema": "workspace:*"
   },
   "devDependencies": {
-    "tsup": "...",
+    "bunup": "...",
     "typescript": "...",
     "vitest": "..."
   }
@@ -824,7 +825,7 @@ Zero runtime deps other than `@vertz/schema`. No Fastify. No reflect-metadata.
 - Wire everything in `vertz` namespace
 - Verify all exports
 - Full test suite pass
-- Package builds with tsup
+- Package builds with bunup
 
 ---
 
@@ -840,7 +841,7 @@ Zero runtime deps other than `@vertz/schema`. No Fastify. No reflect-metadata.
 8. **Env validation**: Missing/invalid vars produce clear error messages
 9. **Lifecycle hooks**: onInit at startup, onDestroy at shutdown, state flows correctly
 10. **No legacy code**: No decorators, no reflect-metadata, no Fastify
-11. **Build output**: tsup produces clean ESM with `.d.ts`
+11. **Build output**: bunup produces clean ESM with `.d.ts` (requires `isolatedDeclarations: true` in tsconfig)
 12. **Adapters**: Both Node and Bun work with the same core handler
 
 ---
