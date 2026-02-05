@@ -72,10 +72,8 @@ packages/core/
 │   │
 │   ├── env/
 │   │   ├── index.ts
-│   │   ├── env-loader.ts                  # .env file parser (zero deps)
-│   │   ├── env-validator.ts               # Validates env against @vertz/schema
+│   │   ├── env-validator.ts               # Validates env against @vertz/schema, native .env loading
 │   │   └── __tests__/
-│   │       ├── env-loader.test.ts
 │   │       └── env-validator.test.ts
 │   │
 │   ├── server/
@@ -147,12 +145,7 @@ packages/core/
 │   │       ├── deps-builder.test.ts
 │   │       └── ctx-builder.test.ts
 │   │
-│   └── testing/
-│       ├── index.ts                       # vertz.testing namespace
-│       ├── test-app.ts                   # createApp() test builder
-│       ├── test-request.ts               # Simulated request execution
-│       └── __tests__/
-│           └── test-app.test.ts
+│   └── (no testing/ — lives in @vertz/testing package)
 ```
 
 ---
@@ -162,13 +155,24 @@ packages/core/
 Single public API entry point:
 
 ```typescript
-// src/vertz.ts
+// src/vertz.ts (@vertz/core)
 export const vertz = {
   env:        createEnv,           // vertz.env({ load, schema })
   middleware: createMiddleware,     // vertz.middleware({ inject, requires, provides, handler, ... })
   moduleDef:  createModuleDef,     // vertz.moduleDef({ name, imports, options })
   module:     createModule,        // vertz.module(def, { services, routers, exports })
   app:        createApp,           // vertz.app({ basePath, version, cors, ... })
+};
+```
+
+The `testing` namespace lives in `@vertz/testing`:
+
+```typescript
+// @vertz/testing
+import { vertz as coreVertz } from '@vertz/core';
+
+export const vertz = {
+  ...coreVertz,
   testing: {
     createApp:     createTestApp,     // vertz.testing.createApp()
     createService: createTestService, // vertz.testing.createService(serviceDef)
@@ -315,7 +319,7 @@ Custom zero-dep trie. Key properties:
 - Param extraction during traversal (no second pass)
 - O(n) where n = number of path segments
 - No regex at runtime
-- **HEAD**: Auto-generated from GET handlers — the trie matches HEAD requests against GET routes and the response builder strips the body. No `.head()` method on the router-def.
+- **HEAD**: The router-def exposes `.head()` for explicit HEAD routes (e.g., existence checks, validation endpoints). Additionally, every GET route auto-generates a HEAD handler that runs the same pipeline but strips the response body — so HEAD works out of the box for GET routes, but devs can override with a dedicated `.head()` when they need custom logic.
 - **OPTIONS**: Handled entirely by the CORS layer before trie matching. If CORS is disabled, the trie returns a 405 with `Allow` header listing registered methods for that path.
 
 ```typescript
@@ -362,14 +366,16 @@ export async function runMiddlewareChain(
 ): Promise<Record<string, unknown>> {
   const state: Record<string, unknown> = {};
 
+  // Single ctx object reused across all middlewares in the chain.
+  // Each iteration mutates the same object via Object.assign — no allocation per middleware.
+  // Safe because: (1) ctx is internal to this function, (2) middleware receives it as
+  // immutable (dev proxy), (3) state is a reference that accumulates contributions.
+  const ctx: Record<string, unknown> = {};
+
   for (const mw of middlewares) {
-    // Build the ctx this middleware sees:
-    // request data + injected services (from mw.inject) + accumulated state.
-    // Uses Object.assign to mutate a single ctx object per middleware instead of
-    // spreading into new objects — avoids allocating throwaway objects on the hot path.
-    // This is safe because ctx is internal to this function and made immutable before
-    // being handed to the middleware handler.
-    const ctx = Object.assign({}, requestCtx, mw.resolvedInject, { state });
+    // Reset and rebuild ctx for this middleware's inject deps.
+    // requestCtx and state stay the same reference; only resolvedInject changes per middleware.
+    Object.assign(ctx, requestCtx, mw.resolvedInject, { state });
 
     // Validate requires schema if present (runtime safety net, compiler validates at build time)
     if (mw.requiresSchema) mw.requiresSchema.parse(state);
@@ -627,9 +633,9 @@ Error handling at each stage:
 // vertz.env() implementation
 export function createEnv(config: { load?: string[]; schema: Schema<any> }) {
   // 1. Load .env files using native runtime support:
-  //    - Node.js 20.12+: process.loadEnvFile() or --env-file flag
+  //    - Node.js 22+: process.loadEnvFile() or --env-file flag
   //    - Bun: native .env loading (automatic or via Bun.env)
-  //    Fallback to a minimal zero-dep parser for older Node versions.
+  //    No custom parser — minimum Node version is 22+.
   // 2. Read from process.env (already populated by runtime's native loader)
   // 3. Validate with schema.safeParse()
   // 4. On failure: throw with formatted error listing all issues
@@ -637,7 +643,7 @@ export function createEnv(config: { load?: string[]; schema: Schema<any> }) {
 }
 ```
 
-`.env` loading leverages native runtime support rather than a custom parser. Both Node.js (20.12+) and Bun load `.env` files natively into `process.env`. A minimal fallback parser is included for older Node versions, handling `KEY=value`, quoted values, comments, and blank lines.
+`.env` loading uses native runtime support exclusively. Node.js 22+ and Bun both load `.env` files natively into `process.env` — no custom parser needed. Minimum supported Node version is 22.
 
 **Hot-reload in `vertz dev`:** When a `.env` file changes, the CLI triggers a full app reboot (kill process → re-run). Since `vertz.env()` is eager, the new process picks up the changed values automatically. Similarly, when `vertz.config.ts` changes, the CLI triggers a full reboot — the config affects compilation settings, so a clean restart is required. This is handled by the CLI's file watcher, not by the core runtime.
 
@@ -658,11 +664,11 @@ Handles OPTIONS preflight → 204. Adds headers to actual responses. Supports or
 
 ### 12. Testing Support
 
-Testing support lives entirely inside `@vertz/core` at `src/testing/`. Users import `vertz` from `@vertz/core` and access `vertz.testing.createApp()` — no separate package needed. The existing `packages/testing/` in the monorepo is superseded by this approach and will be removed.
-
-`vertz.testing.createApp()` returns a builder with the same patterns as the testing design plan:
+Testing support lives in `@vertz/testing` as a separate package (`packages/testing/`). The `vertz.testing` namespace is re-exported from this package — users import from `@vertz/testing`:
 
 ```typescript
+import { vertz } from '@vertz/testing';
+
 const app = vertz.testing
   .createApp()
   .env({ DATABASE_URL: '...', JWT_SECRET: '...' })
@@ -674,9 +680,12 @@ const app = vertz.testing
 const res = await app.get('/users/:id', { params: { id: '123' } });
 ```
 
-Internally: builds a real app with mocked services/middleware, creates synthetic `Request`, passes through the same handler pipeline, returns `{ status, body, headers, ok }`.
+`@vertz/testing` depends on `@vertz/core` (workspace dependency). All packages are released with linked versions, so there's no version drift concern. Keeping testing separate means:
+- Users who don't test don't pull in test builder code
+- `@vertz/testing` is a devDependency, not a production dependency
+- Clear separation of concerns — test utilities don't bloat the core package
 
-Rationale: keeping the test builder in core means it evolves in lockstep with the runtime — no version drift between packages. The test builder uses only public/internal core APIs. If test-specific utilities grow significantly (e.g., VCR recording, snapshot testing), they can be extracted to a separate package later without breaking the `vertz.testing` API.
+Internally: builds a real app with mocked services/middleware, creates synthetic `Request`, passes through the same handler pipeline, returns `{ status, body, headers, ok }`.
 
 ---
 
@@ -732,8 +741,7 @@ Zero runtime deps other than `@vertz/schema`. No Fastify. No reflect-metadata.
 
 **Files:** `env/`
 
-- `.env` file parser: key=value, quotes, comments, blank lines
-- `createEnv()`: schema validation, process.env merge, formatted error on failure
+- `createEnv()`: native .env loading (Node 22+ / Bun), schema validation, process.env merge, formatted error on failure
 
 ### Phase 4: Route Matching (Trie)
 
@@ -773,7 +781,7 @@ Zero runtime deps other than `@vertz/schema`. No Fastify. No reflect-metadata.
 
 - `createModuleDef()`: captures name, imports, options schema
 - `createServiceDef()`: captures inject, methods, lifecycle hooks
-- `createRouterDef()`: captures prefix, inject, route registrations via `.get()/.post()`
+- `createRouterDef()`: captures prefix, inject, route registrations via `.get()/.post()/.head()` etc.
 - `createModule()`: validates service ownership, export subset
 
 ### Phase 8: DI Boot Executor
@@ -802,11 +810,12 @@ Zero runtime deps other than `@vertz/schema`. No Fastify. No reflect-metadata.
 
 ### Phase 11: Testing Support
 
-**Files:** `testing/`
+**Package:** `@vertz/testing` (`packages/testing/`)
 
 - `createTestApp()`: mock services, mock middleware, env overrides
 - Test request execution: GET, POST with body, response parsing
 - Per-request overrides via `.mockMiddleware()` on request builder
+- Re-exports `vertz` from core with `testing` namespace attached
 
 ### Phase 12: Entry Point and Public API
 
