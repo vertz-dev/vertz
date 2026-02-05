@@ -574,7 +574,9 @@ For watch mode, track file hashes and only re-analyze changed files + their depe
 - Schema file changed → re-analyze schema, re-run schema registry, OpenAPI, manifest generators
 - Router file changed → re-analyze routes for that module, re-run route table, OpenAPI, boot, manifest
 - Module file changed → re-analyze module, cascade to dependents
-- Full recompile if app entry point or env file changes
+- Full recompile if app entry point changes
+- `.env` file changed → full app reboot (kill process → re-run). Since `vertz.env()` executes eagerly at import time, the new process picks up changed values automatically. No incremental compilation needed.
+- `vertz.config.ts` changed → full app reboot. Config affects compilation settings (strict mode, output paths, validation rules), so a clean restart with fresh compilation is required.
 
 **Important:** Only analyzers are incremental — they produce partial IR updates that get merged into the full IR. Validators and generators always run on the complete merged IR, because cross-cutting checks (dead code, middleware chains, duplicate routes) need global visibility.
 
