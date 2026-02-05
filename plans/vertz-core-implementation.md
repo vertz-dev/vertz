@@ -21,7 +21,7 @@ See also: [Core API Design](./vertz-core-api-design.md), [Schema Design](./vertz
 | Context | Two contexts: `deps` (startup) and `ctx` (per-request). Both flat and immutable |
 | API surface | `vertz` namespace object (`vertz.app()`, `vertz.env()`, etc.) |
 | Exceptions | Full hierarchy from start. Middleware short-circuits by throwing |
-| Immutability | Three layers: TypeScript DeepReadonly + Object.freeze (prod) + Proxy (dev) |
+| Immutability | TypeScript DeepReadonly (compile-time) + Proxy (dev runtime). No freeze in production |
 | OpenAPI serving | Separate package, NOT in @vertz/core |
 | Lifecycle hooks | `onInit(deps) → state`, `methods(deps, state)`, `onDestroy(deps, state)` |
 | Dependencies | Zero runtime deps except `@vertz/schema` (workspace) |
@@ -229,7 +229,10 @@ export function makeImmutable<T extends object>(obj: T, contextName: string): De
   if (process.env.NODE_ENV === 'development') {
     return createImmutableProxy(obj, contextName);  // Proxy with helpful error messages
   }
-  return deepFreeze(obj);  // Object.freeze() recursive
+  // Production: no runtime enforcement — TypeScript's DeepReadonly provides compile-time safety,
+  // and the dev proxy catches mutations during development. Skipping deepFreeze in production
+  // avoids the overhead of recursively walking and freezing objects on every request.
+  return obj as DeepReadonly<T>;
 }
 ```
 
@@ -238,6 +241,8 @@ export function makeImmutable<T extends object>(obj: T, contextName: string): De
 Cannot set property "id" on ctx.params. ctx is immutable.
 Middleware should return its contribution instead of mutating ctx.
 ```
+
+In production, immutability is enforced at two levels: TypeScript's `DeepReadonly<T>` at compile time, and the dev proxy at development time. `Object.freeze()` is not used in production — the dev proxy already catches mutation bugs during development, and freezing objects on the hot path (per-request ctx) would add unnecessary overhead for no practical benefit.
 
 ### 3. HTTP Server — Web Standard APIs
 
@@ -268,6 +273,40 @@ export interface ServerHandle {
 
 **Edge adapter:** `toFetchHandler()` — identity wrapper, returns the handler directly.
 
+**`app.handler` for edge runtimes:** The app builder exposes a `handler` getter that returns the internal `(request: Request) => Promise<Response>` function without starting a listener. This is the connection point for edge/Workers runtimes:
+
+```typescript
+// src/app/app-builder.ts
+class AppBuilder {
+  // ...
+
+  /** Returns the raw fetch handler for edge runtimes (no listener) */
+  get handler(): (request: Request) => Promise<Response> {
+    // Lazily builds the app (boot executor, trie, middleware chain) on first access
+    if (!this._handler) this._handler = this.buildHandler();
+    return this._handler;
+  }
+
+  /** Starts a listener using the detected adapter (Node/Bun) */
+  async listen(port?: number): Promise<ServerHandle> {
+    const adapter = detectAdapter();
+    return adapter.listen(port ?? 3000, this.handler);
+  }
+}
+```
+
+Usage on edge runtimes:
+
+```typescript
+// Cloudflare Workers
+import { app } from './app';
+export default { fetch: app.handler };
+
+// Deno Deploy
+import { app } from './app';
+Deno.serve(app.handler);
+```
+
 ### 4. Route Matching — Radix Trie
 
 Custom zero-dep trie. Key properties:
@@ -276,6 +315,8 @@ Custom zero-dep trie. Key properties:
 - Param extraction during traversal (no second pass)
 - O(n) where n = number of path segments
 - No regex at runtime
+- **HEAD**: Auto-generated from GET handlers — the trie matches HEAD requests against GET routes and the response builder strips the body. No `.head()` method on the router-def.
+- **OPTIONS**: Handled entirely by the CORS layer before trie matching. If CORS is disabled, the trie returns a 405 with `Allow` header listing registered methods for that path.
 
 ```typescript
 // src/router/trie.ts
@@ -295,6 +336,8 @@ interface MatchResult {
 ### 5. Middleware Execution
 
 No `next()`. Handler returns contribution. State accumulates via spread.
+
+**Reserved ctx property names:** The following property names are reserved for built-in request data and cannot be used by middleware `provides` or service injection: `params`, `body`, `query`, `headers`, `raw`, `state`, `options`, `env`. The compiler enforces this at build time. As a runtime safety net, `buildCtx()` also checks against this set and throws in development mode if a middleware contribution or injected service name collides with a reserved key.
 
 **`ResolvedMiddleware`** — the middleware definition with its `inject` dependencies already resolved from the service map. The app runner resolves these once at boot time, not per-request:
 
@@ -317,16 +360,16 @@ export async function runMiddlewareChain(
   middlewares: ResolvedMiddleware[],
   requestCtx: Record<string, unknown>,  // params, body, query, headers, raw
 ): Promise<Record<string, unknown>> {
-  let state: Record<string, unknown> = {};
+  const state: Record<string, unknown> = {};
 
   for (const mw of middlewares) {
     // Build the ctx this middleware sees:
-    // request data + injected services (from mw.inject) + accumulated state
-    const ctx = {
-      ...requestCtx,
-      ...mw.resolvedInject,  // ← injected services (e.g., ctx.tokenService)
-      state: { ...state },
-    };
+    // request data + injected services (from mw.inject) + accumulated state.
+    // Uses Object.assign to mutate a single ctx object per middleware instead of
+    // spreading into new objects — avoids allocating throwaway objects on the hot path.
+    // This is safe because ctx is internal to this function and made immutable before
+    // being handed to the middleware handler.
+    const ctx = Object.assign({}, requestCtx, mw.resolvedInject, { state });
 
     // Validate requires schema if present (runtime safety net, compiler validates at build time)
     if (mw.requiresSchema) mw.requiresSchema.parse(state);
@@ -343,9 +386,9 @@ export async function runMiddlewareChain(
     // Validate provides schema if present
     if (mw.providesSchema && contribution !== undefined) mw.providesSchema.parse(contribution);
 
-    // Accumulate state
+    // Accumulate state via Object.assign — mutates in place, no new object per iteration
     if (contribution && typeof contribution === 'object') {
-      state = { ...state, ...contribution };
+      Object.assign(state, contribution);
     }
   }
 
@@ -357,7 +400,67 @@ Middleware `inject` resolution happens in the app runner at boot time: for each 
 
 ### 6. DI Boot Executor
 
-Compiler provides a topologically sorted boot sequence. Runtime executes it linearly.
+Compiler provides a topologically sorted boot sequence as a **JS module with live imports**. The generated boot file imports actual service/module definitions from user code — it is NOT a JSON manifest. This means the runtime receives real references with full type information.
+
+**Boot sequence contract:**
+
+```typescript
+// src/types/boot-sequence.ts
+
+/** The compiler generates a module that exports this shape */
+export interface BootSequence {
+  instructions: BootInstruction[];
+  shutdownOrder: string[];  // service IDs in reverse init order
+}
+
+export type BootInstruction =
+  | ServiceBootInstruction
+  | ModuleBootInstruction;
+
+export interface ServiceBootInstruction {
+  type: 'service';
+  id: string;                      // unique identifier (e.g., 'core.dbService')
+  deps: string[];                  // IDs of services this depends on (already instantiated)
+  factory: ServiceFactory;         // live reference to the service definition
+}
+
+export interface ModuleBootInstruction {
+  type: 'module';
+  id: string;
+  services: string[];              // service IDs belonging to this module
+  options?: Record<string, unknown>;
+}
+
+/** The shape the runtime expects from a service definition */
+export interface ServiceFactory<TDeps = any, TState = any, TMethods = any> {
+  inject?: Record<string, unknown>;
+  onInit?: (deps: TDeps) => Promise<TState> | TState;
+  methods: (deps: TDeps, state: TState) => TMethods;
+  onDestroy?: (deps: TDeps, state: TState) => Promise<void> | void;
+}
+```
+
+**Example compiler output** (generated boot file):
+
+```typescript
+// .vertz/boot.ts (compiler-generated)
+import { dbService } from '../src/core/db.service';
+import { userService } from '../src/user/user.service';
+import { coreModule } from '../src/core/core.module';
+import { userModule } from '../src/user/user.module';
+
+export const bootSequence: BootSequence = {
+  instructions: [
+    { type: 'service', id: 'core.dbService', deps: [], factory: dbService },
+    { type: 'service', id: 'user.userService', deps: ['core.dbService'], factory: userService },
+    { type: 'module', id: 'core', services: ['core.dbService'] },
+    { type: 'module', id: 'user', services: ['user.userService'] },
+  ],
+  shutdownOrder: ['user.userService', 'core.dbService'],
+};
+```
+
+**Boot executor:**
 
 ```typescript
 // src/di/boot-executor.ts
@@ -480,6 +583,18 @@ const userService = userModuleDef.service({
 
 Both are immutable via `makeImmutable()`. Compiler prevents naming collisions between flattened services, middleware state, and request properties.
 
+**No `AsyncLocalStorage`:** Services receive request-scoped data exclusively through function arguments. If a service method needs request context (e.g., current user, request ID), the route handler passes it explicitly:
+
+```typescript
+// Route handler passes request-scoped data to service via arguments
+handler: async (ctx) => {
+  const result = await ctx.orderService.create(ctx.body, ctx.user.id);
+  return result;
+}
+```
+
+This is an intentional design choice — implicit request context (via `AsyncLocalStorage`) creates hidden coupling between services and the HTTP layer, making services harder to test and reason about. Services should be request-agnostic; the route handler is the bridge between request context and business logic.
+
 ### 9. Request Lifecycle
 
 ```
@@ -511,15 +626,18 @@ Error handling at each stage:
 ```typescript
 // vertz.env() implementation
 export function createEnv(config: { load?: string[]; schema: Schema<any> }) {
-  // 1. Parse .env files (zero-dep parser: KEY=value, quotes, comments)
-  // 2. Merge with process.env (process.env wins)
+  // 1. Load .env files using native runtime support:
+  //    - Node.js 20.12+: process.loadEnvFile() or --env-file flag
+  //    - Bun: native .env loading (automatic or via Bun.env)
+  //    Fallback to a minimal zero-dep parser for older Node versions.
+  // 2. Read from process.env (already populated by runtime's native loader)
   // 3. Validate with schema.safeParse()
   // 4. On failure: throw with formatted error listing all issues
   // 5. On success: return validated, frozen env object
 }
 ```
 
-The `.env` parser handles: `KEY=value`, quoted values (`"..."`, `'...'`), comments (`#`), blank lines, inline comments. File reading uses runtime detection: `Bun.file()` first, fallback to `node:fs/promises`.
+`.env` loading leverages native runtime support rather than a custom parser. Both Node.js (20.12+) and Bun load `.env` files natively into `process.env`. A minimal fallback parser is included for older Node versions, handling `KEY=value`, quoted values, comments, and blank lines.
 
 **Hot-reload in `vertz dev`:** When a `.env` file changes, the CLI triggers a full app reboot (kill process → re-run). Since `vertz.env()` is eager, the new process picks up the changed values automatically. Similarly, when `vertz.config.ts` changes, the CLI triggers a full reboot — the config affects compilation settings, so a clean restart is required. This is handled by the CLI's file watcher, not by the core runtime.
 
@@ -540,6 +658,8 @@ Handles OPTIONS preflight → 204. Adds headers to actual responses. Supports or
 
 ### 12. Testing Support
 
+Testing support lives entirely inside `@vertz/core` at `src/testing/`. Users import `vertz` from `@vertz/core` and access `vertz.testing.createApp()` — no separate package needed. The existing `packages/testing/` in the monorepo is superseded by this approach and will be removed.
+
 `vertz.testing.createApp()` returns a builder with the same patterns as the testing design plan:
 
 ```typescript
@@ -555,6 +675,8 @@ const res = await app.get('/users/:id', { params: { id: '123' } });
 ```
 
 Internally: builds a real app with mocked services/middleware, creates synthetic `Request`, passes through the same handler pipeline, returns `{ status, body, headers, ok }`.
+
+Rationale: keeping the test builder in core means it evolves in lockstep with the runtime — no version drift between packages. The test builder uses only public/internal core APIs. If test-specific utilities grow significantly (e.g., VCR recording, snapshot testing), they can be extracted to a separate package later without breaking the `vertz.testing` API.
 
 ---
 
