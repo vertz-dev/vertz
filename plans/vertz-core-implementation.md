@@ -107,8 +107,10 @@ packages/core/
 │   │
 │   ├── middleware/
 │   │   ├── index.ts
+│   │   ├── middleware-def.ts              # vertz.middleware() factory
 │   │   ├── middleware-runner.ts            # Execute chain, accumulate state
 │   │   └── __tests__/
+│   │       ├── middleware-def.test.ts
 │   │       └── middleware-runner.test.ts
 │   │
 │   ├── di/
@@ -294,25 +296,46 @@ interface MatchResult {
 
 No `next()`. Handler returns contribution. State accumulates via spread.
 
+**`ResolvedMiddleware`** — the middleware definition with its `inject` dependencies already resolved from the service map. The app runner resolves these once at boot time, not per-request:
+
 ```typescript
 // src/middleware/middleware-runner.ts
+
+interface ResolvedMiddleware {
+  name: string;
+  handler: (ctx: Record<string, unknown>) => Promise<unknown> | unknown;
+  resolvedInject: Record<string, unknown>;  // pre-resolved from service map at boot
+  headersSchema?: Schema<any>;
+  paramsSchema?: Schema<any>;
+  querySchema?: Schema<any>;
+  bodySchema?: Schema<any>;
+  requiresSchema?: Schema<any>;
+  providesSchema?: Schema<any>;
+}
+
 export async function runMiddlewareChain(
   middlewares: ResolvedMiddleware[],
-  initialCtx: Record<string, unknown>,
+  requestCtx: Record<string, unknown>,  // params, body, query, headers, raw
 ): Promise<Record<string, unknown>> {
   let state: Record<string, unknown> = {};
 
   for (const mw of middlewares) {
-    const ctx = { ...initialCtx, state: { ...state } };
+    // Build the ctx this middleware sees:
+    // request data + injected services (from mw.inject) + accumulated state
+    const ctx = {
+      ...requestCtx,
+      ...mw.resolvedInject,  // ← injected services (e.g., ctx.tokenService)
+      state: { ...state },
+    };
 
     // Validate requires schema if present (runtime safety net, compiler validates at build time)
     if (mw.requiresSchema) mw.requiresSchema.parse(state);
 
     // Validate request schemas if middleware defines them
-    if (mw.headersSchema) mw.headersSchema.parse(initialCtx.headers);
-    if (mw.paramsSchema) mw.paramsSchema.parse(initialCtx.params);
-    if (mw.querySchema) mw.querySchema.parse(initialCtx.query);
-    if (mw.bodySchema) mw.bodySchema.parse(initialCtx.body);
+    if (mw.headersSchema) mw.headersSchema.parse(requestCtx.headers);
+    if (mw.paramsSchema) mw.paramsSchema.parse(requestCtx.params);
+    if (mw.querySchema) mw.querySchema.parse(requestCtx.query);
+    if (mw.bodySchema) mw.bodySchema.parse(requestCtx.body);
 
     // Execute — returns contribution. Throws VertzException to short-circuit.
     const contribution = await mw.handler(ctx);
@@ -329,6 +352,8 @@ export async function runMiddlewareChain(
   return state;
 }
 ```
+
+Middleware `inject` resolution happens in the app runner at boot time: for each middleware, the `inject` references are looked up in the service map (populated by the boot executor) and stored as `resolvedInject`. This means the per-request middleware execution only spreads pre-resolved references — no lookup on the hot path.
 
 ### 6. DI Boot Executor
 
@@ -606,12 +631,14 @@ Zero runtime deps other than `@vertz/schema`. No Fastify. No reflect-metadata.
 - Node adapter: `IncomingMessage` ↔ `Request`/`Response`
 - Bun adapter: `Bun.serve({ fetch })`
 
-### Phase 6: Middleware Chain
+### Phase 6: Middleware Definition and Chain
 
 **Files:** `middleware/`
 
+- `createMiddleware()` factory: captures inject, headers, params, query, body, requires, provides, handler
 - Empty chain → empty state
 - Single/multiple middlewares accumulate state
+- Injected services resolved and available on middleware ctx
 - Exception short-circuits chain
 - Schema validation on requires/provides
 
