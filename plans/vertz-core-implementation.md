@@ -368,7 +368,6 @@ export class BootExecutor {
   async execute(sequence: BootSequence): Promise<Map<string, unknown>> {
     for (const instruction of sequence.instructions) {
       switch (instruction.type) {
-        case 'env':    await this.executeEnv(instruction); break;
         case 'service': await this.executeService(instruction); break;
         case 'module':  await this.executeModule(instruction); break;
       }
@@ -507,6 +506,8 @@ Error handling at each stage:
 
 ### 10. Environment Validation
 
+`vertz.env()` executes eagerly at import time — not deferred to the boot sequence. The env object is fully validated and frozen before any module or service initializes. This means `env` is NOT a boot instruction; it's a resolved value that modules import directly.
+
 ```typescript
 // vertz.env() implementation
 export function createEnv(config: { load?: string[]; schema: Schema<any> }) {
@@ -519,6 +520,8 @@ export function createEnv(config: { load?: string[]; schema: Schema<any> }) {
 ```
 
 The `.env` parser handles: `KEY=value`, quoted values (`"..."`, `'...'`), comments (`#`), blank lines, inline comments. File reading uses runtime detection: `Bun.file()` first, fallback to `node:fs/promises`.
+
+**Hot-reload in `vertz dev`:** When a `.env` file changes, the CLI triggers a full app reboot (kill process → re-run). Since `vertz.env()` is eager, the new process picks up the changed values automatically. Similarly, when `vertz.config.ts` changes, the CLI triggers a full reboot — the config affects compilation settings, so a clean restart is required. This is handled by the CLI's file watcher, not by the core runtime.
 
 ### 11. CORS (Built-in, Zero Deps)
 
