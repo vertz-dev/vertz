@@ -1,13 +1,27 @@
 import { deepFreeze } from '../immutability';
 import type { NamedModuleDef } from './module-def';
-import type { NamedServiceDef } from './service';
 import type { NamedRouterDef } from './router-def';
+import type { NamedServiceDef } from './service';
 
 export interface NamedModule {
   definition: NamedModuleDef;
   services: NamedServiceDef[];
   routers: NamedRouterDef[];
   exports: NamedServiceDef[];
+}
+
+function validateOwnership(
+  items: { moduleName: string }[],
+  kind: string,
+  expectedModule: string,
+): void {
+  for (const item of items) {
+    if (item.moduleName !== expectedModule) {
+      throw new Error(
+        `${kind} belongs to module "${item.moduleName}", cannot add to module "${expectedModule}"`,
+      );
+    }
+  }
 }
 
 export function createModule(
@@ -18,21 +32,8 @@ export function createModule(
     exports: NamedServiceDef[];
   },
 ): NamedModule {
-  for (const service of config.services) {
-    if (service.moduleName !== definition.name) {
-      throw new Error(
-        `Service belongs to module "${service.moduleName}", cannot add to module "${definition.name}"`,
-      );
-    }
-  }
-
-  for (const router of config.routers) {
-    if (router.moduleName !== definition.name) {
-      throw new Error(
-        `Router belongs to module "${router.moduleName}", cannot add to module "${definition.name}"`,
-      );
-    }
-  }
+  validateOwnership(config.services, 'Service', definition.name);
+  validateOwnership(config.routers, 'Router', definition.name);
 
   for (const exp of config.exports) {
     if (!config.services.includes(exp)) {

@@ -16,16 +16,20 @@ export interface Route {
   config: RouteConfig;
 }
 
+type HttpMethodFn = (path: string, config: RouteConfig) => NamedRouterDef;
+
 export interface NamedRouterDef extends RouterDef {
   moduleName: string;
   routes: Route[];
-  get: (path: string, config: RouteConfig) => NamedRouterDef;
-  post: (path: string, config: RouteConfig) => NamedRouterDef;
-  put: (path: string, config: RouteConfig) => NamedRouterDef;
-  patch: (path: string, config: RouteConfig) => NamedRouterDef;
-  delete: (path: string, config: RouteConfig) => NamedRouterDef;
-  head: (path: string, config: RouteConfig) => NamedRouterDef;
+  get: HttpMethodFn;
+  post: HttpMethodFn;
+  put: HttpMethodFn;
+  patch: HttpMethodFn;
+  delete: HttpMethodFn;
+  head: HttpMethodFn;
 }
+
+const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'head'] as const;
 
 export function createRouterDef(moduleName: string, config: RouterDef): NamedRouterDef {
   const routes: Route[] = [];
@@ -35,17 +39,15 @@ export function createRouterDef(moduleName: string, config: RouterDef): NamedRou
     return router;
   }
 
-  const router: NamedRouterDef = {
+  const router = {
     ...config,
     moduleName,
     routes,
-    get: (path, cfg) => addRoute('GET', path, cfg),
-    post: (path, cfg) => addRoute('POST', path, cfg),
-    put: (path, cfg) => addRoute('PUT', path, cfg),
-    patch: (path, cfg) => addRoute('PATCH', path, cfg),
-    delete: (path, cfg) => addRoute('DELETE', path, cfg),
-    head: (path, cfg) => addRoute('HEAD', path, cfg),
-  };
+  } as NamedRouterDef;
+
+  for (const method of HTTP_METHODS) {
+    router[method] = (path, cfg) => addRoute(method.toUpperCase(), path, cfg);
+  }
 
   return router;
 }

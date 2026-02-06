@@ -1,7 +1,7 @@
-import type { ModuleDef, ServiceDef, RouterDef } from '../types/module';
+import type { ModuleDef, RouterDef, ServiceDef } from '../types/module';
 import { deepFreeze } from '../immutability';
-import { createServiceDef, type NamedServiceDef } from './service';
 import { createRouterDef, type NamedRouterDef } from './router-def';
+import { createServiceDef, type NamedServiceDef } from './service';
 
 export interface NamedModuleDef<
   TImports extends Record<string, unknown> = Record<string, unknown>,
