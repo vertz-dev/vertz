@@ -1,11 +1,17 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { createApp } from '../app-builder';
-import { createModuleDef } from '../../module/module-def';
-import { createModule } from '../../module/module';
-import { createMiddleware } from '../../middleware/middleware-def';
 import { NotFoundException, UnauthorizedException } from '../../exceptions';
+import { createMiddleware } from '../../middleware/middleware-def';
+import { createModule } from '../../module/module';
+import { createModuleDef } from '../../module/module-def';
+import { createApp } from '../app-builder';
 
-function createTestModule(name: string, prefix: string, routes: { method: string; path: string; handler: (ctx: any) => any }[]) {
+interface TestRoute {
+  method: string;
+  path: string;
+  handler: (ctx: any) => any;
+}
+
+function createTestModule(name: string, prefix: string, routes: TestRoute[]) {
   const moduleDef = createModuleDef({ name });
   const router = moduleDef.router({ prefix });
   for (const route of routes) {

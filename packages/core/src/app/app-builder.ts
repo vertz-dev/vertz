@@ -1,12 +1,7 @@
 import type { AppConfig } from '../types/app';
 import type { NamedMiddlewareDef } from '../middleware/middleware-def';
 import type { NamedModule } from '../module/module';
-import { buildHandler } from './app-runner';
-
-interface ModuleRegistration {
-  module: NamedModule;
-  options?: Record<string, unknown>;
-}
+import { buildHandler, type ModuleRegistration } from './app-runner';
 
 export interface AppBuilder {
   register(module: NamedModule, options?: Record<string, unknown>): AppBuilder;

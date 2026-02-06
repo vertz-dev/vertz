@@ -1,15 +1,15 @@
 import type { AppConfig } from '../types/app';
-import type { NamedModule } from '../module/module';
 import type { NamedMiddlewareDef } from '../middleware/middleware-def';
+import type { NamedModule } from '../module/module';
 import type { NamedServiceDef } from '../module/service';
+import { buildCtx } from '../context/ctx-builder';
+import { runMiddlewareChain, type ResolvedMiddleware } from '../middleware/middleware-runner';
 import { Trie } from '../router/trie';
+import { handleCors, applyCorsHeaders } from '../server/cors';
 import { parseRequest, parseBody } from '../server/request-utils';
 import { createJsonResponse, createErrorResponse } from '../server/response-utils';
-import { handleCors, applyCorsHeaders } from '../server/cors';
-import { runMiddlewareChain, type ResolvedMiddleware } from '../middleware/middleware-runner';
-import { buildCtx } from '../context/ctx-builder';
 
-interface ModuleRegistration {
+export interface ModuleRegistration {
   module: NamedModule;
   options?: Record<string, unknown>;
 }
@@ -20,40 +20,51 @@ interface RouteEntry {
   services: Record<string, unknown>;
 }
 
-export function buildHandler(
-  config: AppConfig,
-  registrations: ModuleRegistration[],
-  globalMiddlewares: NamedMiddlewareDef[],
-): (request: Request) => Promise<Response> {
-  const trie = new Trie();
-  const basePath = config.basePath ?? '';
-
-  const resolvedMiddlewares: ResolvedMiddleware[] = globalMiddlewares.map((mw) => ({
-    name: mw.name,
-    handler: mw.handler,
-    resolvedInject: {},
-  }));
-
+function resolveServices(registrations: ModuleRegistration[]): Map<NamedServiceDef, unknown> {
   const serviceMap = new Map<NamedServiceDef, unknown>();
 
   for (const { module } of registrations) {
     for (const service of module.services) {
       if (!serviceMap.has(service)) {
-        const methods = service.methods({}, undefined);
-        serviceMap.set(service, methods);
+        serviceMap.set(service, service.methods({}, undefined));
       }
     }
   }
 
+  return serviceMap;
+}
+
+function resolveMiddlewares(globalMiddlewares: NamedMiddlewareDef[]): ResolvedMiddleware[] {
+  return globalMiddlewares.map((mw) => ({
+    name: mw.name,
+    handler: mw.handler,
+    resolvedInject: {},
+  }));
+}
+
+function resolveRouterServices(
+  inject: Record<string, unknown> | undefined,
+  serviceMap: Map<NamedServiceDef, unknown>,
+): Record<string, unknown> {
+  if (!inject) return {};
+
+  const resolved: Record<string, unknown> = {};
+  for (const [name, serviceDef] of Object.entries(inject)) {
+    const methods = serviceMap.get(serviceDef as NamedServiceDef);
+    if (methods) resolved[name] = methods;
+  }
+  return resolved;
+}
+
+function registerRoutes(
+  trie: Trie,
+  basePath: string,
+  registrations: ModuleRegistration[],
+  serviceMap: Map<NamedServiceDef, unknown>,
+): void {
   for (const { module, options } of registrations) {
     for (const router of module.routers) {
-      const resolvedServices: Record<string, unknown> = {};
-      if (router.inject) {
-        for (const [name, serviceDef] of Object.entries(router.inject)) {
-          const methods = serviceMap.get(serviceDef as NamedServiceDef);
-          if (methods) resolvedServices[name] = methods;
-        }
-      }
+      const resolvedServices = resolveRouterServices(router.inject, serviceMap);
 
       for (const route of router.routes) {
         const fullPath = basePath + router.prefix + route.path;
@@ -66,6 +77,19 @@ export function buildHandler(
       }
     }
   }
+}
+
+export function buildHandler(
+  config: AppConfig,
+  registrations: ModuleRegistration[],
+  globalMiddlewares: NamedMiddlewareDef[],
+): (request: Request) => Promise<Response> {
+  const trie = new Trie();
+  const basePath = config.basePath ?? '';
+  const resolvedMiddlewares = resolveMiddlewares(globalMiddlewares);
+  const serviceMap = resolveServices(registrations);
+
+  registerRoutes(trie, basePath, registrations, serviceMap);
 
   return async (request: Request): Promise<Response> => {
     try {
@@ -126,12 +150,12 @@ export function buildHandler(
       });
 
       const result = await entry.handler(ctx);
-      let response = result === undefined
+      const response = result === undefined
         ? new Response(null, { status: 204 })
         : createJsonResponse(result);
 
       if (config.cors) {
-        response = applyCorsHeaders(config.cors, request, response);
+        return applyCorsHeaders(config.cors, request, response);
       }
 
       return response;
