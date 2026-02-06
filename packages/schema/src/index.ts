@@ -11,6 +11,8 @@ export {
   TransformSchema,
   PipeSchema,
   CatchSchema,
+  BrandedSchema,
+  ReadonlySchema,
 } from './core/schema';
 export { ErrorCode, ParseError } from './core/errors';
 export type { ValidationIssue } from './core/errors';
