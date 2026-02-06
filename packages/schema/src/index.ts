@@ -25,6 +25,8 @@ export { NanSchema } from './schemas/nan';
 export { SymbolSchema } from './schemas/symbol';
 export { AnySchema, UnknownSchema, NullSchema, UndefinedSchema, VoidSchema, NeverSchema } from './schemas/special';
 export { ObjectSchema } from './schemas/object';
+export { ArraySchema } from './schemas/array';
+export { TupleSchema } from './schemas/tuple';
 
 // Type inference utilities
 export type { Infer, Output, Input } from './utils/type-inference';
