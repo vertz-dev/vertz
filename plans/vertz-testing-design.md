@@ -34,7 +34,7 @@ Builder pattern mirrors the production app composition. Each `.register()`, `.mo
 
 ```tsx
 // user.router.test.ts
-import { vertz } from '@vertz/testing';
+import { createTestApp } from '@vertz/testing';
 import { userModule } from './user.module';
 import { coreModule } from '../core/core.module';
 import { dbService } from '../core/db.service';
@@ -50,8 +50,7 @@ const mockDb = {
   },
 };
 
-const app = vertz.testing
-  .createApp()
+const app = createTestApp()
   .env({
     DATABASE_URL: 'postgres://test:test@localhost/test',
     JWT_SECRET: 'a]eN9$mR!pL3xQ7v@wK2yB8cF0gH5jT',
@@ -252,7 +251,7 @@ When a middleware is mocked, it is bypassed — the mocked result is used direct
 
 ```tsx
 // user.router.test.ts
-import { vertz } from '@vertz/testing';
+import { createTestApp } from '@vertz/testing';
 import { userModule } from './user.module';
 import { coreModule } from '../core/core.module';
 import { dbService } from '../core/db.service';
@@ -267,8 +266,7 @@ describe('User routes', () => {
     },
   };
 
-  const app = vertz.testing
-    .createApp()
+  const app = createTestApp()
     .env({
       DATABASE_URL: 'postgres://test:test@localhost/test',
       JWT_SECRET: 'a]eN9$mR!pL3xQ7v@wK2yB8cF0gH5jT',
@@ -384,7 +382,7 @@ For complex business logic that benefits from isolated testing:
 
 ```tsx
 // auth.service.test.ts
-import { vertz } from '@vertz/testing';
+import { createTestService } from '@vertz/testing';
 import { authService } from './auth.service';
 import { userService } from './user.service';
 import { dbService } from '../core/db.service';
@@ -401,8 +399,7 @@ describe('AuthService', () => {
     findByEmail: vi.fn(),
   };
 
-  const service = vertz.testing
-    .createService(authService)
+  const service = createTestService(authService)
     .mock(dbService, mockDb)
     .mock(userService, mockUserService)
     .options({
