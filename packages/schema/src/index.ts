@@ -44,6 +44,11 @@ export { UnionSchema } from './schemas/union';
 export { DiscriminatedUnionSchema } from './schemas/discriminated-union';
 export { IntersectionSchema } from './schemas/intersection';
 export { RecordSchema } from './schemas/record';
+export { MapSchema } from './schemas/map';
+export { SetSchema } from './schemas/set';
+export { FileSchema } from './schemas/file';
+export { CustomSchema } from './schemas/custom';
+export { InstanceOfSchema } from './schemas/instanceof';
 export {
   CoercedStringSchema,
   CoercedNumberSchema,
