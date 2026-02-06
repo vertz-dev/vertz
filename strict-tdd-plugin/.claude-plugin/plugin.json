@@ -1,0 +1,8 @@
+{
+  "name": "strict-tdd",
+  "description": "Enforces strict Test-Driven Development: one test at a time, red-green-refactor cycle",
+  "author": {
+    "name": "vertz-dev"
+  },
+  "version": "0.1.0"
+}
