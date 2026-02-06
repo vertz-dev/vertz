@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "isolatedDeclarations": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}
