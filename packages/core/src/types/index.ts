@@ -1,6 +1,6 @@
 export type { DeepReadonly } from './deep-readonly';
 export type { RawRequest, Deps, Ctx } from './context';
-export type { InferSchema } from './schema-infer';
+export type { Infer, InferSchema } from './schema-infer';
 export type { HttpMethod, HttpStatusCode } from './http';
 export type { ModuleDef, Module, ServiceDef, RouterDef } from './module';
 export type { MiddlewareDef } from './middleware';

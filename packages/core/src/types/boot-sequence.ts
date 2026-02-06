@@ -1,9 +1,6 @@
-export interface ServiceFactory<TDeps = any, TState = any, TMethods = any> {
-  inject?: Record<string, unknown>;
-  onInit?: (deps: TDeps) => Promise<TState> | TState;
-  methods: (deps: TDeps, state: TState) => TMethods;
-  onDestroy?: (deps: TDeps, state: TState) => Promise<void> | void;
-}
+import type { ServiceDef } from './module';
+
+export type ServiceFactory<TDeps = any, TState = any, TMethods = any> = ServiceDef<TDeps, TState, TMethods>;
 
 export interface ServiceBootInstruction {
   type: 'service';

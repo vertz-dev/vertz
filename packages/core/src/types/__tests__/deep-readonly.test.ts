@@ -37,4 +37,13 @@ describe('DeepReadonly', () => {
       readonly a: { readonly b: { readonly c: string } };
     }>();
   });
+
+  it('preserves function types unchanged', () => {
+    type Input = { findById: (id: string) => Promise<string>; name: string };
+    type Result = DeepReadonly<Input>;
+    expectTypeOf<Result>().toEqualTypeOf<{
+      readonly findById: (id: string) => Promise<string>;
+      readonly name: string;
+    }>();
+  });
 });

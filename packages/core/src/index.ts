@@ -6,6 +6,7 @@ export type {
   RawRequest,
   Deps,
   Ctx,
+  Infer,
   InferSchema,
   HttpMethod,
   HttpStatusCode,
