@@ -27,6 +27,9 @@ export { AnySchema, UnknownSchema, NullSchema, UndefinedSchema, VoidSchema, Neve
 export { ObjectSchema } from './schemas/object';
 export { ArraySchema } from './schemas/array';
 export { TupleSchema } from './schemas/tuple';
+export { EnumSchema } from './schemas/enum';
+export { LiteralSchema } from './schemas/literal';
+export { UnionSchema } from './schemas/union';
 
 // Type inference utilities
 export type { Infer, Output, Input } from './utils/type-inference';
