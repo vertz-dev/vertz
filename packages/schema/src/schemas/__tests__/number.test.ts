@@ -84,6 +84,22 @@ describe('NumberSchema', () => {
     expect(() => fin.parse(-Infinity)).toThrow(ParseError);
   });
 
+  it('.gt() and .lt() support custom error messages', () => {
+    const gtSchema = new NumberSchema().gt(5, 'Must be above 5');
+    const gtResult = gtSchema.safeParse(5);
+    expect(gtResult.success).toBe(false);
+    if (!gtResult.success) {
+      expect(gtResult.error.issues[0]!.message).toBe('Must be above 5');
+    }
+
+    const ltSchema = new NumberSchema().lt(10, 'Must be below 10');
+    const ltResult = ltSchema.safeParse(10);
+    expect(ltResult.success).toBe(false);
+    if (!ltResult.success) {
+      expect(ltResult.error.issues[0]!.message).toBe('Must be below 10');
+    }
+  });
+
   it('supports custom error messages and .toJSONSchema()', () => {
     const schema = new NumberSchema().gte(1, 'Must be at least 1').lte(100, 'Must be at most 100');
     const result = schema.safeParse(0);

@@ -9,9 +9,11 @@ export class NumberSchema extends Schema<number> {
   private _gte: number | undefined;
   private _gteMessage: string | undefined;
   private _gt: number | undefined;
+  private _gtMessage: string | undefined;
   private _lte: number | undefined;
   private _lteMessage: string | undefined;
   private _lt: number | undefined;
+  private _ltMessage: string | undefined;
   private _int: boolean = false;
   private _positive: boolean = false;
   private _negative: boolean = false;
@@ -29,13 +31,13 @@ export class NumberSchema extends Schema<number> {
       ctx.addIssue({ code: ErrorCode.TooSmall, message: this._gteMessage ?? `Number must be greater than or equal to ${this._gte}` });
     }
     if (this._gt !== undefined && value <= this._gt) {
-      ctx.addIssue({ code: ErrorCode.TooSmall, message: `Number must be greater than ${this._gt}` });
+      ctx.addIssue({ code: ErrorCode.TooSmall, message: this._gtMessage ?? `Number must be greater than ${this._gt}` });
     }
     if (this._lte !== undefined && value > this._lte) {
       ctx.addIssue({ code: ErrorCode.TooBig, message: this._lteMessage ?? `Number must be less than or equal to ${this._lte}` });
     }
     if (this._lt !== undefined && value >= this._lt) {
-      ctx.addIssue({ code: ErrorCode.TooBig, message: `Number must be less than ${this._lt}` });
+      ctx.addIssue({ code: ErrorCode.TooBig, message: this._ltMessage ?? `Number must be less than ${this._lt}` });
     }
     if (this._int && !Number.isInteger(value)) {
       ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected integer, received float' });
@@ -72,9 +74,10 @@ export class NumberSchema extends Schema<number> {
     return this.gte(n, message);
   }
 
-  gt(n: number): NumberSchema {
+  gt(n: number, message?: string): NumberSchema {
     const clone = this._clone();
     clone._gt = n;
+    clone._gtMessage = message;
     return clone;
   }
 
@@ -89,9 +92,10 @@ export class NumberSchema extends Schema<number> {
     return this.lte(n, message);
   }
 
-  lt(n: number): NumberSchema {
+  lt(n: number, message?: string): NumberSchema {
     const clone = this._clone();
     clone._lt = n;
+    clone._ltMessage = message;
     return clone;
   }
 
@@ -164,9 +168,11 @@ export class NumberSchema extends Schema<number> {
     clone._gte = this._gte;
     clone._gteMessage = this._gteMessage;
     clone._gt = this._gt;
+    clone._gtMessage = this._gtMessage;
     clone._lte = this._lte;
     clone._lteMessage = this._lteMessage;
     clone._lt = this._lt;
+    clone._ltMessage = this._ltMessage;
     clone._int = this._int;
     clone._positive = this._positive;
     clone._negative = this._negative;

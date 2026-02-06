@@ -40,10 +40,23 @@ describe('StringSchema', () => {
     expect(() => schema.parse('abcde')).toThrow(ParseError);
   });
 
-  it('.regex(pattern) accepts matching and rejects non-matching', () => {
+  it('.length(n, message) supports custom error message', () => {
+    const schema = new StringSchema().length(4, 'Must be 4 chars');
+    const result = schema.safeParse('ab');
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]!.message).toBe('Must be 4 chars');
+    }
+  });
+
+  it('.regex(pattern) accepts matching, rejects non-matching with descriptive message', () => {
     const schema = new StringSchema().regex(/^[a-z]+$/);
     expect(schema.parse('hello')).toBe('hello');
-    expect(() => schema.parse('Hello123')).toThrow(ParseError);
+    const result = schema.safeParse('Hello123');
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]!.message).toBe('Invalid: must match /^[a-z]+$/');
+    }
   });
 
   it('.startsWith(), .endsWith(), .includes() validate substrings', () => {

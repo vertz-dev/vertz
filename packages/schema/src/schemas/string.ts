@@ -11,6 +11,7 @@ export class StringSchema extends Schema<string> {
   private _max: number | undefined;
   private _maxMessage: string | undefined;
   private _length: number | undefined;
+  private _lengthMessage: string | undefined;
   private _regex: RegExp | undefined;
   private _startsWith: string | undefined;
   private _endsWith: string | undefined;
@@ -47,10 +48,10 @@ export class StringSchema extends Schema<string> {
       ctx.addIssue({ code: ErrorCode.TooBig, message: this._maxMessage ?? `String must contain at most ${this._max} character(s)` });
     }
     if (this._length !== undefined && v.length !== this._length) {
-      ctx.addIssue({ code: ErrorCode.InvalidString, message: `String must be exactly ${this._length} character(s)` });
+      ctx.addIssue({ code: ErrorCode.InvalidString, message: this._lengthMessage ?? `String must be exactly ${this._length} character(s)` });
     }
     if (this._regex !== undefined && !this._regex.test(v)) {
-      ctx.addIssue({ code: ErrorCode.InvalidString, message: `Invalid` });
+      ctx.addIssue({ code: ErrorCode.InvalidString, message: `Invalid: must match ${this._regex}` });
     }
     if (this._startsWith !== undefined && !v.startsWith(this._startsWith)) {
       ctx.addIssue({ code: ErrorCode.InvalidString, message: `Invalid input: must start with "${this._startsWith}"` });
@@ -84,9 +85,10 @@ export class StringSchema extends Schema<string> {
     return clone;
   }
 
-  length(n: number): StringSchema {
+  length(n: number, message?: string): StringSchema {
     const clone = this._clone();
     clone._length = n;
+    clone._lengthMessage = message;
     return clone;
   }
 
@@ -173,6 +175,7 @@ export class StringSchema extends Schema<string> {
     clone._max = this._max;
     clone._maxMessage = this._maxMessage;
     clone._length = this._length;
+    clone._lengthMessage = this._lengthMessage;
     clone._regex = this._regex;
     clone._startsWith = this._startsWith;
     clone._endsWith = this._endsWith;
