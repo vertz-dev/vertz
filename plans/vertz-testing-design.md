@@ -34,7 +34,7 @@ Builder pattern mirrors the production app composition. Each `.register()`, `.mo
 
 ```tsx
 // user.router.test.ts
-import { vertz } from '@vertz/core';
+import { vertz } from '@vertz/testing';
 import { userModule } from './user.module';
 import { coreModule } from '../core/core.module';
 import { dbService } from '../core/db.service';
@@ -176,7 +176,7 @@ if (!res.ok) {
 
 ### Response Validation
 
-In test mode, the framework validates handler return values against the response schema. This catches mismatches that would produce incorrect OpenAPI docs:
+In development and test modes (`NODE_ENV` is `'development'` or `'test'`), the framework validates handler return values against the response schema. This catches mismatches that would produce incorrect OpenAPI docs:
 
 ```
 ✗ Response validation failed for GET /users/:id
@@ -252,7 +252,7 @@ When a middleware is mocked, it is bypassed — the mocked result is used direct
 
 ```tsx
 // user.router.test.ts
-import { vertz } from '@vertz/core';
+import { vertz } from '@vertz/testing';
 import { userModule } from './user.module';
 import { coreModule } from '../core/core.module';
 import { dbService } from '../core/db.service';
@@ -384,7 +384,7 @@ For complex business logic that benefits from isolated testing:
 
 ```tsx
 // auth.service.test.ts
-import { vertz } from '@vertz/core';
+import { vertz } from '@vertz/testing';
 import { authService } from './auth.service';
 import { userService } from './user.service';
 import { dbService } from '../core/db.service';
