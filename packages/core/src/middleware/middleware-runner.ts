@@ -4,6 +4,10 @@ export interface ResolvedMiddleware {
   resolvedInject: Record<string, unknown>;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 export async function runMiddlewareChain(
   middlewares: ResolvedMiddleware[],
   requestCtx: Record<string, unknown>,
@@ -14,7 +18,7 @@ export async function runMiddlewareChain(
     const ctx = { ...requestCtx, ...mw.resolvedInject, ...accumulated };
     const contribution = await mw.handler(ctx);
 
-    if (contribution && typeof contribution === 'object' && !Array.isArray(contribution)) {
+    if (isPlainObject(contribution)) {
       Object.assign(accumulated, contribution);
     }
   }
