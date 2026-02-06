@@ -14,7 +14,7 @@ export async function runMiddlewareChain(
     const ctx = { ...requestCtx, ...mw.resolvedInject, ...accumulated };
     const contribution = await mw.handler(ctx);
 
-    if (contribution && typeof contribution === 'object') {
+    if (contribution && typeof contribution === 'object' && !Array.isArray(contribution)) {
       Object.assign(accumulated, contribution);
     }
   }

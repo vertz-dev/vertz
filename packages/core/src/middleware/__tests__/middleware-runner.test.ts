@@ -129,4 +129,28 @@ describe('runMiddlewareChain', () => {
 
     expect(result).toEqual({ authenticated: true });
   });
+
+  it('ignores non-object contributions (arrays, primitives)', async () => {
+    const middlewares: ResolvedMiddleware[] = [
+      {
+        name: 'returns-array',
+        resolvedInject: {},
+        handler: () => ['item1', 'item2'],
+      },
+      {
+        name: 'returns-string',
+        resolvedInject: {},
+        handler: () => 'hello',
+      },
+      {
+        name: 'returns-object',
+        resolvedInject: {},
+        handler: () => ({ valid: true }),
+      },
+    ];
+
+    const result = await runMiddlewareChain(middlewares, {});
+
+    expect(result).toEqual({ valid: true });
+  });
 });
