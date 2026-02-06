@@ -2,12 +2,15 @@ import type { NamedMiddlewareDef } from '@vertz/core/src/middleware/middleware-d
 import type { ResolvedMiddleware } from '@vertz/core/src/middleware/middleware-runner';
 import type { NamedModule } from '@vertz/core/src/module/module';
 import type { NamedServiceDef } from '@vertz/core/src/module/service';
-
 import { runMiddlewareChain } from '@vertz/core/src/middleware/middleware-runner';
 import { buildCtx } from '@vertz/core/src/context/ctx-builder';
 import { Trie } from '@vertz/core/src/router/trie';
 import { parseRequest, parseBody } from '@vertz/core/src/server/request-utils';
 import { createJsonResponse, createErrorResponse } from '@vertz/core/src/server/response-utils';
+
+export type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
 
 export interface TestResponse {
   status: number;
@@ -17,8 +20,8 @@ export interface TestResponse {
 }
 
 export interface TestRequestBuilder extends PromiseLike<TestResponse> {
-  mock(service: NamedServiceDef, impl: unknown): TestRequestBuilder;
-  mockMiddleware(middleware: NamedMiddlewareDef, result: Record<string, unknown>): TestRequestBuilder;
+  mock<TDeps, TState, TMethods>(service: NamedServiceDef<TDeps, TState, TMethods>, impl: DeepPartial<TMethods>): TestRequestBuilder;
+  mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(middleware: NamedMiddlewareDef<TReq, TProv>, result: TProv): TestRequestBuilder;
 }
 
 interface RequestOptions {
@@ -28,8 +31,8 @@ interface RequestOptions {
 
 export interface TestApp {
   register(module: NamedModule, options?: Record<string, unknown>): TestApp;
-  mock(service: NamedServiceDef, impl: unknown): TestApp;
-  mockMiddleware(middleware: NamedMiddlewareDef, result: Record<string, unknown>): TestApp;
+  mock<TDeps, TState, TMethods>(service: NamedServiceDef<TDeps, TState, TMethods>, impl: DeepPartial<TMethods>): TestApp;
+  mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(middleware: NamedMiddlewareDef<TReq, TProv>, result: TProv): TestApp;
   env(vars: Record<string, unknown>): TestApp;
   get(path: string, options?: RequestOptions): TestRequestBuilder;
   post(path: string, options?: RequestOptions): TestRequestBuilder;
