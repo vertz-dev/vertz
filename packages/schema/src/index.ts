@@ -49,6 +49,7 @@ export { SetSchema } from './schemas/set';
 export { FileSchema } from './schemas/file';
 export { CustomSchema } from './schemas/custom';
 export { InstanceOfSchema } from './schemas/instanceof';
+export { LazySchema } from './schemas/lazy';
 export {
   CoercedStringSchema,
   CoercedNumberSchema,
