@@ -1,5 +1,8 @@
 // @vertz/core — public API
 
+// Namespace
+export { vertz } from './vertz';
+
 // Types
 export type {
   DeepReadonly,
@@ -46,3 +49,15 @@ export { makeImmutable, deepFreeze, createImmutableProxy } from './immutability'
 
 // Environment
 export { createEnv } from './env';
+
+// Middleware
+export { createMiddleware } from './middleware';
+export type { NamedMiddlewareDef } from './middleware';
+
+// Module
+export { createModuleDef, createModule } from './module';
+export type { NamedModuleDef, NamedServiceDef, NamedRouterDef, NamedModule } from './module';
+
+// App
+export { createApp } from './app';
+export type { AppBuilder } from './app';
