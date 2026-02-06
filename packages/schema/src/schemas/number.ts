@@ -160,11 +160,7 @@ export class NumberSchema extends Schema<number> {
   }
 
   _clone(): NumberSchema {
-    const clone = new NumberSchema();
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
+    const clone = this._cloneBase(new NumberSchema());
     clone._gte = this._gte;
     clone._gteMessage = this._gteMessage;
     clone._gt = this._gt;
