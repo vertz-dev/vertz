@@ -40,3 +40,6 @@ export {
   InternalServerErrorException,
   ServiceUnavailableException,
 } from './exceptions';
+
+// Immutability
+export { makeImmutable, deepFreeze, createImmutableProxy } from './immutability';
