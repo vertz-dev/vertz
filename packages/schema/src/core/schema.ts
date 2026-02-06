@@ -100,11 +100,17 @@ export abstract class Schema<O, I = O> {
     }
     if (this._id) {
       tracker.markSeen(this._id);
-      const jsonSchema = this._toJSONSchema(tracker);
+      const jsonSchema = this._applyMetadata(this._toJSONSchema(tracker));
       tracker.addDef(this._id, jsonSchema);
       return { $ref: `#/$defs/${this._id}` };
     }
-    return this._toJSONSchema(tracker);
+    return this._applyMetadata(this._toJSONSchema(tracker));
+  }
+
+  private _applyMetadata(schema: JSONSchemaObject): JSONSchemaObject {
+    if (this._description) schema.description = this._description;
+    if (this._examples.length > 0) schema.examples = this._examples;
+    return schema;
   }
 
   protected _cloneBase<T extends Schema<any, any>>(target: T): T {
