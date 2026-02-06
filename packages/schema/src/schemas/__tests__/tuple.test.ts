@@ -1,0 +1,65 @@
+import { describe, it, expect } from 'vitest';
+import { TupleSchema } from '../tuple';
+import { StringSchema } from '../string';
+import { NumberSchema } from '../number';
+import { BooleanSchema } from '../boolean';
+import { ErrorCode } from '../../core/errors';
+
+describe('TupleSchema', () => {
+  it('accepts a tuple with correct types at each position', () => {
+    const schema = new TupleSchema([new StringSchema(), new NumberSchema(), new BooleanSchema()]);
+    expect(schema.parse(['hello', 42, true])).toEqual(['hello', 42, true]);
+  });
+
+  it('rejects wrong type at any position with error path', () => {
+    const schema = new TupleSchema([new StringSchema(), new NumberSchema()]);
+    const result = schema.safeParse(['hello', 'not-a-number']);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]!.path).toEqual([1]);
+    }
+  });
+
+  it('rejects wrong length', () => {
+    const schema = new TupleSchema([new StringSchema(), new NumberSchema()]);
+    expect(schema.safeParse(['a']).success).toBe(false);
+    expect(schema.safeParse(['a', 1, true]).success).toBe(false);
+  });
+
+  it('.rest(schema) validates additional elements', () => {
+    const schema = new TupleSchema([new StringSchema()]).rest(new NumberSchema());
+    expect(schema.parse(['hello', 1, 2, 3])).toEqual(['hello', 1, 2, 3]);
+    const result = schema.safeParse(['hello', 1, 'bad']);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]!.path).toEqual([2]);
+    }
+  });
+
+  it('.toJSONSchema() returns prefixItems and items: false', () => {
+    const schema = new TupleSchema([new StringSchema(), new NumberSchema()]);
+    expect(schema.toJSONSchema()).toEqual({
+      type: 'array',
+      prefixItems: [{ type: 'string' }, { type: 'number' }],
+      items: false,
+    });
+  });
+
+  it('.rest().toJSONSchema() returns prefixItems and items with rest schema', () => {
+    const schema = new TupleSchema([new StringSchema()]).rest(new BooleanSchema());
+    expect(schema.toJSONSchema()).toEqual({
+      type: 'array',
+      prefixItems: [{ type: 'string' }],
+      items: { type: 'boolean' },
+    });
+  });
+
+  it('rejects non-array values', () => {
+    const schema = new TupleSchema([new StringSchema()]);
+    const result = schema.safeParse('not-an-array');
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]!.code).toBe(ErrorCode.InvalidType);
+    }
+  });
+});
