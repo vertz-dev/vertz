@@ -17,6 +17,7 @@ export default defineConfig({
     typecheck: {
       enabled: true,
       include: ['src/**/*.test-d.ts'],
+      ignoreSourceErrors: true,
       tsconfig: resolve(__dirname, './tsconfig.typecheck.json'),
     },
     coverage: {

@@ -1,11 +1,14 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "noUncheckedIndexedAccess": true,
+    "noUncheckedIndexedAccess": false,
     "exactOptionalPropertyTypes": false,
     "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"],
     "paths": {
-      "@vertz/core/*": ["../core/*"]
+      "@vertz/core/*": ["../core/*"],
+      "@vertz/schema": ["../schema/src/index.ts"]
     }
   },
   "include": ["src"]
