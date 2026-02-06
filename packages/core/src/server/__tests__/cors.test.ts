@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { handleCors, applyCorsHeaders, type CorsConfig } from '../cors';
+import { handleCors, applyCorsHeaders } from '../cors';
+import type { CorsConfig } from '../../types/app';
 
 describe('handleCors', () => {
   it('returns 204 preflight response for OPTIONS requests', () => {

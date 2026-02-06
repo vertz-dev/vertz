@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createJsonResponse, createErrorResponse } from '../response-utils';
+import { NotFoundException } from '../../exceptions';
 
 describe('createJsonResponse', () => {
   it('creates a JSON response with default 200 status', () => {
@@ -29,18 +30,8 @@ describe('createJsonResponse', () => {
 
 describe('createErrorResponse', () => {
   it('creates an error response from a VertzException', async () => {
-    const response = createErrorResponse({
-      name: 'NotFoundException',
-      message: 'User not found',
-      statusCode: 404,
-      code: 'NotFoundException',
-      toJSON: () => ({
-        error: 'NotFoundException',
-        message: 'User not found',
-        statusCode: 404,
-        code: 'NotFoundException',
-      }),
-    });
+    const error = new NotFoundException('User not found');
+    const response = createErrorResponse(error);
 
     expect(response.status).toBe(404);
     const body = await response.json();

@@ -1,3 +1,5 @@
+import { BadRequestException } from '../exceptions';
+
 export interface ParsedRequest {
   method: string;
   path: string;
@@ -8,21 +10,12 @@ export interface ParsedRequest {
 
 export function parseRequest(request: Request): ParsedRequest {
   const url = new URL(request.url);
-  const query: Record<string, string> = {};
-  url.searchParams.forEach((value, key) => {
-    query[key] = value;
-  });
-
-  const headers: Record<string, string> = {};
-  request.headers.forEach((value, key) => {
-    headers[key] = value;
-  });
 
   return {
     method: request.method,
     path: url.pathname,
-    query,
-    headers,
+    query: Object.fromEntries(url.searchParams),
+    headers: Object.fromEntries(request.headers),
     raw: request,
   };
 }
@@ -34,7 +27,7 @@ export async function parseBody(request: Request): Promise<unknown> {
     try {
       return await request.json();
     } catch {
-      throw new Error('Invalid JSON body');
+      throw new BadRequestException('Invalid JSON body');
     }
   }
 
@@ -44,12 +37,7 @@ export async function parseBody(request: Request): Promise<unknown> {
 
   if (contentType.includes('application/x-www-form-urlencoded')) {
     const text = await request.text();
-    const params = new URLSearchParams(text);
-    const result: Record<string, string> = {};
-    params.forEach((value, key) => {
-      result[key] = value;
-    });
-    return result;
+    return Object.fromEntries(new URLSearchParams(text));
   }
 
   return undefined;

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseRequest, parseBody } from '../request-utils';
+import { BadRequestException } from '../../exceptions';
 
 describe('parseRequest', () => {
   it('extracts method, path, query, and headers from a Request', () => {
@@ -88,7 +89,7 @@ describe('parseBody', () => {
       body: '{invalid json',
     });
 
-    await expect(parseBody(request)).rejects.toThrow('Invalid JSON body');
+    await expect(parseBody(request)).rejects.toThrow(BadRequestException);
   });
 
   it('handles charset in content-type for JSON', async () => {

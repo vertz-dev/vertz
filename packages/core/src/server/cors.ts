@@ -1,4 +1,3 @@
-export type { CorsConfig } from '../types/app';
 import type { CorsConfig } from '../types/app';
 
 const DEFAULT_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
@@ -7,11 +6,11 @@ const DEFAULT_HEADERS = ['Content-Type', 'Authorization'];
 function resolveOrigin(config: CorsConfig, requestOrigin: string | null): string | null {
   if (config.origins === true || config.origins === '*') return '*';
   if (!requestOrigin) return null;
-  if (typeof config.origins === 'string') {
-    return config.origins === requestOrigin ? requestOrigin : null;
-  }
   if (Array.isArray(config.origins)) {
     return config.origins.includes(requestOrigin) ? requestOrigin : null;
+  }
+  if (typeof config.origins === 'string') {
+    return config.origins === requestOrigin ? requestOrigin : null;
   }
   return null;
 }
