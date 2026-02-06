@@ -244,4 +244,43 @@ describe('BootExecutor', () => {
 
     expect(serviceMap.get('svc')).toBeDefined();
   });
+
+  it('wraps deps with makeImmutable before passing to methods', async () => {
+    let receivedDeps: any;
+
+    const sequence: BootSequence = {
+      instructions: [
+        {
+          type: 'service',
+          id: 'config',
+          deps: [],
+          factory: { methods: () => ({ url: 'postgres://localhost' }) },
+        },
+        {
+          type: 'service',
+          id: 'db',
+          deps: ['config'],
+          factory: {
+            methods: (deps: any) => {
+              receivedDeps = deps;
+              return {};
+            },
+          },
+        },
+      ],
+      shutdownOrder: [],
+    };
+
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+
+    const executor = new BootExecutor();
+    await executor.execute(sequence);
+
+    expect(() => {
+      receivedDeps.config = 'mutated';
+    }).toThrow();
+
+    process.env.NODE_ENV = originalEnv;
+  });
 });

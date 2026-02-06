@@ -2,6 +2,7 @@ import type {
   BootSequence,
   ServiceBootInstruction,
 } from '../types/boot-sequence';
+import { makeImmutable } from '../immutability';
 
 interface ServiceInstance {
   id: string;
@@ -32,7 +33,7 @@ export class BootExecutor {
   }
 
   private async executeService(instr: ServiceBootInstruction): Promise<void> {
-    const deps = this.resolveDeps(instr.deps);
+    const deps = makeImmutable(this.resolveDeps(instr.deps), 'deps');
     const state = instr.factory.onInit ? await instr.factory.onInit(deps) : undefined;
     const methods = instr.factory.methods(deps, state);
 
