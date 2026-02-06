@@ -44,6 +44,13 @@ export { UnionSchema } from './schemas/union';
 export { DiscriminatedUnionSchema } from './schemas/discriminated-union';
 export { IntersectionSchema } from './schemas/intersection';
 export { RecordSchema } from './schemas/record';
+export {
+  CoercedStringSchema,
+  CoercedNumberSchema,
+  CoercedBooleanSchema,
+  CoercedBigIntSchema,
+  CoercedDateSchema,
+} from './schemas/coerced';
 
 // Transforms
 export { preprocess } from './transforms/preprocess';
