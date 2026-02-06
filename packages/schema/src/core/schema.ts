@@ -154,6 +154,14 @@ export abstract class Schema<O, I = O> {
     return new CatchSchema(this, fallback);
   }
 
+  brand<B extends string | symbol>(): BrandedSchema<O & { readonly __brand: B }, I> {
+    return new BrandedSchema(this);
+  }
+
+  readonly(): ReadonlySchema<Readonly<O>, I> {
+    return new ReadonlySchema(this);
+  }
+
   _runPipeline(value: unknown, ctx: ParseContext): O {
     return this._parse(value, ctx);
   }
@@ -435,5 +443,60 @@ export class CatchSchema<O, I = O> extends Schema<O, I> {
 
   _clone(): CatchSchema<O, I> {
     return this._cloneBase(new CatchSchema(this._inner, this._fallback));
+  }
+}
+
+export class BrandedSchema<O, I = unknown> extends Schema<O, I> {
+  private readonly _inner: Schema<any, I>;
+
+  constructor(inner: Schema<any, I>) {
+    super();
+    this._inner = inner;
+  }
+
+  _parse(value: unknown, ctx: ParseContext): O {
+    return this._inner._runPipeline(value, ctx);
+  }
+
+  _schemaType(): SchemaType {
+    return this._inner._schemaType();
+  }
+
+  _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
+    return this._inner._toJSONSchemaWithRefs(tracker);
+  }
+
+  _clone(): BrandedSchema<O, I> {
+    return this._cloneBase(new BrandedSchema(this._inner));
+  }
+}
+
+export class ReadonlySchema<O, I = unknown> extends Schema<O, I> {
+  private readonly _inner: Schema<any, I>;
+
+  constructor(inner: Schema<any, I>) {
+    super();
+    this._inner = inner;
+  }
+
+  _parse(value: unknown, ctx: ParseContext): O {
+    const result = this._inner._runPipeline(value, ctx);
+    if (ctx.hasIssues()) return result;
+    if (typeof result === 'object' && result !== null) {
+      return Object.freeze(result) as O;
+    }
+    return result;
+  }
+
+  _schemaType(): SchemaType {
+    return this._inner._schemaType();
+  }
+
+  _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
+    return this._inner._toJSONSchemaWithRefs(tracker);
+  }
+
+  _clone(): ReadonlySchema<O, I> {
+    return this._cloneBase(new ReadonlySchema(this._inner));
   }
 }
