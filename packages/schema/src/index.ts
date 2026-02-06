@@ -18,6 +18,12 @@ export type { JSONSchemaObject } from './introspection/json-schema';
 // Schemas
 export { StringSchema } from './schemas/string';
 export { NumberSchema } from './schemas/number';
+export { BooleanSchema } from './schemas/boolean';
+export { BigIntSchema } from './schemas/bigint';
+export { DateSchema } from './schemas/date';
+export { NanSchema } from './schemas/nan';
+export { SymbolSchema } from './schemas/symbol';
+export { AnySchema, UnknownSchema, NullSchema, UndefinedSchema, VoidSchema, NeverSchema } from './schemas/special';
 
 // Type inference utilities
 export type { Infer, Output, Input } from './utils/type-inference';

@@ -165,11 +165,7 @@ export class StringSchema extends Schema<string> {
   }
 
   _clone(): StringSchema {
-    const clone = new StringSchema();
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
+    const clone = this._cloneBase(new StringSchema());
     clone._min = this._min;
     clone._minMessage = this._minMessage;
     clone._max = this._max;
