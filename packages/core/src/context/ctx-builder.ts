@@ -13,7 +13,31 @@ export interface CtxConfig {
   env: Record<string, unknown>;
 }
 
+const RESERVED_KEYS = ['params', 'body', 'query', 'headers', 'raw', 'options', 'env'];
+
+function validateCollisions(config: CtxConfig): void {
+  for (const key of Object.keys(config.middlewareState)) {
+    if (RESERVED_KEYS.includes(key)) {
+      throw new Error(`Middleware cannot provide reserved ctx key: "${key}"`);
+    }
+  }
+
+  const middlewareKeys = Object.keys(config.middlewareState);
+  for (const key of Object.keys(config.services)) {
+    if (RESERVED_KEYS.includes(key)) {
+      throw new Error(`Service name cannot shadow reserved ctx key: "${key}"`);
+    }
+    if (middlewareKeys.includes(key)) {
+      throw new Error(`Service name "${key}" collides with middleware-provided key`);
+    }
+  }
+}
+
 export function buildCtx(config: CtxConfig): Record<string, unknown> {
+  if (process.env.NODE_ENV === 'development') {
+    validateCollisions(config);
+  }
+
   return makeImmutable(
     {
       params: config.params,

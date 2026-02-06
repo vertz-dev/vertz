@@ -71,4 +71,58 @@ describe('buildCtx', () => {
     expect(ctx.user).toEqual({ id: '1' });
     expect(ctx.requestId).toBe('abc-123');
   });
+
+  it('throws in development mode when middleware provides a reserved key', () => {
+    process.env.NODE_ENV = 'development';
+
+    expect(() =>
+      buildCtx({
+        params: { id: '1' },
+        body: undefined,
+        query: {},
+        headers: {},
+        raw: { request: new Request('http://localhost'), method: 'GET', url: 'http://localhost', headers: new Headers() },
+        middlewareState: { params: { id: 'overwritten' } },
+        services: {},
+        options: {},
+        env: {},
+      }),
+    ).toThrow('params');
+  });
+
+  it('throws in development mode when service name collides with reserved key', () => {
+    process.env.NODE_ENV = 'development';
+
+    expect(() =>
+      buildCtx({
+        params: {},
+        body: undefined,
+        query: {},
+        headers: {},
+        raw: { request: new Request('http://localhost'), method: 'GET', url: 'http://localhost', headers: new Headers() },
+        middlewareState: {},
+        services: { body: { parse: () => {} } },
+        options: {},
+        env: {},
+      }),
+    ).toThrow('body');
+  });
+
+  it('throws in development mode when service name collides with middleware key', () => {
+    process.env.NODE_ENV = 'development';
+
+    expect(() =>
+      buildCtx({
+        params: {},
+        body: undefined,
+        query: {},
+        headers: {},
+        raw: { request: new Request('http://localhost'), method: 'GET', url: 'http://localhost', headers: new Headers() },
+        middlewareState: { user: { id: '1' } },
+        services: { user: { findById: () => {} } },
+        options: {},
+        env: {},
+      }),
+    ).toThrow('user');
+  });
 });

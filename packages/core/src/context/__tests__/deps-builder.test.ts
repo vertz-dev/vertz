@@ -33,4 +33,16 @@ describe('buildDeps', () => {
       (deps as any).options = 'mutated';
     }).toThrow();
   });
+
+  it('throws in development mode when service name collides with reserved key', () => {
+    process.env.NODE_ENV = 'development';
+
+    expect(() =>
+      buildDeps({
+        options: { maxRetries: 3 },
+        env: { DATABASE_URL: 'postgres://localhost' },
+        services: { env: { getVar: () => {} } },
+      }),
+    ).toThrow('env');
+  });
 });
