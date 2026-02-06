@@ -30,6 +30,9 @@ export { TupleSchema } from './schemas/tuple';
 export { EnumSchema } from './schemas/enum';
 export { LiteralSchema } from './schemas/literal';
 export { UnionSchema } from './schemas/union';
+export { DiscriminatedUnionSchema } from './schemas/discriminated-union';
+export { IntersectionSchema } from './schemas/intersection';
+export { RecordSchema } from './schemas/record';
 
 // Type inference utilities
 export type { Infer, Output, Input } from './utils/type-inference';

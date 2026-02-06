@@ -15,6 +15,10 @@ export class LiteralSchema<T extends LiteralValue> extends Schema<T> {
     this._value = value;
   }
 
+  get value(): T {
+    return this._value;
+  }
+
   _parse(value: unknown, ctx: ParseContext): T {
     if (value !== this._value) {
       ctx.addIssue({
