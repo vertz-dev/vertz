@@ -19,15 +19,10 @@ export class SymbolSchema extends Schema<symbol> {
   }
 
   _toJSONSchema(_tracker: RefTracker): JSONSchemaObject {
-    return {};
+    return { not: {} };
   }
 
   _clone(): SymbolSchema {
-    const clone = new SymbolSchema();
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
-    return clone;
+    return this._cloneBase(new SymbolSchema());
   }
 }

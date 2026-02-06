@@ -15,4 +15,9 @@ describe('NanSchema', () => {
       }
     }
   });
+
+  it('.toJSONSchema() returns { not: {} } since NaN is not representable in JSON Schema', () => {
+    const schema = new NanSchema();
+    expect(schema.toJSONSchema()).toEqual({ not: {} });
+  });
 });

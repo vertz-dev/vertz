@@ -17,4 +17,9 @@ describe('SymbolSchema', () => {
       }
     }
   });
+
+  it('.toJSONSchema() returns { not: {} } since Symbol is not representable in JSON Schema', () => {
+    const schema = new SymbolSchema();
+    expect(schema.toJSONSchema()).toEqual({ not: {} });
+  });
 });

@@ -41,6 +41,15 @@ describe('Special schemas', () => {
     }
   });
 
+  it('.toJSONSchema() returns correct JSON Schema for each special schema', () => {
+    expect(new AnySchema().toJSONSchema()).toEqual({});
+    expect(new UnknownSchema().toJSONSchema()).toEqual({});
+    expect(new NullSchema().toJSONSchema()).toEqual({ type: 'null' });
+    expect(new UndefinedSchema().toJSONSchema()).toEqual({});
+    expect(new VoidSchema().toJSONSchema()).toEqual({});
+    expect(new NeverSchema().toJSONSchema()).toEqual({ not: {} });
+  });
+
   it('NeverSchema rejects everything', () => {
     const schema = new NeverSchema();
     for (const value of [42, 'hello', true, null, undefined, {}, []]) {

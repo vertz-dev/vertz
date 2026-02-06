@@ -19,15 +19,10 @@ export class NanSchema extends Schema<number> {
   }
 
   _toJSONSchema(_tracker: RefTracker): JSONSchemaObject {
-    return {};
+    return { not: {} };
   }
 
   _clone(): NanSchema {
-    const clone = new NanSchema();
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
-    return clone;
+    return this._cloneBase(new NanSchema());
   }
 }

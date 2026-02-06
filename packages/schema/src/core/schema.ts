@@ -106,6 +106,14 @@ export abstract class Schema<O, I = O> {
     return this._toJSONSchema(tracker);
   }
 
+  protected _cloneBase<T extends Schema<any, any>>(target: T): T {
+    target._id = this._id;
+    target._description = this._description;
+    target._meta = this._meta ? { ...this._meta } : undefined;
+    target._examples = [...this._examples];
+    return target;
+  }
+
   _runPipeline(value: unknown, ctx: ParseContext): O {
     return this._parse(value, ctx);
   }

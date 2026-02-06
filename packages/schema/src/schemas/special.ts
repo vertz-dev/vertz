@@ -19,12 +19,7 @@ export class AnySchema extends Schema<any> {
   }
 
   _clone(): AnySchema {
-    const clone = new AnySchema();
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
-    return clone;
+    return this._cloneBase(new AnySchema());
   }
 }
 
@@ -42,12 +37,7 @@ export class UnknownSchema extends Schema<unknown> {
   }
 
   _clone(): UnknownSchema {
-    const clone = new UnknownSchema();
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
-    return clone;
+    return this._cloneBase(new UnknownSchema());
   }
 }
 
@@ -69,12 +59,7 @@ export class NullSchema extends Schema<null> {
   }
 
   _clone(): NullSchema {
-    const clone = new NullSchema();
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
-    return clone;
+    return this._cloneBase(new NullSchema());
   }
 }
 
@@ -96,12 +81,7 @@ export class UndefinedSchema extends Schema<undefined> {
   }
 
   _clone(): UndefinedSchema {
-    const clone = new UndefinedSchema();
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
-    return clone;
+    return this._cloneBase(new UndefinedSchema());
   }
 }
 
@@ -123,12 +103,7 @@ export class VoidSchema extends Schema<void> {
   }
 
   _clone(): VoidSchema {
-    const clone = new VoidSchema();
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
-    return clone;
+    return this._cloneBase(new VoidSchema());
   }
 }
 
@@ -147,11 +122,6 @@ export class NeverSchema extends Schema<never> {
   }
 
   _clone(): NeverSchema {
-    const clone = new NeverSchema();
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
-    return clone;
+    return this._cloneBase(new NeverSchema());
   }
 }

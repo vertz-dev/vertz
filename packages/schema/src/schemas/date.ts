@@ -52,11 +52,7 @@ export class DateSchema extends Schema<Date> {
   }
 
   _clone(): DateSchema {
-    const clone = new DateSchema();
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
+    const clone = this._cloneBase(new DateSchema());
     clone._min = this._min;
     clone._minMessage = this._minMessage;
     clone._max = this._max;

@@ -43,4 +43,9 @@ describe('DateSchema', () => {
       expect(tooLate.error.issues[0]!.message).toBe('Too late');
     }
   });
+
+  it('.toJSONSchema() returns { type: "string", format: "date-time" }', () => {
+    const schema = new DateSchema();
+    expect(schema.toJSONSchema()).toEqual({ type: 'string', format: 'date-time' });
+  });
 });
