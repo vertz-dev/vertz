@@ -15,6 +15,10 @@ These features require the compiler to generate route type information:
 - **Typed response body** — `res.body` narrows via `res.ok` discriminated union
 - **Typed request headers per route** — headers typed from route's header schema
 
+### Deferred (not needed now)
+
+- **`vertz.testing` namespace re-export** — keep `import { createTestApp } from '@vertz/testing'` as the API. No cross-package coupling.
+
 ---
 
 ## Phases
@@ -69,11 +73,13 @@ The generics already exist on `NamedServiceDef<TDeps, TState, TMethods>` and `Na
 
 Tighten the signatures:
 
+Service mocks use `DeepPartial<TMethods>` — allow partial mocks so per-request overrides only need to specify the methods they care about.
+
 ```typescript
 // TestApp
 mock<TDeps, TState, TMethods>(
   service: NamedServiceDef<TDeps, TState, TMethods>,
-  impl: TMethods,
+  impl: DeepPartial<TMethods>,
 ): TestApp;
 
 mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
@@ -87,7 +93,7 @@ Same pattern on `TestRequestBuilder`:
 ```typescript
 mock<TDeps, TState, TMethods>(
   service: NamedServiceDef<TDeps, TState, TMethods>,
-  impl: TMethods,
+  impl: DeepPartial<TMethods>,
 ): TestRequestBuilder;
 
 mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
@@ -95,6 +101,8 @@ mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string
   result: TProv,
 ): TestRequestBuilder;
 ```
+
+`DeepPartial<T>` is already available from `@vertz/core` types.
 
 Internal Maps stay `Map<NamedServiceDef, unknown>` — the type safety is at the call site.
 
@@ -115,8 +123,9 @@ Changes:
 - After `await entry.handler(ctx)`, if `entry.responseSchema` exists, call `schema.safeParse(result)`
 - On validation failure, throw a descriptive error (not an HTTP error — a test assertion-style error)
 - Always on in test mode — matches the design doc's "Response validation always on in test mode"
+- Guard with runtime check (`typeof response?.safeParse === 'function'`) since `RouteConfig.response` is typed as `any`
 
-**Reuse:** `route.config.response` is a `@vertz/schema` Schema with `.safeParse()` method.
+**Reuse:** `route.config.response` is expected to be a `@vertz/schema` Schema with `.safeParse()` method.
 
 **Tests:**
 1. Handler return matching response schema passes
@@ -131,23 +140,25 @@ Changes:
 
 The design doc (lines 381-431) describes `vertz.testing.createService(serviceDef)` for isolated service testing with mock injection.
 
-Builder API:
+Thenable builder API (same pattern as `TestRequestBuilder` — no `.build()` step):
 ```typescript
-createTestService(serviceDef)
-  .mock(depService, mockImpl)
-  .options({ ... })
-  .env({ ... })
-  .build()  // → returns TMethods (the service's public API)
+const service = await createTestService(authService)
+  .mock(dbService, mockDb)
+  .mock(userService, mockUserService)
+  .options({ maxLoginAttempts: 3 })
+  .env({ JWT_SECRET: 'test-secret' });
+
+// service is TMethods — call methods directly
+await service.login('user@example.com', 'wrong-password');
 ```
 
 Implementation:
 - Accept a `NamedServiceDef<TDeps, TState, TMethods>`
 - Collect mock deps, options, env via builder chain
-- `.build()` resolves inject deps (using mocks), runs `onInit(deps)` (await if async), calls `methods(deps, state)`, returns result
-- Return type is `Promise<TMethods>` (because `onInit` may be async)
+- Implement `PromiseLike<TMethods>` — `await` triggers: resolve inject deps (using mocks), run `onInit(deps)` (await if async), call `methods(deps, state)`, return result
 
 **Tests:**
-1. Build service returns methods object
+1. Awaiting builder returns methods object
 2. Mocked dependencies are injected
 3. Options are passed through
 4. Env overrides are available
