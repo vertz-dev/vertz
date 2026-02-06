@@ -102,7 +102,7 @@ mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string
 ): TestRequestBuilder;
 ```
 
-`DeepPartial<T>` is already available from `@vertz/core` types.
+`DeepPartial<T>` is defined locally in `@vertz/testing` (not imported from core — core shouldn't contain testing utilities).
 
 Internal Maps stay `Map<NamedServiceDef, unknown>` — the type safety is at the call site.
 
