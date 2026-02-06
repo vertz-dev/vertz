@@ -1,6 +1,7 @@
-import { ParseError } from './errors';
+import { ErrorCode, ParseError } from './errors';
 import type { SchemaType, SafeParseResult, SchemaMetadata } from './types';
 import { ParseContext } from './parse-context';
+import type { RefinementContext } from './parse-context';
 import { SchemaRegistry } from './registry';
 import { RefTracker } from '../introspection/json-schema';
 import type { JSONSchemaObject } from '../introspection/json-schema';
@@ -126,6 +127,33 @@ export abstract class Schema<O, I = O> {
     return new DefaultSchema(this, defaultValue);
   }
 
+  refine(
+    predicate: (value: O) => boolean,
+    params?: string | { message?: string; path?: (string | number)[] },
+  ): RefinedSchema<O, I> {
+    return new RefinedSchema(this, predicate, params);
+  }
+
+  superRefine(refinement: (value: O, ctx: RefinementContext) => void): SuperRefinedSchema<O, I> {
+    return new SuperRefinedSchema(this, refinement);
+  }
+
+  check(refinement: (value: O, ctx: RefinementContext) => void): SuperRefinedSchema<O, I> {
+    return new SuperRefinedSchema(this, refinement);
+  }
+
+  transform<NewO>(fn: (value: O) => NewO): TransformSchema<NewO, I> {
+    return new TransformSchema(this, fn);
+  }
+
+  pipe<NewO>(schema: Schema<NewO>): PipeSchema<NewO, I> {
+    return new PipeSchema(this, schema);
+  }
+
+  catch(fallback: O | (() => O)): CatchSchema<O, I> {
+    return new CatchSchema(this, fallback);
+  }
+
   _runPipeline(value: unknown, ctx: ParseContext): O {
     return this._parse(value, ctx);
   }
@@ -225,5 +253,187 @@ export class DefaultSchema<O, I> extends Schema<O, I | undefined> {
 
   unwrap(): Schema<O, I> {
     return this._inner;
+  }
+}
+
+export class RefinedSchema<O, I = O> extends Schema<O, I> {
+  private readonly _inner: Schema<O, I>;
+  private readonly _predicate: (value: O) => boolean;
+  private readonly _message: string;
+  private readonly _path: (string | number)[] | undefined;
+
+  constructor(
+    inner: Schema<O, I>,
+    predicate: (value: O) => boolean,
+    params?: string | { message?: string; path?: (string | number)[] },
+  ) {
+    super();
+    this._inner = inner;
+    this._predicate = predicate;
+    const normalized = typeof params === 'string' ? { message: params } : params;
+    this._message = normalized?.message ?? 'Custom validation failed';
+    this._path = normalized?.path;
+  }
+
+  _parse(value: unknown, ctx: ParseContext): O {
+    const result = this._inner._runPipeline(value, ctx);
+    if (ctx.hasIssues()) return result;
+    if (!this._predicate(result)) {
+      ctx.addIssue({
+        code: ErrorCode.Custom,
+        message: this._message,
+        path: this._path,
+      });
+    }
+    return result;
+  }
+
+  _schemaType(): SchemaType {
+    return this._inner._schemaType();
+  }
+
+  _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
+    return this._inner._toJSONSchemaWithRefs(tracker);
+  }
+
+  _clone(): RefinedSchema<O, I> {
+    return this._cloneBase(new RefinedSchema(this._inner, this._predicate, {
+      message: this._message,
+      path: this._path,
+    }));
+  }
+}
+
+export class SuperRefinedSchema<O, I = O> extends Schema<O, I> {
+  private readonly _inner: Schema<O, I>;
+  private readonly _refinement: (value: O, ctx: RefinementContext) => void;
+
+  constructor(inner: Schema<O, I>, refinement: (value: O, ctx: RefinementContext) => void) {
+    super();
+    this._inner = inner;
+    this._refinement = refinement;
+  }
+
+  _parse(value: unknown, ctx: ParseContext): O {
+    const result = this._inner._runPipeline(value, ctx);
+    if (ctx.hasIssues()) return result;
+    this._refinement(result, ctx);
+    return result;
+  }
+
+  _schemaType(): SchemaType {
+    return this._inner._schemaType();
+  }
+
+  _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
+    return this._inner._toJSONSchemaWithRefs(tracker);
+  }
+
+  _clone(): SuperRefinedSchema<O, I> {
+    return this._cloneBase(new SuperRefinedSchema(this._inner, this._refinement));
+  }
+}
+
+export class TransformSchema<O, I = unknown> extends Schema<O, I> {
+  private readonly _inner: Schema<any, I>;
+  private readonly _transform: (value: any) => O;
+
+  constructor(inner: Schema<any, I>, transform: (value: any) => O) {
+    super();
+    this._inner = inner;
+    this._transform = transform;
+  }
+
+  _parse(value: unknown, ctx: ParseContext): O {
+    const result = this._inner._runPipeline(value, ctx);
+    if (ctx.hasIssues()) return result;
+    try {
+      return this._transform(result);
+    } catch (e) {
+      ctx.addIssue({
+        code: ErrorCode.Custom,
+        message: e instanceof Error ? e.message : 'Transform failed',
+      });
+      return result as O;
+    }
+  }
+
+  _schemaType(): SchemaType {
+    return this._inner._schemaType();
+  }
+
+  _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
+    return this._inner._toJSONSchemaWithRefs(tracker);
+  }
+
+  _clone(): TransformSchema<O, I> {
+    return this._cloneBase(new TransformSchema(this._inner, this._transform));
+  }
+}
+
+export class PipeSchema<O, I = unknown> extends Schema<O, I> {
+  private readonly _first: Schema<any, I>;
+  private readonly _second: Schema<O>;
+
+  constructor(first: Schema<any, I>, second: Schema<O>) {
+    super();
+    this._first = first;
+    this._second = second;
+  }
+
+  _parse(value: unknown, ctx: ParseContext): O {
+    const intermediate = this._first._runPipeline(value, ctx);
+    if (ctx.hasIssues()) return intermediate;
+    return this._second._runPipeline(intermediate, ctx);
+  }
+
+  _schemaType(): SchemaType {
+    return this._second._schemaType();
+  }
+
+  _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
+    return this._first._toJSONSchemaWithRefs(tracker);
+  }
+
+  _clone(): PipeSchema<O, I> {
+    return this._cloneBase(new PipeSchema(this._first, this._second));
+  }
+}
+
+export class CatchSchema<O, I = O> extends Schema<O, I> {
+  private readonly _inner: Schema<O, I>;
+  private readonly _fallback: O | (() => O);
+
+  constructor(inner: Schema<O, I>, fallback: O | (() => O)) {
+    super();
+    this._inner = inner;
+    this._fallback = fallback;
+  }
+
+  _parse(value: unknown, ctx: ParseContext): O {
+    const innerCtx = new ParseContext();
+    const result = this._inner._runPipeline(value, innerCtx);
+    if (innerCtx.hasIssues()) {
+      return this._resolveFallback();
+    }
+    return result;
+  }
+
+  _schemaType(): SchemaType {
+    return this._inner._schemaType();
+  }
+
+  _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
+    return this._inner._toJSONSchemaWithRefs(tracker);
+  }
+
+  private _resolveFallback(): O {
+    return typeof this._fallback === 'function'
+      ? (this._fallback as () => O)()
+      : this._fallback;
+  }
+
+  _clone(): CatchSchema<O, I> {
+    return this._cloneBase(new CatchSchema(this._inner, this._fallback));
   }
 }
