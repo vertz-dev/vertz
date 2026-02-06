@@ -1,0 +1,245 @@
+import { describe, it, expect } from 'vitest';
+import { createApp } from '../app-builder';
+import { createModuleDef } from '../../module/module-def';
+import { createModule } from '../../module/module';
+import { createMiddleware } from '../../middleware/middleware-def';
+import { NotFoundException, UnauthorizedException } from '../../exceptions';
+
+function createTestModule(name: string, prefix: string, routes: { method: string; path: string; handler: (ctx: any) => any }[]) {
+  const moduleDef = createModuleDef({ name });
+  const router = moduleDef.router({ prefix });
+  for (const route of routes) {
+    const method = route.method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head';
+    router[method](route.path, { handler: route.handler });
+  }
+  return createModule(moduleDef, { services: [], routers: [router], exports: [] });
+}
+
+describe('createApp', () => {
+  it('returns a builder with register, middlewares, and handler', () => {
+    const app = createApp({ basePath: '/api' });
+
+    expect(app.register).toBeTypeOf('function');
+    expect(app.middlewares).toBeTypeOf('function');
+    expect(app).toHaveProperty('handler');
+  });
+
+  it('routes a GET request to the correct handler and returns JSON', async () => {
+    const mod = createTestModule('test', '/users', [
+      { method: 'GET', path: '/', handler: () => ({ users: [] }) },
+    ]);
+
+    const app = createApp({}).register(mod);
+    const res = await app.handler(new Request('http://localhost/users'));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ users: [] });
+  });
+
+  it('returns 404 for unmatched route', async () => {
+    const mod = createTestModule('test', '/users', [
+      { method: 'GET', path: '/', handler: () => ({ users: [] }) },
+    ]);
+
+    const app = createApp({}).register(mod);
+    const res = await app.handler(new Request('http://localhost/unknown'));
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toBe('NotFound');
+  });
+
+  it('passes parsed params to route handler via ctx', async () => {
+    const mod = createTestModule('test', '/users', [
+      { method: 'GET', path: '/:id', handler: (ctx: any) => ({ id: ctx.params.id }) },
+    ]);
+
+    const app = createApp({}).register(mod);
+    const res = await app.handler(new Request('http://localhost/users/42'));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: '42' });
+  });
+
+  it('parses request body for POST routes', async () => {
+    const mod = createTestModule('test', '/users', [
+      { method: 'POST', path: '/', handler: (ctx: any) => ({ created: ctx.body.name }) },
+    ]);
+
+    const app = createApp({}).register(mod);
+    const res = await app.handler(
+      new Request('http://localhost/users', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Jane' }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ created: 'Jane' });
+  });
+
+  it('handles VertzException and returns correct status code', async () => {
+    const mod = createTestModule('test', '/users', [
+      {
+        method: 'GET',
+        path: '/:id',
+        handler: () => {
+          throw new NotFoundException('User not found');
+        },
+      },
+    ]);
+
+    const app = createApp({}).register(mod);
+    const res = await app.handler(new Request('http://localhost/users/42'));
+
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.message).toBe('User not found');
+    expect(body.error).toBe('NotFoundException');
+  });
+
+  it('handles unexpected errors with 500', async () => {
+    const mod = createTestModule('test', '/users', [
+      {
+        method: 'GET',
+        path: '/',
+        handler: () => {
+          throw new Error('unexpected');
+        },
+      },
+    ]);
+
+    const app = createApp({}).register(mod);
+    const res = await app.handler(new Request('http://localhost/users'));
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe('InternalServerError');
+  });
+
+  it('returns 405 with Allow header for wrong HTTP method', async () => {
+    const mod = createTestModule('test', '/users', [
+      { method: 'GET', path: '/', handler: () => ({ users: [] }) },
+    ]);
+
+    const app = createApp({}).register(mod);
+    const res = await app.handler(new Request('http://localhost/users', { method: 'DELETE' }));
+
+    expect(res.status).toBe(405);
+    expect(res.headers.get('allow')).toBe('GET');
+  });
+
+  it('registers multiple modules and combines their routes', async () => {
+    const userMod = createTestModule('users', '/users', [
+      { method: 'GET', path: '/', handler: () => ({ type: 'users' }) },
+    ]);
+    const orderMod = createTestModule('orders', '/orders', [
+      { method: 'GET', path: '/', handler: () => ({ type: 'orders' }) },
+    ]);
+
+    const app = createApp({}).register(userMod).register(orderMod);
+
+    const usersRes = await app.handler(new Request('http://localhost/users'));
+    expect(await usersRes.json()).toEqual({ type: 'users' });
+
+    const ordersRes = await app.handler(new Request('http://localhost/orders'));
+    expect(await ordersRes.json()).toEqual({ type: 'orders' });
+  });
+
+  it('handles CORS preflight with 204', async () => {
+    const mod = createTestModule('test', '/users', [
+      { method: 'GET', path: '/', handler: () => ({ users: [] }) },
+    ]);
+
+    const app = createApp({ cors: { origins: true } }).register(mod);
+    const res = await app.handler(
+      new Request('http://localhost/users', {
+        method: 'OPTIONS',
+        headers: { origin: 'http://example.com' },
+      }),
+    );
+
+    expect(res.status).toBe(204);
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+  });
+
+  it('runs middleware chain and provides contributions to handler ctx', async () => {
+    const authMiddleware = createMiddleware({
+      name: 'auth',
+      handler: () => ({ user: { id: '1', role: 'admin' } }),
+    });
+
+    const mod = createTestModule('test', '/users', [
+      { method: 'GET', path: '/', handler: (ctx: any) => ({ userId: ctx.user.id }) },
+    ]);
+
+    const app = createApp({}).middlewares([authMiddleware]).register(mod);
+    const res = await app.handler(new Request('http://localhost/users'));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ userId: '1' });
+  });
+
+  it('returns 204 when handler returns undefined', async () => {
+    const mod = createTestModule('test', '/users', [
+      { method: 'POST', path: '/:id/activate', handler: () => undefined },
+    ]);
+
+    const app = createApp({}).register(mod);
+    const res = await app.handler(new Request('http://localhost/users/42/activate', { method: 'POST' }));
+
+    expect(res.status).toBe(204);
+  });
+
+  it('short-circuits when middleware throws VertzException', async () => {
+    const authMiddleware = createMiddleware({
+      name: 'auth',
+      handler: () => {
+        throw new UnauthorizedException('Invalid token');
+      },
+    });
+
+    const mod = createTestModule('test', '/users', [
+      { method: 'GET', path: '/', handler: () => ({ users: [] }) },
+    ]);
+
+    const app = createApp({}).middlewares([authMiddleware]).register(mod);
+    const res = await app.handler(new Request('http://localhost/users'));
+
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.message).toBe('Invalid token');
+  });
+
+  it('prepends basePath to all routes', async () => {
+    const mod = createTestModule('test', '/users', [
+      { method: 'GET', path: '/', handler: () => ({ users: [] }) },
+    ]);
+
+    const app = createApp({ basePath: '/api' }).register(mod);
+
+    const res = await app.handler(new Request('http://localhost/api/users'));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ users: [] });
+
+    const miss = await app.handler(new Request('http://localhost/users'));
+    expect(miss.status).toBe(404);
+  });
+
+  it('applies CORS headers to actual responses', async () => {
+    const mod = createTestModule('test', '/users', [
+      { method: 'GET', path: '/', handler: () => ({ users: [] }) },
+    ]);
+
+    const app = createApp({ cors: { origins: true } }).register(mod);
+    const res = await app.handler(
+      new Request('http://localhost/users', {
+        headers: { origin: 'http://example.com' },
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+  });
+});
