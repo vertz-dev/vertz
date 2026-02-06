@@ -169,16 +169,9 @@ export const vertz = {
 The `testing` namespace lives in `@vertz/testing`:
 
 ```typescript
-// @vertz/testing
-import { vertz as coreVertz } from '@vertz/core';
-
-export const vertz = {
-  ...coreVertz,
-  testing: {
-    createApp:     createTestApp,     // vertz.testing.createApp()
-    createService: createTestService, // vertz.testing.createService(serviceDef)
-  },
-};
+// @vertz/testing — direct exports, no namespace re-export
+export { createTestApp } from './test-app';
+export { createTestService } from './test-service';
 ```
 
 ```typescript
@@ -672,13 +665,12 @@ Handles OPTIONS preflight → 204. Adds headers to actual responses. Supports or
 
 ### 12. Testing Support
 
-Testing support lives in `@vertz/testing` as a separate package (`packages/testing/`). The `vertz.testing` namespace is re-exported from this package — users import from `@vertz/testing`:
+Testing support lives in `@vertz/testing` as a separate package (`packages/testing/`). Users import directly:
 
 ```typescript
-import { vertz } from '@vertz/testing';
+import { createTestApp } from '@vertz/testing';
 
-const app = vertz.testing
-  .createApp()
+const app = createTestApp()
   .env({ DATABASE_URL: '...', JWT_SECRET: '...' })
   .mock(dbService, mockDb)
   .mockMiddleware(authMiddleware, { user: { id: '1', role: 'admin' } })
