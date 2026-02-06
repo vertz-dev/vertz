@@ -23,6 +23,7 @@
     "@vertz/core": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^25.2.1",
     "bunup": "latest",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
