@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { s } from '@vertz/schema';
 import { createEnv } from '../env-validator';
 
@@ -84,5 +84,21 @@ describe('createEnv', () => {
     expect(() => {
       (env as any).APP_NAME = 'changed';
     }).toThrow();
+  });
+
+  it('deep-freezes nested objects in the result', () => {
+    process.env.DB_HOST = 'localhost';
+    process.env.DB_PORT = '5432';
+
+    const env = createEnv({
+      schema: s.object({
+        DB: s.object({
+          HOST: s.string(),
+          PORT: s.string(),
+        }).default({ HOST: 'localhost', PORT: '5432' }),
+      }),
+    });
+
+    expect(Object.isFrozen(env.DB)).toBe(true);
   });
 });
