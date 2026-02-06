@@ -114,7 +114,116 @@ export abstract class Schema<O, I = O> {
     return target;
   }
 
+  optional(): OptionalSchema<O, I> {
+    return new OptionalSchema(this);
+  }
+
+  nullable(): NullableSchema<O, I> {
+    return new NullableSchema(this);
+  }
+
+  default(defaultValue: I | (() => I)): DefaultSchema<O, I> {
+    return new DefaultSchema(this, defaultValue);
+  }
+
   _runPipeline(value: unknown, ctx: ParseContext): O {
     return this._parse(value, ctx);
+  }
+}
+
+export class OptionalSchema<O, I> extends Schema<O | undefined, I | undefined> {
+  constructor(private readonly _inner: Schema<O, I>) {
+    super();
+  }
+
+  _schemaType(): SchemaType {
+    return this._inner._schemaType();
+  }
+
+  _parse(value: unknown, ctx: ParseContext): O | undefined {
+    if (value === undefined) return undefined;
+    return this._inner._runPipeline(value, ctx);
+  }
+
+  _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
+    return this._inner._toJSONSchemaWithRefs(tracker);
+  }
+
+  _clone(): OptionalSchema<O, I> {
+    return this._cloneBase(new OptionalSchema(this._inner));
+  }
+
+  unwrap(): Schema<O, I> {
+    return this._inner;
+  }
+}
+
+export class NullableSchema<O, I> extends Schema<O | null, I | null> {
+  constructor(private readonly _inner: Schema<O, I>) {
+    super();
+  }
+
+  _schemaType(): SchemaType {
+    return this._inner._schemaType();
+  }
+
+  _parse(value: unknown, ctx: ParseContext): O | null {
+    if (value === null) return null;
+    return this._inner._runPipeline(value, ctx);
+  }
+
+  _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
+    const inner = this._inner._toJSONSchemaWithRefs(tracker);
+    if (typeof inner.type === 'string') {
+      return { ...inner, type: [inner.type, 'null'] };
+    }
+    return { anyOf: [inner, { type: 'null' }] };
+  }
+
+  _clone(): NullableSchema<O, I> {
+    return this._cloneBase(new NullableSchema(this._inner));
+  }
+
+  unwrap(): Schema<O, I> {
+    return this._inner;
+  }
+}
+
+export class DefaultSchema<O, I> extends Schema<O, I | undefined> {
+  constructor(
+    private readonly _inner: Schema<O, I>,
+    private readonly _default: I | (() => I),
+  ) {
+    super();
+  }
+
+  _schemaType(): SchemaType {
+    return this._inner._schemaType();
+  }
+
+  _parse(value: unknown, ctx: ParseContext): O {
+    if (value === undefined) {
+      return this._inner._runPipeline(this._resolveDefault(), ctx);
+    }
+    return this._inner._runPipeline(value, ctx);
+  }
+
+  _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
+    const inner = this._inner._toJSONSchemaWithRefs(tracker);
+    return { ...inner, default: this._resolveDefault() };
+  }
+
+  private _resolveDefault(): I {
+    return typeof this._default === 'function'
+      ? (this._default as () => I)()
+      : this._default;
+  }
+
+  _clone(): DefaultSchema<O, I> {
+    return this._cloneBase(new DefaultSchema(this._inner, this._default));
+  }
+
+  unwrap(): Schema<O, I> {
+    return this._inner;
   }
 }

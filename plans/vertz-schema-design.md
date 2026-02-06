@@ -86,6 +86,8 @@ s.coerce.date()
 
 `s.date()` validates Date objects strictly — no string-to-Date coercion. Use `s.coerce.date()` for auto-coercion from strings/numbers.
 
+**Important:** Since JSON has no native Date type, request body/query schemas should use `s.coerce.date()` (dates arrive as strings from JSON parsing). Use `s.date()` only in response schemas or in-memory validation where actual Date instances are expected.
+
 ### Date Methods
 
 ```typescript
@@ -437,95 +439,75 @@ packages/schema/
 
 ## Implementation Phases (TDD)
 
-Each phase follows strict TDD — one test at a time. Write one failing test, implement just enough to pass, refactor, then write the next test.
+Each phase follows strict TDD — one test at a time. Write one failing test, implement just enough to pass, refactor, then write the next test. Tests are colocated with source files. See [Schema Implementation Plan](./vertz-schema-implementation.md) for full phase details including test cases.
 
-### Phase 1: Core Infrastructure
+### Phase 1: Core Infrastructure ✅
 
-Refactor base `Schema<O, I>`, overhaul error system, add ParseContext, add `.id()` for named schemas, add `.toJSONSchema()` instance method, update type inference utilities.
+Base `Schema<O, I>` class, error system, ParseContext, SchemaRegistry, type inference utilities, RefTracker, JSON Schema introspection.
 
-**Files:**
-- `src/core/schema.ts` — dual type params, `.id()` method, method signatures for refine/transform/pipe/etc.
-- `src/core/errors.ts` — ErrorCode enum, ValidationIssue, ParseError
-- `src/core/parse-context.ts` — NEW
-- `src/core/registry.ts` — NEW, named schema registry for `$ref` resolution in JSON Schema output
-- `src/core/types.ts` — extend SchemaType union and SchemaMetadata (add `id` field)
-- `src/utils/type-inference.ts` — Input vs Output for transforms
-- `src/introspection/json-schema.ts` — instance method + `$ref`/`$defs` for named schemas
+### Phase 2: Primitive Schemas — String and Number ✅
 
-**Tests first:**
-- `__tests__/unit/core/schema.test.ts`
-- `__tests__/unit/core/errors.test.ts`
-- `__tests__/unit/core/parse-context.test.ts`
-- `__tests__/unit/core/registry.test.ts`
+StringSchema and NumberSchema with full constraint sets, custom error messages, and JSON Schema output.
 
-### Phase 2: Refinements & Transforms
+### Phase 3: Remaining Primitive Schemas ✅
 
-`.refine()`, `.superRefine()`, `.check()`, `.transform()`, `.pipe()`, `preprocess()`, `.catch()`, `.brand()`, `.readonly()`
+BooleanSchema, BigIntSchema, DateSchema, NanSchema, SymbolSchema, and special schemas (Any, Unknown, Null, Undefined, Void, Never).
 
-**Files:** `src/refinements/*`, `src/transforms/*`, `src/effects/*`
+### Phase 4: Wrapper Schemas and Universal Methods
 
-**Tests first:**
-- `__tests__/unit/refinements/refine.test.ts`
-- `__tests__/unit/refinements/super-refine.test.ts`
-- `__tests__/unit/transforms/transform.test.ts`
-- `__tests__/unit/transforms/pipe.test.ts`
-- `__tests__/unit/effects/brand.test.ts`
-- `__tests__/unit/effects/readonly.test.ts`
-- `__tests__/unit/effects/catch.test.ts`
+OptionalSchema, NullableSchema, DefaultSchema as wrapper types. Full testing of universal methods (.optional, .nullable, .default, .describe, .meta, .example, .id) with composition.
 
-### Phase 3: Missing Schema Types
+### Phase 5: Object Schema
 
-`DiscriminatedUnionSchema`, `IntersectionSchema`, `LazySchema`, `BigIntSchema`, `NeverSchema`, `NanSchema`, `CustomSchema`, `InstanceOfSchema`
+ObjectSchema with full method set — shape, strict/passthrough/catchall, extend/pick/omit/partial/required/keyof, and JSON Schema output.
 
-**Tests first:** one test file per schema type.
+### Phase 6: Array and Tuple Schemas
 
-### Phase 4: Existing Schema Enhancements
+ArraySchema with min/max/length, TupleSchema with rest element support. JSON Schema: `prefixItems` + `items`.
 
-- NumberSchema: `.gt()`, `.lt()`, `.multipleOf()`, fix constraint storage
-- ObjectSchema: `.catchall()`, `.keyof()`, fix `.required()`
-- TupleSchema: `.rest()` support
-- StringSchema: `.uppercase()`, `.lowercase()` validation
-- Per-rule custom error messages on all existing constraints
-- Fix email validation (too permissive)
+### Phase 7: Enum, Literal, Union Schemas
 
-**Tests first:** extend existing test files with new cases.
+EnumSchema with exclude/extract, LiteralSchema, UnionSchema with `anyOf` output.
 
-### Phase 5: String Format Schemas
+### Phase 8: DiscriminatedUnion, Intersection, Record Schemas
 
-All format validators: uuid, url, hostname, ipv4, ipv6, base64, hex, jwt, cuid, ulid, nanoid.
+Efficient discriminated union dispatch (O(1) via lookup map), intersection validation with `allOf` output, record with key/value schemas.
 
-**Tests first:** one test file per format.
+### Phase 9: Refinements and Transforms
 
-### Phase 6: Remaining Types
+`.refine()`, `.superRefine()`, `.check()`, `.transform()`, `.pipe()`, `preprocess()`, `.catch()`.
 
-`MapSchema`, `SetSchema`, `SymbolSchema`, `FileSchema`
+### Phase 10: Effects (Brand, Readonly)
 
-**Files:** `src/schemas/map.ts`, `src/schemas/set.ts`, `src/schemas/symbol.ts`, `src/schemas/file.ts`
+Type-level brand (`.brand<'Name'>()`), `Object.freeze` readonly (`.readonly()`).
 
-**Tests first:**
-- `__tests__/unit/schemas/map.test.ts`
-- `__tests__/unit/schemas/set.test.ts`
-- `__tests__/unit/schemas/symbol.test.ts`
-- `__tests__/unit/schemas/file.test.ts`
+### Phase 11: Coercion Schemas
 
-### Phase 7: JSON Schema Output Completions
+`s.coerce.string()`, `s.coerce.number()`, `s.coerce.boolean()`, `s.coerce.bigint()`, `s.coerce.date()`.
 
-Fix/add JSON Schema output for all schema types:
-- Named schemas → `$ref` + `$defs` via `.id()`
-- Tuple → `prefixItems` + `items` (for `.rest()`)
-- DiscriminatedUnion → `oneOf` + `discriminator`
-- Intersection → `allOf`
-- Strict object → `additionalProperties: false`
-- Nullable → `type: ["string", "null"]` or `anyOf`
-- Record → `additionalProperties` with value schema
-- Lazy/recursive → `$ref` + `$defs`
-- Number → `exclusiveMinimum`/`exclusiveMaximum` for `.gt()`/`.lt()`
-- Date → `type: "string", format: "date-time"` (JSON has no Date type)
+### Phase 12: String Format Schemas
 
-**Tests first:**
-- `__tests__/integration/openapi-output.test.ts`
-- `__tests__/integration/named-schemas.test.ts`
-- `__tests__/integration/recursive-schemas.test.ts`
+All standalone format validators: email, uuid, url, hostname, ipv4, ipv6, base64, hex, jwt, cuid, ulid, nanoid, iso.date/time/datetime/duration.
+
+### Phase 13: Map, Set, Symbol, File, Custom, InstanceOf Schemas
+
+Remaining composite and specialized schema types.
+
+### Phase 14: Lazy Schema (Recursive Types)
+
+LazySchema for recursive type definitions. JSON Schema output uses `$ref` for named lazy schemas.
+
+### Phase 15: JSON Schema Output Completions
+
+Comprehensive JSON Schema output for all schema types — named schema `$ref`/`$defs`, full OpenAPI v3.1 compliance. Review and complete all `_toJSONSchema()` methods.
+
+### Phase 16: Factory Object and Public API
+
+Wire everything into the `schema`/`s` factory object, finalize `index.ts` exports.
+
+### Phase 17: Integration Tests
+
+End-to-end usage patterns, complex compositions, named schemas, recursive schemas, real-world schema definitions.
 
 ---
 
@@ -540,6 +522,20 @@ Fix/add JSON Schema output for all schema types:
 5. Go back to step 1 with the next behavior
 
 Never write multiple tests before implementing. The cycle is always: one red → one green → refactor → repeat.
+
+### SchemaRegistry Cleanup
+
+`SchemaRegistry` is a global singleton. Schemas registered with `.id()` in one test are visible in all subsequent tests. To prevent test pollution, call `SchemaRegistry.clear()` in `beforeEach` for any test file that uses `.id()`:
+
+```typescript
+import { SchemaRegistry } from '@vertz/schema';
+
+beforeEach(() => {
+  SchemaRegistry.clear();
+});
+```
+
+The schema package's vitest setup file should also call `SchemaRegistry.clear()` globally to ensure a clean slate between test files.
 
 ### Test Structure Per Schema Type
 

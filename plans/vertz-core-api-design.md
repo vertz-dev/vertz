@@ -149,7 +149,7 @@ export const adminMiddleware = vertz.middleware({
     isAdmin: s.boolean(),
   }),
   handler: async (ctx) => {
-    return { isAdmin: ctx.state.user.role === 'admin' };
+    return { isAdmin: ctx.user.role === 'admin' };
   },
 });
 ```
@@ -160,8 +160,8 @@ export const adminMiddleware = vertz.middleware({
 - `params` — path params this middleware validates and reads (typed on `ctx.params`)
 - `query` — query params this middleware validates and reads (typed on `ctx.query`)
 - `body` — request body this middleware validates and reads (typed on `ctx.body`)
-- `requires` — state from previous middlewares (typed on `ctx.state`)
-- `provides` — state this middleware contributes (enforced on return value)
+- `requires` — contributions from previous middlewares (typed directly on `ctx`, e.g., `ctx.user`)
+- `provides` — what this middleware contributes to `ctx` (enforced on return value)
 
 All optional. A middleware can define only what it needs.
 
@@ -176,6 +176,8 @@ middlewares: [requestIdMiddleware, authMiddleware]
 ```
 
 **State composes through levels:** Global → Router → Route
+
+**No key collisions:** The compiler enforces that middleware `provides` keys, injected service names, and reserved ctx properties (`params`, `body`, `query`, `headers`, `raw`, `state`, `options`, `env`) are all unique. Two middlewares providing the same key is a build error — no silent overwrites.
 
 ---
 
@@ -267,6 +269,44 @@ Only the returned object defines the public service API.
 - `deps.dbService` - injected services
 - `deps.[serviceName]` - other injected services
 
+### Service Lifecycle Hooks
+
+Services that manage external resources (database connections, cache clients, etc.) use `onInit` and `onDestroy` hooks. `onInit` returns **state** that flows as a second parameter to `methods` and `onDestroy`:
+
+```tsx
+// db.service.ts
+import { coreModuleDef } from './core.module-def';
+
+export const dbService = coreModuleDef.service({
+  inject: { env },
+
+  onInit: async (deps) => {
+    const client = new PrismaClient({ datasourceUrl: deps.env.DATABASE_URL });
+    await client.$connect();
+    return client;  // TypeScript infers state = PrismaClient
+  },
+
+  onDestroy: async (deps, client) => {
+    await client.$disconnect();  // client is typed as PrismaClient
+  },
+
+  methods: (deps, client) => ({
+    user: {
+      findUnique: (args) => client.user.findUnique(args),
+      findMany: (args) => client.user.findMany(args),
+    },
+  }),
+});
+```
+
+Services without lifecycle are unchanged — `methods` receives only `deps`:
+
+```tsx
+methods: (deps) => ({
+  findById: async (id: string) => deps.dbService.user.findUnique({ where: { id } }),
+})
+```
+
 **Validations:**
 - Services must be created from the module definition they belong to
 - Injected services must be declared in module's `imports`
@@ -349,6 +389,8 @@ export const resetPasswordBody = s.object({
   newPassword: s.string().min(8),
 });
 ```
+
+**`s.date()` vs `s.coerce.date()`:** JSON has no native Date type — dates in request bodies, query params, and path params arrive as strings. Use `s.coerce.date()` in request schemas (Body, Query) to auto-coerce strings/numbers to Date objects. Use `s.date()` in response schemas where the handler returns actual Date instances. Using `s.date()` in a request body schema would always fail since JSON parsing produces strings, not Dates.
 
 **Inline schemas:** Path params and headers are simple enough to define inline in the route definition.
 
@@ -472,7 +514,7 @@ Most header-based logic (auth, request ID, etc.) belongs in middlewares, not rou
 - `ctx.body` - typed request body
 - `ctx.query` - typed query parameters
 - `ctx.headers` - typed request headers (only if route defines a `headers` schema)
-- `ctx.state` - immutable state composed from middleware return values (typed)
+- `ctx.user` - flattened middleware state (e.g., from `authMiddleware` provides)
 - `ctx.raw` - raw request object (all headers, full request)
 - `ctx.userService` - injected services
 - `ctx.options` - module options
@@ -596,13 +638,13 @@ Middlewares do not mutate `ctx.state` directly — they return their contributio
 
 **Enforcement:**
 - TypeScript: `DeepReadonly<T>` on both deps and ctx types
-- Runtime (prod): `Object.freeze()`
 - Runtime (dev): Proxy with helpful error messages
+- Runtime (prod): No runtime enforcement — `DeepReadonly<T>` provides compile-time safety, and the dev proxy catches mutation bugs during development. Skipping `Object.freeze()` in production avoids per-request overhead.
 
 ```tsx
 // ✗ TypeScript error + runtime error
 ctx.params.id = 'hacked';
-ctx.state.user = someUser;
+ctx.user = someUser;
 deps.options.maxRetries = 10;
 
 // ✓ Middleware provides state by returning it
@@ -633,7 +675,7 @@ Type-safe, unambiguous, LLM-friendly testing using Vitest. Builder pattern mirro
 
 ```tsx
 // user.router.test.ts
-import { vertz } from '@vertz/core';
+import { vertz } from '@vertz/testing';
 import { userModule } from './user.module';
 import { coreModule } from '../core/core.module';
 import { dbService } from '../core/db.service';
@@ -704,7 +746,7 @@ describe('GET /users/:id', () => {
 **Key design decisions:**
 - `app.get('/users/:id', { params })` — typed route strings with autocomplete
 - `.mock(dbService, ...)` — mock by reference, not string. Refactor-safe, typed.
-- `.mockMiddleware(authMiddleware, ...)` — typed to middleware's `Provides` generic
+- `.mockMiddleware(authMiddleware, ...)` — typed to middleware's `provides` schema
 - Per-request overrides via chained `.mockMiddleware()` on the request builder
 - `res.body` is a union: success type (from response schema) or error type (standard shape). `res.ok` narrows it.
 - No `.send()` — `await` the builder. One way to do things.

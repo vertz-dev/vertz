@@ -18,9 +18,9 @@ For LLMs, function signatures are unambiguous. A decorator's effect depends on o
 
 A return type is enforceable. A mutation is not.
 
-When middleware calls `next()` and mutates `ctx.state`, TypeScript can't verify that the middleware actually set what it declared. It might declare `Provides: { user: User }` but forget to set `ctx.state.user` in one code path. That's a runtime bug.
+When middleware calls `next()` and mutates `ctx`, TypeScript can't verify that the middleware actually set what it declared. It might declare `provides: s.object({ user: ... })` but forget to set `ctx.user` in one code path. That's a runtime bug.
 
-When middleware returns `{ user }`, the return type enforces the contract. If the middleware declares `Provides: { user: User }`, the compiler requires it to return an object with `user: User`. No code path can skip it.
+When middleware returns `{ user }`, the `provides` schema enforces the contract. If the middleware declares `provides: s.object({ user: userSchema })`, the return type is enforced to match. No code path can skip it.
 
 ---
 
@@ -40,7 +40,7 @@ Two categories of bugs:
 1. Shared state mutation between requests — memory leaks, data pollution across requests
 2. Middleware declaring it provides something but silently not setting it
 
-Enforcement is layered: `DeepReadonly<T>` at compile time, `Object.freeze()` at runtime in production, and a Proxy with helpful error messages in development.
+Enforcement is layered: `DeepReadonly<T>` at compile time, and a Proxy with helpful error messages in development. No `Object.freeze()` in production — the dev proxy already catches mutation bugs, and freezing objects on the hot path (per-request ctx) adds overhead for no practical benefit.
 
 ---
 
@@ -48,7 +48,7 @@ Enforcement is layered: `DeepReadonly<T>` at compile time, `Object.freeze()` at 
 
 Generics enforce contracts. `as` bypasses them.
 
-`vertz.middleware<Requires, Provides>(handler)` means TypeScript verifies the handler actually satisfies both `Requires` and `Provides`. Using `as` would let you claim any type without the compiler checking it — which defeats the purpose.
+`vertz.middleware({ requires: s.object({...}), provides: s.object({...}), handler })` means the schemas enforce the contract — the handler must return what `provides` declares, and it can only access state that `requires` defines. Using `as` would let you claim any type without the compiler checking it — which defeats the purpose.
 
 ---
 
@@ -95,13 +95,13 @@ The result: your API documentation is always in sync with your implementation, b
 
 References are refactor-safe — rename a service and your IDE updates every usage. Strings break silently.
 
-References also give TypeScript the type information to enforce the mock shape matches the service's public API and the middleware's `Provides` generic. Strings can't do that.
+References also give TypeScript the type information to enforce the mock shape matches the service's public API and the middleware's `provides` schema. Strings can't do that.
 
 ---
 
 ## Why does the test app mirror the production app?
 
-If you know how to `.register()` a module in your app, you know how to set one up in a test. If you know how a middleware declares its `Provides` type, you know how to mock it in a test.
+If you know how to `.register()` a module in your app, you know how to set one up in a test. If you know how a middleware declares its `provides` schema, you know how to mock it in a test.
 
 There's no separate "testing mental model" to learn. For LLMs, this means the same patterns that generate application code also generate test code. No context switch, no separate conventions to learn.
 

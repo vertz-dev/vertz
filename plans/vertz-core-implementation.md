@@ -22,7 +22,7 @@ See also: [Core API Design](./vertz-core-api-design.md), [Schema Design](./vertz
 | API surface | `vertz` namespace object (`vertz.app()`, `vertz.env()`, etc.) |
 | Exceptions | Full hierarchy from start. Middleware short-circuits by throwing |
 | Immutability | TypeScript DeepReadonly (compile-time) + Proxy (dev runtime). No freeze in production |
-| OpenAPI serving | Separate package, NOT in @vertz/core |
+| OpenAPI serving | JSON spec endpoint (`/openapi.json`) in `@vertz/core`. Documentation UI (Swagger/interactive docs) in a separate package |
 | Lifecycle hooks | `onInit(deps) → state`, `methods(deps, state)`, `onDestroy(deps, state)` |
 | Build toolchain | Bunup (Bun's bundler + Oxc for `.d.ts`). Requires Bun installed to build; output is standard ESM consumable by any runtime |
 | Dependencies | Zero runtime deps except `@vertz/schema` (workspace) |
@@ -342,7 +342,13 @@ interface MatchResult {
 
 No `next()`. Handler returns contribution. State accumulates via spread.
 
-**Reserved ctx property names:** The following property names are reserved for built-in request data and cannot be used by middleware `provides` or service injection: `params`, `body`, `query`, `headers`, `raw`, `state`, `options`, `env`. The compiler enforces this at build time. As a runtime safety net, `buildCtx()` also checks against this set and throws in development mode if a middleware contribution or injected service name collides with a reserved key.
+**No ctx key collisions (compiler-enforced):** Route handler `ctx` is a flat namespace. The compiler guarantees that all keys are unique across three sources:
+
+1. **Reserved names** — `params`, `body`, `query`, `headers`, `raw`, `options`, `env`. Cannot be used by middleware `provides` or service injection.
+2. **Middleware provides keys** — Two middlewares in the same chain providing the same key is a build error. No silent overwrite.
+3. **Injected service names** — A service name cannot collide with a middleware `provides` key or a reserved name.
+
+As a runtime safety net, `buildCtx()` also checks against these rules and throws in development mode if a collision is detected.
 
 **`ResolvedMiddleware`** — the middleware definition with its `inject` dependencies already resolved from the service map. The app runner resolves these once at boot time, not per-request:
 
@@ -365,21 +371,21 @@ export async function runMiddlewareChain(
   middlewares: ResolvedMiddleware[],
   requestCtx: Record<string, unknown>,  // params, body, query, headers, raw
 ): Promise<Record<string, unknown>> {
-  const state: Record<string, unknown> = {};
+  const accumulated: Record<string, unknown> = {};
 
   // Single ctx object reused across all middlewares in the chain.
   // Each iteration mutates the same object via Object.assign — no allocation per middleware.
   // Safe because: (1) ctx is internal to this function, (2) middleware receives it as
-  // immutable (dev proxy), (3) state is a reference that accumulates contributions.
+  // immutable (dev proxy), (3) accumulated is a reference that accumulates contributions.
   const ctx: Record<string, unknown> = {};
 
   for (const mw of middlewares) {
-    // Reset and rebuild ctx for this middleware's inject deps.
-    // requestCtx and state stay the same reference; only resolvedInject changes per middleware.
-    Object.assign(ctx, requestCtx, mw.resolvedInject, { state });
+    // Rebuild ctx: request data + injected services + accumulated middleware contributions.
+    // Middleware sees a flat namespace — same access pattern as route handlers (ctx.user, not ctx.state.user).
+    Object.assign(ctx, requestCtx, mw.resolvedInject, accumulated);
 
     // Validate requires schema if present (runtime safety net, compiler validates at build time)
-    if (mw.requiresSchema) mw.requiresSchema.parse(state);
+    if (mw.requiresSchema) mw.requiresSchema.parse(accumulated);
 
     // Validate request schemas if middleware defines them
     if (mw.headersSchema) mw.headersSchema.parse(requestCtx.headers);
@@ -393,13 +399,13 @@ export async function runMiddlewareChain(
     // Validate provides schema if present
     if (mw.providesSchema && contribution !== undefined) mw.providesSchema.parse(contribution);
 
-    // Accumulate state via Object.assign — mutates in place, no new object per iteration
+    // Accumulate contributions flat — no nesting under "state"
     if (contribution && typeof contribution === 'object') {
-      Object.assign(state, contribution);
+      Object.assign(accumulated, contribution);
     }
   }
 
-  return state;
+  return accumulated;
 }
 ```
 
@@ -580,15 +586,16 @@ const userService = userModuleDef.service({
   query: { page: 1, limit: 20 },   // validated query params
   headers: { authorization: '...' }, // validated headers
   raw: { request, headers, url, method }, // raw Request
-  state: { user: { id: '1', role: 'admin' } }, // middleware state
-  user: { id: '1', role: 'admin' }, // flattened middleware state
-  userService: { findById, ... },   // flattened injected services
+  user: { id: '1', role: 'admin' }, // middleware contribution (flat, not nested under "state")
+  userService: { findById, ... },   // injected services (flat)
   options: { ... },                 // module options
   env: { ... },                     // environment variables
 }
 ```
 
-Both are immutable via `makeImmutable()`. Compiler prevents naming collisions between flattened services, middleware state, and request properties.
+Both are immutable via `makeImmutable()`. Compiler prevents naming collisions between services, middleware contributions, and reserved request properties.
+
+Middleware handlers receive the same flat structure — `ctx.user`, not `ctx.state.user`. One access pattern everywhere.
 
 **No `AsyncLocalStorage`:** Services receive request-scoped data exclusively through function arguments. If a service method needs request context (e.g., current user, request ID), the route handler passes it explicitly:
 
@@ -610,12 +617,12 @@ Request
   → parseRequest() [URL, path, query, headers]
   → CORS preflight check
   → trie.match(method, path) [route + params extraction]
-  → parseBody() [lazy, only if route has body schema]
+  → parseBody() [lazy, only if route or any middleware in the chain has a body schema]
   → validate params/query/headers/body against route schemas
   → runMiddlewareChain() [global → router → route middlewares]
   → buildCtx() [flat, immutable]
   → route handler(ctx)
-  → validate response (dev mode only)
+  → validate response (dev and test modes — NODE_ENV is 'development' or 'test')
   → createJsonResponse()
   → CORS headers
   → Response
@@ -799,7 +806,7 @@ Zero runtime deps other than `@vertz/schema`. No Fastify. No reflect-metadata.
 **Files:** `context/`
 
 - `buildDeps()`: options + env + injected services, immutable
-- `buildCtx()`: params + body + query + headers + state + raw + services (flat), immutable
+- `buildCtx()`: params + body + query + headers + raw + middleware contributions + services (all flat), immutable
 
 ### Phase 10: App Composition and Full Integration
 
