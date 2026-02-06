@@ -1,16 +1,28 @@
 import { describe, it, expect } from 'vitest';
 import { createTestApp } from '../test-app';
 import { createModuleDef, createModule } from '@vertz/core/src/module';
+import type { NamedRouterDef } from '@vertz/core/src/module';
 import { createMiddleware } from '@vertz/core/src/middleware/middleware-def';
 import type { NamedServiceDef } from '@vertz/core/src/module/service';
+import type { NamedModule } from '@vertz/core/src/module/module';
 
-function createTestModule(name: string, prefix: string, routes: { method: string; path: string; handler: (ctx: any) => any }[]) {
-  const moduleDef = createModuleDef({ name });
-  const router = moduleDef.router({ prefix });
+interface RouteInput {
+  method: string;
+  path: string;
+  handler: (ctx: any) => any;
+}
+
+function addRoutes(router: NamedRouterDef, routes: RouteInput[]): void {
   for (const route of routes) {
     const method = route.method.toLowerCase() as 'get' | 'post';
     router[method](route.path, { handler: route.handler });
   }
+}
+
+function createTestModule(name: string, prefix: string, routes: RouteInput[]): NamedModule {
+  const moduleDef = createModuleDef({ name });
+  const router = moduleDef.router({ prefix });
+  addRoutes(router, routes);
   return createModule(moduleDef, { services: [], routers: [router], exports: [] });
 }
 
@@ -18,15 +30,12 @@ function createModuleWithService(
   name: string,
   prefix: string,
   serviceDef: { methods: (deps: any, state: any) => any },
-  routes: { method: string; path: string; handler: (ctx: any) => any }[],
-): { module: ReturnType<typeof createModule>; service: NamedServiceDef } {
+  routes: RouteInput[],
+): { module: NamedModule; service: NamedServiceDef } {
   const moduleDef = createModuleDef({ name });
   const service = moduleDef.service(serviceDef);
   const router = moduleDef.router({ prefix, inject: { svc: service } });
-  for (const route of routes) {
-    const method = route.method.toLowerCase() as 'get' | 'post';
-    router[method](route.path, { handler: route.handler });
-  }
+  addRoutes(router, routes);
   const mod = createModule(moduleDef, { services: [service], routers: [router], exports: [] });
   return { module: mod, service };
 }

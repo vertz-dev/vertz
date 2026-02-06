@@ -1,2 +1,2 @@
 export { createTestApp } from './test-app';
-export type { TestApp } from './test-app';
+export type { TestApp, TestResponse, TestRequestBuilder } from './test-app';

@@ -1,21 +1,29 @@
 import type { NamedMiddlewareDef } from '@vertz/core/src/middleware/middleware-def';
+import type { ResolvedMiddleware } from '@vertz/core/src/middleware/middleware-runner';
 import type { NamedModule } from '@vertz/core/src/module/module';
 import type { NamedServiceDef } from '@vertz/core/src/module/service';
+
+import { runMiddlewareChain } from '@vertz/core/src/middleware/middleware-runner';
+import { buildCtx } from '@vertz/core/src/context/ctx-builder';
 import { Trie } from '@vertz/core/src/router/trie';
 import { parseRequest, parseBody } from '@vertz/core/src/server/request-utils';
 import { createJsonResponse, createErrorResponse } from '@vertz/core/src/server/response-utils';
-import { buildCtx } from '@vertz/core/src/context/ctx-builder';
-import { runMiddlewareChain, type ResolvedMiddleware } from '@vertz/core/src/middleware/middleware-runner';
 
-interface TestResponse {
+export interface TestResponse {
   status: number;
   body: unknown;
   headers: Record<string, string>;
   ok: boolean;
 }
 
-interface TestRequestBuilder extends PromiseLike<TestResponse> {
+export interface TestRequestBuilder extends PromiseLike<TestResponse> {
   mockMiddleware(middleware: NamedMiddlewareDef, result: Record<string, unknown>): TestRequestBuilder;
+}
+
+interface RequestOptions {
+  params?: Record<string, string>;
+  body?: unknown;
+  headers?: Record<string, string>;
 }
 
 export interface TestApp {
@@ -23,8 +31,8 @@ export interface TestApp {
   mock(service: NamedServiceDef, impl: unknown): TestApp;
   mockMiddleware(middleware: NamedMiddlewareDef, result: Record<string, unknown>): TestApp;
   env(vars: Record<string, unknown>): TestApp;
-  get(path: string, options?: { params?: Record<string, string>; headers?: Record<string, string> }): TestRequestBuilder;
-  post(path: string, options?: { params?: Record<string, string>; body?: unknown; headers?: Record<string, string> }): TestRequestBuilder;
+  get(path: string, options?: RequestOptions): TestRequestBuilder;
+  post(path: string, options?: RequestOptions): TestRequestBuilder;
 }
 
 interface RouteEntry {
@@ -79,11 +87,8 @@ export function createTestApp(): TestApp {
       }
     }
 
-    // Merge middleware mocks: app-level first, per-request overrides win
-    const effectiveMocks = new Map(middlewareMocks);
-    for (const [mw, result] of perRequestMiddlewareMocks) {
-      effectiveMocks.set(mw, result);
-    }
+    // Merge middleware mocks: per-request overrides win over app-level
+    const effectiveMocks = new Map([...middlewareMocks, ...perRequestMiddlewareMocks]);
 
     return async (request: Request): Promise<Response> => {
       try {
@@ -113,29 +118,31 @@ export function createTestApp(): TestApp {
           headers: parsed.raw.headers,
         };
 
-        const requestCtx: Record<string, unknown> = {
-          params: match.params, body, query: parsed.query,
-          headers: parsed.headers, raw,
+        const shared = {
+          params: match.params,
+          body,
+          query: parsed.query,
+          headers: parsed.headers,
+          raw,
         };
 
-        // Build middleware chain — mocked middlewares return their mock result directly
-        const resolvedMiddlewares: ResolvedMiddleware[] = [];
-        for (const [mw, mockResult] of effectiveMocks) {
-          resolvedMiddlewares.push({
+        const resolvedMiddlewares: ResolvedMiddleware[] = [...effectiveMocks].map(
+          ([mw, mockResult]) => ({
             name: mw.name,
             handler: () => mockResult,
             resolvedInject: {},
-          });
-        }
+          }),
+        );
 
-        const middlewareState = await runMiddlewareChain(resolvedMiddlewares, requestCtx);
-
+        const middlewareState = await runMiddlewareChain(resolvedMiddlewares, shared);
         const entry = match.handler as unknown as RouteEntry;
 
         const ctx = buildCtx({
-          params: match.params, body, query: parsed.query,
-          headers: parsed.headers, raw, middlewareState,
-          services: entry.services, options: entry.options, env: envOverrides,
+          ...shared,
+          middlewareState,
+          services: entry.services,
+          options: entry.options,
+          env: envOverrides,
         });
 
         const result = await entry.handler(ctx);
@@ -156,28 +163,26 @@ export function createTestApp(): TestApp {
     perRequestMiddlewareMocks: Map<NamedMiddlewareDef, Record<string, unknown>>,
   ): Promise<TestResponse> {
     const handler = buildHandler(perRequestMiddlewareMocks);
-    const init: RequestInit = { method };
+
     const headers: Record<string, string> = { ...customHeaders };
     if (body !== undefined) {
-      init.body = JSON.stringify(body);
       headers['content-type'] = 'application/json';
     }
-    if (Object.keys(headers).length > 0) {
-      init.headers = headers;
-    }
-    const request = new Request(`http://localhost${path}`, init);
-    const response = await handler(request);
-    const responseBody = response.headers.get('content-type')?.includes('application/json')
-      ? await response.json()
-      : null;
-    const responseHeaders: Record<string, string> = {};
-    response.headers.forEach((value, key) => {
-      responseHeaders[key] = value;
+
+    const request = new Request(`http://localhost${path}`, {
+      method,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      headers,
     });
+
+    const response = await handler(request);
+    const isJson = response.headers.get('content-type')?.includes('application/json');
+    const responseBody = isJson ? await response.json() : null;
+
     return {
       status: response.status,
       body: responseBody,
-      headers: responseHeaders,
+      headers: Object.fromEntries(response.headers),
       ok: response.ok,
     };
   }
