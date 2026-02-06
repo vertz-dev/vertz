@@ -143,7 +143,7 @@ In development and test modes, the framework validates handler return values aga
 
 ### Unit Testing Services
 
-Opt-in. `vertz.testing.createService(authService)` with the same builder pattern — `.mock()`, `.options()`, `.env()`. For complex business logic that benefits from isolated testing.
+Opt-in. `createTestService(authService)` from `@vertz/testing` with the same builder pattern — `.mock()`, `.options()`, `.env()`. For complex business logic that benefits from isolated testing.
 
 ---
 

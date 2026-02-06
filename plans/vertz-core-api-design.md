@@ -675,7 +675,7 @@ Type-safe, unambiguous, LLM-friendly testing using Vitest. Builder pattern mirro
 
 ```tsx
 // user.router.test.ts
-import { vertz } from '@vertz/testing';
+import { createTestApp } from '@vertz/testing';
 import { userModule } from './user.module';
 import { coreModule } from '../core/core.module';
 import { dbService } from '../core/db.service';
@@ -690,8 +690,7 @@ describe('GET /users/:id', () => {
     },
   };
 
-  const app = vertz.testing
-    .createApp()
+  const app = createTestApp()
     .env({
       DATABASE_URL: 'postgres://test:test@localhost/test',
       JWT_SECRET: 'a]eN9$mR!pL3xQ7v@wK2yB8cF0gH5jT',
