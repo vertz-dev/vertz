@@ -106,11 +106,15 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
     return new ObjectSchema(picked as Pick<S, K>);
   }
 
-  required(): ObjectSchema<{ [K in keyof S]: S[K] extends OptionalSchema<infer O, infer I> ? Schema<O, I> : S[K] }> {
+  required(): ObjectSchema<{ [K in keyof S]: S[K] extends OptionalSchema<infer O, infer I> ? Schema<O, I> : S[K] extends DefaultSchema<infer O, infer I> ? Schema<O, I> : S[K] }> {
     const requiredShape: Record<string, Schema<any, any>> = {};
     for (const key of Object.keys(this._shape)) {
       const schema = this._shape[key]!;
-      requiredShape[key] = schema instanceof OptionalSchema ? schema.unwrap() : schema;
+      if (schema instanceof OptionalSchema || schema instanceof DefaultSchema) {
+        requiredShape[key] = schema.unwrap();
+      } else {
+        requiredShape[key] = schema;
+      }
     }
     return new ObjectSchema(requiredShape as any);
   }
@@ -142,6 +146,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
   catchall(schema: Schema<any, any>): ObjectSchema<S> {
     const clone = this._clone();
     clone._catchall = schema;
+    clone._unknownKeys = 'strip';
     return clone;
   }
 

@@ -153,6 +153,28 @@ describe('ObjectSchema', () => {
     expect(required.parse({ name: 'Alice', age: 30 })).toEqual({ name: 'Alice', age: 30 });
   });
 
+  it('.required() also unwraps DefaultSchema wrappers', () => {
+    const schema = new ObjectSchema({
+      name: new StringSchema(),
+      role: new StringSchema().default('user'),
+    });
+    const required = schema.required();
+    // After .required(), 'role' should no longer have a default — missing = error
+    const result = required.safeParse({ name: 'Alice' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find(i => i.code === ErrorCode.MissingProperty);
+      expect(issue).toBeDefined();
+      expect(issue!.path).toEqual(['role']);
+    }
+  });
+
+  it('.catchall() overrides .strict() when chained', () => {
+    const schema = new ObjectSchema({ name: new StringSchema() }).strict().catchall(new NumberSchema());
+    // catchall should take precedence — validates unknown keys instead of rejecting
+    expect(schema.parse({ name: 'Alice', score: 100 })).toEqual({ name: 'Alice', score: 100 });
+  });
+
   it('.toJSONSchema() returns type, properties, and required array', () => {
     const schema = new ObjectSchema({
       name: new StringSchema(),
