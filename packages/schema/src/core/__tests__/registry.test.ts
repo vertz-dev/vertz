@@ -29,6 +29,12 @@ describe('SchemaRegistry', () => {
     expect(SchemaRegistry.getAll().size).toBe(0);
   });
 
+  it('getOrThrow throws when schema is not registered', () => {
+    expect(() => SchemaRegistry.getOrThrow('NonExistent')).toThrow(
+      'Schema "NonExistent" not found in registry',
+    );
+  });
+
   it('overwrites when registering same name', () => {
     const schema1 = { _id: 'User', version: 1 } as any;
     const schema2 = { _id: 'User', version: 2 } as any;
