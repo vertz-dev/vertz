@@ -15,5 +15,9 @@ export { SchemaRegistry } from './core/registry';
 export { RefTracker, toJSONSchema } from './introspection/json-schema';
 export type { JSONSchemaObject } from './introspection/json-schema';
 
+// Schemas
+export { StringSchema } from './schemas/string';
+export { NumberSchema } from './schemas/number';
+
 // Type inference utilities
 export type { Infer, Output, Input } from './utils/type-inference';
