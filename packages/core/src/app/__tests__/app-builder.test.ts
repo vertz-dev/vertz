@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { createApp } from '../app-builder';
 import { createModuleDef } from '../../module/module-def';
 import { createModule } from '../../module/module';
@@ -16,6 +16,12 @@ function createTestModule(name: string, prefix: string, routes: { method: string
 }
 
 describe('createApp', () => {
+  const originalEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalEnv;
+  });
+
   it('returns a builder with register, middlewares, and handler', () => {
     const app = createApp({ basePath: '/api' });
 
@@ -225,6 +231,67 @@ describe('createApp', () => {
 
     const miss = await app.handler(new Request('http://localhost/users'));
     expect(miss.status).toBe(404);
+  });
+
+  it('injects services into handler ctx via router inject', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const userService = moduleDef.service({
+      methods: () => ({
+        findById: (id: string) => ({ id, name: 'Jane' }),
+      }),
+    });
+    const router = moduleDef.router({ prefix: '/users', inject: { userService } });
+    router.get('/:id', {
+      handler: (ctx: any) => ctx.userService.findById(ctx.params.id),
+    });
+    const mod = createModule(moduleDef, {
+      services: [userService],
+      routers: [router],
+      exports: [userService],
+    });
+
+    const app = createApp({}).register(mod);
+    const res = await app.handler(new Request('http://localhost/users/42'));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: '42', name: 'Jane' });
+  });
+
+  it('provides module options via ctx.options', async () => {
+    const mod = createTestModule('test', '/users', [
+      { method: 'GET', path: '/', handler: (ctx: any) => ({ maxRetries: ctx.options.maxRetries }) },
+    ]);
+
+    const app = createApp({}).register(mod, { maxRetries: 3 });
+    const res = await app.handler(new Request('http://localhost/users'));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ maxRetries: 3 });
+  });
+
+  it('provides immutable ctx in development mode', async () => {
+    process.env.NODE_ENV = 'development';
+
+    let mutationThrew = false;
+    const mod = createTestModule('test', '/users', [
+      {
+        method: 'GET',
+        path: '/',
+        handler: (ctx: any) => {
+          try {
+            ctx.params = 'mutated';
+          } catch {
+            mutationThrew = true;
+          }
+          return { ok: true };
+        },
+      },
+    ]);
+
+    const app = createApp({}).register(mod);
+    await app.handler(new Request('http://localhost/users'));
+
+    expect(mutationThrew).toBe(true);
   });
 
   it('applies CORS headers to actual responses', async () => {
