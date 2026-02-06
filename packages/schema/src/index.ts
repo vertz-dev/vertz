@@ -83,3 +83,125 @@ export { preprocess } from './transforms/preprocess';
 
 // Type inference utilities
 export type { Infer, Output, Input } from './utils/type-inference';
+
+// Factory Object
+import { StringSchema } from './schemas/string';
+import { NumberSchema } from './schemas/number';
+import { BooleanSchema } from './schemas/boolean';
+import { BigIntSchema } from './schemas/bigint';
+import { DateSchema } from './schemas/date';
+import { NanSchema } from './schemas/nan';
+import { SymbolSchema } from './schemas/symbol';
+import { AnySchema, UnknownSchema, NullSchema, UndefinedSchema, VoidSchema, NeverSchema } from './schemas/special';
+import { ObjectSchema } from './schemas/object';
+import { ArraySchema } from './schemas/array';
+import { TupleSchema } from './schemas/tuple';
+import { EnumSchema } from './schemas/enum';
+import { LiteralSchema } from './schemas/literal';
+import { UnionSchema } from './schemas/union';
+import { DiscriminatedUnionSchema } from './schemas/discriminated-union';
+import { IntersectionSchema } from './schemas/intersection';
+import { RecordSchema } from './schemas/record';
+import { MapSchema } from './schemas/map';
+import { SetSchema } from './schemas/set';
+import { FileSchema } from './schemas/file';
+import { CustomSchema } from './schemas/custom';
+import { InstanceOfSchema } from './schemas/instanceof';
+import { LazySchema } from './schemas/lazy';
+import {
+  CoercedStringSchema,
+  CoercedNumberSchema,
+  CoercedBooleanSchema,
+  CoercedBigIntSchema,
+  CoercedDateSchema,
+} from './schemas/coerced';
+import {
+  EmailSchema,
+  UuidSchema,
+  UrlSchema,
+  HostnameSchema,
+  Ipv4Schema,
+  Ipv6Schema,
+  Base64Schema,
+  HexSchema,
+  JwtSchema,
+  CuidSchema,
+  UlidSchema,
+  NanoidSchema,
+  IsoDateSchema,
+  IsoTimeSchema,
+  IsoDatetimeSchema,
+  IsoDurationSchema,
+} from './schemas/formats';
+import type { Schema } from './core/schema';
+
+export const s = {
+  // Primitives
+  string: () => new StringSchema(),
+  number: () => new NumberSchema(),
+  boolean: () => new BooleanSchema(),
+  bigint: () => new BigIntSchema(),
+  date: () => new DateSchema(),
+  symbol: () => new SymbolSchema(),
+  nan: () => new NanSchema(),
+  int: () => new NumberSchema().int(),
+
+  // Special
+  any: () => new AnySchema(),
+  unknown: () => new UnknownSchema(),
+  null: () => new NullSchema(),
+  undefined: () => new UndefinedSchema(),
+  void: () => new VoidSchema(),
+  never: () => new NeverSchema(),
+
+  // Composites
+  object: <T extends Record<string, Schema<any, any>>>(shape: T) => new ObjectSchema(shape),
+  array: <T>(itemSchema: Schema<T>) => new ArraySchema(itemSchema),
+  tuple: <T extends Schema<any, any>[]>(items: [...T]) => new TupleSchema(items),
+  enum: <T extends readonly [string, ...string[]]>(values: T) => new EnumSchema(values),
+  literal: <T extends string | number | boolean | null>(value: T) => new LiteralSchema(value),
+  union: <T extends Schema<any, any>[]>(options: [...T]) => new UnionSchema(options),
+  discriminatedUnion: <T extends ObjectSchema<any>[]>(discriminator: string, options: [...T]) =>
+    new DiscriminatedUnionSchema(discriminator, options),
+  intersection: <A, B>(left: Schema<A>, right: Schema<B>) => new IntersectionSchema(left, right),
+  record: <V>(valueSchema: Schema<V>) => new RecordSchema(valueSchema),
+  map: <K, V>(keySchema: Schema<K>, valueSchema: Schema<V>) => new MapSchema(keySchema, valueSchema),
+  set: <V>(valueSchema: Schema<V>) => new SetSchema(valueSchema),
+  file: () => new FileSchema(),
+  custom: <T>(check: (value: unknown) => boolean, message?: string) => new CustomSchema<T>(check, message),
+  instanceof: <T>(cls: new (...args: any[]) => T) => new InstanceOfSchema(cls),
+  lazy: <T>(getter: () => Schema<T>) => new LazySchema(getter),
+
+  // Formats
+  email: () => new EmailSchema(),
+  uuid: () => new UuidSchema(),
+  url: () => new UrlSchema(),
+  hostname: () => new HostnameSchema(),
+  ipv4: () => new Ipv4Schema(),
+  ipv6: () => new Ipv6Schema(),
+  base64: () => new Base64Schema(),
+  hex: () => new HexSchema(),
+  jwt: () => new JwtSchema(),
+  cuid: () => new CuidSchema(),
+  ulid: () => new UlidSchema(),
+  nanoid: () => new NanoidSchema(),
+
+  // ISO formats
+  iso: {
+    date: () => new IsoDateSchema(),
+    time: () => new IsoTimeSchema(),
+    datetime: () => new IsoDatetimeSchema(),
+    duration: () => new IsoDurationSchema(),
+  },
+
+  // Coercion
+  coerce: {
+    string: () => new CoercedStringSchema(),
+    number: () => new CoercedNumberSchema(),
+    boolean: () => new CoercedBooleanSchema(),
+    bigint: () => new CoercedBigIntSchema(),
+    date: () => new CoercedDateSchema(),
+  },
+};
+
+export const schema = s;
