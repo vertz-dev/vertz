@@ -912,7 +912,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vertz/core@workspace:packages/core":
+"@vertz/core@workspace:*, @vertz/core@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@vertz/core@workspace:packages/core"
   dependencies:
@@ -927,6 +927,17 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@vertz/schema@workspace:packages/schema"
   dependencies:
+    bunup: "npm:latest"
+    typescript: "npm:^5.7.0"
+    vitest: "npm:^3.0.0"
+  languageName: unknown
+  linkType: soft
+
+"@vertz/testing@workspace:packages/testing":
+  version: 0.0.0-use.local
+  resolution: "@vertz/testing@workspace:packages/testing"
+  dependencies:
+    "@vertz/core": "workspace:*"
     bunup: "npm:latest"
     typescript: "npm:^5.7.0"
     vitest: "npm:^3.0.0"
