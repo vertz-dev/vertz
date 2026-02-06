@@ -1,8 +1,17 @@
 // @vertz/schema — Public API
-// Phase 1: Core Infrastructure
 
 // Core
-export { Schema, OptionalSchema, NullableSchema, DefaultSchema } from './core/schema';
+export {
+  Schema,
+  OptionalSchema,
+  NullableSchema,
+  DefaultSchema,
+  RefinedSchema,
+  SuperRefinedSchema,
+  TransformSchema,
+  PipeSchema,
+  CatchSchema,
+} from './core/schema';
 export { ErrorCode, ParseError } from './core/errors';
 export type { ValidationIssue } from './core/errors';
 export { ParseContext } from './core/parse-context';
@@ -33,6 +42,9 @@ export { UnionSchema } from './schemas/union';
 export { DiscriminatedUnionSchema } from './schemas/discriminated-union';
 export { IntersectionSchema } from './schemas/intersection';
 export { RecordSchema } from './schemas/record';
+
+// Transforms
+export { preprocess } from './transforms/preprocess';
 
 // Type inference utilities
 export type { Infer, Output, Input } from './utils/type-inference';
