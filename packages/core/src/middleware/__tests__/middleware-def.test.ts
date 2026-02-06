@@ -24,4 +24,13 @@ describe('createMiddleware', () => {
     expect(mw.name).toBe('permissions');
     expect(mw.inject).toEqual({ authService: {} });
   });
+
+  it('returns a frozen definition object', () => {
+    const mw = createMiddleware({
+      name: 'auth',
+      handler: () => ({ user: 'test' }),
+    });
+
+    expect(Object.isFrozen(mw)).toBe(true);
+  });
 });
