@@ -2,7 +2,7 @@
 // Phase 1: Core Infrastructure
 
 // Core
-export { Schema } from './core/schema';
+export { Schema, OptionalSchema, NullableSchema, DefaultSchema } from './core/schema';
 export { ErrorCode, ParseError } from './core/errors';
 export type { ValidationIssue } from './core/errors';
 export { ParseContext } from './core/parse-context';
