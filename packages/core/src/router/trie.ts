@@ -21,50 +21,58 @@ function createNode(): TrieNode {
   };
 }
 
+function splitPath(path: string): string[] {
+  return path.split('/').filter(Boolean);
+}
+
 export class Trie {
   private root = createNode();
 
   add(method: string, path: string, handler: RouteHandler): void {
-    const segments = path.split('/').filter(Boolean);
+    const segments = splitPath(path);
     let node = this.root;
 
     for (const segment of segments) {
-      if (segment === '*') {
-        if (!node.wildcardChild) {
-          node.wildcardChild = createNode();
-        }
-        node = node.wildcardChild;
-      } else if (segment.startsWith(':')) {
-        const name = segment.slice(1);
-        if (!node.paramChild) {
-          node.paramChild = { name, node: createNode() };
-        } else if (node.paramChild.name !== name) {
-          throw new Error(
-            `Param name mismatch: existing ":${node.paramChild.name}" conflicts with ":${name}"`,
-          );
-        }
-        node = node.paramChild.node;
-      } else {
-        if (!node.staticChildren.has(segment)) {
-          node.staticChildren.set(segment, createNode());
-        }
-        node = node.staticChildren.get(segment)!;
-      }
+      node = this.resolveChild(node, segment);
     }
 
     node.handlers.set(method, handler);
   }
 
   match(method: string, path: string): MatchResult | null {
-    const segments = path.split('/').filter(Boolean);
+    const segments = splitPath(path);
     return this.matchNode(this.root, segments, 0, method, {});
   }
 
   getAllowedMethods(path: string): string[] {
-    const segments = path.split('/').filter(Boolean);
+    const segments = splitPath(path);
     const node = this.findNode(this.root, segments, 0);
     if (!node) return [];
     return Array.from(node.handlers.keys());
+  }
+
+  private resolveChild(node: TrieNode, segment: string): TrieNode {
+    if (segment === '*') {
+      node.wildcardChild ??= createNode();
+      return node.wildcardChild;
+    }
+
+    if (segment.startsWith(':')) {
+      const name = segment.slice(1);
+      if (!node.paramChild) {
+        node.paramChild = { name, node: createNode() };
+      } else if (node.paramChild.name !== name) {
+        throw new Error(
+          `Param name mismatch: existing ":${node.paramChild.name}" conflicts with ":${name}"`,
+        );
+      }
+      return node.paramChild.node;
+    }
+
+    if (!node.staticChildren.has(segment)) {
+      node.staticChildren.set(segment, createNode());
+    }
+    return node.staticChildren.get(segment)!;
   }
 
   private findNode(node: TrieNode, segments: string[], index: number): TrieNode | null {
@@ -103,14 +111,12 @@ export class Trie {
 
     const segment = segments[index];
 
-    // Priority 1: static match
     const staticChild = node.staticChildren.get(segment);
     if (staticChild) {
       const result = this.matchNode(staticChild, segments, index + 1, method, params);
       if (result) return result;
     }
 
-    // Priority 2: param match
     if (node.paramChild) {
       const result = this.matchNode(
         node.paramChild.node,
@@ -122,11 +128,10 @@ export class Trie {
       if (result) return result;
     }
 
-    // Priority 3: wildcard match
     if (node.wildcardChild) {
-      const rest = segments.slice(index).join('/');
       const handler = node.wildcardChild.handlers.get(method);
       if (handler) {
+        const rest = segments.slice(index).join('/');
         return { handler, params: { ...params, '*': rest } };
       }
     }
