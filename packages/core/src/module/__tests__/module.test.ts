@@ -70,4 +70,50 @@ describe('createModule', () => {
 
     expect(mod.exports).toEqual([]);
   });
+
+  it('freezes routers inside the module (no further route registration)', () => {
+    const moduleDef = createModuleDef({ name: 'user' });
+    const router = moduleDef.router({ prefix: '/users' });
+    router.get('/', { handler: () => {} });
+
+    const mod = createModule(moduleDef, {
+      services: [],
+      routers: [router],
+      exports: [],
+    });
+
+    expect(Object.isFrozen(mod.routers[0])).toBe(true);
+  });
+
+  it('throws if a service belongs to a different module', () => {
+    const userDef = createModuleDef({ name: 'user' });
+    const productDef = createModuleDef({ name: 'product' });
+
+    const productService = productDef.service({
+      methods: () => ({ find: () => {} }),
+    });
+
+    expect(() =>
+      createModule(userDef, {
+        services: [productService],
+        routers: [],
+        exports: [],
+      }),
+    ).toThrow('module "product"');
+  });
+
+  it('throws if a router belongs to a different module', () => {
+    const userDef = createModuleDef({ name: 'user' });
+    const productDef = createModuleDef({ name: 'product' });
+
+    const productRouter = productDef.router({ prefix: '/products' });
+
+    expect(() =>
+      createModule(userDef, {
+        services: [],
+        routers: [productRouter],
+        exports: [],
+      }),
+    ).toThrow('module "product"');
+  });
 });
