@@ -14,7 +14,7 @@ interface RouteInput {
 
 function addRoutes(router: NamedRouterDef, routes: RouteInput[]): void {
   for (const route of routes) {
-    const method = route.method.toLowerCase() as 'get' | 'post';
+    const method = route.method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head';
     router[method](route.path, { handler: route.handler });
   }
 }
@@ -41,7 +41,7 @@ function createModuleWithService(
 }
 
 describe('createTestApp', () => {
-  it('returns a builder with register, mock, mockMiddleware, get, post', () => {
+  it('returns a builder with register, mock, mockMiddleware, and HTTP methods', () => {
     const app = createTestApp();
 
     expect(app.register).toBeTypeOf('function');
@@ -49,6 +49,10 @@ describe('createTestApp', () => {
     expect(app.mockMiddleware).toBeTypeOf('function');
     expect(app.get).toBeTypeOf('function');
     expect(app.post).toBeTypeOf('function');
+    expect(app.put).toBeTypeOf('function');
+    expect(app.patch).toBeTypeOf('function');
+    expect(app.delete).toBeTypeOf('function');
+    expect(app.head).toBeTypeOf('function');
   });
 
   it('executes a GET request and returns response', async () => {
@@ -168,6 +172,54 @@ describe('createTestApp', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ token: 'Bearer test-token' });
+  });
+
+  it('executes a PUT request with body', async () => {
+    const mod = createTestModule('test', '/users', [
+      { method: 'PUT', path: '/:id', handler: (ctx: any) => ({ updated: ctx.params.id, name: ctx.body.name }) },
+    ]);
+
+    const app = createTestApp().register(mod);
+    const res = await app.put('/users/42', { body: { name: 'Updated' } });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ updated: '42', name: 'Updated' });
+  });
+
+  it('executes a PATCH request with body', async () => {
+    const mod = createTestModule('test', '/users', [
+      { method: 'PATCH', path: '/:id', handler: (ctx: any) => ({ patched: ctx.params.id, email: ctx.body.email }) },
+    ]);
+
+    const app = createTestApp().register(mod);
+    const res = await app.patch('/users/42', { body: { email: 'new@test.com' } });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ patched: '42', email: 'new@test.com' });
+  });
+
+  it('executes a DELETE request', async () => {
+    const mod = createTestModule('test', '/users', [
+      { method: 'DELETE', path: '/:id', handler: (ctx: any) => ({ deleted: ctx.params.id }) },
+    ]);
+
+    const app = createTestApp().register(mod);
+    const res = await app.delete('/users/42');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ deleted: '42' });
+  });
+
+  it('executes a HEAD request', async () => {
+    const mod = createTestModule('test', '/health', [
+      { method: 'HEAD', path: '/', handler: () => ({ ok: true }) },
+    ]);
+
+    const app = createTestApp().register(mod);
+    const res = await app.head('/health');
+
+    expect(res.status).toBe(200);
+    expect(res.ok).toBe(true);
   });
 
   it('uses mocked service instead of real one', async () => {
