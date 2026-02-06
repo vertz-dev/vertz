@@ -1,5 +1,4 @@
-import { createMiddleware } from '@vertz/core/src/middleware/middleware-def';
-import { createModuleDef } from '@vertz/core/src/module';
+import { createMiddleware, createModuleDef } from '@vertz/core';
 import { describe, it } from 'vitest';
 
 import { createTestApp } from '../test-app';
