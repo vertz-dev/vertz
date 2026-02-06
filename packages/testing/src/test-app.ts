@@ -17,6 +17,7 @@ export interface TestResponse {
 }
 
 export interface TestRequestBuilder extends PromiseLike<TestResponse> {
+  mock(service: NamedServiceDef, impl: unknown): TestRequestBuilder;
   mockMiddleware(middleware: NamedMiddlewareDef, result: Record<string, unknown>): TestRequestBuilder;
 }
 
@@ -38,11 +39,19 @@ export interface TestApp {
   head(path: string, options?: RequestOptions): TestRequestBuilder;
 }
 
+interface PerRequestMocks {
+  services: Map<NamedServiceDef, unknown>;
+  middlewares: Map<NamedMiddlewareDef, Record<string, unknown>>;
+}
+
 interface RouteEntry {
   handler: (ctx: any) => any;
   options: Record<string, unknown>;
   services: Record<string, unknown>;
 }
+
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
+const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
 
 export function createTestApp(): TestApp {
   const serviceMocks = new Map<NamedServiceDef, unknown>();
@@ -50,31 +59,26 @@ export function createTestApp(): TestApp {
   const registrations: { module: NamedModule; options?: Record<string, unknown> }[] = [];
   let envOverrides: Record<string, unknown> = {};
 
-  function buildHandler(
-    perRequestMiddlewareMocks: Map<NamedMiddlewareDef, Record<string, unknown>>,
-  ): (request: Request) => Promise<Response> {
+  function buildHandler(perRequest: PerRequestMocks): (request: Request) => Promise<Response> {
     const trie = new Trie();
 
-    // Resolve services — use mocks when available
-    const serviceMap = new Map<NamedServiceDef, unknown>();
+    // Resolve services: real -> app-level -> per-request (last wins)
+    const realServices = new Map<NamedServiceDef, unknown>();
     for (const { module } of registrations) {
       for (const service of module.services) {
-        if (serviceMocks.has(service)) {
-          serviceMap.set(service, serviceMocks.get(service));
-        } else if (!serviceMap.has(service)) {
-          serviceMap.set(service, service.methods({}, undefined));
+        if (!realServices.has(service)) {
+          realServices.set(service, service.methods({}, undefined));
         }
       }
     }
+    const serviceMap = new Map([...realServices, ...serviceMocks, ...perRequest.services]);
 
-    // Register routes
     for (const { module, options } of registrations) {
       for (const router of module.routers) {
         const resolvedServices: Record<string, unknown> = {};
         if (router.inject) {
           for (const [name, serviceDef] of Object.entries(router.inject)) {
-            const methods = serviceMap.get(serviceDef as NamedServiceDef);
-            if (methods) resolvedServices[name] = methods;
+            resolvedServices[name] = serviceMap.get(serviceDef as NamedServiceDef);
           }
         }
 
@@ -90,8 +94,7 @@ export function createTestApp(): TestApp {
       }
     }
 
-    // Merge middleware mocks: per-request overrides win over app-level
-    const effectiveMocks = new Map([...middlewareMocks, ...perRequestMiddlewareMocks]);
+    const effectiveMiddlewareMocks = new Map([...middlewareMocks, ...perRequest.middlewares]);
 
     return async (request: Request): Promise<Response> => {
       try {
@@ -129,7 +132,7 @@ export function createTestApp(): TestApp {
           raw,
         };
 
-        const resolvedMiddlewares: ResolvedMiddleware[] = [...effectiveMocks].map(
+        const resolvedMiddlewares: ResolvedMiddleware[] = [...effectiveMiddlewareMocks].map(
           ([mw, mockResult]) => ({
             name: mw.name,
             handler: () => mockResult,
@@ -162,9 +165,9 @@ export function createTestApp(): TestApp {
     method: string,
     path: string,
     options: RequestOptions | undefined,
-    perRequestMiddlewareMocks: Map<NamedMiddlewareDef, Record<string, unknown>>,
+    perRequest: PerRequestMocks,
   ): Promise<TestResponse> {
-    const handler = buildHandler(perRequestMiddlewareMocks);
+    const handler = buildHandler(perRequest);
 
     const { body, headers: customHeaders } = options ?? {};
     const headers: Record<string, string> = { ...customHeaders };
@@ -191,57 +194,54 @@ export function createTestApp(): TestApp {
   }
 
   function createRequestBuilder(method: string, path: string, options?: RequestOptions): TestRequestBuilder {
-    const perRequestMocks = new Map<NamedMiddlewareDef, Record<string, unknown>>();
+    const perRequest: PerRequestMocks = {
+      services: new Map<NamedServiceDef, unknown>(),
+      middlewares: new Map<NamedMiddlewareDef, Record<string, unknown>>(),
+    };
 
-    const requestBuilder: TestRequestBuilder = {
+    const builder: TestRequestBuilder = {
+      mock(service, impl) {
+        perRequest.services.set(service, impl);
+        return builder;
+      },
       mockMiddleware(middleware, result) {
-        perRequestMocks.set(middleware, result);
-        return requestBuilder;
+        perRequest.middlewares.set(middleware, result);
+        return builder;
       },
       then(onfulfilled, onrejected) {
-        return executeRequest(method, path, options, perRequestMocks).then(onfulfilled, onrejected);
+        return executeRequest(method, path, options, perRequest).then(onfulfilled, onrejected);
       },
     };
 
-    return requestBuilder;
+    return builder;
   }
 
-  const builder: TestApp = {
+  const httpMethods = Object.fromEntries(
+    HTTP_METHODS.map((m) => [
+      m.toLowerCase(),
+      (path: string, options?: RequestOptions) => createRequestBuilder(m, path, options),
+    ]),
+  ) as Pick<TestApp, 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head'>;
+
+  const app: TestApp = {
     register(module, options) {
       registrations.push({ module, options });
-      return builder;
+      return app;
     },
     mock(service, impl) {
       serviceMocks.set(service, impl);
-      return builder;
+      return app;
     },
     mockMiddleware(middleware, result) {
       middlewareMocks.set(middleware, result);
-      return builder;
+      return app;
     },
     env(vars) {
       envOverrides = vars;
-      return builder;
+      return app;
     },
-    get(path, options) {
-      return createRequestBuilder('GET', path, options);
-    },
-    post(path, options) {
-      return createRequestBuilder('POST', path, options);
-    },
-    put(path, options) {
-      return createRequestBuilder('PUT', path, options);
-    },
-    patch(path, options) {
-      return createRequestBuilder('PATCH', path, options);
-    },
-    delete(path, options) {
-      return createRequestBuilder('DELETE', path, options);
-    },
-    head(path, options) {
-      return createRequestBuilder('HEAD', path, options);
-    },
+    ...httpMethods,
   };
 
-  return builder;
+  return app;
 }
