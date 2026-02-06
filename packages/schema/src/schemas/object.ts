@@ -2,8 +2,7 @@ import { Schema, OptionalSchema, DefaultSchema } from '../core/schema';
 import { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
-import type { RefTracker } from '../introspection/json-schema';
-import type { JSONSchemaObject } from '../introspection/json-schema';
+import type { RefTracker, JSONSchemaObject } from '../introspection/json-schema';
 
 type Shape = Record<string, Schema<any, any>>;
 
@@ -12,6 +11,12 @@ type InferShape<S extends Shape> = {
 };
 
 type UnknownKeyMode = 'strip' | 'strict' | 'passthrough';
+
+function receivedType(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
 
 export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>> {
   private readonly _shape: S;
@@ -33,7 +38,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
 
   _parse(value: unknown, ctx: ParseContext): InferShape<S> {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected object, received ' + (value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value) });
+      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected object, received ' + receivedType(value) });
       return value as InferShape<S>;
     }
     const obj = value as Record<string, unknown>;
@@ -50,10 +55,15 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
       ctx.popPath();
     }
 
-    // Handle unknown keys
     const unknownKeys = Object.keys(obj).filter(k => !shapeKeys.has(k));
     if (unknownKeys.length > 0) {
-      if (this._unknownKeys === 'strict') {
+      if (this._catchall) {
+        for (const key of unknownKeys) {
+          ctx.pushPath(key);
+          result[key] = this._catchall._runPipeline(obj[key], ctx);
+          ctx.popPath();
+        }
+      } else if (this._unknownKeys === 'strict') {
         ctx.addIssue({
           code: ErrorCode.UnrecognizedKeys,
           message: `Unrecognized key(s) in object: ${unknownKeys.map(k => `"${k}"`).join(', ')}`,
@@ -62,14 +72,6 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
         for (const key of unknownKeys) {
           result[key] = obj[key];
         }
-      }
-    }
-
-    if (this._catchall && unknownKeys.length > 0) {
-      for (const key of unknownKeys) {
-        ctx.pushPath(key);
-        result[key] = this._catchall._runPipeline(obj[key], ctx);
-        ctx.popPath();
       }
     }
 
