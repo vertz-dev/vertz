@@ -1,5 +1,28 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import type { CtxConfig } from '../ctx-builder';
 import { buildCtx } from '../ctx-builder';
+
+const STUB_RAW = {
+  request: new Request('http://localhost'),
+  method: 'GET',
+  url: 'http://localhost',
+  headers: new Headers(),
+};
+
+function createConfig(overrides: Partial<CtxConfig> = {}): CtxConfig {
+  return {
+    params: {},
+    body: undefined,
+    query: {},
+    headers: {},
+    raw: STUB_RAW,
+    middlewareState: {},
+    services: {},
+    options: {},
+    env: {},
+    ...overrides,
+  };
+}
 
 describe('buildCtx', () => {
   const originalEnv = process.env.NODE_ENV;
@@ -9,17 +32,18 @@ describe('buildCtx', () => {
   });
 
   it('combines request data, middleware contributions, and services into flat ctx', () => {
-    const ctx = buildCtx({
-      params: { id: '123' },
-      body: { name: 'Jane' },
-      query: { page: '1' },
-      headers: { authorization: 'Bearer token' },
-      raw: { request: new Request('http://localhost'), method: 'GET', url: 'http://localhost', headers: new Headers() },
-      middlewareState: { user: { id: '1', role: 'admin' } },
-      services: { userService: { findById: () => {} } },
-      options: { maxRetries: 3 },
-      env: { DATABASE_URL: 'postgres://localhost' },
-    });
+    const ctx = buildCtx(
+      createConfig({
+        params: { id: '123' },
+        body: { name: 'Jane' },
+        query: { page: '1' },
+        headers: { authorization: 'Bearer token' },
+        middlewareState: { user: { id: '1', role: 'admin' } },
+        services: { userService: { findById: () => {} } },
+        options: { maxRetries: 3 },
+        env: { DATABASE_URL: 'postgres://localhost' },
+      }),
+    );
 
     expect(ctx.params).toEqual({ id: '123' });
     expect(ctx.body).toEqual({ name: 'Jane' });
@@ -35,17 +59,7 @@ describe('buildCtx', () => {
   it('returns an immutable object in development mode', () => {
     process.env.NODE_ENV = 'development';
 
-    const ctx = buildCtx({
-      params: {},
-      body: undefined,
-      query: {},
-      headers: {},
-      raw: { request: new Request('http://localhost'), method: 'GET', url: 'http://localhost', headers: new Headers() },
-      middlewareState: {},
-      services: {},
-      options: {},
-      env: {},
-    });
+    const ctx = buildCtx(createConfig());
 
     expect(() => {
       (ctx as any).params = 'mutated';
@@ -53,20 +67,14 @@ describe('buildCtx', () => {
   });
 
   it('flattens middleware contributions directly onto ctx', () => {
-    const ctx = buildCtx({
-      params: {},
-      body: undefined,
-      query: {},
-      headers: {},
-      raw: { request: new Request('http://localhost'), method: 'GET', url: 'http://localhost', headers: new Headers() },
-      middlewareState: {
-        user: { id: '1' },
-        requestId: 'abc-123',
-      },
-      services: {},
-      options: {},
-      env: {},
-    });
+    const ctx = buildCtx(
+      createConfig({
+        middlewareState: {
+          user: { id: '1' },
+          requestId: 'abc-123',
+        },
+      }),
+    );
 
     expect(ctx.user).toEqual({ id: '1' });
     expect(ctx.requestId).toBe('abc-123');
@@ -76,17 +84,12 @@ describe('buildCtx', () => {
     process.env.NODE_ENV = 'development';
 
     expect(() =>
-      buildCtx({
-        params: { id: '1' },
-        body: undefined,
-        query: {},
-        headers: {},
-        raw: { request: new Request('http://localhost'), method: 'GET', url: 'http://localhost', headers: new Headers() },
-        middlewareState: { params: { id: 'overwritten' } },
-        services: {},
-        options: {},
-        env: {},
-      }),
+      buildCtx(
+        createConfig({
+          params: { id: '1' },
+          middlewareState: { params: { id: 'overwritten' } },
+        }),
+      ),
     ).toThrow('params');
   });
 
@@ -94,17 +97,11 @@ describe('buildCtx', () => {
     process.env.NODE_ENV = 'development';
 
     expect(() =>
-      buildCtx({
-        params: {},
-        body: undefined,
-        query: {},
-        headers: {},
-        raw: { request: new Request('http://localhost'), method: 'GET', url: 'http://localhost', headers: new Headers() },
-        middlewareState: {},
-        services: { body: { parse: () => {} } },
-        options: {},
-        env: {},
-      }),
+      buildCtx(
+        createConfig({
+          services: { body: { parse: () => {} } },
+        }),
+      ),
     ).toThrow('body');
   });
 
@@ -112,17 +109,12 @@ describe('buildCtx', () => {
     process.env.NODE_ENV = 'development';
 
     expect(() =>
-      buildCtx({
-        params: {},
-        body: undefined,
-        query: {},
-        headers: {},
-        raw: { request: new Request('http://localhost'), method: 'GET', url: 'http://localhost', headers: new Headers() },
-        middlewareState: { user: { id: '1' } },
-        services: { user: { findById: () => {} } },
-        options: {},
-        env: {},
-      }),
+      buildCtx(
+        createConfig({
+          middlewareState: { user: { id: '1' } },
+          services: { user: { findById: () => {} } },
+        }),
+      ),
     ).toThrow('user');
   });
 });

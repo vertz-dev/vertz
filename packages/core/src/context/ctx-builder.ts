@@ -16,13 +16,14 @@ export interface CtxConfig {
 const RESERVED_KEYS = ['params', 'body', 'query', 'headers', 'raw', 'options', 'env'];
 
 function validateCollisions(config: CtxConfig): void {
-  for (const key of Object.keys(config.middlewareState)) {
+  const middlewareKeys = Object.keys(config.middlewareState);
+
+  for (const key of middlewareKeys) {
     if (RESERVED_KEYS.includes(key)) {
       throw new Error(`Middleware cannot provide reserved ctx key: "${key}"`);
     }
   }
 
-  const middlewareKeys = Object.keys(config.middlewareState);
   for (const key of Object.keys(config.services)) {
     if (RESERVED_KEYS.includes(key)) {
       throw new Error(`Service name cannot shadow reserved ctx key: "${key}"`);
