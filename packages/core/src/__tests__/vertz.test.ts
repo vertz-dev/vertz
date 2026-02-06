@@ -3,6 +3,7 @@ import { vertz } from '../vertz';
 import {
   vertz as vertzFromIndex,
   createApp,
+  createEnv,
   createMiddleware,
   createModuleDef,
   createModule,
@@ -27,6 +28,7 @@ describe('vertz namespace', () => {
 
   it('exports factory functions directly from index.ts', () => {
     expect(createApp).toBe(vertz.app);
+    expect(createEnv).toBe(vertz.env);
     expect(createMiddleware).toBe(vertz.middleware);
     expect(createModuleDef).toBe(vertz.moduleDef);
     expect(createModule).toBe(vertz.module);
