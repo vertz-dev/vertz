@@ -42,6 +42,4 @@ export {
 } from './exceptions';
 
 // Immutability
-export { makeImmutable } from './immutability';
-export { deepFreeze } from './immutability/freeze';
-export { createImmutableProxy } from './immutability/dev-proxy';
+export { makeImmutable, deepFreeze, createImmutableProxy } from './immutability';

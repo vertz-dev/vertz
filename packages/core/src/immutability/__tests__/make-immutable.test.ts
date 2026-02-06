@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { makeImmutable } from '../index';
+import { describe, it, expect, afterEach } from 'vitest';
+import { makeImmutable } from '../make-immutable';
 
 describe('makeImmutable', () => {
   const originalEnv = process.env.NODE_ENV;

@@ -31,4 +31,12 @@ describe('deepFreeze', () => {
     expect(deepFreeze(undefined)).toBe(undefined);
     expect(deepFreeze(true)).toBe(true);
   });
+
+  it('handles circular references without stack overflow', () => {
+    const obj: any = { name: 'root' };
+    obj.self = obj;
+    deepFreeze(obj);
+    expect(Object.isFrozen(obj)).toBe(true);
+    expect(obj.self).toBe(obj);
+  });
 });

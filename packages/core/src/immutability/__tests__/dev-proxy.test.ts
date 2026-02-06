@@ -32,4 +32,10 @@ describe('createImmutableProxy', () => {
     expect(proxy.name).toBe('John');
     expect(proxy.nested.value).toBe(42);
   });
+
+  it('preserves identity for nested object access', () => {
+    const obj = { user: { name: 'John' } };
+    const proxy = createImmutableProxy(obj, 'ctx');
+    expect(proxy.user === proxy.user).toBe(true);
+  });
 });
