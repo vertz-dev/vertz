@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "noEmit": true,
+    "paths": {
+      "@vertz/core/*": ["../core/*"]
+    }
+  },
+  "include": ["src"]
+}
