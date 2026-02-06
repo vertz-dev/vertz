@@ -31,10 +31,14 @@ export async function parseBody(request: Request): Promise<unknown> {
   const contentType = request.headers.get('content-type') ?? '';
 
   if (contentType.includes('application/json')) {
-    return request.json();
+    try {
+      return await request.json();
+    } catch {
+      throw new Error('Invalid JSON body');
+    }
   }
 
-  if (contentType.includes('text/')) {
+  if (contentType.startsWith('text/')) {
     return request.text();
   }
 

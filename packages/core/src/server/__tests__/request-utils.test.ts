@@ -24,6 +24,17 @@ describe('parseRequest', () => {
     expect(parsed.raw).toBe(request);
   });
 
+  it('combines duplicate headers per HTTP spec', () => {
+    const headers = new Headers();
+    headers.append('accept', 'text/html');
+    headers.append('accept', 'application/json');
+    const request = new Request('http://localhost:3000/test', { headers });
+    const parsed = parseRequest(request);
+
+    // Per HTTP spec, duplicate headers are combined with ", "
+    expect(parsed.headers['accept']).toBe('text/html, application/json');
+  });
+
   it('handles path without query string', () => {
     const request = new Request('http://localhost:3000/api/v1/users');
     const parsed = parseRequest(request);
@@ -68,6 +79,27 @@ describe('parseBody', () => {
     const body = await parseBody(request);
 
     expect(body).toBe('hello world');
+  });
+
+  it('throws BadRequestException for malformed JSON', async () => {
+    const request = new Request('http://localhost:3000/api', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{invalid json',
+    });
+
+    await expect(parseBody(request)).rejects.toThrow('Invalid JSON body');
+  });
+
+  it('handles charset in content-type for JSON', async () => {
+    const request = new Request('http://localhost:3000/api', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ test: true }),
+    });
+
+    const body = await parseBody(request);
+    expect(body).toEqual({ test: true });
   });
 
   it('returns undefined for requests without body content-type', async () => {
