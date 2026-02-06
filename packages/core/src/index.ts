@@ -43,3 +43,6 @@ export {
 
 // Immutability
 export { makeImmutable, deepFreeze, createImmutableProxy } from './immutability';
+
+// Environment
+export { createEnv } from './env';
