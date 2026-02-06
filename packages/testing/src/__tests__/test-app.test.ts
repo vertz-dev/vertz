@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { createTestApp } from '../test-app';
-import { createModuleDef, createModule } from '@vertz/core/src/module';
-import type { NamedRouterDef } from '@vertz/core/src/module';
-import { createMiddleware } from '@vertz/core/src/middleware/middleware-def';
-import type { NamedServiceDef } from '@vertz/core/src/module/service';
 import type { NamedModule } from '@vertz/core/src/module/module';
+import type { NamedServiceDef } from '@vertz/core/src/module/service';
+
+import { createMiddleware } from '@vertz/core/src/middleware/middleware-def';
+import { createModuleDef, createModule, type NamedRouterDef } from '@vertz/core/src/module';
+import { describe, it, expect } from 'vitest';
+
+import { createTestApp } from '../test-app';
 
 interface RouteInput {
   method: string;
@@ -238,5 +239,44 @@ describe('createTestApp', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ message: 'mocked' });
+  });
+
+  it('per-request service mock overrides app-level mock', async () => {
+    const { module: mod, service } = createModuleWithService(
+      'test',
+      '/api',
+      { methods: () => ({ greet: () => 'real' }) },
+      [{ method: 'GET', path: '/', handler: (ctx: any) => ({ message: ctx.svc.greet() }) }],
+    );
+
+    const app = createTestApp()
+      .mock(service, { greet: () => 'app-level' })
+      .register(mod);
+
+    const res = await app
+      .get('/api')
+      .mock(service, { greet: () => 'per-request' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ message: 'per-request' });
+  });
+
+  it('app-level service mock applies when no per-request override', async () => {
+    const { module: mod, service } = createModuleWithService(
+      'test',
+      '/api',
+      { methods: () => ({ greet: () => 'real' }) },
+      [{ method: 'GET', path: '/', handler: (ctx: any) => ({ message: ctx.svc.greet() }) }],
+    );
+
+    const app = createTestApp()
+      .mock(service, { greet: () => 'app-level' })
+      .register(mod);
+
+    // No per-request override — app-level mock should be used
+    const res = await app.get('/api');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ message: 'app-level' });
   });
 });
