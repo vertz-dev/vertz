@@ -42,22 +42,17 @@ describe('createEnv', () => {
     delete process.env.REQUIRED_VAR;
     delete process.env.ANOTHER_VAR;
 
-    let error: Error | undefined;
-    try {
+    const act = () =>
       createEnv({
         schema: s.object({
           REQUIRED_VAR: s.string(),
           ANOTHER_VAR: s.string(),
         }),
       });
-    } catch (e) {
-      error = e as Error;
-    }
 
-    expect(error).toBeInstanceOf(Error);
-    expect(error!.message).toContain('Environment validation failed');
-    expect(error!.message).toContain('REQUIRED_VAR');
-    expect(error!.message).toContain('ANOTHER_VAR');
+    expect(act).toThrow('Environment validation failed');
+    expect(act).toThrow('REQUIRED_VAR');
+    expect(act).toThrow('ANOTHER_VAR');
   });
 
   it('returns a frozen object', () => {
@@ -70,20 +65,6 @@ describe('createEnv', () => {
     });
 
     expect(Object.isFrozen(env)).toBe(true);
-  });
-
-  it('prevents mutation of the returned env object', () => {
-    process.env.APP_NAME = 'vertz';
-
-    const env = createEnv({
-      schema: s.object({
-        APP_NAME: s.string(),
-      }),
-    });
-
-    expect(() => {
-      (env as any).APP_NAME = 'changed';
-    }).toThrow();
   });
 
   it('deep-freezes nested objects in the result', () => {
