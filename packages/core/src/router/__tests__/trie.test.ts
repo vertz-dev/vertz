@@ -120,4 +120,24 @@ describe('Trie', () => {
 
     expect(trie.getAllowedMethods('/nope')).toEqual([]);
   });
+
+  it('handles multiple methods on wildcard routes', () => {
+    const trie = new Trie();
+    const getHandler = () => 'get';
+    const postHandler = () => 'post';
+    trie.add('GET', '/files/*', getHandler);
+    trie.add('POST', '/files/*', postHandler);
+
+    expect(trie.match('GET', '/files/a/b/c')!.handler).toBe(getHandler);
+    expect(trie.match('POST', '/files/a/b/c')!.handler).toBe(postHandler);
+  });
+
+  it('throws when param names conflict at the same position', () => {
+    const trie = new Trie();
+    trie.add('GET', '/users/:id', () => 'first');
+
+    expect(() => {
+      trie.add('POST', '/users/:userId', () => 'second');
+    }).toThrow(/param name mismatch/i);
+  });
 });

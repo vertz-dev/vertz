@@ -38,6 +38,10 @@ export class Trie {
         const name = segment.slice(1);
         if (!node.paramChild) {
           node.paramChild = { name, node: createNode() };
+        } else if (node.paramChild.name !== name) {
+          throw new Error(
+            `Param name mismatch: existing ":${node.paramChild.name}" conflicts with ":${name}"`,
+          );
         }
         node = node.paramChild.node;
       } else {
