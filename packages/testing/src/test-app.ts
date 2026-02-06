@@ -152,32 +152,37 @@ export function createTestApp(): TestApp {
     method: string,
     path: string,
     body: unknown | undefined,
+    customHeaders: Record<string, string> | undefined,
     perRequestMiddlewareMocks: Map<NamedMiddlewareDef, Record<string, unknown>>,
   ): Promise<TestResponse> {
     const handler = buildHandler(perRequestMiddlewareMocks);
     const init: RequestInit = { method };
+    const headers: Record<string, string> = { ...customHeaders };
     if (body !== undefined) {
       init.body = JSON.stringify(body);
-      init.headers = { 'content-type': 'application/json' };
+      headers['content-type'] = 'application/json';
+    }
+    if (Object.keys(headers).length > 0) {
+      init.headers = headers;
     }
     const request = new Request(`http://localhost${path}`, init);
     const response = await handler(request);
     const responseBody = response.headers.get('content-type')?.includes('application/json')
       ? await response.json()
       : null;
-    const headers: Record<string, string> = {};
+    const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, key) => {
-      headers[key] = value;
+      responseHeaders[key] = value;
     });
     return {
       status: response.status,
       body: responseBody,
-      headers,
+      headers: responseHeaders,
       ok: response.ok,
     };
   }
 
-  function createRequestBuilder(method: string, path: string, body?: unknown): TestRequestBuilder {
+  function createRequestBuilder(method: string, path: string, body?: unknown, headers?: Record<string, string>): TestRequestBuilder {
     const perRequestMocks = new Map<NamedMiddlewareDef, Record<string, unknown>>();
 
     const requestBuilder: TestRequestBuilder = {
@@ -186,7 +191,7 @@ export function createTestApp(): TestApp {
         return requestBuilder;
       },
       then(onfulfilled, onrejected) {
-        return executeRequest(method, path, body, perRequestMocks).then(onfulfilled, onrejected);
+        return executeRequest(method, path, body, headers, perRequestMocks).then(onfulfilled, onrejected);
       },
     };
 
@@ -210,11 +215,11 @@ export function createTestApp(): TestApp {
       envOverrides = vars;
       return builder;
     },
-    get(path, _options) {
-      return createRequestBuilder('GET', path);
+    get(path, options) {
+      return createRequestBuilder('GET', path, undefined, options?.headers);
     },
     post(path, options) {
-      return createRequestBuilder('POST', path, options?.body);
+      return createRequestBuilder('POST', path, options?.body, options?.headers);
     },
   };
 

@@ -149,6 +149,18 @@ describe('createTestApp', () => {
     expect(res.body).toEqual({ role: 'viewer' });
   });
 
+  it('passes custom headers to handler via ctx', async () => {
+    const mod = createTestModule('test', '/api', [
+      { method: 'GET', path: '/', handler: (ctx: any) => ({ token: ctx.headers['authorization'] }) },
+    ]);
+
+    const app = createTestApp().register(mod);
+    const res = await app.get('/api', { headers: { authorization: 'Bearer test-token' } });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ token: 'Bearer test-token' });
+  });
+
   it('uses mocked service instead of real one', async () => {
     const { module: mod, service } = createModuleWithService(
       'test',
