@@ -15,7 +15,14 @@ class TestSchema extends Schema<string> {
   }
   _schemaType(): SchemaType { return SchemaType.String; }
   _toJSONSchema(): Record<string, unknown> { return { type: 'string' }; }
-  _clone(): TestSchema { return new TestSchema(); }
+  _clone(): TestSchema {
+    const clone = new TestSchema();
+    clone._id = this._id;
+    clone._description = this._description;
+    clone._meta = this._meta ? { ...this._meta } : undefined;
+    clone._examples = [...this._examples];
+    return clone;
+  }
 }
 
 describe('RefTracker', () => {

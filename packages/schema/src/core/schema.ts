@@ -6,8 +6,8 @@ import { RefTracker } from '../introspection/json-schema';
 import type { JSONSchemaObject } from '../introspection/json-schema';
 
 export abstract class Schema<O, I = O> {
-  /** @internal */ readonly _output!: O;
-  /** @internal */ readonly _input!: I;
+  /** @internal */ declare readonly _output: O;
+  /** @internal */ declare readonly _input: I;
   /** @internal */ _id: string | undefined;
   /** @internal */ _description: string | undefined;
   /** @internal */ _meta: Record<string, unknown> | undefined;
@@ -17,6 +17,7 @@ export abstract class Schema<O, I = O> {
     this._examples = [];
   }
 
+  /** Validate and return the parsed value. Return value is discarded when `ctx` has issues. */
   abstract _parse(value: unknown, ctx: ParseContext): O;
   abstract _schemaType(): SchemaType;
   abstract _toJSONSchema(tracker: RefTracker): JSONSchemaObject;

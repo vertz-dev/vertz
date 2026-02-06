@@ -15,7 +15,14 @@ class TestStringSchema extends Schema<string> {
   }
   _schemaType(): SchemaType { return SchemaType.String; }
   _toJSONSchema(): Record<string, unknown> { return { type: 'string' }; }
-  _clone(): TestStringSchema { return new TestStringSchema(); }
+  _clone(): TestStringSchema {
+    const clone = new TestStringSchema();
+    clone._id = this._id;
+    clone._description = this._description;
+    clone._meta = this._meta ? { ...this._meta } : undefined;
+    clone._examples = [...this._examples];
+    return clone;
+  }
 }
 
 describe('Type inference utilities', () => {
