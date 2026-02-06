@@ -1906,6 +1906,7 @@ Each phase follows strict TDD — one test at a time. Write one failing test, im
   - register/get/has/getAll
   - clear empties registry
   - Registering same name overwrites
+  - **Note:** All test files using `.id()` must call `SchemaRegistry.clear()` in `beforeEach` to prevent cross-test pollution. Add to vitest setup file for global cleanup.
 - `src/core/__tests__/schema.test.ts`
   - (Tested via concrete subclasses in Phase 2)
 - `src/utils/__tests__/type-inference.test.ts`

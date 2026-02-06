@@ -16,7 +16,7 @@ Four-layer architecture: `moduleDef` (contract) → `service`/`router` (implemen
 
 ### Middleware with Typed State Composition
 
-Middlewares declare `Requires` and `Provides` generics. They return their contribution — no `next()`, no mutation. State composes through levels: Global → Router → Route. Wrong ordering is a type error.
+Middlewares declare `requires` and `provides` as schemas. They return their contribution — no `next()`, no mutation. The `provides` schema enforces the return type. State composes through levels: Global → Router → Route. Wrong ordering is a type error.
 
 ### Environment Validation
 
@@ -24,11 +24,11 @@ Middlewares declare `Requires` and `Provides` generics. They return their contri
 
 ### Immutability
 
-Both `deps` and `ctx` are frozen. `DeepReadonly<T>` at compile time, `Object.freeze()` in production, Proxy with helpful error messages in development.
+Both `deps` and `ctx` are immutable. `DeepReadonly<T>` at compile time, Proxy with helpful error messages in development. No `Object.freeze()` in production — the dev proxy catches mutation bugs during development, and compile-time types prevent them in code. Skipping freeze in production avoids the overhead of recursively walking and freezing objects on every request.
 
 ### Schema Validation
 
-Request params, body, query, and headers validated against schemas. Response validated in test mode. One schema library (`@vertz/schema`) used throughout.
+Request params, body, query, and headers validated against schemas. Response validated in development and test modes. One schema library (`@vertz/schema`) used throughout.
 
 ### Request Headers Validation
 
@@ -36,7 +36,7 @@ Routes can define a `headers` schema for endpoint-specific headers (webhook sign
 
 ### Native OpenAPI
 
-Not a plugin — built in. Every route with a return value must define a response schema (compiler-enforced). API documentation is always in sync with implementation because they're the same declaration.
+Not a plugin — built in. Every route with a return value must define a response schema (compiler-enforced). API documentation is always in sync with implementation because they're the same declaration. The compiler generates the OpenAPI spec, `@vertz/core` serves the JSON spec (e.g., `/openapi.json`), and the documentation UI (Swagger UI / interactive docs) lives in a separate package.
 
 ### Error Handling
 
@@ -127,7 +127,7 @@ Autocomplete suggests only registered routes. Params, body, query, headers, and 
 
 ### Middleware Mocking
 
-`.mockMiddleware(authMiddleware, { user: ... })` — typed to the middleware's `Provides` generic. Mocked middlewares are bypassed entirely; non-mocked ones run normally.
+`.mockMiddleware(authMiddleware, { user: ... })` — typed to the middleware's `provides` schema. Mocked middlewares are bypassed entirely; non-mocked ones run normally.
 
 ### Per-Request Overrides
 
@@ -139,7 +139,7 @@ Chain `.mock()` and `.mockMiddleware()` on the request builder for single-reques
 
 ### Response Validation
 
-In test mode, the framework validates handler return values against the response schema. Catches mismatches that would produce incorrect OpenAPI docs.
+In development and test modes, the framework validates handler return values against the response schema. Catches mismatches that would produce incorrect OpenAPI docs.
 
 ### Unit Testing Services
 

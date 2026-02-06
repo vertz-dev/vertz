@@ -76,6 +76,7 @@ These checks run on every compilation. If any fail, the build fails.
 | **Response schema exists** | If a handler returns data, there's a schema defining that shape. No undocumented responses. |
 | **Module exports valid** | Only actual services can be exported. No "export not found." |
 | **Module options valid** | `.register(module, options)` options match the module's options schema. No invalid config at boot. |
+| **No ctx key collisions** | Middleware `provides` keys, injected service names, and reserved ctx properties (`params`, `body`, `query`, `headers`, `raw`, `state`, `options`, `env`) must all be unique. Two middlewares providing the same key, or a service name shadowing a middleware state key, is a build error. No silent overwrites at runtime. |
 
 ### Strict mode (opt-in via `defineConfig`)
 
