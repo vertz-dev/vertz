@@ -45,7 +45,7 @@ export interface TestApp {
 
 interface PerRequestMocks {
   services: Map<NamedServiceDef, unknown>;
-  middlewares: Map<NamedMiddlewareDef, Record<string, unknown>>;
+  middlewares: Map<NamedMiddlewareDef<any, any>, Record<string, unknown>>;
 }
 
 interface RouteEntry {
@@ -59,7 +59,7 @@ const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HE
 
 export function createTestApp(): TestApp {
   const serviceMocks = new Map<NamedServiceDef, unknown>();
-  const middlewareMocks = new Map<NamedMiddlewareDef, Record<string, unknown>>();
+  const middlewareMocks = new Map<NamedMiddlewareDef<any, any>, Record<string, unknown>>();
   const registrations: { module: NamedModule; options?: Record<string, unknown> }[] = [];
   let envOverrides: Record<string, unknown> = {};
 
@@ -200,7 +200,7 @@ export function createTestApp(): TestApp {
   function createRequestBuilder(method: string, path: string, options?: RequestOptions): TestRequestBuilder {
     const perRequest: PerRequestMocks = {
       services: new Map<NamedServiceDef, unknown>(),
-      middlewares: new Map<NamedMiddlewareDef, Record<string, unknown>>(),
+      middlewares: new Map<NamedMiddlewareDef<any, any>, Record<string, unknown>>(),
     };
 
     const builder: TestRequestBuilder = {

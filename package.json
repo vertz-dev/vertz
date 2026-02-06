@@ -2,18 +2,13 @@
   "name": "vertz-monorepo",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "yarn@4.12.0",
-  "volta": {
-    "node": "25.2.1",
-    "yarn": "4.12.0"
-  },
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "build": "yarn workspaces foreach -A run build",
-    "test": "yarn workspaces foreach -A run test",
-    "test:watch": "yarn workspaces foreach -A run test:watch",
-    "typecheck": "yarn workspaces foreach -A run typecheck"
+    "build": "bun run --filter '*' build",
+    "test": "bun run --filter '*' test",
+    "test:watch": "bun run --filter '*' test:watch",
+    "typecheck": "bun run --filter '*' typecheck"
   }
 }
