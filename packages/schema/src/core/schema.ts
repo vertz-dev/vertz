@@ -150,12 +150,7 @@ export class OptionalSchema<O, I> extends Schema<O | undefined, I | undefined> {
   }
 
   _clone(): OptionalSchema<O, I> {
-    const clone = new OptionalSchema(this._inner);
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
-    return clone;
+    return this._cloneBase(new OptionalSchema(this._inner));
   }
 
   unwrap(): Schema<O, I> {
@@ -186,12 +181,7 @@ export class NullableSchema<O, I> extends Schema<O | null, I | null> {
   }
 
   _clone(): NullableSchema<O, I> {
-    const clone = new NullableSchema(this._inner);
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
-    return clone;
+    return this._cloneBase(new NullableSchema(this._inner));
   }
 
   unwrap(): Schema<O, I> {
@@ -213,29 +203,24 @@ export class DefaultSchema<O, I> extends Schema<O, I | undefined> {
 
   _parse(value: unknown, ctx: ParseContext): O {
     if (value === undefined) {
-      const defaultVal = typeof this._default === 'function'
-        ? (this._default as () => I)()
-        : this._default;
-      return this._inner._runPipeline(defaultVal, ctx);
+      return this._inner._runPipeline(this._resolveDefault(), ctx);
     }
     return this._inner._runPipeline(value, ctx);
   }
 
   _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
     const inner = this._inner._toJSONSchemaWithRefs(tracker);
-    const defaultVal = typeof this._default === 'function'
+    return { ...inner, default: this._resolveDefault() };
+  }
+
+  private _resolveDefault(): I {
+    return typeof this._default === 'function'
       ? (this._default as () => I)()
       : this._default;
-    return { ...inner, default: defaultVal };
   }
 
   _clone(): DefaultSchema<O, I> {
-    const clone = new DefaultSchema(this._inner, this._default);
-    clone._id = this._id;
-    clone._description = this._description;
-    clone._meta = this._meta ? { ...this._meta } : undefined;
-    clone._examples = [...this._examples];
-    return clone;
+    return this._cloneBase(new DefaultSchema(this._inner, this._default));
   }
 
   unwrap(): Schema<O, I> {
