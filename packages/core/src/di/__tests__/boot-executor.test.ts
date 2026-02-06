@@ -1,8 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { BootExecutor } from '../boot-executor';
 import type { BootSequence } from '../../types/boot-sequence';
 
 describe('BootExecutor', () => {
+  const originalEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalEnv;
+  });
+
   it('executes a service and returns its methods in the service map', async () => {
     const sequence: BootSequence = {
       instructions: [
@@ -246,6 +252,7 @@ describe('BootExecutor', () => {
   });
 
   it('wraps deps with makeImmutable before passing to methods', async () => {
+    process.env.NODE_ENV = 'development';
     let receivedDeps: any;
 
     const sequence: BootSequence = {
@@ -271,16 +278,11 @@ describe('BootExecutor', () => {
       shutdownOrder: [],
     };
 
-    const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
-
     const executor = new BootExecutor();
     await executor.execute(sequence);
 
     expect(() => {
       receivedDeps.config = 'mutated';
     }).toThrow();
-
-    process.env.NODE_ENV = originalEnv;
   });
 });

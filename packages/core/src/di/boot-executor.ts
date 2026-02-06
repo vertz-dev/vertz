@@ -4,42 +4,39 @@ import type {
 } from '../types/boot-sequence';
 import { makeImmutable } from '../immutability';
 
-interface ServiceInstance {
-  id: string;
-  instance: unknown;
+interface ServiceEntry {
+  methods: unknown;
   onDestroy?: () => Promise<void> | void;
 }
 
 export class BootExecutor {
-  private instances = new Map<string, ServiceInstance>();
+  private services = new Map<string, ServiceEntry>();
   private shutdownOrder: string[] = [];
 
   async execute(sequence: BootSequence): Promise<Map<string, unknown>> {
     for (const instruction of sequence.instructions) {
       if (instruction.type === 'service') {
-        await this.executeService(instruction);
+        await this.bootService(instruction);
       }
     }
     this.shutdownOrder = sequence.shutdownOrder;
-    return this.getServiceMap();
+    return this.buildServiceMap();
   }
 
   async shutdown(): Promise<void> {
     for (const id of this.shutdownOrder) {
-      const svc = this.instances.get(id);
-      if (svc?.onDestroy) await svc.onDestroy();
+      const entry = this.services.get(id);
+      if (entry?.onDestroy) await entry.onDestroy();
     }
-    this.instances.clear();
+    this.services.clear();
   }
 
-  private async executeService(instr: ServiceBootInstruction): Promise<void> {
+  private async bootService(instr: ServiceBootInstruction): Promise<void> {
     const deps = makeImmutable(this.resolveDeps(instr.deps), 'deps');
     const state = instr.factory.onInit ? await instr.factory.onInit(deps) : undefined;
-    const methods = instr.factory.methods(deps, state);
 
-    this.instances.set(instr.id, {
-      id: instr.id,
-      instance: methods,
+    this.services.set(instr.id, {
+      methods: instr.factory.methods(deps, state),
       onDestroy: instr.factory.onDestroy
         ? () => instr.factory.onDestroy!(deps, state)
         : undefined,
@@ -49,17 +46,17 @@ export class BootExecutor {
   private resolveDeps(depIds: string[]): Record<string, unknown> {
     const deps: Record<string, unknown> = {};
     for (const id of depIds) {
-      const svc = this.instances.get(id);
-      if (!svc) throw new Error(`Dependency "${id}" not found`);
-      deps[id] = svc.instance;
+      const entry = this.services.get(id);
+      if (!entry) throw new Error(`Dependency "${id}" not found`);
+      deps[id] = entry.methods;
     }
     return deps;
   }
 
-  private getServiceMap(): Map<string, unknown> {
+  private buildServiceMap(): Map<string, unknown> {
     const map = new Map<string, unknown>();
-    for (const [id, svc] of this.instances) {
-      map.set(id, svc.instance);
+    for (const [id, entry] of this.services) {
+      map.set(id, entry.methods);
     }
     return map;
   }
