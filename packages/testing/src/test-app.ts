@@ -21,7 +21,6 @@ export interface TestRequestBuilder extends PromiseLike<TestResponse> {
 }
 
 interface RequestOptions {
-  params?: Record<string, string>;
   body?: unknown;
   headers?: Record<string, string>;
 }
@@ -33,6 +32,10 @@ export interface TestApp {
   env(vars: Record<string, unknown>): TestApp;
   get(path: string, options?: RequestOptions): TestRequestBuilder;
   post(path: string, options?: RequestOptions): TestRequestBuilder;
+  put(path: string, options?: RequestOptions): TestRequestBuilder;
+  patch(path: string, options?: RequestOptions): TestRequestBuilder;
+  delete(path: string, options?: RequestOptions): TestRequestBuilder;
+  head(path: string, options?: RequestOptions): TestRequestBuilder;
 }
 
 interface RouteEntry {
@@ -158,12 +161,12 @@ export function createTestApp(): TestApp {
   async function executeRequest(
     method: string,
     path: string,
-    body: unknown | undefined,
-    customHeaders: Record<string, string> | undefined,
+    options: RequestOptions | undefined,
     perRequestMiddlewareMocks: Map<NamedMiddlewareDef, Record<string, unknown>>,
   ): Promise<TestResponse> {
     const handler = buildHandler(perRequestMiddlewareMocks);
 
+    const { body, headers: customHeaders } = options ?? {};
     const headers: Record<string, string> = { ...customHeaders };
     if (body !== undefined) {
       headers['content-type'] = 'application/json';
@@ -187,7 +190,7 @@ export function createTestApp(): TestApp {
     };
   }
 
-  function createRequestBuilder(method: string, path: string, body?: unknown, headers?: Record<string, string>): TestRequestBuilder {
+  function createRequestBuilder(method: string, path: string, options?: RequestOptions): TestRequestBuilder {
     const perRequestMocks = new Map<NamedMiddlewareDef, Record<string, unknown>>();
 
     const requestBuilder: TestRequestBuilder = {
@@ -196,7 +199,7 @@ export function createTestApp(): TestApp {
         return requestBuilder;
       },
       then(onfulfilled, onrejected) {
-        return executeRequest(method, path, body, headers, perRequestMocks).then(onfulfilled, onrejected);
+        return executeRequest(method, path, options, perRequestMocks).then(onfulfilled, onrejected);
       },
     };
 
@@ -221,10 +224,22 @@ export function createTestApp(): TestApp {
       return builder;
     },
     get(path, options) {
-      return createRequestBuilder('GET', path, undefined, options?.headers);
+      return createRequestBuilder('GET', path, options);
     },
     post(path, options) {
-      return createRequestBuilder('POST', path, options?.body, options?.headers);
+      return createRequestBuilder('POST', path, options);
+    },
+    put(path, options) {
+      return createRequestBuilder('PUT', path, options);
+    },
+    patch(path, options) {
+      return createRequestBuilder('PATCH', path, options);
+    },
+    delete(path, options) {
+      return createRequestBuilder('DELETE', path, options);
+    },
+    head(path, options) {
+      return createRequestBuilder('HEAD', path, options);
     },
   };
 
