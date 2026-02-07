@@ -45,7 +45,7 @@ describe('StringSchema', () => {
     const result = schema.safeParse('ab');
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.message).toBe('Must be 4 chars');
+      expect(result.error.issues[0]?.message).toBe('Must be 4 chars');
     }
   });
 
@@ -55,7 +55,7 @@ describe('StringSchema', () => {
     const result = schema.safeParse('Hello123');
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.message).toBe('Invalid: must match /^[a-z]+$/');
+      expect(result.error.issues[0]?.message).toBe('Invalid: must match /^[a-z]+$/');
     }
   });
 
@@ -101,12 +101,12 @@ describe('StringSchema', () => {
     const minResult = schema.safeParse('ab');
     expect(minResult.success).toBe(false);
     if (!minResult.success) {
-      expect(minResult.error.issues[0]!.message).toBe('Too short');
+      expect(minResult.error.issues[0]?.message).toBe('Too short');
     }
     const maxResult = schema.safeParse('a]'.repeat(6));
     expect(maxResult.success).toBe(false);
     if (!maxResult.success) {
-      expect(maxResult.error.issues[0]!.message).toBe('Too long');
+      expect(maxResult.error.issues[0]?.message).toBe('Too long');
     }
   });
 

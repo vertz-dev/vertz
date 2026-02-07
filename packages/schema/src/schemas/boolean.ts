@@ -1,5 +1,5 @@
 import { Schema } from '../core/schema';
-import { ParseContext } from '../core/parse-context';
+import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker } from '../introspection/json-schema';
@@ -10,7 +10,7 @@ export class BooleanSchema extends Schema<boolean> {
     if (typeof value !== 'boolean') {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected boolean, received ' + typeof value,
+        message: `Expected boolean, received ${typeof value}`,
       });
       return value as boolean;
     }

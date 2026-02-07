@@ -1,4 +1,4 @@
-import { ParseContext } from '../../core/parse-context';
+import type { ParseContext } from '../../core/parse-context';
 import { ErrorCode } from '../../core/errors';
 import { StringSchema } from '../string';
 import type { RefTracker, JSONSchemaObject } from '../../introspection/json-schema';

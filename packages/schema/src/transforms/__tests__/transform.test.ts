@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { StringSchema } from '../../schemas/string';
-import { NumberSchema } from '../../schemas/number';
 
 describe('.transform()', () => {
   it('changes output value', () => {

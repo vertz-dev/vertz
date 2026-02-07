@@ -13,7 +13,7 @@ describe('.refine()', () => {
     const result = schema.safeParse('');
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.code).toBe(ErrorCode.Custom);
+      expect(result.error.issues[0]?.code).toBe(ErrorCode.Custom);
     }
   });
 
@@ -22,7 +22,7 @@ describe('.refine()', () => {
     const result = schema.safeParse('');
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.message).toBe('Must not be empty');
+      expect(result.error.issues[0]?.message).toBe('Must not be empty');
     }
   });
 
@@ -34,7 +34,7 @@ describe('.refine()', () => {
     const result = schema.safeParse('');
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.path).toEqual(['name']);
+      expect(result.error.issues[0]?.path).toEqual(['name']);
     }
   });
 });

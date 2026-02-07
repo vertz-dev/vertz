@@ -16,7 +16,7 @@ describe('ArraySchema', () => {
       const result = schema.safeParse(value);
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.issues[0]!.code).toBe(ErrorCode.InvalidType);
+        expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidType);
       }
     }
   });
@@ -27,8 +27,8 @@ describe('ArraySchema', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues.length).toBe(2);
-      expect(result.error.issues[0]!.path).toEqual([1]);
-      expect(result.error.issues[1]!.path).toEqual([3]);
+      expect(result.error.issues[0]?.path).toEqual([1]);
+      expect(result.error.issues[1]?.path).toEqual([3]);
     }
   });
 
@@ -38,7 +38,7 @@ describe('ArraySchema', () => {
     const result = schema.safeParse(['a']);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.code).toBe(ErrorCode.TooSmall);
+      expect(result.error.issues[0]?.code).toBe(ErrorCode.TooSmall);
     }
   });
 
@@ -48,7 +48,7 @@ describe('ArraySchema', () => {
     const result = schema.safeParse(['a', 'b', 'c']);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.code).toBe(ErrorCode.TooBig);
+      expect(result.error.issues[0]?.code).toBe(ErrorCode.TooBig);
     }
   });
 
@@ -58,12 +58,12 @@ describe('ArraySchema', () => {
     const tooShort = schema.safeParse(['a']);
     expect(tooShort.success).toBe(false);
     if (!tooShort.success) {
-      expect(tooShort.error.issues[0]!.code).toBe(ErrorCode.InvalidType);
+      expect(tooShort.error.issues[0]?.code).toBe(ErrorCode.InvalidType);
     }
     const tooLong = schema.safeParse(['a', 'b', 'c', 'd']);
     expect(tooLong.success).toBe(false);
     if (!tooLong.success) {
-      expect(tooLong.error.issues[0]!.code).toBe(ErrorCode.InvalidType);
+      expect(tooLong.error.issues[0]?.code).toBe(ErrorCode.InvalidType);
     }
   });
 

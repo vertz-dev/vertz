@@ -67,10 +67,12 @@ export class Trie<T = unknown> {
       return node.paramChild.node;
     }
 
-    if (!node.staticChildren.has(segment)) {
-      node.staticChildren.set(segment, createNode());
+    let child = node.staticChildren.get(segment);
+    if (!child) {
+      child = createNode();
+      node.staticChildren.set(segment, child);
     }
-    return node.staticChildren.get(segment)!;
+    return child;
   }
 
   private findNode(node: TrieNode<T>, segments: string[], index: number): TrieNode<T> | null {

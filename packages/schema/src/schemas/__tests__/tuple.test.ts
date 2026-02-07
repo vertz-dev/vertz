@@ -16,7 +16,7 @@ describe('TupleSchema', () => {
     const result = schema.safeParse(['hello', 'not-a-number']);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.path).toEqual([1]);
+      expect(result.error.issues[0]?.path).toEqual([1]);
     }
   });
 
@@ -32,7 +32,7 @@ describe('TupleSchema', () => {
     const result = schema.safeParse(['hello', 1, 'bad']);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.path).toEqual([2]);
+      expect(result.error.issues[0]?.path).toEqual([2]);
     }
   });
 
@@ -59,7 +59,7 @@ describe('TupleSchema', () => {
     const result = schema.safeParse('not-an-array');
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.code).toBe(ErrorCode.InvalidType);
+      expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidType);
     }
   });
 });

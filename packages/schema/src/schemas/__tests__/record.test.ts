@@ -22,7 +22,7 @@ describe('RecordSchema', () => {
     const result = schema.safeParse({ a: 1, b: 'bad' });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.path).toEqual(['b']);
+      expect(result.error.issues[0]?.path).toEqual(['b']);
     }
   });
 
@@ -31,7 +31,7 @@ describe('RecordSchema', () => {
     const result = schema.safeParse('not-object');
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.code).toBe(ErrorCode.InvalidType);
+      expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidType);
     }
   });
 

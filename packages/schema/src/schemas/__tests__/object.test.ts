@@ -22,7 +22,7 @@ describe('ObjectSchema', () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toBeInstanceOf(ParseError);
-        expect(result.error.issues[0]!.code).toBe(ErrorCode.InvalidType);
+        expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidType);
       }
     }
   });
@@ -34,7 +34,7 @@ describe('ObjectSchema', () => {
     if (!result.success) {
       const missingIssue = result.error.issues.find((i) => i.code === ErrorCode.MissingProperty);
       expect(missingIssue).toBeDefined();
-      expect(missingIssue!.path).toEqual(['age']);
+      expect(missingIssue?.path).toEqual(['age']);
     }
   });
 
@@ -71,7 +71,7 @@ describe('ObjectSchema', () => {
     if (!result.success) {
       const issue = result.error.issues.find((i) => i.code === ErrorCode.UnrecognizedKeys);
       expect(issue).toBeDefined();
-      expect(issue!.message).toContain('extra');
+      expect(issue?.message).toContain('extra');
     }
   });
 
@@ -183,7 +183,7 @@ describe('ObjectSchema', () => {
     if (!result.success) {
       const issue = result.error.issues.find((i) => i.code === ErrorCode.MissingProperty);
       expect(issue).toBeDefined();
-      expect(issue!.path).toEqual(['role']);
+      expect(issue?.path).toEqual(['role']);
     }
   });
 
@@ -247,7 +247,7 @@ describe('ObjectSchema', () => {
     const result = schema.safeParse({ user: { name: 'Alice', address: { city: 42 } } });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.path).toEqual(['user', 'address', 'city']);
+      expect(result.error.issues[0]?.path).toEqual(['user', 'address', 'city']);
     }
   });
 

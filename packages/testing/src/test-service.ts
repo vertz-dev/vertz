@@ -38,6 +38,7 @@ export function createTestService<TDeps, TState, TMethods>(
       serviceMocks.set(service, impl);
       return builder;
     },
+    // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike for await support
     then(onfulfilled, onrejected) {
       return resolve().then(onfulfilled, onrejected);
     },

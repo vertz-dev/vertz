@@ -89,14 +89,14 @@ describe('NumberSchema', () => {
     const gtResult = gtSchema.safeParse(5);
     expect(gtResult.success).toBe(false);
     if (!gtResult.success) {
-      expect(gtResult.error.issues[0]!.message).toBe('Must be above 5');
+      expect(gtResult.error.issues[0]?.message).toBe('Must be above 5');
     }
 
     const ltSchema = new NumberSchema().lt(10, 'Must be below 10');
     const ltResult = ltSchema.safeParse(10);
     expect(ltResult.success).toBe(false);
     if (!ltResult.success) {
-      expect(ltResult.error.issues[0]!.message).toBe('Must be below 10');
+      expect(ltResult.error.issues[0]?.message).toBe('Must be below 10');
     }
   });
 
@@ -105,7 +105,7 @@ describe('NumberSchema', () => {
     const result = schema.safeParse(0);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.message).toBe('Must be at least 1');
+      expect(result.error.issues[0]?.message).toBe('Must be at least 1');
     }
 
     const jsonSchema = new NumberSchema().gte(0).lt(100).int().multipleOf(5).toJSONSchema();
