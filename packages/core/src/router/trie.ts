@@ -1,18 +1,16 @@
-export type RouteHandler = (...args: any[]) => any;
-
-export interface MatchResult {
-  handler: RouteHandler;
+export interface MatchResult<T = unknown> {
+  handler: T;
   params: Record<string, string>;
 }
 
-interface TrieNode {
-  staticChildren: Map<string, TrieNode>;
-  paramChild: { name: string; node: TrieNode } | null;
-  wildcardChild: TrieNode | null;
-  handlers: Map<string, RouteHandler>;
+interface TrieNode<T> {
+  staticChildren: Map<string, TrieNode<T>>;
+  paramChild: { name: string; node: TrieNode<T> } | null;
+  wildcardChild: TrieNode<T> | null;
+  handlers: Map<string, T>;
 }
 
-function createNode(): TrieNode {
+function createNode<T>(): TrieNode<T> {
   return {
     staticChildren: new Map(),
     paramChild: null,
@@ -25,10 +23,10 @@ function splitPath(path: string): string[] {
   return path.split('/').filter(Boolean);
 }
 
-export class Trie {
-  private root = createNode();
+export class Trie<T = unknown> {
+  private root = createNode<T>();
 
-  add(method: string, path: string, handler: RouteHandler): void {
+  add(method: string, path: string, handler: T): void {
     const segments = splitPath(path);
     let node = this.root;
 
@@ -39,7 +37,7 @@ export class Trie {
     node.handlers.set(method, handler);
   }
 
-  match(method: string, path: string): MatchResult | null {
+  match(method: string, path: string): MatchResult<T> | null {
     const segments = splitPath(path);
     return this.matchNode(this.root, segments, 0, method, {});
   }
@@ -51,7 +49,7 @@ export class Trie {
     return Array.from(node.handlers.keys());
   }
 
-  private resolveChild(node: TrieNode, segment: string): TrieNode {
+  private resolveChild(node: TrieNode<T>, segment: string): TrieNode<T> {
     if (segment === '*') {
       node.wildcardChild ??= createNode();
       return node.wildcardChild;
@@ -75,7 +73,7 @@ export class Trie {
     return node.staticChildren.get(segment)!;
   }
 
-  private findNode(node: TrieNode, segments: string[], index: number): TrieNode | null {
+  private findNode(node: TrieNode<T>, segments: string[], index: number): TrieNode<T> | null {
     if (index === segments.length) return node;
 
     const segment = segments[index];
@@ -97,12 +95,12 @@ export class Trie {
   }
 
   private matchNode(
-    node: TrieNode,
+    node: TrieNode<T>,
     segments: string[],
     index: number,
     method: string,
     params: Record<string, string>,
-  ): MatchResult | null {
+  ): MatchResult<T> | null {
     if (index === segments.length) {
       const handler = node.handlers.get(method);
       if (!handler) return null;

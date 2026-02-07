@@ -1,6 +1,6 @@
 import type { ServiceDef } from './module';
 
-export type ServiceFactory<TDeps = any, TState = any, TMethods = any> = ServiceDef<
+export type ServiceFactory<TDeps = unknown, TState = unknown, TMethods = unknown> = ServiceDef<
   TDeps,
   TState,
   TMethods

@@ -1,13 +1,13 @@
 import type { RouterDef } from '../types/module';
 
 export interface RouteConfig {
-  params?: any;
-  body?: any;
-  query?: any;
-  response?: any;
-  headers?: any;
-  middlewares?: any[];
-  handler: (ctx: any) => any;
+  params?: unknown;
+  body?: unknown;
+  query?: unknown;
+  response?: unknown;
+  headers?: unknown;
+  middlewares?: unknown[];
+  handler: (ctx: Record<string, unknown>) => unknown;
 }
 
 export interface Route {
