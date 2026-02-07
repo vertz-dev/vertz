@@ -31,16 +31,15 @@ export class EnumSchema<T extends readonly [string, ...string[]]> extends Schema
   }
 
   exclude<E extends T[number]>(values: E[]): EnumSchema<readonly [string, ...string[]]> {
-    const remaining = this._values.filter((v) => !(values as string[]).includes(v)) as unknown as [
-      string,
-      ...string[],
-    ];
+    const remaining = this._values.filter(
+      (v) => !(values as string[]).includes(v),
+    ) as unknown as readonly [string, ...string[]];
     const schema = new EnumSchema(remaining);
     return this._cloneBase(schema);
   }
 
   extract<E extends T[number]>(values: E[]): EnumSchema<readonly [string, ...string[]]> {
-    const schema = new EnumSchema(values as unknown as [string, ...string[]]);
+    const schema = new EnumSchema(values as unknown as readonly [string, ...string[]]);
     return this._cloneBase(schema);
   }
 

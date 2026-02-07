@@ -24,6 +24,9 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Build
+        run: bun run --filter '*' build
+
       - name: Type check
         run: bun run typecheck
 

@@ -141,7 +141,9 @@ export function buildHandler(
       const entry = match.handler;
 
       // Validate params using schema if provided
-      const validatedParams = entry.paramsSchema ? entry.paramsSchema.parse(match.params) : match.params;
+      const validatedParams = entry.paramsSchema
+        ? entry.paramsSchema.parse(match.params)
+        : match.params;
 
       const ctx = buildCtx({
         params: validatedParams as Record<string, unknown>,

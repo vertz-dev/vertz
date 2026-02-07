@@ -79,6 +79,7 @@ export class Trie<T = unknown> {
     if (index === segments.length) return node;
 
     const segment = segments[index];
+    if (segment === undefined) return null;
 
     const staticChild = node.staticChildren.get(segment);
     if (staticChild) {
@@ -110,6 +111,7 @@ export class Trie<T = unknown> {
     }
 
     const segment = segments[index];
+    if (segment === undefined) return null;
 
     const staticChild = node.staticChildren.get(segment);
     if (staticChild) {

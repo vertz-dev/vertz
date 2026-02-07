@@ -135,7 +135,9 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
     return new ObjectSchema(requiredShape as any);
   }
 
-  partial(): ObjectSchema<{ [K in keyof S]: OptionalSchema<S[K]['_output'], S[K]['_input']> }> {
+  partial(): ObjectSchema<
+    { [K in keyof S]: OptionalSchema<S[K]['_output'], S[K]['_input']> } & Shape
+  > {
     const partialShape: Record<string, SchemaAny> = {};
     for (const [key, schema] of Object.entries(this._shape)) {
       partialShape[key] = schema instanceof OptionalSchema ? schema : schema.optional();

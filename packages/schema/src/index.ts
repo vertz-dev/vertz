@@ -170,18 +170,22 @@ export const s = {
   object: <T extends Record<string, SchemaAny>>(shape: T): ObjectSchema<T> =>
     new ObjectSchema(shape),
   array: <T>(itemSchema: Schema<T>): ArraySchema<T> => new ArraySchema(itemSchema),
-  tuple: <T extends SchemaAny[]>(items: [...T]): TupleSchema<T> => new TupleSchema(items),
+  tuple: <T extends [SchemaAny, ...SchemaAny[]]>(items: [...T]): TupleSchema<T> =>
+    new TupleSchema(items),
   enum: <T extends readonly [string, ...string[]]>(values: T): EnumSchema<T> =>
     new EnumSchema(values),
   literal: <T extends string | number | boolean | null>(value: T): LiteralSchema<T> =>
     new LiteralSchema(value),
-  union: <T extends SchemaAny[]>(options: [...T]): UnionSchema<T> => new UnionSchema(options),
-  discriminatedUnion: <T extends ObjectSchema[]>(
+  union: <T extends [SchemaAny, ...SchemaAny[]]>(options: [...T]): UnionSchema<T> =>
+    new UnionSchema(options),
+  discriminatedUnion: <T extends [ObjectSchema, ...ObjectSchema[]]>(
     discriminator: string,
     options: [...T],
   ): DiscriminatedUnionSchema<T> => new DiscriminatedUnionSchema(discriminator, options),
-  intersection: <A, B>(left: Schema<A>, right: Schema<B>): IntersectionSchema<A, B> =>
-    new IntersectionSchema(left, right),
+  intersection: <L extends SchemaAny, R extends SchemaAny>(
+    left: L,
+    right: R,
+  ): IntersectionSchema<L, R> => new IntersectionSchema(left, right),
   record: <V>(valueSchema: Schema<V>): RecordSchema<V> => new RecordSchema(valueSchema),
   map: <K, V>(keySchema: Schema<K>, valueSchema: Schema<V>): MapSchema<K, V> =>
     new MapSchema(keySchema, valueSchema),

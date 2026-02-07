@@ -8,10 +8,10 @@ export interface RawRequest {
 }
 
 export interface HandlerCtx {
-  params: Record<string, string>;
+  params: Record<string, unknown>;
   body: unknown;
-  query: Record<string, string>;
-  headers: Record<string, string>;
+  query: Record<string, unknown>;
+  headers: Record<string, unknown>;
   raw: RawRequest;
   options: Record<string, unknown>;
   env: Record<string, unknown>;
