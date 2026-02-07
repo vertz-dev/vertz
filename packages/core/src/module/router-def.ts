@@ -1,23 +1,54 @@
 import type { HandlerCtx } from '../types/context';
 import type { RouterDef } from '../types/module';
 
-export interface RouteConfig {
-  params?: unknown;
-  body?: unknown;
-  query?: unknown;
+// Helper type to infer output from schema
+type InferOutput<T> = T extends { _output: infer O } ? O : T extends { parse(v: unknown): infer P } ? P : unknown;
+
+// Compute typed context from schemas
+type TypedHandlerCtx<
+  TParams = unknown,
+  TQuery = unknown,
+  THeaders = unknown,
+  TBody = unknown,
+> = Omit<HandlerCtx, 'params' | 'query' | 'headers' | 'body'> & {
+  params: TParams;
+  query: TQuery;
+  headers: THeaders;
+  body: TBody;
+};
+
+export interface RouteConfig<
+  TParams = unknown,
+  TQuery = unknown,
+  THeaders = unknown,
+  TBody = unknown,
+> {
+  params?: TParams;
+  body?: TBody;
+  query?: TQuery;
   response?: unknown;
-  headers?: unknown;
+  headers?: THeaders;
   middlewares?: unknown[];
-  handler: (ctx: HandlerCtx) => unknown;
+  handler: (
+    ctx: TypedHandlerCtx<
+      InferOutput<TParams>,
+      InferOutput<TQuery>,
+      InferOutput<THeaders>,
+      InferOutput<TBody>
+    >,
+  ) => unknown;
 }
 
 export interface Route {
   method: string;
   path: string;
-  config: RouteConfig;
+  config: RouteConfig<unknown, unknown, unknown, unknown>;
 }
 
-type HttpMethodFn = (path: string, config: RouteConfig) => NamedRouterDef;
+type HttpMethodFn = <TParams, TQuery, THeaders, TBody>(
+  path: string,
+  config: RouteConfig<TParams, TQuery, THeaders, TBody>,
+) => NamedRouterDef;
 
 export interface NamedRouterDef extends RouterDef {
   moduleName: string;
