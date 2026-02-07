@@ -13,7 +13,10 @@ export class DateSchema extends Schema<Date> {
 
   _parse(value: unknown, ctx: ParseContext): Date {
     if (!(value instanceof Date)) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected Date, received ' + typeof value });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected Date, received ' + typeof value,
+      });
       return value as Date;
     }
     if (Number.isNaN(value.getTime())) {
@@ -21,10 +24,16 @@ export class DateSchema extends Schema<Date> {
       return value;
     }
     if (this._min !== undefined && value.getTime() < this._min.getTime()) {
-      ctx.addIssue({ code: ErrorCode.TooSmall, message: this._minMessage ?? `Date must be after ${this._min.toISOString()}` });
+      ctx.addIssue({
+        code: ErrorCode.TooSmall,
+        message: this._minMessage ?? `Date must be after ${this._min.toISOString()}`,
+      });
     }
     if (this._max !== undefined && value.getTime() > this._max.getTime()) {
-      ctx.addIssue({ code: ErrorCode.TooBig, message: this._maxMessage ?? `Date must be before ${this._max.toISOString()}` });
+      ctx.addIssue({
+        code: ErrorCode.TooBig,
+        message: this._maxMessage ?? `Date must be before ${this._max.toISOString()}`,
+      });
     }
     return value;
   }

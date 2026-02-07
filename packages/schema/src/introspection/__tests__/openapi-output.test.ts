@@ -84,8 +84,14 @@ describe('OpenAPI v3.1 Output', () => {
   });
 
   it('discriminated union produces oneOf with discriminator', () => {
-    const catSchema = new ObjectSchema({ type: new LiteralSchema('cat'), meow: new StringSchema() });
-    const dogSchema = new ObjectSchema({ type: new LiteralSchema('dog'), bark: new StringSchema() });
+    const catSchema = new ObjectSchema({
+      type: new LiteralSchema('cat'),
+      meow: new StringSchema(),
+    });
+    const dogSchema = new ObjectSchema({
+      type: new LiteralSchema('dog'),
+      bark: new StringSchema(),
+    });
     const schema = new DiscriminatedUnionSchema('type', [catSchema, dogSchema]);
     const jsonSchema = schema.toJSONSchema();
     expect(jsonSchema.oneOf).toBeDefined();

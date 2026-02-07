@@ -12,7 +12,7 @@ function validateDateRange(value: string): boolean {
 }
 
 function validateTimeRange(value: string): boolean {
-  const [h, min, s] = value.split(':').map(v => Number(v.replace(/[^0-9.]/g, '')));
+  const [h, min, s] = value.split(':').map((v) => Number(v.replace(/[^0-9.]/g, '')));
   return h >= 0 && h <= 23 && min >= 0 && min <= 59 && s >= 0 && s <= 59;
 }
 

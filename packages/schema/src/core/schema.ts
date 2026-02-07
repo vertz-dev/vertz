@@ -256,9 +256,7 @@ export class DefaultSchema<O, I> extends Schema<O, I | undefined> {
   }
 
   private _resolveDefault(): I {
-    return typeof this._default === 'function'
-      ? (this._default as () => I)()
-      : this._default;
+    return typeof this._default === 'function' ? (this._default as () => I)() : this._default;
   }
 
   _clone(): DefaultSchema<O, I> {
@@ -311,10 +309,12 @@ export class RefinedSchema<O, I = O> extends Schema<O, I> {
   }
 
   _clone(): RefinedSchema<O, I> {
-    return this._cloneBase(new RefinedSchema(this._inner, this._predicate, {
-      message: this._message,
-      path: this._path,
-    }));
+    return this._cloneBase(
+      new RefinedSchema(this._inner, this._predicate, {
+        message: this._message,
+        path: this._path,
+      }),
+    );
   }
 }
 
@@ -442,9 +442,7 @@ export class CatchSchema<O, I = O> extends Schema<O, I> {
   }
 
   private _resolveFallback(): O {
-    return typeof this._fallback === 'function'
-      ? (this._fallback as () => O)()
-      : this._fallback;
+    return typeof this._fallback === 'function' ? (this._fallback as () => O)() : this._fallback;
   }
 
   _clone(): CatchSchema<O, I> {

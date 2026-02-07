@@ -29,8 +29,9 @@ describe('createTestService', () => {
       }),
     });
 
-    const methods = await createTestService(userService)
-      .mock(dbService, { query: (sql: string) => `mocked: ${sql}` });
+    const methods = await createTestService(userService).mock(dbService, {
+      query: (sql: string) => `mocked: ${sql}`,
+    });
 
     expect(methods.findById('42')).toBe("mocked: SELECT * FROM users WHERE id = '42'");
   });
@@ -47,9 +48,7 @@ describe('createTestService', () => {
       }),
     });
 
-    await expect(createTestService(userService)).rejects.toThrow(
-      /missing mock.*db/i,
-    );
+    await expect(createTestService(userService)).rejects.toThrow(/missing mock.*db/i);
   });
 
   it('awaits async onInit and passes state to methods', async () => {

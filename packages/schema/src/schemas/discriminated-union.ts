@@ -62,7 +62,7 @@ export class DiscriminatedUnionSchema<T extends DiscriminatedOptions> extends Sc
 
     const matchedSchema = this._lookup.get(discriminatorValue);
     if (!matchedSchema) {
-      const expected = [...this._lookup.keys()].map(k => `'${k}'`).join(' | ');
+      const expected = [...this._lookup.keys()].map((k) => `'${k}'`).join(' | ');
       ctx.addIssue({
         code: ErrorCode.InvalidUnion,
         message: `Invalid discriminator value. Expected ${expected}, received '${discriminatorValue}'`,
@@ -79,7 +79,7 @@ export class DiscriminatedUnionSchema<T extends DiscriminatedOptions> extends Sc
 
   _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
     return {
-      oneOf: this._options.map(option => option._toJSONSchemaWithRefs(tracker)),
+      oneOf: this._options.map((option) => option._toJSONSchemaWithRefs(tracker)),
       discriminator: { propertyName: this._discriminator },
     };
   }

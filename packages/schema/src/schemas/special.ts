@@ -44,7 +44,10 @@ export class UnknownSchema extends Schema<unknown> {
 export class NullSchema extends Schema<null> {
   _parse(value: unknown, ctx: ParseContext): null {
     if (value !== null) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected null, received ' + typeof value });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected null, received ' + typeof value,
+      });
       return value as null;
     }
     return value;
@@ -66,7 +69,10 @@ export class NullSchema extends Schema<null> {
 export class UndefinedSchema extends Schema<undefined> {
   _parse(value: unknown, ctx: ParseContext): undefined {
     if (value !== undefined) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected undefined, received ' + typeof value });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected undefined, received ' + typeof value,
+      });
       return value as undefined;
     }
     return value;
@@ -88,7 +94,10 @@ export class UndefinedSchema extends Schema<undefined> {
 export class VoidSchema extends Schema<void> {
   _parse(value: unknown, ctx: ParseContext): void {
     if (value !== undefined) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected void (undefined), received ' + typeof value });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected void (undefined), received ' + typeof value,
+      });
       return value as void;
     }
     return value;

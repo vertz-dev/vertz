@@ -17,7 +17,10 @@ export class MapSchema<K, V> extends Schema<Map<K, V>> {
 
   _parse(value: unknown, ctx: ParseContext): Map<K, V> {
     if (!(value instanceof Map)) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected Map, received ' + typeof value });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected Map, received ' + typeof value,
+      });
       return value as Map<K, V>;
     }
     const result = new Map<K, V>();

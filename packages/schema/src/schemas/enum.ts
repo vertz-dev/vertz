@@ -17,7 +17,7 @@ export class EnumSchema<T extends readonly [string, ...string[]]> extends Schema
     if (!this._values.includes(value as string)) {
       ctx.addIssue({
         code: ErrorCode.InvalidEnumValue,
-        message: `Invalid enum value. Expected ${this._values.map(v => `'${v}'`).join(' | ')}, received '${value}'`,
+        message: `Invalid enum value. Expected ${this._values.map((v) => `'${v}'`).join(' | ')}, received '${value}'`,
       });
     }
     return value as T[number];
@@ -32,7 +32,10 @@ export class EnumSchema<T extends readonly [string, ...string[]]> extends Schema
   }
 
   exclude<E extends T[number]>(values: E[]): EnumSchema<readonly [string, ...string[]]> {
-    const remaining = this._values.filter(v => !(values as string[]).includes(v)) as unknown as [string, ...string[]];
+    const remaining = this._values.filter((v) => !(values as string[]).includes(v)) as unknown as [
+      string,
+      ...string[],
+    ];
     const schema = new EnumSchema(remaining);
     return this._cloneBase(schema);
   }

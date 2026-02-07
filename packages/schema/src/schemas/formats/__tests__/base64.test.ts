@@ -16,6 +16,9 @@ describe('Base64Schema', () => {
   });
 
   it('toJSONSchema includes contentEncoding', () => {
-    expect(new Base64Schema().toJSONSchema()).toEqual({ type: 'string', contentEncoding: 'base64' });
+    expect(new Base64Schema().toJSONSchema()).toEqual({
+      type: 'string',
+      contentEncoding: 'base64',
+    });
   });
 });

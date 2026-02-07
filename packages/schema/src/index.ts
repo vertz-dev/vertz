@@ -34,7 +34,14 @@ export { BigIntSchema } from './schemas/bigint';
 export { DateSchema } from './schemas/date';
 export { NanSchema } from './schemas/nan';
 export { SymbolSchema } from './schemas/symbol';
-export { AnySchema, UnknownSchema, NullSchema, UndefinedSchema, VoidSchema, NeverSchema } from './schemas/special';
+export {
+  AnySchema,
+  UnknownSchema,
+  NullSchema,
+  UndefinedSchema,
+  VoidSchema,
+  NeverSchema,
+} from './schemas/special';
 export { ObjectSchema } from './schemas/object';
 export { ArraySchema } from './schemas/array';
 export { TupleSchema } from './schemas/tuple';
@@ -92,7 +99,14 @@ import { BigIntSchema } from './schemas/bigint';
 import { DateSchema } from './schemas/date';
 import { NanSchema } from './schemas/nan';
 import { SymbolSchema } from './schemas/symbol';
-import { AnySchema, UnknownSchema, NullSchema, UndefinedSchema, VoidSchema, NeverSchema } from './schemas/special';
+import {
+  AnySchema,
+  UnknownSchema,
+  NullSchema,
+  UndefinedSchema,
+  VoidSchema,
+  NeverSchema,
+} from './schemas/special';
 import { ObjectSchema } from './schemas/object';
 import { ArraySchema } from './schemas/array';
 import { TupleSchema } from './schemas/tuple';
@@ -155,20 +169,29 @@ export const s = {
   never: (): NeverSchema => new NeverSchema(),
 
   // Composites
-  object: <T extends Record<string, Schema<any, any>>>(shape: T): ObjectSchema<T> => new ObjectSchema(shape),
+  object: <T extends Record<string, Schema<any, any>>>(shape: T): ObjectSchema<T> =>
+    new ObjectSchema(shape),
   array: <T>(itemSchema: Schema<T>): ArraySchema<T> => new ArraySchema(itemSchema),
   tuple: <T extends Schema<any, any>[]>(items: [...T]): TupleSchema<T> => new TupleSchema(items),
-  enum: <T extends readonly [string, ...string[]]>(values: T): EnumSchema<T> => new EnumSchema(values),
-  literal: <T extends string | number | boolean | null>(value: T): LiteralSchema<T> => new LiteralSchema(value),
-  union: <T extends Schema<any, any>[]>(options: [...T]): UnionSchema<T> => new UnionSchema(options),
-  discriminatedUnion: <T extends ObjectSchema<any>[]>(discriminator: string, options: [...T]): DiscriminatedUnionSchema<T> =>
-    new DiscriminatedUnionSchema(discriminator, options),
-  intersection: <A, B>(left: Schema<A>, right: Schema<B>): IntersectionSchema<A, B> => new IntersectionSchema(left, right),
+  enum: <T extends readonly [string, ...string[]]>(values: T): EnumSchema<T> =>
+    new EnumSchema(values),
+  literal: <T extends string | number | boolean | null>(value: T): LiteralSchema<T> =>
+    new LiteralSchema(value),
+  union: <T extends Schema<any, any>[]>(options: [...T]): UnionSchema<T> =>
+    new UnionSchema(options),
+  discriminatedUnion: <T extends ObjectSchema<any>[]>(
+    discriminator: string,
+    options: [...T],
+  ): DiscriminatedUnionSchema<T> => new DiscriminatedUnionSchema(discriminator, options),
+  intersection: <A, B>(left: Schema<A>, right: Schema<B>): IntersectionSchema<A, B> =>
+    new IntersectionSchema(left, right),
   record: <V>(valueSchema: Schema<V>): RecordSchema<V> => new RecordSchema(valueSchema),
-  map: <K, V>(keySchema: Schema<K>, valueSchema: Schema<V>): MapSchema<K, V> => new MapSchema(keySchema, valueSchema),
+  map: <K, V>(keySchema: Schema<K>, valueSchema: Schema<V>): MapSchema<K, V> =>
+    new MapSchema(keySchema, valueSchema),
   set: <V>(valueSchema: Schema<V>): SetSchema<V> => new SetSchema(valueSchema),
   file: (): FileSchema => new FileSchema(),
-  custom: <T>(check: (value: unknown) => boolean, message?: string): CustomSchema<T> => new CustomSchema<T>(check, message),
+  custom: <T>(check: (value: unknown) => boolean, message?: string): CustomSchema<T> =>
+    new CustomSchema<T>(check, message),
   instanceof: <T>(cls: new (...args: any[]) => T): InstanceOfSchema<T> => new InstanceOfSchema(cls),
   lazy: <T>(getter: () => Schema<T>): LazySchema<T> => new LazySchema(getter),
 

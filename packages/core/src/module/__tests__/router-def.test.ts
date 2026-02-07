@@ -64,7 +64,12 @@ describe('moduleDef.router', () => {
 
     expect(router.routes).toHaveLength(6);
     expect(router.routes.map((r) => r.method)).toEqual([
-      'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD',
+      'GET',
+      'POST',
+      'PUT',
+      'PATCH',
+      'DELETE',
+      'HEAD',
     ]);
   });
 

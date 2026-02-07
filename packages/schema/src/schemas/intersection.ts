@@ -4,10 +4,9 @@ import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker, JSONSchemaObject } from '../introspection/json-schema';
 
-export class IntersectionSchema<
-  L extends Schema<any>,
-  R extends Schema<any>,
-> extends Schema<L['_output'] & R['_output']> {
+export class IntersectionSchema<L extends Schema<any>, R extends Schema<any>> extends Schema<
+  L['_output'] & R['_output']
+> {
   private readonly _left: L;
   private readonly _right: R;
 
@@ -29,8 +28,12 @@ export class IntersectionSchema<
       return value as any;
     }
 
-    if (typeof leftResult.data === 'object' && leftResult.data !== null &&
-        typeof rightResult.data === 'object' && rightResult.data !== null) {
+    if (
+      typeof leftResult.data === 'object' &&
+      leftResult.data !== null &&
+      typeof rightResult.data === 'object' &&
+      rightResult.data !== null
+    ) {
       return { ...leftResult.data, ...rightResult.data };
     }
 

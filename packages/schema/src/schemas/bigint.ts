@@ -8,7 +8,10 @@ import type { JSONSchemaObject } from '../introspection/json-schema';
 export class BigIntSchema extends Schema<bigint> {
   _parse(value: unknown, ctx: ParseContext): bigint {
     if (typeof value !== 'bigint') {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected bigint, received ' + typeof value });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected bigint, received ' + typeof value,
+      });
       return value as bigint;
     }
     return value;

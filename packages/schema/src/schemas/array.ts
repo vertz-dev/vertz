@@ -18,17 +18,29 @@ export class ArraySchema<T> extends Schema<T[]> {
 
   _parse(value: unknown, ctx: ParseContext): T[] {
     if (!Array.isArray(value)) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected array, received ' + typeof value });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected array, received ' + typeof value,
+      });
       return value as T[];
     }
     if (this._min !== undefined && value.length < this._min) {
-      ctx.addIssue({ code: ErrorCode.TooSmall, message: `Array must contain at least ${this._min} element(s)` });
+      ctx.addIssue({
+        code: ErrorCode.TooSmall,
+        message: `Array must contain at least ${this._min} element(s)`,
+      });
     }
     if (this._max !== undefined && value.length > this._max) {
-      ctx.addIssue({ code: ErrorCode.TooBig, message: `Array must contain at most ${this._max} element(s)` });
+      ctx.addIssue({
+        code: ErrorCode.TooBig,
+        message: `Array must contain at most ${this._max} element(s)`,
+      });
     }
     if (this._length !== undefined && value.length !== this._length) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: `Array must contain exactly ${this._length} element(s)` });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: `Array must contain exactly ${this._length} element(s)`,
+      });
     }
     const result: T[] = [];
     for (let i = 0; i < value.length; i++) {
@@ -62,7 +74,10 @@ export class ArraySchema<T> extends Schema<T[]> {
   }
 
   _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
-    const schema: JSONSchemaObject = { type: 'array', items: this._element._toJSONSchemaWithRefs(tracker) };
+    const schema: JSONSchemaObject = {
+      type: 'array',
+      items: this._element._toJSONSchemaWithRefs(tracker),
+    };
     if (this._min !== undefined) schema.minItems = this._min;
     if (this._max !== undefined) schema.maxItems = this._max;
     if (this._length !== undefined) {

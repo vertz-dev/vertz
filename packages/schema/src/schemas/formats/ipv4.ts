@@ -8,7 +8,7 @@ export class Ipv4Schema extends FormatSchema {
   protected _validate(value: string): boolean {
     const match = IPV4_RE.exec(value);
     if (!match) return false;
-    return [match[1], match[2], match[3], match[4]].every(o => Number(o) <= 255);
+    return [match[1], match[2], match[3], match[4]].every((o) => Number(o) <= 255);
   }
 
   protected _jsonSchemaExtra(): Record<string, unknown> {

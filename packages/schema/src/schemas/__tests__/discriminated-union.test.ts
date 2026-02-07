@@ -40,8 +40,16 @@ describe('DiscriminatedUnionSchema', () => {
     const schema = new DiscriminatedUnionSchema('type', [catSchema, dogSchema]);
     expect(schema.toJSONSchema()).toEqual({
       oneOf: [
-        { type: 'object', properties: { type: { const: 'cat' }, meow: { type: 'string' } }, required: ['type', 'meow'] },
-        { type: 'object', properties: { type: { const: 'dog' }, bark: { type: 'number' } }, required: ['type', 'bark'] },
+        {
+          type: 'object',
+          properties: { type: { const: 'cat' }, meow: { type: 'string' } },
+          required: ['type', 'meow'],
+        },
+        {
+          type: 'object',
+          properties: { type: { const: 'dog' }, bark: { type: 'number' } },
+          required: ['type', 'bark'],
+        },
       ],
       discriminator: { propertyName: 'type' },
     });

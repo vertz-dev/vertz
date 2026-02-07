@@ -1,6 +1,10 @@
 import { VertzException } from '../exceptions';
 
-export function createJsonResponse(data: unknown, status = 200, headers?: Record<string, string>): Response {
+export function createJsonResponse(
+  data: unknown,
+  status = 200,
+  headers?: Record<string, string>,
+): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {

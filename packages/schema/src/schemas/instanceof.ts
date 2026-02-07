@@ -6,7 +6,9 @@ import type { RefTracker } from '../introspection/json-schema';
 import type { JSONSchemaObject } from '../introspection/json-schema';
 
 export class InstanceOfSchema<T> extends Schema<T> {
-  private readonly _cls: new (...args: any[]) => T;
+  private readonly _cls: new (
+    ...args: any[]
+  ) => T;
 
   constructor(cls: new (...args: any[]) => T) {
     super();
@@ -15,7 +17,10 @@ export class InstanceOfSchema<T> extends Schema<T> {
 
   _parse(value: unknown, ctx: ParseContext): T {
     if (!(value instanceof this._cls)) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: `Expected instance of ${this._cls.name}` });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: `Expected instance of ${this._cls.name}`,
+      });
       return value as T;
     }
     return value;

@@ -8,7 +8,10 @@ import type { JSONSchemaObject } from '../introspection/json-schema';
 export class BooleanSchema extends Schema<boolean> {
   _parse(value: unknown, ctx: ParseContext): boolean {
     if (typeof value !== 'boolean') {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected boolean, received ' + typeof value });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected boolean, received ' + typeof value,
+      });
       return value as boolean;
     }
     return value;
