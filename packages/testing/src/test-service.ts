@@ -12,7 +12,7 @@ export interface TestServiceBuilder<TMethods> extends PromiseLike<TMethods> {
 export function createTestService<TDeps, TState, TMethods>(
   serviceDef: NamedServiceDef<TDeps, TState, TMethods>,
 ): TestServiceBuilder<TMethods> {
-  const serviceMocks = new Map<NamedServiceDef, unknown>();
+  const serviceMocks = new Map<object, unknown>();
 
   async function resolve(): Promise<TMethods> {
     const deps: Record<string, unknown> = {};

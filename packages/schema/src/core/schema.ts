@@ -122,7 +122,14 @@ export abstract class Schema<O, I = O> {
     return schema;
   }
 
-  protected _cloneBase<T extends SchemaAny>(target: T): T {
+  protected _cloneBase<
+    T extends {
+      _id: string | undefined;
+      _description: string | undefined;
+      _meta: Record<string, unknown> | undefined;
+      _examples: unknown[];
+    },
+  >(target: T): T {
     target._id = this._id;
     target._description = this._description;
     target._meta = this._meta ? { ...this._meta } : undefined;

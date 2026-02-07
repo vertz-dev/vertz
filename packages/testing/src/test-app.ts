@@ -61,8 +61,9 @@ export interface TestApp {
   head(path: string, options?: RequestOptions): TestRequestBuilder;
 }
 
+// Use `object` key type since we compare service/middleware defs by reference identity
 interface PerRequestMocks {
-  services: Map<NamedServiceDef, unknown>;
+  services: Map<object, unknown>;
   middlewares: Map<NamedMiddlewareDef, Record<string, unknown>>;
 }
 
@@ -77,7 +78,7 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
 const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
 
 export function createTestApp(): TestApp {
-  const serviceMocks = new Map<NamedServiceDef, unknown>();
+  const serviceMocks = new Map<object, unknown>();
   const middlewareMocks = new Map<NamedMiddlewareDef, Record<string, unknown>>();
   const registrations: { module: NamedModule; options?: Record<string, unknown> }[] = [];
   let envOverrides: Record<string, unknown> = {};
@@ -86,7 +87,7 @@ export function createTestApp(): TestApp {
     const trie = new Trie<RouteEntry>();
 
     // Resolve services: real -> app-level -> per-request (last wins)
-    const realServices = new Map<NamedServiceDef, unknown>();
+    const realServices = new Map<object, unknown>();
     for (const { module } of registrations) {
       for (const service of module.services) {
         if (!realServices.has(service)) {
@@ -111,7 +112,7 @@ export function createTestApp(): TestApp {
             handler: route.config.handler,
             options: options ?? {},
             services: resolvedServices,
-            responseSchema: route.config.response,
+            responseSchema: route.config.response as RouteEntry['responseSchema'],
           };
           trie.add(route.method, fullPath, entry);
         }
@@ -180,7 +181,7 @@ export function createTestApp(): TestApp {
         if (entry.responseSchema) {
           const validation = entry.responseSchema.safeParse(result);
           if (!validation.success) {
-            throw new ResponseValidationError(validation.error.message);
+            throw new ResponseValidationError(validation.error?.message ?? 'Unknown validation error');
           }
         }
 

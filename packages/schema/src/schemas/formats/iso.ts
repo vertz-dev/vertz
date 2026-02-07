@@ -6,13 +6,19 @@ const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2
 const ISO_DURATION_RE = /^P(\d+Y)?(\d+M)?(\d+D)?(T(\d+H)?(\d+M)?(\d+(\.\d+)?S)?)?$/;
 
 function validateDateRange(value: string): boolean {
-  const [y, m, d] = value.split('-').map(Number);
+  const parts = value.split('-').map(Number);
+  const y = parts[0] ?? 0;
+  const m = parts[1] ?? 0;
+  const d = parts[2] ?? 0;
   const date = new Date(y, m - 1, d);
   return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
 }
 
 function validateTimeRange(value: string): boolean {
-  const [h, min, s] = value.split(':').map((v) => Number(v.replace(/[^0-9.]/g, '')));
+  const parts = value.split(':').map((v) => Number(v.replace(/[^0-9.]/g, '')));
+  const h = parts[0] ?? 0;
+  const min = parts[1] ?? 0;
+  const s = parts[2] ?? 0;
   return h >= 0 && h <= 23 && min >= 0 && min <= 59 && s >= 0 && s <= 59;
 }
 
@@ -45,7 +51,9 @@ export class IsoDatetimeSchema extends FormatSchema {
 
   protected _validate(value: string): boolean {
     if (!ISO_DATETIME_RE.test(value)) return false;
-    const [datePart, timePart] = value.split('T');
+    const parts = value.split('T');
+    const datePart = parts[0] ?? '';
+    const timePart = parts[1] ?? '';
     return validateDateRange(datePart) && validateTimeRange(timePart);
   }
 
