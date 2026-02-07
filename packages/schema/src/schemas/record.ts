@@ -1,5 +1,5 @@
 import { Schema, type SchemaAny } from '../core/schema';
-import { ParseContext } from '../core/parse-context';
+import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker, JSONSchemaObject } from '../introspection/json-schema';
@@ -31,7 +31,7 @@ export class RecordSchema<V> extends Schema<Record<string, V>> {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected object, received ' + receivedType(value),
+        message: `Expected object, received ${receivedType(value)}`,
       });
       return value as Record<string, V>;
     }

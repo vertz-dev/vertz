@@ -15,7 +15,7 @@ describe('EnumSchema', () => {
     const result = schema.safeParse('yellow');
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.code).toBe(ErrorCode.InvalidEnumValue);
+      expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidEnumValue);
     }
   });
 
@@ -44,7 +44,7 @@ describe('EnumSchema', () => {
       const result = schema.safeParse(value);
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.issues[0]!.code).toBe(ErrorCode.InvalidEnumValue);
+        expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidEnumValue);
       }
     }
   });

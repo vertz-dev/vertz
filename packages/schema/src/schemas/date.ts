@@ -1,5 +1,5 @@
 import { Schema } from '../core/schema';
-import { ParseContext } from '../core/parse-context';
+import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker } from '../introspection/json-schema';
@@ -15,7 +15,7 @@ export class DateSchema extends Schema<Date> {
     if (!(value instanceof Date)) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected Date, received ' + typeof value,
+        message: `Expected Date, received ${typeof value}`,
       });
       return value as Date;
     }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { RefTracker, toJSONSchema } from '../json-schema';
 import { Schema } from '../../core/schema';
-import { ParseContext } from '../../core/parse-context';
+import type { ParseContext } from '../../core/parse-context';
 import { ErrorCode } from '../../core/errors';
 import { SchemaType } from '../../core/types';
 

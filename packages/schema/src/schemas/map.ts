@@ -1,5 +1,5 @@
 import { Schema } from '../core/schema';
-import { ParseContext } from '../core/parse-context';
+import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker } from '../introspection/json-schema';
@@ -19,7 +19,7 @@ export class MapSchema<K, V> extends Schema<Map<K, V>> {
     if (!(value instanceof Map)) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected Map, received ' + typeof value,
+        message: `Expected Map, received ${typeof value}`,
       });
       return value as Map<K, V>;
     }

@@ -27,7 +27,7 @@ describe('ParseContext', () => {
     ctx.popPath();
     ctx.popPath();
 
-    expect(ctx.issues[0]!.path).toEqual(['user', 'name']);
+    expect(ctx.issues[0]?.path).toEqual(['user', 'name']);
     expect(ctx.path).toEqual([]);
   });
 });

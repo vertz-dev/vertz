@@ -1,5 +1,5 @@
 import { Schema } from '../core/schema';
-import { ParseContext } from '../core/parse-context';
+import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker } from '../introspection/json-schema';
@@ -48,7 +48,7 @@ export class NullSchema extends Schema<null> {
     if (value !== null) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected null, received ' + typeof value,
+        message: `Expected null, received ${typeof value}`,
       });
       return value as null;
     }
@@ -73,7 +73,7 @@ export class UndefinedSchema extends Schema<undefined> {
     if (value !== undefined) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected undefined, received ' + typeof value,
+        message: `Expected undefined, received ${typeof value}`,
       });
       return value as undefined;
     }
@@ -98,11 +98,9 @@ export class VoidSchema extends Schema<void> {
     if (value !== undefined) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected void (undefined), received ' + typeof value,
+        message: `Expected void (undefined), received ${typeof value}`,
       });
-      return value as void;
     }
-    return value;
   }
 
   _schemaType(): SchemaType {

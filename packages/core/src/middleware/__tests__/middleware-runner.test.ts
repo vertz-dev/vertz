@@ -50,7 +50,7 @@ describe('runMiddlewareChain', () => {
   });
 
   it('makes injected services available on ctx', async () => {
-    const mockService = { verify: (token: string) => ({ id: '42' }) };
+    const mockService = { verify: (_token: string) => ({ id: '42' }) };
     const middlewares: ResolvedMiddleware[] = [
       {
         name: 'auth',
