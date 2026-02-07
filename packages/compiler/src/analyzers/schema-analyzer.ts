@@ -67,14 +67,25 @@ export function isSchemaExpression(_file: SourceFile, expr: Expression): boolean
 }
 
 export function extractSchemaId(expr: Expression): string | null {
-  // Look for .id('SomeString') at the end of a call chain
-  if (!expr.isKind(SyntaxKind.CallExpression)) return null;
-  const callExpr = expr.getExpression();
-  if (!callExpr.isKind(SyntaxKind.PropertyAccessExpression)) return null;
-  if (callExpr.getName() !== 'id') return null;
-  const args = expr.getArguments();
-  if (args.length !== 1) return null;
-  return getStringValue(args[0]! as Expression);
+  // Walk the call chain looking for .id('SomeString') anywhere in it
+  let current: Expression = expr;
+  while (current.isKind(SyntaxKind.CallExpression)) {
+    const access = current.getExpression();
+    if (access.isKind(SyntaxKind.PropertyAccessExpression) && access.getName() === 'id') {
+      const args = current.getArguments();
+      if (args.length === 1) {
+        const value = getStringValue(args[0]! as Expression);
+        if (value !== null) return value;
+      }
+    }
+    // Move to the receiver of this call (e.g., .describe('...') → the expression before .describe)
+    if (access.isKind(SyntaxKind.PropertyAccessExpression)) {
+      current = access.getExpression();
+    } else {
+      break;
+    }
+  }
+  return null;
 }
 
 export function isSchemaFile(file: SourceFile): boolean {

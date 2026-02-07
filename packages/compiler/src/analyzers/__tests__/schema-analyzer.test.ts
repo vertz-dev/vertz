@@ -166,6 +166,15 @@ describe('extractSchemaId', () => {
     );
     expect(extractSchemaId(expr)).toBe('User');
   });
+
+  it('extracts id when .id() is followed by other methods', () => {
+    const project = createProject();
+    const { expr } = getExpr(
+      project,
+      `import { s } from '@vertz/schema';\nconst x = s.object({}).id('User').describe('A user');`,
+    );
+    expect(extractSchemaId(expr)).toBe('User');
+  });
 });
 
 describe('createNamedSchemaRef', () => {
