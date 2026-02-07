@@ -38,10 +38,13 @@ export class Compiler {
     this.deps = dependencies;
   }
 
-  async compile(): Promise<CompileResult> {
+  getConfig(): ResolvedConfig {
+    return this.config;
+  }
+
+  async analyze(): Promise<AppIR> {
     const ir = createEmptyAppIR();
 
-    // 1. Run all analyzers
     const { analyzers } = this.deps;
     await analyzers.env.analyze();
     await analyzers.schema.analyze();
@@ -50,25 +53,36 @@ export class Compiler {
     await analyzers.app.analyze();
     await analyzers.dependencyGraph.analyze();
 
-    // 2. Run all validators
+    return ir;
+  }
+
+  async validate(ir: AppIR): Promise<Diagnostic[]> {
     const allDiagnostics: Diagnostic[] = [];
     for (const validator of this.deps.validators) {
       const diagnostics = await validator.validate(ir);
       allDiagnostics.push(...diagnostics);
     }
+    return allDiagnostics;
+  }
 
-    // 3. If errors and not forcing generation, skip generators
-    const hasErrorDiags = hasErrors(allDiagnostics);
+  async generate(ir: AppIR): Promise<void> {
+    const outputDir = this.config.compiler.outputDir;
+    await Promise.all(this.deps.generators.map((g) => g.generate(ir, outputDir)));
+  }
+
+  async compile(): Promise<CompileResult> {
+    const ir = await this.analyze();
+    const diagnostics = await this.validate(ir);
+    const hasErrorDiags = hasErrors(diagnostics);
+
     if (!hasErrorDiags || this.config.forceGenerate) {
-      // 4. Run all generators in parallel
-      const outputDir = this.config.compiler.outputDir;
-      await Promise.all(this.deps.generators.map((g) => g.generate(ir, outputDir)));
+      await this.generate(ir);
     }
 
     return {
       success: !hasErrorDiags,
-      ir: { ...ir, diagnostics: allDiagnostics },
-      diagnostics: allDiagnostics,
+      ir: { ...ir, diagnostics },
+      diagnostics,
     };
   }
 }

@@ -128,12 +128,23 @@ export {
   renderSchemaRegistryFile,
   SchemaRegistryGenerator,
 } from './generators/schema-registry-generator';
+// Incremental compiler
+export type {
+  CategorizedChanges,
+  CategorizeOptions,
+  FileCategory,
+  FileChange,
+  IncrementalResult,
+} from './incremental';
+export { categorizeChanges, IncrementalCompiler } from './incremental';
 // IR builders
 export {
   addDiagnosticsToIR,
   createEmptyAppIR,
   createEmptyDependencyGraph,
 } from './ir/builder';
+// IR merge
+export { mergeIR } from './ir/merge';
 export type {
   AppDefinition,
   AppIR,
@@ -164,6 +175,9 @@ export type {
   ServiceMethodParam,
   SourceLocation,
 } from './ir/types';
+// Typecheck
+export type { TypecheckDiagnostic, TypecheckOptions, TypecheckResult } from './typecheck';
+export { parseTscOutput, typecheck } from './typecheck';
 // AST helpers
 export {
   extractObjectLiteral,
