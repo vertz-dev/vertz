@@ -1,21 +1,15 @@
-import type { Expression, Project, SourceFile } from 'ts-morph';
+import type { Expression, Identifier, SourceFile } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
-import type { ResolvedConfig } from '../config';
 import type { InlineSchemaRef, NamedSchemaRef, SchemaIR, SchemaNameParts } from '../ir/types';
 import { getSourceLocation, getStringValue } from '../utils/ast-helpers';
 import { isFromImport } from '../utils/import-resolver';
 import { BaseAnalyzer } from './base-analyzer';
-import type { SchemaExecutor } from '../utils/schema-executor';
 
 export interface SchemaAnalyzerResult {
   schemas: SchemaIR[];
 }
 
 export class SchemaAnalyzer extends BaseAnalyzer<SchemaAnalyzerResult> {
-  constructor(project: Project, config: ResolvedConfig, _executor?: SchemaExecutor) {
-    super(project, config);
-  }
-
   async analyze(): Promise<SchemaAnalyzerResult> {
     const schemas: SchemaIR[] = [];
     for (const file of this.project.getSourceFiles()) {
@@ -97,7 +91,7 @@ export function createInlineSchemaRef(sourceFile: string): InlineSchemaRef {
   return { kind: 'inline', sourceFile };
 }
 
-function findRootIdentifier(expr: Expression): import('ts-morph').Identifier | null {
+function findRootIdentifier(expr: Expression): Identifier | null {
   if (expr.isKind(SyntaxKind.CallExpression)) {
     return findRootIdentifier(expr.getExpression());
   }

@@ -17,39 +17,37 @@ export interface SchemaExecutor {
 export function createSchemaExecutor(_rootDir: string): SchemaExecutor {
   const diagnostics: Diagnostic[] = [];
 
+  function addError(message: string, file: string): null {
+    diagnostics.push(createDiagnostic({
+      severity: 'error',
+      code: 'VERTZ_SCHEMA_EXECUTION',
+      message,
+      file,
+    }));
+    return null;
+  }
+
   return {
     async execute(schemaName: string, sourceFile: string): Promise<SchemaExecutionResult | null> {
       try {
         const mod = await import(sourceFile);
         const schema = mod[schemaName];
         if (!schema) {
-          diagnostics.push(createDiagnostic({
-            severity: 'error',
-            code: 'VERTZ_SCHEMA_EXECUTION',
-            message: `Export '${schemaName}' not found in '${sourceFile}'`,
-            file: sourceFile,
-          }));
-          return null;
+          return addError(`Export '${schemaName}' not found in '${sourceFile}'`, sourceFile);
         }
         if (typeof schema.toJSONSchema !== 'function') {
-          diagnostics.push(createDiagnostic({
-            severity: 'error',
-            code: 'VERTZ_SCHEMA_EXECUTION',
-            message: `Export '${schemaName}' in '${sourceFile}' does not have a toJSONSchema() method`,
-            file: sourceFile,
-          }));
-          return null;
+          return addError(
+            `Export '${schemaName}' in '${sourceFile}' does not have a toJSONSchema() method`,
+            sourceFile,
+          );
         }
-        const jsonSchema = schema.toJSONSchema();
-        return { jsonSchema };
+        return { jsonSchema: schema.toJSONSchema() };
       } catch (err) {
-        diagnostics.push(createDiagnostic({
-          severity: 'error',
-          code: 'VERTZ_SCHEMA_EXECUTION',
-          message: `Failed to execute schema '${schemaName}' from '${sourceFile}': ${err instanceof Error ? err.message : String(err)}`,
-          file: sourceFile,
-        }));
-        return null;
+        const detail = err instanceof Error ? err.message : String(err);
+        return addError(
+          `Failed to execute schema '${schemaName}' from '${sourceFile}': ${detail}`,
+          sourceFile,
+        );
       }
     },
 
