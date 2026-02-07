@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { DateSchema } from '../date';
+import { describe, expect, it } from 'vitest';
 import { ParseError } from '../../core/errors';
+import { DateSchema } from '../date';
 
 describe('DateSchema', () => {
   it('accepts valid Date, rejects non-Date and invalid Date (strict)', () => {

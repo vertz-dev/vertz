@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { CtxConfig } from '../ctx-builder';
 import { buildCtx } from '../ctx-builder';
 

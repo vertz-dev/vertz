@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { ErrorCode } from '../../core/errors';
 import { IntersectionSchema } from '../intersection';
+import { NumberSchema } from '../number';
 import { ObjectSchema } from '../object';
 import { StringSchema } from '../string';
-import { NumberSchema } from '../number';
-import { ErrorCode } from '../../core/errors';
 
 describe('IntersectionSchema', () => {
   it('accepts values satisfying both schemas', () => {

@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { MapSchema } from '../map';
-import { StringSchema } from '../string';
 import { NumberSchema } from '../number';
+import { StringSchema } from '../string';
 
 describe('MapSchema', () => {
   it('accepts Map instances with valid key/value types', () => {

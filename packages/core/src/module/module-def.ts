@@ -1,5 +1,5 @@
-import type { ModuleDef, RouterDef, ServiceDef } from '../types/module';
 import { deepFreeze } from '../immutability';
+import type { ModuleDef, RouterDef, ServiceDef } from '../types/module';
 import { createRouterDef, type NamedRouterDef } from './router-def';
 import { createServiceDef, type NamedServiceDef } from './service';
 

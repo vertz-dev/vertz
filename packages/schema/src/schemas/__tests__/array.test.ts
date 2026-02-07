@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { ArraySchema } from '../array';
-import { StringSchema } from '../string';
-import { NumberSchema } from '../number';
+import { describe, expect, it } from 'vitest';
 import { ErrorCode } from '../../core/errors';
+import { ArraySchema } from '../array';
+import { NumberSchema } from '../number';
+import { StringSchema } from '../string';
 
 describe('ArraySchema', () => {
   it('accepts a valid array of elements', () => {

@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { NanSchema } from '../nan';
+import { describe, expect, it } from 'vitest';
 import { ParseError } from '../../core/errors';
+import { NanSchema } from '../nan';
 
 describe('NanSchema', () => {
   it('accepts NaN, rejects numbers and non-numbers', () => {

@@ -1,10 +1,10 @@
-import { Schema } from '../core/schema';
-import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
+import type { ParseContext } from '../core/parse-context';
+import { Schema } from '../core/schema';
 import { SchemaType } from '../core/types';
+import type { JSONSchemaObject, RefTracker } from '../introspection/json-schema';
 import { LiteralSchema } from './literal';
 import type { ObjectSchema } from './object';
-import type { RefTracker, JSONSchemaObject } from '../introspection/json-schema';
 
 type DiscriminatedOptions = [ObjectSchema, ...ObjectSchema[]];
 type InferDiscriminatedUnion<T extends DiscriminatedOptions> =

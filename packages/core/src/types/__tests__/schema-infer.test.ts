@@ -1,6 +1,6 @@
-import { describe, it, expectTypeOf } from 'vitest';
-import type { InferSchema } from '../schema-infer';
 import type { Schema } from '@vertz/schema';
+import { describe, expectTypeOf, it } from 'vitest';
+import type { InferSchema } from '../schema-infer';
 
 describe('InferSchema', () => {
   it('extracts output type from a Schema', () => {

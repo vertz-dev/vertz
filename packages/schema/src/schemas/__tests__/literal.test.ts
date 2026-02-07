@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { LiteralSchema } from '../literal';
+import { describe, expect, it } from 'vitest';
 import { ErrorCode } from '../../core/errors';
+import { LiteralSchema } from '../literal';
 
 describe('LiteralSchema', () => {
   it('accepts exact string value', () => {

@@ -1,11 +1,11 @@
-export { VertzException } from './vertz-exception';
 export {
   BadRequestException,
-  UnauthorizedException,
-  ForbiddenException,
-  NotFoundException,
   ConflictException,
-  ValidationException,
+  ForbiddenException,
   InternalServerErrorException,
+  NotFoundException,
   ServiceUnavailableException,
+  UnauthorizedException,
+  ValidationException,
 } from './http-exceptions';
+export { VertzException } from './vertz-exception';

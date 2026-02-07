@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { StringSchema } from '../../schemas/string';
+import { describe, expect, it } from 'vitest';
 import { ErrorCode } from '../../core/errors';
+import { StringSchema } from '../../schemas/string';
 
 describe('.refine()', () => {
   it('passes when predicate returns true', () => {

@@ -1,10 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { ErrorCode } from '../../core/errors';
 import { DiscriminatedUnionSchema } from '../discriminated-union';
+import { LiteralSchema } from '../literal';
+import { NumberSchema } from '../number';
 import { ObjectSchema } from '../object';
 import { StringSchema } from '../string';
-import { NumberSchema } from '../number';
-import { LiteralSchema } from '../literal';
-import { ErrorCode } from '../../core/errors';
 
 describe('DiscriminatedUnionSchema', () => {
   const catSchema = new ObjectSchema({ type: new LiteralSchema('cat'), meow: new StringSchema() });

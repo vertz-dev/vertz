@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { BooleanSchema } from '../boolean';
+import { describe, expect, it } from 'vitest';
 import { ParseError } from '../../core/errors';
+import { BooleanSchema } from '../boolean';
 
 describe('BooleanSchema', () => {
   it('accepts true/false and rejects non-booleans', () => {

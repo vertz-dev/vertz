@@ -1,7 +1,7 @@
-import type { ParseContext } from '../../core/parse-context';
 import { ErrorCode } from '../../core/errors';
+import type { ParseContext } from '../../core/parse-context';
+import type { JSONSchemaObject, RefTracker } from '../../introspection/json-schema';
 import { StringSchema } from '../string';
-import type { RefTracker, JSONSchemaObject } from '../../introspection/json-schema';
 
 export abstract class FormatSchema extends StringSchema {
   protected abstract _errorMessage: string;

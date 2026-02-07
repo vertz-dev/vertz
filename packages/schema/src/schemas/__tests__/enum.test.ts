@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { EnumSchema } from '../enum';
+import { describe, expect, it } from 'vitest';
 import { ErrorCode } from '../../core/errors';
+import { EnumSchema } from '../enum';
 
 describe('EnumSchema', () => {
   it('accepts valid enum values', () => {

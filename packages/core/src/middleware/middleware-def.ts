@@ -1,5 +1,5 @@
-import type { MiddlewareDef } from '../types/middleware';
 import { deepFreeze } from '../immutability';
+import type { MiddlewareDef } from '../types/middleware';
 
 export interface NamedMiddlewareDef<
   TRequires extends Record<string, unknown> = Record<string, unknown>,

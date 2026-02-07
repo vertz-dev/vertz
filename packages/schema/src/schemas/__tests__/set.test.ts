@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { SetSchema } from '../set';
 import { StringSchema } from '../string';
 

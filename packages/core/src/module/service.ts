@@ -1,5 +1,5 @@
-import type { ServiceDef } from '../types/module';
 import { deepFreeze } from '../immutability';
+import type { ServiceDef } from '../types/module';
 
 export interface NamedServiceDef<TDeps = unknown, TState = unknown, TMethods = unknown>
   extends ServiceDef<TDeps, TState, TMethods> {

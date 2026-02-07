@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { StringSchema } from '../string';
+import { describe, expect, it } from 'vitest';
 import { ParseError } from '../../core/errors';
+import { StringSchema } from '../string';
 
 describe('StringSchema', () => {
   it('accepts a valid string', () => {

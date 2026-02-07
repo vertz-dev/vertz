@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { IsoDateSchema, IsoTimeSchema, IsoDatetimeSchema, IsoDurationSchema } from '../iso';
+import { describe, expect, it } from 'vitest';
+import { IsoDateSchema, IsoDatetimeSchema, IsoDurationSchema, IsoTimeSchema } from '../iso';
 
 describe('IsoDateSchema', () => {
   it('accepts valid ISO dates', () => {

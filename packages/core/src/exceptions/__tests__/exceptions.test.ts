@@ -1,15 +1,15 @@
-import { describe, it, expect } from 'vitest';
-import { VertzException } from '../vertz-exception';
+import { describe, expect, it } from 'vitest';
 import {
   BadRequestException,
-  UnauthorizedException,
-  ForbiddenException,
-  NotFoundException,
   ConflictException,
-  ValidationException,
+  ForbiddenException,
   InternalServerErrorException,
+  NotFoundException,
   ServiceUnavailableException,
+  UnauthorizedException,
+  ValidationException,
 } from '../http-exceptions';
+import { VertzException } from '../vertz-exception';
 
 describe('VertzException', () => {
   it('creates exception with message and default status 500', () => {

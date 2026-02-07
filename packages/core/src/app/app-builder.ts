@@ -1,6 +1,6 @@
-import type { AppConfig } from '../types/app';
 import type { NamedMiddlewareDef } from '../middleware/middleware-def';
 import type { NamedModule } from '../module/module';
+import type { AppConfig } from '../types/app';
 import { buildHandler, type ModuleRegistration } from './app-runner';
 
 export interface AppBuilder {

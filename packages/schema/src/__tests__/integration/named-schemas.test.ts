@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { s, SchemaRegistry } from '../..';
+import { describe, expect, it } from 'vitest';
+import { SchemaRegistry, s } from '../..';
 
 describe('Integration: Named Schemas', () => {
   it('named primitive with $ref + $defs', () => {

@@ -1,8 +1,8 @@
-import { Schema } from '../core/schema';
-import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
+import type { ParseContext } from '../core/parse-context';
+import { Schema } from '../core/schema';
 import type { SchemaType } from '../core/types';
-import type { RefTracker, JSONSchemaObject } from '../introspection/json-schema';
+import type { JSONSchemaObject, RefTracker } from '../introspection/json-schema';
 
 class PreprocessSchema<O> extends Schema<O> {
   private readonly _preprocess: (value: unknown) => unknown;

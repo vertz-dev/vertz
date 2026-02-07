@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { LazySchema } from '../lazy';
-import { StringSchema } from '../string';
-import { ObjectSchema } from '../object';
+import { describe, expect, it } from 'vitest';
 import { NullableSchema } from '../../core/schema';
+import { LazySchema } from '../lazy';
+import { ObjectSchema } from '../object';
+import { StringSchema } from '../string';
 
 describe('LazySchema', () => {
   it('defers schema resolution until first use', () => {
