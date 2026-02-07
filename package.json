@@ -9,6 +9,13 @@
     "build": "bun run --filter '*' build",
     "test": "bun run --filter '*' test",
     "test:watch": "bun run --filter '*' test:watch",
-    "typecheck": "bun run --filter '*' typecheck"
+    "typecheck": "bun run --filter '*' typecheck",
+    "lint": "biome check packages/",
+    "lint:fix": "biome check --fix packages/",
+    "format": "biome format packages/",
+    "format:fix": "biome format --fix packages/"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.14"
   }
 }
