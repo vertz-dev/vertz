@@ -1,4 +1,7 @@
 import { describe, it } from 'vitest';
+import type { ResolvedConfig, VertzConfig } from '../config';
+import type { Diagnostic } from '../errors';
+import { createEmptyDependencyGraph } from '../ir/builder';
 import type {
   AppIR,
   DependencyEdge,
@@ -7,9 +10,6 @@ import type {
   RouteIR,
   SchemaRef,
 } from '../ir/types';
-import { createEmptyDependencyGraph } from '../ir/builder';
-import type { Diagnostic } from '../errors';
-import type { ResolvedConfig, VertzConfig } from '../config';
 
 describe('type-level: IR types', () => {
   it('AppIR requires app field', () => {

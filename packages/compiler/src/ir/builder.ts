@@ -28,10 +28,7 @@ export function createEmptyAppIR(): AppIR {
   };
 }
 
-export function addDiagnosticsToIR(
-  ir: AppIR,
-  diagnostics: readonly Diagnostic[],
-): AppIR {
+export function addDiagnosticsToIR(ir: AppIR, diagnostics: readonly Diagnostic[]): AppIR {
   return {
     ...ir,
     diagnostics: [...ir.diagnostics, ...diagnostics],

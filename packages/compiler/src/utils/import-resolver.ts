@@ -6,10 +6,7 @@ export interface ResolvedImport {
   exportName: string;
 }
 
-export function resolveIdentifier(
-  identifier: Identifier,
-  project: Project,
-): ResolvedImport | null {
+export function resolveIdentifier(identifier: Identifier, project: Project): ResolvedImport | null {
   const importInfo = findImportForIdentifier(identifier);
   if (!importInfo) return null;
 
@@ -38,7 +35,8 @@ export function resolveExport(
 
   const exportedDecls = file.getExportedDeclarations().get(exportName);
   if (exportedDecls && exportedDecls.length > 0) {
-    const decl = exportedDecls[0]!;
+    const decl = exportedDecls.at(0);
+    if (!decl) return null;
     return {
       declaration: decl,
       sourceFile: decl.getSourceFile(),
@@ -49,10 +47,7 @@ export function resolveExport(
   return null;
 }
 
-export function isFromImport(
-  identifier: Identifier,
-  moduleSpecifier: string,
-): boolean {
+export function isFromImport(identifier: Identifier, moduleSpecifier: string): boolean {
   const importInfo = findImportForIdentifier(identifier);
   if (!importInfo) return false;
   return importInfo.importDecl.getModuleSpecifierValue() === moduleSpecifier;

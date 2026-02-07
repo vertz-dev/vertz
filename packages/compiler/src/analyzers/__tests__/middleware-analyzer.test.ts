@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { Project } from 'ts-morph';
+import { describe, expect, it } from 'vitest';
 import { resolveConfig } from '../../config';
 import type { Diagnostic } from '../../errors';
 import type { MiddlewareIR } from '../../ir/types';
@@ -21,7 +21,7 @@ const auth = vertz.middleware({ name: 'auth', handler: async (ctx: any) => ({}) 
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
     expect(result.middleware).toHaveLength(1);
-    expect(result.middleware[0]!.name).toBe('auth');
+    expect(result.middleware.at(0)?.name).toBe('auth');
   });
 
   it('extracts source location', async () => {
@@ -34,8 +34,8 @@ const auth = vertz.middleware({ name: 'auth', handler: async (ctx: any) => ({}) 
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.sourceLine).toBe(3);
-    expect(result.middleware[0]!.sourceFile).toContain('auth.ts');
+    expect(result.middleware.at(0)?.sourceLine).toBe(3);
+    expect(result.middleware.at(0)?.sourceFile).toContain('auth.ts');
   });
 
   it('extracts inject references', async () => {
@@ -47,9 +47,15 @@ const auth = vertz.middleware({ name: 'auth', inject: { tokenService, userServic
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.inject).toHaveLength(2);
-    expect(result.middleware[0]!.inject[0]).toEqual({ localName: 'tokenService', resolvedToken: 'tokenService' });
-    expect(result.middleware[0]!.inject[1]).toEqual({ localName: 'userService', resolvedToken: 'userService' });
+    expect(result.middleware.at(0)?.inject).toHaveLength(2);
+    expect(result.middleware.at(0)?.inject[0]).toEqual({
+      localName: 'tokenService',
+      resolvedToken: 'tokenService',
+    });
+    expect(result.middleware.at(0)?.inject[1]).toEqual({
+      localName: 'userService',
+      resolvedToken: 'userService',
+    });
   });
 
   it('extracts headers schema reference', async () => {
@@ -62,10 +68,10 @@ const auth = vertz.middleware({ name: 'auth', headers: authHeaders, handler: asy
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.headers).toBeDefined();
-    expect(result.middleware[0]!.headers!.kind).toBe('named');
-    if (result.middleware[0]!.headers!.kind === 'named') {
-      expect(result.middleware[0]!.headers!.schemaName).toBe('authHeaders');
+    expect(result.middleware.at(0)?.headers).toBeDefined();
+    expect(result.middleware.at(0)?.headers?.kind).toBe('named');
+    if (result.middleware.at(0)?.headers?.kind === 'named') {
+      expect(result.middleware.at(0)?.headers?.schemaName).toBe('authHeaders');
     }
   });
 
@@ -79,10 +85,10 @@ const validate = vertz.middleware({ name: 'validate', params: validateParams, ha
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.params).toBeDefined();
-    expect(result.middleware[0]!.params!.kind).toBe('named');
-    if (result.middleware[0]!.params!.kind === 'named') {
-      expect(result.middleware[0]!.params!.schemaName).toBe('validateParams');
+    expect(result.middleware.at(0)?.params).toBeDefined();
+    expect(result.middleware.at(0)?.params?.kind).toBe('named');
+    if (result.middleware.at(0)?.params?.kind === 'named') {
+      expect(result.middleware.at(0)?.params?.schemaName).toBe('validateParams');
     }
   });
 
@@ -96,10 +102,10 @@ const paginate = vertz.middleware({ name: 'paginate', query: paginationQuery, ha
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.query).toBeDefined();
-    expect(result.middleware[0]!.query!.kind).toBe('named');
-    if (result.middleware[0]!.query!.kind === 'named') {
-      expect(result.middleware[0]!.query!.schemaName).toBe('paginationQuery');
+    expect(result.middleware.at(0)?.query).toBeDefined();
+    expect(result.middleware.at(0)?.query?.kind).toBe('named');
+    if (result.middleware.at(0)?.query?.kind === 'named') {
+      expect(result.middleware.at(0)?.query?.schemaName).toBe('paginationQuery');
     }
   });
 
@@ -113,10 +119,10 @@ const validate = vertz.middleware({ name: 'validate', body: requestBody, handler
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.body).toBeDefined();
-    expect(result.middleware[0]!.body!.kind).toBe('named');
-    if (result.middleware[0]!.body!.kind === 'named') {
-      expect(result.middleware[0]!.body!.schemaName).toBe('requestBody');
+    expect(result.middleware.at(0)?.body).toBeDefined();
+    expect(result.middleware.at(0)?.body?.kind).toBe('named');
+    if (result.middleware.at(0)?.body?.kind === 'named') {
+      expect(result.middleware.at(0)?.body?.schemaName).toBe('requestBody');
     }
   });
 
@@ -130,10 +136,10 @@ const auth = vertz.middleware({ name: 'auth', requires: requestIdState, handler:
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.requires).toBeDefined();
-    expect(result.middleware[0]!.requires!.kind).toBe('named');
-    if (result.middleware[0]!.requires!.kind === 'named') {
-      expect(result.middleware[0]!.requires!.schemaName).toBe('requestIdState');
+    expect(result.middleware.at(0)?.requires).toBeDefined();
+    expect(result.middleware.at(0)?.requires?.kind).toBe('named');
+    if (result.middleware.at(0)?.requires?.kind === 'named') {
+      expect(result.middleware.at(0)?.requires?.schemaName).toBe('requestIdState');
     }
   });
 
@@ -147,10 +153,10 @@ const auth = vertz.middleware({ name: 'auth', provides: authState, handler: asyn
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.provides).toBeDefined();
-    expect(result.middleware[0]!.provides!.kind).toBe('named');
-    if (result.middleware[0]!.provides!.kind === 'named') {
-      expect(result.middleware[0]!.provides!.schemaName).toBe('authState');
+    expect(result.middleware.at(0)?.provides).toBeDefined();
+    expect(result.middleware.at(0)?.provides?.kind).toBe('named');
+    if (result.middleware.at(0)?.provides?.kind === 'named') {
+      expect(result.middleware.at(0)?.provides?.schemaName).toBe('authState');
     }
   });
 
@@ -163,14 +169,14 @@ const logger = vertz.middleware({ name: 'logger', handler: async (ctx: any) => (
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.name).toBe('logger');
-    expect(result.middleware[0]!.inject).toEqual([]);
-    expect(result.middleware[0]!.headers).toBeUndefined();
-    expect(result.middleware[0]!.params).toBeUndefined();
-    expect(result.middleware[0]!.query).toBeUndefined();
-    expect(result.middleware[0]!.body).toBeUndefined();
-    expect(result.middleware[0]!.requires).toBeUndefined();
-    expect(result.middleware[0]!.provides).toBeUndefined();
+    expect(result.middleware.at(0)?.name).toBe('logger');
+    expect(result.middleware.at(0)?.inject).toEqual([]);
+    expect(result.middleware.at(0)?.headers).toBeUndefined();
+    expect(result.middleware.at(0)?.params).toBeUndefined();
+    expect(result.middleware.at(0)?.query).toBeUndefined();
+    expect(result.middleware.at(0)?.body).toBeUndefined();
+    expect(result.middleware.at(0)?.requires).toBeUndefined();
+    expect(result.middleware.at(0)?.provides).toBeUndefined();
   });
 
   it('handles middleware with all config properties', async () => {
@@ -198,14 +204,14 @@ const full = vertz.middleware({
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.name).toBe('full');
-    expect(result.middleware[0]!.inject).toHaveLength(1);
-    expect(result.middleware[0]!.headers!.kind).toBe('named');
-    expect(result.middleware[0]!.params!.kind).toBe('named');
-    expect(result.middleware[0]!.query!.kind).toBe('named');
-    expect(result.middleware[0]!.body!.kind).toBe('named');
-    expect(result.middleware[0]!.requires!.kind).toBe('named');
-    expect(result.middleware[0]!.provides!.kind).toBe('named');
+    expect(result.middleware.at(0)?.name).toBe('full');
+    expect(result.middleware.at(0)?.inject).toHaveLength(1);
+    expect(result.middleware.at(0)?.headers?.kind).toBe('named');
+    expect(result.middleware.at(0)?.params?.kind).toBe('named');
+    expect(result.middleware.at(0)?.query?.kind).toBe('named');
+    expect(result.middleware.at(0)?.body?.kind).toBe('named');
+    expect(result.middleware.at(0)?.requires?.kind).toBe('named');
+    expect(result.middleware.at(0)?.provides?.kind).toBe('named');
   });
 
   it('handles empty inject object', async () => {
@@ -217,7 +223,7 @@ const logger = vertz.middleware({ name: 'logger', inject: {}, handler: async (ct
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.inject).toEqual([]);
+    expect(result.middleware.at(0)?.inject).toEqual([]);
   });
 
   it('finds multiple middleware in one file', async () => {
@@ -231,8 +237,8 @@ const logger = vertz.middleware({ name: 'logger', handler: async (ctx: any) => (
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
     expect(result.middleware).toHaveLength(2);
-    expect(result.middleware[0]!.name).toBe('auth');
-    expect(result.middleware[1]!.name).toBe('logger');
+    expect(result.middleware.at(0)?.name).toBe('auth');
+    expect(result.middleware.at(1)?.name).toBe('logger');
   });
 
   it('finds middleware across multiple files', async () => {
@@ -268,9 +274,9 @@ const auth = vertz.middleware({ name: 'auth', headers: authHeaders, handler: asy
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.headers!.kind).toBe('named');
-    if (result.middleware[0]!.headers!.kind === 'named') {
-      expect(result.middleware[0]!.headers!.sourceFile).toContain('auth-headers.schema.ts');
+    expect(result.middleware.at(0)?.headers?.kind).toBe('named');
+    if (result.middleware.at(0)?.headers?.kind === 'named') {
+      expect(result.middleware.at(0)?.headers?.sourceFile).toContain('auth-headers.schema.ts');
     }
   });
 
@@ -284,9 +290,9 @@ const auth = vertz.middleware({ name: 'auth', headers: s.object({ authorization:
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.headers).toBeDefined();
-    expect(result.middleware[0]!.headers!.kind).toBe('inline');
-    expect(result.middleware[0]!.headers!.sourceFile).toContain('auth.ts');
+    expect(result.middleware.at(0)?.headers).toBeDefined();
+    expect(result.middleware.at(0)?.headers?.kind).toBe('inline');
+    expect(result.middleware.at(0)?.headers?.sourceFile).toContain('auth.ts');
   });
 
   it('resolves re-exported schemas', async () => {
@@ -307,9 +313,9 @@ const auth = vertz.middleware({ name: 'auth', headers: authHeaders, handler: asy
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.headers!.kind).toBe('named');
-    if (result.middleware[0]!.headers!.kind === 'named') {
-      expect(result.middleware[0]!.headers!.sourceFile).toContain('auth-headers.schema.ts');
+    expect(result.middleware.at(0)?.headers?.kind).toBe('named');
+    if (result.middleware.at(0)?.headers?.kind === 'named') {
+      expect(result.middleware.at(0)?.headers?.sourceFile).toContain('auth-headers.schema.ts');
     }
   });
 
@@ -323,7 +329,10 @@ const auth = vertz.middleware({ name: 'auth', inject: { tokenService }, handler:
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.inject[0]).toEqual({ localName: 'tokenService', resolvedToken: 'tokenService' });
+    expect(result.middleware.at(0)?.inject[0]).toEqual({
+      localName: 'tokenService',
+      resolvedToken: 'tokenService',
+    });
   });
 
   it('handles inject with explicit property values', async () => {
@@ -336,7 +345,10 @@ const auth = vertz.middleware({ name: 'auth', inject: { ts: tokenService }, hand
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.middleware[0]!.inject[0]).toEqual({ localName: 'ts', resolvedToken: 'tokenService' });
+    expect(result.middleware.at(0)?.inject[0]).toEqual({
+      localName: 'ts',
+      resolvedToken: 'tokenService',
+    });
   });
 
   it('emits error diagnostic when name property is missing', async () => {
@@ -351,8 +363,8 @@ const broken = vertz.middleware({ handler: async (ctx: any) => ({}) });`,
     expect(result.middleware).toHaveLength(0);
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
-    expect(diags[0]!.severity).toBe('error');
-    expect(diags[0]!.code).toBe('VERTZ_MW_MISSING_NAME');
+    expect(diags.at(0)?.severity).toBe('error');
+    expect(diags.at(0)?.code).toBe('VERTZ_MW_MISSING_NAME');
   });
 
   it('emits error diagnostic when handler is missing', async () => {
@@ -367,8 +379,8 @@ const broken = vertz.middleware({ name: 'broken' });`,
     expect(result.middleware).toHaveLength(0);
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
-    expect(diags[0]!.severity).toBe('error');
-    expect(diags[0]!.code).toBe('VERTZ_MW_MISSING_HANDLER');
+    expect(diags.at(0)?.severity).toBe('error');
+    expect(diags.at(0)?.code).toBe('VERTZ_MW_MISSING_HANDLER');
   });
 
   it('emits warning when name is not a string literal', async () => {
@@ -383,8 +395,8 @@ const broken = vertz.middleware({ name: n, handler: async (ctx: any) => ({}) });
     await analyzer.analyze();
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
-    expect(diags[0]!.severity).toBe('warning');
-    expect(diags[0]!.code).toBe('VERTZ_MW_DYNAMIC_NAME');
+    expect(diags.at(0)?.severity).toBe('warning');
+    expect(diags.at(0)?.code).toBe('VERTZ_MW_DYNAMIC_NAME');
   });
 
   it('emits warning when config argument is not an object literal', async () => {
@@ -399,8 +411,8 @@ const broken = vertz.middleware(config);`,
     await analyzer.analyze();
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
-    expect(diags[0]!.severity).toBe('warning');
-    expect(diags[0]!.code).toBe('VERTZ_MW_NON_OBJECT_CONFIG');
+    expect(diags.at(0)?.severity).toBe('warning');
+    expect(diags.at(0)?.code).toBe('VERTZ_MW_NON_OBJECT_CONFIG');
   });
 
   it('ignores non-vertz.middleware calls', async () => {
@@ -440,7 +452,7 @@ export const auth = vertz.middleware({ name: 'auth', handler: async (ctx: any) =
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
     expect(result.middleware).toHaveLength(1);
-    expect(result.middleware[0]!.name).toBe('auth');
+    expect(result.middleware.at(0)?.name).toBe('auth');
   });
 
   it('emits no diagnostics for valid middleware', async () => {

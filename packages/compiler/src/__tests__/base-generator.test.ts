@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { BaseGenerator } from '../generators/base-generator';
 import { resolveConfig } from '../config';
+import { BaseGenerator } from '../generators/base-generator';
 import type { AppIR } from '../ir/types';
 
 class TestGenerator extends BaseGenerator {

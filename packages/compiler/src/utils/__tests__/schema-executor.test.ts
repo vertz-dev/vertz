@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import * as os from 'node:os';
+import * as path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createSchemaExecutor } from '../schema-executor';
 
 let tmpDir: string;
@@ -35,7 +35,7 @@ describe('createSchemaExecutor', () => {
     const executor = createSchemaExecutor(tmpDir);
     const result = await executor.execute('testSchema', filePath);
     expect(result).not.toBeNull();
-    expect(result!.jsonSchema).toHaveProperty('type', 'object');
+    expect(result?.jsonSchema).toHaveProperty('type', 'object');
   });
 
   it('execute returns null when file does not exist', async () => {
@@ -44,7 +44,7 @@ describe('createSchemaExecutor', () => {
     const result = await executor.execute('testSchema', path.join(tmpDir, 'nonexistent.js'));
     expect(result).toBeNull();
     expect(executor.getDiagnostics()).toHaveLength(1);
-    expect(executor.getDiagnostics()[0]!.code).toBe('VERTZ_SCHEMA_EXECUTION');
+    expect(executor.getDiagnostics().at(0)?.code).toBe('VERTZ_SCHEMA_EXECUTION');
   });
 
   it('execute returns null when export does not exist', async () => {
@@ -61,10 +61,7 @@ describe('createSchemaExecutor', () => {
 
   it('execute returns null when export has no toJSONSchema', async () => {
     setup();
-    const filePath = writeFile(
-      'user.js',
-      `export const testSchema = { name: 'not a schema' };`,
-    );
+    const filePath = writeFile('user.js', `export const testSchema = { name: 'not a schema' };`);
     const executor = createSchemaExecutor(tmpDir);
     const result = await executor.execute('testSchema', filePath);
     expect(result).toBeNull();
@@ -80,7 +77,7 @@ describe('createSchemaExecutor', () => {
     const executor = createSchemaExecutor(tmpDir);
     const result = await executor.execute('testSchema', filePath);
     expect(result).not.toBeNull();
-    expect(result!.jsonSchema).toHaveProperty('$defs');
+    expect(result?.jsonSchema).toHaveProperty('$defs');
   });
 
   it('getDiagnostics returns all accumulated errors', async () => {

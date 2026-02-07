@@ -53,7 +53,8 @@ export function parseSchemaName(name: string): SchemaNameParts {
       const entity = rest.slice(0, -part.length);
       if (entity.length === 0) continue;
       // Entity must start with uppercase
-      if (entity[0] !== entity[0]!.toUpperCase()) continue;
+      const firstChar = entity.at(0);
+      if (!firstChar || firstChar !== firstChar.toUpperCase()) continue;
       return { operation: op, entity, part };
     }
   }
@@ -74,7 +75,8 @@ export function extractSchemaId(expr: Expression): string | null {
     if (access.isKind(SyntaxKind.PropertyAccessExpression) && access.getName() === 'id') {
       const args = current.getArguments();
       if (args.length === 1) {
-        const value = getStringValue(args[0]! as Expression);
+        const firstArg = args.at(0);
+        const value = firstArg ? getStringValue(firstArg as Expression) : null;
         if (value !== null) return value;
       }
     }
@@ -89,9 +91,9 @@ export function extractSchemaId(expr: Expression): string | null {
 }
 
 export function isSchemaFile(file: SourceFile): boolean {
-  return file.getImportDeclarations().some(
-    (decl) => decl.getModuleSpecifierValue() === '@vertz/schema',
-  );
+  return file
+    .getImportDeclarations()
+    .some((decl) => decl.getModuleSpecifierValue() === '@vertz/schema');
 }
 
 export function createNamedSchemaRef(schemaName: string, sourceFile: string): NamedSchemaRef {

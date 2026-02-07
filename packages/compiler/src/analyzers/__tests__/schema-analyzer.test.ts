@@ -1,5 +1,5 @@
+import { Project } from 'ts-morph';
 import { describe, expect, it } from 'vitest';
-import { Project, SyntaxKind } from 'ts-morph';
 import { resolveConfig } from '../../config';
 import type { SchemaIR, SchemaNameParts, SchemaRef } from '../../ir/types';
 import {
@@ -30,23 +30,43 @@ describe('parseSchemaName', () => {
   });
 
   it('parses readUserResponse correctly', () => {
-    expect(parseSchemaName('readUserResponse')).toEqual({ operation: 'read', entity: 'User', part: 'Response' });
+    expect(parseSchemaName('readUserResponse')).toEqual({
+      operation: 'read',
+      entity: 'User',
+      part: 'Response',
+    });
   });
 
   it('parses updateTodoItemBody correctly', () => {
-    expect(parseSchemaName('updateTodoItemBody')).toEqual({ operation: 'update', entity: 'TodoItem', part: 'Body' });
+    expect(parseSchemaName('updateTodoItemBody')).toEqual({
+      operation: 'update',
+      entity: 'TodoItem',
+      part: 'Body',
+    });
   });
 
   it('parses listTodoQuery correctly', () => {
-    expect(parseSchemaName('listTodoQuery')).toEqual({ operation: 'list', entity: 'Todo', part: 'Query' });
+    expect(parseSchemaName('listTodoQuery')).toEqual({
+      operation: 'list',
+      entity: 'Todo',
+      part: 'Query',
+    });
   });
 
   it('parses deleteUserParams correctly', () => {
-    expect(parseSchemaName('deleteUserParams')).toEqual({ operation: 'delete', entity: 'User', part: 'Params' });
+    expect(parseSchemaName('deleteUserParams')).toEqual({
+      operation: 'delete',
+      entity: 'User',
+      part: 'Params',
+    });
   });
 
   it('parses readUserHeaders correctly', () => {
-    expect(parseSchemaName('readUserHeaders')).toEqual({ operation: 'read', entity: 'User', part: 'Headers' });
+    expect(parseSchemaName('readUserHeaders')).toEqual({
+      operation: 'read',
+      entity: 'User',
+      part: 'Headers',
+    });
   });
 
   it('returns all undefined for non-convention name', () => {
@@ -122,19 +142,13 @@ describe('isSchemaExpression', () => {
 
   it('does not detect unrelated function call', () => {
     const project = createProject();
-    const { file, expr } = getExpr(
-      project,
-      `const x = console.log('hello');`,
-    );
+    const { file, expr } = getExpr(project, `const x = console.log('hello');`);
     expect(isSchemaExpression(file, expr)).toBe(false);
   });
 
   it('does not detect non-schema identifier', () => {
     const project = createProject();
-    const { file, expr } = getExpr(
-      project,
-      `const someVariable = 1;\nconst x = someVariable;`,
-    );
+    const { file, expr } = getExpr(project, `const someVariable = 1;\nconst x = someVariable;`);
     expect(isSchemaExpression(file, expr)).toBe(false);
   });
 });
@@ -180,7 +194,11 @@ describe('extractSchemaId', () => {
 describe('createNamedSchemaRef', () => {
   it('creates named SchemaRef with correct fields', () => {
     const ref = createNamedSchemaRef('createUserBody', 'src/schemas/user.ts');
-    expect(ref).toEqual({ kind: 'named', schemaName: 'createUserBody', sourceFile: 'src/schemas/user.ts' });
+    expect(ref).toEqual({
+      kind: 'named',
+      schemaName: 'createUserBody',
+      sourceFile: 'src/schemas/user.ts',
+    });
   });
 });
 
@@ -203,10 +221,7 @@ describe('isSchemaFile', () => {
 
   it('returns false for file not importing @vertz/schema', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'src/utils/helpers.ts',
-      `export const foo = 'bar';`,
-    );
+    const file = project.createSourceFile('src/utils/helpers.ts', `export const foo = 'bar';`);
     expect(isSchemaFile(file)).toBe(false);
   });
 });
@@ -221,8 +236,8 @@ describe('SchemaAnalyzer', () => {
     const analyzer = new SchemaAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
     expect(result.schemas).toHaveLength(1);
-    expect(result.schemas[0]!.name).toBe('createUserBody');
-    expect(result.schemas[0]!.sourceFile).toContain('user.ts');
+    expect(result.schemas.at(0)?.name).toBe('createUserBody');
+    expect(result.schemas.at(0)?.sourceFile).toContain('user.ts');
   });
 
   it('discovers multiple schemas from one file', async () => {
@@ -251,10 +266,7 @@ export const createUserResponse = s.object({ id: s.string() });`,
 
   it('ignores files that do not import @vertz/schema', async () => {
     const project = createProject();
-    project.createSourceFile(
-      'src/utils/helpers.ts',
-      `export const foo = 'bar';`,
-    );
+    project.createSourceFile('src/utils/helpers.ts', `export const foo = 'bar';`);
     const analyzer = new SchemaAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
     expect(result.schemas).toHaveLength(0);
@@ -290,8 +302,8 @@ export const createUserResponse = s.object({ id: s.string() });`,
     );
     const analyzer = new SchemaAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.schemas[0]!.id).toBe('CreateUser');
-    expect(result.schemas[0]!.isNamed).toBe(true);
+    expect(result.schemas.at(0)?.id).toBe('CreateUser');
+    expect(result.schemas.at(0)?.isNamed).toBe(true);
   });
 
   it('marks schemas without .id() as not named', async () => {
@@ -302,8 +314,8 @@ export const createUserResponse = s.object({ id: s.string() });`,
     );
     const analyzer = new SchemaAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.schemas[0]!.isNamed).toBe(false);
-    expect(result.schemas[0]!.id).toBeUndefined();
+    expect(result.schemas.at(0)?.isNamed).toBe(false);
+    expect(result.schemas.at(0)?.id).toBeUndefined();
   });
 
   it('includes correct source location for discovered schema', async () => {
@@ -314,7 +326,7 @@ export const createUserResponse = s.object({ id: s.string() });`,
     );
     const analyzer = new SchemaAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.schemas[0]!.sourceLine).toBe(2);
+    expect(result.schemas.at(0)?.sourceLine).toBe(2);
   });
 
   it('emits no diagnostics for valid schema file', async () => {

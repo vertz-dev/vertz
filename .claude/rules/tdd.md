@@ -28,3 +28,10 @@ Type-only changes (generics, constraints, narrowing) follow the same red-green-r
 Positive type tests ("correct shape compiles") are NOT valid RED tests — loose signatures like `unknown` already accept them. Write negative tests first to drive the type constraints.
 
 **Important:** `@ts-expect-error` tests only verify **interface signatures** (the public API). They do NOT catch type errors in the **implementation body**. After GREEN, run `bun run typecheck` to ensure the implementation types are also correct. Type tests + typecheck together cover the full picture.
+
+## Never Skip Quality Gates
+
+- **Never skip or disable linting rules.** Fix the code to comply, don't suppress or weaken the rule. If a rule flags your code, your code is wrong — not the rule. This includes `biome`, `eslint`, or any other configured linter.
+- **Never skip or disable type checking.** No `@ts-ignore`, no `as any` casts, no loosening `tsconfig` strictness. If types don't pass, fix the types.
+- **Never skip or disable tests.** No `.skip`, no `xit`, no commenting out. If a test fails, fix the code or fix the test — don't silence it.
+- **Never skip pre-commit hooks or CI checks.** No `--no-verify`, no `--force`. These gates exist for a reason.

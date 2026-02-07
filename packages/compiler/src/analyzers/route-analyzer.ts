@@ -1,8 +1,22 @@
-import type { CallExpression, Expression, Identifier, ObjectLiteralExpression, SourceFile } from 'ts-morph';
+import type {
+  CallExpression,
+  Expression,
+  Identifier,
+  ObjectLiteralExpression,
+  SourceFile,
+} from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
-import type { HttpMethod, ModuleDefContext, RouteIR, RouterIR, SchemaRef } from '../ir/types';
 import { createDiagnosticFromLocation } from '../errors';
-import { extractObjectLiteral, findMethodCallsOnVariable, getArrayElements, getPropertyValue, getSourceLocation, getStringValue, getVariableNameForCall } from '../utils/ast-helpers';
+import type { HttpMethod, ModuleDefContext, RouteIR, RouterIR, SchemaRef } from '../ir/types';
+import {
+  extractObjectLiteral,
+  findMethodCallsOnVariable,
+  getArrayElements,
+  getPropertyValue,
+  getSourceLocation,
+  getStringValue,
+  getVariableNameForCall,
+} from '../utils/ast-helpers';
 import { resolveIdentifier } from '../utils/import-resolver';
 import { BaseAnalyzer } from './base-analyzer';
 import { createInlineSchemaRef, createNamedSchemaRef, isSchemaExpression } from './schema-analyzer';
@@ -40,14 +54,16 @@ export class RouteAnalyzer extends BaseAnalyzer<RouteAnalyzerResult> {
 
           const obj = extractObjectLiteral(call, 0);
           const prefixExpr = obj ? getPropertyValue(obj, 'prefix') : null;
-          const prefix = prefixExpr ? getStringValue(prefixExpr) ?? '/' : '/';
+          const prefix = prefixExpr ? (getStringValue(prefixExpr) ?? '/') : '/';
           if (!prefixExpr) {
-            this.addDiagnostic(createDiagnosticFromLocation(getSourceLocation(call), {
-              severity: 'warning',
-              code: 'VERTZ_RT_MISSING_PREFIX',
-              message: "Router should have a 'prefix' property.",
-              suggestion: "Add a 'prefix' property to the router config.",
-            }));
+            this.addDiagnostic(
+              createDiagnosticFromLocation(getSourceLocation(call), {
+                severity: 'warning',
+                code: 'VERTZ_RT_MISSING_PREFIX',
+                message: "Router should have a 'prefix' property.",
+                suggestion: "Add a 'prefix' property to the router config.",
+              }),
+            );
           }
 
           const loc = getSourceLocation(call);
@@ -76,10 +92,7 @@ export class RouteAnalyzer extends BaseAnalyzer<RouteAnalyzerResult> {
     return { routers };
   }
 
-  private detectUnknownRouterCalls(
-    file: SourceFile,
-    knownModuleDefVars: Set<string>,
-  ): void {
+  private detectUnknownRouterCalls(file: SourceFile, knownModuleDefVars: Set<string>): void {
     const allCalls = file.getDescendantsOfKind(SyntaxKind.CallExpression);
     for (const call of allCalls) {
       const expr = call.getExpression();
@@ -98,12 +111,15 @@ export class RouteAnalyzer extends BaseAnalyzer<RouteAnalyzerResult> {
       );
       if (!hasHttpMethodCalls) continue;
 
-      this.addDiagnostic(createDiagnosticFromLocation(getSourceLocation(call), {
-        severity: 'error',
-        code: 'VERTZ_RT_UNKNOWN_MODULE_DEF',
-        message: `'${obj.getText()}' is not a known moduleDef variable.`,
-        suggestion: 'Ensure the variable is declared with vertz.moduleDef() and is included in the module context.',
-      }));
+      this.addDiagnostic(
+        createDiagnosticFromLocation(getSourceLocation(call), {
+          severity: 'error',
+          code: 'VERTZ_RT_UNKNOWN_MODULE_DEF',
+          message: `'${obj.getText()}' is not a known moduleDef variable.`,
+          suggestion:
+            'Ensure the variable is declared with vertz.moduleDef() and is included in the module context.',
+        }),
+      );
     }
   }
 
@@ -121,7 +137,14 @@ export class RouteAnalyzer extends BaseAnalyzer<RouteAnalyzerResult> {
       const chainedCalls = this.findChainedHttpCalls(file, routerVarName, methodName);
       const allCalls = [...directCalls, ...chainedCalls];
       for (const call of allCalls) {
-        const route = this.extractRoute(call, httpMethod, prefix, moduleName, file, usedOperationIds);
+        const route = this.extractRoute(
+          call,
+          httpMethod,
+          prefix,
+          moduleName,
+          file,
+          usedOperationIds,
+        );
         if (route) routes.push(route);
       }
     }
@@ -145,10 +168,7 @@ export class RouteAnalyzer extends BaseAnalyzer<RouteAnalyzerResult> {
     });
   }
 
-  private chainResolvesToVariable(
-    expr: Expression,
-    varName: string,
-  ): boolean {
+  private chainResolvesToVariable(expr: Expression, varName: string): boolean {
     if (expr.isKind(SyntaxKind.Identifier)) {
       return expr.getText() === varName;
     }
@@ -175,12 +195,14 @@ export class RouteAnalyzer extends BaseAnalyzer<RouteAnalyzerResult> {
 
     const path = getStringValue(pathArg as Expression);
     if (path === null) {
-      this.addDiagnostic(createDiagnosticFromLocation(getSourceLocation(call), {
-        severity: 'error',
-        code: 'VERTZ_RT_DYNAMIC_PATH',
-        message: 'Route paths must be string literals for static analysis.',
-        suggestion: 'Use a string literal for the route path.',
-      }));
+      this.addDiagnostic(
+        createDiagnosticFromLocation(getSourceLocation(call), {
+          severity: 'error',
+          code: 'VERTZ_RT_DYNAMIC_PATH',
+          message: 'Route paths must be string literals for static analysis.',
+          suggestion: 'Use a string literal for the route path.',
+        }),
+      );
       return null;
     }
 
@@ -190,12 +212,14 @@ export class RouteAnalyzer extends BaseAnalyzer<RouteAnalyzerResult> {
 
     const obj = extractObjectLiteral(call, 1);
     if (!obj && args.length > 1) {
-      this.addDiagnostic(createDiagnosticFromLocation(loc, {
-        severity: 'warning',
-        code: 'VERTZ_RT_DYNAMIC_CONFIG',
-        message: 'Route config must be an object literal for static analysis.',
-        suggestion: 'Pass an inline object literal as the second argument.',
-      }));
+      this.addDiagnostic(
+        createDiagnosticFromLocation(loc, {
+          severity: 'warning',
+          code: 'VERTZ_RT_DYNAMIC_CONFIG',
+          message: 'Route config must be an object literal for static analysis.',
+          suggestion: 'Pass an inline object literal as the second argument.',
+        }),
+      );
     }
 
     const params = obj ? this.resolveSchemaRef(obj, 'params', filePath) : undefined;
@@ -213,19 +237,29 @@ export class RouteAnalyzer extends BaseAnalyzer<RouteAnalyzerResult> {
 
     const tagsExpr = obj ? getPropertyValue(obj, 'tags') : null;
     const tags = tagsExpr
-      ? getArrayElements(tagsExpr).map((e) => getStringValue(e)).filter((v): v is string => v !== null)
+      ? getArrayElements(tagsExpr)
+          .map((e) => getStringValue(e))
+          .filter((v): v is string => v !== null)
       : [];
 
     const handlerExpr = obj ? getPropertyValue(obj, 'handler') : null;
-    const operationId = this.generateOperationId(moduleName, method, path, handlerExpr, usedOperationIds);
+    const operationId = this.generateOperationId(
+      moduleName,
+      method,
+      path,
+      handlerExpr,
+      usedOperationIds,
+    );
 
     if (obj && !handlerExpr) {
-      this.addDiagnostic(createDiagnosticFromLocation(loc, {
-        severity: 'error',
-        code: 'VERTZ_RT_MISSING_HANDLER',
-        message: "Route must have a 'handler' property.",
-        suggestion: "Add a 'handler' property to the route config.",
-      }));
+      this.addDiagnostic(
+        createDiagnosticFromLocation(loc, {
+          severity: 'error',
+          code: 'VERTZ_RT_MISSING_HANDLER',
+          message: "Route must have a 'handler' property.",
+          suggestion: "Add a 'handler' property to the route config.",
+        }),
+      );
       return null;
     }
 
@@ -324,10 +358,8 @@ function joinPaths(prefix: string, path: string): string {
 }
 
 function sanitizePath(path: string): string {
-  return path
-    .replace(/^\//, '')
-    .replace(/[/:.]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '')
-    || 'root';
+  return (
+    path.replace(/^\//, '').replace(/[/:.]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') ||
+    'root'
+  );
 }
