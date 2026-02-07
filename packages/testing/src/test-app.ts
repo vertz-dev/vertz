@@ -10,6 +10,13 @@ import {
   createErrorResponse,
 } from '@vertz/core/internals';
 
+class ResponseValidationError extends Error {
+  constructor(message: string) {
+    super(`Response validation failed: ${message}`);
+    this.name = 'ResponseValidationError';
+  }
+}
+
 export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
 };
@@ -53,6 +60,7 @@ interface RouteEntry {
   handler: (ctx: any) => any;
   options: Record<string, unknown>;
   services: Record<string, unknown>;
+  responseSchema?: { safeParse(value: unknown): { success: boolean; error?: { message: string } } };
 }
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
@@ -93,6 +101,7 @@ export function createTestApp(): TestApp {
             handler: route.config.handler,
             options: options ?? {},
             services: resolvedServices,
+            responseSchema: route.config.response,
           };
           trie.add(route.method, fullPath, entry as any);
         }
@@ -157,10 +166,19 @@ export function createTestApp(): TestApp {
         });
 
         const result = await entry.handler(ctx);
+
+        if (result !== undefined && entry.responseSchema) {
+          const parsed = entry.responseSchema.safeParse(result);
+          if (!parsed.success) {
+            throw new ResponseValidationError(parsed.error!.message);
+          }
+        }
+
         return result === undefined
           ? new Response(null, { status: 204 })
           : createJsonResponse(result);
       } catch (error) {
+        if (error instanceof ResponseValidationError) throw error;
         return createErrorResponse(error);
       }
     };

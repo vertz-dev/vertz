@@ -6,6 +6,7 @@ import {
   type NamedServiceDef,
   type NamedRouterDef,
 } from '@vertz/core';
+import { s } from '@vertz/schema';
 import { describe, it, expect } from 'vitest';
 
 import { createTestApp } from '../test-app';
@@ -281,6 +282,52 @@ describe('createTestApp', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ message: 'app-level' });
+  });
+
+  it('passes when handler return matches response schema', async () => {
+    const responseSchema = s.object({ name: s.string() });
+
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix: '/api' });
+    router.get('/', {
+      response: responseSchema,
+      handler: () => ({ name: 'Alice' }),
+    });
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+
+    const app = createTestApp().register(mod);
+    const res = await app.get('/api');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ name: 'Alice' });
+  });
+
+  it('skips validation when route has no response schema', async () => {
+    const mod = createTestModule('test', '/api', [
+      { method: 'GET', path: '/', handler: () => ({ anything: 'goes' }) },
+    ]);
+
+    const app = createTestApp().register(mod);
+    const res = await app.get('/api');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ anything: 'goes' });
+  });
+
+  it('throws when handler return does not match response schema', async () => {
+    const responseSchema = s.object({ name: s.string() });
+
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix: '/api' });
+    router.get('/', {
+      response: responseSchema,
+      handler: () => ({ name: 123 }), // wrong type — name should be string
+    });
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+
+    const app = createTestApp().register(mod);
+
+    await expect(app.get('/api')).rejects.toThrow('Response validation failed');
   });
 
 });
