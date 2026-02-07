@@ -1,8 +1,11 @@
-import type { NamedModule } from '@vertz/core/src/module/module';
-import type { NamedServiceDef } from '@vertz/core/src/module/service';
-
-import { createMiddleware } from '@vertz/core/src/middleware/middleware-def';
-import { createModuleDef, createModule, type NamedRouterDef } from '@vertz/core/src/module';
+import {
+  createMiddleware,
+  createModuleDef,
+  createModule,
+  type NamedModule,
+  type NamedServiceDef,
+  type NamedRouterDef,
+} from '@vertz/core';
 import { describe, it, expect } from 'vitest';
 
 import { createTestApp } from '../test-app';
