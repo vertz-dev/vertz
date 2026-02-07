@@ -84,6 +84,16 @@ export {
   renderBootFile,
   resolveImportPath,
 } from './generators/boot-generator';
+// Manifest generator
+export type {
+  AppManifest,
+  ManifestDependencyEdge,
+  ManifestDiagnostic,
+  ManifestMiddleware,
+  ManifestModule,
+  ManifestRoute,
+} from './generators/manifest-generator';
+export { buildManifest, ManifestGenerator } from './generators/manifest-generator';
 export type {
   JSONSchemaObject,
   OpenAPIDocument,
@@ -108,6 +118,16 @@ export {
   RouteTableGenerator,
   renderRouteTableFile,
 } from './generators/route-table-generator';
+// Schema registry generator
+export type {
+  SchemaRegistryEntry,
+  SchemaRegistryManifest,
+} from './generators/schema-registry-generator';
+export {
+  buildSchemaRegistry,
+  renderSchemaRegistryFile,
+  SchemaRegistryGenerator,
+} from './generators/schema-registry-generator';
 // IR builders
 export {
   addDiagnosticsToIR,
