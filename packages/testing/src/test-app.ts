@@ -10,16 +10,14 @@ import {
   createErrorResponse,
 } from '@vertz/core/internals';
 
+import type { DeepPartial } from './types';
+
 class ResponseValidationError extends Error {
   constructor(message: string) {
     super(`Response validation failed: ${message}`);
     this.name = 'ResponseValidationError';
   }
 }
-
-export type DeepPartial<T> = {
-  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
-};
 
 export interface TestResponse {
   status: number;

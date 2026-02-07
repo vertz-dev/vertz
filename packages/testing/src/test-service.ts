@@ -1,9 +1,9 @@
 import type { NamedServiceDef } from '@vertz/core';
 
-import type { DeepPartial } from './test-app';
+import type { DeepPartial } from './types';
 
 export interface TestServiceBuilder<TMethods> {
-  mock<TDeps, TState, TM>(service: NamedServiceDef<TDeps, TState, TM>, impl: DeepPartial<TM>): TestServiceBuilder<TMethods>;
+  mock<TDep, TState, TMock>(service: NamedServiceDef<TDep, TState, TMock>, impl: DeepPartial<TMock>): TestServiceBuilder<TMethods>;
   build(): Promise<TMethods>;
 }
 
@@ -23,9 +23,12 @@ export function createTestService<TDeps, TState, TMethods>(
       if (serviceDef.inject) {
         for (const [name, depDef] of Object.entries(serviceDef.inject)) {
           const mock = serviceMocks.get(depDef as NamedServiceDef);
-          if (mock !== undefined) {
-            deps[name] = mock;
+          if (mock === undefined) {
+            throw new Error(
+              `Missing mock for injected dependency "${name}". Call .mock(${name}Service, impl) before .build().`,
+            );
           }
+          deps[name] = mock;
         }
       }
 

@@ -36,6 +36,23 @@ describe('createTestService', () => {
     expect(methods.findById('42')).toBe("mocked: SELECT * FROM users WHERE id = '42'");
   });
 
+  it('throws when an injected dependency is not mocked', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const dbService = moduleDef.service({
+      methods: () => ({ query: (sql: string) => sql }),
+    });
+    const userService = moduleDef.service({
+      inject: { db: dbService },
+      methods: (deps: any) => ({
+        findById: (id: string) => deps.db.query(`SELECT * FROM users WHERE id = '${id}'`),
+      }),
+    });
+
+    await expect(createTestService(userService).build()).rejects.toThrow(
+      /missing mock.*db/i,
+    );
+  });
+
   it('awaits async onInit and passes state to methods', async () => {
     const moduleDef = createModuleDef({ name: 'test' });
     const service = moduleDef.service({
