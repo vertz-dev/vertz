@@ -1,5 +1,11 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
+  "plugins": [
+    "./biome-plugins/no-internals-import.grit",
+    "./biome-plugins/no-ts-ignore.grit",
+    "./biome-plugins/no-double-cast.grit",
+    "./biome-plugins/no-throw-plain-error.grit"
+  ],
   "vcs": {
     "enabled": true,
     "clientKind": "git",
