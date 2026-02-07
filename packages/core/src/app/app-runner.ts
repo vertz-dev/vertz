@@ -19,6 +19,7 @@ interface RouteEntry {
   handler: (ctx: HandlerCtx) => unknown;
   options: Record<string, unknown>;
   services: Record<string, unknown>;
+  paramsSchema?: { parse(value: unknown): unknown };
 }
 
 function resolveServices(registrations: ModuleRegistration[]): Map<NamedServiceDef, unknown> {
@@ -73,6 +74,7 @@ function registerRoutes(
           handler: route.config.handler,
           options: options ?? {},
           services: resolvedServices,
+          paramsSchema: route.config.params as { parse(value: unknown): unknown } | undefined,
         };
         trie.add(route.method, fullPath, entry);
       }
@@ -138,8 +140,11 @@ export function buildHandler(
 
       const entry = match.handler;
 
+      // Validate params using schema if provided
+      const validatedParams = entry.paramsSchema ? entry.paramsSchema.parse(match.params) : match.params;
+
       const ctx = buildCtx({
-        params: match.params,
+        params: validatedParams as Record<string, unknown>,
         body,
         query: parsed.query,
         headers: parsed.headers,
