@@ -1,11 +1,12 @@
+import type { ObjectLiteralExpression } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
-import type { MiddlewareIR } from '../ir/types';
+import type { MiddlewareIR, SchemaRef } from '../ir/types';
 import { createDiagnosticFromLocation } from '../errors';
 import { extractObjectLiteral, findCallExpressions, getPropertyValue, getSourceLocation, getStringValue } from '../utils/ast-helpers';
 import { resolveIdentifier } from '../utils/import-resolver';
-import { createNamedSchemaRef, createInlineSchemaRef, isSchemaExpression } from './schema-analyzer';
-import { parseInjectRefs } from './service-analyzer';
 import { BaseAnalyzer } from './base-analyzer';
+import { createInlineSchemaRef, createNamedSchemaRef, isSchemaExpression } from './schema-analyzer';
+import { parseInjectRefs } from './service-analyzer';
 
 export interface MiddlewareAnalyzerResult {
   middleware: MiddlewareIR[];
@@ -67,12 +68,13 @@ export class MiddlewareAnalyzer extends BaseAnalyzer<MiddlewareAnalyzerResult> {
           ? parseInjectRefs(injectExpr)
           : [];
 
-        const headers = this.resolveSchemaRef(obj, 'headers', file.getFilePath());
-        const params = this.resolveSchemaRef(obj, 'params', file.getFilePath());
-        const query = this.resolveSchemaRef(obj, 'query', file.getFilePath());
-        const body = this.resolveSchemaRef(obj, 'body', file.getFilePath());
-        const requires = this.resolveSchemaRef(obj, 'requires', file.getFilePath());
-        const provides = this.resolveSchemaRef(obj, 'provides', file.getFilePath());
+        const filePath = file.getFilePath();
+        const headers = this.resolveSchemaRef(obj, 'headers', filePath);
+        const params = this.resolveSchemaRef(obj, 'params', filePath);
+        const query = this.resolveSchemaRef(obj, 'query', filePath);
+        const body = this.resolveSchemaRef(obj, 'body', filePath);
+        const requires = this.resolveSchemaRef(obj, 'requires', filePath);
+        const provides = this.resolveSchemaRef(obj, 'provides', filePath);
 
         middleware.push({
           name,
@@ -92,10 +94,10 @@ export class MiddlewareAnalyzer extends BaseAnalyzer<MiddlewareAnalyzerResult> {
   }
 
   private resolveSchemaRef(
-    obj: import('ts-morph').ObjectLiteralExpression,
+    obj: ObjectLiteralExpression,
     prop: string,
     filePath: string,
-  ): import('../ir/types').SchemaRef | undefined {
+  ): SchemaRef | undefined {
     const expr = getPropertyValue(obj, prop);
     if (!expr) return undefined;
 
