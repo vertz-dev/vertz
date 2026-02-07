@@ -1,0 +1,24 @@
+name: Question / Discussion
+description: Ask a question or start a discussion about design decisions
+labels: ["discussion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Want to discuss an API design, suggest a different approach, or ask why we made a particular decision? This is the place.
+
+        You can also comment directly on [open PRs](https://github.com/vertz-dev/vertz/pulls) — we plan in the open and welcome feedback on design docs and implementation plans.
+
+  - type: textarea
+    id: topic
+    attributes:
+      label: What's on your mind?
+      description: Your question, idea, or topic for discussion.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Any relevant links, code examples, or references (e.g. a specific plan doc or PR).
