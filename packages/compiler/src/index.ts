@@ -72,6 +72,18 @@ export {
 } from './errors';
 export type { Generator } from './generators/base-generator';
 export { BaseGenerator } from './generators/base-generator';
+// Boot generator
+export type {
+  BootManifest,
+  BootMiddlewareEntry,
+  BootModuleEntry,
+} from './generators/boot-generator';
+export {
+  BootGenerator,
+  buildBootManifest,
+  renderBootFile,
+  resolveImportPath,
+} from './generators/boot-generator';
 export type {
   JSONSchemaObject,
   OpenAPIDocument,
@@ -85,6 +97,17 @@ export type {
   OpenAPITag,
 } from './generators/openapi-generator';
 export { OpenAPIGenerator } from './generators/openapi-generator';
+// Route table generator
+export type {
+  RouteTableEntry,
+  RouteTableManifest,
+  RouteTableSchemas,
+} from './generators/route-table-generator';
+export {
+  buildRouteTable,
+  RouteTableGenerator,
+  renderRouteTableFile,
+} from './generators/route-table-generator';
 // IR builders
 export {
   addDiagnosticsToIR,
