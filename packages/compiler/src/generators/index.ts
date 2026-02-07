@@ -8,6 +8,15 @@ export {
   resolveImportPath,
 } from './boot-generator';
 export type {
+  AppManifest,
+  ManifestDependencyEdge,
+  ManifestDiagnostic,
+  ManifestMiddleware,
+  ManifestModule,
+  ManifestRoute,
+} from './manifest-generator';
+export { buildManifest, ManifestGenerator } from './manifest-generator';
+export type {
   JSONSchemaObject,
   OpenAPIDocument,
   OpenAPIInfo,
@@ -30,3 +39,12 @@ export {
   RouteTableGenerator,
   renderRouteTableFile,
 } from './route-table-generator';
+export type {
+  SchemaRegistryEntry,
+  SchemaRegistryManifest,
+} from './schema-registry-generator';
+export {
+  buildSchemaRegistry,
+  renderSchemaRegistryFile,
+  SchemaRegistryGenerator,
+} from './schema-registry-generator';
