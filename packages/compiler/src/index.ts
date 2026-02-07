@@ -92,3 +92,19 @@ export {
 // Import resolver
 export type { ResolvedImport } from './utils/import-resolver';
 export { isFromImport, resolveExport, resolveIdentifier } from './utils/import-resolver';
+
+// Schema analyzer
+export type { SchemaAnalyzerResult } from './analyzers/schema-analyzer';
+export {
+  createInlineSchemaRef,
+  createNamedSchemaRef,
+  extractSchemaId,
+  isSchemaExpression,
+  isSchemaFile,
+  parseSchemaName,
+  SchemaAnalyzer,
+} from './analyzers/schema-analyzer';
+
+// Schema executor
+export type { SchemaExecutionResult, SchemaExecutor } from './utils/schema-executor';
+export { createSchemaExecutor } from './utils/schema-executor';
