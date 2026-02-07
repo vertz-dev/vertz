@@ -121,6 +121,10 @@ export { extractMethodSignatures, parseInjectRefs, ServiceAnalyzer } from './ana
 export type { MiddlewareAnalyzerResult } from './analyzers/middleware-analyzer';
 export { MiddlewareAnalyzer } from './analyzers/middleware-analyzer';
 
+// Route analyzer
+export type { RouteAnalyzerResult } from './analyzers/route-analyzer';
+export { RouteAnalyzer } from './analyzers/route-analyzer';
+
 // Schema executor
 export type { SchemaExecutionResult, SchemaExecutor } from './utils/schema-executor';
 export { createSchemaExecutor } from './utils/schema-executor';
