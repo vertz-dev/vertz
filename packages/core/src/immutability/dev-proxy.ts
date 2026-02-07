@@ -2,10 +2,10 @@ export function createImmutableProxy<T extends object>(
   obj: T,
   contextName: string,
   rootName?: string,
-  proxyCache: WeakMap<object, any> = new WeakMap(),
+  proxyCache: WeakMap<object, unknown> = new WeakMap(),
 ): T {
   if (proxyCache.has(obj)) {
-    return proxyCache.get(obj);
+    return proxyCache.get(obj) as T;
   }
 
   const root = rootName ?? contextName;

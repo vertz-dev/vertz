@@ -9,7 +9,7 @@ export interface ModuleDef<
   options?: Schema<TOptions>;
 }
 
-export interface ServiceDef<TDeps = any, TState = any, TMethods = any> {
+export interface ServiceDef<TDeps = unknown, TState = unknown, TMethods = unknown> {
   inject?: Record<string, unknown>;
   onInit?: (deps: TDeps) => Promise<TState> | TState;
   methods: (deps: TDeps, state: TState) => TMethods;
