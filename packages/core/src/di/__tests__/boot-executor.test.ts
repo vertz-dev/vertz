@@ -10,17 +10,17 @@ describe('BootExecutor', () => {
   });
 
   it('executes a service and returns its methods in the service map', async () => {
+    const greeterMethods = {
+      greet: (name: string) => `Hello, ${name}!`,
+    };
+
     const sequence: BootSequence = {
       instructions: [
         {
           type: 'service',
           id: 'core.greeter',
           deps: [],
-          factory: {
-            methods: () => ({
-              greet: (name: string) => `Hello, ${name}!`,
-            }),
-          },
+          factory: { methods: () => greeterMethods },
         },
       ],
       shutdownOrder: ['core.greeter'],
@@ -29,22 +29,22 @@ describe('BootExecutor', () => {
     const executor = new BootExecutor();
     const serviceMap = await executor.execute(sequence);
 
-    const greeter = serviceMap.get('core.greeter') as { greet: (name: string) => string };
+    const greeter = serviceMap.get('core.greeter') as typeof greeterMethods;
     expect(greeter.greet('World')).toBe('Hello, World!');
   });
 
   it('resolves linear dependency chain', async () => {
+    const dbMethods = {
+      query: (sql: string) => `result of ${sql}`,
+    };
+
     const sequence: BootSequence = {
       instructions: [
         {
           type: 'service',
           id: 'db',
           deps: [],
-          factory: {
-            methods: () => ({
-              query: (sql: string) => `result of ${sql}`,
-            }),
-          },
+          factory: { methods: () => dbMethods },
         },
         {
           type: 'service',
@@ -52,9 +52,9 @@ describe('BootExecutor', () => {
           deps: ['db'],
           factory: {
             methods: (deps) => {
-              const d = deps as { db: { query: (sql: string) => string } };
+              const { db } = deps as { db: typeof dbMethods };
               return {
-                findById: (id: string) => d.db.query(`SELECT * FROM users WHERE id = '${id}'`),
+                findById: (id: string) => db.query(`SELECT * FROM users WHERE id = '${id}'`),
               };
             },
           },
@@ -73,27 +73,29 @@ describe('BootExecutor', () => {
   it('resolves diamond dependency (shared dependency instantiated once)', async () => {
     let configCallCount = 0;
 
+    const configMethods = () => {
+      configCallCount++;
+      return { dbUrl: 'postgres://localhost' };
+    };
+    type Config = ReturnType<typeof configMethods>;
+
     const sequence: BootSequence = {
       instructions: [
         {
           type: 'service',
           id: 'config',
           deps: [],
-          factory: {
-            methods: () => {
-              configCallCount++;
-              return { dbUrl: 'postgres://localhost' };
-            },
-          },
+          factory: { methods: configMethods },
         },
         {
           type: 'service',
           id: 'cache',
           deps: ['config'],
           factory: {
-            methods: (deps) => ({
-              get: () => (deps as { config: { dbUrl: string } }).config.dbUrl,
-            }),
+            methods: (deps) => {
+              const { config } = deps as { config: Config };
+              return { get: () => config.dbUrl };
+            },
           },
         },
         {
@@ -101,9 +103,10 @@ describe('BootExecutor', () => {
           id: 'db',
           deps: ['config'],
           factory: {
-            methods: (deps) => ({
-              connect: () => (deps as { config: { dbUrl: string } }).config.dbUrl,
-            }),
+            methods: (deps) => {
+              const { config } = deps as { config: Config };
+              return { connect: () => config.dbUrl };
+            },
           },
         },
         {
@@ -133,6 +136,10 @@ describe('BootExecutor', () => {
   });
 
   it('runs onInit and passes state to methods', async () => {
+    const dbMethods = (_deps: unknown, state: unknown) => ({
+      getClient: () => (state as { client: string }).client,
+    });
+
     const sequence: BootSequence = {
       instructions: [
         {
@@ -141,9 +148,7 @@ describe('BootExecutor', () => {
           deps: [],
           factory: {
             onInit: async () => ({ client: 'connected-client' }),
-            methods: (_deps, state) => ({
-              getClient: () => (state as { client: string }).client,
-            }),
+            methods: dbMethods,
           },
         },
       ],
@@ -153,7 +158,7 @@ describe('BootExecutor', () => {
     const executor = new BootExecutor();
     const serviceMap = await executor.execute(sequence);
 
-    const db = serviceMap.get('db') as { getClient: () => string };
+    const db = serviceMap.get('db') as ReturnType<typeof dbMethods>;
     expect(db.getClient()).toBe('connected-client');
   });
 
