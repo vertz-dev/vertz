@@ -39,6 +39,4 @@ export interface SchemaMetadata {
   examples: unknown[];
 }
 
-export type SafeParseResult<T> =
-  | { success: true; data: T }
-  | { success: false; error: ParseError };
+export type SafeParseResult<T> = { success: true; data: T } | { success: false; error: ParseError };

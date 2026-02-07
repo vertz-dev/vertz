@@ -118,13 +118,10 @@ export class Trie {
     }
 
     if (node.paramChild) {
-      const result = this.matchNode(
-        node.paramChild.node,
-        segments,
-        index + 1,
-        method,
-        { ...params, [node.paramChild.name]: segment },
-      );
+      const result = this.matchNode(node.paramChild.node, segments, index + 1, method, {
+        ...params,
+        [node.paramChild.name]: segment,
+      });
       if (result) return result;
     }
 

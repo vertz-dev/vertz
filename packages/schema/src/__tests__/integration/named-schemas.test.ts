@@ -11,15 +11,19 @@ describe('Integration: Named Schemas', () => {
   });
 
   it('named object with named nested schemas', () => {
-    const addressSchema = s.object({
-      street: s.string(),
-      city: s.string(),
-    }).id('Address');
+    const addressSchema = s
+      .object({
+        street: s.string(),
+        city: s.string(),
+      })
+      .id('Address');
 
-    const userSchema = s.object({
-      name: s.string(),
-      address: addressSchema,
-    }).id('UserWithAddress');
+    const userSchema = s
+      .object({
+        name: s.string(),
+        address: addressSchema,
+      })
+      .id('UserWithAddress');
 
     const jsonSchema = userSchema.toJSONSchema();
     expect(jsonSchema.$defs!['UserWithAddress']).toBeDefined();

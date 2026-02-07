@@ -8,7 +8,10 @@ describe('CustomSchema', () => {
   });
 
   it('rejects when predicate returns false', () => {
-    const schema = new CustomSchema<number>((v) => typeof v === 'number' && (v as number) > 0, 'Must be positive');
+    const schema = new CustomSchema<number>(
+      (v) => typeof v === 'number' && (v as number) > 0,
+      'Must be positive',
+    );
     const result = schema.safeParse(-1);
     expect(result.success).toBe(false);
     if (!result.success) {

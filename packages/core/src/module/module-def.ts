@@ -7,7 +7,9 @@ export interface NamedModuleDef<
   TImports extends Record<string, unknown> = Record<string, unknown>,
   TOptions extends Record<string, unknown> = Record<string, unknown>,
 > extends ModuleDef<TImports, TOptions> {
-  service: <TDeps, TState, TMethods>(config: ServiceDef<TDeps, TState, TMethods>) => NamedServiceDef<TDeps, TState, TMethods>;
+  service: <TDeps, TState, TMethods>(
+    config: ServiceDef<TDeps, TState, TMethods>,
+  ) => NamedServiceDef<TDeps, TState, TMethods>;
   router: (config: RouterDef) => NamedRouterDef;
 }
 

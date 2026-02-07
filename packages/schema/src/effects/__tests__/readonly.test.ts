@@ -20,7 +20,9 @@ describe('.readonly()', () => {
       name: new StringSchema(),
     }).readonly();
     const result = schema.parse({ name: 'Alice' });
-    expect(() => { (result as any).name = 'Bob'; }).toThrow();
+    expect(() => {
+      (result as any).name = 'Bob';
+    }).toThrow();
   });
 
   it('infers Readonly<T> type', () => {
@@ -36,7 +38,9 @@ describe('.readonly()', () => {
     const schema = new ArraySchema(new StringSchema()).readonly();
     const result = schema.parse(['a', 'b']);
     expect(Object.isFrozen(result)).toBe(true);
-    expect(() => { (result as any).push('c'); }).toThrow();
+    expect(() => {
+      (result as any).push('c');
+    }).toThrow();
   });
 
   it('passes primitives through unchanged', () => {

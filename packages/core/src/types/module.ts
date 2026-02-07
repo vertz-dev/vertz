@@ -9,11 +9,7 @@ export interface ModuleDef<
   options?: Schema<TOptions>;
 }
 
-export interface ServiceDef<
-  TDeps = any,
-  TState = any,
-  TMethods = any,
-> {
+export interface ServiceDef<TDeps = any, TState = any, TMethods = any> {
   inject?: Record<string, unknown>;
   onInit?: (deps: TDeps) => Promise<TState> | TState;
   methods: (deps: TDeps, state: TState) => TMethods;
@@ -25,9 +21,7 @@ export interface RouterDef {
   inject?: Record<string, unknown>;
 }
 
-export interface Module<
-  TDef extends ModuleDef = ModuleDef,
-> {
+export interface Module<TDef extends ModuleDef = ModuleDef> {
   definition: TDef;
   services: ServiceDef[];
   routers: RouterDef[];

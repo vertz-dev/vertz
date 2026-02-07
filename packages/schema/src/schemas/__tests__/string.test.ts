@@ -111,7 +111,10 @@ describe('StringSchema', () => {
   });
 
   it('.toJSONSchema() returns type with minLength, maxLength, pattern', () => {
-    const schema = new StringSchema().min(1).max(100).regex(/^[a-z]+$/);
+    const schema = new StringSchema()
+      .min(1)
+      .max(100)
+      .regex(/^[a-z]+$/);
     expect(schema.toJSONSchema()).toEqual({
       type: 'string',
       minLength: 1,

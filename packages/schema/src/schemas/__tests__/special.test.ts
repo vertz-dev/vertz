@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { AnySchema, UnknownSchema, NullSchema, UndefinedSchema, VoidSchema, NeverSchema } from '../special';
+import {
+  AnySchema,
+  UnknownSchema,
+  NullSchema,
+  UndefinedSchema,
+  VoidSchema,
+  NeverSchema,
+} from '../special';
 import { ParseError } from '../../core/errors';
 
 describe('Special schemas', () => {

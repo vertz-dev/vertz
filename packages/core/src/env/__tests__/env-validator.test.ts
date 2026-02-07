@@ -73,10 +73,12 @@ describe('createEnv', () => {
 
     const env = createEnv({
       schema: s.object({
-        DB: s.object({
-          HOST: s.string(),
-          PORT: s.string(),
-        }).default({ HOST: 'localhost', PORT: '5432' }),
+        DB: s
+          .object({
+            HOST: s.string(),
+            PORT: s.string(),
+          })
+          .default({ HOST: 'localhost', PORT: '5432' }),
       }),
     });
 

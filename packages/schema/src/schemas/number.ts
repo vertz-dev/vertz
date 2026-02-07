@@ -24,20 +24,35 @@ export class NumberSchema extends Schema<number> {
 
   _parse(value: unknown, ctx: ParseContext): number {
     if (typeof value !== 'number' || Number.isNaN(value)) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected number, received ' + typeof value });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected number, received ' + typeof value,
+      });
       return value as number;
     }
     if (this._gte !== undefined && value < this._gte) {
-      ctx.addIssue({ code: ErrorCode.TooSmall, message: this._gteMessage ?? `Number must be greater than or equal to ${this._gte}` });
+      ctx.addIssue({
+        code: ErrorCode.TooSmall,
+        message: this._gteMessage ?? `Number must be greater than or equal to ${this._gte}`,
+      });
     }
     if (this._gt !== undefined && value <= this._gt) {
-      ctx.addIssue({ code: ErrorCode.TooSmall, message: this._gtMessage ?? `Number must be greater than ${this._gt}` });
+      ctx.addIssue({
+        code: ErrorCode.TooSmall,
+        message: this._gtMessage ?? `Number must be greater than ${this._gt}`,
+      });
     }
     if (this._lte !== undefined && value > this._lte) {
-      ctx.addIssue({ code: ErrorCode.TooBig, message: this._lteMessage ?? `Number must be less than or equal to ${this._lte}` });
+      ctx.addIssue({
+        code: ErrorCode.TooBig,
+        message: this._lteMessage ?? `Number must be less than or equal to ${this._lte}`,
+      });
     }
     if (this._lt !== undefined && value >= this._lt) {
-      ctx.addIssue({ code: ErrorCode.TooBig, message: this._ltMessage ?? `Number must be less than ${this._lt}` });
+      ctx.addIssue({
+        code: ErrorCode.TooBig,
+        message: this._ltMessage ?? `Number must be less than ${this._lt}`,
+      });
     }
     if (this._int && !Number.isInteger(value)) {
       ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected integer, received float' });
@@ -55,7 +70,10 @@ export class NumberSchema extends Schema<number> {
       ctx.addIssue({ code: ErrorCode.TooBig, message: 'Number must be nonpositive' });
     }
     if (this._multipleOf !== undefined && value % this._multipleOf !== 0) {
-      ctx.addIssue({ code: ErrorCode.NotMultipleOf, message: `Number must be a multiple of ${this._multipleOf}` });
+      ctx.addIssue({
+        code: ErrorCode.NotMultipleOf,
+        message: `Number must be a multiple of ${this._multipleOf}`,
+      });
     }
     if (this._finite && !Number.isFinite(value)) {
       ctx.addIssue({ code: ErrorCode.NotFinite, message: 'Number must be finite' });

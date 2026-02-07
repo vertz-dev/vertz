@@ -15,7 +15,13 @@ function createTestModule(name: string, prefix: string, routes: TestRoute[]) {
   const moduleDef = createModuleDef({ name });
   const router = moduleDef.router({ prefix });
   for (const route of routes) {
-    const method = route.method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head';
+    const method = route.method.toLowerCase() as
+      | 'get'
+      | 'post'
+      | 'put'
+      | 'patch'
+      | 'delete'
+      | 'head';
     router[method](route.path, { handler: route.handler });
   }
   return createModule(moduleDef, { services: [], routers: [router], exports: [] });
@@ -199,7 +205,9 @@ describe('createApp', () => {
     ]);
 
     const app = createApp({}).register(mod);
-    const res = await app.handler(new Request('http://localhost/users/42/activate', { method: 'POST' }));
+    const res = await app.handler(
+      new Request('http://localhost/users/42/activate', { method: 'POST' }),
+    );
 
     expect(res.status).toBe(204);
   });

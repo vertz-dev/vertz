@@ -3,7 +3,10 @@ import type { NamedServiceDef } from '@vertz/core';
 import type { DeepPartial } from './types';
 
 export interface TestServiceBuilder<TMethods> extends PromiseLike<TMethods> {
-  mock<TDep, TState, TMock>(service: NamedServiceDef<TDep, TState, TMock>, impl: DeepPartial<TMock>): TestServiceBuilder<TMethods>;
+  mock<TDep, TState, TMock>(
+    service: NamedServiceDef<TDep, TState, TMock>,
+    impl: DeepPartial<TMock>,
+  ): TestServiceBuilder<TMethods>;
 }
 
 export function createTestService<TDeps, TState, TMethods>(
