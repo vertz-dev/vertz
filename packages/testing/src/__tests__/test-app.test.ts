@@ -379,7 +379,7 @@ describe('createTestApp', () => {
 
     const app = createTestApp().register(mod);
 
-    await expect(app.get('/api')).rejects.toThrow('Response validation failed');
+    await expect(Promise.resolve(app.get('/api'))).rejects.toThrow('Response validation failed');
   });
 
   it('throws when handler return does not match response schema', async () => {
@@ -394,6 +394,6 @@ describe('createTestApp', () => {
 
     const app = createTestApp().register(mod);
 
-    await expect(app.get('/api')).rejects.toThrow('Response validation failed');
+    await expect(Promise.resolve(app.get('/api'))).rejects.toThrow('Response validation failed');
   });
 });
