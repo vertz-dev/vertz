@@ -7,8 +7,9 @@
 <h1 align="center">Vertz</h1>
 
 <p align="center">
-  <strong>Built by LLMs, for LLMs. Designed by humans (so far...).</strong><br />
-  A TypeScript backend framework where if your code builds, it runs.
+  <strong>The TypeScript backend framework for LLMs.</strong><br />
+  Built by LLMs, for LLMs. Designed by humans (so far...).
+
 </p>
 
 <p align="center">
