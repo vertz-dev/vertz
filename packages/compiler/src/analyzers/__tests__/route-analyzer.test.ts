@@ -647,7 +647,8 @@ userRouter.get('/', { handler: async (ctx: any) => ({}) });`,
     project.createSourceFile(
       'src/user/user.router.ts',
       `const someOtherThing = {};
-const userRouter = someOtherThing.router({ prefix: '/users' });`,
+const userRouter = someOtherThing.router({ prefix: '/users' });
+userRouter.get('/:id', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     await analyzer.analyzeForModules(createContext({}));
@@ -685,7 +686,8 @@ const userRouter = userModuleDef.router({ prefix: '/users' });
 userRouter.get('/:id', { params: readUserParams });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
-    await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
+    const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
+    expect(result.routers[0]!.routes).toHaveLength(0);
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
     expect(diags[0]!.code).toBe('VERTZ_RT_MISSING_HANDLER');
@@ -751,6 +753,20 @@ export const userRouter = userModuleDef.router({ prefix: '/users' });`,
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
     expect(result.routers).toHaveLength(1);
     expect(result.routers[0]!.name).toBe('userRouter');
+  });
+
+  it('does not emit unknown module def error for unrelated .router() calls', async () => {
+    const project = createProject();
+    project.createSourceFile(
+      'src/app.ts',
+      `import express from 'express';
+const app = express();
+const expressRouter = express.router();`,
+    );
+    const analyzer = new RouteAnalyzer(project, resolveConfig());
+    await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
+    const diags = analyzer.getDiagnostics();
+    expect(diags).toHaveLength(0);
   });
 
   it('handles router with no routes', async () => {

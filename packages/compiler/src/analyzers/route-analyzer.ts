@@ -88,7 +88,16 @@ export class RouteAnalyzer extends BaseAnalyzer<RouteAnalyzerResult> {
       const obj = expr.getExpression();
       if (!obj.isKind(SyntaxKind.Identifier)) continue;
       if (knownModuleDefVars.has(obj.getText())) continue;
-      // This is a .router() call on an unknown variable
+
+      // Only flag if the result variable is used with HTTP method calls,
+      // to avoid false positives on unrelated .router() calls (e.g., express)
+      const varName = getVariableNameForCall(call);
+      if (!varName) continue;
+      const hasHttpMethodCalls = Object.keys(HTTP_METHODS).some(
+        (method) => findMethodCallsOnVariable(file, varName, method).length > 0,
+      );
+      if (!hasHttpMethodCalls) continue;
+
       this.addDiagnostic(createDiagnosticFromLocation(getSourceLocation(call), {
         severity: 'error',
         code: 'VERTZ_RT_UNKNOWN_MODULE_DEF',
@@ -217,6 +226,7 @@ export class RouteAnalyzer extends BaseAnalyzer<RouteAnalyzerResult> {
         message: "Route must have a 'handler' property.",
         suggestion: "Add a 'handler' property to the route config.",
       }));
+      return null;
     }
 
     return {
