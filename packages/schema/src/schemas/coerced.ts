@@ -40,7 +40,7 @@ export class CoercedBigIntSchema extends BigIntSchema {
   _parse(value: unknown, ctx: ParseContext): bigint {
     if (typeof value === 'bigint') return super._parse(value, ctx);
     try {
-      return super._parse(BigInt(value as any), ctx);
+      return super._parse(BigInt(value as string | number | bigint | boolean), ctx);
     } catch {
       ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected value coercible to bigint' });
       return value as bigint;
@@ -55,7 +55,7 @@ export class CoercedBigIntSchema extends BigIntSchema {
 export class CoercedDateSchema extends DateSchema {
   _parse(value: unknown, ctx: ParseContext): Date {
     if (value instanceof Date) return super._parse(value, ctx);
-    return super._parse(new Date(value as any), ctx);
+    return super._parse(new Date(value as string | number), ctx);
   }
 
   _clone(): CoercedDateSchema {

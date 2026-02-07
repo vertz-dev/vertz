@@ -5,12 +5,13 @@ import { SchemaType } from '../core/types';
 import type { RefTracker } from '../introspection/json-schema';
 import type { JSONSchemaObject } from '../introspection/json-schema';
 
-export class InstanceOfSchema<T> extends Schema<T> {
-  private readonly _cls: new (
-    ...args: any[]
-  ) => T;
+// biome-ignore lint/suspicious/noExplicitAny: standard TS pattern for any-constructor constraint
+type Constructor<T> = new (...args: any[]) => T;
 
-  constructor(cls: new (...args: any[]) => T) {
+export class InstanceOfSchema<T> extends Schema<T> {
+  private readonly _cls: Constructor<T>;
+
+  constructor(cls: Constructor<T>) {
     super();
     this._cls = cls;
   }

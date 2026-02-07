@@ -1,10 +1,10 @@
-import { Schema } from '../core/schema';
+import { Schema, type SchemaAny } from '../core/schema';
 import { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker, JSONSchemaObject } from '../introspection/json-schema';
 
-export class IntersectionSchema<L extends Schema<any>, R extends Schema<any>> extends Schema<
+export class IntersectionSchema<L extends SchemaAny, R extends SchemaAny> extends Schema<
   L['_output'] & R['_output']
 > {
   private readonly _left: L;
@@ -25,7 +25,7 @@ export class IntersectionSchema<L extends Schema<any>, R extends Schema<any>> ex
         code: ErrorCode.InvalidIntersection,
         message: 'Value does not satisfy intersection',
       });
-      return value as any;
+      return value as L['_output'] & R['_output'];
     }
 
     if (

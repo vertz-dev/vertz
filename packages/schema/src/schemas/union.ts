@@ -1,11 +1,11 @@
-import { Schema } from '../core/schema';
+import { Schema, type SchemaAny } from '../core/schema';
 import { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker } from '../introspection/json-schema';
 import type { JSONSchemaObject } from '../introspection/json-schema';
 
-type UnionOptions = [Schema<any>, ...Schema<any>[]];
+type UnionOptions = [SchemaAny, ...SchemaAny[]];
 type InferUnion<T extends UnionOptions> = T[number] extends Schema<infer O> ? O : never;
 
 export class UnionSchema<T extends UnionOptions> extends Schema<InferUnion<T>> {
@@ -27,7 +27,7 @@ export class UnionSchema<T extends UnionOptions> extends Schema<InferUnion<T>> {
       code: ErrorCode.InvalidUnion,
       message: `Invalid input: value does not match any option in the union`,
     });
-    return value as any;
+    return value as InferUnion<T>;
   }
 
   _schemaType(): SchemaType {

@@ -1,4 +1,4 @@
-import type { Schema } from '../core/schema';
+import type { SchemaAny } from '../core/schema';
 
 export interface JSONSchemaObject {
   [key: string]: unknown;
@@ -25,6 +25,6 @@ export class RefTracker {
   }
 }
 
-export function toJSONSchema(schema: Schema<any, any>): JSONSchemaObject {
+export function toJSONSchema(schema: SchemaAny): JSONSchemaObject {
   return schema.toJSONSchema();
 }
