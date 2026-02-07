@@ -55,7 +55,7 @@ describe('createTestService', () => {
       },
     });
 
-    await expect(createTestService(userService)).rejects.toThrow(/missing mock.*db/i);
+    await expect(Promise.resolve(createTestService(userService))).rejects.toThrow(/missing mock.*db/i);
   });
 
   it('awaits async onInit and passes state to methods', async () => {
