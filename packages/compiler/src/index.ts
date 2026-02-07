@@ -73,3 +73,22 @@ export { BaseGenerator } from './generators/base-generator';
 // Compiler
 export type { CompileResult, CompilerDependencies, Validator } from './compiler';
 export { Compiler } from './compiler';
+
+// AST helpers
+export {
+  extractObjectLiteral,
+  findCallExpressions,
+  findMethodCallsOnVariable,
+  getArrayElements,
+  getBooleanValue,
+  getNumberValue,
+  getProperties,
+  getPropertyValue,
+  getSourceLocation,
+  getStringValue,
+  getVariableNameForCall,
+} from './utils/ast-helpers';
+
+// Import resolver
+export type { ResolvedImport } from './utils/import-resolver';
+export { isFromImport, resolveExport, resolveIdentifier } from './utils/import-resolver';
