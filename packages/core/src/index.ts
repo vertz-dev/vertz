@@ -7,6 +7,7 @@ export { vertz } from './vertz';
 export type {
   DeepReadonly,
   RawRequest,
+  HandlerCtx,
   Deps,
   Ctx,
   Infer,
