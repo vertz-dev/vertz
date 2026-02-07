@@ -178,7 +178,8 @@ export const s = {
     new LiteralSchema(value),
   union: <T extends [SchemaAny, ...SchemaAny[]]>(options: [...T]): UnionSchema<T> =>
     new UnionSchema(options),
-  discriminatedUnion: <T extends [ObjectSchema, ...ObjectSchema[]]>(
+  // biome-ignore lint/suspicious/noExplicitAny: ObjectSchema<any> needed for covariant constraint on concrete shapes
+  discriminatedUnion: <T extends [ObjectSchema<any>, ...ObjectSchema<any>[]]>(
     discriminator: string,
     options: [...T],
   ): DiscriminatedUnionSchema<T> => new DiscriminatedUnionSchema(discriminator, options),
