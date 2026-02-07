@@ -22,11 +22,15 @@ describe('createTestService', () => {
     const dbService = moduleDef.service({
       methods: () => ({ query: (sql: string) => sql }),
     });
+    const dbMethods = { query: (sql: string) => sql };
     const userService = moduleDef.service({
       inject: { db: dbService },
-      methods: (deps: any) => ({
-        findById: (id: string) => deps.db.query(`SELECT * FROM users WHERE id = '${id}'`),
-      }),
+      methods: (deps) => {
+        const { db } = deps as { db: typeof dbMethods };
+        return {
+          findById: (id: string) => db.query(`SELECT * FROM users WHERE id = '${id}'`),
+        };
+      },
     });
 
     const methods = await createTestService(userService).mock(dbService, {
@@ -43,9 +47,12 @@ describe('createTestService', () => {
     });
     const userService = moduleDef.service({
       inject: { db: dbService },
-      methods: (deps: any) => ({
-        findById: (id: string) => deps.db.query(`SELECT * FROM users WHERE id = '${id}'`),
-      }),
+      methods: (deps) => {
+        const { db } = deps as { db: { query: (sql: string) => string } };
+        return {
+          findById: (id: string) => db.query(`SELECT * FROM users WHERE id = '${id}'`),
+        };
+      },
     });
 
     await expect(createTestService(userService)).rejects.toThrow(/missing mock.*db/i);
@@ -55,9 +62,12 @@ describe('createTestService', () => {
     const moduleDef = createModuleDef({ name: 'test' });
     const service = moduleDef.service({
       onInit: async () => ({ connection: 'established' }),
-      methods: (_deps: any, state: any) => ({
-        getConnection: () => state.connection,
-      }),
+      methods: (_deps, state) => {
+        const { connection } = state as { connection: string };
+        return {
+          getConnection: () => connection,
+        };
+      },
     });
 
     const methods = await createTestService(service);
