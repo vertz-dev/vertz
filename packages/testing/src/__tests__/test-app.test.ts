@@ -20,7 +20,13 @@ interface RouteInput {
 
 function addRoutes(router: NamedRouterDef, routes: RouteInput[]): void {
   for (const route of routes) {
-    const method = route.method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head';
+    const method = route.method.toLowerCase() as
+      | 'get'
+      | 'post'
+      | 'put'
+      | 'patch'
+      | 'delete'
+      | 'head';
     router[method](route.path, { handler: route.handler, response: route.response });
   }
 }
@@ -115,9 +121,7 @@ describe('createTestApp', () => {
       { method: 'GET', path: '/', handler: (ctx: any) => ({ dbUrl: ctx.env.DATABASE_URL }) },
     ]);
 
-    const app = createTestApp()
-      .env({ DATABASE_URL: 'postgres://test' })
-      .register(mod);
+    const app = createTestApp().env({ DATABASE_URL: 'postgres://test' }).register(mod);
 
     const res = await app.get('/api');
 
@@ -128,7 +132,9 @@ describe('createTestApp', () => {
   it('uses mocked middleware result instead of running real middleware', async () => {
     const authMiddleware = createMiddleware({
       name: 'auth',
-      handler: () => { throw new Error('should not run'); },
+      handler: () => {
+        throw new Error('should not run');
+      },
     });
 
     const mod = createTestModule('test', '/api', [
@@ -148,7 +154,9 @@ describe('createTestApp', () => {
   it('supports per-request middleware override', async () => {
     const authMiddleware = createMiddleware({
       name: 'auth',
-      handler: () => { throw new Error('should not run'); },
+      handler: () => {
+        throw new Error('should not run');
+      },
     });
 
     const mod = createTestModule('test', '/api', [
@@ -170,7 +178,11 @@ describe('createTestApp', () => {
 
   it('passes custom headers to handler via ctx', async () => {
     const mod = createTestModule('test', '/api', [
-      { method: 'GET', path: '/', handler: (ctx: any) => ({ token: ctx.headers['authorization'] }) },
+      {
+        method: 'GET',
+        path: '/',
+        handler: (ctx: any) => ({ token: ctx.headers['authorization'] }),
+      },
     ]);
 
     const app = createTestApp().register(mod);
@@ -182,7 +194,11 @@ describe('createTestApp', () => {
 
   it('executes a PUT request with body', async () => {
     const mod = createTestModule('test', '/users', [
-      { method: 'PUT', path: '/:id', handler: (ctx: any) => ({ updated: ctx.params.id, name: ctx.body.name }) },
+      {
+        method: 'PUT',
+        path: '/:id',
+        handler: (ctx: any) => ({ updated: ctx.params.id, name: ctx.body.name }),
+      },
     ]);
 
     const app = createTestApp().register(mod);
@@ -194,7 +210,11 @@ describe('createTestApp', () => {
 
   it('executes a PATCH request with body', async () => {
     const mod = createTestModule('test', '/users', [
-      { method: 'PATCH', path: '/:id', handler: (ctx: any) => ({ patched: ctx.params.id, email: ctx.body.email }) },
+      {
+        method: 'PATCH',
+        path: '/:id',
+        handler: (ctx: any) => ({ patched: ctx.params.id, email: ctx.body.email }),
+      },
     ]);
 
     const app = createTestApp().register(mod);
@@ -258,9 +278,7 @@ describe('createTestApp', () => {
       .mock(service, { greet: () => 'app-level' })
       .register(mod);
 
-    const res = await app
-      .get('/api')
-      .mock(service, { greet: () => 'per-request' });
+    const res = await app.get('/api').mock(service, { greet: () => 'per-request' });
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ message: 'per-request' });
@@ -287,7 +305,12 @@ describe('createTestApp', () => {
 
   it('passes when handler return matches response schema', async () => {
     const mod = createTestModule('test', '/api', [
-      { method: 'GET', path: '/', response: s.object({ name: s.string() }), handler: () => ({ name: 'Alice' }) },
+      {
+        method: 'GET',
+        path: '/',
+        response: s.object({ name: s.string() }),
+        handler: () => ({ name: 'Alice' }),
+      },
     ]);
 
     const app = createTestApp().register(mod);
@@ -311,7 +334,12 @@ describe('createTestApp', () => {
 
   it('throws when handler returns undefined but route has response schema', async () => {
     const mod = createTestModule('test', '/api', [
-      { method: 'GET', path: '/', response: s.object({ name: s.string() }), handler: () => undefined },
+      {
+        method: 'GET',
+        path: '/',
+        response: s.object({ name: s.string() }),
+        handler: () => undefined,
+      },
     ]);
 
     const app = createTestApp().register(mod);
@@ -321,12 +349,16 @@ describe('createTestApp', () => {
 
   it('throws when handler return does not match response schema', async () => {
     const mod = createTestModule('test', '/api', [
-      { method: 'GET', path: '/', response: s.object({ name: s.string() }), handler: () => ({ name: 123 }) },
+      {
+        method: 'GET',
+        path: '/',
+        response: s.object({ name: s.string() }),
+        handler: () => ({ name: 123 }),
+      },
     ]);
 
     const app = createTestApp().register(mod);
 
     await expect(app.get('/api')).rejects.toThrow('Response validation failed');
   });
-
 });

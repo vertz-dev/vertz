@@ -38,7 +38,10 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
 
   _parse(value: unknown, ctx: ParseContext): InferShape<S> {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected object, received ' + receivedType(value) });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected object, received ' + receivedType(value),
+      });
       return value as InferShape<S>;
     }
     const obj = value as Record<string, unknown>;
@@ -47,7 +50,11 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
 
     for (const key of shapeKeys) {
       if (!(key in obj) && !this._isOptionalKey(this._shape[key]!)) {
-        ctx.addIssue({ code: ErrorCode.MissingProperty, message: `Missing required property "${key}"`, path: [key] });
+        ctx.addIssue({
+          code: ErrorCode.MissingProperty,
+          message: `Missing required property "${key}"`,
+          path: [key],
+        });
         continue;
       }
       ctx.pushPath(key);
@@ -55,7 +62,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
       ctx.popPath();
     }
 
-    const unknownKeys = Object.keys(obj).filter(k => !shapeKeys.has(k));
+    const unknownKeys = Object.keys(obj).filter((k) => !shapeKeys.has(k));
     if (unknownKeys.length > 0) {
       if (this._catchall) {
         for (const key of unknownKeys) {
@@ -66,7 +73,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
       } else if (this._unknownKeys === 'strict') {
         ctx.addIssue({
           code: ErrorCode.UnrecognizedKeys,
-          message: `Unrecognized key(s) in object: ${unknownKeys.map(k => `"${k}"`).join(', ')}`,
+          message: `Unrecognized key(s) in object: ${unknownKeys.map((k) => `"${k}"`).join(', ')}`,
         });
       } else if (this._unknownKeys === 'passthrough') {
         for (const key of unknownKeys) {
@@ -106,7 +113,13 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
     return new ObjectSchema(picked as Pick<S, K>);
   }
 
-  required(): ObjectSchema<{ [K in keyof S]: S[K] extends OptionalSchema<infer O, infer I> ? Schema<O, I> : S[K] extends DefaultSchema<infer O, infer I> ? Schema<O, I> : S[K] }> {
+  required(): ObjectSchema<{
+    [K in keyof S]: S[K] extends OptionalSchema<infer O, infer I>
+      ? Schema<O, I>
+      : S[K] extends DefaultSchema<infer O, infer I>
+        ? Schema<O, I>
+        : S[K];
+  }> {
     const requiredShape: Record<string, Schema<any, any>> = {};
     for (const key of Object.keys(this._shape)) {
       const schema = this._shape[key]!;

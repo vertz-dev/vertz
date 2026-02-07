@@ -25,7 +25,10 @@ export class StringSchema extends Schema<string> {
 
   _parse(value: unknown, ctx: ParseContext): string {
     if (typeof value !== 'string') {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected string, received ' + typeof value });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected string, received ' + typeof value,
+      });
       return value as string;
     }
     let v = value;
@@ -42,25 +45,46 @@ export class StringSchema extends Schema<string> {
       v = v.normalize();
     }
     if (this._min !== undefined && v.length < this._min) {
-      ctx.addIssue({ code: ErrorCode.TooSmall, message: this._minMessage ?? `String must contain at least ${this._min} character(s)` });
+      ctx.addIssue({
+        code: ErrorCode.TooSmall,
+        message: this._minMessage ?? `String must contain at least ${this._min} character(s)`,
+      });
     }
     if (this._max !== undefined && v.length > this._max) {
-      ctx.addIssue({ code: ErrorCode.TooBig, message: this._maxMessage ?? `String must contain at most ${this._max} character(s)` });
+      ctx.addIssue({
+        code: ErrorCode.TooBig,
+        message: this._maxMessage ?? `String must contain at most ${this._max} character(s)`,
+      });
     }
     if (this._length !== undefined && v.length !== this._length) {
-      ctx.addIssue({ code: ErrorCode.InvalidString, message: this._lengthMessage ?? `String must be exactly ${this._length} character(s)` });
+      ctx.addIssue({
+        code: ErrorCode.InvalidString,
+        message: this._lengthMessage ?? `String must be exactly ${this._length} character(s)`,
+      });
     }
     if (this._regex !== undefined && !this._regex.test(v)) {
-      ctx.addIssue({ code: ErrorCode.InvalidString, message: `Invalid: must match ${this._regex}` });
+      ctx.addIssue({
+        code: ErrorCode.InvalidString,
+        message: `Invalid: must match ${this._regex}`,
+      });
     }
     if (this._startsWith !== undefined && !v.startsWith(this._startsWith)) {
-      ctx.addIssue({ code: ErrorCode.InvalidString, message: `Invalid input: must start with "${this._startsWith}"` });
+      ctx.addIssue({
+        code: ErrorCode.InvalidString,
+        message: `Invalid input: must start with "${this._startsWith}"`,
+      });
     }
     if (this._endsWith !== undefined && !v.endsWith(this._endsWith)) {
-      ctx.addIssue({ code: ErrorCode.InvalidString, message: `Invalid input: must end with "${this._endsWith}"` });
+      ctx.addIssue({
+        code: ErrorCode.InvalidString,
+        message: `Invalid input: must end with "${this._endsWith}"`,
+      });
     }
     if (this._includes !== undefined && !v.includes(this._includes)) {
-      ctx.addIssue({ code: ErrorCode.InvalidString, message: `Invalid input: must include "${this._includes}"` });
+      ctx.addIssue({
+        code: ErrorCode.InvalidString,
+        message: `Invalid input: must include "${this._includes}"`,
+      });
     }
     if (this._uppercase && v !== v.toUpperCase()) {
       ctx.addIssue({ code: ErrorCode.InvalidString, message: 'Expected string to be uppercase' });

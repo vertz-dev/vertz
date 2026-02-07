@@ -6,10 +6,10 @@
     "useIgnoreFile": true
   },
   "formatter": {
-    "enabled": false,
+    "enabled": true,
     "indentStyle": "space",
     "indentWidth": 2,
-    "lineWidth": 120
+    "lineWidth": 100
   },
   "linter": {
     "enabled": false,

@@ -13,8 +13,12 @@ class TestSchema extends Schema<string> {
     }
     return value;
   }
-  _schemaType(): SchemaType { return SchemaType.String; }
-  _toJSONSchema(): Record<string, unknown> { return { type: 'string' }; }
+  _schemaType(): SchemaType {
+    return SchemaType.String;
+  }
+  _toJSONSchema(): Record<string, unknown> {
+    return { type: 'string' };
+  }
   _clone(): TestSchema {
     return this._cloneBase(new TestSchema());
   }

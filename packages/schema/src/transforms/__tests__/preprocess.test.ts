@@ -15,7 +15,9 @@ describe('preprocess()', () => {
   });
 
   it('safeParse catches exceptions thrown by preprocess function', () => {
-    const schema = preprocess(() => { throw new Error('Preprocess exploded'); }, new NumberSchema());
+    const schema = preprocess(() => {
+      throw new Error('Preprocess exploded');
+    }, new NumberSchema());
     const result = schema.safeParse('hello');
     expect(result.success).toBe(false);
   });

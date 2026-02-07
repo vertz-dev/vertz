@@ -6,7 +6,9 @@ import type { RefTracker } from '../introspection/json-schema';
 import type { JSONSchemaObject } from '../introspection/json-schema';
 
 type TupleItems = [Schema<any>, ...Schema<any>[]];
-type InferTuple<T extends TupleItems> = { [K in keyof T]: T[K] extends Schema<infer O> ? O : never };
+type InferTuple<T extends TupleItems> = {
+  [K in keyof T]: T[K] extends Schema<infer O> ? O : never;
+};
 
 export class TupleSchema<T extends TupleItems> extends Schema<InferTuple<T>> {
   private readonly _items: T;
@@ -19,14 +21,23 @@ export class TupleSchema<T extends TupleItems> extends Schema<InferTuple<T>> {
 
   _parse(value: unknown, ctx: ParseContext): InferTuple<T> {
     if (!Array.isArray(value)) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected array, received ' + typeof value });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected array, received ' + typeof value,
+      });
       return value as InferTuple<T>;
     }
     if (!this._rest && value.length !== this._items.length) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: `Expected array of length ${this._items.length}, received ${value.length}` });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: `Expected array of length ${this._items.length}, received ${value.length}`,
+      });
     }
     if (this._rest && value.length < this._items.length) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: `Expected at least ${this._items.length} element(s), received ${value.length}` });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: `Expected at least ${this._items.length} element(s), received ${value.length}`,
+      });
     }
     const result: unknown[] = [];
     for (let i = 0; i < this._items.length; i++) {
@@ -55,7 +66,7 @@ export class TupleSchema<T extends TupleItems> extends Schema<InferTuple<T>> {
   }
 
   _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
-    const prefixItems = this._items.map(item => item._toJSONSchemaWithRefs(tracker));
+    const prefixItems = this._items.map((item) => item._toJSONSchemaWithRefs(tracker));
     const schema: JSONSchemaObject = { type: 'array', prefixItems };
     schema.items = this._rest ? this._rest._toJSONSchemaWithRefs(tracker) : false;
     return schema;

@@ -4,10 +4,12 @@ import type { Infer } from '../..';
 
 describe('Integration: Recursive Schemas', () => {
   it('tree node with s.lazy() and .id()', () => {
-    const treeSchema = s.object({
-      value: s.string(),
-      children: s.lazy(() => treeSchema).nullable(),
-    }).id('TreeNodeIntegration');
+    const treeSchema = s
+      .object({
+        value: s.string(),
+        children: s.lazy(() => treeSchema).nullable(),
+      })
+      .id('TreeNodeIntegration');
 
     type TreeNode = Infer<typeof treeSchema>;
 
@@ -48,10 +50,12 @@ describe('Integration: Recursive Schemas', () => {
   });
 
   it('JSON Schema output with $ref for recursive schema', () => {
-    const nodeSchema = s.object({
-      name: s.string(),
-      children: s.array(s.lazy(() => nodeSchema)),
-    }).id('RecursiveNode');
+    const nodeSchema = s
+      .object({
+        name: s.string(),
+        children: s.array(s.lazy(() => nodeSchema)),
+      })
+      .id('RecursiveNode');
 
     const jsonSchema = nodeSchema.toJSONSchema();
     expect(jsonSchema.$ref).toBe('#/$defs/RecursiveNode');

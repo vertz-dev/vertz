@@ -6,7 +6,10 @@ import { NumberSchema } from '../number';
 describe('MapSchema', () => {
   it('accepts Map instances with valid key/value types', () => {
     const schema = new MapSchema(new StringSchema(), new NumberSchema());
-    const input = new Map([['a', 1], ['b', 2]]);
+    const input = new Map([
+      ['a', 1],
+      ['b', 2],
+    ]);
     const result = schema.parse(input);
     expect(result).toBeInstanceOf(Map);
     expect(result.get('a')).toBe(1);

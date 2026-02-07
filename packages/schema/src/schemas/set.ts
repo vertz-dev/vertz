@@ -18,7 +18,10 @@ export class SetSchema<V> extends Schema<Set<V>> {
 
   _parse(value: unknown, ctx: ParseContext): Set<V> {
     if (!(value instanceof Set)) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: 'Expected Set, received ' + typeof value });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected Set, received ' + typeof value,
+      });
       return value as Set<V>;
     }
     const result = new Set<V>();
@@ -30,13 +33,22 @@ export class SetSchema<V> extends Schema<Set<V>> {
       index++;
     }
     if (this._min !== undefined && result.size < this._min) {
-      ctx.addIssue({ code: ErrorCode.TooSmall, message: `Set must contain at least ${this._min} element(s)` });
+      ctx.addIssue({
+        code: ErrorCode.TooSmall,
+        message: `Set must contain at least ${this._min} element(s)`,
+      });
     }
     if (this._max !== undefined && result.size > this._max) {
-      ctx.addIssue({ code: ErrorCode.TooBig, message: `Set must contain at most ${this._max} element(s)` });
+      ctx.addIssue({
+        code: ErrorCode.TooBig,
+        message: `Set must contain at most ${this._max} element(s)`,
+      });
     }
     if (this._size !== undefined && result.size !== this._size) {
-      ctx.addIssue({ code: ErrorCode.InvalidType, message: `Set must contain exactly ${this._size} element(s)` });
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: `Set must contain exactly ${this._size} element(s)`,
+      });
     }
     return result;
   }

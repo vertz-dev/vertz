@@ -44,7 +44,11 @@ export function handleCors(config: CorsConfig, request: Request): Response | nul
   return null;
 }
 
-export function applyCorsHeaders(config: CorsConfig, request: Request, response: Response): Response {
+export function applyCorsHeaders(
+  config: CorsConfig,
+  request: Request,
+  response: Response,
+): Response {
   const requestOrigin = request.headers.get('origin');
   const origin = resolveOrigin(config, requestOrigin);
 

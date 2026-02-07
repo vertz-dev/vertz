@@ -27,7 +27,10 @@ describe('.refine()', () => {
   });
 
   it('uses custom path from params object', () => {
-    const schema = new StringSchema().refine((val) => val.length > 0, { message: 'Required', path: ['name'] });
+    const schema = new StringSchema().refine((val) => val.length > 0, {
+      message: 'Required',
+      path: ['name'],
+    });
     const result = schema.safeParse('');
     expect(result.success).toBe(false);
     if (!result.success) {

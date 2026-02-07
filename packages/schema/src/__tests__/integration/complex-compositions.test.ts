@@ -14,7 +14,10 @@ describe('Integration: Complex Compositions', () => {
     expect(nameOnly.parse({ name: 'John' })).toEqual({ name: 'John' });
 
     const extended = nameOnly.extend({ role: s.string() });
-    expect(extended.parse({ name: 'John', role: 'admin' })).toEqual({ name: 'John', role: 'admin' });
+    expect(extended.parse({ name: 'John', role: 'admin' })).toEqual({
+      name: 'John',
+      role: 'admin',
+    });
 
     const partial = extended.partial();
     expect(partial.parse({})).toEqual({});
@@ -44,7 +47,8 @@ describe('Integration: Complex Compositions', () => {
   });
 
   it('transform pipeline: string → parse → number → validate', () => {
-    const stringToNumber = s.string()
+    const stringToNumber = s
+      .string()
       .transform((v) => parseInt(v, 10))
       .pipe(s.number().int().gte(0));
 

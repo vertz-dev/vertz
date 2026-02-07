@@ -36,7 +36,7 @@ export class UnionSchema<T extends UnionOptions> extends Schema<InferUnion<T>> {
 
   _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
     return {
-      anyOf: this._options.map(option => option._toJSONSchemaWithRefs(tracker)),
+      anyOf: this._options.map((option) => option._toJSONSchemaWithRefs(tracker)),
     };
   }
 

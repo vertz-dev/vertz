@@ -32,7 +32,7 @@ describe('ObjectSchema', () => {
     const result = schema.safeParse({ name: 'Alice' });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const missingIssue = result.error.issues.find(i => i.code === ErrorCode.MissingProperty);
+      const missingIssue = result.error.issues.find((i) => i.code === ErrorCode.MissingProperty);
       expect(missingIssue).toBeDefined();
       expect(missingIssue!.path).toEqual(['age']);
     }
@@ -69,7 +69,7 @@ describe('ObjectSchema', () => {
     const result = schema.safeParse({ name: 'Alice', extra: 'bad' });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const issue = result.error.issues.find(i => i.code === ErrorCode.UnrecognizedKeys);
+      const issue = result.error.issues.find((i) => i.code === ErrorCode.UnrecognizedKeys);
       expect(issue).toBeDefined();
       expect(issue!.message).toContain('extra');
     }
@@ -111,23 +111,41 @@ describe('ObjectSchema', () => {
     const a = new ObjectSchema({ name: new StringSchema(), age: new NumberSchema() });
     const b = new ObjectSchema({ age: new StringSchema(), email: new StringSchema() });
     const merged = a.merge(b);
-    expect(merged.parse({ name: 'Alice', age: '30', email: 'a@b.com' })).toEqual({ name: 'Alice', age: '30', email: 'a@b.com' });
+    expect(merged.parse({ name: 'Alice', age: '30', email: 'a@b.com' })).toEqual({
+      name: 'Alice',
+      age: '30',
+      email: 'a@b.com',
+    });
     // age is now StringSchema from b, so number should fail
     const result = merged.safeParse({ name: 'Alice', age: 30, email: 'a@b.com' });
     expect(result.success).toBe(false);
   });
 
   it('.pick(keys) keeps only specified keys', () => {
-    const schema = new ObjectSchema({ name: new StringSchema(), age: new NumberSchema(), email: new StringSchema() });
+    const schema = new ObjectSchema({
+      name: new StringSchema(),
+      age: new NumberSchema(),
+      email: new StringSchema(),
+    });
     const picked = schema.pick('name', 'email');
-    expect(picked.parse({ name: 'Alice', email: 'a@b.com' })).toEqual({ name: 'Alice', email: 'a@b.com' });
+    expect(picked.parse({ name: 'Alice', email: 'a@b.com' })).toEqual({
+      name: 'Alice',
+      email: 'a@b.com',
+    });
     expect(picked.keyof()).toEqual(['name', 'email']);
   });
 
   it('.omit(keys) removes specified keys', () => {
-    const schema = new ObjectSchema({ name: new StringSchema(), age: new NumberSchema(), email: new StringSchema() });
+    const schema = new ObjectSchema({
+      name: new StringSchema(),
+      age: new NumberSchema(),
+      email: new StringSchema(),
+    });
     const omitted = schema.omit('age');
-    expect(omitted.parse({ name: 'Alice', email: 'a@b.com' })).toEqual({ name: 'Alice', email: 'a@b.com' });
+    expect(omitted.parse({ name: 'Alice', email: 'a@b.com' })).toEqual({
+      name: 'Alice',
+      email: 'a@b.com',
+    });
     expect(omitted.keyof()).toEqual(['name', 'email']);
   });
 
@@ -148,7 +166,7 @@ describe('ObjectSchema', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues.length).toBe(2);
-      expect(result.error.issues.every(i => i.code === ErrorCode.MissingProperty)).toBe(true);
+      expect(result.error.issues.every((i) => i.code === ErrorCode.MissingProperty)).toBe(true);
     }
     expect(required.parse({ name: 'Alice', age: 30 })).toEqual({ name: 'Alice', age: 30 });
   });
@@ -163,14 +181,16 @@ describe('ObjectSchema', () => {
     const result = required.safeParse({ name: 'Alice' });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const issue = result.error.issues.find(i => i.code === ErrorCode.MissingProperty);
+      const issue = result.error.issues.find((i) => i.code === ErrorCode.MissingProperty);
       expect(issue).toBeDefined();
       expect(issue!.path).toEqual(['role']);
     }
   });
 
   it('.catchall() overrides .strict() when chained', () => {
-    const schema = new ObjectSchema({ name: new StringSchema() }).strict().catchall(new NumberSchema());
+    const schema = new ObjectSchema({ name: new StringSchema() })
+      .strict()
+      .catchall(new NumberSchema());
     // catchall should take precedence — validates unknown keys instead of rejecting
     expect(schema.parse({ name: 'Alice', score: 100 })).toEqual({ name: 'Alice', score: 100 });
   });

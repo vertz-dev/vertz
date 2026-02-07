@@ -27,8 +27,14 @@ export interface TestResponse {
 }
 
 export interface TestRequestBuilder extends PromiseLike<TestResponse> {
-  mock<TDeps, TState, TMethods>(service: NamedServiceDef<TDeps, TState, TMethods>, impl: DeepPartial<TMethods>): TestRequestBuilder;
-  mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(middleware: NamedMiddlewareDef<TReq, TProv>, result: TProv): TestRequestBuilder;
+  mock<TDeps, TState, TMethods>(
+    service: NamedServiceDef<TDeps, TState, TMethods>,
+    impl: DeepPartial<TMethods>,
+  ): TestRequestBuilder;
+  mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
+    middleware: NamedMiddlewareDef<TReq, TProv>,
+    result: TProv,
+  ): TestRequestBuilder;
 }
 
 interface RequestOptions {
@@ -38,8 +44,14 @@ interface RequestOptions {
 
 export interface TestApp {
   register(module: NamedModule, options?: Record<string, unknown>): TestApp;
-  mock<TDeps, TState, TMethods>(service: NamedServiceDef<TDeps, TState, TMethods>, impl: DeepPartial<TMethods>): TestApp;
-  mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(middleware: NamedMiddlewareDef<TReq, TProv>, result: TProv): TestApp;
+  mock<TDeps, TState, TMethods>(
+    service: NamedServiceDef<TDeps, TState, TMethods>,
+    impl: DeepPartial<TMethods>,
+  ): TestApp;
+  mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
+    middleware: NamedMiddlewareDef<TReq, TProv>,
+    result: TProv,
+  ): TestApp;
   env(vars: Record<string, unknown>): TestApp;
   get(path: string, options?: RequestOptions): TestRequestBuilder;
   post(path: string, options?: RequestOptions): TestRequestBuilder;
@@ -214,7 +226,11 @@ export function createTestApp(): TestApp {
     };
   }
 
-  function createRequestBuilder(method: string, path: string, options?: RequestOptions): TestRequestBuilder {
+  function createRequestBuilder(
+    method: string,
+    path: string,
+    options?: RequestOptions,
+  ): TestRequestBuilder {
     const perRequest: PerRequestMocks = {
       services: new Map<NamedServiceDef, unknown>(),
       middlewares: new Map<NamedMiddlewareDef<any, any>, Record<string, unknown>>(),

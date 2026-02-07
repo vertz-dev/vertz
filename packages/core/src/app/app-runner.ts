@@ -150,9 +150,8 @@ export function buildHandler(
       });
 
       const result = await entry.handler(ctx);
-      const response = result === undefined
-        ? new Response(null, { status: 204 })
-        : createJsonResponse(result);
+      const response =
+        result === undefined ? new Response(null, { status: 204 }) : createJsonResponse(result);
 
       if (config.cors) {
         return applyCorsHeaders(config.cors, request, response);

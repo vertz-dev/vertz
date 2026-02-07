@@ -1,6 +1,10 @@
 import type { ServiceDef } from './module';
 
-export type ServiceFactory<TDeps = any, TState = any, TMethods = any> = ServiceDef<TDeps, TState, TMethods>;
+export type ServiceFactory<TDeps = any, TState = any, TMethods = any> = ServiceDef<
+  TDeps,
+  TState,
+  TMethods
+>;
 
 export interface ServiceBootInstruction {
   type: 'service';
