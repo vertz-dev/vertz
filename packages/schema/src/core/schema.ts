@@ -180,8 +180,8 @@ export abstract class Schema<O, I = O> {
     return new BrandedSchema(this);
   }
 
-  readonly(): ReadonlySchema<Readonly<O>, I> {
-    return new ReadonlySchema(this);
+  readonly(): ReadonlySchema<O extends object ? Readonly<O> : O, I> {
+    return new ReadonlySchema(this) as ReadonlySchema<O extends object ? Readonly<O> : O, I>;
   }
 
   _runPipeline(value: unknown, ctx: ParseContext): O {

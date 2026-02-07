@@ -5,7 +5,11 @@ import { SchemaType } from '../core/types';
 import type { JSONSchemaObject, RefTracker } from '../introspection/json-schema';
 
 type UnionOptions = [SchemaAny, ...SchemaAny[]];
-type InferUnion<T extends UnionOptions> = T[number] extends Schema<infer O> ? O : never;
+type InferUnion<T extends UnionOptions> = T[number] extends infer U
+  ? U extends Schema<infer O>
+    ? O
+    : never
+  : never;
 
 export class UnionSchema<T extends UnionOptions> extends Schema<InferUnion<T>> {
   private readonly _options: T;
