@@ -1,0 +1,52 @@
+import { createModuleDef } from '@vertz/core';
+import { describe, it, expect } from 'vitest';
+
+import { createTestService } from '../test-service';
+
+describe('createTestService', () => {
+  it('builds a service and returns its methods', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const service = moduleDef.service({
+      methods: () => ({
+        greet: (name: string) => `hello ${name}`,
+      }),
+    });
+
+    const methods = await createTestService(service).build();
+
+    expect(methods.greet('world')).toBe('hello world');
+  });
+
+  it('injects mocked dependencies', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const dbService = moduleDef.service({
+      methods: () => ({ query: (sql: string) => sql }),
+    });
+    const userService = moduleDef.service({
+      inject: { db: dbService },
+      methods: (deps: any) => ({
+        findById: (id: string) => deps.db.query(`SELECT * FROM users WHERE id = '${id}'`),
+      }),
+    });
+
+    const methods = await createTestService(userService)
+      .mock(dbService, { query: (sql: string) => `mocked: ${sql}` })
+      .build();
+
+    expect(methods.findById('42')).toBe("mocked: SELECT * FROM users WHERE id = '42'");
+  });
+
+  it('awaits async onInit and passes state to methods', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const service = moduleDef.service({
+      onInit: async () => ({ connection: 'established' }),
+      methods: (_deps: any, state: any) => ({
+        getConnection: () => state.connection,
+      }),
+    });
+
+    const methods = await createTestService(service).build();
+
+    expect(methods.getConnection()).toBe('established');
+  });
+});
