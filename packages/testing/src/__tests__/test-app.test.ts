@@ -42,7 +42,9 @@ function createTestModule(name: string, prefix: string, routes: RouteInput[]): N
 function createModuleWithService(
   name: string,
   prefix: string,
-  serviceDef: { methods: (deps: Record<string, unknown>, state: unknown) => Record<string, unknown> },
+  serviceDef: {
+    methods: (deps: Record<string, unknown>, state: unknown) => Record<string, unknown>;
+  },
   routes: RouteInput[],
 ): { module: NamedModule; service: NamedServiceDef } {
   const moduleDef = createModuleDef({ name });
@@ -83,7 +85,11 @@ describe('createTestApp', () => {
 
   it('executes a POST request with body', async () => {
     const mod = createTestModule('test', '/users', [
-      { method: 'POST', path: '/', handler: (ctx) => ({ created: (ctx.body as Record<string, unknown>).name }) },
+      {
+        method: 'POST',
+        path: '/',
+        handler: (ctx) => ({ created: (ctx.body as Record<string, unknown>).name }),
+      },
     ]);
 
     const app = createTestApp().register(mod);
@@ -161,7 +167,11 @@ describe('createTestApp', () => {
     });
 
     const mod = createTestModule('test', '/api', [
-      { method: 'GET', path: '/', handler: (ctx) => ({ role: (ctx.user as Record<string, string>).role }) },
+      {
+        method: 'GET',
+        path: '/',
+        handler: (ctx) => ({ role: (ctx.user as Record<string, string>).role }),
+      },
     ]);
 
     const app = createTestApp()
@@ -198,7 +208,10 @@ describe('createTestApp', () => {
       {
         method: 'PUT',
         path: '/:id',
-        handler: (ctx) => ({ updated: ctx.params.id, name: (ctx.body as Record<string, unknown>).name }),
+        handler: (ctx) => ({
+          updated: ctx.params.id,
+          name: (ctx.body as Record<string, unknown>).name,
+        }),
       },
     ]);
 
@@ -214,7 +227,10 @@ describe('createTestApp', () => {
       {
         method: 'PATCH',
         path: '/:id',
-        handler: (ctx) => ({ patched: ctx.params.id, email: (ctx.body as Record<string, unknown>).email }),
+        handler: (ctx) => ({
+          patched: ctx.params.id,
+          email: (ctx.body as Record<string, unknown>).email,
+        }),
       },
     ]);
 
@@ -254,7 +270,13 @@ describe('createTestApp', () => {
       'test',
       '/api',
       { methods: () => ({ greet: () => 'real' }) },
-      [{ method: 'GET', path: '/', handler: (ctx) => ({ message: (ctx.svc as Record<string, () => string>).greet() }) }],
+      [
+        {
+          method: 'GET',
+          path: '/',
+          handler: (ctx) => ({ message: (ctx.svc as Record<string, () => string>).greet() }),
+        },
+      ],
     );
 
     const app = createTestApp()
@@ -272,7 +294,13 @@ describe('createTestApp', () => {
       'test',
       '/api',
       { methods: () => ({ greet: () => 'real' }) },
-      [{ method: 'GET', path: '/', handler: (ctx) => ({ message: (ctx.svc as Record<string, () => string>).greet() }) }],
+      [
+        {
+          method: 'GET',
+          path: '/',
+          handler: (ctx) => ({ message: (ctx.svc as Record<string, () => string>).greet() }),
+        },
+      ],
     );
 
     const app = createTestApp()
@@ -290,7 +318,13 @@ describe('createTestApp', () => {
       'test',
       '/api',
       { methods: () => ({ greet: () => 'real' }) },
-      [{ method: 'GET', path: '/', handler: (ctx) => ({ message: (ctx.svc as Record<string, () => string>).greet() }) }],
+      [
+        {
+          method: 'GET',
+          path: '/',
+          handler: (ctx) => ({ message: (ctx.svc as Record<string, () => string>).greet() }),
+        },
+      ],
     );
 
     const app = createTestApp()
