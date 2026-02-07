@@ -186,6 +186,8 @@ The schema package is feature-complete. Core has the module system, routing, mid
 
 This is pre-release software. APIs will change. But the architecture and philosophy are stable — and that's the part that matters most right now.
 
+> **Note:** The `app.listen()` convenience method shown in examples above is [in design](https://github.com/vertz-dev/vertz/issues/70) but not yet implemented. Currently, use `app.handler` to access the raw request handler for your runtime (e.g. `Bun.serve({ fetch: app.handler })`).
+
 ## Getting Started
 
 > Vertz requires [Bun](https://bun.sh) for development.
