@@ -117,6 +117,10 @@ export { extractIdentifierNames, ModuleAnalyzer, parseImports } from './analyzer
 export type { ServiceAnalyzerResult } from './analyzers/service-analyzer';
 export { extractMethodSignatures, parseInjectRefs, ServiceAnalyzer } from './analyzers/service-analyzer';
 
+// Middleware analyzer
+export type { MiddlewareAnalyzerResult } from './analyzers/middleware-analyzer';
+export { MiddlewareAnalyzer } from './analyzers/middleware-analyzer';
+
 // Schema executor
 export type { SchemaExecutionResult, SchemaExecutor } from './utils/schema-executor';
 export { createSchemaExecutor } from './utils/schema-executor';
