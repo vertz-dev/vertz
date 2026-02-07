@@ -1,0 +1,10 @@
+// Flag `as unknown as T` double casts — usually a sign that types need
+// rethinking rather than bypassing. Warn-level since test mocks and
+// some internal schema operations legitimately need this.
+`$x as unknown as $T` where {
+    register_diagnostic(
+        span = $x,
+        message = "Avoid double type assertion (as unknown as T). This bypasses type safety — consider restructuring the types instead.",
+        severity = "warn"
+    )
+}

@@ -1,0 +1,9 @@
+// In framework code, prefer VertzException subclasses over plain Error.
+// Plain Error loses HTTP status codes and structured error responses.
+`throw new Error($msg)` where {
+    register_diagnostic(
+        span = $msg,
+        message = "Prefer throwing a VertzException subclass (e.g. BadRequestException, NotFoundException) instead of plain Error for proper HTTP error responses.",
+        severity = "warn"
+    )
+}
