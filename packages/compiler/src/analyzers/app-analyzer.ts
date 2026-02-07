@@ -78,7 +78,7 @@ export class AppAnalyzer extends BaseAnalyzer<AppAnalyzerResult> {
     const basePathExpr = obj ? getPropertyValue(obj, 'basePath') : null;
     const basePath = basePathExpr ? (getStringValue(basePathExpr) ?? '/') : '/';
     const versionExpr = obj ? getPropertyValue(obj, 'version') : null;
-    const version = versionExpr ? getStringValue(versionExpr) ?? undefined : undefined;
+    const version = versionExpr ? (getStringValue(versionExpr) ?? undefined) : undefined;
     const loc = getSourceLocation(call);
 
     if (basePath !== '/' && !basePath.startsWith('/')) {
