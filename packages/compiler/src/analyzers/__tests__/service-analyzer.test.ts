@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { Project, SyntaxKind } from 'ts-morph';
+import { describe, expect, it } from 'vitest';
 import { resolveConfig } from '../../config';
 import type { InjectRef, ServiceIR, ServiceMethodIR, ServiceMethodParam } from '../../ir/types';
 import { extractMethodSignatures, parseInjectRefs, ServiceAnalyzer } from '../service-analyzer';
@@ -25,8 +25,8 @@ const userService = userModuleDef.service({
     const analyzer = new ServiceAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModule('userModuleDef', 'user');
     expect(result).toHaveLength(1);
-    expect(result[0]!.name).toBe('userService');
-    expect(result[0]!.moduleName).toBe('user');
+    expect(result.at(0)?.name).toBe('userService');
+    expect(result.at(0)?.moduleName).toBe('user');
   });
 
   it('discovers multiple services on same moduleDef', async () => {
@@ -59,8 +59,8 @@ const userService = userModuleDef.service({
     );
     const analyzer = new ServiceAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result[0]!.sourceLine).toBe(3);
-    expect(result[0]!.sourceFile).toContain('user.service.ts');
+    expect(result.at(0)?.sourceLine).toBe(3);
+    expect(result.at(0)?.sourceFile).toContain('user.service.ts');
   });
 
   it('extracts inject references with shorthand', async () => {
@@ -76,9 +76,12 @@ const userService = userModuleDef.service({
     );
     const analyzer = new ServiceAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result[0]!.inject).toHaveLength(2);
-    expect(result[0]!.inject[0]).toEqual({ localName: 'dbService', resolvedToken: 'dbService' });
-    expect(result[0]!.inject[1]).toEqual({ localName: 'configService', resolvedToken: 'configService' });
+    expect(result.at(0)?.inject).toHaveLength(2);
+    expect(result.at(0)?.inject[0]).toEqual({ localName: 'dbService', resolvedToken: 'dbService' });
+    expect(result.at(0)?.inject[1]).toEqual({
+      localName: 'configService',
+      resolvedToken: 'configService',
+    });
   });
 
   it('extracts inject with explicit key', async () => {
@@ -95,7 +98,7 @@ const userService = userModuleDef.service({
     );
     const analyzer = new ServiceAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result[0]!.inject[0]).toEqual({ localName: 'db', resolvedToken: 'dbService' });
+    expect(result.at(0)?.inject[0]).toEqual({ localName: 'db', resolvedToken: 'dbService' });
   });
 
   it('empty inject when not specified', async () => {
@@ -110,7 +113,7 @@ const userService = userModuleDef.service({
     );
     const analyzer = new ServiceAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result[0]!.inject).toEqual([]);
+    expect(result.at(0)?.inject).toEqual([]);
   });
 
   it('empty inject for empty object', async () => {
@@ -126,7 +129,7 @@ const userService = userModuleDef.service({
     );
     const analyzer = new ServiceAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result[0]!.inject).toEqual([]);
+    expect(result.at(0)?.inject).toEqual([]);
   });
 
   it('extracts method names from arrow function return', async () => {
@@ -144,9 +147,9 @@ const userService = userModuleDef.service({
     );
     const analyzer = new ServiceAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result[0]!.methods).toHaveLength(2);
-    expect(result[0]!.methods[0]!.name).toBe('findById');
-    expect(result[0]!.methods[1]!.name).toBe('create');
+    expect(result.at(0)?.methods).toHaveLength(2);
+    expect(result.at(0)?.methods.at(0)?.name).toBe('findById');
+    expect(result.at(0)?.methods.at(1)?.name).toBe('create');
   });
 
   it('extracts method parameter names and types', async () => {
@@ -163,9 +166,9 @@ const userService = userModuleDef.service({
     );
     const analyzer = new ServiceAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result[0]!.methods[0]!.parameters).toHaveLength(1);
-    expect(result[0]!.methods[0]!.parameters[0]!.name).toBe('id');
-    expect(result[0]!.methods[0]!.parameters[0]!.type).toBe('string');
+    expect(result.at(0)?.methods.at(0)?.parameters).toHaveLength(1);
+    expect(result.at(0)?.methods.at(0)?.parameters.at(0)?.name).toBe('id');
+    expect(result.at(0)?.methods.at(0)?.parameters.at(0)?.type).toBe('string');
   });
 
   it('extracts method with multiple parameters', async () => {
@@ -183,7 +186,7 @@ const userService = userModuleDef.service({
     );
     const analyzer = new ServiceAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result[0]!.methods[0]!.parameters).toHaveLength(2);
+    expect(result.at(0)?.methods.at(0)?.parameters).toHaveLength(2);
   });
 
   it('extracts method return type', async () => {
@@ -200,7 +203,7 @@ const userService = userModuleDef.service({
     );
     const analyzer = new ServiceAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result[0]!.methods[0]!.returnType).toContain('Promise');
+    expect(result.at(0)?.methods.at(0)?.returnType).toContain('Promise');
   });
 
   it('handles methods factory with block body', async () => {
@@ -219,8 +222,8 @@ const userService = userModuleDef.service({
     );
     const analyzer = new ServiceAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result[0]!.methods).toHaveLength(1);
-    expect(result[0]!.methods[0]!.name).toBe('findById');
+    expect(result.at(0)?.methods).toHaveLength(1);
+    expect(result.at(0)?.methods.at(0)?.name).toBe('findById');
   });
 
   it('returns empty methods for methods without recognizable return', async () => {
@@ -235,7 +238,7 @@ const userService = userModuleDef.service({
     );
     const analyzer = new ServiceAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModule('userModuleDef', 'user');
-    expect(result[0]!.methods).toEqual([]);
+    expect(result.at(0)?.methods).toEqual([]);
   });
 
   it('emits no diagnostics for valid service', async () => {
@@ -297,7 +300,7 @@ describe('extractMethodSignatures', () => {
     const expr = decl.getInitializerOrThrow();
     const methods = extractMethodSignatures(expr);
     expect(methods).toHaveLength(1);
-    expect(methods[0]!.name).toBe('findById');
+    expect(methods.at(0)?.name).toBe('findById');
   });
 
   it('extracts from arrow function with block body and return statement', () => {
@@ -310,7 +313,7 @@ describe('extractMethodSignatures', () => {
     const expr = decl.getInitializerOrThrow();
     const methods = extractMethodSignatures(expr);
     expect(methods).toHaveLength(1);
-    expect(methods[0]!.name).toBe('findById');
+    expect(methods.at(0)?.name).toBe('findById');
   });
 
   it('returns empty array when expression is not a function', () => {

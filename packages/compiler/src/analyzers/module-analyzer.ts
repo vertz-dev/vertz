@@ -2,7 +2,15 @@ import type { Expression, Identifier, ObjectLiteralExpression } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
 import { createDiagnosticFromLocation } from '../errors';
 import type { ImportRef, ModuleIR, SchemaRef } from '../ir/types';
-import { extractObjectLiteral, findCallExpressions, getProperties, getPropertyValue, getSourceLocation, getStringValue, getVariableNameForCall } from '../utils/ast-helpers';
+import {
+  extractObjectLiteral,
+  findCallExpressions,
+  getProperties,
+  getPropertyValue,
+  getSourceLocation,
+  getStringValue,
+  getVariableNameForCall,
+} from '../utils/ast-helpers';
 import { BaseAnalyzer } from './base-analyzer';
 import { createNamedSchemaRef } from './schema-analyzer';
 
@@ -26,11 +34,13 @@ export class ModuleAnalyzer extends BaseAnalyzer<ModuleAnalyzerResult> {
         const nameExpr = getPropertyValue(obj, 'name');
         const name = nameExpr ? getStringValue(nameExpr) : null;
         if (!name) {
-          this.addDiagnostic(createDiagnosticFromLocation(getSourceLocation(call), {
-            severity: 'error',
-            code: 'VERTZ_MODULE_DYNAMIC_NAME',
-            message: 'vertz.moduleDef() requires a static string `name` property.',
-          }));
+          this.addDiagnostic(
+            createDiagnosticFromLocation(getSourceLocation(call), {
+              severity: 'error',
+              code: 'VERTZ_MODULE_DYNAMIC_NAME',
+              message: 'vertz.moduleDef() requires a static string `name` property.',
+            }),
+          );
           continue;
         }
 
@@ -73,19 +83,22 @@ export class ModuleAnalyzer extends BaseAnalyzer<ModuleAnalyzerResult> {
         const args = call.getArguments();
         if (args.length < 2) continue;
 
-        const defArg = args[0]!;
-        if (!defArg.isKind(SyntaxKind.Identifier)) continue;
+        const defArg = args.at(0);
+        if (!defArg?.isKind(SyntaxKind.Identifier)) continue;
         const defVarName = defArg.getText();
 
         const idx = defVarToIndex.get(defVarName);
         if (idx === undefined) continue;
+
+        const mod = modules.at(idx);
+        if (!mod) continue;
 
         const assemblyObj = extractObjectLiteral(call, 1);
         if (!assemblyObj) continue;
 
         const exportsExpr = getPropertyValue(assemblyObj, 'exports');
         if (exportsExpr) {
-          modules[idx]!.exports = extractIdentifierNames(exportsExpr);
+          mod.exports = extractIdentifierNames(exportsExpr);
         }
       }
     }
@@ -103,7 +116,8 @@ export function parseImports(obj: ObjectLiteralExpression): ImportRef[] {
 
 export function extractIdentifierNames(expr: Expression): string[] {
   if (!expr.isKind(SyntaxKind.ArrayLiteralExpression)) return [];
-  return expr.getElements()
+  return expr
+    .getElements()
     .filter((e): e is Identifier => e.isKind(SyntaxKind.Identifier))
     .map((e) => e.getText());
 }

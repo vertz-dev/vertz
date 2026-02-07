@@ -1,8 +1,14 @@
 import type { ObjectLiteralExpression } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
-import type { MiddlewareIR, SchemaRef } from '../ir/types';
 import { createDiagnosticFromLocation } from '../errors';
-import { extractObjectLiteral, findCallExpressions, getPropertyValue, getSourceLocation, getStringValue } from '../utils/ast-helpers';
+import type { MiddlewareIR, SchemaRef } from '../ir/types';
+import {
+  extractObjectLiteral,
+  findCallExpressions,
+  getPropertyValue,
+  getSourceLocation,
+  getStringValue,
+} from '../utils/ast-helpers';
 import { resolveIdentifier } from '../utils/import-resolver';
 import { BaseAnalyzer } from './base-analyzer';
 import { createInlineSchemaRef, createNamedSchemaRef, isSchemaExpression } from './schema-analyzer';
@@ -22,45 +28,53 @@ export class MiddlewareAnalyzer extends BaseAnalyzer<MiddlewareAnalyzerResult> {
         const obj = extractObjectLiteral(call, 0);
         if (!obj) {
           const callLoc = getSourceLocation(call);
-          this.addDiagnostic(createDiagnosticFromLocation(callLoc, {
-            severity: 'warning',
-            code: 'VERTZ_MW_NON_OBJECT_CONFIG',
-            message: 'Middleware config must be an object literal for static analysis.',
-            suggestion: 'Pass an inline object literal to vertz.middleware().',
-          }));
+          this.addDiagnostic(
+            createDiagnosticFromLocation(callLoc, {
+              severity: 'warning',
+              code: 'VERTZ_MW_NON_OBJECT_CONFIG',
+              message: 'Middleware config must be an object literal for static analysis.',
+              suggestion: 'Pass an inline object literal to vertz.middleware().',
+            }),
+          );
           continue;
         }
 
         const loc = getSourceLocation(call);
         const nameExpr = getPropertyValue(obj, 'name');
         if (!nameExpr) {
-          this.addDiagnostic(createDiagnosticFromLocation(loc, {
-            severity: 'error',
-            code: 'VERTZ_MW_MISSING_NAME',
-            message: "Middleware must have a 'name' property.",
-            suggestion: "Add a 'name' property to the middleware config.",
-          }));
+          this.addDiagnostic(
+            createDiagnosticFromLocation(loc, {
+              severity: 'error',
+              code: 'VERTZ_MW_MISSING_NAME',
+              message: "Middleware must have a 'name' property.",
+              suggestion: "Add a 'name' property to the middleware config.",
+            }),
+          );
           continue;
         }
         const name = getStringValue(nameExpr);
         if (!name) {
-          this.addDiagnostic(createDiagnosticFromLocation(loc, {
-            severity: 'warning',
-            code: 'VERTZ_MW_DYNAMIC_NAME',
-            message: 'Middleware name should be a string literal for static analysis.',
-            suggestion: 'Use a string literal for the middleware name.',
-          }));
+          this.addDiagnostic(
+            createDiagnosticFromLocation(loc, {
+              severity: 'warning',
+              code: 'VERTZ_MW_DYNAMIC_NAME',
+              message: 'Middleware name should be a string literal for static analysis.',
+              suggestion: 'Use a string literal for the middleware name.',
+            }),
+          );
           continue;
         }
 
         const handlerExpr = getPropertyValue(obj, 'handler');
         if (!handlerExpr) {
-          this.addDiagnostic(createDiagnosticFromLocation(loc, {
-            severity: 'error',
-            code: 'VERTZ_MW_MISSING_HANDLER',
-            message: "Middleware must have a 'handler' property.",
-            suggestion: "Add a 'handler' property to the middleware config.",
-          }));
+          this.addDiagnostic(
+            createDiagnosticFromLocation(loc, {
+              severity: 'error',
+              code: 'VERTZ_MW_MISSING_HANDLER',
+              message: "Middleware must have a 'handler' property.",
+              suggestion: "Add a 'handler' property to the middleware config.",
+            }),
+          );
           continue;
         }
 

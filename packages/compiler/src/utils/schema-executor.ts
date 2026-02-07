@@ -6,10 +6,7 @@ export interface SchemaExecutionResult {
 }
 
 export interface SchemaExecutor {
-  execute(
-    schemaName: string,
-    sourceFile: string,
-  ): Promise<SchemaExecutionResult | null>;
+  execute(schemaName: string, sourceFile: string): Promise<SchemaExecutionResult | null>;
 
   getDiagnostics(): Diagnostic[];
 }
@@ -18,12 +15,14 @@ export function createSchemaExecutor(_rootDir: string): SchemaExecutor {
   const diagnostics: Diagnostic[] = [];
 
   function addError(message: string, file: string): null {
-    diagnostics.push(createDiagnostic({
-      severity: 'error',
-      code: 'VERTZ_SCHEMA_EXECUTION',
-      message,
-      file,
-    }));
+    diagnostics.push(
+      createDiagnostic({
+        severity: 'error',
+        code: 'VERTZ_SCHEMA_EXECUTION',
+        message,
+        file,
+      }),
+    );
     return null;
   }
 

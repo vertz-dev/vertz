@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
 import { Project } from 'ts-morph';
+import { describe, expect, it } from 'vitest';
 import { BaseAnalyzer } from '../analyzers/base-analyzer';
-import { createDiagnostic } from '../errors';
 import { resolveConfig } from '../config';
+import { createDiagnostic } from '../errors';
 
 class TestAnalyzer extends BaseAnalyzer<string> {
   async analyze(): Promise<string> {

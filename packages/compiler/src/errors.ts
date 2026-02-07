@@ -102,9 +102,6 @@ export function filterBySeverity(
   return diagnostics.filter((d) => d.severity === severity);
 }
 
-export function mergeDiagnostics(
-  a: readonly Diagnostic[],
-  b: readonly Diagnostic[],
-): Diagnostic[] {
+export function mergeDiagnostics(a: readonly Diagnostic[], b: readonly Diagnostic[]): Diagnostic[] {
   return [...a, ...b];
 }

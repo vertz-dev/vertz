@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import type { CompilerDependencies, Validator } from '../compiler';
 import { Compiler } from '../compiler';
 import { resolveConfig } from '../config';
 import { createDiagnostic } from '../errors';
-import type { CompilerDependencies, Validator } from '../compiler';
 
 function stubAnalyzer(name: string, calls: string[]) {
   return {
