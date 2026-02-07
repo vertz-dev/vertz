@@ -12,9 +12,12 @@
     "lineWidth": 100
   },
   "linter": {
-    "enabled": false,
+    "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": false,
+      "suspicious": {
+        "noExplicitAny": "warn"
+      }
     }
   },
   "javascript": {
