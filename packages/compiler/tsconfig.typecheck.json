@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "noEmit": true,
+    "noUncheckedIndexedAccess": false,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "extends": "../../tsconfig.json",
+  "include": ["src"]
+}

@@ -1,0 +1,75 @@
+// IR types
+export type {
+  AppDefinition,
+  AppIR,
+  DependencyEdge,
+  DependencyEdgeKind,
+  DependencyGraphIR,
+  DependencyNode,
+  DependencyNodeKind,
+  EnvIR,
+  EnvVariableIR,
+  HttpMethod,
+  ImportRef,
+  InjectRef,
+  InlineSchemaRef,
+  MiddlewareIR,
+  MiddlewareRef,
+  ModuleDefContext,
+  ModuleIR,
+  ModuleRegistration,
+  NamedSchemaRef,
+  RouteIR,
+  RouterIR,
+  SchemaIR,
+  SchemaNameParts,
+  SchemaRef,
+  ServiceIR,
+  ServiceMethodIR,
+  ServiceMethodParam,
+  SourceLocation,
+} from './ir/types';
+
+// IR builders
+export {
+  addDiagnosticsToIR,
+  createEmptyAppIR,
+  createEmptyDependencyGraph,
+} from './ir/builder';
+
+// Diagnostics
+export type {
+  CreateDiagnosticOptions,
+  Diagnostic,
+  DiagnosticCode,
+  DiagnosticSeverity,
+  SourceContext,
+} from './errors';
+export {
+  createDiagnostic,
+  createDiagnosticFromLocation,
+  filterBySeverity,
+  hasErrors,
+  mergeDiagnostics,
+} from './errors';
+
+// Config
+export type {
+  CompilerConfig,
+  OpenAPIConfig,
+  ResolvedConfig,
+  SchemaConfig,
+  ValidationConfig,
+  VertzConfig,
+} from './config';
+export { defineConfig, resolveConfig } from './config';
+
+// Base classes
+export type { Analyzer } from './analyzers/base-analyzer';
+export { BaseAnalyzer } from './analyzers/base-analyzer';
+export type { Generator } from './generators/base-generator';
+export { BaseGenerator } from './generators/base-generator';
+
+// Compiler
+export type { CompileResult, CompilerDependencies, Validator } from './compiler';
+export { Compiler } from './compiler';
