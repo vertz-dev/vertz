@@ -1,4 +1,4 @@
-import type { NamedMiddlewareDef, NamedModule, NamedServiceDef } from '@vertz/core';
+import type { HandlerCtx, NamedMiddlewareDef, NamedModule, NamedServiceDef } from '@vertz/core';
 import type { ResolvedMiddleware } from '@vertz/core/internals';
 import {
   runMiddlewareChain,
@@ -63,11 +63,11 @@ export interface TestApp {
 
 interface PerRequestMocks {
   services: Map<NamedServiceDef, unknown>;
-  middlewares: Map<NamedMiddlewareDef<any, any>, Record<string, unknown>>;
+  middlewares: Map<NamedMiddlewareDef, Record<string, unknown>>;
 }
 
 interface RouteEntry {
-  handler: (ctx: any) => any;
+  handler: (ctx: HandlerCtx) => unknown;
   options: Record<string, unknown>;
   services: Record<string, unknown>;
   responseSchema?: { safeParse(value: unknown): { success: boolean; error?: { message: string } } };
@@ -78,12 +78,12 @@ const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HE
 
 export function createTestApp(): TestApp {
   const serviceMocks = new Map<NamedServiceDef, unknown>();
-  const middlewareMocks = new Map<NamedMiddlewareDef<any, any>, Record<string, unknown>>();
+  const middlewareMocks = new Map<NamedMiddlewareDef, Record<string, unknown>>();
   const registrations: { module: NamedModule; options?: Record<string, unknown> }[] = [];
   let envOverrides: Record<string, unknown> = {};
 
   function buildHandler(perRequest: PerRequestMocks): (request: Request) => Promise<Response> {
-    const trie = new Trie();
+    const trie = new Trie<RouteEntry>();
 
     // Resolve services: real -> app-level -> per-request (last wins)
     const realServices = new Map<NamedServiceDef, unknown>();
@@ -113,7 +113,7 @@ export function createTestApp(): TestApp {
             services: resolvedServices,
             responseSchema: route.config.response,
           };
-          trie.add(route.method, fullPath, entry as any);
+          trie.add(route.method, fullPath, entry);
         }
       }
     }
@@ -165,7 +165,7 @@ export function createTestApp(): TestApp {
         );
 
         const middlewareState = await runMiddlewareChain(resolvedMiddlewares, shared);
-        const entry = match.handler as unknown as RouteEntry;
+        const entry = match.handler;
 
         const ctx = buildCtx({
           ...shared,
@@ -233,7 +233,7 @@ export function createTestApp(): TestApp {
   ): TestRequestBuilder {
     const perRequest: PerRequestMocks = {
       services: new Map<NamedServiceDef, unknown>(),
-      middlewares: new Map<NamedMiddlewareDef<any, any>, Record<string, unknown>>(),
+      middlewares: new Map<NamedMiddlewareDef, Record<string, unknown>>(),
     };
 
     const builder: TestRequestBuilder = {

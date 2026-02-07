@@ -2,6 +2,7 @@ import {
   createMiddleware,
   createModuleDef,
   createModule,
+  type HandlerCtx,
   type NamedModule,
   type NamedServiceDef,
   type NamedRouterDef,
@@ -14,8 +15,8 @@ import { createTestApp } from '../test-app';
 interface RouteInput {
   method: string;
   path: string;
-  handler: (ctx: any) => any;
-  response?: any;
+  handler: (ctx: HandlerCtx) => unknown;
+  response?: unknown;
 }
 
 function addRoutes(router: NamedRouterDef, routes: RouteInput[]): void {
@@ -41,7 +42,7 @@ function createTestModule(name: string, prefix: string, routes: RouteInput[]): N
 function createModuleWithService(
   name: string,
   prefix: string,
-  serviceDef: { methods: (deps: any, state: any) => any },
+  serviceDef: { methods: (deps: Record<string, unknown>, state: unknown) => Record<string, unknown> },
   routes: RouteInput[],
 ): { module: NamedModule; service: NamedServiceDef } {
   const moduleDef = createModuleDef({ name });
@@ -82,7 +83,7 @@ describe('createTestApp', () => {
 
   it('executes a POST request with body', async () => {
     const mod = createTestModule('test', '/users', [
-      { method: 'POST', path: '/', handler: (ctx: any) => ({ created: ctx.body.name }) },
+      { method: 'POST', path: '/', handler: (ctx) => ({ created: (ctx.body as Record<string, unknown>).name }) },
     ]);
 
     const app = createTestApp().register(mod);
@@ -94,7 +95,7 @@ describe('createTestApp', () => {
 
   it('passes route params to handler via ctx', async () => {
     const mod = createTestModule('test', '/users', [
-      { method: 'GET', path: '/:id', handler: (ctx: any) => ({ userId: ctx.params.id }) },
+      { method: 'GET', path: '/:id', handler: (ctx) => ({ userId: ctx.params.id }) },
     ]);
 
     const app = createTestApp().register(mod);
@@ -118,7 +119,7 @@ describe('createTestApp', () => {
 
   it('passes env overrides to handler via ctx', async () => {
     const mod = createTestModule('test', '/api', [
-      { method: 'GET', path: '/', handler: (ctx: any) => ({ dbUrl: ctx.env.DATABASE_URL }) },
+      { method: 'GET', path: '/', handler: (ctx) => ({ dbUrl: ctx.env.DATABASE_URL }) },
     ]);
 
     const app = createTestApp().env({ DATABASE_URL: 'postgres://test' }).register(mod);
@@ -138,7 +139,7 @@ describe('createTestApp', () => {
     });
 
     const mod = createTestModule('test', '/api', [
-      { method: 'GET', path: '/', handler: (ctx: any) => ({ user: ctx.user }) },
+      { method: 'GET', path: '/', handler: (ctx) => ({ user: ctx.user }) },
     ]);
 
     const app = createTestApp()
@@ -160,7 +161,7 @@ describe('createTestApp', () => {
     });
 
     const mod = createTestModule('test', '/api', [
-      { method: 'GET', path: '/', handler: (ctx: any) => ({ role: ctx.user.role }) },
+      { method: 'GET', path: '/', handler: (ctx) => ({ role: (ctx.user as Record<string, string>).role }) },
     ]);
 
     const app = createTestApp()
@@ -181,7 +182,7 @@ describe('createTestApp', () => {
       {
         method: 'GET',
         path: '/',
-        handler: (ctx: any) => ({ token: ctx.headers['authorization'] }),
+        handler: (ctx) => ({ token: ctx.headers['authorization'] }),
       },
     ]);
 
@@ -197,7 +198,7 @@ describe('createTestApp', () => {
       {
         method: 'PUT',
         path: '/:id',
-        handler: (ctx: any) => ({ updated: ctx.params.id, name: ctx.body.name }),
+        handler: (ctx) => ({ updated: ctx.params.id, name: (ctx.body as Record<string, unknown>).name }),
       },
     ]);
 
@@ -213,7 +214,7 @@ describe('createTestApp', () => {
       {
         method: 'PATCH',
         path: '/:id',
-        handler: (ctx: any) => ({ patched: ctx.params.id, email: ctx.body.email }),
+        handler: (ctx) => ({ patched: ctx.params.id, email: (ctx.body as Record<string, unknown>).email }),
       },
     ]);
 
@@ -226,7 +227,7 @@ describe('createTestApp', () => {
 
   it('executes a DELETE request', async () => {
     const mod = createTestModule('test', '/users', [
-      { method: 'DELETE', path: '/:id', handler: (ctx: any) => ({ deleted: ctx.params.id }) },
+      { method: 'DELETE', path: '/:id', handler: (ctx) => ({ deleted: ctx.params.id }) },
     ]);
 
     const app = createTestApp().register(mod);
@@ -253,7 +254,7 @@ describe('createTestApp', () => {
       'test',
       '/api',
       { methods: () => ({ greet: () => 'real' }) },
-      [{ method: 'GET', path: '/', handler: (ctx: any) => ({ message: ctx.svc.greet() }) }],
+      [{ method: 'GET', path: '/', handler: (ctx) => ({ message: (ctx.svc as Record<string, () => string>).greet() }) }],
     );
 
     const app = createTestApp()
@@ -271,7 +272,7 @@ describe('createTestApp', () => {
       'test',
       '/api',
       { methods: () => ({ greet: () => 'real' }) },
-      [{ method: 'GET', path: '/', handler: (ctx: any) => ({ message: ctx.svc.greet() }) }],
+      [{ method: 'GET', path: '/', handler: (ctx) => ({ message: (ctx.svc as Record<string, () => string>).greet() }) }],
     );
 
     const app = createTestApp()
@@ -289,7 +290,7 @@ describe('createTestApp', () => {
       'test',
       '/api',
       { methods: () => ({ greet: () => 'real' }) },
-      [{ method: 'GET', path: '/', handler: (ctx: any) => ({ message: ctx.svc.greet() }) }],
+      [{ method: 'GET', path: '/', handler: (ctx) => ({ message: (ctx.svc as Record<string, () => string>).greet() }) }],
     );
 
     const app = createTestApp()
