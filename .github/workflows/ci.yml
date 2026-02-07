@@ -14,21 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: oven-sh/setup-bun@v2
+      - name: Run CI pipeline
+        uses: dagger/dagger-for-github@v8
         with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Lint
-        run: bun run lint
-
-      - name: Build
-        run: bun run --filter '*' build
-
-      - name: Type check
-        run: bun run typecheck
-
-      - name: Test
-        run: bun test
+          version: "0.19.11"
+          verb: call
+          args: ci
