@@ -1,0 +1,4 @@
+pre-push:
+  commands:
+    ci:
+      run: dagger call ci
