@@ -49,7 +49,7 @@ export class NullSchema extends Schema<null> {
         code: ErrorCode.InvalidType,
         message: `Expected null, received ${typeof value}`,
       });
-      return value as null;
+      return null;
     }
     return value;
   }
@@ -74,7 +74,7 @@ export class UndefinedSchema extends Schema<undefined> {
         code: ErrorCode.InvalidType,
         message: `Expected undefined, received ${typeof value}`,
       });
-      return value as undefined;
+      return undefined;
     }
     return value;
   }

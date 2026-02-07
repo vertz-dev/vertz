@@ -1,8 +1,5 @@
 // Ban @ts-ignore entirely. Use @ts-expect-error instead — it fails when
 // the suppressed error is fixed, preventing stale suppressions.
 `// @ts-ignore` where {
-    register_diagnostic(
-        span = $_,
-        message = "Use @ts-expect-error instead of @ts-ignore. @ts-expect-error will alert you when the suppression is no longer needed."
-    )
+  register_diagnostic(span=$_, message="Use @ts-expect-error instead of @ts-ignore. @ts-expect-error will alert you when the suppression is no longer needed.")
 }

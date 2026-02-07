@@ -1,21 +1,26 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
-  "plugins": [
-    "./biome-plugins/no-internals-import.grit",
-    "./biome-plugins/no-ts-ignore.grit",
-    "./biome-plugins/no-double-cast.grit",
-    "./biome-plugins/no-throw-plain-error.grit"
-  ],
-  "vcs": {
-    "enabled": true,
-    "clientKind": "git",
-    "useIgnoreFile": true
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on",
+        "useSortedKeys": "on"
+      }
+    },
+    "enabled": true
   },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
     "indentWidth": 2,
     "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
   },
   "linter": {
     "enabled": true,
@@ -26,42 +31,37 @@
       }
     }
   },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "single",
-      "trailingCommas": "all",
-      "semicolons": "always"
-    }
-  },
-  "assist": {
-    "enabled": true,
-    "actions": {
-      "source": {
-        "organizeImports": "on",
-        "useSortedKeys": "on"
-      }
-    }
-  },
   "overrides": [
     {
-      "includes": ["**/*.{ts,tsx,js,jsx}"],
       "assist": {
         "actions": {
           "source": {
             "useSortedKeys": "off"
           }
         }
-      }
+      },
+      "includes": ["**/*.{ts,tsx,js,jsx}"]
     },
     {
-      "includes": ["**/package.json"],
       "assist": {
         "actions": {
           "source": {
             "useSortedKeys": "off"
           }
         }
-      }
+      },
+      "includes": ["**/package.json"]
     }
-  ]
+  ],
+  "plugins": [
+    "./biome-plugins/no-internals-import.grit",
+    "./biome-plugins/no-ts-ignore.grit",
+    "./biome-plugins/no-double-cast.grit",
+    "./biome-plugins/no-throw-plain-error.grit"
+  ],
+  "vcs": {
+    "clientKind": "git",
+    "enabled": true,
+    "useIgnoreFile": true
+  }
 }

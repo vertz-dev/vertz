@@ -2,9 +2,5 @@
 // Only @vertz/testing is allowed to access internal APIs.
 // Warn-level: @vertz/testing legitimately imports from internals.
 `'@vertz/core/internals'` as $path where {
-    register_diagnostic(
-        span = $path,
-        message = "Do not import from '@vertz/core/internals'. Use the public API from '@vertz/core' instead. Only @vertz/testing may access internals.",
-        severity = "warn"
-    )
+  register_diagnostic(span=$path, message="Do not import from '@vertz/core/internals'. Use the public API from '@vertz/core' instead. Only @vertz/testing may access internals.", severity="warn")
 }
