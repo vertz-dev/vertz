@@ -12,7 +12,7 @@ describe('createTestService', () => {
       }),
     });
 
-    const methods = await createTestService(service).build();
+    const methods = await createTestService(service);
 
     expect(methods.greet('world')).toBe('hello world');
   });
@@ -30,8 +30,7 @@ describe('createTestService', () => {
     });
 
     const methods = await createTestService(userService)
-      .mock(dbService, { query: (sql: string) => `mocked: ${sql}` })
-      .build();
+      .mock(dbService, { query: (sql: string) => `mocked: ${sql}` });
 
     expect(methods.findById('42')).toBe("mocked: SELECT * FROM users WHERE id = '42'");
   });
@@ -48,7 +47,7 @@ describe('createTestService', () => {
       }),
     });
 
-    await expect(createTestService(userService).build()).rejects.toThrow(
+    await expect(createTestService(userService)).rejects.toThrow(
       /missing mock.*db/i,
     );
   });
@@ -62,7 +61,7 @@ describe('createTestService', () => {
       }),
     });
 
-    const methods = await createTestService(service).build();
+    const methods = await createTestService(service);
 
     expect(methods.getConnection()).toBe('established');
   });
