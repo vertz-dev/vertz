@@ -1,3 +1,4 @@
+import type { HandlerCtx } from '../types/context';
 import type { RouterDef } from '../types/module';
 
 export interface RouteConfig {
@@ -7,7 +8,7 @@ export interface RouteConfig {
   response?: unknown;
   headers?: unknown;
   middlewares?: unknown[];
-  handler: (ctx: Record<string, unknown>) => unknown;
+  handler: (ctx: HandlerCtx) => unknown;
 }
 
 export interface Route {

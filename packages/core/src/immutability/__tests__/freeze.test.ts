@@ -33,7 +33,7 @@ describe('deepFreeze', () => {
   });
 
   it('handles circular references without stack overflow', () => {
-    const obj: any = { name: 'root' };
+    const obj: Record<string, unknown> = { name: 'root' };
     obj.self = obj;
     deepFreeze(obj);
     expect(Object.isFrozen(obj)).toBe(true);

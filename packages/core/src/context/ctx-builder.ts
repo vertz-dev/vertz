@@ -1,4 +1,4 @@
-import type { RawRequest } from '../types/context';
+import type { HandlerCtx, RawRequest } from '../types/context';
 import { makeImmutable } from '../immutability';
 
 export interface CtxConfig {
@@ -34,7 +34,7 @@ function validateCollisions(config: CtxConfig): void {
   }
 }
 
-export function buildCtx(config: CtxConfig): Record<string, unknown> {
+export function buildCtx(config: CtxConfig): HandlerCtx {
   if (process.env.NODE_ENV === 'development') {
     validateCollisions(config);
   }

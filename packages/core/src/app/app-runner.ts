@@ -1,4 +1,5 @@
 import type { AppConfig } from '../types/app';
+import type { HandlerCtx } from '../types/context';
 import type { NamedMiddlewareDef } from '../middleware/middleware-def';
 import type { NamedModule } from '../module/module';
 import type { NamedServiceDef } from '../module/service';
@@ -15,7 +16,7 @@ export interface ModuleRegistration {
 }
 
 interface RouteEntry {
-  handler: (ctx: Record<string, unknown>) => unknown;
+  handler: (ctx: HandlerCtx) => unknown;
   options: Record<string, unknown>;
   services: Record<string, unknown>;
 }

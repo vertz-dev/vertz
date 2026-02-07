@@ -30,7 +30,7 @@ describe('buildDeps', () => {
     });
 
     expect(() => {
-      (deps as any).options = 'mutated';
+      (deps as Record<string, unknown>).options = 'mutated';
     }).toThrow();
   });
 
