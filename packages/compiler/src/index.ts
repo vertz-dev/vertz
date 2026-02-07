@@ -105,6 +105,18 @@ export {
   SchemaAnalyzer,
 } from './analyzers/schema-analyzer';
 
+// Env analyzer
+export type { EnvAnalyzerResult } from './analyzers/env-analyzer';
+export { EnvAnalyzer } from './analyzers/env-analyzer';
+
+// Module analyzer
+export type { ModuleAnalyzerResult } from './analyzers/module-analyzer';
+export { extractIdentifierNames, ModuleAnalyzer, parseImports } from './analyzers/module-analyzer';
+
+// Service analyzer
+export type { ServiceAnalyzerResult } from './analyzers/service-analyzer';
+export { extractMethodSignatures, parseInjectRefs, ServiceAnalyzer } from './analyzers/service-analyzer';
+
 // Schema executor
 export type { SchemaExecutionResult, SchemaExecutor } from './utils/schema-executor';
 export { createSchemaExecutor } from './utils/schema-executor';
