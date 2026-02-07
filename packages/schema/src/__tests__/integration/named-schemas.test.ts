@@ -39,7 +39,7 @@ describe('Integration: Named Schemas', () => {
     const jsonSchema = contactSchema.toJSONSchema();
     expect(jsonSchema.$defs!['Email']).toBeDefined();
     // Both properties should reference the same $ref
-    const props = jsonSchema.properties as Record<string, any>;
+    const props = jsonSchema.properties as Record<string, { $ref: string }>;
     expect(props.primary.$ref).toBe('#/$defs/Email');
     expect(props.secondary.$ref).toBe('#/$defs/Email');
   });

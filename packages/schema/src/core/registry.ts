@@ -1,17 +1,17 @@
-import type { Schema } from './schema';
+import type { SchemaAny } from './schema';
 
 export class SchemaRegistry {
-  private static _schemas = new Map<string, Schema<any, any>>();
+  private static _schemas = new Map<string, SchemaAny>();
 
-  static register(name: string, schema: Schema<any, any>): void {
+  static register(name: string, schema: SchemaAny): void {
     this._schemas.set(name, schema);
   }
 
-  static get(name: string): Schema<any, any> | undefined {
+  static get(name: string): SchemaAny | undefined {
     return this._schemas.get(name);
   }
 
-  static getOrThrow(name: string): Schema<any, any> {
+  static getOrThrow(name: string): SchemaAny {
     const schema = this._schemas.get(name);
     if (!schema) {
       throw new Error(`Schema "${name}" not found in registry`);
@@ -24,7 +24,7 @@ export class SchemaRegistry {
   }
 
   /** Returns a read-only view of the internal map. Do not cast to Map to mutate. */
-  static getAll(): ReadonlyMap<string, Schema<any, any>> {
+  static getAll(): ReadonlyMap<string, SchemaAny> {
     return this._schemas;
   }
 

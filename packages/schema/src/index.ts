@@ -14,6 +14,7 @@ export {
   BrandedSchema,
   ReadonlySchema,
 } from './core/schema';
+export type { SchemaAny } from './core/schema';
 export { ErrorCode, ParseError } from './core/errors';
 export type { ValidationIssue } from './core/errors';
 export { ParseContext } from './core/parse-context';
@@ -147,7 +148,7 @@ import {
   IsoDatetimeSchema,
   IsoDurationSchema,
 } from './schemas/formats';
-import type { Schema } from './core/schema';
+import type { Schema, SchemaAny } from './core/schema';
 
 export const s = {
   // Primitives
@@ -169,17 +170,16 @@ export const s = {
   never: (): NeverSchema => new NeverSchema(),
 
   // Composites
-  object: <T extends Record<string, Schema<any, any>>>(shape: T): ObjectSchema<T> =>
+  object: <T extends Record<string, SchemaAny>>(shape: T): ObjectSchema<T> =>
     new ObjectSchema(shape),
   array: <T>(itemSchema: Schema<T>): ArraySchema<T> => new ArraySchema(itemSchema),
-  tuple: <T extends Schema<any, any>[]>(items: [...T]): TupleSchema<T> => new TupleSchema(items),
+  tuple: <T extends SchemaAny[]>(items: [...T]): TupleSchema<T> => new TupleSchema(items),
   enum: <T extends readonly [string, ...string[]]>(values: T): EnumSchema<T> =>
     new EnumSchema(values),
   literal: <T extends string | number | boolean | null>(value: T): LiteralSchema<T> =>
     new LiteralSchema(value),
-  union: <T extends Schema<any, any>[]>(options: [...T]): UnionSchema<T> =>
-    new UnionSchema(options),
-  discriminatedUnion: <T extends ObjectSchema<any>[]>(
+  union: <T extends SchemaAny[]>(options: [...T]): UnionSchema<T> => new UnionSchema(options),
+  discriminatedUnion: <T extends ObjectSchema[]>(
     discriminator: string,
     options: [...T],
   ): DiscriminatedUnionSchema<T> => new DiscriminatedUnionSchema(discriminator, options),
@@ -192,6 +192,7 @@ export const s = {
   file: (): FileSchema => new FileSchema(),
   custom: <T>(check: (value: unknown) => boolean, message?: string): CustomSchema<T> =>
     new CustomSchema<T>(check, message),
+  // biome-ignore lint/suspicious/noExplicitAny: standard TS pattern for any-constructor constraint
   instanceof: <T>(cls: new (...args: any[]) => T): InstanceOfSchema<T> => new InstanceOfSchema(cls),
   lazy: <T>(getter: () => Schema<T>): LazySchema<T> => new LazySchema(getter),
 

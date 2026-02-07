@@ -6,6 +6,15 @@ import { SchemaRegistry } from './registry';
 import { RefTracker } from '../introspection/json-schema';
 import type { JSONSchemaObject } from '../introspection/json-schema';
 
+// biome-ignore lint/suspicious/noExplicitAny: Schema is invariant; any is required for type-level bounds
+export type SchemaAny = Schema<any, any>;
+
+// biome-ignore lint/suspicious/noExplicitAny: inner schema with erased output type for wrapper schemas
+type InnerSchema<I = unknown> = Schema<any, I>;
+
+// biome-ignore lint/suspicious/noExplicitAny: transform accepts inner schema's erased output
+type InnerTransformFn<O> = (value: any) => O;
+
 export abstract class Schema<O, I = O> {
   /** @internal */ declare readonly _output: O;
   /** @internal */ declare readonly _input: I;
@@ -113,7 +122,7 @@ export abstract class Schema<O, I = O> {
     return schema;
   }
 
-  protected _cloneBase<T extends Schema<any, any>>(target: T): T {
+  protected _cloneBase<T extends SchemaAny>(target: T): T {
     target._id = this._id;
     target._description = this._description;
     target._meta = this._meta ? { ...this._meta } : undefined;
@@ -349,10 +358,10 @@ export class SuperRefinedSchema<O, I = O> extends Schema<O, I> {
 }
 
 export class TransformSchema<O, I = unknown> extends Schema<O, I> {
-  private readonly _inner: Schema<any, I>;
-  private readonly _transform: (value: any) => O;
+  private readonly _inner: InnerSchema<I>;
+  private readonly _transform: InnerTransformFn<O>;
 
-  constructor(inner: Schema<any, I>, transform: (value: any) => O) {
+  constructor(inner: InnerSchema<I>, transform: InnerTransformFn<O>) {
     super();
     this._inner = inner;
     this._transform = transform;
@@ -360,7 +369,7 @@ export class TransformSchema<O, I = unknown> extends Schema<O, I> {
 
   _parse(value: unknown, ctx: ParseContext): O {
     const result = this._inner._runPipeline(value, ctx);
-    if (ctx.hasIssues()) return result;
+    if (ctx.hasIssues()) return result as O;
     try {
       return this._transform(result);
     } catch (e) {
@@ -386,10 +395,10 @@ export class TransformSchema<O, I = unknown> extends Schema<O, I> {
 }
 
 export class PipeSchema<O, I = unknown> extends Schema<O, I> {
-  private readonly _first: Schema<any, I>;
+  private readonly _first: InnerSchema<I>;
   private readonly _second: Schema<O>;
 
-  constructor(first: Schema<any, I>, second: Schema<O>) {
+  constructor(first: InnerSchema<I>, second: Schema<O>) {
     super();
     this._first = first;
     this._second = second;
@@ -397,7 +406,7 @@ export class PipeSchema<O, I = unknown> extends Schema<O, I> {
 
   _parse(value: unknown, ctx: ParseContext): O {
     const intermediate = this._first._runPipeline(value, ctx);
-    if (ctx.hasIssues()) return intermediate;
+    if (ctx.hasIssues()) return intermediate as O;
     return this._second._runPipeline(intermediate, ctx);
   }
 
@@ -451,15 +460,15 @@ export class CatchSchema<O, I = O> extends Schema<O, I> {
 }
 
 export class BrandedSchema<O, I = unknown> extends Schema<O, I> {
-  private readonly _inner: Schema<any, I>;
+  private readonly _inner: InnerSchema<I>;
 
-  constructor(inner: Schema<any, I>) {
+  constructor(inner: InnerSchema<I>) {
     super();
     this._inner = inner;
   }
 
   _parse(value: unknown, ctx: ParseContext): O {
-    return this._inner._runPipeline(value, ctx);
+    return this._inner._runPipeline(value, ctx) as O;
   }
 
   _schemaType(): SchemaType {
@@ -476,20 +485,20 @@ export class BrandedSchema<O, I = unknown> extends Schema<O, I> {
 }
 
 export class ReadonlySchema<O, I = unknown> extends Schema<O, I> {
-  private readonly _inner: Schema<any, I>;
+  private readonly _inner: InnerSchema<I>;
 
-  constructor(inner: Schema<any, I>) {
+  constructor(inner: InnerSchema<I>) {
     super();
     this._inner = inner;
   }
 
   _parse(value: unknown, ctx: ParseContext): O {
     const result = this._inner._runPipeline(value, ctx);
-    if (ctx.hasIssues()) return result;
+    if (ctx.hasIssues()) return result as O;
     if (typeof result === 'object' && result !== null) {
       return Object.freeze(result) as O;
     }
-    return result;
+    return result as O;
   }
 
   _schemaType(): SchemaType {

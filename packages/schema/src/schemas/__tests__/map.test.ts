@@ -24,7 +24,7 @@ describe('MapSchema', () => {
 
   it('validates each key and value', () => {
     const schema = new MapSchema(new StringSchema(), new NumberSchema());
-    const input = new Map<any, any>([['a', 'not-number']]);
+    const input = new Map<string, string>([['a', 'not-number']]);
     const result = schema.safeParse(input);
     expect(result.success).toBe(false);
   });

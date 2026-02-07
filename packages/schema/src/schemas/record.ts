@@ -1,4 +1,4 @@
-import { Schema } from '../core/schema';
+import { Schema, type SchemaAny } from '../core/schema';
 import { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
@@ -16,7 +16,7 @@ export class RecordSchema<V> extends Schema<Record<string, V>> {
 
   constructor(valueSchema: Schema<V>);
   constructor(keySchema: Schema<string>, valueSchema: Schema<V>);
-  constructor(keyOrValue: Schema<any>, valueSchema?: Schema<V>) {
+  constructor(keyOrValue: SchemaAny, valueSchema?: Schema<V>) {
     super();
     if (valueSchema !== undefined) {
       this._keySchema = keyOrValue;

@@ -6,7 +6,7 @@ import { LiteralSchema } from './literal';
 import { ObjectSchema } from './object';
 import type { RefTracker, JSONSchemaObject } from '../introspection/json-schema';
 
-type DiscriminatedOptions = [ObjectSchema<any>, ...ObjectSchema<any>[]];
+type DiscriminatedOptions = [ObjectSchema, ...ObjectSchema[]];
 type InferDiscriminatedUnion<T extends DiscriminatedOptions> =
   T[number] extends Schema<infer O> ? O : never;
 
@@ -21,7 +21,7 @@ export class DiscriminatedUnionSchema<T extends DiscriminatedOptions> extends Sc
 > {
   private readonly _discriminator: string;
   private readonly _options: T;
-  private readonly _lookup: Map<unknown, ObjectSchema<any>>;
+  private readonly _lookup: Map<unknown, ObjectSchema>;
 
   constructor(discriminator: string, options: T) {
     super();
@@ -46,7 +46,7 @@ export class DiscriminatedUnionSchema<T extends DiscriminatedOptions> extends Sc
         code: ErrorCode.InvalidType,
         message: 'Expected object, received ' + receivedType(value),
       });
-      return value as any;
+      return value as InferDiscriminatedUnion<T>;
     }
 
     const obj = value as Record<string, unknown>;
@@ -57,7 +57,7 @@ export class DiscriminatedUnionSchema<T extends DiscriminatedOptions> extends Sc
         code: ErrorCode.InvalidUnion,
         message: `Missing discriminator property "${this._discriminator}"`,
       });
-      return value as any;
+      return value as InferDiscriminatedUnion<T>;
     }
 
     const matchedSchema = this._lookup.get(discriminatorValue);
@@ -67,10 +67,10 @@ export class DiscriminatedUnionSchema<T extends DiscriminatedOptions> extends Sc
         code: ErrorCode.InvalidUnion,
         message: `Invalid discriminator value. Expected ${expected}, received '${discriminatorValue}'`,
       });
-      return value as any;
+      return value as InferDiscriminatedUnion<T>;
     }
 
-    return matchedSchema._runPipeline(value, ctx) as any;
+    return matchedSchema._runPipeline(value, ctx) as InferDiscriminatedUnion<T>;
   }
 
   _schemaType(): SchemaType {

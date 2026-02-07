@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SchemaRegistry } from '../registry';
+import type { SchemaAny } from '../schema';
 
 describe('SchemaRegistry', () => {
   beforeEach(() => {
@@ -7,7 +8,7 @@ describe('SchemaRegistry', () => {
   });
 
   it('registers and retrieves a schema by name', () => {
-    const fakeSchema = { _id: 'User' } as any;
+    const fakeSchema = { _id: 'User' } as unknown as SchemaAny;
     SchemaRegistry.register('User', fakeSchema);
 
     expect(SchemaRegistry.has('User')).toBe(true);
@@ -15,8 +16,8 @@ describe('SchemaRegistry', () => {
   });
 
   it('getAll returns all registered schemas and clear empties the registry', () => {
-    const schema1 = { _id: 'User' } as any;
-    const schema2 = { _id: 'Post' } as any;
+    const schema1 = { _id: 'User' } as unknown as SchemaAny;
+    const schema2 = { _id: 'Post' } as unknown as SchemaAny;
     SchemaRegistry.register('User', schema1);
     SchemaRegistry.register('Post', schema2);
 
@@ -36,8 +37,8 @@ describe('SchemaRegistry', () => {
   });
 
   it('overwrites when registering same name', () => {
-    const schema1 = { _id: 'User', version: 1 } as any;
-    const schema2 = { _id: 'User', version: 2 } as any;
+    const schema1 = { _id: 'User', version: 1 } as unknown as SchemaAny;
+    const schema2 = { _id: 'User', version: 2 } as unknown as SchemaAny;
     SchemaRegistry.register('User', schema1);
     SchemaRegistry.register('User', schema2);
 
