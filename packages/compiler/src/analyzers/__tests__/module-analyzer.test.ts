@@ -3,16 +3,13 @@ import { Project, SyntaxKind } from 'ts-morph';
 import { resolveConfig } from '../../config';
 import type { ImportRef, ModuleIR } from '../../ir/types';
 import { extractIdentifierNames, ModuleAnalyzer, parseImports } from '../module-analyzer';
-import { ServiceAnalyzer } from '../service-analyzer';
 
 function createProject() {
   return new Project({ useInMemoryFileSystem: true });
 }
 
 function createAnalyzer(project: Project) {
-  const config = resolveConfig();
-  const serviceAnalyzer = new ServiceAnalyzer(project, config);
-  return new ModuleAnalyzer(project, config, serviceAnalyzer);
+  return new ModuleAnalyzer(project, resolveConfig());
 }
 
 describe('ModuleAnalyzer', () => {

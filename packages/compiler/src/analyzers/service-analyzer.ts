@@ -64,7 +64,6 @@ export function parseInjectRefs(obj: ObjectLiteralExpression): InjectRef[] {
 }
 
 export function extractMethodSignatures(expr: Expression): ServiceMethodIR[] {
-  // Look for arrow function or function expression
   if (!expr.isKind(SyntaxKind.ArrowFunction) && !expr.isKind(SyntaxKind.FunctionExpression)) {
     return [];
   }
@@ -82,13 +81,10 @@ export function extractMethodSignatures(expr: Expression): ServiceMethodIR[] {
       returnObj = inner;
     }
   } else if (body.isKind(SyntaxKind.Block)) {
-    // Block body: look for return statement
     const returnStmt = body.getStatements().find((s) => s.isKind(SyntaxKind.ReturnStatement));
-    if (returnStmt?.isKind(SyntaxKind.ReturnStatement)) {
-      const retExpr = returnStmt.getExpression();
-      if (retExpr?.isKind(SyntaxKind.ObjectLiteralExpression)) {
-        returnObj = retExpr;
-      }
+    const retExpr = returnStmt?.asKind(SyntaxKind.ReturnStatement)?.getExpression();
+    if (retExpr?.isKind(SyntaxKind.ObjectLiteralExpression)) {
+      returnObj = retExpr;
     }
   }
 

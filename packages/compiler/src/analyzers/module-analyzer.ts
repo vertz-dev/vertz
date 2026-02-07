@@ -1,22 +1,16 @@
-import type { Expression, ObjectLiteralExpression, Project } from 'ts-morph';
+import type { Expression, Identifier, ObjectLiteralExpression } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
-import type { ResolvedConfig } from '../config';
 import { createDiagnosticFromLocation } from '../errors';
 import type { ImportRef, ModuleIR, SchemaRef } from '../ir/types';
-import { createNamedSchemaRef } from './schema-analyzer';
 import { extractObjectLiteral, findCallExpressions, getProperties, getPropertyValue, getSourceLocation, getStringValue, getVariableNameForCall } from '../utils/ast-helpers';
 import { BaseAnalyzer } from './base-analyzer';
-import type { ServiceAnalyzer } from './service-analyzer';
+import { createNamedSchemaRef } from './schema-analyzer';
 
 export interface ModuleAnalyzerResult {
   modules: ModuleIR[];
 }
 
 export class ModuleAnalyzer extends BaseAnalyzer<ModuleAnalyzerResult> {
-  constructor(project: Project, config: ResolvedConfig, _serviceAnalyzer: ServiceAnalyzer) {
-    super(project, config);
-  }
-
   async analyze(): Promise<ModuleAnalyzerResult> {
     const modules: ModuleIR[] = [];
     // Map from moduleDef variable name to module index
@@ -93,20 +87,6 @@ export class ModuleAnalyzer extends BaseAnalyzer<ModuleAnalyzerResult> {
         if (exportsExpr) {
           modules[idx]!.exports = extractIdentifierNames(exportsExpr);
         }
-
-        const servicesExpr = getPropertyValue(assemblyObj, 'services');
-        if (servicesExpr) {
-          // Store service variable names temporarily — they'll be resolved to ServiceIR by Phase 7
-          const serviceNames = extractIdentifierNames(servicesExpr);
-          // For now, leave services as [] — will be populated when ServiceAnalyzer is integrated
-          void serviceNames;
-        }
-
-        const routersExpr = getPropertyValue(assemblyObj, 'routers');
-        if (routersExpr) {
-          const routerNames = extractIdentifierNames(routersExpr);
-          void routerNames;
-        }
       }
     }
 
@@ -124,6 +104,6 @@ export function parseImports(obj: ObjectLiteralExpression): ImportRef[] {
 export function extractIdentifierNames(expr: Expression): string[] {
   if (!expr.isKind(SyntaxKind.ArrayLiteralExpression)) return [];
   return expr.getElements()
-    .filter((e): e is import('ts-morph').Identifier => e.isKind(SyntaxKind.Identifier))
+    .filter((e): e is Identifier => e.isKind(SyntaxKind.Identifier))
     .map((e) => e.getText());
 }

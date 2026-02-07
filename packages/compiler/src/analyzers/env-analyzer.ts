@@ -2,8 +2,8 @@ import { SyntaxKind } from 'ts-morph';
 import type { EnvIR, SchemaRef } from '../ir/types';
 import { createDiagnosticFromLocation } from '../errors';
 import { extractObjectLiteral, findCallExpressions, getArrayElements, getPropertyValue, getSourceLocation, getStringValue } from '../utils/ast-helpers';
-import { createNamedSchemaRef } from './schema-analyzer';
 import { BaseAnalyzer } from './base-analyzer';
+import { createNamedSchemaRef } from './schema-analyzer';
 
 export interface EnvAnalyzerResult {
   env: EnvIR | undefined;
