@@ -1,13 +1,14 @@
-import type { NamedMiddlewareDef } from '@vertz/core/src/middleware/middleware-def';
-import type { ResolvedMiddleware } from '@vertz/core/src/middleware/middleware-runner';
-import type { NamedModule } from '@vertz/core/src/module/module';
-import type { NamedServiceDef } from '@vertz/core/src/module/service';
-
-import { runMiddlewareChain } from '@vertz/core/src/middleware/middleware-runner';
-import { buildCtx } from '@vertz/core/src/context/ctx-builder';
-import { Trie } from '@vertz/core/src/router/trie';
-import { parseRequest, parseBody } from '@vertz/core/src/server/request-utils';
-import { createJsonResponse, createErrorResponse } from '@vertz/core/src/server/response-utils';
+import type { NamedMiddlewareDef, NamedModule, NamedServiceDef } from '@vertz/core';
+import type { ResolvedMiddleware } from '@vertz/core/internals';
+import {
+  runMiddlewareChain,
+  buildCtx,
+  Trie,
+  parseRequest,
+  parseBody,
+  createJsonResponse,
+  createErrorResponse,
+} from '@vertz/core/internals';
 
 export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
