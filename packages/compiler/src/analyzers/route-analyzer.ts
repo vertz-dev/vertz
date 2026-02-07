@@ -1,4 +1,4 @@
-import type { CallExpression, Expression, ObjectLiteralExpression, SourceFile } from 'ts-morph';
+import type { CallExpression, Expression, Identifier, ObjectLiteralExpression, SourceFile } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
 import type { HttpMethod, ModuleDefContext, RouteIR, RouterIR, SchemaRef } from '../ir/types';
 import { createDiagnosticFromLocation } from '../errors';
@@ -198,7 +198,9 @@ export class RouteAnalyzer extends BaseAnalyzer<RouteAnalyzerResult> {
     const middleware = obj ? this.extractMiddlewareRefs(obj, filePath) : [];
 
     const descriptionExpr = obj ? getPropertyValue(obj, 'description') : null;
-    const description = descriptionExpr ? getStringValue(descriptionExpr) ?? undefined : undefined;
+    const description = descriptionExpr
+      ? (getStringValue(descriptionExpr) ?? undefined)
+      : undefined;
 
     const tagsExpr = obj ? getPropertyValue(obj, 'tags') : null;
     const tags = tagsExpr
@@ -266,7 +268,7 @@ export class RouteAnalyzer extends BaseAnalyzer<RouteAnalyzerResult> {
     return elements
       .filter((el) => el.isKind(SyntaxKind.Identifier))
       .map((el) => {
-        const resolved = resolveIdentifier(el as import('ts-morph').Identifier, this.project);
+        const resolved = resolveIdentifier(el as Identifier, this.project);
         return {
           name: el.getText(),
           sourceFile: resolved ? resolved.sourceFile.getFilePath() : filePath,
@@ -278,22 +280,19 @@ export class RouteAnalyzer extends BaseAnalyzer<RouteAnalyzerResult> {
     moduleName: string,
     method: HttpMethod,
     path: string,
-    handlerExpr: import('ts-morph').Expression | null,
+    handlerExpr: Expression | null,
     usedIds: Set<string>,
   ): string {
-    let id: string;
-
-    if (handlerExpr) {
-      if (handlerExpr.isKind(SyntaxKind.Identifier)) {
-        id = `${moduleName}_${handlerExpr.getText()}`;
-      } else if (handlerExpr.isKind(SyntaxKind.PropertyAccessExpression)) {
-        id = `${moduleName}_${handlerExpr.getName()}`;
-      } else {
-        id = `${moduleName}_${method.toLowerCase()}_${sanitizePath(path)}`;
-      }
-    } else {
-      id = `${moduleName}_${method.toLowerCase()}_${sanitizePath(path)}`;
+    let handlerName: string | null = null;
+    if (handlerExpr?.isKind(SyntaxKind.Identifier)) {
+      handlerName = handlerExpr.getText();
+    } else if (handlerExpr?.isKind(SyntaxKind.PropertyAccessExpression)) {
+      handlerName = handlerExpr.getName();
     }
+
+    const id = handlerName
+      ? `${moduleName}_${handlerName}`
+      : `${moduleName}_${method.toLowerCase()}_${sanitizePath(path)}`;
 
     if (!usedIds.has(id)) {
       usedIds.add(id);

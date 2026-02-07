@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Project } from 'ts-morph';
 import { resolveConfig } from '../../config';
-import type { Diagnostic } from '../../errors';
-import type { HttpMethod, MiddlewareRef, ModuleDefContext, RouteIR, RouterIR } from '../../ir/types';
+import type { ModuleDefContext, RouteIR, RouterIR } from '../../ir/types';
 import type { RouteAnalyzerResult } from '../route-analyzer';
 import { RouteAnalyzer } from '../route-analyzer';
 
