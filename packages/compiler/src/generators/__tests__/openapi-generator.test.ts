@@ -8,8 +8,6 @@ import type { AppIR, MiddlewareIR, RouteIR, SchemaIR, SchemaRef } from '../../ir
 import type { JSONSchemaObject, OpenAPIParameter } from '../openapi-generator';
 import { OpenAPIGenerator } from '../openapi-generator';
 
-const _defaultConfig = resolveConfig();
-
 function createGenerator(configOverrides?: Parameters<typeof resolveConfig>[0]) {
   return new OpenAPIGenerator(resolveConfig(configOverrides));
 }
@@ -482,7 +480,7 @@ describe('OpenAPIGenerator', () => {
         sourceFile: 'src/schemas/test.ts',
         jsonSchema: { type: 'string' },
       };
-      const result = gen.resolveSchemaRef(ref, new Map());
+      const result = gen.resolveSchemaRef(ref);
       expect(result).toEqual({ type: 'string' });
     });
 
@@ -493,10 +491,7 @@ describe('OpenAPIGenerator', () => {
         schemaName: 'CreateUserBody',
         sourceFile: 'src/schemas/test.ts',
       };
-      const namedSchemas = new Map([
-        ['CreateUserBody', makeSchema({ name: 'CreateUserBody', id: 'CreateUserBody' })],
-      ]);
-      const result = gen.resolveSchemaRef(ref, namedSchemas);
+      const result = gen.resolveSchemaRef(ref);
       expect(result).toEqual({ $ref: '#/components/schemas/CreateUserBody' });
     });
 
@@ -782,6 +777,39 @@ describe('OpenAPIGenerator', () => {
       const ir = irWithRoutes([makeRoute({ method: 'GET', fullPath: '/users', tags: [] })]);
       const doc = gen.buildDocument(ir);
       expect(doc.tags).toEqual([]);
+    });
+  });
+
+  describe('$defs integration in buildDocument', () => {
+    it('lifts $defs from inline response schema to components/schemas during buildDocument', () => {
+      const gen = createGenerator();
+      const responseSchema: SchemaRef = {
+        kind: 'inline',
+        sourceFile: 'src/schemas/test.ts',
+        jsonSchema: {
+          type: 'object',
+          properties: {
+            address: { $ref: '#/$defs/Address' },
+          },
+          $defs: {
+            Address: { type: 'object', properties: { street: { type: 'string' } } },
+          },
+        },
+      };
+      const ir = irWithRoutes([
+        makeRoute({ method: 'GET', fullPath: '/users/:id', response: responseSchema }),
+      ]);
+      const doc = gen.buildDocument(ir);
+      // $defs should be lifted to components/schemas
+      expect(doc.components.schemas.Address).toEqual({
+        type: 'object',
+        properties: { street: { type: 'string' } },
+      });
+      // $ref should be rewritten in the response
+      const respSchema =
+        doc.paths['/users/{id}']?.get?.responses['200']?.content?.['application/json'].schema;
+      expect(respSchema?.properties?.address?.$ref).toBe('#/components/schemas/Address');
+      expect(respSchema?.$defs).toBeUndefined();
     });
   });
 

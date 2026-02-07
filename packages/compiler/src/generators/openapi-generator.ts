@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import type { AppIR, HttpMethod, MiddlewareIR, RouteIR, SchemaIR, SchemaRef } from '../ir/types';
+import type { AppIR, HttpMethod, MiddlewareIR, RouteIR, SchemaRef } from '../ir/types';
 import { BaseGenerator } from './base-generator';
 
 export interface OpenAPIDocument {
@@ -107,12 +107,7 @@ export class OpenAPIGenerator extends BaseGenerator {
 
   buildDocument(ir: AppIR): OpenAPIDocument {
     const version = ir.app.version ?? this.config.compiler.openapi.info.version;
-    const namedSchemas = new Map<string, SchemaIR>();
-    for (const schema of ir.schemas) {
-      if (schema.isNamed && schema.id) {
-        namedSchemas.set(schema.name, schema);
-      }
-    }
+    const { description } = this.config.compiler.openapi.info;
 
     const middlewareMap = new Map<string, MiddlewareIR>();
     for (const mw of ir.middleware) {
@@ -128,28 +123,29 @@ export class OpenAPIGenerator extends BaseGenerator {
           const pathKey = this.convertPath(route.fullPath);
           if (!paths[pathKey]) paths[pathKey] = {};
           const method = route.method.toLowerCase();
-          const operation = this.buildOperation(route, namedSchemas, middlewareMap, components);
+          const operation = this.buildOperation(route, middlewareMap, components);
           (paths[pathKey] as Record<string, OpenAPIOperation>)[method] = operation;
         }
       }
     }
 
-    // Add named schemas to components
     for (const schema of ir.schemas) {
       if (schema.isNamed && schema.id && schema.jsonSchema) {
         components[schema.id] = schema.jsonSchema as JSONSchemaObject;
       }
     }
 
+    const info: OpenAPIInfo = {
+      title: this.config.compiler.openapi.info.title,
+      version,
+    };
+    if (description) {
+      info.description = description;
+    }
+
     return {
       openapi: '3.1.0',
-      info: {
-        title: this.config.compiler.openapi.info.title,
-        version,
-        ...(this.config.compiler.openapi.info.description
-          ? { description: this.config.compiler.openapi.info.description }
-          : {}),
-      },
+      info,
       servers: [{ url: ir.app.basePath || '/' }],
       paths,
       components: { schemas: components },
@@ -159,15 +155,14 @@ export class OpenAPIGenerator extends BaseGenerator {
 
   private buildOperation(
     route: RouteIR,
-    namedSchemas: Map<string, SchemaIR>,
     middlewareMap: Map<string, MiddlewareIR>,
-    _components: Record<string, JSONSchemaObject>,
+    components: Record<string, JSONSchemaObject>,
   ): OpenAPIOperation {
     const operation: OpenAPIOperation = {
       operationId: route.operationId,
       tags: route.tags,
       parameters: this.buildParameters(route, middlewareMap),
-      responses: this.buildResponses(route, namedSchemas),
+      responses: this.buildResponses(route, components),
     };
 
     if (route.description) {
@@ -175,10 +170,11 @@ export class OpenAPIGenerator extends BaseGenerator {
     }
 
     if (route.body) {
-      const schema = this.resolveSchemaRef(route.body, namedSchemas);
       operation.requestBody = {
         required: true,
-        content: { 'application/json': { schema } },
+        content: {
+          'application/json': { schema: this.resolveAndLift(route.body, components) },
+        },
       };
     }
 
@@ -187,7 +183,7 @@ export class OpenAPIGenerator extends BaseGenerator {
 
   private buildResponses(
     route: RouteIR,
-    namedSchemas: Map<string, SchemaIR>,
+    components: Record<string, JSONSchemaObject>,
   ): Record<string, OpenAPIResponse> {
     if (!route.response) {
       if (route.method === 'DELETE') {
@@ -197,13 +193,25 @@ export class OpenAPIGenerator extends BaseGenerator {
     }
 
     const statusCode = this.getSuccessStatusCode(route.method);
-    const schema = this.resolveSchemaRef(route.response, namedSchemas);
     return {
       [statusCode]: {
         description: 'OK',
-        content: { 'application/json': { schema } },
+        content: {
+          'application/json': { schema: this.resolveAndLift(route.response, components) },
+        },
       },
     };
+  }
+
+  private resolveAndLift(
+    schemaRef: SchemaRef,
+    components: Record<string, JSONSchemaObject>,
+  ): JSONSchemaObject {
+    const resolved = this.resolveSchemaRef(schemaRef);
+    if (schemaRef.kind === 'inline' && resolved.$defs) {
+      return this.liftDefsToComponents(resolved, components);
+    }
+    return resolved;
   }
 
   private getSuccessStatusCode(method: HttpMethod): string {
@@ -222,77 +230,59 @@ export class OpenAPIGenerator extends BaseGenerator {
     // Middleware headers first (route-level overrides later)
     for (const mwRef of route.middleware) {
       const mw = middlewareMap.get(mwRef.name);
-      if (!mw?.headers?.jsonSchema) continue;
-      const schema = mw.headers.jsonSchema as JSONSchemaObject;
-      const props = schema.properties ?? {};
-      const required = new Set(schema.required ?? []);
-      for (const [name, propSchema] of Object.entries(props)) {
-        headerMap.set(name, {
-          name,
-          in: 'header',
-          required: required.has(name),
-          schema: propSchema,
-        });
+      if (mw?.headers?.jsonSchema) {
+        this.extractHeaderParams(mw.headers.jsonSchema as JSONSchemaObject, headerMap);
       }
     }
 
-    // Path params
+    // Path params (always required)
     if (route.params?.jsonSchema) {
       const schema = route.params.jsonSchema as JSONSchemaObject;
-      const props = schema.properties ?? {};
-      for (const [name, propSchema] of Object.entries(props)) {
-        params.push({
-          name,
-          in: 'path',
-          required: true, // path params are always required
-          schema: propSchema,
-        });
+      for (const [name, propSchema] of Object.entries(schema.properties ?? {})) {
+        params.push({ name, in: 'path', required: true, schema: propSchema });
       }
     }
 
     // Query params
     if (route.query?.jsonSchema) {
-      const schema = route.query.jsonSchema as JSONSchemaObject;
-      const props = schema.properties ?? {};
-      const required = new Set(schema.required ?? []);
-      for (const [name, propSchema] of Object.entries(props)) {
-        params.push({
-          name,
-          in: 'query',
-          required: required.has(name),
-          schema: propSchema,
-        });
-      }
+      this.extractParamsFromSchema(route.query.jsonSchema as JSONSchemaObject, 'query', params);
     }
 
     // Route headers (overrides middleware headers)
     if (route.headers?.jsonSchema) {
-      const schema = route.headers.jsonSchema as JSONSchemaObject;
-      const props = schema.properties ?? {};
-      const required = new Set(schema.required ?? []);
-      for (const [name, propSchema] of Object.entries(props)) {
-        headerMap.set(name, {
-          name,
-          in: 'header',
-          required: required.has(name),
-          schema: propSchema,
-        });
-      }
+      this.extractHeaderParams(route.headers.jsonSchema as JSONSchemaObject, headerMap);
     }
 
-    // Add all headers
-    for (const header of headerMap.values()) {
-      params.push(header);
-    }
-
+    params.push(...headerMap.values());
     return params;
   }
 
-  resolveSchemaRef(schemaRef: SchemaRef, _namedSchemas: Map<string, SchemaIR>): JSONSchemaObject {
+  resolveSchemaRef(schemaRef: SchemaRef): JSONSchemaObject {
     if (schemaRef.kind === 'named') {
       return { $ref: `#/components/schemas/${schemaRef.schemaName}` };
     }
     return (schemaRef.jsonSchema as JSONSchemaObject) ?? {};
+  }
+
+  private extractParamsFromSchema(
+    schema: JSONSchemaObject,
+    location: 'query' | 'header',
+    target: OpenAPIParameter[],
+  ): void {
+    const required = new Set(schema.required ?? []);
+    for (const [name, propSchema] of Object.entries(schema.properties ?? {})) {
+      target.push({ name, in: location, required: required.has(name), schema: propSchema });
+    }
+  }
+
+  private extractHeaderParams(
+    schema: JSONSchemaObject,
+    headerMap: Map<string, OpenAPIParameter>,
+  ): void {
+    const required = new Set(schema.required ?? []);
+    for (const [name, propSchema] of Object.entries(schema.properties ?? {})) {
+      headerMap.set(name, { name, in: 'header', required: required.has(name), schema: propSchema });
+    }
   }
 
   liftDefsToComponents(
