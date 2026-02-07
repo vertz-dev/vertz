@@ -19,7 +19,9 @@ describe('moduleDef.router', () => {
   it('registers GET route with handler', () => {
     const moduleDef = createModuleDef({ name: 'user' });
     const router = moduleDef.router({ prefix: '/users' });
-    const handler = (ctx: any) => ({ id: ctx.params.id });
+    const handler = (ctx: Record<string, unknown>) => ({
+      id: (ctx.params as Record<string, string>).id,
+    });
 
     router.get('/:id', { handler });
 
@@ -36,7 +38,7 @@ describe('moduleDef.router', () => {
     const router = moduleDef.router({ prefix: '/users' });
     const bodySchema = { parse: () => {} };
     const responseSchema = { parse: () => {} };
-    const handler = (ctx: any) => ctx.body;
+    const handler = (ctx: Record<string, unknown>) => ctx.body;
 
     router.post('/', {
       body: bodySchema,

@@ -51,9 +51,12 @@ describe('BootExecutor', () => {
           id: 'userService',
           deps: ['db'],
           factory: {
-            methods: (deps: any) => ({
-              findById: (id: string) => deps.db.query(`SELECT * FROM users WHERE id = '${id}'`),
-            }),
+            methods: (deps) => {
+              const d = deps as { db: { query: (sql: string) => string } };
+              return {
+                findById: (id: string) => d.db.query(`SELECT * FROM users WHERE id = '${id}'`),
+              };
+            },
           },
         },
       ],
@@ -88,7 +91,9 @@ describe('BootExecutor', () => {
           id: 'cache',
           deps: ['config'],
           factory: {
-            methods: (deps: any) => ({ get: () => deps.config.dbUrl }),
+            methods: (deps) => ({
+              get: () => (deps as { config: { dbUrl: string } }).config.dbUrl,
+            }),
           },
         },
         {
@@ -96,7 +101,9 @@ describe('BootExecutor', () => {
           id: 'db',
           deps: ['config'],
           factory: {
-            methods: (deps: any) => ({ connect: () => deps.config.dbUrl }),
+            methods: (deps) => ({
+              connect: () => (deps as { config: { dbUrl: string } }).config.dbUrl,
+            }),
           },
         },
         {
@@ -104,9 +111,13 @@ describe('BootExecutor', () => {
           id: 'app',
           deps: ['cache', 'db'],
           factory: {
-            methods: (deps: any) => ({
-              status: () => `cache: ${deps.cache.get()}, db: ${deps.db.connect()}`,
-            }),
+            methods: (deps) => {
+              const d = deps as {
+                cache: { get: () => string };
+                db: { connect: () => string };
+              };
+              return { status: () => `cache: ${d.cache.get()}, db: ${d.db.connect()}` };
+            },
           },
         },
       ],
@@ -130,8 +141,8 @@ describe('BootExecutor', () => {
           deps: [],
           factory: {
             onInit: async () => ({ client: 'connected-client' }),
-            methods: (_deps: any, state: any) => ({
-              getClient: () => state.client,
+            methods: (_deps, state) => ({
+              getClient: () => (state as { client: string }).client,
             }),
           },
         },
@@ -158,8 +169,8 @@ describe('BootExecutor', () => {
           factory: {
             onInit: async () => ({ name: 'db' }),
             methods: () => ({}),
-            onDestroy: async (_deps: any, state: any) => {
-              destroyOrder.push(state.name);
+            onDestroy: async (_deps, state) => {
+              destroyOrder.push((state as { name: string }).name);
             },
           },
         },
@@ -170,8 +181,8 @@ describe('BootExecutor', () => {
           factory: {
             onInit: async () => ({ name: 'cache' }),
             methods: () => ({}),
-            onDestroy: async (_deps: any, state: any) => {
-              destroyOrder.push(state.name);
+            onDestroy: async (_deps, state) => {
+              destroyOrder.push((state as { name: string }).name);
             },
           },
         },
@@ -253,7 +264,7 @@ describe('BootExecutor', () => {
 
   it('wraps deps with makeImmutable before passing to methods', async () => {
     process.env.NODE_ENV = 'development';
-    let receivedDeps: any;
+    let receivedDeps: Record<string, unknown>;
 
     const sequence: BootSequence = {
       instructions: [
@@ -268,8 +279,8 @@ describe('BootExecutor', () => {
           id: 'db',
           deps: ['config'],
           factory: {
-            methods: (deps: any) => {
-              receivedDeps = deps;
+            methods: (deps) => {
+              receivedDeps = deps as Record<string, unknown>;
               return {};
             },
           },
