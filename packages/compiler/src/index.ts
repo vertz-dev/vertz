@@ -72,6 +72,19 @@ export {
 } from './errors';
 export type { Generator } from './generators/base-generator';
 export { BaseGenerator } from './generators/base-generator';
+export type {
+  JSONSchemaObject,
+  OpenAPIDocument,
+  OpenAPIInfo,
+  OpenAPIOperation,
+  OpenAPIParameter,
+  OpenAPIPathItem,
+  OpenAPIRequestBody,
+  OpenAPIResponse,
+  OpenAPIServer,
+  OpenAPITag,
+} from './generators/openapi-generator';
+export { OpenAPIGenerator } from './generators/openapi-generator';
 // IR builders
 export {
   addDiagnosticsToIR,
@@ -125,13 +138,12 @@ export {
 // Import resolver
 export type { ResolvedImport } from './utils/import-resolver';
 export { isFromImport, resolveExport, resolveIdentifier } from './utils/import-resolver';
-// Validators
-export type { ParsedSchemaName, ValidOperation, ValidPart } from './validators/naming-validator';
-export { CompletenessValidator } from './validators/completeness-validator';
-export { ModuleValidator } from './validators/module-validator';
-export { NamingValidator } from './validators/naming-validator';
-export { PlacementValidator } from './validators/placement-validator';
-
 // Schema executor
 export type { SchemaExecutionResult, SchemaExecutor } from './utils/schema-executor';
 export { createSchemaExecutor } from './utils/schema-executor';
+export { CompletenessValidator } from './validators/completeness-validator';
+export { ModuleValidator } from './validators/module-validator';
+// Validators
+export type { ParsedSchemaName, ValidOperation, ValidPart } from './validators/naming-validator';
+export { NamingValidator } from './validators/naming-validator';
+export { PlacementValidator } from './validators/placement-validator';
