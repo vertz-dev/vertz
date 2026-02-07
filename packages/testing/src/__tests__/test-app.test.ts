@@ -6,6 +6,7 @@ import {
   type NamedServiceDef,
   type NamedRouterDef,
 } from '@vertz/core';
+import { s } from '@vertz/schema';
 import { describe, it, expect } from 'vitest';
 
 import { createTestApp } from '../test-app';
@@ -14,12 +15,13 @@ interface RouteInput {
   method: string;
   path: string;
   handler: (ctx: any) => any;
+  response?: any;
 }
 
 function addRoutes(router: NamedRouterDef, routes: RouteInput[]): void {
   for (const route of routes) {
     const method = route.method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head';
-    router[method](route.path, { handler: route.handler });
+    router[method](route.path, { handler: route.handler, response: route.response });
   }
 }
 
@@ -281,6 +283,50 @@ describe('createTestApp', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ message: 'app-level' });
+  });
+
+  it('passes when handler return matches response schema', async () => {
+    const mod = createTestModule('test', '/api', [
+      { method: 'GET', path: '/', response: s.object({ name: s.string() }), handler: () => ({ name: 'Alice' }) },
+    ]);
+
+    const app = createTestApp().register(mod);
+    const res = await app.get('/api');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ name: 'Alice' });
+  });
+
+  it('skips validation when route has no response schema', async () => {
+    const mod = createTestModule('test', '/api', [
+      { method: 'GET', path: '/', handler: () => ({ anything: 'goes' }) },
+    ]);
+
+    const app = createTestApp().register(mod);
+    const res = await app.get('/api');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ anything: 'goes' });
+  });
+
+  it('throws when handler returns undefined but route has response schema', async () => {
+    const mod = createTestModule('test', '/api', [
+      { method: 'GET', path: '/', response: s.object({ name: s.string() }), handler: () => undefined },
+    ]);
+
+    const app = createTestApp().register(mod);
+
+    await expect(app.get('/api')).rejects.toThrow('Response validation failed');
+  });
+
+  it('throws when handler return does not match response schema', async () => {
+    const mod = createTestModule('test', '/api', [
+      { method: 'GET', path: '/', response: s.object({ name: s.string() }), handler: () => ({ name: 123 }) },
+    ]);
+
+    const app = createTestApp().register(mod);
+
+    await expect(app.get('/api')).rejects.toThrow('Response validation failed');
   });
 
 });
