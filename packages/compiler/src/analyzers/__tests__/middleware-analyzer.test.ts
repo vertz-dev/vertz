@@ -347,7 +347,8 @@ const auth = vertz.middleware({ name: 'auth', inject: { ts: tokenService }, hand
 const broken = vertz.middleware({ handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
-    await analyzer.analyze();
+    const result = await analyzer.analyze();
+    expect(result.middleware).toHaveLength(0);
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
     expect(diags[0]!.severity).toBe('error');
@@ -362,7 +363,8 @@ const broken = vertz.middleware({ handler: async (ctx: any) => ({}) });`,
 const broken = vertz.middleware({ name: 'broken' });`,
     );
     const analyzer = new MiddlewareAnalyzer(project, resolveConfig());
-    await analyzer.analyze();
+    const result = await analyzer.analyze();
+    expect(result.middleware).toHaveLength(0);
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
     expect(diags[0]!.severity).toBe('error');

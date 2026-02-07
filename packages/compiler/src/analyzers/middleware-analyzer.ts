@@ -61,6 +61,7 @@ export class MiddlewareAnalyzer extends BaseAnalyzer<MiddlewareAnalyzerResult> {
             message: "Middleware must have a 'handler' property.",
             suggestion: "Add a 'handler' property to the middleware config.",
           }));
+          continue;
         }
 
         const injectExpr = getPropertyValue(obj, 'inject');
