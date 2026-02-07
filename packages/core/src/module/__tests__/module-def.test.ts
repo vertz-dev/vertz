@@ -15,7 +15,7 @@ describe('createModuleDef', () => {
     const moduleDef = createModuleDef({
       name: 'user',
       imports: { dbService: mockService },
-      options: mockSchema as any,
+      options: mockSchema as unknown as import('@vertz/schema').Schema<unknown>,
     });
 
     expect(moduleDef.imports).toEqual({ dbService: mockService });

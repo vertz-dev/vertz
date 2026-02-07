@@ -13,7 +13,7 @@ describe('makeImmutable', () => {
     const obj = { name: 'John' };
     const result = makeImmutable(obj, 'ctx');
     expect(() => {
-      (result as any).name = 'Jane';
+      (result as Record<string, unknown>).name = 'Jane';
     }).toThrow(/Cannot set property/);
   });
 
@@ -23,8 +23,8 @@ describe('makeImmutable', () => {
     const result = makeImmutable(obj, 'ctx');
     expect(result).toBe(obj);
     // No proxy — mutation is allowed at runtime (TypeScript prevents at compile time)
-    (result as any).name = 'Jane';
-    expect((result as any).name).toBe('Jane');
+    (result as Record<string, unknown>).name = 'Jane';
+    expect((result as Record<string, unknown>).name).toBe('Jane');
   });
 
   it('in test mode, returns object as-is', () => {
