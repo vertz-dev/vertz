@@ -15,7 +15,7 @@ export interface ModuleRegistration {
 }
 
 interface RouteEntry {
-  handler: (ctx: any) => any;
+  handler: (ctx: Record<string, unknown>) => unknown;
   options: Record<string, unknown>;
   services: Record<string, unknown>;
 }
@@ -73,7 +73,7 @@ function registerRoutes(
           options: options ?? {},
           services: resolvedServices,
         };
-        trie.add(route.method, fullPath, entry as any);
+        trie.add(route.method, fullPath, entry);
       }
     }
   }
@@ -84,7 +84,7 @@ export function buildHandler(
   registrations: ModuleRegistration[],
   globalMiddlewares: NamedMiddlewareDef[],
 ): (request: Request) => Promise<Response> {
-  const trie = new Trie();
+  const trie = new Trie<RouteEntry>();
   const basePath = config.basePath ?? '';
   const resolvedMiddlewares = resolveMiddlewares(globalMiddlewares);
   const serviceMap = resolveServices(registrations);
@@ -135,7 +135,7 @@ export function buildHandler(
 
       const middlewareState = await runMiddlewareChain(resolvedMiddlewares, requestCtx);
 
-      const entry = match.handler as unknown as RouteEntry;
+      const entry = match.handler;
 
       const ctx = buildCtx({
         params: match.params,
