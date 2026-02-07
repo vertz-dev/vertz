@@ -1,4 +1,4 @@
-import type { Identifier, Node, Project, SourceFile } from 'ts-morph';
+import type { Identifier, ImportDeclaration, Node, Project, SourceFile } from 'ts-morph';
 
 export interface ResolvedImport {
   declaration: Node;
@@ -10,46 +10,13 @@ export function resolveIdentifier(
   identifier: Identifier,
   project: Project,
 ): ResolvedImport | null {
-  // Check if this identifier is locally declared (not from an import)
-  const importDecl = findImportForIdentifier(identifier);
-  if (!importDecl) return null;
+  const importInfo = findImportForIdentifier(identifier);
+  if (!importInfo) return null;
 
-  const { moduleSourceFile, originalName } = importDecl;
+  const moduleSourceFile = importInfo.importDecl.getModuleSpecifierSourceFile();
   if (!moduleSourceFile) return null;
 
-  return resolveExport(moduleSourceFile, originalName, project);
-}
-
-function findImportForIdentifier(
-  identifier: Identifier,
-): { moduleSourceFile: SourceFile | undefined; originalName: string } | null {
-  const sourceFile = identifier.getSourceFile();
-  const name = identifier.getText();
-
-  // Search through import declarations in this file
-  for (const importDecl of sourceFile.getImportDeclarations()) {
-    // Check named imports
-    for (const specifier of importDecl.getNamedImports()) {
-      const localName = specifier.getAliasNode()?.getText() ?? specifier.getName();
-      if (localName === name) {
-        return {
-          moduleSourceFile: importDecl.getModuleSpecifierSourceFile(),
-          originalName: specifier.getName(),
-        };
-      }
-    }
-
-    // Check namespace imports
-    const nsImport = importDecl.getNamespaceImport();
-    if (nsImport && nsImport.getText() === name) {
-      return {
-        moduleSourceFile: importDecl.getModuleSpecifierSourceFile(),
-        originalName: '*',
-      };
-    }
-  }
-
-  return null;
+  return resolveExport(moduleSourceFile, importInfo.originalName, project);
 }
 
 export function resolveExport(
@@ -57,21 +24,18 @@ export function resolveExport(
   exportName: string,
   project: Project,
 ): ResolvedImport | null {
-  // Check for re-exports: export { foo } from './other'
   for (const exportDecl of file.getExportDeclarations()) {
-    const moduleSpecifier = exportDecl.getModuleSpecifierSourceFile();
+    const moduleSourceFile = exportDecl.getModuleSpecifierSourceFile();
+    if (!moduleSourceFile) continue;
+
     for (const named of exportDecl.getNamedExports()) {
       const name = named.getAliasNode()?.getText() ?? named.getName();
       if (name === exportName) {
-        if (moduleSpecifier) {
-          const originalName = named.getName();
-          return resolveExport(moduleSpecifier, originalName, project);
-        }
+        return resolveExport(moduleSourceFile, named.getName(), project);
       }
     }
   }
 
-  // Check for direct exports
   const exportedDecls = file.getExportedDeclarations().get(exportName);
   if (exportedDecls && exportedDecls.length > 0) {
     const decl = exportedDecls[0]!;
@@ -89,20 +53,35 @@ export function isFromImport(
   identifier: Identifier,
   moduleSpecifier: string,
 ): boolean {
+  const importInfo = findImportForIdentifier(identifier);
+  if (!importInfo) return false;
+  return importInfo.importDecl.getModuleSpecifierValue() === moduleSpecifier;
+}
+
+// ── Internal helpers ────────────────────────────────────────────────
+
+interface ImportMatch {
+  importDecl: ImportDeclaration;
+  originalName: string;
+}
+
+function findImportForIdentifier(identifier: Identifier): ImportMatch | null {
   const sourceFile = identifier.getSourceFile();
   const name = identifier.getText();
 
   for (const importDecl of sourceFile.getImportDeclarations()) {
-    if (importDecl.getModuleSpecifierValue() !== moduleSpecifier) continue;
-
     for (const specifier of importDecl.getNamedImports()) {
       const localName = specifier.getAliasNode()?.getText() ?? specifier.getName();
-      if (localName === name) return true;
+      if (localName === name) {
+        return { importDecl, originalName: specifier.getName() };
+      }
     }
 
     const nsImport = importDecl.getNamespaceImport();
-    if (nsImport && nsImport.getText() === name) return true;
+    if (nsImport && nsImport.getText() === name) {
+      return { importDecl, originalName: '*' };
+    }
   }
 
-  return false;
+  return null;
 }

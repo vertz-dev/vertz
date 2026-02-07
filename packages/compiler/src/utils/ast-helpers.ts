@@ -1,24 +1,37 @@
 import {
   type CallExpression,
   type Expression,
+  type Identifier,
   type Node,
   type ObjectLiteralExpression,
+  type PropertyAccessExpression,
   type SourceFile,
   SyntaxKind,
 } from 'ts-morph';
+import type { SourceLocation } from '../ir/types';
+
+function matchPropertyAccess(
+  call: CallExpression,
+  objectName: string,
+  methodName: string,
+): PropertyAccessExpression | null {
+  const expr = call.getExpression();
+  if (!expr.isKind(SyntaxKind.PropertyAccessExpression)) return null;
+  const obj = expr.getExpression();
+  if (!obj.isKind(SyntaxKind.Identifier) || obj.getText() !== objectName || expr.getName() !== methodName) {
+    return null;
+  }
+  return expr;
+}
 
 export function findCallExpressions(
   file: SourceFile,
   objectName: string,
   methodName: string,
 ): CallExpression[] {
-  return file.getDescendantsOfKind(SyntaxKind.CallExpression).filter((call) => {
-    const expr = call.getExpression();
-    if (!expr.isKind(SyntaxKind.PropertyAccessExpression)) return false;
-    const obj = expr.getExpression();
-    const method = expr.getName();
-    return obj.isKind(SyntaxKind.Identifier) && obj.getText() === objectName && method === methodName;
-  });
+  return file.getDescendantsOfKind(SyntaxKind.CallExpression).filter((call) =>
+    matchPropertyAccess(call, objectName, methodName) !== null,
+  );
 }
 
 export function findMethodCallsOnVariable(
@@ -27,15 +40,10 @@ export function findMethodCallsOnVariable(
   methodName: string,
 ): CallExpression[] {
   return file.getDescendantsOfKind(SyntaxKind.CallExpression).filter((call) => {
-    const expr = call.getExpression();
-    if (!expr.isKind(SyntaxKind.PropertyAccessExpression)) return false;
-    const obj = expr.getExpression();
-    const method = expr.getName();
-    if (!obj.isKind(SyntaxKind.Identifier) || obj.getText() !== variableName || method !== methodName) {
-      return false;
-    }
-    const defs = obj.getDefinitionNodes();
-    return defs.some((d) => d.isKind(SyntaxKind.VariableDeclaration));
+    const access = matchPropertyAccess(call, variableName, methodName);
+    if (!access) return false;
+    const obj = access.getExpression() as Identifier;
+    return obj.getDefinitionNodes().some((d) => d.isKind(SyntaxKind.VariableDeclaration));
   });
 }
 
@@ -43,10 +51,8 @@ export function extractObjectLiteral(
   callExpr: CallExpression,
   argIndex: number,
 ): ObjectLiteralExpression | null {
-  const args = callExpr.getArguments();
-  if (argIndex >= args.length) return null;
-  const arg = args[argIndex]!;
-  if (arg.isKind(SyntaxKind.ObjectLiteralExpression)) return arg;
+  const arg = callExpr.getArguments()[argIndex];
+  if (arg?.isKind(SyntaxKind.ObjectLiteralExpression)) return arg;
   return null;
 }
 
@@ -80,10 +86,7 @@ export function getProperties(
 }
 
 export function getStringValue(expr: Expression): string | null {
-  if (expr.isKind(SyntaxKind.StringLiteral)) {
-    return expr.getLiteralValue();
-  }
-  if (expr.isKind(SyntaxKind.NoSubstitutionTemplateLiteral)) {
+  if (expr.isKind(SyntaxKind.StringLiteral) || expr.isKind(SyntaxKind.NoSubstitutionTemplateLiteral)) {
     return expr.getLiteralValue();
   }
   return null;
@@ -102,8 +105,9 @@ export function getNumberValue(expr: Expression): number | null {
   if (expr.isKind(SyntaxKind.PrefixUnaryExpression)) {
     const operator = expr.getOperatorToken();
     const operand = expr.getOperand();
-    if (operator === SyntaxKind.MinusToken && operand.isKind(SyntaxKind.NumericLiteral)) {
-      return -operand.getLiteralValue();
+    if (operand.isKind(SyntaxKind.NumericLiteral)) {
+      if (operator === SyntaxKind.MinusToken) return -operand.getLiteralValue();
+      if (operator === SyntaxKind.PlusToken) return operand.getLiteralValue();
     }
   }
   return null;
@@ -124,11 +128,7 @@ export function getVariableNameForCall(callExpr: CallExpression): string | null 
   return null;
 }
 
-export function getSourceLocation(node: Node): {
-  sourceFile: string;
-  sourceLine: number;
-  sourceColumn: number;
-} {
+export function getSourceLocation(node: Node): SourceLocation {
   const file = node.getSourceFile();
   const pos = node.getStart();
   const { line, column } = file.getLineAndColumnAtPos(pos);

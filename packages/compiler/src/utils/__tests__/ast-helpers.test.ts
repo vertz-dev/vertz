@@ -347,6 +347,12 @@ describe('getNumberValue', () => {
     expect(getNumberValue(expr)).toBe(-1);
   });
 
+  it('extracts positive unary number', () => {
+    const project = createProject();
+    const expr = getExpr(project, 'const x = +42;');
+    expect(getNumberValue(expr)).toBe(42);
+  });
+
   it('returns null for string', () => {
     const project = createProject();
     const expr = getExpr(project, `const x = '42';`);
