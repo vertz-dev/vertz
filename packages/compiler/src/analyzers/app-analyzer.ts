@@ -1,4 +1,10 @@
-import type { CallExpression, Expression, Identifier, SourceFile } from 'ts-morph';
+import type {
+  CallExpression,
+  Expression,
+  Identifier,
+  ObjectLiteralExpression,
+  SourceFile,
+} from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
 import { createDiagnosticFromLocation } from '../errors';
 import type { AppDefinition, MiddlewareRef, ModuleRegistration } from '../ir/types';
@@ -12,6 +18,11 @@ import {
 } from '../utils/ast-helpers';
 import { resolveIdentifier } from '../utils/import-resolver';
 import { BaseAnalyzer } from './base-analyzer';
+
+interface ChainedCall {
+  methodName: string;
+  call: CallExpression;
+}
 
 export interface AppAnalyzerResult {
   app: AppDefinition;
@@ -67,7 +78,7 @@ export class AppAnalyzer extends BaseAnalyzer<AppAnalyzerResult> {
     const basePathExpr = obj ? getPropertyValue(obj, 'basePath') : null;
     const basePath = basePathExpr ? (getStringValue(basePathExpr) ?? '/') : '/';
     const versionExpr = obj ? getPropertyValue(obj, 'version') : null;
-    const version = versionExpr ? (getStringValue(versionExpr) ?? undefined) : undefined;
+    const version = versionExpr ? getStringValue(versionExpr) ?? undefined : undefined;
     const loc = getSourceLocation(call);
 
     if (basePath !== '/' && !basePath.startsWith('/')) {
@@ -95,10 +106,8 @@ export class AppAnalyzer extends BaseAnalyzer<AppAnalyzerResult> {
     };
   }
 
-  private collectChainedCalls(
-    appCall: CallExpression,
-  ): { methodName: string; call: CallExpression }[] {
-    const results: { methodName: string; call: CallExpression }[] = [];
+  private collectChainedCalls(appCall: CallExpression): ChainedCall[] {
+    const results: ChainedCall[] = [];
     let current: Expression = appCall;
 
     // Walk up the AST to find parent PropertyAccessExpression + CallExpression
@@ -115,10 +124,7 @@ export class AppAnalyzer extends BaseAnalyzer<AppAnalyzerResult> {
     return results;
   }
 
-  private extractMiddlewares(
-    chainedCalls: { methodName: string; call: CallExpression }[],
-    file: SourceFile,
-  ): MiddlewareRef[] {
+  private extractMiddlewares(chainedCalls: ChainedCall[], file: SourceFile): MiddlewareRef[] {
     const middleware: MiddlewareRef[] = [];
     for (const { methodName, call } of chainedCalls) {
       if (methodName !== 'middlewares') continue;
@@ -138,9 +144,7 @@ export class AppAnalyzer extends BaseAnalyzer<AppAnalyzerResult> {
     return middleware;
   }
 
-  private extractRegistrations(
-    chainedCalls: { methodName: string; call: CallExpression }[],
-  ): ModuleRegistration[] {
+  private extractRegistrations(chainedCalls: ChainedCall[]): ModuleRegistration[] {
     const registrations: ModuleRegistration[] = [];
     for (const { methodName, call } of chainedCalls) {
       if (methodName !== 'register') continue;
@@ -170,7 +174,7 @@ export class AppAnalyzer extends BaseAnalyzer<AppAnalyzerResult> {
     return registrations;
   }
 
-  private extractOptions(obj: import('ts-morph').ObjectLiteralExpression): Record<string, unknown> {
+  private extractOptions(obj: ObjectLiteralExpression): Record<string, unknown> {
     const result: Record<string, unknown> = {};
     for (const prop of obj.getProperties()) {
       if (!prop.isKind(SyntaxKind.PropertyAssignment)) continue;

@@ -576,6 +576,22 @@ describe('DependencyGraphAnalyzer', () => {
       expect(cycle).toContain('c');
     });
 
+    it('detects self-referencing module (A -> A)', async () => {
+      const analyzer = createAnalyzer();
+      const input: DependencyGraphInput = {
+        modules: [
+          makeModule({
+            name: 'a',
+            imports: [{ localName: 'x', sourceModule: 'a', sourceExport: 'x', isEnvImport: false }],
+          }),
+        ],
+        middleware: [],
+      };
+      const result = await analyzer.analyze(input);
+      expect(result.graph.circularDependencies).toHaveLength(1);
+      expect(result.graph.circularDependencies.at(0)).toContain('a');
+    });
+
     it('reports no circular dependencies when graph is acyclic', async () => {
       const analyzer = createAnalyzer();
       const input: DependencyGraphInput = {
