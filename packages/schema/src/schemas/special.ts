@@ -5,7 +5,9 @@ import { SchemaType } from '../core/types';
 import type { RefTracker } from '../introspection/json-schema';
 import type { JSONSchemaObject } from '../introspection/json-schema';
 
+// biome-ignore lint/suspicious/noExplicitAny: AnySchema intentionally models the any type
 export class AnySchema extends Schema<any> {
+  // biome-ignore lint/suspicious/noExplicitAny: AnySchema intentionally returns any
   _parse(value: unknown, _ctx: ParseContext): any {
     return value;
   }

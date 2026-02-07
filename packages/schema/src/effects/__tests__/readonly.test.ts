@@ -21,7 +21,7 @@ describe('.readonly()', () => {
     }).readonly();
     const result = schema.parse({ name: 'Alice' });
     expect(() => {
-      (result as any).name = 'Bob';
+      (result as Record<string, unknown>).name = 'Bob';
     }).toThrow();
   });
 
@@ -39,7 +39,7 @@ describe('.readonly()', () => {
     const result = schema.parse(['a', 'b']);
     expect(Object.isFrozen(result)).toBe(true);
     expect(() => {
-      (result as any).push('c');
+      (result as unknown[]).push('c');
     }).toThrow();
   });
 

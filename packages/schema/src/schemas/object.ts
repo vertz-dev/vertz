@@ -1,10 +1,10 @@
-import { Schema, OptionalSchema, DefaultSchema } from '../core/schema';
+import { Schema, OptionalSchema, DefaultSchema, type SchemaAny } from '../core/schema';
 import { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker, JSONSchemaObject } from '../introspection/json-schema';
 
-type Shape = Record<string, Schema<any, any>>;
+type Shape = Record<string, SchemaAny>;
 
 type InferShape<S extends Shape> = {
   [K in keyof S]: S[K]['_output'];
@@ -21,7 +21,7 @@ function receivedType(value: unknown): string {
 export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>> {
   private readonly _shape: S;
   private _unknownKeys: UnknownKeyMode = 'strip';
-  private _catchall: Schema<any, any> | undefined;
+  private _catchall: SchemaAny | undefined;
 
   constructor(shape: S) {
     super();
@@ -32,7 +32,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
     return this._shape;
   }
 
-  private _isOptionalKey(schema: Schema<any, any>): boolean {
+  private _isOptionalKey(schema: SchemaAny): boolean {
     return schema instanceof OptionalSchema || schema instanceof DefaultSchema;
   }
 
@@ -102,11 +102,12 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
   }
 
   merge<O extends Shape>(other: ObjectSchema<O>): ObjectSchema<Omit<S, keyof O> & O> {
+    // biome-ignore lint/suspicious/noExplicitAny: TS can't verify merged shape satisfies Omit<S, keyof O> & O
     return new ObjectSchema({ ...this._shape, ...other.shape } as any);
   }
 
   pick<K extends keyof S & string>(...keys: K[]): ObjectSchema<Pick<S, K>> {
-    const picked: Record<string, Schema<any, any>> = {};
+    const picked: Record<string, SchemaAny> = {};
     for (const key of keys) {
       picked[key] = this._shape[key]!;
     }
@@ -120,7 +121,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
         ? Schema<O, I>
         : S[K];
   }> {
-    const requiredShape: Record<string, Schema<any, any>> = {};
+    const requiredShape: Record<string, SchemaAny> = {};
     for (const key of Object.keys(this._shape)) {
       const schema = this._shape[key]!;
       if (schema instanceof OptionalSchema || schema instanceof DefaultSchema) {
@@ -129,21 +130,23 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
         requiredShape[key] = schema;
       }
     }
+    // biome-ignore lint/suspicious/noExplicitAny: TS can't verify runtime shape matches required mapped type
     return new ObjectSchema(requiredShape as any);
   }
 
   partial(): ObjectSchema<{ [K in keyof S]: OptionalSchema<S[K]['_output'], S[K]['_input']> }> {
-    const partialShape: Record<string, Schema<any, any>> = {};
+    const partialShape: Record<string, SchemaAny> = {};
     for (const key of Object.keys(this._shape)) {
       const schema = this._shape[key]!;
       partialShape[key] = schema instanceof OptionalSchema ? schema : schema.optional();
     }
+    // biome-ignore lint/suspicious/noExplicitAny: TS can't verify runtime shape matches partial mapped type
     return new ObjectSchema(partialShape as any);
   }
 
   omit<K extends keyof S & string>(...keys: K[]): ObjectSchema<Omit<S, K>> {
     const keysToOmit = new Set<string>(keys);
-    const remaining: Record<string, Schema<any, any>> = {};
+    const remaining: Record<string, SchemaAny> = {};
     for (const key of Object.keys(this._shape)) {
       if (!keysToOmit.has(key)) {
         remaining[key] = this._shape[key]!;
@@ -156,7 +159,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
     return Object.keys(this._shape);
   }
 
-  catchall(schema: Schema<any, any>): ObjectSchema<S> {
+  catchall(schema: SchemaAny): ObjectSchema<S> {
     const clone = this._clone();
     clone._catchall = schema;
     clone._unknownKeys = 'strip';

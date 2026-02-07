@@ -1,18 +1,18 @@
-import { Schema } from '../core/schema';
+import { Schema, type SchemaAny } from '../core/schema';
 import { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker } from '../introspection/json-schema';
 import type { JSONSchemaObject } from '../introspection/json-schema';
 
-type TupleItems = [Schema<any>, ...Schema<any>[]];
+type TupleItems = [SchemaAny, ...SchemaAny[]];
 type InferTuple<T extends TupleItems> = {
   [K in keyof T]: T[K] extends Schema<infer O> ? O : never;
 };
 
 export class TupleSchema<T extends TupleItems> extends Schema<InferTuple<T>> {
   private readonly _items: T;
-  private _rest: Schema<any> | undefined;
+  private _rest: SchemaAny | undefined;
 
   constructor(items: T) {
     super();
