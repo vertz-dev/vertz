@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { ErrorCode } from '../../core/errors';
+import { NumberSchema } from '../number';
 import { RecordSchema } from '../record';
 import { StringSchema } from '../string';
-import { NumberSchema } from '../number';
-import { ErrorCode } from '../../core/errors';
 
 describe('RecordSchema', () => {
   it('accepts valid record with string keys and typed values', () => {

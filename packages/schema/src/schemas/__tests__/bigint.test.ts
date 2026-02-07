@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { BigIntSchema } from '../bigint';
+import { describe, expect, it } from 'vitest';
 import { ParseError } from '../../core/errors';
+import { BigIntSchema } from '../bigint';
 
 describe('BigIntSchema', () => {
   it('accepts bigint values, rejects non-bigint, and toJSONSchema returns integer/int64', () => {

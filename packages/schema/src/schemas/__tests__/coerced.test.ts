@@ -1,10 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  CoercedStringSchema,
-  CoercedNumberSchema,
-  CoercedBooleanSchema,
   CoercedBigIntSchema,
+  CoercedBooleanSchema,
   CoercedDateSchema,
+  CoercedNumberSchema,
+  CoercedStringSchema,
 } from '../coerced';
 
 describe('CoercedStringSchema', () => {

@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { StringSchema } from '../../schemas/string';
+import { describe, expect, it } from 'vitest';
 import { NumberSchema } from '../../schemas/number';
+import { StringSchema } from '../../schemas/string';
 
 describe('.catch()', () => {
   it('returns fallback value on parse failure', () => {

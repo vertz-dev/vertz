@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { BootExecutor } from '../boot-executor';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { BootSequence } from '../../types/boot-sequence';
+import { BootExecutor } from '../boot-executor';
 
 describe('BootExecutor', () => {
   const originalEnv = process.env.NODE_ENV;

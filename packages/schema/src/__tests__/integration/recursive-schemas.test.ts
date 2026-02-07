@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { s } from '../..';
+import { describe, expect, it } from 'vitest';
 import type { Infer } from '../..';
+import { s } from '../..';
 
 describe('Integration: Recursive Schemas', () => {
   it('tree node with s.lazy() and .id()', () => {

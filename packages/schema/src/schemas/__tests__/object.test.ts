@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { ErrorCode, ParseError } from '../../core/errors';
+import { SchemaRegistry } from '../../core/registry';
+import { NumberSchema } from '../number';
 import { ObjectSchema } from '../object';
 import { StringSchema } from '../string';
-import { NumberSchema } from '../number';
-import { ParseError, ErrorCode } from '../../core/errors';
-import { SchemaRegistry } from '../../core/registry';
 
 describe('ObjectSchema', () => {
   beforeEach(() => {

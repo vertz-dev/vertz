@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { UnionSchema } from '../union';
-import { StringSchema } from '../string';
-import { NumberSchema } from '../number';
+import { describe, expect, it } from 'vitest';
 import { ErrorCode } from '../../core/errors';
+import { NumberSchema } from '../number';
+import { StringSchema } from '../string';
+import { UnionSchema } from '../union';
 
 describe('UnionSchema', () => {
   it('accepts value matching first option', () => {

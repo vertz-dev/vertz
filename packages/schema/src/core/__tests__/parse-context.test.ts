@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { ParseContext } from '../parse-context';
+import { describe, expect, it } from 'vitest';
 import { ErrorCode } from '../errors';
+import { ParseContext } from '../parse-context';
 
 describe('ParseContext', () => {
   it('starts with no issues', () => {

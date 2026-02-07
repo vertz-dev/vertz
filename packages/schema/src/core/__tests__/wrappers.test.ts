@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { StringSchema } from '../../schemas/string';
-import { OptionalSchema, NullableSchema, DefaultSchema } from '../schema';
+import { DefaultSchema, NullableSchema, OptionalSchema } from '../schema';
 
 describe('OptionalSchema', () => {
   it('accepts undefined and returns undefined', () => {

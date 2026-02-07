@@ -1,5 +1,5 @@
-import type { EnvConfig } from '../types/env';
 import { deepFreeze } from '../immutability';
+import type { EnvConfig } from '../types/env';
 
 export function createEnv<T>(config: EnvConfig<T>): T {
   const result = config.schema.safeParse(process.env);

@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { SymbolSchema } from '../symbol';
+import { describe, expect, it } from 'vitest';
 import { ParseError } from '../../core/errors';
+import { SymbolSchema } from '../symbol';
 
 describe('SymbolSchema', () => {
   it('accepts symbols, rejects non-symbols', () => {

@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { Schema } from '../schema';
-import type { ParseContext } from '../parse-context';
-import { ErrorCode, ParseError } from '../errors';
-import { SchemaType } from '../types';
-import { SchemaRegistry } from '../registry';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { RefTracker } from '../../introspection/json-schema';
+import { ErrorCode, ParseError } from '../errors';
+import type { ParseContext } from '../parse-context';
+import { SchemaRegistry } from '../registry';
+import { Schema } from '../schema';
+import { SchemaType } from '../types';
 
 /** Minimal concrete schema for testing the abstract base */
 class TestStringSchema extends Schema<string> {

@@ -1,8 +1,8 @@
-export { createModuleDef } from './module-def';
-export type { NamedModuleDef } from './module-def';
-export { createServiceDef } from './service';
-export type { NamedServiceDef } from './service';
-export { createRouterDef } from './router-def';
-export type { NamedRouterDef, RouteConfig, Route } from './router-def';
-export { createModule } from './module';
 export type { NamedModule } from './module';
+export { createModule } from './module';
+export type { NamedModuleDef } from './module-def';
+export { createModuleDef } from './module-def';
+export type { NamedRouterDef, Route, RouteConfig } from './router-def';
+export { createRouterDef } from './router-def';
+export type { NamedServiceDef } from './service';
+export { createServiceDef } from './service';

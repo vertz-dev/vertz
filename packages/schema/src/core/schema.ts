@@ -1,10 +1,10 @@
-import { ErrorCode, ParseError } from './errors';
-import type { SchemaType, SafeParseResult, SchemaMetadata } from './types';
-import { ParseContext } from './parse-context';
-import type { RefinementContext } from './parse-context';
-import { SchemaRegistry } from './registry';
-import { RefTracker } from '../introspection/json-schema';
 import type { JSONSchemaObject } from '../introspection/json-schema';
+import { RefTracker } from '../introspection/json-schema';
+import { ErrorCode, ParseError } from './errors';
+import type { RefinementContext } from './parse-context';
+import { ParseContext } from './parse-context';
+import { SchemaRegistry } from './registry';
+import type { SafeParseResult, SchemaMetadata, SchemaType } from './types';
 
 // biome-ignore lint/suspicious/noExplicitAny: Schema is invariant; any is required for type-level bounds
 export type SchemaAny = Schema<any, any>;

@@ -1,5 +1,5 @@
-import { describe, it, expectTypeOf } from 'vitest';
-import type { BootSequence, BootInstruction, ServiceFactory } from '../boot-sequence';
+import { describe, expectTypeOf, it } from 'vitest';
+import type { BootInstruction, BootSequence, ServiceFactory } from '../boot-sequence';
 
 describe('BootSequence', () => {
   it('has instructions array and shutdownOrder', () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { SchemaRegistry } from '../registry';
 import type { SchemaAny } from '../schema';
 

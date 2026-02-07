@@ -1,18 +1,17 @@
-import { describe, it, expect } from 'vitest';
-import { s, schema } from '..';
-import { StringSchema } from '../schemas/string';
-import { NumberSchema } from '../schemas/number';
-import { BooleanSchema } from '../schemas/boolean';
-import { BigIntSchema } from '../schemas/bigint';
-import { DateSchema } from '../schemas/date';
-import { ObjectSchema } from '../schemas/object';
+import { describe, expect, it } from 'vitest';
+import { ParseError, SchemaRegistry, s, schema } from '..';
 import { ArraySchema } from '../schemas/array';
+import { BigIntSchema } from '../schemas/bigint';
+import { BooleanSchema } from '../schemas/boolean';
+import { CoercedStringSchema } from '../schemas/coerced';
+import { DateSchema } from '../schemas/date';
 import { EnumSchema } from '../schemas/enum';
-import { LiteralSchema } from '../schemas/literal';
 import { EmailSchema } from '../schemas/formats/email';
 import { IsoDateSchema } from '../schemas/formats/iso';
-import { CoercedStringSchema } from '../schemas/coerced';
-import { ParseError, SchemaRegistry } from '..';
+import { LiteralSchema } from '../schemas/literal';
+import { NumberSchema } from '../schemas/number';
+import { ObjectSchema } from '../schemas/object';
+import { StringSchema } from '../schemas/string';
 
 describe('Factory Object', () => {
   it('s.string() returns StringSchema', () => {

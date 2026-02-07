@@ -1,6 +1,6 @@
-import { describe, it, expect, expectTypeOf } from 'vitest';
-import { s } from '../..';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import type { Infer } from '../..';
+import { s } from '../..';
 
 describe('Integration: Schema Usage', () => {
   const userSchema = s.object({

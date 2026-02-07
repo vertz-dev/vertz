@@ -1,8 +1,7 @@
-import { Schema } from '../core/schema';
 import type { ParseContext } from '../core/parse-context';
+import { Schema } from '../core/schema';
 import { SchemaType } from '../core/types';
-import type { RefTracker } from '../introspection/json-schema';
-import type { JSONSchemaObject } from '../introspection/json-schema';
+import type { JSONSchemaObject, RefTracker } from '../introspection/json-schema';
 
 export class LazySchema<T> extends Schema<T> {
   private readonly _getter: () => Schema<T>;

@@ -1,10 +1,10 @@
-import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
-import { StringSchema } from './string';
-import { NumberSchema } from './number';
-import { BooleanSchema } from './boolean';
+import type { ParseContext } from '../core/parse-context';
 import { BigIntSchema } from './bigint';
+import { BooleanSchema } from './boolean';
 import { DateSchema } from './date';
+import { NumberSchema } from './number';
+import { StringSchema } from './string';
 
 export class CoercedStringSchema extends StringSchema {
   _parse(value: unknown, ctx: ParseContext): string {
