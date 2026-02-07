@@ -16,7 +16,7 @@
     "rules": {
       "recommended": false,
       "suspicious": {
-        "noExplicitAny": "warn"
+        "noExplicitAny": "error"
       }
     }
   },
