@@ -1,5 +1,5 @@
 import { Schema } from '../core/schema';
-import { ParseContext } from '../core/parse-context';
+import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker } from '../introspection/json-schema';
@@ -26,7 +26,7 @@ export class NumberSchema extends Schema<number> {
     if (typeof value !== 'number' || Number.isNaN(value)) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected number, received ' + typeof value,
+        message: `Expected number, received ${typeof value}`,
       });
       return value as number;
     }

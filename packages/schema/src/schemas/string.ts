@@ -1,5 +1,5 @@
 import { Schema } from '../core/schema';
-import { ParseContext } from '../core/parse-context';
+import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker } from '../introspection/json-schema';
@@ -27,7 +27,7 @@ export class StringSchema extends Schema<string> {
     if (typeof value !== 'string') {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected string, received ' + typeof value,
+        message: `Expected string, received ${typeof value}`,
       });
       return value as string;
     }

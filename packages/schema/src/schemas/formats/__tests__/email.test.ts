@@ -28,8 +28,8 @@ describe('EmailSchema', () => {
   it('does not hang on adversarial input (ReDoS)', () => {
     const schema = new EmailSchema();
     const start = Date.now();
-    schema.safeParse('a@' + 'a-'.repeat(50) + '.com');
-    schema.safeParse('a@' + 'a.'.repeat(50) + 'x');
+    schema.safeParse(`a@${'a-'.repeat(50)}.com`);
+    schema.safeParse(`a@${'a.'.repeat(50)}x`);
     expect(Date.now() - start).toBeLessThan(100);
   });
 });

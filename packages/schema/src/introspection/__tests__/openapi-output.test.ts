@@ -30,7 +30,7 @@ describe('OpenAPI v3.1 Output', () => {
     }).id('User');
     const jsonSchema = userSchema.toJSONSchema();
     expect(jsonSchema.$defs).toBeDefined();
-    expect(jsonSchema.$defs!['User']).toBeDefined();
+    expect(jsonSchema.$defs?.User).toBeDefined();
     expect(jsonSchema.$ref).toBe('#/$defs/User');
   });
 
@@ -43,8 +43,8 @@ describe('OpenAPI v3.1 Output', () => {
       address: addressSchema,
     }).id('User');
     const jsonSchema = userSchema.toJSONSchema();
-    expect(jsonSchema.$defs!['User']).toBeDefined();
-    expect(jsonSchema.$defs!['Address']).toBeDefined();
+    expect(jsonSchema.$defs?.User).toBeDefined();
+    expect(jsonSchema.$defs?.Address).toBeDefined();
   });
 
   it('recursive schema uses $ref without infinite recursion', () => {
@@ -55,7 +55,7 @@ describe('OpenAPI v3.1 Output', () => {
     }).id('TreeNode') as ObjectSchema<TreeNode>;
     const jsonSchema = treeSchema.toJSONSchema();
     expect(jsonSchema.$ref).toBe('#/$defs/TreeNode');
-    expect(jsonSchema.$defs!['TreeNode']).toBeDefined();
+    expect(jsonSchema.$defs?.TreeNode).toBeDefined();
   });
 
   it('object with required/optional properties', () => {

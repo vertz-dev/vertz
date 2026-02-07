@@ -21,8 +21,8 @@ describe('DiscriminatedUnionSchema', () => {
     const result = schema.safeParse({ meow: 'loud' });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.code).toBe(ErrorCode.InvalidUnion);
-      expect(result.error.issues[0]!.message).toContain('Missing discriminator');
+      expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidUnion);
+      expect(result.error.issues[0]?.message).toContain('Missing discriminator');
     }
   });
 
@@ -31,8 +31,8 @@ describe('DiscriminatedUnionSchema', () => {
     const result = schema.safeParse({ type: 'fish', fins: 2 });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.code).toBe(ErrorCode.InvalidUnion);
-      expect(result.error.issues[0]!.message).toContain("'fish'");
+      expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidUnion);
+      expect(result.error.issues[0]?.message).toContain("'fish'");
     }
   });
 
@@ -65,7 +65,7 @@ describe('DiscriminatedUnionSchema', () => {
     const result = schema.safeParse('not-an-object');
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.code).toBe(ErrorCode.InvalidType);
+      expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidType);
     }
   });
 });

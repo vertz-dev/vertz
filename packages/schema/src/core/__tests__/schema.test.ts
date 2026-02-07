@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Schema } from '../schema';
-import { ParseContext } from '../parse-context';
+import type { ParseContext } from '../parse-context';
 import { ErrorCode, ParseError } from '../errors';
 import { SchemaType } from '../types';
 import { SchemaRegistry } from '../registry';
@@ -54,7 +54,7 @@ describe('Schema base class', () => {
     expect(failure.success).toBe(false);
     if (!failure.success) {
       expect(failure.error).toBeInstanceOf(ParseError);
-      expect(failure.error.issues[0]!.code).toBe(ErrorCode.InvalidType);
+      expect(failure.error.issues[0]?.code).toBe(ErrorCode.InvalidType);
     }
   });
 

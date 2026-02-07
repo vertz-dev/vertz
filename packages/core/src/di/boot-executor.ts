@@ -34,7 +34,7 @@ export class BootExecutor {
 
     this.services.set(instr.id, {
       methods: instr.factory.methods(deps, state),
-      onDestroy: instr.factory.onDestroy ? () => instr.factory.onDestroy!(deps, state) : undefined,
+      onDestroy: instr.factory.onDestroy ? () => instr.factory.onDestroy?.(deps, state) : undefined,
     });
   }
 

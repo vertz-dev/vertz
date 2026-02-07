@@ -34,13 +34,13 @@ describe('DateSchema', () => {
     const tooEarly = schema.safeParse(new Date('2023-12-31'));
     expect(tooEarly.success).toBe(false);
     if (!tooEarly.success) {
-      expect(tooEarly.error.issues[0]!.message).toBe('Too early');
+      expect(tooEarly.error.issues[0]?.message).toBe('Too early');
     }
 
     const tooLate = schema.safeParse(new Date('2025-01-01'));
     expect(tooLate.success).toBe(false);
     if (!tooLate.success) {
-      expect(tooLate.error.issues[0]!.message).toBe('Too late');
+      expect(tooLate.error.issues[0]?.message).toBe('Too late');
     }
   });
 

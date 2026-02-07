@@ -1,5 +1,5 @@
 import { Schema, type SchemaAny } from '../core/schema';
-import { ParseContext } from '../core/parse-context';
+import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker } from '../introspection/json-schema';
@@ -23,7 +23,7 @@ export class TupleSchema<T extends TupleItems> extends Schema<InferTuple<T>> {
     if (!Array.isArray(value)) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected array, received ' + typeof value,
+        message: `Expected array, received ${typeof value}`,
       });
       return value as InferTuple<T>;
     }
@@ -42,7 +42,7 @@ export class TupleSchema<T extends TupleItems> extends Schema<InferTuple<T>> {
     const result: unknown[] = [];
     for (let i = 0; i < this._items.length; i++) {
       ctx.pushPath(i);
-      result.push(this._items[i]!._runPipeline(value[i], ctx));
+      result.push(this._items[i]?._runPipeline(value[i], ctx));
       ctx.popPath();
     }
     if (this._rest) {

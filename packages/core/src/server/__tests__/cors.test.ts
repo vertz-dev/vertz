@@ -16,9 +16,9 @@ describe('handleCors', () => {
     const response = handleCors(config, request);
 
     expect(response).not.toBeNull();
-    expect(response!.status).toBe(204);
-    expect(response!.headers.get('access-control-allow-origin')).toBe('*');
-    expect(response!.headers.get('access-control-allow-methods')).toContain('POST');
+    expect(response?.status).toBe(204);
+    expect(response?.headers.get('access-control-allow-origin')).toBe('*');
+    expect(response?.headers.get('access-control-allow-methods')).toContain('POST');
   });
 
   it('returns null for non-OPTIONS requests', () => {
@@ -40,7 +40,7 @@ describe('handleCors', () => {
 
     const response = handleCors(config, request);
 
-    expect(response!.headers.get('access-control-allow-origin')).toBe('http://app.com');
+    expect(response?.headers.get('access-control-allow-origin')).toBe('http://app.com');
   });
 
   it('includes credentials and max-age headers', () => {
@@ -52,8 +52,8 @@ describe('handleCors', () => {
 
     const response = handleCors(config, request);
 
-    expect(response!.headers.get('access-control-allow-credentials')).toBe('true');
-    expect(response!.headers.get('access-control-max-age')).toBe('86400');
+    expect(response?.headers.get('access-control-allow-credentials')).toBe('true');
+    expect(response?.headers.get('access-control-max-age')).toBe('86400');
   });
 });
 

@@ -16,8 +16,8 @@ describe('.superRefine()', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues.length).toBe(2);
-      expect(result.error.issues[0]!.message).toBe('Too short');
-      expect(result.error.issues[1]!.message).toBe('Missing @');
+      expect(result.error.issues[0]?.message).toBe('Too short');
+      expect(result.error.issues[1]?.message).toBe('Missing @');
     }
   });
 
@@ -30,7 +30,7 @@ describe('.superRefine()', () => {
     const result = schema.safeParse('user');
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.code).toBe(ErrorCode.Custom);
+      expect(result.error.issues[0]?.code).toBe(ErrorCode.Custom);
     }
   });
 
@@ -44,7 +44,7 @@ describe('.superRefine()', () => {
     const result = schema.safeParse('');
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.message).toBe('Empty');
+      expect(result.error.issues[0]?.message).toBe('Empty');
     }
   });
 });

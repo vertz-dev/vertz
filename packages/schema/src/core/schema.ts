@@ -433,7 +433,7 @@ export class CatchSchema<O, I = O> extends Schema<O, I> {
     this._fallback = fallback;
   }
 
-  _parse(value: unknown, ctx: ParseContext): O {
+  _parse(value: unknown, _ctx: ParseContext): O {
     const innerCtx = new ParseContext();
     const result = this._inner._runPipeline(value, innerCtx);
     if (innerCtx.hasIssues()) {

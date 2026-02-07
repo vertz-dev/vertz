@@ -33,7 +33,7 @@ describe('parseRequest', () => {
     const parsed = parseRequest(request);
 
     // Per HTTP spec, duplicate headers are combined with ", "
-    expect(parsed.headers['accept']).toBe('text/html, application/json');
+    expect(parsed.headers.accept).toBe('text/html, application/json');
   });
 
   it('handles path without query string', () => {

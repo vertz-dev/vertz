@@ -10,8 +10,8 @@ describe('Trie', () => {
     const result = trie.match('GET', '/hello');
 
     expect(result).not.toBeNull();
-    expect(result!.handler).toBe(handler);
-    expect(result!.params).toEqual({});
+    expect(result?.handler).toBe(handler);
+    expect(result?.params).toEqual({});
   });
 
   it('matches a param route and extracts params', () => {
@@ -22,8 +22,8 @@ describe('Trie', () => {
     const result = trie.match('GET', '/users/123');
 
     expect(result).not.toBeNull();
-    expect(result!.handler).toBe(handler);
-    expect(result!.params).toEqual({ id: '123' });
+    expect(result?.handler).toBe(handler);
+    expect(result?.params).toEqual({ id: '123' });
   });
 
   it('matches a wildcard route and captures rest path', () => {
@@ -34,8 +34,8 @@ describe('Trie', () => {
     const result = trie.match('GET', '/files/docs/readme.md');
 
     expect(result).not.toBeNull();
-    expect(result!.handler).toBe(handler);
-    expect(result!.params).toEqual({ '*': 'docs/readme.md' });
+    expect(result?.handler).toBe(handler);
+    expect(result?.params).toEqual({ '*': 'docs/readme.md' });
   });
 
   it('prioritizes static over param over wildcard', () => {
@@ -49,13 +49,13 @@ describe('Trie', () => {
     trie.add('GET', '/items/special', staticHandler);
 
     const staticResult = trie.match('GET', '/items/special');
-    expect(staticResult!.handler).toBe(staticHandler);
+    expect(staticResult?.handler).toBe(staticHandler);
 
     const paramResult = trie.match('GET', '/items/123');
-    expect(paramResult!.handler).toBe(paramHandler);
+    expect(paramResult?.handler).toBe(paramHandler);
 
     const wildcardResult = trie.match('GET', '/items/a/b/c');
-    expect(wildcardResult!.handler).toBe(wildcardHandler);
+    expect(wildcardResult?.handler).toBe(wildcardHandler);
   });
 
   it('extracts multiple nested params', () => {
@@ -66,8 +66,8 @@ describe('Trie', () => {
     const result = trie.match('GET', '/users/42/posts/99');
 
     expect(result).not.toBeNull();
-    expect(result!.handler).toBe(handler);
-    expect(result!.params).toEqual({ userId: '42', postId: '99' });
+    expect(result?.handler).toBe(handler);
+    expect(result?.params).toEqual({ userId: '42', postId: '99' });
   });
 
   it('returns null when no route matches', () => {
@@ -85,8 +85,8 @@ describe('Trie', () => {
     trie.add('GET', '/users', getHandler);
     trie.add('POST', '/users', postHandler);
 
-    expect(trie.match('GET', '/users')!.handler).toBe(getHandler);
-    expect(trie.match('POST', '/users')!.handler).toBe(postHandler);
+    expect(trie.match('GET', '/users')?.handler).toBe(getHandler);
+    expect(trie.match('POST', '/users')?.handler).toBe(postHandler);
     expect(trie.match('DELETE', '/users')).toBeNull();
   });
 
@@ -98,8 +98,8 @@ describe('Trie', () => {
     const result = trie.match('GET', '/');
 
     expect(result).not.toBeNull();
-    expect(result!.handler).toBe(handler);
-    expect(result!.params).toEqual({});
+    expect(result?.handler).toBe(handler);
+    expect(result?.params).toEqual({});
   });
 
   it('returns allowed methods for a matched path', () => {
@@ -128,8 +128,8 @@ describe('Trie', () => {
     trie.add('GET', '/files/*', getHandler);
     trie.add('POST', '/files/*', postHandler);
 
-    expect(trie.match('GET', '/files/a/b/c')!.handler).toBe(getHandler);
-    expect(trie.match('POST', '/files/a/b/c')!.handler).toBe(postHandler);
+    expect(trie.match('GET', '/files/a/b/c')?.handler).toBe(getHandler);
+    expect(trie.match('POST', '/files/a/b/c')?.handler).toBe(postHandler);
   });
 
   it('throws when param names conflict at the same position', () => {

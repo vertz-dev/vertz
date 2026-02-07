@@ -11,7 +11,7 @@ describe('Integration: Recursive Schemas', () => {
       })
       .id('TreeNodeIntegration');
 
-    type TreeNode = Infer<typeof treeSchema>;
+    type _TreeNode = Infer<typeof treeSchema>;
 
     const data = {
       value: 'root',
@@ -59,7 +59,7 @@ describe('Integration: Recursive Schemas', () => {
 
     const jsonSchema = nodeSchema.toJSONSchema();
     expect(jsonSchema.$ref).toBe('#/$defs/RecursiveNode');
-    expect(jsonSchema.$defs!['RecursiveNode']).toBeDefined();
+    expect(jsonSchema.$defs?.RecursiveNode).toBeDefined();
     // Should not hang or stack overflow
   });
 });

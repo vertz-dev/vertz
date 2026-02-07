@@ -180,7 +180,7 @@ export function createTestApp(): TestApp {
         if (entry.responseSchema) {
           const validation = entry.responseSchema.safeParse(result);
           if (!validation.success) {
-            throw new ResponseValidationError(validation.error!.message);
+            throw new ResponseValidationError(validation.error.message);
           }
         }
 
@@ -245,6 +245,7 @@ export function createTestApp(): TestApp {
         perRequest.middlewares.set(middleware, result);
         return builder;
       },
+      // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike for await support
       then(onfulfilled, onrejected) {
         return executeRequest(method, path, options, perRequest).then(onfulfilled, onrejected);
       },

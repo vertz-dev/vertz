@@ -192,7 +192,7 @@ describe('createTestApp', () => {
       {
         method: 'GET',
         path: '/',
-        handler: (ctx) => ({ token: ctx.headers['authorization'] }),
+        handler: (ctx) => ({ token: ctx.headers.authorization }),
       },
     ]);
 

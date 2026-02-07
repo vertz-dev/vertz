@@ -1,5 +1,5 @@
 import { Schema } from '../core/schema';
-import { ParseContext } from '../core/parse-context';
+import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker } from '../introspection/json-schema';
@@ -20,7 +20,7 @@ export class SetSchema<V> extends Schema<Set<V>> {
     if (!(value instanceof Set)) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected Set, received ' + typeof value,
+        message: `Expected Set, received ${typeof value}`,
       });
       return value as Set<V>;
     }

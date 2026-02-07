@@ -1,7 +1,7 @@
 import { describe, it, expectTypeOf } from 'vitest';
 import type { Infer, Output, Input } from '../type-inference';
 import { Schema } from '../../core/schema';
-import { ParseContext } from '../../core/parse-context';
+import type { ParseContext } from '../../core/parse-context';
 import { ErrorCode } from '../../core/errors';
 import { SchemaType } from '../../core/types';
 

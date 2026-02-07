@@ -43,7 +43,7 @@ describe('LazySchema', () => {
     }).id('TreeNode') as ObjectSchema<TreeNode>;
     const jsonSchema = treeSchema.toJSONSchema();
     expect(jsonSchema.$defs).toBeDefined();
-    expect(jsonSchema.$defs!['TreeNode']).toBeDefined();
+    expect(jsonSchema.$defs?.TreeNode).toBeDefined();
     expect(jsonSchema.$ref).toBe('#/$defs/TreeNode');
   });
 

@@ -1,5 +1,5 @@
 import { Schema, OptionalSchema, DefaultSchema, type SchemaAny } from '../core/schema';
-import { ParseContext } from '../core/parse-context';
+import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker, JSONSchemaObject } from '../introspection/json-schema';
@@ -40,7 +40,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected object, received ' + receivedType(value),
+        message: `Expected object, received ${receivedType(value)}`,
       });
       return value as InferShape<S>;
     }
@@ -49,7 +49,8 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
     const shapeKeys = new Set(Object.keys(this._shape));
 
     for (const key of shapeKeys) {
-      if (!(key in obj) && !this._isOptionalKey(this._shape[key]!)) {
+      const schema = this._shape[key];
+      if (!(key in obj) && schema && !this._isOptionalKey(schema)) {
         ctx.addIssue({
           code: ErrorCode.MissingProperty,
           message: `Missing required property "${key}"`,
@@ -58,7 +59,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
         continue;
       }
       ctx.pushPath(key);
-      result[key] = this._shape[key]!._runPipeline(obj[key], ctx);
+      result[key] = schema?._runPipeline(obj[key], ctx);
       ctx.popPath();
     }
 
@@ -109,7 +110,8 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
   pick<K extends keyof S & string>(...keys: K[]): ObjectSchema<Pick<S, K>> {
     const picked: Record<string, SchemaAny> = {};
     for (const key of keys) {
-      picked[key] = this._shape[key]!;
+      const schema = this._shape[key];
+      if (schema) picked[key] = schema;
     }
     return new ObjectSchema(picked as Pick<S, K>);
   }
@@ -122,8 +124,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
         : S[K];
   }> {
     const requiredShape: Record<string, SchemaAny> = {};
-    for (const key of Object.keys(this._shape)) {
-      const schema = this._shape[key]!;
+    for (const [key, schema] of Object.entries(this._shape)) {
       if (schema instanceof OptionalSchema || schema instanceof DefaultSchema) {
         requiredShape[key] = schema.unwrap();
       } else {
@@ -136,8 +137,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
 
   partial(): ObjectSchema<{ [K in keyof S]: OptionalSchema<S[K]['_output'], S[K]['_input']> }> {
     const partialShape: Record<string, SchemaAny> = {};
-    for (const key of Object.keys(this._shape)) {
-      const schema = this._shape[key]!;
+    for (const [key, schema] of Object.entries(this._shape)) {
       partialShape[key] = schema instanceof OptionalSchema ? schema : schema.optional();
     }
     // biome-ignore lint/suspicious/noExplicitAny: TS can't verify runtime shape matches partial mapped type
@@ -147,9 +147,9 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
   omit<K extends keyof S & string>(...keys: K[]): ObjectSchema<Omit<S, K>> {
     const keysToOmit = new Set<string>(keys);
     const remaining: Record<string, SchemaAny> = {};
-    for (const key of Object.keys(this._shape)) {
+    for (const [key, schema] of Object.entries(this._shape)) {
       if (!keysToOmit.has(key)) {
-        remaining[key] = this._shape[key]!;
+        remaining[key] = schema;
       }
     }
     return new ObjectSchema(remaining as Omit<S, K>);
@@ -173,9 +173,9 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
   _toJSONSchema(tracker: RefTracker): JSONSchemaObject {
     const properties: Record<string, JSONSchemaObject> = {};
     const required: string[] = [];
-    for (const key of Object.keys(this._shape)) {
-      properties[key] = this._shape[key]!._toJSONSchemaWithRefs(tracker);
-      if (!this._isOptionalKey(this._shape[key]!)) {
+    for (const [key, schema] of Object.entries(this._shape)) {
+      properties[key] = schema._toJSONSchemaWithRefs(tracker);
+      if (!this._isOptionalKey(schema)) {
         required.push(key);
       }
     }

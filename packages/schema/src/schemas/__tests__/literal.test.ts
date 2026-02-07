@@ -19,7 +19,7 @@ describe('LiteralSchema', () => {
     const result = schema.safeParse('world');
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]!.code).toBe(ErrorCode.InvalidLiteral);
+      expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidLiteral);
     }
   });
 

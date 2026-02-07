@@ -20,8 +20,8 @@ describe('deepFreeze', () => {
     const obj = { items: [{ id: 1 }, { id: 2 }] };
     deepFreeze(obj);
     expect(Object.isFrozen(obj.items)).toBe(true);
-    expect(Object.isFrozen(obj.items[0]!)).toBe(true);
-    expect(Object.isFrozen(obj.items[1]!)).toBe(true);
+    expect(Object.isFrozen(obj.items[0])).toBe(true);
+    expect(Object.isFrozen(obj.items[1])).toBe(true);
   });
 
   it('returns primitives as-is', () => {

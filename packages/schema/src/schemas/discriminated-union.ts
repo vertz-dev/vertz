@@ -1,9 +1,9 @@
 import { Schema } from '../core/schema';
-import { ParseContext } from '../core/parse-context';
+import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import { LiteralSchema } from './literal';
-import { ObjectSchema } from './object';
+import type { ObjectSchema } from './object';
 import type { RefTracker, JSONSchemaObject } from '../introspection/json-schema';
 
 type DiscriminatedOptions = [ObjectSchema, ...ObjectSchema[]];
@@ -44,7 +44,7 @@ export class DiscriminatedUnionSchema<T extends DiscriminatedOptions> extends Sc
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected object, received ' + receivedType(value),
+        message: `Expected object, received ${receivedType(value)}`,
       });
       return value as InferDiscriminatedUnion<T>;
     }

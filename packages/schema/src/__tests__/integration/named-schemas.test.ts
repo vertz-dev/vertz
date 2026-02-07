@@ -6,8 +6,8 @@ describe('Integration: Named Schemas', () => {
     const userId = s.uuid().id('UserId');
     const jsonSchema = userId.toJSONSchema();
     expect(jsonSchema.$ref).toBe('#/$defs/UserId');
-    expect(jsonSchema.$defs!['UserId']).toBeDefined();
-    expect(jsonSchema.$defs!['UserId'].format).toBe('uuid');
+    expect(jsonSchema.$defs?.UserId).toBeDefined();
+    expect(jsonSchema.$defs?.UserId.format).toBe('uuid');
   });
 
   it('named object with named nested schemas', () => {
@@ -26,8 +26,8 @@ describe('Integration: Named Schemas', () => {
       .id('UserWithAddress');
 
     const jsonSchema = userSchema.toJSONSchema();
-    expect(jsonSchema.$defs!['UserWithAddress']).toBeDefined();
-    expect(jsonSchema.$defs!['Address']).toBeDefined();
+    expect(jsonSchema.$defs?.UserWithAddress).toBeDefined();
+    expect(jsonSchema.$defs?.Address).toBeDefined();
   });
 
   it('JSON Schema output with $defs and $ref', () => {
@@ -37,7 +37,7 @@ describe('Integration: Named Schemas', () => {
       secondary: emailType,
     });
     const jsonSchema = contactSchema.toJSONSchema();
-    expect(jsonSchema.$defs!['Email']).toBeDefined();
+    expect(jsonSchema.$defs?.Email).toBeDefined();
     // Both properties should reference the same $ref
     const props = jsonSchema.properties as Record<string, { $ref: string }>;
     expect(props.primary.$ref).toBe('#/$defs/Email');
@@ -45,7 +45,7 @@ describe('Integration: Named Schemas', () => {
   });
 
   it('SchemaRegistry contains named schemas', () => {
-    const testSchema = s.string().id('TestRegistrySchema');
+    const _testSchema = s.string().id('TestRegistrySchema');
     expect(SchemaRegistry.get('TestRegistrySchema')).toBeDefined();
   });
 });

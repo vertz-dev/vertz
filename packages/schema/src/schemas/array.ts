@@ -1,5 +1,5 @@
 import { Schema } from '../core/schema';
-import { ParseContext } from '../core/parse-context';
+import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
 import { SchemaType } from '../core/types';
 import type { RefTracker } from '../introspection/json-schema';
@@ -20,7 +20,7 @@ export class ArraySchema<T> extends Schema<T[]> {
     if (!Array.isArray(value)) {
       ctx.addIssue({
         code: ErrorCode.InvalidType,
-        message: 'Expected array, received ' + typeof value,
+        message: `Expected array, received ${typeof value}`,
       });
       return value as T[];
     }
