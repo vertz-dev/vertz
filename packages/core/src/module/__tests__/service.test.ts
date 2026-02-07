@@ -6,7 +6,7 @@ describe('moduleDef.service', () => {
     const moduleDef = createModuleDef({ name: 'user' });
 
     const service = moduleDef.service({
-      methods: (deps: any) => ({
+      methods: () => ({
         findById: (id: string) => ({ id }),
       }),
     });
@@ -24,8 +24,8 @@ describe('moduleDef.service', () => {
     const service = moduleDef.service({
       inject: { db: mockDb },
       onInit,
-      methods: (_deps: any, state: any) => ({
-        getClient: () => state.client,
+      methods: (_deps, state) => ({
+        getClient: () => (state as { client: string }).client,
       }),
       onDestroy,
     });

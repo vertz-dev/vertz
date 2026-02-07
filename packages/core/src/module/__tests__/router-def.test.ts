@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { HandlerCtx } from '../../types/context';
 import { createModuleDef } from '../module-def';
 
 describe('moduleDef.router', () => {
@@ -19,7 +20,7 @@ describe('moduleDef.router', () => {
   it('registers GET route with handler', () => {
     const moduleDef = createModuleDef({ name: 'user' });
     const router = moduleDef.router({ prefix: '/users' });
-    const handler = (ctx: any) => ({ id: ctx.params.id });
+    const handler = (ctx: HandlerCtx) => ({ id: ctx.params.id });
 
     router.get('/:id', { handler });
 
@@ -36,7 +37,7 @@ describe('moduleDef.router', () => {
     const router = moduleDef.router({ prefix: '/users' });
     const bodySchema = { parse: () => {} };
     const responseSchema = { parse: () => {} };
-    const handler = (ctx: any) => ctx.body;
+    const handler = (ctx: HandlerCtx) => ctx.body;
 
     router.post('/', {
       body: bodySchema,

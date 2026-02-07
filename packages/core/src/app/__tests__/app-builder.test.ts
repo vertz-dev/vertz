@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import type { HandlerCtx } from '../../types/context';
 import { NotFoundException, UnauthorizedException } from '../../exceptions';
 import { createMiddleware } from '../../middleware/middleware-def';
 import { createModule } from '../../module/module';
@@ -8,7 +9,7 @@ import { createApp } from '../app-builder';
 interface TestRoute {
   method: string;
   path: string;
-  handler: (ctx: any) => any;
+  handler: (ctx: HandlerCtx) => unknown;
 }
 
 function createTestModule(name: string, prefix: string, routes: TestRoute[]) {
@@ -69,7 +70,7 @@ describe('createApp', () => {
 
   it('passes parsed params to route handler via ctx', async () => {
     const mod = createTestModule('test', '/users', [
-      { method: 'GET', path: '/:id', handler: (ctx: any) => ({ id: ctx.params.id }) },
+      { method: 'GET', path: '/:id', handler: (ctx) => ({ id: ctx.params.id }) },
     ]);
 
     const app = createApp({}).register(mod);
@@ -81,7 +82,11 @@ describe('createApp', () => {
 
   it('parses request body for POST routes', async () => {
     const mod = createTestModule('test', '/users', [
-      { method: 'POST', path: '/', handler: (ctx: any) => ({ created: ctx.body.name }) },
+      {
+        method: 'POST',
+        path: '/',
+        handler: (ctx) => ({ created: (ctx.body as Record<string, unknown>).name }),
+      },
     ]);
 
     const app = createApp({}).register(mod);
@@ -189,7 +194,11 @@ describe('createApp', () => {
     });
 
     const mod = createTestModule('test', '/users', [
-      { method: 'GET', path: '/', handler: (ctx: any) => ({ userId: ctx.user.id }) },
+      {
+        method: 'GET',
+        path: '/',
+        handler: (ctx) => ({ userId: (ctx.user as Record<string, string>).id }),
+      },
     ]);
 
     const app = createApp({}).middlewares([authMiddleware]).register(mod);
@@ -256,7 +265,10 @@ describe('createApp', () => {
     });
     const router = moduleDef.router({ prefix: '/users', inject: { userService } });
     router.get('/:id', {
-      handler: (ctx: any) => ctx.userService.findById(ctx.params.id),
+      handler: (ctx) => {
+        const svc = ctx.userService as { findById: (id: string) => unknown };
+        return svc.findById(ctx.params.id);
+      },
     });
     const mod = createModule(moduleDef, {
       services: [userService],
@@ -273,7 +285,7 @@ describe('createApp', () => {
 
   it('provides module options via ctx.options', async () => {
     const mod = createTestModule('test', '/users', [
-      { method: 'GET', path: '/', handler: (ctx: any) => ({ maxRetries: ctx.options.maxRetries }) },
+      { method: 'GET', path: '/', handler: (ctx) => ({ maxRetries: ctx.options.maxRetries }) },
     ]);
 
     const app = createApp({}).register(mod, { maxRetries: 3 });
@@ -291,9 +303,9 @@ describe('createApp', () => {
       {
         method: 'GET',
         path: '/',
-        handler: (ctx: any) => {
+        handler: (ctx) => {
           try {
-            ctx.params = 'mutated';
+            (ctx as Record<string, unknown>).params = 'mutated';
           } catch {
             mutationThrew = true;
           }

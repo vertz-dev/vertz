@@ -6,7 +6,7 @@ describe('createImmutableProxy', () => {
     const obj = { name: 'John' };
     const proxy = createImmutableProxy(obj, 'ctx');
     expect(() => {
-      (proxy as any).name = 'Jane';
+      (proxy as Record<string, unknown>).name = 'Jane';
     }).toThrow('Cannot set property "name" on ctx. ctx is immutable.');
   });
 
@@ -14,7 +14,7 @@ describe('createImmutableProxy', () => {
     const obj = { name: 'John' };
     const proxy = createImmutableProxy(obj, 'deps');
     expect(() => {
-      delete (proxy as any).name;
+      delete (proxy as Record<string, unknown>).name;
     }).toThrow('Cannot delete property "name" on deps. deps is immutable.');
   });
 
@@ -22,7 +22,7 @@ describe('createImmutableProxy', () => {
     const obj = { user: { name: 'John' } };
     const proxy = createImmutableProxy(obj, 'ctx');
     expect(() => {
-      (proxy as any).user.name = 'Jane';
+      (proxy as Record<string, unknown>).user.name = 'Jane';
     }).toThrow('Cannot set property "name" on ctx.user. ctx is immutable.');
   });
 

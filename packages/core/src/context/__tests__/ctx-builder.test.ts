@@ -62,7 +62,7 @@ describe('buildCtx', () => {
     const ctx = buildCtx(createConfig());
 
     expect(() => {
-      (ctx as any).params = 'mutated';
+      (ctx as Record<string, unknown>).params = 'mutated';
     }).toThrow();
   });
 
