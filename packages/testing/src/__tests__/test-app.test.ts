@@ -15,12 +15,13 @@ interface RouteInput {
   method: string;
   path: string;
   handler: (ctx: any) => any;
+  response?: any;
 }
 
 function addRoutes(router: NamedRouterDef, routes: RouteInput[]): void {
   for (const route of routes) {
     const method = route.method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head';
-    router[method](route.path, { handler: route.handler });
+    router[method](route.path, { handler: route.handler, response: route.response });
   }
 }
 
@@ -285,15 +286,9 @@ describe('createTestApp', () => {
   });
 
   it('passes when handler return matches response schema', async () => {
-    const responseSchema = s.object({ name: s.string() });
-
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/api' });
-    router.get('/', {
-      response: responseSchema,
-      handler: () => ({ name: 'Alice' }),
-    });
-    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+    const mod = createTestModule('test', '/api', [
+      { method: 'GET', path: '/', response: s.object({ name: s.string() }), handler: () => ({ name: 'Alice' }) },
+    ]);
 
     const app = createTestApp().register(mod);
     const res = await app.get('/api');
@@ -314,16 +309,20 @@ describe('createTestApp', () => {
     expect(res.body).toEqual({ anything: 'goes' });
   });
 
-  it('throws when handler return does not match response schema', async () => {
-    const responseSchema = s.object({ name: s.string() });
+  it('throws when handler returns undefined but route has response schema', async () => {
+    const mod = createTestModule('test', '/api', [
+      { method: 'GET', path: '/', response: s.object({ name: s.string() }), handler: () => undefined },
+    ]);
 
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/api' });
-    router.get('/', {
-      response: responseSchema,
-      handler: () => ({ name: 123 }), // wrong type — name should be string
-    });
-    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+    const app = createTestApp().register(mod);
+
+    await expect(app.get('/api')).rejects.toThrow('Response validation failed');
+  });
+
+  it('throws when handler return does not match response schema', async () => {
+    const mod = createTestModule('test', '/api', [
+      { method: 'GET', path: '/', response: s.object({ name: s.string() }), handler: () => ({ name: 123 }) },
+    ]);
 
     const app = createTestApp().register(mod);
 

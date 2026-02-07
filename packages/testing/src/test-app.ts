@@ -167,10 +167,10 @@ export function createTestApp(): TestApp {
 
         const result = await entry.handler(ctx);
 
-        if (result !== undefined && entry.responseSchema) {
-          const parsed = entry.responseSchema.safeParse(result);
-          if (!parsed.success) {
-            throw new ResponseValidationError(parsed.error!.message);
+        if (entry.responseSchema) {
+          const validation = entry.responseSchema.safeParse(result);
+          if (!validation.success) {
+            throw new ResponseValidationError(validation.error!.message);
           }
         }
 
