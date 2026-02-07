@@ -181,7 +181,9 @@ export function createTestApp(): TestApp {
         if (entry.responseSchema) {
           const validation = entry.responseSchema.safeParse(result);
           if (!validation.success) {
-            throw new ResponseValidationError(validation.error?.message ?? 'Unknown validation error');
+            throw new ResponseValidationError(
+              validation.error?.message ?? 'Unknown validation error',
+            );
           }
         }
 
