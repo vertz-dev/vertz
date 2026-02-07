@@ -1,8 +1,17 @@
 // IR types
 
+// App analyzer
+export type { AppAnalyzerResult } from './analyzers/app-analyzer';
+export { AppAnalyzer } from './analyzers/app-analyzer';
 // Base classes
 export type { Analyzer } from './analyzers/base-analyzer';
 export { BaseAnalyzer } from './analyzers/base-analyzer';
+// Dependency graph analyzer
+export type {
+  DependencyGraphInput,
+  DependencyGraphResult,
+} from './analyzers/dependency-graph-analyzer';
+export { DependencyGraphAnalyzer } from './analyzers/dependency-graph-analyzer';
 // Env analyzer
 export type { EnvAnalyzerResult } from './analyzers/env-analyzer';
 export { EnvAnalyzer } from './analyzers/env-analyzer';
