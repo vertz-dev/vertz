@@ -6,8 +6,12 @@ All framework development follows strict Test-Driven Development.
 
 1. **Red** — Write exactly ONE failing test (`it()` block) that describes a single behavior
 2. **Green** — Write the MINIMAL code to make that one test pass
-3. **Refactor** — Clean up while keeping all tests green
-4. **Repeat** — Go back to step 1 with the next behavior
+3. **Quality Gates** — Run linter, formatter, and typecheck
+   - `bunx biome check --write <files>` — lint and format
+   - `bun run typecheck` — verify no type errors in changed packages
+   - Fix any issues before proceeding
+4. **Refactor** — Clean up while keeping all tests green
+5. **Repeat** — Go back to step 1 with the next behavior
 
 ## Rules
 
@@ -15,6 +19,7 @@ All framework development follows strict Test-Driven Development.
 - Never write implementation code without a failing test
 - Each cycle handles one behavior — not a batch
 - Run tests after every change to confirm red/green state
+- **Run quality gates after every GREEN** — linter, formatter, typecheck must pass
 - Tests are the specification — if it's not tested, it doesn't exist
 
 ## Type-Level TDD
