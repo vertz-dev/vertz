@@ -18,7 +18,11 @@ function matchPropertyAccess(
   const expr = call.getExpression();
   if (!expr.isKind(SyntaxKind.PropertyAccessExpression)) return null;
   const obj = expr.getExpression();
-  if (!obj.isKind(SyntaxKind.Identifier) || obj.getText() !== objectName || expr.getName() !== methodName) {
+  if (
+    !obj.isKind(SyntaxKind.Identifier) ||
+    obj.getText() !== objectName ||
+    expr.getName() !== methodName
+  ) {
     return null;
   }
   return expr;
@@ -29,9 +33,9 @@ export function findCallExpressions(
   objectName: string,
   methodName: string,
 ): CallExpression[] {
-  return file.getDescendantsOfKind(SyntaxKind.CallExpression).filter((call) =>
-    matchPropertyAccess(call, objectName, methodName) !== null,
-  );
+  return file
+    .getDescendantsOfKind(SyntaxKind.CallExpression)
+    .filter((call) => matchPropertyAccess(call, objectName, methodName) !== null);
 }
 
 export function findMethodCallsOnVariable(
@@ -56,10 +60,7 @@ export function extractObjectLiteral(
   return null;
 }
 
-export function getPropertyValue(
-  obj: ObjectLiteralExpression,
-  key: string,
-): Expression | null {
+export function getPropertyValue(obj: ObjectLiteralExpression, key: string): Expression | null {
   for (const prop of obj.getProperties()) {
     if (prop.isKind(SyntaxKind.PropertyAssignment) && prop.getName() === key) {
       return prop.getInitializerOrThrow();
@@ -71,9 +72,7 @@ export function getPropertyValue(
   return null;
 }
 
-export function getProperties(
-  obj: ObjectLiteralExpression,
-): { name: string; value: Expression }[] {
+export function getProperties(obj: ObjectLiteralExpression): { name: string; value: Expression }[] {
   const result: { name: string; value: Expression }[] = [];
   for (const prop of obj.getProperties()) {
     if (prop.isKind(SyntaxKind.PropertyAssignment)) {
@@ -86,7 +85,10 @@ export function getProperties(
 }
 
 export function getStringValue(expr: Expression): string | null {
-  if (expr.isKind(SyntaxKind.StringLiteral) || expr.isKind(SyntaxKind.NoSubstitutionTemplateLiteral)) {
+  if (
+    expr.isKind(SyntaxKind.StringLiteral) ||
+    expr.isKind(SyntaxKind.NoSubstitutionTemplateLiteral)
+  ) {
     return expr.getLiteralValue();
   }
   return null;

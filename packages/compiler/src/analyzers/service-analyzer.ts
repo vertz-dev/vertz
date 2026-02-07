@@ -1,7 +1,14 @@
 import type { Expression, ObjectLiteralExpression } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
 import type { InjectRef, ServiceIR, ServiceMethodIR, ServiceMethodParam } from '../ir/types';
-import { extractObjectLiteral, findMethodCallsOnVariable, getProperties, getPropertyValue, getSourceLocation, getVariableNameForCall } from '../utils/ast-helpers';
+import {
+  extractObjectLiteral,
+  findMethodCallsOnVariable,
+  getProperties,
+  getPropertyValue,
+  getSourceLocation,
+  getVariableNameForCall,
+} from '../utils/ast-helpers';
 import { BaseAnalyzer } from './base-analyzer';
 
 export interface ServiceAnalyzerResult {
@@ -13,10 +20,7 @@ export class ServiceAnalyzer extends BaseAnalyzer<ServiceAnalyzerResult> {
     return { services: [] };
   }
 
-  async analyzeForModule(
-    moduleDefVarName: string,
-    moduleName: string,
-  ): Promise<ServiceIR[]> {
+  async analyzeForModule(moduleDefVarName: string, moduleName: string): Promise<ServiceIR[]> {
     const services: ServiceIR[] = [];
 
     for (const file of this.project.getSourceFiles()) {

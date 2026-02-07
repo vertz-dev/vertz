@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { Project, SyntaxKind } from 'ts-morph';
+import { describe, expect, it } from 'vitest';
 import { resolveConfig } from '../../config';
 import type { ImportRef, ModuleIR } from '../../ir/types';
 import { extractIdentifierNames, ModuleAnalyzer, parseImports } from '../module-analyzer';
@@ -23,7 +23,7 @@ export const userModuleDef = vertz.moduleDef({ name: 'user' });`,
     const analyzer = createAnalyzer(project);
     const result = await analyzer.analyze();
     expect(result.modules).toHaveLength(1);
-    expect(result.modules[0]!.name).toBe('user');
+    expect(result.modules.at(0)?.name).toBe('user');
   });
 
   it('discovers multiple module definitions', async () => {
@@ -48,16 +48,13 @@ export const userModuleDef = vertz.moduleDef({ name: 'user' });`,
     );
     const analyzer = createAnalyzer(project);
     const result = await analyzer.analyze();
-    expect(result.modules[0]!.sourceLine).toBe(2);
-    expect(result.modules[0]!.sourceFile).toContain('user.module.ts');
+    expect(result.modules.at(0)?.sourceLine).toBe(2);
+    expect(result.modules.at(0)?.sourceFile).toContain('user.module.ts');
   });
 
   it('extracts imports from moduleDef', async () => {
     const project = createProject();
-    project.createSourceFile(
-      'src/core/index.ts',
-      `export const dbService = {};`,
-    );
+    project.createSourceFile('src/core/index.ts', `export const dbService = {};`);
     project.createSourceFile(
       'src/user/user.module.ts',
       `import { vertz } from '@vertz/core';
@@ -66,8 +63,8 @@ const userModuleDef = vertz.moduleDef({ name: 'user', imports: { dbService } });
     );
     const analyzer = createAnalyzer(project);
     const result = await analyzer.analyze();
-    expect(result.modules[0]!.imports).toHaveLength(1);
-    expect(result.modules[0]!.imports[0]!.localName).toBe('dbService');
+    expect(result.modules.at(0)?.imports).toHaveLength(1);
+    expect(result.modules.at(0)?.imports.at(0)?.localName).toBe('dbService');
   });
 
   it('extracts multiple imports', async () => {
@@ -79,7 +76,7 @@ const userModuleDef = vertz.moduleDef({ name: 'user', imports: { dbService, conf
     );
     const analyzer = createAnalyzer(project);
     const result = await analyzer.analyze();
-    expect(result.modules[0]!.imports).toHaveLength(2);
+    expect(result.modules.at(0)?.imports).toHaveLength(2);
   });
 
   it('imports is empty array when not specified', async () => {
@@ -91,7 +88,7 @@ const userModuleDef = vertz.moduleDef({ name: 'user' });`,
     );
     const analyzer = createAnalyzer(project);
     const result = await analyzer.analyze();
-    expect(result.modules[0]!.imports).toEqual([]);
+    expect(result.modules.at(0)?.imports).toEqual([]);
   });
 
   it('extracts options schema reference', async () => {
@@ -108,10 +105,10 @@ const userModuleDef = vertz.moduleDef({ name: 'user', options: userOptionsSchema
     );
     const analyzer = createAnalyzer(project);
     const result = await analyzer.analyze();
-    expect(result.modules[0]!.options).toBeDefined();
-    expect(result.modules[0]!.options!.kind).toBe('named');
-    if (result.modules[0]!.options!.kind === 'named') {
-      expect(result.modules[0]!.options!.schemaName).toBe('userOptionsSchema');
+    expect(result.modules.at(0)?.options).toBeDefined();
+    expect(result.modules.at(0)?.options?.kind).toBe('named');
+    if (result.modules.at(0)?.options?.kind === 'named') {
+      expect(result.modules.at(0)?.options?.schemaName).toBe('userOptionsSchema');
     }
   });
 
@@ -124,7 +121,7 @@ const userModuleDef = vertz.moduleDef({ name: 'user' });`,
     );
     const analyzer = createAnalyzer(project);
     const result = await analyzer.analyze();
-    expect(result.modules[0]!.options).toBeUndefined();
+    expect(result.modules.at(0)?.options).toBeUndefined();
   });
 
   it('links vertz.module() to its moduleDef and extracts exports', async () => {
@@ -143,7 +140,7 @@ export const userModule = vertz.module(userModuleDef, {
     );
     const analyzer = createAnalyzer(project);
     const result = await analyzer.analyze();
-    expect(result.modules[0]!.exports).toEqual(['userService']);
+    expect(result.modules.at(0)?.exports).toEqual(['userService']);
   });
 
   it('extracts service names from module assembly', async () => {
@@ -160,7 +157,7 @@ export const userModule = vertz.module(userModuleDef, {
     );
     const analyzer = createAnalyzer(project);
     const result = await analyzer.analyze();
-    expect(result.modules[0]!.name).toBe('user');
+    expect(result.modules.at(0)?.name).toBe('user');
     // Services are stored as ServiceIR[] — populated later by ServiceAnalyzer integration
     // For now we verify module was found
     expect(result.modules).toHaveLength(1);
@@ -198,7 +195,7 @@ export const userModule = vertz.module(userModuleDef, {
     );
     const analyzer = createAnalyzer(project);
     const result = await analyzer.analyze();
-    expect(result.modules[0]!.exports).toEqual(['userService', 'authService']);
+    expect(result.modules.at(0)?.exports).toEqual(['userService', 'authService']);
   });
 
   it('handles module with no exports', async () => {
@@ -213,7 +210,7 @@ export const userModule = vertz.module(userModuleDef, {
     );
     const analyzer = createAnalyzer(project);
     const result = await analyzer.analyze();
-    expect(result.modules[0]!.exports).toEqual([]);
+    expect(result.modules.at(0)?.exports).toEqual([]);
   });
 
   it('handles module with no routers', async () => {
@@ -229,7 +226,7 @@ export const userModule = vertz.module(userModuleDef, {
     );
     const analyzer = createAnalyzer(project);
     const result = await analyzer.analyze();
-    expect(result.modules[0]!.routers).toEqual([]);
+    expect(result.modules.at(0)?.routers).toEqual([]);
   });
 
   it('emits error for moduleDef without name property', async () => {
@@ -243,8 +240,8 @@ const userModuleDef = vertz.moduleDef({});`,
     await analyzer.analyze();
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
-    expect(diags[0]!.severity).toBe('error');
-    expect(diags[0]!.code).toBe('VERTZ_MODULE_DYNAMIC_NAME');
+    expect(diags.at(0)?.severity).toBe('error');
+    expect(diags.at(0)?.code).toBe('VERTZ_MODULE_DYNAMIC_NAME');
   });
 
   it('emits no diagnostics for valid module', async () => {
@@ -264,16 +261,13 @@ export const userModule = vertz.module(userModuleDef, { exports: [] });`,
 describe('parseImports', () => {
   it('parses shorthand imports', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `const obj = { dbService, configService };`,
-    );
+    const file = project.createSourceFile('test.ts', `const obj = { dbService, configService };`);
     const decl = file.getVariableDeclarationOrThrow('obj');
     const obj = decl.getInitializerIfKindOrThrow(SyntaxKind.ObjectLiteralExpression);
     const result = parseImports(obj);
     expect(result).toHaveLength(2);
-    expect(result[0]!.localName).toBe('dbService');
-    expect(result[1]!.localName).toBe('configService');
+    expect(result.at(0)?.localName).toBe('dbService');
+    expect(result.at(1)?.localName).toBe('configService');
   });
 
   it('handles empty imports object', () => {
@@ -288,10 +282,7 @@ describe('parseImports', () => {
 describe('extractIdentifierNames', () => {
   it('extracts names from identifier array', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `const arr = [userService, authService];`,
-    );
+    const file = project.createSourceFile('test.ts', `const arr = [userService, authService];`);
     const decl = file.getVariableDeclarationOrThrow('arr');
     const expr = decl.getInitializerOrThrow();
     expect(extractIdentifierNames(expr)).toEqual(['userService', 'authService']);

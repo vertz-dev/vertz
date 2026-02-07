@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { Project } from 'ts-morph';
+import { describe, expect, it } from 'vitest';
 import { resolveConfig } from '../../config';
 import type { EnvIR, EnvVariableIR } from '../../ir/types';
 import { EnvAnalyzer } from '../env-analyzer';
@@ -20,7 +20,7 @@ export const env = vertz.env({ load: ['.env', '.env.local'], schema: envSchema }
     const analyzer = new EnvAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
     expect(result.env).toBeDefined();
-    expect(result.env!.loadFiles).toEqual(['.env', '.env.local']);
+    expect(result.env?.loadFiles).toEqual(['.env', '.env.local']);
   });
 
   it('returns undefined env when no vertz.env() call exists', async () => {
@@ -41,7 +41,7 @@ export const env = vertz.env({ load: [], schema: envSchema });`,
     );
     const analyzer = new EnvAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.env!.sourceLine).toBe(3);
+    expect(result.env?.sourceLine).toBe(3);
   });
 
   it('extracts empty load array', async () => {
@@ -54,7 +54,7 @@ export const env = vertz.env({ load: [], schema: envSchema });`,
     );
     const analyzer = new EnvAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.env!.loadFiles).toEqual([]);
+    expect(result.env?.loadFiles).toEqual([]);
   });
 
   it('extracts multiple load file paths', async () => {
@@ -67,7 +67,7 @@ export const env = vertz.env({ load: ['.env', '.env.local', '.env.production'], 
     );
     const analyzer = new EnvAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.env!.loadFiles).toEqual(['.env', '.env.local', '.env.production']);
+    expect(result.env?.loadFiles).toEqual(['.env', '.env.local', '.env.production']);
   });
 
   it('defaults to empty load array when load property is absent', async () => {
@@ -80,15 +80,12 @@ export const env = vertz.env({ schema: envSchema });`,
     );
     const analyzer = new EnvAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.env!.loadFiles).toEqual([]);
+    expect(result.env?.loadFiles).toEqual([]);
   });
 
   it('extracts schema reference from named identifier', async () => {
     const project = createProject();
-    project.createSourceFile(
-      'src/env.schema.ts',
-      `export const envSchema = {};`,
-    );
+    project.createSourceFile('src/env.schema.ts', `export const envSchema = {};`);
     project.createSourceFile(
       'src/env.ts',
       `import { vertz } from '@vertz/core';
@@ -97,10 +94,10 @@ export const env = vertz.env({ load: ['.env'], schema: envSchema });`,
     );
     const analyzer = new EnvAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.env!.schema).toBeDefined();
-    expect(result.env!.schema!.kind).toBe('named');
-    if (result.env!.schema!.kind === 'named') {
-      expect(result.env!.schema!.schemaName).toBe('envSchema');
+    expect(result.env?.schema).toBeDefined();
+    expect(result.env?.schema?.kind).toBe('named');
+    if (result.env?.schema?.kind === 'named') {
+      expect(result.env?.schema?.schemaName).toBe('envSchema');
     }
   });
 
@@ -113,7 +110,7 @@ export const env = vertz.env({ load: ['.env'] });`,
     );
     const analyzer = new EnvAnalyzer(project, resolveConfig());
     const result = await analyzer.analyze();
-    expect(result.env!.schema).toBeUndefined();
+    expect(result.env?.schema).toBeUndefined();
   });
 
   it('emits error when multiple vertz.env() calls exist', async () => {
@@ -128,8 +125,8 @@ export const env2 = vertz.env({ load: ['.env.local'] });`,
     await analyzer.analyze();
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
-    expect(diags[0]!.severity).toBe('error');
-    expect(diags[0]!.code).toBe('VERTZ_ENV_DUPLICATE');
+    expect(diags.at(0)?.severity).toBe('error');
+    expect(diags.at(0)?.code).toBe('VERTZ_ENV_DUPLICATE');
   });
 
   it('emits no diagnostics for valid single env definition', async () => {

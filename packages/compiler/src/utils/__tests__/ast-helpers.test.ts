@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { Project, SyntaxKind } from 'ts-morph';
+import { describe, expect, it } from 'vitest';
 import {
   extractObjectLiteral,
   findCallExpressions,
@@ -44,10 +44,7 @@ describe('findCallExpressions', () => {
 
   it('returns empty array when no match', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `const app = vertz.app({ basePath: '/' });`,
-    );
+    const file = project.createSourceFile('test.ts', `const app = vertz.app({ basePath: '/' });`);
     const results = findCallExpressions(file, 'vertz', 'middleware');
     expect(results).toHaveLength(0);
   });
@@ -64,10 +61,7 @@ describe('findCallExpressions', () => {
 
   it('does not match different method name', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `const app = vertz.app({ basePath: '/' });`,
-    );
+    const file = project.createSourceFile('test.ts', `const app = vertz.app({ basePath: '/' });`);
     const results = findCallExpressions(file, 'vertz', 'middleware');
     expect(results).toHaveLength(0);
   });
@@ -145,55 +139,40 @@ describe('findMethodCallsOnVariable', () => {
 describe('extractObjectLiteral', () => {
   it('extracts object literal at index 0', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `fn({ name: 'test' });`,
-    );
-    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression)[0]!;
+    const file = project.createSourceFile('test.ts', `fn({ name: 'test' });`);
+    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression).at(0);
     const result = extractObjectLiteral(call, 0);
     expect(result).not.toBeNull();
   });
 
   it('extracts object literal at index 1', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `fn('path', { params: 'schema' });`,
-    );
-    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression)[0]!;
+    const file = project.createSourceFile('test.ts', `fn('path', { params: 'schema' });`);
+    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression).at(0);
     const result = extractObjectLiteral(call, 1);
     expect(result).not.toBeNull();
   });
 
   it('returns null when argument is not object literal', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `fn('string');`,
-    );
-    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression)[0]!;
+    const file = project.createSourceFile('test.ts', `fn('string');`);
+    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression).at(0);
     const result = extractObjectLiteral(call, 0);
     expect(result).toBeNull();
   });
 
   it('returns null when argument index is out of bounds', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `fn({ a: 1 });`,
-    );
-    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression)[0]!;
+    const file = project.createSourceFile('test.ts', `fn({ a: 1 });`);
+    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression).at(0);
     const result = extractObjectLiteral(call, 5);
     expect(result).toBeNull();
   });
 
   it('returns null for no-argument call', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `fn();`,
-    );
-    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression)[0]!;
+    const file = project.createSourceFile('test.ts', `fn();`);
+    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression).at(0);
     const result = extractObjectLiteral(call, 0);
     expect(result).toBeNull();
   });
@@ -202,7 +181,7 @@ describe('extractObjectLiteral', () => {
 describe('getPropertyValue', () => {
   function getObj(project: Project, source: string) {
     const file = project.createSourceFile('test.ts', source);
-    return file.getDescendantsOfKind(SyntaxKind.ObjectLiteralExpression)[0]!;
+    return file.getDescendantsOfKind(SyntaxKind.ObjectLiteralExpression).at(0);
   }
 
   it('gets property value from object literal', () => {
@@ -230,7 +209,7 @@ describe('getPropertyValue', () => {
 describe('getProperties', () => {
   function getObj(project: Project, source: string) {
     const file = project.createSourceFile('test.ts', source);
-    return file.getDescendantsOfKind(SyntaxKind.ObjectLiteralExpression)[0]!;
+    return file.getDescendantsOfKind(SyntaxKind.ObjectLiteralExpression).at(0);
   }
 
   it('extracts all property assignments', () => {
@@ -238,8 +217,8 @@ describe('getProperties', () => {
     const obj = getObj(project, `const o = { name: 'user', count: 3 };`);
     const props = getProperties(obj);
     expect(props).toHaveLength(2);
-    expect(props[0]!.name).toBe('name');
-    expect(props[1]!.name).toBe('count');
+    expect(props.at(0)?.name).toBe('name');
+    expect(props.at(1)?.name).toBe('count');
   });
 
   it('handles shorthand properties', () => {
@@ -247,7 +226,7 @@ describe('getProperties', () => {
     const obj = getObj(project, `const name = 'user'; const o = { name, count: 3 };`);
     const props = getProperties(obj);
     expect(props).toHaveLength(2);
-    expect(props[0]!.name).toBe('name');
+    expect(props.at(0)?.name).toBe('name');
   });
 
   it('returns empty array for empty object', () => {
@@ -389,31 +368,22 @@ describe('getArrayElements', () => {
 describe('getVariableNameForCall', () => {
   it('extracts variable name from const declaration', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `const userRouter = createRouter();`,
-    );
-    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression)[0]!;
+    const file = project.createSourceFile('test.ts', `const userRouter = createRouter();`);
+    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression).at(0);
     expect(getVariableNameForCall(call)).toBe('userRouter');
   });
 
   it('extracts variable name from let declaration', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `let mw = vertz.middleware({});`,
-    );
-    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression)[0]!;
+    const file = project.createSourceFile('test.ts', `let mw = vertz.middleware({});`);
+    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression).at(0);
     expect(getVariableNameForCall(call)).toBe('mw');
   });
 
   it('returns null for bare call (no assignment)', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'test.ts',
-      `doSomething();`,
-    );
-    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression)[0]!;
+    const file = project.createSourceFile('test.ts', `doSomething();`);
+    const call = file.getDescendantsOfKind(SyntaxKind.CallExpression).at(0);
     expect(getVariableNameForCall(call)).toBeNull();
   });
 });
@@ -421,10 +391,7 @@ describe('getVariableNameForCall', () => {
 describe('getSourceLocation', () => {
   it('returns correct file, line, column', () => {
     const project = createProject();
-    const file = project.createSourceFile(
-      'src/test.ts',
-      `const a = 1;\nconst b = 2;`,
-    );
+    const file = project.createSourceFile('src/test.ts', `const a = 1;\nconst b = 2;`);
     const decl = file.getVariableDeclarationOrThrow('b');
     const loc = getSourceLocation(decl);
     expect(loc.sourceFile).toContain('src/test.ts');

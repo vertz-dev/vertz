@@ -90,7 +90,7 @@ describe('filterBySeverity', () => {
     ];
     const result = filterBySeverity(diagnostics, 'warning');
     expect(result).toHaveLength(1);
-    expect(result[0]!.severity).toBe('warning');
+    expect(result.at(0)?.severity).toBe('warning');
   });
 });
 
@@ -124,8 +124,8 @@ describe('createDiagnostic sourceContext', () => {
       },
     });
     expect(result.sourceContext).toBeDefined();
-    expect(result.sourceContext!.lines).toHaveLength(1);
-    expect(result.sourceContext!.highlightStart).toBe(6);
-    expect(result.sourceContext!.highlightLength).toBe(1);
+    expect(result.sourceContext?.lines).toHaveLength(1);
+    expect(result.sourceContext?.highlightStart).toBe(6);
+    expect(result.sourceContext?.highlightLength).toBe(1);
   });
 });

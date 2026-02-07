@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addDiagnosticsToIR, createEmptyAppIR, createEmptyDependencyGraph } from '../ir/builder';
 import { createDiagnostic } from '../errors';
+import { addDiagnosticsToIR, createEmptyAppIR, createEmptyDependencyGraph } from '../ir/builder';
 
 describe('createEmptyAppIR', () => {
   it('returns an AppIR with empty collections', () => {
@@ -42,7 +42,11 @@ describe('addDiagnosticsToIR', () => {
   it('returns new AppIR with merged diagnostics', () => {
     const ir = createEmptyAppIR();
     const d1 = createDiagnostic({ severity: 'error', code: 'VERTZ_APP_MISSING', message: 'a' });
-    const d2 = createDiagnostic({ severity: 'warning', code: 'VERTZ_SERVICE_UNUSED', message: 'b' });
+    const d2 = createDiagnostic({
+      severity: 'warning',
+      code: 'VERTZ_SERVICE_UNUSED',
+      message: 'b',
+    });
     const result = addDiagnosticsToIR(ir, [d1, d2]);
     expect(result.diagnostics).toHaveLength(2);
     expect(ir.diagnostics).toHaveLength(0);
@@ -51,7 +55,11 @@ describe('addDiagnosticsToIR', () => {
   it('preserves existing diagnostics', () => {
     const d1 = createDiagnostic({ severity: 'error', code: 'VERTZ_APP_MISSING', message: 'a' });
     const ir = addDiagnosticsToIR(createEmptyAppIR(), [d1]);
-    const d2 = createDiagnostic({ severity: 'warning', code: 'VERTZ_SERVICE_UNUSED', message: 'b' });
+    const d2 = createDiagnostic({
+      severity: 'warning',
+      code: 'VERTZ_SERVICE_UNUSED',
+      message: 'b',
+    });
     const result = addDiagnosticsToIR(ir, [d2]);
     expect(result.diagnostics).toHaveLength(2);
     expect(result.diagnostics[0]).toBe(d1);

@@ -1,10 +1,10 @@
+import type { Analyzer } from './analyzers/base-analyzer';
 import type { ResolvedConfig } from './config';
 import type { Diagnostic } from './errors';
 import { hasErrors } from './errors';
-import type { Analyzer } from './analyzers/base-analyzer';
 import type { Generator } from './generators/base-generator';
-import type { AppIR } from './ir/types';
 import { createEmptyAppIR } from './ir/builder';
+import type { AppIR } from './ir/types';
 
 export interface Validator {
   validate(ir: AppIR): Promise<Diagnostic[]>;

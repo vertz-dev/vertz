@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { Project } from 'ts-morph';
+import { describe, expect, it } from 'vitest';
 import { resolveConfig } from '../../config';
 import type { ModuleDefContext, RouteIR, RouterIR } from '../../ir/types';
 import type { RouteAnalyzerResult } from '../route-analyzer';
@@ -25,7 +25,7 @@ const userRouter = userModuleDef.router({ prefix: '/users' });`,
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
     expect(result.routers).toHaveLength(1);
-    expect(result.routers[0]!.name).toBe('userRouter');
+    expect(result.routers[0]?.name).toBe('userRouter');
   });
 
   it('extracts router module name from context', async () => {
@@ -38,7 +38,7 @@ const userRouter = userModuleDef.router({ prefix: '/users' });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.moduleName).toBe('user');
+    expect(result.routers[0]?.moduleName).toBe('user');
   });
 
   it('extracts router prefix', async () => {
@@ -51,7 +51,7 @@ const userRouter = userModuleDef.router({ prefix: '/users' });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.prefix).toBe('/users');
+    expect(result.routers[0]?.prefix).toBe('/users');
   });
 
   it('extracts router inject references', async () => {
@@ -64,9 +64,15 @@ const userRouter = userModuleDef.router({ prefix: '/users', inject: { userServic
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.inject).toHaveLength(2);
-    expect(result.routers[0]!.inject[0]).toEqual({ localName: 'userService', resolvedToken: 'userService' });
-    expect(result.routers[0]!.inject[1]).toEqual({ localName: 'authService', resolvedToken: 'authService' });
+    expect(result.routers[0]?.inject).toHaveLength(2);
+    expect(result.routers[0]?.inject[0]).toEqual({
+      localName: 'userService',
+      resolvedToken: 'userService',
+    });
+    expect(result.routers[0]?.inject[1]).toEqual({
+      localName: 'authService',
+      resolvedToken: 'authService',
+    });
   });
 
   it('handles router with no inject', async () => {
@@ -79,7 +85,7 @@ const userRouter = userModuleDef.router({ prefix: '/users' });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.inject).toEqual([]);
+    expect(result.routers[0]?.inject).toEqual([]);
   });
 
   it('extracts router source location', async () => {
@@ -94,8 +100,8 @@ const userRouter = userModuleDef.router({ prefix: '/users' });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.sourceLine).toBe(5);
-    expect(result.routers[0]!.sourceFile).toContain('user.router.ts');
+    expect(result.routers[0]?.sourceLine).toBe(5);
+    expect(result.routers[0]?.sourceFile).toContain('user.router.ts');
   });
 
   it('extracts GET route', async () => {
@@ -109,9 +115,9 @@ userRouter.get('/:id', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes).toHaveLength(1);
-    expect(result.routers[0]!.routes[0]!.method).toBe('GET');
-    expect(result.routers[0]!.routes[0]!.path).toBe('/:id');
+    expect(result.routers[0]?.routes).toHaveLength(1);
+    expect(result.routers[0]?.routes.at(0)?.method).toBe('GET');
+    expect(result.routers[0]?.routes.at(0)?.path).toBe('/:id');
   });
 
   it('extracts POST route', async () => {
@@ -125,7 +131,7 @@ userRouter.post('/', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.method).toBe('POST');
+    expect(result.routers[0]?.routes.at(0)?.method).toBe('POST');
   });
 
   it('extracts PUT route', async () => {
@@ -139,7 +145,7 @@ userRouter.put('/:id', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.method).toBe('PUT');
+    expect(result.routers[0]?.routes.at(0)?.method).toBe('PUT');
   });
 
   it('extracts PATCH route', async () => {
@@ -153,7 +159,7 @@ userRouter.patch('/:id', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.method).toBe('PATCH');
+    expect(result.routers[0]?.routes.at(0)?.method).toBe('PATCH');
   });
 
   it('extracts DELETE route', async () => {
@@ -167,7 +173,7 @@ userRouter.delete('/:id', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.method).toBe('DELETE');
+    expect(result.routers[0]?.routes.at(0)?.method).toBe('DELETE');
   });
 
   it('extracts HEAD route', async () => {
@@ -181,7 +187,7 @@ userRouter.head('/:id', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.method).toBe('HEAD');
+    expect(result.routers[0]?.routes.at(0)?.method).toBe('HEAD');
   });
 
   it('extracts params schema reference', async () => {
@@ -196,10 +202,10 @@ userRouter.get('/:id', { params: readUserParams, handler: async (ctx: any) => ({
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    const route = result.routers[0]!.routes[0]!;
-    expect(route.params!.kind).toBe('named');
-    if (route.params!.kind === 'named') {
-      expect(route.params!.schemaName).toBe('readUserParams');
+    const route = result.routers[0]?.routes.at(0);
+    expect(route?.params?.kind).toBe('named');
+    if (route?.params?.kind === 'named') {
+      expect(route.params.schemaName).toBe('readUserParams');
     }
   });
 
@@ -215,10 +221,10 @@ userRouter.get('/', { query: listUsersQuery, handler: async (ctx: any) => ({}) }
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    const route = result.routers[0]!.routes[0]!;
-    expect(route.query!.kind).toBe('named');
-    if (route.query!.kind === 'named') {
-      expect(route.query!.schemaName).toBe('listUsersQuery');
+    const route = result.routers[0]?.routes.at(0);
+    expect(route?.query?.kind).toBe('named');
+    if (route?.query?.kind === 'named') {
+      expect(route.query.schemaName).toBe('listUsersQuery');
     }
   });
 
@@ -234,10 +240,10 @@ userRouter.post('/', { body: createUserBody, handler: async (ctx: any) => ({}) }
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    const route = result.routers[0]!.routes[0]!;
-    expect(route.body!.kind).toBe('named');
-    if (route.body!.kind === 'named') {
-      expect(route.body!.schemaName).toBe('createUserBody');
+    const route = result.routers[0]?.routes.at(0);
+    expect(route?.body?.kind).toBe('named');
+    if (route?.body?.kind === 'named') {
+      expect(route.body.schemaName).toBe('createUserBody');
     }
   });
 
@@ -253,10 +259,10 @@ userRouter.get('/', { headers: customHeaders, handler: async (ctx: any) => ({}) 
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    const route = result.routers[0]!.routes[0]!;
-    expect(route.headers!.kind).toBe('named');
-    if (route.headers!.kind === 'named') {
-      expect(route.headers!.schemaName).toBe('customHeaders');
+    const route = result.routers[0]?.routes.at(0);
+    expect(route?.headers?.kind).toBe('named');
+    if (route?.headers?.kind === 'named') {
+      expect(route.headers.schemaName).toBe('customHeaders');
     }
   });
 
@@ -272,19 +278,16 @@ userRouter.get('/:id', { response: readUserResponse, handler: async (ctx: any) =
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    const route = result.routers[0]!.routes[0]!;
-    expect(route.response!.kind).toBe('named');
-    if (route.response!.kind === 'named') {
-      expect(route.response!.schemaName).toBe('readUserResponse');
+    const route = result.routers[0]?.routes.at(0);
+    expect(route?.response?.kind).toBe('named');
+    if (route?.response?.kind === 'named') {
+      expect(route.response.schemaName).toBe('readUserResponse');
     }
   });
 
   it('extracts middleware references', async () => {
     const project = createProject();
-    project.createSourceFile(
-      'src/middleware/auth.ts',
-      `export const authMiddleware = {};`,
-    );
+    project.createSourceFile('src/middleware/auth.ts', `export const authMiddleware = {};`);
     project.createSourceFile(
       'src/user/user.router.ts',
       `import { vertz } from '@vertz/core';
@@ -296,11 +299,11 @@ userRouter.get('/:id', { middlewares: [authMiddleware, rateLimitMiddleware], han
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    const route = result.routers[0]!.routes[0]!;
-    expect(route.middleware).toHaveLength(2);
-    expect(route.middleware[0]!.name).toBe('authMiddleware');
-    expect(route.middleware[0]!.sourceFile).toContain('auth.ts');
-    expect(route.middleware[1]!.name).toBe('rateLimitMiddleware');
+    const route = result.routers[0]?.routes.at(0);
+    expect(route?.middleware).toHaveLength(2);
+    expect(route?.middleware.at(0)?.name).toBe('authMiddleware');
+    expect(route?.middleware.at(0)?.sourceFile).toContain('auth.ts');
+    expect(route?.middleware.at(1)?.name).toBe('rateLimitMiddleware');
   });
 
   it('extracts description', async () => {
@@ -314,7 +317,7 @@ userRouter.get('/:id', { description: 'Get user by ID', handler: async (ctx: any
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.description).toBe('Get user by ID');
+    expect(result.routers[0]?.routes.at(0)?.description).toBe('Get user by ID');
   });
 
   it('extracts tags', async () => {
@@ -328,7 +331,7 @@ userRouter.get('/:id', { tags: ['users', 'admin'], handler: async (ctx: any) => 
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.tags).toEqual(['users', 'admin']);
+    expect(result.routers[0]?.routes.at(0)?.tags).toEqual(['users', 'admin']);
   });
 
   it('defaults tags to empty array', async () => {
@@ -342,7 +345,7 @@ userRouter.get('/:id', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.tags).toEqual([]);
+    expect(result.routers[0]?.routes.at(0)?.tags).toEqual([]);
   });
 
   it('defaults description to undefined', async () => {
@@ -356,7 +359,7 @@ userRouter.get('/:id', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.description).toBeUndefined();
+    expect(result.routers[0]?.routes.at(0)?.description).toBeUndefined();
   });
 
   it('computes fullPath by joining prefix and path', async () => {
@@ -370,7 +373,7 @@ userRouter.get('/:id', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.fullPath).toBe('/users/:id');
+    expect(result.routers[0]?.routes.at(0)?.fullPath).toBe('/users/:id');
   });
 
   it('handles root route path', async () => {
@@ -384,7 +387,7 @@ userRouter.get('/', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.fullPath).toBe('/users');
+    expect(result.routers[0]?.routes.at(0)?.fullPath).toBe('/users');
   });
 
   it('handles nested prefix', async () => {
@@ -398,7 +401,7 @@ userRouter.get('/:id/posts', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.fullPath).toBe('/api/v1/users/:id/posts');
+    expect(result.routers[0]?.routes.at(0)?.fullPath).toBe('/api/v1/users/:id/posts');
   });
 
   it('handles prefix with trailing slash', async () => {
@@ -412,7 +415,7 @@ userRouter.get('/:id', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.fullPath).toBe('/users/:id');
+    expect(result.routers[0]?.routes.at(0)?.fullPath).toBe('/users/:id');
   });
 
   it('generates operationId from handler function name', async () => {
@@ -427,7 +430,7 @@ userRouter.get('/:id', { handler: getUserById });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.operationId).toBe('user_getUserById');
+    expect(result.routers[0]?.routes.at(0)?.operationId).toBe('user_getUserById');
   });
 
   it('generates operationId from arrow function fallback', async () => {
@@ -441,7 +444,7 @@ userRouter.get('/:id', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.operationId).toBe('user_get_id');
+    expect(result.routers[0]?.routes.at(0)?.operationId).toBe('user_get_id');
   });
 
   it('generates operationId from property access handler', async () => {
@@ -456,7 +459,7 @@ userRouter.get('/:id', { handler: handlers.getUserById });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.operationId).toBe('user_getUserById');
+    expect(result.routers[0]?.routes.at(0)?.operationId).toBe('user_getUserById');
   });
 
   it('handles operationId collision avoidance', async () => {
@@ -471,7 +474,7 @@ userRouter.get('/:id', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    const ids = result.routers[0]!.routes.map((r) => r.operationId);
+    const ids = result.routers[0]?.routes.map((r) => r.operationId);
     expect(ids[0]).toBe('user_get_id');
     expect(ids[1]).toBe('user_get_id_2');
   });
@@ -491,8 +494,8 @@ userRouter.get('/:id', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.sourceLine).toBe(8);
-    expect(result.routers[0]!.routes[0]!.sourceFile).toContain('user.router.ts');
+    expect(result.routers[0]?.routes.at(0)?.sourceLine).toBe(8);
+    expect(result.routers[0]?.routes.at(0)?.sourceFile).toContain('user.router.ts');
   });
 
   it('extracts multiple routes on one router', async () => {
@@ -507,7 +510,7 @@ userRouter.post('/', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes).toHaveLength(2);
+    expect(result.routers[0]?.routes).toHaveLength(2);
   });
 
   it('extracts multiple routers in one file', async () => {
@@ -521,7 +524,9 @@ const userRouter = userModuleDef.router({ prefix: '/users' });
 const adminRouter = adminModuleDef.router({ prefix: '/admin' });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user', adminModuleDef: 'admin' }));
+    const result = await analyzer.analyzeForModules(
+      createContext({ userModuleDef: 'user', adminModuleDef: 'admin' }),
+    );
     expect(result.routers).toHaveLength(2);
   });
 
@@ -540,7 +545,9 @@ const todoModuleDef = vertz.moduleDef({ name: 'todo' });
 const todoRouter = todoModuleDef.router({ prefix: '/todos' });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
-    const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user', todoModuleDef: 'todo' }));
+    const result = await analyzer.analyzeForModules(
+      createContext({ userModuleDef: 'user', todoModuleDef: 'todo' }),
+    );
     expect(result.routers).toHaveLength(2);
   });
 
@@ -558,8 +565,8 @@ userRouter
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes).toHaveLength(3);
-    const methods = result.routers[0]!.routes.map((r) => r.method);
+    expect(result.routers[0]?.routes).toHaveLength(3);
+    const methods = result.routers[0]?.routes.map((r) => r.method);
     expect(methods).toContain('GET');
     expect(methods).toContain('POST');
     expect(methods).toContain('DELETE');
@@ -577,7 +584,7 @@ userRouter.post('/', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes).toHaveLength(2);
+    expect(result.routers[0]?.routes).toHaveLength(2);
   });
 
   it('handles inline schema expressions', async () => {
@@ -592,7 +599,7 @@ userRouter.get('/:id', { params: s.object({ id: s.uuid() }), handler: async (ctx
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.params!.kind).toBe('inline');
+    expect(result.routers[0]?.routes.at(0)?.params?.kind).toBe('inline');
   });
 
   it('handles missing schema properties', async () => {
@@ -606,12 +613,12 @@ userRouter.get('/', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    const route = result.routers[0]!.routes[0]!;
-    expect(route.params).toBeUndefined();
-    expect(route.query).toBeUndefined();
-    expect(route.body).toBeUndefined();
-    expect(route.headers).toBeUndefined();
-    expect(route.response).toBeUndefined();
+    const route = result.routers[0]?.routes.at(0);
+    expect(route?.params).toBeUndefined();
+    expect(route?.query).toBeUndefined();
+    expect(route?.body).toBeUndefined();
+    expect(route?.headers).toBeUndefined();
+    expect(route?.response).toBeUndefined();
   });
 
   it('handles empty middlewares array', async () => {
@@ -625,7 +632,7 @@ userRouter.get('/', { middlewares: [], handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.middleware).toEqual([]);
+    expect(result.routers[0]?.routes.at(0)?.middleware).toEqual([]);
   });
 
   it('handles missing middlewares property', async () => {
@@ -639,7 +646,7 @@ userRouter.get('/', { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes[0]!.middleware).toEqual([]);
+    expect(result.routers[0]?.routes.at(0)?.middleware).toEqual([]);
   });
 
   it('emits error when router variable is not declared with a moduleDef call', async () => {
@@ -654,7 +661,7 @@ userRouter.get('/:id', { handler: async (ctx: any) => ({}) });`,
     await analyzer.analyzeForModules(createContext({}));
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
-    expect(diags[0]!.code).toBe('VERTZ_RT_UNKNOWN_MODULE_DEF');
+    expect(diags.at(0)?.code).toBe('VERTZ_RT_UNKNOWN_MODULE_DEF');
   });
 
   it('emits error when route path is not a string literal', async () => {
@@ -669,10 +676,10 @@ userRouter.get(dynamicPath, { handler: async (ctx: any) => ({}) });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes).toHaveLength(0);
+    expect(result.routers[0]?.routes).toHaveLength(0);
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
-    expect(diags[0]!.code).toBe('VERTZ_RT_DYNAMIC_PATH');
+    expect(diags.at(0)?.code).toBe('VERTZ_RT_DYNAMIC_PATH');
   });
 
   it('emits error when handler is missing', async () => {
@@ -687,10 +694,10 @@ userRouter.get('/:id', { params: readUserParams });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes).toHaveLength(0);
+    expect(result.routers[0]?.routes).toHaveLength(0);
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
-    expect(diags[0]!.code).toBe('VERTZ_RT_MISSING_HANDLER');
+    expect(diags.at(0)?.code).toBe('VERTZ_RT_MISSING_HANDLER');
   });
 
   it('emits warning when prefix is missing', async () => {
@@ -703,10 +710,10 @@ const userRouter = userModuleDef.router({ inject: { userService } });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.prefix).toBe('/');
+    expect(result.routers[0]?.prefix).toBe('/');
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
-    expect(diags[0]!.code).toBe('VERTZ_RT_MISSING_PREFIX');
+    expect(diags.at(0)?.code).toBe('VERTZ_RT_MISSING_PREFIX');
   });
 
   it('emits warning when route config is not an object literal', async () => {
@@ -723,7 +730,7 @@ userRouter.get('/:id', config);`,
     await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
     const diags = analyzer.getDiagnostics();
     expect(diags).toHaveLength(1);
-    expect(diags[0]!.code).toBe('VERTZ_RT_DYNAMIC_CONFIG');
+    expect(diags.at(0)?.code).toBe('VERTZ_RT_DYNAMIC_CONFIG');
   });
 
   it('ignores method calls that are not HTTP methods', async () => {
@@ -738,7 +745,7 @@ userRouter.toString();`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes).toHaveLength(0);
+    expect(result.routers[0]?.routes).toHaveLength(0);
   });
 
   it('handles exported router', async () => {
@@ -752,7 +759,7 @@ export const userRouter = userModuleDef.router({ prefix: '/users' });`,
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
     expect(result.routers).toHaveLength(1);
-    expect(result.routers[0]!.name).toBe('userRouter');
+    expect(result.routers[0]?.name).toBe('userRouter');
   });
 
   it('does not emit unknown module def error for unrelated .router() calls', async () => {
@@ -779,7 +786,7 @@ const emptyRouter = userModuleDef.router({ prefix: '/empty' });`,
     );
     const analyzer = new RouteAnalyzer(project, resolveConfig());
     const result = await analyzer.analyzeForModules(createContext({ userModuleDef: 'user' }));
-    expect(result.routers[0]!.routes).toEqual([]);
+    expect(result.routers[0]?.routes).toEqual([]);
   });
 });
 
