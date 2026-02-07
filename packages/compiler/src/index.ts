@@ -72,6 +72,19 @@ export {
 } from './errors';
 export type { Generator } from './generators/base-generator';
 export { BaseGenerator } from './generators/base-generator';
+export type {
+  JSONSchemaObject,
+  OpenAPIDocument,
+  OpenAPIInfo,
+  OpenAPIOperation,
+  OpenAPIParameter,
+  OpenAPIPathItem,
+  OpenAPIRequestBody,
+  OpenAPIResponse,
+  OpenAPIServer,
+  OpenAPITag,
+} from './generators/openapi-generator';
+export { OpenAPIGenerator } from './generators/openapi-generator';
 // IR builders
 export {
   addDiagnosticsToIR,
