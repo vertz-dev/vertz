@@ -1,8 +1,8 @@
-import { createEnv } from './env';
-import { createMiddleware } from './middleware';
-import { createModuleDef, createModule } from './module';
 import { createApp } from './app';
+import { createEnv } from './env';
 import { deepFreeze } from './immutability';
+import { createMiddleware } from './middleware';
+import { createModule, createModuleDef } from './module';
 
 export const vertz = deepFreeze({
   env: createEnv,

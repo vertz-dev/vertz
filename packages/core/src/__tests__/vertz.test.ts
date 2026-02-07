@@ -1,13 +1,13 @@
-import { describe, it, expect } from 'vitest';
-import { vertz } from '../vertz';
+import { describe, expect, it } from 'vitest';
 import {
-  vertz as vertzFromIndex,
   createApp,
   createEnv,
   createMiddleware,
-  createModuleDef,
   createModule,
+  createModuleDef,
+  vertz as vertzFromIndex,
 } from '../index';
+import { vertz } from '../vertz';
 
 describe('vertz namespace', () => {
   it('exports env, middleware, moduleDef, module, app factory functions', () => {

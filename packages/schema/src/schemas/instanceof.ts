@@ -1,9 +1,8 @@
-import { Schema } from '../core/schema';
-import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
+import type { ParseContext } from '../core/parse-context';
+import { Schema } from '../core/schema';
 import { SchemaType } from '../core/types';
-import type { RefTracker } from '../introspection/json-schema';
-import type { JSONSchemaObject } from '../introspection/json-schema';
+import type { JSONSchemaObject, RefTracker } from '../introspection/json-schema';
 
 // biome-ignore lint/suspicious/noExplicitAny: standard TS pattern for any-constructor constraint
 type Constructor<T> = new (...args: any[]) => T;

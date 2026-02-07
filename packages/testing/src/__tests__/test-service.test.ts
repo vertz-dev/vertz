@@ -1,5 +1,5 @@
 import { createModuleDef } from '@vertz/core';
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { createTestService } from '../test-service';
 

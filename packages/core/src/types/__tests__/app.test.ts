@@ -1,5 +1,5 @@
-import { describe, it, expectTypeOf } from 'vitest';
-import type { CorsConfig, AppConfig } from '../app';
+import { describe, expectTypeOf, it } from 'vitest';
+import type { AppConfig, CorsConfig } from '../app';
 
 describe('AppConfig', () => {
   it('has optional basePath, version, cors', () => {

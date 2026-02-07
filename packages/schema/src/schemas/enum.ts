@@ -1,9 +1,8 @@
-import { Schema } from '../core/schema';
-import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
+import type { ParseContext } from '../core/parse-context';
+import { Schema } from '../core/schema';
 import { SchemaType } from '../core/types';
-import type { RefTracker } from '../introspection/json-schema';
-import type { JSONSchemaObject } from '../introspection/json-schema';
+import type { JSONSchemaObject, RefTracker } from '../introspection/json-schema';
 
 export class EnumSchema<T extends readonly [string, ...string[]]> extends Schema<T[number]> {
   private readonly _values: T;

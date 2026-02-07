@@ -1,9 +1,9 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import type { HandlerCtx } from '../../types/context';
+import { afterEach, describe, expect, it } from 'vitest';
 import { NotFoundException, UnauthorizedException } from '../../exceptions';
 import { createMiddleware } from '../../middleware/middleware-def';
 import { createModule } from '../../module/module';
 import { createModuleDef } from '../../module/module-def';
+import type { HandlerCtx } from '../../types/context';
 import { createApp } from '../app-builder';
 
 interface TestRoute {

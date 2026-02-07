@@ -1,5 +1,5 @@
-import type { BootSequence, ServiceBootInstruction } from '../types/boot-sequence';
 import { makeImmutable } from '../immutability';
+import type { BootSequence, ServiceBootInstruction } from '../types/boot-sequence';
 
 interface ServiceEntry {
   methods: unknown;

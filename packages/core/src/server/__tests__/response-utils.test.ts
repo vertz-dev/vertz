@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { createJsonResponse, createErrorResponse } from '../response-utils';
+import { describe, expect, it } from 'vitest';
 import { NotFoundException } from '../../exceptions';
+import { createErrorResponse, createJsonResponse } from '../response-utils';
 
 describe('createJsonResponse', () => {
   it('creates a JSON response with default 200 status', () => {

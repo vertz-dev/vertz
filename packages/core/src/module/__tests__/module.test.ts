@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { createModuleDef } from '../module-def';
+import { describe, expect, it } from 'vitest';
 import { createModule } from '../module';
+import { createModuleDef } from '../module-def';
 
 describe('createModule', () => {
   it('assembles module with definition, services, and routers', () => {

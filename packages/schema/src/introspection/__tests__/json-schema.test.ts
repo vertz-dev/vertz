@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { RefTracker, toJSONSchema } from '../json-schema';
-import { Schema } from '../../core/schema';
-import type { ParseContext } from '../../core/parse-context';
+import { describe, expect, it } from 'vitest';
 import { ErrorCode } from '../../core/errors';
+import type { ParseContext } from '../../core/parse-context';
+import { Schema } from '../../core/schema';
 import { SchemaType } from '../../core/types';
+import { RefTracker, toJSONSchema } from '../json-schema';
 
 class TestSchema extends Schema<string> {
   _parse(value: unknown, ctx: ParseContext): string {

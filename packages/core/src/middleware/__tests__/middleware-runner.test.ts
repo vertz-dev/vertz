@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { runMiddlewareChain, type ResolvedMiddleware } from '../middleware-runner';
+import { describe, expect, it } from 'vitest';
 import { UnauthorizedException } from '../../exceptions';
+import { type ResolvedMiddleware, runMiddlewareChain } from '../middleware-runner';
 
 describe('runMiddlewareChain', () => {
   it('returns empty state for an empty chain', async () => {

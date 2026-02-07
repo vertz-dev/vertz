@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { TupleSchema } from '../tuple';
-import { StringSchema } from '../string';
-import { NumberSchema } from '../number';
-import { BooleanSchema } from '../boolean';
+import { describe, expect, it } from 'vitest';
 import { ErrorCode } from '../../core/errors';
+import { BooleanSchema } from '../boolean';
+import { NumberSchema } from '../number';
+import { StringSchema } from '../string';
+import { TupleSchema } from '../tuple';
 
 describe('TupleSchema', () => {
   it('accepts a tuple with correct types at each position', () => {

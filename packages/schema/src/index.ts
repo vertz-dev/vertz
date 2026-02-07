@@ -1,154 +1,151 @@
 // @vertz/schema — Public API
 
+export type { ValidationIssue } from './core/errors';
+export { ErrorCode, ParseError } from './core/errors';
+export type { RefinementContext } from './core/parse-context';
+export { ParseContext } from './core/parse-context';
+export { SchemaRegistry } from './core/registry';
+export type { SchemaAny } from './core/schema';
 // Core
 export {
-  Schema,
-  OptionalSchema,
-  NullableSchema,
+  BrandedSchema,
+  CatchSchema,
   DefaultSchema,
+  NullableSchema,
+  OptionalSchema,
+  PipeSchema,
+  ReadonlySchema,
   RefinedSchema,
+  Schema,
   SuperRefinedSchema,
   TransformSchema,
-  PipeSchema,
-  CatchSchema,
-  BrandedSchema,
-  ReadonlySchema,
 } from './core/schema';
-export type { SchemaAny } from './core/schema';
-export { ErrorCode, ParseError } from './core/errors';
-export type { ValidationIssue } from './core/errors';
-export { ParseContext } from './core/parse-context';
-export type { RefinementContext } from './core/parse-context';
+export type { SafeParseResult, SchemaMetadata } from './core/types';
 export { SchemaType } from './core/types';
-export type { SchemaMetadata, SafeParseResult } from './core/types';
-export { SchemaRegistry } from './core/registry';
-
+export type { JSONSchemaObject } from './introspection/json-schema';
 // Introspection
 export { RefTracker, toJSONSchema } from './introspection/json-schema';
-export type { JSONSchemaObject } from './introspection/json-schema';
-
-// Schemas
-export { StringSchema } from './schemas/string';
-export { NumberSchema } from './schemas/number';
-export { BooleanSchema } from './schemas/boolean';
-export { BigIntSchema } from './schemas/bigint';
-export { DateSchema } from './schemas/date';
-export { NanSchema } from './schemas/nan';
-export { SymbolSchema } from './schemas/symbol';
-export {
-  AnySchema,
-  UnknownSchema,
-  NullSchema,
-  UndefinedSchema,
-  VoidSchema,
-  NeverSchema,
-} from './schemas/special';
-export { ObjectSchema } from './schemas/object';
 export { ArraySchema } from './schemas/array';
-export { TupleSchema } from './schemas/tuple';
-export { EnumSchema } from './schemas/enum';
-export { LiteralSchema } from './schemas/literal';
-export { UnionSchema } from './schemas/union';
-export { DiscriminatedUnionSchema } from './schemas/discriminated-union';
-export { IntersectionSchema } from './schemas/intersection';
-export { RecordSchema } from './schemas/record';
-export { MapSchema } from './schemas/map';
-export { SetSchema } from './schemas/set';
-export { FileSchema } from './schemas/file';
-export { CustomSchema } from './schemas/custom';
-export { InstanceOfSchema } from './schemas/instanceof';
-export { LazySchema } from './schemas/lazy';
+export { BigIntSchema } from './schemas/bigint';
+export { BooleanSchema } from './schemas/boolean';
 export {
-  CoercedStringSchema,
-  CoercedNumberSchema,
-  CoercedBooleanSchema,
   CoercedBigIntSchema,
+  CoercedBooleanSchema,
   CoercedDateSchema,
+  CoercedNumberSchema,
+  CoercedStringSchema,
 } from './schemas/coerced';
-
+export { CustomSchema } from './schemas/custom';
+export { DateSchema } from './schemas/date';
+export { DiscriminatedUnionSchema } from './schemas/discriminated-union';
+export { EnumSchema } from './schemas/enum';
+export { FileSchema } from './schemas/file';
 // Formats
 export {
+  Base64Schema,
+  CuidSchema,
   EmailSchema,
-  UuidSchema,
-  UrlSchema,
+  HexSchema,
   HostnameSchema,
   Ipv4Schema,
   Ipv6Schema,
-  Base64Schema,
-  HexSchema,
-  JwtSchema,
-  CuidSchema,
-  UlidSchema,
-  NanoidSchema,
   IsoDateSchema,
-  IsoTimeSchema,
   IsoDatetimeSchema,
   IsoDurationSchema,
+  IsoTimeSchema,
+  JwtSchema,
+  NanoidSchema,
+  UlidSchema,
+  UrlSchema,
+  UuidSchema,
 } from './schemas/formats';
+export { InstanceOfSchema } from './schemas/instanceof';
+export { IntersectionSchema } from './schemas/intersection';
+export { LazySchema } from './schemas/lazy';
+export { LiteralSchema } from './schemas/literal';
+export { MapSchema } from './schemas/map';
+export { NanSchema } from './schemas/nan';
+export { NumberSchema } from './schemas/number';
+export { ObjectSchema } from './schemas/object';
+export { RecordSchema } from './schemas/record';
+export { SetSchema } from './schemas/set';
+export {
+  AnySchema,
+  NeverSchema,
+  NullSchema,
+  UndefinedSchema,
+  UnknownSchema,
+  VoidSchema,
+} from './schemas/special';
+// Schemas
+export { StringSchema } from './schemas/string';
+export { SymbolSchema } from './schemas/symbol';
+export { TupleSchema } from './schemas/tuple';
+export { UnionSchema } from './schemas/union';
 
 // Transforms
 export { preprocess } from './transforms/preprocess';
 
 // Type inference utilities
-export type { Infer, Output, Input } from './utils/type-inference';
+export type { Infer, Input, Output } from './utils/type-inference';
 
-// Factory Object
-import { StringSchema } from './schemas/string';
-import { NumberSchema } from './schemas/number';
-import { BooleanSchema } from './schemas/boolean';
-import { BigIntSchema } from './schemas/bigint';
-import { DateSchema } from './schemas/date';
-import { NanSchema } from './schemas/nan';
-import { SymbolSchema } from './schemas/symbol';
-import {
-  AnySchema,
-  UnknownSchema,
-  NullSchema,
-  UndefinedSchema,
-  VoidSchema,
-  NeverSchema,
-} from './schemas/special';
-import { ObjectSchema } from './schemas/object';
+import type { Schema, SchemaAny } from './core/schema';
 import { ArraySchema } from './schemas/array';
-import { TupleSchema } from './schemas/tuple';
-import { EnumSchema } from './schemas/enum';
-import { LiteralSchema } from './schemas/literal';
-import { UnionSchema } from './schemas/union';
-import { DiscriminatedUnionSchema } from './schemas/discriminated-union';
-import { IntersectionSchema } from './schemas/intersection';
-import { RecordSchema } from './schemas/record';
-import { MapSchema } from './schemas/map';
-import { SetSchema } from './schemas/set';
-import { FileSchema } from './schemas/file';
-import { CustomSchema } from './schemas/custom';
-import { InstanceOfSchema } from './schemas/instanceof';
-import { LazySchema } from './schemas/lazy';
+import { BigIntSchema } from './schemas/bigint';
+import { BooleanSchema } from './schemas/boolean';
 import {
-  CoercedStringSchema,
-  CoercedNumberSchema,
-  CoercedBooleanSchema,
   CoercedBigIntSchema,
+  CoercedBooleanSchema,
   CoercedDateSchema,
+  CoercedNumberSchema,
+  CoercedStringSchema,
 } from './schemas/coerced';
+import { CustomSchema } from './schemas/custom';
+import { DateSchema } from './schemas/date';
+import { DiscriminatedUnionSchema } from './schemas/discriminated-union';
+import { EnumSchema } from './schemas/enum';
+import { FileSchema } from './schemas/file';
 import {
+  Base64Schema,
+  CuidSchema,
   EmailSchema,
-  UuidSchema,
-  UrlSchema,
+  HexSchema,
   HostnameSchema,
   Ipv4Schema,
   Ipv6Schema,
-  Base64Schema,
-  HexSchema,
-  JwtSchema,
-  CuidSchema,
-  UlidSchema,
-  NanoidSchema,
   IsoDateSchema,
-  IsoTimeSchema,
   IsoDatetimeSchema,
   IsoDurationSchema,
+  IsoTimeSchema,
+  JwtSchema,
+  NanoidSchema,
+  UlidSchema,
+  UrlSchema,
+  UuidSchema,
 } from './schemas/formats';
-import type { Schema, SchemaAny } from './core/schema';
+import { InstanceOfSchema } from './schemas/instanceof';
+import { IntersectionSchema } from './schemas/intersection';
+import { LazySchema } from './schemas/lazy';
+import { LiteralSchema } from './schemas/literal';
+import { MapSchema } from './schemas/map';
+import { NanSchema } from './schemas/nan';
+import { NumberSchema } from './schemas/number';
+import { ObjectSchema } from './schemas/object';
+import { RecordSchema } from './schemas/record';
+import { SetSchema } from './schemas/set';
+import {
+  AnySchema,
+  NeverSchema,
+  NullSchema,
+  UndefinedSchema,
+  UnknownSchema,
+  VoidSchema,
+} from './schemas/special';
+// Factory Object
+import { StringSchema } from './schemas/string';
+import { SymbolSchema } from './schemas/symbol';
+import { TupleSchema } from './schemas/tuple';
+import { UnionSchema } from './schemas/union';
 
 export const s = {
   // Primitives

@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { parseRequest, parseBody } from '../request-utils';
+import { describe, expect, it } from 'vitest';
 import { BadRequestException } from '../../exceptions';
+import { parseBody, parseRequest } from '../request-utils';
 
 describe('parseRequest', () => {
   it('extracts method, path, query, and headers from a Request', () => {

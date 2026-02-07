@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { NumberSchema } from '../number';
+import { describe, expect, it } from 'vitest';
 import { ParseError } from '../../core/errors';
+import { NumberSchema } from '../number';
 
 describe('NumberSchema', () => {
   it('accepts a valid number and rejects non-number including NaN', () => {

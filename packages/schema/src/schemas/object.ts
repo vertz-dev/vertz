@@ -1,8 +1,8 @@
-import { Schema, OptionalSchema, DefaultSchema, type SchemaAny } from '../core/schema';
-import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
+import type { ParseContext } from '../core/parse-context';
+import { DefaultSchema, OptionalSchema, Schema, type SchemaAny } from '../core/schema';
 import { SchemaType } from '../core/types';
-import type { RefTracker, JSONSchemaObject } from '../introspection/json-schema';
+import type { JSONSchemaObject, RefTracker } from '../introspection/json-schema';
 
 type Shape = Record<string, SchemaAny>;
 

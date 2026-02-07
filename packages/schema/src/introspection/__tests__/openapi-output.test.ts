@@ -1,17 +1,17 @@
-import { describe, it, expect } from 'vitest';
-import { StringSchema } from '../../schemas/string';
-import { NumberSchema } from '../../schemas/number';
-import { ObjectSchema } from '../../schemas/object';
-import { NullableSchema, OptionalSchema, DefaultSchema } from '../../core/schema';
-import { TupleSchema } from '../../schemas/tuple';
-import { DiscriminatedUnionSchema } from '../../schemas/discriminated-union';
-import { IntersectionSchema } from '../../schemas/intersection';
-import { RecordSchema } from '../../schemas/record';
+import { describe, expect, it } from 'vitest';
+import { DefaultSchema, NullableSchema, OptionalSchema } from '../../core/schema';
 import { DateSchema } from '../../schemas/date';
-import { LazySchema } from '../../schemas/lazy';
+import { DiscriminatedUnionSchema } from '../../schemas/discriminated-union';
 import { EmailSchema } from '../../schemas/formats/email';
 import { UuidSchema } from '../../schemas/formats/uuid';
+import { IntersectionSchema } from '../../schemas/intersection';
+import { LazySchema } from '../../schemas/lazy';
 import { LiteralSchema } from '../../schemas/literal';
+import { NumberSchema } from '../../schemas/number';
+import { ObjectSchema } from '../../schemas/object';
+import { RecordSchema } from '../../schemas/record';
+import { StringSchema } from '../../schemas/string';
+import { TupleSchema } from '../../schemas/tuple';
 
 describe('OpenAPI v3.1 Output', () => {
   it('named primitive produces $ref + $defs', () => {

@@ -1,5 +1,5 @@
-import { describe, it, expectTypeOf } from 'vitest';
-import type { ModuleDef, ServiceDef, RouterDef, Module } from '../module';
+import { describe, expectTypeOf, it } from 'vitest';
+import type { Module, ModuleDef, RouterDef, ServiceDef } from '../module';
 
 describe('ModuleDef', () => {
   it('has name, imports, and optional options', () => {

@@ -1,14 +1,14 @@
 import {
   createMiddleware,
-  createModuleDef,
   createModule,
+  createModuleDef,
   type HandlerCtx,
   type NamedModule,
-  type NamedServiceDef,
   type NamedRouterDef,
+  type NamedServiceDef,
 } from '@vertz/core';
 import { s } from '@vertz/schema';
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { createTestApp } from '../test-app';
 

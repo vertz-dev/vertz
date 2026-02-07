@@ -1,9 +1,8 @@
-import { Schema, type SchemaAny } from '../core/schema';
-import type { ParseContext } from '../core/parse-context';
 import { ErrorCode } from '../core/errors';
+import type { ParseContext } from '../core/parse-context';
+import { Schema, type SchemaAny } from '../core/schema';
 import { SchemaType } from '../core/types';
-import type { RefTracker } from '../introspection/json-schema';
-import type { JSONSchemaObject } from '../introspection/json-schema';
+import type { JSONSchemaObject, RefTracker } from '../introspection/json-schema';
 
 type UnionOptions = [SchemaAny, ...SchemaAny[]];
 type InferUnion<T extends UnionOptions> = T[number] extends Schema<infer O> ? O : never;

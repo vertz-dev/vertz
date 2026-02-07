@@ -1,5 +1,5 @@
-import type { HandlerCtx, RawRequest } from '../types/context';
 import { makeImmutable } from '../immutability';
+import type { HandlerCtx, RawRequest } from '../types/context';
 
 export interface CtxConfig {
   params: Record<string, unknown>;

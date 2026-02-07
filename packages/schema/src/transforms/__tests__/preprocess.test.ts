@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { preprocess } from '../preprocess';
+import { describe, expect, it } from 'vitest';
 import { NumberSchema } from '../../schemas/number';
+import { preprocess } from '../preprocess';
 
 describe('preprocess()', () => {
   it('transforms input before validation', () => {

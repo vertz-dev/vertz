@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { ErrorCode, ParseError } from '../errors';
+import { describe, expect, it } from 'vitest';
 import type { ValidationIssue } from '../errors';
+import { ErrorCode, ParseError } from '../errors';
 
 describe('ErrorCode', () => {
   it('has InvalidType value', () => {

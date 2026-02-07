@@ -1,9 +1,9 @@
-import { describe, it, expectTypeOf } from 'vitest';
-import type { Infer, Output, Input } from '../type-inference';
-import { Schema } from '../../core/schema';
-import type { ParseContext } from '../../core/parse-context';
+import { describe, expectTypeOf, it } from 'vitest';
 import { ErrorCode } from '../../core/errors';
+import type { ParseContext } from '../../core/parse-context';
+import { Schema } from '../../core/schema';
 import { SchemaType } from '../../core/types';
+import type { Infer, Input, Output } from '../type-inference';
 
 class TestStringSchema extends Schema<string> {
   _parse(value: unknown, ctx: ParseContext): string {

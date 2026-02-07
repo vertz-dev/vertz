@@ -1,8 +1,8 @@
-import { describe, it, expect, expectTypeOf } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import { ArraySchema } from '../../schemas/array';
+import { NumberSchema } from '../../schemas/number';
 import { ObjectSchema } from '../../schemas/object';
 import { StringSchema } from '../../schemas/string';
-import { NumberSchema } from '../../schemas/number';
-import { ArraySchema } from '../../schemas/array';
 import type { Infer } from '../../utils/type-inference';
 
 describe('.readonly()', () => {

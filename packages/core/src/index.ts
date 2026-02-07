@@ -1,64 +1,57 @@
 // @vertz/core — public API
 
-// Namespace
-export { vertz } from './vertz';
-
-// Types
-export type {
-  DeepReadonly,
-  RawRequest,
-  HandlerCtx,
-  Deps,
-  Ctx,
-  Infer,
-  InferSchema,
-  HttpMethod,
-  HttpStatusCode,
-  ModuleDef,
-  Module,
-  ServiceDef,
-  RouterDef,
-  MiddlewareDef,
-  AppConfig,
-  CorsConfig,
-  EnvConfig,
-  ServerAdapter,
-  ServerHandle,
-  ListenOptions,
-  BootSequence,
-  BootInstruction,
-  ServiceBootInstruction,
-  ModuleBootInstruction,
-  ServiceFactory,
-} from './types';
-
-// Exceptions
-export {
-  VertzException,
-  BadRequestException,
-  UnauthorizedException,
-  ForbiddenException,
-  NotFoundException,
-  ConflictException,
-  ValidationException,
-  InternalServerErrorException,
-  ServiceUnavailableException,
-} from './exceptions';
-
-// Immutability
-export { makeImmutable, deepFreeze, createImmutableProxy } from './immutability';
-
-// Environment
-export { createEnv } from './env';
-
-// Middleware
-export { createMiddleware } from './middleware';
-export type { NamedMiddlewareDef } from './middleware';
-
-// Module
-export { createModuleDef, createModule } from './module';
-export type { NamedModuleDef, NamedServiceDef, NamedRouterDef, NamedModule } from './module';
-
+export type { AppBuilder } from './app';
 // App
 export { createApp } from './app';
-export type { AppBuilder } from './app';
+// Environment
+export { createEnv } from './env';
+// Exceptions
+export {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  InternalServerErrorException,
+  NotFoundException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+  ValidationException,
+  VertzException,
+} from './exceptions';
+// Immutability
+export { createImmutableProxy, deepFreeze, makeImmutable } from './immutability';
+export type { NamedMiddlewareDef } from './middleware';
+// Middleware
+export { createMiddleware } from './middleware';
+export type { NamedModule, NamedModuleDef, NamedRouterDef, NamedServiceDef } from './module';
+// Module
+export { createModule, createModuleDef } from './module';
+// Types
+export type {
+  AppConfig,
+  BootInstruction,
+  BootSequence,
+  CorsConfig,
+  Ctx,
+  DeepReadonly,
+  Deps,
+  EnvConfig,
+  HandlerCtx,
+  HttpMethod,
+  HttpStatusCode,
+  Infer,
+  InferSchema,
+  ListenOptions,
+  MiddlewareDef,
+  Module,
+  ModuleBootInstruction,
+  ModuleDef,
+  RawRequest,
+  RouterDef,
+  ServerAdapter,
+  ServerHandle,
+  ServiceBootInstruction,
+  ServiceDef,
+  ServiceFactory,
+} from './types';
+// Namespace
+export { vertz } from './vertz';
