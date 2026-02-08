@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": true,
+    "rootDir": "src"
+  },
+  "exclude": ["node_modules"],
+  "extends": "../../tsconfig.json",
+  "include": ["src"]
+}

@@ -34,6 +34,16 @@
         "vitest": "^3.0.0",
       },
     },
+    "packages/integration-tests": {
+      "name": "@vertz/integration-tests",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@vertz/core": "workspace:*",
+        "@vertz/schema": "workspace:*",
+        "typescript": "^5.7.0",
+        "vitest": "^3.0.0",
+      },
+    },
     "packages/schema": {
       "name": "@vertz/schema",
       "version": "0.1.0",
@@ -322,6 +332,8 @@
     "@vertz/compiler": ["@vertz/compiler@workspace:packages/compiler"],
 
     "@vertz/core": ["@vertz/core@workspace:packages/core"],
+
+    "@vertz/integration-tests": ["@vertz/integration-tests@workspace:packages/integration-tests"],
 
     "@vertz/schema": ["@vertz/schema@workspace:packages/schema"],
 

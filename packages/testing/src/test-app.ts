@@ -68,9 +68,13 @@ export interface TestApp {
 }
 
 // Use `object` key type since we compare service/middleware defs by reference identity
+// Use `{ name: string }` key type because NamedMiddlewareDef is invariant
+// in its generic params (due to Schema<TReq>), and we only need the name.
+type MiddlewareKey = { name: string };
+
 interface PerRequestMocks {
   services: Map<object, unknown>;
-  middlewares: Map<NamedMiddlewareDef, Record<string, unknown>>;
+  middlewares: Map<MiddlewareKey, Record<string, unknown>>;
 }
 
 type SchemaLike = { parse(value: unknown): unknown };
@@ -100,7 +104,7 @@ const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HE
 
 export function createTestApp(): TestApp {
   const serviceMocks = new Map<object, unknown>();
-  const middlewareMocks = new Map<NamedMiddlewareDef, Record<string, unknown>>();
+  const middlewareMocks = new Map<MiddlewareKey, Record<string, unknown>>();
   const registrations: { module: NamedModule; options?: Record<string, unknown> }[] = [];
   let envOverrides: Record<string, unknown> = {};
 
