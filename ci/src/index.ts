@@ -106,7 +106,7 @@ export class Ci {
   ): Promise<string> {
     return this.base(source)
       .withExec(["bun", "run", "--filter", "*", "build"])
-      .withExec(["bun", "test"])
+      .withExec(["bun", "run", "test"])
       .withExec(["echo", "Tests passed"])
       .stdout()
   }
@@ -140,7 +140,7 @@ export class Ci {
     return this.base(source)
       .withExec(["bun", "run", "--filter", "*", "build"])
       .withEnvVariable("RUNTIME", runtime)
-      .withExec(["bun", "test"])
+      .withExec(["bun", "run", "test"])
       .withExec(["echo", `Tests passed for runtime: ${runtime}`])
       .stdout()
   }
@@ -157,7 +157,7 @@ export class Ci {
       .withExec(["bun", "run", "lint"])
       .withExec(["bun", "run", "--filter", "*", "build"])
       .withExec(["bun", "run", "typecheck"])
-      .withExec(["bun", "test"])
+      .withExec(["bun", "run", "test"])
       .withExec(["echo", "All checks passed"])
       .stdout()
   }
@@ -195,7 +195,7 @@ export class Ci {
       .withExec(["bun", "run", "lint"])
       .withExec(["bun", "run", "--filter", "*", "build"])
       .withExec(["bun", "run", "typecheck"])
-      .withExec(["bun", "test"])
+      .withExec(["bun", "run", "test"])
       .withExec(["echo", "All checks passed"])
       .stdout()
   }
