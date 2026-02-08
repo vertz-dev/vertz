@@ -30,7 +30,20 @@ jobs:
       - name: Build all packages
         run: bun run build
 
+      - name: Check NPM_TOKEN availability
+        id: npm-check
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::NPM_TOKEN is not set — skipping publish. Only version PRs will be created."
+          fi
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Create Release PR or Publish
+        if: steps.npm-check.outputs.has_token == 'true'
         id: changesets
         uses: changesets/action@v1
         with:
@@ -41,3 +54,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create Release PR (publish skipped)
+        if: steps.npm-check.outputs.has_token != 'true'
+        id: changesets-version-only
+        uses: changesets/action@v1
+        with:
+          version: bun run changeset:version
+          title: "chore: version packages"
+          commit: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
