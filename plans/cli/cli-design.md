@@ -8,7 +8,7 @@ The CLI uses **Ink** (React for terminals) for all output, providing rich, inter
 
 The CLI is a **thin orchestration layer** -- it owns the terminal UX but delegates all heavy lifting to `@vertz/compiler`. The compiler produces `Diagnostic[]` with source context; the CLI renders them beautifully.
 
-See also: [Compiler Design](./vertz-compiler-design.md), [Core API Design](./vertz-core-api-design.md), [Features](./vertz-features.md).
+See also: [Compiler Design](../vertz-compiler-design.md), [Core API Design](../vertz-core-api-design.md), [Features](../vertz-features.md).
 
 ---
 
@@ -86,6 +86,7 @@ packages/cli/
 │   └── utils/
 │       ├── runtime-detect.ts           # Detect Bun vs Node
 │       ├── paths.ts                    # Project root, config file discovery
+│       ├── prompt.ts                   # Interactive prompt helpers (CI-aware)
 │       ├── syntax-highlight.ts         # Shiki integration for code frames
 │       └── format.ts                   # Duration, file size, path formatting
 ```
@@ -121,6 +122,206 @@ export function createCLI(): Command {
   return program;
 }
 ```
+
+---
+
+## Interactive Prompts for Missing Parameters
+
+When a required parameter is missing from a CLI command, the CLI should **not** throw an error in interactive mode. Instead, it should present an interactive prompt so the user can pick or enter the missing value. This follows the same pattern as modern developer tools like Claude Code CLI, where missing information triggers guided interview-style prompts rather than hard failures.
+
+### Design Principles
+
+1. **Progressive disclosure**: Show only what's needed. If a flag is provided, skip its prompt. If all flags are provided, skip all prompts.
+2. **Smart defaults**: When possible, pre-select the most likely option (e.g., detect deployment target from project files).
+3. **CI-awareness**: When `CI=true` environment variable is set, skip all interactive prompts and throw a clear error listing the missing required parameters. CI environments cannot be interactive.
+
+### CI Detection
+
+```typescript
+// utils/prompt.ts
+export function isCI(): boolean {
+  return process.env.CI === 'true' || process.env.CI === '1';
+}
+
+export function requireParam(name: string, value: string | undefined): string {
+  if (value) return value;
+  if (isCI()) {
+    throw new Error(`Missing required parameter: --${name}. In CI mode, all parameters must be provided explicitly.`);
+  }
+  // In interactive mode, this function is not called -- the prompt handles it
+  throw new Error(`Missing required parameter: --${name}`);
+}
+```
+
+### Command-Specific Prompt Behavior
+
+#### `vertz new` (via `create-vertz-app`)
+
+When run without a project name:
+
+```
+$ vertz new
+
+  ? Project name: my-api
+  ? Which runtime? (Use arrow keys)
+  > Bun (recommended)
+    Node.js
+    Deno
+  ? Include example module? (Y/n)
+```
+
+When run with a project name but no other flags:
+
+```
+$ vertz new my-api
+
+  ? Which runtime? (Use arrow keys)
+  > Bun (recommended)
+    Node.js
+    Deno
+  ? Include example module? (Y/n)
+```
+
+When all flags are provided, no prompts are shown:
+
+```
+$ vertz new my-api --runtime bun --example
+# No prompts, runs directly
+```
+
+#### `vertz generate`
+
+When run without specifying what to generate:
+
+```
+$ vertz generate
+
+  ? What would you like to generate? (Use arrow keys)
+  > module    -- New module (module-def + module + folder)
+    service   -- New service in a module
+    router    -- New router in a module
+    schema    -- New schema file
+```
+
+When the type is specified but the name is missing:
+
+```
+$ vertz generate module
+
+  ? Module name: order
+```
+
+When type is specified and name is given but `--module` is required (for service, router, schema) and missing:
+
+```
+$ vertz generate service user-auth
+
+  ? Which module? (Use arrow keys)
+  > user
+    order
+    auth
+    health
+```
+
+The module list is populated by scanning the project's `src/modules/` directory for existing modules.
+
+#### `vertz deploy`
+
+When run without a target and auto-detection fails:
+
+```
+$ vertz deploy
+
+  ? Deployment target? (Use arrow keys)
+  > Railway
+    Fly.io
+    Docker (Dockerfile only)
+```
+
+When auto-detection succeeds (e.g., `fly.toml` exists), skip the prompt and use the detected target, showing a confirmation:
+
+```
+$ vertz deploy
+
+  Detected: Fly.io (fly.toml found)
+
+  ✓ Generated deployment config
+```
+
+#### `vertz dev`
+
+No interactive prompts needed -- all flags have sensible defaults (port 3000, host localhost, etc.).
+
+#### `vertz build`
+
+No interactive prompts needed -- runs with config defaults. Flags are optional overrides.
+
+#### `vertz check`
+
+No interactive prompts needed -- runs validation on the entire project.
+
+#### `vertz routes`
+
+When `--module` is provided, filter by that module. When not provided, show all routes (no prompt needed since showing all is the sensible default).
+
+### Implementation Pattern
+
+Each command handler follows this pattern:
+
+```typescript
+async function generateAction(type?: string, name?: string, options?: GenerateOptions) {
+  const runner = await createTaskRunner();
+
+  // Step 1: Resolve missing parameters via interactive prompts
+  if (!type) {
+    if (isCI()) {
+      runner.error('Missing required argument: <type>. Options: module, service, router, schema');
+      process.exit(1);
+    }
+    type = await runner.promptSelect({
+      title: 'What would you like to generate?',
+      choices: [
+        { label: 'module  -- New module (module-def + module + folder)', value: 'module' },
+        { label: 'service -- New service in a module', value: 'service' },
+        { label: 'router  -- New router in a module', value: 'router' },
+        { label: 'schema  -- New schema file', value: 'schema' },
+      ],
+    });
+  }
+
+  if (!name) {
+    if (isCI()) {
+      runner.error(`Missing required argument: <name> for "vertz generate ${type}"`);
+      process.exit(1);
+    }
+    name = await runner.promptInput({ title: `${capitalize(type)} name:` });
+  }
+
+  // Step 2: Proceed with resolved parameters
+  // ...
+}
+```
+
+### TaskRunner Prompt Extensions
+
+The `TaskRunner` interface is extended to support interactive prompts:
+
+```typescript
+export interface TaskRunner {
+  // ... existing methods ...
+
+  /** Show a select list and return the chosen value. Returns null if cancelled. */
+  promptSelect(options: { title: string; choices: SelectOption[] }): Promise<string | null>;
+
+  /** Show a text input prompt and return the entered value. Returns null if cancelled. */
+  promptInput(options: { title: string; default?: string; validate?: (value: string) => string | null }): Promise<string | null>;
+
+  /** Show a yes/no confirmation prompt. Returns true/false. */
+  promptConfirm(options: { title: string; default?: boolean }): Promise<boolean>;
+}
+```
+
+These prompt methods are implemented in `InkTaskRunner` using Ink's `useInput` hook and custom components (`SelectList`, `TextInput`, `Confirm`). In test environments, they can be stubbed to return predetermined values.
 
 ---
 
@@ -302,7 +503,7 @@ The `--format github` flag outputs diagnostics as GitHub Actions annotations:
 Scaffold code following Vertz conventions.
 
 ```
-vertz generate <type> <name> [--module <module>] [--dry-run]
+vertz generate [<type>] [<name>] [--module <module>] [--dry-run]
 ```
 
 **Subcommands:**
@@ -316,10 +517,11 @@ vertz generate schema <name>          # New schema file
 
 **Behavior:**
 
-1. Parse the type and name
-2. If `--module` not provided and type requires it (service, router, schema): prompt interactively
-3. Generate files from templates following Vertz conventions
-4. Show generated files list
+1. If `<type>` is missing: prompt interactively (select from available generators)
+2. If `<name>` is missing: prompt interactively (text input)
+3. If `--module` not provided and type requires it (service, router, schema): prompt interactively (select from existing modules)
+4. Generate files from templates following Vertz conventions
+5. Show generated files list
 
 **Example:**
 
@@ -391,7 +593,7 @@ vertz deploy [--target <platform>] [--dry-run]
 **Behavior:**
 
 1. Auto-detect deployment target from project (e.g., `fly.toml` exists -> Fly.io)
-2. If not detectable: prompt interactively
+2. If not detectable and `--target` not provided: prompt interactively (select from supported platforms)
 3. Generate deployment configuration
 4. Provide next-steps guidance
 
@@ -491,6 +693,8 @@ export interface TaskRunner {
   error(message: string): void;
   success(message: string): void;
   promptSelect(options: { title: string; choices: SelectOption[] }): Promise<string | null>;
+  promptInput(options: { title: string; default?: string; validate?: (value: string) => string | null }): Promise<string | null>;
+  promptConfirm(options: { title: string; default?: boolean }): Promise<boolean>;
   cleanup(): void;
   wait(): Promise<void>;
 }
@@ -876,7 +1080,7 @@ $ vertz generate repository order --module order
     └── order.repository.ts
 ```
 
-The CLI discovers generators from `vertz.config.ts` and registers them as subcommands of `vertz generate`.
+The CLI discovers generators from `vertz.config.ts` and registers them as subcommands of `vertz generate`. When `vertz generate` is run without a type argument, custom generators from plugins appear in the interactive selection list alongside built-in generators.
 
 ---
 
@@ -1263,133 +1467,21 @@ my-api/
 
 ## Implementation Phases (TDD)
 
-### Phase 1: Package Skeleton and Config Loading
+Each phase is detailed in its own file. Phases must be implemented in order -- each builds on the previous.
 
-Set up the package, CLI entry point, Commander program, and config loader.
-
-**Files:**
-- `package.json`, `tsconfig.json`, `bunup.config.ts`, `vitest.config.ts`
-- `bin/vertz.ts`, `src/cli.ts`, `src/index.ts`
-- `src/config/loader.ts`, `src/config/defaults.ts`
-
-**Tests:**
-- `src/config/__tests__/loader.test.ts` -- config discovery and merging
-- `src/__tests__/cli.test.ts` -- program registers expected commands
-
-### Phase 2: Theme and Core UI Components
-
-Build the Ink component library: TaskRunner, Task, Message, Banner.
-
-**Files:**
-- `src/ui/theme.ts`
-- `src/ui/task-runner.ts`, `src/ui/ink-adapter.tsx`
-- `src/ui/components/Task.tsx`, `Message.tsx`, `TaskList.tsx`, `Banner.tsx`, `SelectList.tsx`
-
-**Tests:**
-- `src/ui/__tests__/task-runner.test.tsx` -- using `ink-testing-library`
-- `src/ui/__tests__/components.test.tsx` -- component rendering
-
-### Phase 3: DiagnosticDisplay and Syntax Highlighting
-
-Build the code frame renderer with Shiki highlighting.
-
-**Files:**
-- `src/utils/syntax-highlight.ts`
-- `src/ui/components/DiagnosticDisplay.tsx`, `DiagnosticSummary.tsx`
-
-**Tests:**
-- `src/utils/__tests__/syntax-highlight.test.ts`
-- `src/ui/__tests__/diagnostic-display.test.tsx`
-
-### Phase 4: `vertz check`
-
-Simplest command -- validate only, no generation. First full command integration.
-
-**Files:**
-- `src/commands/check.ts`
-
-**Tests:**
-- `src/commands/__tests__/check.test.ts`
-
-### Phase 5: `vertz build`
-
-Full compilation with blocking typecheck and file generation.
-
-**Files:**
-- `src/commands/build.ts`
-- `src/ui/components/CompilationProgress.tsx`
-
-**Tests:**
-- `src/commands/__tests__/build.test.ts`
-
-### Phase 6: Dev Server Infrastructure
-
-File watcher, process manager, typecheck worker.
-
-**Files:**
-- `src/dev-server/watcher.ts`, `process-manager.ts`, `typecheck-worker.ts`
-
-**Tests:**
-- `src/dev-server/__tests__/watcher.test.ts`
-- `src/dev-server/__tests__/process-manager.test.ts`
-
-### Phase 7: `vertz dev`
-
-Full dev loop with watch mode and incremental compilation.
-
-**Files:**
-- `src/dev-server/dev-loop.ts`
-- `src/commands/dev.ts`
-- `src/ui/components/ServerStatus.tsx`
-
-**Tests:**
-- `src/dev-server/__tests__/dev-loop.test.ts`
-- `src/commands/__tests__/dev.test.ts`
-
-### Phase 8: `vertz generate`
-
-Code scaffolding with templates.
-
-**Files:**
-- `src/commands/generate.ts`
-- `src/generators/*.ts`
-- `src/generators/templates/*.hbs`
-
-**Tests:**
-- `src/generators/__tests__/module.test.ts`
-- `src/generators/__tests__/service.test.ts`
-- `src/commands/__tests__/generate.test.ts`
-
-### Phase 9: `vertz routes`
-
-Route table display.
-
-**Files:**
-- `src/commands/routes.ts`
-- `src/ui/components/RouteTable.tsx`
-
-**Tests:**
-- `src/ui/__tests__/route-table.test.tsx`
-- `src/commands/__tests__/routes.test.ts`
-
-### Phase 10: `vertz deploy`
-
-Deployment config generation.
-
-**Files:**
-- `src/commands/deploy.ts`
-- `src/deploy/*.ts`
-
-**Tests:**
-- `src/deploy/__tests__/railway.test.ts`
-- `src/deploy/__tests__/fly.test.ts`
-- `src/deploy/__tests__/dockerfile.test.ts`
-
-### Phase 11: `create-vertz-app`
-
-Standalone scaffolding package.
-
-**Separate package:** `packages/create-vertz-app/`
+| Phase | Name | Plan |
+|-------|------|------|
+| 1 | Package Skeleton and Config Loading | [phase-01-scaffold-and-config.md](./phase-01-scaffold-and-config.md) |
+| 2 | Theme and Core UI Components | [phase-02-theme-and-ui-components.md](./phase-02-theme-and-ui-components.md) |
+| 3 | DiagnosticDisplay and Syntax Highlighting | [phase-03-diagnostic-display.md](./phase-03-diagnostic-display.md) |
+| 4 | `vertz check` | [phase-04-check-command.md](./phase-04-check-command.md) |
+| 5 | `vertz build` | [phase-05-build-command.md](./phase-05-build-command.md) |
+| 6 | Dev Server Infrastructure | [phase-06-dev-server-infrastructure.md](./phase-06-dev-server-infrastructure.md) |
+| 7 | `vertz dev` | [phase-07-dev-command.md](./phase-07-dev-command.md) |
+| 8 | `vertz generate` | [phase-08-generate-command.md](./phase-08-generate-command.md) |
+| 9 | `vertz routes` | [phase-09-routes-command.md](./phase-09-routes-command.md) |
+| 10 | `vertz deploy` | [phase-10-deploy-command.md](./phase-10-deploy-command.md) |
+| 11 | `create-vertz-app` | [phase-11-create-vertz-app.md](./phase-11-create-vertz-app.md) |
 
 ---
 
@@ -1407,6 +1499,7 @@ Standalone scaffolding package.
 | **Non-blocking typecheck in dev** | TypeScript checking is slow (1-3s). Don't block the server restart. Show errors separately. |
 | **Config via jiti** | Runtime TypeScript loading without requiring build step. Same approach as Vite, Nuxt, Astro. |
 | **CLI as thin orchestrator** | CLI owns terminal UX. Compiler owns analysis + generation. Neither reaches into the other's domain. |
+| **Interactive prompts for missing params** | Better DX than hard errors. Guides the user through the flow. Disabled automatically in CI (`CI=true`). |
 
 ---
 
@@ -1457,3 +1550,25 @@ After implementation:
 10. `--format json` output is machine-parseable
 11. `--format github` output produces valid GitHub Actions annotations
 12. All commands handle `Ctrl+C` gracefully (cursor restored, processes killed)
+13. Interactive prompts work correctly for all commands with missing parameters
+14. `CI=true` skips interactive prompts and throws clear errors for missing parameters
+
+---
+
+## Development Process: Strict TDD
+
+All development on the CLI **must** follow the strict Test-Driven Development process as defined in the project rules:
+
+- **[`.claude/rules/tdd.md`](../../.claude/rules/tdd.md)** -- The core TDD process: Red -> Green -> Quality Gates -> Refactor, one test at a time.
+- **[`.claude/rules/ultra-tdd.md`](../../.claude/rules/ultra-tdd.md)** -- Extended TDD guidelines including triangulation, type-level TDD, and the full execution checklist.
+
+### Key Requirements
+
+1. **No production code without a failing test.** Every line of production code must be driven by a test that demanded it.
+2. **One test at a time.** Write one failing test, make it pass, run quality gates, refactor. Then repeat.
+3. **Quality gates after every GREEN.** Run `bunx biome check --write <files>` and `bun run typecheck` after every passing test. Fix issues immediately.
+4. **Triangulation for generalization.** Hard-code first, then add a second test that breaks the hard-code, forcing real logic.
+5. **Type-level TDD for type constraints.** Use `@ts-expect-error` as the RED test for type-only changes. Run `bun run typecheck` to verify implementation types.
+6. **Never skip or disable linting, type checking, or tests.** No `@ts-ignore`, no `.skip`, no `--no-verify`. Fix the code, not the rules.
+
+Each phase plan includes specific behaviors to test. Implement them in order, one test at a time. The test output is the proof that TDD is working.
