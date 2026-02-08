@@ -140,4 +140,98 @@ describe('Compiler', () => {
     expect(result.ir.middleware).toBeDefined();
     expect(result.ir.schemas).toBeDefined();
   });
+
+  it('analyze runs all analyzers', async () => {
+    const calls: string[] = [];
+    const deps = stubDependencies(calls);
+    const compiler = new Compiler(resolveConfig(), deps);
+    await compiler.analyze();
+
+    expect(calls).toContain('analyze:env');
+    expect(calls).toContain('analyze:schema');
+    expect(calls).toContain('analyze:middleware');
+    expect(calls).toContain('analyze:module');
+    expect(calls).toContain('analyze:app');
+    expect(calls).toContain('analyze:dependencyGraph');
+  });
+
+  it('validate returns diagnostics from all validators', async () => {
+    const deps = stubDependencies([]);
+    deps.validators.push({
+      validate: async () => [
+        createDiagnostic({ severity: 'warning', code: 'VERTZ_SERVICE_UNUSED', message: 'w1' }),
+      ],
+    });
+    deps.validators.push({
+      validate: async () => [
+        createDiagnostic({ severity: 'error', code: 'VERTZ_APP_MISSING', message: 'e1' }),
+      ],
+    });
+    const compiler = new Compiler(resolveConfig(), deps);
+    const ir = await compiler.analyze();
+    const diagnostics = await compiler.validate(ir);
+
+    expect(diagnostics).toHaveLength(2);
+    expect(diagnostics[0].severity).toBe('warning');
+    expect(diagnostics[1].severity).toBe('error');
+  });
+
+  it('generate runs all generators', async () => {
+    const calls: string[] = [];
+    const deps = stubDependencies(calls);
+    deps.generators.push({
+      generate: async () => {
+        calls.push('generate:a');
+      },
+    });
+    deps.generators.push({
+      generate: async () => {
+        calls.push('generate:b');
+      },
+    });
+    const compiler = new Compiler(resolveConfig(), deps);
+    const ir = await compiler.analyze();
+    await compiler.generate(ir);
+
+    expect(calls).toContain('generate:a');
+    expect(calls).toContain('generate:b');
+  });
+
+  it('compile generates despite errors with forceGenerate', async () => {
+    const calls: string[] = [];
+    const deps = stubDependencies(calls);
+    deps.validators.push({
+      validate: async () => [
+        createDiagnostic({ severity: 'error', code: 'VERTZ_APP_MISSING', message: 'err' }),
+      ],
+    });
+    deps.generators.push({
+      generate: async () => {
+        calls.push('generate');
+      },
+    });
+    const config = resolveConfig({ forceGenerate: true });
+    const compiler = new Compiler(config, deps);
+    const result = await compiler.compile();
+
+    expect(result.success).toBe(false);
+    expect(calls).toContain('generate');
+  });
+
+  it('analyze returns IR without running validators', async () => {
+    const calls: string[] = [];
+    const deps = stubDependencies(calls);
+    deps.validators.push({
+      validate: async () => {
+        calls.push('validate');
+        return [];
+      },
+    });
+    const compiler = new Compiler(resolveConfig(), deps);
+    const ir = await compiler.analyze();
+
+    expect(ir).toBeDefined();
+    expect(ir.app).toBeDefined();
+    expect(calls).not.toContain('validate');
+  });
 });
