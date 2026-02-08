@@ -9,6 +9,9 @@ import type { SafeParseResult, SchemaMetadata, SchemaType } from './types';
 // biome-ignore lint/suspicious/noExplicitAny: Schema is invariant; any is required for type-level bounds
 export type SchemaAny = Schema<any, any>;
 
+/** Apply Readonly only to object types; leave primitives and `any` unchanged. */
+export type ReadonlyOutput<O> = 0 extends 1 & O ? O : O extends object ? Readonly<O> : O;
+
 // biome-ignore lint/suspicious/noExplicitAny: inner schema with erased output type for wrapper schemas
 type InnerSchema<I = unknown> = Schema<any, I>;
 
@@ -180,8 +183,8 @@ export abstract class Schema<O, I = O> {
     return new BrandedSchema(this);
   }
 
-  readonly(): ReadonlySchema<O extends object ? Readonly<O> : O, I> {
-    return new ReadonlySchema(this) as ReadonlySchema<O extends object ? Readonly<O> : O, I>;
+  readonly(): ReadonlySchema<ReadonlyOutput<O>, I> {
+    return new ReadonlySchema(this) as ReadonlySchema<ReadonlyOutput<O>, I>;
   }
 
   _runPipeline(value: unknown, ctx: ParseContext): O {

@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest';
-import type { ReadonlySchema } from '../core/schema';
+import type { ReadonlySchema, SchemaAny } from '../core/schema';
 import { s } from '../index';
 
 describe('optional', () => {
@@ -92,6 +92,26 @@ describe('readonly', () => {
     const result = {} as RO['_output'];
     // @ts-expect-error — cannot assign to readonly property
     result.name = 'changed';
+  });
+});
+
+describe('SchemaAny assignability', () => {
+  it('accepts StringSchema as SchemaAny', () => {
+    const str = s.string();
+    const _any: SchemaAny = str;
+    void _any;
+  });
+
+  it('accepts NumberSchema as SchemaAny', () => {
+    const num = s.number();
+    const _any: SchemaAny = num;
+    void _any;
+  });
+
+  it('accepts ObjectSchema as SchemaAny', () => {
+    const obj = s.object({ name: s.string() });
+    const _any: SchemaAny = obj;
+    void _any;
   });
 });
 

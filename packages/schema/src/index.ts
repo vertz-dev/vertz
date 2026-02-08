@@ -5,7 +5,7 @@ export { ErrorCode, ParseError } from './core/errors';
 export type { RefinementContext } from './core/parse-context';
 export { ParseContext } from './core/parse-context';
 export { SchemaRegistry } from './core/registry';
-export type { SchemaAny } from './core/schema';
+export type { ReadonlyOutput, SchemaAny } from './core/schema';
 // Core
 export {
   BrandedSchema,
