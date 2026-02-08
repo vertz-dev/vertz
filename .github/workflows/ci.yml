@@ -19,4 +19,4 @@ jobs:
         with:
           version: "latest"
           verb: call
-          args: ci
+          args: ci --progress plain
