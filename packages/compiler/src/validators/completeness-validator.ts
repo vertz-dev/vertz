@@ -36,6 +36,7 @@ export class CompletenessValidator implements Validator {
     this.checkDuplicateRoutes(ir, diagnostics);
     this.checkPathParamMatch(ir, diagnostics);
     this.checkModuleOptions(ir, diagnostics);
+    this.checkRoutePathFormat(ir, diagnostics);
 
     return diagnostics;
   }
@@ -222,6 +223,21 @@ export class CompletenessValidator implements Validator {
             severity: 'error',
             code: 'VERTZ_MODULE_OPTIONS_INVALID',
             message: `Module '${reg.moduleName}' requires options but none were provided in .register().`,
+          }),
+        );
+      }
+    }
+  }
+
+  private checkRoutePathFormat(ir: AppIR, diagnostics: Diagnostic[]): void {
+    for (const route of allRoutes(ir)) {
+      if (!route.path.startsWith('/')) {
+        diagnostics.push(
+          createDiagnosticFromLocation(route, {
+            severity: 'error',
+            code: 'VERTZ_RT_INVALID_PATH',
+            message: `Route path '${route.path}' must start with '/'.`,
+            suggestion: `Change the path to '/${route.path}'.`,
           }),
         );
       }

@@ -50,7 +50,7 @@ export interface Route {
 }
 
 type HttpMethodFn = <TParams, TQuery, THeaders, TBody>(
-  path: string,
+  path: `/${string}`,
   config: RouteConfig<TParams, TQuery, THeaders, TBody>,
 ) => NamedRouterDef;
 
@@ -71,6 +71,9 @@ export function createRouterDef(moduleName: string, config: RouterDef): NamedRou
   const routes: Route[] = [];
 
   function addRoute(method: string, path: string, routeConfig: RouteConfig): NamedRouterDef {
+    if (!path.startsWith('/')) {
+      throw new Error(`Route path must start with '/', got '${path}'`);
+    }
     routes.push({ method, path, config: routeConfig });
     return router;
   }

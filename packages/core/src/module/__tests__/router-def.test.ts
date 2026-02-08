@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { HandlerCtx } from '../../types/context';
 import { createModuleDef } from '../module-def';
+import { createRouterDef } from '../router-def';
 
 describe('moduleDef.router', () => {
   it('creates a router with prefix and inject', () => {
@@ -105,5 +106,31 @@ describe('moduleDef.router', () => {
     const result = router.get('/', { handler: () => {} });
 
     expect(result).toBe(router);
+  });
+
+  it('throws when path does not start with /', () => {
+    const router = createRouterDef('user', { prefix: '/users' });
+
+    expect(() => {
+      (router.get as (path: string, config: unknown) => unknown)(':id', { handler: () => {} });
+    }).toThrow("Route path must start with '/', got ':id'");
+  });
+
+  it('throws for path without leading / on any HTTP method', () => {
+    const router = createRouterDef('user', { prefix: '/users' });
+
+    expect(() => {
+      (router.post as (path: string, config: unknown) => unknown)('create', { handler: () => {} });
+    }).toThrow("Route path must start with '/', got 'create'");
+  });
+
+  it('accepts valid paths starting with /', () => {
+    const router = createRouterDef('user', { prefix: '/users' });
+
+    expect(() => {
+      router.get('/', { handler: () => {} });
+      router.get('/:id', { handler: () => {} });
+      router.post('/nested/:param/path', { handler: () => {} });
+    }).not.toThrow();
   });
 });
