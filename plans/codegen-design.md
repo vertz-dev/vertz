@@ -479,21 +479,30 @@ my-sdk/                           — publishable package root (user-owned)
   src/                — user's custom utilities (optional, entirely user-owned)
     helpers.ts
     middleware.ts
-  generated/          — codegen-owned, fully overwritten on every run
-    client.ts         — typed SDK client using @vertz/fetch
-    types.ts          — all operation input/output types
-    types/
+  generated/          — codegen-owned, overwritten on generate
+    client.ts         — createClient() that composes all modules
+    modules/          — one file per module (incremental-friendly)
+      users.ts        — users namespace methods
+      billing.ts      — billing namespace methods
+    types/            — one file per module
+      users.ts        — types for users operations
+      billing.ts      — types for billing operations
+      shared.ts       — named schemas used across modules
       augment.ts      — type augmentation entry point (declare module)
     schemas.ts        — re-exports of @vertz/schema objects
     index.ts          — barrel export of all generated code
 ```
 
+This per-module file layout enables **incremental regeneration** during `vertz dev` — changing a route only rewrites the affected module file and its types, not the entire SDK (see Section 17).
+
 **Rules**:
-1. `generated/` is **fully overwritten** on every `vertz generate` — users must never edit files in there
+1. `generated/` is codegen-owned — users must never edit files in there
 2. Root `index.ts` is **scaffolded once** — if it already exists, codegen does not touch it
 3. Root `package.json` is **scaffolded once** — same rule, never overwritten
 4. The scaffolded `index.ts` re-exports everything from `generated/` by default, but users can add their own exports
 5. Users add custom utilities anywhere outside `generated/` (e.g., `src/helpers.ts`) and re-export from root `index.ts`
+6. `vertz generate` (CLI/CI) does a **full regeneration** — overwrites all files in `generated/`
+7. `vertz dev` (watch mode) does **incremental regeneration** — only rewrites changed files (see Section 17)
 
 **Scaffolded `index.ts`** (generated only if file doesn't exist):
 
@@ -511,9 +520,15 @@ export * from './generated';
 
 ```
 .vertz/
-  generated/          — codegen-owned, gitignored, fully overwritten
+  generated/          — codegen-owned, gitignored
     client.ts
-    types.ts
+    modules/
+      users.ts
+      billing.ts
+    types/
+      users.ts
+      billing.ts
+      shared.ts
     schemas.ts
     index.ts
 ```
@@ -772,7 +787,7 @@ sdk/
 
 ---
 
-## 8. CLI Generator
+## 9. CLI Generator
 
 The CLI generator produces a **command manifest** — a data structure describing all available commands, their arguments, and types. A `@vertz/cli-runtime` package consumes this manifest at runtime to produce a complete CLI.
 
@@ -884,7 +899,7 @@ cli.run(process.argv.slice(2));
 
 ---
 
-## 9. `@vertz/cli-runtime` — CLI Runtime Package
+## 10. `@vertz/cli-runtime` — CLI Runtime Package
 
 A separate, open-source package that combines a command manifest + common interactive flows to produce a complete CLI tool. This is a runtime dependency of generated CLIs, not a codegen dependency.
 
@@ -969,7 +984,7 @@ Auth configuration is derived from the API's OpenAPI security schemes (via `Code
 
 ---
 
-## 10. Type Augmentation for Customer-Specific Types
+## 11. Type Augmentation for Customer-Specific Types
 
 For SaaS platforms where customers define custom resource types, the generated SDK supports type augmentation via TypeScript's `declare module` pattern.
 
@@ -1043,7 +1058,7 @@ For most APIs, this is not needed. It's an advanced feature for SaaS platforms t
 
 ---
 
-## 11. Template System: Tagged Template Functions
+## 12. Template System: Tagged Template Functions
 
 ### Why Not Handlebars/EJS/Eta?
 
@@ -1135,7 +1150,7 @@ function renderImports(imports: Import[]): string {
 
 ---
 
-## 12. Shared Utilities vs. Per-Generator Code
+## 13. Shared Utilities vs. Per-Generator Code
 
 ### Shared (in `utils/`)
 
@@ -1162,7 +1177,7 @@ function streamingOperations(ir: CodegenIR): CodegenOperation[]
 
 ---
 
-## 13. Configuration
+## 14. Configuration
 
 ### Codegen Config (in `vertz.config.ts`)
 
@@ -1221,7 +1236,7 @@ type GeneratorName = 'typescript' | 'cli';
 
 ---
 
-## 14. Output Location
+## 15. Output Location
 
 Two modes based on configuration:
 
@@ -1266,7 +1281,7 @@ The `generated/` subfolder should have its own `.gitignore` with just a comment 
 
 ---
 
-## 15. Formatting Pipeline
+## 16. Formatting Pipeline
 
 All generated TypeScript files are post-processed with Biome (already in the project):
 
@@ -1283,7 +1298,121 @@ This decouples generators from formatting concerns. Emit functions can focus on 
 
 ---
 
-## 16. Testing Strategy
+## 17. Incremental Regeneration (`vertz dev`)
+
+### Two Modes
+
+| Mode | Trigger | Behavior |
+|---|---|---|
+| **Full** | `vertz generate` (CLI/CI) | Regenerate all files in `generated/` |
+| **Incremental** | `vertz dev` (watch mode) | Only regenerate files affected by the change |
+
+### Why Per-Module Files Matter
+
+The generated output is split into **one file per module** (see Section 8):
+
+```
+generated/
+  client.ts              ← imports all module namespaces
+  modules/
+    users.ts             ← methods for users module
+    billing.ts           ← methods for billing module
+  types/
+    users.ts             ← types for users operations
+    billing.ts           ← types for billing operations
+    shared.ts            ← named schemas used across modules
+```
+
+This layout makes incremental regeneration possible. Each module is self-contained — its methods live in `modules/{name}.ts` and its types live in `types/{name}.ts`.
+
+### What Triggers What
+
+| Change | Files Regenerated |
+|---|---|
+| **Edit a route** (change query params, body schema, response) | `modules/{module}.ts` + `types/{module}.ts` |
+| **Add a route** to an existing router | `modules/{module}.ts` + `types/{module}.ts` |
+| **Remove a route** from an existing router | `modules/{module}.ts` + `types/{module}.ts` |
+| **Add a new router** (new module) | `modules/{module}.ts` + `types/{module}.ts` + `client.ts` + `index.ts` |
+| **Remove a router** (delete module) | Delete `modules/{module}.ts` + `types/{module}.ts` + rewrite `client.ts` + `index.ts` |
+| **Edit a named schema** | `types/shared.ts` (the schema definition) — module files just import the type |
+| **Change auth/middleware** | `client.ts` (auth config types) |
+
+The key insight: **adding or editing routes within an existing module never touches `client.ts`**. The client file only changes when modules are added or removed, because it imports module namespaces.
+
+### How It Works
+
+1. The compiler's watch mode detects a source file change and produces a new `AppIR`
+2. The codegen compares the new `CodegenIR` against the previous one (kept in memory during dev)
+3. It computes a **changeset**: which modules changed, which schemas changed, whether the module list changed
+4. Only affected files are regenerated, formatted, and written to disk
+
+```typescript
+interface CodegenChangeset {
+  /** Modules whose operations changed (route add/edit/remove) */
+  changedModules: string[];
+  /** Modules that were added (need new files + client.ts update) */
+  addedModules: string[];
+  /** Modules that were removed (delete files + client.ts update) */
+  removedModules: string[];
+  /** Whether shared schemas changed */
+  sharedSchemasChanged: boolean;
+  /** Whether auth/global config changed */
+  globalConfigChanged: boolean;
+}
+
+function computeChangeset(prev: CodegenIR, next: CodegenIR): CodegenChangeset
+```
+
+### `client.ts` Structure for Incremental Friendliness
+
+The client file imports each module namespace from its own file:
+
+```typescript
+// generated/client.ts
+import { FetchClient } from '@vertz/fetch';
+import { createUsersModule } from './modules/users';
+import { createBillingModule } from './modules/billing';
+
+export function createClient(config: SDKConfig) {
+  const client = new FetchClient({ ...config, authStrategies });
+
+  return {
+    users: createUsersModule(client),
+    billing: createBillingModule(client),
+  };
+}
+```
+
+```typescript
+// generated/modules/users.ts
+import type { FetchClient } from '@vertz/fetch';
+import type { ListUsersInput, ListUsersResponse, ... } from '../types/users';
+
+export function createUsersModule(client: FetchClient) {
+  return {
+    list(input?: ListUsersInput) { ... },
+    get(input: GetUserInput) { ... },
+    create(input: CreateUserInput) { ... },
+  };
+}
+```
+
+Adding a route to `users` only changes `modules/users.ts` and `types/users.ts`. The `client.ts` doesn't change because it already imports `createUsersModule`.
+
+### Performance
+
+During `vertz dev`, incremental regeneration should be **< 50ms** for single-route changes:
+- IR diff: ~1ms (shallow object comparison)
+- Emit 1 module file: ~1ms (string concatenation)
+- Emit 1 types file: ~1ms
+- Format 2 files with Biome: ~30ms
+- Write 2 files: ~5ms
+
+Full regeneration (`vertz generate`) remains the same — regenerate everything, no diffing.
+
+---
+
+## 18. Testing Strategy
 
 ### Unit Tests (per emit function)
 
@@ -1394,7 +1523,7 @@ test('generated TypeScript compiles without errors', async () => {
 
 ---
 
-## 17. Implementation Phases
+## 19. Implementation Phases
 
 ### Phase 1: `@vertz/fetch` — Shared HTTP Client (~55 tests)
 
@@ -1445,25 +1574,26 @@ test('generated TypeScript compiles without errors', async () => {
 
 ### Phase 4: TypeScript SDK Generator — Types (~35 tests)
 
-**Generate `types.ts`**
+**Generate per-module type files (`types/{module}.ts`) + shared types (`types/shared.ts`)**
 
 1. `emitInterfaceFromSchema()` — named schema → TypeScript interface
 2. `emitOperationInputType()` — operation input shape (`{ params?: ..., query?: ..., body?: ... }`)
 3. `emitOperationResponseType()` — response type (or `void` if none)
 4. `emitStreamingEventType()` — event type for streaming operations
-5. `emitTypesFile()` — assemble all types for all operations
-6. Handle name collisions (two schemas with same name from different modules)
+5. `emitModuleTypesFile()` — assemble types for a single module (`types/users.ts`)
+6. `emitSharedTypesFile()` — assemble named schemas used across modules (`types/shared.ts`)
+7. Handle name collisions (two schemas with same name from different modules)
 
 ### Phase 5: TypeScript SDK Generator — Client (~45 tests)
 
-**Generate `client.ts` using `@vertz/fetch`**
+**Generate per-module files (`modules/{module}.ts`) + client entry (`client.ts`)**
 
 1. `emitSDKConfig()` — config interface extending `FetchClientConfig`, with spec-driven auth fields
 2. `emitAuthStrategyBuilder()` — maps config auth fields to `AuthStrategy[]`
 3. `emitOperationMethod()` — single operation method (using `client.request()`)
 4. `emitStreamingMethod()` — async generator method (using `client.requestStream()`)
-5. `emitModuleNamespace()` — group operations by module
-6. `emitClientFunction()` — `createClient()` with all modules
+5. `emitModuleFile()` — `createXxxModule(client)` function with all operations for one module
+6. `emitClientFile()` — `createClient()` that imports and composes all module factories
 7. Path parameter interpolation (`:id` → template literal `${input.params.id}`)
 8. Query string serialization
 9. Body serialization
@@ -1515,7 +1645,19 @@ test('generated TypeScript compiles without errors', async () => {
 3. Wire `vertz build` to optionally run codegen
 4. Add `vertz dev` watch mode integration (regenerate on change)
 
-### Phase 10: `@vertz/cli-runtime` (~40 tests)
+### Phase 10: Incremental Regeneration (~25 tests)
+
+**Watch mode support for `vertz dev`**
+
+1. `computeChangeset()` — diff two `CodegenIR` instances to find what changed
+2. Module-level change detection (added/removed/modified modules)
+3. Schema-level change detection (shared schemas changed)
+4. Selective file regeneration — only rewrite affected `modules/*.ts` and `types/*.ts`
+5. `client.ts` rewrite only when module list changes (added/removed modules)
+6. Integration with compiler watch mode (receive incremental `AppIR` updates)
+7. Test: editing a route only regenerates that module's files
+
+### Phase 11: `@vertz/cli-runtime` (~40 tests)
 
 **Runtime package for generated CLIs**
 
@@ -1530,25 +1672,26 @@ test('generated TypeScript compiles without errors', async () => {
 
 ---
 
-## 18. Estimated Scope
+## 20. Estimated Scope
 
 | Phase | Tests | Description |
 |---|---|---|
 | 1. `@vertz/fetch` | ~55 | Shared HTTP client, auth, retry, streaming |
 | 2. Foundation | ~50 | IR adapter, naming, imports |
 | 3. JSON Schema Converter | ~40 | Schema → TypeScript types |
-| 4. SDK Types | ~35 | types.ts generation |
-| 5. SDK Client | ~45 | client.ts generation with @vertz/fetch |
+| 4. SDK Types | ~35 | Per-module type files generation |
+| 5. SDK Client | ~45 | Per-module client files + client.ts composer |
 | 6. SDK Schemas + Index + Package | ~25 | schemas.ts, index.ts, scaffold-once, package.json |
 | 7. CLI Generator | ~30 | Command manifest, publishable CLI |
 | 8. Formatting + Orchestration | ~20 | Biome, file writing |
 | 9. Config + CLI Integration | ~15 | vertz.config.ts, CLI wiring |
-| 10. `@vertz/cli-runtime` | ~40 | CLI runtime, interactive flows, OAuth |
-| **Total** | **~355** | |
+| 10. Incremental Regeneration | ~25 | IR diffing, selective file rewrite for watch mode |
+| 11. `@vertz/cli-runtime` | ~40 | CLI runtime, interactive flows, OAuth |
+| **Total** | **~380** | |
 
 ---
 
-## 19. Dependencies
+## 21. Dependencies
 
 ### New Packages
 
@@ -1576,7 +1719,7 @@ test('generated TypeScript compiles without errors', async () => {
 
 ---
 
-## 20. Future Extensibility
+## 22. Future Extensibility
 
 ### Adding a New Language (e.g., Python SDK)
 
@@ -1596,7 +1739,7 @@ Each addition only requires changes to the IR adapter and the relevant generator
 
 ---
 
-## 21. Open Questions (Deferred to Implementation)
+## 23. Open Questions (Deferred to Implementation)
 
 1. **Watch mode granularity**: Should `vertz dev` regenerate only changed modules, or always regenerate everything?
 2. **Error types**: Should the SDK generate error types for each operation, or use a generic `SDKError`?
