@@ -1,7 +1,15 @@
 export { createCLI } from './cli';
-export type { CLIConfig } from './config/defaults';
+export { buildAction } from './commands/build';
+export { checkAction } from './commands/check';
+export { deployAction } from './commands/deploy';
+export { generateAction } from './commands/generate';
+export { routesAction } from './commands/routes';
+export type { CLIConfig, DevConfig, GeneratedFile, GeneratorDefinition } from './config/defaults';
 export { defaultCLIConfig } from './config/defaults';
 export { findConfigFile, loadConfig } from './config/loader';
+export { detectTarget } from './deploy/detector';
+export { createProcessManager } from './dev-server/process-manager';
+export { createWatcher } from './dev-server/watcher';
 export { formatDuration, formatFileSize, formatPath } from './utils/format';
 export { findProjectRoot } from './utils/paths';
 export { isCI, requireParam } from './utils/prompt';

@@ -1,4 +1,4 @@
-import type { CompilerConfig } from '@vertz/compiler';
+import type { VertzConfig } from '@vertz/compiler';
 
 export interface DevConfig {
   port: number;
@@ -7,12 +7,43 @@ export interface DevConfig {
   typecheck: boolean;
 }
 
-export interface CLIConfig {
-  strict: boolean;
-  forceGenerate: boolean;
-  compiler: Partial<CompilerConfig>;
-  dev: DevConfig;
-  generators: string[];
+export interface GeneratorArgument {
+  name: string;
+  description: string;
+  required: boolean;
+}
+
+export interface GeneratorOption {
+  name: string;
+  flag: string;
+  description: string;
+  default?: string;
+}
+
+export interface GeneratorContext {
+  name: string;
+  options: Record<string, string>;
+  projectRoot: string;
+  sourceDir: string;
+  config: VertzConfig;
+}
+
+export interface GeneratedFile {
+  path: string;
+  content: string;
+}
+
+export interface GeneratorDefinition {
+  name: string;
+  description: string;
+  arguments: GeneratorArgument[];
+  options?: GeneratorOption[];
+  run(context: GeneratorContext): Promise<GeneratedFile[]>;
+}
+
+export interface CLIConfig extends VertzConfig {
+  dev?: DevConfig;
+  generators?: Record<string, GeneratorDefinition>;
 }
 
 export const defaultCLIConfig: CLIConfig = {
@@ -29,5 +60,5 @@ export const defaultCLIConfig: CLIConfig = {
     open: false,
     typecheck: true,
   },
-  generators: [],
+  generators: {},
 };
