@@ -1,9 +1,8 @@
 import type { Diagnostic } from '@vertz/compiler';
-import { colors, symbols } from './theme';
+import { symbols } from './theme';
 
 export function formatDiagnostic(diagnostic: Diagnostic): string {
   const icon = diagnostic.severity === 'error' ? symbols.error : symbols.warning;
-  const color = diagnostic.severity === 'error' ? colors.error : colors.warning;
 
   const lines: string[] = [];
 
@@ -11,28 +10,26 @@ export function formatDiagnostic(diagnostic: Diagnostic): string {
     ? `${diagnostic.file}:${diagnostic.line ?? 0}:${diagnostic.column ?? 0}`
     : '';
 
-  lines.push(
-    `${color}${icon}${colors.reset} ${colors.bold}${diagnostic.code}${colors.reset}: ${diagnostic.message}`,
-  );
+  lines.push(`${icon} ${diagnostic.code}: ${diagnostic.message}`);
 
   if (location) {
-    lines.push(`  ${colors.dim}at ${location}${colors.reset}`);
+    lines.push(`  at ${location}`);
   }
 
   if (diagnostic.sourceContext) {
     const ctx = diagnostic.sourceContext;
     for (const line of ctx.lines) {
-      lines.push(`  ${colors.dim}${String(line.number).padStart(4)}${colors.reset} ${line.text}`);
+      lines.push(`  ${String(line.number).padStart(4)} ${line.text}`);
     }
     if (ctx.highlightStart >= 0 && ctx.highlightLength > 0) {
       const padding = ' '.repeat(ctx.highlightStart + 6);
       const underline = '^'.repeat(ctx.highlightLength);
-      lines.push(`${padding}${color}${underline}${colors.reset}`);
+      lines.push(`${padding}${underline}`);
     }
   }
 
   if (diagnostic.suggestion) {
-    lines.push(`  ${colors.info}${symbols.info} ${diagnostic.suggestion}${colors.reset}`);
+    lines.push(`  ${symbols.info} ${diagnostic.suggestion}`);
   }
 
   return lines.join('\n');
@@ -45,19 +42,15 @@ export function formatDiagnosticSummary(diagnostics: readonly Diagnostic[]): str
   const parts: string[] = [];
 
   if (errors.length === 0 && warnings.length === 0) {
-    return `${colors.success}${symbols.success} No errors${colors.reset}`;
+    return `${symbols.success} No errors`;
   }
 
   if (errors.length > 0) {
-    parts.push(
-      `${colors.error}${errors.length} error${errors.length === 1 ? '' : 's'}${colors.reset}`,
-    );
+    parts.push(`${errors.length} error${errors.length === 1 ? '' : 's'}`);
   }
 
   if (warnings.length > 0) {
-    parts.push(
-      `${colors.warning}${warnings.length} warning${warnings.length === 1 ? '' : 's'}${colors.reset}`,
-    );
+    parts.push(`${warnings.length} warning${warnings.length === 1 ? '' : 's'}`);
   }
 
   return parts.join(', ');

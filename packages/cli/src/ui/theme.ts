@@ -1,19 +1,47 @@
-export const symbols = {
-  error: '\u2716',
+export const symbols: Readonly<{
+  success: string;
+  error: string;
+  warning: string;
+  info: string;
+  arrow: string;
+  pointer: string;
+  bullet: string;
+  dash: string;
+}> = Object.freeze({
+  success: '\u2713',
+  error: '\u2717',
   warning: '\u26A0',
-  success: '\u2714',
   info: '\u2139',
+  arrow: '\u279C',
   pointer: '\u276F',
   bullet: '\u25CF',
   dash: '\u2500',
-} as const;
+});
 
-export const colors = {
-  error: '\x1b[31m',
-  warning: '\x1b[33m',
-  success: '\x1b[32m',
-  info: '\x1b[36m',
-  dim: '\x1b[2m',
-  bold: '\x1b[1m',
-  reset: '\x1b[0m',
-} as const;
+export const colors: Readonly<{
+  success: string;
+  error: string;
+  warning: string;
+  info: string;
+  dim: string;
+  method: Readonly<{
+    GET: string;
+    POST: string;
+    PUT: string;
+    PATCH: string;
+    DELETE: string;
+  }>;
+}> = Object.freeze({
+  success: 'greenBright',
+  error: 'redBright',
+  warning: 'yellowBright',
+  info: 'cyanBright',
+  dim: 'gray',
+  method: Object.freeze({
+    GET: 'greenBright',
+    POST: 'blueBright',
+    PUT: 'yellowBright',
+    PATCH: 'cyanBright',
+    DELETE: 'redBright',
+  }),
+});

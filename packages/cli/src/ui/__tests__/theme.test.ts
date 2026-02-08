@@ -2,66 +2,85 @@ import { describe, expect, it } from 'vitest';
 import { colors, symbols } from '../theme';
 
 describe('symbols', () => {
-  it('has error symbol', () => {
-    expect(symbols.error).toBeDefined();
-    expect(typeof symbols.error).toBe('string');
+  it('success is check mark', () => {
+    expect(symbols.success).toBe('\u2713');
   });
 
-  it('has warning symbol', () => {
-    expect(symbols.warning).toBeDefined();
-    expect(typeof symbols.warning).toBe('string');
+  it('error is ballot x', () => {
+    expect(symbols.error).toBe('\u2717');
   });
 
-  it('has success symbol', () => {
-    expect(symbols.success).toBeDefined();
-    expect(typeof symbols.success).toBe('string');
+  it('warning is warning sign', () => {
+    expect(symbols.warning).toBe('\u26A0');
   });
 
-  it('has info symbol', () => {
-    expect(symbols.info).toBeDefined();
-    expect(typeof symbols.info).toBe('string');
+  it('arrow is right arrow', () => {
+    expect(symbols.arrow).toBe('\u279C');
   });
 
-  it('has pointer symbol', () => {
-    expect(symbols.pointer).toBeDefined();
+  it('info is info circle', () => {
+    expect(symbols.info).toBe('\u2139');
   });
 
-  it('has bullet symbol', () => {
-    expect(symbols.bullet).toBeDefined();
+  it('pointer is right-pointing angle', () => {
+    expect(symbols.pointer).toBe('\u276F');
   });
 
-  it('has dash symbol', () => {
-    expect(symbols.dash).toBeDefined();
+  it('bullet is circle', () => {
+    expect(symbols.bullet).toBe('\u25CF');
+  });
+
+  it('dash is horizontal line', () => {
+    expect(symbols.dash).toBe('\u2500');
+  });
+
+  it('symbols object is frozen', () => {
+    expect(Object.isFrozen(symbols)).toBe(true);
   });
 });
 
 describe('colors', () => {
-  it('has error color', () => {
-    expect(colors.error).toBeDefined();
-    expect(typeof colors.error).toBe('string');
+  it('success is greenBright', () => {
+    expect(colors.success).toBe('greenBright');
   });
 
-  it('has warning color', () => {
-    expect(colors.warning).toBeDefined();
+  it('error is redBright', () => {
+    expect(colors.error).toBe('redBright');
   });
 
-  it('has success color', () => {
-    expect(colors.success).toBeDefined();
+  it('warning is yellowBright', () => {
+    expect(colors.warning).toBe('yellowBright');
   });
 
-  it('has info color', () => {
-    expect(colors.info).toBeDefined();
+  it('info is cyanBright', () => {
+    expect(colors.info).toBe('cyanBright');
   });
 
-  it('has dim modifier', () => {
-    expect(colors.dim).toBeDefined();
+  it('dim is gray', () => {
+    expect(colors.dim).toBe('gray');
   });
 
-  it('has bold modifier', () => {
-    expect(colors.bold).toBeDefined();
+  it('method.GET is greenBright', () => {
+    expect(colors.method.GET).toBe('greenBright');
   });
 
-  it('has reset code', () => {
-    expect(colors.reset).toBeDefined();
+  it('method.POST is blueBright', () => {
+    expect(colors.method.POST).toBe('blueBright');
+  });
+
+  it('method.PUT is yellowBright', () => {
+    expect(colors.method.PUT).toBe('yellowBright');
+  });
+
+  it('method.DELETE is redBright', () => {
+    expect(colors.method.DELETE).toBe('redBright');
+  });
+
+  it('method.PATCH is cyanBright', () => {
+    expect(colors.method.PATCH).toBe('cyanBright');
+  });
+
+  it('colors object is frozen', () => {
+    expect(Object.isFrozen(colors)).toBe(true);
   });
 });
