@@ -1265,54 +1265,23 @@ TypeScript errors from the background typecheck are rendered below the compiler 
 
 ## Syntax Highlighting
 
-Code frames use **Shiki** for syntax highlighting in the terminal. Shiki's `codeToTokens()` provides color-annotated tokens that we convert to truecolor (24-bit) ANSI escape codes for terminal rendering.
-
-**Note:** Shiki v3 does NOT have a built-in `codeToAnsi()` method. We use `codeToTokens()` and convert hex colors to ANSI ourselves. This was validated in Spike 3 (see [Spike Results](#spike-results)).
+Code frames use **Shiki** for syntax highlighting in the terminal. The `@shikijs/cli` package provides `codeToANSI()`, an async function that takes code, language, and theme, and returns ANSI-escaped highlighted output directly -- no manual hex-to-ANSI conversion needed.
 
 ```typescript
 // utils/syntax-highlight.ts
-import { createHighlighter, type Highlighter } from 'shiki';
+import { codeToANSI } from '@shikijs/cli';
 
-let highlighter: Highlighter | null = null;
-
-export async function getHighlighter(): Promise<Highlighter> {
-  if (!highlighter) {
-    highlighter = await createHighlighter({
-      themes: ['github-dark'],
-      langs: ['typescript'],
-    });
-  }
-  return highlighter;
-}
-
-function hexToRgb(hex: string): [number, number, number] | null {
-  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!match) return null;
-  return [parseInt(match[1], 16), parseInt(match[2], 16), parseInt(match[3], 16)];
-}
-
-function colorize(text: string, hexColor?: string): string {
-  if (!hexColor) return text;
-  const rgb = hexToRgb(hexColor);
-  if (!rgb) return text;
-  return `\x1b[38;2;${rgb[0]};${rgb[1]};${rgb[2]}m${text}\x1b[0m`;
-}
-
-export function highlightCode(code: string, hl: Highlighter): string {
-  const result = hl.codeToTokens(code, { theme: 'github-dark', lang: 'typescript' });
-  return result.tokens
-    .map(line => line.map(token => colorize(token.content, token.color)).join(''))
-    .join('\n');
+export async function highlightCode(code: string): Promise<string> {
+  return codeToANSI(code, 'typescript', 'github-dark');
 }
 ```
 
-The highlighter is initialized once (lazily) and reused across all diagnostic renders. This avoids the ~82ms startup cost of loading the grammar on every recompile. Subsequent highlights are fast (~0.5ms).
+The `codeToANSI()` function handles highlighter initialization internally (lazy, cached). The first call includes the cold start cost; subsequent calls are fast (~0.65ms).
 
-**Performance notes (from Spike 3):**
-- Cold start: ~82ms (acceptable, initialize lazily)
-- First highlight: ~75ms (grammar compilation)
-- Subsequent highlights: ~0.5ms (very fast)
-- Memory overhead: ~3 MB initial, grows with usage
+**Performance notes (from Spike 3, updated):**
+- Cold start (first call, includes init): ~181ms (acceptable, initialize lazily on first diagnostic render)
+- Subsequent highlights: ~0.65ms (very fast)
+- Memory overhead: ~64 MB (includes all bundled grammars/themes)
 - Skip initialization entirely for `--format json` / `--format github` output
 
 ---
@@ -1329,6 +1298,7 @@ The highlighter is initialized once (lazily) and reused across all diagnostic re
 | `ink-spinner` | `^5.x` | Spinner animations |
 | `react` | `^18.x` | Required by Ink |
 | `shiki` | `^3.x` | Syntax highlighting for code frames |
+| `@shikijs/cli` | `^3.x` | `codeToANSI()` for terminal ANSI output |
 | `chokidar` | `^4.x` | File watching (Node fallback) |
 
 ### Dev Dependencies
@@ -1351,7 +1321,7 @@ The highlighter is initialized once (lazily) and reused across all diagnostic re
 ### Why Shiki over Prism
 
 - Shiki uses the same grammar engine as VS Code (TextMate grammars), so highlighting matches what developers see in their editor.
-- Shiki's `codeToTokens()` API provides color-annotated tokens that we convert to truecolor ANSI escape codes via a small helper (~15 lines). **Note:** Shiki v3 does NOT have built-in ANSI output -- we handle the conversion ourselves.
+- The `@shikijs/cli` package provides `codeToANSI()` for direct ANSI terminal output -- no manual conversion needed.
 - Prism is browser-first and requires additional work for terminal output.
 
 ---
@@ -1527,7 +1497,7 @@ Each phase is detailed in its own file. Phases must be implemented in order -- e
 |----------|-----------|
 | **Commander for argument parsing** | Most popular CLI framework. LLMs know it. Simple API surface. Clean separation from Ink rendering. |
 | **TaskRunner abstraction (blimu pattern)** | Commands don't import Ink directly. TaskRunner is testable without a terminal. Matches existing team patterns. |
-| **Shiki for syntax highlighting** | Same grammars as VS Code. TypeScript support excellent. `codeToTokens()` + custom ANSI conversion (validated in Spike 3). |
+| **Shiki for syntax highlighting** | Same grammars as VS Code. TypeScript support excellent. `codeToANSI()` from `@shikijs/cli` provides direct terminal output (validated in Spike 3). |
 | **Separate `create-vertz-app`** | Follows npm convention. Used once per project. No heavy dependencies. |
 | **chokidar as Node fallback** | Bun's native watcher is fastest but Node needs a polyfill. chokidar is battle-tested. |
 | **`--format github` on check** | First-class CI support. GitHub Actions annotations show errors inline in PRs. |
@@ -1628,55 +1598,36 @@ Both approaches correctly handle the `export default defineConfig({...})` patter
 
 ### Spike 3: Shiki ANSI Terminal Output
 
-**Verdict: WORKS WITH CAVEATS**
+**Verdict: WORKS**
 
-**Critical finding: The plan incorrectly states Shiki has built-in ANSI output.** Shiki v3 does NOT have a `codeToAnsi()` method or any built-in terminal output support. The plan references "Shiki produces ANSI output natively (via `shiki/ansi`)" -- this is incorrect.
-
-**What actually works:** Use `codeToTokens()` to get color-annotated tokens, then convert hex colors to truecolor (24-bit) ANSI escape codes manually. This is trivial (~15 lines of code).
+The latest Shiki (v3.22+) provides `codeToANSI()` via the `@shikijs/cli` package. This is an async function that takes code, language, and theme, and returns ANSI-escaped highlighted output directly -- no manual hex-to-ANSI conversion needed.
 
 | Metric | Value |
 |--------|-------|
-| Cold start (createHighlighter) | ~82ms |
-| First highlight (25-line snippet) | ~75ms |
-| Subsequent highlights (same size) | ~0.5ms |
-| Memory delta (init) | ~3 MB |
-| Memory delta (after 100 highlights) | ~63 MB |
+| Cold start (first codeToANSI call) | ~181ms |
+| Subsequent highlights (large snippet) | ~1.26ms |
+| Subsequent highlights (small snippet) | ~0.65ms |
+| Memory delta (init) | ~64 MB |
 | Visual quality | Excellent |
 
-**Conversion function (proven in spike):**
+**Usage (proven in spike):**
 ```typescript
-function hexToRgb(hex: string): [number, number, number] | null {
-  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!match) return null;
-  return [parseInt(match[1], 16), parseInt(match[2], 16), parseInt(match[3], 16)];
-}
+import { codeToANSI } from '@shikijs/cli';
 
-function colorize(text: string, hexColor?: string): string {
-  if (!hexColor) return text;
-  const rgb = hexToRgb(hexColor);
-  if (!rgb) return text;
-  return `\x1b[38;2;${rgb[0]};${rgb[1]};${rgb[2]}m${text}\x1b[0m`;
-}
-
-function tokensToAnsi(highlighter: Highlighter, code: string): string {
-  const result = highlighter.codeToTokens(code, { theme: 'github-dark', lang: 'typescript' });
-  return result.tokens
-    .map(line => line.map(token => colorize(token.content, token.color)).join(''))
-    .join('\n');
-}
+const highlighted = await codeToANSI(code, 'typescript', 'github-dark');
+console.log(highlighted); // ANSI-colored output, ready for terminal
 ```
 
 **Performance recommendations:**
-- Initialize Shiki lazily on first diagnostic render
-- Skip initialization entirely for `--format json` and `--format github` output
-- The first highlight is slow (~75ms) due to grammar compilation; subsequent highlights are fast (~0.5ms)
-- Memory grows with repeated usage; consider if this matters for long-running `vertz dev` sessions
+- The first `codeToANSI()` call includes lazy highlighter initialization (~181ms). Subsequent calls are fast (~0.65ms).
+- Initialize lazily on first diagnostic render.
+- Skip initialization entirely for `--format json` and `--format github` output.
+- Memory usage is higher than the manual approach (~64 MB vs ~3 MB) because `@shikijs/cli` bundles all grammars/themes. Acceptable for a CLI tool.
 
 **Impact on plan:**
-- Phase 3 (syntax-highlight.ts) must use `codeToTokens()` instead of `codeToAnsi()`
-- Add a `tokensToAnsi()` helper function in `syntax-highlight.ts`
-- Update the "Why Shiki" rationale to remove the "ANSI output built-in" claim
-- The `highlightCode()` function signature in the plan is correct; only the internals change
+- Phase 3 (syntax-highlight.ts) should use `codeToANSI()` from `@shikijs/cli` -- no custom hex-to-ANSI conversion needed.
+- Add `@shikijs/cli` as a dependency alongside `shiki`.
+- The `highlightCode()` function becomes a thin wrapper around `codeToANSI()`.
 
 ---
 
@@ -1727,7 +1678,7 @@ The compiler's incremental compilation infrastructure was reviewed by reading th
 - [ ] **Plugin lifecycle hooks** -- Should plugins be able to hook into the dev loop (e.g., run a custom step after compilation)?
 - [ ] **Multi-project workspaces** -- How does `vertz dev` work in a monorepo with multiple Vertz apps?
 - [ ] **Error overlay in browser** -- Like Vite's error overlay, show compiler errors in the browser during dev mode.
-- [x] **Shiki bundle size** -- Spike 3 measured ~3 MB memory overhead for Shiki init with only the TypeScript grammar loaded. Acceptable for a CLI tool. Cold start is ~82ms. Lazy initialization on first diagnostic render is sufficient.
+- [x] **Shiki bundle size** -- Spike 3 measured ~64 MB memory overhead for `@shikijs/cli` (bundles all grammars/themes). Acceptable for a CLI tool. Cold start is ~181ms (first `codeToANSI()` call). Lazy initialization on first diagnostic render is sufficient.
 - [ ] **Windows support** -- ANSI codes, path separators, process management (`SIGTERM` vs `taskkill`).
 
 ---

@@ -4,15 +4,18 @@
  * Goal: Test Shiki's ability to produce syntax-highlighted TypeScript
  * code with ANSI escape codes for terminal rendering.
  *
- * Finding: Shiki v3 does NOT have a built-in `codeToAnsi()` method.
- * The plan assumed it did. We need to use `codeToTokens()` and convert
- * hex colors to ANSI 256-color or truecolor escape codes ourselves.
+ * Finding: The latest Shiki (v3.22+) provides `codeToANSI()` via the
+ * `@shikijs/cli` package. This is an async function that takes code,
+ * language, and theme, and returns ANSI-escaped highlighted output
+ * directly -- no manual hex-to-ANSI conversion needed.
  *
  * Measurements:
- * 1. Time to initialize the highlighter (cold start)
- * 2. Time to highlight a code snippet via codeToTokens
- * 3. Memory usage before and after
- * 4. Visual quality of the ANSI output
+ * 1. Time to highlight via codeToANSI (cold start, includes lazy init)
+ * 2. Time to highlight a large snippet (warm)
+ * 3. Time to highlight a small snippet
+ * 4. Diagnostic code frame rendering
+ * 5. Warm cache benchmarks (100x)
+ * 6. Memory usage before and after
  */
 
 const sampleCode = `
@@ -49,26 +52,6 @@ const diagnosticCode = `userRouter.get('/:id', {
   },
 });`;
 
-// ── Hex to ANSI truecolor ────────────────────────────────────────
-
-function hexToRgb(hex: string): [number, number, number] | null {
-  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  if (!match) return null;
-  return [
-    parseInt(match[1], 16),
-    parseInt(match[2], 16),
-    parseInt(match[3], 16),
-  ];
-}
-
-function colorize(text: string, hexColor?: string): string {
-  if (!hexColor) return text;
-  const rgb = hexToRgb(hexColor);
-  if (!rgb) return text;
-  // Use truecolor (24-bit) ANSI escape: \x1b[38;2;R;G;Bm
-  return `\x1b[38;2;${rgb[0]};${rgb[1]};${rgb[2]}m${text}\x1b[0m`;
-}
-
 function getMemoryUsageMB(): number {
   return process.memoryUsage().heapUsed / 1024 / 1024;
 }
@@ -80,16 +63,13 @@ async function main() {
   const memBefore = getMemoryUsageMB();
   console.log(`Memory before Shiki: ${memBefore.toFixed(2)} MB\n`);
 
-  // ── Cold start: createHighlighter ──────────────────────────────
-  console.log("--- Test 1: Cold Start (createHighlighter) ---");
+  // ── Cold start: codeToANSI (first call, includes lazy init) ───
+  console.log("--- Test 1: Cold Start (codeToANSI first call) ---");
   const coldStartTime = performance.now();
 
-  const { createHighlighter } = await import("shiki");
+  const { codeToANSI } = await import("@shikijs/cli");
 
-  const highlighter = await createHighlighter({
-    themes: ["github-dark"],
-    langs: ["typescript"],
-  });
+  const firstOutput = await codeToANSI(sampleCode, "typescript", "github-dark");
 
   const coldStartElapsed = performance.now() - coldStartTime;
   const memAfterInit = getMemoryUsageMB();
@@ -100,24 +80,11 @@ async function main() {
     `  Memory delta: +${(memAfterInit - memBefore).toFixed(2)} MB\n`
   );
 
-  // ── Helper: tokens to ANSI string ─────────────────────────────
-
-  function tokensToAnsi(code: string): string {
-    const result = highlighter.codeToTokens(code, {
-      theme: "github-dark",
-      lang: "typescript",
-    });
-
-    return result.tokens
-      .map((line) => line.map((token) => colorize(token.content, token.color)).join(""))
-      .join("\n");
-  }
-
-  // ── Test 2: Highlight a large code snippet ─────────────────────
-  console.log("--- Test 2: Highlight Large Snippet (tokens -> ANSI) ---");
+  // ── Test 2: Highlight a large code snippet (warm) ─────────────
+  console.log("--- Test 2: Highlight Large Snippet (codeToANSI, warm) ---");
   const highlightStartLarge = performance.now();
 
-  const ansiOutput = tokensToAnsi(sampleCode);
+  const ansiOutput = await codeToANSI(sampleCode, "typescript", "github-dark");
 
   const highlightElapsedLarge = performance.now() - highlightStartLarge;
   console.log(`  Highlight time: ${highlightElapsedLarge.toFixed(2)}ms`);
@@ -131,7 +98,7 @@ async function main() {
   console.log("--- Test 3: Highlight Small Snippet ---");
   const highlightStartSmall = performance.now();
 
-  const smallOutput = tokensToAnsi(smallSnippet);
+  const smallOutput = await codeToANSI(smallSnippet, "typescript", "github-dark");
 
   const highlightElapsedSmall = performance.now() - highlightStartSmall;
   console.log(`  Highlight time: ${highlightElapsedSmall.toFixed(2)}ms`);
@@ -142,7 +109,7 @@ async function main() {
   console.log("--- Test 4: Diagnostic Code Frame ---");
   const highlightStartDiag = performance.now();
 
-  const diagOutput = tokensToAnsi(diagnosticCode);
+  const diagOutput = await codeToANSI(diagnosticCode, "typescript", "github-dark");
 
   const highlightElapsedDiag = performance.now() - highlightStartDiag;
   console.log(`  Highlight time: ${highlightElapsedDiag.toFixed(2)}ms`);
@@ -174,7 +141,7 @@ async function main() {
   const warmStartTime = performance.now();
 
   for (let i = 0; i < iterations; i++) {
-    tokensToAnsi(sampleCode);
+    await codeToANSI(sampleCode, "typescript", "github-dark");
   }
 
   const warmElapsed = performance.now() - warmStartTime;
@@ -183,18 +150,22 @@ async function main() {
     `  Average per highlight: ${(warmElapsed / iterations).toFixed(2)}ms\n`
   );
 
-  // ── Test 6: Check available API for direct ANSI ────────────────
-  console.log("--- Test 6: Check for built-in ANSI support ---");
-  const proto = Object.getOwnPropertyNames(Object.getPrototypeOf(highlighter));
-  const ansiMethods = proto.filter(
-    (n) => n.toLowerCase().includes("ansi") || n.toLowerCase().includes("terminal")
-  );
-  console.log(`  Highlighter methods with 'ansi'/'terminal': ${ansiMethods.length > 0 ? ansiMethods.join(", ") : "NONE"}`);
+  // ── Test 6: Verify codeToANSI works ────────────────────────────
+  console.log("--- Test 6: Verify built-in codeToANSI support ---");
   console.log(
-    `  Conclusion: codeToAnsi() does NOT exist in Shiki v3.`
+    `  codeToANSI imported from: @shikijs/cli`
   );
   console.log(
-    `  Must use codeToTokens() + custom hex-to-ANSI conversion.`
+    `  Function type: ${typeof codeToANSI}`
+  );
+  console.log(
+    `  Returns ANSI string: ${typeof firstOutput === "string" && firstOutput.includes("\x1b[")}`
+  );
+  console.log(
+    `  Conclusion: codeToANSI() IS available in the latest Shiki (@shikijs/cli).`
+  );
+  console.log(
+    `  No manual hex-to-ANSI conversion is needed.`
   );
   console.log();
 
@@ -208,10 +179,10 @@ async function main() {
   console.log(`| Metric                    | Value         |`);
   console.log(`|---------------------------|---------------|`);
   console.log(
-    `| Cold start                | ${coldStartElapsed.toFixed(0).padStart(9)}ms |`
+    `| Cold start (first call)   | ${coldStartElapsed.toFixed(0).padStart(9)}ms |`
   );
   console.log(
-    `| Highlight (large, first)  | ${highlightElapsedLarge.toFixed(2).padStart(9)}ms |`
+    `| Highlight (large, warm)   | ${highlightElapsedLarge.toFixed(2).padStart(9)}ms |`
   );
   console.log(
     `| Highlight (small)         | ${highlightElapsedSmall.toFixed(2).padStart(9)}ms |`
@@ -232,48 +203,48 @@ async function main() {
     `| ANSI output works         | ${"YES".padStart(13)} |`
   );
   console.log(
-    `| Built-in codeToAnsi       | ${"NO".padStart(13)} |`
+    `| Built-in codeToANSI       | ${"YES".padStart(13)} |`
   );
 
   console.log("\n=== Verdict ===\n");
   console.log(
-    "WORKS WITH CAVEATS:"
+    "WORKS:"
   );
   console.log(
-    "- Shiki v3 does NOT have codeToAnsi(). The CLI plan assumed it did."
+    "- The latest Shiki provides codeToANSI() via the @shikijs/cli package."
   );
   console.log(
-    "- We must use codeToTokens() and build ANSI strings manually."
+    "- codeToANSI(code, lang, theme) returns ANSI-escaped output directly."
   );
   console.log(
-    "- The conversion is trivial (~15 lines of code) using truecolor ANSI (24-bit)."
+    "- No manual hex-to-ANSI conversion is needed anymore."
   );
   console.log(
-    "- Cold start (~97ms on Bun) is acceptable — initialize lazily."
+    "- Cold start (first call) includes lazy highlighter initialization."
   );
   console.log(
-    "- Memory overhead (~3 MB) is reasonable for a CLI tool."
+    "- Subsequent calls are fast (highlighter is cached internally)."
   );
   console.log(
-    "- Subsequent highlights are very fast (<1ms)."
+    "- Memory overhead is reasonable for a CLI tool."
   );
   console.log(
-    "- The visual output is excellent — full TypeScript syntax highlighting in terminal."
+    "- The visual output is excellent -- full TypeScript syntax highlighting in terminal."
   );
   console.log(
     "\nRecommendation:"
   );
   console.log(
-    "- Use Shiki with codeToTokens() + custom ANSI renderer (hex-to-truecolor)."
+    "- Use @shikijs/cli's codeToANSI() directly. No custom ANSI renderer needed."
   );
   console.log(
-    "- Initialize lazily on first diagnostic display."
+    "- Initialize lazily on first diagnostic display (first call handles init)."
   );
   console.log(
     "- Skip initialization entirely for --format json output."
   );
   console.log(
-    "- Update plan: reference codeToTokens(), not codeToAnsi()."
+    "- Add @shikijs/cli as a dependency alongside shiki."
   );
 }
 
