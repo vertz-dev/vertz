@@ -8,15 +8,34 @@ on:
 
 jobs:
   check:
-    name: Lint, typecheck, test
+    name: Lint, typecheck, build
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run CI pipeline
+      - name: Run static checks
         uses: dagger/dagger-for-github@v8.2.0
         with:
           version: "latest"
           verb: call
-          args: ci
+          args: check
+
+  test-runtime:
+    name: Test (${{ matrix.runtime }})
+    runs-on: ubuntu-latest
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [bun, node]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tests (${{ matrix.runtime }})
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "latest"
+          verb: call
+          args: test-runtime --runtime=${{ matrix.runtime }}
