@@ -396,4 +396,74 @@ describe('createTestApp', () => {
 
     await expect(Promise.resolve(app.get('/api'))).rejects.toThrow('Response validation failed');
   });
+
+  it('validates body using schema and rejects invalid input', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix: '/users' });
+
+    const bodySchema = s.object({ name: s.string() });
+
+    router.post('/', {
+      body: bodySchema,
+      handler: () => ({ created: true }),
+    });
+
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+    const app = createTestApp().register(mod);
+
+    const res = await app.post('/users', { body: { name: 123 } });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('validates query using schema and rejects invalid input', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix: '/users' });
+
+    const querySchema = {
+      parse: (value: unknown) => {
+        const query = value as Record<string, unknown>;
+        const page = Number(query.page);
+        if (Number.isNaN(page)) throw new Error('page must be a number');
+        return { page };
+      },
+    };
+
+    router.get('/', {
+      query: querySchema,
+      handler: () => ({ users: [] }),
+    });
+
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+    const app = createTestApp().register(mod);
+
+    const res = await app.get('/users?page=abc');
+
+    expect(res.status).toBe(400);
+  });
+
+  it('validates headers using schema and rejects invalid input', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix: '/data' });
+
+    const headersSchema = {
+      parse: (value: unknown) => {
+        const headers = value as Record<string, unknown>;
+        if (!headers['x-api-key']) throw new Error('x-api-key is required');
+        return headers;
+      },
+    };
+
+    router.get('/', {
+      headers: headersSchema,
+      handler: () => ({ data: [] }),
+    });
+
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+    const app = createTestApp().register(mod);
+
+    const res = await app.get('/data');
+
+    expect(res.status).toBe(400);
+  });
 });
