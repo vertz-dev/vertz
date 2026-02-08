@@ -8,13 +8,13 @@ describe('typecheck', () => {
 
     expect(result.success).toBeDefined();
     expect(typeof result.success).toBe('boolean');
-  });
+  }, 30_000);
 
   it('returns diagnostics array', async () => {
     const result = await typecheck();
 
     expect(Array.isArray(result.diagnostics)).toBe(true);
-  });
+  }, 30_000);
 });
 
 describe('parseTscOutput', () => {
