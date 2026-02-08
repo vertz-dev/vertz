@@ -13,10 +13,22 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # smart-ci needs git history to find the common ancestor with main
+          fetch-depth: 0
 
-      - name: Run CI pipeline
+      - name: Run CI pipeline (push to main)
+        if: github.event_name == 'push'
         uses: dagger/dagger-for-github@v8.2.0
         with:
           version: "latest"
           verb: call
           args: ci --progress plain
+
+      - name: Run CI pipeline (pull request — smart skip)
+        if: github.event_name == 'pull_request'
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "latest"
+          verb: call
+          args: smart-ci --base-branch main --progress plain
