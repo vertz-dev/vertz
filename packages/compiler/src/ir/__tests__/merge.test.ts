@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyAppIR } from '../builder';
 import { mergeIR } from '../merge';
-import type { AppIR, MiddlewareIR, ModuleIR, SchemaIR } from '../types';
+import type { AppIR, DependencyGraphIR, MiddlewareIR, ModuleIR, SchemaIR } from '../types';
 
 function createMinimalIR(overrides?: Partial<AppIR>): AppIR {
   return {
@@ -203,5 +203,41 @@ describe('mergeIR', () => {
     const merged = mergeIR(base, partial);
 
     expect(merged.diagnostics).toEqual([]);
+  });
+
+  it('replaces dependency graph when provided in partial', () => {
+    const base = createMinimalIR({
+      modules: [makeModule('user')],
+    });
+    const newGraph: DependencyGraphIR = {
+      nodes: [{ id: 'user', kind: 'module', name: 'user' }],
+      edges: [],
+      initializationOrder: ['user'],
+      circularDependencies: [],
+    };
+    const partial: Partial<AppIR> = { dependencyGraph: newGraph };
+
+    const merged = mergeIR(base, partial);
+
+    expect(merged.dependencyGraph.nodes).toHaveLength(1);
+    expect(merged.dependencyGraph.initializationOrder).toEqual(['user']);
+  });
+
+  it('preserves base dependency graph when not in partial', () => {
+    const baseGraph: DependencyGraphIR = {
+      nodes: [{ id: 'user', kind: 'module', name: 'user' }],
+      edges: [],
+      initializationOrder: ['user'],
+      circularDependencies: [],
+    };
+    const base = createMinimalIR({
+      dependencyGraph: baseGraph,
+      modules: [makeModule('user')],
+    });
+    const partial: Partial<AppIR> = { modules: [makeModule('user')] };
+
+    const merged = mergeIR(base, partial);
+
+    expect(merged.dependencyGraph.initializationOrder).toEqual(['user']);
   });
 });

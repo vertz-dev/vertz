@@ -1,27 +1,132 @@
 import { describe, expect, it } from 'vitest';
 import type { CompilerDependencies, Validator } from '../compiler';
-import { Compiler } from '../compiler';
+import { Compiler, createCompiler } from '../compiler';
 import { resolveConfig } from '../config';
 import { createDiagnostic } from '../errors';
+import { createEmptyDependencyGraph } from '../ir/builder';
+import type {
+  AppDefinition,
+  DependencyGraphIR,
+  EnvIR,
+  MiddlewareIR,
+  ModuleIR,
+  SchemaIR,
+} from '../ir/types';
 
-function stubAnalyzer(name: string, calls: string[]) {
+function stubDependencies(calls: string[]): CompilerDependencies {
+  const emptyApp: AppDefinition = {
+    basePath: '',
+    globalMiddleware: [],
+    moduleRegistrations: [],
+    sourceFile: '',
+    sourceLine: 0,
+    sourceColumn: 0,
+  };
   return {
-    analyze: async () => {
-      calls.push(`analyze:${name}`);
-      return {};
+    analyzers: {
+      env: {
+        analyze: async () => {
+          calls.push('analyze:env');
+          return { env: undefined };
+        },
+      },
+      schema: {
+        analyze: async () => {
+          calls.push('analyze:schema');
+          return { schemas: [] };
+        },
+      },
+      middleware: {
+        analyze: async () => {
+          calls.push('analyze:middleware');
+          return { middleware: [] };
+        },
+      },
+      module: {
+        analyze: async () => {
+          calls.push('analyze:module');
+          return { modules: [] };
+        },
+      },
+      app: {
+        analyze: async () => {
+          calls.push('analyze:app');
+          return { app: emptyApp };
+        },
+      },
+      dependencyGraph: {
+        analyze: async () => {
+          calls.push('analyze:dependencyGraph');
+          return { graph: createEmptyDependencyGraph() };
+        },
+      },
     },
+    validators: [],
+    generators: [],
   };
 }
 
-function stubDependencies(calls: string[]): CompilerDependencies {
+function typedDependencies(): CompilerDependencies {
+  const app: AppDefinition = {
+    basePath: '/api',
+    version: '1.0.0',
+    globalMiddleware: [],
+    moduleRegistrations: [],
+    sourceFile: 'src/app.ts',
+    sourceLine: 1,
+    sourceColumn: 1,
+  };
+  const modules: ModuleIR[] = [
+    {
+      name: 'user',
+      imports: [],
+      services: [],
+      routers: [],
+      exports: [],
+      sourceFile: 'src/modules/user/user.module.ts',
+      sourceLine: 1,
+      sourceColumn: 1,
+    },
+  ];
+  const schemas: SchemaIR[] = [
+    {
+      name: 'CreateUser',
+      isNamed: true,
+      namingConvention: {},
+      sourceFile: 'src/schemas/user.ts',
+      sourceLine: 1,
+      sourceColumn: 1,
+    },
+  ];
+  const middleware: MiddlewareIR[] = [
+    {
+      name: 'auth',
+      inject: [],
+      sourceFile: 'src/middleware/auth.ts',
+      sourceLine: 1,
+      sourceColumn: 1,
+    },
+  ];
+  const env: EnvIR = {
+    loadFiles: ['.env'],
+    variables: [],
+    sourceFile: 'src/env.ts',
+    sourceLine: 1,
+    sourceColumn: 1,
+  };
+  const graph: DependencyGraphIR = {
+    ...createEmptyDependencyGraph(),
+    initializationOrder: ['user'],
+  };
+
   return {
     analyzers: {
-      env: stubAnalyzer('env', calls),
-      schema: stubAnalyzer('schema', calls),
-      middleware: stubAnalyzer('middleware', calls),
-      module: stubAnalyzer('module', calls),
-      app: stubAnalyzer('app', calls),
-      dependencyGraph: stubAnalyzer('dependencyGraph', calls),
+      env: { analyze: async () => ({ env }) },
+      schema: { analyze: async () => ({ schemas }) },
+      middleware: { analyze: async () => ({ middleware }) },
+      module: { analyze: async () => ({ modules }) },
+      app: { analyze: async () => ({ app }) },
+      dependencyGraph: { analyze: async () => ({ graph }) },
     },
     validators: [],
     generators: [],
@@ -233,5 +338,29 @@ describe('Compiler', () => {
     expect(ir).toBeDefined();
     expect(ir.app).toBeDefined();
     expect(calls).not.toContain('validate');
+  });
+
+  it('analyze assembles IR from analyzer results', async () => {
+    const deps = typedDependencies();
+    const compiler = new Compiler(resolveConfig(), deps);
+    const ir = await compiler.analyze();
+
+    expect(ir.app.basePath).toBe('/api');
+    expect(ir.app.version).toBe('1.0.0');
+    expect(ir.modules).toHaveLength(1);
+    expect(ir.modules[0].name).toBe('user');
+    expect(ir.schemas).toHaveLength(1);
+    expect(ir.schemas[0].name).toBe('CreateUser');
+    expect(ir.middleware).toHaveLength(1);
+    expect(ir.middleware[0].name).toBe('auth');
+    expect(ir.env?.loadFiles).toEqual(['.env']);
+    expect(ir.dependencyGraph.initializationOrder).toEqual(['user']);
+  });
+});
+
+describe('createCompiler', () => {
+  it('returns a Compiler instance', () => {
+    const compiler = createCompiler();
+    expect(compiler).toBeInstanceOf(Compiler);
   });
 });

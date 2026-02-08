@@ -1,4 +1,4 @@
-import { basename } from 'node:path';
+import { basename, dirname } from 'node:path';
 import type { CompileResult, Compiler } from './compiler';
 import type { Diagnostic } from './errors';
 import { hasErrors } from './errors';
@@ -100,6 +100,46 @@ export function categorizeChanges(
   return result;
 }
 
+export function findAffectedModules(categorized: CategorizedChanges, ir: AppIR): string[] {
+  const affected = new Set<string>();
+
+  // Module file changes → match sourceFile to module
+  for (const change of categorized.module) {
+    const mod = ir.modules.find((m) => m.sourceFile === change.path);
+    if (mod) affected.add(mod.name);
+  }
+
+  // Service file changes → find owning module via service sourceFile
+  for (const change of categorized.service) {
+    for (const mod of ir.modules) {
+      if (mod.services.some((s) => s.sourceFile === change.path)) {
+        affected.add(mod.name);
+      }
+    }
+  }
+
+  // Router file changes → find owning module via router sourceFile
+  for (const change of categorized.router) {
+    for (const mod of ir.modules) {
+      if (mod.routers.some((r) => r.sourceFile === change.path)) {
+        affected.add(mod.name);
+      }
+    }
+  }
+
+  // Schema file changes → find module whose directory contains the schema
+  for (const change of categorized.schema) {
+    for (const mod of ir.modules) {
+      const moduleDir = dirname(mod.sourceFile);
+      if (change.path.startsWith(moduleDir)) {
+        affected.add(mod.name);
+      }
+    }
+  }
+
+  return [...affected];
+}
+
 export type IncrementalResult =
   | { kind: 'incremental'; affectedModules: string[]; diagnostics: Diagnostic[] }
   | { kind: 'full-recompile' }
@@ -144,9 +184,11 @@ export class IncrementalCompiler {
       await this.compiler.generate(this.currentIR);
     }
 
+    const affectedModules = findAffectedModules(categorized, this.currentIR);
+
     return {
       kind: 'incremental',
-      affectedModules: [],
+      affectedModules,
       diagnostics,
     };
   }
