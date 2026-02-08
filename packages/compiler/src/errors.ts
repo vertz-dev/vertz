@@ -68,18 +68,7 @@ export interface Diagnostic {
   sourceContext?: SourceContext;
 }
 
-export interface CreateDiagnosticOptions {
-  severity: DiagnosticSeverity;
-  code: DiagnosticCode;
-  message: string;
-  file?: string;
-  line?: number;
-  column?: number;
-  endLine?: number;
-  endColumn?: number;
-  suggestion?: string;
-  sourceContext?: SourceContext;
-}
+export type CreateDiagnosticOptions = Diagnostic;
 
 export function createDiagnostic(options: CreateDiagnosticOptions): Diagnostic {
   return { ...options };

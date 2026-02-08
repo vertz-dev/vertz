@@ -247,7 +247,7 @@ export class CompletenessValidator implements Validator {
   private checkPathParamMatch(ir: AppIR, diagnostics: Diagnostic[]): void {
     for (const route of allRoutes(ir)) {
       if (!route.params) continue;
-      const pathParams = extractPathParams(route.fullPath);
+      const pathParams = new Set(extractPathParams(route.fullPath));
       const schemaParams = new Set(extractSchemaPropertyKeys(route.params));
 
       for (const param of pathParams) {
@@ -262,9 +262,8 @@ export class CompletenessValidator implements Validator {
         }
       }
 
-      const pathParamSet = new Set(pathParams);
       for (const param of schemaParams) {
-        if (!pathParamSet.has(param)) {
+        if (!pathParams.has(param)) {
           diagnostics.push(
             createDiagnosticFromLocation(route, {
               severity: 'warning',

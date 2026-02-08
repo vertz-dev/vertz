@@ -1,14 +1,12 @@
 import type { HandlerCtx } from '../types/context';
 import type { RouterDef } from '../types/module';
 
-// Helper type to infer output from schema
 type InferOutput<T> = T extends { _output: infer O }
   ? O
   : T extends { parse(v: unknown): infer P }
     ? P
     : unknown;
 
-// Compute typed context from schemas
 type TypedHandlerCtx<
   TParams = unknown,
   TQuery = unknown,
