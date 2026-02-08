@@ -86,18 +86,6 @@
         "vitest": "^3.0.0",
       },
     },
-    "packages/ui-poc": {
-      "name": "@vertz/ui-poc",
-      "version": "0.0.1",
-      "devDependencies": {
-        "@types/node": "^22.0.0",
-        "happy-dom": "^18.0.0",
-        "magic-string": "^0.30.0",
-        "ts-morph": "^25.0.0",
-        "typescript": "^5.7.0",
-        "vitest": "^3.0.0",
-      },
-    },
   },
   "packages": {
     "@babel/helper-string-parser": ["@babel/helper-string-parser@7.27.1", "", {}, "sha512-qMlSxKbpRlAridDExk92nSobyDdpPijUq2DW6oDnUqd0iOGxmQjyqhMIihI9+zv4LPyZdRje2cavWPbCbWm3eA=="],
@@ -419,8 +407,6 @@
     "@vertz/schema": ["@vertz/schema@workspace:packages/schema"],
 
     "@vertz/testing": ["@vertz/testing@workspace:packages/testing"],
-
-    "@vertz/ui-poc": ["@vertz/ui-poc@workspace:packages/ui-poc"],
 
     "@vitest/expect": ["@vitest/expect@3.2.4", "", { "dependencies": { "@types/chai": "^5.2.2", "@vitest/spy": "3.2.4", "@vitest/utils": "3.2.4", "chai": "^5.2.0", "tinyrainbow": "^2.0.0" } }, "sha512-Io0yyORnB6sikFlt8QW5K7slY4OjqNX9jmJQ02QDda8lyM6B5oNgVWoSoKPac8/kgnCUzuHQKrSLtu/uOqqrig=="],
 
