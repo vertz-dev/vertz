@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adapter } from '~runtime-adapter';
+import { adapter } from './index';
 
 describe('~runtime-adapter alias', () => {
   it('resolves to an adapter with a name', () => {

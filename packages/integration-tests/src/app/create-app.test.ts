@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { adapter } from '~runtime-adapter';
+import { adapter } from '../runtime-adapters/index';
 import { createIntegrationServer, type TestServer } from './create-app';
 
 describe('createIntegrationServer', () => {
