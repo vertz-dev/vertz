@@ -1,17 +1,12 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.1.2/schema.json",
-  "changelog": [
-    "@changesets/changelog-github",
-    { "repo": "vertz-dev/vertz" }
-  ],
-  "commit": false,
-  "fixed": [
-    ["@vertz/schema", "@vertz/core", "@vertz/compiler", "@vertz/testing"]
-  ],
-  "linked": [],
   "access": "public",
   "baseBranch": "main",
-  "updateInternalDependencies": "patch",
+  "bumpVersionsWithWorkspaceProtocolOnly": true,
+  "changelog": ["@changesets/changelog-github", { "repo": "vertz-dev/vertz" }],
+  "commit": false,
+  "fixed": [["@vertz/schema", "@vertz/core", "@vertz/compiler", "@vertz/testing"]],
   "ignore": [],
-  "bumpVersionsWithWorkspaceProtocolOnly": true
+  "linked": [],
+  "updateInternalDependencies": "patch"
 }
