@@ -178,16 +178,24 @@ Vertz is in active development. Here's where things stand:
 
 | Package | Status | Description |
 |---------|--------|-------------|
-| `@vertz/schema` | Stable | Runtime validation, type inference, JSON Schema / OpenAPI output |
-| `@vertz/core` | In progress | HTTP framework, modules, middleware, DI, routing |
-| `@vertz/compiler` | In progress | Static analysis, dependency validation, code generation |
-| `@vertz/testing` | In progress | Integration test utilities, typed route testing |
+| `@vertz/schema` | Stable | 40+ schema types, runtime validation, type inference, JSON Schema / OpenAPI output |
+| `@vertz/core` | Stable | App factory, modules, services, routers, middleware, DI, CORS, env validation, exception handling |
+| `@vertz/compiler` | Stable | 8 analyzers, 4 validators, 5 generators (OpenAPI, boot sequence, route table, schema registry, manifest), incremental compilation |
+| `@vertz/testing` | Stable | `createTestApp()` with service/middleware mocking, `createTestService()` for unit testing |
 
-The schema package is feature-complete. Core has the module system, routing, middleware, and env validation working. The compiler (which validates your entire app at build time) is being built phase by phase.
+The core runtime handles HTTP requests end-to-end: routing (trie-based), schema validation on params/body/query, middleware with typed context, service injection, CORS, and structured error responses. The compiler statically analyzes your app and generates OpenAPI specs, route tables, and app manifests.
+
+`app.handler` returns a standard `(Request) => Promise<Response>` function that works with any runtime:
+
+```typescript
+Bun.serve({ fetch: app.handler });          // Bun
+Deno.serve(app.handler);                    // Deno
+export default { fetch: app.handler };      // Cloudflare Workers
+```
 
 This is pre-release software. APIs will change. But the architecture and philosophy are stable — and that's the part that matters most right now.
 
-> **Note:** The `app.listen()` convenience method shown in examples above is [in design](https://github.com/vertz-dev/vertz/issues/70) but not yet implemented. Currently, use `app.handler` to access the raw request handler for your runtime (e.g. `Bun.serve({ fetch: app.handler })`).
+> **Note:** The `app.listen()` convenience method is [in design](https://github.com/vertz-dev/vertz/issues/70). Currently, use `app.handler` directly as shown above.
 
 ## Getting Started
 
