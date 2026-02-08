@@ -1,0 +1,20 @@
+{
+  "name": "@vertz/ui-poc",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "bench": "vitest bench"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-morph": "^25.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0",
+    "magic-string": "^0.30.0",
+    "happy-dom": "^18.0.0"
+  }
+}
