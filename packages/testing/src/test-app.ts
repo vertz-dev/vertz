@@ -1,4 +1,10 @@
-import type { HandlerCtx, NamedMiddlewareDef, NamedModule, NamedServiceDef } from '@vertz/core';
+import {
+  BadRequestException,
+  type HandlerCtx,
+  type NamedMiddlewareDef,
+  type NamedModule,
+  type NamedServiceDef,
+} from '@vertz/core';
 import type { ResolvedMiddleware } from '@vertz/core/internals';
 import {
   buildCtx,
@@ -67,11 +73,26 @@ interface PerRequestMocks {
   middlewares: Map<NamedMiddlewareDef, Record<string, unknown>>;
 }
 
+type SchemaLike = { parse(value: unknown): unknown };
+
+function validateSchema(schema: SchemaLike, value: unknown, label: string): unknown {
+  try {
+    return schema.parse(value);
+  } catch (error) {
+    if (error instanceof BadRequestException) throw error;
+    const message = error instanceof Error ? error.message : `Invalid ${label}`;
+    throw new BadRequestException(message);
+  }
+}
+
 interface RouteEntry {
   handler: (ctx: HandlerCtx) => unknown;
   options: Record<string, unknown>;
   services: Record<string, unknown>;
   responseSchema?: { safeParse(value: unknown): { success: boolean; error?: { message: string } } };
+  bodySchema?: SchemaLike;
+  querySchema?: SchemaLike;
+  headersSchema?: SchemaLike;
 }
 
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
@@ -113,6 +134,9 @@ export function createTestApp(): TestApp {
             options: options ?? {},
             services: resolvedServices,
             responseSchema: route.config.response as RouteEntry['responseSchema'],
+            bodySchema: route.config.body as SchemaLike | undefined,
+            querySchema: route.config.query as SchemaLike | undefined,
+            headersSchema: route.config.headers as SchemaLike | undefined,
           };
           trie.add(route.method, fullPath, entry);
         }
@@ -168,8 +192,22 @@ export function createTestApp(): TestApp {
         const middlewareState = await runMiddlewareChain(resolvedMiddlewares, shared);
         const entry = match.handler;
 
+        const validatedBody = entry.bodySchema
+          ? validateSchema(entry.bodySchema, body, 'body')
+          : body;
+        const validatedQuery = entry.querySchema
+          ? validateSchema(entry.querySchema, parsed.query, 'query')
+          : parsed.query;
+        const validatedHeaders = entry.headersSchema
+          ? validateSchema(entry.headersSchema, parsed.headers, 'headers')
+          : parsed.headers;
+
         const ctx = buildCtx({
-          ...shared,
+          params: match.params,
+          body: validatedBody,
+          query: validatedQuery as Record<string, unknown>,
+          headers: validatedHeaders as Record<string, string>,
+          raw,
           middlewareState,
           services: entry.services,
           options: entry.options,

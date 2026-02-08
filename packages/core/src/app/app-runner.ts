@@ -1,4 +1,5 @@
 import { buildCtx } from '../context/ctx-builder';
+import { BadRequestException } from '../exceptions';
 import type { NamedMiddlewareDef } from '../middleware/middleware-def';
 import { type ResolvedMiddleware, runMiddlewareChain } from '../middleware/middleware-runner';
 import type { NamedModule } from '../module/module';
@@ -15,11 +16,26 @@ export interface ModuleRegistration {
   options?: Record<string, unknown>;
 }
 
+type SchemaLike = { parse(value: unknown): unknown };
+
+function validateSchema(schema: SchemaLike, value: unknown, label: string): unknown {
+  try {
+    return schema.parse(value);
+  } catch (error) {
+    if (error instanceof BadRequestException) throw error;
+    const message = error instanceof Error ? error.message : `Invalid ${label}`;
+    throw new BadRequestException(message);
+  }
+}
+
 interface RouteEntry {
   handler: (ctx: HandlerCtx) => unknown;
   options: Record<string, unknown>;
   services: Record<string, unknown>;
-  paramsSchema?: { parse(value: unknown): unknown };
+  paramsSchema?: SchemaLike;
+  bodySchema?: SchemaLike;
+  querySchema?: SchemaLike;
+  headersSchema?: SchemaLike;
 }
 
 function resolveServices(registrations: ModuleRegistration[]): Map<NamedServiceDef, unknown> {
@@ -74,7 +90,10 @@ function registerRoutes(
           handler: route.config.handler,
           options: options ?? {},
           services: resolvedServices,
-          paramsSchema: route.config.params as { parse(value: unknown): unknown } | undefined,
+          paramsSchema: route.config.params as SchemaLike | undefined,
+          bodySchema: route.config.body as SchemaLike | undefined,
+          querySchema: route.config.query as SchemaLike | undefined,
+          headersSchema: route.config.headers as SchemaLike | undefined,
         };
         trie.add(route.method, fullPath, entry);
       }
@@ -140,16 +159,25 @@ export function buildHandler(
 
       const entry = match.handler;
 
-      // Validate params using schema if provided
+      // Validate schemas if provided
       const validatedParams = entry.paramsSchema
-        ? entry.paramsSchema.parse(match.params)
+        ? validateSchema(entry.paramsSchema, match.params, 'params')
         : match.params;
+      const validatedBody = entry.bodySchema
+        ? validateSchema(entry.bodySchema, body, 'body')
+        : body;
+      const validatedQuery = entry.querySchema
+        ? validateSchema(entry.querySchema, parsed.query, 'query')
+        : parsed.query;
+      const validatedHeaders = entry.headersSchema
+        ? validateSchema(entry.headersSchema, parsed.headers, 'headers')
+        : parsed.headers;
 
       const ctx = buildCtx({
         params: validatedParams as Record<string, unknown>,
-        body,
-        query: parsed.query,
-        headers: parsed.headers,
+        body: validatedBody,
+        query: validatedQuery as Record<string, unknown>,
+        headers: validatedHeaders as Record<string, string>,
         raw,
         middlewareState,
         services: entry.services,
