@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
+    "test:bun": "RUNTIME=bun vitest run",
+    "test:node": "RUNTIME=node vitest run",
+    "test:deno": "RUNTIME=deno vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
