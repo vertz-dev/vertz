@@ -1,12 +1,17 @@
 import type { NamedMiddlewareDef } from '../middleware/middleware-def';
 import type { NamedModule } from '../module/module';
 import type { AppConfig } from '../types/app';
+import type { ListenOptions, ServerHandle } from '../types/server-adapter';
 import { buildHandler, type ModuleRegistration } from './app-runner';
+import { detectAdapter } from './detect-adapter';
+
+const DEFAULT_PORT = 3000;
 
 export interface AppBuilder {
   register(module: NamedModule, options?: Record<string, unknown>): AppBuilder;
   middlewares(list: NamedMiddlewareDef[]): AppBuilder;
   readonly handler: (request: Request) => Promise<Response>;
+  listen(port?: number, options?: ListenOptions): Promise<ServerHandle>;
 }
 
 export function createApp(config: AppConfig): AppBuilder {
@@ -28,6 +33,10 @@ export function createApp(config: AppConfig): AppBuilder {
         cachedHandler = buildHandler(config, registrations, globalMiddlewares);
       }
       return cachedHandler;
+    },
+    async listen(port, options) {
+      const adapter = detectAdapter();
+      return adapter.listen(port ?? DEFAULT_PORT, builder.handler, options);
     },
   };
 
