@@ -2,11 +2,13 @@
   "compilerOptions": {
     "exactOptionalPropertyTypes": false,
     "isolatedDeclarations": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
     "noUncheckedIndexedAccess": true,
     "outDir": "dist",
     "rootDir": "src"
   },
-  "exclude": ["node_modules", "dist", "**/*.test.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"],
   "extends": "../../tsconfig.json",
   "include": ["src"]
 }
