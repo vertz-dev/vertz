@@ -137,15 +137,17 @@ vertz dev [--port <port>] [--host <host>] [--open] [--no-typecheck]
 **Behavior:**
 
 1. Load `vertz.config.ts`
-2. Run initial full compilation via `@vertz/compiler`
-3. Display compilation progress with `CompilationProgress` component
-4. If errors: render diagnostics with `DiagnosticDisplay`, keep watching
-5. If success: start app process with `bun run` (fallback: `tsx`)
-6. Start non-blocking `tsc --noEmit --watch` in background
-7. Watch `src/` for changes
-8. On file change: determine scope (which module changed), run incremental compilation, restart app
-9. On `.env` change: full restart (kill process, recompile, relaunch)
-10. On `vertz.config.ts` change: full restart with fresh compilation
+2. Create compiler via `createCompiler({ ...config, forceGenerate: true })`
+3. Create `IncrementalCompiler` and run `initialCompile()`
+4. Display compilation progress with `CompilationProgress` component
+5. If errors: render diagnostics with `DiagnosticDisplay`, keep watching (output still generated due to `forceGenerate`)
+6. If success: start app process with `bun run` (fallback: `tsx`)
+7. Start non-blocking typecheck via `typecheckWatch()` AsyncGenerator
+8. Watch `src/` for changes, map events to `FileChange[]`
+9. On file change: call `incremental.handleChanges(changes)`, handle by result kind:
+   - `incremental` -- render affected modules + diagnostics, restart if no errors
+   - `full-recompile` -- render full result, restart
+   - `reboot` -- kill process, recreate compiler with fresh config, restart
 
 **Terminal Output:**
 
@@ -168,7 +170,7 @@ On file change with diagnostics:
 
   ⠋ Recompiling user module...
 
-  VERTZ003  Missing response schema
+  VERTZ_MISSING_RESPONSE_SCHEMA  Missing response schema
   ╭─ src/modules/user/routers/user.router.ts:14:1
   │
   12 │ userRouter.get('/:id', {
@@ -204,11 +206,12 @@ vertz build [--output <dir>] [--strict] [--no-emit]
 **Behavior:**
 
 1. Load `vertz.config.ts`
-2. Run full compilation
-3. Run blocking `tsc --noEmit` -- type errors fail the build
-4. Run strict mode checks if `strict: true` in config or `--strict` flag
-5. Generate all 5 outputs (OpenAPI, boot sequence, route table, schema registry, manifest)
-6. Display summary with timing
+2. Create compiler via `createCompiler(config)`
+3. Run `compiler.compile()` -- full analysis, validation, generation
+4. Run blocking `typecheck({ tsconfigPath: 'tsconfig.json' })` -- type errors fail the build
+5. Strict mode checks run automatically if `strict: true` in config or `--strict` flag
+6. If no errors: all 5 output files generated to `config.compiler.outputDir`
+7. Display summary with timing
 
 **Terminal Output (success):**
 
@@ -242,12 +245,12 @@ vertz build [--output <dir>] [--strict] [--no-emit]
   ✓ Modules        4 modules   22ms
   ✗ Validation     2 errors
 
-  VERTZ003  Missing response schema
+  VERTZ_MISSING_RESPONSE_SCHEMA  Missing response schema
   ╭─ src/modules/user/routers/user.router.ts:14:1
   │  ...code frame...
   ╰─ hint: Add a `response` property
 
-  VERTZ012  Unused service
+  VERTZ_UNUSED_SERVICE  Unused service
   ╭─ src/modules/auth/auth.service.ts:1:1
   │  ...code frame...
   ╰─ hint: Remove the service or add it to module exports
@@ -273,11 +276,11 @@ vertz check [--strict] [--format <format>]
 
 **Behavior:**
 
-1. Load config
-2. Run full analysis (Phase 1-2 of compiler pipeline)
-3. Run validators (Phase 3)
-4. Optionally run typecheck
-5. Report diagnostics
+1. Load config, create compiler via `createCompiler(config)`
+2. Run `compiler.analyze()` to build the IR
+3. Run `compiler.validate(ir)` to get diagnostics
+4. Optionally run `typecheck({ tsconfigPath: 'tsconfig.json' })`
+5. Report all diagnostics (compiler + typecheck)
 6. Exit 0 if no errors, 1 if errors
 
 **Flags:**
@@ -291,7 +294,7 @@ vertz check [--strict] [--format <format>]
 The `--format github` flag outputs diagnostics as GitHub Actions annotations:
 
 ```
-::error file=src/modules/user/user.router.ts,line=14,col=1::VERTZ003: Missing response schema
+::error file=src/modules/user/user.router.ts,line=14,col=1::VERTZ_MISSING_RESPONSE_SCHEMA: Missing response schema
 ```
 
 ### `vertz generate`
@@ -501,11 +504,20 @@ async function buildAction(options: BuildOptions) {
   const runner = await createTaskRunner();
   const buildGroup = runner.group('Building');
 
+  const compiler = createCompiler(config);
+
   await buildGroup.task('Compile', async (task) => {
     task.update('Analyzing schemas...');
     const result = await compiler.compile();
-    if (result.success) task.succeed(`Compiled in ${result.duration}ms`);
-    else task.fail(`${result.errors.length} errors`);
+    const errors = result.diagnostics.filter(d => d.severity === 'error');
+    if (result.success) task.succeed('Compiled successfully');
+    else task.fail(`${errors.length} errors`);
+  });
+
+  await buildGroup.task('TypeCheck', async (task) => {
+    const result = await typecheck({ tsconfigPath: 'tsconfig.json' });
+    if (result.success) task.succeed('No type errors');
+    else task.fail(`${result.diagnostics.length} type errors`);
   });
 
   // ...
@@ -539,7 +551,7 @@ export const DiagnosticDisplay: React.FC<DiagnosticDisplayProps> = ({
 The code frame rendering uses `Diagnostic.sourceContext` from the compiler:
 
 ```
-  VERTZ003  Missing response schema
+  VERTZ_MISSING_RESPONSE_SCHEMA  Missing response schema
   ╭─ src/modules/user/routers/user.router.ts:14:1
   │
   12 │ userRouter.get('/:id', {
@@ -648,41 +660,124 @@ The CLI is a consumer of `@vertz/compiler`'s public API. Here's how each command
 ```typescript
 // What the CLI imports from @vertz/compiler
 import {
-  Compiler,
+  createCompiler,
+  IncrementalCompiler,
+  typecheck,
+  typecheckWatch,
+  defineConfig,
+  buildManifest,
+  type Compiler,
   type CompileResult,
-  type CompilerConfig,
+  type VertzConfig,
   type AppIR,
   type Diagnostic,
-  defineConfig,
+  type FileChange,
+  type IncrementalResult,
 } from '@vertz/compiler';
+```
 
-// Full compilation
-const compiler = new Compiler(config);
-const result: CompileResult = await compiler.compile();
-// result.success: boolean
-// result.ir: AppIR
-// result.diagnostics: Diagnostic[]
-// result.duration: number
-// result.generatedFiles: string[]
+#### Factory: `createCompiler(config?: VertzConfig): Compiler`
 
-// Incremental compilation (for watch mode)
-const result = await compiler.compileIncremental(changedFiles);
+Creates a `Compiler` instance. Resolves config with defaults, creates a `ts-morph` Project from `tsconfig.json`, and wires up analyzers, validators, and generators.
 
-// Validation only (for `vertz check`)
-const result = await compiler.validate();
-// Same shape but no generated files
+```typescript
+const compiler = createCompiler(userConfig);
+```
+
+#### Compiler class methods:
+
+```typescript
+class Compiler {
+  getConfig(): ResolvedConfig;
+  async analyze(): Promise<AppIR>;           // Phase 1: AST analysis -> IR
+  async validate(ir: AppIR): Promise<Diagnostic[]>;  // Phase 2: cross-cutting checks
+  async generate(ir: AppIR): Promise<void>;  // Phase 3: write 5 output files
+  async compile(): Promise<CompileResult>;   // All 3 phases in sequence
+}
+
+interface CompileResult {
+  success: boolean;        // true if no error-severity diagnostics
+  ir: AppIR;              // full IR with diagnostics merged in
+  diagnostics: Diagnostic[];
+}
+```
+
+#### IncrementalCompiler (for `vertz dev`):
+
+```typescript
+class IncrementalCompiler {
+  constructor(compiler: Compiler);
+  async initialCompile(): Promise<CompileResult>;
+  async handleChanges(changes: FileChange[]): Promise<IncrementalResult>;
+  getCurrentIR(): AppIR;
+}
+
+type FileChange = { path: string; kind: 'added' | 'modified' | 'deleted' };
+
+type IncrementalResult =
+  | { kind: 'reboot'; reason: string }           // .env or vertz.config.ts changed
+  | { kind: 'full-recompile' }                    // app entry file changed
+  | { kind: 'incremental'; affectedModules: string[]; diagnostics: Diagnostic[] };
+```
+
+The `IncrementalCompiler` categorizes changed files by naming convention (`*.schema.ts`, `*.router.ts`, `*.service.ts`, `*.module.ts`, `middleware/` directory, `.env*`, `vertz.config.ts`, entry file) and determines the minimal scope of re-analysis. It merges partial IR updates into the full IR via `mergeIR()`, then re-validates and regenerates.
+
+#### Typecheck (separate from compiler):
+
+```typescript
+// One-shot typecheck (for `vertz build`)
+const result = await typecheck({ tsconfigPath: 'tsconfig.json' });
+// result.success: boolean, result.diagnostics: TypecheckDiagnostic[]
+
+// Watch mode typecheck (for `vertz dev`)
+for await (const result of typecheckWatch({ tsconfigPath: 'tsconfig.json' })) {
+  // Each result emitted after tsc reports "Found N errors"
+  renderTypecheckDiagnostics(result.diagnostics);
+}
+```
+
+#### Standalone generator access (for selective generation):
+
+Individual generators can be imported and used directly. Useful for `vertz routes` which only needs the manifest:
+
+```typescript
+import { buildManifest, buildRouteTable } from '@vertz/compiler';
+
+const manifest = buildManifest(ir);    // manifest.json data
+const routes = buildRouteTable(ir);    // route table data
 ```
 
 ### Command -> Compiler Mapping
 
 | Command | Compiler API | Generates Files? |
 |---------|-------------|-----------------|
-| `vertz dev` | `compiler.compile()` initially, then `compiler.compileIncremental()` on change | Yes (for app to consume) |
-| `vertz build` | `compiler.compile()` | Yes |
-| `vertz check` | `compiler.validate()` | No |
-| `vertz routes` | Reads `manifest.json` from last build (or runs `compiler.compile()` if stale) | No |
+| `vertz dev` | `IncrementalCompiler.initialCompile()` then `.handleChanges()` + `typecheckWatch()` | Yes (via compiler) |
+| `vertz build` | `compiler.compile()` + `typecheck()` (blocking) | Yes |
+| `vertz check` | `compiler.analyze()` + `compiler.validate(ir)` + optionally `typecheck()` | No |
+| `vertz routes` | `compiler.analyze()` then `buildRouteTable(ir)` or `buildManifest(ir)` | No |
 | `vertz generate` | No compiler needed | Yes (scaffolded files) |
 | `vertz deploy` | No compiler needed | Yes (deployment configs) |
+
+### Config Types
+
+```typescript
+interface VertzConfig {
+  strict?: boolean;           // default false
+  forceGenerate?: boolean;    // default false -- generate even with errors (useful for dev)
+  compiler?: Partial<CompilerConfig>;
+}
+
+interface CompilerConfig {
+  sourceDir: string;          // default 'src'
+  outputDir: string;          // default '.vertz/generated'
+  entryFile: string;          // default 'src/app.ts'
+  schemas: { enforceNaming: boolean; enforcePlacement: boolean; };
+  openapi: { output: string; info: { title: string; version: string; description?: string } };
+  validation: { requireResponseSchema: boolean; detectDeadCode: boolean; };
+}
+```
+
+The CLI sets `forceGenerate: true` for `vertz dev` so partial output is available even with errors, and `forceGenerate: false` for `vertz build` where errors should block generation.
 
 ### Diagnostic Flow
 
@@ -690,7 +785,7 @@ const result = await compiler.validate();
 Compiler produces:
   Diagnostic {
     severity: 'error' | 'warning' | 'info',
-    code: 'VERTZ003',
+    code: 'VERTZ_MISSING_RESPONSE_SCHEMA',  // descriptive snake_case codes
     message: 'Missing response schema',
     file: 'src/modules/user/user.router.ts',
     line: 14, column: 1,
@@ -868,76 +963,95 @@ The process manager:
 
 ### Dev Loop
 
+The dev loop uses `IncrementalCompiler` for efficient recompilation and `typecheckWatch()` as a parallel AsyncGenerator for non-blocking type checking.
+
 ```typescript
 // dev-server/dev-loop.ts
+import {
+  createCompiler,
+  IncrementalCompiler,
+  typecheckWatch,
+  type FileChange,
+} from '@vertz/compiler';
+
 export async function startDevLoop(options: DevOptions): Promise<void> {
   const config = await loadConfig();
-  const compiler = new Compiler(config);
-  const watcher = createWatcher(config.sourceDir);
-  const process = createProcessManager();
-  const typecheck = new TypeCheckWorker();
+  const compiler = createCompiler({ ...config, forceGenerate: true });
+  const incremental = new IncrementalCompiler(compiler);
+  const watcher = createWatcher(compiler.getConfig().compiler.sourceDir);
+  const appProcess = createProcessManager();
 
   // Initial compilation
-  const result = await compiler.compile();
+  const result = await incremental.initialCompile();
   renderCompilationResult(result);
 
   if (result.success) {
-    await process.start(config.entryPoint);
+    await appProcess.start(compiler.getConfig().compiler.entryFile);
     renderServerStatus(/* ... */);
   }
 
-  // Start non-blocking typecheck
+  // Start non-blocking typecheck (AsyncGenerator)
   if (!options.noTypecheck) {
-    typecheck.start(config.sourceDir);
-    typecheck.onDiagnostic((d) => renderTypecheckDiagnostic(d));
+    (async () => {
+      for await (const tchk of typecheckWatch({ tsconfigPath: 'tsconfig.json' })) {
+        renderTypecheckDiagnostics(tchk.diagnostics);
+      }
+    })();
   }
 
   // Watch loop
   watcher.on('change', async (events) => {
-    const changedFiles = events.map(e => e.path);
+    const changes: FileChange[] = events.map(e => ({
+      path: e.path,
+      kind: e.type === 'add' ? 'added' : e.type === 'remove' ? 'deleted' : 'modified',
+    }));
 
-    // Special cases
-    if (changedFiles.some(isEnvFile)) {
-      await process.stop();
-      const result = await compiler.compile(); // full recompile
-      if (result.success) await process.start(config.entryPoint);
-      return;
-    }
+    const result = await incremental.handleChanges(changes);
 
-    if (changedFiles.some(isConfigFile)) {
-      await process.stop();
-      config = await loadConfig(); // reload config
-      const result = await compiler.compile();
-      if (result.success) await process.start(config.entryPoint);
-      return;
-    }
+    switch (result.kind) {
+      case 'reboot':
+        // .env or vertz.config.ts changed -- full restart
+        await appProcess.stop();
+        const freshConfig = await loadConfig();
+        const freshCompiler = createCompiler({ ...freshConfig, forceGenerate: true });
+        // Re-initialize incremental compiler with fresh compiler
+        const freshIncremental = new IncrementalCompiler(freshCompiler);
+        const freshResult = await freshIncremental.initialCompile();
+        renderCompilationResult(freshResult);
+        if (freshResult.success) {
+          await appProcess.start(freshCompiler.getConfig().compiler.entryFile);
+        }
+        break;
 
-    // Incremental compilation
-    const result = await compiler.compileIncremental(changedFiles);
-    renderCompilationResult(result);
+      case 'full-recompile':
+        // App entry file changed -- result already contains full recompile
+        renderCompilationResult(result);
+        await appProcess.restart();
+        break;
 
-    if (result.success) {
-      await process.restart();
+      case 'incremental':
+        // Partial recompile of affected modules
+        renderIncrementalResult(result.affectedModules, result.diagnostics);
+        const hasErrors = result.diagnostics.some(d => d.severity === 'error');
+        if (!hasErrors) {
+          await appProcess.restart();
+        }
+        break;
     }
   });
 }
 ```
 
-### TypeCheck Worker
+### TypeCheck Integration
+
+The compiler exports `typecheckWatch()` as an AsyncGenerator, which the CLI consumes directly. No custom worker class needed -- the compiler handles spawning `tsc --noEmit --watch` and parsing its output.
 
 ```typescript
-// dev-server/typecheck-worker.ts
-export class TypeCheckWorker {
-  private process: ChildProcess | null = null;
-
-  start(sourceDir: string): void {
-    // Spawn tsc --noEmit --watch in background
-    // Parse its output to extract diagnostics
-    // Report via callback -- never blocks the dev server
-  }
-
-  onDiagnostic(handler: (diagnostic: TscDiagnostic) => void): void;
-  stop(): void;
+// The CLI just iterates the generator:
+for await (const result of typecheckWatch({ tsconfigPath: 'tsconfig.json' })) {
+  // result.success: boolean
+  // result.diagnostics: TypecheckDiagnostic[]
+  renderTypecheckDiagnostics(result.diagnostics);
 }
 ```
 
@@ -1038,13 +1152,31 @@ function findConfigFile(from: string): string | null {
 
 ### Default Configuration
 
+The CLI extends `VertzConfig` (from `@vertz/compiler`) with CLI-specific options for dev server and generators:
+
 ```typescript
 // config/defaults.ts
-export const defaultConfig: VertzConfig = {
+import type { VertzConfig } from '@vertz/compiler';
+
+// CLI extends VertzConfig with dev/generator options
+export interface CLIConfig extends VertzConfig {
+  dev?: {
+    port?: number;
+    host?: string;
+    open?: boolean;
+    typecheck?: boolean;
+  };
+  generators?: Record<string, GeneratorDefinition>;
+}
+
+export const defaultCLIConfig: CLIConfig = {
+  // VertzConfig defaults (compiler resolves these too, but CLI shows them in help)
   strict: false,
+  forceGenerate: false,
   compiler: {
     sourceDir: 'src',
     outputDir: '.vertz/generated',
+    entryFile: 'src/app.ts',
     schemas: {
       enforceNaming: true,
       enforcePlacement: true,
@@ -1058,6 +1190,7 @@ export const defaultConfig: VertzConfig = {
       detectDeadCode: true,
     },
   },
+  // CLI-specific defaults
   dev: {
     port: 3000,
     host: 'localhost',
