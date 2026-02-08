@@ -1137,13 +1137,39 @@ The north star: if a developer writes semantic HTML with Vertz UI, the result is
 
 ## 19. Runtime Size Budget
 
-| Module | Estimated gzip size |
-|--------|-------------------|
-| Signal core (`signal`, `computed`, `effect`) | ~1.5 KB |
-| DOM helpers (`__text`, `__element`, `__attr`, `__on`, `__conditional`, `__list`) | ~2 KB |
-| Lifecycle (`onMount`, `onCleanup`, `watch`, context) | ~0.5 KB |
-| Suspense + ErrorBoundary | ~0.5 KB |
-| **Total runtime** | **~4.5 KB** |
-| Router + query() + form() | ~3 KB (loaded separately) |
+| Module | Estimated gzip size | POC measured |
+|--------|-------------------|-------------|
+| Signal core (`signal`, `computed`, `effect`) | ~1.5 KB | 433 B |
+| DOM helpers (`__text`, `__element`, `__attr`, `__on`, `__conditional`, `__list`) | ~2 KB | ~550 B |
+| Lifecycle (`onMount`, `onCleanup`, `watch`, context) | ~0.5 KB | ~200 B |
+| Suspense + ErrorBoundary | ~0.5 KB | — |
+| **Total runtime** | **~4.5 KB** | **1.13 KB** |
+| Router + query() + form() | ~3 KB (loaded separately) | — |
 
 For comparison: React is ~45 KB, Preact is ~4 KB, Solid is ~7 KB, Svelte runtime is ~2 KB.
+
+---
+
+## 20. POC Validation Notes
+
+> Validated via `poc/ui-validation` branch (PR #100, closed). 82 tests, all passing.
+
+### Implementation details to address
+
+1. **Branch cleanup ownership (Phase 3):** Conditional and list rendering need a scope/ownership system. Each branch's effects must be tracked and disposed when the branch is removed. Standard in Solid and Svelte.
+
+2. **Max iteration guard for watch() (Phase 3):** Add a production safety valve (e.g., 100 re-runs) to catch accidental infinite loops in `watch()` callbacks, with a clear error message pointing to the offending call.
+
+3. **AST-based computed body rewriting (Phase 2):** The compiler must use AST-based rewriting (not regex) when rewriting computed expression bodies. Regex replacement can produce incorrect results with variable names that are substrings of other identifiers (e.g., `x` matching inside `xMax`).
+
+4. **Props object creation (Phase 2):** Standardize on `Object.defineProperties(Object.create(null), { ... })` for component props to ensure getter-based reactivity works reliably with all prop patterns including spreads.
+
+### POC benchmark results (Apple Silicon, Bun 1.3.8)
+
+| Benchmark | ops/sec |
+|-----------|---------|
+| signal create + get + set (1000x) | 37,798 |
+| computed chain (depth=10, 100 updates) | 36,260 |
+| effect with 100 signals, batch update | 51,635 |
+| 1000 subscribers on one signal | 13,707 |
+| diamond dependency (100 updates) | 61,590 |
