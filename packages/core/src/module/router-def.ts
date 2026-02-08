@@ -1,14 +1,12 @@
 import type { HandlerCtx } from '../types/context';
 import type { RouterDef } from '../types/module';
 
-// Helper type to infer output from schema
 type InferOutput<T> = T extends { _output: infer O }
   ? O
   : T extends { parse(v: unknown): infer P }
     ? P
     : unknown;
 
-// Compute typed context from schemas
 type TypedHandlerCtx<
   TParams = unknown,
   TQuery = unknown,
@@ -50,7 +48,7 @@ export interface Route {
 }
 
 type HttpMethodFn = <TParams, TQuery, THeaders, TBody>(
-  path: string,
+  path: `/${string}`,
   config: RouteConfig<TParams, TQuery, THeaders, TBody>,
 ) => NamedRouterDef;
 
@@ -71,6 +69,9 @@ export function createRouterDef(moduleName: string, config: RouterDef): NamedRou
   const routes: Route[] = [];
 
   function addRoute(method: string, path: string, routeConfig: RouteConfig): NamedRouterDef {
+    if (!path.startsWith('/')) {
+      throw new Error(`Route path must start with '/', got '${path}'`);
+    }
     routes.push({ method, path, config: routeConfig });
     return router;
   }

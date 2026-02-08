@@ -89,3 +89,24 @@ import { createModuleDef } from '../module-def';
     },
   });
 }
+
+// Test 4: Path must start with /
+{
+  const moduleDef = createModuleDef({ name: 'test' });
+  const router = moduleDef.router({ prefix: '/users' });
+
+  // @ts-expect-error - path must start with /
+  router.get(':id', { handler: () => {} });
+
+  // @ts-expect-error - empty string is not a valid path
+  router.post('', { handler: () => {} });
+
+  // @ts-expect-error - path without leading / is invalid
+  router.put('users', { handler: () => {} });
+
+  // Valid paths should compile without errors
+  router.get('/', { handler: () => {} });
+  router.get('/:id', { handler: () => {} });
+  router.get('/:param/nested', { handler: () => {} });
+  router.delete('/nested/:param/path', { handler: () => {} });
+}

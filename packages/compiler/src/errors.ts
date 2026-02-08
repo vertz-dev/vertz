@@ -33,6 +33,7 @@ export type DiagnosticCode =
   | 'VERTZ_RT_MISSING_HANDLER'
   | 'VERTZ_RT_MISSING_PREFIX'
   | 'VERTZ_RT_DYNAMIC_CONFIG'
+  | 'VERTZ_RT_INVALID_PATH'
   | 'VERTZ_ROUTE_DUPLICATE'
   | 'VERTZ_ROUTE_PARAM_MISMATCH'
   | 'VERTZ_ROUTE_MISSING_RESPONSE'
@@ -67,18 +68,7 @@ export interface Diagnostic {
   sourceContext?: SourceContext;
 }
 
-export interface CreateDiagnosticOptions {
-  severity: DiagnosticSeverity;
-  code: DiagnosticCode;
-  message: string;
-  file?: string;
-  line?: number;
-  column?: number;
-  endLine?: number;
-  endColumn?: number;
-  suggestion?: string;
-  sourceContext?: SourceContext;
-}
+export type CreateDiagnosticOptions = Diagnostic;
 
 export function createDiagnostic(options: CreateDiagnosticOptions): Diagnostic {
   return { ...options };

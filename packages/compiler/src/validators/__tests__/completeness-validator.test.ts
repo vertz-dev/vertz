@@ -922,4 +922,90 @@ describe('CompletenessValidator', () => {
       expect(optErrors.at(0)?.message).toContain("'user'");
     });
   });
+
+  describe('route path must start with /', () => {
+    it('emits error when route path does not start with /', async () => {
+      const validator = new CompletenessValidator();
+      const ir = makeIR({
+        modules: [
+          makeModule({
+            name: 'user',
+            routers: [
+              makeRouter({
+                name: 'userRouter',
+                routes: [
+                  makeRoute({
+                    method: 'GET',
+                    path: ':id',
+                    fullPath: '/users/:id',
+                    response: { kind: 'named', schemaName: 'x', sourceFile: 't' },
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+      const diags = await validator.validate(ir);
+      const pathErrors = diags.filter((d) => d.code === 'VERTZ_RT_INVALID_PATH');
+      expect(pathErrors).toHaveLength(1);
+      expect(pathErrors.at(0)?.severity).toBe('error');
+      expect(pathErrors.at(0)?.message).toContain(':id');
+    });
+
+    it('no diagnostics when route path starts with /', async () => {
+      const validator = new CompletenessValidator();
+      const ir = makeIR({
+        modules: [
+          makeModule({
+            name: 'user',
+            routers: [
+              makeRouter({
+                name: 'userRouter',
+                routes: [
+                  makeRoute({
+                    method: 'GET',
+                    path: '/:id',
+                    fullPath: '/users/:id',
+                    response: { kind: 'named', schemaName: 'x', sourceFile: 't' },
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+      const diags = await validator.validate(ir);
+      const pathErrors = diags.filter((d) => d.code === 'VERTZ_RT_INVALID_PATH');
+      expect(pathErrors).toEqual([]);
+    });
+
+    it('emits error for path without leading / with suggestion', async () => {
+      const validator = new CompletenessValidator();
+      const ir = makeIR({
+        modules: [
+          makeModule({
+            name: 'user',
+            routers: [
+              makeRouter({
+                name: 'userRouter',
+                routes: [
+                  makeRoute({
+                    method: 'POST',
+                    path: 'create',
+                    fullPath: '/users/create',
+                    response: { kind: 'named', schemaName: 'x', sourceFile: 't' },
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      });
+      const diags = await validator.validate(ir);
+      const pathErrors = diags.filter((d) => d.code === 'VERTZ_RT_INVALID_PATH');
+      expect(pathErrors).toHaveLength(1);
+      expect(pathErrors.at(0)?.suggestion).toContain('/create');
+    });
+  });
 });
