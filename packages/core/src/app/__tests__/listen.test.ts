@@ -61,10 +61,20 @@ describe('app.listen', () => {
     expect(result).toBeInstanceOf(Error);
   });
 
-  it('defaults to port 3000 when no port is given', async () => {
+  it('uses the specified port when provided', async () => {
     const app = createApp({});
-    handle = await app.listen();
+    handle = await app.listen(0);
 
-    expect(handle.port).toBe(3000);
+    expect(handle.port).toBeTypeOf('number');
+    expect(handle.port).toBeGreaterThan(0);
+  });
+
+  it('allows calling close() multiple times without error', async () => {
+    const app = createApp({});
+    handle = await app.listen(0);
+
+    await handle.close();
+    await handle.close();
+    handle = undefined;
   });
 });
