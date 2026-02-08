@@ -5,7 +5,7 @@
  * Run a single check: dagger call lint / dagger call build / dagger call typecheck / dagger call test
  * Debug shell: dagger call base terminal
  */
-import { dag, Container, Directory, object, func, argument } from "@dagger.io/dagger"
+import { argument, type Container, type Directory, dag, func, object } from "@dagger.io/dagger"
 
 @object()
 export class Ci {
@@ -83,6 +83,40 @@ export class Ci {
       .withExec(["bun", "run", "--filter", "*", "build"])
       .withExec(["bun", "test"])
       .withExec(["echo", "Tests passed"])
+      .stdout()
+  }
+
+  /**
+   * Run static checks: lint, build, typecheck (no tests).
+   */
+  @func()
+  async check(
+    @argument({ defaultPath: "/", ignore: ["node_modules", ".git", "dist", "build", "coverage", ".nyc_output", "*.tsbuildinfo", "ci"] })
+    source: Directory,
+  ): Promise<string> {
+    return this.base(source)
+      .withExec(["bun", "run", "lint"])
+      .withExec(["bun", "run", "--filter", "*", "build"])
+      .withExec(["bun", "run", "typecheck"])
+      .withExec(["echo", "Check passed"])
+      .stdout()
+  }
+
+  /**
+   * Run integration tests for a specific runtime (bun, node, or deno).
+   * Builds first since tests may import from workspace packages.
+   */
+  @func()
+  async testRuntime(
+    @argument({ defaultPath: "/", ignore: ["node_modules", ".git", "dist", "build", "coverage", ".nyc_output", "*.tsbuildinfo", "ci"] })
+    source: Directory,
+    runtime: string = "bun",
+  ): Promise<string> {
+    return this.base(source)
+      .withExec(["bun", "run", "--filter", "*", "build"])
+      .withEnvVariable("RUNTIME", runtime)
+      .withExec(["bun", "test"])
+      .withExec(["echo", `Tests passed for runtime: ${runtime}`])
       .stdout()
   }
 
