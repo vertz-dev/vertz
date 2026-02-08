@@ -470,15 +470,52 @@ class NotFoundError extends FetchError { status = 404 }
 
 ### Generated Output Structure
 
+All codegen output goes inside a `generated/` subfolder within the SDK package. Files outside `generated/` are **user-owned** — scaffolded once on first run, never overwritten.
+
 ```
-sdk/                              — or publishable package root
-  client.ts           — typed SDK client using @vertz/fetch
-  types.ts            — all operation input/output types
-  types/
-    augment.ts        — type augmentation entry point (declare module)
-  schemas.ts          — re-exports of @vertz/schema objects
-  index.ts            — barrel export
-  package.json        — (optional) for publishable SDK packages
+my-sdk/                           — publishable package root (user-owned)
+  package.json        — scaffolded once, never overwritten
+  index.ts            — scaffolded once, never overwritten (user adds custom re-exports)
+  src/                — user's custom utilities (optional, entirely user-owned)
+    helpers.ts
+    middleware.ts
+  generated/          — codegen-owned, fully overwritten on every run
+    client.ts         — typed SDK client using @vertz/fetch
+    types.ts          — all operation input/output types
+    types/
+      augment.ts      — type augmentation entry point (declare module)
+    schemas.ts        — re-exports of @vertz/schema objects
+    index.ts          — barrel export of all generated code
+```
+
+**Rules**:
+1. `generated/` is **fully overwritten** on every `vertz generate` — users must never edit files in there
+2. Root `index.ts` is **scaffolded once** — if it already exists, codegen does not touch it
+3. Root `package.json` is **scaffolded once** — same rule, never overwritten
+4. The scaffolded `index.ts` re-exports everything from `generated/` by default, but users can add their own exports
+5. Users add custom utilities anywhere outside `generated/` (e.g., `src/helpers.ts`) and re-export from root `index.ts`
+
+**Scaffolded `index.ts`** (generated only if file doesn't exist):
+
+```typescript
+// This file is yours — add custom re-exports and utilities here.
+// The generated/ folder is overwritten on every `vertz generate`.
+
+export * from './generated';
+
+// Add your custom exports below:
+// export { myHelper } from './src/helpers';
+```
+
+**Non-publishable mode** (default): output goes to `.vertz/generated/` — no scaffolded files, the `generated/` folder is the entire output. This is for internal consumption (e.g., same-repo frontend importing types).
+
+```
+.vertz/
+  generated/          — codegen-owned, gitignored, fully overwritten
+    client.ts
+    types.ts
+    schemas.ts
+    index.ts
 ```
 
 ### client.ts — The SDK Client
@@ -1152,6 +1189,8 @@ interface CodegenConfig {
     publishable?: {
       /** Package name, e.g., '@myapp/sdk' */
       name: string;
+      /** Output directory for the package. e.g., 'packages/sdk' */
+      outputDir: string;
       /** Package version. Default: '0.0.0' */
       version?: string;
     };
@@ -1167,6 +1206,8 @@ interface CodegenConfig {
     publishable?: {
       /** Package name, e.g., '@myapp/cli' */
       name: string;
+      /** Output directory for the package. e.g., 'packages/cli' */
+      outputDir: string;
       /** CLI binary name, e.g., 'myapp' */
       binName: string;
       /** Package version. Default: '0.0.0' */
@@ -1182,17 +1223,46 @@ type GeneratorName = 'typescript' | 'cli';
 
 ## 14. Output Location
 
-Generated files go to `.vertz/generated/` (the existing `outputDir` from `ResolvedConfig.compiler.outputDir`) unless `publishable` is configured, in which case the SDK/CLI output goes to a dedicated package directory.
+Two modes based on configuration:
 
-**Gitignored by default** (for non-publishable output). The `.vertz/` directory is regenerated on every `vertz build` / `vertz generate` / `vertz dev`. Rationale:
+### Non-publishable (default)
+
+Output goes to `.vertz/generated/` — the entire folder is codegen-owned and gitignored:
+
+```
+.vertz/
+  generated/          ← fully overwritten, gitignored
+    client.ts
+    types.ts
+    schemas.ts
+    index.ts
+```
+
+Rationale:
 - Avoids merge conflicts on generated code
 - Keeps the repo clean
-- IDE picks up types from the generated directory via `tsconfig.json` paths
+- IDE picks up types via `tsconfig.json` paths
 - CI runs `vertz build` before consuming generated types
 
-**Committed when publishable**. Publishable SDK/CLI packages are written to a configured directory (e.g., `packages/sdk/`, `packages/cli/`) and committed to the repo. They're treated as generated-but-versioned code, similar to lock files.
+### Publishable
 
-The generated directory should include a `.gitignore` with `*` and a `.gitkeep` so the directory structure exists in the repo but contents are ignored.
+Output goes to a user-configured directory (e.g., `packages/sdk/`). Codegen only writes inside the `generated/` subfolder — everything outside is user-owned:
+
+```
+packages/sdk/         ← user-owned root
+  package.json        ← scaffolded once, never overwritten
+  index.ts            ← scaffolded once, never overwritten
+  src/                ← user's custom code (untouched by codegen)
+  generated/          ← codegen-owned, fully overwritten
+    client.ts
+    types.ts
+    schemas.ts
+    index.ts
+```
+
+The `generated/` subfolder should have its own `.gitignore` with just a comment header (`# Generated by @vertz/codegen — do not edit`) but the files are **committed** since this is a publishable package. Alternatively, users can gitignore `generated/` and regenerate in CI before publishing — both workflows are supported.
+
+**Scaffold behavior**: On first `vertz generate`, if the target directory doesn't have `package.json` or `index.ts`, codegen creates starter versions. On subsequent runs, it only overwrites files inside `generated/`. This ensures user customizations (custom utilities, extra re-exports in `index.ts`, updated `package.json` fields) are never lost.
 
 ---
 
@@ -1399,15 +1469,17 @@ test('generated TypeScript compiles without errors', async () => {
 9. Body serialization
 10. Header forwarding
 
-### Phase 6: TypeScript SDK Generator — Schemas, Index, Package (~20 tests)
+### Phase 6: TypeScript SDK Generator — Schemas, Index, Package (~25 tests)
 
-**Generate `schemas.ts`, `index.ts`, `package.json`**
+**Generate `schemas.ts`, `generated/index.ts`, scaffold root files**
 
 1. `emitSchemaReExports()` — re-export `@vertz/schema` objects
-2. `emitIndexFile()` — barrel export of client + types
-3. `emitPackageJson()` — generate package.json for publishable SDK
-4. `emitAugmentableTypes()` — type augmentation entry point
-5. Wire up the full `TypeScriptSDKGenerator.generate()` method
+2. `emitGeneratedIndex()` — barrel export of all generated code (`generated/index.ts`)
+3. `emitAugmentableTypes()` — type augmentation entry point
+4. `scaffoldPackageJson()` — generate `package.json` only if it doesn't exist (scaffold-once)
+5. `scaffoldRootIndex()` — generate root `index.ts` only if it doesn't exist (re-exports `./generated` + placeholder for user exports)
+6. Wire up the full `TypeScriptSDKGenerator.generate()` method
+7. Test scaffold-once behavior: verify existing root files are not overwritten
 
 ### Phase 7: CLI Generator (~30 tests)
 
@@ -1415,10 +1487,11 @@ test('generated TypeScript compiles without errors', async () => {
 
 1. `emitCommandDefinition()` — single command from operation
 2. `emitModuleCommands()` — grouped commands from module
-3. `emitManifestFile()` — full manifest with all commands
+3. `emitManifestFile()` — full manifest (`generated/manifest.ts`)
 4. Handle param/query/body type flattening to CLI arg types
-5. `emitBinEntryPoint()` — CLI entry point for publishable CLIs
-6. `emitPackageJson()` — generate package.json for publishable CLI
+5. `emitBinEntryPoint()` — CLI entry point (`generated/bin.ts`)
+6. `scaffoldPackageJson()` — scaffold-once for publishable CLI
+7. `scaffoldRootIndex()` — scaffold-once root entry point
 
 ### Phase 8: Formatting + Orchestration (~20 tests)
 
@@ -1466,12 +1539,12 @@ test('generated TypeScript compiles without errors', async () => {
 | 3. JSON Schema Converter | ~40 | Schema → TypeScript types |
 | 4. SDK Types | ~35 | types.ts generation |
 | 5. SDK Client | ~45 | client.ts generation with @vertz/fetch |
-| 6. SDK Schemas + Index + Package | ~20 | schemas.ts, index.ts, package.json |
+| 6. SDK Schemas + Index + Package | ~25 | schemas.ts, index.ts, scaffold-once, package.json |
 | 7. CLI Generator | ~30 | Command manifest, publishable CLI |
 | 8. Formatting + Orchestration | ~20 | Biome, file writing |
 | 9. Config + CLI Integration | ~15 | vertz.config.ts, CLI wiring |
 | 10. `@vertz/cli-runtime` | ~40 | CLI runtime, interactive flows, OAuth |
-| **Total** | **~350** | |
+| **Total** | **~355** | |
 
 ---
 
