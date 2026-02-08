@@ -22,6 +22,15 @@ All framework development follows strict Test-Driven Development.
 - **Run quality gates after every GREEN** — linter, formatter, typecheck must pass
 - Tests are the specification — if it's not tested, it doesn't exist
 
+## Phase Acceptance Criteria
+
+Every phase in a design or implementation plan MUST define integration tests as part of its acceptance criteria (unless the phase is pure scaffolding with no runtime behavior). When writing plans:
+
+- **Each phase must list its integration test(s)** — what end-to-end behavior is verified when the phase is complete?
+- **Integration tests validate the phase works as a whole** — not just unit tests on individual functions, but tests that exercise the feature from the outside in.
+- **A phase is not done until its integration tests pass** — shipping code without the defined integration tests is incomplete work.
+- **Tests should be concrete and specific** — "add integration tests" is not an acceptance criterion. "Integration test: `createRouter('/users').get('/:id', handler)` responds with 200 and typed JSON body" is.
+
 ## Type-Level TDD
 
 Type-only changes (generics, constraints, narrowing) follow the same red-green-refactor cycle. The RED test for a type change is a `@ts-expect-error` directive on code the compiler should reject but doesn't yet.
