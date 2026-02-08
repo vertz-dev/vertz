@@ -5,10 +5,14 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
+    "test:bun": "RUNTIME=bun vitest run",
+    "test:node": "RUNTIME=node vitest run",
+    "test:deno": "RUNTIME=deno vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@mjackson/node-fetch-server": "^0.7.0",
     "@vertz/core": "workspace:*",
     "@vertz/schema": "workspace:*",
     "typescript": "^5.7.0",

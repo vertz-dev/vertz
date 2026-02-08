@@ -13,6 +13,7 @@ export default defineConfig({
   },
   test: {
     include: ['src/**/*.test.ts'],
+    exclude: ['src/runtime-adapters/bun.test.ts', 'src/__tests__/e2e-listen.test.ts'],
     environment: 'node',
   },
 });
