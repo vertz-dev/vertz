@@ -1,4 +1,4 @@
-import type { ListenOptions, ServerAdapter, ServerHandle } from '../types/server-adapter';
+import type { ServerAdapter } from '../types/server-adapter';
 
 declare const Bun: {
   serve(options: {
@@ -10,11 +10,7 @@ declare const Bun: {
 
 export function createBunAdapter(): ServerAdapter {
   return {
-    async listen(
-      port: number,
-      handler: (request: Request) => Promise<Response>,
-      options?: ListenOptions,
-    ): Promise<ServerHandle> {
+    async listen(port, handler, options) {
       const server = Bun.serve({
         port,
         hostname: options?.hostname,

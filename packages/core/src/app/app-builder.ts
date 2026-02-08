@@ -5,6 +5,8 @@ import type { ListenOptions, ServerHandle } from '../types/server-adapter';
 import { buildHandler, type ModuleRegistration } from './app-runner';
 import { detectAdapter } from './detect-adapter';
 
+const DEFAULT_PORT = 3000;
+
 export interface AppBuilder {
   register(module: NamedModule, options?: Record<string, unknown>): AppBuilder;
   middlewares(list: NamedMiddlewareDef[]): AppBuilder;
@@ -32,9 +34,9 @@ export function createApp(config: AppConfig): AppBuilder {
       }
       return cachedHandler;
     },
-    async listen(port?: number, options?: ListenOptions) {
+    async listen(port, options) {
       const adapter = detectAdapter();
-      return adapter.listen(port ?? 3000, builder.handler, options);
+      return adapter.listen(port ?? DEFAULT_PORT, builder.handler, options);
     },
   };
 

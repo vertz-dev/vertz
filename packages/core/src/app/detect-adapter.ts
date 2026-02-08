@@ -1,12 +1,12 @@
 import type { ServerAdapter } from '../types/server-adapter';
 import { createBunAdapter } from './bun-adapter';
 
-interface RuntimeHints {
+export interface RuntimeHints {
   hasBun: boolean;
 }
 
 function detectRuntime(): RuntimeHints {
-  return { hasBun: typeof (globalThis as Record<string, unknown>).Bun !== 'undefined' };
+  return { hasBun: 'Bun' in globalThis };
 }
 
 export function detectAdapter(hints?: RuntimeHints): ServerAdapter {
