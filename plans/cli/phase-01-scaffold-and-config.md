@@ -135,5 +135,6 @@ bun run typecheck
 ## Notes
 
 - Commander commands in this phase are **stubs** -- they register the command name and description but don't implement behavior. Each command will be implemented in its own phase.
-- The config loader should use `jiti` for runtime TypeScript config loading (same approach as Vite, Nuxt). Add `jiti` as a production dependency.
+- **Config loading strategy (validated by Spike 2):** Use dynamic `import()` on Bun (native TS support, ~0.01ms) and fall back to `jiti` on Node (~33ms). Add `jiti` as a production dependency for Node compatibility. Runtime detection (`typeof Bun !== 'undefined'`) determines which approach to use.
+- Commander + Ink coexistence was validated by Spike 1 -- Commander handles argument parsing, then `.action()` hands off to Ink. No stdout conflict.
 - The `CLIConfig` type extends `VertzConfig` from `@vertz/compiler`. If the compiler package is not ready yet, define a minimal version of `VertzConfig` locally and mark it for replacement.

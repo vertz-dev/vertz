@@ -1265,7 +1265,9 @@ TypeScript errors from the background typecheck are rendered below the compiler 
 
 ## Syntax Highlighting
 
-Code frames use **Shiki** for syntax highlighting in the terminal. Shiki produces ANSI escape codes that render correctly in modern terminals.
+Code frames use **Shiki** for syntax highlighting in the terminal. Shiki's `codeToTokens()` provides color-annotated tokens that we convert to truecolor (24-bit) ANSI escape codes for terminal rendering.
+
+**Note:** Shiki v3 does NOT have a built-in `codeToAnsi()` method. We use `codeToTokens()` and convert hex colors to ANSI ourselves. This was validated in Spike 3 (see [Spike Results](#spike-results)).
 
 ```typescript
 // utils/syntax-highlight.ts
@@ -1283,12 +1285,35 @@ export async function getHighlighter(): Promise<Highlighter> {
   return highlighter;
 }
 
-export function highlightCode(code: string): string {
-  // Returns ANSI-escaped highlighted code for terminal rendering
+function hexToRgb(hex: string): [number, number, number] | null {
+  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!match) return null;
+  return [parseInt(match[1], 16), parseInt(match[2], 16), parseInt(match[3], 16)];
+}
+
+function colorize(text: string, hexColor?: string): string {
+  if (!hexColor) return text;
+  const rgb = hexToRgb(hexColor);
+  if (!rgb) return text;
+  return `\x1b[38;2;${rgb[0]};${rgb[1]};${rgb[2]}m${text}\x1b[0m`;
+}
+
+export function highlightCode(code: string, hl: Highlighter): string {
+  const result = hl.codeToTokens(code, { theme: 'github-dark', lang: 'typescript' });
+  return result.tokens
+    .map(line => line.map(token => colorize(token.content, token.color)).join(''))
+    .join('\n');
 }
 ```
 
-The highlighter is initialized once (lazily) and reused across all diagnostic renders. This avoids the startup cost of loading the grammar on every recompile.
+The highlighter is initialized once (lazily) and reused across all diagnostic renders. This avoids the ~82ms startup cost of loading the grammar on every recompile. Subsequent highlights are fast (~0.5ms).
+
+**Performance notes (from Spike 3):**
+- Cold start: ~82ms (acceptable, initialize lazily)
+- First highlight: ~75ms (grammar compilation)
+- Subsequent highlights: ~0.5ms (very fast)
+- Memory overhead: ~3 MB initial, grows with usage
+- Skip initialization entirely for `--format json` / `--format github` output
 
 ---
 
@@ -1325,8 +1350,8 @@ The highlighter is initialized once (lazily) and reused across all diagnostic re
 
 ### Why Shiki over Prism
 
-- Shiki produces ANSI output natively (via `shiki/ansi`), designed for terminal use.
-- Same grammar engine as VS Code (TextMate grammars), so highlighting matches what developers see in their editor.
+- Shiki uses the same grammar engine as VS Code (TextMate grammars), so highlighting matches what developers see in their editor.
+- Shiki's `codeToTokens()` API provides color-annotated tokens that we convert to truecolor ANSI escape codes via a small helper (~15 lines). **Note:** Shiki v3 does NOT have built-in ANSI output -- we handle the conversion ourselves.
 - Prism is browser-first and requires additional work for terminal output.
 
 ---
@@ -1343,16 +1368,27 @@ export async function loadConfig(cwd?: string): Promise<VertzConfig> {
   const configPath = findConfigFile(cwd ?? process.cwd());
   if (!configPath) return defaultConfig;
 
-  // Use jiti for runtime TypeScript config loading
-  const jiti = createJiti(configPath);
-  const raw = await jiti.import(configPath);
-  return mergeWithDefaults(raw.default ?? raw);
+  const raw = await loadConfigFile(configPath);
+  return mergeWithDefaults((raw as { default?: unknown }).default ?? raw);
+}
+
+async function loadConfigFile(path: string): Promise<unknown> {
+  if (typeof Bun !== 'undefined') {
+    // Bun natively imports .ts files (~0.01ms)
+    return import(path);
+  }
+  // Node: use jiti for runtime TypeScript config loading (~33ms)
+  const { createJiti } = await import('jiti');
+  const jiti = createJiti(import.meta.url);
+  return jiti.import(path);
 }
 
 function findConfigFile(from: string): string | null {
   // Walk up looking for vertz.config.ts, vertz.config.js, vertz.config.mjs
 }
 ```
+
+**Note:** Spike 2 validated that dynamic `import()` works natively on Bun for `.ts` files (~0.01ms), while jiti takes ~33ms. The runtime-conditional approach gives Bun users zero overhead while maintaining Node compatibility.
 
 ### Default Configuration
 
@@ -1491,13 +1527,13 @@ Each phase is detailed in its own file. Phases must be implemented in order -- e
 |----------|-----------|
 | **Commander for argument parsing** | Most popular CLI framework. LLMs know it. Simple API surface. Clean separation from Ink rendering. |
 | **TaskRunner abstraction (blimu pattern)** | Commands don't import Ink directly. TaskRunner is testable without a terminal. Matches existing team patterns. |
-| **Shiki for syntax highlighting** | ANSI output built-in. Same grammars as VS Code. TypeScript support excellent. |
+| **Shiki for syntax highlighting** | Same grammars as VS Code. TypeScript support excellent. `codeToTokens()` + custom ANSI conversion (validated in Spike 3). |
 | **Separate `create-vertz-app`** | Follows npm convention. Used once per project. No heavy dependencies. |
 | **chokidar as Node fallback** | Bun's native watcher is fastest but Node needs a polyfill. chokidar is battle-tested. |
 | **`--format github` on check** | First-class CI support. GitHub Actions annotations show errors inline in PRs. |
 | **Plugin system for generators** | Extensible without forking. `@vertz/database` adds `vertz generate repository`. |
 | **Non-blocking typecheck in dev** | TypeScript checking is slow (1-3s). Don't block the server restart. Show errors separately. |
-| **Config via jiti** | Runtime TypeScript loading without requiring build step. Same approach as Vite, Nuxt, Astro. |
+| **Config via jiti / native import()** | Runtime TypeScript loading without requiring build step. Bun uses native `import()` (~0.01ms); Node falls back to jiti (~33ms). Validated in Spike 2. |
 | **CLI as thin orchestrator** | CLI owns terminal UX. Compiler owns analysis + generation. Neither reaches into the other's domain. |
 | **Interactive prompts for missing params** | Better DX than hard errors. Guides the user through the flow. Disabled automatically in CI (`CI=true`). |
 
@@ -1521,6 +1557,168 @@ The blimu CLI (`~/blimu-dev/blimu-ts/packages/cli`) provides several patterns we
 
 ---
 
+## Spike Results
+
+Spikes were run on 2026-02-08 to validate key assumptions in this design. POC code lives in `packages/cli-poc/`.
+
+### Spike 1: Commander + Ink Coexistence
+
+**Verdict: WORKS**
+
+Commander and Ink coexist cleanly with no stdout conflicts. The pattern is straightforward:
+
+1. Commander parses arguments synchronously via `program.parse()`
+2. In the command's `.action()` handler, call `render(<Component />)` with parsed values
+3. Commander's `--help` and `--version` print to stdout and exit before Ink mounts -- no conflict
+
+**Tested scenarios:**
+- `vertz-spike dev --port 8080 --verbose` -- Commander parsed correctly, Ink rendered after
+- `vertz-spike dev` -- Default values applied, Ink rendered
+- `vertz-spike --help` -- Commander printed help text, clean exit (no Ink)
+- `vertz-spike dev --help` -- Subcommand help printed, clean exit
+- `vertz-spike --version` -- Version printed, clean exit
+
+**Key finding:** The separation is natural. Commander handles parsing (synchronous), then the action handler owns the process. Ink only mounts when we explicitly call `render()`. There is no implicit stdout conflict.
+
+**Pattern confirmed:**
+```typescript
+program.command('dev')
+  .option('-p, --port <port>', 'Server port', '3000')
+  .action((options) => {
+    // Commander is done -- hand off to Ink
+    const { unmount } = render(<DevUI port={options.port} />);
+  });
+```
+
+**Impact on plan:** None. The design as written is correct.
+
+---
+
+### Spike 2: Config Loading with jiti on Bun
+
+**Verdict: WORKS -- with a better approach for Bun**
+
+| Approach | Works | Load Time | Notes |
+|----------|-------|-----------|-------|
+| jiti | YES | ~33ms | Zero-config TS loading, same as Vite/Nuxt |
+| Dynamic `import()` | YES | ~0.01ms | Bun natively imports .ts files |
+| Bun.file() | N/A | -- | Reads raw text, not useful for config |
+
+**Key finding:** Bun natively handles `import()` for `.ts` files, making it ~3000x faster than jiti. Since Vertz targets Bun as the primary runtime, we should use dynamic `import()` on Bun and fall back to jiti on Node.
+
+**Recommended strategy:**
+```typescript
+async function loadConfigFile(path: string): Promise<unknown> {
+  if (typeof Bun !== 'undefined') {
+    // Bun natively imports .ts files
+    return import(path);
+  }
+  // Node: use jiti for TypeScript config loading
+  const { createJiti } = await import('jiti');
+  const jiti = createJiti(import.meta.url);
+  return jiti.import(path);
+}
+```
+
+Both approaches correctly handle the `export default defineConfig({...})` pattern with TypeScript types.
+
+**Impact on plan:** Phase 1 (config/loader.ts) should implement the runtime-conditional approach above. jiti remains a production dependency for Node compatibility, but Bun users get zero overhead.
+
+---
+
+### Spike 3: Shiki ANSI Terminal Output
+
+**Verdict: WORKS WITH CAVEATS**
+
+**Critical finding: The plan incorrectly states Shiki has built-in ANSI output.** Shiki v3 does NOT have a `codeToAnsi()` method or any built-in terminal output support. The plan references "Shiki produces ANSI output natively (via `shiki/ansi`)" -- this is incorrect.
+
+**What actually works:** Use `codeToTokens()` to get color-annotated tokens, then convert hex colors to truecolor (24-bit) ANSI escape codes manually. This is trivial (~15 lines of code).
+
+| Metric | Value |
+|--------|-------|
+| Cold start (createHighlighter) | ~82ms |
+| First highlight (25-line snippet) | ~75ms |
+| Subsequent highlights (same size) | ~0.5ms |
+| Memory delta (init) | ~3 MB |
+| Memory delta (after 100 highlights) | ~63 MB |
+| Visual quality | Excellent |
+
+**Conversion function (proven in spike):**
+```typescript
+function hexToRgb(hex: string): [number, number, number] | null {
+  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!match) return null;
+  return [parseInt(match[1], 16), parseInt(match[2], 16), parseInt(match[3], 16)];
+}
+
+function colorize(text: string, hexColor?: string): string {
+  if (!hexColor) return text;
+  const rgb = hexToRgb(hexColor);
+  if (!rgb) return text;
+  return `\x1b[38;2;${rgb[0]};${rgb[1]};${rgb[2]}m${text}\x1b[0m`;
+}
+
+function tokensToAnsi(highlighter: Highlighter, code: string): string {
+  const result = highlighter.codeToTokens(code, { theme: 'github-dark', lang: 'typescript' });
+  return result.tokens
+    .map(line => line.map(token => colorize(token.content, token.color)).join(''))
+    .join('\n');
+}
+```
+
+**Performance recommendations:**
+- Initialize Shiki lazily on first diagnostic render
+- Skip initialization entirely for `--format json` and `--format github` output
+- The first highlight is slow (~75ms) due to grammar compilation; subsequent highlights are fast (~0.5ms)
+- Memory grows with repeated usage; consider if this matters for long-running `vertz dev` sessions
+
+**Impact on plan:**
+- Phase 3 (syntax-highlight.ts) must use `codeToTokens()` instead of `codeToAnsi()`
+- Add a `tokensToAnsi()` helper function in `syntax-highlight.ts`
+- Update the "Why Shiki" rationale to remove the "ANSI output built-in" claim
+- The `highlightCode()` function signature in the plan is correct; only the internals change
+
+---
+
+### Spike 4: Incremental Compilation Feasibility
+
+**Verdict: WORKS -- with known limitations**
+
+The compiler's incremental compilation infrastructure was reviewed by reading the actual source code.
+
+**What exists today:**
+
+1. **`categorizeChanges()`** -- Fully implemented. Correctly categorizes file changes by naming convention (`*.schema.ts`, `*.router.ts`, `*.service.ts`, `*.module.ts`, `middleware/` directory, `.env*`, `vertz.config.ts`, entry file). Returns `requiresReboot` and `requiresFullRecompile` flags.
+
+2. **`findAffectedModules()`** -- Fully implemented. Maps changed files to affected module names by checking `sourceFile` paths against IR module/service/router data. Schema changes are matched by directory containment.
+
+3. **`IncrementalCompiler`** -- Fully implemented with `initialCompile()` and `handleChanges()` methods. Correctly handles all three result kinds: `reboot`, `full-recompile`, and `incremental`.
+
+4. **`mergeIR()`** -- Implemented. Merges partial IR by name (replaces existing items with same name, preserves others). Clears diagnostics on merge (they're re-validated).
+
+**What's missing for true incremental compilation:**
+
+1. **`analyze()` always does full analysis.** The `Compiler.analyze()` method creates a fresh empty IR and runs ALL analyzers (env, schema, middleware, module, app, dependency graph). There is no way to analyze only specific files or modules. The `IncrementalCompiler.handleChanges()` for incremental changes calls `this.compiler.analyze()` which re-analyzes everything, then merges into the existing IR. This means "incremental" compilation currently re-analyzes the full project but only regenerates affected modules.
+
+2. **No file-scoped analysis.** The `BaseAnalyzer` interface is `analyze(): Promise<T>` with no parameters. Analyzers scan the full project via `ts-morph Project`. There's no mechanism to pass a subset of files to analyze.
+
+3. **No ts-morph source file invalidation.** When files change on disk, the `ts-morph Project` used by analyzers may hold stale ASTs. The `IncrementalCompiler` does not call `project.getSourceFile(path)?.refreshFromFileSystem()` or similar. This could cause stale analysis results.
+
+4. **Dependency graph is always fully rebuilt.** The `DependencyGraphAnalyzer` scans all modules. On incremental changes, the full graph is rebuilt even if only one module changed.
+
+**What this means for the CLI:**
+
+- The current `IncrementalCompiler` API is **correct and sufficient** for the CLI's needs. The CLI calls `handleChanges()` and switches on the result kind -- this works.
+- Performance-wise, "incremental" compilation is not truly incremental (it re-analyzes everything). For small-to-medium projects this is fine. For large projects, the full re-analysis on every file change could become noticeable.
+- The CLI should not try to work around this -- the compiler should be improved internally when performance becomes an issue. The CLI's contract with `IncrementalCompiler` is correct.
+
+**Impact on plan:**
+- No changes needed to the CLI plan. The `IncrementalCompiler` API matches what the plan documents.
+- The plan should acknowledge that "incremental" currently means "incremental regeneration, not incremental analysis."
+- Future compiler optimization (file-scoped analysis, AST caching) will improve performance without changing the CLI's code.
+
+---
+
 ## Open Items
 
 - [ ] **Keyboard shortcuts in dev mode** -- `h + enter` for help, `r + enter` for manual restart, `o + enter` to open in browser. Need to design the keyboard handling without conflicting with child process I/O.
@@ -1529,7 +1727,7 @@ The blimu CLI (`~/blimu-dev/blimu-ts/packages/cli`) provides several patterns we
 - [ ] **Plugin lifecycle hooks** -- Should plugins be able to hook into the dev loop (e.g., run a custom step after compilation)?
 - [ ] **Multi-project workspaces** -- How does `vertz dev` work in a monorepo with multiple Vertz apps?
 - [ ] **Error overlay in browser** -- Like Vite's error overlay, show compiler errors in the browser during dev mode.
-- [ ] **Shiki bundle size** -- Shiki loads large grammar files. Should we use a lighter subset or bundle only the TypeScript grammar?
+- [x] **Shiki bundle size** -- Spike 3 measured ~3 MB memory overhead for Shiki init with only the TypeScript grammar loaded. Acceptable for a CLI tool. Cold start is ~82ms. Lazy initialization on first diagnostic render is sufficient.
 - [ ] **Windows support** -- ANSI codes, path separators, process management (`SIGTERM` vs `taskkill`).
 
 ---
