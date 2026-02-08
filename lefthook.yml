@@ -1,4 +1,4 @@
 pre-push:
   commands:
     ci:
-      run: dagger call ci --progress plain
+      run: dagger call smart-ci --base-branch main
