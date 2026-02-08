@@ -4,26 +4,57 @@ import { Compiler } from '../compiler';
 import { resolveConfig } from '../config';
 import { createDiagnostic } from '../errors';
 import type { FileChange } from '../incremental';
-import { categorizeChanges, IncrementalCompiler } from '../incremental';
-
-function stubAnalyzer(name: string, calls: string[]) {
-  return {
-    analyze: async () => {
-      calls.push(`analyze:${name}`);
-      return {};
-    },
-  };
-}
+import { categorizeChanges, findAffectedModules, IncrementalCompiler } from '../incremental';
+import { createEmptyAppIR, createEmptyDependencyGraph } from '../ir/builder';
 
 function stubDependencies(calls: string[]): CompilerDependencies {
   return {
     analyzers: {
-      env: stubAnalyzer('env', calls),
-      schema: stubAnalyzer('schema', calls),
-      middleware: stubAnalyzer('middleware', calls),
-      module: stubAnalyzer('module', calls),
-      app: stubAnalyzer('app', calls),
-      dependencyGraph: stubAnalyzer('dependencyGraph', calls),
+      env: {
+        analyze: async () => {
+          calls.push('analyze:env');
+          return { env: undefined };
+        },
+      },
+      schema: {
+        analyze: async () => {
+          calls.push('analyze:schema');
+          return { schemas: [] };
+        },
+      },
+      middleware: {
+        analyze: async () => {
+          calls.push('analyze:middleware');
+          return { middleware: [] };
+        },
+      },
+      module: {
+        analyze: async () => {
+          calls.push('analyze:module');
+          return { modules: [] };
+        },
+      },
+      app: {
+        analyze: async () => {
+          calls.push('analyze:app');
+          return {
+            app: {
+              basePath: '',
+              globalMiddleware: [],
+              moduleRegistrations: [],
+              sourceFile: '',
+              sourceLine: 0,
+              sourceColumn: 0,
+            },
+          };
+        },
+      },
+      dependencyGraph: {
+        analyze: async () => {
+          calls.push('analyze:dependencyGraph');
+          return { graph: createEmptyDependencyGraph() };
+        },
+      },
     },
     validators: [],
     generators: [],
@@ -119,6 +150,180 @@ describe('categorizeChanges', () => {
     expect(result.middleware).toHaveLength(0);
     expect(result.requiresFullRecompile).toBe(false);
     expect(result.requiresReboot).toBe(false);
+  });
+});
+
+describe('findAffectedModules', () => {
+  it('finds modules by module file changes', () => {
+    const ir = createEmptyAppIR();
+    ir.modules = [
+      {
+        name: 'user',
+        imports: [],
+        services: [],
+        routers: [],
+        exports: [],
+        sourceFile: 'src/modules/user/user.module.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+      {
+        name: 'order',
+        imports: [],
+        services: [],
+        routers: [],
+        exports: [],
+        sourceFile: 'src/modules/order/order.module.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+    ];
+
+    const categorized = categorizeChanges([
+      { path: 'src/modules/user/user.module.ts', kind: 'modified' },
+    ]);
+
+    const affected = findAffectedModules(categorized, ir);
+
+    expect(affected).toEqual(['user']);
+  });
+
+  it('finds modules by service file changes', () => {
+    const ir = createEmptyAppIR();
+    ir.modules = [
+      {
+        name: 'user',
+        imports: [],
+        services: [
+          {
+            name: 'UserService',
+            moduleName: 'user',
+            inject: [],
+            methods: [],
+            sourceFile: 'src/modules/user/user.service.ts',
+            sourceLine: 1,
+            sourceColumn: 1,
+          },
+        ],
+        routers: [],
+        exports: [],
+        sourceFile: 'src/modules/user/user.module.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+    ];
+
+    const categorized = categorizeChanges([
+      { path: 'src/modules/user/user.service.ts', kind: 'modified' },
+    ]);
+
+    const affected = findAffectedModules(categorized, ir);
+
+    expect(affected).toEqual(['user']);
+  });
+
+  it('finds modules by router file changes', () => {
+    const ir = createEmptyAppIR();
+    ir.modules = [
+      {
+        name: 'user',
+        imports: [],
+        services: [],
+        routers: [
+          {
+            name: 'userRouter',
+            moduleName: 'user',
+            prefix: '/users',
+            inject: [],
+            routes: [],
+            sourceFile: 'src/modules/user/user.router.ts',
+            sourceLine: 1,
+            sourceColumn: 1,
+          },
+        ],
+        exports: [],
+        sourceFile: 'src/modules/user/user.module.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+    ];
+
+    const categorized = categorizeChanges([
+      { path: 'src/modules/user/user.router.ts', kind: 'modified' },
+    ]);
+
+    const affected = findAffectedModules(categorized, ir);
+
+    expect(affected).toEqual(['user']);
+  });
+
+  it('finds modules by schema file location in module directory', () => {
+    const ir = createEmptyAppIR();
+    ir.modules = [
+      {
+        name: 'user',
+        imports: [],
+        services: [],
+        routers: [],
+        exports: [],
+        sourceFile: 'src/modules/user/user.module.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+    ];
+    ir.schemas = [
+      {
+        name: 'CreateUser',
+        isNamed: true,
+        namingConvention: {},
+        sourceFile: 'src/modules/user/schemas/create-user.schema.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+    ];
+
+    const categorized = categorizeChanges([
+      { path: 'src/modules/user/schemas/create-user.schema.ts', kind: 'modified' },
+    ]);
+
+    const affected = findAffectedModules(categorized, ir);
+
+    expect(affected).toEqual(['user']);
+  });
+
+  it('deduplicates modules across change types', () => {
+    const ir = createEmptyAppIR();
+    ir.modules = [
+      {
+        name: 'user',
+        imports: [],
+        services: [
+          {
+            name: 'UserService',
+            moduleName: 'user',
+            inject: [],
+            methods: [],
+            sourceFile: 'src/modules/user/user.service.ts',
+            sourceLine: 1,
+            sourceColumn: 1,
+          },
+        ],
+        routers: [],
+        exports: [],
+        sourceFile: 'src/modules/user/user.module.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+    ];
+
+    const categorized = categorizeChanges([
+      { path: 'src/modules/user/user.module.ts', kind: 'modified' },
+      { path: 'src/modules/user/user.service.ts', kind: 'modified' },
+    ]);
+
+    const affected = findAffectedModules(categorized, ir);
+
+    expect(affected).toEqual(['user']);
   });
 });
 
@@ -228,6 +433,50 @@ describe('IncrementalCompiler', () => {
     const result = await incremental.handleChanges([]);
 
     expect(result.kind).toBe('incremental');
+  });
+
+  it('returns affected module names on incremental change', async () => {
+    const deps = stubDependencies([]);
+    // Override module analyzer to return a module with a router
+    deps.analyzers.module = {
+      analyze: async () => ({
+        modules: [
+          {
+            name: 'user',
+            imports: [],
+            services: [],
+            routers: [
+              {
+                name: 'userRouter',
+                moduleName: 'user',
+                prefix: '/users',
+                inject: [],
+                routes: [],
+                sourceFile: 'src/modules/user/user.router.ts',
+                sourceLine: 1,
+                sourceColumn: 1,
+              },
+            ],
+            exports: [],
+            sourceFile: 'src/modules/user/user.module.ts',
+            sourceLine: 1,
+            sourceColumn: 1,
+          },
+        ],
+      }),
+    };
+    const compiler = new Compiler(resolveConfig(), deps);
+    const incremental = new IncrementalCompiler(compiler);
+    await incremental.initialCompile();
+
+    const result = await incremental.handleChanges([
+      { path: 'src/modules/user/user.router.ts', kind: 'modified' },
+    ]);
+
+    expect(result.kind).toBe('incremental');
+    if (result.kind === 'incremental') {
+      expect(result.affectedModules).toEqual(['user']);
+    }
   });
 
   it('stores current IR after initial compile', async () => {

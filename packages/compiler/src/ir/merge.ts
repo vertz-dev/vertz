@@ -13,6 +13,7 @@ export function mergeIR(base: AppIR, partial: Partial<AppIR>): AppIR {
     modules: mergeByName(base.modules, partial.modules),
     schemas: mergeByName(base.schemas, partial.schemas),
     middleware: mergeByName(base.middleware, partial.middleware),
+    dependencyGraph: partial.dependencyGraph ?? base.dependencyGraph,
     diagnostics: [],
   };
 }

@@ -44,7 +44,7 @@ export {
 } from './analyzers/service-analyzer';
 // Compiler
 export type { CompileResult, CompilerDependencies, Validator } from './compiler';
-export { Compiler } from './compiler';
+export { Compiler, createCompiler } from './compiler';
 // Config
 export type {
   CompilerConfig,
@@ -136,7 +136,7 @@ export type {
   FileChange,
   IncrementalResult,
 } from './incremental';
-export { categorizeChanges, IncrementalCompiler } from './incremental';
+export { categorizeChanges, findAffectedModules, IncrementalCompiler } from './incremental';
 // IR builders
 export {
   addDiagnosticsToIR,
@@ -176,8 +176,13 @@ export type {
   SourceLocation,
 } from './ir/types';
 // Typecheck
-export type { TypecheckDiagnostic, TypecheckOptions, TypecheckResult } from './typecheck';
-export { parseTscOutput, typecheck } from './typecheck';
+export type {
+  TypecheckDiagnostic,
+  TypecheckOptions,
+  TypecheckResult,
+  TypecheckWatchOptions,
+} from './typecheck';
+export { parseTscOutput, parseWatchBlock, typecheck, typecheckWatch } from './typecheck';
 // AST helpers
 export {
   extractObjectLiteral,
