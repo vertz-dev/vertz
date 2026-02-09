@@ -264,35 +264,141 @@ Each emit function returns a `FileFragment` — its content plus the imports it 
 
 ## 5. IR Adapter
 
-The adapter converts `AppIR` → `CodegenIR` by:
+The adapter converts `AppIR` → `CodegenIR` through a multi-step pipeline. The adapter is the "brains" of codegen — it resolves all naming, detects all collisions, and builds the import graph. Emitters downstream are intentionally dumb template engines that receive fully resolved data.
 
-1. Extracting `basePath` and `version` from `AppDefinition`
-2. Flattening `ModuleIR → RouterIR → RouteIR` into `CodegenModule → CodegenOperation`
-3. Resolving `SchemaRef` (named or inline) into inline `JsonSchema` on each operation
-4. Tracking which named schemas each operation references (for `schemaRefs`)
-5. Collecting all named schemas into `CodegenSchema[]` with annotations from `SchemaIR.namingConvention`
-6. Extracting auth schemes from security definitions into `CodegenAuth`
-7. Extracting streaming configuration from route metadata into `StreamingConfig`
-8. Sorting everything deterministically (modules by name, operations by path+method, schemas by name)
+### Pipeline Steps
+
+```
+AppIR
+  │
+  ├─ 1. Flatten: ModuleIR → RouterIR → RouteIR  →  CodegenModule → CodegenOperation
+  ├─ 2. Collect refs: track which schemas each module/operation references
+  ├─ 3. Detect shared: schemas used by 2+ modules → shared.ts
+  ├─ 4. Resolve collisions: same name, different schema → module-prefixed name
+  ├─ 5. Name inline schemas: derive from operationId + slot (e.g., listUsersQuery)
+  ├─ 6. Build import graph: for each file, what types from where
+  ├─ 7. Extract auth + streaming config
+  └─ 8. Sort deterministically
+```
+
+### Prerequisite: Add `moduleName` to `SchemaIR`
+
+**POC finding**: The current IR stores schemas in a flat `AppIR.schemas[]` array with no module ownership. The adapter had to use a fragile source-file heuristic to determine which module "owns" a schema. This must be fixed before codegen implementation.
+
+**Required compiler change**: Add `moduleName: string` to `SchemaIR` so schema ownership is explicit:
+
+```typescript
+// In packages/compiler/src/ir/types.ts
+export interface SchemaIR extends SourceLocation {
+  name: string;
+  id?: string;
+  moduleName: string;           // ← NEW: which module defined this schema
+  namingConvention: SchemaNameParts;
+  jsonSchema?: Record<string, unknown>;
+  isNamed: boolean;
+}
+```
+
+### Schema Collision Resolution
+
+When two modules define schemas with the same name but different shapes (e.g., `users.CreateBody` vs `orders.CreateBody`), the adapter applies module-prefixed naming:
+
+```typescript
+// Before: collision
+schemas: [
+  { name: 'CreateBody', moduleName: 'users', jsonSchema: { ... } },
+  { name: 'CreateBody', moduleName: 'orders', jsonSchema: { ... } },
+]
+
+// After: resolved
+schemas: [
+  { name: 'UsersCreateBody', ... },
+  { name: 'OrdersCreateBody', ... },
+]
+```
+
+Only colliding names get prefixed. Non-colliding names stay unchanged.
+
+### Inline Schema Naming
+
+Routes can have `kind: 'inline'` schemas with no name. The adapter derives names from `operationId` + slot:
+
+| Operation | Slot | Generated Name |
+|---|---|---|
+| `listUsers` | query | `ListUsersQuery` |
+| `createUser` | body | `CreateUserBody` |
+| `getUser` | params | `GetUserParams` |
+| `getUser` | response | `GetUserResponse` |
+
+### Shared vs Module-Specific Schemas
+
+A schema is **shared** if it's referenced by operations in 2+ modules. Shared schemas go in `types/shared.ts`. Module-specific schemas go in `types/{module}.ts`.
+
+```typescript
+interface AdaptedSchema {
+  name: string;                        // unique, collision-resolved name
+  tsType: string;                      // generated TypeScript type string
+  placement: 'shared' | string;       // 'shared' or module name
+  referencedBy: string[];              // module names that use this schema
+}
+```
+
+### Import Graph
+
+The adapter produces an import graph that tells each emitter what to import:
+
+```typescript
+interface FileImportGraph {
+  /** For each generated file, the imports it needs */
+  [filePath: string]: {
+    from: string;       // relative import path
+    names: string[];    // type names to import
+    isType: boolean;    // import type vs import
+  }[];
+}
+```
+
+Example:
+- `modules/orders.ts` imports `{ UserResponse }` from `../types/shared`
+- `modules/users.ts` imports `{ CreateUserBody, ListUsersQuery }` from `../types/users`
+- `client.ts` imports `{ createUsersModule }` from `./modules/users`
+
+### Adapter Code
 
 ```typescript
 // ir-adapter.ts
-export function adaptIR(appIR: AppIR): CodegenIR {
-  const schemaMap = buildSchemaMap(appIR.schemas);
-  const modules = appIR.modules.map(mod => adaptModule(mod, schemaMap));
-  const schemas = appIR.schemas
-    .filter(s => s.isNamed && s.jsonSchema)
-    .map(adaptSchema)
-    .sort((a, b) => a.name.localeCompare(b.name));
-  const auth = adaptAuth(appIR.app);
+export function adaptIR(appIR: AppIR): AdaptedIR {
+  // 1. Flatten
+  const modules = appIR.modules.map(mod => flattenModule(mod));
 
-  return {
+  // 2. Collect refs — track which schemas each module references
+  const schemaRefs = collectSchemaRefs(modules, appIR.schemas);
+
+  // 3. Detect shared schemas
+  const sharedSchemas = detectSharedSchemas(schemaRefs);
+
+  // 4. Resolve name collisions
+  const resolvedSchemas = resolveCollisions(appIR.schemas, sharedSchemas);
+
+  // 5. Name inline schemas
+  const namedInlines = nameInlineSchemas(modules);
+
+  // 6. Build import graph
+  const importGraph = buildImportGraph(modules, resolvedSchemas, sharedSchemas);
+
+  // 7. Extract auth + streaming
+  const auth = adaptAuth(appIR);
+
+  // 8. Sort deterministically
+  return sortAdaptedIR({
     basePath: appIR.app.basePath,
     version: appIR.app.version,
-    modules: modules.sort((a, b) => a.name.localeCompare(b.name)),
-    schemas,
+    modules,
+    schemas: [...resolvedSchemas, ...namedInlines],
+    sharedSchemas,
+    importGraph,
     auth,
-  };
+  });
 }
 ```
 
@@ -300,7 +406,9 @@ export function adaptIR(appIR: AppIR): CodegenIR {
 
 ## 6. JSON Schema → TypeScript Converter
 
-A dedicated converter handles the `JsonSchema → string` conversion for TypeScript type generation. This is necessary because `AppIR` stores schemas as raw JSON Schema objects.
+**POC validated** (25 tests pass — see `packages/compiler/src/__tests__/codegen-poc/`).
+
+A recursive descent converter handles `JsonSchema → string`. Tested against ALL real patterns from the Vertz schema system.
 
 ### Supported Conversions
 
@@ -310,34 +418,60 @@ A dedicated converter handles the `JsonSchema → string` conversion for TypeScr
 | `{ type: "number" }` / `{ type: "integer" }` | `number` |
 | `{ type: "boolean" }` | `boolean` |
 | `{ type: "null" }` | `null` |
+| `{ type: ["string", "null"] }` | `string \| null` (nullable — type arrays) |
 | `{ type: "array", items: T }` | `T[]` |
+| `{ type: "array", prefixItems: [...], items: false }` | `[A, B]` (tuples) |
 | `{ type: "object", properties: {...} }` | `{ prop: Type; ... }` |
+| `{ type: "object", additionalProperties: T }` | `Record<string, T>` |
 | `{ enum: ["a", "b"] }` | `"a" \| "b"` |
 | `{ const: "value" }` | `"value"` |
 | `{ oneOf: [...] }` / `{ anyOf: [...] }` | `A \| B` |
 | `{ allOf: [...] }` | `A & B` |
 | `{ $ref: "#/$defs/Name" }` | `Name` (type reference) |
-| `{ additionalProperties: T }` | `Record<string, T>` |
+| `{ $ref: "#/components/schemas/Name" }` | `Name` (type reference) |
+| `{ oneOf: [...], discriminator: { propertyName } }` | `A \| B` (discriminator is metadata) |
+| `{ $defs: { X: schema }, $ref: "#/$defs/X" }` | Extracts `X` as named type, resolves to `X` |
+| Recursive `$ref` (circular) | Uses `resolving` Set to prevent infinite loops |
 
-### Brands and Formats
+### Formats and Brands
 
 | JSON Schema | TypeScript |
 |---|---|
 | `{ type: "string", format: "uuid" }` | `string` (with JSDoc `@format uuid`) |
 | `{ type: "string", format: "email" }` | `string` (with JSDoc `@format email`) |
+| `{ type: "string", format: "date-time" }` | `string` (with JSDoc `@format date-time`) |
 | schema with `brand` annotation | `string & { readonly __brand: "UserId" }` |
+| `{ default: "value" }` | Ignored for type generation |
+| `{ description: "..." }` | Ignored for type generation |
 
-### Approach
+### API
 
 ```typescript
 // json-schema-converter.ts
-export function jsonSchemaToTypeString(
+
+interface ConversionContext {
+  /** Accumulated named type definitions extracted from $defs */
+  namedTypes: Map<string, string>;
+  /** Types currently being resolved (prevents infinite recursion) */
+  resolving: Set<string>;
+}
+
+interface ConversionResult {
+  /** The main TypeScript type string */
+  type: string;
+  /** Named types extracted from $defs during conversion */
+  extractedTypes: Map<string, string>;
+}
+
+export function jsonSchemaToTS(
   schema: JsonSchema,
-  namedSchemas: Map<string, string>,  // $ref target → TypeScript type name
-): string
+  ctx?: ConversionContext,
+): ConversionResult
 ```
 
-The converter is recursive and handles nested schemas. It does NOT handle `$defs` lifting — that's done during IR adaptation.
+**POC learning**: The original plan used a mutating `Map` parameter. The structured `ConversionResult` return is cleaner — no side effects.
+
+**POC learning**: Recursive schemas require processing `$defs` entries before the main `$ref`. The `resolving` Set tracks which types are mid-resolution to prevent infinite recursion — when a `$ref` points to a type currently being resolved, it returns the type name without expanding.
 
 ---
 
@@ -467,6 +601,8 @@ class NotFoundError extends FetchError { status = 404 }
 ---
 
 ## 8. TypeScript SDK Generator
+
+**POC validated** (6 tests — see `packages/compiler/src/__tests__/codegen-poc/`). The `createXxxModule(client)` factory pattern, per-module file splitting, client composition, and `tsc --noEmit` compilation verification all work end-to-end (155ms including I/O and tsc).
 
 ### Generated Output Structure
 
@@ -1487,9 +1623,22 @@ test('converts object schema to interface-like string', () => {
     required: ['name'],
   };
 
-  expect(jsonSchemaToTypeString(schema, new Map())).toBe(
-    '{ name: string; age?: number }'
-  );
+  const result = jsonSchemaToTS(schema);
+
+  expect(result.type).toBe('{ name: string; age?: number }');
+  expect(result.extractedTypes.size).toBe(0);
+});
+
+test('extracts named types from $defs', () => {
+  const schema = {
+    $defs: { Address: { type: 'object', properties: { city: { type: 'string' } }, required: ['city'] } },
+    $ref: '#/$defs/Address',
+  };
+
+  const result = jsonSchemaToTS(schema);
+
+  expect(result.type).toBe('Address');
+  expect(result.extractedTypes.get('Address')).toBe('{ city: string }');
 });
 ```
 
@@ -1525,6 +1674,17 @@ test('generated TypeScript compiles without errors', async () => {
 
 ## 19. Implementation Phases
 
+### Phase 0: Compiler IR Prerequisite (~5 tests)
+
+**Required before any codegen work. Add `moduleName` to `SchemaIR`.**
+
+This was the most significant finding from the POC spike: schema ownership is not tracked in the IR. Without it, the adapter must use fragile source-file heuristics.
+
+1. Add `moduleName: string` field to `SchemaIR` in `packages/compiler/src/ir/types.ts`
+2. Update the compiler's schema collection pass to populate `moduleName` from the enclosing module
+3. Update existing tests that construct `SchemaIR` fixtures
+4. Verify all existing compiler tests still pass
+
 ### Phase 1: `@vertz/fetch` — Shared HTTP Client (~55 tests)
 
 **The foundation that generated SDKs build on. Must exist before SDK codegen.**
@@ -1541,17 +1701,19 @@ test('generated TypeScript compiles without errors', async () => {
 
 ### Phase 2: Foundation — CodegenIR + IR Adapter (~50 tests)
 
-**Package setup + CodegenIR + IR adapter**
+**Package setup + CodegenIR + IR adapter (POC-informed pipeline)**
 
 1. Create `packages/codegen` with package.json, tsconfig, vitest config
 2. Define `CodegenIR` types in `types.ts` (including `CodegenAuth`, `StreamingConfig`)
-3. Implement `adaptIR()` in `ir-adapter.ts`
-   - Flatten module → router → route hierarchy
-   - Resolve schema references
-   - Collect named schemas
-   - Extract auth schemes
-   - Extract streaming configuration
-   - Deterministic sorting
+3. Implement `adaptIR()` as a multi-step pipeline (validated in POC):
+   - Step 1: Flatten module → router → route hierarchy
+   - Step 2: Collect schema refs — track which schemas each module references
+   - Step 3: Detect shared schemas (used by 2+ modules → `shared.ts`)
+   - Step 4: Resolve name collisions (module-prefixed naming: `UsersCreateBody`)
+   - Step 5: Name inline schemas (derive from `operationId` + slot)
+   - Step 6: Build import graph (which file imports what types from where)
+   - Step 7: Extract auth + streaming config
+   - Step 8: Sort deterministically
 4. Implement `naming.ts` utilities
    - `toPascalCase`, `toCamelCase`, `toKebabCase`, `toSnakeCase`
 5. Implement `imports.ts` utilities
@@ -1559,18 +1721,23 @@ test('generated TypeScript compiles without errors', async () => {
 
 ### Phase 3: JSON Schema Converter (~40 tests)
 
-**JSON Schema → TypeScript type string**
+**JSON Schema → TypeScript type string (POC-validated algorithm)**
 
-1. Primitives: string, number, boolean, null
-2. Objects with properties and required fields
-3. Arrays with items
-4. Enums and const values
-5. Union types (oneOf, anyOf)
-6. Intersection types (allOf)
-7. $ref resolution to named type references
-8. Record/additionalProperties
-9. Optional properties
-10. Nested schemas (recursive)
+All patterns below were validated against 25 POC tests. The recursive descent approach handles every JSON Schema pattern used by `@vertz/schema`.
+
+1. Primitives: string, number (+ integer), boolean, null
+2. Nullable type arrays: `["string", "null"]` → `string | null`
+3. Objects with properties and required/optional fields
+4. Arrays with items
+5. Tuples: `prefixItems` → `[A, B]`
+6. Enums and const values
+7. Union types (oneOf, anyOf) and discriminated unions
+8. Intersection types (allOf)
+9. `$ref` resolution: local references (`#/$defs/Name`, `#/components/schemas/Name`)
+10. Record types: `additionalProperties` → `Record<string, T>`
+11. `$defs` extraction into named types (`ConversionResult.extractedTypes`)
+12. Recursive schemas: `resolving` Set prevents infinite loops
+13. Error handling for unsupported schemas and external `$ref` URLs
 
 ### Phase 4: TypeScript SDK Generator — Types (~35 tests)
 
@@ -1676,9 +1843,10 @@ test('generated TypeScript compiles without errors', async () => {
 
 | Phase | Tests | Description |
 |---|---|---|
+| 0. Compiler IR Prerequisite | ~5 | Add `moduleName` to `SchemaIR` |
 | 1. `@vertz/fetch` | ~55 | Shared HTTP client, auth, retry, streaming |
-| 2. Foundation | ~50 | IR adapter, naming, imports |
-| 3. JSON Schema Converter | ~40 | Schema → TypeScript types |
+| 2. Foundation | ~50 | IR adapter pipeline, naming, imports |
+| 3. JSON Schema Converter | ~40 | Schema → TypeScript types (POC-validated) |
 | 4. SDK Types | ~35 | Per-module type files generation |
 | 5. SDK Client | ~45 | Per-module client files + client.ts composer |
 | 6. SDK Schemas + Index + Package | ~25 | schemas.ts, index.ts, scaffold-once, package.json |
@@ -1687,7 +1855,7 @@ test('generated TypeScript compiles without errors', async () => {
 | 9. Config + CLI Integration | ~15 | vertz.config.ts, CLI wiring |
 | 10. Incremental Regeneration | ~25 | IR diffing, selective file rewrite for watch mode |
 | 11. `@vertz/cli-runtime` | ~40 | CLI runtime, interactive flows, OAuth |
-| **Total** | **~380** | |
+| **Total** | **~385** | |
 
 ---
 
@@ -1741,8 +1909,50 @@ Each addition only requires changes to the IR adapter and the relevant generator
 
 ## 23. Open Questions (Deferred to Implementation)
 
-1. **Watch mode granularity**: Should `vertz dev` regenerate only changed modules, or always regenerate everything?
-2. **Error types**: Should the SDK generate error types for each operation, or use a generic `SDKError`?
-3. **Middleware-provided context**: Should operations that require auth middleware reflect this in the SDK types?
-4. **Sidecar file format**: Should CLI resolver sidecar files use `.cli.ts` extension or a different convention?
-5. **Type augmentation codegen**: Should `blimu codegen`-style type generation be a built-in feature of `@vertz/codegen`, or a separate tool?
+### Resolved by POC
+
+1. ~~**Watch mode granularity**: Should `vertz dev` regenerate only changed modules, or always regenerate everything?~~ **Answer**: Incremental — per-module file splitting (validated in POC) makes targeted regeneration feasible and fast.
+2. ~~**Can we convert all JSON Schema patterns to TypeScript?**~~ **Answer**: Yes — 25 POC tests validated all patterns including recursive schemas. The only complexity was `$defs` with circular `$ref`, solved by a `resolving` Set.
+3. ~~**Can we flatten the compiler IR into SDK-friendly modules?**~~ **Answer**: Yes — but requires adding `moduleName` to `SchemaIR` (design gap found). With that fix, the pipeline is clean.
+4. ~~**Does per-module file splitting compile?**~~ **Answer**: Yes — `tsc --noEmit` passes in 155ms. The `createXxxModule(client)` factory pattern works well for composition.
+
+### Still Open
+
+1. **Error types**: Should the SDK generate error types for each operation, or use a generic `SDKError`?
+2. **Middleware-provided context**: Should operations that require auth middleware reflect this in the SDK types?
+3. **Sidecar file format**: Should CLI resolver sidecar files use `.cli.ts` extension or a different convention?
+4. **Type augmentation codegen**: Should `blimu codegen`-style type generation be a built-in feature of `@vertz/codegen`, or a separate tool?
+5. **Inline type complexity threshold** (from POC): Deeply nested inline schemas produce verbose single-line types. Should the converter extract complex inlines into named type aliases above a certain depth/property count?
+6. **External `$ref` support**: The converter only handles local `$ref` (`#/...`). Should external `$ref` URLs error clearly, or should we attempt to resolve them?
+7. **tsc binary for compile tests**: Should `@vertz/codegen` bundle TypeScript or require it as a peer dependency for compilation verification?
+
+---
+
+## 24. POC Validation Summary
+
+A 36-test POC spike (PR #108) validated the three highest-risk unknowns before implementation. Results:
+
+| Unknown | Status | Tests | Key Finding |
+|---|---|---|---|
+| JSON Schema → TS converter | Validated | 25 | Recursive schemas need `resolving` Set; `ConversionResult` API is cleaner than mutating Map |
+| IR Adapter (module flattening) | Validated (with prerequisite) | 5 | `SchemaIR` needs `moduleName` field — biggest design gap found |
+| Per-module file generation | Validated | 6 | `createXxxModule(client)` compiles; tsc verification in 155ms; cross-module imports are the main production complexity |
+
+### Design Changes Driven by POC
+
+1. **Added `moduleName` to `SchemaIR`** (Phase 0 prerequisite) — eliminates fragile source-file heuristic for schema ownership
+2. **IR Adapter rewritten as pipeline** — 8 explicit steps instead of a monolithic function
+3. **JSON Schema converter API redesigned** — `ConversionResult { type, extractedTypes }` replaces mutating Map parameter; `ConversionContext { namedTypes, resolving }` replaces separate function parameters
+4. **Schema collision resolution strategy codified** — module-prefixed naming (`UsersCreateBody`) when same name appears in 2+ modules
+5. **Inline schema naming convention codified** — `operationId` + slot (`ListUsersQuery`, `CreateUserBody`)
+6. **Import graph added to adapter output** — the adapter builds the full import graph; emitters just consume it
+7. **Two-pass emission approach** — (1) generate types + import graph, (2) emit files with correct imports
+
+### Performance Baseline
+
+- All 36 POC tests: **155ms** (including tsc compilation)
+- Schema conversion: essentially free (~1ms for all patterns)
+- tsc verification: ~100ms for 4 generated files
+- The bottleneck in production will be reading IR and writing files, not conversion
+
+The POC spike code lives at `packages/compiler/src/__tests__/codegen-poc/` with detailed findings in `FINDINGS.md`.
