@@ -1,7 +1,7 @@
 import type { CodegenConfig } from './config';
 import { resolveCodegenConfig, validateCodegenConfig } from './config';
 import type { GenerateResult } from './generate';
-import { generate } from './generate';
+import { generateSync } from './generate';
 import type { CodegenIR } from './types';
 
 export interface CodegenPipeline {
@@ -18,7 +18,7 @@ export function createCodegenPipeline(): CodegenPipeline {
 
     generate(ir: CodegenIR, config: CodegenConfig): GenerateResult {
       const resolved = resolveCodegenConfig(config);
-      return generate(ir, resolved);
+      return generateSync(ir, resolved);
     },
 
     resolveOutputDir(config: CodegenConfig): string {

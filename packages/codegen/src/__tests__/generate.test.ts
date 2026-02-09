@@ -1,164 +1,257 @@
-import { describe, expect, it } from 'vitest';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { AppIR } from '@vertz/compiler';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { resolveCodegenConfig } from '../config';
 import type { ResolvedCodegenConfig } from '../config';
 import { generate } from '../generate';
-import type { CodegenAuth, CodegenIR, CodegenModule, CodegenSchema } from '../types';
 
-// ── Fixture helpers ──────────────────────────────────────────────
+// ── Minimal AppIR fixture ──────────────────────────────────────────
 
-function makeAuth(overrides: Partial<CodegenAuth> = {}): CodegenAuth {
-  return { schemes: [], ...overrides };
-}
-
-function makeSchema(overrides: Partial<CodegenSchema> = {}): CodegenSchema {
+function makeAppIR(overrides?: Partial<AppIR>): AppIR {
   return {
-    name: 'TestSchema',
-    jsonSchema: { type: 'object' },
-    annotations: { namingParts: {} },
-    ...overrides,
-  };
-}
-
-function makeModule(overrides: Partial<CodegenModule> = {}): CodegenModule {
-  return {
-    name: 'test',
-    operations: [
+    app: {
+      basePath: '/api/v1',
+      version: '1.0.0',
+      globalMiddleware: [],
+      moduleRegistrations: [],
+      sourceFile: 'app.ts',
+      sourceLine: 1,
+      sourceColumn: 1,
+    },
+    modules: [
       {
-        operationId: 'listTests',
-        method: 'GET',
-        path: '/api/v1/tests',
-        tags: [],
-        schemaRefs: {},
+        name: 'users',
+        imports: [],
+        services: [],
+        exports: [],
+        routers: [
+          {
+            name: 'usersRouter',
+            moduleName: 'users',
+            prefix: '/users',
+            inject: [],
+            routes: [
+              {
+                method: 'GET',
+                path: '/',
+                fullPath: '/api/v1/users',
+                operationId: 'listUsers',
+                middleware: [],
+                tags: ['users'],
+                description: 'List all users',
+                query: {
+                  kind: 'inline',
+                  sourceFile: 'users.ts',
+                  jsonSchema: {
+                    type: 'object',
+                    properties: {
+                      page: { type: 'number' },
+                      limit: { type: 'number' },
+                    },
+                  },
+                },
+                sourceFile: 'users.ts',
+                sourceLine: 10,
+                sourceColumn: 1,
+              },
+              {
+                method: 'POST',
+                path: '/',
+                fullPath: '/api/v1/users',
+                operationId: 'createUser',
+                middleware: [],
+                tags: ['users'],
+                description: 'Create a user',
+                body: {
+                  kind: 'inline',
+                  sourceFile: 'users.ts',
+                  jsonSchema: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string' },
+                      email: { type: 'string' },
+                    },
+                    required: ['name', 'email'],
+                  },
+                },
+                response: {
+                  kind: 'inline',
+                  sourceFile: 'users.ts',
+                  jsonSchema: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      name: { type: 'string' },
+                      email: { type: 'string' },
+                    },
+                    required: ['id', 'name', 'email'],
+                  },
+                },
+                sourceFile: 'users.ts',
+                sourceLine: 20,
+                sourceColumn: 1,
+              },
+            ],
+            sourceFile: 'users.ts',
+            sourceLine: 5,
+            sourceColumn: 1,
+          },
+        ],
+        sourceFile: 'users.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
       },
     ],
-    ...overrides,
-  };
-}
-
-function makeIR(overrides: Partial<CodegenIR> = {}): CodegenIR {
-  return {
-    basePath: '/api/v1',
-    modules: [makeModule()],
+    middleware: [],
     schemas: [],
-    auth: makeAuth(),
+    dependencyGraph: {
+      nodes: [],
+      edges: [],
+      initializationOrder: [],
+      circularDependencies: [],
+    },
+    diagnostics: [],
     ...overrides,
   };
 }
-
-function makeConfig(overrides: Partial<ResolvedCodegenConfig> = {}): ResolvedCodegenConfig {
-  return {
-    generators: ['typescript'],
-    outputDir: '.vertz/generated',
-    ...overrides,
-  };
-}
-
-// ── generate() ───────────────────────────────────────────────────
 
 describe('generate', () => {
-  it('returns generated files for the typescript generator', () => {
-    const ir = makeIR();
-    const config = makeConfig({ generators: ['typescript'] });
+  let outputDir: string;
 
-    const result = generate(ir, config);
-
-    expect(result.files.length).toBeGreaterThan(0);
+  beforeEach(() => {
+    outputDir = mkdtempSync(join(tmpdir(), 'vertz-codegen-generate-test-'));
   });
 
-  it('returns files with path and content properties', () => {
-    const ir = makeIR();
-    const config = makeConfig();
+  afterEach(() => {
+    rmSync(outputDir, { recursive: true, force: true });
+  });
 
-    const result = generate(ir, config);
+  it('generates TypeScript SDK files and writes them to disk', async () => {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['typescript'],
+      format: true,
+    });
 
+    const result = await generate(makeAppIR(), config);
+
+    // Should return the list of generated files
+    expect(result.files.length).toBeGreaterThan(0);
+
+    // index.ts barrel should exist
+    const indexPath = join(outputDir, 'index.ts');
+    expect(existsSync(indexPath)).toBe(true);
+
+    // client.ts should exist
+    const clientPath = join(outputDir, 'client.ts');
+    expect(existsSync(clientPath)).toBe(true);
+
+    // types files should exist
+    const usersTypesPath = join(outputDir, 'types', 'users.ts');
+    expect(existsSync(usersTypesPath)).toBe(true);
+  });
+
+  it('formats generated files with Biome when format is enabled', async () => {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['typescript'],
+      format: true,
+    });
+
+    await generate(makeAppIR(), config);
+
+    // Read a generated file and check it has proper formatting (spaces, not tabs)
+    const clientContent = readFileSync(join(outputDir, 'client.ts'), 'utf-8');
+    // Biome with our config uses 2-space indentation
+    expect(clientContent).not.toContain('\t');
+  });
+
+  it('skips formatting when format is false', async () => {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['typescript'],
+      format: false,
+    });
+
+    const result = await generate(makeAppIR(), config);
+
+    // Files should still be generated
+    expect(result.files.length).toBeGreaterThan(0);
+    expect(existsSync(join(outputDir, 'client.ts'))).toBe(true);
+  });
+
+  it('returns file paths relative to the output directory', async () => {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['typescript'],
+      format: false,
+    });
+
+    const result = await generate(makeAppIR(), config);
+
+    // All returned file paths should be relative (not absolute)
     for (const file of result.files) {
-      expect(file).toHaveProperty('path');
-      expect(file).toHaveProperty('content');
-      expect(typeof file.path).toBe('string');
-      expect(typeof file.content).toBe('string');
+      expect(file.path).not.toMatch(/^\//);
     }
   });
 
-  it('generates files including client.ts for the typescript generator', () => {
-    const ir = makeIR();
-    const config = makeConfig({ generators: ['typescript'] });
-
-    const result = generate(ir, config);
-    const paths = result.files.map((f) => f.path);
-
-    expect(paths).toContain('client.ts');
-  });
-
-  it('generates type files for each module', () => {
-    const ir = makeIR({
-      modules: [makeModule({ name: 'users' }), makeModule({ name: 'billing' })],
+  it('includes the codegen IR in the result', async () => {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['typescript'],
+      format: false,
     });
-    const config = makeConfig({ generators: ['typescript'] });
 
-    const result = generate(ir, config);
-    const paths = result.files.map((f) => f.path);
+    const result = await generate(makeAppIR(), config);
 
-    expect(paths).toContain('types/users.ts');
-    expect(paths).toContain('types/billing.ts');
+    expect(result.ir).toBeDefined();
+    expect(result.ir.basePath).toBe('/api/v1');
+    expect(result.ir.modules.length).toBe(1);
+    expect(result.ir.modules[0].name).toBe('users');
   });
 
-  it('generates index.ts barrel file', () => {
-    const ir = makeIR();
-    const config = makeConfig({ generators: ['typescript'] });
+  it('includes generator names and file count in the result', async () => {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['typescript'],
+      format: false,
+    });
 
-    const result = generate(ir, config);
-    const paths = result.files.map((f) => f.path);
-
-    expect(paths).toContain('index.ts');
-  });
-
-  it('generates CLI manifest when cli generator is included', () => {
-    const ir = makeIR();
-    const config = makeConfig({ generators: ['cli'] });
-
-    const result = generate(ir, config);
-    const paths = result.files.map((f) => f.path);
-
-    expect(paths).toContain('cli/manifest.ts');
-  });
-
-  it('generates both SDK and CLI files when both generators are configured', () => {
-    const ir = makeIR();
-    const config = makeConfig({ generators: ['typescript', 'cli'] });
-
-    const result = generate(ir, config);
-    const paths = result.files.map((f) => f.path);
-
-    expect(paths).toContain('client.ts');
-    expect(paths).toContain('cli/manifest.ts');
-  });
-
-  it('includes the generator name in the result', () => {
-    const ir = makeIR();
-    const config = makeConfig({ generators: ['typescript'] });
-
-    const result = generate(ir, config);
+    const result = await generate(makeAppIR(), config);
 
     expect(result.generators).toContain('typescript');
-  });
-
-  it('returns file count in the result', () => {
-    const ir = makeIR();
-    const config = makeConfig({ generators: ['typescript'] });
-
-    const result = generate(ir, config);
-
     expect(result.fileCount).toBe(result.files.length);
   });
 
-  it('generates schemas.ts when IR has schemas', () => {
-    const ir = makeIR({
-      schemas: [makeSchema({ name: 'User' })],
+  it('generates CLI manifest when cli generator is included', async () => {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['cli'],
+      format: false,
     });
-    const config = makeConfig({ generators: ['typescript'] });
 
-    const result = generate(ir, config);
+    const result = await generate(makeAppIR(), config);
     const paths = result.files.map((f) => f.path);
 
-    expect(paths).toContain('schemas.ts');
+    expect(paths).toContain('cli/manifest.ts');
+    expect(result.generators).toContain('cli');
+  });
+
+  it('generates both SDK and CLI files when both generators are configured', async () => {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['typescript', 'cli'],
+      format: false,
+    });
+
+    const result = await generate(makeAppIR(), config);
+    const paths = result.files.map((f) => f.path);
+
+    expect(paths).toContain('client.ts');
+    expect(paths).toContain('cli/manifest.ts');
+    expect(result.generators).toContain('typescript');
+    expect(result.generators).toContain('cli');
   });
 });

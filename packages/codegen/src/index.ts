@@ -8,6 +8,7 @@ export {
   resolveCodegenConfig,
   validateCodegenConfig,
 } from './config';
+export { formatWithBiome } from './format';
 export type { GenerateResult } from './generate';
 export { generate } from './generate';
 export type { BinEntryPointOptions, CLIPackageOptions } from './generators/typescript/emit-cli';

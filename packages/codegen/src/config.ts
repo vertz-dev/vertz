@@ -11,6 +11,9 @@ export interface CodegenConfig {
   /** Output directory. Default: '.vertz/generated' */
   outputDir?: string;
 
+  /** Whether to format output with Biome. Defaults to true. */
+  format?: boolean;
+
   /** TypeScript SDK options */
   typescript?: {
     /** Generate schema re-exports. Default: true */
@@ -53,6 +56,7 @@ export interface CodegenConfig {
 export interface ResolvedCodegenConfig {
   generators: GeneratorName[];
   outputDir: string;
+  format?: boolean;
   typescript?: CodegenConfig['typescript'];
   cli?: CodegenConfig['cli'];
 }
@@ -69,6 +73,7 @@ export function resolveCodegenConfig(config?: CodegenConfig): ResolvedCodegenCon
   return {
     generators: config?.generators ?? ['typescript'],
     outputDir: config?.outputDir ?? '.vertz/generated',
+    format: config?.format,
     typescript: config?.typescript,
     cli: config?.cli,
   };
