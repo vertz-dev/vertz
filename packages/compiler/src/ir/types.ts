@@ -142,6 +142,7 @@ export interface MiddlewareRef {
 export interface SchemaIR extends SourceLocation {
   name: string;
   id?: string;
+  moduleName: string;
   namingConvention: SchemaNameParts;
   jsonSchema?: Record<string, unknown>;
   isNamed: boolean;

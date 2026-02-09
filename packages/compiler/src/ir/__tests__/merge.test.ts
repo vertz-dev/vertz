@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEmptyAppIR } from '../builder';
+import { createEmptyAppIR, enrichSchemasWithModuleNames } from '../builder';
 import { mergeIR } from '../merge';
 import type { AppIR, DependencyGraphIR, MiddlewareIR, ModuleIR, SchemaIR } from '../types';
 
@@ -63,6 +63,7 @@ describe('mergeIR', () => {
     const schema1: SchemaIR = {
       name: 'CreateUser',
       isNamed: true,
+      moduleName: '',
       namingConvention: {},
       sourceFile: 'src/schemas/user.ts',
       sourceLine: 1,
@@ -71,6 +72,7 @@ describe('mergeIR', () => {
     const schema2: SchemaIR = {
       name: 'ReadUser',
       isNamed: true,
+      moduleName: '',
       namingConvention: {},
       sourceFile: 'src/schemas/user.ts',
       sourceLine: 5,
@@ -94,6 +96,7 @@ describe('mergeIR', () => {
     const schema1: SchemaIR = {
       name: 'CreateUser',
       isNamed: true,
+      moduleName: '',
       namingConvention: {},
       sourceFile: 'src/schemas/user.ts',
       sourceLine: 1,
@@ -102,6 +105,7 @@ describe('mergeIR', () => {
     const schema2: SchemaIR = {
       name: 'ReadUser',
       isNamed: true,
+      moduleName: '',
       namingConvention: {},
       sourceFile: 'src/schemas/user.ts',
       sourceLine: 5,
@@ -239,5 +243,200 @@ describe('mergeIR', () => {
     const merged = mergeIR(base, partial);
 
     expect(merged.dependencyGraph.initializationOrder).toEqual(['user']);
+  });
+});
+
+describe('enrichSchemasWithModuleNames', () => {
+  it('sets moduleName from module whose route references the schema', () => {
+    const ir = createMinimalIR({
+      modules: [
+        {
+          ...makeModule('users'),
+          routers: [
+            {
+              name: 'usersRouter',
+              moduleName: 'users',
+              prefix: '/users',
+              inject: [],
+              routes: [
+                {
+                  method: 'POST',
+                  path: '/',
+                  fullPath: '/users',
+                  operationId: 'users_createUser',
+                  body: {
+                    kind: 'named',
+                    schemaName: 'createUserBody',
+                    sourceFile: 'src/schemas/user.ts',
+                  },
+                  middleware: [],
+                  tags: [],
+                  sourceFile: 'src/modules/users/routes.ts',
+                  sourceLine: 1,
+                  sourceColumn: 1,
+                },
+              ],
+              sourceFile: 'src/modules/users/routes.ts',
+              sourceLine: 1,
+              sourceColumn: 1,
+            },
+          ],
+        },
+      ],
+      schemas: [
+        {
+          name: 'createUserBody',
+          isNamed: false,
+          moduleName: '',
+          namingConvention: { operation: 'create', entity: 'User', part: 'Body' },
+          sourceFile: 'src/schemas/user.ts',
+          sourceLine: 1,
+          sourceColumn: 1,
+        },
+      ],
+    });
+
+    const enriched = enrichSchemasWithModuleNames(ir);
+
+    expect(enriched.schemas[0].moduleName).toBe('users');
+  });
+
+  it('keeps empty moduleName for schemas not referenced by any route', () => {
+    const ir = createMinimalIR({
+      modules: [makeModule('users')],
+      schemas: [
+        {
+          name: 'orphanSchema',
+          isNamed: true,
+          moduleName: '',
+          namingConvention: {},
+          sourceFile: 'src/schemas/shared.ts',
+          sourceLine: 1,
+          sourceColumn: 1,
+        },
+      ],
+    });
+
+    const enriched = enrichSchemasWithModuleNames(ir);
+
+    expect(enriched.schemas[0].moduleName).toBe('');
+  });
+
+  it('assigns different moduleNames when schemas are referenced by different modules', () => {
+    const ir = createMinimalIR({
+      modules: [
+        {
+          ...makeModule('users'),
+          routers: [
+            {
+              name: 'usersRouter',
+              moduleName: 'users',
+              prefix: '/users',
+              inject: [],
+              routes: [
+                {
+                  method: 'POST',
+                  path: '/',
+                  fullPath: '/users',
+                  operationId: 'users_create',
+                  body: {
+                    kind: 'named',
+                    schemaName: 'createUserBody',
+                    sourceFile: 'src/schemas/user.ts',
+                  },
+                  middleware: [],
+                  tags: [],
+                  sourceFile: 'src/routes.ts',
+                  sourceLine: 1,
+                  sourceColumn: 1,
+                },
+              ],
+              sourceFile: 'src/routes.ts',
+              sourceLine: 1,
+              sourceColumn: 1,
+            },
+          ],
+        },
+        {
+          ...makeModule('orders'),
+          routers: [
+            {
+              name: 'ordersRouter',
+              moduleName: 'orders',
+              prefix: '/orders',
+              inject: [],
+              routes: [
+                {
+                  method: 'POST',
+                  path: '/',
+                  fullPath: '/orders',
+                  operationId: 'orders_create',
+                  body: {
+                    kind: 'named',
+                    schemaName: 'createOrderBody',
+                    sourceFile: 'src/schemas/order.ts',
+                  },
+                  middleware: [],
+                  tags: [],
+                  sourceFile: 'src/routes.ts',
+                  sourceLine: 1,
+                  sourceColumn: 1,
+                },
+              ],
+              sourceFile: 'src/routes.ts',
+              sourceLine: 1,
+              sourceColumn: 1,
+            },
+          ],
+        },
+      ],
+      schemas: [
+        {
+          name: 'createUserBody',
+          isNamed: false,
+          moduleName: '',
+          namingConvention: {},
+          sourceFile: 'src/schemas/user.ts',
+          sourceLine: 1,
+          sourceColumn: 1,
+        },
+        {
+          name: 'createOrderBody',
+          isNamed: false,
+          moduleName: '',
+          namingConvention: {},
+          sourceFile: 'src/schemas/order.ts',
+          sourceLine: 1,
+          sourceColumn: 1,
+        },
+      ],
+    });
+
+    const enriched = enrichSchemasWithModuleNames(ir);
+
+    expect(enriched.schemas.find((s) => s.name === 'createUserBody')?.moduleName).toBe('users');
+    expect(enriched.schemas.find((s) => s.name === 'createOrderBody')?.moduleName).toBe('orders');
+  });
+
+  it('does not mutate the original IR', () => {
+    const ir = createMinimalIR({
+      schemas: [
+        {
+          name: 'testSchema',
+          isNamed: false,
+          moduleName: '',
+          namingConvention: {},
+          sourceFile: 'src/schemas/test.ts',
+          sourceLine: 1,
+          sourceColumn: 1,
+        },
+      ],
+    });
+
+    const enriched = enrichSchemasWithModuleNames(ir);
+
+    expect(ir.schemas[0].moduleName).toBe('');
+    expect(enriched).not.toBe(ir);
+    expect(enriched.schemas).not.toBe(ir.schemas);
   });
 });

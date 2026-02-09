@@ -8,6 +8,7 @@ import type {
   DependencyNode,
   ModuleDefContext,
   RouteIR,
+  SchemaIR,
   SchemaRef,
 } from '../ir/types';
 
@@ -88,6 +89,21 @@ describe('type-level: SchemaRef discriminated union', () => {
     }
     // @ts-expect-error — schemaName not accessible without narrowing
     const _bad: string = ref.schemaName;
+  });
+});
+
+describe('type-level: SchemaIR moduleName', () => {
+  it('SchemaIR without moduleName should be rejected', () => {
+    // @ts-expect-error — SchemaIR requires moduleName field
+    const _bad: SchemaIR = {
+      name: 'createUserBody',
+      sourceFile: 'test.ts',
+      sourceLine: 1,
+      sourceColumn: 0,
+      namingConvention: {},
+      isNamed: false,
+    };
+    void _bad;
   });
 });
 

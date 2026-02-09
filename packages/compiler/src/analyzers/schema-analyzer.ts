@@ -29,6 +29,7 @@ export class SchemaAnalyzer extends BaseAnalyzer<SchemaAnalyzerResult> {
             name,
             ...loc,
             id: id ?? undefined,
+            moduleName: '',
             namingConvention: parseSchemaName(name),
             isNamed: id !== null,
           });

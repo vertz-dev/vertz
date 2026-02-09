@@ -22,7 +22,7 @@ import { ManifestGenerator } from './generators/manifest-generator';
 import { OpenAPIGenerator } from './generators/openapi-generator';
 import { RouteTableGenerator } from './generators/route-table-generator';
 import { SchemaRegistryGenerator } from './generators/schema-registry-generator';
-import { createEmptyAppIR } from './ir/builder';
+import { createEmptyAppIR, enrichSchemasWithModuleNames } from './ir/builder';
 import type { AppIR } from './ir/types';
 import { CompletenessValidator } from './validators/completeness-validator';
 import { ModuleValidator } from './validators/module-validator';
@@ -83,7 +83,7 @@ export class Compiler {
     ir.app = appResult.app;
     ir.dependencyGraph = depGraphResult.graph;
 
-    return ir;
+    return enrichSchemasWithModuleNames(ir);
   }
 
   async validate(ir: AppIR): Promise<Diagnostic[]> {
