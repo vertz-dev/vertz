@@ -1,3 +1,12 @@
+export type { BinEntryPointOptions, CLIPackageOptions } from './generators/typescript/emit-cli';
+export {
+  emitBinEntryPoint,
+  emitCommandDefinition,
+  emitManifestFile,
+  emitModuleCommands,
+  scaffoldCLIPackageJson,
+  scaffoldCLIRootIndex,
+} from './generators/typescript/emit-cli';
 export {
   emitAuthStrategyBuilder,
   emitClientFile,
