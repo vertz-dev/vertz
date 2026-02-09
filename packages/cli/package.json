@@ -13,7 +13,7 @@
     "provenance": true
   },
   "bin": {
-    "vertz": "./bin/vertz.ts"
+    "vertz": "./dist/vertz.js"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,8 +24,7 @@
     }
   },
   "files": [
-    "dist",
-    "bin"
+    "dist"
   ],
   "scripts": {
     "build": "bunup",

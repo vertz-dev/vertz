@@ -5,7 +5,7 @@
   "bumpVersionsWithWorkspaceProtocolOnly": true,
   "changelog": ["@changesets/changelog-github", { "repo": "vertz-dev/vertz" }],
   "commit": false,
-  "fixed": [["@vertz/schema", "@vertz/core", "@vertz/compiler", "@vertz/testing"]],
+  "fixed": [["@vertz/schema", "@vertz/core", "@vertz/compiler", "@vertz/testing", "@vertz/cli"]],
   "ignore": [],
   "linked": [],
   "updateInternalDependencies": "patch"
