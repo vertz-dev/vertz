@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process';
 import { accessSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -57,19 +58,10 @@ function spawnAsync(
   cmd: string,
   args: string[],
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  return new Promise((resolve, reject) => {
-    const proc = Bun.spawn([cmd, ...args], {
-      stdout: 'pipe',
-      stderr: 'pipe',
+  return new Promise((resolve) => {
+    execFile(cmd, args, { maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+      resolve({ stdout, stderr, exitCode: error ? 1 : 0 });
     });
-
-    proc.exited
-      .then(async (exitCode) => {
-        const stdout = await new Response(proc.stdout).text();
-        const stderr = await new Response(proc.stderr).text();
-        resolve({ stdout, stderr, exitCode });
-      })
-      .catch(reject);
   });
 }
 

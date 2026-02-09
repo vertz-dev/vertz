@@ -1,3 +1,4 @@
+import type { Dirent } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { hashContent } from './hasher';
@@ -27,7 +28,7 @@ export interface IncrementalOptions {
 async function collectFiles(dir: string, baseDir: string): Promise<string[]> {
   const results: string[] = [];
 
-  let entries: Awaited<ReturnType<typeof readdir>>;
+  let entries: Dirent[];
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch {
