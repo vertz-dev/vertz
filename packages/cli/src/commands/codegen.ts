@@ -38,10 +38,17 @@ export interface GeneratedFile {
   content: string;
 }
 
+export interface IncrementalStats {
+  written: string[];
+  skipped: string[];
+  removed: string[];
+}
+
 export interface GenerateResult {
   files: GeneratedFile[];
   fileCount: number;
   generators: string[];
+  incremental?: IncrementalStats;
 }
 
 export interface CodegenPipeline {
@@ -56,6 +63,8 @@ export interface CodegenOptions {
   writeFile: (path: string, content: string) => Promise<void>;
   pipeline: CodegenPipeline;
   dryRun?: boolean;
+  /** When false, disables incremental mode and always writes all files. Defaults to true. */
+  incremental?: boolean;
 }
 
 export interface CodegenResult {
@@ -65,7 +74,7 @@ export interface CodegenResult {
 }
 
 export async function codegenAction(options: CodegenOptions): Promise<CodegenResult> {
-  const { config, ir, writeFile, pipeline, dryRun = false } = options;
+  const { config, ir, writeFile, pipeline, dryRun = false, incremental = true } = options;
 
   // No codegen config provided
   if (!config) {
@@ -107,9 +116,30 @@ export async function codegenAction(options: CodegenOptions): Promise<CodegenRes
     }
   }
 
+  // Build output message
+  const inc = incremental ? result.incremental : undefined;
+  let output: string;
+
+  if (inc) {
+    const parts: string[] = [];
+    if (inc.written.length > 0) {
+      parts.push(`${inc.written.length} written`);
+    }
+    if (inc.skipped.length > 0) {
+      parts.push(`${inc.skipped.length} skipped`);
+    }
+    if (inc.removed.length > 0) {
+      parts.push(`${inc.removed.length} removed`);
+    }
+    const details = parts.length > 0 ? ` (${parts.join(', ')})` : '';
+    output = `Generated ${result.fileCount} file${result.fileCount === 1 ? '' : 's'}${details} (${result.generators.join(', ')})`;
+  } else {
+    output = `Generated ${result.fileCount} file${result.fileCount === 1 ? '' : 's'} (${result.generators.join(', ')})`;
+  }
+
   return {
     success: true,
-    output: `Generated ${result.fileCount} file${result.fileCount === 1 ? '' : 's'} (${result.generators.join(', ')})`,
+    output,
     fileCount: result.fileCount,
   };
 }
