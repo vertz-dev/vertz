@@ -1,18 +1,29 @@
 # Vertz Framework
 
-## Git Identity
+## Stack
 
-All git and GitHub operations MUST use bot tokens. Never commit, push, or create PRs with a personal account.
+- Runtime: Bun
+- Language: TypeScript (strict mode)
+- Linter/Formatter: Biome
+- Test runner: `bun test`
+- Monorepo: Bun workspaces under `packages/`
 
-- **Commits/push:** `doppler run -- bash /app/backstage/.github-bots/git-as.sh <bot-name> <git-command...>`
-- **GitHub CLI:** `doppler run -- bash /app/backstage/.github-bots/gh-as.sh <bot-name> <gh-command...>`
+## Development
 
-Available bots: mike (tech-lead), ben (dev-core), ava (dev-dx), nora (dev-front), josh (advocate), deploy
+```bash
+bun run build        # Build all packages
+bun test             # Run tests
+bun run typecheck    # TypeScript strict checking
+bun run lint         # Biome lint check
+bun run lint:fix     # Auto-fix lint issues
+bun run format:fix   # Auto-fix formatting
+```
 
-## Team & Roles
+## Conventions
 
-See `/app/backstage/team.json` for the full team structure and role ownership. Use the appropriate bot for the work being done — ben for core packages, nora for frontend/UI, ava for CLI/testing, etc.
-
-## Secrets
-
-All secrets are in Doppler (project: `vertz`, config: `dev`). Never store secrets on disk. Always use `doppler run` to inject them.
+- Strict TDD: Red → Green → Refactor. Every behavior needs a failing test first.
+- Run quality gates (lint, format, typecheck) after every green.
+- No `@ts-ignore` — use `@ts-expect-error` with a description.
+- No `as any` — maintain full type safety.
+- Single quotes, semicolons, trailing commas, 2-space indent, 100 char line width.
+- See `CONTRIBUTING.md` and `.claude/rules/` for detailed guidelines.
