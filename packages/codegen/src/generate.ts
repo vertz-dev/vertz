@@ -11,6 +11,8 @@ import {
   emitSchemaReExports,
 } from './generators/typescript/emit-sdk';
 import { emitModuleTypesFile, emitSharedTypesFile } from './generators/typescript/emit-types';
+import type { IncrementalResult } from './incremental';
+import { writeIncremental } from './incremental';
 import { adaptIR } from './ir-adapter';
 import type { CodegenIR, GeneratedFile } from './types';
 
@@ -25,6 +27,8 @@ export interface GenerateResult {
   fileCount: number;
   /** Which generators were run. */
   generators: string[];
+  /** Incremental write stats (only present when incremental mode is used). */
+  incremental?: IncrementalResult;
 }
 
 // ── TypeScript generator ───────────────────────────────────────────
@@ -135,9 +139,12 @@ export function generateSync(ir: CodegenIR, config: ResolvedCodegenConfig): Gene
  * 1. Converts AppIR to CodegenIR via the IR adapter
  * 2. Runs configured generators to produce GeneratedFile[]
  * 3. Optionally formats output with Biome
- * 4. Writes files to disk
+ * 4. Writes files to disk (incrementally when enabled)
  */
-export async function generate(appIR: AppIR, config: ResolvedCodegenConfig): Promise<GenerateResult> {
+export async function generate(
+  appIR: AppIR,
+  config: ResolvedCodegenConfig,
+): Promise<GenerateResult> {
   // Step 1: Convert AppIR → CodegenIR
   const ir = adaptIR(appIR);
 
@@ -152,14 +159,28 @@ export async function generate(appIR: AppIR, config: ResolvedCodegenConfig): Pro
   }
 
   // Step 4: Write files to disk
-  await mkdir(config.outputDir, { recursive: true });
+  // Incremental mode is on by default (incremental !== false)
+  const useIncremental = config.incremental !== false;
+  let incrementalResult: IncrementalResult | undefined;
 
-  for (const file of files) {
-    const filePath = join(config.outputDir, file.path);
-    const dir = dirname(filePath);
-    await mkdir(dir, { recursive: true });
-    await writeFile(filePath, file.content, 'utf-8');
+  if (useIncremental) {
+    incrementalResult = await writeIncremental(files, config.outputDir);
+  } else {
+    await mkdir(config.outputDir, { recursive: true });
+
+    for (const file of files) {
+      const filePath = join(config.outputDir, file.path);
+      const dir = dirname(filePath);
+      await mkdir(dir, { recursive: true });
+      await writeFile(filePath, file.content, 'utf-8');
+    }
   }
 
-  return { files, ir, fileCount: files.length, generators: result.generators };
+  return {
+    files,
+    ir,
+    fileCount: files.length,
+    generators: result.generators,
+    incremental: incrementalResult,
+  };
 }
