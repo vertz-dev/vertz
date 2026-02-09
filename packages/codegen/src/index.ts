@@ -6,6 +6,12 @@ export {
   emitSDKConfig,
   emitStreamingMethod,
 } from './generators/typescript/emit-client';
+export type { PackageOptions } from './generators/typescript/emit-sdk';
+export {
+  emitBarrelIndex,
+  emitPackageJson,
+  emitSchemaReExports,
+} from './generators/typescript/emit-sdk';
 export {
   emitInterfaceFromSchema,
   emitModuleTypesFile,
