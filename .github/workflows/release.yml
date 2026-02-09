@@ -13,7 +13,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      id-token: write
 
     steps:
       - name: Checkout
@@ -23,7 +22,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-          registry-url: "https://registry.npmjs.org"
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -36,15 +34,12 @@ jobs:
       - name: Build all packages
         run: bun run build
 
-      - name: Create Release PR or Publish
+      - name: Create Release PR
         id: changesets
         uses: changesets/action@v1
         with:
           version: bun run changeset:version
-          publish: bun run changeset:publish
           title: "chore: version packages"
           commit: "chore: version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
