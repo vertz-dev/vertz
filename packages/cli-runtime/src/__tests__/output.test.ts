@@ -69,4 +69,14 @@ describe('formatOutput', () => {
     expect(result).toContain('name');
     expect(result).toContain('Alice');
   });
+
+  it('handles empty array for table format', () => {
+    const result = formatOutput([], 'table');
+    expect(result).toBe('(empty)');
+  });
+
+  it('formats human-readable primitive values', () => {
+    expect(formatOutput('hello', 'human')).toBe('hello');
+    expect(formatOutput(42, 'human')).toBe('42');
+  });
 });

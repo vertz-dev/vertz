@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateCommandHelp, generateHelp } from '../help';
+import { generateCommandHelp, generateHelp, generateNamespaceHelp } from '../help';
 import type { CommandManifest } from '../types';
 
 const testManifest: CommandManifest = {
@@ -89,5 +89,37 @@ describe('generateCommandHelp', () => {
   it('shows usage with namespace and command', () => {
     const help = generateCommandHelp('users', 'list', testManifest.users.list);
     expect(help).toContain('users list');
+  });
+
+  it('shows HTTP method and path', () => {
+    const help = generateCommandHelp('users', 'get', testManifest.users.get);
+    expect(help).toContain('GET');
+    expect(help).toContain('/api/v1/users/:id');
+  });
+
+  it('handles command with no parameters', () => {
+    const help = generateCommandHelp('orders', 'list', testManifest.orders.list);
+    expect(help).toContain('List all orders');
+    expect(help).not.toContain('Options:');
+  });
+});
+
+describe('generateNamespaceHelp', () => {
+  it('lists commands within a namespace', () => {
+    const help = generateNamespaceHelp('myapp', 'users', testManifest.users);
+    expect(help).toContain('list');
+    expect(help).toContain('get');
+    expect(help).toContain('create');
+  });
+
+  it('includes command descriptions', () => {
+    const help = generateNamespaceHelp('myapp', 'users', testManifest.users);
+    expect(help).toContain('List all users');
+    expect(help).toContain('Get a user by ID');
+  });
+
+  it('shows how to get command help', () => {
+    const help = generateNamespaceHelp('myapp', 'users', testManifest.users);
+    expect(help).toContain('myapp users <command> --help');
   });
 });
