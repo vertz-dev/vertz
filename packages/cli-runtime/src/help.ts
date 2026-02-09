@@ -1,5 +1,7 @@
 import type { CommandDefinition, CommandManifest, FieldDefinition } from './types';
 
+type NamespaceCommands = Record<string, CommandDefinition>;
+
 export function generateHelp(name: string, version: string, commands: CommandManifest): string {
   const lines: string[] = [];
 
@@ -20,6 +22,27 @@ export function generateHelp(name: string, version: string, commands: CommandMan
   lines.push('  --help       Show help');
   lines.push('  --version    Show version');
   lines.push('  --output     Output format (json, table, human)');
+
+  return lines.join('\n');
+}
+
+export function generateNamespaceHelp(
+  name: string,
+  namespace: string,
+  commands: NamespaceCommands,
+): string {
+  const lines: string[] = [];
+
+  lines.push(`${name} ${namespace}`);
+  lines.push('');
+  lines.push('Commands:');
+
+  for (const [cmdName, cmdDef] of Object.entries(commands)) {
+    lines.push(`  ${cmdName}    ${cmdDef.description}`);
+  }
+
+  lines.push('');
+  lines.push(`Run '${name} ${namespace} <command> --help' for more information on a command.`);
 
   return lines.join('\n');
 }
