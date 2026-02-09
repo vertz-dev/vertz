@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AppIR } from '@vertz/compiler';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { CodegenConfig } from '../generate';
+import { resolveCodegenConfig } from '../config';
+import type { ResolvedCodegenConfig } from '../config';
 import { generate } from '../generate';
 
 // ── Minimal AppIR fixture ──────────────────────────────────────────
@@ -128,12 +129,11 @@ describe('generate', () => {
   });
 
   it('generates TypeScript SDK files and writes them to disk', async () => {
-    const config: CodegenConfig = {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
       outputDir,
       generators: ['typescript'],
-      packageName: '@acme/users-sdk',
       format: true,
-    };
+    });
 
     const result = await generate(makeAppIR(), config);
 
@@ -154,12 +154,11 @@ describe('generate', () => {
   });
 
   it('formats generated files with Biome when format is enabled', async () => {
-    const config: CodegenConfig = {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
       outputDir,
       generators: ['typescript'],
-      packageName: '@acme/users-sdk',
       format: true,
-    };
+    });
 
     await generate(makeAppIR(), config);
 
@@ -170,12 +169,11 @@ describe('generate', () => {
   });
 
   it('skips formatting when format is false', async () => {
-    const config: CodegenConfig = {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
       outputDir,
       generators: ['typescript'],
-      packageName: '@acme/users-sdk',
       format: false,
-    };
+    });
 
     const result = await generate(makeAppIR(), config);
 
@@ -184,30 +182,12 @@ describe('generate', () => {
     expect(existsSync(join(outputDir, 'client.ts'))).toBe(true);
   });
 
-  it('generates package.json with the configured package name', async () => {
-    const config: CodegenConfig = {
-      outputDir,
-      generators: ['typescript'],
-      packageName: '@acme/my-api-sdk',
-      format: true,
-    };
-
-    await generate(makeAppIR(), config);
-
-    const pkgPath = join(outputDir, 'package.json');
-    expect(existsSync(pkgPath)).toBe(true);
-
-    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
-    expect(pkg.name).toBe('@acme/my-api-sdk');
-  });
-
   it('returns file paths relative to the output directory', async () => {
-    const config: CodegenConfig = {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
       outputDir,
       generators: ['typescript'],
-      packageName: '@acme/sdk',
       format: false,
-    };
+    });
 
     const result = await generate(makeAppIR(), config);
 
@@ -218,12 +198,11 @@ describe('generate', () => {
   });
 
   it('includes the codegen IR in the result', async () => {
-    const config: CodegenConfig = {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
       outputDir,
       generators: ['typescript'],
-      packageName: '@acme/sdk',
       format: false,
-    };
+    });
 
     const result = await generate(makeAppIR(), config);
 
@@ -231,5 +210,48 @@ describe('generate', () => {
     expect(result.ir.basePath).toBe('/api/v1');
     expect(result.ir.modules.length).toBe(1);
     expect(result.ir.modules[0].name).toBe('users');
+  });
+
+  it('includes generator names and file count in the result', async () => {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['typescript'],
+      format: false,
+    });
+
+    const result = await generate(makeAppIR(), config);
+
+    expect(result.generators).toContain('typescript');
+    expect(result.fileCount).toBe(result.files.length);
+  });
+
+  it('generates CLI manifest when cli generator is included', async () => {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['cli'],
+      format: false,
+    });
+
+    const result = await generate(makeAppIR(), config);
+    const paths = result.files.map((f) => f.path);
+
+    expect(paths).toContain('cli/manifest.ts');
+    expect(result.generators).toContain('cli');
+  });
+
+  it('generates both SDK and CLI files when both generators are configured', async () => {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
+      outputDir,
+      generators: ['typescript', 'cli'],
+      format: false,
+    });
+
+    const result = await generate(makeAppIR(), config);
+    const paths = result.files.map((f) => f.path);
+
+    expect(paths).toContain('client.ts');
+    expect(paths).toContain('cli/manifest.ts');
+    expect(result.generators).toContain('typescript');
+    expect(result.generators).toContain('cli');
   });
 });

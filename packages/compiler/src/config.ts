@@ -26,16 +26,67 @@ export interface CompilerConfig {
   validation: ValidationConfig;
 }
 
+// ── Codegen Config ──────────────────────────────────────────────
+
+export type CodegenGeneratorName = 'typescript' | 'cli';
+
+export interface CodegenPublishableConfig {
+  /** Package name, e.g., '@myapp/sdk' */
+  name: string;
+  /** Output directory for the package */
+  outputDir: string;
+  /** Package version. Default: '0.0.0' */
+  version?: string;
+}
+
+export interface CodegenTypescriptConfig {
+  /** Generate schema re-exports. Default: true */
+  schemas?: boolean;
+  /** SDK client function name. Default: 'createClient' */
+  clientName?: string;
+  /** Generate as publishable npm package */
+  publishable?: CodegenPublishableConfig;
+  /** Augmentable types for customer-specific type narrowing */
+  augmentableTypes?: string[];
+}
+
+export interface CodegenCLIPublishableConfig extends CodegenPublishableConfig {
+  /** CLI binary name, e.g., 'myapp' */
+  binName: string;
+}
+
+export interface CodegenCLIConfig {
+  /** Include in generation. Default: false */
+  enabled?: boolean;
+  /** Generate as publishable npm package */
+  publishable?: CodegenCLIPublishableConfig;
+}
+
+export interface CodegenConfig {
+  /** Generators to run. Default: ['typescript'] */
+  generators: CodegenGeneratorName[];
+  /** Output directory. Default: '.vertz/generated' */
+  outputDir?: string;
+  /** TypeScript SDK options */
+  typescript?: CodegenTypescriptConfig;
+  /** CLI options */
+  cli?: CodegenCLIConfig;
+}
+
+// ── Vertz Config ────────────────────────────────────────────────
+
 export interface VertzConfig {
   strict?: boolean;
   forceGenerate?: boolean;
   compiler?: Partial<CompilerConfig>;
+  codegen?: CodegenConfig;
 }
 
 export interface ResolvedConfig {
   strict: boolean;
   forceGenerate: boolean;
   compiler: CompilerConfig;
+  codegen?: CodegenConfig;
 }
 
 export function defineConfig(config: VertzConfig): VertzConfig {
@@ -46,6 +97,7 @@ export function resolveConfig(config?: VertzConfig): ResolvedConfig {
   return {
     strict: config?.strict ?? false,
     forceGenerate: config?.forceGenerate ?? false,
+    codegen: config?.codegen,
     compiler: {
       sourceDir: config?.compiler?.sourceDir ?? 'src',
       outputDir: config?.compiler?.outputDir ?? '.vertz/generated',

@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AppIR } from '@vertz/compiler';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { CodegenConfig } from '../generate';
+import type { ResolvedCodegenConfig } from '../config';
+import { resolveCodegenConfig } from '../config';
 import { generate } from '../generate';
 
 // ── Realistic multi-module AppIR fixture ───────────────────────────
@@ -196,13 +197,18 @@ describe('Full pipeline integration', () => {
   });
 
   it('generates a complete formatted SDK from a realistic multi-module AppIR', async () => {
-    const config: CodegenConfig = {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
       outputDir,
       generators: ['typescript'],
-      packageName: '@acme/api-sdk',
-      packageVersion: '2.0.0',
       format: true,
-    };
+      typescript: {
+        publishable: {
+          name: '@acme/api-sdk',
+          outputDir,
+          version: '2.0.0',
+        },
+      },
+    });
 
     const result = await generate(makeRealisticAppIR(), config);
 
@@ -262,12 +268,17 @@ describe('Full pipeline integration', () => {
   });
 
   it('produces valid TypeScript that contains no syntax errors', async () => {
-    const config: CodegenConfig = {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
       outputDir,
       generators: ['typescript'],
-      packageName: '@acme/sdk',
       format: true,
-    };
+      typescript: {
+        publishable: {
+          name: '@acme/sdk',
+          outputDir,
+        },
+      },
+    });
 
     await generate(makeRealisticAppIR(), config);
 
@@ -285,12 +296,17 @@ describe('Full pipeline integration', () => {
   });
 
   it('generates schemas file with validator definitions', async () => {
-    const config: CodegenConfig = {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
       outputDir,
       generators: ['typescript'],
-      packageName: '@acme/sdk',
       format: true,
-    };
+      typescript: {
+        publishable: {
+          name: '@acme/sdk',
+          outputDir,
+        },
+      },
+    });
 
     await generate(makeRealisticAppIR(), config);
 
@@ -321,18 +337,16 @@ describe('Full pipeline integration', () => {
       diagnostics: [],
     };
 
-    const config: CodegenConfig = {
+    const config: ResolvedCodegenConfig = resolveCodegenConfig({
       outputDir,
       generators: ['typescript'],
-      packageName: '@acme/empty-sdk',
       format: false,
-    };
+    });
 
     const result = await generate(emptyAppIR, config);
 
-    // Should still produce at least an index.ts and package.json
+    // Should still produce at least an index.ts
     expect(existsSync(join(outputDir, 'index.ts'))).toBe(true);
-    expect(existsSync(join(outputDir, 'package.json'))).toBe(true);
     expect(result.files.length).toBeGreaterThan(0);
   });
 });
