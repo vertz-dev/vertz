@@ -1,3 +1,15 @@
+export type {
+  CodegenConfig,
+  GeneratorName,
+  ResolvedCodegenConfig,
+} from './config';
+export {
+  defineCodegenConfig,
+  resolveCodegenConfig,
+  validateCodegenConfig,
+} from './config';
+export type { GenerateResult } from './generate';
+export { generate } from './generate';
 export type { BinEntryPointOptions, CLIPackageOptions } from './generators/typescript/emit-cli';
 export {
   emitBinEntryPoint,
@@ -32,6 +44,8 @@ export {
 export { adaptIR } from './ir-adapter';
 export type { ConversionContext, ConversionResult } from './json-schema-converter';
 export { jsonSchemaToTS } from './json-schema-converter';
+export type { CodegenPipeline } from './pipeline';
+export { createCodegenPipeline } from './pipeline';
 export type {
   CodegenAuth,
   CodegenAuthScheme,
