@@ -1,3 +1,11 @@
+export {
+  emitInterfaceFromSchema,
+  emitModuleTypesFile,
+  emitOperationInputType,
+  emitOperationResponseType,
+  emitSharedTypesFile,
+  emitStreamingEventType,
+} from './generators/typescript/emit-types';
 export { adaptIR } from './ir-adapter';
 export type { ConversionContext, ConversionResult } from './json-schema-converter';
 export { jsonSchemaToTS } from './json-schema-converter';
