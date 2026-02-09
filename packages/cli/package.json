@@ -33,6 +33,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {
+    "@vertz/codegen": "workspace:*",
     "@vertz/compiler": "workspace:*",
     "commander": "^14.0.0",
     "ink": "^6.6.0",

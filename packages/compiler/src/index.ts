@@ -47,6 +47,12 @@ export type { CompileResult, CompilerDependencies, Validator } from './compiler'
 export { Compiler, createCompiler } from './compiler';
 // Config
 export type {
+  CodegenCLIConfig,
+  CodegenCLIPublishableConfig,
+  CodegenConfig,
+  CodegenGeneratorName,
+  CodegenPublishableConfig,
+  CodegenTypescriptConfig,
   CompilerConfig,
   OpenAPIConfig,
   ResolvedConfig,
