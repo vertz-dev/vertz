@@ -36,7 +36,7 @@
 | `@vertz/ui` | JSX runtime, reactivity runtime (signals), router, `query()`, `form()`, hydration client, `ErrorBoundary`, context | Yes |
 | `@vertz/ui-server` | Streaming HTML renderer, atomic hydration emitter, `<Head>` management, asset pipeline | No (Node.js only) |
 | `@vertz/ui-compiler` | Vite plugin — `let` → signal transform, JSX → DOM calls, component registration for hydration, route type extraction from backend IR | No (build only) |
-| `@vertz/codegen` | Reads compiler IR, generates typed SDK client (`sdk.ts`), route types, and re-exported schemas | No (build only) |
+| `@vertz/codegen` | Reads compiler IR, generates typed SDK client (`sdk.ts`), route types, and re-exported schemas. See [Section 20](#20-dependencies-on-vertzcodegen-and-vertzfetch) for full dependency analysis. | No (build only) |
 
 Dependency graph:
 
@@ -1129,7 +1129,7 @@ The north star: if a developer writes semantic HTML with Vertz UI, the result is
 | 6 | `query()` — reactive data fetching, auto-generated keys, debounce, refetch, initialData | Phase 3, Phase 9 |
 | 7 | SSR — `renderToStream`, streaming, out-of-order Suspense chunks | Phase 3 |
 | 8 | Atomic hydration — `data-v-id` markers, client bootstrap, lazy/eager/interaction strategies | Phase 7 |
-| 9 | SDK generation — `@vertz/codegen` reads compiler IR, generates typed SDK client, route types, schemas | `@vertz/compiler` |
+| 9 | SDK generation — `@vertz/codegen` reads compiler IR, generates typed SDK client, route types, schemas. **This phase is implemented by `@vertz/codegen` (see [codegen design plan](./codegen-design.md) Phases 2-6), not by `@vertz/ui`.** See [Section 20.8](#208-implementation-phase-dependencies). | `@vertz/compiler` |
 | 10 | Testing — `renderTest`, `createTestRouter`, `fillForm`, SDK mocking, `@vertz/testing` integration | Phase 4-6 |
 | 11 | Vite plugin — full dev server integration, HMR, production build, auto-run codegen on backend change | Phase 2+ |
 
@@ -1147,3 +1147,151 @@ The north star: if a developer writes semantic HTML with Vertz UI, the result is
 | Router + query() + form() | ~3 KB (loaded separately) |
 
 For comparison: React is ~45 KB, Preact is ~4 KB, Solid is ~7 KB, Svelte runtime is ~2 KB.
+
+---
+
+## 20. Dependencies on `@vertz/codegen` and `@vertz/fetch`
+
+This section documents how `@vertz/ui` relates to the `@vertz/codegen` and `@vertz/fetch` packages, clarifying hard dependencies, shared patterns, and coordination points.
+
+### 20.1 Dependency Map
+
+```
+@vertz/compiler
+  │
+  └─ produces AppIR
+       │
+       ├─── @vertz/codegen (IR Adapter → CodegenIR → generators)
+       │      │
+       │      ├─ generates: .vertz/generated/sdk.ts     ← @vertz/ui imports this
+       │      ├─ generates: .vertz/generated/route-types.ts  ← @vertz/ui imports this
+       │      ├─ generates: .vertz/generated/schemas.ts  ← @vertz/ui imports this (form validation)
+       │      └─ generated SDK uses: @vertz/fetch        ← runtime HTTP client
+       │
+       └─── @vertz/ui-compiler (Vite plugin)
+              │
+              ├─ reads: .vertz/generated/* (types, SDK, schemas)
+              ├─ transforms: .tsx → reactive DOM code
+              └─ outputs: @vertz/ui browser runtime + @vertz/ui-server SSR runtime
+```
+
+### 20.2 Hard Dependencies
+
+These are non-optional dependencies — `@vertz/ui` cannot function without them.
+
+| Dependency | What `@vertz/ui` Needs | Why It's Hard |
+|---|---|---|
+| **Generated SDK** (`sdk.ts`) | `form(api.users.create)`, `query(() => api.users.list(...))`, router loaders | The SDK is the typed API surface. `form()` extracts body schemas, endpoints, and response types from SDK methods. `query()` auto-generates cache keys from SDK operation metadata. Router loaders call SDK methods for data fetching. |
+| **Generated Route Types** (`route-types.ts`) | Component props typing, loader return types | Components receive typed data from loaders. The types flow from the backend schema definitions through codegen into the UI component layer. |
+| **Generated Schemas** (`schemas.ts`) | `form()` client-side validation | `form(sdkMethod)` extracts the `@vertz/schema` object from the SDK method for client-side validation. The schemas are re-exported from codegen output so the UI can validate form data before submission. |
+| **`@vertz/fetch`** (transitive, via SDK) | HTTP calls from SDK methods | The generated SDK delegates all HTTP operations to `@vertz/fetch`. Every `api.users.list()` call flows through `FetchClient.request()`. This is a transitive runtime dependency — the UI doesn't import `@vertz/fetch` directly, but it's loaded in the browser as part of the SDK. |
+
+### 20.3 `@vertz/fetch` — Shared HTTP Client
+
+The generated SDK uses `@vertz/fetch` for all HTTP operations. This means `@vertz/fetch` is the HTTP client that powers the UI's data layer, even though the UI never imports it directly.
+
+**What this means for the UI:**
+
+- **Auth**: The SDK's `createClient({ token: ... })` configures auth at the `@vertz/fetch` level. The UI's `query()` and `form()` calls inherit this auth configuration transparently. There is no separate auth setup for the UI — it flows through the SDK client.
+- **Retries**: `@vertz/fetch` handles retries (429, 5xx) with configurable backoff. The UI's `query()` benefits from this automatically — failed data fetches are retried without the UI needing retry logic.
+- **Streaming**: For real-time features, the SDK exposes `AsyncGenerator` methods backed by `@vertz/fetch`'s SSE/NDJSON parsers. The UI can consume these directly: `for await (const event of api.events.stream()) { ... }`.
+- **Error handling**: `@vertz/fetch` throws typed errors (`BadRequestError`, `NotFoundError`, etc.). The SDK wraps these into `SDKResult` discriminated unions (`{ ok: true, data } | { ok: false, error }`). The UI's `ErrorBoundary` and route-level error components handle these.
+
+**The UI does NOT need its own HTTP client.** The `@vertz/fetch` → SDK → UI chain provides typed, authenticated, retry-aware HTTP calls. Building a separate HTTP layer for the UI would duplicate functionality and break the single-source-of-truth principle.
+
+**Exception**: SSR data fetching in `@vertz/ui-server` may need to call the backend directly (server-to-server, no browser). In this case, `@vertz/ui-server` should use the same generated SDK with a server-side `FetchClient` configuration (e.g., `baseURL: 'http://localhost:3000'`, no CORS). This is still `@vertz/fetch` — just configured differently for the server environment.
+
+### 20.4 Shared Consumption of `AppIR`
+
+Both `@vertz/codegen` and `@vertz/ui-compiler` consume the `AppIR` produced by `@vertz/compiler`, but they consume different slices for different purposes.
+
+| Consumer | What It Reads from `AppIR` | What It Produces |
+|---|---|---|
+| **`@vertz/codegen`** (IR Adapter) | Modules, routes, schemas, auth config | `CodegenIR` → generated SDK, types, schemas |
+| **`@vertz/ui-compiler`** (Vite plugin) | Generated output from codegen (not AppIR directly) | Reactive component transforms, hydration markers |
+
+**Important distinction**: `@vertz/ui-compiler` does NOT read `AppIR` directly. It reads the **output** of `@vertz/codegen` — the generated `.vertz/generated/` files. The IR adapter in codegen is responsible for the `AppIR → CodegenIR` transformation. The UI compiler operates downstream of that transformation.
+
+This creates a clean dependency chain:
+
+```
+AppIR → @vertz/codegen → .vertz/generated/ → @vertz/ui-compiler → browser/server builds
+```
+
+The UI compiler never needs to understand `AppIR` internals — it only needs the generated TypeScript files that codegen produces. This is intentional: it means the UI compiler is decoupled from compiler internals and only depends on codegen's **output format**, which is stable TypeScript.
+
+### 20.5 Watch Mode Coordination (`vertz dev`)
+
+During development, both codegen and the UI compiler need incremental updates when backend code changes. The coordination works as a pipeline:
+
+```
+Source file change (e.g., edit a route handler)
+  │
+  ├─ 1. @vertz/compiler detects change, produces new AppIR        (~50ms)
+  ├─ 2. @vertz/codegen computes changeset, regenerates affected files  (~50ms)
+  │       └─ Only changed modules: modules/{name}.ts + types/{name}.ts
+  └─ 3. @vertz/ui-compiler (Vite) detects generated file change, triggers HMR  (~100ms)
+        └─ Vite's file watcher picks up the new .vertz/generated/* files
+        └─ Components that import from the SDK get hot-reloaded
+```
+
+**Key design point**: The UI compiler (Vite plugin) does not need custom coordination logic with codegen. It relies on **filesystem watching** — Vite already watches `node_modules` and configured directories for changes. When codegen writes new files to `.vertz/generated/`, Vite's HMR pipeline picks them up naturally.
+
+**What `@vertz/codegen`'s incremental regeneration enables for the UI**:
+
+Codegen splits output into per-module files (see codegen design, Section 17). This matters for UI HMR because:
+
+- Editing a route in the `users` module only regenerates `modules/users.ts` and `types/users.ts`
+- Vite's HMR only invalidates UI components that import from those specific files
+- Components using `api.billing.*` are unaffected — no unnecessary re-renders
+- The `client.ts` entry point only changes when modules are added or removed
+
+Without per-module file splitting, every backend change would regenerate the entire SDK, invalidating all UI components that use any SDK method. The per-module split keeps the HMR blast radius proportional to the change.
+
+### 20.6 Patterns That Could Be Shared (But Are Not Required)
+
+These are codegen infrastructure patterns that the UI compiler **could** reuse but does not **need** to. Sharing is an optimization, not a requirement.
+
+#### Template System (Tagged Template Functions)
+
+Codegen uses tagged template functions (`ts\`...\``) for code generation with IDE syntax highlighting. The UI compiler uses `MagicString` for surgical string replacements (same approach as Svelte and Vue compilers).
+
+**Verdict**: No sharing needed. The tools solve different problems — codegen generates new files from data, the UI compiler transforms existing source files. `MagicString` is the right tool for source-to-source transforms; tagged templates are the right tool for data-to-source generation.
+
+#### `FileFragment` / `Import` Pattern
+
+Codegen uses `FileFragment { content, imports }` and `mergeImports()` to assemble generated files with deduplicated imports. The UI compiler adds imports to existing files (e.g., injecting `import { signal } from "@vertz/ui/runtime"` into transformed components).
+
+**Verdict**: Could share `Import` type and `mergeImports()` utility. The UI compiler needs to add imports to transformed files, and codegen's import deduplication logic would be useful. However, this is a small utility (~50 lines) — copying the pattern is equally valid. **Not a hard dependency.**
+
+#### Naming Utilities
+
+Codegen has `toPascalCase()`, `toCamelCase()`, `toKebabCase()` in `utils/naming.ts`. The UI compiler may need similar naming transforms (e.g., converting component file names to hydration IDs).
+
+**Verdict**: These are trivial utilities. If both packages need them, extract to a shared `@vertz/utils` package or duplicate the few lines. **Not a hard dependency.**
+
+### 20.7 What the UI Does NOT Depend On
+
+To prevent unnecessary coupling, these codegen internals are explicitly **not dependencies** of the UI:
+
+| Codegen Internal | Why the UI Doesn't Need It |
+|---|---|
+| **IR Adapter** (`adaptIR()`) | The UI consumes codegen's output (TypeScript files), not its intermediate `CodegenIR` |
+| **`CodegenIR` types** | The UI never sees the `CodegenIR` data structure — only the generated TypeScript types |
+| **JSON Schema converter** | The UI uses the generated TypeScript types, not raw JSON Schema |
+| **Generator interface** | The UI is not a code generator — it's a compiler/transformer |
+| **`CodegenChangeset` / diffing logic** | The UI relies on filesystem watching (Vite HMR), not codegen's internal diff |
+| **`@vertz/cli-runtime`** | Completely separate concern — CLI runtime for generated CLIs |
+
+### 20.8 Implementation Phase Dependencies
+
+Cross-referencing with the implementation phases from both plans:
+
+| UI Phase | Depends on Codegen Phase | Why |
+|---|---|---|
+| Phase 5 (Forms — `form()`) | Codegen Phase 5-6 (SDK Client + Schemas) | `form(sdkMethod)` requires a generated SDK method that carries endpoint, body schema, and response type metadata |
+| Phase 6 (`query()`) | Codegen Phase 5 (SDK Client) | `query(() => api.users.list(...))` requires the SDK's auto-generated cache key infrastructure |
+| Phase 9 (SDK generation, listed in UI plan) | **Is** Codegen Phase 2-6 | Phase 9 of the UI plan ("SDK generation — `@vertz/codegen` reads compiler IR") is implemented by the codegen package, not the UI package |
+| Phase 11 (Vite plugin — watch mode) | Codegen Phase 10 (Incremental Regeneration) | The Vite plugin benefits from codegen's per-module file splitting for targeted HMR |
+
+**Note on Phase 9**: The UI plan lists "SDK generation" as its Phase 9 with the dependency on `@vertz/compiler`. This is the **same work** as codegen Phases 2-6. It should not be implemented twice — the UI plan's Phase 9 is fulfilled by `@vertz/codegen`. The UI plan's remaining phases (1-8, 10-11) are UI-specific work that happens downstream of codegen's output.
