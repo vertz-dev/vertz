@@ -92,6 +92,7 @@ function typedDependencies(): CompilerDependencies {
     {
       name: 'CreateUser',
       isNamed: true,
+      moduleName: '',
       namingConvention: {},
       sourceFile: 'src/schemas/user.ts',
       sourceLine: 1,
@@ -338,6 +339,84 @@ describe('Compiler', () => {
     expect(ir).toBeDefined();
     expect(ir.app).toBeDefined();
     expect(calls).not.toContain('validate');
+  });
+
+  it('analyze enriches schemas with moduleName from route references', async () => {
+    const app: AppDefinition = {
+      basePath: '/api',
+      globalMiddleware: [],
+      moduleRegistrations: [],
+      sourceFile: 'src/app.ts',
+      sourceLine: 1,
+      sourceColumn: 1,
+    };
+    const modules: ModuleIR[] = [
+      {
+        name: 'users',
+        imports: [],
+        services: [],
+        routers: [
+          {
+            name: 'usersRouter',
+            moduleName: 'users',
+            prefix: '/users',
+            inject: [],
+            routes: [
+              {
+                method: 'POST',
+                path: '/',
+                fullPath: '/users',
+                operationId: 'users_create',
+                body: {
+                  kind: 'named',
+                  schemaName: 'createUserBody',
+                  sourceFile: 'src/schemas/user.ts',
+                },
+                middleware: [],
+                tags: [],
+                sourceFile: 'src/routes.ts',
+                sourceLine: 1,
+                sourceColumn: 1,
+              },
+            ],
+            sourceFile: 'src/routes.ts',
+            sourceLine: 1,
+            sourceColumn: 1,
+          },
+        ],
+        exports: [],
+        sourceFile: 'src/modules/users/users.module.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+    ];
+    const schemas: SchemaIR[] = [
+      {
+        name: 'createUserBody',
+        isNamed: false,
+        moduleName: '',
+        namingConvention: {},
+        sourceFile: 'src/schemas/user.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+    ];
+    const deps: CompilerDependencies = {
+      analyzers: {
+        env: { analyze: async () => ({ env: undefined }) },
+        schema: { analyze: async () => ({ schemas }) },
+        middleware: { analyze: async () => ({ middleware: [] }) },
+        module: { analyze: async () => ({ modules }) },
+        app: { analyze: async () => ({ app }) },
+        dependencyGraph: { analyze: async () => ({ graph: createEmptyDependencyGraph() }) },
+      },
+      validators: [],
+      generators: [],
+    };
+    const compiler = new Compiler(resolveConfig(), deps);
+    const ir = await compiler.analyze();
+
+    expect(ir.schemas[0].moduleName).toBe('users');
   });
 
   it('analyze assembles IR from analyzer results', async () => {
