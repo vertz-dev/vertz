@@ -1,7 +1,9 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { AppIR } from '@vertz/compiler';
+import type { ResolvedCodegenConfig } from './config';
 import { formatWithBiome } from './format';
+import { emitManifestFile } from './generators/typescript/emit-cli';
 import { emitClientFile, emitModuleFile } from './generators/typescript/emit-client';
 import {
   emitBarrelIndex,
@@ -12,21 +14,6 @@ import { emitModuleTypesFile, emitSharedTypesFile } from './generators/typescrip
 import { adaptIR } from './ir-adapter';
 import type { CodegenIR, GeneratedFile } from './types';
 
-// ── Config ─────────────────────────────────────────────────────────
-
-export interface CodegenConfig {
-  /** Absolute path to the output directory. */
-  outputDir: string;
-  /** Which generators to run. Currently only 'typescript' is supported. */
-  generators: 'typescript'[];
-  /** Package name for the generated SDK. */
-  packageName: string;
-  /** Package version for the generated SDK. */
-  packageVersion?: string;
-  /** Whether to format output with Biome. Defaults to true. */
-  format?: boolean;
-}
-
 // ── Result ─────────────────────────────────────────────────────────
 
 export interface GenerateResult {
@@ -34,11 +21,15 @@ export interface GenerateResult {
   files: GeneratedFile[];
   /** The CodegenIR that was derived from the AppIR. */
   ir: CodegenIR;
+  /** Number of files generated. */
+  fileCount: number;
+  /** Which generators were run. */
+  generators: string[];
 }
 
 // ── TypeScript generator ───────────────────────────────────────────
 
-function runTypescriptGenerator(ir: CodegenIR, config: CodegenConfig): GeneratedFile[] {
+function runTypescriptGenerator(ir: CodegenIR, config: ResolvedCodegenConfig): GeneratedFile[] {
   const files: GeneratedFile[] = [];
 
   // Determine which schemas belong to which module
@@ -90,14 +81,51 @@ function runTypescriptGenerator(ir: CodegenIR, config: CodegenConfig): Generated
   files.push(emitBarrelIndex(ir));
 
   // Package.json
-  files.push(
-    emitPackageJson(ir, {
-      packageName: config.packageName,
-      packageVersion: config.packageVersion,
-    }),
-  );
+  if (config.typescript?.publishable) {
+    files.push(
+      emitPackageJson(ir, {
+        packageName: config.typescript.publishable.name,
+        packageVersion: config.typescript.publishable.version,
+      }),
+    );
+  }
 
   return files;
+}
+
+// ── CLI Generator ───────────────────────────────────────────────
+
+function runCLIGenerator(ir: CodegenIR): GeneratedFile[] {
+  const files: GeneratedFile[] = [];
+
+  // cli/manifest.ts — command definitions
+  files.push(emitManifestFile(ir));
+
+  return files;
+}
+
+// ── Synchronous core generate (used by pipeline) ────────────────
+
+export function generateSync(ir: CodegenIR, config: ResolvedCodegenConfig): GenerateResult {
+  const files: GeneratedFile[] = [];
+  const generators: string[] = [];
+
+  for (const gen of config.generators) {
+    if (gen === 'typescript') {
+      generators.push('typescript');
+      files.push(...runTypescriptGenerator(ir, config));
+    } else if (gen === 'cli') {
+      generators.push('cli');
+      files.push(...runCLIGenerator(ir));
+    }
+  }
+
+  return {
+    files,
+    ir,
+    fileCount: files.length,
+    generators,
+  };
 }
 
 // ── Main orchestrator ──────────────────────────────────────────────
@@ -109,18 +137,13 @@ function runTypescriptGenerator(ir: CodegenIR, config: CodegenConfig): Generated
  * 3. Optionally formats output with Biome
  * 4. Writes files to disk
  */
-export async function generate(appIR: AppIR, config: CodegenConfig): Promise<GenerateResult> {
+export async function generate(appIR: AppIR, config: ResolvedCodegenConfig): Promise<GenerateResult> {
   // Step 1: Convert AppIR → CodegenIR
   const ir = adaptIR(appIR);
 
   // Step 2: Run generators
-  let files: GeneratedFile[] = [];
-
-  for (const generator of config.generators) {
-    if (generator === 'typescript') {
-      files.push(...runTypescriptGenerator(ir, config));
-    }
-  }
+  const result = generateSync(ir, config);
+  let { files } = result;
 
   // Step 3: Format with Biome (if enabled)
   const shouldFormat = config.format !== false;
@@ -138,5 +161,5 @@ export async function generate(appIR: AppIR, config: CodegenConfig): Promise<Gen
     await writeFile(filePath, file.content, 'utf-8');
   }
 
-  return { files, ir };
+  return { files, ir, fileCount: files.length, generators: result.generators };
 }
