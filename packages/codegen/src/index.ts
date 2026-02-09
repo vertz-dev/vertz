@@ -1,3 +1,6 @@
+export { formatWithBiome } from './format';
+export type { CodegenConfig, GenerateResult } from './generate';
+export { generate } from './generate';
 export type { BinEntryPointOptions, CLIPackageOptions } from './generators/typescript/emit-cli';
 export {
   emitBinEntryPoint,
