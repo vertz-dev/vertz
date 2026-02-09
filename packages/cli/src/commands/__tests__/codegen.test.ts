@@ -1,6 +1,6 @@
 import type { CodegenConfig } from '@vertz/compiler';
 import { describe, expect, it, vi } from 'vitest';
-import type { CodegenIR, CodegenPipeline } from '../codegen';
+import type { CodegenIR, CodegenPipeline, IncrementalStats } from '../codegen';
 import { codegenAction } from '../codegen';
 
 // ── Fixture helpers ──────────────────────────────────────────────
@@ -253,5 +253,119 @@ describe('codegenAction', () => {
 
     expect(result.output).toContain('Generated 1 file');
     expect(result.output).not.toContain('files');
+  });
+
+  // ── Incremental mode tests ──────────────────────────────────────
+
+  describe('incremental mode', () => {
+    function makeIncrementalPipeline(incremental: IncrementalStats) {
+      return makePipeline({
+        generate: vi.fn().mockReturnValue({
+          files: [
+            { path: 'client.ts', content: '// client' },
+            { path: 'index.ts', content: '// index' },
+            { path: 'types/users.ts', content: '// types' },
+          ],
+          fileCount: 3,
+          generators: ['typescript'],
+          incremental,
+        }),
+      });
+    }
+
+    it('shows written and skipped counts when incremental stats are present', async () => {
+      const pipeline = makeIncrementalPipeline({
+        written: ['client.ts'],
+        skipped: ['index.ts', 'types/users.ts'],
+        removed: [],
+      });
+
+      const result = await codegenAction({
+        config: makeConfig(),
+        ir: makeIR(),
+        writeFile: vi.fn(),
+        pipeline,
+        incremental: true,
+      });
+
+      expect(result.output).toContain('1 written');
+      expect(result.output).toContain('2 skipped');
+    });
+
+    it('shows removed count when files are removed', async () => {
+      const pipeline = makeIncrementalPipeline({
+        written: ['client.ts'],
+        skipped: ['index.ts'],
+        removed: ['types/old.ts'],
+      });
+
+      const result = await codegenAction({
+        config: makeConfig(),
+        ir: makeIR(),
+        writeFile: vi.fn(),
+        pipeline,
+        incremental: true,
+      });
+
+      expect(result.output).toContain('1 removed');
+    });
+
+    it('does not show incremental stats when incremental is false', async () => {
+      const pipeline = makeIncrementalPipeline({
+        written: ['client.ts'],
+        skipped: ['index.ts', 'types/users.ts'],
+        removed: [],
+      });
+
+      const result = await codegenAction({
+        config: makeConfig(),
+        ir: makeIR(),
+        writeFile: vi.fn(),
+        pipeline,
+        incremental: false,
+      });
+
+      expect(result.output).not.toContain('written');
+      expect(result.output).not.toContain('skipped');
+      expect(result.output).toContain('Generated 3 files');
+    });
+
+    it('shows all files as written on first run', async () => {
+      const pipeline = makeIncrementalPipeline({
+        written: ['client.ts', 'index.ts', 'types/users.ts'],
+        skipped: [],
+        removed: [],
+      });
+
+      const result = await codegenAction({
+        config: makeConfig(),
+        ir: makeIR(),
+        writeFile: vi.fn(),
+        pipeline,
+        incremental: true,
+      });
+
+      expect(result.output).toContain('3 written');
+      expect(result.output).not.toContain('skipped');
+    });
+
+    it('defaults incremental to true', async () => {
+      const pipeline = makeIncrementalPipeline({
+        written: ['client.ts'],
+        skipped: ['index.ts', 'types/users.ts'],
+        removed: [],
+      });
+
+      // Not passing incremental option — should default to true
+      const result = await codegenAction({
+        config: makeConfig(),
+        ir: makeIR(),
+        writeFile: vi.fn(),
+        pipeline,
+      });
+
+      expect(result.output).toContain('1 written');
+      expect(result.output).toContain('2 skipped');
+    });
   });
 });

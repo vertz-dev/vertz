@@ -14,6 +14,9 @@ export interface CodegenConfig {
   /** Whether to format output with Biome. Defaults to true. */
   format?: boolean;
 
+  /** Whether to use incremental regeneration (only write changed files). Defaults to true. */
+  incremental?: boolean;
+
   /** TypeScript SDK options */
   typescript?: {
     /** Generate schema re-exports. Default: true */
@@ -57,6 +60,7 @@ export interface ResolvedCodegenConfig {
   generators: GeneratorName[];
   outputDir: string;
   format?: boolean;
+  incremental?: boolean;
   typescript?: CodegenConfig['typescript'];
   cli?: CodegenConfig['cli'];
 }
@@ -74,6 +78,7 @@ export function resolveCodegenConfig(config?: CodegenConfig): ResolvedCodegenCon
     generators: config?.generators ?? ['typescript'],
     outputDir: config?.outputDir ?? '.vertz/generated',
     format: config?.format,
+    incremental: config?.incremental,
     typescript: config?.typescript,
     cli: config?.cli,
   };

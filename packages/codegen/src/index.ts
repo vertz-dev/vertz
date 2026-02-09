@@ -42,6 +42,9 @@ export {
   emitSharedTypesFile,
   emitStreamingEventType,
 } from './generators/typescript/emit-types';
+export { hashContent } from './hasher';
+export type { IncrementalOptions, IncrementalResult } from './incremental';
+export { writeIncremental } from './incremental';
 export { adaptIR } from './ir-adapter';
 export type { ConversionContext, ConversionResult } from './json-schema-converter';
 export { jsonSchemaToTS } from './json-schema-converter';
