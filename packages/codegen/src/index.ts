@@ -1,4 +1,12 @@
 export {
+  emitAuthStrategyBuilder,
+  emitClientFile,
+  emitModuleFile,
+  emitOperationMethod,
+  emitSDKConfig,
+  emitStreamingMethod,
+} from './generators/typescript/emit-client';
+export {
   emitInterfaceFromSchema,
   emitModuleTypesFile,
   emitOperationInputType,
