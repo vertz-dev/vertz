@@ -1,4 +1,6 @@
 export { adaptIR } from './ir-adapter';
+export type { ConversionContext, ConversionResult } from './json-schema-converter';
+export { jsonSchemaToTS } from './json-schema-converter';
 export type {
   CodegenAuth,
   CodegenAuthScheme,
