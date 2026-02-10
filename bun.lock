@@ -63,6 +63,7 @@
       "name": "@vertz/compiler",
       "version": "0.1.0",
       "dependencies": {
+        "@vertz/codegen": "workspace:*",
         "ts-morph": "^25.0.0",
       },
       "devDependencies": {

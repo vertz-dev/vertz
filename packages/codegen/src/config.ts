@@ -4,6 +4,38 @@ export type GeneratorName = 'typescript' | 'cli';
 
 const VALID_GENERATORS = new Set<string>(['typescript', 'cli']);
 
+export interface CodegenPublishableConfig {
+  /** Package name, e.g., '@myapp/sdk' */
+  name: string;
+  /** Output directory for the package */
+  outputDir: string;
+  /** Package version. Default: '0.0.0' */
+  version?: string;
+}
+
+export interface CodegenTypescriptConfig {
+  /** Generate schema re-exports. Default: true */
+  schemas?: boolean;
+  /** SDK client function name. Default: 'createClient' */
+  clientName?: string;
+  /** Generate as publishable npm package. Default: false */
+  publishable?: CodegenPublishableConfig;
+  /** Augmentable types for customer-specific type narrowing */
+  augmentableTypes?: string[];
+}
+
+export interface CodegenCLIPublishableConfig extends CodegenPublishableConfig {
+  /** CLI binary name, e.g., 'myapp' */
+  binName: string;
+}
+
+export interface CodegenCLIConfig {
+  /** Include in generation. Default: false */
+  enabled?: boolean;
+  /** Generate as publishable npm package. Default: false */
+  publishable?: CodegenCLIPublishableConfig;
+}
+
 export interface CodegenConfig {
   /** Generators to run. Default: ['typescript'] */
   generators: GeneratorName[];
@@ -18,40 +50,10 @@ export interface CodegenConfig {
   incremental?: boolean;
 
   /** TypeScript SDK options */
-  typescript?: {
-    /** Generate schema re-exports. Default: true */
-    schemas?: boolean;
-    /** SDK client function name. Default: 'createClient' */
-    clientName?: string;
-    /** Generate as publishable npm package. Default: false */
-    publishable?: {
-      /** Package name, e.g., '@myapp/sdk' */
-      name: string;
-      /** Output directory for the package. e.g., 'packages/sdk' */
-      outputDir: string;
-      /** Package version. Default: '0.0.0' */
-      version?: string;
-    };
-    /** Augmentable types for customer-specific type narrowing */
-    augmentableTypes?: string[];
-  };
+  typescript?: CodegenTypescriptConfig;
 
   /** CLI options */
-  cli?: {
-    /** Include in generation. Default: false */
-    enabled?: boolean;
-    /** Generate as publishable npm package. Default: false */
-    publishable?: {
-      /** Package name, e.g., '@myapp/cli' */
-      name: string;
-      /** Output directory for the package. e.g., 'packages/cli' */
-      outputDir: string;
-      /** CLI binary name, e.g., 'myapp' */
-      binName: string;
-      /** Package version. Default: '0.0.0' */
-      version?: string;
-    };
-  };
+  cli?: CodegenCLIConfig;
 }
 
 // ── Resolved Config ─────────────────────────────────────────────
@@ -61,8 +63,8 @@ export interface ResolvedCodegenConfig {
   outputDir: string;
   format?: boolean;
   incremental?: boolean;
-  typescript?: CodegenConfig['typescript'];
-  cli?: CodegenConfig['cli'];
+  typescript?: CodegenTypescriptConfig;
+  cli?: CodegenCLIConfig;
 }
 
 // ── defineCodegenConfig ─────────────────────────────────────────
