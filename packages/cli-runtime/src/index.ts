@@ -1,5 +1,11 @@
 export { parseArgs } from './args';
-export type { ConfigStore, DeviceCodeResponse, StoredCredentials, TokenResponse } from './auth';
+export type {
+  AuthManager,
+  ConfigStore,
+  DeviceCodeResponse,
+  StoredCredentials,
+  TokenResponse,
+} from './auth';
 export { AuthError, createAuthManager } from './auth';
 export type { CLIOptions, CLIRuntime } from './cli';
 export { createCLI } from './cli';
