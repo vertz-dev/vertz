@@ -95,6 +95,17 @@ function Counter() {
 }
 ```
 
+### The `let`/`const` reactivity principle
+
+JavaScript's `let` and `const` already carry semantic meaning every developer internalizes:
+
+- **`const`** — this value will not change. Fixed. Static.
+- **`let`** — this value may change. Mutable. Reactive.
+
+The compiler takes this seriously. `let` = reactive, `const` = static. This one rule drives everything: state, derived values, props optimization, DOM binding optimization, and component-level hydration decisions. No new APIs for the core reactivity model — just the keywords you already know.
+
+> "JavaScript's `let` and `const` already tell you whether something changes. We just taught the compiler to listen."
+
 ### How the compiler decides what is reactive
 
 A `let` variable is reactive if it is referenced in JSX (directly or transitively through a `const`). The compiler uses two-pass taint analysis:
@@ -118,7 +129,7 @@ function PriceDisplay({ price }: { price: number }) {
 
 The compiler detects that `total` depends on reactive `quantity`, so `const total = ...` becomes `const __total = computed(...)`. The chain is transitive — `formatted` depends on `total`, so it also becomes a computed.
 
-### Arrays and objects — immutable replacement
+### Arrays and objects — reassignment triggers reactivity
 
 ```tsx
 let todos: Todo[] = [];
@@ -128,14 +139,134 @@ const addTodo = (title: string) => {
 };
 ```
 
-Arrays and objects are wrapped in a single signal. Mutations require reassignment (`todos = [...]`). The compiler does NOT proxy arrays or detect `.push()` — explicit over implicit.
+Arrays and objects are wrapped in a single signal. Reactivity is triggered by **reassignment only** (`todos = [...]`). The compiler does NOT proxy arrays or intercept in-place mutations — explicit over implicit.
 
-### What is NOT supported
+### Destructuring — `let` tracks, `const` snapshots
 
-- **Destructured reactive state**: `let { name, age } = user` is not reactive. Use `let user = { name, age }` and access `user.name`.
-- **Mutable array methods as triggers**: `todos.push(item)` will not trigger updates. Use `todos = [...todos, item]`.
+Destructuring follows the same `let`/`const` principle:
 
-The compiler emits diagnostics for these patterns.
+```tsx
+let user = { name: "Alice", age: 30 };
+
+// let destructuring → reactive. name and age track user.name and user.age.
+let { name, age } = user;
+// Compiler → const __name = computed(() => __user.get().name)
+//            const __age = computed(() => __user.get().age)
+
+// If user is reassigned, name and age update:
+user = { name: "Bob", age: 25 };
+// name is now "Bob", age is now 25 — DOM updates automatically.
+
+// const destructuring → snapshot. Fixed values, never update.
+const { name: initialName } = user;
+// initialName is "Alice" forever, even if user changes later.
+```
+
+If a developer reassigns a `let`-destructured binding independently, it disconnects from the source and becomes its own signal:
+
+```tsx
+let { name } = user;     // tracks user.name
+name = "Charlie";         // disconnected — name is now its own signal
+// user.name changes won't affect name anymore
+```
+
+This follows JavaScript intuition: the developer explicitly took control of the value with `=`.
+
+### What the compiler catches (mutation diagnostics)
+
+Reactivity requires **reassignment** (`=`). In-place mutations (`.push()`, property assignment, `delete`) do NOT trigger DOM updates. The compiler detects these patterns and emits actionable diagnostics.
+
+**Array mutation methods:**
+
+```
+error[non-reactive-mutation]: Calling .push() on reactive variable 'todos' will not trigger DOM updates.
+
+  12 |   todos.push(newItem);
+     |          ^^^^ in-place mutation — reactivity requires reassignment
+
+  fix: todos = [...todos, newItem];
+  why: Reactive variables track reassignment (=), not in-place mutation.
+```
+
+This applies to all mutating array methods: `.push()`, `.pop()`, `.shift()`, `.unshift()`, `.splice()`, `.sort()`, `.reverse()`, `.fill()`, `.copyWithin()`.
+
+**Object property assignment:**
+
+```
+error[non-reactive-mutation]: Property assignment on reactive variable 'user' will not trigger DOM updates.
+
+  8 |   user.name = "Bob";
+    |   ^^^^^^^^^ property mutation — reactivity requires reassignment
+
+  fix: user = { ...user, name: "Bob" };
+  why: Reactive variables track reassignment (=), not property mutation.
+```
+
+**Nested property mutation:**
+
+```
+error[non-reactive-mutation]: Nested property assignment on reactive variable 'user' will not trigger DOM updates.
+
+  8 |   user.address.city = "NYC";
+    |   ^^^^^^^^^^^^^ nested mutation — reactivity requires reassignment
+
+  fix: user = { ...user, address: { ...user.address, city: "NYC" } };
+  why: Reactive variables track reassignment (=), not nested property mutation.
+```
+
+**Delete expression:**
+
+```
+error[non-reactive-mutation]: 'delete' on reactive variable 'config' will not trigger DOM updates.
+
+  8 |   delete config.debug;
+    |   ^^^^^^ property deletion — reactivity requires reassignment
+
+  fix: const { debug, ...rest } = config; config = rest;
+  why: Reactive variables track reassignment (=), not property deletion.
+```
+
+**Index assignment:**
+
+```
+error[non-reactive-mutation]: Index assignment on reactive variable 'items' will not trigger DOM updates.
+
+  8 |   items[2] = newValue;
+    |   ^^^^^^^^ index mutation — reactivity requires reassignment
+
+  fix: items = items.map((v, i) => i === 2 ? newValue : v);
+  why: Reactive variables track reassignment (=), not index mutation.
+```
+
+**`Object.assign()`:**
+
+```
+error[non-reactive-mutation]: Object.assign() on reactive variable 'user' will not trigger DOM updates.
+
+  8 |   Object.assign(user, { name: "Bob" });
+    |                 ^^^^ in-place mutation — reactivity requires reassignment
+
+  fix: user = { ...user, name: "Bob" };
+  why: Reactive variables track reassignment (=), not Object.assign().
+```
+
+**Scope:** The compiler only emits mutation diagnostics when the variable is **referenced in JSX** (directly or transitively through a computed). If a `let` array is used purely for internal bookkeeping and never affects the DOM, mutations are fine and no diagnostic is emitted.
+
+All diagnostics are designed to be actionable for both humans and LLMs — the fix is copy-pasteable, the explanation is one sentence. The Biome linter also catches these patterns before the compiler runs, providing two layers of defense.
+
+### The seven compiler rules
+
+The entire reactivity model reduces to seven deterministic rules. No heuristics, no runtime analysis, no cross-file inference:
+
+1. `let` in a component body + referenced in JSX → **signal**
+2. `const` whose initializer references a signal (directly or transitively) → **computed**
+3. `let { a, b } = reactiveExpr` → **computed** per binding (tracks the source)
+4. JSX expression referencing a signal or computed → **subscription code** (fine-grained DOM update)
+5. JSX expression referencing only plain values → **static code** (no subscriptions, no tracking)
+6. Prop expression referencing a signal or computed → **getter wrapper**
+7. Prop expression referencing only plain values → **plain value** (zero overhead)
+
+One taint analysis pass, seven applications. The compiler stays simple and every transform is deterministic.
 
 ---
 
@@ -153,9 +284,14 @@ Every JSX expression that reads a reactive variable gets a compiler-generated mi
 
 The developer never writes effects for DOM updates. The compiler writes them all.
 
-### Side effects use `watch()`
+### Side effects use `watch()` and `onMount()`
 
-For actual side effects (data fetching, logging, document.title), there is one explicit primitive:
+For actual side effects, there are two explicit primitives — each with one purpose:
+
+- **`watch(() => dep, callback)`** — watches a reactive dependency and runs the callback when it changes
+- **`onMount(() => { ... })`** — runs setup code once when the component mounts
+
+`watch()` always takes two arguments: a dependency accessor and a callback. For code that should run once on mount without watching a dependency, use `onMount()`.
 
 ```tsx
 import { watch, onCleanup } from "@vertz/ui";
@@ -179,15 +315,17 @@ function UserProfile({ userId }: { userId: string }) {
 | Need | API | When it runs |
 |------|-----|-------------|
 | DOM updates | Automatic (compiler-generated) | Whenever the bound signal changes |
-| React to state change | `watch(() => dep, callback)` | **Once on mount**, then **again whenever `dep` changes** |
-| Run on mount only | `watch(() => { ... })` (no dep = run once) | **Once on mount only** — never re-runs |
-| Cleanup | `onCleanup(fn)` inside `watch` | Before re-run (dep form) or on unmount (both forms) |
+| React to state change | `watch(() => dep, callback)` | **Once on mount** with current value, then **again whenever `dep` changes** |
+| Run on mount only | `onMount(() => { ... })` | **Once on mount only** — never re-runs |
+| Cleanup | `onCleanup(fn)` inside `watch` or `onMount` | Before re-run (watch) or on unmount (both) |
 | Derived state | `const x = expr` (compiler makes it computed) | Recalculates when dependencies change |
 
 **Execution timing clarified:**
 
-- **`watch(() => { ... })`** (no dependency, single callback): Runs **once on mount**. This is the equivalent of "run setup code when the component first renders." It never re-executes.
-- **`watch(() => dep, callback)`** (dependency + callback): Runs the callback **once on mount** with the current value of `dep`, then **re-runs whenever `dep` changes**. Before each re-run, any `onCleanup` registered in the previous run executes first.
+- **`onMount(callback)`**: Runs the callback **once on mount**. This is the equivalent of "run setup code when the component first renders." It never re-executes. Supports `onCleanup` inside it for teardown on unmount.
+- **`watch(() => dep, callback)`**: Runs the callback **once on mount** with the current value of `dep`, then **re-runs whenever `dep` changes**. Before each re-run, any `onCleanup` registered in the previous run executes first.
+
+The single-callback form of `watch()` (i.e. `watch(() => { ... })` with no dependency) is **not supported**. If a developer writes it, the compiler emits an actionable diagnostic suggesting `onMount()` instead. This ensures "one way to do things" — setup = `onMount`, react = `watch`, cleanup = `onCleanup`.
 
 That is the entire list. No `useEffect`, `useMemo`, `useCallback`, `useLayoutEffect`.
 
@@ -205,19 +343,41 @@ function Greeting({ name }: { name: string }) {
 }
 ```
 
-### Props passing — transparent getter wrapping
+### Props passing — `let`/`const` optimized
 
-When a parent passes a reactive value to a child, the compiler wraps it as a getter:
+When a parent passes a reactive value (`let`) to a child, the compiler wraps it as a getter. When it passes a static value (`const`), it passes a plain value — zero overhead:
 
 ```tsx
-// Parent has: let count = 0
-// <Child value={count} />
+function Parent() {
+  let count = 0;
+  const label = "Count";
 
-// Compiled: Child({ get value() { return __count.get() } })
-// Child reads props.value inside a reactive closure → auto-tracks the parent's signal
+  return <Child value={count} label={label} />;
+}
+
+// Compiled:
+// Child({ get value() { return __count.get() }, label: "Count" })
 ```
 
+The `count` prop is wrapped in a getter because `count` is `let` (reactive). The `label` prop is passed as a plain string because `label` is `const`. This is invisible to the developer — the `let`/`const` distinction in the parent tells the compiler everything it needs.
+
 The child never re-executes. Only the specific DOM node reading `props.value` updates.
+
+**Important: do not destructure props.** Destructuring in the function signature breaks reactivity because it captures values at call time:
+
+```tsx
+// BAD — name and age are static snapshots, won't update:
+function UserCard({ name, age }: Props) {
+  return <div>{name}</div>;
+}
+
+// GOOD — reactive getter access through props object:
+function UserCard(props: Props) {
+  return <div>{props.name}</div>;
+}
+```
+
+The compiler emits a diagnostic when it detects props destructuring in a component function signature.
 
 ### Lifecycle
 
@@ -262,14 +422,13 @@ function ThemedButton() {
 ### Refs (escape hatch for raw DOM)
 
 ```tsx
-import { ref } from "@vertz/ui";
+import { ref, onMount } from "@vertz/ui";
 
 function Canvas() {
   const canvasRef = ref<HTMLCanvasElement>();
 
-  // No dependency → runs once on mount.
-  // At mount time, canvasRef.current is available because the DOM has been created.
-  watch(() => {
+  // onMount runs once — at mount time, canvasRef.current is available because the DOM has been created.
+  onMount(() => {
     const ctx = canvasRef.current?.getContext("2d");
     // imperative canvas drawing — runs once after the component mounts
   });
@@ -328,6 +487,13 @@ export interface VertzSDK {
     counts(): Promise<SDKResult<{ total: number; byRole: Record<string, number> }>>;
   };
 }
+
+// Each SDK method carries a .meta property with operation metadata:
+api.users.create.meta
+// → { operationId: 'create', method: 'POST', path: '/api/v1/users', bodySchema: createUserBodySchema }
+//
+// This enables form() and query() to auto-extract endpoint, schema, and cache key
+// information from the SDK method itself — no separate imports needed.
 ```
 
 ### Generated route types
@@ -387,6 +553,10 @@ React hydration re-executes the entire component tree on the client to attach ev
 ### Vertz UI approach: hydrate only what's interactive
 
 The compiler detects which components are interactive (contain `let` state, event handlers that mutate state, `query()` calls). Non-interactive components render as static HTML with zero client JS.
+
+This is **automatic partial hydration**, derived from the `let`/`const` principle. A component with no `let` variables and no event handlers is static by definition — the compiler already knows this from its taint analysis. No developer annotation needed (unlike Astro's `client:*` directives or Qwik's `$` boundaries).
+
+The implication: **the less `let` you use, the less JavaScript ships.** Good coding practices (using `const` for things that don't change) directly translate to smaller bundles and faster hydration.
 
 ### HTML output
 
@@ -766,7 +936,7 @@ Testing is not an afterthought. Every API in `@vertz/ui` is designed with the qu
 ### Design principles for testability
 
 1. **Components are pure functions** — they take props, return DOM. No hidden global state to mock.
-2. **SDK methods are injectable** — `form()` and `query()` accept SDK methods that can be replaced with test doubles.
+2. **MSW for network-level mocking** — generated typed handler factories intercept HTTP calls. The real SDK runs, testing the actual integration path.
 3. **Router is data-driven** — route definitions are plain objects. `createTestRouter` renders them in isolation.
 4. **No browser required for unit tests** — the reactivity runtime and DOM helpers work with any DOM implementation (happy-dom, jsdom).
 5. **Progressive test granularity** — unit tests for components, integration tests for pages, e2e tests for full flows.
@@ -789,32 +959,44 @@ test('updates count when button is clicked', async () => {
 });
 ```
 
-### Form tests with SDK mocking
+### Form tests with MSW (Mock Service Worker)
+
+Testing uses MSW to intercept HTTP requests at the network level. The real SDK runs — URL construction, serialization, and error handling all get exercised. Codegen generates typed handler factories so mock setup is type-safe.
 
 ```typescript
 import { renderTest, fillForm, submitForm } from '@vertz/ui/test';
-import { createMockSDK } from '@vertz/ui/test';
+import { mockHandlers } from '.vertz/generated/test-handlers';
+import { setupServer } from 'msw/node';
+
+const server = setupServer();
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
 
 test('validates required fields before submission', async () => {
-  const mockApi = createMockSDK();
-  const { container, findByText } = renderTest(<CreateUser api={mockApi} />);
+  // No handler needed — form validates client-side before making HTTP call
+  const { container, findByText } = renderTest(<CreateUser />);
 
   await submitForm(container.querySelector('form'));
 
-  // Form should show validation errors, not call the API
   expect(findByText('Name is required')).toBeTruthy();
-  expect(mockApi.users.create).not.toHaveBeenCalled();
 });
 
 test('submits valid data through SDK method', async () => {
-  const mockApi = createMockSDK();
-  mockApi.users.create.mockResolvedValue({ ok: true, data: { id: '1', name: 'Alice', email: 'alice@test.com', role: 'user', createdAt: '2026-01-01' } });
+  // Typed handler factory — request/response types checked at compile time
+  server.use(
+    mockHandlers.users.create(({ request }) => {
+      // request.body is typed as CreateUserBody
+      return { id: '1', ...request.body, role: 'user', createdAt: '2026-01-01' };
+    })
+  );
 
-  const { container } = renderTest(<CreateUser api={mockApi} />);
+  const { container } = renderTest(<CreateUser />);
   await fillForm(container.querySelector('form'), { name: 'Alice', email: 'alice@test.com' });
   await submitForm(container.querySelector('form'));
 
-  expect(mockApi.users.create).toHaveBeenCalledWith({ body: { name: 'Alice', email: 'alice@test.com' } });
+  // Assert on the rendered result — the real SDK made a real (intercepted) HTTP call
+  expect(findByText('User created')).toBeTruthy();
 });
 ```
 
@@ -822,16 +1004,15 @@ test('submits valid data through SDK method', async () => {
 
 ```typescript
 import { createTestRouter } from '@vertz/ui/test';
+import { mockHandlers } from '.vertz/generated/test-handlers';
 
 test('navigates from user list to user detail', async () => {
-  const mockApi = createMockSDK();
-  mockApi.users.list.mockResolvedValue({ ok: true, data: [{ id: '1', name: 'Alice' }] });
-  mockApi.users.get.mockResolvedValue({ ok: true, data: { id: '1', name: 'Alice', email: 'alice@test.com' } });
+  server.use(
+    mockHandlers.users.list(() => [{ id: '1', name: 'Alice', email: 'alice@test.com', role: 'user', createdAt: '2026-01-01' }]),
+    mockHandlers.users.get(({ params }) => ({ id: params.id, name: 'Alice', email: 'alice@test.com', role: 'user', createdAt: '2026-01-01' })),
+  );
 
-  const router = createTestRouter(routes, {
-    initialPath: '/users',
-    sdk: mockApi,
-  });
+  const router = createTestRouter(routes, { initialPath: '/users' });
   const { findByText, click } = renderTest(router.component);
 
   await click(findByText('Alice'));
@@ -840,13 +1021,13 @@ test('navigates from user list to user detail', async () => {
 });
 
 test('loader errors render error component', async () => {
-  const mockApi = createMockSDK();
-  mockApi.users.get.mockResolvedValue({ ok: false, error: { code: 'NOT_FOUND', message: 'User not found' } });
+  server.use(
+    mockHandlers.users.get(() => {
+      throw mockHandlers.error(404, { code: 'NOT_FOUND', message: 'User not found' });
+    }),
+  );
 
-  const router = createTestRouter(routes, {
-    initialPath: '/users/999',
-    sdk: mockApi,
-  });
+  const router = createTestRouter(routes, { initialPath: '/users/999' });
   const { findByText } = renderTest(router.component);
   expect(findByText('User not found')).toBeTruthy();
 });
@@ -856,18 +1037,24 @@ test('loader errors render error component', async () => {
 
 ```typescript
 test('query() refetches when reactive dependency changes', async () => {
-  const mockApi = createMockSDK();
-  mockApi.users.list
-    .mockResolvedValueOnce({ ok: true, data: [{ id: '1', name: 'Alice' }] })
-    .mockResolvedValueOnce({ ok: true, data: [{ id: '2', name: 'Bob' }] });
+  let callCount = 0;
+  server.use(
+    mockHandlers.users.list(({ request }) => {
+      callCount++;
+      const url = new URL(request.url);
+      const q = url.searchParams.get('q');
+      if (q === 'Bob') return [{ id: '2', name: 'Bob', email: 'bob@test.com', role: 'user', createdAt: '2026-01-01' }];
+      return [{ id: '1', name: 'Alice', email: 'alice@test.com', role: 'user', createdAt: '2026-01-01' }];
+    }),
+  );
 
-  const { findByText, type } = renderTest(<UserSearch api={mockApi} />);
+  const { findByText, type } = renderTest(<UserSearch />);
 
   expect(findByText('Alice')).toBeTruthy();
 
   await type('input', 'Bob');
   expect(findByText('Bob')).toBeTruthy();
-  expect(mockApi.users.list).toHaveBeenCalledTimes(2);
+  expect(callCount).toBe(2);
 });
 ```
 
@@ -953,7 +1140,7 @@ function UserCard({ user }: { user: User }) {
 // Run → PASSES. Refactor, continue.
 ```
 
-Every component, form, and route can follow this same Red-Green-Refactor cycle. The key enablers: components are pure functions, SDK methods are mockable, and the DOM is synchronously inspectable after reactive updates.
+Every component, form, and route can follow this same Red-Green-Refactor cycle. The key enablers: components are pure functions, MSW intercepts SDK HTTP calls at the network level, and the DOM is synchronously inspectable after reactive updates.
 
 ---
 
@@ -1069,9 +1256,9 @@ The key enabler: components have no implicit dependency on a parent tree. They a
 **Testing is designed in, not bolted on.** (See section 13 for detailed examples.)
 
 - **Unit tests**: `renderTest()` creates a component in isolation with a lightweight DOM. No browser needed. Sub-millisecond per test.
-- **Integration tests**: `createTestRouter()` renders a full route tree with mocked SDK methods. Tests navigation, loaders, error handling, and layout nesting without a running server.
+- **Integration tests**: `createTestRouter()` renders a full route tree with MSW intercepting SDK calls. Tests navigation, loaders, error handling, and layout nesting without a running server.
 - **E2E tests**: `renderE2E()` combined with `createTestApp()` from `@vertz/testing` runs the real backend and renders the UI against it. True full-stack validation.
-- **SDK mocking**: `createMockSDK()` generates a complete mock of the SDK where every method is a spy/stub. No manual mock setup per endpoint.
+- **Typed MSW handlers**: Codegen generates `mockHandlers` with typed request/response — e.g., `mockHandlers.users.create(handler)` where the handler receives typed body and must return a typed response. No manual route matching or untyped JSON.
 - **Form testing**: `fillForm()` and `submitForm()` simulate real user interaction with native form elements. Tests validate the same schema the server uses.
 - **No flaky selectors**: Components produce stable DOM structures (no virtual DOM reconciliation artifacts). Test selectors match what the user sees.
 
@@ -1125,12 +1312,12 @@ The north star: if a developer writes semantic HTML with Vertz UI, the result is
 | 2 | Compiler core — `let` → signal transform, JSX → DOM calls, computed detection | Phase 1 |
 | 3 | Component model — props, children, context, lifecycle, refs, `watch()` | Phase 2 |
 | 4 | Router — `defineRoutes`, loaders, nested layouts, typed params/search | Phase 3 |
-| 5 | Forms — `form()`, SDK-aware submission, `FormData` → typed object, schema validation | Phase 3, Phase 9 |
-| 6 | `query()` — reactive data fetching, auto-generated keys, debounce, refetch, initialData | Phase 3, Phase 9 |
+| 5 | Forms — `form()`, SDK-aware submission, `FormData` → typed object, schema validation | Phase 3, `@vertz/codegen` (available) |
+| 6 | `query()` — reactive data fetching, auto-generated keys, debounce, refetch, initialData | Phase 3, `@vertz/codegen` (available) |
 | 7 | SSR — `renderToStream`, streaming, out-of-order Suspense chunks | Phase 3 |
 | 8 | Atomic hydration — `data-v-id` markers, client bootstrap, lazy/eager/interaction strategies | Phase 7 |
-| 9 | SDK generation — `@vertz/codegen` reads compiler IR, generates typed SDK client, route types, schemas. **This phase is implemented by `@vertz/codegen` (see [codegen design plan](./codegen-design.md) Phases 2-6), not by `@vertz/ui`.** See [Section 20.8](#208-implementation-phase-dependencies). | `@vertz/compiler` |
-| 10 | Testing — `renderTest`, `createTestRouter`, `fillForm`, SDK mocking, `@vertz/testing` integration | Phase 4-6 |
+| 9 | Codegen-UI integration — SDK method `.meta` property (codegen enhancement), typed MSW handler factories for testing, type-safe route-to-loader bindings. **SDK generation itself is delivered by `@vertz/codegen` (PR #130).** | Phase 5-6, `@vertz/codegen` |
+| 10 | Testing — `renderTest`, `createTestRouter`, `fillForm`, typed MSW handler factories, `@vertz/testing` integration | Phase 4-6, Phase 9 |
 | 11 | Vite plugin — full dev server integration, HMR, production build, auto-run codegen on backend change | Phase 2+ |
 
 ---
@@ -1283,15 +1470,39 @@ To prevent unnecessary coupling, these codegen internals are explicitly **not de
 | **`CodegenChangeset` / diffing logic** | The UI relies on filesystem watching (Vite HMR), not codegen's internal diff |
 | **`@vertz/cli-runtime`** | Completely separate concern — CLI runtime for generated CLIs |
 
-### 20.8 Implementation Phase Dependencies
+### 20.8 Route-to-Loader Type Bindings
+
+The `@vertz/ui-compiler` (Vite plugin) can read the generated route types to provide type-safe loader return types. When a route's loader calls an SDK method, the component's props are automatically typed to match the loader's return value:
+
+```typescript
+// Route definition — loader return type is inferred
+'/users/:id': {
+  component: () => import('./pages/UserDetail'),
+  loader: async ({ params }) => {
+    const user = await api.users.get({ params: { id: params.id } });
+    return { user };  // return type: { user: SDKResult<User> }
+  },
+}
+
+// Component — props typed from loader return, zero manual typing
+function UserDetail({ user }: LoaderData<'/users/:id'>) {
+  // user is typed as SDKResult<User> — inferred from the loader
+  return <h1>{user.data.name}</h1>;
+}
+```
+
+`LoaderData<Route>` is a type utility that extracts the return type of a route's loader function. This creates a type-safe bridge between route definitions and components with near-zero implementation cost — it's purely a type-level feature that leverages TypeScript's `ReturnType` and `Awaited` utilities against the generated route types.
+
+### 20.9 Implementation Phase Dependencies
 
 Cross-referencing with the implementation phases from both plans:
 
 | UI Phase | Depends on Codegen Phase | Why |
 |---|---|---|
-| Phase 5 (Forms — `form()`) | Codegen Phase 5-6 (SDK Client + Schemas) | `form(sdkMethod)` requires a generated SDK method that carries endpoint, body schema, and response type metadata |
-| Phase 6 (`query()`) | Codegen Phase 5 (SDK Client) | `query(() => api.users.list(...))` requires the SDK's auto-generated cache key infrastructure |
-| Phase 9 (SDK generation, listed in UI plan) | **Is** Codegen Phase 2-6 | Phase 9 of the UI plan ("SDK generation — `@vertz/codegen` reads compiler IR") is implemented by the codegen package, not the UI package |
-| Phase 11 (Vite plugin — watch mode) | Codegen Phase 10 (Incremental Regeneration) | The Vite plugin benefits from codegen's per-module file splitting for targeted HMR |
+| Phase 5 (Forms — `form()`) | Codegen: SDK Client + Schemas (delivered, PR #130) | `form(sdkMethod)` requires a generated SDK method with `.meta` carrying endpoint, body schema, and response type metadata |
+| Phase 6 (`query()`) | Codegen: SDK Client (delivered, PR #130) | `query(() => api.users.list(...))` requires the SDK with `.meta` for auto-generated cache keys |
+| Phase 9 (Codegen-UI integration) | Phase 5-6, `@vertz/codegen` | Adds `.meta` property to SDK methods (codegen enhancement), typed MSW handler factories, and `LoaderData<Route>` type utility |
+| Phase 10 (Testing) | Phase 9 | Typed MSW handler factories from Phase 9 are the foundation for form, router, and query tests |
+| Phase 11 (Vite plugin — watch mode) | Codegen: Incremental Regeneration | The Vite plugin benefits from codegen's per-module file splitting for targeted HMR |
 
-**Note on Phase 9**: The UI plan lists "SDK generation" as its Phase 9 with the dependency on `@vertz/compiler`. This is the **same work** as codegen Phases 2-6. It should not be implemented twice — the UI plan's Phase 9 is fulfilled by `@vertz/codegen`. The UI plan's remaining phases (1-8, 10-11) are UI-specific work that happens downstream of codegen's output.
+**Note on Phase 9**: Previously listed as "SDK generation" which is now delivered by `@vertz/codegen` (PR #130). Repurposed for the codegen-UI integration layer: SDK method `.meta` property, typed MSW test handlers, and route-to-loader type bindings. This phase bridges the gap between what codegen generates and what the UI runtime needs to auto-extract metadata.
