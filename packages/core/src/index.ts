@@ -19,7 +19,7 @@ export {
 } from './exceptions';
 // Immutability
 export { createImmutableProxy, deepFreeze, makeImmutable } from './immutability';
-export type { NamedMiddlewareDef } from './middleware';
+export type { AccumulateProvides, NamedMiddlewareDef } from './middleware';
 // Middleware
 export { createMiddleware } from './middleware';
 export type { NamedModule, NamedModuleDef, NamedRouterDef, NamedServiceDef } from './module';
