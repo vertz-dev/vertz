@@ -1,0 +1,13 @@
+{
+  "name": "@vertz/db-poc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "measure": "tsc --noEmit --extendedDiagnostics"
+  },
+  "devDependencies": {
+    "typescript": "5.8.3"
+  }
+}
