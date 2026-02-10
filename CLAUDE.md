@@ -19,6 +19,12 @@ bun run lint:fix     # Auto-fix lint issues
 bun run format:fix   # Auto-fix formatting
 ```
 
+## Git
+
+- **NEVER commit or push directly to `main`.** Always create a branch and open a PR.
+- All commits use bot identities via `git-as.sh` — never personal accounts.
+- See `.claude/rules/pr-policies.md` for branch naming and PR requirements.
+
 ## Conventions
 
 - Strict TDD: Red → Green → Refactor. Every behavior needs a failing test first.
