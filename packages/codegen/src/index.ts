@@ -1,5 +1,9 @@
 export type {
+  CodegenCLIConfig,
+  CodegenCLIPublishableConfig,
   CodegenConfig,
+  CodegenPublishableConfig,
+  CodegenTypescriptConfig,
   GeneratorName,
   ResolvedCodegenConfig,
 } from './config';

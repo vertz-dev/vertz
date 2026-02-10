@@ -52,4 +52,21 @@ describe('parseArgs', () => {
     const result = parseArgs(['users', 'list', '--page=2']);
     expect(result.flags).toEqual({ page: '2' });
   });
+
+  it('handles --output=json equals syntax', () => {
+    const result = parseArgs(['users', 'list', '--output=json']);
+    expect(result.globalFlags.output).toBe('json');
+    expect(result.flags).toEqual({});
+  });
+
+  it('does not consume next arg when --output uses equals syntax', () => {
+    const result = parseArgs(['users', 'list', '--output=json', '--verbose']);
+    expect(result.globalFlags.output).toBe('json');
+    expect(result.flags).toEqual({ verbose: true });
+  });
+
+  it('handles --output as last arg without value', () => {
+    const result = parseArgs(['users', 'list', '--output']);
+    expect(result.globalFlags.output).toBeUndefined();
+  });
 });

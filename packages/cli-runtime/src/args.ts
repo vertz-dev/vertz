@@ -47,9 +47,13 @@ export function parseArgs(argv: string[]): ParsedArgs {
         result.globalFlags.help = true;
       } else if (flagName === 'version') {
         result.globalFlags.version = true;
-      } else if (flagName === 'output' && i + 1 < argv.length) {
-        result.globalFlags.output = argv[i + 1];
-        i++;
+      } else if (flagName === 'output') {
+        if (inlineValue !== undefined) {
+          result.globalFlags.output = inlineValue;
+        } else if (i + 1 < argv.length) {
+          result.globalFlags.output = argv[i + 1];
+          i++;
+        }
       } else if (inlineValue !== undefined) {
         result.flags[flagName] = inlineValue;
       } else if (i + 1 < argv.length && !argv[i + 1]?.startsWith('-')) {
