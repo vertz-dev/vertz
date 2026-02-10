@@ -32,6 +32,34 @@ export interface ConfigStore {
   remove: (path: string) => Promise<void>;
 }
 
+export interface AuthManager {
+  clearCredentials: () => Promise<void>;
+  getAccessToken: () => Promise<string | undefined>;
+  getApiKey: () => Promise<string | undefined>;
+  initiateDeviceCodeFlow: (
+    client: FetchClient,
+    deviceAuthUrl: string,
+    clientId: string,
+    scopes?: string[],
+  ) => Promise<DeviceCodeResponse>;
+  loadCredentials: () => Promise<StoredCredentials>;
+  pollForToken: (
+    client: FetchClient,
+    tokenUrl: string,
+    deviceCode: string,
+    clientId: string,
+    interval: number,
+    expiresIn: number,
+  ) => Promise<TokenResponse>;
+  refreshAccessToken: (
+    client: FetchClient,
+    tokenUrl: string,
+    clientId: string,
+  ) => Promise<TokenResponse | null>;
+  setApiKey: (apiKey: string) => Promise<void>;
+  storeTokens: (tokenResponse: TokenResponse) => Promise<void>;
+}
+
 const defaultConfigStore: ConfigStore = {
   async read(_path: string): Promise<string | null> {
     return null;
@@ -44,7 +72,10 @@ const defaultConfigStore: ConfigStore = {
   },
 };
 
-export function createAuthManager(config: AuthConfig, store: ConfigStore = defaultConfigStore) {
+export function createAuthManager(
+  config: AuthConfig,
+  store: ConfigStore = defaultConfigStore,
+): AuthManager {
   const credentialsPath = `${config.configDir}/credentials.json`;
 
   async function loadCredentials(): Promise<StoredCredentials> {
