@@ -12,18 +12,20 @@ type TypedHandlerCtx<
   TQuery = unknown,
   THeaders = unknown,
   TBody = unknown,
+  TMiddleware extends Record<string, unknown> = Record<string, unknown>,
 > = Omit<HandlerCtx, 'params' | 'query' | 'headers' | 'body'> & {
   params: TParams;
   query: TQuery;
   headers: THeaders;
   body: TBody;
-};
+} & TMiddleware;
 
 export interface RouteConfig<
   TParams = unknown,
   TQuery = unknown,
   THeaders = unknown,
   TBody = unknown,
+  TMiddleware extends Record<string, unknown> = Record<string, unknown>,
 > {
   params?: TParams;
   body?: TBody;
@@ -36,7 +38,8 @@ export interface RouteConfig<
       InferOutput<TParams>,
       InferOutput<TQuery>,
       InferOutput<THeaders>,
-      InferOutput<TBody>
+      InferOutput<TBody>,
+      TMiddleware
     >,
   ) => unknown;
 }
@@ -44,31 +47,45 @@ export interface RouteConfig<
 export interface Route {
   method: string;
   path: string;
-  config: RouteConfig<unknown, unknown, unknown, unknown>;
+  config: RouteConfig<unknown, unknown, unknown, unknown, Record<string, unknown>>;
 }
 
-type HttpMethodFn = <TParams, TQuery, THeaders, TBody>(
+type HttpMethodFn<TMiddleware extends Record<string, unknown> = Record<string, unknown>> = <
+  TParams,
+  TQuery,
+  THeaders,
+  TBody,
+>(
   path: `/${string}`,
-  config: RouteConfig<TParams, TQuery, THeaders, TBody>,
-) => NamedRouterDef;
+  config: RouteConfig<TParams, TQuery, THeaders, TBody, TMiddleware>,
+) => NamedRouterDef<TMiddleware>;
 
-export interface NamedRouterDef extends RouterDef {
+export interface NamedRouterDef<
+  TMiddleware extends Record<string, unknown> = Record<string, unknown>,
+> extends RouterDef {
   moduleName: string;
   routes: Route[];
-  get: HttpMethodFn;
-  post: HttpMethodFn;
-  put: HttpMethodFn;
-  patch: HttpMethodFn;
-  delete: HttpMethodFn;
-  head: HttpMethodFn;
+  get: HttpMethodFn<TMiddleware>;
+  post: HttpMethodFn<TMiddleware>;
+  put: HttpMethodFn<TMiddleware>;
+  patch: HttpMethodFn<TMiddleware>;
+  delete: HttpMethodFn<TMiddleware>;
+  head: HttpMethodFn<TMiddleware>;
 }
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'head'] as const;
 
-export function createRouterDef(moduleName: string, config: RouterDef): NamedRouterDef {
+export function createRouterDef<
+  TMiddleware extends Record<string, unknown> = Record<string, unknown>,
+>(moduleName: string, config: RouterDef): NamedRouterDef<TMiddleware> {
   const routes: Route[] = [];
 
-  function addRoute(method: string, path: string, routeConfig: RouteConfig): NamedRouterDef {
+  function addRoute(
+    method: string,
+    path: string,
+    // biome-ignore lint/suspicious/noExplicitAny: route config is type-safe at the HttpMethodFn call site
+    routeConfig: RouteConfig<any, any, any, any, any>,
+  ): NamedRouterDef<TMiddleware> {
     if (!path.startsWith('/')) {
       throw new Error(`Route path must start with '/', got '${path}'`);
     }
@@ -80,7 +97,7 @@ export function createRouterDef(moduleName: string, config: RouterDef): NamedRou
     ...config,
     moduleName,
     routes,
-  } as NamedRouterDef;
+  } as NamedRouterDef<TMiddleware>;
 
   for (const method of HTTP_METHODS) {
     router[method] = (path, cfg) => addRoute(method.toUpperCase(), path, cfg);
