@@ -1,0 +1,67 @@
+# Codecov configuration for the vertz monorepo
+# https://docs.codecov.com/docs/codecov-yaml
+
+coverage:
+  status:
+    # Overall project-level coverage gate
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        # Don't fail the PR check if Codecov is unreachable
+        informational: true
+
+    # Per-PR coverage diff — show if the PR decreases coverage
+    patch:
+      default:
+        target: auto
+        threshold: 0%
+        informational: true
+
+comment:
+  layout: "condensed_header, condensed_files, condensed_footer"
+  behavior: default
+  require_changes: true
+  require_base: false
+  require_head: true
+
+# Exclude integration tests and test files from coverage
+ignore:
+  - "packages/integration-tests/**"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.test-d.ts"
+  - "**/index.ts"
+  - "ci/**"
+  - "biome-plugins/**"
+
+# Flag-based coverage for per-package tracking
+flags:
+  cli:
+    paths:
+      - packages/cli/src/
+    carryforward: true
+  codegen:
+    paths:
+      - packages/codegen/src/
+    carryforward: true
+  compiler:
+    paths:
+      - packages/compiler/src/
+    carryforward: true
+  core:
+    paths:
+      - packages/core/src/
+    carryforward: true
+  fetch:
+    paths:
+      - packages/fetch/src/
+    carryforward: true
+  schema:
+    paths:
+      - packages/schema/src/
+    carryforward: true
+  testing:
+    paths:
+      - packages/testing/src/
+    carryforward: true

@@ -34,3 +34,130 @@ jobs:
           version: "latest"
           verb: call
           args: smart-ci --base-branch main --progress plain
+
+  coverage:
+    name: Coverage report
+    runs-on: ubuntu-latest
+    needs: check
+    if: github.event_name == 'pull_request'
+
+    permissions:
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build packages
+        run: bun run --filter '*' build
+
+      - name: Run tests with coverage
+        run: |
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing; do
+            echo "::group::Coverage — $pkg"
+            cd packages/$pkg
+            bunx vitest run \
+              --coverage \
+              --coverage.reporter=json-summary \
+              --coverage.reporter=json \
+              --coverage.reporter=text \
+              --coverage.reportOnFailure || true
+            cd "$GITHUB_WORKSPACE"
+            echo "::endgroup::"
+          done
+
+      - name: Verify coverage output
+        run: |
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing; do
+            if [ -f "packages/$pkg/coverage/coverage-summary.json" ]; then
+              echo "OK: packages/$pkg/coverage/coverage-summary.json"
+            else
+              echo "MISSING: packages/$pkg/coverage/coverage-summary.json"
+            fi
+          done
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: packages/*/coverage/coverage-final.json
+          flags: cli,cli-runtime,codegen,compiler,core,fetch,schema,testing
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Coverage report — Core
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          working-directory: packages/core
+          vite-config-path: vitest.config.ts
+          name: Core
+          file-coverage-mode: all
+
+      - name: Coverage report — Schema
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          working-directory: packages/schema
+          vite-config-path: vitest.config.ts
+          name: Schema
+          file-coverage-mode: all
+
+      - name: Coverage report — Compiler
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          working-directory: packages/compiler
+          vite-config-path: vitest.config.ts
+          name: Compiler
+          file-coverage-mode: all
+
+      - name: Coverage report — Codegen
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          working-directory: packages/codegen
+          vite-config-path: vitest.config.ts
+          name: Codegen
+          file-coverage-mode: all
+
+      - name: Coverage report — CLI
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          working-directory: packages/cli
+          vite-config-path: vitest.config.ts
+          name: CLI
+          file-coverage-mode: all
+
+      - name: Coverage report — CLI Runtime
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          working-directory: packages/cli-runtime
+          vite-config-path: vitest.config.ts
+          name: CLI Runtime
+          file-coverage-mode: all
+
+      - name: Coverage report — Fetch
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          working-directory: packages/fetch
+          vite-config-path: vitest.config.ts
+          name: Fetch
+          file-coverage-mode: all
+
+      - name: Coverage report — Testing
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          working-directory: packages/testing
+          vite-config-path: vitest.config.ts
+          name: Testing
+          file-coverage-mode: all
