@@ -7,6 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
+      '@vertz/codegen': resolve(__dirname, '../codegen/src/index.ts'),
       '@vertz/compiler': resolve(__dirname, '../compiler/src/index.ts'),
     },
   },

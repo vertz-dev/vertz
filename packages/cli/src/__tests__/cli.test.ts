@@ -41,6 +41,19 @@ describe('createCLI', () => {
     expect(cmd).toBeDefined();
   });
 
+  it('registers codegen command', () => {
+    const program = createCLI();
+    const cmd = program.commands.find((c) => c.name() === 'codegen');
+    expect(cmd).toBeDefined();
+  });
+
+  it('codegen command has dry-run option', () => {
+    const program = createCLI();
+    const cmd = program.commands.find((c) => c.name() === 'codegen');
+    const option = cmd?.options.find((o) => o.long === '--dry-run');
+    expect(option).toBeDefined();
+  });
+
   it('registers routes command', () => {
     const program = createCLI();
     const cmd = program.commands.find((c) => c.name() === 'routes');

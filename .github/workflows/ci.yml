@@ -57,7 +57,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          for pkg in core schema compiler codegen cli fetch testing; do
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing; do
             echo "::group::Coverage — $pkg"
             cd packages/$pkg
             bunx vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=json || true
@@ -69,7 +69,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: packages/*/coverage/coverage-final.json
-          flags: cli,codegen,compiler,core,fetch,schema,testing
+          flags: cli,cli-runtime,codegen,compiler,core,fetch,schema,testing
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -116,6 +116,15 @@ jobs:
           json-summary-path: packages/cli/coverage/coverage-summary.json
           json-final-path: packages/cli/coverage/coverage-final.json
           name: "CLI"
+          file-coverage-mode: all
+
+      - name: Coverage report — CLI Runtime
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          json-summary-path: packages/cli-runtime/coverage/coverage-summary.json
+          json-final-path: packages/cli-runtime/coverage/coverage-final.json
+          name: "CLI Runtime"
           file-coverage-mode: all
 
       - name: Coverage report — Fetch
