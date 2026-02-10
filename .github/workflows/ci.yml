@@ -62,9 +62,23 @@ jobs:
           for pkg in core schema compiler codegen cli cli-runtime fetch testing; do
             echo "::group::Coverage — $pkg"
             cd packages/$pkg
-            bunx vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=json || true
-            cd ../..
+            bunx vitest run \
+              --coverage \
+              --coverage.reporter=json-summary \
+              --coverage.reporter=json \
+              --coverage.reporter=text || true
+            cd "$GITHUB_WORKSPACE"
             echo "::endgroup::"
+          done
+
+      - name: Verify coverage output
+        run: |
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing; do
+            if [ -f "packages/$pkg/coverage/coverage-summary.json" ]; then
+              echo "OK: packages/$pkg/coverage/coverage-summary.json"
+            else
+              echo "MISSING: packages/$pkg/coverage/coverage-summary.json"
+            fi
           done
 
       - name: Upload coverage to Codecov
@@ -75,74 +89,74 @@ jobs:
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: Coverage report PR comment
+      - name: Coverage report — Core
         uses: davelosert/vitest-coverage-report-action@v2
         if: always()
         with:
-          json-summary-path: packages/core/coverage/coverage-summary.json
-          json-final-path: packages/core/coverage/coverage-final.json
-          name: "Core"
+          working-directory: packages/core
+          vite-config-path: vitest.config.ts
+          name: Core
           file-coverage-mode: all
 
       - name: Coverage report — Schema
         uses: davelosert/vitest-coverage-report-action@v2
         if: always()
         with:
-          json-summary-path: packages/schema/coverage/coverage-summary.json
-          json-final-path: packages/schema/coverage/coverage-final.json
-          name: "Schema"
+          working-directory: packages/schema
+          vite-config-path: vitest.config.ts
+          name: Schema
           file-coverage-mode: all
 
       - name: Coverage report — Compiler
         uses: davelosert/vitest-coverage-report-action@v2
         if: always()
         with:
-          json-summary-path: packages/compiler/coverage/coverage-summary.json
-          json-final-path: packages/compiler/coverage/coverage-final.json
-          name: "Compiler"
+          working-directory: packages/compiler
+          vite-config-path: vitest.config.ts
+          name: Compiler
           file-coverage-mode: all
 
       - name: Coverage report — Codegen
         uses: davelosert/vitest-coverage-report-action@v2
         if: always()
         with:
-          json-summary-path: packages/codegen/coverage/coverage-summary.json
-          json-final-path: packages/codegen/coverage/coverage-final.json
-          name: "Codegen"
+          working-directory: packages/codegen
+          vite-config-path: vitest.config.ts
+          name: Codegen
           file-coverage-mode: all
 
       - name: Coverage report — CLI
         uses: davelosert/vitest-coverage-report-action@v2
         if: always()
         with:
-          json-summary-path: packages/cli/coverage/coverage-summary.json
-          json-final-path: packages/cli/coverage/coverage-final.json
-          name: "CLI"
+          working-directory: packages/cli
+          vite-config-path: vitest.config.ts
+          name: CLI
           file-coverage-mode: all
 
       - name: Coverage report — CLI Runtime
         uses: davelosert/vitest-coverage-report-action@v2
         if: always()
         with:
-          json-summary-path: packages/cli-runtime/coverage/coverage-summary.json
-          json-final-path: packages/cli-runtime/coverage/coverage-final.json
-          name: "CLI Runtime"
+          working-directory: packages/cli-runtime
+          vite-config-path: vitest.config.ts
+          name: CLI Runtime
           file-coverage-mode: all
 
       - name: Coverage report — Fetch
         uses: davelosert/vitest-coverage-report-action@v2
         if: always()
         with:
-          json-summary-path: packages/fetch/coverage/coverage-summary.json
-          json-final-path: packages/fetch/coverage/coverage-final.json
-          name: "Fetch"
+          working-directory: packages/fetch
+          vite-config-path: vitest.config.ts
+          name: Fetch
           file-coverage-mode: all
 
       - name: Coverage report — Testing
         uses: davelosert/vitest-coverage-report-action@v2
         if: always()
         with:
-          json-summary-path: packages/testing/coverage/coverage-summary.json
-          json-final-path: packages/testing/coverage/coverage-final.json
-          name: "Testing"
+          working-directory: packages/testing
+          vite-config-path: vitest.config.ts
+          name: Testing
           file-coverage-mode: all
