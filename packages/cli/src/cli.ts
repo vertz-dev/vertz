@@ -33,6 +33,12 @@ export function createCLI(): Command {
     .option('--dry-run', 'Preview generated files without writing');
 
   program
+    .command('codegen')
+    .description('Generate SDK and CLI clients from the compiled API')
+    .option('--dry-run', 'Preview generated files without writing')
+    .option('--output <dir>', 'Output directory');
+
+  program
     .command('routes')
     .description('Display the route table')
     .option('--format <format>', 'Output format (table, json)', 'table');
