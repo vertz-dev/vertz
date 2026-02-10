@@ -5,6 +5,7 @@
  * Run a single check: dagger call lint / dagger call build / dagger call typecheck / dagger call test
  * Smart skip: dagger call smart-ci --base-branch main
  * Debug shell: dagger call base terminal
+ * Coverage: dagger call test-coverage export --path=./coverage
  */
 import { argument, type Container, type Directory, dag, func, object } from "@dagger.io/dagger"
 
@@ -96,7 +97,7 @@ export class Ci {
   }
 
   /**
-   * Run vitest tests across all packages.
+   * Run vitest tests with coverage across all packages.
    * Builds first since tests may import from workspace packages.
    */
   @func()
@@ -106,9 +107,25 @@ export class Ci {
   ): Promise<string> {
     return this.base(source)
       .withExec(["bun", "run", "--filter", "*", "build"])
-      .withExec(["bun", "run", "test"])
+      .withExec(["bun", "run", "test", "--", "--coverage"])
       .withExec(["echo", "Tests passed"])
       .stdout()
+  }
+
+  /**
+   * Run tests with coverage and return the coverage directory.
+   * Use: dagger call test-coverage export --path=./coverage
+   */
+  @func()
+  async testCoverage(
+    @argument({ defaultPath: "/", ignore: ["node_modules", ".git", "dist", "build", "coverage", ".nyc_output", "*.tsbuildinfo", "ci"] })
+    source: Directory,
+  ): Promise<Directory> {
+    const ctr = this.base(source)
+      .withExec(["bun", "run", "--filter", "*", "build"])
+      .withExec(["bun", "run", "test", "--", "--coverage"])
+
+    return ctr.directory("/app")
   }
 
   /**
@@ -146,7 +163,7 @@ export class Ci {
   }
 
   /**
-   * Run the full CI pipeline: lint, build, typecheck, test.
+   * Run the full CI pipeline: lint, build, typecheck, test (with coverage).
    */
   @func()
   async ci(
@@ -157,7 +174,7 @@ export class Ci {
       .withExec(["bun", "run", "lint"])
       .withExec(["bun", "run", "--filter", "*", "build"])
       .withExec(["bun", "run", "typecheck"])
-      .withExec(["bun", "run", "test"])
+      .withExec(["bun", "run", "test", "--", "--coverage"])
       .withExec(["echo", "All checks passed"])
       .stdout()
   }
@@ -195,7 +212,7 @@ export class Ci {
       .withExec(["bun", "run", "lint"])
       .withExec(["bun", "run", "--filter", "*", "build"])
       .withExec(["bun", "run", "typecheck"])
-      .withExec(["bun", "run", "test"])
+      .withExec(["bun", "run", "test", "--", "--coverage"])
       .withExec(["echo", "All checks passed"])
       .stdout()
   }

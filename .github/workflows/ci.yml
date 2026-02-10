@@ -32,3 +32,100 @@ jobs:
           version: "latest"
           verb: call
           args: smart-ci --base-branch main --progress plain
+
+  coverage:
+    name: Coverage report
+    runs-on: ubuntu-latest
+    needs: check
+    if: github.event_name == 'pull_request'
+
+    permissions:
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build packages
+        run: bun run --filter '*' build
+
+      - name: Run tests with coverage
+        run: bun run test -- --coverage --coverage.reporter=json-summary --coverage.reporter=json
+        continue-on-error: true
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: packages/*/coverage/coverage-final.json
+          flags: cli,codegen,compiler,core,fetch,schema,testing
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Coverage report PR comment
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          json-summary-path: packages/core/coverage/coverage-summary.json
+          json-final-path: packages/core/coverage/coverage-final.json
+          name: "Core"
+          file-coverage-mode: all
+
+      - name: Coverage report — Schema
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          json-summary-path: packages/schema/coverage/coverage-summary.json
+          json-final-path: packages/schema/coverage/coverage-final.json
+          name: "Schema"
+          file-coverage-mode: all
+
+      - name: Coverage report — Compiler
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          json-summary-path: packages/compiler/coverage/coverage-summary.json
+          json-final-path: packages/compiler/coverage/coverage-final.json
+          name: "Compiler"
+          file-coverage-mode: all
+
+      - name: Coverage report — Codegen
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          json-summary-path: packages/codegen/coverage/coverage-summary.json
+          json-final-path: packages/codegen/coverage/coverage-final.json
+          name: "Codegen"
+          file-coverage-mode: all
+
+      - name: Coverage report — CLI
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          json-summary-path: packages/cli/coverage/coverage-summary.json
+          json-final-path: packages/cli/coverage/coverage-final.json
+          name: "CLI"
+          file-coverage-mode: all
+
+      - name: Coverage report — Fetch
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          json-summary-path: packages/fetch/coverage/coverage-summary.json
+          json-final-path: packages/fetch/coverage/coverage-final.json
+          name: "Fetch"
+          file-coverage-mode: all
+
+      - name: Coverage report — Testing
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always()
+        with:
+          json-summary-path: packages/testing/coverage/coverage-summary.json
+          json-final-path: packages/testing/coverage/coverage-final.json
+          name: "Testing"
+          file-coverage-mode: all
