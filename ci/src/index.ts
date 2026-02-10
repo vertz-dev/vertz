@@ -97,8 +97,11 @@ export class Ci {
   }
 
   /**
-   * Run vitest tests with coverage across all packages.
+   * Run vitest tests across all packages.
    * Builds first since tests may import from workspace packages.
+   *
+   * Note: coverage collection is handled by the dedicated coverage job in the
+   * GitHub Actions workflow, not here. Use testCoverage() for explicit coverage runs.
    */
   @func()
   async test(
@@ -107,7 +110,7 @@ export class Ci {
   ): Promise<string> {
     return this.base(source)
       .withExec(["bun", "run", "--filter", "*", "build"])
-      .withExec(["bun", "run", "test", "--", "--coverage"])
+      .withExec(["bun", "run", "test"])
       .withExec(["echo", "Tests passed"])
       .stdout()
   }
@@ -163,7 +166,7 @@ export class Ci {
   }
 
   /**
-   * Run the full CI pipeline: lint, build, typecheck, test (with coverage).
+   * Run the full CI pipeline: lint, build, typecheck, test.
    */
   @func()
   async ci(
@@ -174,7 +177,7 @@ export class Ci {
       .withExec(["bun", "run", "lint"])
       .withExec(["bun", "run", "--filter", "*", "build"])
       .withExec(["bun", "run", "typecheck"])
-      .withExec(["bun", "run", "test", "--", "--coverage"])
+      .withExec(["bun", "run", "test"])
       .withExec(["echo", "All checks passed"])
       .stdout()
   }
@@ -212,7 +215,7 @@ export class Ci {
       .withExec(["bun", "run", "lint"])
       .withExec(["bun", "run", "--filter", "*", "build"])
       .withExec(["bun", "run", "typecheck"])
-      .withExec(["bun", "run", "test", "--", "--coverage"])
+      .withExec(["bun", "run", "test"])
       .withExec(["echo", "All checks passed"])
       .stdout()
   }
