@@ -52,7 +52,10 @@ function resolveServices(registrations: ModuleRegistration[]): Map<NamedServiceD
   return serviceMap;
 }
 
-function resolveMiddlewares(globalMiddlewares: NamedMiddlewareDef[]): ResolvedMiddleware[] {
+function resolveMiddlewares(
+  // biome-ignore lint/suspicious/noExplicitAny: runtime layer accepts any middleware generics
+  globalMiddlewares: NamedMiddlewareDef<any, any>[],
+): ResolvedMiddleware[] {
   return globalMiddlewares.map((mw) => ({
     name: mw.name,
     handler: mw.handler,
@@ -104,7 +107,8 @@ function registerRoutes(
 export function buildHandler(
   config: AppConfig,
   registrations: ModuleRegistration[],
-  globalMiddlewares: NamedMiddlewareDef[],
+  // biome-ignore lint/suspicious/noExplicitAny: runtime layer accepts any middleware generics
+  globalMiddlewares: NamedMiddlewareDef<any, any>[],
 ): (request: Request) => Promise<Response> {
   const trie = new Trie<RouteEntry>();
   const basePath = config.basePath ?? '';
