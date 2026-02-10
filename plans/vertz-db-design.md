@@ -36,6 +36,13 @@ See also: [Drizzle ORM Research](./drizzle-orm-research.md), [Prisma ORM Researc
 4. [Unknowns](#4-unknowns)
 5. [POC Results](#5-poc-results)
 6. [E2E Acceptance Test](#6-e2e-acceptance-test)
+7. [Cache-Readiness Primitives](#7-cache-readiness-primitives)
+   - [Mutation Event Bus](#71-mutation-event-bus)
+   - [Deterministic Query Fingerprinting](#72-deterministic-query-fingerprinting)
+   - [Result Metadata Carrier](#73-result-metadata-carrier)
+   - [Plugin/Middleware Slot](#74-pluginmiddleware-slot)
+   - [Relation Invalidation Graph](#75-relation-invalidation-graph)
+   - [Implementation Phasing](#76-implementation-phasing)
 
 ---
 
@@ -85,6 +92,7 @@ interface DbConfig<T extends Record<string, TableDef>> {
   tables: T;
   casing?: 'snake_case'; // only snake_case supported; explicit for clarity
   log?: 'query' | 'error' | 'all' | false;
+  plugins?: DbPlugin[];  // optional -- see Section 7.4 (Cache-Readiness Primitives)
 }
 
 function createDb<T extends Record<string, TableDef>>(
@@ -1369,7 +1377,7 @@ This design makes the LLM's job easier in several concrete ways:
 
 2. **NoSQL / document store.** This is a relational ORM. Typed JSONB columns are supported as a column type, not as a document database abstraction.
 
-3. **Query caching in v1.** The metadata system is designed to enable smart caching (entity type awareness, mutation tracking), but implementing the cache layer is a separate future package (`@vertz/db-cache`).
+3. **Query caching in v1.** The ORM includes cache-readiness primitives (Section 7) -- internal hooks, metadata, and a plugin slot that enable smart caching. But the cache layer itself is a separate future package (`@vertz/db-cache`, VER-218). The ORM does not cache anything; it provides the rails.
 
 4. **Real-time subscriptions in v1.** The schema metadata enables future real-time features, but CDC / WebSocket integration is a separate package (`@vertz/db-realtime`).
 
@@ -1830,6 +1838,311 @@ describe('@vertz/db E2E', () => {
 
 ---
 
+## 7. Cache-Readiness Primitives
+
+The ORM is designed to enable a future smart cache layer (`@vertz/db-cache`, tracked as VER-218) without baking caching into the ORM itself. This section defines 5 internal primitives that the ORM implementation will include from day one. These lay the rails so that when the cache layer is built, it snaps into place with minimal friction.
+
+**Principle:** The ORM emits metadata and signals. The cache layer consumes them. The ORM does not know about caching -- it provides general-purpose hooks that happen to be exactly what a cache layer needs.
+
+**Total additional effort:** ~415 lines across the ORM implementation (~1-2 days of engineering). Only one item (Plugin/Middleware Slot) adds public API surface. Everything else is internal.
+
+See also: [ORM-Cache Synergy Analysis](/app/backstage/research/explorations/orm-cache-synergy.md) for the full research background.
+
+---
+
+### 7.1 Mutation Event Bus
+
+**What:** An internal event emitter that fires a structured event after every insert, update, and delete operation. Transaction-aware: events are batched within a transaction and only emitted on commit, never on rollback.
+
+**API surface:** None (internal only). The event bus is exposed via an internal `__hooks` property, not part of the public API.
+
+**Event shape:**
+
+```typescript
+// Internal -- not part of public API
+interface MutationEvent {
+  table: string;           // 'users'
+  operation: 'create' | 'update' | 'delete';
+  primaryKeys?: string[];  // ['abc-123'] -- when extractable from where clause
+  where?: object;          // the raw where clause (for broader invalidation)
+  timestamp: number;
+  transactionId?: string;  // groups events within a transaction
+}
+```
+
+**Internal hook point:**
+
+```typescript
+// Internal extension point on the Database instance
+db.__hooks.onMutation((event: MutationEvent) => {
+  // cache layer subscribes here
+});
+```
+
+**Implementation notes:**
+
+- The event bus is a simple `EventEmitter` pattern (~50 lines).
+- Each mutation method (`db.create`, `db.update`, `db.updateMany`, `db.delete`, `db.deleteMany`, `db.upsert`) emits an event before returning (~5 lines per method, 10 methods).
+- **Transaction awareness:** Within `db.transaction()`, events are collected in a buffer. On `COMMIT`, the buffer is flushed to subscribers. On rollback (thrown error), the buffer is discarded. This prevents cache thrashing from intermediate mutations that may be rolled back (~30 lines in the transaction wrapper).
+- **Primary key extraction:** For operations like `db.update(users, { where: { id: '123' } })`, the primary key is extracted directly from the where clause. For `db.updateMany(users, { where: { role: 'admin' } })`, primary keys are not directly available -- `primaryKeys` is `undefined` and the cache layer falls back to table-level invalidation. For `db.create`, the primary key comes from the return value.
+
+**How the cache layer uses it:** The cache layer subscribes once via `db.__hooks.onMutation()` and receives all mutation signals. On each event, it invalidates cached queries that touch the affected table (and optionally the specific entity if `primaryKeys` is present). The `transactionId` field enables batched invalidation -- one invalidation pass per committed transaction instead of one per mutation.
+
+**Estimated effort:** ~130 lines. Low-medium complexity.
+
+---
+
+### 7.2 Deterministic Query Fingerprinting
+
+**What:** Every object-API read operation (`db.find`, `db.findOne`, `db.findOneOrThrow`, `db.count`, `db.aggregate`, `db.groupBy`) internally computes a deterministic "query fingerprint" -- a canonical string that uniquely identifies the query shape and parameters. The fingerprint is attached to internal query metadata.
+
+**API surface:** None (internal only). The fingerprint lives in internal query metadata, not on the public result type.
+
+**Fingerprint shape:**
+
+```typescript
+// Internal -- computed by the query builder
+interface QueryFingerprint {
+  table: string;                    // 'users'
+  method: string;                   // 'find'
+  optionsHash: string;              // canonical hash of the options bag
+  touchedTables: string[];          // ['users', 'posts'] -- if include was used
+  touchedRelations: string[];       // ['posts'] -- relation names included
+}
+```
+
+**Fingerprinting function:**
+
+```typescript
+function fingerprintQuery(
+  table: TableDef,
+  method: string,
+  options: object
+): QueryFingerprint {
+  // 1. Deep-sort all keys in the options bag
+  // 2. Canonical JSON.stringify
+  // 3. Hash (SHA-256 truncated to 16 chars, or fast non-crypto hash)
+  // 4. Walk `include` to extract touchedTables and touchedRelations
+}
+```
+
+**Implementation notes:**
+
+- The canonical serialization function is ~40 lines: deep-sort object keys, `JSON.stringify`, hash.
+- Walking `include` to extract `touchedTables` is ~20 lines: recursively visit included relations, resolve their target tables.
+- Computing the fingerprint in each read method is ~3 lines per method.
+- Uses a fast non-cryptographic hash for performance (e.g., `fnv1a` or similar). Crypto-strength is unnecessary -- this is a cache key, not a security boundary.
+
+**How the cache layer uses it:** The fingerprint is the cache key. When a read executes, the cache layer checks if a cached result exists for that fingerprint. On cache miss, the result is stored keyed by the fingerprint. On mutation, the `touchedTables` field enables cross-table invalidation: when `db.find(users, { include: { posts: true } })` has `touchedTables: ['users', 'posts']`, a mutation on the `posts` table invalidates that cache entry even though the primary table is `users`. This eliminates key-derivation bugs -- the ORM computes the canonical key, the cache layer uses it directly.
+
+**Estimated effort:** ~80 lines. Low complexity.
+
+---
+
+### 7.3 Result Metadata Carrier
+
+**What:** Every query result carries internal metadata via a `WeakMap`, invisible to the developer-facing type. The metadata includes the query fingerprint (from 7.2) and the primary keys present in the result set.
+
+**API surface:** None (internal only). Metadata is attached via `WeakMap`, not on the result type. `typeof result` remains `User[]`, not `User[] & { __meta: ... }`.
+
+**Metadata shape:**
+
+```typescript
+// Internal metadata attached to query results
+interface QueryResultMeta {
+  fingerprint: QueryFingerprint;
+  executedAt: number;               // timestamp of execution
+  rowCount: number;                 // number of rows returned
+  fromCache?: boolean;              // set by cache layer if result was cached
+  primaryKeysInResult?: string[];   // extracted PKs from result rows
+}
+```
+
+**WeakMap attachment:**
+
+```typescript
+// Internal -- module-scoped WeakMap
+const resultMeta = new WeakMap<object, QueryResultMeta>();
+
+// After query execution:
+const rows = await executeQuery(sql, params);
+resultMeta.set(rows, {
+  fingerprint,
+  executedAt: Date.now(),
+  rowCount: rows.length,
+  primaryKeysInResult: rows.map(r => r[primaryKeyColumn]),
+});
+```
+
+**Implementation notes:**
+
+- Extracting primary keys from result rows is ~15 lines: iterate rows, read the PK column value.
+- Attaching metadata via `WeakMap` is ~10 lines.
+- The `WeakMap` approach means zero impact on the public result type and zero memory leak risk -- when the result array is garbage collected, the metadata is too.
+
+**How the cache layer uses it:** The `primaryKeysInResult` field enables precise per-entity cache invalidation. The cache layer maintains a reverse index: `entityId -> Set<fingerprint>`. When a mutation fires for entity `'b'`, the reverse index returns all fingerprints whose results contain that entity. Only those cache entries are invalidated. This is the difference between "smart invalidation" (invalidate the 3 queries that contain user `'b'`) and "nuke the table" (invalidate all 500 cached `users` queries).
+
+**Estimated effort:** ~25 lines. Low complexity.
+
+---
+
+### 7.4 Plugin/Middleware Slot
+
+**What:** The `createDb()` factory accepts an optional `plugins` array. Each plugin can intercept reads and writes at well-defined hook points. The cache layer would be implemented as a plugin. **This is the only cache-readiness item that adds public API surface.**
+
+**API surface (public):**
+
+```typescript
+// Addition to DbConfig
+interface DbConfig<T extends Record<string, TableDef>> {
+  url?: string;
+  pool?: Pool;
+  tables: T;
+  casing?: 'snake_case';
+  log?: 'query' | 'error' | 'all' | false;
+  plugins?: DbPlugin[];  // NEW -- optional
+}
+
+// Plugin interface (exported from @vertz/db)
+interface DbPlugin {
+  name: string;
+
+  // Intercept before a read executes -- return cached result or undefined to proceed
+  beforeQuery?(ctx: QueryContext): Promise<unknown | undefined>;
+
+  // Intercept after a read executes -- store result in cache
+  afterQuery?(ctx: QueryContext, result: unknown): Promise<void>;
+
+  // Intercept after a mutation commits -- invalidate cache
+  afterMutation?(event: MutationEvent): Promise<void>;
+
+  // Hook into transaction lifecycle
+  onTransaction?(event: 'begin' | 'commit' | 'rollback', transactionId: string): Promise<void>;
+}
+
+interface QueryContext {
+  table: TableDef;
+  method: string;
+  options: object;
+  fingerprint: QueryFingerprint;
+}
+```
+
+**Usage (how the cache layer plugs in):**
+
+```typescript
+import { createDb } from '@vertz/db';
+import { cachePlugin } from '@vertz/db-cache';  // future package
+
+const db = createDb({
+  url: process.env.DATABASE_URL,
+  tables: { users, posts },
+  plugins: [
+    cachePlugin({
+      store: redisStore,
+      defaultTTL: 60_000,
+      excludeTables: ['sessions'],
+    }),
+  ],
+});
+
+// db.find, db.update, etc. now go through the cache plugin automatically
+// No code changes needed in query call sites
+```
+
+**Implementation notes:**
+
+- The plugin runner iterates registered plugins and calls hooks in registration order (~80 lines).
+- Integrating the runner into each query/mutation method is ~10 lines per method.
+- The `DbPlugin` interface definition is ~20 lines.
+- The `beforeQuery` hook returning a value is the cache-hit path: the cache plugin returns the cached data and the ORM skips the database query entirely. When it returns `undefined`, the ORM proceeds normally and the `afterQuery` hook stores the fresh result.
+- The `onTransaction` hook enables the cache layer to defer invalidation until commit, matching the event bus batching behavior (7.1).
+- The plugin interface should be exported but marked as `@experimental` in the initial release, or kept in a separate `@vertz/db/plugins` entry point.
+
+**How the cache layer uses it:** The cache plugin registers `beforeQuery` (check cache), `afterQuery` (populate cache), `afterMutation` (invalidate cache), and `onTransaction` (batch invalidation). The developer passes `cachePlugin()` in the config and every read/write goes through the cache automatically. No wrapper pattern, no monkey-patching, no per-method boilerplate.
+
+**Beyond caching:** The plugin interface enables future integrations: real-time event emitters (VER-219), audit logging, query analytics, rate limiting, soft delete filters. The cache plugin is the first consumer, but the pattern is general-purpose.
+
+**Estimated effort:** ~120 lines. Medium complexity. This is the only item requiring DX review (josh) since it adds public API surface.
+
+---
+
+### 7.5 Relation Invalidation Graph
+
+**What:** At `createDb()` initialization, the ORM walks all registered table definitions, reads their `d.ref.one()` and `d.ref.many()` declarations, and builds a static graph of which tables are related to which other tables. The graph is stored internally on the `Database` instance.
+
+**API surface:** None (internal only). The graph is a precomputed data structure on the `Database` instance, not exposed in the public API.
+
+**Graph shape:**
+
+```typescript
+// Computed once at createDb() time
+interface InvalidationGraph {
+  // Given a table name, return all tables that include it via relations
+  dependents: Map<string, Set<string>>;
+  // Given a table name, return all tables it includes
+  dependencies: Map<string, Set<string>>;
+}
+
+// Example for a schema with users, posts, comments, tags:
+// dependents.get('users')  => Set { 'posts' }
+//   -- posts include users via author relation
+// dependents.get('posts')  => Set { 'users', 'comments', 'tags' }
+//   -- users include posts, comments include posts, tags include posts via junction
+// dependencies.get('users') => Set { 'posts', 'profiles' }
+//   -- users has ref.many to posts and ref.one to profiles
+```
+
+**Implementation notes:**
+
+- Walking the table definitions and building both maps is ~60 lines: iterate all tables, iterate their relation fields, populate the `dependents` and `dependencies` maps.
+- Stored as a property on the `Database` instance, computed once during `createDb()`.
+- The computation is a one-time startup cost of ~5ms even for 100 tables. No runtime overhead.
+- The graph structure supports depth-limited traversal: `dependents.get('users')` gives depth-1 relations, and for each result you look up depth-2. The cache layer controls the traversal depth; the ORM provides the graph.
+
+**How the cache layer uses it:** When a mutation fires on the `posts` table, the cache layer reads `dependents.get('posts')` to discover that `users`, `comments`, and `tags` queries with `include` pointing at `posts` may also be stale. This is O(1) per lookup. Without the precomputed graph, the cache layer would either walk all table definitions at invalidation time (O(n) per mutation) or build its own graph (duplicated work). The ORM already has all the relation metadata at `createDb()` time -- computing the graph is free in context.
+
+**Depth-limiting:** The previous VER-218 analysis recommended a maximum cascade depth of 2 levels. The graph naturally supports this: depth-1 is a direct `Map.get()`, depth-2 is one more `Map.get()` per result. The cache layer decides the depth; the ORM provides the data.
+
+**Estimated effort:** ~60 lines. Low complexity.
+
+---
+
+### 7.6 Implementation Phasing
+
+These 5 primitives slot into the existing ORM implementation phases. They do not require a separate phase -- each primitive is built alongside the ORM feature it extends.
+
+| Primitive | Implement Alongside | Rationale |
+|---|---|---|
+| Mutation Event Bus | Mutation methods (create, update, delete) | Events are emitted from mutation methods; transaction batching hooks into the transaction wrapper |
+| Query Fingerprinting | Query builder internals | Fingerprinting hooks in where `db.find` constructs and executes SQL |
+| Result Metadata Carrier | Result mapping layer | Metadata is attached after DB rows are mapped to typed objects |
+| Plugin/Middleware Slot | `createDb()` factory (late phase) | Wraps existing query/mutation methods; should be built after basic operations work |
+| Relation Invalidation Graph | `createDb()` table registration | Pure metadata computation; runs during table registration with no query execution dependency |
+
+**Ordering constraints:**
+
+- Items 1, 2, 3, and 5 add zero public API surface and should not require additional design review.
+- Item 4 (Plugin/Middleware Slot) adds a small public API surface (`plugins` in `DbConfig` + `DbPlugin` interface) and should be validated by josh for DX fit.
+- Item 4 depends on items 1 and 2 being in place (the plugin hooks reference `MutationEvent` and `QueryFingerprint`).
+- Items 1, 2, 3, and 5 are independent of each other and can be built in any order.
+
+**Package structure additions:**
+
+```
+packages/db/src/
+  internal/
+    event-bus.ts              # MutationEvent, mutation event emitter
+    fingerprint.ts            # QueryFingerprint, fingerprintQuery()
+    result-meta.ts            # QueryResultMeta, WeakMap carrier
+    invalidation-graph.ts     # InvalidationGraph, buildGraph()
+  plugins/
+    types.ts                  # DbPlugin, QueryContext (public interface)
+    runner.ts                 # Plugin execution engine (internal)
+```
+
+---
+
 ## Appendix A: Package Structure
 
 ```
@@ -1864,6 +2177,14 @@ packages/db/
         cte.ts                # CTE / WITH support
         join.ts               # Join builders with nullability inference
       raw.ts                  # db.raw() escape hatch
+    internal/
+      event-bus.ts            # MutationEvent type, mutation event emitter
+      fingerprint.ts          # QueryFingerprint, fingerprintQuery()
+      result-meta.ts          # QueryResultMeta, WeakMap carrier
+      invalidation-graph.ts   # InvalidationGraph, buildGraph() from relations
+    plugins/
+      types.ts                # DbPlugin, QueryContext (public interface)
+      runner.ts               # Plugin execution engine (iterates hooks)
     migration/
       snapshot.ts             # Schema -> JSON snapshot
       differ.ts               # Snapshot diff algorithm
@@ -1903,13 +2224,15 @@ db.getTable('users');     // Type-safe table lookup
 
 | Future Feature | Required Metadata | Already Exposed? |
 |---|---|---|
-| Smart cache expiration | Entity type + PK from mutations | Yes (tableName, primaryKey) |
+| Smart cache expiration | Entity type + PK from mutations | Yes (tableName, primaryKey, + mutation event bus from Section 7.1) |
 | Automatic log redaction | Visibility annotations | Yes (visibility, toLog()) |
-| Real-time subscriptions | Table name + mutation type | Yes (tableName, plus hook point in mutation methods) |
-| Entity-aware UI store | Entity type + PK + fields | Yes (tableName, primaryKey, columnNames) |
+| Real-time subscriptions | Table name + mutation type | Yes (tableName, mutation event bus from Section 7.1) |
+| Entity-aware UI store | Entity type + PK + fields | Yes (tableName, primaryKey, columnNames, result metadata from Section 7.3) |
 | OpenAPI from schema | Schema + visibility | Yes (schemaOf(table, { not: 'sensitive' }).toJSONSchema()) |
 | SDK type generation | All derived schemas | Yes ($infer, $not_sensitive, etc.) |
+| Cache layer integration | Plugin slot + fingerprints + mutation events | Yes (plugin slot from Section 7.4, fingerprinting from Section 7.2) |
+| Cascading cache invalidation | Relation graph + mutation events | Yes (invalidation graph from Section 7.5, event bus from Section 7.1) |
 
 ---
 
-*Design doc for @vertz/db. Stage 1 -- review decisions applied (7 finalized decisions from PR #122 review).*
+*Design doc for @vertz/db. Stage 1 -- review decisions applied (7 finalized decisions from PR #122 review). Cache-readiness primitives added (VER-218 synergy analysis).*
