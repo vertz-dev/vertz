@@ -31,6 +31,17 @@ Every phase in a design or implementation plan MUST define integration tests as 
 - **A phase is not done until its integration tests pass** — shipping code without the defined integration tests is incomplete work.
 - **Tests should be concrete and specific** — "add integration tests" is not an acceptance criterion. "Integration test: `createRouter('/users').get('/:id', handler)` responds with 200 and typed JSON body" is.
 
+## Type Flow Verification (Mandatory)
+
+**Context:** This rule was added after the @vertz/core middleware gap (see `backstage/research/process-reviews/core-middleware-gap-analysis.md`). Middleware `provides` types were defined with generics but never threaded through to handler `ctx`, because no phase owned the end-to-end type flow and no type-level tests were required.
+
+Every phase that introduces or uses generic type parameters MUST include type flow verification:
+
+- **Every generic type parameter must be tested end-to-end** — if a type is defined at layer A (e.g., middleware `TProvides`), there must be a `.test-d.ts` test proving it surfaces at layer Z (e.g., handler `ctx.someProperty`). A generic that is defined but never reaches the consumer is a dead generic — treat it as a bug.
+- **Type tests must cover both positive and negative cases** — positive: correct types compile. Negative: `@ts-expect-error` on wrong types. Both are required.
+- **Implementation plans must specify type flow paths** — when writing plans, explicitly state which types flow where. Example: "middleware `TProvides` → `AppBuilder<TMiddlewareCtx>` → `NamedRouterDef<TMiddleware>` → `TypedHandlerCtx<..., TMiddleware>` → handler `ctx`". This makes dead generics visible at plan time, not after implementation.
+- **Phase reviews must verify type flow** — reviewers should check: "Does every generic parameter introduced in this phase have a test proving it reaches the end user?" If not, the phase is incomplete.
+
 ## Type-Level TDD
 
 Type-only changes (generics, constraints, narrowing) follow the same red-green-refactor cycle. The RED test for a type change is a `@ts-expect-error` directive on code the compiler should reject but doesn't yet.

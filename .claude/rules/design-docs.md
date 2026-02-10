@@ -46,7 +46,20 @@ If any unknowns required a POC:
 
 POC PRs are opened as experiments, reviewed for findings (not code quality), and closed without merging. They serve as historical records.
 
-### 6. E2E Acceptance Test
+### 6. Type Flow Map
+
+For features with generic type parameters, include a **Type Flow Map** that traces how types flow from definition to consumer. This prevents "dead generics" — types that are defined but never reach the end user.
+
+Example:
+```
+middleware TProvides → AppBuilder<TMiddlewareCtx> → NamedRouterDef<TMiddleware> → TypedHandlerCtx<..., TMiddleware> → handler ctx
+```
+
+Each flow path becomes a mandatory `.test-d.ts` acceptance criterion during implementation. If a type is defined but the flow map doesn't show it reaching a consumer, the design has a gap.
+
+**Context:** Added after the @vertz/core middleware gap where `TProvides` generics were defined but never threaded to handler `ctx`. See `backstage/research/process-reviews/core-middleware-gap-analysis.md`.
+
+### 7. E2E Acceptance Test
 
 Define the end-to-end test that validates the entire feature works as designed. This is written before any code — it's the ultimate success criterion.
 

@@ -8,6 +8,7 @@ A phase (one milestone in an implementation plan) is done when:
 
 - [ ] All TDD cycles complete — every behavior has a failing test that was made to pass
 - [ ] Integration tests for the phase are passing — as defined in the phase's acceptance criteria
+- [ ] Type flow verification — every generic type parameter introduced in this phase has a `.test-d.ts` test proving it flows from definition to consumer. No dead generics. (See `tdd.md` → Type Flow Verification)
 - [ ] Quality gates passing — lint, format, typecheck all clean
 - [ ] PR reviewed and approved by a different engineer
 - [ ] Linear ticket updated to done
