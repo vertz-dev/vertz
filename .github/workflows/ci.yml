@@ -56,8 +56,14 @@ jobs:
         run: bun run --filter '*' build
 
       - name: Run tests with coverage
-        run: bun run test -- --coverage --coverage.reporter=json-summary --coverage.reporter=json
-        continue-on-error: true
+        run: |
+          for pkg in core schema compiler codegen cli fetch testing; do
+            echo "::group::Coverage — $pkg"
+            cd packages/$pkg
+            bunx vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=json || true
+            cd ../..
+            echo "::endgroup::"
+          done
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
