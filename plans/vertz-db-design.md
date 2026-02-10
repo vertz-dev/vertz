@@ -3,14 +3,14 @@
 **Stage:** 1 (Design)
 **Author:** mike (vertz-tech-lead)
 **Date:** 2026-02-09
-**Status:** Draft -- Pending Review
+**Status:** Draft -- Review Decisions Applied
 **Reviewers:** josh (DX), PM (product), engineer (feasibility)
 
 ---
 
 ## Overview
 
-`@vertz/db` is a type-safe ORM that integrates natively with `@vertz/schema`. It provides a dual query API -- an object-based default for everyday CRUD and a SQL-like escape hatch for complex queries -- with field-level visibility annotations that produce compile-time-enforced derived schemas for data protection.
+`@vertz/db` is a type-safe ORM with a single `d` namespace for table definitions and column types. It provides an options-bag query API for everyday CRUD with field-level visibility annotations that produce compile-time-enforced derived schemas for data protection.
 
 The ORM targets PostgreSQL exclusively. No codegen step. No binary dependencies. Pure TypeScript inference. If it builds, it runs.
 
@@ -74,7 +74,7 @@ const db = createDb({
 **Design decisions:**
 - `tables` is required and explicit. The client only knows about tables you register. No global schema discovery, no magic imports. This is the metadata registry that powers type inference, derived schemas, and future features (cache, real-time).
 - `casing: 'snake_case'` is the default and only supported mode. TypeScript uses `camelCase`; the database uses `snake_case`. This is not configurable per-column -- it is a framework convention. One way to do things.
-- The `db` object is the single entry point for all queries. No `prisma.user.findMany()` accessor magic -- you pass the table to the query method.
+- The `db` object is the single entry point for all queries. No `prisma.user.findMany()` accessor magic -- you pass the table to the query method: `db.find(users, { ... })`.
 
 **Type signature:**
 
@@ -96,29 +96,22 @@ function createDb<T extends Record<string, TableDef>>(
 
 ### 1.2 Table/Model Definition
 
-Tables are defined using the same `s` factory from `@vertz/schema`, extended with database-specific methods via a `d` namespace. The schema definition *is* TypeScript -- no DSL, no codegen.
+Tables are defined using a single `d` namespace from `@vertz/db`. The schema definition *is* TypeScript -- no DSL, no codegen, no dependency on `@vertz/schema`.
 
 ```typescript
-import { s } from '@vertz/schema';
 import { d } from '@vertz/db';
 
 export const users = d.table('users', {
-  id:        s.uuid().describe('Primary key'),
-  email:     s.email(),
-  name:      s.string().max(256),
-  role:      s.enum(['user', 'admin', 'moderator']),
-  bio:       s.string().optional(),
-  password:  s.string(),
-  ssn:       s.string().optional(),
-  createdAt: s.iso.datetime(),
-  updatedAt: s.iso.datetime(),
-}).primary('id')
-  .unique('email')
-  .default('id', d.gen.uuid())
-  .default('role', 'user')
-  .default('createdAt', d.gen.now())
-  .default('updatedAt', d.gen.now())
-  .index('role');
+  id:        d.uuid().primary(),
+  email:     d.email().sensitive(),
+  name:      d.text().max(256),
+  role:      d.enum(['user', 'admin', 'moderator']).default('user'),
+  bio:       d.text().optional(),
+  password:  d.text().hidden(),
+  loginCount: d.integer().default(0),
+  createdAt: d.timestamp().default(d.gen.now()),
+  updatedAt: d.timestamp().default(d.gen.now()),
+}).index('role');
 ```
 
 **The `d` namespace:**
@@ -127,8 +120,33 @@ export const users = d.table('users', {
 import { d } from '@vertz/db';
 
 // Table definition
-d.table(tableName, shape)       // creates a TableDef from an s.object shape
-d.enum(name, values)            // creates a PostgreSQL native enum type
+d.table(tableName, shape)       // creates a TableDef from a column shape
+
+// Column types
+d.uuid()                        // UUID column
+d.text()                        // TEXT (unbounded string)
+d.email()                       // TEXT with email validation
+d.integer()                     // INTEGER
+d.boolean()                     // BOOLEAN
+d.timestamp()                   // TIMESTAMPTZ
+d.enum(values)                  // PostgreSQL native enum type (inline)
+d.jsonb<T>(schema?)             // JSONB with optional typed schema
+d.varchar(n)                    // VARCHAR(n)
+d.serial()                      // serial / bigserial
+d.decimal(precision, scale)     // DECIMAL
+d.smallint()                    // SMALLINT
+d.bigint()                      // BIGINT
+d.real()                        // REAL
+d.doublePrecision()             // DOUBLE PRECISION
+d.bytea()                       // BYTEA
+d.inet()                        // INET
+d.cidr()                        // CIDR
+d.macaddr()                     // MACADDR
+d.tsvector()                    // TSVECTOR
+d.tsquery()                     // TSQUERY
+d.interval()                    // INTERVAL
+d.point()                       // POINT
+d.array(innerType)              // PostgreSQL array column
 
 // Database-level defaults (server-side)
 d.gen.uuid()                    // gen_random_uuid()
@@ -137,88 +155,80 @@ d.gen.autoincrement()           // GENERATED ALWAYS AS IDENTITY
 d.gen.cuid()                    // framework-provided CUID generation
 d.gen.custom(sql`...`)          // arbitrary SQL default expression
 
-// Column type overrides (when s.* doesn't map 1:1 to a PG type)
-d.type.serial()                 // serial / bigserial
-d.type.jsonb<T>()               // JSONB with typed T
-d.type.text()                   // TEXT (unbounded string)
-d.type.varchar(n)               // VARCHAR(n)
-d.type.decimal(precision, scale)
-d.type.smallint()
-d.type.bigint()
-d.type.real()
-d.type.doublePrecision()
-d.type.bytea()
-d.type.inet()
-d.type.cidr()
-d.type.macaddr()
-d.type.tsvector()
-d.type.tsquery()
-d.type.interval()
-d.type.point()
-d.type.array(innerType)         // PostgreSQL array column
+// Relations (see section 1.3)
+d.ref.one(targetFn, foreignKey) // one-to-one or many-to-one relation
+d.ref.many(targetFn, foreignKey)// one-to-many relation
+d.ref.many(targetFn).through(junctionFn) // many-to-many via junction table
 ```
 
-**Why two namespaces (`s` + `d`) instead of extending `s`?**
+**Column-level chaining (inline concerns):**
 
-The `s` factory is a validation library. It knows nothing about databases and must stay that way -- `@vertz/schema` is used independently for API validation, form validation, config parsing, and more. Database concepts (tables, primary keys, indexes, foreign keys, server-side defaults) are a separate concern.
+Every column type returns a chainable builder. Database concerns are declared inline on the column, not on the table builder:
 
-The `d` namespace wraps `s` schemas with database metadata. A `d.table()` call *contains* `s` schemas -- it doesn't replace them. This means:
-- `@vertz/schema` stays zero-dependency and database-agnostic
-- The same `s.email()` schema validates both API input and database columns
-- Database metadata is explicit and co-located, not scattered across decorators or separate files
+```typescript
+d.uuid().primary()              // marks as primary key
+d.email().unique()              // unique constraint
+d.text().optional()             // nullable
+d.text().default('hello')       // database default value
+d.text().sensitive()            // PII -- excluded from public APIs by default
+d.text().hidden()               // secrets -- never leaves data layer
+d.text().max(256)               // validation constraint
+```
 
-**Table builder chaining:**
+**Why a single `d` namespace?**
+
+The `d` namespace provides a consistent API for defining everything about a table in one place. Column types, constraints, defaults, visibility annotations, and relations all chain from the same `d` entry point. This design has several advantages:
+
+- **Consistent API.** One import, one namespace. `d.text().sensitive()` reads naturally -- the column type and its concerns are co-located in a single expression.
+- **Inline concerns.** Instead of declaring a column type in one place and its constraints in another (`.primary('id')`, `.sensitive('email')` on the table builder), everything about a column is visible where the column is defined.
+- **No dependency on `@vertz/schema`.** The `d` namespace is self-contained within `@vertz/db`. It uses the same familiar syntax patterns as `@vertz/schema` (chainable builders, `.optional()`, `.default()`) but is an independent package. `@vertz/schema` remains zero-dependency and database-agnostic. `@vertz/db` does not import from it.
+- **LLM-friendly.** An LLM reading a table definition sees the complete picture in one block. No need to cross-reference a separate `s` import, no need to look at the table builder chain to find which column is the primary key.
+
+**Table-level builder chaining:**
+
+Table-level concerns that span multiple columns are declared on the table builder:
 
 ```typescript
 d.table(name, shape)
-  .primary(key)                   // single-column PK
-  .primary(key1, key2)            // composite PK
-  .unique(column)                 // single-column unique
-  .unique(col1, col2)             // composite unique
   .index(column)                  // single-column index
   .index(col1, col2)              // composite index
-  .default(column, value | d.gen) // database-level default
+  .unique(col1, col2)             // composite unique constraint
   .check(name, sql`...`)         // CHECK constraint
-  .onDelete(action)               // default cascade behavior for referencing tables
-
-  // Visibility annotations (see section 1.4)
-  .private(col1, col2, ...)
-  .sensitive(col1, col2, ...)
-  .internal(col1, col2, ...)
+  .primary(col1, col2)            // composite primary key (override column-level)
 ```
 
-Every builder method returns a new `TableDef` with updated type information. The TypeScript type narrows at each step -- `.primary('id')` marks `id` as the primary key in the type system.
+Every builder method returns a new `TableDef` with updated type information. The TypeScript type narrows at each step.
 
 **PostgreSQL enums:**
 
 ```typescript
-export const roleEnum = d.enum('role', ['user', 'admin', 'moderator']);
-
 export const users = d.table('users', {
-  id:   s.uuid(),
-  role: roleEnum,
+  id:   d.uuid().primary(),
+  role: d.enum(['user', 'admin', 'moderator']).default('user'),
   // ...
 });
 ```
+
+Enum values are declared inline on the column. The ORM generates a PostgreSQL `CREATE TYPE` for each unique enum in migrations.
 
 **Typed JSONB columns:**
 
 ```typescript
-const settingsSchema = s.object({
-  theme: s.enum(['light', 'dark']),
-  notifications: s.boolean(),
-  language: s.string(),
-});
+const settingsSchema = d.jsonb<{
+  theme: 'light' | 'dark';
+  notifications: boolean;
+  language: string;
+}>();
 
 export const users = d.table('users', {
-  id:       s.uuid(),
-  settings: d.type.jsonb(settingsSchema), // JSONB column, validated by settingsSchema
+  id:       d.uuid().primary(),
+  settings: settingsSchema.default({ theme: 'light', notifications: true, language: 'en' }),
   // ...
 });
 ```
 
-The `d.type.jsonb(schema)` function takes an `@vertz/schema` schema and:
-1. Uses it for TypeScript type inference (the column type is `Infer<typeof settingsSchema>`)
+The `d.jsonb<T>()` function takes a TypeScript type parameter and:
+1. Uses it for TypeScript type inference (the column type is `T`)
 2. Uses it for runtime validation on read/write
 3. Stores it as metadata for JSON Schema generation / OpenAPI
 
@@ -226,112 +236,96 @@ The `d.type.jsonb(schema)` function takes an `@vertz/schema` schema and:
 
 ```typescript
 const timestamps = {
-  createdAt: s.iso.datetime(),
-  updatedAt: s.iso.datetime(),
+  createdAt: d.timestamp().default(d.gen.now()),
+  updatedAt: d.timestamp().default(d.gen.now()),
 };
 
-const withTimestamps = (table: TableDef) =>
-  table
-    .default('createdAt', d.gen.now())
-    .default('updatedAt', d.gen.now());
+export const users = d.table('users', {
+  id:    d.uuid().primary().default(d.gen.uuid()),
+  email: d.email().unique().sensitive(),
+  ...timestamps,
+});
 
-export const users = withTimestamps(
-  d.table('users', {
-    id:    s.uuid(),
-    email: s.email(),
-    ...timestamps,
-  }).primary('id')
-    .default('id', d.gen.uuid())
-);
-
-export const posts = withTimestamps(
-  d.table('posts', {
-    id:    s.uuid(),
-    title: s.string(),
-    ...timestamps,
-  }).primary('id')
-    .default('id', d.gen.uuid())
-);
+export const posts = d.table('posts', {
+  id:    d.uuid().primary().default(d.gen.uuid()),
+  title: d.text(),
+  ...timestamps,
+});
 ```
 
 ---
 
 ### 1.3 Relations
 
-Relations are co-located with the table definition. No separate `defineRelations()` call. Each table declares its own outgoing relations.
+Relations are defined inline as fields in the table definition using `d.ref.one()` and `d.ref.many()`. They are co-located with the columns they relate to -- no separate `defineRelations()` call, no `.hasMany()` / `.belongsTo()` vocabulary.
 
 ```typescript
 import { d } from '@vertz/db';
-import { s } from '@vertz/schema';
 
 // --- users.ts ---
 export const users = d.table('users', {
-  id:    s.uuid(),
-  email: s.email(),
-  name:  s.string(),
-}).primary('id')
-  .default('id', d.gen.uuid())
-  .hasMany('posts', () => posts, 'authorId')
-  .hasOne('profile', () => profiles, 'userId');
+  id:      d.uuid().primary(),
+  email:   d.email().sensitive(),
+  name:    d.text(),
+  posts:   d.ref.many(() => posts, 'authorId'),       // Post[]
+  profile: d.ref.one(() => profiles, 'userId'),        // Profile | null
+});
 
 // --- posts.ts ---
 export const posts = d.table('posts', {
-  id:       s.uuid(),
-  title:    s.string(),
-  content:  s.string().optional(),
-  authorId: s.uuid(),
-}).primary('id')
-  .default('id', d.gen.uuid())
-  .belongsTo('author', () => users, 'authorId')
-  .hasMany('comments', () => comments, 'postId')
-  .manyToMany('tags', () => tags, () => postTags);
+  id:       d.uuid().primary(),
+  title:    d.text(),
+  content:  d.text().optional(),
+  authorId: d.uuid(),
+  author:   d.ref.one(() => users, 'authorId'),        // User
+  comments: d.ref.many(() => comments, 'postId'),      // Comment[]
+  tags:     d.ref.many(() => tags).through(() => postTags),  // Tag[]
+});
 
 // --- profiles.ts ---
 export const profiles = d.table('profiles', {
-  id:     s.uuid(),
-  bio:    s.string().optional(),
-  userId: s.uuid(),
-}).primary('id')
-  .default('id', d.gen.uuid())
-  .belongsTo('user', () => users, 'userId')
-  .unique('userId'); // enforces 1:1 at DB level
+  id:     d.uuid().primary(),
+  bio:    d.text().optional(),
+  userId: d.uuid().unique(),   // enforces 1:1 at DB level
+  user:   d.ref.one(() => users, 'userId'),            // User
+});
+
+// --- comments.ts ---
+export const comments = d.table('comments', {
+  id:     d.uuid().primary(),
+  text:   d.text(),
+  postId: d.uuid(),
+  post:   d.ref.one(() => posts, 'postId'),            // Post
+});
 
 // --- tags.ts ---
 export const tags = d.table('tags', {
-  id:   s.uuid(),
-  name: s.string(),
-}).primary('id')
-  .default('id', d.gen.uuid())
-  .unique('name')
-  .manyToMany('posts', () => posts, () => postTags);
+  id:    d.uuid().primary(),
+  name:  d.text().unique(),
+  posts: d.ref.many(() => posts).through(() => postTags),  // Post[]
+});
 
 // --- post_tags.ts (junction table) ---
 export const postTags = d.table('post_tags', {
-  postId: s.uuid(),
-  tagId:  s.uuid(),
-}).primary('postId', 'tagId')
-  .belongsTo('post', () => posts, 'postId')
-  .belongsTo('tag', () => tags, 'tagId');
+  postId: d.uuid(),
+  tagId:  d.uuid(),
+}).primary('postId', 'tagId');
 ```
 
 **Relation methods:**
 
 ```typescript
-.hasOne(name, targetTableFn, foreignKey)
-  // This table's PK is referenced by targetTable.foreignKey
-  // Result type: TargetRow | null
+d.ref.one(targetTableFn, foreignKey)
+  // Points to a single related record
+  // Result type: TargetRow (non-null when FK is required)
+  // Result type: TargetRow | null (when FK is optional or reverse side of 1:1)
 
-.hasMany(name, targetTableFn, foreignKey)
-  // This table's PK is referenced by targetTable.foreignKey
+d.ref.many(targetTableFn, foreignKey)
+  // Points to multiple related records
   // Result type: TargetRow[]
 
-.belongsTo(name, targetTableFn, localForeignKey)
-  // This table's localForeignKey references targetTable's PK
-  // Result type: TargetRow (non-null when FK is required)
-  // Result type: TargetRow | null (when FK is optional)
-
-.manyToMany(name, targetTableFn, junctionTableFn)
-  // Connected through a junction table
+d.ref.many(targetTableFn).through(junctionTableFn)
+  // Many-to-many connected through an explicit junction table
   // Result type: TargetRow[]
 ```
 
@@ -341,11 +335,11 @@ Circular dependencies. `users` references `posts` and `posts` references `users`
 
 **Why explicit foreign keys instead of inference?**
 
-Explicit over implicit. The developer declares which column is the foreign key. No guessing, no naming conventions, no ambiguity. An LLM can read `belongsTo('author', () => users, 'authorId')` and understand the relationship immediately.
+Explicit over implicit. The developer declares which column is the foreign key. No guessing, no naming conventions, no ambiguity. An LLM can read `d.ref.one(() => users, 'authorId')` and understand the relationship immediately.
 
 **Foreign key constraints in the database:**
 
-Relation declarations on the table definition automatically generate the corresponding `REFERENCES` constraint in migrations. `belongsTo('author', () => users, 'authorId')` produces:
+Relation declarations automatically generate the corresponding `REFERENCES` constraint in migrations. `d.ref.one(() => users, 'authorId')` on the `posts` table produces:
 
 ```sql
 ALTER TABLE "posts"
@@ -353,116 +347,145 @@ ALTER TABLE "posts"
   FOREIGN KEY ("author_id") REFERENCES "users"("id");
 ```
 
-Cascade behavior is controlled via `.onDelete()` and `.onUpdate()` on the relation:
+Cascade behavior can be specified as an option:
 
 ```typescript
-.belongsTo('author', () => users, 'authorId', {
+authorId: d.uuid(),
+author:   d.ref.one(() => users, 'authorId', {
   onDelete: 'cascade',
   onUpdate: 'cascade',
-})
+}),
 ```
 
 ---
 
 ### 1.4 Schema Visibility Annotations
 
-Field-level access annotations control where data is exposed. This is a first-class concept, not middleware or application logic.
+Field-level visibility annotations control where data is exposed. This is a first-class concept, not middleware or application logic. Two annotation tiers are provided, declared inline on columns.
 
 ```typescript
 export const users = d.table('users', {
-  id:        s.uuid(),
-  email:     s.email(),
-  name:      s.string(),
-  password:  s.string(),
-  ssn:       s.string().optional(),
-  apiKey:    s.string(),
-  role:      s.enum(['user', 'admin']),
-  lastLogin: s.iso.datetime().optional(),
-  createdAt: s.iso.datetime(),
-}).primary('id')
-  .default('id', d.gen.uuid())
-  .private('password', 'ssn')       // never leaves the data layer
-  .sensitive('apiKey', 'lastLogin')  // redacted in logs, excluded from default serialization
-  .internal('role');                 // visible server-side and admin, but not public API
+  id:           d.uuid().primary(),
+  email:        d.email().sensitive(),          // PII -- excluded from public APIs
+  name:         d.text().max(256),
+  passwordHash: d.text().hidden(),              // secret -- never leaves data layer
+  apiKey:       d.text().hidden(),              // secret -- never leaves data layer
+  loginCount:   d.integer().default(0),
+  createdAt:    d.timestamp().default(d.gen.now()),
+});
 ```
 
-**Visibility levels:**
+**Two annotation tiers:**
 
-| Annotation   | In full schema | In publicSchema | In safeSchema | In logSchema | In adminSchema |
-|-------------|:-:|:-:|:-:|:-:|:-:|
-| (default)    | Y | Y | Y | Y | Y |
-| `.internal()`| Y | - | - | Y | Y |
-| `.sensitive()`| Y | Y | `[REDACTED]` | `[REDACTED]` | Y |
-| `.private()` | Y | - | - | - | Y |
+| Annotation    | Meaning | Public API | Admin tools | Logs | Data layer |
+|--------------|---------|:---:|:---:|:---:|:---:|
+| (default)     | Normal field | Y | Y | Y | Y |
+| `.sensitive()`| PII, emails, billing info | - | Y | `[REDACTED]` | Y |
+| `.hidden()`   | Passwords, API keys, secrets | - | - | `[REDACTED]` | Y |
 
-**How it works at the type level:**
+- **`.sensitive()`** -- Personally identifiable information, emails, billing details. Excluded from public APIs by default. Can appear in admin tools. Redacted in logs.
+- **`.hidden()`** -- Passwords, API keys, internal secrets. Never leaves the data layer. Auto-redacted everywhere. Hidden subsumes sensitive -- a hidden field is inherently sensitive.
 
-`.private('password', 'ssn')` modifies the `TableDef` type to record that `password` and `ssn` are private fields. This metadata is stored in the table's type parameters and flows through to derived schemas.
+**"Not" notation for queries:**
 
-The key constraint: **`publicSchema` literally does not have `password` or `ssn` in its TypeScript type.** This is not a runtime filter that could be bypassed -- it is a compile-time guarantee. Code that tries to access `user.password` through a public schema gets a type error.
+Instead of named visibility presets (`select: 'public'`), the query API uses a `{ not: '...' }` notation that makes the exclusion semantics explicit:
 
 ```typescript
-// Type-level enforcement
-import type { Infer } from '@vertz/schema';
+// Public API — exclude sensitive (and hidden, since hidden subsumes sensitive)
+const publicUsers = await db.find(users, { select: { not: 'sensitive' } });
+// => { id, name, loginCount, createdAt }
 
-type FullUser = typeof users.$infer;
-//   { id: string; email: string; name: string; password: string;
-//     ssn: string | undefined; apiKey: string; role: 'user' | 'admin';
-//     lastLogin: string | undefined; createdAt: string }
+// Admin dashboard — exclude only hidden
+const adminUsers = await db.find(users, { select: { not: 'hidden' } });
+// => { id, name, email, loginCount, createdAt }
 
-type PublicUser = typeof users.$public;
-//   { id: string; email: string; name: string;
-//     apiKey: string; lastLogin: string | undefined; createdAt: string }
-//   ^^^ no password, no ssn (private), no role (internal)
-
-type SafeUser = typeof users.$safe;
-//   { id: string; email: string; name: string; createdAt: string }
-//   ^^^ no private fields, sensitive fields also stripped
-
-type LogUser = typeof users.$log;
-//   { id: string; email: string; name: string;
-//     apiKey: '[REDACTED]'; lastLogin: '[REDACTED]'; createdAt: string }
-//   ^^^ no private fields, sensitive fields replaced with literal '[REDACTED]'
+// Internal data layer — full access (default, no select)
+const allUsers = await db.find(users);
+// => all fields including passwordHash, apiKey
 ```
+
+**Compile-time enforcement:**
+
+The `{ not: 'sensitive' }` notation modifies the return type at compile time. Requesting a sensitive field when `not: 'sensitive'` is set produces a compile-time error:
+
+```typescript
+const publicUsers = await db.find(users, { select: { not: 'sensitive' } });
+
+// This compiles -- name is a normal field
+const name: string = publicUsers[0].name;
+
+// @ts-expect-error -- email is sensitive, excluded by { not: 'sensitive' }
+publicUsers[0].email;
+
+// @ts-expect-error -- passwordHash is hidden (subsumes sensitive), always excluded
+publicUsers[0].passwordHash;
+```
+
+**Auto-redact in logging:**
+
+```typescript
+logger.info('User loaded', { user });
+// => { id: '...', name: 'Alice', email: '[REDACTED]', passwordHash: '[REDACTED]', ... }
+```
+
+- `toLog()` redacts sensitive + hidden by default.
+- Hidden fields can NEVER be unredacted (enforced at type level).
+- Sensitive fields can be included in audit logs with explicit opt-in.
+
+**On-demand derived schemas:**
+
+Instead of named schema properties on the table, schemas are derived on-demand using `schemaOf()`:
+
+```typescript
+import { schemaOf } from '@vertz/db';
+
+const publicUserSchema = schemaOf(users, { not: 'sensitive' });
+const adminUserSchema = schemaOf(users, { not: 'hidden' });
+```
+
+These are real schema objects usable for validation, serialization, and OpenAPI generation.
 
 ---
 
 ### 1.5 Derived Schemas
 
-Each table definition automatically produces derived `@vertz/schema` schemas. These are real schema objects that can be used for validation, serialization, and OpenAPI generation.
+Each table definition automatically produces derived schemas. These are real schema objects that can be used for validation, serialization, and OpenAPI generation.
 
 ```typescript
 import { users } from './schema';
+import { schemaOf } from '@vertz/db';
 
-// Full schema -- all fields, for internal data layer use
-users.schema
-// ObjectSchema<{ id: UuidSchema; email: EmailSchema; ... }>
+// On-demand visibility-scoped schemas
+const publicSchema = schemaOf(users, { not: 'sensitive' });
+// ObjectSchema with only normal fields (no sensitive, no hidden)
 
-// Public schema -- strips .private() and .internal() fields
-users.publicSchema
-// ObjectSchema<{ id: UuidSchema; email: EmailSchema; name: StringSchema; ... }>
-
-// Safe schema -- strips .private(), .internal(), and .sensitive() fields
-users.safeSchema
-// ObjectSchema<{ id: UuidSchema; email: EmailSchema; name: StringSchema; createdAt: ... }>
-
-// Log schema -- strips .private(), replaces .sensitive() with literal '[REDACTED]'
-users.logSchema
-// ObjectSchema<{ id: UuidSchema; email: EmailSchema; name: StringSchema;
-//   apiKey: LiteralSchema<'[REDACTED]'>; ... }>
-
-// Admin schema -- all fields except .private()
-users.adminSchema
-// ObjectSchema<{ id: ...; email: ...; name: ...; apiKey: ...; role: ...; ... }>
+const adminSchema = schemaOf(users, { not: 'hidden' });
+// ObjectSchema with normal + sensitive fields (no hidden)
 
 // Insert schema -- omits auto-generated fields, makes defaulted fields optional
 users.insertSchema
-// ObjectSchema<{ email: EmailSchema; name: StringSchema; password: StringSchema; ... }>
-// id, createdAt, updatedAt have defaults -> optional
+// ObjectSchema<{ email: EmailSchema; name: StringSchema; ... }>
+// id, createdAt have defaults -> optional
 
 // Update schema -- all non-PK fields optional (partial)
 users.updateSchema
 // ObjectSchema<{ email?: EmailSchema; name?: StringSchema; ... }>
+```
+
+**Type-level extraction:**
+
+```typescript
+type FullUser = typeof users.$infer;
+//   { id: string; email: string; name: string; passwordHash: string;
+//     apiKey: string; loginCount: number; createdAt: Date }
+
+type PublicUser = typeof users.$not_sensitive;
+//   { id: string; name: string; loginCount: number; createdAt: Date }
+//   ^^^ no email (sensitive), no passwordHash/apiKey (hidden)
+
+type AdminUser = typeof users.$not_hidden;
+//   { id: string; email: string; name: string; loginCount: number; createdAt: Date }
+//   ^^^ includes sensitive fields, no passwordHash/apiKey (hidden)
 ```
 
 **Integration with `@vertz/core` routes:**
@@ -470,22 +493,22 @@ users.updateSchema
 ```typescript
 import { createRouter } from '@vertz/core';
 import { users } from './schema';
+import { schemaOf } from '@vertz/db';
+
+const publicUserSchema = schemaOf(users, { not: 'sensitive' });
 
 const router = createRouter('/users')
   .get('/', {
-    response: { 200: s.array(users.publicSchema) },
+    response: { 200: publicUserSchema.array() },
     handler: async ({ db }) => {
-      return db.find(users, { select: 'public' });
+      return db.find(users, { select: { not: 'sensitive' } });
     },
   })
   .post('/', {
     body: users.insertSchema,
-    response: { 201: users.publicSchema },
+    response: { 201: publicUserSchema },
     handler: async ({ db, body }) => {
-      // body is typed as InsertUser (inferred from insertSchema)
       const user = await db.create(users, { data: body });
-      // user is typed as FullUser, but we return through publicSchema
-      // which strips private fields at serialization time
       return user;
     },
   });
@@ -496,17 +519,17 @@ const router = createRouter('/users')
 ```typescript
 import { logger } from '@vertz/core';
 
-// The framework logger automatically uses logSchema for any entity it recognizes
+// The framework logger automatically redacts sensitive + hidden fields
 logger.info('User created', { user });
-// Output: { user: { id: "...", email: "...", name: "...", apiKey: "[REDACTED]", ... } }
-// password and ssn are absent (private), apiKey is "[REDACTED]" (sensitive)
+// Output: { id: "...", name: "Alice", email: "[REDACTED]", passwordHash: "[REDACTED]", ... }
+// sensitive fields are "[REDACTED]", hidden fields are "[REDACTED]"
 ```
 
 ---
 
 ### 1.6 Object-Based Query API (Default)
 
-This is the primary query API. It uses an object-based syntax inspired by Prisma's ergonomics but with vertz conventions. Every query is type-safe from arguments to return value.
+This is the primary query API. It uses an options-bag syntax with thenable queries. Every query is type-safe from arguments to return value. The query object implements `PromiseLike` -- `await` just works, no `.execute()` needed (same pattern as Prisma).
 
 **This is the API developers should use for 95% of queries.**
 
@@ -550,7 +573,9 @@ const user = await db.findOneOrThrow(users, {
 // Type: User
 ```
 
-#### Select (field narrowing)
+#### Select (field narrowing) + Include (relations) -- combinable
+
+`select` and `include` can be used together. `select` narrows the scalar fields; `include` adds relations on top.
 
 ```typescript
 // Select specific fields -- return type narrows
@@ -559,22 +584,31 @@ const emails = await db.find(users, {
 });
 // Type: { id: string; email: string }[]
 
-// Use a visibility preset
+// Use visibility notation
 const publicUsers = await db.find(users, {
-  select: 'public',
+  select: { not: 'sensitive' },
 });
-// Type: PublicUser[] (same as Infer<typeof users.publicSchema>[])
+// Type: (fields without sensitive/hidden)[]
 
-const safeUsers = await db.find(users, {
-  select: 'safe',
+// Select + include combined
+const usersWithPosts = await db.find(users, {
+  select: { name: true, email: true },
+  include: {
+    posts: {
+      select: { title: true, createdAt: true },
+      where: { published: true },
+      orderBy: { createdAt: 'desc' },
+      limit: 5,
+    },
+  },
 });
-// Type: SafeUser[]
+// => { name: string; email: string; posts: { title: string; createdAt: Date }[] }[]
 ```
 
-#### Include (relations)
+Include values can be `true` (all fields) or a nested query options object:
 
 ```typescript
-// Include related records
+// Include with true (all fields)
 const usersWithPosts = await db.find(users, {
   include: {
     posts: true,
@@ -582,10 +616,13 @@ const usersWithPosts = await db.find(users, {
 });
 // Type: (User & { posts: Post[] })[]
 
-// Nested includes
-const usersWithPostsAndComments = await db.find(users, {
+// Include with nested query options
+const usersWithRecentPosts = await db.find(users, {
   include: {
     posts: {
+      where: { createdAt: { gte: '2024-01-01T00:00:00Z' } },
+      orderBy: { createdAt: 'desc' },
+      limit: 5,
       include: {
         comments: true,
       },
@@ -593,17 +630,6 @@ const usersWithPostsAndComments = await db.find(users, {
   },
 });
 // Type: (User & { posts: (Post & { comments: Comment[] })[] })[]
-
-// Include with filtering and ordering
-const usersWithRecentPosts = await db.find(users, {
-  include: {
-    posts: {
-      where: { createdAt: { gte: '2024-01-01T00:00:00Z' } },
-      orderBy: { createdAt: 'desc' },
-      limit: 5,
-    },
-  },
-});
 
 // Relation count
 const usersWithCounts = await db.find(users, {
@@ -614,7 +640,19 @@ const usersWithCounts = await db.find(users, {
 // Type: (User & { _count: { posts: number; comments: number } })[]
 ```
 
-**Constraint:** `select` and `include` cannot be used together at the same level. This is enforced by the type system. Use `select` to narrow fields; use `include` to add relations on top of all scalar fields.
+**Thenable pattern:** The query object implements `PromiseLike`, so `await` triggers execution. No `.execute()` needed. This is the same pattern used by Prisma.
+
+```typescript
+// These are equivalent:
+const users1 = await db.find(users);
+const users2 = await db.find(users).then(r => r);
+
+// You can also chain before awaiting:
+const query = db.find(users, { where: { role: 'admin' } });
+// query is a PromiseLike -- not yet executed
+const result = await query;
+// now executed
+```
 
 #### Create
 
@@ -624,7 +662,7 @@ const user = await db.create(users, {
   data: {
     email: 'alice@example.com',
     name: 'Alice',
-    password: hashedPassword,
+    passwordHash: hashedPassword,
   },
 });
 // Type: User (full row, including generated id, timestamps)
@@ -634,7 +672,7 @@ const user = await db.create(users, {
   data: {
     email: 'alice@example.com',
     name: 'Alice',
-    password: hashedPassword,
+    passwordHash: hashedPassword,
     posts: {
       create: [
         { title: 'My first post', content: 'Hello world' },
@@ -648,8 +686,8 @@ const user = await db.create(users, {
 // Create many
 const result = await db.createMany(users, {
   data: [
-    { email: 'bob@example.com', name: 'Bob', password: hash1 },
-    { email: 'carol@example.com', name: 'Carol', password: hash2 },
+    { email: 'bob@example.com', name: 'Bob', passwordHash: hash1 },
+    { email: 'carol@example.com', name: 'Carol', passwordHash: hash2 },
   ],
 });
 // Type: { count: number }
@@ -657,8 +695,8 @@ const result = await db.createMany(users, {
 // Create many and return
 const created = await db.createManyAndReturn(users, {
   data: [
-    { email: 'bob@example.com', name: 'Bob', password: hash1 },
-    { email: 'carol@example.com', name: 'Carol', password: hash2 },
+    { email: 'bob@example.com', name: 'Bob', passwordHash: hash1 },
+    { email: 'carol@example.com', name: 'Carol', passwordHash: hash2 },
   ],
 });
 // Type: User[]
@@ -684,7 +722,7 @@ const result = await db.updateMany(users, {
 // Upsert
 const user = await db.upsert(users, {
   where: { email: 'alice@example.com' },
-  create: { email: 'alice@example.com', name: 'Alice', password: hashed },
+  create: { email: 'alice@example.com', name: 'Alice', passwordHash: hashed },
   update: { name: 'Alice' },
 });
 // Type: User
@@ -880,7 +918,7 @@ const avgPostCount = db.sql
 // INSERT with SQL builder
 await db.sql
   .insert(users)
-  .values({ email: 'alice@example.com', name: 'Alice', password: hashed })
+  .values({ email: 'alice@example.com', name: 'Alice', passwordHash: hashed })
   .onConflict('email')
   .doUpdate({ name: 'Alice Updated' })
   .returning()
@@ -1021,7 +1059,7 @@ await db.transaction(async (tx) => {
 
 ### 1.9 Type Inference
 
-Types flow from schema definition through query to result with zero codegen.
+Types flow from schema definition through query to result with zero codegen. No generate step -- pure TypeScript inference.
 
 #### Type extraction from tables
 
@@ -1030,21 +1068,20 @@ import type { Infer, InsertType, UpdateType } from '@vertz/db';
 
 // Infer the full row type
 type User = typeof users.$infer;
-// { id: string; email: string; name: string; password: string; ... }
+// { id: string; email: string; name: string; passwordHash: string; ... }
 
 // Infer the insert type (auto-generated/defaulted fields become optional)
 type NewUser = typeof users.$insert;
-// { email: string; name: string; password: string;
-//   id?: string; role?: 'user' | 'admin'; createdAt?: string; ... }
+// { email: string; name: string; passwordHash: string;
+//   id?: string; role?: 'user' | 'admin'; createdAt?: Date; ... }
 
 // Infer the update type (all non-PK fields optional)
 type UserUpdate = typeof users.$update;
-// { email?: string; name?: string; password?: string; role?: ...; ... }
+// { email?: string; name?: string; passwordHash?: string; role?: ...; ... }
 
 // Visibility-scoped types
-type PublicUser = typeof users.$public;
-type SafeUser = typeof users.$safe;
-type LogUser = typeof users.$log;
+type PublicUser = typeof users.$not_sensitive;
+type AdminUser = typeof users.$not_hidden;
 ```
 
 #### How types flow through queries
@@ -1052,10 +1089,10 @@ type LogUser = typeof users.$log;
 ```typescript
 // 1. Schema defines types
 const users = d.table('users', {
-  id:    s.uuid(),
-  email: s.email(),
-  name:  s.string(),
-  role:  s.enum(['user', 'admin']),
+  id:    d.uuid().primary(),
+  email: d.email().sensitive(),
+  name:  d.text(),
+  role:  d.enum(['user', 'admin']).default('user'),
 });
 
 // 2. Query narrows return type based on arguments
@@ -1070,29 +1107,37 @@ const result = await db.find(users, {
 });
 // TypeScript infers: (User & { posts: Post[] })[]
 
-// 4. Where clause does NOT narrow the return type -- it filters rows
+// 4. Select + include combined
+const result = await db.find(users, {
+  select: { name: true },
+  include: { posts: { select: { title: true } } },
+});
+// TypeScript infers: { name: string; posts: { title: string }[] }[]
+
+// 5. Where clause does NOT narrow the return type -- it filters rows
 const result = await db.find(users, {
   where: { role: 'admin' },
 });
 // TypeScript infers: User[] (same shape, fewer rows at runtime)
 
-// 5. findOne changes cardinality
+// 6. findOne changes cardinality
 const result = await db.findOne(users, {
   where: { id: userId },
 });
 // TypeScript infers: User | null
 
-// 6. findOneOrThrow removes null
+// 7. findOneOrThrow removes null
 const result = await db.findOneOrThrow(users, {
   where: { id: userId },
 });
 // TypeScript infers: User
 
-// 7. Visibility presets narrow to derived schema types
+// 8. Visibility notation narrows to derived schema types
 const result = await db.find(users, {
-  select: 'public',
+  select: { not: 'sensitive' },
 });
-// TypeScript infers: PublicUser[]
+// TypeScript infers: { id: string; name: string; ... }[]
+// (no email -- it's sensitive)
 ```
 
 #### Type-safe function signatures
@@ -1104,12 +1149,12 @@ async function createUser(data: typeof users.$insert): Promise<typeof users.$inf
 }
 
 // This compiles
-createUser({ email: 'a@b.com', name: 'A', password: 'x' });
+createUser({ email: 'a@b.com', name: 'A', passwordHash: 'x' });
 
 // This fails at compile time: 'email' is required
-createUser({ name: 'A', password: 'x' });
+createUser({ name: 'A', passwordHash: 'x' });
 //          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-// Error: Property 'email' is missing in type '{ name: string; password: string; }'
+// Error: Property 'email' is missing in type '{ name: string; passwordHash: string; }'
 ```
 
 ---
@@ -1246,12 +1291,12 @@ The snapshot is a JSON representation of the full database schema at a point in 
 
 ### Type Safety Wins
 
-The entire ORM is designed around compile-time guarantees. Schema definitions produce types that flow through every query. Visibility annotations produce compile-time-enforced derived types. If you try to expose a `.private()` field through a public schema, the TypeScript compiler stops you. No runtime surprises.
+The entire ORM is designed around compile-time guarantees. Schema definitions produce types that flow through every query. Visibility annotations produce compile-time-enforced derived types. If you try to access a `.sensitive()` field through a `{ not: 'sensitive' }` query, the TypeScript compiler stops you. No runtime surprises.
 
 ### One Way to Do Things
 
-- **One schema system**: `@vertz/schema`'s `s` factory. No second DSL, no `.prisma` files.
-- **One primary query API**: The object-based API handles 95% of use cases.
+- **One namespace**: `d` from `@vertz/db`. No second import for definitions, no `s` + `d` split.
+- **One primary query API**: The object-based options bag handles 95% of use cases. Thenable -- no `.execute()`.
 - **One escape hatch**: The SQL builder, with a clear rule for when to use it.
 - **One casing convention**: `camelCase` in TypeScript, `snake_case` in PostgreSQL.
 - **One migration workflow**: `migrate dev` in development, `migrate deploy` in production.
@@ -1260,21 +1305,22 @@ The SQL escape hatch is the only intentional "two ways to do things." We accept 
 
 ### Production-Ready by Default
 
-- Visibility annotations enforce data protection from day one.
+- Visibility annotations (`.sensitive()`, `.hidden()`) enforce data protection from day one.
+- Two-tier visibility with `{ not: 'sensitive' }` / `{ not: 'hidden' }` notation makes intent explicit.
 - Migration tooling with rename detection prevents accidental data loss.
 - Schema-derived insert/update types prevent invalid data from reaching the database.
-- The framework logger automatically uses `logSchema` for redaction -- you do not opt into this, it is the default.
+- The framework logger automatically redacts sensitive + hidden fields -- you do not opt into this, it is the default.
 
 ### Explicit over Implicit
 
-- Tables explicitly list their columns, relations, and visibility annotations.
-- Foreign keys are explicitly declared with `belongsTo` / `hasMany` / `hasOne`.
-- Database defaults are explicitly set with `d.gen.*`.
+- Tables explicitly list their columns, relations, and visibility annotations -- all inline.
+- Foreign keys are explicitly declared with `d.ref.one()` / `d.ref.many()`.
+- Database defaults are explicitly set inline with `.default(d.gen.uuid())`.
 - No auto-discovered schemas, no convention-based file loading, no decorator magic.
 
 ### Compile-Time over Runtime
 
-- Visibility is a type-level concern. `publicSchema` does not have private fields in its type.
+- Visibility is a type-level concern. `{ not: 'sensitive' }` queries literally do not have sensitive fields in their return type.
 - Insert schemas make auto-generated fields optional at the type level.
 - Select narrowing produces a narrowed return type at compile time.
 - The SQL builder infers join nullability from join type.
@@ -1293,21 +1339,25 @@ If your code compiles:
 This design makes the LLM's job easier in several concrete ways:
 
 - **Predictable API shape.** Every query follows the same `db.method(table, options)` pattern. No model accessors (`prisma.user.findMany()`), no method-specific imports, no dialect-specific paths. An LLM can generate correct queries by pattern-matching from one example.
-- **Explicit relations.** `belongsTo('author', () => users, 'authorId')` is self-documenting. An LLM does not need to infer relationship semantics from naming conventions or separate definition files.
+- **Single namespace.** One import (`d` from `@vertz/db`) for all table definitions. No decision about whether to use `s` or `d` for a column type. The LLM does not need to map between two import paths.
+- **Inline everything.** `d.email().sensitive().unique()` is a single expression. An LLM reading a table definition sees column type, visibility, and constraints in one line. No cross-referencing a builder chain at the bottom of the definition.
+- **Explicit relations.** `d.ref.one(() => users, 'authorId')` is self-documenting. An LLM does not need to infer relationship semantics from naming conventions or separate definition files.
 - **No codegen step.** An LLM editing schema files does not need to remember to run `prisma generate` after changes. Types flow automatically.
 - **One way to do things.** There is no decision fatigue for the LLM. Object API for CRUD, SQL API for complex queries. The rule is explicit and unambiguous.
-- **Visibility annotations are declarative.** `.private('password')` reads like documentation. The LLM does not need to understand middleware chains or serialization hooks to know that `password` is protected.
-- **Derived schemas are automatic.** The LLM does not need to manually create `PublicUserDto` or `UserResponse` types. The framework derives them from annotations.
+- **Visibility annotations are declarative.** `.hidden()` and `.sensitive()` read like documentation. The LLM does not need to understand middleware chains or serialization hooks to know that a field is protected.
+- **Derived schemas are on-demand.** `schemaOf(users, { not: 'sensitive' })` is explicit. The LLM does not need to remember which named property to use -- the intent is in the code.
 
 ### Tradeoffs Accepted
 
 | Decision | What we gain | What we give up |
 |----------|-------------|----------------|
-| PostgreSQL only | Simpler implementation, deeper PG integration, PG-specific features | Multi-database portability |
+| PostgreSQL only | Simpler implementation, deeper PG integration, PG-specific features, PGlite for testing | Multi-database portability |
 | No codegen | Zero build step, instant feedback | Potential TS compiler slowdown at scale |
 | Two query APIs | Coverage of all SQL features | Slight API surface complexity |
-| Explicit relations | Clarity, LLM readability | More lines of code than implicit discovery |
+| Inline relations (`d.ref`) | Co-located, self-documenting | Slightly longer table definitions |
+| Single `d` namespace | Consistent API, no cross-package dependency | No reuse of `@vertz/schema` in table defs |
 | snake_case enforced | Consistency, zero config | Developer choice on naming |
+| Two-tier visibility | Simplicity, clear semantics | Less granular than 3+ tiers |
 
 ---
 
@@ -1315,7 +1365,7 @@ This design makes the LLM's job easier in several concrete ways:
 
 ### Deliberately Out of Scope
 
-1. **Multi-database support.** This ORM is PostgreSQL-only. No MySQL, SQLite, MSSQL, or MongoDB. We will not build a lowest-common-denominator abstraction. PostgreSQL is the vertz recommendation, and we go deep on it. If someone needs SQLite for testing, they use a PG-compatible test database or PGlite.
+1. **Multi-database support.** This ORM is PostgreSQL-only. No MySQL, SQLite, MSSQL, or MongoDB. We will not build a lowest-common-denominator abstraction. PostgreSQL is the vertz recommendation, and we go deep on it. For testing, use PGlite (a lightweight PostgreSQL implementation that runs in-process) -- no SQLite shim layer.
 
 2. **NoSQL / document store.** This is a relational ORM. Typed JSONB columns are supported as a column type, not as a document database abstraction.
 
@@ -1333,7 +1383,7 @@ This design makes the LLM's job easier in several concrete ways:
 
 9. **ORM-level soft deletes.** We do not build soft delete into the ORM. If a project needs soft deletes, they add a `deletedAt` column and filter on it. The ORM does not add implicit `WHERE deleted_at IS NULL` to every query.
 
-10. **Implicit many-to-many.** Prisma auto-creates junction tables for implicit many-to-many relations. We require explicit junction tables. Explicit over implicit.
+10. **Implicit many-to-many.** We require explicit junction tables for many-to-many relations via `.through()`. No auto-created junction tables. Explicit over implicit.
 
 ---
 
@@ -1348,8 +1398,10 @@ This design makes the LLM's job easier in several concrete ways:
 **Resolution strategy:**
 1. **POC:** Build a stress test with 100 tables, each with 10-15 columns and 3-5 relations. Measure `tsc --noEmit` time and IDE responsiveness.
 2. **Mitigation path A:** Optimize type structures aggressively. Use interfaces over mapped types where possible. Flatten conditional types. Apply lessons from Prisma's ArkType collaboration.
-3. **Mitigation path B:** Offer optional codegen for large projects (`vertz db generate-types`) that produces `.d.ts` files, similar to Prisma but opt-in. This preserves the default zero-codegen experience while providing a performance escape hatch.
+3. **Mitigation path B (deferred to v1.1):** Offer optional codegen for large projects (`vertz db generate-types`) that produces `.d.ts` files, similar to Prisma but opt-in. This preserves the default zero-codegen experience while providing a performance escape hatch. **This is explicitly deferred -- not part of v1.**
 4. **Mitigation path C:** Constrain type depth. The object API query types should be optimized for the common case (2-3 levels of relation nesting). Deeper nesting degrades to a wider type.
+
+**Decision:** No codegen by default. Pure TypeScript inference is the v1 approach. The escape hatch (optional codegen) is deferred to v1.1 and will only be built if POC results show it is necessary at scale.
 
 **Decision needed before:** Stage 2 (Plan). The POC must validate that approach A is viable or determine that approach B is necessary.
 
@@ -1369,23 +1421,23 @@ This design makes the LLM's job easier in several concrete ways:
 
 ### U3: Visibility Annotations and the Query Pipeline
 
-**Question:** When a developer uses `select: 'public'`, should the ORM:
-(a) Generate SQL that only selects public columns (never fetches private data from the DB), or
-(b) Fetch all columns and strip private fields in the application layer?
+**Question:** When a developer uses `select: { not: 'sensitive' }`, should the ORM:
+(a) Generate SQL that only selects non-sensitive columns (never fetches sensitive data from the DB), or
+(b) Fetch all columns and strip sensitive fields in the application layer?
 
 **Tradeoff:**
-- Option (a) is more secure -- private data never enters the application memory. But it requires the query builder to be aware of visibility annotations, increasing complexity.
-- Option (b) is simpler and allows the full row to be available for business logic before serialization. But private data exists in memory.
+- Option (a) is more secure -- sensitive data never enters the application memory. But it requires the query builder to be aware of visibility annotations, increasing complexity.
+- Option (b) is simpler and allows the full row to be available for business logic before serialization. But sensitive data exists in memory.
 
-**Recommendation:** Option (a) for `select: 'public'` / `select: 'safe'`. When the developer explicitly requests a visibility preset, the generated SQL should only select those columns. This aligns with "compile-time over runtime" -- the developer's intent is clear and the ORM should honor it at the SQL level.
+**Recommendation:** Option (a) for `select: { not: 'sensitive' }` and `select: { not: 'hidden' }`. When the developer explicitly requests a visibility filter, the generated SQL should only select those columns. This aligns with "compile-time over runtime" -- the developer's intent is clear and the ORM should honor it at the SQL level.
 
-However, when no `select` is specified, the full row is fetched. Visibility enforcement then happens at the serialization boundary (when the response is sent through a route that uses `publicSchema`).
+However, when no `select` is specified, the full row is fetched. Visibility enforcement then happens at the serialization boundary (when the response is sent through a route that uses a derived schema).
 
 **Decision needed before:** Stage 2 (Plan).
 
 ### U4: Typed JSON Column Validation -- Read vs Write
 
-**Question:** For `d.type.jsonb(schema)`, when should validation run?
+**Question:** For `d.jsonb<T>()`, when should validation run?
 - On write (insert/update): Validate that the data matches the schema before storing. This prevents invalid data from entering the DB.
 - On read (select): Validate that data from the DB matches the schema. This catches data that was inserted outside the ORM or from a previous schema version.
 
@@ -1436,13 +1488,13 @@ No POC has been conducted yet. The following POCs are required before moving to 
 
 ### POC 2: Visibility Annotation Type Mechanics
 
-**Goal:** Validate that the derived schema types (publicSchema, safeSchema, logSchema) can be computed at the type level using TypeScript's type system without excessive complexity.
+**Goal:** Validate that the two-tier visibility types (`{ not: 'sensitive' }`, `{ not: 'hidden' }`) can be computed at the type level using TypeScript's type system without excessive complexity.
 
 **Methodology:**
-1. Implement the `TableDef` type with visibility metadata in type parameters.
-2. Implement the mapped types that produce `$public`, `$safe`, `$log`.
-3. Validate that field omission/redaction works correctly at the type level.
-4. Validate that the types compose with query result types (e.g., `select: 'public'` produces the right type).
+1. Implement the `TableDef` type with visibility metadata (`.sensitive()`, `.hidden()`) in type parameters.
+2. Implement the mapped types that produce `$not_sensitive` and `$not_hidden`.
+3. Validate that field omission works correctly at the type level.
+4. Validate that the types compose with query result types (e.g., `select: { not: 'sensitive' }` produces the right type).
 
 **Success criteria:** All visibility permutations produce correct types. Type instantiation count stays reasonable (under 500 per table).
 
@@ -1465,39 +1517,30 @@ The following test proves the core feature set works end-to-end:
 
 ```typescript
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { createDb, d, sql, eq } from '@vertz/db';
-import { s } from '@vertz/schema';
+import { createDb, d, schemaOf, sql, eq } from '@vertz/db';
 
 // --- Schema Definition ---
 const users = d.table('users', {
-  id:        s.uuid(),
-  email:     s.email(),
-  name:      s.string().max(256),
-  password:  s.string(),
-  apiKey:    s.string(),
-  role:      s.enum(['user', 'admin']),
-  createdAt: s.iso.datetime(),
-}).primary('id')
-  .default('id', d.gen.uuid())
-  .default('role', 'user')
-  .default('createdAt', d.gen.now())
-  .unique('email')
-  .private('password')
-  .sensitive('apiKey')
-  .hasMany('posts', () => posts, 'authorId');
+  id:           d.uuid().primary().default(d.gen.uuid()),
+  email:        d.email().sensitive().unique(),
+  name:         d.text().max(256),
+  passwordHash: d.text().hidden(),
+  apiKey:       d.text().hidden(),
+  role:         d.enum(['user', 'admin']).default('user'),
+  loginCount:   d.integer().default(0),
+  createdAt:    d.timestamp().default(d.gen.now()),
+  posts:        d.ref.many(() => posts, 'authorId'),
+});
 
 const posts = d.table('posts', {
-  id:        s.uuid(),
-  title:     s.string(),
-  content:   s.string().optional(),
-  published: s.boolean(),
-  authorId:  s.uuid(),
-  createdAt: s.iso.datetime(),
-}).primary('id')
-  .default('id', d.gen.uuid())
-  .default('published', false)
-  .default('createdAt', d.gen.now())
-  .belongsTo('author', () => users, 'authorId');
+  id:        d.uuid().primary().default(d.gen.uuid()),
+  title:     d.text(),
+  content:   d.text().optional(),
+  published: d.boolean().default(false),
+  authorId:  d.uuid(),
+  author:    d.ref.one(() => users, 'authorId'),
+  createdAt: d.timestamp().default(d.gen.now()),
+});
 
 // --- Tests ---
 describe('@vertz/db E2E', () => {
@@ -1521,7 +1564,7 @@ describe('@vertz/db E2E', () => {
       data: {
         email: 'alice@example.com',
         name: 'Alice',
-        password: 'hashed_pw',
+        passwordHash: 'hashed_pw',
         apiKey: 'sk-123',
       },
     });
@@ -1530,18 +1573,60 @@ describe('@vertz/db E2E', () => {
     expect(user.email).toBe('alice@example.com');
     expect(user.role).toBe('user');           // default applied
     expect(user.createdAt).toBeDefined();     // default applied
-    expect(user.password).toBe('hashed_pw');  // full row includes private fields
+    expect(user.passwordHash).toBe('hashed_pw');  // full row includes hidden fields
   });
 
-  it('finds users with public visibility (no private fields in type or result)', async () => {
-    const publicUsers = await db.find(users, { select: 'public' });
+  it('finds users excluding sensitive fields via { not: "sensitive" }', async () => {
+    const publicUsers = await db.find(users, { select: { not: 'sensitive' } });
 
     expect(publicUsers.length).toBeGreaterThan(0);
-    expect(publicUsers[0].email).toBeDefined();
     expect(publicUsers[0].name).toBeDefined();
-    // TypeScript enforces: publicUsers[0].password would be a compile error
-    // Runtime check: password is not in the result
-    expect('password' in publicUsers[0]).toBe(false);
+    expect(publicUsers[0].loginCount).toBeDefined();
+    // TypeScript enforces: publicUsers[0].email would be a compile error (sensitive)
+    // TypeScript enforces: publicUsers[0].passwordHash would be a compile error (hidden)
+    expect('email' in publicUsers[0]).toBe(false);
+    expect('passwordHash' in publicUsers[0]).toBe(false);
+    expect('apiKey' in publicUsers[0]).toBe(false);
+  });
+
+  it('finds users excluding only hidden fields via { not: "hidden" }', async () => {
+    const adminUsers = await db.find(users, { select: { not: 'hidden' } });
+
+    expect(adminUsers.length).toBeGreaterThan(0);
+    expect(adminUsers[0].email).toBeDefined();   // sensitive is visible in admin
+    expect(adminUsers[0].name).toBeDefined();
+    // TypeScript enforces: adminUsers[0].passwordHash would be a compile error (hidden)
+    expect('passwordHash' in adminUsers[0]).toBe(false);
+    expect('apiKey' in adminUsers[0]).toBe(false);
+  });
+
+  it('uses select + include combined', async () => {
+    // First create a post for Alice
+    const alice = await db.findOneOrThrow(users, {
+      where: { email: 'alice@example.com' },
+    });
+
+    await db.create(posts, {
+      data: { title: 'Test Post', authorId: alice.id },
+    });
+
+    const result = await db.find(users, {
+      select: { name: true, email: true },
+      include: {
+        posts: {
+          select: { title: true, createdAt: true },
+          where: { published: false },
+          orderBy: { createdAt: 'desc' },
+          limit: 5,
+        },
+      },
+    });
+
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0].name).toBeDefined();
+    expect(result[0].email).toBeDefined();
+    expect(result[0].posts).toBeDefined();
+    expect(result[0].posts[0].title).toBeDefined();
   });
 
   it('creates a user with nested post in a single operation', async () => {
@@ -1549,7 +1634,7 @@ describe('@vertz/db E2E', () => {
       data: {
         email: 'bob@example.com',
         name: 'Bob',
-        password: 'hashed_pw2',
+        passwordHash: 'hashed_pw2',
         apiKey: 'sk-456',
         posts: {
           create: [
@@ -1617,7 +1702,7 @@ describe('@vertz/db E2E', () => {
         data: {
           email: 'alice@example.com', // duplicate
           name: 'Alice 2',
-          password: 'pw',
+          passwordHash: 'pw',
           apiKey: 'key',
         },
       })
@@ -1630,46 +1715,80 @@ describe('@vertz/db E2E', () => {
     const valid = insertSchema.safeParse({
       email: 'test@example.com',
       name: 'Test',
-      password: 'pw',
+      passwordHash: 'pw',
       apiKey: 'key',
-      // id, role, createdAt omitted -- they have defaults
+      // id, role, loginCount, createdAt omitted -- they have defaults
     });
     expect(valid.success).toBe(true);
   });
 
-  it('produces correct log schema (sensitive fields redacted)', () => {
-    const logSchema = users.logSchema;
-    const result = logSchema.parse({
+  it('auto-redacts sensitive + hidden fields in toLog()', () => {
+    const user = {
       id: '123',
       email: 'test@example.com',
       name: 'Test',
+      passwordHash: 'secret',
       apiKey: 'sk-secret',
       role: 'user',
-      createdAt: '2024-01-01T00:00:00Z',
+      loginCount: 5,
+      createdAt: new Date(),
+    };
+
+    const logged = users.toLog(user);
+    expect(logged.name).toBe('Test');
+    expect(logged.email).toBe('[REDACTED]');        // sensitive -> redacted
+    expect(logged.passwordHash).toBe('[REDACTED]'); // hidden -> redacted
+    expect(logged.apiKey).toBe('[REDACTED]');        // hidden -> redacted
+  });
+
+  it('derives on-demand schemas with schemaOf()', () => {
+    const publicSchema = schemaOf(users, { not: 'sensitive' });
+    const adminSchema = schemaOf(users, { not: 'hidden' });
+
+    // Public schema should not have sensitive or hidden fields
+    const publicResult = publicSchema.safeParse({
+      id: '123',
+      name: 'Test',
+      role: 'user',
+      loginCount: 5,
+      createdAt: new Date(),
     });
-    expect(result.apiKey).toBe('[REDACTED]');
-    expect('password' in result).toBe(false); // private field absent
+    expect(publicResult.success).toBe(true);
+
+    // Admin schema should have sensitive fields but not hidden
+    const adminResult = adminSchema.safeParse({
+      id: '123',
+      email: 'test@example.com',
+      name: 'Test',
+      role: 'user',
+      loginCount: 5,
+      createdAt: new Date(),
+    });
+    expect(adminResult.success).toBe(true);
   });
 
   it('enforces visibility at the type level', async () => {
-    const publicUsers = await db.find(users, { select: 'public' });
+    const publicUsers = await db.find(users, { select: { not: 'sensitive' } });
     const user = publicUsers[0];
 
-    // These should compile -- public fields are accessible
-    const _email: string = user.email;
+    // These should compile -- normal fields are accessible
     const _name: string = user.name;
+    const _loginCount: number = user.loginCount;
 
-    // @ts-expect-error - password is private, not in public schema
-    user.password;
+    // @ts-expect-error - email is sensitive, excluded by { not: 'sensitive' }
+    user.email;
 
-    // @ts-expect-error - role is internal, not in public schema
-    user.role;
+    // @ts-expect-error - passwordHash is hidden, always excluded
+    user.passwordHash;
 
-    const safeUsers = await db.find(users, { select: 'safe' });
-    const safeUser = safeUsers[0];
+    const adminUsers = await db.find(users, { select: { not: 'hidden' } });
+    const adminUser = adminUsers[0];
 
-    // @ts-expect-error - apiKey is sensitive, not in safe schema
-    safeUser.apiKey;
+    // This should compile -- sensitive fields visible in admin
+    const _email: string = adminUser.email;
+
+    // @ts-expect-error - passwordHash is hidden, excluded even in admin
+    adminUser.passwordHash;
   });
 
   it('enforces type-safe where clauses', async () => {
@@ -1686,10 +1805,10 @@ describe('@vertz/db E2E', () => {
   it('enforces required fields on create', async () => {
     // @ts-expect-error - email is required but missing
     await db.create(users, {
-      data: { name: 'Test', password: 'pw', apiKey: 'key' },
+      data: { name: 'Test', passwordHash: 'pw', apiKey: 'key' },
     });
 
-    // @ts-expect-error - password is required but missing
+    // @ts-expect-error - passwordHash is required but missing
     await db.create(users, {
       data: { email: 'test@example.com', name: 'Test', apiKey: 'key' },
     });
@@ -1698,15 +1817,16 @@ describe('@vertz/db E2E', () => {
 ```
 
 **What this test proves:**
-1. Table definition with `d.table()`, `s` schemas, visibility annotations, and relations works end-to-end.
-2. Auto-generated defaults (UUID, timestamps, enum defaults) are applied by the database.
-3. Visibility presets (`select: 'public'`) strip private fields from both the result and the TypeScript type.
-4. Nested writes (create user with posts) work in a single operation.
-5. The SQL escape hatch (CTE query) produces type-safe results.
-6. Transactions roll back on error.
-7. Database constraints (unique) are enforced.
-8. Derived schemas (insertSchema, logSchema) correctly reflect defaults and visibility.
-9. **Type-level enforcement** via `@ts-expect-error`: accessing private fields on public schema is a compile error, invalid enum values in where clauses are rejected, and missing required fields on create are caught at compile time.
+1. Table definition with `d.table()`, inline column concerns (`.primary()`, `.sensitive()`, `.hidden()`, `.default()`), and inline relations (`d.ref.one`/`d.ref.many`) works end-to-end.
+2. Auto-generated defaults (UUID, timestamps, enum defaults, integer defaults) are applied by the database.
+3. Two-tier visibility with `{ not: 'sensitive' }` and `{ not: 'hidden' }` correctly filters fields from both the result and the TypeScript type.
+4. Select + include are combinable in a single query.
+5. Nested writes (create user with posts) work in a single operation.
+6. The SQL escape hatch (CTE query) produces type-safe results.
+7. Transactions roll back on error.
+8. Database constraints (unique) are enforced.
+9. Derived schemas (`insertSchema`, `schemaOf()`, `toLog()`) correctly reflect defaults and visibility.
+10. **Type-level enforcement** via `@ts-expect-error`: accessing sensitive/hidden fields through visibility-filtered queries is a compile error, invalid enum values in where clauses are rejected, and missing required fields on create are caught at compile time.
 
 ---
 
@@ -1721,12 +1841,11 @@ packages/db/
       transaction.ts          # Transaction wrapper
     schema/
       table.ts                # d.table(), TableDef
-      column-types.ts         # d.type.* helpers
+      column-types.ts         # d.uuid(), d.text(), d.email(), etc.
       generators.ts           # d.gen.* (UUID, now, etc.)
-      enum.ts                 # d.enum()
-      relations.ts            # hasOne, hasMany, belongsTo, manyToMany
-      visibility.ts           # private(), sensitive(), internal()
-      derived.ts              # publicSchema, safeSchema, logSchema, etc.
+      relations.ts            # d.ref.one(), d.ref.many()
+      visibility.ts           # .sensitive(), .hidden() column methods
+      derived.ts              # schemaOf(), insertSchema, updateSchema
     query/
       object/
         find.ts               # find, findOne, findOneOrThrow
@@ -1752,7 +1871,7 @@ packages/db/
       runner.ts               # Apply migrations to database
       cli.ts                  # CLI commands (migrate dev, deploy, push, etc.)
     types/
-      inference.ts            # $infer, $insert, $update, $public, $safe, $log
+      inference.ts            # $infer, $insert, $update, $not_sensitive, $not_hidden
       query-result.ts         # Query result type computation
       filters.ts              # Filter operator types
   __tests__/
@@ -1768,12 +1887,10 @@ The `TableDef` type and `Database` instance expose rich metadata that enables fu
 ```typescript
 // Static metadata (available at import time, no DB connection needed)
 users.tableName;          // 'users'
-users.columnNames;        // ['id', 'email', 'name', 'password', ...]
+users.columnNames;        // ['id', 'email', 'name', 'passwordHash', ...]
 users.primaryKey;         // ['id']
-users.relations;          // { posts: { type: 'hasMany', target: () => posts, ... } }
-users.visibility;         // { password: 'private', apiKey: 'sensitive', role: 'internal' }
-users.schema;             // Full ObjectSchema
-users.publicSchema;       // Derived ObjectSchema (no private/internal)
+users.relations;          // { posts: { type: 'ref.many', target: () => posts, ... } }
+users.visibility;         // { email: 'sensitive', passwordHash: 'hidden', apiKey: 'hidden' }
 users.insertSchema;       // Derived ObjectSchema (defaults optional)
 users.columns;            // Column reference objects for SQL builder
 
@@ -1787,12 +1904,12 @@ db.getTable('users');     // Type-safe table lookup
 | Future Feature | Required Metadata | Already Exposed? |
 |---|---|---|
 | Smart cache expiration | Entity type + PK from mutations | Yes (tableName, primaryKey) |
-| Automatic log redaction | Visibility annotations | Yes (visibility, logSchema) |
+| Automatic log redaction | Visibility annotations | Yes (visibility, toLog()) |
 | Real-time subscriptions | Table name + mutation type | Yes (tableName, plus hook point in mutation methods) |
 | Entity-aware UI store | Entity type + PK + fields | Yes (tableName, primaryKey, columnNames) |
-| OpenAPI from schema | Schema + visibility | Yes (publicSchema.toJSONSchema()) |
-| SDK type generation | All derived schemas | Yes ($infer, $public, etc.) |
+| OpenAPI from schema | Schema + visibility | Yes (schemaOf(table, { not: 'sensitive' }).toJSONSchema()) |
+| SDK type generation | All derived schemas | Yes ($infer, $not_sensitive, etc.) |
 
 ---
 
-*Design doc for @vertz/db. Stage 1 -- pending review from josh (DX), PM (product), and one engineer (feasibility).*
+*Design doc for @vertz/db. Stage 1 -- review decisions applied (7 finalized decisions from PR #122 review).*
