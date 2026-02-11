@@ -181,6 +181,106 @@ describe('buildWhere', () => {
       expect(result.sql).toBe('NOT ("name" = $1 AND "age" < $2)');
       expect(result.params).toEqual(['alice', 18]);
     });
+
+    it('AND with multi-condition branches parenthesizes each branch', () => {
+      const result = buildWhere({
+        AND: [{ status: 'active', role: 'admin' }, { age: { gte: 18 } }],
+      });
+      expect(result.sql).toBe('(("status" = $1 AND "role" = $2) AND "age" >= $3)');
+      expect(result.params).toEqual(['active', 'admin', 18]);
+    });
+
+    it('OR with multi-condition branches parenthesizes each branch', () => {
+      const result = buildWhere({
+        OR: [{ status: 'active', role: 'admin' }, { department: 'eng' }],
+      });
+      expect(result.sql).toBe('(("status" = $1 AND "role" = $2) OR "department" = $3)');
+      expect(result.params).toEqual(['active', 'admin', 'eng']);
+    });
+
+    it('NOT with OR inside negates the disjunction', () => {
+      const result = buildWhere({
+        NOT: { OR: [{ status: 'banned' }, { role: 'guest' }] },
+      });
+      expect(result.sql).toBe('NOT (("status" = $1 OR "role" = $2))');
+      expect(result.params).toEqual(['banned', 'guest']);
+    });
+
+    it('OR with AND inside produces correct nesting', () => {
+      const result = buildWhere({
+        OR: [{ role: 'admin' }, { AND: [{ department: 'eng' }, { level: { gte: 3 } }] }],
+      });
+      expect(result.sql).toBe('("role" = $1 OR ("department" = $2 AND "level" >= $3))');
+      expect(result.params).toEqual(['admin', 'eng', 3]);
+    });
+
+    it('deeply nested AND/OR/NOT composition', () => {
+      const result = buildWhere({
+        status: 'active',
+        OR: [{ role: 'admin' }, { AND: [{ department: 'eng' }, { NOT: { suspended: true } }] }],
+      });
+      expect(result.sql).toBe(
+        '"status" = $1 AND ("role" = $2 OR ("department" = $3 AND NOT ("suspended" = $4)))',
+      );
+      expect(result.params).toEqual(['active', 'admin', 'eng', true]);
+    });
+
+    it('NOT with AND inside negates the conjunction', () => {
+      const result = buildWhere({
+        NOT: { AND: [{ role: 'admin' }, { department: 'eng' }] },
+      });
+      expect(result.sql).toBe('NOT (("role" = $1 AND "department" = $2))');
+      expect(result.params).toEqual(['admin', 'eng']);
+    });
+
+    it('OR with NOT inside each branch', () => {
+      const result = buildWhere({
+        OR: [{ NOT: { status: 'banned' } }, { NOT: { status: 'suspended' } }],
+      });
+      expect(result.sql).toBe('(NOT ("status" = $1) OR NOT ("status" = $2))');
+      expect(result.params).toEqual(['banned', 'suspended']);
+    });
+
+    it('triple nesting: OR > AND > NOT', () => {
+      const result = buildWhere({
+        OR: [
+          { AND: [{ status: 'active' }, { NOT: { role: 'guest' } }] },
+          { AND: [{ verified: true }, { NOT: { age: { lt: 18 } } }] },
+        ],
+      });
+      expect(result.sql).toBe(
+        '(("status" = $1 AND NOT ("role" = $2)) OR ("verified" = $3 AND NOT ("age" < $4)))',
+      );
+      expect(result.params).toEqual(['active', 'guest', true, 18]);
+    });
+
+    it('OR with operator-based conditions', () => {
+      const result = buildWhere({
+        OR: [{ age: { gte: 18, lte: 30 } }, { age: { gte: 60 } }],
+      });
+      expect(result.sql).toBe('(("age" >= $1 AND "age" <= $2) OR "age" >= $3)');
+      expect(result.params).toEqual([18, 30, 60]);
+    });
+
+    it('NOT with operator-based conditions', () => {
+      const result = buildWhere({
+        NOT: { age: { gte: 18, lte: 65 } },
+      });
+      expect(result.sql).toBe('NOT ("age" >= $1 AND "age" <= $2)');
+      expect(result.params).toEqual([18, 65]);
+    });
+
+    it('parameters are numbered correctly across nested operators', () => {
+      const result = buildWhere({
+        name: 'alice',
+        OR: [{ status: 'active' }, { role: 'admin' }],
+        NOT: { department: 'hr' },
+      });
+      expect(result.sql).toBe(
+        '"name" = $1 AND ("status" = $2 OR "role" = $3) AND NOT ("department" = $4)',
+      );
+      expect(result.params).toEqual(['alice', 'active', 'admin', 'hr']);
+    });
   });
 
   describe('parameter offset', () => {
