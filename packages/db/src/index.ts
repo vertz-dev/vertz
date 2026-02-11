@@ -1,3 +1,17 @@
+// CLI
+export type {
+  MigrateDeployOptions,
+  MigrateDeployResult,
+  MigrateDevOptions,
+  MigrateDevResult,
+  MigrateStatusOptions,
+  MigrateStatusResult,
+  MigrationInfo,
+  PushOptions,
+  PushResult,
+  RenameSuggestion,
+} from './cli/index';
+export { migrateDeploy, migrateDev, migrateStatus, push } from './cli/index';
 export type {
   CreateDbOptions,
   DatabaseInstance,
@@ -28,6 +42,17 @@ export {
   parsePgError,
   UniqueConstraintError,
 } from './errors';
+// Plugin (@experimental)
+export type {
+  DbPlugin,
+  EventBus,
+  EventHandler,
+  MutationEvent,
+  PluginRunner,
+  QueryContext,
+  QueryShape,
+} from './plugin/index';
+export { createEventBus, createPluginRunner, fingerprint } from './plugin/index';
 export type { AggregateArgs, CountArgs, ExecutorResult, GroupByArgs, QueryFn } from './query';
 export { mapRow, mapRows } from './query';
 export type {
