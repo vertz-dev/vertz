@@ -129,5 +129,29 @@ describe('createPluginRunner', () => {
 
       expect(result).toBe('original');
     });
+
+    it('preserves previous result when a plugin returns undefined', () => {
+      const plugin1: DbPlugin = {
+        name: 'transform',
+        afterQuery: (_ctx, result) => (result as number[]).map((n) => n * 10),
+      };
+      const plugin2: DbPlugin = {
+        name: 'logging-only',
+        // Observes but does not return a value (returns undefined implicitly)
+        afterQuery: () => undefined,
+      };
+      const plugin3: DbPlugin = {
+        name: 'add-one',
+        afterQuery: (_ctx, result) => (result as number[]).map((n) => n + 1),
+      };
+      const runner = createPluginRunner([plugin1, plugin2, plugin3]);
+
+      const result = runner.runAfterQuery(baseContext, [1, 2, 3]);
+
+      // plugin1: [10, 20, 30]
+      // plugin2: returns undefined -> chain keeps [10, 20, 30]
+      // plugin3: [11, 21, 31]
+      expect(result).toEqual([11, 21, 31]);
+    });
   });
 });

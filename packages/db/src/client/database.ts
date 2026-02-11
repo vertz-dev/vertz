@@ -360,6 +360,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           opts.include as IncludeSpec,
           0,
           tablesRegistry,
+          entry.table,
         );
         return rows[0] ?? null;
       }
@@ -377,6 +378,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           opts.include as IncludeSpec,
           0,
           tablesRegistry,
+          entry.table,
         );
         return rows[0] as Record<string, unknown>;
       }
@@ -394,6 +396,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           opts.include as IncludeSpec,
           0,
           tablesRegistry,
+          entry.table,
         );
       }
       return results;
@@ -410,6 +413,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           opts.include as IncludeSpec,
           0,
           tablesRegistry,
+          entry.table,
         );
         return { data: withRelations, total };
       }

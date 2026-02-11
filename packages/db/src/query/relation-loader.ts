@@ -20,8 +20,18 @@ import { buildSelect } from '../sql/select';
 
 import type { QueryFn } from './executor';
 import { executeQuery } from './executor';
-import { resolveSelectColumns } from './helpers';
+import { getPrimaryKeyColumns, resolveSelectColumns } from './helpers';
 import { mapRow } from './row-mapper';
+
+/**
+ * Resolve the primary key column name from a table definition.
+ * Falls back to 'id' if no PK metadata is found (backward compat).
+ */
+function resolvePkColumn(table: TableDef<ColumnRecord>): string {
+  const pkCols = getPrimaryKeyColumns(table);
+  const first = pkCols[0];
+  return first !== undefined ? first : 'id';
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -64,6 +74,7 @@ export interface TableRegistryEntry {
  * @param include - The include specification from query options
  * @param depth - Current recursion depth (max 2)
  * @param tablesRegistry - The full table registry for resolving nested/m2m relations
+ * @param primaryTable - The primary table definition (for PK resolution)
  */
 export async function loadRelations<T extends Record<string, unknown>>(
   queryFn: QueryFn,
@@ -72,6 +83,7 @@ export async function loadRelations<T extends Record<string, unknown>>(
   include: IncludeSpec,
   depth = 0,
   tablesRegistry?: Record<string, TableRegistryEntry>,
+  primaryTable?: TableDef<ColumnRecord>,
 ): Promise<T[]> {
   if (depth > 2 || primaryRows.length === 0) {
     return primaryRows;
@@ -119,6 +131,7 @@ export async function loadRelations<T extends Record<string, unknown>>(
         includeValue,
         depth,
         tablesRegistry,
+        primaryTable,
       );
     } else {
       await loadManyRelation(
@@ -130,6 +143,7 @@ export async function loadRelations<T extends Record<string, unknown>>(
         includeValue,
         depth,
         tablesRegistry,
+        primaryTable,
       );
     }
   }
@@ -192,20 +206,23 @@ async function loadOneRelation<T extends Record<string, unknown>>(
     return;
   }
 
+  // Resolve the target table's PK column
+  const targetPk = resolvePkColumn(target);
+
   // Resolve select columns for the target table
   const selectOpt = typeof includeValue === 'object' ? includeValue.select : undefined;
   const columns = resolveSelectColumns(target, selectOpt);
 
-  // Always include the target PK (id) for mapping back
-  if (!columns.includes('id')) {
-    columns.push('id');
+  // Always include the target PK for mapping back
+  if (!columns.includes(targetPk)) {
+    columns.push(targetPk);
   }
 
   // Build and execute the batch query
   const query = buildSelect({
     table: target._name,
     columns,
-    where: { id: { in: [...fkValues] } },
+    where: { [targetPk]: { in: [...fkValues] } },
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, query.sql, query.params);
@@ -214,7 +231,7 @@ async function loadOneRelation<T extends Record<string, unknown>>(
   const lookup = new Map<unknown, Record<string, unknown>>();
   for (const row of res.rows) {
     const mapped = mapRow<Record<string, unknown>>(row as Record<string, unknown>);
-    lookup.set(mapped.id, mapped);
+    lookup.set(mapped[targetPk], mapped);
   }
 
   // Handle nested includes on the related rows
@@ -229,6 +246,7 @@ async function loadOneRelation<T extends Record<string, unknown>>(
         includeValue.include,
         depth + 1,
         tablesRegistry,
+        target,
       );
     }
   }
@@ -254,14 +272,18 @@ async function loadManyRelation<T extends Record<string, unknown>>(
   includeValue: true | { select?: Record<string, true>; include?: IncludeSpec },
   depth: number,
   tablesRegistry?: Record<string, TableRegistryEntry>,
+  primaryTable?: TableDef<ColumnRecord>,
 ): Promise<void> {
   const fk = def._foreignKey;
   if (!fk) return;
 
+  // Resolve the primary table's PK column
+  const primaryPk = primaryTable ? resolvePkColumn(primaryTable) : 'id';
+
   // Collect unique PK values from primary rows (the target FK points to these)
   const pkValues = new Set<unknown>();
   for (const row of primaryRows) {
-    const val = row.id;
+    const val = row[primaryPk];
     if (val !== null && val !== undefined) {
       pkValues.add(val);
     }
@@ -317,13 +339,14 @@ async function loadManyRelation<T extends Record<string, unknown>>(
         includeValue.include,
         depth + 1,
         tablesRegistry,
+        target,
       );
     }
   }
 
   // Attach related rows to primary rows
   for (const row of primaryRows) {
-    const pkVal = row.id;
+    const pkVal = row[primaryPk];
     (row as Record<string, unknown>)[relName] = lookup.get(pkVal) ?? [];
   }
 }
@@ -351,9 +374,14 @@ async function loadManyToManyRelation<T extends Record<string, unknown>>(
   includeValue: true | { select?: Record<string, true>; include?: IncludeSpec },
   depth: number,
   tablesRegistry?: Record<string, TableRegistryEntry>,
+  primaryTable?: TableDef<ColumnRecord>,
 ): Promise<void> {
   const through = def._through;
   if (!through) return;
+
+  // Resolve the primary and target PKs
+  const primaryPk = primaryTable ? resolvePkColumn(primaryTable) : 'id';
+  const targetPk = resolvePkColumn(target);
 
   const joinTable = through.table();
   const thisKey = through.thisKey; // FK in join table pointing to primary table
@@ -362,7 +390,7 @@ async function loadManyToManyRelation<T extends Record<string, unknown>>(
   // Collect unique PK values from primary rows
   const pkValues = new Set<unknown>();
   for (const row of primaryRows) {
-    const val = row.id;
+    const val = row[primaryPk];
     if (val !== null && val !== undefined) {
       pkValues.add(val);
     }
@@ -420,15 +448,15 @@ async function loadManyToManyRelation<T extends Record<string, unknown>>(
   const selectOpt = typeof includeValue === 'object' ? includeValue.select : undefined;
   const columns = resolveSelectColumns(target, selectOpt);
 
-  // Always include the target PK (id) for mapping
-  if (!columns.includes('id')) {
-    columns.push('id');
+  // Always include the target PK for mapping
+  if (!columns.includes(targetPk)) {
+    columns.push(targetPk);
   }
 
   const targetQuery = buildSelect({
     table: target._name,
     columns,
-    where: { id: { in: [...allTargetIds] } },
+    where: { [targetPk]: { in: [...allTargetIds] } },
   });
 
   const targetRes = await executeQuery<Record<string, unknown>>(
@@ -441,7 +469,7 @@ async function loadManyToManyRelation<T extends Record<string, unknown>>(
   const targetLookup = new Map<unknown, Record<string, unknown>>();
   for (const row of targetRes.rows) {
     const mapped = mapRow<Record<string, unknown>>(row as Record<string, unknown>);
-    targetLookup.set(mapped.id, mapped);
+    targetLookup.set(mapped[targetPk], mapped);
   }
 
   // Handle nested includes on the target rows
@@ -456,13 +484,14 @@ async function loadManyToManyRelation<T extends Record<string, unknown>>(
         includeValue.include,
         depth + 1,
         tablesRegistry,
+        target,
       );
     }
   }
 
   // Step 4: Map results back to parent rows
   for (const row of primaryRows) {
-    const pkVal = row.id;
+    const pkVal = row[primaryPk];
     const targetIds = primaryToTargetIds.get(pkVal) ?? [];
     const relatedRows: Record<string, unknown>[] = [];
     for (const targetId of targetIds) {

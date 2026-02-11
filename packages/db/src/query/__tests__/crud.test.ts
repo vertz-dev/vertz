@@ -279,6 +279,20 @@ describe('CRUD queries (DB-010)', () => {
       });
       expect(count).toBe(2);
     });
+
+    it('throws when where is an empty object to prevent accidental mass update', async () => {
+      await db.create('users', { data: { name: 'Alice', email: 'a@test.com' } });
+
+      await expect(
+        db.updateMany('users', { where: {}, data: { name: 'Overwritten' } }),
+      ).rejects.toThrow(/empty where/i);
+
+      // Verify the row was NOT modified
+      const alice = (await db.findOne('users', {
+        where: { email: 'a@test.com' },
+      })) as Record<string, unknown>;
+      expect(alice.name).toBe('Alice');
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -343,6 +357,16 @@ describe('CRUD queries (DB-010)', () => {
 
       const { count } = await db.deleteMany('users', { where: { active: true } });
       expect(count).toBe(2);
+    });
+
+    it('throws when where is an empty object to prevent accidental mass delete', async () => {
+      await db.create('users', { data: { name: 'Alice', email: 'a@test.com' } });
+
+      await expect(db.deleteMany('users', { where: {} })).rejects.toThrow(/empty where/i);
+
+      // Verify the row was NOT deleted
+      const all = await db.findMany('users');
+      expect(all).toHaveLength(1);
     });
   });
 
