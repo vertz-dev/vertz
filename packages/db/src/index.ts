@@ -61,7 +61,6 @@ export {
   resolveErrorCode,
   UniqueConstraintError,
 } from './errors';
-
 // Schema types
 export type {
   ColumnBuilder,
@@ -83,6 +82,7 @@ export type {
   TableEntry,
   UpdateInput,
 } from './schema/inference';
+export { createRegistry } from './schema/registry';
 export type { RelationDef } from './schema/relation';
 export type { IndexDef, TableDef } from './schema/table';
 

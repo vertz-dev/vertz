@@ -6,6 +6,7 @@ import type {
   TenantMeta,
 } from './schema/column';
 import { createColumn, createSerialColumn, createTenantColumn } from './schema/column';
+import type { TableEntry } from './schema/inference';
 import type { ManyRelationDef, RelationDef } from './schema/relation';
 import { createManyRelation, createOneRelation } from './schema/relation';
 import type { ColumnRecord, IndexDef, TableDef, TableOptions } from './schema/table';
@@ -53,6 +54,12 @@ export const d: {
     ): RelationDef<TTarget, 'many'>;
     many<TTarget extends TableDef<ColumnRecord>>(target: () => TTarget): ManyRelationDef<TTarget>;
   };
+  // biome-ignore lint/complexity/noBannedTypes: {} represents an empty relations record — the correct default for tables without relations
+  entry<TTable extends TableDef<ColumnRecord>>(table: TTable): TableEntry<TTable, {}>;
+  entry<TTable extends TableDef<ColumnRecord>, TRelations extends Record<string, RelationDef>>(
+    table: TTable,
+    relations: TRelations,
+  ): TableEntry<TTable, TRelations>;
 } = {
   uuid: () => createColumn<string, 'uuid'>('uuid'),
   text: () => createColumn<string, 'text'>('text'),
@@ -87,4 +94,8 @@ export const d: {
     many: <TTarget extends TableDef<ColumnRecord>>(target: () => TTarget, foreignKey?: string) =>
       createManyRelation(target, foreignKey),
   },
+  entry: (table: TableDef<ColumnRecord>, relations: Record<string, RelationDef> = {}) => ({
+    table,
+    relations,
+  }),
 };
