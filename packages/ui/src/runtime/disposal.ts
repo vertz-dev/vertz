@@ -36,11 +36,12 @@ export function popScope(): void {
 }
 
 /**
- * Run all collected cleanup functions and clear the list.
+ * Run all collected cleanup functions in LIFO (reverse) order and clear the list.
+ * Reverse order matches try/finally semantics — last registered, first cleaned up.
  */
 export function runCleanups(cleanups: DisposeFn[]): void {
-  for (const fn of cleanups) {
-    fn();
+  for (let i = cleanups.length - 1; i >= 0; i--) {
+    cleanups[i]?.();
   }
   cleanups.length = 0;
 }
