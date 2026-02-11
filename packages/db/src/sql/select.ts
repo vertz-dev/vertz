@@ -5,7 +5,7 @@
  * - Column selection with camelCase -> snake_case conversion and aliasing
  * - WHERE clause via the where builder
  * - ORDER BY with direction
- * - LIMIT / OFFSET pagination
+ * - LIMIT / OFFSET pagination (parameterized)
  * - COUNT(*) OVER() for findManyAndCount
  */
 
@@ -46,7 +46,7 @@ function buildColumnRef(name: string): string {
  */
 export function buildSelect(options: SelectOptions): SelectResult {
   const parts: string[] = [];
-  let allParams: readonly unknown[] = [];
+  const allParams: unknown[] = [];
 
   // SELECT columns
   let columnList: string;
@@ -67,7 +67,7 @@ export function buildSelect(options: SelectOptions): SelectResult {
     const whereResult: WhereResult = buildWhere(options.where);
     if (whereResult.sql.length > 0) {
       parts.push(`WHERE ${whereResult.sql}`);
-      allParams = whereResult.params;
+      allParams.push(...whereResult.params);
     }
   }
 
@@ -81,14 +81,16 @@ export function buildSelect(options: SelectOptions): SelectResult {
     }
   }
 
-  // LIMIT
+  // LIMIT (parameterized)
   if (options.limit !== undefined) {
-    parts.push(`LIMIT ${options.limit}`);
+    allParams.push(options.limit);
+    parts.push(`LIMIT $${allParams.length}`);
   }
 
-  // OFFSET
+  // OFFSET (parameterized)
   if (options.offset !== undefined) {
-    parts.push(`OFFSET ${options.offset}`);
+    allParams.push(options.offset);
+    parts.push(`OFFSET $${allParams.length}`);
   }
 
   return {

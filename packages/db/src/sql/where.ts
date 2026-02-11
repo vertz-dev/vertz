@@ -73,12 +73,29 @@ function isOperatorObject(value: unknown): value is FilterOperators {
 }
 
 /**
+ * Escape single quotes in a string by doubling them (SQL standard).
+ */
+function escapeSingleQuotes(str: string): string {
+  return str.replace(/'/g, "''");
+}
+
+/**
+ * Escape LIKE metacharacters (%, _, \) in user-provided values.
+ *
+ * Backslash is escaped first to avoid double-escaping.
+ */
+function escapeLikeValue(str: string): string {
+  return str.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
+/**
  * Resolve a column reference that may contain JSONB path syntax.
  *
  * "metadata->role" becomes `"metadata"->>'role'`
  * "metadata->settings->theme" becomes `"metadata"->'settings'->>'theme'`
  *
  * Regular columns are just quoted with double quotes.
+ * Single quotes in JSONB path segments are escaped to prevent SQL injection.
  */
 function resolveColumnRef(key: string): string {
   if (key.includes('->')) {
@@ -87,15 +104,15 @@ function resolveColumnRef(key: string): string {
     const column = `"${camelToSnake(baseCol)}"`;
     const jsonPath = parts.slice(1);
     if (jsonPath.length === 1) {
-      return `${column}->>'${jsonPath[0]}'`;
+      return `${column}->>'${escapeSingleQuotes(jsonPath[0] ?? '')}'`;
     }
     // Intermediate keys use ->, final key uses ->>
     const intermediate = jsonPath
       .slice(0, -1)
-      .map((p) => `->'${p}'`)
+      .map((p) => `->'${escapeSingleQuotes(p)}'`)
       .join('');
-    const lastKey = jsonPath[jsonPath.length - 1];
-    const final = `->>'${lastKey}'`;
+    const lastKey = jsonPath[jsonPath.length - 1] ?? '';
+    const final = `->>'${escapeSingleQuotes(lastKey)}'`;
     return `${column}${intermediate}${final}`;
   }
   return `"${camelToSnake(key)}"`;
@@ -142,30 +159,40 @@ function buildOperatorCondition(
   }
   if (operators.contains !== undefined) {
     clauses.push(`${columnRef} LIKE $${idx + 1}`);
-    params.push(`%${operators.contains}%`);
+    params.push(`%${escapeLikeValue(operators.contains)}%`);
     idx++;
   }
   if (operators.startsWith !== undefined) {
     clauses.push(`${columnRef} LIKE $${idx + 1}`);
-    params.push(`${operators.startsWith}%`);
+    params.push(`${escapeLikeValue(operators.startsWith)}%`);
     idx++;
   }
   if (operators.endsWith !== undefined) {
     clauses.push(`${columnRef} LIKE $${idx + 1}`);
-    params.push(`%${operators.endsWith}`);
+    params.push(`%${escapeLikeValue(operators.endsWith)}`);
     idx++;
   }
   if (operators.in !== undefined) {
-    const placeholders = operators.in.map((_, i) => `$${idx + 1 + i}`).join(', ');
-    clauses.push(`${columnRef} IN (${placeholders})`);
-    params.push(...operators.in);
-    idx += operators.in.length;
+    if (operators.in.length === 0) {
+      // Empty IN is always false — no row can match an empty set
+      clauses.push('FALSE');
+    } else {
+      const placeholders = operators.in.map((_, i) => `$${idx + 1 + i}`).join(', ');
+      clauses.push(`${columnRef} IN (${placeholders})`);
+      params.push(...operators.in);
+      idx += operators.in.length;
+    }
   }
   if (operators.notIn !== undefined) {
-    const placeholders = operators.notIn.map((_, i) => `$${idx + 1 + i}`).join(', ');
-    clauses.push(`${columnRef} NOT IN (${placeholders})`);
-    params.push(...operators.notIn);
-    idx += operators.notIn.length;
+    if (operators.notIn.length === 0) {
+      // Empty NOT IN is always true — every row is not in an empty set
+      clauses.push('TRUE');
+    } else {
+      const placeholders = operators.notIn.map((_, i) => `$${idx + 1 + i}`).join(', ');
+      clauses.push(`${columnRef} NOT IN (${placeholders})`);
+      params.push(...operators.notIn);
+      idx += operators.notIn.length;
+    }
   }
   if (operators.isNull !== undefined) {
     clauses.push(`${columnRef} ${operators.isNull ? 'IS NULL' : 'IS NOT NULL'}`);
@@ -219,26 +246,36 @@ function buildFilterClauses(
 
   // Handle OR
   if (filter.OR !== undefined) {
-    const orClauses: string[] = [];
-    for (const subFilter of filter.OR) {
-      const sub = buildFilterClauses(subFilter, idx);
-      orClauses.push(sub.clauses.join(' AND '));
-      allParams.push(...sub.params);
-      idx = sub.nextIndex;
+    if (filter.OR.length === 0) {
+      // Empty OR is FALSE — disjunction over zero terms is the identity element (false)
+      clauses.push('FALSE');
+    } else {
+      const orClauses: string[] = [];
+      for (const subFilter of filter.OR) {
+        const sub = buildFilterClauses(subFilter, idx);
+        orClauses.push(sub.clauses.join(' AND '));
+        allParams.push(...sub.params);
+        idx = sub.nextIndex;
+      }
+      clauses.push(`(${orClauses.join(' OR ')})`);
     }
-    clauses.push(`(${orClauses.join(' OR ')})`);
   }
 
   // Handle AND
   if (filter.AND !== undefined) {
-    const andClauses: string[] = [];
-    for (const subFilter of filter.AND) {
-      const sub = buildFilterClauses(subFilter, idx);
-      andClauses.push(sub.clauses.join(' AND '));
-      allParams.push(...sub.params);
-      idx = sub.nextIndex;
+    if (filter.AND.length === 0) {
+      // Empty AND is TRUE — conjunction over zero terms is the identity element (true)
+      clauses.push('TRUE');
+    } else {
+      const andClauses: string[] = [];
+      for (const subFilter of filter.AND) {
+        const sub = buildFilterClauses(subFilter, idx);
+        andClauses.push(sub.clauses.join(' AND '));
+        allParams.push(...sub.params);
+        idx = sub.nextIndex;
+      }
+      clauses.push(`(${andClauses.join(' AND ')})`);
     }
-    clauses.push(`(${andClauses.join(' AND ')})`);
   }
 
   // Handle NOT

@@ -101,30 +101,43 @@ describe('buildSelect', () => {
   });
 
   describe('LIMIT and OFFSET', () => {
-    it('adds LIMIT', () => {
+    it('parameterizes LIMIT', () => {
       const result = buildSelect({
         table: 'users',
         limit: 10,
       });
-      expect(result.sql).toBe('SELECT * FROM "users" LIMIT 10');
-      expect(result.params).toEqual([]);
+      expect(result.sql).toBe('SELECT * FROM "users" LIMIT $1');
+      expect(result.params).toEqual([10]);
     });
 
-    it('adds OFFSET', () => {
+    it('parameterizes OFFSET', () => {
       const result = buildSelect({
         table: 'users',
         offset: 20,
       });
-      expect(result.sql).toBe('SELECT * FROM "users" OFFSET 20');
+      expect(result.sql).toBe('SELECT * FROM "users" OFFSET $1');
+      expect(result.params).toEqual([20]);
     });
 
-    it('adds both LIMIT and OFFSET', () => {
+    it('parameterizes both LIMIT and OFFSET', () => {
       const result = buildSelect({
         table: 'users',
         limit: 10,
         offset: 20,
       });
-      expect(result.sql).toBe('SELECT * FROM "users" LIMIT 10 OFFSET 20');
+      expect(result.sql).toBe('SELECT * FROM "users" LIMIT $1 OFFSET $2');
+      expect(result.params).toEqual([10, 20]);
+    });
+
+    it('parameterizes LIMIT/OFFSET after WHERE params', () => {
+      const result = buildSelect({
+        table: 'users',
+        where: { active: true },
+        limit: 10,
+        offset: 0,
+      });
+      expect(result.sql).toBe('SELECT * FROM "users" WHERE "active" = $1 LIMIT $2 OFFSET $3');
+      expect(result.params).toEqual([true, 10, 0]);
     });
   });
 
@@ -139,9 +152,9 @@ describe('buildSelect', () => {
         offset: 0,
       });
       expect(result.sql).toBe(
-        'SELECT "id", "first_name" AS "firstName", "email" FROM "users" WHERE "active" = $1 ORDER BY "created_at" DESC LIMIT 10 OFFSET 0',
+        'SELECT "id", "first_name" AS "firstName", "email" FROM "users" WHERE "active" = $1 ORDER BY "created_at" DESC LIMIT $2 OFFSET $3',
       );
-      expect(result.params).toEqual([true]);
+      expect(result.params).toEqual([true, 10, 0]);
     });
   });
 

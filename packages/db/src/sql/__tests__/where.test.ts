@@ -245,3 +245,90 @@ describe('buildWhere', () => {
     });
   });
 });
+
+describe('edge cases: empty IN/NOT IN arrays (Issue #1)', () => {
+  it('empty in produces FALSE', () => {
+    const result = buildWhere({ status: { in: [] } });
+    expect(result.sql).toBe('FALSE');
+    expect(result.params).toEqual([]);
+  });
+
+  it('empty notIn produces TRUE', () => {
+    const result = buildWhere({ status: { notIn: [] } });
+    expect(result.sql).toBe('TRUE');
+    expect(result.params).toEqual([]);
+  });
+
+  it('empty in combined with other conditions', () => {
+    const result = buildWhere({ status: { in: [] }, name: 'alice' });
+    expect(result.sql).toBe('FALSE AND "name" = $1');
+    expect(result.params).toEqual(['alice']);
+  });
+});
+
+describe('edge cases: LIKE metacharacter escaping (Issue #2)', () => {
+  it('contains escapes % in user value', () => {
+    const result = buildWhere({ discount: { contains: '50%' } });
+    expect(result.params).toEqual(['%50\\%%']);
+  });
+
+  it('contains escapes _ in user value', () => {
+    const result = buildWhere({ code: { contains: 'A_B' } });
+    expect(result.params).toEqual(['%A\\_B%']);
+  });
+
+  it('contains escapes backslash in user value', () => {
+    const result = buildWhere({ path: { contains: 'a\\b' } });
+    expect(result.params).toEqual(['%a\\\\b%']);
+  });
+
+  it('startsWith escapes metacharacters', () => {
+    const result = buildWhere({ name: { startsWith: '100%' } });
+    expect(result.params).toEqual(['100\\%%']);
+  });
+
+  it('endsWith escapes metacharacters', () => {
+    const result = buildWhere({ name: { endsWith: '_end' } });
+    expect(result.params).toEqual(['%\\_end']);
+  });
+});
+
+describe('edge cases: empty OR/AND arrays (Issue #3)', () => {
+  it('empty OR produces FALSE', () => {
+    const result = buildWhere({ OR: [] });
+    expect(result.sql).toBe('FALSE');
+    expect(result.params).toEqual([]);
+  });
+
+  it('empty AND produces TRUE', () => {
+    const result = buildWhere({ AND: [] });
+    expect(result.sql).toBe('TRUE');
+    expect(result.params).toEqual([]);
+  });
+
+  it('empty OR with other conditions', () => {
+    const result = buildWhere({ name: 'alice', OR: [] });
+    expect(result.sql).toBe('"name" = $1 AND FALSE');
+    expect(result.params).toEqual(['alice']);
+  });
+
+  it('empty AND with other conditions', () => {
+    const result = buildWhere({ name: 'alice', AND: [] });
+    expect(result.sql).toBe('"name" = $1 AND TRUE');
+    expect(result.params).toEqual(['alice']);
+  });
+});
+
+describe('edge cases: JSONB path segment sanitization (Issue #4)', () => {
+  it('escapes single quotes in JSONB path segments', () => {
+    const result = buildWhere({ "metadata->it's": 'value' });
+    expect(result.sql).toBe("\"metadata\"->>'it''s' = $1");
+    expect(result.params).toEqual(['value']);
+  });
+
+  it('escapes single quotes in nested JSONB path segments', () => {
+    const result = buildWhere({ "metadata->user's->it's": 'value' });
+    expect(result.sql).toBe("\"metadata\"->'user''s'->>'it''s' = $1");
+    expect(result.params).toEqual(['value']);
+  });
+});
