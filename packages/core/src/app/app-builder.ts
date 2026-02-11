@@ -4,6 +4,7 @@ import type { AppConfig } from '../types/app';
 import type { ListenOptions, ServerHandle } from '../types/server-adapter';
 import { buildHandler, type ModuleRegistration } from './app-runner';
 import { detectAdapter } from './detect-adapter';
+import { collectRoutes, formatRouteLog } from './route-log';
 
 const DEFAULT_PORT = 3000;
 
@@ -42,7 +43,15 @@ export function createApp(config: AppConfig): AppBuilder {
     },
     async listen(port, options) {
       const adapter = detectAdapter();
-      return adapter.listen(port ?? DEFAULT_PORT, builder.handler, options);
+      const serverHandle = await adapter.listen(port ?? DEFAULT_PORT, builder.handler, options);
+
+      if (options?.logRoutes !== false) {
+        const routes = collectRoutes(config.basePath ?? '', registrations);
+        const url = `http://${serverHandle.hostname}:${serverHandle.port}`;
+        console.log(formatRouteLog(url, routes));
+      }
+
+      return serverHandle;
     },
   };
 
