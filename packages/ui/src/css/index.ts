@@ -14,3 +14,5 @@ export {
   resolveToken,
   TokenResolveError,
 } from './token-resolver';
+export type { VariantFunction, VariantProps, VariantsConfig } from './variants';
+export { variants } from './variants';
