@@ -91,6 +91,10 @@ export interface FindManyArgs {
   readonly orderBy?: Record<string, 'asc' | 'desc'>;
   readonly limit?: number;
   readonly offset?: number;
+  /** Cursor object: column-value pairs marking the position to paginate from. */
+  readonly cursor?: Record<string, unknown>;
+  /** Number of rows to take (used with cursor). Aliases `limit` when cursor is present. */
+  readonly take?: number;
 }
 
 /**
@@ -109,6 +113,8 @@ export async function findMany<T>(
     orderBy: options?.orderBy,
     limit: options?.limit,
     offset: options?.offset,
+    cursor: options?.cursor,
+    take: options?.take,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -131,6 +137,8 @@ export async function findManyAndCount<T>(
     orderBy: options?.orderBy,
     limit: options?.limit,
     offset: options?.offset,
+    cursor: options?.cursor,
+    take: options?.take,
     withCount: true,
   });
 

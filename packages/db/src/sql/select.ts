@@ -6,6 +6,7 @@
  * - WHERE clause via the where builder
  * - ORDER BY with direction
  * - LIMIT / OFFSET pagination (parameterized)
+ * - Cursor-based pagination (cursor + take)
  * - COUNT(*) OVER() for findManyAndCount
  */
 
@@ -20,6 +21,10 @@ export interface SelectOptions {
   readonly limit?: number;
   readonly offset?: number;
   readonly withCount?: boolean;
+  /** Cursor object: column-value pairs marking the position to paginate from. */
+  readonly cursor?: Record<string, unknown>;
+  /** Number of rows to take (used with cursor). Aliases `limit` when cursor is present. */
+  readonly take?: number;
 }
 
 export interface SelectResult {
@@ -63,15 +68,50 @@ export function buildSelect(options: SelectOptions): SelectResult {
   parts.push(`SELECT ${columnList} FROM "${options.table}"`);
 
   // WHERE
+  const whereClauses: string[] = [];
+
   if (options.where) {
     const whereResult: WhereResult = buildWhere(options.where);
     if (whereResult.sql.length > 0) {
-      parts.push(`WHERE ${whereResult.sql}`);
+      whereClauses.push(whereResult.sql);
       allParams.push(...whereResult.params);
     }
   }
 
-  // ORDER BY
+  // Cursor-based pagination: add cursor WHERE conditions
+  if (options.cursor) {
+    const cursorEntries = Object.entries(options.cursor);
+    if (cursorEntries.length === 1) {
+      // Single-column cursor: simple comparison
+      const [col, value] = cursorEntries[0] as [string, unknown];
+      const snakeCol = camelToSnake(col);
+      // Determine direction from orderBy or default to 'asc'
+      const dir = options.orderBy?.[col] ?? 'asc';
+      const op = dir === 'desc' ? '<' : '>';
+      allParams.push(value);
+      whereClauses.push(`"${snakeCol}" ${op} $${allParams.length}`);
+    } else if (cursorEntries.length > 1) {
+      // Composite cursor: row-value comparison (col1, col2, ...) > ($N, $N+1, ...)
+      const cols: string[] = [];
+      const placeholders: string[] = [];
+      // Determine composite direction from first cursor column's orderBy or default to 'asc'
+      const firstCol = cursorEntries[0]?.[0] ?? '';
+      const dir = options.orderBy?.[firstCol] ?? 'asc';
+      const op = dir === 'desc' ? '<' : '>';
+      for (const [col, value] of cursorEntries) {
+        cols.push(`"${camelToSnake(col)}"`);
+        allParams.push(value);
+        placeholders.push(`$${allParams.length}`);
+      }
+      whereClauses.push(`(${cols.join(', ')}) ${op} (${placeholders.join(', ')})`);
+    }
+  }
+
+  if (whereClauses.length > 0) {
+    parts.push(`WHERE ${whereClauses.join(' AND ')}`);
+  }
+
+  // ORDER BY — explicit orderBy takes precedence; cursor columns used as fallback
   if (options.orderBy) {
     const orderClauses = Object.entries(options.orderBy).map(
       ([col, dir]) => `"${camelToSnake(col)}" ${dir.toUpperCase()}`,
@@ -79,11 +119,18 @@ export function buildSelect(options: SelectOptions): SelectResult {
     if (orderClauses.length > 0) {
       parts.push(`ORDER BY ${orderClauses.join(', ')}`);
     }
+  } else if (options.cursor) {
+    // Derive ORDER BY from cursor columns (default ASC)
+    const orderClauses = Object.keys(options.cursor).map((col) => `"${camelToSnake(col)}" ASC`);
+    if (orderClauses.length > 0) {
+      parts.push(`ORDER BY ${orderClauses.join(', ')}`);
+    }
   }
 
-  // LIMIT (parameterized)
-  if (options.limit !== undefined) {
-    allParams.push(options.limit);
+  // LIMIT — `take` is an alias for `limit` when cursor is present
+  const effectiveLimit = options.take ?? options.limit;
+  if (effectiveLimit !== undefined) {
+    allParams.push(effectiveLimit);
     parts.push(`LIMIT $${allParams.length}`);
   }
 

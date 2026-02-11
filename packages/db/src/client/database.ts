@@ -73,6 +73,10 @@ interface TypedFindManyOptions {
   readonly orderBy?: Record<string, 'asc' | 'desc'>;
   readonly limit?: number;
   readonly offset?: number;
+  /** Cursor object: column-value pairs marking the position to paginate from. */
+  readonly cursor?: Record<string, unknown>;
+  /** Number of rows to take (used with cursor). Aliases `limit` when cursor is present. */
+  readonly take?: number;
   readonly include?: Record<
     string,
     true | { select?: Record<string, true>; include?: IncludeSpec }
