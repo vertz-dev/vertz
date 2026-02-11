@@ -1,2 +1,2 @@
-export type { MatchResult, RouteRecord } from './trie';
+export type { MatchResult } from './trie';
 export { Trie } from './trie';

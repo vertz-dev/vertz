@@ -6,11 +6,13 @@ export interface RouteInfo {
 }
 
 function normalizePath(path: string): string {
+  // Collapse consecutive slashes (e.g. "//users/" → "/users/")
+  let normalized = path.replace(/\/+/g, '/');
   // Remove trailing slash unless path is just "/"
-  if (path.length > 1 && path.endsWith('/')) {
-    return path.slice(0, -1);
+  if (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1);
   }
-  return path || '/';
+  return normalized || '/';
 }
 
 export function collectRoutes(basePath: string, registrations: ModuleRegistration[]): RouteInfo[] {

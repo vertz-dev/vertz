@@ -36,6 +36,32 @@ describe('collectRoutes', () => {
     expect(routes).toEqual([{ method: 'GET', path: '/items' }]);
   });
 
+  it('handles basePath "/" without producing double slashes', () => {
+    const moduleDef = createModuleDef({ name: 'users' });
+    const router = moduleDef.router({ prefix: '/users' });
+    router.get('/', { handler: () => [] });
+    router.get('/:id', { handler: () => ({}) });
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+
+    const routes = collectRoutes('/', [{ module: mod }]);
+
+    expect(routes).toEqual([
+      { method: 'GET', path: '/users' },
+      { method: 'GET', path: '/users/:id' },
+    ]);
+  });
+
+  it('handles basePath "/" with root prefix and root path', () => {
+    const moduleDef = createModuleDef({ name: 'root' });
+    const router = moduleDef.router({ prefix: '/' });
+    router.get('/', { handler: () => [] });
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+
+    const routes = collectRoutes('/', [{ module: mod }]);
+
+    expect(routes).toEqual([{ method: 'GET', path: '/' }]);
+  });
+
   it('collects routes across multiple modules', () => {
     const userDef = createModuleDef({ name: 'users' });
     const userRouter = userDef.router({ prefix: '/users' });
