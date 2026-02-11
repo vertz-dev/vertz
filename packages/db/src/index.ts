@@ -1,3 +1,5 @@
+export type { CreateDbOptions, DatabaseInstance, PoolConfig, TenantGraph } from './client';
+export { computeTenantGraph, createDb } from './client';
 export { d } from './d';
 export type {
   CheckConstraintErrorOptions,
