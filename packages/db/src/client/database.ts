@@ -1,7 +1,7 @@
 import * as agg from '../query/aggregate';
 import * as crud from '../query/crud';
 import type { QueryFn } from '../query/executor';
-import { type IncludeSpec, loadRelations } from '../query/relation-loader';
+import { type IncludeSpec, loadRelations, type TableRegistryEntry } from '../query/relation-loader';
 import type { TableEntry } from '../schema/inference';
 import type { SqlFragment } from '../sql/tagged';
 import { computeTenantGraph, type TenantGraph } from './tenant-graph';
@@ -60,7 +60,10 @@ interface TypedFindOneOptions {
   readonly where?: Record<string, unknown>;
   readonly select?: Record<string, unknown>;
   readonly orderBy?: Record<string, 'asc' | 'desc'>;
-  readonly include?: Record<string, true | { select?: Record<string, true> }>;
+  readonly include?: Record<
+    string,
+    true | { select?: Record<string, true>; include?: IncludeSpec }
+  >;
 }
 
 /** Options for findMany / findManyAndCount */
@@ -70,7 +73,10 @@ interface TypedFindManyOptions {
   readonly orderBy?: Record<string, 'asc' | 'desc'>;
   readonly limit?: number;
   readonly offset?: number;
-  readonly include?: Record<string, true | { select?: Record<string, true> }>;
+  readonly include?: Record<
+    string,
+    true | { select?: Record<string, true>; include?: IncludeSpec }
+  >;
 }
 
 // ---------------------------------------------------------------------------
@@ -308,6 +314,10 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     }
   }
 
+  // Pre-compute the table registry for relation loading
+  // TableEntry is structurally compatible with TableRegistryEntry
+  const tablesRegistry = tables as Record<string, TableRegistryEntry>;
+
   // Query function: use injected _queryFn or throw
   const queryFn: QueryFn =
     options._queryFn ??
@@ -348,6 +358,8 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           [result as Record<string, unknown>],
           entry.relations as Record<string, import('../schema/relation').RelationDef>,
           opts.include as IncludeSpec,
+          0,
+          tablesRegistry,
         );
         return rows[0] ?? null;
       }
@@ -363,6 +375,8 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           [result as Record<string, unknown>],
           entry.relations as Record<string, import('../schema/relation').RelationDef>,
           opts.include as IncludeSpec,
+          0,
+          tablesRegistry,
         );
         return rows[0] as Record<string, unknown>;
       }
@@ -378,6 +392,8 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           results as Record<string, unknown>[],
           entry.relations as Record<string, import('../schema/relation').RelationDef>,
           opts.include as IncludeSpec,
+          0,
+          tablesRegistry,
         );
       }
       return results;
@@ -392,6 +408,8 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           data as Record<string, unknown>[],
           entry.relations as Record<string, import('../schema/relation').RelationDef>,
           opts.include as IncludeSpec,
+          0,
+          tablesRegistry,
         );
         return { data: withRelations, total };
       }

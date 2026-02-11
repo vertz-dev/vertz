@@ -37,6 +37,6 @@ export {
   getTimestampColumns,
   resolveSelectColumns,
 } from './helpers';
-export type { IncludeSpec } from './relation-loader';
+export type { IncludeSpec, TableRegistryEntry } from './relation-loader';
 export { loadRelations } from './relation-loader';
 export { mapRow, mapRows } from './row-mapper';

@@ -11,6 +11,7 @@
  * - Nested includes up to depth 2
  * - 'one' relations (return single object)
  * - 'many' relations (return array)
+ * - 'many' through join table (many-to-many)
  */
 
 import type { RelationDef } from '../schema/relation';
@@ -35,6 +36,16 @@ interface RelationMeta {
   readonly includeValue: true | { select?: Record<string, true>; include?: IncludeSpec };
 }
 
+/**
+ * A table entry from the database registry — used for resolving nested includes
+ * and manyToMany relations. Mirrors the shape in schema/inference.ts without
+ * importing the full type to avoid circular dependencies.
+ */
+export interface TableRegistryEntry {
+  readonly table: TableDef<ColumnRecord>;
+  readonly relations: Record<string, RelationDef>;
+}
+
 // ---------------------------------------------------------------------------
 // Core loader
 // ---------------------------------------------------------------------------
@@ -52,6 +63,7 @@ interface RelationMeta {
  * @param relations - The relations record from the table entry
  * @param include - The include specification from query options
  * @param depth - Current recursion depth (max 2)
+ * @param tablesRegistry - The full table registry for resolving nested/m2m relations
  */
 export async function loadRelations<T extends Record<string, unknown>>(
   queryFn: QueryFn,
@@ -59,6 +71,7 @@ export async function loadRelations<T extends Record<string, unknown>>(
   relations: Record<string, RelationDef>,
   include: IncludeSpec,
   depth = 0,
+  tablesRegistry?: Record<string, TableRegistryEntry>,
 ): Promise<T[]> {
   if (depth > 2 || primaryRows.length === 0) {
     return primaryRows;
@@ -85,13 +98,63 @@ export async function loadRelations<T extends Record<string, unknown>>(
     const target = def._target();
 
     if (def._type === 'one') {
-      await loadOneRelation(queryFn, primaryRows, def, target, relName, includeValue, depth);
+      await loadOneRelation(
+        queryFn,
+        primaryRows,
+        def,
+        target,
+        relName,
+        includeValue,
+        depth,
+        tablesRegistry,
+      );
+    } else if (def._through) {
+      // Many-to-many via join table
+      await loadManyToManyRelation(
+        queryFn,
+        primaryRows,
+        def,
+        target,
+        relName,
+        includeValue,
+        depth,
+        tablesRegistry,
+      );
     } else {
-      await loadManyRelation(queryFn, primaryRows, def, target, relName, includeValue, depth);
+      await loadManyRelation(
+        queryFn,
+        primaryRows,
+        def,
+        target,
+        relName,
+        includeValue,
+        depth,
+        tablesRegistry,
+      );
     }
   }
 
   return primaryRows;
+}
+
+// ---------------------------------------------------------------------------
+// Resolve target table's relations from the registry
+// ---------------------------------------------------------------------------
+
+/**
+ * Find the registry entry for a given target table by matching `_name`.
+ */
+function findTargetRelations(
+  target: TableDef<ColumnRecord>,
+  tablesRegistry?: Record<string, TableRegistryEntry>,
+): Record<string, RelationDef> | undefined {
+  if (!tablesRegistry) return undefined;
+  for (const entry of Object.values(tablesRegistry)) {
+    if (entry.table._name === target._name) {
+      return entry.relations;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -107,6 +170,7 @@ async function loadOneRelation<T extends Record<string, unknown>>(
   relName: string,
   includeValue: true | { select?: Record<string, true>; include?: IncludeSpec },
   depth: number,
+  tablesRegistry?: Record<string, TableRegistryEntry>,
 ): Promise<void> {
   const fk = def._foreignKey;
   if (!fk) return;
@@ -155,9 +219,18 @@ async function loadOneRelation<T extends Record<string, unknown>>(
 
   // Handle nested includes on the related rows
   if (typeof includeValue === 'object' && includeValue.include && depth < 2) {
-    // We would need the target table's relations to load nested includes.
-    // For now, this requires the relations to be passed through somehow.
-    // We'll handle this in the database instance integration.
+    const targetRelations = findTargetRelations(target, tablesRegistry);
+    if (targetRelations) {
+      const childRows = [...lookup.values()];
+      await loadRelations(
+        queryFn,
+        childRows,
+        targetRelations,
+        includeValue.include,
+        depth + 1,
+        tablesRegistry,
+      );
+    }
   }
 
   // Attach related rows to primary rows
@@ -180,6 +253,7 @@ async function loadManyRelation<T extends Record<string, unknown>>(
   relName: string,
   includeValue: true | { select?: Record<string, true>; include?: IncludeSpec },
   depth: number,
+  tablesRegistry?: Record<string, TableRegistryEntry>,
 ): Promise<void> {
   const fk = def._foreignKey;
   if (!fk) return;
@@ -233,12 +307,170 @@ async function loadManyRelation<T extends Record<string, unknown>>(
 
   // Handle nested includes
   if (typeof includeValue === 'object' && includeValue.include && depth < 2) {
-    // Nested includes will be handled by the database instance integration
+    const targetRelations = findTargetRelations(target, tablesRegistry);
+    if (targetRelations) {
+      const allChildRows = [...lookup.values()].flat();
+      await loadRelations(
+        queryFn,
+        allChildRows,
+        targetRelations,
+        includeValue.include,
+        depth + 1,
+        tablesRegistry,
+      );
+    }
   }
 
   // Attach related rows to primary rows
   for (const row of primaryRows) {
     const pkVal = row.id;
     (row as Record<string, unknown>)[relName] = lookup.get(pkVal) ?? [];
+  }
+}
+
+/**
+ * Load a 'many' relation via a join table (many-to-many).
+ *
+ * Uses the _through metadata:
+ * - _through.table() -> the join table definition
+ * - _through.thisKey -> FK in join table pointing to the primary table
+ * - _through.thatKey -> FK in join table pointing to the target table
+ *
+ * Algorithm:
+ * 1. Query the join table for rows matching primary PKs via thisKey
+ * 2. Collect target IDs from thatKey column of the join results
+ * 3. Query the target table with those IDs
+ * 4. Map results back to parent rows
+ */
+async function loadManyToManyRelation<T extends Record<string, unknown>>(
+  queryFn: QueryFn,
+  primaryRows: T[],
+  def: RelationDef,
+  target: TableDef<ColumnRecord>,
+  relName: string,
+  includeValue: true | { select?: Record<string, true>; include?: IncludeSpec },
+  depth: number,
+  tablesRegistry?: Record<string, TableRegistryEntry>,
+): Promise<void> {
+  const through = def._through;
+  if (!through) return;
+
+  const joinTable = through.table();
+  const thisKey = through.thisKey; // FK in join table pointing to primary table
+  const thatKey = through.thatKey; // FK in join table pointing to target table
+
+  // Collect unique PK values from primary rows
+  const pkValues = new Set<unknown>();
+  for (const row of primaryRows) {
+    const val = row.id;
+    if (val !== null && val !== undefined) {
+      pkValues.add(val);
+    }
+  }
+
+  if (pkValues.size === 0) {
+    for (const row of primaryRows) {
+      (row as Record<string, unknown>)[relName] = [];
+    }
+    return;
+  }
+
+  // Step 1: Query the join table for matching rows
+  const joinQuery = buildSelect({
+    table: joinTable._name,
+    columns: [thisKey, thatKey],
+    where: { [thisKey]: { in: [...pkValues] } },
+  });
+
+  const joinRes = await executeQuery<Record<string, unknown>>(
+    queryFn,
+    joinQuery.sql,
+    joinQuery.params,
+  );
+
+  // Step 2: Collect target IDs and build a mapping of primaryId -> targetId[]
+  const primaryToTargetIds = new Map<unknown, unknown[]>();
+  const allTargetIds = new Set<unknown>();
+
+  for (const row of joinRes.rows) {
+    const mapped = mapRow<Record<string, unknown>>(row as Record<string, unknown>);
+    const primaryId = mapped[thisKey];
+    const targetId = mapped[thatKey];
+
+    if (targetId !== null && targetId !== undefined) {
+      allTargetIds.add(targetId);
+
+      const existing = primaryToTargetIds.get(primaryId);
+      if (existing) {
+        existing.push(targetId);
+      } else {
+        primaryToTargetIds.set(primaryId, [targetId]);
+      }
+    }
+  }
+
+  if (allTargetIds.size === 0) {
+    for (const row of primaryRows) {
+      (row as Record<string, unknown>)[relName] = [];
+    }
+    return;
+  }
+
+  // Step 3: Query the target table with those IDs
+  const selectOpt = typeof includeValue === 'object' ? includeValue.select : undefined;
+  const columns = resolveSelectColumns(target, selectOpt);
+
+  // Always include the target PK (id) for mapping
+  if (!columns.includes('id')) {
+    columns.push('id');
+  }
+
+  const targetQuery = buildSelect({
+    table: target._name,
+    columns,
+    where: { id: { in: [...allTargetIds] } },
+  });
+
+  const targetRes = await executeQuery<Record<string, unknown>>(
+    queryFn,
+    targetQuery.sql,
+    targetQuery.params,
+  );
+
+  // Build a lookup map: target PK -> mapped row
+  const targetLookup = new Map<unknown, Record<string, unknown>>();
+  for (const row of targetRes.rows) {
+    const mapped = mapRow<Record<string, unknown>>(row as Record<string, unknown>);
+    targetLookup.set(mapped.id, mapped);
+  }
+
+  // Handle nested includes on the target rows
+  if (typeof includeValue === 'object' && includeValue.include && depth < 2) {
+    const targetRelations = findTargetRelations(target, tablesRegistry);
+    if (targetRelations) {
+      const allTargetRows = [...targetLookup.values()];
+      await loadRelations(
+        queryFn,
+        allTargetRows,
+        targetRelations,
+        includeValue.include,
+        depth + 1,
+        tablesRegistry,
+      );
+    }
+  }
+
+  // Step 4: Map results back to parent rows
+  for (const row of primaryRows) {
+    const pkVal = row.id;
+    const targetIds = primaryToTargetIds.get(pkVal) ?? [];
+    const relatedRows: Record<string, unknown>[] = [];
+    for (const targetId of targetIds) {
+      const targetRow = targetLookup.get(targetId);
+      if (targetRow) {
+        relatedRows.push(targetRow);
+      }
+    }
+    (row as Record<string, unknown>)[relName] = relatedRows;
   }
 }

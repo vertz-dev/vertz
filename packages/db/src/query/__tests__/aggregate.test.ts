@@ -241,4 +241,55 @@ describe('Aggregation queries (DB-012)', () => {
       expect(gadgets?._count).toBe(2);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // B1: SQL injection prevention in groupBy ORDER BY
+  // -------------------------------------------------------------------------
+
+  describe('groupBy orderBy safety (B1)', () => {
+    it('rejects underscore-prefixed orderBy columns that are not valid aggregation aliases', async () => {
+      await expect(
+        db.groupBy('products', {
+          by: ['category'],
+          _count: true,
+          orderBy: { '_; DROP TABLE products; --': 'asc' } as Record<string, 'asc' | 'desc'>,
+        }),
+      ).rejects.toThrow(/Invalid orderBy/);
+    });
+
+    it('rejects orderBy with an invalid direction value', async () => {
+      await expect(
+        db.groupBy('products', {
+          by: ['category'],
+          _count: true,
+          orderBy: { _count: 'INVALID; DROP TABLE products;' as 'asc' },
+        }),
+      ).rejects.toThrow(/Invalid orderBy direction/);
+    });
+
+    it('allows valid aggregation alias in orderBy (e.g., _avg_price)', async () => {
+      const result = await db.groupBy('products', {
+        by: ['category'],
+        _avg: { price: true },
+        orderBy: { _avg_price: 'desc' } as Record<string, 'asc' | 'desc'>,
+      });
+
+      expect(result).toHaveLength(2);
+      // gadgets avg = (300+250)/2 = 275, widgets avg = (100+150+200)/3 = 150
+      expect(result[0]?.category).toBe('gadgets');
+      expect(result[1]?.category).toBe('widgets');
+    });
+
+    it('quotes valid aggregation aliases in ORDER BY', async () => {
+      // This should work without SQL injection — just verifying the query succeeds
+      const result = await db.groupBy('products', {
+        by: ['category'],
+        _sum: { quantity: true },
+        _count: true,
+        orderBy: { _sum_quantity: 'asc' } as Record<string, 'asc' | 'desc'>,
+      });
+
+      expect(result).toHaveLength(2);
+    });
+  });
 });

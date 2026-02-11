@@ -230,15 +230,47 @@ export async function groupBy(
 
   // ORDER BY
   if (options.orderBy) {
+    // Build the set of valid aggregation aliases from the requested fields
+    const validAggAliases = new Set<string>();
+    validAggAliases.add('_count');
+    if (options._count !== undefined && options._count !== true) {
+      for (const col of Object.keys(options._count)) {
+        validAggAliases.add(`_count_${camelToSnake(col)}`);
+      }
+    }
+    for (const [fn, aggOpt] of [
+      ['avg', options._avg],
+      ['sum', options._sum],
+      ['min', options._min],
+      ['max', options._max],
+    ] as const) {
+      if (!aggOpt) continue;
+      for (const col of Object.keys(aggOpt)) {
+        validAggAliases.add(`_${fn}_${camelToSnake(col)}`);
+      }
+    }
+
     const orderClauses: string[] = [];
     for (const [col, dir] of Object.entries(options.orderBy)) {
+      // Validate direction — only allow 'asc' or 'desc'
+      const normalizedDir = dir.toLowerCase();
+      if (normalizedDir !== 'asc' && normalizedDir !== 'desc') {
+        throw new Error(`Invalid orderBy direction "${dir}". Only 'asc' or 'desc' are allowed.`);
+      }
+      const safeDir = normalizedDir === 'desc' ? 'DESC' : 'ASC';
+
       if (col === '_count') {
-        orderClauses.push(`COUNT(*) ${dir.toUpperCase()}`);
+        orderClauses.push(`COUNT(*) ${safeDir}`);
       } else if (col.startsWith('_')) {
-        // Aggregation order: _avg_views, etc.
-        orderClauses.push(`${col} ${dir.toUpperCase()}`);
+        // Validate that the alias matches a requested aggregation field
+        if (!validAggAliases.has(col)) {
+          throw new Error(
+            `Invalid orderBy column "${col}". Underscore-prefixed columns must match a requested aggregation alias.`,
+          );
+        }
+        orderClauses.push(`"${col}" ${safeDir}`);
       } else {
-        orderClauses.push(`"${camelToSnake(col)}" ${dir.toUpperCase()}`);
+        orderClauses.push(`"${camelToSnake(col)}" ${safeDir}`);
       }
     }
     if (orderClauses.length > 0) {

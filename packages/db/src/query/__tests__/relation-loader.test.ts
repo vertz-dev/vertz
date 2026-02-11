@@ -282,4 +282,266 @@ describe('Relation loading (DB-011)', () => {
       expect((data[0] as Record<string, unknown>).author).toBeDefined();
     });
   });
+
+  // -------------------------------------------------------------------------
+  // B3: Nested includes (depth-2)
+  // -------------------------------------------------------------------------
+
+  describe('nested includes (B3)', () => {
+    it('loads depth-2 nested includes: posts -> comments', async () => {
+      const user = (await db.create('users', {
+        data: { name: 'Alice', email: 'alice@test.com' },
+      })) as Record<string, unknown>;
+
+      const post = (await db.create('posts', {
+        data: { title: 'Post 1', authorId: user.id },
+      })) as Record<string, unknown>;
+
+      await db.create('comments', {
+        data: { text: 'Great post!', postId: post.id, authorId: user.id },
+      });
+      await db.create('comments', {
+        data: { text: 'Nice one!', postId: post.id, authorId: user.id },
+      });
+
+      const result = (await db.findOne('users', {
+        where: { name: 'Alice' },
+        include: { posts: { include: { comments: true } } },
+      })) as Record<string, unknown>;
+
+      expect(result).not.toBeNull();
+      const posts = result.posts as Record<string, unknown>[];
+      expect(posts).toHaveLength(1);
+      const comments = posts[0]?.comments as Record<string, unknown>[];
+      expect(comments).toHaveLength(2);
+      const texts = comments.map((c) => c.text);
+      expect(texts).toContain('Great post!');
+      expect(texts).toContain('Nice one!');
+    });
+
+    it('loads nested belongsTo: comments -> post -> author', async () => {
+      const user = (await db.create('users', {
+        data: { name: 'Alice', email: 'alice@test.com' },
+      })) as Record<string, unknown>;
+
+      const post = (await db.create('posts', {
+        data: { title: 'Post 1', authorId: user.id },
+      })) as Record<string, unknown>;
+
+      await db.create('comments', {
+        data: { text: 'Great post!', postId: post.id, authorId: user.id },
+      });
+
+      const comment = (await db.findOne('comments', {
+        where: { text: 'Great post!' },
+        include: { post: { include: { author: true } } },
+      })) as Record<string, unknown>;
+
+      expect(comment).not.toBeNull();
+      const relatedPost = comment.post as Record<string, unknown>;
+      expect(relatedPost).not.toBeNull();
+      expect(relatedPost.title).toBe('Post 1');
+      const author = relatedPost.author as Record<string, unknown>;
+      expect(author).not.toBeNull();
+      expect(author.name).toBe('Alice');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B2: manyToMany relation support
+// ---------------------------------------------------------------------------
+
+describe('Many-to-many relation loading (B2)', () => {
+  let pg: PGlite;
+
+  const usersTable = d.table('users', {
+    id: d.uuid().primary().default('gen_random_uuid()'),
+    name: d.text(),
+  });
+
+  const tagsTable = d.table('tags', {
+    id: d.uuid().primary().default('gen_random_uuid()'),
+    label: d.text(),
+  });
+
+  const postTagsTable = d.table('post_tags', {
+    id: d.uuid().primary().default('gen_random_uuid()'),
+    postId: d.uuid().references('posts'),
+    tagId: d.uuid().references('tags'),
+  });
+
+  const postsTable = d.table('posts', {
+    id: d.uuid().primary().default('gen_random_uuid()'),
+    title: d.text(),
+    authorId: d.uuid().references('users'),
+  });
+
+  const tables = {
+    users: {
+      table: usersTable,
+      relations: {},
+    },
+    tags: {
+      table: tagsTable,
+      relations: {
+        posts: d.ref.many(() => postsTable).through(() => postTagsTable, 'tagId', 'postId'),
+      },
+    },
+    postTags: {
+      table: postTagsTable,
+      relations: {},
+    },
+    posts: {
+      table: postsTable,
+      relations: {
+        author: d.ref.one(() => usersTable, 'authorId'),
+        tags: d.ref.many(() => tagsTable).through(() => postTagsTable, 'postId', 'tagId'),
+      },
+    },
+  } satisfies Record<string, TableEntry>;
+
+  type Db = ReturnType<typeof createDb<typeof tables>>;
+  let db: Db;
+
+  beforeAll(async () => {
+    pg = new PGlite();
+    await pg.exec(`
+      CREATE TABLE users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL
+      );
+
+      CREATE TABLE tags (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        label TEXT NOT NULL
+      );
+
+      CREATE TABLE posts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title TEXT NOT NULL,
+        author_id UUID NOT NULL REFERENCES users(id)
+      );
+
+      CREATE TABLE post_tags (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        post_id UUID NOT NULL REFERENCES posts(id),
+        tag_id UUID NOT NULL REFERENCES tags(id)
+      );
+    `);
+
+    db = createDb({
+      url: 'pglite://memory',
+      tables,
+      _queryFn: async <T>(sql: string, params: readonly unknown[]) => {
+        const result = await pg.query<T>(sql, params as unknown[]);
+        return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await pg.close();
+  });
+
+  beforeEach(async () => {
+    await pg.exec('DELETE FROM post_tags');
+    await pg.exec('DELETE FROM posts');
+    await pg.exec('DELETE FROM tags');
+    await pg.exec('DELETE FROM users');
+  });
+
+  it('loads many-to-many related objects via join table', async () => {
+    const user = (await db.create('users', { data: { name: 'Alice' } })) as Record<string, unknown>;
+
+    const post1 = (await db.create('posts', {
+      data: { title: 'Post 1', authorId: user.id },
+    })) as Record<string, unknown>;
+    const post2 = (await db.create('posts', {
+      data: { title: 'Post 2', authorId: user.id },
+    })) as Record<string, unknown>;
+
+    const tag1 = (await db.create('tags', {
+      data: { label: 'TypeScript' },
+    })) as Record<string, unknown>;
+    const tag2 = (await db.create('tags', {
+      data: { label: 'PostgreSQL' },
+    })) as Record<string, unknown>;
+    const tag3 = (await db.create('tags', {
+      data: { label: 'Testing' },
+    })) as Record<string, unknown>;
+
+    // Post 1 has TypeScript + PostgreSQL
+    await db.create('postTags', { data: { postId: post1.id, tagId: tag1.id } });
+    await db.create('postTags', { data: { postId: post1.id, tagId: tag2.id } });
+    // Post 2 has PostgreSQL + Testing
+    await db.create('postTags', { data: { postId: post2.id, tagId: tag2.id } });
+    await db.create('postTags', { data: { postId: post2.id, tagId: tag3.id } });
+
+    const result = (await db.findMany('posts', {
+      orderBy: { title: 'asc' },
+      include: { tags: true },
+    })) as Record<string, unknown>[];
+
+    expect(result).toHaveLength(2);
+
+    const p1 = result[0] as Record<string, unknown>;
+    expect(p1.title).toBe('Post 1');
+    const p1Tags = p1.tags as Record<string, unknown>[];
+    expect(p1Tags).toHaveLength(2);
+    const p1Labels = p1Tags.map((t) => t.label).sort();
+    expect(p1Labels).toEqual(['PostgreSQL', 'TypeScript']);
+
+    const p2 = result[1] as Record<string, unknown>;
+    expect(p2.title).toBe('Post 2');
+    const p2Tags = p2.tags as Record<string, unknown>[];
+    expect(p2Tags).toHaveLength(2);
+    const p2Labels = p2Tags.map((t) => t.label).sort();
+    expect(p2Labels).toEqual(['PostgreSQL', 'Testing']);
+  });
+
+  it('returns empty array when no join table entries exist', async () => {
+    const user = (await db.create('users', { data: { name: 'Bob' } })) as Record<string, unknown>;
+
+    await db.create('posts', {
+      data: { title: 'Lonely Post', authorId: user.id },
+    });
+
+    const result = (await db.findOne('posts', {
+      where: { title: 'Lonely Post' },
+      include: { tags: true },
+    })) as Record<string, unknown>;
+
+    expect(result).not.toBeNull();
+    expect(result.tags).toEqual([]);
+  });
+
+  it('loads the reverse manyToMany direction (tags -> posts)', async () => {
+    const user = (await db.create('users', { data: { name: 'Alice' } })) as Record<string, unknown>;
+
+    const post1 = (await db.create('posts', {
+      data: { title: 'Post 1', authorId: user.id },
+    })) as Record<string, unknown>;
+    const post2 = (await db.create('posts', {
+      data: { title: 'Post 2', authorId: user.id },
+    })) as Record<string, unknown>;
+
+    const tag = (await db.create('tags', {
+      data: { label: 'TypeScript' },
+    })) as Record<string, unknown>;
+
+    await db.create('postTags', { data: { postId: post1.id, tagId: tag.id } });
+    await db.create('postTags', { data: { postId: post2.id, tagId: tag.id } });
+
+    const result = (await db.findOne('tags', {
+      where: { label: 'TypeScript' },
+      include: { posts: true },
+    })) as Record<string, unknown>;
+
+    expect(result).not.toBeNull();
+    const posts = result.posts as Record<string, unknown>[];
+    expect(posts).toHaveLength(2);
+    const titles = posts.map((p) => p.title).sort();
+    expect(titles).toEqual(['Post 1', 'Post 2']);
+  });
 });
