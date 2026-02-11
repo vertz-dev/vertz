@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { FileChange } from '../watcher';
 import { createWatcher } from '../watcher';
 
 describe('createWatcher', () => {
