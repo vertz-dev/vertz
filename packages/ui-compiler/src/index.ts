@@ -21,6 +21,11 @@ export { MutationTransformer } from './transformers/mutation-transformer';
 export { PropTransformer } from './transformers/prop-transformer';
 // Transformers
 export { SignalTransformer } from './transformers/signal-transformer';
+// Type Generation
+export type { CSSPropertiesInput } from './type-generation/css-properties';
+export { generateCSSProperties } from './type-generation/css-properties';
+export type { ThemeTypeInput } from './type-generation/theme-types';
+export { generateThemeTypes } from './type-generation/theme-types';
 export type {
   CompileOutput,
   CompilerDiagnostic,
