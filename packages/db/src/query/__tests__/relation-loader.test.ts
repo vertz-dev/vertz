@@ -545,3 +545,109 @@ describe('Many-to-many relation loading (B2)', () => {
     expect(titles).toEqual(['Post 1', 'Post 2']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Non-standard PK (follow-up #14)
+// ---------------------------------------------------------------------------
+
+describe('Relation loading with non-standard PK', () => {
+  let pg: PGlite;
+
+  // Tables using "code" as PK instead of "id"
+  const countriesTable = d.table('countries', {
+    code: d.text().primary(),
+    name: d.text(),
+  });
+
+  const citiesTable = d.table('cities', {
+    cityId: d.uuid().primary().default('gen_random_uuid()'),
+    name: d.text(),
+    countryCode: d.text().references('countries'),
+  });
+
+  const tables = {
+    countries: {
+      table: countriesTable,
+      relations: {
+        cities: d.ref.many(() => citiesTable, 'countryCode'),
+      },
+    },
+    cities: {
+      table: citiesTable,
+      relations: {
+        country: d.ref.one(() => countriesTable, 'countryCode'),
+      },
+    },
+  } satisfies Record<string, TableEntry>;
+
+  type Db = ReturnType<typeof createDb<typeof tables>>;
+  let db: Db;
+
+  beforeAll(async () => {
+    pg = new PGlite();
+    await pg.exec(`
+      CREATE TABLE countries (
+        code TEXT PRIMARY KEY,
+        name TEXT NOT NULL
+      );
+
+      CREATE TABLE cities (
+        city_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        country_code TEXT NOT NULL REFERENCES countries(code)
+      );
+    `);
+
+    db = createDb({
+      url: 'pglite://memory',
+      tables,
+      _queryFn: async <T>(sql: string, params: readonly unknown[]) => {
+        const result = await pg.query<T>(sql, params as unknown[]);
+        return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
+      },
+    });
+  });
+
+  afterAll(async () => {
+    await pg.close();
+  });
+
+  beforeEach(async () => {
+    await pg.exec('DELETE FROM cities');
+    await pg.exec('DELETE FROM countries');
+  });
+
+  it('loads belongsTo (one) relation with non-standard PK', async () => {
+    await db.create('countries', { data: { code: 'US', name: 'United States' } });
+    await db.create('cities', { data: { name: 'New York', countryCode: 'US' } });
+
+    const city = (await db.findOne('cities', {
+      where: { name: 'New York' },
+      include: { country: true },
+    })) as Record<string, unknown>;
+
+    expect(city).not.toBeNull();
+    expect(city.name).toBe('New York');
+    expect(city.country).not.toBeNull();
+    expect((city.country as Record<string, unknown>).name).toBe('United States');
+    expect((city.country as Record<string, unknown>).code).toBe('US');
+  });
+
+  it('loads hasMany (many) relation with non-standard PK', async () => {
+    await db.create('countries', { data: { code: 'US', name: 'United States' } });
+    await db.create('cities', { data: { name: 'New York', countryCode: 'US' } });
+    await db.create('cities', { data: { name: 'Los Angeles', countryCode: 'US' } });
+
+    const country = (await db.findOne('countries', {
+      where: { code: 'US' },
+      include: { cities: true },
+    })) as Record<string, unknown>;
+
+    expect(country).not.toBeNull();
+    expect(country.name).toBe('United States');
+    const cities = country.cities as Record<string, unknown>[];
+    expect(cities).toHaveLength(2);
+    const cityNames = cities.map((c) => c.name).sort();
+    expect(cityNames).toEqual(['Los Angeles', 'New York']);
+  });
+});
