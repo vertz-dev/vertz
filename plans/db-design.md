@@ -15,7 +15,7 @@ import { createDb } from '@vertz/db';
 import { organizations, users, posts, comments } from './schema';
 
 const db = createDb({
-  url: process.env.DATABASE_URL,
+  url: process.env.DATABASE_URL!,  // non-null assertion -- use vertz.env() for type-safe access
   pool: {
     min: 2,
     max: 10,
@@ -42,6 +42,15 @@ function createDb<TTables extends Record<string, TableDef>>(config: {
 ```
 
 The `Database<TTables>` type carries the full table registry. All query methods are typed against this registry.
+
+**Note on `url` type:** `process.env.DATABASE_URL` is `string | undefined` in strict TypeScript, but `url` requires `string`. Use the non-null assertion (`!`) or, in a full vertz app, use `vertz.env()` for type-safe environment access:
+
+```typescript
+import { vertz } from '@vertz/core';
+
+const env = vertz.env({ DATABASE_URL: 'string' });
+const db = createDb({ url: env.DATABASE_URL, ... });
+```
 
 ### 1.2 Schema Definition -- `d` Namespace
 
@@ -121,7 +130,7 @@ export const featureFlags = d.table('feature_flags', {
 | `d.uuid()` | `uuid` | `string` |
 | `d.text()` | `text` | `string` |
 | `d.varchar(n)` | `varchar(n)` | `string` |
-| `d.email()` | `text` (with format hint) | `string` |
+| `d.email()` | `text` (with format metadata) | `string` |
 | `d.boolean()` | `boolean` | `boolean` |
 | `d.integer()` | `integer` | `number` |
 | `d.bigint()` | `bigint` | `bigint` |
@@ -146,8 +155,8 @@ export const featureFlags = d.table('feature_flags', {
 | `.unique()` | `UNIQUE` constraint |
 | `.nullable()` | Column is optional (default: `NOT NULL`) |
 | `.default(value)` | `DEFAULT value` (`'now'` for timestamps means `now()`) |
-| `.sensitive()` | Excluded from `$not_sensitive` type |
-| `.hidden()` | Excluded from both `$not_sensitive` and `$not_hidden` types |
+| `.sensitive()` | Excluded from `$not_sensitive` type (read visibility only -- does NOT affect writes) |
+| `.hidden()` | Excluded from both `$not_sensitive` and `$not_hidden` types (read visibility only -- does NOT affect writes) |
 | `.check(sql)` | `CHECK` constraint |
 | `.references(table, column?)` | `FOREIGN KEY` (auto-infers `.id` if column omitted) |
 
@@ -166,28 +175,50 @@ d.jsonb<PostMetadata>({ validator: postMetadataSchema })
 
 The `d` API is independent of `@vertz/schema`. Internally, `@vertz/db` depends on `@vertz/schema` for its own runtime validators, but the public column API does not require or re-export it. The dependency is one-way: `@vertz/db` -> `@vertz/schema`.
 
+**`d.email()` and typed column methods -- runtime behavior:**
+
+`d.email()` is **metadata-only** at the database level (maps to PostgreSQL `text`). It does NOT perform runtime email validation on insert. The "format metadata" is exposed on the column definition for introspection (e.g., migration tools, documentation generators, or future form generation) but has no runtime effect on `db.create()` or `db.update()`.
+
+If you need runtime email validation on insert, use the `JsonbValidator` pattern with a validator, or validate in your application layer before calling `db.create()`. The same applies to `d.uuid()` -- PostgreSQL enforces the UUID format at the database level, but `@vertz/db` does not add a runtime check on top.
+
+**Rationale:** Runtime validation on every insert/update adds overhead and conflates concerns. The database layer should handle persistence; validation belongs in the application or schema layer. Developers who use `@vertz/schema` alongside `@vertz/db` get validation at the API boundary, before data reaches the ORM.
+
 **`select: { not }` and explicit select are mutually exclusive:**
 
 ```typescript
 // Valid -- visibility filter only
-db.find(users, { select: { not: 'sensitive' } });
+db.findOne(users, { select: { not: 'sensitive' } });
 
 // Valid -- explicit fields only
-db.find(users, { select: { id: true, name: true } });
+db.findOne(users, { select: { id: true, name: true } });
 
 // Type error -- cannot combine `not` with explicit fields
-db.find(users, { select: { not: 'sensitive', id: true } });
+db.findOne(users, { select: { not: 'sensitive', id: true } });
 ```
+
+**Mutual exclusivity type enforcement** (Ben's fix -- uses `never`-keyed branches):
+
+```typescript
+type SelectOption<TColumns> =
+  | { not: 'sensitive' | 'hidden'; [K in keyof TColumns]?: never }  // visibility filter -- explicit keys forbidden
+  | { [K in keyof TColumns]?: true; not?: never }                   // explicit pick -- `not` forbidden
+
+// The `never` on the opposing key is what enforces true mutual exclusivity.
+// Without it, TypeScript's excess property checking on union types would
+// silently accept the illegal combination { not: 'sensitive', id: true }.
+```
+
+This must be validated with a `.test-d.ts` proving the rejection works.
 
 ### 1.3 Visibility Annotations
 
-Two-tier visibility model for column sensitivity:
+Two-tier visibility model for column sensitivity. **Visibility is a read-side concept only -- it controls what columns appear in query results. It does NOT affect write operations (`$insert`, `$update`).** This separation ensures columns like `passwordHash` (which must be written on insert but never returned in queries) work correctly.
 
 ```typescript
 const users = d.table('users', {
   id:           d.uuid().primary(),
-  email:        d.email().sensitive(),    // PII -- excluded from $not_sensitive
-  passwordHash: d.text().hidden(),        // Secret -- excluded from both $not_sensitive and $not_hidden
+  email:        d.email().sensitive(),    // PII -- excluded from $not_sensitive reads
+  passwordHash: d.text().hidden(),        // Secret -- excluded from both $not_sensitive and $not_hidden reads
   name:         d.text(),                 // Normal -- included everywhere
 });
 ```
@@ -195,12 +226,18 @@ const users = d.table('users', {
 Derived type helpers:
 
 ```typescript
-type User         = typeof users.$infer;           // { id, email, passwordHash, name }
+// Read types -- visibility affects these
+type User         = typeof users.$infer;           // { id, email, name } (default SELECT -- hidden columns excluded)
+type UserFull     = typeof users.$infer_all;        // { id, email, passwordHash, name } (all columns, explicit opt-in)
 type UserPublic   = typeof users.$not_sensitive;    // { id, name }
 type UserSafe     = typeof users.$not_hidden;       // { id, email, name }
-type UserInsert   = typeof users.$insert;           // { email, name } (no id -- has default, no passwordHash -- hidden in insert context)
-type UserUpdate   = typeof users.$update;           // Partial<{ email, name, passwordHash }>
+
+// Write types -- visibility does NOT affect these
+type UserInsert   = typeof users.$insert;           // { email, name, passwordHash, organizationId } (no id -- has default; ALL writable columns included)
+type UserUpdate   = typeof users.$update;           // Partial<{ email, name, passwordHash, organizationId }>
 ```
+
+**Key design rule:** `.hidden()` means "excluded from SELECT by default." `.sensitive()` means "excluded from `$not_sensitive` type." **Neither annotation affects write operations.** `$insert` includes all columns that do not have defaults (plus optional columns that do). `$update` makes all non-primary-key columns optional. Both include `.hidden()` and `.sensitive()` columns because you must be able to write to any column.
 
 ### 1.4 Relations
 
@@ -284,16 +321,20 @@ Metadata-only in v1. Marks a table as intentionally cross-tenant, suppressing th
 
 All queries are typed against the registered table definitions. The result types are inferred from the query options.
 
+**SQL injection prevention:** All query builder methods use parameterized queries internally. Filter values, data payloads, and any user-provided input are always passed as bound parameters (`$1`, `$2`, ...) -- never interpolated into SQL strings. This is not opt-in; it is the default and only behavior. The `sql` tagged template (Section 1.8) also parameterizes all interpolated values. Only `sql.raw()` bypasses parameterization and must be used exclusively with trusted input.
+
 **Find queries:**
 
+The single-row method is `findOne` (returns `T | null`). The multi-row method is `findMany` (returns `T[]`). The pair `findOne`/`findMany` is explicit and unambiguous.
+
 ```typescript
-// Find one by filter
-const user = await db.find(users, {
+// Find one by filter -- returns single row or null
+const user = await db.findOne(users, {
   where: { email: 'alice@example.com' },
 });
 // Type: User | null
 
-// Find one or throw
+// Find one or throw -- returns single row, throws NotFoundError if missing
 const user = await db.findOneOrThrow(users, {
   where: { id: userId },
 });
@@ -413,21 +454,21 @@ const createdUsers = await db.createManyAndReturn(users, {
 });
 // Type: User[]
 
-// Update
+// Update -- throws NotFoundError if where clause matches zero rows
 const updated = await db.update(users, {
   where: { id: userId },
   data: { name: 'Alice Smith' },
 });
-// Type: User
+// Type: User (never null -- throws if no match)
 
-// Update many
+// Update many -- returns count, never throws for zero matches
 const result = await db.updateMany(users, {
   where: { active: false },
   data: { role: 'viewer' },
 });
-// Type: { count: number }
+// Type: { count: number } (count may be 0)
 
-// Upsert
+// Upsert -- always returns a row (creates if not found)
 const user = await db.upsert(users, {
   where: { email: 'alice@example.com' },
   create: { email: 'alice@example.com', name: 'Alice', organizationId: orgId },
@@ -435,17 +476,17 @@ const user = await db.upsert(users, {
 });
 // Type: User
 
-// Delete
+// Delete -- throws NotFoundError if where clause matches zero rows
 const deleted = await db.delete(users, {
   where: { id: userId },
 });
-// Type: User
+// Type: User (never null -- throws if no match)
 
-// Delete many
+// Delete many -- returns count, never throws for zero matches
 const result = await db.deleteMany(users, {
   where: { active: false },
 });
-// Type: { count: number }
+// Type: { count: number } (count may be 0)
 
 // Count
 const count = await db.count(users, {
@@ -471,6 +512,20 @@ const groups = await db.groupBy(posts, {
 });
 // Type: { status: PostStatus; _count: number; _avg: { views: number | null } }[]
 ```
+
+**Zero-match behavior for mutations:**
+
+| Method | Zero matches | Return type |
+|--------|-------------|-------------|
+| `findOne` | Returns `null` | `T \| null` |
+| `findOneOrThrow` | Throws `NotFoundError` | `T` |
+| `findMany` | Returns `[]` | `T[]` |
+| `update` | Throws `NotFoundError` | `T` |
+| `updateMany` | Returns `{ count: 0 }` | `{ count: number }` |
+| `delete` | Throws `NotFoundError` | `T` |
+| `deleteMany` | Returns `{ count: 0 }` | `{ count: number }` |
+
+The pattern: single-row mutations (`update`, `delete`) throw `NotFoundError` when no rows match. Multi-row mutations (`updateMany`, `deleteMany`) return a count that may be zero. This is consistent with `findOne` (returns null) vs. `findOneOrThrow` (throws).
 
 ### 1.8 SQL Escape Hatch
 
@@ -571,11 +626,64 @@ import { dbErrorToHttpError } from '@vertz/db/core-adapter';
 // ConnectionError -> ServiceUnavailableException (503)
 ```
 
+**Exhaustiveness guarantee** (Ben's requirement -- prevents silent breakage when new `DbError` subclasses are added):
+
+```typescript
+// Every DbError code must be mapped. If a new subclass is added without
+// updating this map, the type system catches it at compile time.
+type DbErrorCode = DbError['code'];
+
+type DbErrorToHttpMap = {
+  UNIQUE_VIOLATION: 409;
+  FOREIGN_KEY_VIOLATION: 422;
+  NOT_NULL_VIOLATION: 422;
+  CHECK_VIOLATION: 422;
+  NOT_FOUND: 404;
+  CONNECTION_ERROR: 503;
+  POOL_EXHAUSTED: 503;
+};
+
+// Assert exhaustiveness: keyof DbErrorToHttpMap must cover all DbError codes
+type Assert<T extends U, U> = T;
+type _Exhaustive = Assert<DbErrorCode, keyof DbErrorToHttpMap>;
+
+// When v1.1 adds TransactionError with code 'TRANSACTION_ERROR',
+// _Exhaustive will fail because 'TRANSACTION_ERROR' is not in DbErrorToHttpMap.
+// This forces the adapter to be updated before it compiles.
+```
+
 PostgreSQL error code parser (~80 lines) maps native PG error codes to typed `DbError` subclasses. Human-readable error messages include the table name, column name, and constraint name so developers can act on them immediately.
 
 **`TransactionError` is deferred to v1.1** with transaction support.
 
-### 1.10 Migration Workflow
+### 1.10 Getting Started -- `vertz db init`
+
+First-time setup for developers new to `@vertz/db`:
+
+```bash
+# Initialize database schema directory and boilerplate
+vertz db init
+```
+
+`vertz db init` scaffolds the following:
+
+```
+db/
+├── schema.ts    # Starter schema with one example table
+└── index.ts     # createDb() boilerplate with table imports
+```
+
+**What `vertz db init` does:**
+
+1. Creates `db/` directory (or configurable path)
+2. Generates `db/schema.ts` with a commented example table (`users` with id, email, name, createdAt)
+3. Generates `db/index.ts` with `createDb()` boilerplate importing the example schema
+4. Detects `DATABASE_URL` in environment -- warns if missing, suggests `.env` setup
+5. Prints next steps: "Edit `db/schema.ts`, then run `vertz db push` to apply"
+
+This is the zero-to-working-ORM-in-5-minutes path. Without it, developers must manually create the directory structure and know the file conventions.
+
+### 1.11 Migration Workflow
 
 ```bash
 # Development: generate and apply migration
@@ -589,7 +697,12 @@ vertz db push
 
 # Check migration status
 vertz db migrate status
+
+# Dry-run mode: preview generated SQL without applying
+vertz db migrate dev --name add-user-bio --dry-run
 ```
+
+**Dry-run mode:** `--dry-run` generates the migration SQL file and prints it to stdout, but does NOT apply it to the database. Useful for reviewing generated SQL before committing, or for CI pipelines that need to verify migration correctness without a live database.
 
 **Migration differ:**
 
@@ -629,11 +742,11 @@ The snapshot format stores tables, columns, indexes, unique constraints, foreign
 
 **Diff operations:** Add/remove/alter tables, columns, indexes, constraints. Enum type diff. FK diff with cascade options. Rollback SQL generation (forward-only, but generates reversal SQL for reference).
 
-### 1.11 Connection Management
+### 1.12 Connection Management
 
 ```typescript
 const db = createDb({
-  url: process.env.DATABASE_URL,
+  url: process.env.DATABASE_URL!,
   pool: {
     min: 2,
     max: 10,
@@ -651,7 +764,7 @@ const healthy = await db.isHealthy();
 
 Connection pool configuration: min/max connections, idle timeout. Graceful shutdown drains the pool. Health check runs a simple query (`SELECT 1`). Connection error recovery with automatic reconnection.
 
-### 1.12 Plugin Interface (@experimental)
+### 1.13 Plugin Interface (@experimental)
 
 ```typescript
 interface DbPlugin {
@@ -675,7 +788,7 @@ The type system catches: wrong column names in `where`/`select`/`orderBy`, type 
 
 ### One Way to Do Things
 
-There is one way to define a table (`d.table()`), one way to define a column (the `d` namespace), one way to query (`db.find/create/update/delete`), and one way to migrate (`vertz db migrate`). No alternative API patterns, no builder vs. object syntax debate, no code-first vs. schema-first choice. The `d` namespace IS the schema. The schema IS the types. The types drive the queries.
+There is one way to define a table (`d.table()`), one way to define a column (the `d` namespace), one way to query (`db.findOne/findMany/create/update/delete`), and one way to migrate (`vertz db migrate`). No alternative API patterns, no builder vs. object syntax debate, no code-first vs. schema-first choice. The `d` namespace IS the schema. The schema IS the types. The types drive the queries.
 
 ### Production-Ready by Default
 
@@ -707,7 +820,7 @@ The `d` namespace is highly discoverable -- `d.` followed by autocomplete shows 
 4. **`tenantPlugin()` runtime enforcement** -- Deferred to v1.1. v1 ships `d.tenant()` as metadata only.
 5. **`@vertz/auth`** -- Entirely separate package. Hierarchical roles, ReBAC, billing/entitlements are out of scope for `@vertz/db`.
 6. **Multi-database / NoSQL** -- PostgreSQL only. This is a deliberate constraint, not a gap.
-7. **Caching layer** -- v1 ships cache-readiness primitives (mutation event bus, query fingerprinting) but no built-in cache. Caching is a consumer concern.
+7. **Caching layer** -- No built-in cache in v1. Cache-readiness primitives (mutation event bus, query fingerprinting, result metadata, relation invalidation graph) are deferred to v1.1. Caching is a consumer concern. See Section 8 for the v1.1 preview design.
 8. **Real-time subscriptions** -- `db.subscribe()` is a v2 concept.
 9. **Visual migration browser** -- CLI-only for v1.
 10. **Implicit many-to-many** -- Explicit join tables required. No Prisma-style implicit M:M.
@@ -756,6 +869,18 @@ The `d` namespace is highly discoverable -- `d.` followed by autocomplete shows 
 
 **Status:** Low risk. The window function approach is well-established. ~50 lines of implementation (founder decision #6). Will benchmark during query builder implementation.
 
+### U6: `d.ref.many().through()` type inference at depth 2 -- UNVALIDATED
+
+**Question:** Does through-table resolution for many-to-many relations stay within the type budget when used with nested includes?
+
+**Background:** POC 1 validated `d.ref.one()` and `d.ref.many()` (direct relations) at 28.5% of budget. It did NOT test `d.ref.many().through()` which introduces a third generic parameter into `IncludeResolve` -- the through-table lookup adds an extra indirection layer. At depth 2 (e.g., `Tag -> posts (via postTags) -> author`), the type system resolves 3 table lookups and 2 JOIN type resolutions.
+
+**Risk:** Medium. The extra generic parameter could push instantiation counts higher than the POC measured. The through-table FK column resolution (`from`/`to` column mapping) adds complexity that was not benchmarked.
+
+**Decision:** Through-table includes are **capped at depth 1** until validated. You can include the many-to-many relation itself (`include: { posts: true }` on tags), but nested includes on the target table through a through-table are NOT supported in v1 (`include: { posts: { include: { author: true } } }` via a through-table is depth 2 and deferred).
+
+**Follow-up:** A targeted POC may be needed during Phase implementation to validate through-table type inference at depth 2. If it stays within budget, the cap can be lifted. If not, the depth-1 cap remains as a documented limitation.
+
 ---
 
 ## 5. POC Results
@@ -803,7 +928,7 @@ d.table(name, columns)
 
 createDb({ tables: TTables })
   -> Database<TTables>
-    -> db.find(table, { select?, include?, where? })
+    -> db.findOne(table, { select?, include?, where? })
       -> FindResult<TableDef, { select, include }>
         -> SelectNarrow<TColumns, TSelect>
         -> IncludeResolve<TRelations, TInclude, depth=2>
@@ -822,7 +947,7 @@ Each path below becomes a mandatory `.test-d.ts` acceptance criterion:
 1. **Column type -> inferred TS type:** `d.uuid()` -> `string`, `d.boolean()` -> `boolean`, etc.
 2. **Column modifiers -> type narrowing:** `.nullable()` -> `T | null`, `.default(v)` -> optional in `$insert`
 3. **Table columns -> `$infer`:** All columns mapped to their TS types
-4. **Table columns -> `$insert`:** Columns with `.default()` become optional, `.hidden()` excluded
+4. **Table columns -> `$insert`:** Columns with `.default()` become optional. `.hidden()` and `.sensitive()` columns are INCLUDED (visibility is read-only, does not affect writes)
 5. **Table columns -> `$update`:** All columns become `Partial<>`, primary key excluded
 6. **Visibility -> `$not_sensitive`:** `.sensitive()` columns excluded from result type
 7. **Visibility -> `$not_hidden`:** `.hidden()` columns excluded from result type
@@ -833,6 +958,51 @@ Each path below becomes a mandatory `.test-d.ts` acceptance criterion:
 12. **`orderBy` type safety:** Keys constrained to column names, values to `'asc' | 'desc'`
 13. **`InsertInput` data validation:** `db.create(users, { data: ... })` rejects missing required fields at compile time
 14. **`UpdateInput` partial data:** `db.update(users, { data: ... })` accepts partial fields
+15. **`SelectOption` mutual exclusivity:** `{ not: 'sensitive', id: true }` is rejected at compile time (never-keyed branches)
+
+### 6.3 Type Error Quality Strategy
+
+Type error quality is a v1.0 requirement (founder decision #7). The type system must produce errors that are actionable for both developers and LLMs. Drizzle's unreadable 50-line generic expansion errors are the anti-pattern to avoid.
+
+**Strategy: Branded error message types**
+
+When the compiler rejects invalid input, the error message should include a human-readable string, not a raw generic expansion. This is achieved using branded "error message" types as type-level assertions:
+
+```typescript
+// Instead of: Type '{ titel: true }' is not assignable to type '{ id?: true; authorId?: true; ... }'
+// The developer sees:
+type InvalidSelectKey<K extends string, Table extends string> =
+  `ERROR: Column '${K}' does not exist on table '${Table}'.`;
+
+// Applied in SelectOption:
+type ValidateSelect<TColumns, TSelect> = {
+  [K in keyof TSelect]: K extends keyof TColumns
+    ? true
+    : InvalidSelectKey<K & string, 'posts'>;
+};
+```
+
+**Example of good vs. bad error:**
+
+Bad (raw generic expansion):
+```
+Type '{ titel: true }' is not assignable to type
+  'SelectNarrow<{ id: ColumnDef<"uuid", string, ...>; authorId: ColumnDef<"uuid", string, ...>;
+  title: ColumnDef<"text", string, ...>; content: ColumnDef<"text", string, ...>; status:
+  ColumnDef<"enum", "draft" | "published" | "archived", ...>; ... }, { titel: true }>'.
+```
+
+Good (branded error message):
+```
+Type 'true' is not assignable to type
+  'ERROR: Column 'titel' does not exist on table 'posts'.'
+```
+
+**Implementation requirements:**
+- Every `select`, `include`, `where`, and `orderBy` option must produce branded errors for invalid keys
+- Nested `include` errors must identify the relation and the invalid key (e.g., `"ERROR: Column 'naem' does not exist on relation 'author' (table 'users')"`)
+- `$insert` and `$update` errors for missing required fields must name the field
+- All branded error types must be validated with `.test-d.ts` tests proving the error messages are readable
 
 ---
 
@@ -903,22 +1073,36 @@ const featureFlags = d.table('feature_flags', {
 
 // -- Type Inference Assertions --
 
-type UserInfer = typeof users.$infer;
-type UserPublic = typeof users.$not_sensitive;
-type UserInsert = typeof users.$insert;
+type UserInfer = typeof users.$infer;          // default SELECT: excludes .hidden()
+type UserFull = typeof users.$infer_all;       // all columns including hidden
+type UserPublic = typeof users.$not_sensitive;  // excludes .sensitive() + .hidden()
+type UserInsert = typeof users.$insert;         // write type: includes ALL columns, .default() optional
 type UserUpdate = typeof users.$update;
 
-// Positive type tests
+// Positive type test -- $infer excludes hidden columns (passwordHash)
 const _typeTest1: UserInfer = {
+  id: 'uuid', organizationId: 'uuid', email: 'e@x.com',
+  name: 'Alice', active: true, createdAt: new Date(),
+};
+
+// @ts-expect-error -- passwordHash is .hidden(), not present on $infer
+const _typeTest1b: UserInfer = {
   id: 'uuid', organizationId: 'uuid', email: 'e@x.com',
   passwordHash: 'hash', name: 'Alice', active: true, createdAt: new Date(),
 };
 
-// @ts-expect-error -- email is excluded from $not_sensitive
+// @ts-expect-error -- email is .sensitive(), excess property on $not_sensitive
 const _typeTest2: UserPublic = { id: 'uuid', email: 'e@x.com', name: 'Alice' };
 
-// @ts-expect-error -- id is required on $infer but has a default, so optional on $insert
-const _typeTest3: UserInsert = { email: 'e@x.com', name: 'Alice', organizationId: 'uuid', id: undefined };
+// Positive type test -- $insert includes hidden columns (passwordHash is writable)
+const _typeTest3: UserInsert = {
+  email: 'e@x.com', name: 'Alice', organizationId: 'uuid',
+  passwordHash: 'hash',
+  // id, active, createdAt are optional (have defaults)
+};
+
+// @ts-expect-error -- name is required on $insert (no default), cannot be omitted
+const _typeTest4: UserInsert = { email: 'e@x.com', organizationId: 'uuid', passwordHash: 'hash' };
 
 // -- Database Tests --
 
@@ -1114,9 +1298,11 @@ describe('@vertz/db E2E', () => {
 
 ---
 
-## 8. Cache-Readiness Primitives
+## 8. Cache-Readiness Primitives -- v1.1 Preview (Not In Scope for v1.0)
 
-Five primitives that make future caching possible without committing to a cache strategy in v1:
+> **This section documents the approved v1.1 design for reference only. These primitives are NOT part of the v1.0 deliverable.** They are included here so the v1 architecture can be designed with awareness of future cache integration points, but no implementation work is planned for v1.0.
+
+Five primitives that make future caching possible without committing to a cache strategy:
 
 ### 8.1 Mutation Event Bus
 
