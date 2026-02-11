@@ -29,6 +29,180 @@
 
 ---
 
+## Manifesto Alignment
+
+Each major API decision in `@vertz/ui` maps to a principle from the [Vertz Manifesto](../MANIFESTO.md):
+
+| API Decision | Manifesto Principle | How It Aligns |
+|---|---|---|
+| `let` = signal, `const` = computed | **"Type Safety Wins"** + **"One Way to Do Things"** | No new APIs for reactivity. The compiler uses TypeScript's existing `let`/`const` semantics. One mental model, zero new concepts. Types flow naturally because the code is valid TypeScript. |
+| Compiler-driven reactivity (no runtime API) | **"Compile-time over runtime"** | Reactive transforms happen at build time. If code compiles, reactivity works. No runtime discovery of broken dependency arrays or missing hooks. |
+| Props as proxy objects (no destructuring) | **"Explicit over implicit"** | `props.name` makes the data source visible. Destructuring hides where values come from and breaks fine-grained tracking. The explicit form is also easier for LLMs to reason about. |
+| `form(sdkMethod)` — SDK-aware forms | **"Production-ready by default"** + **"The Backend Is Just the First Step"** | Validation, endpoint, and types flow from backend schema to form automatically. No manual DTO mapping. Types flow from database to API to form — one language. |
+| Atomic hydration (auto-detected from `let`/`const`) | **"Predictability over convenience"** | Less `let` = less JavaScript shipped. The principle is deterministic: the compiler knows exactly which components need hydration. No developer annotations needed. |
+| Plain `.tsx` files (no custom file formats) | **"My LLM nailed it on the first try"** | LLMs are trained on millions of TypeScript files. No custom syntax to learn, no framework-specific DSL to hallucinate. An LLM that knows TypeScript knows `@vertz/ui`. |
+| Streaming SSR with out-of-order chunks | **"Production-ready by default"** | SSR is not a plugin or afterthought. Streaming is the default rendering mode. Sites are fast out of the box. |
+
+**Tradeoffs accepted:**
+- **Explicit over implicit**: Props must use `props.x` access (slightly more verbose) in exchange for guaranteed fine-grained reactivity.
+- **Convention over configuration**: There is exactly one way to define state (`let`), derived values (`const`), and side effects (`watch`/`onMount`). No escape hatches, no alternatives.
+- **Compile-time over runtime**: The compiler is a hard requirement for reactivity. Code works without the compiler (it is valid TypeScript) but is not reactive. This is a deliberate trade — we catch errors at build time, not in production.
+
+**Alternatives rejected:**
+- **Runtime signals API** (like Solid's `createSignal`): Rejected because it adds API surface and makes the framework harder for LLMs. `let` is universally understood.
+- **Virtual DOM** (like React): Rejected because fine-grained updates are faster and simpler. No reconciliation overhead, no hidden re-renders.
+- **Custom file format** (like Svelte's `.svelte`): Rejected because it breaks TypeScript tooling and LLM familiarity. `.tsx` is the standard.
+
+---
+
+## Non-Goals
+
+The following are explicitly **not** goals of `@vertz/ui` v1. This prevents scope creep and sets clear boundaries for implementation.
+
+| Non-Goal | Rationale |
+|----------|-----------|
+| **Virtual DOM** | Fine-grained signal subscriptions update the DOM directly. A virtual DOM adds overhead with no benefit in this architecture. |
+| **Class-based components** | Components are plain functions. Class syntax adds complexity (lifecycle methods, `this` binding, inheritance) without benefit. No exceptions. |
+| **CSS-in-JS runtime** | `@vertz/ui` uses compile-time CSS extraction (zero-runtime). No `styled-components` or `emotion`-style runtime style injection. |
+| **Backwards compatibility with React/Vue component APIs** | Clean break. No `useState`, no `useEffect`, no Options API, no Composition API. One reactivity system. |
+| **Server Components (RSC-style)** | Server rendering is handled via streaming SSR + atomic hydration. There is no React Server Components-style model where components execute exclusively on the server with client/server boundaries. |
+| **Mobile/native rendering** | `@vertz/ui` targets web browsers only. React Native-style cross-platform rendering is out of scope. |
+| **Entity-level caching** (like Relay/Apollo normalized cache) | `query()` uses query-level caching keyed by operation + parameters. Normalized entity caches add significant complexity. Deferred to a future version if needed. |
+| **Animation framework** | Deferred to v1.1. v1 provides the lifecycle hooks (`onMount`, `onCleanup`) needed for third-party animation libraries. |
+| **Feature flags / gradual rollouts** | Deferred to v1.2. See the [roadmap exploration](../../backstage/research/explorations/ui-animations-flags-rollouts.md). |
+
+---
+
+## Unknowns
+
+Open questions and risks that must be resolved before or during implementation.
+
+### Discussion-resolvable
+
+1. **`onCleanup` ordering guarantees**: When multiple `onCleanup` handlers are registered in a single `watch()` or `onMount()`, do they execute in registration order or reverse order? **Resolution strategy**: Team discussion. Recommend LIFO (reverse order) to match `try/finally` semantics and Go's `defer`.
+
+2. **`query()` stale-while-revalidate behavior**: Should `query()` return stale data while refetching by default, or should it show a loading state? **Resolution strategy**: Team discussion. Recommend stale-while-revalidate as default with opt-out via `{ keepPreviousData: false }`.
+
+### Needs POC
+
+3. **Compiler taint analysis with closures, HOCs, re-exports, and dynamic components**: Can the two-pass taint analysis correctly handle all edge cases listed in the compiler edge cases section? Closures capturing reactive variables across function boundaries, higher-order components that wrap other components, and re-exported signals are non-trivial for static analysis. **Resolution strategy**: Build a POC that tests the compiler against a suite of edge case components.
+
+4. **Signal memory management and disposal model**: How does the ownership model work when signals are passed between component scopes (e.g., a parent creates a signal and passes it as a prop to a child — who owns it)? What happens when a child component unmounts but the parent still references the signal? **Resolution strategy**: Build a POC with deeply nested component trees and measure memory with/without disposal.
+
+5. **`query()` auto-tracking mechanism**: The tracking scope approach works for synchronous signal reads, but does it handle signals read inside `async` functions or callbacks passed to the query function? **Resolution strategy**: POC with async query functions that read signals at different points in their execution.
+
+6. **CSP compatibility for streaming SSR inline scripts**: Does nonce forwarding work correctly with all major CDN/proxy configurations (Cloudflare, Vercel, AWS CloudFront)? Some proxies modify or strip nonce attributes. **Resolution strategy**: POC deploying a streaming SSR app behind each major CDN and verifying CSP nonce preservation.
+
+7. **Compiler performance at scale**: What are the performance characteristics of the two-pass taint analysis on projects with 1000+ components? Is ts-morph fast enough, or do we need to optimize the analysis pass? **Resolution strategy**: POC with a generated project of 1000+ components measuring compile time.
+
+---
+
+## POC Results
+
+No POCs have been conducted yet. The following POCs are recommended before implementation begins:
+
+| POC | Question to Answer | Priority |
+|-----|-------------------|----------|
+| **Compiler taint analysis edge cases** | Can the two-pass taint analysis handle closures that capture reactive variables, HOCs, re-exports, and dynamic components? | **P0** — blocks Phase 1 |
+| **Signal disposal/ownership model** | Does the component-scoped ownership model correctly dispose signals when components unmount? What about shared signals? | **P0** — blocks Phase 1 |
+| **Streaming SSR with CSP-compatible nonce forwarding** | Do inline `<script>` tags with nonce attributes survive CDN proxying (Cloudflare, Vercel, AWS)? | **P1** — blocks Phase 5 |
+| **Atomic hydration with large component trees** | Does flat, non-hierarchical hydration scale to pages with 100+ interactive components? What are the memory and performance characteristics? | **P1** — blocks Phase 5 |
+| **Compiler performance at scale** | Does two-pass taint analysis complete in < 1s for a project with 1000+ components? | **P2** — nice to validate before Phase 1 |
+
+POC findings will be written back into this design doc, referencing the closed POC PRs, per the [design doc standards](../../.claude/rules/design-docs.md).
+
+---
+
+## E2E Acceptance Test
+
+The following end-to-end test validates the entire `@vertz/ui` feature set works as designed. This test is the final gate before the feature is considered complete.
+
+**Scenario:** A TodoMVC application with authentication, routing, streaming SSR, and atomic hydration.
+
+```typescript
+import { createTestApp } from '@vertz/testing';
+import { renderE2E } from '@vertz/ui/test';
+import { routes } from './app/routes';
+import { appConfig } from './app/config';
+
+test('e2e: TodoMVC with auth, routing, SSR, and hydration', async () => {
+  const app = await createTestApp(appConfig);
+  const {
+    findByText,
+    queryByText,
+    fillForm,
+    submitForm,
+    click,
+    navigate,
+    getHTML,
+    waitFor,
+  } = renderE2E(routes, { baseUrl: app.url });
+
+  // --- 1. SSR: initial page renders server-side ---
+  await navigate('/');
+  const initialHTML = getHTML();
+  // SSR output contains the static shell without requiring JS execution
+  expect(initialHTML).toContain('<h1>Todos</h1>');
+  // Non-interactive components have NO hydration markers (static HTML only)
+  expect(initialHTML).not.toContain('data-v-id="components/Header"');
+
+  // --- 2. Auth: redirect to login when not authenticated ---
+  await navigate('/todos');
+  expect(findByText('Sign in')).toBeTruthy();
+
+  // --- 3. Login form: schema validation + SDK submission ---
+  await fillForm('form', { email: 'alice@test.com', password: 'password123' });
+  await submitForm('form');
+  await waitFor(() => findByText('My Todos'));
+
+  // --- 4. Create a todo: form submission with validation ---
+  await fillForm('[data-testid="new-todo-form"]', { title: 'Buy groceries' });
+  await submitForm('[data-testid="new-todo-form"]');
+  expect(findByText('Buy groceries')).toBeTruthy();
+
+  // --- 5. Reactivity: toggle todo completion ---
+  await click(findByText('Buy groceries'));
+  await waitFor(() => {
+    const todo = findByText('Buy groceries');
+    expect(todo?.closest('[data-completed]')).toBeTruthy();
+  });
+
+  // --- 6. Routing: navigate between routes ---
+  await navigate('/todos/completed');
+  expect(findByText('Buy groceries')).toBeTruthy(); // appears in completed list
+
+  await navigate('/todos/active');
+  expect(queryByText('Buy groceries')).toBeNull(); // not in active list
+
+  // --- 7. Hydration: only interactive components hydrate ---
+  await navigate('/todos');
+  const todosHTML = getHTML();
+  // The todo list component has a hydration marker (it has let state + event handlers)
+  expect(todosHTML).toContain('data-v-id="components/TodoList"');
+  // The footer is static (no let variables) — no hydration marker
+  expect(todosHTML).not.toContain('data-v-id="components/Footer"');
+
+  // --- 8. Cleanup: signals disposed on unmount ---
+  await navigate('/');
+  // Navigate away from /todos — the TodoList component unmounts.
+  // No memory leaks: all signals created by TodoList are disposed.
+  // (Verified by checking that no stale subscriptions fire after unmount.)
+
+  // --- 9. Type safety: compiler rejects invalid usage ---
+  // @ts-expect-error — cannot pass number where string is expected
+  // <TodoItem title={42} />
+  //
+  // @ts-expect-error — cannot use unknown route
+  // navigate('/nonexistent');
+
+  await app.close();
+});
+```
+
+This test validates: streaming SSR output, atomic hydration boundaries, authentication flow, form validation and submission, fine-grained reactivity, client-side routing with nested layouts, signal cleanup on unmount, and type safety at the compiler level.
+
+---
+
 ## 2. Package Structure
 
 | Package | Purpose | Ships to browser? |
@@ -118,9 +292,9 @@ Non-reactive `let` variables are left completely untransformed.
 ### Computed values
 
 ```tsx
-function PriceDisplay({ price }: { price: number }) {
+function PriceDisplay(props: { price: number }) {
   let quantity = 1;
-  const total = price * quantity;           // compiler → computed(() => price * __quantity.get())
+  const total = props.price * quantity;           // compiler → computed(() => props.price * __quantity.get())
   const formatted = `$${total.toFixed(2)}`; // compiler → computed(() => `$${__total.get().toFixed(2)}`)
 
   return <p>Total: {formatted}</p>;
@@ -268,6 +442,84 @@ The entire reactivity model reduces to seven deterministic rules. No heuristics,
 
 One taint analysis pass, seven applications. The compiler stays simple and every transform is deterministic.
 
+### Signal batching
+
+Multiple synchronous signal writes are batched into a single update cycle. This is critical for performance — without batching, updating two signals would trigger two separate DOM update passes.
+
+```tsx
+import { batch } from '@vertz/ui';
+
+function ResetForm() {
+  let name = '';
+  let email = '';
+
+  const reset = () => {
+    batch(() => {
+      name = '';
+      email = '';
+    });
+    // One DOM update, not two
+  };
+
+  return (
+    <form>
+      <input value={name} onInput={(e) => name = e.currentTarget.value} />
+      <input value={email} onInput={(e) => email = e.currentTarget.value} />
+      <button type="button" onClick={reset}>Reset</button>
+    </form>
+  );
+}
+```
+
+The compiler automatically wraps event handlers in `batch()` when they write to multiple signals. Explicit `batch()` is available for imperative code outside event handlers (e.g., async callbacks, timers).
+
+### Signal memory management and disposal
+
+Signals are owned by their component scope. When a component unmounts, all signals created within it are automatically disposed — their subscriptions are removed and their memory is released. This is the default behavior and requires no developer action.
+
+**Component-scoped signals (automatic cleanup):**
+
+```tsx
+function Counter() {
+  let count = 0; // signal owned by this component scope
+  // When Counter unmounts, __count signal is disposed automatically
+  return <p>{count}</p>;
+}
+```
+
+**Global signals (manual disposal):**
+
+Signals created outside a component scope (e.g., at module level for shared state) are not automatically disposed. For these, manual disposal is available:
+
+```tsx
+import { signal } from '@vertz/ui/runtime';
+
+// Module-level signal — lives until manually disposed
+const globalCount = signal(0);
+
+// When no longer needed:
+globalCount.dispose();
+```
+
+**Cleanup mechanism:** `onCleanup()` is the mechanism for component-scoped cleanup. It runs synchronously during component teardown, **before** the DOM is removed. This ordering matters for animation cleanup — teardown code can read DOM measurements before removal.
+
+```tsx
+function Animated() {
+  let visible = true;
+
+  onMount(() => {
+    const animation = startAnimation();
+    onCleanup(() => {
+      // Runs synchronously during teardown, before DOM removal.
+      // Can still read DOM measurements here.
+      animation.cancel();
+    });
+  });
+
+  return <div class="animated">{visible && <p>Hello</p>}</div>;
+}
+```
+
 ---
 
 ## 4. No useEffect — Ever
@@ -296,10 +548,10 @@ For actual side effects, there are two explicit primitives — each with one pur
 ```tsx
 import { watch, onCleanup } from "@vertz/ui";
 
-function UserProfile({ userId }: { userId: string }) {
+function UserProfile(props: { userId: string }) {
   let user: User | null = null;
 
-  watch(() => userId, async (id) => {
+  watch(() => props.userId, async (id) => {
     const controller = new AbortController();
     onCleanup(() => controller.abort());
 
@@ -322,8 +574,23 @@ function UserProfile({ userId }: { userId: string }) {
 
 **Execution timing clarified:**
 
-- **`onMount(callback)`**: Runs the callback **once on mount**. This is the equivalent of "run setup code when the component first renders." It never re-executes. Supports `onCleanup` inside it for teardown on unmount.
-- **`watch(() => dep, callback)`**: Runs the callback **once on mount** with the current value of `dep`, then **re-runs whenever `dep` changes**. Before each re-run, any `onCleanup` registered in the previous run executes first.
+- **`onMount(callback)`**: Runs the callback **once on mount**. This is the equivalent of "run setup code when the component first renders." It never re-executes. Supports `onCleanup` inside it for teardown on unmount. Use this for one-time setup like initializing third-party libraries, measuring DOM elements, or starting animations.
+- **`watch(() => dep, callback)`**: Runs the callback **immediately on first call** with the current value of `dep` (like a computed with side effects), then **re-runs whenever `dep` changes**. Before each re-run, any `onCleanup` registered in the previous run executes first. Use this when you need to react to changing data — fetching, logging, syncing external state.
+
+**Key distinction:** `watch()` is NOT "run once on mount then watch." It runs the callback **immediately** (synchronously on first call) and then re-runs on changes. If you need code that runs exactly once with no reactive dependency tracking, use `onMount()`. This is the fundamental difference:
+
+```tsx
+// watch() — runs immediately, then re-runs when userId changes
+watch(() => props.userId, (id) => {
+  console.log("Fetching user", id); // logs immediately AND on every change
+});
+
+// onMount() — runs once after mount, never again
+onMount(() => {
+  console.log("Component mounted"); // logs exactly once
+  analytics.track("page_view");
+});
+```
 
 The single-callback form of `watch()` (i.e. `watch(() => { ... })` with no dependency) is **not supported**. If a developer writes it, the compiler emits an actionable diagnostic suggesting `onMount()` instead. This ensures "one way to do things" — setup = `onMount`, react = `watch`, cleanup = `onCleanup`.
 
@@ -338,8 +605,8 @@ That is the entire list. No `useEffect`, `useMemo`, `useCallback`, `useLayoutEff
 Functions run one time, create DOM nodes, set up subscriptions, return the root. They never re-execute. When state changes, only the specific text nodes, attributes, or DOM fragments that depend on that state update.
 
 ```tsx
-function Greeting({ name }: { name: string }) {
-  return <h1>Hello, {name}!</h1>;
+function Greeting(props: { name: string }) {
+  return <h1>Hello, {props.name}!</h1>;
 }
 ```
 
@@ -407,15 +674,17 @@ import { createContext, useContext } from "@vertz/ui";
 
 const ThemeContext = createContext<{ theme: string; toggle: () => void }>();
 
-function ThemeProvider({ children }: { children: any }) {
+function ThemeProvider(props: { children: any }) {
   let theme = "light";
   const toggle = () => theme = theme === "light" ? "dark" : "light";
-  return <ThemeContext.Provider value={{ theme, toggle }}>{children}</ThemeContext.Provider>;
+  return <ThemeContext.Provider value={{ theme, toggle }}>{props.children}</ThemeContext.Provider>;
 }
 
 function ThemedButton() {
-  const { theme, toggle } = useContext(ThemeContext);
-  return <button class={`btn-${theme}`} onClick={toggle}>Toggle</button>;
+  const ctx = useContext(ThemeContext);
+  // Access context via proxy — do not destructure, same rule as props.
+  // Destructuring would snapshot the values and break reactivity.
+  return <button class={`btn-${ctx.theme}`} onClick={ctx.toggle}>Toggle</button>;
 }
 ```
 
@@ -596,11 +865,27 @@ hydrate({
 
 ### Hydration strategies
 
+The `hydrate` prop is type-safe:
+
+```typescript
+type HydrationStrategy = 'lazy' | 'eager' | 'visible' | 'media' | 'idle' | 'interaction';
+```
+
 ```tsx
 <SearchBar placeholder="..." hydrate="eager" />      // Above the fold: hydrate immediately
 <LikeButton postId={id} />                            // Default: hydrate when visible (IntersectionObserver)
 <SortableTable data={data} hydrate="interaction" />   // Hydrate on first user interaction
+<Analytics hydrate="idle" />                           // Hydrate when browser is idle (requestIdleCallback)
+<VideoPlayer hydrate="media" media="(min-width: 768px)" /> // Hydrate when media query matches
 ```
+
+| Strategy | When it hydrates | Use case |
+|----------|-----------------|----------|
+| `eager` | Immediately on page load | Above-the-fold interactive content |
+| `lazy` / `visible` | When the element enters the viewport (IntersectionObserver) | Default. Below-the-fold content |
+| `interaction` | On first user interaction (click, focus, mouseover) | Heavy components that don't need immediate interactivity |
+| `idle` | When browser is idle (requestIdleCallback) | Analytics, non-critical widgets |
+| `media` | When a CSS media query matches | Responsive components |
 
 ### Nested boundaries
 
@@ -662,6 +947,39 @@ Chunking is per-`<Suspense>` boundary, not per-component:
 ```
 
 Static content never blocks. Slow data doesn't hold up fast content.
+
+### CSP nonce support for streaming chunks
+
+Inline `<script>` tags used for out-of-order streaming chunk replacement must support Content Security Policy (CSP) nonce forwarding. Without this, sites with strict CSP policies would block the replacement scripts.
+
+`renderToStream` accepts a `nonce` parameter that is applied to all inline `<script>` tags emitted during streaming:
+
+```typescript
+import { renderToStream } from '@vertz/ui-server';
+
+const nonce = crypto.randomUUID();
+
+const stream = renderToStream(<App url={ctx.raw.url} />, {
+  nonce, // Applied to all inline <script> tags
+});
+
+return new Response(stream, {
+  headers: {
+    'content-type': 'text/html; charset=utf-8',
+    'content-security-policy': `script-src 'nonce-${nonce}'`,
+  },
+});
+```
+
+The emitted replacement chunks include the nonce:
+
+```html
+<script nonce="<generated-nonce>">
+  document.getElementById('v-slot-1').replaceWith(
+    document.getElementById('v-tmpl-1').content
+  );
+</script>
+```
 
 ---
 
@@ -750,6 +1068,21 @@ const editForm = form(api.users.update, { schema: updateUserBody });
 
 Without JavaScript, the form submits normally to the `action` URL (derived from the SDK method). The backend validates with the same schema and redirects on success or re-renders with errors. With JavaScript, `handleSubmit` intercepts for a SPA experience. The form works either way — the SDK method just ensures both paths use identical endpoint and schema information.
 
+### `form()` v1 scope
+
+The `form()` API is intentionally minimal for v1 — it covers the common case of single-step forms with schema validation and SDK submission. Advanced form patterns are scoped as follows:
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Single-step form with schema validation | **v1** | Core `form(sdkMethod)` API |
+| Field-level error display | **v1** | `userForm.error('fieldName')` |
+| Form reset | **v1** | `userForm.reset()` — clears all fields and errors |
+| Field-level validation (validate on blur) | **v1** | `userForm.validateField('fieldName')` — validates a single field against the schema |
+| Multi-step / wizard forms | **Deferred to v1.1** | Requires form state persistence across steps |
+| File uploads | **Deferred to v1.1** | Requires multipart handling and progress tracking |
+| Dynamic field arrays (add/remove fields) | **Deferred to v1.1** | Requires array-aware schema validation |
+| Controlled inputs | **Deferred to v1.1** | v1 uses uncontrolled (native DOM state) exclusively |
+
 ---
 
 ## 10. Router
@@ -834,12 +1167,12 @@ When `query()` receives an SDK method call, it automatically generates a determi
 ```tsx
 import { api } from '.vertz/generated/sdk';
 
-function UserList({ users: initial }: { users: User[] }) {
+function UserList(props: { users: User[] }) {
   let search = '';
 
   const results = query(
     () => api.users.list({ query: { q: search } }),
-    { initialData: initial, debounce: 300, enabled: () => search.length > 0 }
+    { initialData: props.users, debounce: 300, enabled: () => search.length > 0 }
   );
   // Auto-generated cache key: ["users", "list", { q: search }]
   // Key updates reactively when `search` changes → triggers refetch
@@ -849,14 +1182,35 @@ function UserList({ users: initial }: { users: User[] }) {
       <input onInput={(e) => search = e.currentTarget.value} />
       {results.loading && <div class="loading-bar" />}
       <ul>
-        {(results.data ?? initial).map(u => <li key={u.id}>{u.name}</li>)}
+        {(results.data ?? props.users).map(u => <li key={u.id}>{u.name}</li>)}
       </ul>
     </div>
   );
 }
 ```
 
-`query()` auto-tracks reactive dependencies, refetches when they change, and exposes `.data`, `.loading`, `.error`, `.refetch`.
+`query()` auto-tracks reactive dependencies, refetches when they change, and exposes `{ data, error, loading, refetch }`.
+
+### How `query()` auto-tracking works
+
+`query()` runs the query function inside a **tracking scope** — the same mechanism used by `computed()` and `watch()`. Any signal read during execution of the query function is recorded as a dependency. When those signals change, the query re-executes.
+
+The mechanism:
+1. `query()` calls the query function (the first argument) inside a reactive tracking context.
+2. During execution, any signal `.get()` calls are intercepted and recorded as dependencies.
+3. When any tracked signal changes, `query()` schedules a re-execution of the query function.
+4. The re-execution produces new arguments for the SDK call, which generates a new cache key and triggers a refetch.
+
+This is the same dependency tracking that powers `computed()` — no special-casing. The query function is effectively a computed that produces a `Promise` instead of a synchronous value.
+
+```tsx
+let search = '';
+let page = 1;
+
+const results = query(() => api.users.list({ query: { q: search, page } }));
+// Tracks: __search signal + __page signal
+// Changing either search or page triggers re-execution → new cache key → refetch
+```
 
 ### Auto-generated cache keys
 
@@ -991,7 +1345,7 @@ test('submits valid data through SDK method', async () => {
     })
   );
 
-  const { container } = renderTest(<CreateUser />);
+  const { container, findByText } = renderTest(<CreateUser />);
   await fillForm(container.querySelector('form'), { name: 'Alice', email: 'alice@test.com' });
   await submitForm(container.querySelector('form'));
 
@@ -1098,8 +1452,8 @@ test('renders user name', () => {
 // Run → FAILS (UserCard doesn't exist)
 
 // Step 2 — GREEN: Minimal implementation
-function UserCard({ user }: { user: User }) {
-  return <div>{user.name}</div>;
+function UserCard(props: { user: User }) {
+  return <div>{props.user.name}</div>;
 }
 // Run → PASSES
 
@@ -1111,8 +1465,8 @@ test('renders user email', () => {
 // Run → FAILS
 
 // Step 4 — GREEN: Add email
-function UserCard({ user }: { user: User }) {
-  return <div><h3>{user.name}</h3><p>{user.email}</p></div>;
+function UserCard(props: { user: User }) {
+  return <div><h3>{props.user.name}</h3><p>{props.user.email}</p></div>;
 }
 // Run → PASSES
 
@@ -1126,12 +1480,12 @@ test('shows delete confirmation on button click', async () => {
 // Run → FAILS — no delete button yet
 
 // Step 6 — GREEN: Add the interaction
-function UserCard({ user }: { user: User }) {
+function UserCard(props: { user: User }) {
   let confirming = false;
   return (
     <div>
-      <h3>{user.name}</h3>
-      <p>{user.email}</p>
+      <h3>{props.user.name}</h3>
+      <p>{props.user.email}</p>
       <button onClick={() => confirming = true}>Delete</button>
       {confirming && <p>Are you sure?</p>}
     </div>
@@ -1159,7 +1513,7 @@ Every component, form, and route can follow this same Red-Green-Refactor cycle. 
   │   ├── jsx-transformer.ts         -- JSX → DOM API calls
   │   ├── computed-transformer.ts    -- const deps → computed()
   │   └── prop-transformer.ts        -- reactive prop getter wrapping
-  ├── runtime/                       -- ships to browser (~5KB gzip)
+  ├── runtime/                       -- ships to browser (< 5KB gzip, hard CI gate)
   │   ├── signal.ts                  -- signal(), computed(), effect()
   │   ├── dom.ts                     -- __text, __element, __attr, __on, __list, __conditional
   │   └── lifecycle.ts               -- onMount, onCleanup, watch
@@ -1180,6 +1534,61 @@ Every component, form, and route can follow this same Red-Green-Refactor cycle. 
 
 // .map() in JSX → __list() with keyed reconciliation
 {todos.map(todo => <li key={todo.id}>{todo.title}</li>)}
+```
+
+### Compiler edge cases
+
+The taint analysis must handle several non-trivial patterns that go beyond simple `let` declarations in component bodies:
+
+**Closures that capture reactive variables:**
+
+The compiler tracks reactive references through closure boundaries. If a callback captures a `let` variable, the compiler wraps the closure to read from the signal:
+
+```tsx
+function SearchForm() {
+  let query = '';
+  const handleSearch = () => {
+    // Closure captures `query` — compiler tracks through the closure boundary
+    api.search({ q: query }); // compiled: api.search({ q: __query.get() })
+  };
+  return <button onClick={handleSearch}>Search</button>;
+}
+```
+
+**Higher-order components (HOCs):**
+
+HOCs are treated as opaque boundaries. The compiler does not attempt to trace reactivity through a wrapping function. Props passed to wrapped components remain proxied, ensuring reactivity is preserved at the call site:
+
+```tsx
+function withAuth(Component: ComponentType) {
+  // Opaque boundary — compiler does not analyze what Component does internally.
+  // Props are passed as a proxy object, maintaining getter-based reactivity.
+  return (props: any) => <Component {...props} />;
+}
+```
+
+**Re-exports:**
+
+Reactive references are tracked at the module level. Re-exported signals maintain their reactivity — the compiler follows import/export chains within the project:
+
+```tsx
+// signals.ts
+export let count = 0; // signal at module level
+
+// component.tsx
+import { count } from './signals';
+// Compiler recognizes `count` as a signal via module-level tracking
+```
+
+**Dynamic components:**
+
+When a component is resolved at runtime (e.g., `const Comp = condition ? A : B`), the compiler emits a generic reactive wrapper that handles any component. The wrapper ensures props are proxied regardless of which component is rendered:
+
+```tsx
+let activeTab = 'settings';
+const TabComponent = activeTab === 'settings' ? SettingsTab : ProfileTab;
+// Compiler emits: __conditional(() => __activeTab.get() === 'settings', SettingsTab, ProfileTab)
+// with reactive prop forwarding for whichever component renders
 ```
 
 ---
@@ -1223,7 +1632,7 @@ These questions challenge the design against real-world requirements beyond typi
 
 - **Server-side**: A standalone endpoint renders one component via `renderToStream(<MyWidget props={...} />)`. This returns a self-contained HTML fragment with its hydration boundary, serialized state, and a `<script>` tag pointing to the component's chunk.
 - **Streaming**: The same out-of-order streaming mechanism works for single components. If the component has async data (wrapped in `<Suspense>`), it streams the placeholder first, then the resolved content.
-- **Embedding**: The fragment can be embedded in any page — even non-Vertz pages. The hydration runtime (~4.5 KB) bootstraps the component independently.
+- **Embedding**: The fragment can be embedded in any page — even non-Vertz pages. The hydration runtime (< 5 KB) bootstraps the component independently.
 - **Use cases**: Micro-frontends, embeddable widgets, email preview components, Slack/Discord unfurl cards.
 
 ```typescript
@@ -1306,31 +1715,32 @@ The north star: if a developer writes semantic HTML with Vertz UI, the result is
 
 ## 18. Implementation Phases
 
+> **Note:** The authoritative phase breakdown is in the [UI Implementation Plan](./ui-implementation.md). The v1.0 implementation has 8 phases. The table below is a high-level summary that maps to those phases.
+
 | Phase | Scope | Depends on |
 |-------|-------|-----------|
-| 1 | Reactivity runtime — `signal()`, `computed()`, `effect()`, DOM helpers | — |
-| 2 | Compiler core — `let` → signal transform, JSX → DOM calls, computed detection | Phase 1 |
-| 3 | Component model — props, children, context, lifecycle, refs, `watch()` | Phase 2 |
-| 4 | Router — `defineRoutes`, loaders, nested layouts, typed params/search | Phase 3 |
-| 5 | Forms — `form()`, SDK-aware submission, `FormData` → typed object, schema validation | Phase 3, `@vertz/codegen` (available) |
-| 6 | `query()` — reactive data fetching, auto-generated keys, debounce, refetch, initialData | Phase 3, `@vertz/codegen` (available) |
-| 7 | SSR — `renderToStream`, streaming, out-of-order Suspense chunks | Phase 3 |
-| 8 | Atomic hydration — `data-v-id` markers, client bootstrap, lazy/eager/interaction strategies | Phase 7 |
-| 9 | Codegen-UI integration — SDK method `.meta` property (codegen enhancement), typed MSW handler factories for testing, type-safe route-to-loader bindings. **SDK generation itself is delivered by `@vertz/codegen` (PR #130).** | Phase 5-6, `@vertz/codegen` |
-| 10 | Testing — `renderTest`, `createTestRouter`, `fillForm`, typed MSW handler factories, `@vertz/testing` integration | Phase 4-6, Phase 9 |
-| 11 | Vite plugin — full dev server integration, HMR, production build, auto-run codegen on backend change | Phase 2+ |
+| 1 | Reactivity & Compiler Foundation — `signal()`, `computed()`, `effect()`, DOM helpers, `let` → signal transform, JSX → DOM calls, computed detection, component model (props, children, context, lifecycle, refs, `watch()`) | — |
+| 2 | CSS Framework — `css()`, `variants()`, `defineTheme()`, compiler-integrated zero-runtime extraction | Phase 1 |
+| 3 | Forms — `form()`, SDK-aware submission, `FormData` → typed object, schema validation | Phase 1, `@vertz/codegen` (available) |
+| 4 | Data Fetching — `query()`, reactive data fetching, auto-generated keys, debounce, refetch, initialData | Phase 1, `@vertz/codegen` (available) |
+| 5 | SSR & Hydration — `renderToStream`, streaming, out-of-order Suspense chunks, atomic hydration (`data-v-id` markers, client bootstrap, lazy/eager/interaction strategies) | Phase 1 |
+| 6 | Router — `defineRoutes`, loaders, nested layouts, typed params/search | Phase 1 |
+| 7 | Headless Components — `@vertz/primitives`, WAI-ARIA compliant Button, Dialog, Select, Menu, Tabs | Phase 1 |
+| 8 | Testing & DX — `renderTest`, `createTestRouter`, `fillForm`, typed MSW handler factories, Vite plugin integration, HMR, `@vertz/testing` integration | Phase 3-6 |
 
 ---
 
 ## 19. Runtime Size Budget
 
+**Hard budget: 5 KB gzip for core runtime.** CI fails if this threshold is exceeded.
+
 | Module | Estimated gzip size |
 |--------|-------------------|
-| Signal core (`signal`, `computed`, `effect`) | ~1.5 KB |
+| Signal core (`signal`, `computed`, `effect`, `batch`) | ~1.5 KB |
 | DOM helpers (`__text`, `__element`, `__attr`, `__on`, `__conditional`, `__list`) | ~2 KB |
 | Lifecycle (`onMount`, `onCleanup`, `watch`, context) | ~0.5 KB |
 | Suspense + ErrorBoundary | ~0.5 KB |
-| **Total runtime** | **~4.5 KB** |
+| **Total core runtime** | **< 5 KB** |
 | Router + query() + form() | ~3 KB (loaded separately) |
 
 For comparison: React is ~45 KB, Preact is ~4 KB, Solid is ~7 KB, Svelte runtime is ~2 KB.
@@ -1485,9 +1895,9 @@ The `@vertz/ui-compiler` (Vite plugin) can read the generated route types to pro
 }
 
 // Component — props typed from loader return, zero manual typing
-function UserDetail({ user }: LoaderData<'/users/:id'>) {
-  // user is typed as SDKResult<User> — inferred from the loader
-  return <h1>{user.data.name}</h1>;
+function UserDetail(props: LoaderData<'/users/:id'>) {
+  // props.user is typed as SDKResult<User> — inferred from the loader
+  return <h1>{props.user.data.name}</h1>;
 }
 ```
 
@@ -1495,14 +1905,12 @@ function UserDetail({ user }: LoaderData<'/users/:id'>) {
 
 ### 20.9 Implementation Phase Dependencies
 
-Cross-referencing with the implementation phases from both plans:
+Cross-referencing with the [implementation plan](./ui-implementation.md) (8 phases for v1.0):
 
 | UI Phase | Depends on Codegen Phase | Why |
 |---|---|---|
-| Phase 5 (Forms — `form()`) | Codegen: SDK Client + Schemas (delivered, PR #130) | `form(sdkMethod)` requires a generated SDK method with `.meta` carrying endpoint, body schema, and response type metadata |
-| Phase 6 (`query()`) | Codegen: SDK Client (delivered, PR #130) | `query(() => api.users.list(...))` requires the SDK with `.meta` for auto-generated cache keys |
-| Phase 9 (Codegen-UI integration) | Phase 5-6, `@vertz/codegen` | Adds `.meta` property to SDK methods (codegen enhancement), typed MSW handler factories, and `LoaderData<Route>` type utility |
-| Phase 10 (Testing) | Phase 9 | Typed MSW handler factories from Phase 9 are the foundation for form, router, and query tests |
-| Phase 11 (Vite plugin — watch mode) | Codegen: Incremental Regeneration | The Vite plugin benefits from codegen's per-module file splitting for targeted HMR |
+| Phase 3 (Forms — `form()`) | Codegen: SDK Client + Schemas (delivered, PR #130) | `form(sdkMethod)` requires a generated SDK method with endpoint, body schema, and response type metadata |
+| Phase 4 (Data Fetching — `query()`) | Codegen: SDK Client (delivered, PR #130) | `query(() => api.users.list(...))` requires the SDK for auto-generated cache keys |
+| Phase 8 (Testing & DX) | Phase 3-4, `@vertz/codegen` | Typed MSW handler factories, `LoaderData<Route>` type utility, and Vite plugin watch mode coordination with codegen |
 
-**Note on Phase 9**: Previously listed as "SDK generation" which is now delivered by `@vertz/codegen` (PR #130). Repurposed for the codegen-UI integration layer: SDK method `.meta` property, typed MSW test handlers, and route-to-loader type bindings. This phase bridges the gap between what codegen generates and what the UI runtime needs to auto-extract metadata.
+**Note**: SDK generation is delivered by `@vertz/codegen` (PR #130). Phase 8 includes the codegen-UI integration layer: typed MSW test handlers, route-to-loader type bindings, and Vite plugin HMR. This phase bridges the gap between what codegen generates and what the UI runtime needs to auto-extract metadata.
