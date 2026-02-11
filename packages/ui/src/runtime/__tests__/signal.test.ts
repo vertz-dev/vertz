@@ -126,6 +126,94 @@ describe('effect', () => {
     s.value = 2;
     expect(effectRuns).toBe(1);
   });
+
+  it('dispose removes effect from signal subscriber sets', () => {
+    const s = signal(0);
+    let effectRuns = 0;
+    const dispose = effect(() => {
+      s.value;
+      effectRuns++;
+    });
+    // The effect is subscribed to s
+    dispose();
+    effectRuns = 0;
+    // After dispose, changing the signal should NOT trigger the effect
+    s.value = 1;
+    s.value = 2;
+    s.value = 3;
+    expect(effectRuns).toBe(0);
+  });
+
+  it('cleans up stale subscriptions on re-run with conditional branches', () => {
+    const toggle = signal(true);
+    const a = signal('A');
+    const b = signal('B');
+    let observed = '';
+    let effectRuns = 0;
+
+    effect(() => {
+      effectRuns++;
+      // Conditional: only reads a or b depending on toggle
+      observed = toggle.value ? a.value : b.value;
+    });
+
+    expect(observed).toBe('A');
+    effectRuns = 0;
+
+    // Switch branch to b
+    toggle.value = false;
+    expect(observed).toBe('B');
+    effectRuns = 0;
+
+    // Changing a should NOT re-trigger the effect because we are on the b branch
+    a.value = 'A2';
+    expect(effectRuns).toBe(0);
+    expect(observed).toBe('B');
+
+    // Changing b should re-trigger
+    b.value = 'B2';
+    expect(effectRuns).toBe(1);
+    expect(observed).toBe('B2');
+  });
+
+  it('nested effects: inner effect runs independently from outer', () => {
+    const outer = signal(0);
+    const inner = signal(0);
+    let outerRuns = 0;
+    let innerRuns = 0;
+    let innerDispose: (() => void) | null = null;
+
+    effect(() => {
+      outer.value;
+      outerRuns++;
+      // Create a nested inner effect
+      if (innerDispose) {
+        innerDispose();
+      }
+      innerDispose = effect(() => {
+        inner.value;
+        innerRuns++;
+      });
+    });
+
+    // Initial: both run once
+    expect(outerRuns).toBe(1);
+    expect(innerRuns).toBe(1);
+
+    // Changing inner signal: only inner effect runs
+    outerRuns = 0;
+    innerRuns = 0;
+    inner.value = 1;
+    expect(outerRuns).toBe(0);
+    expect(innerRuns).toBe(1);
+
+    // Changing outer signal: outer runs, which creates new inner
+    outerRuns = 0;
+    innerRuns = 0;
+    outer.value = 1;
+    expect(outerRuns).toBe(1);
+    expect(innerRuns).toBe(1); // new inner effect runs immediately
+  });
 });
 
 describe('batch', () => {
@@ -161,6 +249,43 @@ describe('batch', () => {
       s.value = 3;
     });
     expect(flushCount).toBe(1);
+    expect(s.value).toBe(3);
+  });
+
+  it('signal set during batch is visible to effect after flush', () => {
+    const s = signal(0);
+    let observed = -1;
+    effect(() => {
+      observed = s.value;
+    });
+    expect(observed).toBe(0);
+
+    batch(() => {
+      s.value = 42;
+      // During batch, the effect has not yet run
+    });
+
+    // After batch, the effect should have run with the final value
+    expect(observed).toBe(42);
+  });
+
+  it('deduplicates multiple writes to same signal in batch', () => {
+    const s = signal(0);
+    let effectRuns = 0;
+    effect(() => {
+      s.value;
+      effectRuns++;
+    });
+    effectRuns = 0;
+
+    batch(() => {
+      s.value = 1;
+      s.value = 2;
+      s.value = 3;
+    });
+
+    // Effect should run exactly once with the final value
+    expect(effectRuns).toBe(1);
     expect(s.value).toBe(3);
   });
 });

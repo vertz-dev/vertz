@@ -36,6 +36,14 @@ export interface Computed<T> extends ReadonlySignal<T> {
 /** Dispose function returned by effect(). */
 export type DisposeFn = () => void;
 
+/**
+ * Internal: any object that owns a `_subscribers` set.
+ * Used by subscribers to track their sources for cleanup.
+ */
+export interface SubscriberSource {
+  _subscribers: Set<Subscriber>;
+}
+
 /** Internal subscriber interface for the reactive graph. */
 export interface Subscriber {
   /** Called when a dependency has changed. */
@@ -44,4 +52,6 @@ export interface Subscriber {
   _id: number;
   /** Whether this is an effect (leaf subscriber) or computed (intermediate). */
   _isEffect: boolean;
+  /** Track a source that this subscriber reads from. */
+  _addSource(source: SubscriberSource): void;
 }

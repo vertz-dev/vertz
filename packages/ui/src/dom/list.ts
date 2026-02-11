@@ -1,5 +1,5 @@
 import { effect } from '../runtime/signal';
-import type { Signal } from '../runtime/signal-types';
+import type { DisposeFn, Signal } from '../runtime/signal-types';
 
 /**
  * Keyed list reconciliation.
@@ -12,27 +12,19 @@ import type { Signal } from '../runtime/signal-types';
  * @param items - A signal containing the array of items
  * @param keyFn - Extracts a unique key from each item
  * @param renderFn - Creates a DOM node for an item (called once per key)
+ * @returns A dispose function to stop the reactive list reconciliation
  */
 export function __list<T>(
   container: HTMLElement,
   items: Signal<T[]>,
   keyFn: (item: T) => string | number,
   renderFn: (item: T) => Node,
-): void {
+): DisposeFn {
   // Map from key to the rendered DOM node
   const nodeMap = new Map<string | number, Node>();
 
-  // Initial render
-  const initialItems = items.peek();
-  for (const item of initialItems) {
-    const key = keyFn(item);
-    const node = renderFn(item);
-    nodeMap.set(key, node);
-    container.appendChild(node);
-  }
-
-  // Reactive update
-  effect(() => {
+  // Let the effect handle both initial render and reactive updates
+  const dispose = effect(() => {
     const newItems = items.value;
     const newKeySet = new Set(newItems.map(keyFn));
 
@@ -65,4 +57,6 @@ export function __list<T>(
       }
     }
   });
+
+  return dispose;
 }

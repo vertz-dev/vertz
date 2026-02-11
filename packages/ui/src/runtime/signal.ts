@@ -1,5 +1,5 @@
 import { batch, scheduleNotify } from './scheduler';
-import type { Computed, DisposeFn, Signal, Subscriber } from './signal-types';
+import type { Computed, DisposeFn, Signal, Subscriber, SubscriberSource } from './signal-types';
 import { getSubscriber, setSubscriber } from './tracking';
 
 /** Global ID counter for subscriber deduplication. */
@@ -19,6 +19,7 @@ class SignalImpl<T> implements Signal<T> {
     const sub = getSubscriber();
     if (sub) {
       this._subscribers.add(sub);
+      sub._addSource(this);
     }
     return this._value;
   }
@@ -72,6 +73,7 @@ class ComputedImpl<T> implements Computed<T>, Subscriber {
   _cachedValue: T | undefined;
   _state: ComputedState = ComputedState.Dirty;
   _subscribers: Set<Subscriber> = new Set();
+  _sources: Set<SubscriberSource> = new Set();
 
   constructor(fn: () => T) {
     this._id = nextId++;
@@ -82,6 +84,7 @@ class ComputedImpl<T> implements Computed<T>, Subscriber {
     const sub = getSubscriber();
     if (sub) {
       this._subscribers.add(sub);
+      sub._addSource(this);
     }
     if (this._state !== ComputedState.Clean) {
       this._compute();
@@ -96,8 +99,14 @@ class ComputedImpl<T> implements Computed<T>, Subscriber {
     return this._cachedValue as T;
   }
 
+  _addSource(source: SubscriberSource): void {
+    this._sources.add(source);
+  }
+
   _compute(): void {
     this._state = ComputedState.Computing;
+    // Clear old subscriptions before re-tracking
+    this._clearSources();
     const prev = setSubscriber(this);
     try {
       const newValue = this._fn();
@@ -108,6 +117,13 @@ class ComputedImpl<T> implements Computed<T>, Subscriber {
       setSubscriber(prev);
       this._state = ComputedState.Clean;
     }
+  }
+
+  _clearSources(): void {
+    for (const source of this._sources) {
+      source._subscribers.delete(this);
+    }
+    this._sources.clear();
   }
 
   _notify(): void {
@@ -137,10 +153,15 @@ class EffectImpl implements Subscriber {
   _isEffect = true;
   _fn: () => void;
   _disposed = false;
+  _sources: Set<SubscriberSource> = new Set();
 
   constructor(fn: () => void) {
     this._id = nextId++;
     this._fn = fn;
+  }
+
+  _addSource(source: SubscriberSource): void {
+    this._sources.add(source);
   }
 
   _notify(): void {
@@ -151,6 +172,8 @@ class EffectImpl implements Subscriber {
   }
 
   _run(): void {
+    // Clear old subscriptions before re-tracking
+    this._clearSources();
     const prev = setSubscriber(this);
     try {
       this._fn();
@@ -159,8 +182,17 @@ class EffectImpl implements Subscriber {
     }
   }
 
+  _clearSources(): void {
+    for (const source of this._sources) {
+      source._subscribers.delete(this);
+    }
+    this._sources.clear();
+  }
+
   _dispose(): void {
     this._disposed = true;
+    // Remove from all signal/computed subscriber sets
+    this._clearSources();
   }
 }
 
