@@ -10,9 +10,9 @@ export { ref } from './component/refs';
 export type { SuspenseProps } from './component/suspense';
 export { Suspense } from './component/suspense';
 export type {
+  CompiledTheme,
   CSSInput,
   CSSOutput,
-  CompiledTheme,
   GlobalCSSInput,
   GlobalCSSOutput,
   StyleEntry,
@@ -23,7 +23,7 @@ export type {
   VariantProps,
   VariantsConfig,
 } from './css';
-export { ThemeProvider, compileTheme, css, defineTheme, globalCss, s, variants } from './css';
+export { compileTheme, css, defineTheme, globalCss, s, ThemeProvider, variants } from './css';
 export { __attr, __classList, __show } from './dom/attributes';
 export { __conditional } from './dom/conditional';
 export { __element, __text } from './dom/element';
@@ -36,6 +36,15 @@ export type { FormDataOptions } from './form/form-data';
 export { formDataToObject } from './form/form-data';
 export type { FormSchema, ValidationResult } from './form/validation';
 export { validate } from './form/validation';
+export type { ComponentFunction, ComponentLoader, ComponentRegistry } from './hydrate';
+export {
+  deserializeProps,
+  eagerStrategy,
+  hydrate,
+  interactionStrategy,
+  lazyStrategy,
+  resolveComponent,
+} from './hydrate';
 export type { CacheStore, QueryOptions, QueryResult } from './query';
 export { deriveKey, MemoryCache, query } from './query';
 export type {
@@ -69,5 +78,3 @@ export type {
   Signal,
 } from './runtime/signal-types';
 export { untrack } from './runtime/tracking';
-export type { ComponentFunction, ComponentLoader, ComponentRegistry } from './hydrate';
-export { deserializeProps, eagerStrategy, hydrate, interactionStrategy, lazyStrategy, resolveComponent } from './hydrate';
