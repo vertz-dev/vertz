@@ -24,6 +24,7 @@ export { PropsDestructuringDiagnostics } from './diagnostics/props-destructuring
 export { ComputedTransformer } from './transformers/computed-transformer';
 export type { CSSTransformResult } from './transformers/css-transformer';
 export { CSSTransformer } from './transformers/css-transformer';
+export { HydrationTransformer } from './transformers/hydration-transformer';
 export { JsxTransformer } from './transformers/jsx-transformer';
 export { MutationTransformer } from './transformers/mutation-transformer';
 export { PropTransformer } from './transformers/prop-transformer';
