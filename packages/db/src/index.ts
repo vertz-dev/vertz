@@ -65,9 +65,13 @@ export {
 export type {
   ColumnBuilder,
   ColumnMetadata,
+  DecimalMeta,
+  EnumMeta,
+  FormatMeta,
   InferColumnType,
   JsonbValidator,
   TenantMeta,
+  VarcharMeta,
 } from './schema/column';
 export type { FilterType, OrderByType } from './schema/filter';
 export type {
