@@ -1,4 +1,12 @@
-// CLI
+// ---------------------------------------------------------------------------
+// @vertz/db -- Primary developer-facing API
+//
+// SQL builders          -> @vertz/db/sql
+// Internal utilities    -> @vertz/db/internals
+// Plugin system         -> @vertz/db/plugin
+// ---------------------------------------------------------------------------
+
+// CLI / Migrations
 export type {
   MigrateDeployOptions,
   MigrateDeployResult,
@@ -12,6 +20,7 @@ export type {
   RenameSuggestion,
 } from './cli/index';
 export { migrateDeploy, migrateDev, migrateStatus, push } from './cli/index';
+// Client
 export type {
   CreateDbOptions,
   DatabaseInstance,
@@ -20,10 +29,12 @@ export type {
   TenantGraph,
 } from './client';
 export { computeTenantGraph, createDb } from './client';
+// Schema builder
 export { d } from './d';
 // Diagnostic
 export type { DiagnosticResult } from './diagnostic/index';
 export { diagnoseError, explainError, formatDiagnostic } from './diagnostic/index';
+// Errors
 export type {
   CheckConstraintErrorOptions,
   DbErrorJson,
@@ -45,19 +56,8 @@ export {
   parsePgError,
   UniqueConstraintError,
 } from './errors';
-// Plugin (@experimental)
-export type {
-  DbPlugin,
-  EventBus,
-  EventHandler,
-  MutationEvent,
-  PluginRunner,
-  QueryContext,
-  QueryShape,
-} from './plugin/index';
-export { createEventBus, createPluginRunner, fingerprint } from './plugin/index';
-export type { AggregateArgs, CountArgs, ExecutorResult, GroupByArgs, QueryFn } from './query';
-export { mapRow, mapRows } from './query';
+
+// Schema types
 export type {
   ColumnBuilder,
   ColumnMetadata,
@@ -80,29 +80,7 @@ export type {
 } from './schema/inference';
 export type { RelationDef } from './schema/relation';
 export type { IndexDef, TableDef } from './schema/table';
-export type {
-  DeleteOptions,
-  DeleteResult,
-  InsertOptions,
-  InsertResult,
-  OnConflictOptions,
-  SelectOptions,
-  SelectResult,
-  SqlFragment,
-  UpdateOptions,
-  UpdateResult,
-  WhereResult,
-} from './sql';
-export {
-  buildDelete,
-  buildInsert,
-  buildSelect,
-  buildUpdate,
-  buildWhere,
-  camelToSnake,
-  snakeToCamel,
-  sql,
-} from './sql';
+
 // Branded error types
 export type {
   InvalidColumn,
