@@ -1,5 +1,6 @@
 export interface ListenOptions {
   hostname?: string;
+  logRoutes?: boolean;
 }
 
 export interface ServerHandle {
