@@ -53,6 +53,8 @@ interface PropertyMapping {
     | 'font-size'
     | 'font-weight'
     | 'line-height'
+    | 'ring'
+    | 'content'
     | 'raw';
 }
 
@@ -103,6 +105,12 @@ const PROPERTY_MAP: Record<string, PropertyMapping> = {
   font: { properties: ['font-size'], valueType: 'font-size' },
   weight: { properties: ['font-weight'], valueType: 'font-weight' },
   leading: { properties: ['line-height'], valueType: 'line-height' },
+
+  // Ring (outline)
+  ring: { properties: ['outline'], valueType: 'ring' },
+
+  // Content
+  content: { properties: ['content'], valueType: 'content' },
 };
 
 /** Display keyword map. */
@@ -228,7 +236,6 @@ const ALIGNMENT_MAP: Record<string, string> = {
 /** Size keywords for width/height. */
 const SIZE_KEYWORDS: Record<string, string> = {
   full: '100%',
-  screen: '100vw',
   svw: '100svw',
   dvw: '100dvw',
   min: 'min-content',
@@ -236,6 +243,9 @@ const SIZE_KEYWORDS: Record<string, string> = {
   fit: 'fit-content',
   auto: 'auto',
 };
+
+/** Height-axis property shorthands that should use vh units. */
+const HEIGHT_AXIS_PROPERTIES = new Set(['h', 'min-h', 'max-h']);
 
 /** Known color token namespaces — values that resolve to CSS custom properties. */
 const COLOR_NAMESPACES = new Set([
@@ -318,6 +328,10 @@ function resolveValue(
       return resolveFontWeight(value, property);
     case 'line-height':
       return resolveLineHeight(value, property);
+    case 'ring':
+      return resolveRing(value, property);
+    case 'content':
+      return resolveContent(value, property);
     case 'display':
     case 'raw':
       return value;
@@ -391,6 +405,11 @@ function resolveSize(value: string, property: string): string {
   const spaced = SPACING_SCALE[value];
   if (spaced !== undefined) return spaced;
 
+  // Axis-aware `screen` keyword: vh for height axis, vw for width axis
+  if (value === 'screen') {
+    return HEIGHT_AXIS_PROPERTIES.has(property) ? '100vh' : '100vw';
+  }
+
   // Size keywords
   const keyword = SIZE_KEYWORDS[value];
   if (keyword !== undefined) return keyword;
@@ -437,6 +456,34 @@ function resolveLineHeight(value: string, property: string): string {
 
   throw new TokenResolveError(
     `Invalid line-height value '${value}' for '${property}'. Use: ${Object.keys(LINE_HEIGHT_SCALE).join(', ')}`,
+    `${property}:${value}`,
+  );
+}
+
+/** Ring values: number → outline shorthand with ring color token. */
+function resolveRing(value: string, property: string): string {
+  const num = Number(value);
+  if (Number.isNaN(num) || num < 0) {
+    throw new TokenResolveError(
+      `Invalid ring width '${value}' for '${property}'. Use a non-negative number (0, 1, 2, 4, etc.).`,
+      `${property}:${value}`,
+    );
+  }
+  return `${num}px solid var(--color-ring)`;
+}
+
+/** Content keywords. */
+const CONTENT_MAP: Record<string, string> = {
+  empty: "''",
+  none: 'none',
+};
+
+function resolveContent(value: string, property: string): string {
+  const mapped = CONTENT_MAP[value];
+  if (mapped !== undefined) return mapped;
+
+  throw new TokenResolveError(
+    `Invalid content value '${value}' for '${property}'. Use: ${Object.keys(CONTENT_MAP).join(', ')}`,
     `${property}:${value}`,
   );
 }

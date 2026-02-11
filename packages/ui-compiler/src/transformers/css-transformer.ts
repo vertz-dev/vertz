@@ -412,12 +412,16 @@ const ALIGNMENT_MAP: Record<string, string> = {
 
 const SIZE_KEYWORDS: Record<string, string> = {
   full: '100%',
-  screen: '100vw',
+  svw: '100svw',
+  dvw: '100dvw',
   min: 'min-content',
   max: 'max-content',
   fit: 'fit-content',
   auto: 'auto',
 };
+
+/** Height-axis property shorthands that should use vh units. */
+const HEIGHT_AXIS_PROPERTIES = new Set(['h', 'min-h', 'max-h']);
 
 const COLOR_NAMESPACES = new Set([
   'primary',
@@ -474,6 +478,13 @@ const PROPERTY_MAP: Record<string, PropertyMapping> = {
   font: { properties: ['font-size'], valueType: 'font-size' },
   weight: { properties: ['font-weight'], valueType: 'font-weight' },
   leading: { properties: ['line-height'], valueType: 'line-height' },
+  ring: { properties: ['outline'], valueType: 'ring' },
+  content: { properties: ['content'], valueType: 'content' },
+};
+
+const CONTENT_MAP: Record<string, string> = {
+  empty: "''",
+  none: 'none',
 };
 
 function resolveInline(parsed: InlineParsed): string[] | null {
@@ -493,7 +504,7 @@ function resolveInline(parsed: InlineParsed): string[] | null {
   return mapping.properties.map((prop) => `${prop}: ${resolvedValue};`);
 }
 
-function resolveValueInline(value: string, valueType: string, _property: string): string | null {
+function resolveValueInline(value: string, valueType: string, property: string): string | null {
   switch (valueType) {
     case 'spacing':
       return SPACING_SCALE[value] ?? null;
@@ -503,8 +514,12 @@ function resolveValueInline(value: string, valueType: string, _property: string)
       return RADIUS_SCALE[value] ?? null;
     case 'shadow':
       return SHADOW_SCALE[value] ?? null;
-    case 'size':
+    case 'size': {
+      if (value === 'screen') {
+        return HEIGHT_AXIS_PROPERTIES.has(property) ? '100vh' : '100vw';
+      }
       return SPACING_SCALE[value] ?? SIZE_KEYWORDS[value] ?? null;
+    }
     case 'alignment':
       return ALIGNMENT_MAP[value] ?? null;
     case 'font-size':
@@ -513,6 +528,13 @@ function resolveValueInline(value: string, valueType: string, _property: string)
       return FONT_WEIGHT_SCALE[value] ?? null;
     case 'line-height':
       return LINE_HEIGHT_SCALE[value] ?? null;
+    case 'ring': {
+      const num = Number(value);
+      if (Number.isNaN(num) || num < 0) return null;
+      return `${num}px solid var(--color-ring)`;
+    }
+    case 'content':
+      return CONTENT_MAP[value] ?? null;
     default:
       return value;
   }

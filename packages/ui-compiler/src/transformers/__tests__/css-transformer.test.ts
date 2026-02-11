@@ -118,4 +118,47 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toContain('padding: 1rem;');
     expect(result.css).toContain('font-size: 1.25rem;');
   });
+
+  it('resolves h:screen to height: 100vh (axis-aware)', () => {
+    const source = `const styles = css({
+  layout: ['h:screen'],
+});`;
+    const result = transformCSS(source);
+    expect(result.css).toContain('height: 100vh;');
+    expect(result.css).not.toContain('height: 100vw;');
+  });
+
+  it('resolves w:screen to width: 100vw', () => {
+    const source = `const styles = css({
+  layout: ['w:screen'],
+});`;
+    const result = transformCSS(source);
+    expect(result.css).toContain('width: 100vw;');
+  });
+
+  it('resolves svw and dvw size keywords', () => {
+    const source = `const styles = css({
+  layout: ['w:svw', 'w:dvw'],
+});`;
+    const result = transformCSS(source);
+    expect(result.css).toContain('width: 100svw;');
+    expect(result.css).toContain('width: 100dvw;');
+  });
+
+  it('resolves ring shorthand to outline', () => {
+    const source = `const styles = css({
+  btn: ['ring:2'],
+});`;
+    const result = transformCSS(source);
+    expect(result.css).toContain('outline');
+    expect(result.css).toContain('2px');
+  });
+
+  it('resolves content shorthand', () => {
+    const source = `const styles = css({
+  card: ['content:empty'],
+});`;
+    const result = transformCSS(source);
+    expect(result.css).toContain("content: '';");
+  });
 });

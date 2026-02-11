@@ -138,9 +138,44 @@ describe('resolveToken', () => {
       expect(result.declarations).toEqual([{ property: 'width', value: '100%' }]);
     });
 
-    it('resolves h:screen to height: 100vw', () => {
+    it('resolves w:screen to width: 100vw', () => {
+      const result = resolveToken({ property: 'w', value: 'screen', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'width', value: '100vw' }]);
+    });
+
+    it('resolves h:screen to height: 100vh (axis-aware)', () => {
       const result = resolveToken({ property: 'h', value: 'screen', pseudo: null });
-      expect(result.declarations).toEqual([{ property: 'height', value: '100vw' }]);
+      expect(result.declarations).toEqual([{ property: 'height', value: '100vh' }]);
+    });
+
+    it('resolves min-w:screen to min-width: 100vw', () => {
+      const result = resolveToken({ property: 'min-w', value: 'screen', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'min-width', value: '100vw' }]);
+    });
+
+    it('resolves max-w:screen to max-width: 100vw', () => {
+      const result = resolveToken({ property: 'max-w', value: 'screen', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'max-width', value: '100vw' }]);
+    });
+
+    it('resolves min-h:screen to min-height: 100vh', () => {
+      const result = resolveToken({ property: 'min-h', value: 'screen', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'min-height', value: '100vh' }]);
+    });
+
+    it('resolves max-h:screen to max-height: 100vh', () => {
+      const result = resolveToken({ property: 'max-h', value: 'screen', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'max-height', value: '100vh' }]);
+    });
+
+    it('resolves w:svw to width: 100svw', () => {
+      const result = resolveToken({ property: 'w', value: 'svw', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'width', value: '100svw' }]);
+    });
+
+    it('resolves w:dvw to width: 100dvw', () => {
+      const result = resolveToken({ property: 'w', value: 'dvw', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'width', value: '100dvw' }]);
     });
 
     it('resolves w:16 to width from spacing scale', () => {
@@ -187,6 +222,41 @@ describe('resolveToken', () => {
       expect(result.declarations).toEqual([
         { property: 'background-color', value: 'var(--color-primary)' },
       ]);
+    });
+  });
+
+  describe('ring', () => {
+    it('resolves ring:2 to outline: 2px solid', () => {
+      const result = resolveToken({ property: 'ring', value: '2', pseudo: null });
+      expect(result.declarations).toEqual([
+        { property: 'outline', value: '2px solid var(--color-ring)' },
+      ]);
+    });
+
+    it('resolves ring:0 to outline: 0px solid', () => {
+      const result = resolveToken({ property: 'ring', value: '0', pseudo: null });
+      expect(result.declarations).toEqual([
+        { property: 'outline', value: '0px solid var(--color-ring)' },
+      ]);
+    });
+
+    it('resolves ring:4 to outline: 4px solid', () => {
+      const result = resolveToken({ property: 'ring', value: '4', pseudo: null });
+      expect(result.declarations).toEqual([
+        { property: 'outline', value: '4px solid var(--color-ring)' },
+      ]);
+    });
+  });
+
+  describe('content', () => {
+    it('resolves content:empty to content: empty string', () => {
+      const result = resolveToken({ property: 'content', value: 'empty', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'content', value: "''" }]);
+    });
+
+    it('resolves content:none to content: none', () => {
+      const result = resolveToken({ property: 'content', value: 'none', pseudo: null });
+      expect(result.declarations).toEqual([{ property: 'content', value: 'none' }]);
     });
   });
 

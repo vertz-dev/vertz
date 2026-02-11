@@ -124,4 +124,43 @@ describe('css()', () => {
     expect(result.classNames.root).toBeDefined();
     expect(result.css).toContain('padding: 1rem');
   });
+
+  it('handles content:empty in object form (documented API)', () => {
+    const result = css(
+      {
+        card: ['p:4', { '&::after': ['content:empty', 'block'] }],
+      },
+      'test.tsx',
+    );
+
+    const className = result.classNames.card as string;
+    expect(result.css).toContain(`.${className}::after`);
+    expect(result.css).toContain("content: ''");
+    expect(result.css).toContain('display: block');
+  });
+
+  it('handles ring:2 with focus-visible pseudo', () => {
+    const result = css(
+      {
+        button: ['bg:primary', 'focus-visible:ring:2'],
+      },
+      'test.tsx',
+    );
+
+    const className = result.classNames.button as string;
+    expect(result.css).toContain(`.${className}:focus-visible`);
+    expect(result.css).toContain('outline: 2px solid var(--color-ring)');
+  });
+
+  it('handles h:screen as 100vh (axis-aware)', () => {
+    const result = css(
+      {
+        layout: ['w:screen', 'h:screen'],
+      },
+      'test.tsx',
+    );
+
+    expect(result.css).toContain('width: 100vw');
+    expect(result.css).toContain('height: 100vh');
+  });
 });
