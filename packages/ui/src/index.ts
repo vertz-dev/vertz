@@ -12,14 +12,18 @@ export { Suspense } from './component/suspense';
 export type {
   CSSInput,
   CSSOutput,
+  CompiledTheme,
   GlobalCSSInput,
   GlobalCSSOutput,
   StyleEntry,
+  Theme,
+  ThemeInput,
+  ThemeProviderProps,
   VariantFunction,
   VariantProps,
   VariantsConfig,
 } from './css';
-export { css, globalCss, s, variants } from './css';
+export { ThemeProvider, compileTheme, css, defineTheme, globalCss, s, variants } from './css';
 export { __attr, __classList, __show } from './dom/attributes';
 export { __conditional } from './dom/conditional';
 export { __element, __text } from './dom/element';

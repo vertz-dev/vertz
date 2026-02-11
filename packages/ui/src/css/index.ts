@@ -7,6 +7,17 @@ export { globalCss } from './global-css';
 export { InlineStyleError, s } from './s';
 export type { ParsedShorthand } from './shorthand-parser';
 export { parseShorthand, ShorthandParseError } from './shorthand-parser';
+export type {
+  ColorTokens,
+  CompiledTheme,
+  SpacingTokens,
+  Theme,
+  ThemeInput,
+  TokenValue,
+} from './theme';
+export { compileTheme, defineTheme } from './theme';
+export type { ThemeChild, ThemeProviderProps } from './theme-provider';
+export { ThemeProvider } from './theme-provider';
 export type { CSSDeclaration, ResolvedStyle } from './token-resolver';
 export {
   isKnownProperty,
