@@ -20,6 +20,23 @@ import { getTimestampColumns, resolveSelectColumns } from './helpers';
 import { mapRow, mapRows } from './row-mapper';
 
 // ---------------------------------------------------------------------------
+// Safety guard
+// ---------------------------------------------------------------------------
+
+/**
+ * Throws if the where clause is an empty object.
+ * Prevents accidental mass updates/deletes when `where: {}` is passed.
+ */
+function assertNonEmptyWhere(where: Record<string, unknown>, operation: string): void {
+  if (Object.keys(where).length === 0) {
+    throw new Error(
+      `${operation} requires a non-empty where clause. ` +
+        'Passing an empty where object would affect all rows.',
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Find queries
 // ---------------------------------------------------------------------------
 
@@ -271,12 +288,16 @@ export interface UpdateManyArgs {
 
 /**
  * Update multiple rows matching the filter and return the count.
+ *
+ * Throws if `where` is an empty object to prevent accidental mass updates.
  */
 export async function updateMany(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options: UpdateManyArgs,
 ): Promise<{ count: number }> {
+  assertNonEmptyWhere(options.where, 'updateMany');
+
   const nowColumns = getTimestampColumns(table);
 
   const result = buildUpdate({
@@ -374,12 +395,16 @@ export interface DeleteManyArgs {
 
 /**
  * Delete multiple rows matching the filter and return the count.
+ *
+ * Throws if `where` is an empty object to prevent accidental mass deletes.
  */
 export async function deleteMany(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options: DeleteManyArgs,
 ): Promise<{ count: number }> {
+  assertNonEmptyWhere(options.where, 'deleteMany');
+
   const result = buildDelete({
     table: table._name,
     where: options.where,
