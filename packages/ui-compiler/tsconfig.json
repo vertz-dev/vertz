@@ -2,6 +2,7 @@
   "compilerOptions": {
     "exactOptionalPropertyTypes": false,
     "isolatedDeclarations": true,
+    "jsx": "preserve",
     "noUncheckedIndexedAccess": true,
     "outDir": "dist",
     "rootDir": "src"
