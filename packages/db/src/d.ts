@@ -1,9 +1,13 @@
 import type {
   ColumnBuilder,
+  DecimalMeta,
   DefaultMeta,
+  EnumMeta,
+  FormatMeta,
   JsonbValidator,
   SerialMeta,
   TenantMeta,
+  VarcharMeta,
 } from './schema/column';
 import { createColumn, createSerialColumn, createTenantColumn } from './schema/column';
 import type { TableEntry } from './schema/inference';
@@ -15,12 +19,15 @@ import { createIndex, createTable } from './schema/table';
 export const d: {
   uuid(): ColumnBuilder<string, DefaultMeta<'uuid'>>;
   text(): ColumnBuilder<string, DefaultMeta<'text'>>;
-  varchar(length: number): ColumnBuilder<string, DefaultMeta<'varchar'>>;
-  email(): ColumnBuilder<string, DefaultMeta<'text'>>;
+  varchar<TLength extends number>(length: TLength): ColumnBuilder<string, VarcharMeta<TLength>>;
+  email(): ColumnBuilder<string, FormatMeta<'text', 'email'>>;
   boolean(): ColumnBuilder<boolean, DefaultMeta<'boolean'>>;
   integer(): ColumnBuilder<number, DefaultMeta<'integer'>>;
   bigint(): ColumnBuilder<bigint, DefaultMeta<'bigint'>>;
-  decimal(precision: number, scale: number): ColumnBuilder<string, DefaultMeta<'decimal'>>;
+  decimal<TPrecision extends number, TScale extends number>(
+    precision: TPrecision,
+    scale: TScale,
+  ): ColumnBuilder<string, DecimalMeta<TPrecision, TScale>>;
   real(): ColumnBuilder<number, DefaultMeta<'real'>>;
   doublePrecision(): ColumnBuilder<number, DefaultMeta<'double precision'>>;
   serial(): ColumnBuilder<number, SerialMeta>;
@@ -35,7 +42,7 @@ export const d: {
   enum<TName extends string, const TValues extends readonly string[]>(
     name: TName,
     values: TValues,
-  ): ColumnBuilder<TValues[number], DefaultMeta<'enum'>>;
+  ): ColumnBuilder<TValues[number], EnumMeta<TName, TValues>>;
   tenant(targetTable: TableDef<ColumnRecord>): ColumnBuilder<string, TenantMeta>;
   table<TColumns extends ColumnRecord>(
     name: string,
@@ -61,29 +68,40 @@ export const d: {
     relations: TRelations,
   ): TableEntry<TTable, TRelations>;
 } = {
-  uuid: () => createColumn<string, 'uuid'>('uuid'),
-  text: () => createColumn<string, 'text'>('text'),
-  varchar: (length: number) => createColumn<string, 'varchar'>('varchar', { length }),
-  email: () => createColumn<string, 'text'>('text', { format: 'email' }),
-  boolean: () => createColumn<boolean, 'boolean'>('boolean'),
-  integer: () => createColumn<number, 'integer'>('integer'),
-  bigint: () => createColumn<bigint, 'bigint'>('bigint'),
-  decimal: (precision: number, scale: number) =>
-    createColumn<string, 'decimal'>('decimal', { precision, scale }),
-  real: () => createColumn<number, 'real'>('real'),
-  doublePrecision: () => createColumn<number, 'double precision'>('double precision'),
+  uuid: () => createColumn<string, DefaultMeta<'uuid'>>('uuid'),
+  text: () => createColumn<string, DefaultMeta<'text'>>('text'),
+  varchar: <TLength extends number>(length: TLength) =>
+    createColumn<string, VarcharMeta<TLength>>('varchar', { length }),
+  email: () => createColumn<string, FormatMeta<'text', 'email'>>('text', { format: 'email' }),
+  boolean: () => createColumn<boolean, DefaultMeta<'boolean'>>('boolean'),
+  integer: () => createColumn<number, DefaultMeta<'integer'>>('integer'),
+  bigint: () => createColumn<bigint, DefaultMeta<'bigint'>>('bigint'),
+  decimal: <TPrecision extends number, TScale extends number>(
+    precision: TPrecision,
+    scale: TScale,
+  ) => createColumn<string, DecimalMeta<TPrecision, TScale>>('decimal', { precision, scale }),
+  real: () => createColumn<number, DefaultMeta<'real'>>('real'),
+  doublePrecision: () => createColumn<number, DefaultMeta<'double precision'>>('double precision'),
   serial: () => createSerialColumn(),
-  timestamp: () => createColumn<Date, 'timestamp with time zone'>('timestamp with time zone'),
-  date: () => createColumn<string, 'date'>('date'),
-  time: () => createColumn<string, 'time'>('time'),
+  timestamp: () =>
+    createColumn<Date, DefaultMeta<'timestamp with time zone'>>('timestamp with time zone'),
+  date: () => createColumn<string, DefaultMeta<'date'>>('date'),
+  time: () => createColumn<string, DefaultMeta<'time'>>('time'),
   jsonb: <T = unknown>(opts?: { validator: JsonbValidator<T> }) =>
-    createColumn<T, 'jsonb'>('jsonb', opts?.validator ? { validator: opts.validator } : {}),
-  textArray: () => createColumn<string[], 'text[]'>('text[]'),
-  integerArray: () => createColumn<number[], 'integer[]'>('integer[]'),
+    createColumn<T, DefaultMeta<'jsonb'>>(
+      'jsonb',
+      opts?.validator ? { validator: opts.validator } : {},
+    ),
+  textArray: () => createColumn<string[], DefaultMeta<'text[]'>>('text[]'),
+  integerArray: () => createColumn<number[], DefaultMeta<'integer[]'>>('integer[]'),
   enum: <TName extends string, const TValues extends readonly string[]>(
     name: TName,
     values: TValues,
-  ) => createColumn<TValues[number], 'enum'>('enum', { enumName: name, enumValues: values }),
+  ) =>
+    createColumn<TValues[number], EnumMeta<TName, TValues>>('enum', {
+      enumName: name,
+      enumValues: values,
+    }),
   tenant: (targetTable: TableDef<ColumnRecord>) => createTenantColumn(targetTable._name),
   table: <TColumns extends ColumnRecord>(name: string, columns: TColumns, options?: TableOptions) =>
     createTable(name, columns, options),
