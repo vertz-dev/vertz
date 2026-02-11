@@ -20,6 +20,23 @@ import { getTimestampColumns, resolveSelectColumns } from './helpers';
 import { mapRow, mapRows } from './row-mapper';
 
 // ---------------------------------------------------------------------------
+// Safety guard
+// ---------------------------------------------------------------------------
+
+/**
+ * Throws if the where clause is an empty object.
+ * Prevents accidental mass updates/deletes when `where: {}` is passed.
+ */
+function assertNonEmptyWhere(where: Record<string, unknown>, operation: string): void {
+  if (Object.keys(where).length === 0) {
+    throw new Error(
+      `${operation} requires a non-empty where clause. ` +
+        'Passing an empty where object would affect all rows.',
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Find queries
 // ---------------------------------------------------------------------------
 
@@ -74,6 +91,10 @@ export interface FindManyArgs {
   readonly orderBy?: Record<string, 'asc' | 'desc'>;
   readonly limit?: number;
   readonly offset?: number;
+  /** Cursor object: column-value pairs marking the position to paginate from. */
+  readonly cursor?: Record<string, unknown>;
+  /** Number of rows to take (used with cursor). Aliases `limit` when cursor is present. */
+  readonly take?: number;
 }
 
 /**
@@ -92,6 +113,8 @@ export async function findMany<T>(
     orderBy: options?.orderBy,
     limit: options?.limit,
     offset: options?.offset,
+    cursor: options?.cursor,
+    take: options?.take,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -114,6 +137,8 @@ export async function findManyAndCount<T>(
     orderBy: options?.orderBy,
     limit: options?.limit,
     offset: options?.offset,
+    cursor: options?.cursor,
+    take: options?.take,
     withCount: true,
   });
 
@@ -271,12 +296,16 @@ export interface UpdateManyArgs {
 
 /**
  * Update multiple rows matching the filter and return the count.
+ *
+ * Throws if `where` is an empty object to prevent accidental mass updates.
  */
 export async function updateMany(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options: UpdateManyArgs,
 ): Promise<{ count: number }> {
+  assertNonEmptyWhere(options.where, 'updateMany');
+
   const nowColumns = getTimestampColumns(table);
 
   const result = buildUpdate({
@@ -374,12 +403,16 @@ export interface DeleteManyArgs {
 
 /**
  * Delete multiple rows matching the filter and return the count.
+ *
+ * Throws if `where` is an empty object to prevent accidental mass deletes.
  */
 export async function deleteMany(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options: DeleteManyArgs,
 ): Promise<{ count: number }> {
+  assertNonEmptyWhere(options.where, 'deleteMany');
+
   const result = buildDelete({
     table: table._name,
     where: options.where,

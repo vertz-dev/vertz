@@ -159,6 +159,84 @@ describe('CRUD queries (DB-010)', () => {
       const result = await db.findMany('users', { where: { name: 'Nobody' } });
       expect(result).toEqual([]);
     });
+
+    it('supports cursor-based pagination with take', async () => {
+      await db.create('users', { data: { name: 'Alice', email: 'a@test.com', age: 20 } });
+      await db.create('users', { data: { name: 'Bob', email: 'b@test.com', age: 25 } });
+      await db.create('users', { data: { name: 'Carol', email: 'c@test.com', age: 30 } });
+      await db.create('users', { data: { name: 'Dave', email: 'd@test.com', age: 35 } });
+
+      // First page — no cursor, just take
+      const page1 = await db.findMany('users', {
+        orderBy: { name: 'asc' },
+        take: 2,
+      });
+      expect(page1).toHaveLength(2);
+      expect((page1[0] as Record<string, unknown>).name).toBe('Alice');
+      expect((page1[1] as Record<string, unknown>).name).toBe('Bob');
+
+      // Second page — cursor from last result
+      const lastNamePage1 = (page1[1] as Record<string, unknown>).name as string;
+      const page2 = await db.findMany('users', {
+        orderBy: { name: 'asc' },
+        cursor: { name: lastNamePage1 },
+        take: 2,
+      });
+      expect(page2).toHaveLength(2);
+      expect((page2[0] as Record<string, unknown>).name).toBe('Carol');
+      expect((page2[1] as Record<string, unknown>).name).toBe('Dave');
+
+      // Third page — cursor from last result, should be empty
+      const lastNamePage2 = (page2[1] as Record<string, unknown>).name as string;
+      const page3 = await db.findMany('users', {
+        orderBy: { name: 'asc' },
+        cursor: { name: lastNamePage2 },
+        take: 2,
+      });
+      expect(page3).toHaveLength(0);
+    });
+
+    it('supports cursor with where filters combined', async () => {
+      await db.create('users', {
+        data: { name: 'Alice', email: 'a@test.com', age: 20, active: true },
+      });
+      await db.create('users', {
+        data: { name: 'Bob', email: 'b@test.com', age: 25, active: false },
+      });
+      await db.create('users', {
+        data: { name: 'Carol', email: 'c@test.com', age: 30, active: true },
+      });
+      await db.create('users', {
+        data: { name: 'Dave', email: 'd@test.com', age: 35, active: true },
+      });
+
+      // Cursor with where: only active users after Alice
+      const result = await db.findMany('users', {
+        where: { active: true },
+        orderBy: { name: 'asc' },
+        cursor: { name: 'Alice' },
+        take: 10,
+      });
+      expect(result).toHaveLength(2);
+      expect((result[0] as Record<string, unknown>).name).toBe('Carol');
+      expect((result[1] as Record<string, unknown>).name).toBe('Dave');
+    });
+
+    it('supports cursor with desc ordering', async () => {
+      await db.create('users', { data: { name: 'Alice', email: 'a@test.com', age: 20 } });
+      await db.create('users', { data: { name: 'Bob', email: 'b@test.com', age: 25 } });
+      await db.create('users', { data: { name: 'Carol', email: 'c@test.com', age: 30 } });
+
+      // Desc ordering: start from Carol, go backwards
+      const result = await db.findMany('users', {
+        orderBy: { name: 'desc' },
+        cursor: { name: 'Carol' },
+        take: 10,
+      });
+      expect(result).toHaveLength(2);
+      expect((result[0] as Record<string, unknown>).name).toBe('Bob');
+      expect((result[1] as Record<string, unknown>).name).toBe('Alice');
+    });
   });
 
   describe('findManyAndCount', () => {
@@ -279,6 +357,20 @@ describe('CRUD queries (DB-010)', () => {
       });
       expect(count).toBe(2);
     });
+
+    it('throws when where is an empty object to prevent accidental mass update', async () => {
+      await db.create('users', { data: { name: 'Alice', email: 'a@test.com' } });
+
+      await expect(
+        db.updateMany('users', { where: {}, data: { name: 'Overwritten' } }),
+      ).rejects.toThrow(/empty where/i);
+
+      // Verify the row was NOT modified
+      const alice = (await db.findOne('users', {
+        where: { email: 'a@test.com' },
+      })) as Record<string, unknown>;
+      expect(alice.name).toBe('Alice');
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -343,6 +435,16 @@ describe('CRUD queries (DB-010)', () => {
 
       const { count } = await db.deleteMany('users', { where: { active: true } });
       expect(count).toBe(2);
+    });
+
+    it('throws when where is an empty object to prevent accidental mass delete', async () => {
+      await db.create('users', { data: { name: 'Alice', email: 'a@test.com' } });
+
+      await expect(db.deleteMany('users', { where: {} })).rejects.toThrow(/empty where/i);
+
+      // Verify the row was NOT deleted
+      const all = await db.findMany('users');
+      expect(all).toHaveLength(1);
     });
   });
 

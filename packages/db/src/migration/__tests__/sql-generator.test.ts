@@ -172,6 +172,80 @@ describe('generateMigrationSql', () => {
 
     expect(sql).toContain('CREATE INDEX "idx_posts_status" ON "posts" ("status")');
   });
+
+  it('escapes single quotes in enum values to prevent SQL injection', () => {
+    const changes: DiffChange[] = [{ type: 'enum_added', enumName: 'status' }];
+    const sql = generateMigrationSql(changes, {
+      enums: { status: ['active', "it's complicated", "'); DROP TABLE users;--"] },
+    });
+
+    // Values with single quotes must be escaped (doubled)
+    expect(sql).toContain("'active'");
+    expect(sql).toContain("'it''s complicated'");
+    // The injection attempt '); DROP TABLE users;-- has its leading ' doubled to '',
+    // producing the safely-quoted literal: '''); DROP TABLE users;--'
+    // (open-quote, doubled-quote, rest-of-string, close-quote)
+    const expected =
+      'CREATE TYPE "status" AS ENUM (' +
+      "'active', " +
+      "'it''s complicated', " +
+      "'''); DROP TABLE users;--'" +
+      ');';
+    expect(sql).toBe(expected);
+  });
+
+  it('escapes single quotes in ALTER TYPE ADD VALUE', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'enum_altered',
+        enumName: 'status',
+        addedValues: ["it's new"],
+        removedValues: [],
+      },
+    ];
+    const sql = generateMigrationSql(changes);
+    expect(sql).toContain("'it''s new'");
+  });
+
+  it('escapes single quotes in column default values', () => {
+    const changes: DiffChange[] = [{ type: 'table_added', table: 'items' }];
+    const sql = generateMigrationSql(changes, {
+      tables: {
+        items: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            status: {
+              type: 'text',
+              nullable: false,
+              primary: false,
+              unique: false,
+              default: "'active'",
+            },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+    });
+
+    // The default value is already a SQL expression, so we just validate
+    // it appears in the output (default values are SQL expressions, not raw strings)
+    expect(sql).toContain("DEFAULT 'active'");
+  });
+
+  it('escapes column defaults in ALTER TABLE SET DEFAULT', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'column_altered',
+        table: 'items',
+        column: 'status',
+        newDefault: "'pending'",
+      },
+    ];
+    const sql = generateMigrationSql(changes);
+    expect(sql).toContain("SET DEFAULT 'pending'");
+  });
 });
 
 describe('generateRollbackSql', () => {

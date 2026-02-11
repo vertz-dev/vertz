@@ -15,5 +15,12 @@ export {
   NotNullError,
   UniqueConstraintError,
 } from './db-error';
+export {
+  DbErrorCode,
+  type DbErrorCodeName,
+  type DbErrorCodeValue,
+  PgCodeToName,
+  resolveErrorCode,
+} from './error-codes';
 export { dbErrorToHttpError, type HttpErrorResponse } from './http-adapter';
 export { type PgErrorInput, parsePgError } from './pg-parser';

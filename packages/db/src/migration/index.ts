@@ -3,6 +3,8 @@ export { computeDiff } from './differ';
 export { formatMigrationFilename, nextMigrationNumber } from './files';
 export type {
   AppliedMigration,
+  ApplyOptions,
+  ApplyResult,
   MigrationFile,
   MigrationQueryFn,
   MigrationRunner,

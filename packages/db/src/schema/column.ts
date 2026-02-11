@@ -72,6 +72,38 @@ export type DefaultMeta<TSqlType extends string> = {
   readonly check: null;
 };
 
+// ---------------------------------------------------------------------------
+// Column-type-specific metadata extensions
+// ---------------------------------------------------------------------------
+
+/** Metadata for varchar columns — carries the length constraint. */
+export type VarcharMeta<TLength extends number> = DefaultMeta<'varchar'> & {
+  readonly length: TLength;
+};
+
+/** Metadata for decimal/numeric columns — carries precision and scale. */
+export type DecimalMeta<
+  TPrecision extends number,
+  TScale extends number,
+> = DefaultMeta<'decimal'> & {
+  readonly precision: TPrecision;
+  readonly scale: TScale;
+};
+
+/** Metadata for enum columns — carries the enum name and its values. */
+export type EnumMeta<
+  TName extends string,
+  TValues extends readonly string[],
+> = DefaultMeta<'enum'> & {
+  readonly enumName: TName;
+  readonly enumValues: TValues;
+};
+
+/** Metadata for columns with a format constraint (e.g., email). */
+export type FormatMeta<TSqlType extends string, TFormat extends string> = DefaultMeta<TSqlType> & {
+  readonly format: TFormat;
+};
+
 function cloneWith(
   source: ColumnBuilder<unknown, ColumnMetadata>,
   metaOverrides: Record<string, unknown>,
@@ -141,14 +173,14 @@ function defaultMeta<TSqlType extends string>(sqlType: TSqlType): DefaultMeta<TS
   };
 }
 
-export function createColumn<TType, TSqlType extends string>(
-  sqlType: TSqlType,
+export function createColumn<TType, TMeta extends ColumnMetadata>(
+  sqlType: string,
   extra?: Record<string, unknown>,
-): ColumnBuilder<TType, DefaultMeta<TSqlType>> {
+): ColumnBuilder<TType, TMeta> {
   return createColumnWithMeta({
     ...defaultMeta(sqlType),
     ...extra,
-  }) as ColumnBuilder<TType, DefaultMeta<TSqlType>>;
+  }) as ColumnBuilder<TType, TMeta>;
 }
 
 export type SerialMeta = {

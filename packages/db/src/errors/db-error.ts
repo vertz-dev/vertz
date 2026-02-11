@@ -12,6 +12,8 @@ export interface DbErrorJson {
 
 export abstract class DbError extends Error {
   abstract readonly code: string;
+  /** Raw PostgreSQL SQLSTATE code, if applicable. */
+  readonly pgCode?: string | undefined;
   readonly table?: string | undefined;
   readonly query?: string | undefined;
 
@@ -45,7 +47,8 @@ export interface UniqueConstraintErrorOptions {
 }
 
 export class UniqueConstraintError extends DbError {
-  readonly code = '23505' as const;
+  readonly code = 'UNIQUE_VIOLATION' as const;
+  readonly pgCode = '23505' as const;
   override readonly table: string;
   override readonly query: string | undefined;
   readonly column: string;
@@ -84,7 +87,8 @@ export interface ForeignKeyErrorOptions {
 }
 
 export class ForeignKeyError extends DbError {
-  readonly code = '23503' as const;
+  readonly code = 'FOREIGN_KEY_VIOLATION' as const;
+  readonly pgCode = '23503' as const;
   override readonly table: string;
   override readonly query: string | undefined;
   readonly constraint: string;
@@ -117,7 +121,8 @@ export interface NotNullErrorOptions {
 }
 
 export class NotNullError extends DbError {
-  readonly code = '23502' as const;
+  readonly code = 'NOT_NULL_VIOLATION' as const;
+  readonly pgCode = '23502' as const;
   override readonly table: string;
   override readonly query: string | undefined;
   readonly column: string;
@@ -149,7 +154,8 @@ export interface CheckConstraintErrorOptions {
 }
 
 export class CheckConstraintError extends DbError {
-  readonly code = '23514' as const;
+  readonly code = 'CHECK_VIOLATION' as const;
+  readonly pgCode = '23514' as const;
   override readonly table: string;
   override readonly query: string | undefined;
   readonly constraint: string;

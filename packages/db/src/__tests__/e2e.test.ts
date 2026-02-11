@@ -4,7 +4,7 @@ import { createDb } from '../client/database';
 import { d } from '../d';
 import { ForeignKeyError, NotFoundError, UniqueConstraintError } from '../errors/db-error';
 import type { QueryFn } from '../query/executor';
-import type { TableEntry } from '../schema/inference';
+import { createRegistry } from '../schema/registry';
 import { sql } from '../sql/tagged';
 
 // ---------------------------------------------------------------------------
@@ -57,30 +57,19 @@ const featureFlags = d
   .shared();
 
 // ---------------------------------------------------------------------------
-// Relations
+// Table registry — using createRegistry() for type-safe relations
 // ---------------------------------------------------------------------------
 
-const postRelations = {
-  author: d.ref.one(() => users, 'authorId'),
-  comments: d.ref.many(() => comments, 'postId'),
-};
-
-const commentRelations = {
-  post: d.ref.one(() => posts, 'postId'),
-  author: d.ref.one(() => users, 'authorId'),
-};
-
-// ---------------------------------------------------------------------------
-// Table registry
-// ---------------------------------------------------------------------------
-
-const tables = {
-  organizations: { table: organizations, relations: {} },
-  users: { table: users, relations: {} },
-  posts: { table: posts, relations: postRelations },
-  comments: { table: comments, relations: commentRelations },
-  featureFlags: { table: featureFlags, relations: {} },
-} satisfies Record<string, TableEntry>;
+const tables = createRegistry({ organizations, users, posts, comments, featureFlags }, (ref) => ({
+  posts: {
+    author: ref.posts.one('users', 'authorId'),
+    comments: ref.posts.many('comments', 'postId'),
+  },
+  comments: {
+    post: ref.comments.one('posts', 'postId'),
+    author: ref.comments.one('users', 'authorId'),
+  },
+}));
 
 // ---------------------------------------------------------------------------
 // Stable UUIDs for tests
@@ -552,7 +541,7 @@ describe('E2E Acceptance Test (db-018)', () => {
         // PGlite throws raw PG errors, which the executor maps
         expect(error).toBeInstanceOf(UniqueConstraintError);
         const uErr = error as UniqueConstraintError;
-        expect(uErr.code).toBe('23505');
+        expect(uErr.code).toBe('UNIQUE_VIOLATION');
         expect(uErr.table).toBeDefined();
       }
     });
@@ -571,7 +560,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(ForeignKeyError);
         const fkErr = error as ForeignKeyError;
-        expect(fkErr.code).toBe('23503');
+        expect(fkErr.code).toBe('FOREIGN_KEY_VIOLATION');
         expect(fkErr.table).toBeDefined();
       }
     });

@@ -28,7 +28,8 @@ export function createPluginRunner(plugins: DbPlugin[]): PluginRunner {
       let current = result;
       for (const plugin of plugins) {
         if (plugin.afterQuery) {
-          current = plugin.afterQuery(context, current);
+          const pluginResult = plugin.afterQuery(context, current);
+          current = pluginResult !== undefined ? pluginResult : current;
         }
       }
       return current;

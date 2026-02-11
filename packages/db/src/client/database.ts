@@ -93,6 +93,10 @@ type TypedFindManyOptions<TEntry extends TableEntry> = {
   readonly orderBy?: OrderByType<EntryColumns<TEntry>>;
   readonly limit?: number;
   readonly offset?: number;
+  /** Cursor object: column-value pairs marking the position to paginate from. */
+  readonly cursor?: Record<string, unknown>;
+  /** Number of rows to take (used with cursor). Aliases `limit` when cursor is present. */
+  readonly take?: number;
   readonly include?: IncludeOption<EntryRelations<TEntry>>;
 };
 
@@ -454,6 +458,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           opts.include as IncludeSpec,
           0,
           tablesRegistry,
+          entry.table,
         );
         return rows[0] ?? null;
       }
@@ -471,6 +476,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           opts.include as IncludeSpec,
           0,
           tablesRegistry,
+          entry.table,
         );
         return rows[0] as Record<string, unknown>;
       }
@@ -488,6 +494,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           opts.include as IncludeSpec,
           0,
           tablesRegistry,
+          entry.table,
         );
       }
       return results;
@@ -508,6 +515,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           opts.include as IncludeSpec,
           0,
           tablesRegistry,
+          entry.table,
         );
         return { data: withRelations, total };
       }
