@@ -1,5 +1,13 @@
 // Types
 
+// CSS Extraction (zero-runtime)
+export { CSSCodeSplitter } from './css-extraction/code-splitting';
+export { DeadCSSEliminator } from './css-extraction/dead-css';
+export type { CSSExtractionResult } from './css-extraction/extractor';
+export { CSSExtractor } from './css-extraction/extractor';
+export type { CSSHMRUpdateResult } from './css-extraction/hmr';
+export { CSSHMRHandler } from './css-extraction/hmr';
+export { RouteCSSManifest } from './css-extraction/route-css-manifest';
 // Analyzers
 export { ComponentAnalyzer } from './analyzers/component-analyzer';
 export type { CSSCallInfo, CSSCallKind } from './analyzers/css-analyzer';
