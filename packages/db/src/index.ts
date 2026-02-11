@@ -21,6 +21,9 @@ export type {
 } from './client';
 export { computeTenantGraph, createDb } from './client';
 export { d } from './d';
+// Diagnostic
+export type { DiagnosticResult } from './diagnostic/index';
+export { diagnoseError, explainError, formatDiagnostic } from './diagnostic/index';
 export type {
   CheckConstraintErrorOptions,
   DbErrorJson,
@@ -100,3 +103,12 @@ export {
   snakeToCamel,
   sql,
 } from './sql';
+// Branded error types
+export type {
+  InvalidColumn,
+  InvalidFilterType,
+  InvalidRelation,
+  MixedSelectError,
+  StrictKeys,
+  ValidateKeys,
+} from './types/branded-errors';
