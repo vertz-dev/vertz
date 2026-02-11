@@ -11,8 +11,9 @@ export class CoercedStringSchema extends StringSchema {
     return super._parse(value == null ? '' : String(value), ctx);
   }
 
-  _clone(): CoercedStringSchema {
-    return Object.assign(new CoercedStringSchema(), super._clone());
+  _clone(): this {
+    const Ctor = this.constructor as new () => this;
+    return Object.assign(new Ctor(), super._clone());
   }
 }
 
