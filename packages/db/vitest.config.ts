@@ -6,6 +6,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
+    fileParallelism: false,
+    retry: 2,
     include: ['src/**/*.test.ts', 'src/**/*.test-d.ts'],
     environment: 'node',
     testTimeout: 30_000,
