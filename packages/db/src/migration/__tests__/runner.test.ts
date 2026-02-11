@@ -141,6 +141,86 @@ describe('MigrationRunner', () => {
     const outOfOrder = runner.detectOutOfOrder(files, applied);
     expect(outOfOrder).toEqual(['0002_add_email.sql']);
   });
+
+  describe('dry-run mode', () => {
+    it('returns SQL without executing when dryRun is true', async () => {
+      const runner = createMigrationRunner();
+
+      const migrationSql = `
+        CREATE TABLE "dry_run_table" (
+          "id" serial PRIMARY KEY,
+          "value" text NOT NULL
+        );
+      `;
+
+      const result = await runner.apply(queryFn, migrationSql, '0003_dry_run.sql', {
+        dryRun: true,
+      });
+
+      // Verify the result contains the expected data
+      expect(result.dryRun).toBe(true);
+      expect(result.name).toBe('0003_dry_run.sql');
+      expect(result.sql).toBe(migrationSql);
+      expect(result.checksum).toBe(computeChecksum(migrationSql));
+      expect(result.statements).toHaveLength(2);
+      expect(result.statements[0]).toBe(migrationSql);
+      expect(result.statements[1]).toContain('INSERT INTO');
+
+      // Verify the table was NOT created
+      const tableResult = await db.query(
+        "SELECT table_name FROM information_schema.tables WHERE table_name = 'dry_run_table'",
+      );
+      expect(tableResult.rows).toHaveLength(0);
+
+      // Verify no migration was recorded in history
+      const applied = await runner.getApplied(queryFn);
+      const dryRunEntry = applied.find((a) => a.name === '0003_dry_run.sql');
+      expect(dryRunEntry).toBeUndefined();
+    });
+
+    it('dry-run output matches what non-dry-run would execute', async () => {
+      const runner = createMigrationRunner();
+
+      const migrationSql = `
+        ALTER TABLE "test_users" ADD COLUMN "bio" text;
+      `;
+      const migrationName = '0003_add_bio.sql';
+
+      // Get dry-run result
+      const dryResult = await runner.apply(queryFn, migrationSql, migrationName, {
+        dryRun: true,
+      });
+
+      // Now actually apply
+      const realResult = await runner.apply(queryFn, migrationSql, migrationName);
+
+      // SQL and statements should match
+      expect(dryResult.sql).toBe(realResult.sql);
+      expect(dryResult.checksum).toBe(realResult.checksum);
+      expect(dryResult.statements).toEqual(realResult.statements);
+      expect(dryResult.name).toBe(realResult.name);
+
+      // Only dryRun flag should differ
+      expect(dryResult.dryRun).toBe(true);
+      expect(realResult.dryRun).toBe(false);
+    });
+
+    it('apply returns ApplyResult with dryRun false by default', async () => {
+      const runner = createMigrationRunner();
+
+      const migrationSql = `
+        ALTER TABLE "test_users" ADD COLUMN "avatar" text;
+      `;
+
+      const result = await runner.apply(queryFn, migrationSql, '0004_add_avatar.sql');
+
+      expect(result.dryRun).toBe(false);
+      expect(result.name).toBe('0004_add_avatar.sql');
+      expect(result.sql).toBe(migrationSql);
+      expect(result.checksum).toBe(computeChecksum(migrationSql));
+      expect(result.statements).toHaveLength(2);
+    });
+  });
 });
 
 describe('parseMigrationName', () => {

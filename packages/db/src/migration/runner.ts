@@ -27,11 +27,40 @@ export interface MigrationFile {
 }
 
 /**
+ * Options for the apply method.
+ */
+export interface ApplyOptions {
+  /** When true, return the SQL statements without executing them. */
+  dryRun?: boolean;
+}
+
+/**
+ * Result of applying (or dry-running) a migration.
+ */
+export interface ApplyResult {
+  /** The migration name. */
+  name: string;
+  /** The SQL that was (or would be) executed. */
+  sql: string;
+  /** The computed checksum of the migration SQL. */
+  checksum: string;
+  /** Whether this was a dry run. */
+  dryRun: boolean;
+  /** The statements that were (or would be) executed, in order. */
+  statements: string[];
+}
+
+/**
  * The migration runner interface.
  */
 export interface MigrationRunner {
   createHistoryTable(queryFn: MigrationQueryFn): Promise<void>;
-  apply(queryFn: MigrationQueryFn, sql: string, name: string): Promise<void>;
+  apply(
+    queryFn: MigrationQueryFn,
+    sql: string,
+    name: string,
+    options?: ApplyOptions,
+  ): Promise<ApplyResult>;
   getApplied(queryFn: MigrationQueryFn): Promise<AppliedMigration[]>;
   getPending(files: MigrationFile[], applied: AppliedMigration[]): MigrationFile[];
   detectDrift(files: MigrationFile[], applied: AppliedMigration[]): string[];
@@ -78,17 +107,41 @@ export function createMigrationRunner(): MigrationRunner {
       await queryFn(CREATE_HISTORY_SQL, []);
     },
 
-    async apply(queryFn: MigrationQueryFn, sql: string, name: string): Promise<void> {
+    async apply(
+      queryFn: MigrationQueryFn,
+      sql: string,
+      name: string,
+      options?: ApplyOptions,
+    ): Promise<ApplyResult> {
       const checksum = computeChecksum(sql);
+      const recordSql = `INSERT INTO "${HISTORY_TABLE}" ("name", "checksum") VALUES ($1, $2)`;
+
+      // Collect all statements that would be executed
+      const statements = [sql, recordSql];
+
+      if (options?.dryRun) {
+        return {
+          name,
+          sql,
+          checksum,
+          dryRun: true,
+          statements,
+        };
+      }
 
       // Execute the migration SQL
       await queryFn(sql, []);
 
       // Record in history
-      await queryFn(`INSERT INTO "${HISTORY_TABLE}" ("name", "checksum") VALUES ($1, $2)`, [
+      await queryFn(recordSql, [name, checksum]);
+
+      return {
         name,
+        sql,
         checksum,
-      ]);
+        dryRun: false,
+        statements,
+      };
     },
 
     async getApplied(queryFn: MigrationQueryFn): Promise<AppliedMigration[]> {

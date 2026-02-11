@@ -78,4 +78,55 @@ describe('migrateDev', () => {
     expect(result.snapshot).toEqual(snapshotWithUsers);
     expect(result.dryRun).toBe(true);
   });
+
+  it('dry-run does not write files or execute SQL', async () => {
+    const writtenFiles: Array<{ path: string; content: string }> = [];
+    const executedSql: string[] = [];
+
+    const trackingQueryFn: MigrationQueryFn = async (sql: string, params: readonly unknown[]) => {
+      executedSql.push(sql);
+      const result = await db.query(sql, params as unknown[]);
+      return { rows: result.rows as Record<string, unknown>[], rowCount: result.rows.length };
+    };
+
+    const result = await migrateDev({
+      queryFn: trackingQueryFn,
+      currentSnapshot: snapshotWithUsers,
+      previousSnapshot: emptySnapshot,
+      migrationName: 'add_users',
+      existingFiles: [],
+      migrationsDir: '/tmp/migrations',
+      writeFile: async (path, content) => {
+        writtenFiles.push({ path, content });
+      },
+      dryRun: true,
+    });
+
+    // Should return SQL content
+    expect(result.sql).toBeDefined();
+    expect(result.sql.length).toBeGreaterThan(0);
+    expect(result.dryRun).toBe(true);
+
+    // No files should have been written
+    expect(writtenFiles).toHaveLength(0);
+
+    // No SQL should have been executed (dry-run bypasses runner.apply entirely)
+    expect(executedSql).toHaveLength(0);
+  });
+
+  it('dry-run returns the migration filename that would be generated', async () => {
+    const result = await migrateDev({
+      queryFn,
+      currentSnapshot: snapshotWithUsers,
+      previousSnapshot: emptySnapshot,
+      migrationName: 'add_users',
+      existingFiles: ['0001_init.sql'],
+      migrationsDir: '/tmp/migrations',
+      writeFile: async () => {},
+      dryRun: true,
+    });
+
+    expect(result.migrationFile).toMatch(/^0002_add_users\.sql$/);
+    expect(result.appliedAt).toBeUndefined();
+  });
 });
