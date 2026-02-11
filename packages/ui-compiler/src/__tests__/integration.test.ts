@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compile } from '../compiler';
+import vertzPlugin from '../vite-plugin';
 
 describe('Integration Tests', () => {
   it('IT-1B-1: Counter component — let count → signal, {count} → subscription', () => {
@@ -117,14 +118,7 @@ function App() {
   });
 
   it('IT-1B-7: Vite plugin — .tsx → transformed code + source map', () => {
-    // Import and use the Vite plugin
-    const { default: vertzUiPlugin } = require('../vite-plugin') as {
-      default: (opts?: unknown) => {
-        name: string;
-        transform: (code: string, id: string) => { code: string; map: unknown } | undefined;
-      };
-    };
-    const plugin = vertzUiPlugin();
+    const plugin = vertzPlugin();
 
     const code = `
 function Counter() {
@@ -133,7 +127,11 @@ function Counter() {
 }
     `.trim();
 
-    const result = plugin.transform.call(plugin, code, 'Counter.tsx');
+    const transform = plugin.transform as (
+      code: string,
+      id: string,
+    ) => { code: string; map: unknown } | undefined;
+    const result = transform.call(plugin, code, 'Counter.tsx');
 
     expect(result).toBeDefined();
     expect(result?.code).toContain('signal(');
@@ -141,7 +139,7 @@ function Counter() {
     expect(result?.map).toBeDefined();
 
     // Non-tsx should be skipped
-    const skipped = plugin.transform.call(plugin, 'const x = 1;', 'file.ts');
+    const skipped = transform.call(plugin, 'const x = 1;', 'file.ts');
     expect(skipped).toBeUndefined();
   });
 });
