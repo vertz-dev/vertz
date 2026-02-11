@@ -1,4 +1,4 @@
-import { escapeHtml } from './html-serializer';
+import { escapeAttr, escapeHtml } from './html-serializer';
 import type { HeadEntry } from './types';
 
 /**
@@ -54,7 +54,7 @@ export function renderHeadToHtml(entries: HeadEntry[]): string {
       // meta and link are void elements
       const attrs = entry.attrs ?? {};
       const attrStr = Object.entries(attrs)
-        .map(([k, v]) => ` ${k}="${v}"`)
+        .map(([k, v]) => ` ${k}="${escapeAttr(v)}"`)
         .join('');
       return `<${entry.tag}${attrStr}>`;
     })

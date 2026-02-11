@@ -1,4 +1,11 @@
-import { escapeHtml, serializeToHtml } from './html-serializer';
+import {
+  escapeAttr,
+  escapeHtml,
+  isRawHtml,
+  RAW_TEXT_ELEMENTS,
+  serializeToHtml,
+  VOID_ELEMENTS,
+} from './html-serializer';
 import { createSlotPlaceholder } from './slot-placeholder';
 import { encodeChunk } from './streaming';
 import { createTemplateChunk } from './template-chunk';
@@ -14,42 +21,11 @@ interface SuspenseVNode extends VNode {
   _resolve: Promise<VNode | string>;
 }
 
-/** HTML void elements that must not have a closing tag. */
-const VOID_ELEMENTS = new Set([
-  'area',
-  'base',
-  'br',
-  'col',
-  'embed',
-  'hr',
-  'img',
-  'input',
-  'link',
-  'meta',
-  'param',
-  'source',
-  'track',
-  'wbr',
-]);
-
-/** Elements whose text content should not be HTML-escaped. */
-const RAW_TEXT_ELEMENTS = new Set(['script', 'style']);
-
 /** Type guard for suspense nodes. */
 function isSuspenseNode(node: VNode | string | RawHtml): node is SuspenseVNode {
   return (
     typeof node === 'object' && 'tag' in node && node.tag === '__suspense' && '_resolve' in node
   );
-}
-
-/** Type guard for RawHtml. */
-function isRawHtml(node: VNode | string | RawHtml): node is RawHtml {
-  return typeof node === 'object' && '__raw' in node && node.__raw === true;
-}
-
-/** Escape attribute value. */
-function escapeAttr(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
 /**
@@ -127,9 +103,17 @@ export function renderToStream(tree: VNode | string | RawHtml): ReadableStream<U
       // Phase 2: Resolve all suspense boundaries and emit replacement chunks
       if (pendingBoundaries.length > 0) {
         const resolutions = pendingBoundaries.map(async (boundary) => {
-          const resolved = await boundary.resolve;
-          const resolvedHtml = serializeToHtml(resolved);
-          return createTemplateChunk(boundary.slotId, resolvedHtml);
+          try {
+            const resolved = await boundary.resolve;
+            const resolvedHtml = serializeToHtml(resolved);
+            return createTemplateChunk(boundary.slotId, resolvedHtml);
+          } catch (_err: unknown) {
+            // Emit an error placeholder so the stream stays alive
+            const errorHtml =
+              `<div data-v-ssr-error="true" id="v-ssr-error-${boundary.slotId}">` +
+              '<!--SSR error--></div>';
+            return createTemplateChunk(boundary.slotId, errorHtml);
+          }
         });
 
         const chunks = await Promise.all(resolutions);

@@ -1,7 +1,7 @@
 import type { RawHtml, VNode } from './types';
 
 /** HTML void elements that must not have a closing tag. */
-const VOID_ELEMENTS = new Set([
+export const VOID_ELEMENTS: Set<string> = new Set([
   'area',
   'base',
   'br',
@@ -19,7 +19,7 @@ const VOID_ELEMENTS = new Set([
 ]);
 
 /** Elements whose text content should not be HTML-escaped. */
-const RAW_TEXT_ELEMENTS = new Set(['script', 'style']);
+export const RAW_TEXT_ELEMENTS: Set<string> = new Set(['script', 'style']);
 
 /** Escape special HTML characters in text content. */
 export function escapeHtml(text: string): string {
@@ -31,7 +31,7 @@ export function escapeHtml(text: string): string {
 }
 
 /** Escape special HTML characters in attribute values. */
-function escapeAttr(value: string): string {
+export function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
@@ -45,7 +45,7 @@ function serializeAttrs(attrs: Record<string, string>): string {
 }
 
 /** Check if a value is a RawHtml object. */
-function isRawHtml(value: VNode | string | RawHtml): value is RawHtml {
+export function isRawHtml(value: VNode | string | RawHtml): value is RawHtml {
   return typeof value === 'object' && '__raw' in value && value.__raw === true;
 }
 

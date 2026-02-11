@@ -1,3 +1,4 @@
+import { escapeAttr } from './html-serializer';
 import type { AssetDescriptor } from './types';
 
 /**
@@ -12,11 +13,11 @@ export function renderAssetTags(assets: AssetDescriptor[]): string {
   return assets
     .map((asset) => {
       if (asset.type === 'stylesheet') {
-        return `<link rel="stylesheet" href="${asset.src}">`;
+        return `<link rel="stylesheet" href="${escapeAttr(asset.src)}">`;
       }
 
       // Script
-      const parts = [`<script src="${asset.src}"`];
+      const parts = [`<script src="${escapeAttr(asset.src)}"`];
       if (asset.async) parts.push(' async');
       if (asset.defer) parts.push(' defer');
       parts.push('></script>');
