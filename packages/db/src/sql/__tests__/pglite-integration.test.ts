@@ -143,4 +143,61 @@ describe('PGlite integration: generated SQL executes', () => {
     expect(rows.rows).toHaveLength(1);
     expect(rows.rows[0]).toHaveProperty('totalCount');
   });
+
+  it('SELECT with OR filter executes correctly', async () => {
+    // Insert a third user for this test
+    const ins = buildInsert({
+      table: 'users',
+      data: { firstName: 'Carol', lastName: 'White', email: 'carol@example.com', age: 40 },
+      returning: ['id'],
+    });
+    await db.query(ins.sql, ins.params as unknown[]);
+
+    const result = buildSelect({
+      table: 'users',
+      where: { OR: [{ firstName: 'Alice' }, { firstName: 'Carol' }] },
+    });
+    const rows = await db.query(result.sql, result.params as unknown[]);
+    expect(rows.rows).toHaveLength(2);
+  });
+
+  it('SELECT with NOT filter executes correctly', async () => {
+    const result = buildSelect({
+      table: 'users',
+      where: { NOT: { firstName: 'Alice' } },
+    });
+    const rows = await db.query(result.sql, result.params as unknown[]);
+    // Should exclude Alice, return Carol (Bob was deleted earlier)
+    expect(rows.rows).toHaveLength(1);
+    expect(rows.rows[0]).toHaveProperty('first_name', 'Carol');
+  });
+
+  it('SELECT with nested OR/AND/NOT executes correctly', async () => {
+    const result = buildSelect({
+      table: 'users',
+      where: {
+        OR: [
+          { firstName: 'Alice', age: { gte: 30 } },
+          { AND: [{ firstName: 'Carol' }, { NOT: { age: { lt: 35 } } }] },
+        ],
+      },
+    });
+    const rows = await db.query(result.sql, result.params as unknown[]);
+    // Alice: age=31 (updated), >=30 -> match
+    // Carol: age=40, NOT(age < 35) -> match
+    expect(rows.rows).toHaveLength(2);
+  });
+
+  it('SELECT with OR and parameterized values prevents SQL injection', async () => {
+    const result = buildSelect({
+      table: 'users',
+      where: {
+        OR: [{ firstName: "'; DROP TABLE users; --" }, { firstName: 'Alice' }],
+      },
+    });
+    const rows = await db.query(result.sql, result.params as unknown[]);
+    // The injection attempt should just be treated as a normal string value
+    expect(rows.rows).toHaveLength(1);
+    expect(rows.rows[0]).toHaveProperty('first_name', 'Alice');
+  });
 });

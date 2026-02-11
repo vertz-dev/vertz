@@ -253,7 +253,8 @@ function buildFilterClauses(
       const orClauses: string[] = [];
       for (const subFilter of filter.OR) {
         const sub = buildFilterClauses(subFilter, idx);
-        orClauses.push(sub.clauses.join(' AND '));
+        const joined = sub.clauses.join(' AND ');
+        orClauses.push(sub.clauses.length > 1 ? `(${joined})` : joined);
         allParams.push(...sub.params);
         idx = sub.nextIndex;
       }
@@ -270,7 +271,8 @@ function buildFilterClauses(
       const andClauses: string[] = [];
       for (const subFilter of filter.AND) {
         const sub = buildFilterClauses(subFilter, idx);
-        andClauses.push(sub.clauses.join(' AND '));
+        const joined = sub.clauses.join(' AND ');
+        andClauses.push(sub.clauses.length > 1 ? `(${joined})` : joined);
         allParams.push(...sub.params);
         idx = sub.nextIndex;
       }
