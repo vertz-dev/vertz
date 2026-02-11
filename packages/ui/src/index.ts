@@ -25,6 +25,27 @@ export type { FormSchema, ValidationResult } from './form/validation';
 export { validate } from './form/validation';
 export type { CacheStore, QueryOptions, QueryResult } from './query';
 export { deriveKey, MemoryCache, query } from './query';
+export type {
+  CompiledRoute,
+  LoaderData,
+  MatchedRoute,
+  RouteConfig,
+  RouteDefinitionMap,
+  RouteMatch,
+  SearchParamSchema,
+} from './router/define-routes';
+export { defineRoutes, matchRoute } from './router/define-routes';
+export type { LinkProps } from './router/link';
+export { createLink } from './router/link';
+export { executeLoaders } from './router/loader';
+export type { MatchResult } from './router/matcher';
+export { matchPath } from './router/matcher';
+export type { NavigateOptions, Router } from './router/navigate';
+export { createRouter } from './router/navigate';
+export type { OutletContext } from './router/outlet';
+export { createOutlet } from './router/outlet';
+export type { ExtractParams } from './router/params';
+export { parseSearchParams, useSearchParams } from './router/search-params';
 export { onCleanup, popScope, pushScope, runCleanups } from './runtime/disposal';
 export { batch } from './runtime/scheduler';
 export { computed, effect, signal } from './runtime/signal';
