@@ -21,6 +21,8 @@ export type { FormDataOptions } from './form/form-data';
 export { formDataToObject } from './form/form-data';
 export type { FormSchema, ValidationResult } from './form/validation';
 export { validate } from './form/validation';
+export type { CacheStore, QueryOptions, QueryResult } from './query';
+export { deriveKey, MemoryCache, query } from './query';
 export { onCleanup, popScope, pushScope, runCleanups } from './runtime/disposal';
 export { batch } from './runtime/scheduler';
 export { computed, effect, signal } from './runtime/signal';
