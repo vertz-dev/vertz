@@ -87,6 +87,16 @@ function transformComputedReads(source: MagicString, bodyNode: Node, computeds: 
       return;
     }
 
+    // Skip property name in object literals: { total: val }
+    if (parent.isKind(SyntaxKind.PropertyAssignment) && parent.getNameNode() === node) {
+      return;
+    }
+
+    // Skip shorthand property assignment: { total }
+    if (parent.isKind(SyntaxKind.ShorthandPropertyAssignment)) {
+      return;
+    }
+
     // Skip binding elements
     if (parent.isKind(SyntaxKind.BindingElement)) {
       return;

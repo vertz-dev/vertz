@@ -70,4 +70,23 @@ describe('SignalTransformer', () => {
     );
     expect(result).toContain('items.value = [...items.value, "x"]');
   });
+
+  it('does NOT transform property names in object literals', () => {
+    const result = transform(
+      `function App() {\n  let count = 0;\n  const obj = { count: 10 };\n  return <div>{count}</div>;\n}`,
+      [{ name: 'count', kind: 'signal', start: 0, end: 0 }],
+    );
+    // Property name should stay as-is, value side should not be touched (it's a literal)
+    expect(result).toContain('{ count: 10 }');
+    expect(result).not.toContain('count.value: 10');
+  });
+
+  it('does NOT transform shorthand property names in object literals', () => {
+    const result = transform(
+      `function App() {\n  let count = 0;\n  const obj = { count };\n  return <div>{count}</div>;\n}`,
+      [{ name: 'count', kind: 'signal', start: 0, end: 0 }],
+    );
+    // Shorthand property should not be transformed
+    expect(result).not.toContain('count.value }');
+  });
 });

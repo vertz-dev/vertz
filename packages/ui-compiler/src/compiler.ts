@@ -1,5 +1,5 @@
 import MagicString from 'magic-string';
-import { Project, ts } from 'ts-morph';
+import { Project, SyntaxKind, ts } from 'ts-morph';
 import { ComponentAnalyzer } from './analyzers/component-analyzer';
 import { JsxAnalyzer } from './analyzers/jsx-analyzer';
 import { MutationAnalyzer } from './analyzers/mutation-analyzer';
@@ -87,12 +87,21 @@ export function compile(source: string, filename = 'input.tsx'): CompileOutput {
     const jsxExpressions = jsxAnalyzer.analyze(sourceFile, component, variables);
 
     // Detect used DOM helpers from JSX
+    if (jsxExpressions.length > 0) {
+      usedFeatures.add('__element');
+    }
     if (jsxExpressions.some((e) => e.reactive)) {
       usedFeatures.add('__text');
       usedFeatures.add('__attr');
     }
-    usedFeatures.add('__element');
-    usedFeatures.add('__on');
+    // Detect event handlers (onClick, onSubmit, etc.)
+    const hasEvents = sourceFile.getDescendantsOfKind(SyntaxKind.JsxAttribute).some((attr) => {
+      const name = attr.getNameNode().getText();
+      return name.startsWith('on') && name.length > 2;
+    });
+    if (hasEvents) {
+      usedFeatures.add('__on');
+    }
 
     // 8+9. JSX transform (includes prop transform)
     //      JSX transform reads from MagicString via source.slice() to pick up

@@ -84,6 +84,16 @@ function transformReferences(
       return;
     }
 
+    // Skip property name in object literals: { count: val } — don't touch 'count'
+    if (parent.isKind(SyntaxKind.PropertyAssignment) && parent.getNameNode() === node) {
+      return;
+    }
+
+    // Skip shorthand property assignment: { count } — don't touch 'count' as a key
+    if (parent.isKind(SyntaxKind.ShorthandPropertyAssignment)) {
+      return;
+    }
+
     // Skip identifiers inside mutation expression ranges (handled by MutationTransformer)
     if (isInsideMutationRange(node.getStart(), mutationRanges)) {
       return;
