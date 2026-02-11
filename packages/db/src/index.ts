@@ -4,6 +4,7 @@ export type {
   ColumnMetadata,
   InferColumnType,
   JsonbValidator,
+  TenantMeta,
 } from './schema/column';
 export type { RelationDef } from './schema/relation';
 export type { IndexDef, TableDef } from './schema/table';

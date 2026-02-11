@@ -187,6 +187,58 @@ describe('d.jsonb<T>({ validator })', () => {
   });
 });
 
+describe('d.tenant()', () => {
+  it('creates a uuid column with isTenant: true and references metadata', () => {
+    const organizations = d.table('organizations', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+
+    const col = d.tenant(organizations);
+    expect(col._meta.sqlType).toBe('uuid');
+    expect(col._meta.isTenant).toBe(true);
+    expect(col._meta.references).toEqual({ table: 'organizations', column: 'id' });
+  });
+
+  it('defaults other metadata flags to false/null', () => {
+    const orgs = d.table('orgs', {
+      id: d.uuid().primary(),
+    });
+
+    const col = d.tenant(orgs);
+    expect(col._meta.primary).toBe(false);
+    expect(col._meta.unique).toBe(false);
+    expect(col._meta.nullable).toBe(false);
+    expect(col._meta.hasDefault).toBe(false);
+    expect(col._meta.sensitive).toBe(false);
+    expect(col._meta.hidden).toBe(false);
+    expect(col._meta.check).toBeNull();
+  });
+
+  it('supports chaining modifiers after d.tenant()', () => {
+    const orgs = d.table('orgs', {
+      id: d.uuid().primary(),
+    });
+
+    const col = d.tenant(orgs).nullable();
+    expect(col._meta.isTenant).toBe(true);
+    expect(col._meta.nullable).toBe(true);
+    expect(col._meta.references).toEqual({ table: 'orgs', column: 'id' });
+  });
+});
+
+describe('isTenant metadata on regular columns', () => {
+  it('defaults isTenant to false on regular columns', () => {
+    const col = d.uuid();
+    expect(col._meta.isTenant).toBe(false);
+  });
+
+  it('defaults isTenant to false on serial columns', () => {
+    const col = d.serial();
+    expect(col._meta.isTenant).toBe(false);
+  });
+});
+
 describe('builder immutability', () => {
   it('chainable builders return new instances (do not mutate original)', () => {
     const original = d.text();

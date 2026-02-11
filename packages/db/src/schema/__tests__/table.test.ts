@@ -70,6 +70,42 @@ describe('table options', () => {
   });
 });
 
+describe('d.tenant() in table definition', () => {
+  it('tenant column metadata is accessible from the table definition', () => {
+    const organizations = d.table('organizations', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+
+    const users = d.table('users', {
+      id: d.uuid().primary(),
+      organizationId: d.tenant(organizations),
+      name: d.text(),
+    });
+
+    const orgIdMeta = users._columns.organizationId._meta;
+    expect(orgIdMeta.sqlType).toBe('uuid');
+    expect(orgIdMeta.isTenant).toBe(true);
+    expect(orgIdMeta.references).toEqual({ table: 'organizations', column: 'id' });
+  });
+
+  it('non-tenant columns in the same table have isTenant false', () => {
+    const organizations = d.table('organizations', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+
+    const users = d.table('users', {
+      id: d.uuid().primary(),
+      organizationId: d.tenant(organizations),
+      name: d.text(),
+    });
+
+    expect(users._columns.id._meta.isTenant).toBe(false);
+    expect(users._columns.name._meta.isTenant).toBe(false);
+  });
+});
+
 describe('.shared()', () => {
   it('sets the shared metadata flag on a table', () => {
     const featureFlags = d
@@ -90,5 +126,32 @@ describe('.shared()', () => {
     });
 
     expect(users._shared).toBe(false);
+  });
+
+  it('shared metadata is accessible from the table definition', () => {
+    const plans = d
+      .table('plans', {
+        id: d.uuid().primary(),
+        name: d.text(),
+        price: d.integer(),
+      })
+      .shared();
+
+    expect(plans._shared).toBe(true);
+    expect(plans._name).toBe('plans');
+    expect(plans._columns.name._meta.sqlType).toBe('text');
+  });
+
+  it('preserves column metadata after calling .shared()', () => {
+    const lookups = d
+      .table('lookups', {
+        id: d.uuid().primary(),
+        key: d.text().unique(),
+        value: d.text().nullable(),
+      })
+      .shared();
+
+    expect(lookups._columns.key._meta.unique).toBe(true);
+    expect(lookups._columns.value._meta.nullable).toBe(true);
   });
 });

@@ -1,5 +1,11 @@
-import type { ColumnBuilder, DefaultMeta, JsonbValidator, SerialMeta } from './schema/column';
-import { createColumn, createSerialColumn } from './schema/column';
+import type {
+  ColumnBuilder,
+  DefaultMeta,
+  JsonbValidator,
+  SerialMeta,
+  TenantMeta,
+} from './schema/column';
+import { createColumn, createSerialColumn, createTenantColumn } from './schema/column';
 import type { ManyRelationDef, RelationDef } from './schema/relation';
 import { createManyRelation, createOneRelation } from './schema/relation';
 import type { ColumnRecord, IndexDef, TableDef, TableOptions } from './schema/table';
@@ -29,6 +35,7 @@ export const d: {
     name: TName,
     values: TValues,
   ): ColumnBuilder<TValues[number], DefaultMeta<'enum'>>;
+  tenant(targetTable: TableDef<ColumnRecord>): ColumnBuilder<string, TenantMeta>;
   table<TColumns extends ColumnRecord>(
     name: string,
     columns: TColumns,
@@ -70,6 +77,7 @@ export const d: {
     name: TName,
     values: TValues,
   ) => createColumn<TValues[number], 'enum'>('enum', { enumName: name, enumValues: values }),
+  tenant: (targetTable: TableDef<ColumnRecord>) => createTenantColumn(targetTable._name),
   table: <TColumns extends ColumnRecord>(name: string, columns: TColumns, options?: TableOptions) =>
     createTable(name, columns, options),
   index: (columns: string | string[]) => createIndex(columns),

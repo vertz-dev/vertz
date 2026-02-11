@@ -269,6 +269,60 @@ describe('$not_hidden', () => {
 });
 
 // ---------------------------------------------------------------------------
+// d.tenant() -- type-level tests
+// ---------------------------------------------------------------------------
+
+const organizations = d.table('organizations', {
+  id: d.uuid().primary(),
+  name: d.text(),
+});
+
+const tenantUsers = d.table('tenant_users', {
+  id: d.uuid().primary(),
+  organizationId: d.tenant(organizations),
+  name: d.text(),
+});
+
+describe('d.tenant() type inference', () => {
+  it('tenant column infers as string (UUID type)', () => {
+    type TUser = typeof tenantUsers.$infer;
+    expectTypeOf<TUser['organizationId']>().toEqualTypeOf<string>();
+  });
+
+  it('tenant column carries isTenant: true in metadata type', () => {
+    const _isTenant: typeof tenantUsers._columns.organizationId._meta.isTenant = true;
+    // @ts-expect-error -- isTenant is true on a tenant column, false should not be assignable
+    const _notTenant: typeof tenantUsers._columns.organizationId._meta.isTenant = false;
+    void _isTenant;
+    void _notTenant;
+  });
+
+  it('tenant column carries references metadata in type', () => {
+    type Refs = typeof tenantUsers._columns.organizationId._meta.references;
+    expectTypeOf<Refs>().toEqualTypeOf<{ readonly table: string; readonly column: string }>();
+  });
+
+  it('non-tenant columns have isTenant: false in metadata type', () => {
+    const _notTenant: typeof tenantUsers._columns.name._meta.isTenant = false;
+    // @ts-expect-error -- isTenant is false on a regular column, true should not be assignable
+    const _isTenant: typeof tenantUsers._columns.name._meta.isTenant = true;
+    void _notTenant;
+    void _isTenant;
+  });
+
+  it('tenant column is required in $insert (no default)', () => {
+    type TInsert = typeof tenantUsers.$insert;
+
+    // organizationId is required -- no default on a tenant column
+    const _valid: TInsert = {
+      organizationId: 'org-uuid',
+      name: 'Alice',
+    };
+    void _valid;
+  });
+});
+
+// ---------------------------------------------------------------------------
 // .shared() -- metadata flag
 // ---------------------------------------------------------------------------
 
