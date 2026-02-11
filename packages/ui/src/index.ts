@@ -69,3 +69,5 @@ export type {
   Signal,
 } from './runtime/signal-types';
 export { untrack } from './runtime/tracking';
+export type { ComponentFunction, ComponentLoader, ComponentRegistry } from './hydrate';
+export { deserializeProps, eagerStrategy, hydrate, interactionStrategy, lazyStrategy, resolveComponent } from './hydrate';
