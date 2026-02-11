@@ -176,4 +176,91 @@ describe('buildSelect', () => {
       expect(result.sql).toBe('SELECT *, COUNT(*) OVER() AS "totalCount" FROM "users"');
     });
   });
+
+  describe('cursor-based pagination', () => {
+    it('generates WHERE col > $N ORDER BY col ASC LIMIT $M for single-column cursor', () => {
+      const result = buildSelect({
+        table: 'posts',
+        cursor: { id: 5 },
+        take: 20,
+      });
+      expect(result.sql).toBe('SELECT * FROM "posts" WHERE "id" > $1 ORDER BY "id" ASC LIMIT $2');
+      expect(result.params).toEqual([5, 20]);
+    });
+
+    it('uses < operator when orderBy is desc', () => {
+      const result = buildSelect({
+        table: 'posts',
+        cursor: { createdAt: '2024-01-01' },
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(result.sql).toBe(
+        'SELECT * FROM "posts" WHERE "created_at" < $1 ORDER BY "created_at" DESC LIMIT $2',
+      );
+      expect(result.params).toEqual(['2024-01-01', 10]);
+    });
+
+    it('combines cursor with existing where filters using AND', () => {
+      const result = buildSelect({
+        table: 'posts',
+        where: { status: 'published' },
+        cursor: { id: 42 },
+        take: 20,
+      });
+      expect(result.sql).toBe(
+        'SELECT * FROM "posts" WHERE "status" = $1 AND "id" > $2 ORDER BY "id" ASC LIMIT $3',
+      );
+      expect(result.params).toEqual(['published', 42, 20]);
+    });
+
+    it('supports composite cursor with row-value comparison', () => {
+      const result = buildSelect({
+        table: 'posts',
+        cursor: { createdAt: '2024-01-01', id: 10 },
+        take: 20,
+      });
+      expect(result.sql).toBe(
+        'SELECT * FROM "posts" WHERE ("created_at", "id") > ($1, $2) ORDER BY "created_at" ASC, "id" ASC LIMIT $3',
+      );
+      expect(result.params).toEqual(['2024-01-01', 10, 20]);
+    });
+
+    it('supports composite cursor with desc orderBy', () => {
+      const result = buildSelect({
+        table: 'posts',
+        cursor: { createdAt: '2024-01-01', id: 10 },
+        take: 15,
+        orderBy: { createdAt: 'desc', id: 'desc' },
+      });
+      expect(result.sql).toBe(
+        'SELECT * FROM "posts" WHERE ("created_at", "id") < ($1, $2) ORDER BY "created_at" DESC, "id" DESC LIMIT $3',
+      );
+      expect(result.params).toEqual(['2024-01-01', 10, 15]);
+    });
+
+    it('uses take without cursor as a limit alias', () => {
+      const result = buildSelect({
+        table: 'posts',
+        take: 50,
+      });
+      expect(result.sql).toBe('SELECT * FROM "posts" LIMIT $1');
+      expect(result.params).toEqual([50]);
+    });
+
+    it('cursor with where and orderBy generates correct param order', () => {
+      const result = buildSelect({
+        table: 'posts',
+        columns: ['id', 'title'],
+        where: { status: 'published', authorId: 7 },
+        cursor: { id: 100 },
+        take: 25,
+        orderBy: { id: 'asc' },
+      });
+      expect(result.sql).toBe(
+        'SELECT "id", "title" FROM "posts" WHERE "status" = $1 AND "author_id" = $2 AND "id" > $3 ORDER BY "id" ASC LIMIT $4',
+      );
+      expect(result.params).toEqual(['published', 7, 100, 25]);
+    });
+  });
 });
