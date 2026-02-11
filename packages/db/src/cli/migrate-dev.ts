@@ -31,6 +31,7 @@ export interface MigrateDevResult {
   appliedAt?: Date;
   dryRun: boolean;
   renames?: RenameSuggestion[];
+  snapshot: SchemaSnapshot;
 }
 
 /**
@@ -66,6 +67,7 @@ export async function migrateDev(options: MigrateDevOptions): Promise<MigrateDev
       sql,
       dryRun: true,
       renames: renames.length > 0 ? renames : undefined,
+      snapshot: options.currentSnapshot,
     };
   }
 
@@ -83,5 +85,6 @@ export async function migrateDev(options: MigrateDevOptions): Promise<MigrateDev
     appliedAt: new Date(),
     dryRun: false,
     renames: renames.length > 0 ? renames : undefined,
+    snapshot: options.currentSnapshot,
   };
 }

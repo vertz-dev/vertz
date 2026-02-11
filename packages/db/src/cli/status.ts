@@ -22,6 +22,7 @@ export interface MigrateStatusResult {
  */
 export async function migrateStatus(options: MigrateStatusOptions): Promise<MigrateStatusResult> {
   const runner = createMigrationRunner();
+  await runner.createHistoryTable(options.queryFn);
   const applied: AppliedMigration[] = await runner.getApplied(options.queryFn);
   const pending = runner.getPending(options.migrationFiles, applied);
 
