@@ -1,5 +1,7 @@
 import type { ColumnBuilder, DefaultMeta, JsonbValidator, SerialMeta } from './schema/column';
 import { createColumn, createSerialColumn } from './schema/column';
+import type { ColumnRecord, IndexDef, TableDef, TableOptions } from './schema/table';
+import { createIndex, createTable } from './schema/table';
 
 export const d: {
   uuid(): ColumnBuilder<string, DefaultMeta<'uuid'>>;
@@ -25,6 +27,12 @@ export const d: {
     name: TName,
     values: TValues,
   ): ColumnBuilder<TValues[number], DefaultMeta<'enum'>>;
+  table<TColumns extends ColumnRecord>(
+    name: string,
+    columns: TColumns,
+    options?: TableOptions,
+  ): TableDef<TColumns>;
+  index(columns: string | string[]): IndexDef;
 } = {
   uuid: () => createColumn<string, 'uuid'>('uuid'),
   text: () => createColumn<string, 'text'>('text'),
@@ -49,4 +57,7 @@ export const d: {
     name: TName,
     values: TValues,
   ) => createColumn<TValues[number], 'enum'>('enum', { enumName: name, enumValues: values }),
+  table: <TColumns extends ColumnRecord>(name: string, columns: TColumns, options?: TableOptions) =>
+    createTable(name, columns, options),
+  index: (columns: string | string[]) => createIndex(columns),
 };
