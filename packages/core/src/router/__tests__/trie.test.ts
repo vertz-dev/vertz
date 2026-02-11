@@ -140,4 +140,64 @@ describe('Trie', () => {
       trie.add('POST', '/users/:userId', () => 'second');
     }).toThrow(/param name mismatch/i);
   });
+
+  describe('getRoutes', () => {
+    it('returns an empty array when no routes are registered', () => {
+      const trie = new Trie();
+      expect(trie.getRoutes()).toEqual([]);
+    });
+
+    it('returns all registered routes with method and path', () => {
+      const trie = new Trie();
+      trie.add('GET', '/users', () => 'get');
+      trie.add('POST', '/users', () => 'post');
+      trie.add('GET', '/users/:id', () => 'getById');
+
+      const routes = trie.getRoutes();
+
+      expect(routes).toEqual(
+        expect.arrayContaining([
+          { method: 'GET', path: '/users' },
+          { method: 'POST', path: '/users' },
+          { method: 'GET', path: '/users/:id' },
+        ]),
+      );
+      expect(routes).toHaveLength(3);
+    });
+
+    it('reconstructs param segments with colon prefix', () => {
+      const trie = new Trie();
+      trie.add('GET', '/users/:userId/posts/:postId', () => 'nested');
+
+      const routes = trie.getRoutes();
+
+      expect(routes).toEqual([{ method: 'GET', path: '/users/:userId/posts/:postId' }]);
+    });
+
+    it('reconstructs wildcard segments with asterisk', () => {
+      const trie = new Trie();
+      trie.add('GET', '/files/*', () => 'files');
+
+      const routes = trie.getRoutes();
+
+      expect(routes).toEqual([{ method: 'GET', path: '/files/*' }]);
+    });
+
+    it('returns routes sorted by path then method', () => {
+      const trie = new Trie();
+      trie.add('POST', '/users', () => 'post');
+      trie.add('GET', '/tasks', () => 'tasks');
+      trie.add('GET', '/users', () => 'get');
+      trie.add('DELETE', '/users/:id', () => 'delete');
+
+      const routes = trie.getRoutes();
+
+      expect(routes).toEqual([
+        { method: 'GET', path: '/tasks' },
+        { method: 'GET', path: '/users' },
+        { method: 'POST', path: '/users' },
+        { method: 'DELETE', path: '/users/:id' },
+      ]);
+    });
+  });
 });
