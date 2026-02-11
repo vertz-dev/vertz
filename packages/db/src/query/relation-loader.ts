@@ -42,6 +42,7 @@ export interface IncludeSpec {
 }
 
 interface RelationMeta {
+  readonly key: string;
   readonly def: RelationDef;
   readonly includeValue: true | { select?: Record<string, true>; include?: IncludeSpec };
 }
@@ -95,7 +96,7 @@ export async function loadRelations<T extends Record<string, unknown>>(
     if (value === undefined) continue;
     const rel = relations[key];
     if (!rel) continue;
-    toLoad.push({ def: rel, includeValue: value });
+    toLoad.push({ key, def: rel, includeValue: value });
   }
 
   if (toLoad.length === 0) {
@@ -103,10 +104,7 @@ export async function loadRelations<T extends Record<string, unknown>>(
   }
 
   // Process each relation
-  for (const { def, includeValue } of toLoad) {
-    const relName = Object.entries(include).find(([, v]) => v === includeValue)?.[0];
-    if (!relName) continue;
-
+  for (const { key: relName, def, includeValue } of toLoad) {
     const target = def._target();
 
     if (def._type === 'one') {
