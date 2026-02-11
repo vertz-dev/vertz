@@ -1,3 +1,14 @@
+export type { ChildrenAccessor, ChildValue } from './component/children';
+export { children, resolveChildren } from './component/children';
+export type { Context } from './component/context';
+export { createContext, useContext } from './component/context';
+export type { ErrorBoundaryProps } from './component/error-boundary';
+export { ErrorBoundary } from './component/error-boundary';
+export { onMount, watch } from './component/lifecycle';
+export type { Ref } from './component/refs';
+export { ref } from './component/refs';
+export type { SuspenseProps } from './component/suspense';
+export { Suspense } from './component/suspense';
 export { __attr, __classList, __show } from './dom/attributes';
 export { __conditional } from './dom/conditional';
 export { __element, __text } from './dom/element';
