@@ -3,11 +3,6 @@ export interface MatchResult<T = unknown> {
   params: Record<string, string>;
 }
 
-export interface RouteRecord {
-  method: string;
-  path: string;
-}
-
 interface TrieNode<T> {
   staticChildren: Map<string, TrieNode<T>>;
   paramChild: { name: string; node: TrieNode<T> } | null;
@@ -52,31 +47,6 @@ export class Trie<T = unknown> {
     const node = this.findNode(this.root, segments, 0);
     if (!node) return [];
     return Array.from(node.handlers.keys());
-  }
-
-  getRoutes(): RouteRecord[] {
-    const routes: RouteRecord[] = [];
-    this.collectRoutes(this.root, '', routes);
-    routes.sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
-    return routes;
-  }
-
-  private collectRoutes(node: TrieNode<T>, prefix: string, routes: RouteRecord[]): void {
-    for (const [method] of node.handlers) {
-      routes.push({ method, path: prefix || '/' });
-    }
-
-    for (const [segment, child] of node.staticChildren) {
-      this.collectRoutes(child, `${prefix}/${segment}`, routes);
-    }
-
-    if (node.paramChild) {
-      this.collectRoutes(node.paramChild.node, `${prefix}/:${node.paramChild.name}`, routes);
-    }
-
-    if (node.wildcardChild) {
-      this.collectRoutes(node.wildcardChild, `${prefix}/*`, routes);
-    }
   }
 
   private resolveChild(node: TrieNode<T>, segment: string): TrieNode<T> {
