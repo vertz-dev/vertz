@@ -11,6 +11,14 @@ export interface SqlGeneratorContext {
 }
 
 /**
+ * Escape a string value for use in a SQL single-quoted literal.
+ * Doubles internal single quotes to prevent SQL injection.
+ */
+function escapeSqlString(value: string): string {
+  return value.replace(/'/g, "''");
+}
+
+/**
  * Generate the SQL column definition string for a column.
  */
 function columnDef(name: string, col: ColumnSnapshot): string {
@@ -165,7 +173,7 @@ export function generateMigrationSql(changes: DiffChange[], ctx?: SqlGeneratorCo
         const values = enums?.[change.enumName];
         if (!values || values.length === 0) break;
         const enumSnakeName = camelToSnake(change.enumName);
-        const valuesStr = values.map((v) => `'${v}'`).join(', ');
+        const valuesStr = values.map((v) => `'${escapeSqlString(v)}'`).join(', ');
         statements.push(`CREATE TYPE "${enumSnakeName}" AS ENUM (${valuesStr});`);
         break;
       }
@@ -180,7 +188,7 @@ export function generateMigrationSql(changes: DiffChange[], ctx?: SqlGeneratorCo
         if (!change.enumName || !change.addedValues) break;
         const enumSnakeName = camelToSnake(change.enumName);
         for (const val of change.addedValues) {
-          statements.push(`ALTER TYPE "${enumSnakeName}" ADD VALUE '${val}';`);
+          statements.push(`ALTER TYPE "${enumSnakeName}" ADD VALUE '${escapeSqlString(val)}';`);
         }
         break;
       }
