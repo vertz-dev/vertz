@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createModule } from '../../module/module';
 import { createModuleDef } from '../../module/module-def';
 import type { ServerHandle } from '../../types/server-adapter';
@@ -76,5 +76,115 @@ describe('app.listen', () => {
     await handle.close();
     await handle.close();
     handle = undefined;
+  });
+
+  describe('startup route log', () => {
+    let logSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    afterEach(async () => {
+      logSpy.mockRestore();
+      await handle?.close();
+      handle = undefined;
+    });
+
+    it('prints the listening URL and registered routes on startup', async () => {
+      const moduleDef = createModuleDef({ name: 'users' });
+      const router = moduleDef.router({ prefix: '/users' });
+      router.get('/', { handler: () => [] });
+      router.post('/', { handler: () => ({}) });
+      router.get('/:id', { handler: () => ({}) });
+      const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+
+      const app = createApp({}).register(mod);
+      handle = await app.listen(0);
+
+      const output = logSpy.mock.calls.map((args) => args[0]).join('\n');
+
+      expect(output).toContain(`vertz server listening on http://localhost:${handle.port}`);
+      expect(output).toContain('GET    /users');
+      expect(output).toContain('POST   /users');
+      expect(output).toContain('GET    /users/:id');
+    });
+
+    it('includes basePath in logged routes', async () => {
+      const moduleDef = createModuleDef({ name: 'tasks' });
+      const router = moduleDef.router({ prefix: '/tasks' });
+      router.get('/', { handler: () => [] });
+      const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+
+      const app = createApp({ basePath: '/api' }).register(mod);
+      handle = await app.listen(0);
+
+      const output = logSpy.mock.calls.map((args) => args[0]).join('\n');
+
+      expect(output).toContain('GET    /api/tasks');
+    });
+
+    it('sorts routes by path then method', async () => {
+      const taskDef = createModuleDef({ name: 'tasks' });
+      const taskRouter = taskDef.router({ prefix: '/tasks' });
+      taskRouter.post('/', { handler: () => ({}) });
+      taskRouter.get('/', { handler: () => [] });
+      const taskMod = createModule(taskDef, { services: [], routers: [taskRouter], exports: [] });
+
+      const userDef = createModuleDef({ name: 'users' });
+      const userRouter = userDef.router({ prefix: '/users' });
+      userRouter.get('/', { handler: () => [] });
+      const userMod = createModule(userDef, { services: [], routers: [userRouter], exports: [] });
+
+      const app = createApp({}).register(taskMod).register(userMod);
+      handle = await app.listen(0);
+
+      const output = logSpy.mock.calls.map((args) => args[0]).join('\n');
+      const getTasksIdx = output.indexOf('GET    /tasks');
+      const postTasksIdx = output.indexOf('POST   /tasks');
+      const getUsersIdx = output.indexOf('GET    /users');
+
+      expect(getTasksIdx).toBeLessThan(postTasksIdx);
+      expect(postTasksIdx).toBeLessThan(getUsersIdx);
+    });
+
+    it('suppresses route log when logRoutes is false', async () => {
+      const moduleDef = createModuleDef({ name: 'test' });
+      const router = moduleDef.router({ prefix: '/test' });
+      router.get('/', { handler: () => [] });
+      const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+
+      const app = createApp({}).register(mod);
+      handle = await app.listen(0, { logRoutes: false });
+
+      const output = logSpy.mock.calls.map((args) => args[0]).join('\n');
+
+      expect(output).not.toContain('vertz server listening');
+      expect(output).not.toContain('GET');
+    });
+
+    it('prints routes by default (logRoutes not specified)', async () => {
+      const moduleDef = createModuleDef({ name: 'test' });
+      const router = moduleDef.router({ prefix: '/items' });
+      router.get('/', { handler: () => [] });
+      const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+
+      const app = createApp({}).register(mod);
+      handle = await app.listen(0);
+
+      const output = logSpy.mock.calls.map((args) => args[0]).join('\n');
+
+      expect(output).toContain('vertz server listening');
+      expect(output).toContain('GET    /items');
+    });
+
+    it('prints only the listening URL when no routes are registered', async () => {
+      const app = createApp({});
+      handle = await app.listen(0);
+
+      const output = logSpy.mock.calls.map((args) => args[0]).join('\n');
+
+      expect(output).toContain(`vertz server listening on http://localhost:${handle.port}`);
+    });
   });
 });
