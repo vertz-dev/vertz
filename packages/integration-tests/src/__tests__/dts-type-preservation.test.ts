@@ -97,7 +97,9 @@ describe('@vertz/db dist type preservation', () => {
   // ---- DatabaseInstance generic preservation ----
 
   it('DatabaseInstance has a TTables generic parameter', () => {
-    expect(dts).toMatch(/interface DatabaseInstance<\s*TTables\s+extends\s+Record<string,\s*TableEntry>/);
+    expect(dts).toMatch(
+      /interface DatabaseInstance<\s*TTables\s+extends\s+Record<string,\s*TableEntry>/,
+    );
   });
 
   it('DatabaseInstance.findMany has TName and TOptions generic parameters', () => {
@@ -186,7 +188,9 @@ describe('@vertz/db dist type preservation', () => {
   // ---- Branded error types (complex generics) ----
 
   it('InvalidColumn has K and Table generic parameters', () => {
-    expect(dts).toMatch(/type InvalidColumn<\s*\n?\s*K\s+extends\s+string[\s\S]*?Table\s+extends\s+string/);
+    expect(dts).toMatch(
+      /type InvalidColumn<\s*\n?\s*K\s+extends\s+string[\s\S]*?Table\s+extends\s+string/,
+    );
   });
 
   it('InvalidFilterType has Col, Expected, and Got generic parameters', () => {
@@ -220,16 +224,16 @@ describe('@vertz/db dist type preservation', () => {
   // ---- IncludeResolve preservation ----
 
   it('IncludeResolve has TRelations, TInclude, and _Depth generic parameters', () => {
-    expect(dts).toMatch(
-      /type IncludeResolve<\s*\n?\s*TRelations\s+extends\s+RelationsRecord/,
-    );
+    expect(dts).toMatch(/type IncludeResolve<\s*\n?\s*TRelations\s+extends\s+RelationsRecord/);
   });
 
   // ---- d.table() preserves column generics ----
 
   it('d.table returns TableDef<TColumns> (not unparameterized TableDef)', () => {
     // d.table should return TableDef<TColumns>, not just TableDef
-    expect(dts).toMatch(/table<\s*TColumns\s+extends\s+ColumnRecord\s*>\s*\([^)]*\):\s*TableDef<TColumns>/);
+    expect(dts).toMatch(
+      /table<\s*TColumns\s+extends\s+ColumnRecord\s*>\s*\([^)]*\):\s*TableDef<TColumns>/,
+    );
   });
 
   // ---- d.entry() preserves generics ----
@@ -241,11 +245,15 @@ describe('@vertz/db dist type preservation', () => {
   // ---- d.ref.one / d.ref.many preserve generics ----
 
   it('d.ref.one returns RelationDef with target generic', () => {
-    expect(dts).toMatch(/one<\s*TTarget\s+extends\s+TableDef[\s\S]*?>\s*\([\s\S]*?\):\s*RelationDef<TTarget/);
+    expect(dts).toMatch(
+      /one<\s*TTarget\s+extends\s+TableDef[\s\S]*?>\s*\([\s\S]*?\):\s*RelationDef<TTarget/,
+    );
   });
 
   it('d.ref.many returns RelationDef or ManyRelationDef with target generic', () => {
-    expect(dts).toMatch(/many<\s*TTarget\s+extends\s+TableDef[\s\S]*?>\s*\([\s\S]*?\):\s*(?:RelationDef|ManyRelationDef)<TTarget/);
+    expect(dts).toMatch(
+      /many<\s*TTarget\s+extends\s+TableDef[\s\S]*?>\s*\([\s\S]*?\):\s*(?:RelationDef|ManyRelationDef)<TTarget/,
+    );
   });
 });
 
@@ -280,7 +288,9 @@ describe('@vertz/core dist type preservation', () => {
   // ---- NamedRouterDef generic preservation ----
 
   it('NamedRouterDef has TMiddleware generic parameter', () => {
-    expect(dts).toMatch(/interface NamedRouterDef<\s*TMiddleware\s+extends\s+Record<string,\s*unknown>/);
+    expect(dts).toMatch(
+      /interface NamedRouterDef<\s*TMiddleware\s+extends\s+Record<string,\s*unknown>/,
+    );
   });
 
   // ---- RouteConfig generic parameters ----
@@ -310,15 +320,15 @@ describe('@vertz/core dist type preservation', () => {
   // ---- AccumulateProvides type-level recursion preserved ----
 
   it('AccumulateProvides uses recursive tuple pattern', () => {
-    expect(dts).toMatch(
-      /type AccumulateProvides<\s*T\s+extends\s+readonly\s+NamedMiddlewareDef/,
-    );
+    expect(dts).toMatch(/type AccumulateProvides<\s*T\s+extends\s+readonly\s+NamedMiddlewareDef/);
   });
 
   // ---- AppBuilder generic preservation ----
 
   it('AppBuilder has TMiddlewareCtx generic parameter', () => {
-    expect(dts).toMatch(/interface AppBuilder<\s*TMiddlewareCtx\s+extends\s+Record<string,\s*unknown>/);
+    expect(dts).toMatch(
+      /interface AppBuilder<\s*TMiddlewareCtx\s+extends\s+Record<string,\s*unknown>/,
+    );
   });
 
   // ---- ModuleDef generic preservation ----
@@ -354,9 +364,7 @@ describe('@vertz/core dist type preservation', () => {
   // ---- ServiceDef generics preserved ----
 
   it('ServiceDef has TDeps, TState, and TMethods generic parameters', () => {
-    expect(dts).toMatch(
-      /interface ServiceDef<\s*\n?\s*TDeps[\s\S]*?TState[\s\S]*?TMethods/,
-    );
+    expect(dts).toMatch(/interface ServiceDef<\s*\n?\s*TDeps[\s\S]*?TState[\s\S]*?TMethods/);
   });
 });
 
@@ -511,7 +519,9 @@ describe('@vertz/schema dist type preservation', () => {
   // ---- s factory preserves generic return types ----
 
   it('s.object returns ObjectSchema<T> (generic, not bare ObjectSchema)', () => {
-    expect(dts).toMatch(/object:\s*<\s*T\s+extends\s+Record<string,\s*SchemaAny>\s*>\s*\(shape:\s*T\)\s*=>\s*ObjectSchema<T>/);
+    expect(dts).toMatch(
+      /object:\s*<\s*T\s+extends\s+Record<string,\s*SchemaAny>\s*>\s*\(shape:\s*T\)\s*=>\s*ObjectSchema<T>/,
+    );
   });
 
   it('s.array returns ArraySchema<T> (generic)', () => {
