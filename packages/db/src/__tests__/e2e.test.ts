@@ -553,7 +553,7 @@ describe('E2E Acceptance Test (db-018)', () => {
         // PGlite throws raw PG errors, which the executor maps
         expect(error).toBeInstanceOf(UniqueConstraintError);
         const uErr = error as UniqueConstraintError;
-        expect(uErr.code).toBe('23505');
+        expect(uErr.code).toBe('UNIQUE_VIOLATION');
         expect(uErr.table).toBeDefined();
       }
     });
@@ -572,7 +572,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(ForeignKeyError);
         const fkErr = error as ForeignKeyError;
-        expect(fkErr.code).toBe('23503');
+        expect(fkErr.code).toBe('FOREIGN_KEY_VIOLATION');
         expect(fkErr.table).toBeDefined();
       }
     });

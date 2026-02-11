@@ -210,7 +210,7 @@ describe('Runtime error quality', () => {
     const json = unique.toJSON();
     expect(json.table).toBe('users');
     expect(json.column).toBe('email');
-    expect(json.code).toBe('23505');
+    expect(json.code).toBe('UNIQUE_VIOLATION');
     expect(json.error).toBe('UniqueConstraintError');
 
     const fk = new ForeignKeyError({
@@ -219,7 +219,7 @@ describe('Runtime error quality', () => {
     });
     const fkJson = fk.toJSON();
     expect(fkJson.table).toBe('posts');
-    expect(fkJson.code).toBe('23503');
+    expect(fkJson.code).toBe('FOREIGN_KEY_VIOLATION');
 
     const notFound = new NotFoundError('users');
     const nfJson = notFound.toJSON();

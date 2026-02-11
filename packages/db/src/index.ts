@@ -26,6 +26,8 @@ export type { DiagnosticResult } from './diagnostic/index';
 export { diagnoseError, explainError, formatDiagnostic } from './diagnostic/index';
 export type {
   CheckConstraintErrorOptions,
+  DbErrorCodeName,
+  DbErrorCodeValue,
   DbErrorJson,
   ForeignKeyErrorOptions,
   HttpErrorResponse,
@@ -38,11 +40,14 @@ export {
   ConnectionError,
   ConnectionPoolExhaustedError,
   DbError,
+  DbErrorCode,
   dbErrorToHttpError,
   ForeignKeyError,
   NotFoundError,
   NotNullError,
+  PgCodeToName,
   parsePgError,
+  resolveErrorCode,
   UniqueConstraintError,
 } from './errors';
 // Plugin (@experimental)

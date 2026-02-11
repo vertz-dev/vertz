@@ -9,7 +9,7 @@ import {
 import { parsePgError } from '../pg-parser';
 
 describe('parsePgError', () => {
-  it('maps PG error code 23505 to UniqueConstraintError with extracted column name', () => {
+  it('maps PG error code 23505 to UniqueConstraintError with semantic code', () => {
     const pgError = {
       code: '23505',
       table: 'users',
@@ -21,7 +21,8 @@ describe('parsePgError', () => {
     const err = parsePgError(pgError);
     expect(err).toBeInstanceOf(UniqueConstraintError);
     const typed = err as UniqueConstraintError;
-    expect(typed.code).toBe('23505');
+    expect(typed.code).toBe('UNIQUE_VIOLATION');
+    expect(typed.pgCode).toBe('23505');
     expect(typed.table).toBe('users');
     expect(typed.column).toBe('email');
     expect(typed.value).toBe('foo@bar.com');
@@ -53,7 +54,7 @@ describe('parsePgError', () => {
     expect(err.column).toBe('unknown');
   });
 
-  it('maps PG error code 23503 to ForeignKeyError', () => {
+  it('maps PG error code 23503 to ForeignKeyError with semantic code', () => {
     const pgError = {
       code: '23503',
       table: 'posts',
@@ -65,7 +66,8 @@ describe('parsePgError', () => {
     const err = parsePgError(pgError);
     expect(err).toBeInstanceOf(ForeignKeyError);
     const typed = err as ForeignKeyError;
-    expect(typed.code).toBe('23503');
+    expect(typed.code).toBe('FOREIGN_KEY_VIOLATION');
+    expect(typed.pgCode).toBe('23503');
     expect(typed.table).toBe('posts');
     expect(typed.constraint).toBe('posts_author_id_fkey');
     expect(typed.detail).toBe('Key (author_id)=(abc-123) is not present in table "users".');
@@ -84,7 +86,7 @@ describe('parsePgError', () => {
     expect(err.constraint).toBe('unknown');
   });
 
-  it('maps PG error code 23502 to NotNullError', () => {
+  it('maps PG error code 23502 to NotNullError with semantic code', () => {
     const pgError = {
       code: '23502',
       table: 'users',
@@ -95,7 +97,8 @@ describe('parsePgError', () => {
     const err = parsePgError(pgError);
     expect(err).toBeInstanceOf(NotNullError);
     const typed = err as NotNullError;
-    expect(typed.code).toBe('23502');
+    expect(typed.code).toBe('NOT_NULL_VIOLATION');
+    expect(typed.pgCode).toBe('23502');
     expect(typed.table).toBe('users');
     expect(typed.column).toBe('name');
   });
@@ -111,7 +114,7 @@ describe('parsePgError', () => {
     expect(err.column).toBe('email');
   });
 
-  it('maps PG error code 23514 to CheckConstraintError', () => {
+  it('maps PG error code 23514 to CheckConstraintError with semantic code', () => {
     const pgError = {
       code: '23514',
       table: 'orders',
@@ -122,7 +125,8 @@ describe('parsePgError', () => {
     const err = parsePgError(pgError);
     expect(err).toBeInstanceOf(CheckConstraintError);
     const typed = err as CheckConstraintError;
-    expect(typed.code).toBe('23514');
+    expect(typed.code).toBe('CHECK_VIOLATION');
+    expect(typed.pgCode).toBe('23514');
     expect(typed.table).toBe('orders');
     expect(typed.constraint).toBe('orders_amount_positive');
   });
