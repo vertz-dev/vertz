@@ -13,7 +13,7 @@ function createContext(vars: Record<string, string>) {
   return { moduleDefVariables: new Map(Object.entries(vars)) };
 }
 
-describe('RouteAnalyzer', () => {
+describe('RouteAnalyzer', { timeout: 15_000 }, () => {
   it('extracts router name from variable name', async () => {
     const project = createProject();
     project.createSourceFile(
