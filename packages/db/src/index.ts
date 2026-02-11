@@ -28,6 +28,8 @@ export {
   parsePgError,
   UniqueConstraintError,
 } from './errors';
+export type { AggregateArgs, CountArgs, ExecutorResult, GroupByArgs, QueryFn } from './query';
+export { mapRow, mapRows } from './query';
 export type {
   ColumnBuilder,
   ColumnMetadata,

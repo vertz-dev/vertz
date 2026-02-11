@@ -15,6 +15,8 @@ export interface OnConflictOptions {
   readonly columns: readonly string[];
   readonly action: 'nothing' | 'update';
   readonly updateColumns?: readonly string[];
+  /** Explicit update values for ON CONFLICT DO UPDATE SET (used by upsert). */
+  readonly updateValues?: Record<string, unknown>;
 }
 
 export interface InsertOptions {
@@ -84,13 +86,27 @@ export function buildInsert(options: InsertOptions): InsertResult {
     if (options.onConflict.action === 'nothing') {
       sql += ` ON CONFLICT (${conflictCols}) DO NOTHING`;
     } else if (options.onConflict.action === 'update' && options.onConflict.updateColumns) {
-      const setClauses = options.onConflict.updateColumns
-        .map((c) => {
-          const snakeCol = camelToSnake(c);
-          return `"${snakeCol}" = EXCLUDED."${snakeCol}"`;
-        })
-        .join(', ');
-      sql += ` ON CONFLICT (${conflictCols}) DO UPDATE SET ${setClauses}`;
+      if (options.onConflict.updateValues) {
+        // Explicit update values: parameterize each value
+        const updateVals = options.onConflict.updateValues;
+        const setClauses = options.onConflict.updateColumns
+          .map((c) => {
+            const snakeCol = camelToSnake(c);
+            allParams.push(updateVals[c]);
+            return `"${snakeCol}" = $${allParams.length}`;
+          })
+          .join(', ');
+        sql += ` ON CONFLICT (${conflictCols}) DO UPDATE SET ${setClauses}`;
+      } else {
+        // Use EXCLUDED values (from the INSERT row)
+        const setClauses = options.onConflict.updateColumns
+          .map((c) => {
+            const snakeCol = camelToSnake(c);
+            return `"${snakeCol}" = EXCLUDED."${snakeCol}"`;
+          })
+          .join(', ');
+        sql += ` ON CONFLICT (${conflictCols}) DO UPDATE SET ${setClauses}`;
+      }
     }
   }
 
