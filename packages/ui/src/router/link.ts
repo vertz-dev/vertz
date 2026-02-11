@@ -5,6 +5,7 @@
  * and support active state styling.
  */
 
+import { effect } from '../runtime/signal';
 import type { ReadonlySignal } from '../runtime/signal-types';
 
 /** Props for the Link component. */
@@ -39,9 +40,16 @@ export function createLink(
       el.classList.add(props.className);
     }
 
-    // Active state
-    if (props.activeClass && currentPath.value === props.href) {
-      el.classList.add(props.activeClass);
+    // Reactive active state — re-evaluates whenever currentPath changes
+    if (props.activeClass) {
+      const activeClass = props.activeClass;
+      effect(() => {
+        if (currentPath.value === props.href) {
+          el.classList.add(activeClass);
+        } else {
+          el.classList.remove(activeClass);
+        }
+      });
     }
 
     // Intercept clicks for SPA navigation

@@ -1,5 +1,7 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { signal } from '../../runtime/signal';
+import { defineRoutes } from '../define-routes';
+import { createRouter } from '../navigate';
 import { parseSearchParams, useSearchParams } from '../search-params';
 
 describe('parseSearchParams', () => {
@@ -56,5 +58,73 @@ describe('useSearchParams', () => {
 
     searchSignal.value = { page: 2, sort: 'name' };
     expect(useSearchParams(searchSignal)).toEqual({ page: 2, sort: 'name' });
+  });
+});
+
+describe('router.searchParams signal', () => {
+  test('exposes searchParams signal on router', () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/');
+    expect(router.searchParams).toBeDefined();
+    expect(router.searchParams.value).toEqual({});
+  });
+
+  test('searchParams signal updates on navigate with search schema', async () => {
+    const schema = {
+      parse(data: unknown) {
+        const raw = data as Record<string, string>;
+        return { page: Number(raw.page ?? '1') };
+      },
+    };
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/items': { component: () => document.createElement('div'), searchParams: schema },
+    });
+    const router = createRouter(routes, '/');
+
+    await router.navigate('/items?page=3');
+
+    expect(router.searchParams.value).toEqual({ page: 3 });
+  });
+
+  test('useSearchParams reads from router.searchParams', async () => {
+    const schema = {
+      parse(data: unknown) {
+        const raw = data as Record<string, string>;
+        return { page: Number(raw.page ?? '1') };
+      },
+    };
+    const routes = defineRoutes({
+      '/items': { component: () => document.createElement('div'), searchParams: schema },
+    });
+    const router = createRouter(routes, '/items?page=5');
+
+    // Allow initial loaders to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    const params = useSearchParams(router.searchParams);
+    expect(params).toEqual({ page: 5 });
+  });
+
+  test('search params schema.parse is called only once per navigation (no double parsing)', async () => {
+    const parseSpy = vi.fn((data: unknown) => {
+      const raw = data as Record<string, string>;
+      return { page: Number(raw.page ?? '1') };
+    });
+    const schema = { parse: parseSpy };
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/items': { component: () => document.createElement('div'), searchParams: schema },
+    });
+    const router = createRouter(routes, '/');
+
+    parseSpy.mockClear();
+    await router.navigate('/items?page=2');
+
+    // matchRoute parses once; navigate should NOT parse again
+    expect(parseSpy).toHaveBeenCalledTimes(1);
+    expect(router.searchParams.value).toEqual({ page: 2 });
   });
 });

@@ -85,4 +85,27 @@ describe('Link component', () => {
 
     expect(navigate).not.toHaveBeenCalled();
   });
+
+  test('activeClass toggles reactively when currentPath changes', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    const el = Link({ activeClass: 'active', children: 'About', href: '/about' });
+
+    // Initially not active
+    expect(el.classList.contains('active')).toBe(false);
+
+    // Navigate to /about
+    currentPath.value = '/about';
+
+    // Now should be active
+    expect(el.classList.contains('active')).toBe(true);
+
+    // Navigate away
+    currentPath.value = '/other';
+
+    // Should no longer be active
+    expect(el.classList.contains('active')).toBe(false);
+  });
 });
