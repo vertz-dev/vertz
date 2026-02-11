@@ -53,6 +53,10 @@ flags:
     paths:
       - packages/core/src/
     carryforward: true
+  db:
+    paths:
+      - packages/db/src/
+    carryforward: true
   fetch:
     paths:
       - packages/fetch/src/
