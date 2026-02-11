@@ -46,6 +46,23 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed packages
+        id: changes
+        run: |
+          BASE_SHA=${{ github.event.pull_request.base.sha }}
+          HEAD_SHA=${{ github.event.pull_request.head.sha }}
+          CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
+
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db; do
+            if echo "$CHANGED_FILES" | grep -q "^packages/$pkg/"; then
+              echo "${pkg//-/_}=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "${pkg//-/_}=false" >> "$GITHUB_OUTPUT"
+            fi
+          done
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -59,22 +76,30 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          for pkg in core schema compiler codegen cli cli-runtime fetch testing; do
-            echo "::group::Coverage — $pkg"
-            cd packages/$pkg
-            bunx vitest run \
-              --coverage \
-              --coverage.reporter=json-summary \
-              --coverage.reporter=json \
-              --coverage.reporter=text \
-              --coverage.reportOnFailure || true
-            cd "$GITHUB_WORKSPACE"
-            echo "::endgroup::"
+          BASE_SHA=${{ github.event.pull_request.base.sha }}
+          HEAD_SHA=${{ github.event.pull_request.head.sha }}
+          CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
+
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db; do
+            if echo "$CHANGED_FILES" | grep -q "^packages/$pkg/"; then
+              echo "::group::Coverage — $pkg"
+              cd packages/$pkg
+              bunx vitest run \
+                --coverage \
+                --coverage.reporter=json-summary \
+                --coverage.reporter=json \
+                --coverage.reporter=text \
+                --coverage.reportOnFailure || true
+              cd "$GITHUB_WORKSPACE"
+              echo "::endgroup::"
+            else
+              echo "Skipping coverage for $pkg (no changes)"
+            fi
           done
 
       - name: Verify coverage output
         run: |
-          for pkg in core schema compiler codegen cli cli-runtime fetch testing; do
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db; do
             if [ -f "packages/$pkg/coverage/coverage-summary.json" ]; then
               echo "OK: packages/$pkg/coverage/coverage-summary.json"
             else
@@ -86,13 +111,13 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: packages/*/coverage/coverage-final.json
-          flags: cli,cli-runtime,codegen,compiler,core,fetch,schema,testing
+          flags: cli,cli-runtime,codegen,compiler,core,db,fetch,schema,testing
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Coverage report — Core
         uses: davelosert/vitest-coverage-report-action@v2
-        if: always()
+        if: always() && steps.changes.outputs.core == 'true'
         with:
           working-directory: packages/core
           vite-config-path: vitest.config.ts
@@ -101,7 +126,7 @@ jobs:
 
       - name: Coverage report — Schema
         uses: davelosert/vitest-coverage-report-action@v2
-        if: always()
+        if: always() && steps.changes.outputs.schema == 'true'
         with:
           working-directory: packages/schema
           vite-config-path: vitest.config.ts
@@ -110,7 +135,7 @@ jobs:
 
       - name: Coverage report — Compiler
         uses: davelosert/vitest-coverage-report-action@v2
-        if: always()
+        if: always() && steps.changes.outputs.compiler == 'true'
         with:
           working-directory: packages/compiler
           vite-config-path: vitest.config.ts
@@ -119,7 +144,7 @@ jobs:
 
       - name: Coverage report — Codegen
         uses: davelosert/vitest-coverage-report-action@v2
-        if: always()
+        if: always() && steps.changes.outputs.codegen == 'true'
         with:
           working-directory: packages/codegen
           vite-config-path: vitest.config.ts
@@ -128,7 +153,7 @@ jobs:
 
       - name: Coverage report — CLI
         uses: davelosert/vitest-coverage-report-action@v2
-        if: always()
+        if: always() && steps.changes.outputs.cli == 'true'
         with:
           working-directory: packages/cli
           vite-config-path: vitest.config.ts
@@ -137,7 +162,7 @@ jobs:
 
       - name: Coverage report — CLI Runtime
         uses: davelosert/vitest-coverage-report-action@v2
-        if: always()
+        if: always() && steps.changes.outputs.cli_runtime == 'true'
         with:
           working-directory: packages/cli-runtime
           vite-config-path: vitest.config.ts
@@ -146,7 +171,7 @@ jobs:
 
       - name: Coverage report — Fetch
         uses: davelosert/vitest-coverage-report-action@v2
-        if: always()
+        if: always() && steps.changes.outputs.fetch == 'true'
         with:
           working-directory: packages/fetch
           vite-config-path: vitest.config.ts
@@ -155,9 +180,18 @@ jobs:
 
       - name: Coverage report — Testing
         uses: davelosert/vitest-coverage-report-action@v2
-        if: always()
+        if: always() && steps.changes.outputs.testing == 'true'
         with:
           working-directory: packages/testing
           vite-config-path: vitest.config.ts
           name: Testing
+          file-coverage-mode: all
+
+      - name: Coverage report — DB
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always() && steps.changes.outputs.db == 'true'
+        with:
+          working-directory: packages/db
+          vite-config-path: vitest.config.ts
+          name: DB
           file-coverage-mode: all
