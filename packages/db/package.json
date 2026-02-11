@@ -18,6 +18,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./diagnostic": {
+      "import": "./dist/diagnostic/index.js",
+      "types": "./dist/diagnostic/index.d.ts"
     }
   },
   "files": [
