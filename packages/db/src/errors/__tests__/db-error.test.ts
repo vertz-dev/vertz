@@ -25,14 +25,15 @@ describe('DbError base class', () => {
 });
 
 describe('UniqueConstraintError', () => {
-  it('has code 23505 and correct properties', () => {
+  it('has semantic code UNIQUE_VIOLATION and pgCode 23505', () => {
     const err = new UniqueConstraintError({
       table: 'users',
       column: 'email',
       value: 'foo@bar.com',
       query: 'INSERT INTO users ...',
     });
-    expect(err.code).toBe('23505');
+    expect(err.code).toBe('UNIQUE_VIOLATION');
+    expect(err.pgCode).toBe('23505');
     expect(err.name).toBe('UniqueConstraintError');
     expect(err.table).toBe('users');
     expect(err.column).toBe('email');
@@ -42,7 +43,7 @@ describe('UniqueConstraintError', () => {
     expect(err.message).toContain('email');
   });
 
-  it('toJSON() produces structured output', () => {
+  it('toJSON() produces structured output with semantic code', () => {
     const err = new UniqueConstraintError({
       table: 'users',
       column: 'email',
@@ -51,7 +52,7 @@ describe('UniqueConstraintError', () => {
     const json = err.toJSON();
     expect(json).toEqual({
       error: 'UniqueConstraintError',
-      code: '23505',
+      code: 'UNIQUE_VIOLATION',
       message: expect.stringContaining('email'),
       table: 'users',
       column: 'email',
@@ -66,14 +67,15 @@ describe('UniqueConstraintError', () => {
 });
 
 describe('ForeignKeyError', () => {
-  it('has code 23503 and correct properties', () => {
+  it('has semantic code FOREIGN_KEY_VIOLATION and pgCode 23503', () => {
     const err = new ForeignKeyError({
       table: 'posts',
       constraint: 'posts_author_id_fkey',
       detail: 'Key (author_id)=(abc-123) is not present in table "users".',
       query: 'INSERT INTO posts ...',
     });
-    expect(err.code).toBe('23503');
+    expect(err.code).toBe('FOREIGN_KEY_VIOLATION');
+    expect(err.pgCode).toBe('23503');
     expect(err.name).toBe('ForeignKeyError');
     expect(err.table).toBe('posts');
     expect(err.constraint).toBe('posts_author_id_fkey');
@@ -82,7 +84,7 @@ describe('ForeignKeyError', () => {
     expect(err.message).toContain('posts_author_id_fkey');
   });
 
-  it('toJSON() produces structured output', () => {
+  it('toJSON() produces structured output with semantic code', () => {
     const err = new ForeignKeyError({
       table: 'posts',
       constraint: 'posts_author_id_fkey',
@@ -91,7 +93,7 @@ describe('ForeignKeyError', () => {
     const json = err.toJSON();
     expect(json).toEqual({
       error: 'ForeignKeyError',
-      code: '23503',
+      code: 'FOREIGN_KEY_VIOLATION',
       message: expect.stringContaining('posts_author_id_fkey'),
       table: 'posts',
     });
@@ -99,13 +101,14 @@ describe('ForeignKeyError', () => {
 });
 
 describe('NotNullError', () => {
-  it('has code 23502 and correct properties', () => {
+  it('has semantic code NOT_NULL_VIOLATION and pgCode 23502', () => {
     const err = new NotNullError({
       table: 'users',
       column: 'name',
       query: 'INSERT INTO users ...',
     });
-    expect(err.code).toBe('23502');
+    expect(err.code).toBe('NOT_NULL_VIOLATION');
+    expect(err.pgCode).toBe('23502');
     expect(err.name).toBe('NotNullError');
     expect(err.table).toBe('users');
     expect(err.column).toBe('name');
@@ -113,12 +116,12 @@ describe('NotNullError', () => {
     expect(err.message).toContain('name');
   });
 
-  it('toJSON() produces structured output', () => {
+  it('toJSON() produces structured output with semantic code', () => {
     const err = new NotNullError({ table: 'users', column: 'name' });
     const json = err.toJSON();
     expect(json).toEqual({
       error: 'NotNullError',
-      code: '23502',
+      code: 'NOT_NULL_VIOLATION',
       message: expect.stringContaining('name'),
       table: 'users',
       column: 'name',
@@ -127,13 +130,14 @@ describe('NotNullError', () => {
 });
 
 describe('CheckConstraintError', () => {
-  it('has code 23514 and correct properties', () => {
+  it('has semantic code CHECK_VIOLATION and pgCode 23514', () => {
     const err = new CheckConstraintError({
       table: 'orders',
       constraint: 'orders_amount_positive',
       query: 'INSERT INTO orders ...',
     });
-    expect(err.code).toBe('23514');
+    expect(err.code).toBe('CHECK_VIOLATION');
+    expect(err.pgCode).toBe('23514');
     expect(err.name).toBe('CheckConstraintError');
     expect(err.table).toBe('orders');
     expect(err.constraint).toBe('orders_amount_positive');
@@ -141,7 +145,7 @@ describe('CheckConstraintError', () => {
     expect(err.message).toContain('orders_amount_positive');
   });
 
-  it('toJSON() produces structured output', () => {
+  it('toJSON() produces structured output with semantic code', () => {
     const err = new CheckConstraintError({
       table: 'orders',
       constraint: 'orders_amount_positive',
@@ -149,7 +153,7 @@ describe('CheckConstraintError', () => {
     const json = err.toJSON();
     expect(json).toEqual({
       error: 'CheckConstraintError',
-      code: '23514',
+      code: 'CHECK_VIOLATION',
       message: expect.stringContaining('orders_amount_positive'),
       table: 'orders',
     });

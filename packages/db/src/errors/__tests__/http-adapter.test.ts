@@ -9,6 +9,7 @@ import {
   UniqueConstraintError,
 } from '../db-error';
 import { dbErrorToHttpError } from '../http-adapter';
+import { parsePgError } from '../pg-parser';
 
 describe('dbErrorToHttpError', () => {
   it('maps UniqueConstraintError to 409 Conflict', () => {
@@ -16,7 +17,7 @@ describe('dbErrorToHttpError', () => {
     const http = dbErrorToHttpError(err);
     expect(http.status).toBe(409);
     expect(http.body.error).toBe('UniqueConstraintError');
-    expect(http.body.code).toBe('23505');
+    expect(http.body.code).toBe('UNIQUE_VIOLATION');
   });
 
   it('maps ForeignKeyError to 422 Unprocessable Entity', () => {
@@ -81,7 +82,6 @@ describe('dbErrorToHttpError', () => {
 
   it('defaults unknown DbError subclasses to 500', () => {
     // Create a DbError subclass not covered by the known types
-    const { parsePgError } = require('../pg-parser');
     const err = parsePgError({ code: '42P01', message: 'relation does not exist' });
     const http = dbErrorToHttpError(err);
     expect(http.status).toBe(500);
