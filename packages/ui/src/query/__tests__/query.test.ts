@@ -153,6 +153,109 @@ describe('query()', () => {
     expect(result2.data.value).toBe('b');
   });
 
+  test('dispose stops reactive effect from re-running', async () => {
+    const dep = signal(1);
+    let fetchCount = 0;
+
+    const result = query(
+      () => {
+        dep.value;
+        fetchCount++;
+        return Promise.resolve(fetchCount);
+      },
+      { key: 'dispose-test' },
+    );
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(result.data.value).toBe(1);
+    const countAfterInit = fetchCount;
+
+    // Dispose the query
+    result.dispose();
+
+    // Change dep — should NOT trigger a re-fetch
+    dep.value = 2;
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchCount).toBe(countAfterInit);
+    expect(result.data.value).toBe(1);
+  });
+
+  test('dispose clears pending debounce timer', async () => {
+    const dep = signal(1);
+    let fetchCount = 0;
+
+    const result = query(
+      () => {
+        dep.value;
+        fetchCount++;
+        return Promise.resolve(fetchCount);
+      },
+      { debounce: 100, key: 'dispose-debounce-test' },
+    );
+
+    // Wait for initial debounced fetch
+    await vi.advanceTimersByTimeAsync(100);
+    const countAfterInit = fetchCount;
+
+    // Change dep to trigger debounce
+    dep.value = 2;
+
+    // Dispose before debounce timer fires
+    result.dispose();
+
+    // Advance past debounce window — should NOT fetch
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(fetchCount).toBe(countAfterInit + 1); // +1 for the tracking call, but no startFetch
+  });
+
+  test('dispose invalidates pending fetch responses', async () => {
+    const resolvers: Array<(v: string) => void> = [];
+    const result = query(
+      () =>
+        new Promise<string>((resolve) => {
+          resolvers.push(resolve);
+        }),
+      { key: 'dispose-inflight-test' },
+    );
+
+    expect(result.loading.value).toBe(true);
+
+    // Dispose while fetch is in-flight
+    result.dispose();
+
+    // Resolve the pending promise — should be ignored (stale)
+    resolvers[0]?.('stale');
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Data should remain undefined since the response was invalidated
+    expect(result.data.value).toBeUndefined();
+  });
+
+  test('debounce does not call thunk redundantly in setTimeout', async () => {
+    const dep = signal(1);
+    let fetchCount = 0;
+
+    query(
+      () => {
+        const val = dep.value;
+        fetchCount++;
+        return Promise.resolve(`value-${val}`);
+      },
+      { debounce: 100, key: 'debounce-no-redundant-test' },
+    );
+
+    // Initial effect run calls thunk once for tracking
+    const countAfterInit = fetchCount;
+    expect(countAfterInit).toBe(1);
+
+    // After debounce fires, startFetch uses the tracking promise —
+    // thunk should NOT be called again
+    await vi.advanceTimersByTimeAsync(100);
+    expect(fetchCount).toBe(countAfterInit); // No additional thunk call
+  });
+
   test('stale responses are ignored after refetch', async () => {
     const resolvers: Array<(v: string) => void> = [];
     const result = query(

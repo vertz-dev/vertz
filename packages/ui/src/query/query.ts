@@ -30,6 +30,8 @@ export interface QueryResult<T> {
   refetch: () => void;
   /** Alias for refetch — revalidate the cached data. */
   revalidate: () => void;
+  /** Dispose the query — stops the reactive effect and cleans up inflight state. */
+  dispose: () => void;
 }
 
 /**
@@ -107,13 +109,9 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
 
   /**
    * Start a fetch. If an in-flight request exists for the same key,
-   * piggybacks on it (deduplication). Otherwise calls the thunk.
-   *
-   * @param trackingPromise - Promise from the thunk call made for
-   *   reactive dep tracking. Used as the fetch promise when no
-   *   deduplication is needed, avoiding a redundant thunk call.
+   * piggybacks on it (deduplication). Otherwise uses the provided promise.
    */
-  function startFetch(trackingPromise: Promise<T>): void {
+  function startFetch(fetchPromise: Promise<T>): void {
     const id = ++fetchId;
 
     untrack(() => {
@@ -128,9 +126,9 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
       return;
     }
 
-    // Use the tracking promise as the fetch promise.
-    inflight.set(cacheKey, trackingPromise);
-    handleFetchPromise(trackingPromise, id);
+    // Register and handle the fetch promise.
+    inflight.set(cacheKey, fetchPromise);
+    handleFetchPromise(fetchPromise, id);
   }
 
   /**
@@ -153,9 +151,11 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
   // For deduplication: if an in-flight request already exists for this
   // cache key, we skip calling the thunk and piggyback on the existing
   // promise instead.
+  let disposeFn: (() => void) | undefined;
+
   if (enabled) {
     let isFirst = true;
-    effect(() => {
+    disposeFn = effect(() => {
       // Read the refetch trigger to re-run on manual refetch()
       refetchTrigger.value;
 
@@ -180,6 +180,8 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
       if (isFirst && initialData !== undefined) {
         // Skip the initial fetch when initialData is provided.
         // The thunk was still called above to register reactive deps.
+        // Suppress unhandled rejection on the discarded tracking promise.
+        promise.catch(() => {});
         isFirst = false;
         return;
       }
@@ -187,14 +189,31 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
 
       if (debounceMs !== undefined && debounceMs > 0) {
         clearTimeout(debounceTimer);
+        // Use the tracking promise directly instead of calling thunk() again.
+        // This avoids a redundant fetch call in the setTimeout.
+        // Previous tracking promises (from rapid dep changes) are invalidated
+        // by the fetchId check in handleFetchPromise.
         debounceTimer = setTimeout(() => {
-          const p = untrack(() => thunk());
-          startFetch(p);
+          startFetch(promise);
         }, debounceMs);
       } else {
         startFetch(promise);
       }
     });
+  }
+
+  /**
+   * Dispose the query — stops the reactive effect and cleans up inflight state.
+   */
+  function dispose(): void {
+    // Dispose the reactive effect to stop re-running on dep changes.
+    disposeFn?.();
+    // Clear any pending debounce timer.
+    clearTimeout(debounceTimer);
+    // Invalidate any pending fetch responses by bumping fetchId.
+    fetchId++;
+    // Clean up inflight entry if this query owns it.
+    inflight.delete(cacheKey);
   }
 
   return {
@@ -203,5 +222,6 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
     error,
     refetch,
     revalidate: refetch,
+    dispose,
   };
 }
