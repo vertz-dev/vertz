@@ -1,4 +1,5 @@
 import type { TableEntry } from '../schema/inference';
+import type { SqlFragment } from '../sql/tagged';
 import { computeTenantGraph, type TenantGraph } from './tenant-graph';
 
 // ---------------------------------------------------------------------------
@@ -32,6 +33,15 @@ export interface CreateDbOptions<TTables extends Record<string, TableEntry>> {
 }
 
 // ---------------------------------------------------------------------------
+// Query result
+// ---------------------------------------------------------------------------
+
+export interface QueryResult<T> {
+  readonly rows: readonly T[];
+  readonly rowCount: number;
+}
+
+// ---------------------------------------------------------------------------
 // Database instance interface
 // ---------------------------------------------------------------------------
 
@@ -40,6 +50,19 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   readonly _tables: TTables;
   /** The computed tenant scoping graph. */
   readonly $tenantGraph: TenantGraph;
+  /**
+   * Execute a raw SQL query via the sql tagged template.
+   *
+   * @example
+   * ```ts
+   * const users = await db.query<User>(sql`SELECT * FROM users WHERE id = ${id}`);
+   * // users.rows: readonly User[]
+   * ```
+   *
+   * Real execution requires a postgres driver connection.
+   * Currently throws until driver integration lands.
+   */
+  query<T = Record<string, unknown>>(fragment: SqlFragment): Promise<QueryResult<T>>;
   /**
    * Close all pool connections.
    * Stub — real implementation comes with postgres driver integration.
@@ -96,6 +119,13 @@ export function createDb<TTables extends Record<string, TableEntry>>(
   return {
     _tables: tables,
     $tenantGraph: tenantGraph,
+
+    async query<T = Record<string, unknown>>(_fragment: SqlFragment): Promise<QueryResult<T>> {
+      throw new Error(
+        'db.query() requires a connected postgres driver. ' +
+          'Driver integration is not yet available — see the implementation plan for the driver phase.',
+      );
+    },
 
     async close(): Promise<void> {
       // Stub — real pool.end() will be called here when postgres driver is integrated
