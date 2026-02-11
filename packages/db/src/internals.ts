@@ -22,5 +22,3 @@ export {
 } from './query/helpers';
 // Row mapping (snake_case -> camelCase)
 export { mapRow, mapRows } from './query/row-mapper';
-// Casing conversion
-export { camelToSnake, snakeToCamel } from './sql/casing';

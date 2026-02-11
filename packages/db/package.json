@@ -16,24 +16,24 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./sql": {
-      "import": "./dist/sql/index.js",
-      "types": "./dist/sql/index.d.ts"
+      "types": "./dist/sql/index.d.ts",
+      "import": "./dist/sql/index.js"
     },
     "./internals": {
-      "import": "./dist/internals.js",
-      "types": "./dist/internals.d.ts"
+      "types": "./dist/internals.d.ts",
+      "import": "./dist/internals.js"
     },
     "./plugin": {
-      "import": "./dist/plugin/index.js",
-      "types": "./dist/plugin/index.d.ts"
+      "types": "./dist/plugin/index.d.ts",
+      "import": "./dist/plugin/index.js"
     },
     "./diagnostic": {
-      "import": "./dist/diagnostic/index.js",
-      "types": "./dist/diagnostic/index.d.ts"
+      "types": "./dist/diagnostic/index.d.ts",
+      "import": "./dist/diagnostic/index.js"
     }
   },
   "files": [
