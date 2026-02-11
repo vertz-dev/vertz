@@ -9,8 +9,17 @@ export type { Ref } from './component/refs';
 export { ref } from './component/refs';
 export type { SuspenseProps } from './component/suspense';
 export { Suspense } from './component/suspense';
-export type { CSSInput, CSSOutput, GlobalCSSInput, GlobalCSSOutput, StyleEntry } from './css';
-export { css, globalCss, s } from './css';
+export type {
+  CSSInput,
+  CSSOutput,
+  GlobalCSSInput,
+  GlobalCSSOutput,
+  StyleEntry,
+  VariantFunction,
+  VariantProps,
+  VariantsConfig,
+} from './css';
+export { css, globalCss, s, variants } from './css';
 export { __attr, __classList, __show } from './dom/attributes';
 export { __conditional } from './dom/conditional';
 export { __element, __text } from './dom/element';
