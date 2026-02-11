@@ -77,7 +77,7 @@ export async function migrateDev(options: MigrateDevOptions): Promise<MigrateDev
   // Apply migration
   const runner = createMigrationRunner();
   await runner.createHistoryTable(options.queryFn);
-  await runner.apply(options.queryFn, sql, filename);
+  await runner.apply(options.queryFn, sql, filename, { dryRun: false });
 
   return {
     migrationFile: filename,
