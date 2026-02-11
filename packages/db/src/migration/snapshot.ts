@@ -55,7 +55,9 @@ export function createSnapshot(tables: TableDef<ColumnRecord>[]): SchemaSnapshot
       };
 
       if (meta.hasDefault && meta.defaultValue !== undefined) {
-        colSnap.default = String(meta.defaultValue);
+        const rawDefault = String(meta.defaultValue);
+        // Convert special default markers to SQL expressions
+        colSnap.default = rawDefault === 'now' ? 'now()' : rawDefault;
       }
 
       if (meta.sensitive) {
