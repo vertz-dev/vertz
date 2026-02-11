@@ -1,4 +1,10 @@
-export type { CreateDbOptions, DatabaseInstance, PoolConfig, TenantGraph } from './client';
+export type {
+  CreateDbOptions,
+  DatabaseInstance,
+  PoolConfig,
+  QueryResult,
+  TenantGraph,
+} from './client';
 export { computeTenantGraph, createDb } from './client';
 export { d } from './d';
 export type {
@@ -44,3 +50,26 @@ export type {
 } from './schema/inference';
 export type { RelationDef } from './schema/relation';
 export type { IndexDef, TableDef } from './schema/table';
+export type {
+  DeleteOptions,
+  DeleteResult,
+  InsertOptions,
+  InsertResult,
+  OnConflictOptions,
+  SelectOptions,
+  SelectResult,
+  SqlFragment,
+  UpdateOptions,
+  UpdateResult,
+  WhereResult,
+} from './sql';
+export {
+  buildDelete,
+  buildInsert,
+  buildSelect,
+  buildUpdate,
+  buildWhere,
+  camelToSnake,
+  snakeToCamel,
+  sql,
+} from './sql';

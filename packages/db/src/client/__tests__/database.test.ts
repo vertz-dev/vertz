@@ -175,3 +175,29 @@ describe('createDb pool config', () => {
     expect(db).toBeDefined();
   });
 });
+
+describe('db.query()', () => {
+  it('exists on the database instance', () => {
+    const db = createDb({
+      url: 'postgres://localhost:5432/test',
+      tables: {
+        organizations: { table: organizations, relations: {} },
+      },
+    });
+
+    expect(typeof db.query).toBe('function');
+  });
+
+  it('throws because driver is not yet connected', async () => {
+    const db = createDb({
+      url: 'postgres://localhost:5432/test',
+      tables: {
+        organizations: { table: organizations, relations: {} },
+      },
+    });
+
+    await expect(db.query({ _tag: 'SqlFragment', sql: 'SELECT 1', params: [] })).rejects.toThrow(
+      'db.query() requires a connected postgres driver',
+    );
+  });
+});
