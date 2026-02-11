@@ -80,6 +80,7 @@ describe('Integration Tests — Component Model', () => {
     let attempts = 0;
     let retryFn: (() => void) | undefined;
 
+    const container = document.createElement('div');
     const result = ErrorBoundary({
       children: () => {
         attempts++;
@@ -97,32 +98,17 @@ describe('Integration Tests — Component Model', () => {
         return el;
       },
     });
+    container.appendChild(result);
 
     // First render: children throws, fallback shown
-    expect(result.textContent).toBe('Error: component error');
+    expect(container.textContent).toBe('Error: component error');
     expect(retryFn).toBeDefined();
     expect(attempts).toBe(1);
 
-    // Retry: re-invoke ErrorBoundary (attempts is now >= 2, so children succeeds)
-    const retryResult = ErrorBoundary({
-      children: () => {
-        attempts++;
-        if (attempts < 2) {
-          throw new TypeError('component error');
-        }
-        const el = document.createElement('p');
-        el.textContent = 'recovered';
-        return el;
-      },
-      fallback: (error, retry) => {
-        retryFn = retry;
-        const el = document.createElement('span');
-        el.textContent = `Error: ${error.message}`;
-        return el;
-      },
-    });
-
-    expect(retryResult.textContent).toBe('recovered');
+    // Call actual retry — it replaces fallback with children result in the DOM
+    retryFn?.();
+    expect(container.textContent).toBe('recovered');
+    expect(attempts).toBe(2);
   });
 
   // IT-1C-5: ref provides access to DOM element after mount

@@ -67,18 +67,14 @@ describe('Suspense', () => {
     expect(container.textContent).toBe('done');
   });
 
-  test('renders fallback when children throw an error (not a Promise)', () => {
-    // Non-promise errors should be caught and fallback shown
-    const result = Suspense({
-      children: () => {
-        throw new TypeError('real error');
-      },
-      fallback: () => {
-        const el = document.createElement('span');
-        el.textContent = 'error fallback';
-        return el;
-      },
-    });
-    expect(result.textContent).toBe('error fallback');
+  test('re-throws non-Promise errors (use ErrorBoundary for those)', () => {
+    expect(() =>
+      Suspense({
+        children: () => {
+          throw new TypeError('real error');
+        },
+        fallback: () => document.createElement('span'),
+      }),
+    ).toThrow('real error');
   });
 });

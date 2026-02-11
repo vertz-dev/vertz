@@ -1,12 +1,9 @@
-/** Unique token to detect "no value provided" vs explicit undefined. */
-const NO_VALUE: unique symbol = Symbol('NO_VALUE');
-
 /** A context object created by `createContext`. */
 export interface Context<T> {
   /** Provide a value to all `useContext` calls within the scope. */
   Provider: (value: T, fn: () => void) => void;
   /** @internal — current value stack */
-  _stack: (T | typeof NO_VALUE)[];
+  _stack: T[];
   /** @internal — default value */
   _default: T | undefined;
 }
@@ -18,7 +15,7 @@ export interface Context<T> {
 export function createContext<T>(defaultValue?: T): Context<T> {
   const ctx: Context<T> = {
     Provider(value: T, fn: () => void): void {
-      ctx._stack.push(value as T | typeof NO_VALUE);
+      ctx._stack.push(value);
       try {
         fn();
       } finally {

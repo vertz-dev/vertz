@@ -1,5 +1,4 @@
 import { describe, expect, test } from 'vitest';
-import { signal } from '../../runtime/signal';
 import { ErrorBoundary } from '../error-boundary';
 
 describe('ErrorBoundary', () => {
@@ -42,61 +41,35 @@ describe('ErrorBoundary', () => {
   });
 
   test('fallback receives a retry function that re-renders children', () => {
-    const attempts = signal(0);
+    let attempts = 0;
     let retryFn: (() => void) | undefined;
 
     const container = document.createElement('div');
-    const render = () => {
-      const result = ErrorBoundary({
-        children: () => {
-          attempts.value++;
-          if (attempts.peek() < 2) {
-            throw new TypeError('not ready');
-          }
-          const el = document.createElement('p');
-          el.textContent = 'success';
-          return el;
-        },
-        fallback: (_error, retry) => {
-          retryFn = retry;
-          const el = document.createElement('span');
-          el.textContent = 'error';
-          return el;
-        },
-      });
-      container.innerHTML = '';
-      container.appendChild(result);
-    };
+    const result = ErrorBoundary({
+      children: () => {
+        attempts++;
+        if (attempts < 2) {
+          throw new TypeError('not ready');
+        }
+        const el = document.createElement('p');
+        el.textContent = 'success';
+        return el;
+      },
+      fallback: (_error, retry) => {
+        retryFn = retry;
+        const el = document.createElement('span');
+        el.textContent = 'error';
+        return el;
+      },
+    });
+    container.appendChild(result);
 
-    render();
     // First render: children throws, fallback shown
     expect(container.textContent).toBe('error');
     expect(retryFn).toBeDefined();
 
-    // Retry: this time children should succeed (attempts >= 2)
-    // We need to re-render with the retry
-    if (retryFn) {
-      // Retry re-invokes the ErrorBoundary
-      const retryResult = ErrorBoundary({
-        children: () => {
-          attempts.value++;
-          if (attempts.peek() < 2) {
-            throw new TypeError('not ready');
-          }
-          const el = document.createElement('p');
-          el.textContent = 'success';
-          return el;
-        },
-        fallback: (_error, retry) => {
-          retryFn = retry;
-          const el = document.createElement('span');
-          el.textContent = 'error';
-          return el;
-        },
-      });
-      container.innerHTML = '';
-      container.appendChild(retryResult);
-    }
+    // Call the actual retry function — it should replace the fallback in the DOM
+    retryFn?.();
     expect(container.textContent).toBe('success');
   });
 

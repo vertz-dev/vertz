@@ -22,32 +22,32 @@ function isPromise(value: unknown): value is Promise<unknown> {
  * Renders children synchronously if possible.
  * If children throw a Promise, renders the fallback and waits for resolution,
  * then replaces the fallback with the children result.
- * If children throw a non-Promise error, renders the fallback.
+ * If children throw a non-Promise error, it is re-thrown (use ErrorBoundary for error handling).
  */
 export function Suspense(props: SuspenseProps): Node {
   try {
     return props.children();
   } catch (thrown: unknown) {
-    if (isPromise(thrown)) {
-      // Create a placeholder that will be replaced after the promise resolves
-      const placeholder = props.fallback();
-
-      thrown.then(() => {
-        try {
-          const resolved = props.children();
-          // Replace placeholder in the DOM if it has a parent
-          if (placeholder.parentNode) {
-            placeholder.parentNode.replaceChild(resolved, placeholder);
-          }
-        } catch (_retryError: unknown) {
-          // If children throw again on retry, keep the fallback
-        }
-      });
-
-      return placeholder;
+    if (!isPromise(thrown)) {
+      // Non-Promise errors are not Suspense's concern — re-throw for ErrorBoundary
+      throw thrown;
     }
 
-    // Non-Promise error: show fallback
-    return props.fallback();
+    // Create a placeholder that will be replaced after the promise resolves
+    const placeholder = props.fallback();
+
+    thrown.then(() => {
+      try {
+        const resolved = props.children();
+        // Replace placeholder in the DOM if it has a parent
+        if (placeholder.parentNode) {
+          placeholder.parentNode.replaceChild(resolved, placeholder);
+        }
+      } catch (_retryError: unknown) {
+        // If children throw again on retry, keep the fallback
+      }
+    });
+
+    return placeholder;
   }
 }

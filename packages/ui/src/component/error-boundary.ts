@@ -20,15 +20,28 @@ function toError(value: unknown): Error {
  * ErrorBoundary component.
  * Catches errors thrown by `children()` and renders `fallback` instead.
  * The fallback receives the error and a retry function to re-attempt rendering.
+ *
+ * When retry is called, children() is re-invoked. If it succeeds, the fallback
+ * node in the DOM is replaced with the new children result.
  */
 export function ErrorBoundary(props: ErrorBoundaryProps): Node {
   try {
     return props.children();
   } catch (thrown: unknown) {
     const error = toError(thrown);
-    const retry = () => {
-      // Retry simply re-invokes children — the caller decides what to do with the result
-    };
-    return props.fallback(error, retry);
+    const fallbackNode = props.fallback(error, retry);
+
+    function retry(): void {
+      try {
+        const retryResult = props.children();
+        if (fallbackNode.parentNode) {
+          fallbackNode.parentNode.replaceChild(retryResult, fallbackNode);
+        }
+      } catch (_retryThrown: unknown) {
+        // If children throw again on retry, keep the current fallback
+      }
+    }
+
+    return fallbackNode;
   }
 }
