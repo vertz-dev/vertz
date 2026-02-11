@@ -1,4 +1,5 @@
 import type { ColumnBuilder, ColumnMetadata, InferColumnType } from './column';
+import type { RelationDef } from './relation';
 
 // ---------------------------------------------------------------------------
 // Index Definition
@@ -129,7 +130,7 @@ export interface TableDef<TColumns extends ColumnRecord = ColumnRecord> {
 // ---------------------------------------------------------------------------
 
 export interface TableOptions {
-  relations?: Record<string, unknown>;
+  relations?: Record<string, RelationDef>;
   indexes?: IndexDef[];
 }
 
