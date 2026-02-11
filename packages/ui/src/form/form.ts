@@ -20,10 +20,10 @@ export interface FormOptions<TBody> {
   schema: FormSchema<TBody>;
 }
 
-/** Callbacks for form submission. */
+/** Callbacks for form submission. Both are optional per spec. */
 export interface SubmitCallbacks<TResult> {
-  onSuccess: (result: TResult) => void;
-  onError: (errors: Record<string, string>) => void;
+  onSuccess?: (result: TResult) => void;
+  onError?: (errors: Record<string, string>) => void;
 }
 
 /** A form instance bound to an SDK method. */
@@ -35,12 +35,17 @@ export interface FormInstance<TBody, TResult> {
   submitting: Signal<boolean>;
 
   /**
-   * Extract data from FormData, validate against schema, and call the SDK method.
-   * Calls `onSuccess` with the result or `onError` with validation/server errors.
+   * Returns an event handler that extracts FormData, validates, and submits.
+   * Assignable to onSubmit: `onSubmit={userForm.handleSubmit({ onSuccess })}`.
+   *
+   * Can also be called directly with FormData for non-DOM usage:
+   * `userForm.handleSubmit({ onSuccess })(formData)`.
    */
-  handleSubmit(formData: FormData, callbacks: SubmitCallbacks<TResult>): Promise<void>;
+  handleSubmit(
+    callbacks?: SubmitCallbacks<TResult>,
+  ): (formDataOrEvent: FormData | Event) => Promise<void>;
 
-  /** Returns the error message for a field, or undefined if no error. Type-safe field names. */
+  /** Returns the error message for a field reactively, or undefined if no error. Type-safe field names. */
   error(field: keyof TBody & string): string | undefined;
 }
 
@@ -49,7 +54,7 @@ export interface FormInstance<TBody, TResult> {
  *
  * The form provides:
  * - `attrs()` for progressive enhancement (returns action/method from SDK metadata)
- * - `handleSubmit()` for FormData extraction, validation, and SDK submission
+ * - `handleSubmit()` returns an event handler for FormData extraction, validation, and SDK submission
  * - `error()` for reactive field-level error access
  * - `submitting` signal for loading state
  */
@@ -64,44 +69,59 @@ export function form<TBody, TResult>(
     attrs() {
       return {
         action: sdkMethod.url,
-        method: sdkMethod.method.toLowerCase(),
+        method: sdkMethod.method,
       };
     },
 
     submitting,
 
-    async handleSubmit(formData: FormData, callbacks: SubmitCallbacks<TResult>) {
-      // Extract form data to plain object
-      const data = formDataToObject(formData);
+    handleSubmit(callbacks?: SubmitCallbacks<TResult>) {
+      return async (formDataOrEvent: FormData | Event) => {
+        // Extract FormData from event or use directly
+        let formData: FormData;
+        if (formDataOrEvent instanceof Event) {
+          formDataOrEvent.preventDefault();
+          const target = formDataOrEvent.target as HTMLFormElement;
+          formData = new FormData(target);
+        } else {
+          formData = formDataOrEvent;
+        }
 
-      // Validate against schema
-      const result = validate(options.schema, data);
+        // Extract form data to plain object
+        const data = formDataToObject(formData);
 
-      if (!result.success) {
-        errors.value = result.errors;
-        callbacks.onError(result.errors);
-        return;
-      }
+        // Validate against schema
+        const result = validate(options.schema, data);
 
-      // Clear previous errors on valid submission
-      errors.value = {};
-      submitting.value = true;
+        if (!result.success) {
+          errors.value = result.errors;
+          callbacks?.onError?.(result.errors);
+          return;
+        }
 
-      try {
-        const response = await sdkMethod(result.data);
-        callbacks.onSuccess(response);
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Submission failed';
-        const serverErrors = { _form: message };
-        errors.value = serverErrors;
-        callbacks.onError(serverErrors);
-      } finally {
+        // Clear previous errors on valid submission
+        errors.value = {};
+        submitting.value = true;
+
+        let response: TResult;
+        try {
+          response = await sdkMethod(result.data);
+        } catch (err: unknown) {
+          submitting.value = false;
+          const message = err instanceof Error ? err.message : 'Submission failed';
+          const serverErrors = { _form: message };
+          errors.value = serverErrors;
+          callbacks?.onError?.(serverErrors);
+          return;
+        }
         submitting.value = false;
-      }
+        callbacks?.onSuccess?.(response);
+      };
     },
 
     error(field: keyof TBody & string) {
-      const currentErrors = errors.peek();
+      // Use .value for reactive tracking in components
+      const currentErrors = errors.value;
       return currentErrors[field];
     },
   };

@@ -48,10 +48,10 @@ describe('form', () => {
 
       const f = form(sdk, { schema: passingSchema() });
 
-      expect(f.attrs()).toEqual({ action: '/api/users', method: 'post' });
+      expect(f.attrs()).toEqual({ action: '/api/users', method: 'POST' });
     });
 
-    it('lowercases the method for HTML form compatibility', () => {
+    it('preserves the method casing from SDK metadata', () => {
       const sdk = mockSdkMethod({
         url: '/api/items',
         method: 'PUT',
@@ -60,7 +60,7 @@ describe('form', () => {
 
       const f = form(sdk, { schema: passingSchema() });
 
-      expect(f.attrs()).toEqual({ action: '/api/items', method: 'put' });
+      expect(f.attrs()).toEqual({ action: '/api/items', method: 'PUT' });
     });
   });
 
@@ -93,10 +93,11 @@ describe('form', () => {
       const fd = new FormData();
       fd.append('name', 'Alice');
 
-      const submitPromise = f.handleSubmit(fd, {
+      const handler = f.handleSubmit({
         onSuccess: () => {},
         onError: () => {},
       });
+      const submitPromise = handler(fd);
 
       expect(f.submitting.peek()).toBe(true);
 
@@ -108,6 +109,55 @@ describe('form', () => {
   });
 
   describe('handleSubmit', () => {
+    it('returns an event handler function', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+
+      const f = form(sdk, { schema: passingSchema() });
+      const handler = f.handleSubmit({ onSuccess: () => {} });
+
+      expect(typeof handler).toBe('function');
+    });
+
+    it('works with empty callbacks', async () => {
+      const handler = vi.fn().mockResolvedValue({ id: 1 });
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler,
+      });
+
+      const f = form(sdk, { schema: passingSchema() });
+
+      const fd = new FormData();
+      fd.append('name', 'Alice');
+
+      // Empty callbacks — should not throw
+      await f.handleSubmit({})(fd);
+      expect(handler).toHaveBeenCalled();
+    });
+
+    it('works with no callbacks argument', async () => {
+      const handler = vi.fn().mockResolvedValue({ id: 1 });
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler,
+      });
+
+      const f = form(sdk, { schema: passingSchema() });
+
+      const fd = new FormData();
+      fd.append('name', 'Alice');
+
+      // No callbacks at all
+      await f.handleSubmit()(fd);
+      expect(handler).toHaveBeenCalled();
+    });
+
     it('extracts FormData, validates, and calls SDK method on success', async () => {
       const handler = vi.fn().mockResolvedValue({ id: 1, name: 'Alice' });
       const sdk = mockSdkMethod({
@@ -125,7 +175,7 @@ describe('form', () => {
       const onSuccess = vi.fn();
       const onError = vi.fn();
 
-      await f.handleSubmit(fd, { onSuccess, onError });
+      await f.handleSubmit({ onSuccess, onError })(fd);
 
       expect(handler).toHaveBeenCalledWith({ name: 'Alice' });
       expect(onSuccess).toHaveBeenCalledWith({ id: 1, name: 'Alice' });
@@ -149,7 +199,7 @@ describe('form', () => {
       const onSuccess = vi.fn();
       const onError = vi.fn();
 
-      await f.handleSubmit(fd, { onSuccess, onError });
+      await f.handleSubmit({ onSuccess, onError })(fd);
 
       expect(handler).not.toHaveBeenCalled();
       expect(onSuccess).not.toHaveBeenCalled();
@@ -172,10 +222,39 @@ describe('form', () => {
       const onSuccess = vi.fn();
       const onError = vi.fn();
 
-      await f.handleSubmit(fd, { onSuccess, onError });
+      await f.handleSubmit({ onSuccess, onError })(fd);
 
       expect(onSuccess).not.toHaveBeenCalled();
       expect(onError).toHaveBeenCalledWith({ _form: 'Server error' });
+    });
+
+    it('does not misattribute onSuccess exceptions as server errors', async () => {
+      const handler = vi.fn().mockResolvedValue({ id: 1 });
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler,
+      });
+
+      const f = form(sdk, { schema: passingSchema() });
+
+      const fd = new FormData();
+      fd.append('name', 'Alice');
+
+      const onError = vi.fn();
+
+      // onSuccess throws — should NOT be caught and routed to onError
+      await expect(
+        f.handleSubmit({
+          onSuccess: () => {
+            throw new Error('callback bug');
+          },
+          onError,
+        })(fd),
+      ).rejects.toThrow('callback bug');
+
+      // onError should NOT have been called with the callback error
+      expect(onError).not.toHaveBeenCalled();
     });
 
     it('resets submitting to false even when SDK method rejects', async () => {
@@ -191,7 +270,7 @@ describe('form', () => {
       const fd = new FormData();
       fd.append('name', 'Alice');
 
-      await f.handleSubmit(fd, { onSuccess: () => {}, onError: () => {} });
+      await f.handleSubmit({ onSuccess: () => {}, onError: () => {} })(fd);
 
       expect(f.submitting.peek()).toBe(false);
     });
@@ -227,36 +306,46 @@ describe('form', () => {
       fd.append('name', '');
       fd.append('email', 'bad');
 
-      await f.handleSubmit(fd, { onSuccess: () => {}, onError: () => {} });
+      await f.handleSubmit({ onSuccess: () => {}, onError: () => {} })(fd);
 
       expect(f.error('name')).toBe('Name is required');
       expect(f.error('email')).toBe('Email is invalid');
     });
 
-    it('clears errors on successful submission', async () => {
+    it('clears errors on same instance after successful resubmission', async () => {
+      let shouldFail = true;
       const sdk = mockSdkMethod({
         url: '/api/users',
         method: 'POST',
         handler: async () => ({ id: 1 }),
       });
-      const failSchema = failingSchema<{ name: string }>({ name: 'Required' });
+      const schema: FormSchema<{ name: string }> = {
+        parse(data: unknown) {
+          if (shouldFail) {
+            const err = new Error('Validation failed');
+            (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = {
+              name: 'Required',
+            };
+            throw err;
+          }
+          return data as { name: string };
+        },
+      };
 
-      const f = form(sdk, { schema: failSchema });
+      const f = form(sdk, { schema });
 
-      const fd = new FormData();
-      fd.append('name', '');
-
-      await f.handleSubmit(fd, { onSuccess: () => {}, onError: () => {} });
+      // First submission — validation fails
+      const fd1 = new FormData();
+      fd1.append('name', '');
+      await f.handleSubmit({ onError: () => {} })(fd1);
       expect(f.error('name')).toBe('Required');
 
-      // Replace schema with one that passes for second submission
-      const f2 = form(sdk, { schema: passingSchema() });
-
+      // Second submission — validation passes (same form instance)
+      shouldFail = false;
       const fd2 = new FormData();
       fd2.append('name', 'Alice');
-
-      await f2.handleSubmit(fd2, { onSuccess: () => {}, onError: () => {} });
-      expect(f2.error('name')).toBeUndefined();
+      await f.handleSubmit({ onSuccess: () => {} })(fd2);
+      expect(f.error('name')).toBeUndefined();
     });
   });
 });

@@ -42,7 +42,7 @@ describe('Integration Tests — Forms', () => {
     const onSuccess = vi.fn();
     const onError = vi.fn();
 
-    await userForm.handleSubmit(fd, { onSuccess, onError });
+    await userForm.handleSubmit({ onSuccess, onError })(fd);
 
     // SDK method was called with the extracted data
     expect(handler).toHaveBeenCalledWith({ name: 'Alice', role: 'admin' });
@@ -90,7 +90,7 @@ describe('Integration Tests — Forms', () => {
     const onSuccess = vi.fn();
     const onError = vi.fn();
 
-    await userForm.handleSubmit(fd, { onSuccess, onError });
+    await userForm.handleSubmit({ onSuccess, onError })(fd);
 
     // SDK method was NOT called — validation prevented it
     expect(handler).not.toHaveBeenCalled();
@@ -149,8 +149,8 @@ describe('Integration Tests — Forms', () => {
     const putForm = form(putSdk, { schema });
     const deleteForm = form(deleteSdk, { schema });
 
-    expect(postForm.attrs()).toEqual({ action: '/api/users', method: 'post' });
-    expect(putForm.attrs()).toEqual({ action: '/api/users/123', method: 'put' });
-    expect(deleteForm.attrs()).toEqual({ action: '/api/users/123', method: 'delete' });
+    expect(postForm.attrs()).toEqual({ action: '/api/users', method: 'POST' });
+    expect(putForm.attrs()).toEqual({ action: '/api/users/123', method: 'PUT' });
+    expect(deleteForm.attrs()).toEqual({ action: '/api/users/123', method: 'DELETE' });
   });
 });
