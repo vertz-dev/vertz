@@ -44,3 +44,24 @@ export type {
 } from './schema/inference';
 export type { RelationDef } from './schema/relation';
 export type { IndexDef, TableDef } from './schema/table';
+export type {
+  DeleteOptions,
+  DeleteResult,
+  InsertOptions,
+  InsertResult,
+  OnConflictOptions,
+  SelectOptions,
+  SelectResult,
+  UpdateOptions,
+  UpdateResult,
+  WhereResult,
+} from './sql';
+export {
+  buildDelete,
+  buildInsert,
+  buildSelect,
+  buildUpdate,
+  buildWhere,
+  camelToSnake,
+  snakeToCamel,
+} from './sql';
