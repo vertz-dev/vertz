@@ -251,9 +251,9 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(org).toBeDefined();
-      expect((org as Record<string, unknown>).id).toBe(ORG_ID);
-      expect((org as Record<string, unknown>).name).toBe('Acme Corp');
-      expect((org as Record<string, unknown>).slug).toBe('acme');
+      expect(org.id).toBe(ORG_ID);
+      expect(org.name).toBe('Acme Corp');
+      expect(org.slug).toBe('acme');
     });
 
     it('creates a user', async () => {
@@ -268,8 +268,8 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(user).toBeDefined();
-      expect((user as Record<string, unknown>).id).toBe(USER_ID);
-      expect((user as Record<string, unknown>).name).toBe('Alice');
+      expect(user.id).toBe(USER_ID);
+      expect(user.name).toBe('Alice');
     });
 
     it('creates a second user', async () => {
@@ -284,7 +284,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(user).toBeDefined();
-      expect((user as Record<string, unknown>).name).toBe('Bob');
+      expect(user.name).toBe('Bob');
     });
 
     it('creates posts', async () => {
@@ -300,7 +300,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(post1).toBeDefined();
-      expect((post1 as Record<string, unknown>).title).toBe('First Post');
+      expect(post1.title).toBe('First Post');
 
       const post2 = await db.create('posts', {
         data: {
@@ -314,7 +314,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(post2).toBeDefined();
-      expect((post2 as Record<string, unknown>).title).toBe('Second Post');
+      expect(post2.title).toBe('Second Post');
     });
 
     it('creates a comment', async () => {
@@ -328,7 +328,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(comment).toBeDefined();
-      expect((comment as Record<string, unknown>).body).toBe('Great post!');
+      expect(comment.body).toBe('Great post!');
     });
 
     it('creates a feature flag', async () => {
@@ -341,7 +341,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(flag).toBeDefined();
-      expect((flag as Record<string, unknown>).name).toBe('dark_mode');
+      expect(flag.name).toBe('dark_mode');
     });
 
     it('updates a post', async () => {
@@ -351,7 +351,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(updated).toBeDefined();
-      expect((updated as Record<string, unknown>).views).toBe(150);
+      expect(updated.views).toBe(150);
     });
 
     it('deletes a comment', async () => {
@@ -360,7 +360,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(deleted).toBeDefined();
-      expect((deleted as Record<string, unknown>).id).toBe(COMMENT_ID);
+      expect(deleted.id).toBe(COMMENT_ID);
 
       // Verify it is gone
       const result = await db.findOne('comments', {
@@ -395,10 +395,9 @@ describe('E2E Acceptance Test (db-018)', () => {
 
       // Each post should have an author object
       for (const post of postsResult) {
-        const p = post as Record<string, unknown>;
-        expect(p.author).toBeDefined();
-        expect((p.author as Record<string, unknown>).id).toBe(USER_ID);
-        expect((p.author as Record<string, unknown>).name).toBe('Alice');
+        expect(post.author).toBeDefined();
+        expect(post.author.id).toBe(USER_ID);
+        expect(post.author.name).toBe('Alice');
       }
     });
 
@@ -409,10 +408,9 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(postsResult).toHaveLength(1);
-      const post = postsResult[0] as Record<string, unknown>;
-      const postComments = post.comments as unknown[];
-      expect(postComments).toHaveLength(1);
-      expect((postComments[0] as Record<string, unknown>).body).toBe('Great post!');
+      const post = postsResult[0];
+      expect(post.comments).toHaveLength(1);
+      expect(post.comments[0].body).toBe('Great post!');
     });
   });
 
@@ -427,13 +425,14 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(result.length).toBeGreaterThan(0);
-      const first = result[0] as Record<string, unknown>;
+      const first = result[0];
       expect(first.title).toBeDefined();
       expect(first.status).toBeDefined();
 
       // Content should not be returned when using explicit select
       // (At runtime, only selected columns are fetched from DB)
-      expect(first.content).toBeUndefined();
+      // With typed results, 'content' is not in the result type — verify at runtime
+      expect('content' in first).toBe(false);
     });
   });
 
@@ -448,16 +447,17 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(result.length).toBeGreaterThan(0);
-      const first = result[0] as Record<string, unknown>;
+      const first = result[0];
 
       // Name should be present
       expect(first.name).toBeDefined();
 
       // Email is sensitive — should not be returned
-      expect(first.email).toBeUndefined();
+      // With typed results, 'email' is not in the type — verify at runtime
+      expect('email' in first).toBe(false);
 
       // passwordHash is hidden — should not be returned either
-      expect(first.passwordHash).toBeUndefined();
+      expect('passwordHash' in first).toBe(false);
     });
   });
 
@@ -477,8 +477,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
       expect(result.length).toBeGreaterThan(0);
       for (const post of result) {
-        const p = post as Record<string, unknown>;
-        expect(typeof p.title === 'string' && p.title.includes('Post')).toBe(true);
+        expect(typeof post.title === 'string' && post.title.includes('Post')).toBe(true);
       }
     });
 
@@ -488,7 +487,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect((result[0] as Record<string, unknown>).title).toBe('First Post');
+      expect(result[0].title).toBe('First Post');
     });
 
     it('gt filter works for numeric columns', async () => {
@@ -497,7 +496,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect((result[0] as Record<string, unknown>).title).toBe('First Post');
+      expect(result[0].title).toBe('First Post');
     });
   });
 
@@ -515,7 +514,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
       expect(data).toHaveLength(1);
       expect(total).toBe(2); // We have 2 posts total
-      expect((data[0] as Record<string, unknown>).title).toBe('First Post');
+      expect(data[0].title).toBe('First Post');
     });
 
     it('returns second page correctly', async () => {
@@ -527,7 +526,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
       expect(data).toHaveLength(1);
       expect(total).toBe(2);
-      expect((data[0] as Record<string, unknown>).title).toBe('Second Post');
+      expect(data[0].title).toBe('Second Post');
     });
   });
 
@@ -698,7 +697,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(result).toBeDefined();
-      expect((result as Record<string, unknown>).name).toBe('new_feature');
+      expect(result.name).toBe('new_feature');
     });
 
     it('upsert updates existing row', async () => {
@@ -713,7 +712,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       });
 
       expect(result).toBeDefined();
-      expect((result as Record<string, unknown>).enabled).toBe(true);
+      expect(result.enabled).toBe(true);
     });
 
     it('createMany inserts multiple rows', async () => {
@@ -739,7 +738,7 @@ describe('E2E Acceptance Test (db-018)', () => {
         where: { id: POST_ID },
       });
       expect(result).toBeDefined();
-      expect((result as Record<string, unknown>).id).toBe(POST_ID);
+      expect(result.id).toBe(POST_ID);
     });
   });
 });
