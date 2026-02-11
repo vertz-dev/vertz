@@ -12,36 +12,44 @@
 
 ```typescript
 import { createDb } from '@vertz/db';
-import { organizations, users, posts, comments } from './schema';
+import { organizations, users, posts, postRelations, comments, commentRelations } from './schema';
 
 const db = createDb({
   url: process.env.DATABASE_URL!,  // non-null assertion -- use vertz.env() for type-safe access
   pool: {
-    min: 2,
     max: 10,
     idleTimeout: 30_000,
+    connectionTimeout: 10_000,     // [v1 deviation] replaces `min`; added connectionTimeout
   },
-  tables: { organizations, users, posts, comments },
+  tables: {
+    organizations: { table: organizations, relations: {} },
+    users:         { table: users, relations: {} },
+    posts:         { table: posts, relations: postRelations },
+    comments:      { table: comments, relations: commentRelations },
+  },
   casing: 'snake_case',  // TS camelCase <-> SQL snake_case (default)
-  log: 'query',          // 'query' | 'error' | 'all' | false
-  plugins: [],           // @experimental -- plugin interface may change
+  log: (message: string) => console.log(message),  // [v1 deviation] function, not union enum
+  // plugins: [],  // [v1 deviation] plugin interface exists but is NOT wired into createDb() in v1
 });
 ```
 
 **Type signature:**
 
 ```typescript
-function createDb<TTables extends Record<string, TableDef>>(config: {
+// [v1 deviation] Each table entry is a { table, relations } wrapper (TableEntry pattern)
+type TableEntry = { table: TableDef; relations: Record<string, RelationDef> };
+
+function createDb<TTables extends Record<string, TableEntry>>(config: {
   url: string;
-  pool?: { min?: number; max?: number; idleTimeout?: number };
+  pool?: { max?: number; idleTimeout?: number; connectionTimeout?: number };  // [v1 deviation] no `min`, added `connectionTimeout`
   tables: TTables;
   casing?: 'snake_case' | 'camelCase';
-  log?: 'query' | 'error' | 'all' | false;
-  plugins?: DbPlugin[];
-}): Database<TTables>;
+  log?: (message: string) => void;  // [v1 deviation] function callback, not enum
+  // plugins is NOT wired in v1 -- plugin infra exists but not connected to query execution
+}): DatabaseInstance<TTables>;  // [v1 deviation] return type is DatabaseInstance, not Database
 ```
 
-The `Database<TTables>` type carries the full table registry. All query methods are typed against this registry.
+The `DatabaseInstance<TTables>` type carries the full table registry. All query methods are typed against this registry.
 
 **Note on `url` type:** `process.env.DATABASE_URL` is `string | undefined` in strict TypeScript, but `url` requires `string`. Use the non-null assertion (`!`) or, in a full vertz app, use `vertz.env()` for type-safe environment access:
 
@@ -187,13 +195,13 @@ If you need runtime email validation on insert, use the `JsonbValidator` pattern
 
 ```typescript
 // Valid -- visibility filter only
-db.findOne(users, { select: { not: 'sensitive' } });
+db.findOne('users', { select: { not: 'sensitive' } });
 
 // Valid -- explicit fields only
-db.findOne(users, { select: { id: true, name: true } });
+db.findOne('users', { select: { id: true, name: true } });
 
 // Type error -- cannot combine `not` with explicit fields
-db.findOne(users, { select: { not: 'sensitive', id: true } });
+db.findOne('users', { select: { not: 'sensitive', id: true } });
 ```
 
 **Mutual exclusivity type enforcement** (Ben's fix -- uses `never`-keyed branches):
@@ -241,52 +249,72 @@ type UserUpdate   = typeof users.$update;           // Partial<{ email, name, pa
 
 ### 1.4 Relations
 
+> **[v1 deviation] Separate-registry pattern:** The original design defined relations inline as a third argument to `d.table()`. The actual implementation uses a **separate relation registry** pattern where relations are standalone objects combined in `TableEntry` wrappers passed to `createDb()`. This avoids circular dependencies between table definitions (e.g., `users` referencing `posts` and `posts` referencing `users`).
+
 ```typescript
 import { d } from '@vertz/db';
 
-// belongsTo (many-to-one)
+// ---- Step 1: Define table schemas (NO inline relations) ----
+
+export const users = d.table('users', {
+  id:   d.uuid().primary(),
+  name: d.text(),
+});
+
 export const posts = d.table('posts', {
   id:       d.uuid().primary(),
   authorId: d.uuid(),
   title:    d.text(),
-}, {
-  relations: {
-    author: d.ref.one(() => users, 'authorId'),
-  },
 });
 
-// hasMany (one-to-many) -- declared on the "one" side
-export const users = d.table('users', {
-  id:   d.uuid().primary(),
-  name: d.text(),
-}, {
-  relations: {
-    posts: d.ref.many(() => posts, 'authorId'),
-  },
-});
-
-// manyToMany (via explicit join table)
 export const postTags = d.table('post_tags', {
   postId: d.uuid(),
   tagId:  d.uuid(),
-}, {
-  relations: {
-    post: d.ref.one(() => posts, 'postId'),
-    tag:  d.ref.one(() => tags, 'tagId'),
-  },
 });
 
 export const tags = d.table('tags', {
   id:   d.uuid().primary(),
   name: d.text().unique(),
-}, {
-  relations: {
-    posts: d.ref.many(() => posts).through(() => postTags, 'tagId', 'postId'),
+});
+
+// ---- Step 2: Define relations as standalone objects ----
+
+// belongsTo (many-to-one)
+export const postRelations = {
+  author: d.ref.one(() => users, 'authorId'),
+};
+
+// hasMany (one-to-many) -- declared on the "one" side
+export const userRelations = {
+  posts: d.ref.many(() => posts, 'authorId'),
+};
+
+// manyToMany (via explicit join table)
+export const postTagRelations = {
+  post: d.ref.one(() => posts, 'postId'),
+  tag:  d.ref.one(() => tags, 'tagId'),
+};
+
+export const tagRelations = {
+  posts: d.ref.many(() => posts).through(() => postTags, 'tagId', 'postId'),
+};
+
+// ---- Step 3: Combine in createDb() via TableEntry wrappers ----
+
+const db = createDb({
+  url: process.env.DATABASE_URL!,
+  tables: {
+    users:    { table: users, relations: userRelations },
+    posts:    { table: posts, relations: postRelations },
+    postTags: { table: postTags, relations: postTagRelations },
+    tags:     { table: tags, relations: tagRelations },
   },
 });
 ```
 
-Lazy references (`() => table`) avoid circular dependency issues in TypeScript module resolution.
+Lazy references (`() => table`) avoid circular dependency issues in TypeScript module resolution. The separate-registry pattern further eliminates circular dependencies that arose with the inline `d.table()` third-argument approach.
+
+> **NOTE:** The inline `d.table(name, columns, { relations: {...} })` approach shown in other sections (1.2, etc.) reflects the original design but is **NOT how the implementation works**. The third argument to `d.table()` is not used for relations in v1. Relations are always defined separately and passed via `TableEntry` wrappers.
 
 ### 1.5 `d.tenant()` -- Metadata-Only Column Type (v1)
 
@@ -328,20 +356,22 @@ All queries are typed against the registered table definitions. The result types
 The single-row method is `findOne` (returns `T | null`). The multi-row method is `findMany` (returns `T[]`). The pair `findOne`/`findMany` is explicit and unambiguous.
 
 ```typescript
+// [v1 deviation] All query methods take a string table name (registry key), not a TableDef reference
+
 // Find one by filter -- returns single row or null
-const user = await db.findOne(users, {
+const user = await db.findOne('users', {
   where: { email: 'alice@example.com' },
 });
 // Type: User | null
 
 // Find one or throw -- returns single row, throws NotFoundError if missing
-const user = await db.findOneOrThrow(users, {
+const user = await db.findOneOrThrow('users', {
   where: { id: userId },
 });
 // Type: User (throws NotFoundError if missing)
 
 // Find many with options
-const results = await db.findMany(users, {
+const results = await db.findMany('users', {
   where: { active: true },
   select: { id: true, name: true, email: true },
   orderBy: { createdAt: 'desc' },
@@ -351,7 +381,7 @@ const results = await db.findMany(users, {
 // Type: Pick<User, 'id' | 'name' | 'email'>[]
 
 // Find many with includes
-const postsWithAuthor = await db.findMany(posts, {
+const postsWithAuthor = await db.findMany('posts', {
   where: { status: 'published' },
   include: {
     author: true,
@@ -361,7 +391,7 @@ const postsWithAuthor = await db.findMany(posts, {
 // Type: (Post & { author: User })[]
 
 // Combined select + include
-const postsWithAuthorName = await db.findMany(posts, {
+const postsWithAuthorName = await db.findMany('posts', {
   select: { title: true, status: true },
   include: {
     author: { select: { name: true } },
@@ -370,15 +400,16 @@ const postsWithAuthorName = await db.findMany(posts, {
 // Type: (Pick<Post, 'title' | 'status'> & { author: Pick<User, 'name'> })[]
 
 // Cursor-based pagination
-const page = await db.findMany(posts, {
-  where: { status: 'published' },
-  cursor: { id: lastPostId },
-  take: 20,
-  orderBy: { createdAt: 'desc' },
-});
+// [v1 deviation] NOT IMPLEMENTED in v1 -- cursor pagination is deferred
+// const page = await db.findMany('posts', {
+//   where: { status: 'published' },
+//   cursor: { id: lastPostId },
+//   take: 20,
+//   orderBy: { createdAt: 'desc' },
+// });
 
 // findManyAndCount -- combined count + results
-const { data, total } = await db.findManyAndCount(posts, {
+const { data, total } = await db.findManyAndCount('posts', {
   where: { status: 'published' },
   limit: 20,
   offset: 0,
@@ -389,7 +420,7 @@ const { data, total } = await db.findManyAndCount(posts, {
 **Filter operators:**
 
 ```typescript
-const results = await db.findMany(posts, {
+const results = await db.findMany('posts', {
   where: {
     // Equality
     status: 'published',
@@ -410,15 +441,15 @@ const results = await db.findMany(posts, {
     // Null checks
     bio: { isNull: false },
 
-    // Logical operators
-    OR: [
-      { status: 'published' },
-      { authorId: currentUserId },
-    ],
-    NOT: { status: 'archived' },
+    // [v1 deviation] OR/NOT logical operators are NOT IMPLEMENTED in v1
+    // OR: [
+    //   { status: 'published' },
+    //   { authorId: currentUserId },
+    // ],
+    // NOT: { status: 'archived' },
 
-    // Relation filters
-    author: { active: true },
+    // [v1 deviation] Relation filters are NOT IMPLEMENTED in v1
+    // author: { active: true },
   },
 });
 ```
@@ -426,8 +457,10 @@ const results = await db.findMany(posts, {
 **Mutation queries:**
 
 ```typescript
+// [v1 deviation] All mutation methods take string table names, not TableDef references
+
 // Create
-const user = await db.create(users, {
+const user = await db.create('users', {
   data: {
     email: 'alice@example.com',
     name: 'Alice',
@@ -437,7 +470,7 @@ const user = await db.create(users, {
 // Type: User
 
 // Create many (batch insert)
-const created = await db.createMany(users, {
+const created = await db.createMany('users', {
   data: [
     { email: 'alice@example.com', name: 'Alice', organizationId: orgId },
     { email: 'bob@example.com', name: 'Bob', organizationId: orgId },
@@ -446,7 +479,7 @@ const created = await db.createMany(users, {
 // Type: { count: number }
 
 // Create many and return (separate method -- founder decision #5)
-const createdUsers = await db.createManyAndReturn(users, {
+const createdUsers = await db.createManyAndReturn('users', {
   data: [
     { email: 'alice@example.com', name: 'Alice', organizationId: orgId },
     { email: 'bob@example.com', name: 'Bob', organizationId: orgId },
@@ -455,21 +488,21 @@ const createdUsers = await db.createManyAndReturn(users, {
 // Type: User[]
 
 // Update -- throws NotFoundError if where clause matches zero rows
-const updated = await db.update(users, {
+const updated = await db.update('users', {
   where: { id: userId },
   data: { name: 'Alice Smith' },
 });
 // Type: User (never null -- throws if no match)
 
 // Update many -- returns count, never throws for zero matches
-const result = await db.updateMany(users, {
+const result = await db.updateMany('users', {
   where: { active: false },
   data: { role: 'viewer' },
 });
 // Type: { count: number } (count may be 0)
 
 // Upsert -- always returns a row (creates if not found)
-const user = await db.upsert(users, {
+const user = await db.upsert('users', {
   where: { email: 'alice@example.com' },
   create: { email: 'alice@example.com', name: 'Alice', organizationId: orgId },
   update: { name: 'Alice' },
@@ -477,25 +510,25 @@ const user = await db.upsert(users, {
 // Type: User
 
 // Delete -- throws NotFoundError if where clause matches zero rows
-const deleted = await db.delete(users, {
+const deleted = await db.delete('users', {
   where: { id: userId },
 });
 // Type: User (never null -- throws if no match)
 
 // Delete many -- returns count, never throws for zero matches
-const result = await db.deleteMany(users, {
+const result = await db.deleteMany('users', {
   where: { active: false },
 });
 // Type: { count: number } (count may be 0)
 
 // Count
-const count = await db.count(users, {
+const count = await db.count('users', {
   where: { active: true },
 });
 // Type: number
 
 // Aggregate
-const stats = await db.aggregate(posts, {
+const stats = await db.aggregate('posts', {
   _avg: { views: true },
   _sum: { views: true },
   _count: true,
@@ -504,7 +537,7 @@ const stats = await db.aggregate(posts, {
 // Type: { _avg: { views: number | null }; _sum: { views: number }; _count: number }
 
 // Group by
-const groups = await db.groupBy(posts, {
+const groups = await db.groupBy('posts', {
   by: ['status'],
   _count: true,
   _avg: { views: true },
@@ -534,14 +567,18 @@ For queries that cannot be expressed through the query builder:
 ```typescript
 import { sql } from '@vertz/db';
 
+// [v1 deviation] db.query() returns QueryResult<T> with .rows and .rowCount, not T[]
+
 // Tagged template literal with type-safe parameters
-const results = await db.query<{ id: string; title: string; rank: number }>(
+const result = await db.query<{ id: string; title: string; rank: number }>(
   sql`SELECT id, title, ts_rank(search_vector, query) AS rank
       FROM posts, to_tsquery('english', ${searchTerm}) query
       WHERE search_vector @@ query
       ORDER BY rank DESC
       LIMIT ${limit}`
 );
+// result.rows[0].rank  -- access via .rows
+// result.rowCount       -- number of rows returned
 
 // CTEs (Common Table Expressions)
 const topAuthors = await db.query<{ authorId: string; postCount: number }>(
@@ -556,10 +593,12 @@ const topAuthors = await db.query<{ authorId: string; postCount: number }>(
   WHERE post_count > ${minPosts}
   ORDER BY post_count DESC`
 );
+// topAuthors.rows[0].postCount  -- access via .rows
 
 // Raw SQL escape (for truly dynamic queries)
 const columns = sql.raw('id, name, email');
-const result = await db.query(sql`SELECT ${columns} FROM users`);
+const result2 = await db.query(sql`SELECT ${columns} FROM users`);
+// result2.rows  -- the row array
 ```
 
 The `sql` tagged template automatically parameterizes values (prevents SQL injection). `sql.raw()` is the escape hatch for trusted dynamic SQL -- it is NOT parameterized and must be used with caution.
@@ -577,26 +616,26 @@ abstract class DbError extends Error {
   toJSON(): { error: string; code: string; message: string; table?: string };
 }
 
-// Constraint violations
+// Constraint violations -- [v1 deviation] error codes use PG numeric codes, not semantic strings
 class UniqueConstraintError extends DbError {
-  readonly code = 'UNIQUE_VIOLATION';
+  readonly code = '23505';  // [v1 deviation] was 'UNIQUE_VIOLATION'
   readonly column: string;
   readonly value: unknown;
 }
 
 class ForeignKeyError extends DbError {
-  readonly code = 'FOREIGN_KEY_VIOLATION';
+  readonly code = '23503';  // [v1 deviation] was 'FOREIGN_KEY_VIOLATION'
   readonly constraint: string;
   readonly detail: string;
 }
 
 class NotNullError extends DbError {
-  readonly code = 'NOT_NULL_VIOLATION';
+  readonly code = '23502';  // [v1 deviation] was 'NOT_NULL_VIOLATION'
   readonly column: string;
 }
 
 class CheckConstraintError extends DbError {
-  readonly code = 'CHECK_VIOLATION';
+  readonly code = '23514';  // [v1 deviation] was 'CHECK_VIOLATION'
   readonly constraint: string;
 }
 
@@ -610,7 +649,8 @@ class ConnectionError extends DbError {
   readonly code = 'CONNECTION_ERROR';
 }
 
-class ConnectionPoolExhaustedError extends DbError {
+// [v1 deviation] ConnectionPoolExhaustedError extends ConnectionError, not DbError directly
+class ConnectionPoolExhaustedError extends ConnectionError {
   readonly code = 'POOL_EXHAUSTED';
 }
 ```
@@ -618,7 +658,7 @@ class ConnectionPoolExhaustedError extends DbError {
 **Adapter for `@vertz/core`:**
 
 ```typescript
-import { dbErrorToHttpError } from '@vertz/db/core-adapter';
+import { dbErrorToHttpError } from '@vertz/db';  // [v1 deviation] single barrel export, was '@vertz/db/core-adapter'
 
 // Maps DbError -> VertzException (when used inside @vertz/core)
 // UniqueConstraintError -> ConflictException (409)
@@ -634,10 +674,10 @@ import { dbErrorToHttpError } from '@vertz/db/core-adapter';
 type DbErrorCode = DbError['code'];
 
 type DbErrorToHttpMap = {
-  UNIQUE_VIOLATION: 409;
-  FOREIGN_KEY_VIOLATION: 422;
-  NOT_NULL_VIOLATION: 422;
-  CHECK_VIOLATION: 422;
+  '23505': 409;   // [v1 deviation] PG numeric codes
+  '23503': 422;
+  '23502': 422;
+  '23514': 422;
   NOT_FOUND: 404;
   CONNECTION_ERROR: 503;
   POOL_EXHAUSTED: 503;
@@ -657,6 +697,8 @@ PostgreSQL error code parser (~80 lines) maps native PG error codes to typed `Db
 **`TransactionError` is deferred to v1.1** with transaction support.
 
 ### 1.10 Getting Started -- `vertz db init`
+
+> **[v1 deviation] `vertz db init` is NOT IMPLEMENTED in v1.** The scaffolding command described below is designed but deferred. Developers must manually create the schema files and `createDb()` boilerplate for now.
 
 First-time setup for developers new to `@vertz/db`:
 
@@ -748,9 +790,9 @@ The snapshot format stores tables, columns, indexes, unique constraints, foreign
 const db = createDb({
   url: process.env.DATABASE_URL!,
   pool: {
-    min: 2,
     max: 10,
     idleTimeout: 30_000,
+    connectionTimeout: 10_000,  // [v1 deviation] replaces `min`; added connectionTimeout
   },
   // ...
 });
@@ -762,7 +804,7 @@ await db.close();
 const healthy = await db.isHealthy();
 ```
 
-Connection pool configuration: min/max connections, idle timeout. Graceful shutdown drains the pool. Health check runs a simple query (`SELECT 1`). Connection error recovery with automatic reconnection.
+Connection pool configuration: max connections, idle timeout, connection timeout. `min` is not supported in v1 (dropped as unused). Graceful shutdown drains the pool. Health check runs a simple query (`SELECT 1`). Connection error recovery with automatic reconnection.
 
 ### 1.13 Plugin Interface (@experimental)
 
@@ -820,7 +862,7 @@ The `d` namespace is highly discoverable -- `d.` followed by autocomplete shows 
 4. **`tenantPlugin()` runtime enforcement** -- Deferred to v1.1. v1 ships `d.tenant()` as metadata only.
 5. **`@vertz/auth`** -- Entirely separate package. Hierarchical roles, ReBAC, billing/entitlements are out of scope for `@vertz/db`.
 6. **Multi-database / NoSQL** -- PostgreSQL only. This is a deliberate constraint, not a gap.
-7. **Caching layer** -- No built-in cache in v1. Cache-readiness primitives (mutation event bus, query fingerprinting, result metadata, relation invalidation graph) are deferred to v1.1. Caching is a consumer concern. See Section 8 for the v1.1 preview design.
+7. **Caching layer** -- No built-in cache in v1. ~~Cache-readiness primitives (mutation event bus, query fingerprinting, result metadata, relation invalidation graph) are deferred to v1.1.~~ **[v1 deviation]** Event bus (`createEventBus`) and query fingerprinting (`fingerprint`) shipped in v1. Result metadata and relation invalidation graph remain deferred. Caching is a consumer concern. See Section 8 for details.
 8. **Real-time subscriptions** -- `db.subscribe()` is a v2 concept.
 9. **Visual migration browser** -- CLI-only for v1.
 10. **Implicit many-to-many** -- Explicit join tables required. No Prisma-style implicit M:M.
@@ -926,16 +968,16 @@ d.table(name, columns)
     -> $not_sensitive: ExcludeByVisibility<TColumns, 'sensitive'>
     -> $not_hidden: ExcludeByVisibility<TColumns, 'hidden'>
 
-createDb({ tables: TTables })
-  -> Database<TTables>
-    -> db.findOne(table, { select?, include?, where? })
+createDb({ tables: TTables })  // TTables = Record<string, TableEntry>
+  -> DatabaseInstance<TTables>  // [v1 deviation] was Database<TTables>
+    -> db.findOne('tableName', { select?, include?, where? })  // [v1 deviation] string key, not TableDef
       -> FindResult<TableDef, { select, include }>
         -> SelectNarrow<TColumns, TSelect>
         -> IncludeResolve<TRelations, TInclude, depth=2>
-    -> db.create(table, { data })
+    -> db.create('tableName', { data })
       -> validates against InsertInput<TColumns>
       -> returns InferColumns<TColumns>
-    -> db.update(table, { where, data })
+    -> db.update('tableName', { where, data })
       -> validates against UpdateInput<TColumns>
       -> returns InferColumns<TColumns>
 ```
@@ -1011,16 +1053,22 @@ Type 'true' is not assignable to type
 The following test validates the entire ORM works end-to-end. It exercises schema definition, type inference, queries, relations, mutations, filters, error handling, and migrations.
 
 ```typescript
+// [v1 deviation] Updated to reflect actual implementation patterns:
+// - TableEntry wrappers with separate relations
+// - String table names in query methods
+// - QueryResult<T> return from db.query()
+// - Imports from '@vertz/db' (single barrel, no subpath exports)
+
 import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
-import { createDb, d, sql } from '@vertz/db';
+import { createDb, d, sql, push } from '@vertz/db';
 import {
   DbError,
   UniqueConstraintError,
   NotFoundError,
   ForeignKeyError,
-} from '@vertz/db/errors';
+} from '@vertz/db';  // [v1 deviation] was '@vertz/db/errors'
 
-// -- Schema Definition --
+// -- Schema Definition (tables defined without inline relations) --
 
 const organizations = d.table('organizations', {
   id:   d.uuid().primary(),
@@ -1046,10 +1094,6 @@ const posts = d.table('posts', {
   status:    d.enum('post_status', ['draft', 'published', 'archived']).default('draft'),
   views:     d.integer().default(0),
   createdAt: d.timestamp().default('now'),
-}, {
-  relations: {
-    author: d.ref.one(() => users, 'authorId'),
-  },
 });
 
 const comments = d.table('comments', {
@@ -1058,11 +1102,6 @@ const comments = d.table('comments', {
   authorId:  d.uuid(),
   body:      d.text(),
   createdAt: d.timestamp().default('now'),
-}, {
-  relations: {
-    post:   d.ref.one(() => posts, 'postId'),
-    author: d.ref.one(() => users, 'authorId'),
-  },
 });
 
 const featureFlags = d.table('feature_flags', {
@@ -1070,6 +1109,17 @@ const featureFlags = d.table('feature_flags', {
   name:    d.text().unique(),
   enabled: d.boolean().default(false),
 }).shared();
+
+// -- Relations (separate-registry pattern) --
+
+const postRelations = {
+  author: d.ref.one(() => users, 'authorId'),
+};
+
+const commentRelations = {
+  post:   d.ref.one(() => posts, 'postId'),
+  author: d.ref.one(() => users, 'authorId'),
+};
 
 // -- Type Inference Assertions --
 
@@ -1115,11 +1165,17 @@ describe('@vertz/db E2E', () => {
   beforeAll(async () => {
     db = createDb({
       url: process.env.TEST_DATABASE_URL!,
-      tables: { organizations, users, posts, comments, featureFlags },
-      log: false,
+      tables: {
+        organizations: { table: organizations, relations: {} },
+        users:         { table: users, relations: {} },
+        posts:         { table: posts, relations: postRelations },
+        comments:      { table: comments, relations: commentRelations },
+        featureFlags:  { table: featureFlags, relations: {} },
+      },
+      log: (msg: string) => {}, // silent for tests
     });
-    // Push schema (test setup)
-    await db.$push();
+    // Push schema (test setup) -- [v1 deviation] push() is a standalone function, not db.$push()
+    await push(db);
   });
 
   afterAll(async () => {
@@ -1127,7 +1183,7 @@ describe('@vertz/db E2E', () => {
   });
 
   it('creates an organization', async () => {
-    const org = await db.create(organizations, {
+    const org = await db.create('organizations', {
       data: { id: crypto.randomUUID(), name: 'Acme Corp', slug: 'acme' },
     });
     orgId = org.id;
@@ -1135,7 +1191,7 @@ describe('@vertz/db E2E', () => {
   });
 
   it('creates a user', async () => {
-    const user = await db.create(users, {
+    const user = await db.create('users', {
       data: {
         id: crypto.randomUUID(),
         organizationId: orgId,
@@ -1151,7 +1207,7 @@ describe('@vertz/db E2E', () => {
 
   it('rejects duplicate email (UniqueConstraintError)', async () => {
     try {
-      await db.create(users, {
+      await db.create('users', {
         data: {
           id: crypto.randomUUID(),
           organizationId: orgId,
@@ -1168,7 +1224,7 @@ describe('@vertz/db E2E', () => {
   });
 
   it('creates a post with relation', async () => {
-    const post = await db.create(posts, {
+    const post = await db.create('posts', {
       data: {
         id: crypto.randomUUID(),
         authorId: userId,
@@ -1182,7 +1238,7 @@ describe('@vertz/db E2E', () => {
   });
 
   it('finds posts with author include', async () => {
-    const result = await db.findMany(posts, {
+    const result = await db.findMany('posts', {
       where: { status: 'published' },
       include: { author: true },
     });
@@ -1191,7 +1247,7 @@ describe('@vertz/db E2E', () => {
   });
 
   it('finds with select narrowing', async () => {
-    const result = await db.findMany(posts, {
+    const result = await db.findMany('posts', {
       select: { title: true, status: true },
     });
     expect(result[0]).toHaveProperty('title');
@@ -1201,7 +1257,7 @@ describe('@vertz/db E2E', () => {
   });
 
   it('finds with visibility filter', async () => {
-    const result = await db.findMany(users, {
+    const result = await db.findMany('users', {
       select: { not: 'sensitive' },
     });
     // @ts-expect-error -- email is sensitive, excluded
@@ -1210,7 +1266,7 @@ describe('@vertz/db E2E', () => {
   });
 
   it('updates a post', async () => {
-    const updated = await db.update(posts, {
+    const updated = await db.update('posts', {
       where: { id: postId },
       data: { title: 'Updated Title' },
     });
@@ -1218,7 +1274,7 @@ describe('@vertz/db E2E', () => {
   });
 
   it('uses filter operators', async () => {
-    const result = await db.findMany(posts, {
+    const result = await db.findMany('posts', {
       where: {
         views: { gte: 0 },
         status: { in: ['published', 'draft'] },
@@ -1229,7 +1285,7 @@ describe('@vertz/db E2E', () => {
   });
 
   it('uses findManyAndCount', async () => {
-    const { data, total } = await db.findManyAndCount(posts, {
+    const { data, total } = await db.findManyAndCount('posts', {
       where: { status: 'published' },
       limit: 10,
     });
@@ -1239,7 +1295,7 @@ describe('@vertz/db E2E', () => {
 
   it('throws NotFoundError on findOneOrThrow', async () => {
     try {
-      await db.findOneOrThrow(posts, {
+      await db.findOneOrThrow('posts', {
         where: { id: '00000000-0000-0000-0000-000000000000' },
       });
       throw new Error('Should have thrown');
@@ -1250,7 +1306,7 @@ describe('@vertz/db E2E', () => {
 
   it('rejects invalid FK (ForeignKeyError)', async () => {
     try {
-      await db.create(posts, {
+      await db.create('posts', {
         data: {
           id: crypto.randomUUID(),
           authorId: '00000000-0000-0000-0000-000000000000', // non-existent user
@@ -1265,14 +1321,15 @@ describe('@vertz/db E2E', () => {
   });
 
   it('uses SQL escape hatch', async () => {
+    // [v1 deviation] db.query() returns QueryResult<T> with .rows and .rowCount
     const result = await db.query<{ count: number }>(
       sql`SELECT COUNT(*)::integer AS count FROM posts WHERE status = ${'published'}`
     );
-    expect(result[0].count).toBeGreaterThan(0);
+    expect(result.rows[0].count).toBeGreaterThan(0);
   });
 
-  it('deletes a comment by relation filter', async () => {
-    const comment = await db.create(comments, {
+  it('deletes a comment', async () => {
+    const comment = await db.create('comments', {
       data: {
         id: crypto.randomUUID(),
         postId,
@@ -1280,7 +1337,7 @@ describe('@vertz/db E2E', () => {
         body: 'Great post!',
       },
     });
-    const deleted = await db.delete(comments, {
+    const deleted = await db.delete('comments', {
       where: { id: comment.id },
     });
     expect(deleted.id).toBe(comment.id);
@@ -1298,9 +1355,9 @@ describe('@vertz/db E2E', () => {
 
 ---
 
-## 8. Cache-Readiness Primitives -- v1.1 Preview (Not In Scope for v1.0)
+## 8. Cache-Readiness Primitives -- ~~v1.1 Preview (Not In Scope for v1.0)~~
 
-> **This section documents the approved v1.1 design for reference only. These primitives are NOT part of the v1.0 deliverable.** They are included here so the v1 architecture can be designed with awareness of future cache integration points, but no implementation work is planned for v1.0.
+> **[v1 deviation] The event bus and query fingerprinting shipped in v1, contrary to the original plan.** `createEventBus`, `fingerprint`, and `createPluginRunner` are all exported from `@vertz/db` in v1.0. The original note that "these primitives are NOT part of the v1.0 deliverable" is no longer accurate. The remaining primitives (result metadata carrier, relation invalidation graph) are still deferred.
 
 Five primitives that make future caching possible without committing to a cache strategy:
 
@@ -1375,3 +1432,49 @@ At `createDb()` time, the ORM computes which tables are connected by relations. 
 **Risk:** The migration differ is a large piece of work (~40 hours estimated). It's the critical path for the developer experience. Recommend prioritizing it early.
 
 **Verdict:** Scope is correct. Matches roadmap and founder decisions. No scope creep detected.
+
+---
+
+## 9. Design Deviations (v1.0 Implementation vs. Design Doc)
+
+This section documents all deviations between the original design and the actual v1.0 implementation, discovered during adversarial API diff review.
+
+### Breaking Changes
+
+| # | Change | Design Doc | Implementation | Reason |
+|---|--------|-----------|----------------|--------|
+| 1 | Table registry shape | `createDb({ tables: { users, posts } })` with flat `TableDef` values | `createDb({ tables: { users: { table, relations } } })` with `TableEntry` wrappers | Separate relations from table defs to avoid circular dependencies between co-referencing tables |
+| 2 | Relations definition | Inline in `d.table()` 3rd argument `{ relations: {...} }` | Separate objects combined in `TableEntry` wrappers | Circular dependency between tables (e.g., users <-> posts) prevented the inline approach |
+| 3 | Query method arguments | `db.findOne(users, {...})` passing `TableDef` reference | `db.findOne('users', {...})` passing string registry key | String keys enable type-safe lookup from the `TableEntry` registry without importing table defs everywhere |
+| 4 | `log` option type | `'query' \| 'error' \| 'all' \| false` (enum) | `(message: string) => void` (callback function) | More flexible; consumers control formatting and routing without opinionated log levels |
+| 5 | Return type of `createDb()` | `Database<TTables>` | `DatabaseInstance<TTables>` | Separates type inference interfaces from the runtime instance interface |
+| 6 | `db.query()` return type | `T[]` (raw array) | `QueryResult<T>` with `.rows` and `.rowCount` | Returns query metadata alongside rows; consistent with pg driver patterns |
+| 7 | Error codes | Semantic strings: `'UNIQUE_VIOLATION'`, `'FOREIGN_KEY_VIOLATION'`, etc. | PG numeric codes: `'23505'`, `'23503'`, `'23502'`, `'23514'` | Direct PG codes avoid lossy semantic mapping; developers can reference PG docs directly |
+| 8 | Pool config | `{ min, max, idleTimeout }` | `{ max, idleTimeout, connectionTimeout }` | `min` was unused in practice; `connectionTimeout` added for connection acquisition deadline |
+| 9 | `ConnectionPoolExhaustedError` | Extends `DbError` directly | Extends `ConnectionError` (which extends `DbError`) | Pool exhaustion is a connection problem; the inheritance hierarchy reflects this |
+| 10 | `db.$push()` | Instance method on `db` | Standalone `push()` function imported from `@vertz/db` | CLI functions are standalone utilities, not tied to the database instance |
+| 11 | Import paths | Subpath exports: `@vertz/db/errors`, `@vertz/db/core-adapter` | Single barrel export: everything from `@vertz/db` | Simpler consumer DX; single import source |
+| 12 | `plugins` on `createDb()` | `plugins?: DbPlugin[]` parameter accepted | Not wired in v1 | Plugin infrastructure exists but is not connected to query execution pipeline |
+
+### Deferred Features (designed but not in v1)
+
+| Feature | Design Doc Section | Status |
+|---------|-------------------|--------|
+| Cursor-based pagination (`cursor`, `take`) | 1.7 | Not implemented |
+| `OR` / `NOT` logical filter operators | 1.7 | Not implemented |
+| Relation filters in `where` clause (`author: { active: true }`) | 1.7 | Not implemented |
+| `vertz db init` CLI scaffolding | 1.10 | Not implemented |
+| Compile-time error code exhaustiveness check | 1.9 | Not validated (PG numeric codes complicate the type-level map) |
+
+### Additions (not in original design)
+
+| Addition | Description |
+|----------|-------------|
+| Cache-readiness shipped early | `createEventBus`, `fingerprint`, `createPluginRunner` all exported in v1 (original plan deferred to v1.1) |
+| Diagnostic module | `diagnoseError`, `explainError`, `formatDiagnostic` for actionable error explanations |
+| Branded error types | `InvalidColumn`, `InvalidFilterType`, `ValidateKeys`, `StrictKeys` for type-level error messages |
+| Low-level SQL builders | `buildSelect`, `buildInsert`, `buildUpdate`, `buildDelete` exported for advanced use cases |
+| Tenant graph computation | `computeTenantGraph` exported as a standalone utility |
+| PG error parsing | `parsePgError` exported for manual error handling |
+| Row mapping utilities | `mapRow`/`mapRows`, `camelToSnake`/`snakeToCamel` exported |
+| Aggregate extensions | `_min`/`_max` operators on aggregates; `limit`/`offset` on `groupBy` |
