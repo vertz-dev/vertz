@@ -52,6 +52,7 @@ export type {
   OnConflictOptions,
   SelectOptions,
   SelectResult,
+  SqlFragment,
   UpdateOptions,
   UpdateResult,
   WhereResult,
@@ -64,4 +65,5 @@ export {
   buildWhere,
   camelToSnake,
   snakeToCamel,
+  sql,
 } from './sql';
