@@ -94,82 +94,82 @@ export class StringSchema extends Schema<string> {
     return v;
   }
 
-  min(n: number, message?: string): StringSchema {
+  min(n: number, message?: string): this {
     const clone = this._clone();
     clone._min = n;
     clone._minMessage = message;
     return clone;
   }
 
-  max(n: number, message?: string): StringSchema {
+  max(n: number, message?: string): this {
     const clone = this._clone();
     clone._max = n;
     clone._maxMessage = message;
     return clone;
   }
 
-  length(n: number, message?: string): StringSchema {
+  length(n: number, message?: string): this {
     const clone = this._clone();
     clone._length = n;
     clone._lengthMessage = message;
     return clone;
   }
 
-  regex(pattern: RegExp): StringSchema {
+  regex(pattern: RegExp): this {
     const clone = this._clone();
     clone._regex = pattern;
     return clone;
   }
 
-  startsWith(prefix: string): StringSchema {
+  startsWith(prefix: string): this {
     const clone = this._clone();
     clone._startsWith = prefix;
     return clone;
   }
 
-  endsWith(suffix: string): StringSchema {
+  endsWith(suffix: string): this {
     const clone = this._clone();
     clone._endsWith = suffix;
     return clone;
   }
 
-  includes(substring: string): StringSchema {
+  includes(substring: string): this {
     const clone = this._clone();
     clone._includes = substring;
     return clone;
   }
 
-  uppercase(): StringSchema {
+  uppercase(): this {
     const clone = this._clone();
     clone._uppercase = true;
     return clone;
   }
 
-  lowercase(): StringSchema {
+  lowercase(): this {
     const clone = this._clone();
     clone._lowercase = true;
     return clone;
   }
 
-  trim(): StringSchema {
+  trim(): this {
     const clone = this._clone();
     clone._trim = true;
     return clone;
   }
 
-  toLowerCase(): StringSchema {
+  toLowerCase(): this {
     const clone = this._clone();
     clone._toLowerCase = true;
     return clone;
   }
 
-  toUpperCase(): StringSchema {
+  toUpperCase(): this {
     const clone = this._clone();
     clone._toUpperCase = true;
     return clone;
   }
 
-  normalize(): StringSchema {
+  normalize(): this {
     const clone = this._clone();
     clone._normalize = true;
     return clone;
@@ -187,8 +187,9 @@ export class StringSchema extends Schema<string> {
     return schema;
   }
 
-  _clone(): StringSchema {
-    const clone = this._cloneBase(new StringSchema());
+  _clone(): this {
+    const Ctor = this.constructor as new () => this;
+    const clone = this._cloneBase(new Ctor());
     clone._min = this._min;
     clone._minMessage = this._minMessage;
     clone._max = this._max;
