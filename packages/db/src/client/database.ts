@@ -2,7 +2,17 @@ import * as agg from '../query/aggregate';
 import * as crud from '../query/crud';
 import type { QueryFn } from '../query/executor';
 import { type IncludeSpec, loadRelations, type TableRegistryEntry } from '../query/relation-loader';
-import type { TableEntry } from '../schema/inference';
+import type {
+  FilterType,
+  FindResult,
+  IncludeOption,
+  InsertInput,
+  OrderByType,
+  SelectOption,
+  TableEntry,
+  UpdateInput,
+} from '../schema/inference';
+import type { RelationDef } from '../schema/relation';
 import type { SqlFragment } from '../sql/tagged';
 import { computeTenantGraph, type TenantGraph } from './tenant-graph';
 
@@ -52,36 +62,97 @@ export interface QueryResult<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Type helpers — extract table/relations from TTables entry
+// ---------------------------------------------------------------------------
+
+/** Extract the TableDef from a TableEntry. */
+type EntryTable<TEntry extends TableEntry> = TEntry['table'];
+
+/** Extract the relations record from a TableEntry. */
+type EntryRelations<TEntry extends TableEntry> = TEntry['relations'];
+
+/** Extract columns from a TableEntry's table. */
+type EntryColumns<TEntry extends TableEntry> = EntryTable<TEntry>['_columns'];
+
+// ---------------------------------------------------------------------------
 // Typed query option types
 // ---------------------------------------------------------------------------
 
-/** Options for findOne / findOneOrThrow */
-interface TypedFindOneOptions {
-  readonly where?: Record<string, unknown>;
-  readonly select?: Record<string, unknown>;
-  readonly orderBy?: Record<string, 'asc' | 'desc'>;
-  readonly include?: Record<
-    string,
-    true | { select?: Record<string, true>; include?: IncludeSpec }
-  >;
-}
+/** Options for findOne / findOneOrThrow — typed per-table. */
+type TypedFindOneOptions<TEntry extends TableEntry> = {
+  readonly where?: FilterType<EntryColumns<TEntry>>;
+  readonly select?: SelectOption<EntryColumns<TEntry>>;
+  readonly orderBy?: OrderByType<EntryColumns<TEntry>>;
+  readonly include?: IncludeOption<EntryRelations<TEntry>>;
+};
 
-/** Options for findMany / findManyAndCount */
-interface TypedFindManyOptions {
-  readonly where?: Record<string, unknown>;
-  readonly select?: Record<string, unknown>;
-  readonly orderBy?: Record<string, 'asc' | 'desc'>;
+/** Options for findMany / findManyAndCount — typed per-table. */
+type TypedFindManyOptions<TEntry extends TableEntry> = {
+  readonly where?: FilterType<EntryColumns<TEntry>>;
+  readonly select?: SelectOption<EntryColumns<TEntry>>;
+  readonly orderBy?: OrderByType<EntryColumns<TEntry>>;
   readonly limit?: number;
   readonly offset?: number;
   /** Cursor object: column-value pairs marking the position to paginate from. */
   readonly cursor?: Record<string, unknown>;
   /** Number of rows to take (used with cursor). Aliases `limit` when cursor is present. */
   readonly take?: number;
-  readonly include?: Record<
-    string,
-    true | { select?: Record<string, true>; include?: IncludeSpec }
-  >;
-}
+  readonly include?: IncludeOption<EntryRelations<TEntry>>;
+};
+
+/** Options for create — typed per-table. */
+type TypedCreateOptions<TEntry extends TableEntry> = {
+  readonly data: InsertInput<EntryTable<TEntry>>;
+  readonly select?: SelectOption<EntryColumns<TEntry>>;
+};
+
+/** Options for createManyAndReturn — typed per-table. */
+type TypedCreateManyAndReturnOptions<TEntry extends TableEntry> = {
+  readonly data: readonly InsertInput<EntryTable<TEntry>>[];
+  readonly select?: SelectOption<EntryColumns<TEntry>>;
+};
+
+/** Options for createMany — typed per-table. */
+type TypedCreateManyOptions<TEntry extends TableEntry> = {
+  readonly data: readonly InsertInput<EntryTable<TEntry>>[];
+};
+
+/** Options for update — typed per-table. */
+type TypedUpdateOptions<TEntry extends TableEntry> = {
+  readonly where: FilterType<EntryColumns<TEntry>>;
+  readonly data: UpdateInput<EntryTable<TEntry>>;
+  readonly select?: SelectOption<EntryColumns<TEntry>>;
+};
+
+/** Options for updateMany — typed per-table. */
+type TypedUpdateManyOptions<TEntry extends TableEntry> = {
+  readonly where: FilterType<EntryColumns<TEntry>>;
+  readonly data: UpdateInput<EntryTable<TEntry>>;
+};
+
+/** Options for upsert — typed per-table. */
+type TypedUpsertOptions<TEntry extends TableEntry> = {
+  readonly where: FilterType<EntryColumns<TEntry>>;
+  readonly create: InsertInput<EntryTable<TEntry>>;
+  readonly update: UpdateInput<EntryTable<TEntry>>;
+  readonly select?: SelectOption<EntryColumns<TEntry>>;
+};
+
+/** Options for delete — typed per-table. */
+type TypedDeleteOptions<TEntry extends TableEntry> = {
+  readonly where: FilterType<EntryColumns<TEntry>>;
+  readonly select?: SelectOption<EntryColumns<TEntry>>;
+};
+
+/** Options for deleteMany — typed per-table. */
+type TypedDeleteManyOptions<TEntry extends TableEntry> = {
+  readonly where: FilterType<EntryColumns<TEntry>>;
+};
+
+/** Options for count — typed per-table. */
+type TypedCountOptions<TEntry extends TableEntry> = {
+  readonly where?: FilterType<EntryColumns<TEntry>>;
+};
 
 // ---------------------------------------------------------------------------
 // Database instance interface — unified type (resolves follow-up #8)
@@ -115,34 +186,53 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Find a single row or null.
    */
-  findOne<TName extends keyof TTables & string>(
+  findOne<
+    TName extends keyof TTables & string,
+    TOptions extends TypedFindOneOptions<TTables[TName]>,
+  >(
     table: TName,
-    options?: TypedFindOneOptions,
-  ): Promise<unknown>;
+    options?: TOptions,
+  ): Promise<FindResult<
+    EntryTable<TTables[TName]>,
+    TOptions,
+    EntryRelations<TTables[TName]>
+  > | null>;
 
   /**
    * Find a single row or throw NotFoundError.
    */
-  findOneOrThrow<TName extends keyof TTables & string>(
+  findOneOrThrow<
+    TName extends keyof TTables & string,
+    TOptions extends TypedFindOneOptions<TTables[TName]>,
+  >(
     table: TName,
-    options?: TypedFindOneOptions,
-  ): Promise<unknown>;
+    options?: TOptions,
+  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>>;
 
   /**
    * Find multiple rows.
    */
-  findMany<TName extends keyof TTables & string>(
+  findMany<
+    TName extends keyof TTables & string,
+    TOptions extends TypedFindManyOptions<TTables[TName]>,
+  >(
     table: TName,
-    options?: TypedFindManyOptions,
-  ): Promise<unknown[]>;
+    options?: TOptions,
+  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[]>;
 
   /**
    * Find multiple rows with total count.
    */
-  findManyAndCount<TName extends keyof TTables & string>(
+  findManyAndCount<
+    TName extends keyof TTables & string,
+    TOptions extends TypedFindManyOptions<TTables[TName]>,
+  >(
     table: TName,
-    options?: TypedFindManyOptions,
-  ): Promise<{ data: unknown[]; total: number }>;
+    options?: TOptions,
+  ): Promise<{
+    data: FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[];
+    total: number;
+  }>;
 
   // -------------------------------------------------------------------------
   // Create queries (DB-010)
@@ -151,26 +241,29 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Insert a single row and return it.
    */
-  create<TName extends keyof TTables & string>(
+  create<TName extends keyof TTables & string, TOptions extends TypedCreateOptions<TTables[TName]>>(
     table: TName,
-    options: { data: Record<string, unknown>; select?: Record<string, unknown> },
-  ): Promise<unknown>;
+    options: TOptions,
+  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>>;
 
   /**
    * Insert multiple rows and return the count.
    */
   createMany<TName extends keyof TTables & string>(
     table: TName,
-    options: { data: readonly Record<string, unknown>[] },
+    options: TypedCreateManyOptions<TTables[TName]>,
   ): Promise<{ count: number }>;
 
   /**
    * Insert multiple rows and return them.
    */
-  createManyAndReturn<TName extends keyof TTables & string>(
+  createManyAndReturn<
+    TName extends keyof TTables & string,
+    TOptions extends TypedCreateManyAndReturnOptions<TTables[TName]>,
+  >(
     table: TName,
-    options: { data: readonly Record<string, unknown>[]; select?: Record<string, unknown> },
-  ): Promise<unknown[]>;
+    options: TOptions,
+  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[]>;
 
   // -------------------------------------------------------------------------
   // Update queries (DB-010)
@@ -179,21 +272,17 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Update matching rows and return the first. Throws NotFoundError if none match.
    */
-  update<TName extends keyof TTables & string>(
+  update<TName extends keyof TTables & string, TOptions extends TypedUpdateOptions<TTables[TName]>>(
     table: TName,
-    options: {
-      where: Record<string, unknown>;
-      data: Record<string, unknown>;
-      select?: Record<string, unknown>;
-    },
-  ): Promise<unknown>;
+    options: TOptions,
+  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>>;
 
   /**
    * Update matching rows and return the count.
    */
   updateMany<TName extends keyof TTables & string>(
     table: TName,
-    options: { where: Record<string, unknown>; data: Record<string, unknown> },
+    options: TypedUpdateManyOptions<TTables[TName]>,
   ): Promise<{ count: number }>;
 
   // -------------------------------------------------------------------------
@@ -203,15 +292,10 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Insert or update a row.
    */
-  upsert<TName extends keyof TTables & string>(
+  upsert<TName extends keyof TTables & string, TOptions extends TypedUpsertOptions<TTables[TName]>>(
     table: TName,
-    options: {
-      where: Record<string, unknown>;
-      create: Record<string, unknown>;
-      update: Record<string, unknown>;
-      select?: Record<string, unknown>;
-    },
-  ): Promise<unknown>;
+    options: TOptions,
+  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>>;
 
   // -------------------------------------------------------------------------
   // Delete queries (DB-010)
@@ -220,17 +304,17 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Delete a matching row and return it. Throws NotFoundError if none match.
    */
-  delete<TName extends keyof TTables & string>(
+  delete<TName extends keyof TTables & string, TOptions extends TypedDeleteOptions<TTables[TName]>>(
     table: TName,
-    options: { where: Record<string, unknown>; select?: Record<string, unknown> },
-  ): Promise<unknown>;
+    options: TOptions,
+  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>>;
 
   /**
    * Delete matching rows and return the count.
    */
   deleteMany<TName extends keyof TTables & string>(
     table: TName,
-    options: { where: Record<string, unknown> },
+    options: TypedDeleteManyOptions<TTables[TName]>,
   ): Promise<{ count: number }>;
 
   // -------------------------------------------------------------------------
@@ -242,7 +326,7 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
    */
   count<TName extends keyof TTables & string>(
     table: TName,
-    options?: { where?: Record<string, unknown> },
+    options?: TypedCountOptions<TTables[TName]>,
   ): Promise<number>;
 
   /**
@@ -332,6 +416,16 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       );
     });
 
+  // -----------------------------------------------------------------------
+  // Implementation note: The interface provides fully typed signatures.
+  // Internally, the CRUD functions use Record<string, unknown> at runtime.
+  // We use `as any` on the return type to bridge the gap — the external
+  // contract (DatabaseInstance<TTables>) ensures type safety for callers.
+  // -----------------------------------------------------------------------
+
+  // biome-ignore lint/suspicious/noExplicitAny: Internal implementation bridges typed interface to untyped CRUD layer
+  type AnyResult = any;
+
   return {
     _tables: tables,
     $tenantGraph: tenantGraph,
@@ -353,14 +447,14 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     // Find queries
     // -----------------------------------------------------------------------
 
-    async findOne(name, opts) {
+    async findOne(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      const result = await crud.findOne(queryFn, entry.table, opts);
+      const result = await crud.findOne(queryFn, entry.table, opts as crud.FindOneArgs);
       if (result !== null && opts?.include) {
         const rows = await loadRelations(
           queryFn,
           [result as Record<string, unknown>],
-          entry.relations as Record<string, import('../schema/relation').RelationDef>,
+          entry.relations as Record<string, RelationDef>,
           opts.include as IncludeSpec,
           0,
           tablesRegistry,
@@ -371,14 +465,14 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       return result;
     },
 
-    async findOneOrThrow(name, opts) {
+    async findOneOrThrow(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      const result = await crud.findOneOrThrow(queryFn, entry.table, opts);
+      const result = await crud.findOneOrThrow(queryFn, entry.table, opts as crud.FindOneArgs);
       if (opts?.include) {
         const rows = await loadRelations(
           queryFn,
           [result as Record<string, unknown>],
-          entry.relations as Record<string, import('../schema/relation').RelationDef>,
+          entry.relations as Record<string, RelationDef>,
           opts.include as IncludeSpec,
           0,
           tablesRegistry,
@@ -389,14 +483,14 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       return result;
     },
 
-    async findMany(name, opts) {
+    async findMany(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      const results = await crud.findMany(queryFn, entry.table, opts);
+      const results = await crud.findMany(queryFn, entry.table, opts as crud.FindManyArgs);
       if (opts?.include && results.length > 0) {
         return loadRelations(
           queryFn,
           results as Record<string, unknown>[],
-          entry.relations as Record<string, import('../schema/relation').RelationDef>,
+          entry.relations as Record<string, RelationDef>,
           opts.include as IncludeSpec,
           0,
           tablesRegistry,
@@ -406,14 +500,18 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       return results;
     },
 
-    async findManyAndCount(name, opts) {
+    async findManyAndCount(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      const { data, total } = await crud.findManyAndCount(queryFn, entry.table, opts);
+      const { data, total } = await crud.findManyAndCount(
+        queryFn,
+        entry.table,
+        opts as crud.FindManyArgs,
+      );
       if (opts?.include && data.length > 0) {
         const withRelations = await loadRelations(
           queryFn,
           data as Record<string, unknown>[],
-          entry.relations as Record<string, import('../schema/relation').RelationDef>,
+          entry.relations as Record<string, RelationDef>,
           opts.include as IncludeSpec,
           0,
           tablesRegistry,
@@ -428,56 +526,56 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     // Create queries
     // -----------------------------------------------------------------------
 
-    async create(name, opts) {
+    async create(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      return crud.create(queryFn, entry.table, opts);
+      return crud.create(queryFn, entry.table, opts as crud.CreateArgs);
     },
 
-    async createMany(name, opts) {
+    async createMany(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      return crud.createMany(queryFn, entry.table, opts);
+      return crud.createMany(queryFn, entry.table, opts as crud.CreateManyArgs);
     },
 
-    async createManyAndReturn(name, opts) {
+    async createManyAndReturn(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      return crud.createManyAndReturn(queryFn, entry.table, opts);
+      return crud.createManyAndReturn(queryFn, entry.table, opts as crud.CreateManyAndReturnArgs);
     },
 
     // -----------------------------------------------------------------------
     // Update queries
     // -----------------------------------------------------------------------
 
-    async update(name, opts) {
+    async update(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      return crud.update(queryFn, entry.table, opts);
+      return crud.update(queryFn, entry.table, opts as crud.UpdateArgs);
     },
 
-    async updateMany(name, opts) {
+    async updateMany(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      return crud.updateMany(queryFn, entry.table, opts);
+      return crud.updateMany(queryFn, entry.table, opts as crud.UpdateManyArgs);
     },
 
     // -----------------------------------------------------------------------
     // Upsert
     // -----------------------------------------------------------------------
 
-    async upsert(name, opts) {
+    async upsert(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      return crud.upsert(queryFn, entry.table, opts);
+      return crud.upsert(queryFn, entry.table, opts as crud.UpsertArgs);
     },
 
     // -----------------------------------------------------------------------
     // Delete queries
     // -----------------------------------------------------------------------
 
-    async delete(name, opts) {
+    async delete(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      return crud.deleteOne(queryFn, entry.table, opts);
+      return crud.deleteOne(queryFn, entry.table, opts as crud.DeleteArgs);
     },
 
-    async deleteMany(name, opts) {
+    async deleteMany(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      return crud.deleteMany(queryFn, entry.table, opts);
+      return crud.deleteMany(queryFn, entry.table, opts as crud.DeleteManyArgs);
     },
 
     // -----------------------------------------------------------------------
@@ -486,7 +584,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async count(name, opts) {
       const entry = resolveTable(tables, name);
-      return agg.count(queryFn, entry.table, opts);
+      return agg.count(queryFn, entry.table, opts as { where?: Record<string, unknown> });
     },
 
     async aggregate(name, opts) {
