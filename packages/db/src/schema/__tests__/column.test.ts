@@ -186,3 +186,24 @@ describe('d.jsonb<T>({ validator })', () => {
     expect(col._meta.validator).toBeUndefined();
   });
 });
+
+describe('builder immutability', () => {
+  it('chainable builders return new instances (do not mutate original)', () => {
+    const original = d.text();
+    const withUnique = original.unique();
+    const withNullable = original.nullable();
+
+    expect(original._meta.unique).toBe(false);
+    expect(original._meta.nullable).toBe(false);
+    expect(withUnique._meta.unique).toBe(true);
+    expect(withUnique._meta.nullable).toBe(false);
+    expect(withNullable._meta.nullable).toBe(true);
+    expect(withNullable._meta.unique).toBe(false);
+  });
+
+  it('.default("now") stores the string "now" as default value', () => {
+    const col = d.timestamp().default('now');
+    expect(col._meta.hasDefault).toBe(true);
+    expect(col._meta.defaultValue).toBe('now');
+  });
+});

@@ -194,3 +194,78 @@ describe('type-level negative tests', () => {
     void _valid;
   });
 });
+
+describe('metadata type-level tracking', () => {
+  it('.primary() sets primary to true in metadata type', () => {
+    const col = d.uuid().primary();
+    // Type-level assertion: primary should be true
+    const _primary: typeof col._meta.primary = true;
+    // @ts-expect-error -- primary is true after .primary(), false should not be assignable
+    const _notPrimary: typeof col._meta.primary = false;
+    void _primary;
+    void _notPrimary;
+  });
+
+  it('.nullable() sets nullable to true in metadata type', () => {
+    const col = d.text().nullable();
+    const _nullable: typeof col._meta.nullable = true;
+    // @ts-expect-error -- nullable is true after .nullable(), false should not be assignable
+    const _notNullable: typeof col._meta.nullable = false;
+    void _nullable;
+    void _notNullable;
+  });
+
+  it('.default() sets hasDefault to true in metadata type', () => {
+    const col = d.boolean().default(true);
+    const _hasDefault: typeof col._meta.hasDefault = true;
+    // @ts-expect-error -- hasDefault is true after .default(), false should not be assignable
+    const _noDefault: typeof col._meta.hasDefault = false;
+    void _hasDefault;
+    void _noDefault;
+  });
+
+  it('.sensitive() sets sensitive to true in metadata type', () => {
+    const col = d.email().sensitive();
+    const _sensitive: typeof col._meta.sensitive = true;
+    // @ts-expect-error -- sensitive is true after .sensitive(), false should not be assignable
+    const _notSensitive: typeof col._meta.sensitive = false;
+    void _sensitive;
+    void _notSensitive;
+  });
+
+  it('.hidden() sets hidden to true in metadata type', () => {
+    const col = d.text().hidden();
+    const _hidden: typeof col._meta.hidden = true;
+    // @ts-expect-error -- hidden is true after .hidden(), false should not be assignable
+    const _notHidden: typeof col._meta.hidden = false;
+    void _hidden;
+    void _notHidden;
+  });
+
+  it('serial has hasDefault true by default', () => {
+    const col = d.serial();
+    const _hasDefault: typeof col._meta.hasDefault = true;
+    // @ts-expect-error -- serial has implicit default, false should not be assignable
+    const _noDefault: typeof col._meta.hasDefault = false;
+    void _hasDefault;
+    void _noDefault;
+  });
+
+  it('.unique() sets unique to true in metadata type', () => {
+    const col = d.text().unique();
+    const _unique: typeof col._meta.unique = true;
+    // @ts-expect-error -- unique is true after .unique(), false should not be assignable
+    const _notUnique: typeof col._meta.unique = false;
+    void _unique;
+    void _notUnique;
+  });
+
+  it('d.jsonb<T>() with validator preserves type parameter', () => {
+    interface Settings {
+      theme: string;
+    }
+    const validator = { parse: (v: unknown): Settings => v as Settings };
+    const col = d.jsonb<Settings>({ validator });
+    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<Settings>();
+  });
+});
