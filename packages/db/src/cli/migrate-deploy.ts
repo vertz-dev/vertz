@@ -26,9 +26,22 @@ export async function migrateDeploy(options: MigrateDeployOptions): Promise<Migr
   const runner = createMigrationRunner();
   const isDryRun = options.dryRun ?? false;
 
-  await runner.createHistoryTable(options.queryFn);
+  if (!isDryRun) {
+    await runner.createHistoryTable(options.queryFn);
+  }
 
-  const applied = await runner.getApplied(options.queryFn);
+  let applied: Awaited<ReturnType<typeof runner.getApplied>>;
+  if (isDryRun) {
+    try {
+      applied = await runner.getApplied(options.queryFn);
+    } catch {
+      // History table may not exist yet; treat as no migrations applied.
+      applied = [];
+    }
+  } else {
+    applied = await runner.getApplied(options.queryFn);
+  }
+
   const pending = runner.getPending(options.migrationFiles, applied);
 
   const appliedNames: string[] = [];
