@@ -1,105 +1,80 @@
 # @vertz/ui
 
-- **Status:** 🔴 Not Started
+- **Status:** 🟢 Complete (v0.1 shipped, v0.1.x follow-ups in progress)
 - **Owner:** nora
 - **Design doc:** plans/ui-design.md
 - **Implementation plan:** plans/ui-implementation.md
 - **Roadmap:** /app/backstage/roadmaps/vertz-ui.md
+- **Main PR:** #199 (merged 2026-02-12)
+- **Retrospective:** plans/post-implementation-reviews/vertz-ui-v1.md
 
-## Milestones
+## v0.1 Delivery Summary
 
-### Phase 1: Reactivity & Compiler Foundation
-- **Target:** TBD
-- **Status:** 🔴 Not Started
-- **Estimate:** 128 hours
-- Tickets: ui-001 (Reactivity Runtime, 40h), ui-002 (Compiler Core, 56h), ui-003 (Component Model, 32h)
+- **Packages:** 4 (@vertz/ui, @vertz/ui-compiler, @vertz/ui-server, @vertz/primitives)
+- **Phases:** 8 (15 phase PRs, 0 rework)
+- **Tests:** 700+
+- **Reviewers:** josh (DX), ben (compiler), mike (architecture)
 
-### Phase 2: CSS Framework
-- **Target:** TBD
-- **Status:** 🔴 Not Started
-- **Estimate:** 128 hours
-- **Blocked by:** Phase 1
-- Tickets: ui-004 (css() Styles, 48h), ui-005 (variants(), 24h), ui-006 (defineTheme(), 24h), ui-007 (Zero-Runtime Extraction, 32h)
+## v0.1.x Follow-Up Tickets
 
-### Phase 3: Forms
-- **Target:** TBD
-- **Status:** 🔴 Not Started
-- **Estimate:** 32 hours
-- **Blocked by:** Phase 1
-- Tickets: ui-008 (Forms, 32h)
+### Priority 1 — Correctness Bugs
 
-### Phase 4: Data Fetching
-- **Target:** TBD
-- **Status:** 🔴 Not Started
-- **Estimate:** 32 hours
-- **Blocked by:** Phase 1
-- Tickets: ui-009 (Data Fetching, 32h)
+| ID | Title | Assigned | Estimate | Status |
+|----|-------|----------|----------|--------|
+| ui-016 | Fix query() cache key reactivity | nora | 4h | 🔴 Todo |
+| ui-017 | Fix Suspense error handling + hydrate .catch() | nora | 4h | 🔴 Todo |
+| ui-018 | Fix context for async reads (watch/query) | nora | 6h | 🔴 Todo |
+| ui-019 | Fix __list effect leak on child removal | nora | 3h | 🔴 Todo |
+| ui-020 | Fix compiler replaceAll + missing import gen | ben | 4h | 🔴 Todo |
 
-### Phase 5: SSR & Hydration
-- **Target:** TBD
-- **Status:** 🔴 Not Started
-- **Estimate:** 72 hours
-- **Blocked by:** Phase 1
-- Tickets: ui-010 (SSR, 40h), ui-011 (Atomic Hydration, 32h)
+### Priority 2 — Feature Gaps (Design Doc Deviations)
 
-### Phase 6: Router
-- **Target:** TBD
-- **Status:** 🔴 Not Started
-- **Estimate:** 40 hours
-- **Blocked by:** Phase 1
-- Tickets: ui-012 (Router, 40h)
+| ID | Title | Assigned | Estimate | Status |
+|----|-------|----------|----------|--------|
+| ui-021 | Add missing hydration strategies (idle/media/visible) | nora | 6h | 🔴 Todo |
+| ui-022 | Add CSP nonce to renderToStream | nora | 3h | 🔴 Todo |
+| ui-023 | Add fillForm/submitForm test utilities | ava | 4h | 🔴 Todo |
+| ui-026 | Add AbortSignal to loader context type | nora | 2h | 🔴 Todo |
 
-### Phase 7: @vertz/primitives
-- **Target:** TBD
-- **Status:** 🔴 Not Started
-- **Estimate:** 80 hours
-- **Blocked by:** Phase 1 + Phase 2
-- Tickets: ui-013 (Primitives, 80h)
+### Priority 3 — Quality & DX
 
-### Phase 8: Testing & DX
-- **Target:** TBD
-- **Status:** 🔴 Not Started
-- **Estimate:** 72 hours
-- **Blocked by:** Phases 1-6
-- Tickets: ui-014 (Testing Utilities, 40h), ui-015 (Vite Plugin, 32h)
+| ID | Title | Assigned | Estimate | Status |
+|----|-------|----------|----------|--------|
+| ui-024 | Add type-level tests for core types | nora | 6h | 🔴 Todo |
+| ui-025 | Extract shared CSS token tables | ben | 6h | 🔴 Todo |
+| ui-027 | Clean up duplicate test files | nora | 1h | 🔴 Todo |
+| ui-028 | Fix Vite plugin hydration source map | nora | 2h | 🔴 Todo |
+| ui-029 | Add subpath exports (router/form/query/css) | nora | 4h | 🔴 Todo |
 
-## Ticket Index
+**Total v0.1.x estimate:** 55 hours (14 tickets)
 
-| ID | Title | Phase | Assigned | Estimate | Status |
-|----|-------|-------|----------|----------|--------|
-| ui-001 | Reactivity Runtime | 1A | nora | 40h | 🔴 Todo |
-| ui-002 | Compiler Core | 1B | ben | 56h | 🔴 Todo |
-| ui-003 | Component Model | 1C | nora | 32h | 🔴 Todo |
-| ui-004 | css() Compile-Time Style Blocks | 2A | nora | 48h | 🔴 Todo |
-| ui-005 | variants() API | 2B | nora | 24h | 🔴 Todo |
-| ui-006 | defineTheme() and Theming | 2C | nora | 24h | 🔴 Todo |
-| ui-007 | Zero-Runtime CSS Extraction | 2D | nora | 32h | 🔴 Todo |
-| ui-008 | Forms | 3 | nora | 32h | 🔴 Todo |
-| ui-009 | Data Fetching (query) | 4 | nora | 32h | 🔴 Todo |
-| ui-010 | Server-Side Rendering (SSR) | 5A | nora | 40h | 🔴 Todo |
-| ui-011 | Atomic Hydration | 5B | nora | 32h | 🔴 Todo |
-| ui-012 | Router | 6 | nora | 40h | 🔴 Todo |
-| ui-013 | @vertz/primitives | 7 | nora | 80h | 🔴 Todo |
-| ui-014 | Testing Utilities | 8A | ava | 40h | 🔴 Todo |
-| ui-015 | Vite Plugin Complete | 8B | nora | 32h | 🔴 Todo |
+## v0.1 Phase History (Completed)
 
-**Total estimate:** 584 hours
-
-## Parallelization
-
-Once Phase 1 (ui-001, ui-002, ui-003) is complete, Phases 2-6 can all run in parallel:
-- Phase 2 (ui-004 through ui-007) — CSS framework
-- Phase 3 (ui-008) — Forms
-- Phase 4 (ui-009) — Data fetching
-- Phase 5 (ui-010, ui-011) — SSR & Hydration
-- Phase 6 (ui-012) — Router
-
-Phase 7 (ui-013) waits on Phase 2. Phase 8 (ui-014, ui-015) waits on Phases 1-6.
+| ID | Title | Phase | Status |
+|----|-------|-------|--------|
+| ui-001 | Reactivity Runtime | 1A | 🟢 Done |
+| ui-002 | Compiler Core | 1B | 🟢 Done |
+| ui-003 | Component Model | 1C | 🟢 Done |
+| ui-004 | css() Compile-Time Style Blocks | 2A | 🟢 Done |
+| ui-005 | variants() API | 2B | 🟢 Done |
+| ui-006 | defineTheme() and Theming | 2C | 🟢 Done |
+| ui-007 | Zero-Runtime CSS Extraction | 2D | 🟢 Done |
+| ui-008 | Forms | 3 | 🟢 Done |
+| ui-009 | Data Fetching (query) | 4 | 🟢 Done |
+| ui-010 | Server-Side Rendering (SSR) | 5A | 🟢 Done |
+| ui-011 | Atomic Hydration | 5B | 🟢 Done |
+| ui-012 | Router | 6 | 🟢 Done |
+| ui-013 | @vertz/primitives | 7 | 🟢 Done |
+| ui-014 | Testing Utilities | 8A | 🟢 Done |
+| ui-015 | Vite Plugin Complete | 8B | 🟢 Done |
 
 ## Health Updates
 
-### 2026-02-10
-Project created. Design doc and implementation plan approved. Roadmap committed. Ready to create tickets from implementation plan.
+### 2026-02-12
+v0.1 shipped. PR #199 merged to main. 14 follow-up tickets created from reviewer feedback (5 correctness bugs, 4 feature gaps, 5 quality/DX improvements). Josh building demo app.
 
 ### 2026-02-10
 All 15 tickets created from implementation plan. Each ticket is self-contained with full description, acceptance criteria, and integration test code. Dependency graph mapped across all tickets.
+
+### 2026-02-10
+Project created. Design doc and implementation plan approved. Roadmap committed. Ready to create tickets from implementation plan.
