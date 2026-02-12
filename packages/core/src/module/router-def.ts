@@ -1,5 +1,6 @@
 import type { HandlerCtx } from '../types/context';
-import type { RouterDef } from '../types/module';
+import type { RouterDef, ServiceDef } from '../types/module';
+import type { NamedServiceDef } from './service';
 
 type InferOutput<T> = T extends { _output: infer O }
   ? O
@@ -50,34 +51,66 @@ export interface Route {
   config: RouteConfig<unknown, unknown, unknown, unknown, Record<string, unknown>>;
 }
 
-type HttpMethodFn<TMiddleware extends Record<string, unknown> = Record<string, unknown>> = <
-  TParams,
-  TQuery,
-  THeaders,
-  TBody,
->(
+/**
+ * Extracts the TMethods type from a NamedServiceDef or ServiceDef.
+ * Returns `unknown` for non-service types.
+ */
+export type ExtractMethods<T> =
+  T extends NamedServiceDef<
+    // biome-ignore lint/suspicious/noExplicitAny: variance boundary for generic extraction
+    any,
+    // biome-ignore lint/suspicious/noExplicitAny: variance boundary for generic extraction
+    any,
+    infer M
+  >
+    ? M
+    : T extends ServiceDef<
+          // biome-ignore lint/suspicious/noExplicitAny: variance boundary for generic extraction
+          any,
+          // biome-ignore lint/suspicious/noExplicitAny: variance boundary for generic extraction
+          any,
+          infer M
+        >
+      ? M
+      : unknown;
+
+/**
+ * Resolves an inject map by extracting TMethods from each NamedServiceDef value.
+ * Given `{ userService: NamedServiceDef<..., ..., UserMethods> }`,
+ * produces `{ userService: UserMethods }`.
+ */
+export type ResolveInjectMap<T extends Record<string, unknown>> = {
+  [K in keyof T]: ExtractMethods<T[K]>;
+};
+
+type HttpMethodFn<
+  TMiddleware extends Record<string, unknown> = Record<string, unknown>,
+  TInject extends Record<string, unknown> = Record<string, unknown>,
+> = <TParams, TQuery, THeaders, TBody>(
   path: `/${string}`,
-  config: RouteConfig<TParams, TQuery, THeaders, TBody, TMiddleware>,
-) => NamedRouterDef<TMiddleware>;
+  config: RouteConfig<TParams, TQuery, THeaders, TBody, TMiddleware & ResolveInjectMap<TInject>>,
+) => NamedRouterDef<TMiddleware, TInject>;
 
 export interface NamedRouterDef<
   TMiddleware extends Record<string, unknown> = Record<string, unknown>,
-> extends RouterDef {
+  TInject extends Record<string, unknown> = Record<string, unknown>,
+> extends RouterDef<TInject> {
   moduleName: string;
   routes: Route[];
-  get: HttpMethodFn<TMiddleware>;
-  post: HttpMethodFn<TMiddleware>;
-  put: HttpMethodFn<TMiddleware>;
-  patch: HttpMethodFn<TMiddleware>;
-  delete: HttpMethodFn<TMiddleware>;
-  head: HttpMethodFn<TMiddleware>;
+  get: HttpMethodFn<TMiddleware, TInject>;
+  post: HttpMethodFn<TMiddleware, TInject>;
+  put: HttpMethodFn<TMiddleware, TInject>;
+  patch: HttpMethodFn<TMiddleware, TInject>;
+  delete: HttpMethodFn<TMiddleware, TInject>;
+  head: HttpMethodFn<TMiddleware, TInject>;
 }
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'head'] as const;
 
 export function createRouterDef<
   TMiddleware extends Record<string, unknown> = Record<string, unknown>,
->(moduleName: string, config: RouterDef): NamedRouterDef<TMiddleware> {
+  TInject extends Record<string, unknown> = Record<string, unknown>,
+>(moduleName: string, config: RouterDef<TInject>): NamedRouterDef<TMiddleware, TInject> {
   const routes: Route[] = [];
 
   function addRoute(
@@ -85,7 +118,7 @@ export function createRouterDef<
     path: string,
     // biome-ignore lint/suspicious/noExplicitAny: route config is type-safe at the HttpMethodFn call site
     routeConfig: RouteConfig<any, any, any, any, any>,
-  ): NamedRouterDef<TMiddleware> {
+  ): NamedRouterDef<TMiddleware, TInject> {
     if (!path.startsWith('/')) {
       throw new Error(`Route path must start with '/', got '${path}'`);
     }
@@ -97,7 +130,7 @@ export function createRouterDef<
     ...config,
     moduleName,
     routes,
-  } as NamedRouterDef<TMiddleware>;
+  } as NamedRouterDef<TMiddleware, TInject>;
 
   for (const method of HTTP_METHODS) {
     router[method] = (path, cfg) => addRoute(method.toUpperCase(), path, cfg);
