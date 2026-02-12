@@ -271,6 +271,48 @@ const router = useRouter(); // from RouterContext
 router.navigate('/tasks/new');
 ```
 
+### F9. Primitives require verbose post-hoc styling — no props at creation time (MEDIUM)
+
+The Dialog and Tabs primitives return pre-wired DOM elements, which is great for ARIA compliance. But styling those elements requires verbose imperative mutation after creation:
+
+```ts
+const dialog = Dialog.Root({ modal: true });
+
+// 6 imperative statements just to style the primitive's elements
+dialog.trigger.className = button({ intent: 'danger', size: 'sm' });
+dialog.trigger.textContent = triggerLabel;
+dialog.trigger.setAttribute('data-testid', 'confirm-dialog-trigger');
+dialog.content.className = dialogStyles.classNames.panel;
+dialog.content.setAttribute('data-testid', 'confirm-dialog-content');
+dialog.title.className = dialogStyles.classNames.title;
+dialog.title.textContent = titleText;
+dialog.close.className = button({ intent: 'secondary', size: 'sm' });
+dialog.close.textContent = 'Cancel';
+```
+
+This is the one area where the codebase can't use JSX — these elements already exist (with ARIA bindings, event listeners, and focus trap references), so they can't be recreated via `<dialog.trigger>`. You can only mutate them after the fact.
+
+**Impact:** Medium. Every use of Dialog or Tabs requires a block of imperative styling that breaks the JSX flow. In a real app with many dialogs, this adds up.
+
+**Recommendation:** Accept optional style/class/content props at creation time:
+```ts
+// Current (verbose)
+const dialog = Dialog.Root({ modal: true });
+dialog.trigger.className = 'btn-danger';
+dialog.trigger.textContent = 'Delete';
+
+// Proposed (clean)
+const dialog = Dialog.Root({
+  modal: true,
+  trigger: { className: 'btn-danger', textContent: 'Delete', 'data-testid': 'delete-btn' },
+  content: { className: 'panel' },
+  title: { className: 'title', textContent: 'Confirm' },
+  close: { className: 'btn-secondary', textContent: 'Cancel' },
+});
+```
+
+This keeps the primitive owning element creation (ARIA stays intact) while eliminating the imperative styling block.
+
 ---
 
 ## Gotchas
