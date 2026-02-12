@@ -69,9 +69,11 @@ Post-merge bug fixes discovered during josh's task-manager demo (PR #210).
 
 | ID | Title | Priority | Assigned | Estimate | Status |
 |----|-------|----------|----------|----------|--------|
-| ui-016 | onCleanup() silently no-ops without disposal scope | P1 | nora | 3h | 🔴 Todo |
-| ui-017 | globalCss() does not auto-inject like css() does | P1 | nora | 1h | 🔴 Todo |
-| ui-018 | compileTheme() not exported from public API | P1 | nora | 30m | 🔴 Todo |
+| ui-016 | onCleanup() silently no-ops without disposal scope | P1 | nora | 3h | 🟢 Done |
+| ui-017 | globalCss() does not auto-inject like css() does | P1 | nora | 1h | 🟢 Done |
+| ui-018 | compileTheme() not exported from public API | P1 | nora | 30m | 🟢 Done |
+| ui-019 | Compiler conditional & list transforms with disposal scopes | P1 | ben+nora | 12h | 🔴 Todo |
+| ui-020 | E2E testing infrastructure with Playwright | P2 | ava+edson | 6h | 🟡 In Progress |
 
 ## Ticket Index (v1.0 Roadmap)
 
