@@ -1,4 +1,5 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+import { query } from '../../query/query';
 import { effect, signal } from '../../runtime/signal';
 import { createContext, useContext } from '../context';
 import { watch } from '../lifecycle';
@@ -141,5 +142,66 @@ describe('createContext / useContext', () => {
     // Outer watch should still see 'dark', inner watch should still see 'blue'
     expect(outerObserved).toEqual(['dark', 'dark']);
     expect(innerObserved).toEqual(['blue', 'blue']);
+  });
+
+  test('useContext returns correct value inside query() thunk on re-fetch', async () => {
+    const ApiCtx = createContext('/api');
+    const dep = signal(0);
+    const capturedBases: (string | undefined)[] = [];
+
+    let q: ReturnType<typeof query>;
+    ApiCtx.Provider('/v2', () => {
+      q = query(async () => {
+        dep.value; // track reactive dependency
+        capturedBases.push(useContext(ApiCtx));
+        return 'data';
+      });
+    });
+
+    // Initial run: Provider is on the call stack → sync path.
+    // Wait for the first thunk call to complete.
+    await vi.waitFor(() => {
+      expect(capturedBases).toHaveLength(1);
+    });
+    expect(capturedBases[0]).toBe('/v2');
+
+    // After Provider has popped, trigger a re-fetch via signal change.
+    // This forces useContext to use the captured _contextScope (async path).
+    dep.value = 1;
+
+    await vi.waitFor(() => {
+      expect(capturedBases).toHaveLength(2);
+    });
+    // The re-fetch should still see '/v2' via the captured context scope
+    expect(capturedBases[1]).toBe('/v2');
+
+    q?.dispose();
+  });
+
+  test('disposed effect does not re-run on signal change', () => {
+    const ThemeCtx = createContext('light');
+    const count = signal(0);
+
+    let dispose: (() => void) | undefined;
+    ThemeCtx.Provider('dark', () => {
+      dispose = effect(() => {
+        count.value;
+        useContext(ThemeCtx);
+      });
+    });
+
+    // After dispose, the effect should not re-run
+    dispose?.();
+    const observed: (string | undefined)[] = [];
+    ThemeCtx.Provider('dark', () => {
+      effect(() => {
+        count.value;
+        observed.push(useContext(ThemeCtx));
+      });
+    });
+
+    count.value = 1;
+    // Verify the non-disposed effect still works
+    expect(observed).toEqual(['dark', 'dark']);
   });
 });

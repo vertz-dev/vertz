@@ -202,6 +202,8 @@ class EffectImpl implements Subscriber {
     this._disposed = true;
     // Remove from all signal/computed subscriber sets
     this._clearSources();
+    // Release captured context scope so the Map (and its values) can be GC'd
+    this._contextScope = null;
   }
 }
 
