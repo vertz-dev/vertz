@@ -1,0 +1,18 @@
+{
+  "name": "@vertz-examples/task-manager",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'No build tooling yet — this is a code-only demo'",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@vertz/ui": "workspace:*",
+    "@vertz/primitives": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}

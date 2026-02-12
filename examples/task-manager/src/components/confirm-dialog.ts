@@ -1,0 +1,98 @@
+/**
+ * ConfirmDialog component — modal confirmation using Dialog primitive.
+ *
+ * Demonstrates:
+ * - Dialog from @vertz/primitives (WAI-ARIA compliant)
+ * - Focus trap and Escape to close
+ * - Composing primitives with @vertz/ui styling
+ */
+
+import { Dialog } from '@vertz/primitives';
+import { css } from '@vertz/ui';
+import { button } from '../styles/components';
+
+const dialogStyles = css({
+  overlay: ['fixed', 'inset:0', 'bg:gray.900', 'opacity:50', 'z:40'],
+  wrapper: ['fixed', 'inset:0', 'flex', 'items:center', 'justify:center', 'z:50'],
+  panel: ['bg:background', 'rounded:lg', 'shadow:xl', 'p:6', 'max-w:md', 'w:full'],
+  title: ['font:lg', 'font:semibold', 'text:foreground', 'mb:2'],
+  description: ['text:sm', 'text:muted', 'mb:6'],
+  actions: ['flex', 'justify:end', 'gap:2'],
+});
+
+export interface ConfirmDialogProps {
+  triggerLabel: string;
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+}
+
+/**
+ * Create a confirmation dialog with trigger button.
+ *
+ * Returns a container element with the trigger button and the dialog panel.
+ * The dialog is managed entirely by the Dialog primitive from @vertz/primitives.
+ */
+export function ConfirmDialog(props: ConfirmDialogProps): HTMLElement {
+  const {
+    triggerLabel,
+    title: titleText,
+    description,
+    confirmLabel = 'Confirm',
+    onConfirm,
+  } = props;
+
+  // Create the Dialog primitive — it returns pre-wired elements with ARIA
+  const dialog = Dialog.Root({ modal: true });
+
+  // Style the trigger button
+  dialog.trigger.className = button({ intent: 'danger', size: 'sm' });
+  dialog.trigger.textContent = triggerLabel;
+  dialog.trigger.setAttribute('data-testid', 'confirm-dialog-trigger');
+
+  // Build the content panel
+  dialog.content.className = dialogStyles.classNames.panel;
+  dialog.content.setAttribute('data-testid', 'confirm-dialog-content');
+
+  // Title
+  dialog.title.className = dialogStyles.classNames.title;
+  dialog.title.textContent = titleText;
+
+  // Description
+  const desc = document.createElement('p');
+  desc.className = dialogStyles.classNames.description;
+  desc.textContent = description;
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = dialogStyles.classNames.actions;
+
+  dialog.close.className = button({ intent: 'secondary', size: 'sm' });
+  dialog.close.textContent = 'Cancel';
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.type = 'button';
+  confirmBtn.className = button({ intent: 'danger', size: 'sm' });
+  confirmBtn.textContent = confirmLabel;
+  confirmBtn.setAttribute('data-testid', 'confirm-action');
+  confirmBtn.addEventListener('click', () => {
+    onConfirm();
+    // Close the dialog after confirm
+    dialog.close.click();
+  });
+
+  actions.appendChild(dialog.close);
+  actions.appendChild(confirmBtn);
+
+  dialog.content.appendChild(dialog.title);
+  dialog.content.appendChild(desc);
+  dialog.content.appendChild(actions);
+
+  // Wrap everything in a container
+  const container = document.createElement('div');
+  container.appendChild(dialog.trigger);
+  container.appendChild(dialog.content);
+
+  return container;
+}
