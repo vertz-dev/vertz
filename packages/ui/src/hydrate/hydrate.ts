@@ -24,9 +24,13 @@ export function hydrate(registry: ComponentRegistry): void {
     const props = deserializeProps(el);
 
     const doHydrate = (): void => {
-      void resolveComponent(registry, componentId).then((component) => {
-        component(props, el);
-      });
+      void resolveComponent(registry, componentId)
+        .then((component) => {
+          component(props, el);
+        })
+        .catch((error: unknown) => {
+          console.error(`[hydrate] Failed to hydrate component "${componentId}":`, error);
+        });
     };
 
     switch (strategy) {
