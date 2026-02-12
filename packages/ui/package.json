@@ -16,16 +16,32 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./internals": {
-      "import": "./dist/internals.js",
-      "types": "./dist/internals.d.ts"
+      "types": "./dist/internals.d.ts",
+      "import": "./dist/internals.js"
     },
     "./test": {
-      "import": "./dist/test/index.js",
-      "types": "./dist/test/index.d.ts"
+      "types": "./dist/test/index.d.ts",
+      "import": "./dist/test/index.js"
+    },
+    "./router": {
+      "types": "./dist/router/public.d.ts",
+      "import": "./dist/router/public.js"
+    },
+    "./form": {
+      "types": "./dist/form/public.d.ts",
+      "import": "./dist/form/public.js"
+    },
+    "./query": {
+      "types": "./dist/query/public.d.ts",
+      "import": "./dist/query/public.js"
+    },
+    "./css": {
+      "types": "./dist/css/public.d.ts",
+      "import": "./dist/css/public.js"
     }
   },
   "files": [
