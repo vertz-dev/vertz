@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
+import { onCleanup, popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { effect, signal } from '../../runtime/signal';
 import { __list } from '../list';
 
@@ -405,5 +405,106 @@ describe('__list', () => {
     effectRunCount = 0;
     counter.value = 100;
     expect(effectRunCount).toBe(0);
+  });
+
+  it('onCleanup handlers fire when item is removed from list', () => {
+    const items = signal([
+      { id: 1, text: 'A' },
+      { id: 2, text: 'B' },
+    ]);
+    const cleanedUp: number[] = [];
+
+    const container = document.createElement('ul');
+    __list(
+      container,
+      items,
+      (item) => item.id,
+      (item) => {
+        onCleanup(() => {
+          cleanedUp.push(item.id);
+        });
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        return li;
+      },
+    );
+
+    expect(cleanedUp).toEqual([]);
+
+    // Remove item 2
+    items.value = [{ id: 1, text: 'A' }];
+    expect(cleanedUp).toEqual([2]);
+  });
+
+  it('clearing the list (empty array) fires all cleanups', () => {
+    const items = signal([
+      { id: 1, text: 'A' },
+      { id: 2, text: 'B' },
+      { id: 3, text: 'C' },
+    ]);
+    const cleanedUp: number[] = [];
+
+    const container = document.createElement('ul');
+    __list(
+      container,
+      items,
+      (item) => item.id,
+      (item) => {
+        onCleanup(() => {
+          cleanedUp.push(item.id);
+        });
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        return li;
+      },
+    );
+
+    expect(cleanedUp).toEqual([]);
+
+    // Clear all items
+    items.value = [];
+    expect(container.children.length).toBe(0);
+    // All three items should have been cleaned up
+    expect(cleanedUp).toContain(1);
+    expect(cleanedUp).toContain(2);
+    expect(cleanedUp).toContain(3);
+    expect(cleanedUp.length).toBe(3);
+  });
+
+  it('reordering items does NOT trigger cleanup', () => {
+    const items = signal([
+      { id: 1, text: 'A' },
+      { id: 2, text: 'B' },
+      { id: 3, text: 'C' },
+    ]);
+    const cleanedUp: number[] = [];
+
+    const container = document.createElement('ul');
+    __list(
+      container,
+      items,
+      (item) => item.id,
+      (item) => {
+        onCleanup(() => {
+          cleanedUp.push(item.id);
+        });
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        return li;
+      },
+    );
+
+    expect(cleanedUp).toEqual([]);
+
+    // Reorder items — same keys, different order
+    items.value = [
+      { id: 3, text: 'C' },
+      { id: 1, text: 'A' },
+      { id: 2, text: 'B' },
+    ];
+
+    // No cleanups should have fired — items were reordered, not removed
+    expect(cleanedUp).toEqual([]);
+    expect(container.children.length).toBe(3);
   });
 });
