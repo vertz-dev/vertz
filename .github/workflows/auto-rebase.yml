@@ -5,6 +5,7 @@ on:
     branches: [main]
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
@@ -58,6 +59,13 @@ jobs:
               echo "  Rebase succeeded. Pushing..."
               if git push --force-with-lease origin "_rebase-tmp:${branch}" 2>/dev/null; then
                 echo "  OK: rebased and pushed"
+                # Trigger CI on the rebased branch. Pushes made with GITHUB_TOKEN
+                # do not fire pull_request events, so we dispatch CI explicitly.
+                if gh workflow run ci.yml --ref "${branch}" 2>/dev/null; then
+                  echo "  OK: CI triggered on ${branch}"
+                else
+                  echo "  WARN: failed to trigger CI on ${branch}"
+                fi
               else
                 echo "  SKIP: push failed (branch may be protected or force-push disabled)"
               fi
