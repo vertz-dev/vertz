@@ -22,7 +22,14 @@ export { createImmutableProxy, deepFreeze, makeImmutable } from './immutability'
 export type { AccumulateProvides, NamedMiddlewareDef } from './middleware';
 // Middleware
 export { createMiddleware } from './middleware';
-export type { NamedModule, NamedModuleDef, NamedRouterDef, NamedServiceDef } from './module';
+export type {
+  ExtractMethods,
+  NamedModule,
+  NamedModuleDef,
+  NamedRouterDef,
+  NamedServiceDef,
+  ResolveInjectMap,
+} from './module';
 // Module
 export { createModule, createModuleDef } from './module';
 // Types

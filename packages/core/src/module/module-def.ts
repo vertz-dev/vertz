@@ -11,7 +11,9 @@ export interface NamedModuleDef<
   service: <TDeps, TState, TMethods>(
     config: ServiceDef<TDeps, TState, TMethods>,
   ) => NamedServiceDef<TDeps, TState, TMethods>;
-  router: (config: RouterDef) => NamedRouterDef<TMiddleware>;
+  router: <TInject extends Record<string, unknown> = Record<string, unknown>>(
+    config: RouterDef<TInject>,
+  ) => NamedRouterDef<TMiddleware, TInject>;
 }
 
 export function createModuleDef<
@@ -22,7 +24,9 @@ export function createModuleDef<
   const def: NamedModuleDef<TImports, TOptions, TMiddleware> = {
     ...config,
     service: (serviceConfig) => createServiceDef(config.name, serviceConfig),
-    router: (routerConfig) => createRouterDef<TMiddleware>(config.name, routerConfig),
+    router: <TInject extends Record<string, unknown> = Record<string, unknown>>(
+      routerConfig: RouterDef<TInject>,
+    ) => createRouterDef<TMiddleware, TInject>(config.name, routerConfig),
   };
 
   return deepFreeze(def);

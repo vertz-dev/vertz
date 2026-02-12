@@ -6,7 +6,8 @@ import type { NamedServiceDef } from './service';
 export interface NamedModule {
   definition: NamedModuleDef;
   services: NamedServiceDef[];
-  routers: NamedRouterDef[];
+  // biome-ignore lint/suspicious/noExplicitAny: variance boundary — must accept any NamedRouterDef generics
+  routers: NamedRouterDef<any, any>[];
   exports: NamedServiceDef[];
 }
 
@@ -28,7 +29,8 @@ export function createModule(
   definition: NamedModuleDef,
   config: {
     services: NamedServiceDef[];
-    routers: NamedRouterDef[];
+    // biome-ignore lint/suspicious/noExplicitAny: variance boundary — must accept any NamedRouterDef generics
+    routers: NamedRouterDef<any, any>[];
     exports: NamedServiceDef[];
   },
 ): NamedModule {
