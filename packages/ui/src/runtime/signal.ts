@@ -1,5 +1,5 @@
 import { type ContextScope, getContextScope, setContextScope } from '../component/context';
-import { onCleanup } from './disposal';
+import { _tryOnCleanup } from './disposal';
 import { batch, scheduleNotify } from './scheduler';
 import type { Computed, DisposeFn, Signal, Subscriber, SubscriberSource } from './signal-types';
 import { getSubscriber, setSubscriber } from './tracking';
@@ -217,6 +217,6 @@ export function effect(fn: () => void): DisposeFn {
   eff._run();
   const dispose = () => eff._dispose();
   // Auto-register with the current disposal scope if one is active
-  onCleanup(dispose);
+  _tryOnCleanup(dispose);
   return dispose;
 }

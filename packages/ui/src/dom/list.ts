@@ -1,4 +1,4 @@
-import { onCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
+import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { effect } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
 
@@ -84,7 +84,7 @@ export function __list<T>(
   };
 
   // Register the full wrapper (not the raw effect dispose) with any active parent scope
-  onCleanup(wrapper);
+  _tryOnCleanup(wrapper);
 
   return wrapper;
 }
