@@ -1,5 +1,7 @@
 # Vertz Framework
 
+**Read [VISION.md](./VISION.md) and [MANIFESTO.md](./MANIFESTO.md) before making any design decision.** Every API, architecture choice, and implementation approach must align with the 8 principles in the vision.
+
 ## Stack
 
 - Runtime: Bun

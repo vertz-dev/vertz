@@ -87,3 +87,7 @@ That's the bar. That's what we're building toward.
 ---
 
 *Vertz: Type-safe. LLM-native. Built for what's next.*
+
+---
+
+**Where is this going?** Read the [Vision](./VISION.md) — the 8 principles that guide every decision and the full-stack ambition behind Vertz.
