@@ -26,6 +26,22 @@
     "./test": {
       "import": "./dist/test/index.js",
       "types": "./dist/test/index.d.ts"
+    },
+    "./router": {
+      "import": "./dist/router/index.js",
+      "types": "./dist/router/index.d.ts"
+    },
+    "./form": {
+      "import": "./dist/form/index.js",
+      "types": "./dist/form/index.d.ts"
+    },
+    "./query": {
+      "import": "./dist/query/index.js",
+      "types": "./dist/query/index.d.ts"
+    },
+    "./css": {
+      "import": "./dist/css/index.js",
+      "types": "./dist/css/index.d.ts"
     }
   },
   "files": [
