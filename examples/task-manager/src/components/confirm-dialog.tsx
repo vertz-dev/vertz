@@ -4,7 +4,10 @@
  * Demonstrates:
  * - Dialog from @vertz/primitives (WAI-ARIA compliant)
  * - Focus trap and Escape to close
- * - Composing primitives with @vertz/ui styling
+ * - Composing primitives with JSX and @vertz/ui styling
+ *
+ * Note: The Dialog primitive returns pre-wired elements with ARIA attributes,
+ * so its creation stays imperative. JSX is used for new elements and composition.
  */
 
 import { Dialog } from '@vertz/primitives';
@@ -46,53 +49,45 @@ export function ConfirmDialog(props: ConfirmDialogProps): HTMLElement {
   // Create the Dialog primitive — it returns pre-wired elements with ARIA
   const dialog = Dialog.Root({ modal: true });
 
-  // Style the trigger button
+  // Style the pre-wired Dialog elements
   dialog.trigger.className = button({ intent: 'danger', size: 'sm' });
   dialog.trigger.textContent = triggerLabel;
   dialog.trigger.setAttribute('data-testid', 'confirm-dialog-trigger');
 
-  // Build the content panel
   dialog.content.className = dialogStyles.classNames.panel;
   dialog.content.setAttribute('data-testid', 'confirm-dialog-content');
 
-  // Title
   dialog.title.className = dialogStyles.classNames.title;
   dialog.title.textContent = titleText;
-
-  // Description
-  const desc = document.createElement('p');
-  desc.className = dialogStyles.classNames.description;
-  desc.textContent = description;
-
-  // Actions
-  const actions = document.createElement('div');
-  actions.className = dialogStyles.classNames.actions;
 
   dialog.close.className = button({ intent: 'secondary', size: 'sm' });
   dialog.close.textContent = 'Cancel';
 
-  const confirmBtn = document.createElement('button');
-  confirmBtn.type = 'button';
-  confirmBtn.className = button({ intent: 'danger', size: 'sm' });
-  confirmBtn.textContent = confirmLabel;
-  confirmBtn.setAttribute('data-testid', 'confirm-action');
-  confirmBtn.addEventListener('click', () => {
-    onConfirm();
-    // Close the dialog after confirm
-    dialog.close.click();
-  });
+  // Build dialog body with JSX — compose primitive elements with new ones
+  dialog.content.append(
+    dialog.title,
+    <p class={dialogStyles.classNames.description}>{description}</p> as Node,
+    <div class={dialogStyles.classNames.actions}>
+      {dialog.close}
+      <button
+        type="button"
+        class={button({ intent: 'danger', size: 'sm' })}
+        data-testid="confirm-action"
+        onClick={() => {
+          onConfirm();
+          dialog.close.click();
+        }}
+      >
+        {confirmLabel}
+      </button>
+    </div> as Node,
+  );
 
-  actions.appendChild(dialog.close);
-  actions.appendChild(confirmBtn);
-
-  dialog.content.appendChild(dialog.title);
-  dialog.content.appendChild(desc);
-  dialog.content.appendChild(actions);
-
-  // Wrap everything in a container
-  const container = document.createElement('div');
-  container.appendChild(dialog.trigger);
-  container.appendChild(dialog.content);
-
-  return container;
+  // Wrap trigger and content in a container using JSX
+  return (
+    <div>
+      {dialog.trigger}
+      {dialog.content}
+    </div>
+  ) as HTMLElement;
 }

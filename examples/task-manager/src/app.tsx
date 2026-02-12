@@ -1,0 +1,99 @@
+/**
+ * App shell — root component with sidebar navigation and theme switching.
+ *
+ * Demonstrates:
+ * - JSX for layout composition
+ * - ThemeProvider for theme context
+ * - createContext / useContext for app-wide settings
+ * - effect() for reactive route rendering
+ * - Full composition of all @vertz/ui features
+ */
+
+import { ThemeProvider, css, effect } from '@vertz/ui';
+import {
+  SettingsContext,
+  createSettingsValue,
+} from './lib/settings-context';
+import { appRouter, Link } from './router';
+import { layoutStyles } from './styles/components';
+
+const navStyles = css({
+  navItem: ['text:sm', 'text:muted', 'hover:text:foreground', 'transition:colors'],
+  navList: ['flex', 'flex-col', 'gap:1'],
+  navTitle: ['font:lg', 'font:bold', 'text:foreground', 'mb:6'],
+});
+
+/**
+ * Create the root app element.
+ *
+ * The app is wrapped in:
+ * 1. SettingsContext.Provider — for app-wide settings access
+ * 2. ThemeProvider — for CSS custom property switching
+ */
+export function App(): HTMLElement {
+  const settings = createSettingsValue();
+
+  const container = <div data-testid="app-root" /> as HTMLElement;
+
+  // We wrap the render in the SettingsContext.Provider scope
+  SettingsContext.Provider(settings, () => {
+    // Main content area — referenced by the route rendering effect
+    const main = <main class={layoutStyles.classNames.main} data-testid="main-content" /> as HTMLElement;
+
+    // Shell layout: sidebar + main, composed with JSX
+    const shell = (
+      <div class={layoutStyles.classNames.shell}>
+        <nav class={layoutStyles.classNames.sidebar} aria-label="Main navigation">
+          <div class={navStyles.classNames.navTitle}>Task Manager</div>
+          <div class={navStyles.classNames.navList}>
+            <Link href="/" children="All Tasks" activeClass="font-bold" className={navStyles.classNames.navItem} />
+            <Link href="/tasks/new" children="Create Task" activeClass="font-bold" className={navStyles.classNames.navItem} />
+            <Link href="/settings" children="Settings" activeClass="font-bold" className={navStyles.classNames.navItem} />
+          </div>
+        </nav>
+        {main}
+      </div>
+    ) as HTMLElement;
+
+    // ── Reactive route rendering ────────────────────
+
+    effect(() => {
+      const match = appRouter.current.value;
+
+      // Clear the main area
+      main.innerHTML = '';
+
+      if (!match) {
+        main.appendChild(<div data-testid="not-found">Page not found</div> as Node);
+        return;
+      }
+
+      // Render the matched route's component
+      const component = match.route.component();
+      if (component instanceof Promise) {
+        // Handle async components
+        component.then((mod) => {
+          const node = (mod as { default: () => Node }).default();
+          main.appendChild(node);
+        });
+      } else {
+        main.appendChild(component);
+      }
+    });
+
+    // Wrap in ThemeProvider with reactive theme
+    const themeWrapper = ThemeProvider({
+      theme: settings.theme.peek(),
+      children: [shell],
+    });
+    container.appendChild(themeWrapper);
+
+    // Re-wrap when theme changes (ThemeProvider sets data-theme attribute)
+    effect(() => {
+      const theme = settings.theme.value;
+      themeWrapper.setAttribute('data-theme', theme);
+    });
+  });
+
+  return container;
+}

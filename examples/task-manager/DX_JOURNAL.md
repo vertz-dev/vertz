@@ -71,29 +71,65 @@ The Dialog and Tabs primitives from `@vertz/primitives` delivered WAI-ARIA compl
 
 **Verdict:** This is how headless UI libraries should work. Big win.
 
+### 6. JSX authoring is clean and natural
+
+After discovering the `@vertz/ui-compiler`'s JSX support, I rewrote all 8 component/page files from `.ts` to `.tsx`. The experience was excellent:
+
+- **HTML elements** work exactly as expected: `<div class={styles.foo}>` compiles to optimized `__element("div")` calls
+- **Event handlers** use standard JSX: `onClick={handler}` compiles to `__on(el, "click", handler)`
+- **Component calls** work via PascalCase: `<TaskCard task={task} onClick={fn} />` calls the function with props
+- **Primitives embed cleanly**: Dialog/Tabs return pre-wired elements that drop into JSX via `{dialog.trigger}`
+- **Effects still work**: assign JSX elements to variables, reference them in `effect()` for reactive updates
+
+The combination of JSX for structure + effect() for updates is the sweet spot. It's more explicit than React (no virtual DOM diffing) but far more readable than manual DOM construction.
+
+```tsx
+// Components compose naturally in JSX
+<div data-testid="task-list-page">
+  <div class={layoutStyles.classNames.header}>
+    <h1>Tasks</h1>
+    <button onClick={() => navigate('/tasks/new')}>+ New Task</button>
+  </div>
+  {filterBar}
+  {loadingEl}
+  {listContainer}
+</div>
+```
+
+**Verdict:** JSX is the intended authoring experience. It should be prominently featured in all getting-started docs.
+
 ---
 
 ## Friction Points
 
-### F1. No JSX — DOM construction is extremely verbose (CRITICAL)
+### ~~F1. No JSX — DOM construction is extremely verbose (CRITICAL)~~ RESOLVED
 
-This is the single biggest DX issue with @vertz/ui v0.1. Building any real UI requires dozens of `document.createElement` + `appendChild` calls. A simple card component takes 50+ lines of DOM construction code that would be 10 lines with JSX.
+**Update:** JSX is fully supported via `@vertz/ui-compiler`! I didn't discover this initially because the compiler wasn't mentioned in the getting-started path. After rewriting the entire demo in `.tsx`, the authoring experience is dramatically better.
 
-```ts
-// This is painful:
-const header = document.createElement('div');
-header.className = cardStyles.classNames.cardHeader;
-const title = document.createElement('h3');
-title.className = cardStyles.classNames.cardTitle;
-title.textContent = task.title;
-header.appendChild(title);
+The compiler transforms JSX into optimized `__element()` / `__on()` / `__text()` / `__attr()` calls with compile-time reactivity analysis. At dev/test time, a lightweight JSX runtime provides the same DOM construction.
+
+```tsx
+// Before: 50+ lines of createElement + appendChild
+// After: Clean, declarative JSX
+export function TaskCard(props: TaskCardProps): HTMLElement {
+  const { task, onClick } = props;
+  return (
+    <article class={cardStyles.classNames.card} onClick={() => onClick(task.id)}>
+      <div class={cardStyles.classNames.cardHeader}>
+        <h3 class={cardStyles.classNames.cardTitle}>{task.title}</h3>
+        <span class={badge({ color: priorityColor(task.priority) })}>{task.priority}</span>
+      </div>
+      <p class={cardStyles.classNames.cardBody}>{task.description}</p>
+    </article>
+  ) as HTMLElement;
+}
 ```
 
-**Impact:** This will be the #1 complaint from anyone who tries the framework. Even developers who prefer "no magic" will find this tedious after the first component.
+The rewrite reduced ~350 lines of DOM construction to clean JSX across 8 files. Components, events, attributes, and children all work as expected. Primitives (Dialog, Tabs) stay imperative since they return pre-wired ARIA elements, and embed cleanly inside JSX via `{expression}` syntax.
 
-**Recommendation:** JSX support or a tagged template literal API (`html\`...\``) should be the highest priority for v0.2. Without it, no one will adopt this framework for real projects. The current API is fine for internal/compiler use but not for human authoring.
+**Remaining friction:** The `tsconfig.json` setup for JSX requires `"jsx": "react-jsx"` with a custom `jsxImportSource`, plus a local JSX runtime for Bun's test runner. This should be handled by a project template or `create-vertz` CLI.
 
-**Ticket filed:** This should be tracked as a P0 for next milestone.
+**Original ticket status:** Resolved — JSX support exists, just needs better discoverability.
 
 ### F2. Context Provider uses callback pattern — awkward for app composition (MEDIUM)
 
@@ -304,27 +340,29 @@ I found `globalCss` in the CSS module exports but had to check whether it was re
 | Area | Score | Notes |
 |------|-------|-------|
 | Reactivity | 9/10 | Excellent. signal/computed/effect is best-in-class |
+| JSX | 8/10 | Works well, clean output. Needs better project setup docs |
 | Styling | 7/10 | Good API, needs shorthand docs and better error messages |
 | Forms | 7/10 | Great progressive enhancement, but tight SDK coupling |
 | Data Fetching | 8/10 | Clean API, covers common cases, good reactive integration |
 | Routing | 7/10 | Functional but lacks convenience (no router context, no path signal) |
 | Primitives | 9/10 | WAI-ARIA correct, clean API, just works |
 | Testing | 8/10 | Good helpers, `waitFor` is essential, `createTestRouter` is handy |
-| DX Overall | 5/10 | Blocked by no JSX. The framework is good — the authoring experience is painful |
+| DX Overall | 7.5/10 | JSX unlocks the real DX. Remaining gaps: docs, CSS shorthands, router context |
 
-**Bottom line:** The framework internals are solid. The reactivity system, data fetching, and primitives are genuinely good. The DX is held back by a single blocker: no JSX or template syntax. Fix that, and this becomes a compelling framework. Without it, no developer will get past the first component.
+**Bottom line:** With JSX, the framework delivers a genuinely good authoring experience. The reactivity system is best-in-class, the compiler handles JSX → optimized DOM code, and primitives provide instant accessibility. The remaining DX gaps (CSS shorthand docs, router context, form API flexibility) are all solvable and don't block adoption. This is a framework worth recommending.
 
 ---
 
 ## Tickets to File
 
-1. **P0:** JSX or template literal support for component authoring [F1]
+1. ~~**P0:** JSX or template literal support for component authoring [F1]~~ **RESOLVED** — JSX exists in `@vertz/ui-compiler`
 2. **P1:** CSS shorthand reference documentation [F3]
 3. **P1:** `form()` should accept plain functions without SDK metadata [F4]
 4. **P1:** Export `compileTheme()` from public API [G1]
-5. **P2:** Add `RouterContext` for navigation without prop drilling [F8]
-6. **P2:** Add `provide()` helper to flatten nested context providers [F2]
-7. **P2:** Consider renaming `onMount` to `onInit` (or document that it runs during construction) [F5]
-8. **P3:** Add `batch()` usage examples to docs [F7]
-9. **P3:** Router should expose a `path` signal for Link [G4]
-10. **P3:** `ThemeProvider` option to apply to existing element [F6]
+5. **P1:** JSX project setup docs / `create-vertz` template with JSX config [F1 follow-up]
+6. **P2:** Add `RouterContext` for navigation without prop drilling [F8]
+7. **P2:** Add `provide()` helper to flatten nested context providers [F2]
+8. **P2:** Consider renaming `onMount` to `onInit` (or document that it runs during construction) [F5]
+9. **P3:** Add `batch()` usage examples to docs [F7]
+10. **P3:** Router should expose a `path` signal for Link [G4]
+11. **P3:** `ThemeProvider` option to apply to existing element [F6]
