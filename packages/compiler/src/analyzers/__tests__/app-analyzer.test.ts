@@ -3,8 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { resolveConfig } from '../../config';
 import { AppAnalyzer } from '../app-analyzer';
 
+const _sharedProject = new Project({ useInMemoryFileSystem: true });
+
 function createProject() {
-  return new Project({ useInMemoryFileSystem: true });
+  for (const file of _sharedProject.getSourceFiles()) {
+    file.deleteImmediatelySync();
+  }
+  return _sharedProject;
 }
 
 describe('AppAnalyzer', () => {
