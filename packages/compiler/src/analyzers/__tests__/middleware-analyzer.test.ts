@@ -6,8 +6,13 @@ import type { MiddlewareIR } from '../../ir/types';
 import type { MiddlewareAnalyzerResult } from '../middleware-analyzer';
 import { MiddlewareAnalyzer } from '../middleware-analyzer';
 
+const _sharedProject = new Project({ useInMemoryFileSystem: true });
+
 function createProject() {
-  return new Project({ useInMemoryFileSystem: true });
+  for (const file of _sharedProject.getSourceFiles()) {
+    file.deleteImmediatelySync();
+  }
+  return _sharedProject;
 }
 
 describe('MiddlewareAnalyzer', () => {

@@ -8,6 +8,10 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.ts'],
     environment: 'node',
+    testTimeout: 15_000,
+    pool: 'forks',
+    maxForks: process.env.CI ? 2 : undefined,
+    teardownTimeout: 120_000,
     typecheck: {
       enabled: true,
       include: ['src/**/*.test-d.ts'],
