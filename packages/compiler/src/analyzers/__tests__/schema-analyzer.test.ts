@@ -13,8 +13,13 @@ import {
   type SchemaAnalyzerResult,
 } from '../schema-analyzer';
 
+const _sharedProject = new Project({ useInMemoryFileSystem: true });
+
 function createProject() {
-  return new Project({ useInMemoryFileSystem: true });
+  for (const file of _sharedProject.getSourceFiles()) {
+    file.deleteImmediatelySync();
+  }
+  return _sharedProject;
 }
 
 function getExpr(project: Project, source: string) {

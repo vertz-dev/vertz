@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "build": "bun run --filter '*' build",
-    "test": "bun run --filter '*' test",
+    "test": "bun run --filter '@vertz/*' test",
     "test:watch": "bun run --filter '*' test:watch",
     "typecheck": "bun run --filter '*' typecheck",
     "lint": "biome check packages/",
@@ -17,11 +17,13 @@
     "format:fix": "biome format --fix packages/",
     "changeset": "changeset",
     "changeset:version": "changeset version",
-    "changeset:publish": "bun run build && changeset publish"
+    "changeset:publish": "bun run build && changeset publish",
+    "postinstall": "lefthook install"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",
     "@changesets/changelog-github": "^0.5.2",
-    "@changesets/cli": "^2.29.8"
+    "@changesets/cli": "^2.29.8",
+    "lefthook": "^2.1.1"
   }
 }

@@ -2,8 +2,13 @@ import { Project, SyntaxKind } from 'ts-morph';
 import { describe, expect, it } from 'vitest';
 import { isFromImport, resolveExport, resolveIdentifier } from '../import-resolver';
 
+const _sharedProject = new Project({ useInMemoryFileSystem: true });
+
 function createProject() {
-  return new Project({ useInMemoryFileSystem: true });
+  for (const file of _sharedProject.getSourceFiles()) {
+    file.deleteImmediatelySync();
+  }
+  return _sharedProject;
 }
 
 function getIdentifierUsage(file: ReturnType<Project['createSourceFile']>, varName: string) {
