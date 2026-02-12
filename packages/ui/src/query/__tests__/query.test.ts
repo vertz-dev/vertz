@@ -256,6 +256,49 @@ describe('query()', () => {
     expect(fetchCount).toBe(countAfterInit); // No additional thunk call
   });
 
+  test('derived cache key updates reactively when signal dependencies change', async () => {
+    const filter = signal('a');
+    const resolvers: Array<{ value: string; resolve: (v: string) => void }> = [];
+
+    // No explicit key — uses deriveKey(thunk) internally
+    const result = query(() => {
+      const f = filter.value; // reactive dependency
+      return new Promise<string>((resolve) => {
+        resolvers.push({ value: f, resolve });
+      });
+    });
+
+    // First fetch is in-flight with filter='a'
+    expect(result.loading.value).toBe(true);
+    expect(resolvers).toHaveLength(1);
+    expect(resolvers[0]?.value).toBe('a');
+
+    // Change the signal while the first fetch is still in-flight.
+    // The effect should re-run and call the thunk with the NEW filter value,
+    // NOT piggyback on the old in-flight request.
+    filter.value = 'b';
+
+    // The effect should have called the thunk again with filter='b'
+    expect(resolvers).toHaveLength(2);
+    expect(resolvers[1]?.value).toBe('b');
+
+    // Resolve the first (now stale) fetch
+    resolvers[0]?.resolve('data-for-a');
+    await Promise.resolve();
+
+    // Data should NOT be 'data-for-a' because that fetch is stale
+    // (the fetchId check should ignore it)
+    expect(result.data.value).toBeUndefined();
+    expect(result.loading.value).toBe(true);
+
+    // Resolve the second (current) fetch
+    resolvers[1]?.resolve('data-for-b');
+    await Promise.resolve();
+
+    expect(result.data.value).toBe('data-for-b');
+    expect(result.loading.value).toBe(false);
+  });
+
   test('stale responses are ignored after refetch', async () => {
     const resolvers: Array<(v: string) => void> = [];
     const result = query(
