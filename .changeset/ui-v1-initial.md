@@ -1,8 +1,8 @@
 ---
-'@vertz/ui': minor
-'@vertz/ui-compiler': minor
-'@vertz/ui-server': minor
-'@vertz/primitives': minor
+'@vertz/ui': patch
+'@vertz/ui-compiler': patch
+'@vertz/ui-server': patch
+'@vertz/primitives': patch
 ---
 
 Initial release of @vertz/ui — a compiler-driven reactive UI framework.
