@@ -1,4 +1,4 @@
-import { onCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
+import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { effect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
 import { untrack } from '../runtime/tracking';
@@ -41,7 +41,7 @@ export function watch<T>(dep: () => T, callback: (value: T) => void): void {
   });
 
   // Register disposal of the effect + final inner cleanups with the outer scope
-  onCleanup(() => {
+  _tryOnCleanup(() => {
     if (innerCleanups) {
       runCleanups(innerCleanups);
     }
