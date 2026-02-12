@@ -255,7 +255,9 @@ const COLOR_NAMESPACES = new Set([
   'background',
   'foreground',
   'muted',
+  'surface',
   'destructive',
+  'danger',
   'success',
   'warning',
   'info',
@@ -264,6 +266,7 @@ const COLOR_NAMESPACES = new Set([
   'input',
   'card',
   'popover',
+  'gray',
 ]);
 
 // ─── Resolver ──────────────────────────────────────────────────
