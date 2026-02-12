@@ -119,7 +119,7 @@ const PROPERTY_MAP: Record<string, PropertyMapping> = {
 
   // Misc properties
   cursor: { properties: ['cursor'], valueType: 'raw' },
-  transition: { properties: ['transition-property'], valueType: 'raw' },
+  transition: { properties: ['transition'], valueType: 'raw' },
   resize: { properties: ['resize'], valueType: 'raw' },
   opacity: { properties: ['opacity'], valueType: 'raw' },
   inset: { properties: ['inset'], valueType: 'raw' },
@@ -436,7 +436,15 @@ function resolveColor(value: string, property: string): string {
   }
 
   // CSS color keywords (named colors + global keywords).
-  const cssKeywords = new Set(['transparent', 'inherit', 'currentColor', 'initial', 'unset', 'white', 'black']);
+  const cssKeywords = new Set([
+    'transparent',
+    'inherit',
+    'currentColor',
+    'initial',
+    'unset',
+    'white',
+    'black',
+  ]);
   if (cssKeywords.has(value)) {
     return value;
   }
@@ -618,21 +626,36 @@ function resolveRingMulti(value: string): CSSDeclaration[] {
 /** Resolve raw values for properties that need custom mapping (border-width sides, transition, tracking, grid-cols, etc.). */
 function resolveRaw(value: string, property: string): string {
   // border-r/l/t/b: numeric → px
-  if (property === 'border-r' || property === 'border-l' || property === 'border-t' || property === 'border-b') {
+  if (
+    property === 'border-r' ||
+    property === 'border-l' ||
+    property === 'border-t' ||
+    property === 'border-b'
+  ) {
     const num = Number(value);
     if (!Number.isNaN(num)) return `${num}px`;
     return value;
   }
 
-  // transition property aliases
+  // transition shorthand aliases
   if (property === 'transition') {
+    const TIMING = '150ms cubic-bezier(0.4, 0, 0.2, 1)';
+    const COLOR_PROPS = [
+      'color',
+      'background-color',
+      'border-color',
+      'outline-color',
+      'text-decoration-color',
+      'fill',
+      'stroke',
+    ];
     const TRANSITION_MAP: Record<string, string> = {
       none: 'none',
-      all: 'all 150ms cubic-bezier(0.4, 0, 0.2, 1)',
-      colors: 'color, background-color, border-color, outline-color, text-decoration-color, fill, stroke 150ms cubic-bezier(0.4, 0, 0.2, 1)',
-      shadow: 'box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1)',
-      transform: 'transform 150ms cubic-bezier(0.4, 0, 0.2, 1)',
-      opacity: 'opacity 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+      all: `all ${TIMING}`,
+      colors: COLOR_PROPS.map((p) => `${p} ${TIMING}`).join(', '),
+      shadow: `box-shadow ${TIMING}`,
+      transform: `transform ${TIMING}`,
+      opacity: `opacity ${TIMING}`,
     };
     return TRANSITION_MAP[value] ?? value;
   }
