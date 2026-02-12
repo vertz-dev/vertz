@@ -9,7 +9,7 @@
  * Find a descendant element whose text content matches `text`.
  * Throws if no match is found.
  */
-export function findByText(container: Element, text: string): Element {
+export function findByText(container: Element, text: string): HTMLElement {
   const el = queryByText(container, text);
   if (!el) {
     throw new TypeError(`findByText: no element found with text "${text}"`);
@@ -21,10 +21,10 @@ export function findByText(container: Element, text: string): Element {
  * Find a descendant element whose text content matches `text`.
  * Returns null if no match is found.
  */
-export function queryByText(container: Element, text: string): Element | null {
+export function queryByText(container: Element, text: string): HTMLElement | null {
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT);
 
-  let node = walker.currentNode as Element;
+  let node = walker.currentNode as HTMLElement;
   while (node) {
     // Check direct text content — only consider text owned by this element,
     // not deeply nested children, to avoid matching parent wrappers.
@@ -33,7 +33,7 @@ export function queryByText(container: Element, text: string): Element | null {
     }
     const next = walker.nextNode();
     if (!next) break;
-    node = next as Element;
+    node = next as HTMLElement;
   }
 
   // Fallback: match against full textContent (for elements whose text
@@ -57,18 +57,18 @@ function hasDirectTextMatch(el: Element, text: string): boolean {
  * Fallback: walk elements checking full textContent.
  * Returns the deepest matching element (most specific).
  */
-function queryByTextContent(container: Element, text: string): Element | null {
-  let best: Element | null = null;
+function queryByTextContent(container: Element, text: string): HTMLElement | null {
+  let best: HTMLElement | null = null;
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT);
 
-  let node = walker.currentNode as Element;
+  let node = walker.currentNode as HTMLElement;
   while (node) {
     if (node.textContent?.trim() === text) {
       best = node; // keep going — deeper matches are more specific
     }
     const next = walker.nextNode();
     if (!next) break;
-    node = next as Element;
+    node = next as HTMLElement;
   }
   return best;
 }
@@ -77,7 +77,7 @@ function queryByTextContent(container: Element, text: string): Element | null {
  * Find a descendant element with `data-testid="<id>"`.
  * Throws if no match is found.
  */
-export function findByTestId(container: Element, id: string): Element {
+export function findByTestId(container: Element, id: string): HTMLElement {
   const el = queryByTestId(container, id);
   if (!el) {
     throw new TypeError(`findByTestId: no element found with data-testid="${id}"`);
@@ -89,8 +89,8 @@ export function findByTestId(container: Element, id: string): Element {
  * Find a descendant element with `data-testid="<id>"`.
  * Returns null if no match is found.
  */
-export function queryByTestId(container: Element, id: string): Element | null {
-  return container.querySelector(`[data-testid="${id}"]`);
+export function queryByTestId(container: Element, id: string): HTMLElement | null {
+  return container.querySelector<HTMLElement>(`[data-testid="${id}"]`);
 }
 
 /** Options for `waitFor`. */
