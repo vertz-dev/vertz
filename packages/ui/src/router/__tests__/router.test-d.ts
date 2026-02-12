@@ -90,3 +90,33 @@ const _nestedRoute: RouteConfig<'/orgs/:orgId/repos/:repoId', { stars: number }>
   },
 };
 void _nestedRoute;
+
+// ─── Loader context: signal property ─────────────────────────────────────────
+
+// signal should be AbortSignal in loader context
+const _routeWithSignal: RouteConfig<'/items/:id', { item: string }> = {
+  component: () => document.createElement('div'),
+  loader: ({ params, signal }) => {
+    const _id: string = params.id;
+    void _id;
+
+    // signal should be AbortSignal
+    const _signal: AbortSignal = signal;
+    void _signal;
+
+    return { item: 'test' };
+  },
+};
+void _routeWithSignal;
+
+// Non-existent context property should be rejected
+const _routeBadCtx: RouteConfig<'/items/:id', { item: string }> = {
+  component: () => document.createElement('div'),
+  loader: (ctx) => {
+    // @ts-expect-error - 'badProp' does not exist on loader context
+    const _bad = ctx.badProp;
+    void _bad;
+    return { item: 'test' };
+  },
+};
+void _routeBadCtx;

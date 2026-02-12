@@ -19,7 +19,10 @@ export interface RouteConfig<
   /** Component factory (lazy for code splitting). */
   component: () => Node | Promise<{ default: () => Node }>;
   /** Optional loader that runs before render. */
-  loader?: (ctx: { params: ExtractParams<TPath> }) => Promise<TLoaderData> | TLoaderData;
+  loader?: (ctx: {
+    params: ExtractParams<TPath>;
+    signal: AbortSignal;
+  }) => Promise<TLoaderData> | TLoaderData;
   /** Optional error component rendered when loader throws. */
   errorComponent?: (error: Error) => Node;
   /** Optional search params schema for validation/coercion. */
@@ -39,7 +42,10 @@ export interface CompiledRoute {
   pattern: string;
   /** The route config. */
   component: RouteConfig['component'];
-  loader?: RouteConfig['loader'];
+  loader?: (ctx: {
+    params: Record<string, string>;
+    signal: AbortSignal;
+  }) => Promise<unknown> | unknown;
   errorComponent?: RouteConfig['errorComponent'];
   searchParams?: RouteConfig['searchParams'];
   /** Compiled children. */
@@ -86,7 +92,7 @@ export function defineRoutes(map: RouteDefinitionMap): CompiledRoute[] {
     const compiled: CompiledRoute = {
       component: config.component,
       errorComponent: config.errorComponent,
-      loader: config.loader,
+      loader: config.loader as CompiledRoute['loader'],
       pattern,
       searchParams: config.searchParams,
     };
