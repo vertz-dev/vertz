@@ -1,4 +1,4 @@
-# @vertz/ui v1.0 — Post-Implementation Review
+# @vertz/ui v0.1 — Post-Implementation Review
 
 **Feature:** @vertz/ui — Compiler-driven UI library with fine-grained reactivity
 **Design Doc:** `/app/vertz/plans/ui-design.md`
@@ -197,7 +197,7 @@ Phase reviewers must explicitly compare barrel exports against the design doc AP
 
 ## Final Takeaway
 
-The @vertz/ui v1.0 project was a successful feature delivery with clean phase execution and no major design deviations. The phase breakdown and strict TDD caught implementation issues early. However, phase reviews focused too much on correctness and not enough on API surface alignment with the design doc.
+The @vertz/ui v0.1 project was a successful feature delivery with clean phase execution and no major design deviations. The phase breakdown and strict TDD caught implementation issues early. However, phase reviews focused too much on correctness and not enough on API surface alignment with the design doc.
 
 The root issue: reviewers validated "does this code work?" but not "does this API match what we designed?" Adding the Public API Audit step to phase reviews and scheduling a mid-project DX review checkpoint will prevent leaky APIs in future multi-phase projects.
 

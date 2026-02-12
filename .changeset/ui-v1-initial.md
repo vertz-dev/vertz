@@ -5,7 +5,7 @@
 '@vertz/primitives': patch
 ---
 
-Initial release of @vertz/ui — a compiler-driven reactive UI framework.
+Initial release of @vertz/ui v0.1 — a compiler-driven reactive UI framework.
 
 - Reactivity: `signal()`, `computed()`, `effect()`, `batch()`, `untrack()`
 - Compiler: `let` → signal, `const` derived → computed, JSX → DOM helpers, mutation → peek/notify
