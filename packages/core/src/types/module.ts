@@ -16,9 +16,9 @@ export interface ServiceDef<TDeps = unknown, TState = unknown, TMethods = unknow
   onDestroy?: (deps: TDeps, state: TState) => Promise<void> | void;
 }
 
-export interface RouterDef {
+export interface RouterDef<TInject extends Record<string, unknown> = Record<string, unknown>> {
   prefix: string;
-  inject?: Record<string, unknown>;
+  inject?: TInject;
 }
 
 export interface Module<TDef extends ModuleDef = ModuleDef> {

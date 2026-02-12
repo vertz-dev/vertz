@@ -277,20 +277,40 @@ describe('@vertz/core dist type preservation', () => {
 
   // ---- HttpMethodFn generic preservation ----
 
-  it('HttpMethodFn has TMiddleware generic parameter', () => {
-    expect(dts).toMatch(/type HttpMethodFn<\s*TMiddleware\s+extends\s+Record<string,\s*unknown>/);
+  it('HttpMethodFn has TMiddleware and TInject generic parameters', () => {
+    expect(dts).toMatch(
+      /type HttpMethodFn<\s*\n?\s*TMiddleware\s+extends\s+Record<string,\s*unknown>/,
+    );
+    expect(dts).toMatch(/HttpMethodFn[\s\S]*?TInject\s+extends\s+Record<string,\s*unknown>/);
   });
 
-  it('HttpMethodFn returns NamedRouterDef<TMiddleware>', () => {
-    expect(dts).toMatch(/HttpMethodFn[\s\S]*?NamedRouterDef<TMiddleware>/);
+  it('HttpMethodFn returns NamedRouterDef<TMiddleware, TInject>', () => {
+    expect(dts).toMatch(/HttpMethodFn[\s\S]*?NamedRouterDef<TMiddleware,\s*TInject>/);
   });
 
   // ---- NamedRouterDef generic preservation ----
 
-  it('NamedRouterDef has TMiddleware generic parameter', () => {
+  it('NamedRouterDef has TMiddleware and TInject generic parameters', () => {
     expect(dts).toMatch(
-      /interface NamedRouterDef<\s*TMiddleware\s+extends\s+Record<string,\s*unknown>/,
+      /interface NamedRouterDef<\s*\n?\s*TMiddleware\s+extends\s+Record<string,\s*unknown>/,
     );
+    expect(dts).toMatch(/NamedRouterDef[\s\S]*?TInject\s+extends\s+Record<string,\s*unknown>/);
+  });
+
+  // ---- ExtractMethods and ResolveInjectMap utility types ----
+
+  it('ExtractMethods utility type is exported', () => {
+    expect(dts).toMatch(/type ExtractMethods<\s*T\s*>/);
+  });
+
+  it('ResolveInjectMap utility type is exported', () => {
+    expect(dts).toMatch(/type ResolveInjectMap<\s*T\s+extends\s+Record<string,\s*unknown>/);
+  });
+
+  // ---- RouterDef has TInject generic ----
+
+  it('RouterDef has TInject generic parameter', () => {
+    expect(dts).toMatch(/interface RouterDef<\s*TInject\s+extends\s+Record<string,\s*unknown>/);
   });
 
   // ---- RouteConfig generic parameters ----
