@@ -1,3 +1,4 @@
+import { onCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { effect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
 
@@ -23,10 +24,22 @@ export function __conditional(
   // Use a comment node as a stable anchor/placeholder
   const anchor = document.createComment('conditional');
   let currentNode: Node | null = null;
+  let branchCleanups: DisposeFn[] = [];
 
-  const dispose = effect(() => {
+  // Wrap the outer effect in its own scope so that any parent disposal scope
+  // captures the outerScope — not the raw effect dispose.
+  const outerScope = pushScope();
+  effect(() => {
     const show = condFn();
+
+    // Run cleanups for the previous branch before creating the new one
+    runCleanups(branchCleanups);
+
+    // Push a new disposal scope to capture cleanups from the branch function
+    const scope = pushScope();
     const newNode = show ? trueFn() : falseFn();
+    popScope();
+    branchCleanups = scope;
 
     if (currentNode?.parentNode) {
       // Replace old node with new node
@@ -38,6 +51,17 @@ export function __conditional(
 
     currentNode = newNode;
   });
+  popScope();
+
+  const wrapper = () => {
+    // Run cleanups for the currently active branch
+    runCleanups(branchCleanups);
+    // Dispose the outer scope (stops the effect)
+    runCleanups(outerScope);
+  };
+
+  // Register the full wrapper with any active parent scope
+  onCleanup(wrapper);
 
   // Return a fragment containing both anchor and initial rendered content
   const fragment = document.createDocumentFragment();
@@ -47,6 +71,6 @@ export function __conditional(
   }
 
   // Attach dispose to the fragment for lifecycle management
-  const result: DisposableNode = Object.assign(fragment, { dispose });
+  const result: DisposableNode = Object.assign(fragment, { dispose: wrapper });
   return result;
 }
