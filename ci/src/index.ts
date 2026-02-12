@@ -20,6 +20,7 @@ import { argument, type Container, type Directory, type Service, dag, func, obje
  */
 const SOURCE_PATTERNS = [
   "packages/",
+  "examples/",
   "biome-plugins/",
   "ci/",
   "biome.json",

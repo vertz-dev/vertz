@@ -85,10 +85,16 @@ const PROPERTY_MAP: Record<string, PropertyMapping> = {
   'min-h': { properties: ['min-height'], valueType: 'size' },
   'max-h': { properties: ['max-height'], valueType: 'size' },
 
-  // Colors
+  // Colors (text, border, bg are multi-mode — resolved in resolveToken)
   bg: { properties: ['background-color'], valueType: 'color' },
   text: { properties: ['color'], valueType: 'color' },
   border: { properties: ['border-color'], valueType: 'color' },
+
+  // Border width (directional)
+  'border-r': { properties: ['border-right-width'], valueType: 'raw' },
+  'border-l': { properties: ['border-left-width'], valueType: 'raw' },
+  'border-t': { properties: ['border-top-width'], valueType: 'raw' },
+  'border-b': { properties: ['border-bottom-width'], valueType: 'raw' },
 
   // Border radius
   rounded: { properties: ['border-radius'], valueType: 'radius' },
@@ -100,26 +106,59 @@ const PROPERTY_MAP: Record<string, PropertyMapping> = {
   gap: { properties: ['gap'], valueType: 'spacing' },
   items: { properties: ['align-items'], valueType: 'alignment' },
   justify: { properties: ['justify-content'], valueType: 'alignment' },
+  'grid-cols': { properties: ['grid-template-columns'], valueType: 'raw' },
 
   // Typography
   font: { properties: ['font-size'], valueType: 'font-size' },
   weight: { properties: ['font-weight'], valueType: 'font-weight' },
   leading: { properties: ['line-height'], valueType: 'line-height' },
+  tracking: { properties: ['letter-spacing'], valueType: 'raw' },
 
   // Ring (outline)
   ring: { properties: ['outline'], valueType: 'ring' },
+
+  // Misc properties
+  cursor: { properties: ['cursor'], valueType: 'raw' },
+  transition: { properties: ['transition'], valueType: 'raw' },
+  resize: { properties: ['resize'], valueType: 'raw' },
+  opacity: { properties: ['opacity'], valueType: 'raw' },
+  inset: { properties: ['inset'], valueType: 'raw' },
+  z: { properties: ['z-index'], valueType: 'raw' },
 
   // Content
   content: { properties: ['content'], valueType: 'content' },
 };
 
-/** Display keyword map. */
-const DISPLAY_MAP: Record<string, string> = {
-  flex: 'flex',
-  grid: 'grid',
-  block: 'block',
-  inline: 'inline',
-  hidden: 'none',
+/** Keyword map — single keywords that resolve to one or more declarations. */
+const KEYWORD_MAP: Record<string, CSSDeclaration[]> = {
+  // Display
+  flex: [{ property: 'display', value: 'flex' }],
+  grid: [{ property: 'display', value: 'grid' }],
+  block: [{ property: 'display', value: 'block' }],
+  inline: [{ property: 'display', value: 'inline' }],
+  hidden: [{ property: 'display', value: 'none' }],
+  'inline-flex': [{ property: 'display', value: 'inline-flex' }],
+
+  // Flex utilities
+  'flex-1': [{ property: 'flex', value: '1 1 0%' }],
+  'flex-col': [{ property: 'flex-direction', value: 'column' }],
+  'flex-row': [{ property: 'flex-direction', value: 'row' }],
+  'flex-wrap': [{ property: 'flex-wrap', value: 'wrap' }],
+  'flex-nowrap': [{ property: 'flex-wrap', value: 'nowrap' }],
+
+  // Position
+  fixed: [{ property: 'position', value: 'fixed' }],
+  absolute: [{ property: 'position', value: 'absolute' }],
+  relative: [{ property: 'position', value: 'relative' }],
+  sticky: [{ property: 'position', value: 'sticky' }],
+
+  // Text
+  uppercase: [{ property: 'text-transform', value: 'uppercase' }],
+  lowercase: [{ property: 'text-transform', value: 'lowercase' }],
+  capitalize: [{ property: 'text-transform', value: 'capitalize' }],
+
+  // Outline
+  'outline-none': [{ property: 'outline', value: 'none' }],
 };
 
 // ─── Value Resolvers ───────────────────────────────────────────
@@ -242,6 +281,18 @@ const SIZE_KEYWORDS: Record<string, string> = {
   max: 'max-content',
   fit: 'fit-content',
   auto: 'auto',
+  // Named max-width breakpoints (Tailwind-compatible).
+  xs: '20rem',
+  sm: '24rem',
+  md: '28rem',
+  lg: '32rem',
+  xl: '36rem',
+  '2xl': '42rem',
+  '3xl': '48rem',
+  '4xl': '56rem',
+  '5xl': '64rem',
+  '6xl': '72rem',
+  '7xl': '80rem',
 };
 
 /** Height-axis property shorthands that should use vh units. */
@@ -277,13 +328,10 @@ const COLOR_NAMESPACES = new Set([
 export function resolveToken(parsed: ParsedShorthand): ResolvedStyle {
   const { property, value, pseudo } = parsed;
 
-  // Display keywords
-  const displayValue = DISPLAY_MAP[property];
-  if (displayValue !== undefined && value === null) {
-    return {
-      declarations: [{ property: 'display', value: displayValue }],
-      pseudo,
-    };
+  // Keywords (no value): flex, flex-1, flex-col, fixed, uppercase, etc.
+  const keyword = KEYWORD_MAP[property];
+  if (keyword !== undefined && value === null) {
+    return { declarations: [...keyword], pseudo };
   }
 
   const mapping = PROPERTY_MAP[property];
@@ -298,6 +346,21 @@ export function resolveToken(parsed: ParsedShorthand): ResolvedStyle {
     throw new TokenResolveError(`Property '${property}' requires a value`, formatShorthand(parsed));
   }
 
+  // Multi-mode properties: text, font, border, ring resolve based on value type.
+  if (property === 'text') {
+    return { declarations: resolveText(value), pseudo };
+  }
+  if (property === 'font') {
+    return { declarations: resolveFont(value), pseudo };
+  }
+  if (property === 'border') {
+    return { declarations: resolveBorder(value), pseudo };
+  }
+  if (property === 'ring') {
+    return { declarations: resolveRingMulti(value), pseudo };
+  }
+
+  // Standard single-mode resolution.
   const resolvedValue = resolveValue(value, mapping.valueType, property);
   const declarations = mapping.properties.map((prop) => ({
     property: prop,
@@ -336,8 +399,9 @@ function resolveValue(
     case 'content':
       return resolveContent(value, property);
     case 'display':
-    case 'raw':
       return value;
+    case 'raw':
+      return resolveRaw(value, property);
   }
 }
 
@@ -371,8 +435,16 @@ function resolveColor(value: string, property: string): string {
     return `var(--color-${value})`;
   }
 
-  // Transparent, inherit, etc.
-  const cssKeywords = new Set(['transparent', 'inherit', 'currentColor', 'initial', 'unset']);
+  // CSS color keywords (named colors + global keywords).
+  const cssKeywords = new Set([
+    'transparent',
+    'inherit',
+    'currentColor',
+    'initial',
+    'unset',
+    'white',
+    'black',
+  ]);
   if (cssKeywords.has(value)) {
     return value;
   }
@@ -491,6 +563,133 @@ function resolveContent(value: string, property: string): string {
   );
 }
 
+// ─── Multi-Mode Resolvers ────────────────────────────────────
+
+/** Text alignment keywords. */
+const TEXT_ALIGN_KEYWORDS = new Set(['center', 'left', 'right', 'justify', 'start', 'end']);
+
+/**
+ * Resolve `text:value` — multi-mode:
+ * - Font-size keywords (sm, xs, lg, etc.) → font-size
+ * - Text-align keywords (center, left, right) → text-align
+ * - Everything else → color
+ */
+function resolveText(value: string): CSSDeclaration[] {
+  if (FONT_SIZE_SCALE[value] !== undefined) {
+    return [{ property: 'font-size', value: FONT_SIZE_SCALE[value] }];
+  }
+  if (TEXT_ALIGN_KEYWORDS.has(value)) {
+    return [{ property: 'text-align', value }];
+  }
+  return [{ property: 'color', value: resolveColor(value, 'text') }];
+}
+
+/**
+ * Resolve `font:value` — multi-mode:
+ * - Font-weight keywords (medium, semibold, bold, etc.) → font-weight
+ * - Everything else → font-size
+ */
+function resolveFont(value: string): CSSDeclaration[] {
+  if (FONT_WEIGHT_SCALE[value] !== undefined) {
+    return [{ property: 'font-weight', value: FONT_WEIGHT_SCALE[value] }];
+  }
+  return [{ property: 'font-size', value: resolveFontSize(value, 'font') }];
+}
+
+/**
+ * Resolve `border:value` — multi-mode:
+ * - Numeric values (1, 2, etc.) → border-width in px
+ * - Everything else → border-color
+ */
+function resolveBorder(value: string): CSSDeclaration[] {
+  const num = Number(value);
+  if (!Number.isNaN(num) && num >= 0) {
+    return [{ property: 'border-width', value: `${num}px` }];
+  }
+  return [{ property: 'border-color', value: resolveColor(value, 'border') }];
+}
+
+/**
+ * Resolve `ring:value` — multi-mode:
+ * - Numeric values → outline width
+ * - Color tokens → outline-color
+ */
+function resolveRingMulti(value: string): CSSDeclaration[] {
+  const num = Number(value);
+  if (!Number.isNaN(num) && num >= 0) {
+    return [{ property: 'outline', value: `${num}px solid var(--color-ring)` }];
+  }
+  // Color token: ring:primary.500 → outline-color
+  return [{ property: 'outline-color', value: resolveColor(value, 'ring') }];
+}
+
+/** Resolve raw values for properties that need custom mapping (border-width sides, transition, tracking, grid-cols, etc.). */
+function resolveRaw(value: string, property: string): string {
+  // border-r/l/t/b: numeric → px
+  if (
+    property === 'border-r' ||
+    property === 'border-l' ||
+    property === 'border-t' ||
+    property === 'border-b'
+  ) {
+    const num = Number(value);
+    if (!Number.isNaN(num)) return `${num}px`;
+    return value;
+  }
+
+  // transition shorthand aliases
+  if (property === 'transition') {
+    const TIMING = '150ms cubic-bezier(0.4, 0, 0.2, 1)';
+    const COLOR_PROPS = [
+      'color',
+      'background-color',
+      'border-color',
+      'outline-color',
+      'text-decoration-color',
+      'fill',
+      'stroke',
+    ];
+    const TRANSITION_MAP: Record<string, string> = {
+      none: 'none',
+      all: `all ${TIMING}`,
+      colors: COLOR_PROPS.map((p) => `${p} ${TIMING}`).join(', '),
+      shadow: `box-shadow ${TIMING}`,
+      transform: `transform ${TIMING}`,
+      opacity: `opacity ${TIMING}`,
+    };
+    return TRANSITION_MAP[value] ?? value;
+  }
+
+  // tracking (letter-spacing)
+  if (property === 'tracking') {
+    const TRACKING_MAP: Record<string, string> = {
+      tighter: '-0.05em',
+      tight: '-0.025em',
+      normal: '0em',
+      wide: '0.025em',
+      wider: '0.05em',
+      widest: '0.1em',
+    };
+    return TRACKING_MAP[value] ?? value;
+  }
+
+  // grid-cols: number → repeat(N, minmax(0, 1fr))
+  if (property === 'grid-cols') {
+    const num = Number(value);
+    if (!Number.isNaN(num) && num > 0) return `repeat(${num}, minmax(0, 1fr))`;
+    return value;
+  }
+
+  // inset: use spacing scale
+  if (property === 'inset') {
+    const spaced = SPACING_SCALE[value];
+    if (spaced !== undefined) return spaced;
+    return value;
+  }
+
+  return value;
+}
+
 function formatShorthand(parsed: ParsedShorthand): string {
   const parts: string[] = [];
   if (parsed.pseudo) parts.push(parsed.pseudo);
@@ -503,7 +702,7 @@ function formatShorthand(parsed: ParsedShorthand): string {
  * Check if a property shorthand is known.
  */
 export function isKnownProperty(name: string): boolean {
-  return name in PROPERTY_MAP || name in DISPLAY_MAP;
+  return name in PROPERTY_MAP || name in KEYWORD_MAP;
 }
 
 /**
