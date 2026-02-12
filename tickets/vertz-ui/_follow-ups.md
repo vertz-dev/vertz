@@ -20,7 +20,7 @@ The following follow-ups were promoted to v0.1.x tickets:
 ## From PR #153 (ava, 2026-02-11)
 
 ### 1. __conditional could cache branch nodes for reuse
-- **Phase:** backlog (optimization)
+- **Phase:** v0.1.x (optimization)
 - **Severity:** low
 - **Description:** `__conditional` creates a fresh DOM node on every branch switch. A future optimization could cache branch nodes so toggling back reuses the previously rendered node instead of recreating it.
 - **Resolved:** not yet
@@ -52,7 +52,7 @@ The following follow-ups were promoted to v0.1.x tickets:
 - **Resolved:** not yet
 
 ### 12. Add controlled mode to primitives
-- **Phase:** backlog
+- **Phase:** v0.1.x
 - **Severity:** low
 - **Description:** All primitives currently only support uncontrolled mode (defaultValue + callbacks). Controlled mode (value prop overrides internal state) should be added for more advanced use cases.
 - **Resolved:** not yet
@@ -68,7 +68,7 @@ The following follow-ups were promoted to v0.1.x tickets:
 - **Resolved:** not yet (awareness only)
 
 ### N2. Computed circular dependency detection
-- **Phase:** backlog (robustness)
+- **Phase:** v0.1.x (robustness)
 - **Severity:** low
 - **Description:** No guard against computed re-entry. A circular computed dependency would stack overflow. Consider adding a `computing` flag to detect cycles and throw a meaningful error.
 - **Resolved:** not yet
@@ -102,7 +102,7 @@ The following follow-ups were promoted to v0.1.x tickets:
 - **Resolved:** not yet
 
 ### M3. Computed propagation may fire effects for unchanged values
-- **Phase:** backlog (optimization)
+- **Phase:** v0.1.x (optimization)
 - **Severity:** low
 - **Description:** Known push-pull trade-off. Computed values use push-based propagation which may fire downstream effects even when the computed result hasn't changed. A future optimization could add equality checks.
 - **Resolved:** not yet (known trade-off)
@@ -112,7 +112,7 @@ The following follow-ups were promoted to v0.1.x tickets:
 ## From PR #199 — josh DX review (follow-up items)
 
 ### J1. create-vertz-app scaffolding CLI
-- **Phase:** backlog (standalone)
+- **Phase:** v0.1.x (standalone)
 - **Severity:** medium
 - **Description:** No `npx vertz init` or `create-vertz-app` scaffolding. Developers need to manually install 4 packages and configure the compiler. This is a significant onboarding friction point.
 - **Resolved:** not yet
