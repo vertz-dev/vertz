@@ -7,7 +7,7 @@
  * Debug shell: dagger call base terminal
  * Coverage: dagger call test-coverage export --path=./coverage
  */
-import { argument, type Container, type Directory, dag, func, object } from "@dagger.io/dagger"
+import { argument, type Container, type Directory, type Service, dag, func, object } from "@dagger.io/dagger"
 
 /**
  * Glob patterns for paths that require the full CI pipeline.
@@ -50,6 +50,31 @@ export class Ci {
       .withDirectory("/app", source)
       .withWorkdir("/app")
       .withExec(["bun", "install", "--frozen-lockfile"])
+  }
+
+  /**
+   * Create a PostgreSQL 16 service container for integration tests.
+   * Returns a Dagger Service that can be bound to test containers.
+   */
+  private postgres(): Service {
+    return dag
+      .container()
+      .from("postgres:16-alpine")
+      .withEnvVariable("POSTGRES_USER", "postgres")
+      .withEnvVariable("POSTGRES_PASSWORD", "postgres")
+      .withEnvVariable("POSTGRES_DB", "vertz_test")
+      .withExposedPort(5432)
+      .asService()
+  }
+
+  /**
+   * Add Postgres service and DATABASE_TEST_URL to a container.
+   * The service is reachable at hostname "postgres" from within the Dagger network.
+   */
+  private withPostgres(ctr: Container): Container {
+    return ctr
+      .withServiceBinding("postgres", this.postgres())
+      .withEnvVariable("DATABASE_TEST_URL", "postgres://postgres:postgres@postgres:5432/vertz_test")
   }
 
   /**
@@ -99,6 +124,7 @@ export class Ci {
   /**
    * Run vitest tests across all packages.
    * Builds first since tests may import from workspace packages.
+   * Starts a Postgres service so @vertz/db integration tests can run against a real database.
    *
    * Note: coverage collection is handled by the dedicated coverage job in the
    * GitHub Actions workflow, not here. Use testCoverage() for explicit coverage runs.
@@ -108,8 +134,9 @@ export class Ci {
     @argument({ defaultPath: "/", ignore: ["node_modules", ".git", "dist", "build", "coverage", ".nyc_output", "*.tsbuildinfo", "ci"] })
     source: Directory,
   ): Promise<string> {
-    return this.base(source)
+    const ctr = this.base(source)
       .withExec(["bun", "run", "--filter", "*", "build"])
+    return this.withPostgres(ctr)
       .withExec(["bun", "run", "test"])
       .withExec(["echo", "Tests passed"])
       .stdout()
@@ -126,9 +153,10 @@ export class Ci {
   ): Promise<Directory> {
     const ctr = this.base(source)
       .withExec(["bun", "run", "--filter", "*", "build"])
+    const withPg = this.withPostgres(ctr)
       .withExec(["bun", "run", "test", "--", "--coverage"])
 
-    return ctr.directory("/app")
+    return withPg.directory("/app")
   }
 
   /**
@@ -157,9 +185,10 @@ export class Ci {
     source: Directory,
     runtime: string = "bun",
   ): Promise<string> {
-    return this.base(source)
+    const ctr = this.base(source)
       .withExec(["bun", "run", "--filter", "*", "build"])
       .withEnvVariable("RUNTIME", runtime)
+    return this.withPostgres(ctr)
       .withExec(["bun", "run", "test"])
       .withExec(["echo", `Tests passed for runtime: ${runtime}`])
       .stdout()
@@ -167,16 +196,18 @@ export class Ci {
 
   /**
    * Run the full CI pipeline: lint, build, typecheck, test.
+   * Postgres is started before the test step so @vertz/db integration tests work.
    */
   @func()
   async ci(
     @argument({ defaultPath: "/", ignore: ["node_modules", ".git", "dist", "build", "coverage", ".nyc_output", "*.tsbuildinfo", "ci"] })
     source: Directory,
   ): Promise<string> {
-    return this.base(source)
+    const ctr = this.base(source)
       .withExec(["bun", "run", "lint"])
       .withExec(["bun", "run", "--filter", "*", "build"])
       .withExec(["bun", "run", "typecheck"])
+    return this.withPostgres(ctr)
       .withExec(["bun", "run", "test"])
       .withExec(["echo", "All checks passed"])
       .stdout()
@@ -208,13 +239,15 @@ export class Ci {
 
   /**
    * Run the full CI pipeline from a gitSource directory, stripping .git and ci/.
+   * Postgres is started before the test step so @vertz/db integration tests work.
    */
   private runFullPipeline(gitSource: Directory): Promise<string> {
     const source = gitSource.withoutDirectory(".git").withoutDirectory("ci")
-    return this.base(source)
+    const ctr = this.base(source)
       .withExec(["bun", "run", "lint"])
       .withExec(["bun", "run", "--filter", "*", "build"])
       .withExec(["bun", "run", "typecheck"])
+    return this.withPostgres(ctr)
       .withExec(["bun", "run", "test"])
       .withExec(["echo", "All checks passed"])
       .stdout()
