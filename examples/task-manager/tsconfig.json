@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "@vertz-examples/task-manager",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "types": ["bun-types"]
+  },
+  "include": ["src"]
+}

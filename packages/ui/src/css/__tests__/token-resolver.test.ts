@@ -281,6 +281,36 @@ describe('resolveToken', () => {
     });
   });
 
+  describe('transition', () => {
+    it('resolves transition:colors to transition shorthand with per-property timing', () => {
+      const result = resolveToken({ property: 'transition', value: 'colors', pseudo: null });
+      expect(result.declarations).toHaveLength(1);
+      const decl = result.declarations[0];
+      expect(decl?.property).toBe('transition');
+      // Each property should have its own timing
+      expect(decl?.value).toContain('color 150ms');
+      expect(decl?.value).toContain('background-color 150ms');
+      expect(decl?.value).toContain('border-color 150ms');
+    });
+
+    it('resolves transition:all', () => {
+      const result = resolveToken({ property: 'transition', value: 'all', pseudo: null });
+      expect(result.declarations[0]?.property).toBe('transition');
+      expect(result.declarations[0]?.value).toContain('all 150ms');
+    });
+
+    it('resolves transition:shadow', () => {
+      const result = resolveToken({ property: 'transition', value: 'shadow', pseudo: null });
+      expect(result.declarations[0]?.property).toBe('transition');
+      expect(result.declarations[0]?.value).toContain('box-shadow 150ms');
+    });
+
+    it('resolves transition:none', () => {
+      const result = resolveToken({ property: 'transition', value: 'none', pseudo: null });
+      expect(result.declarations[0]).toEqual({ property: 'transition', value: 'none' });
+    });
+  });
+
   describe('error cases', () => {
     it('throws on unknown property', () => {
       expect(() => resolveToken({ property: 'xyzzy', value: '4', pseudo: null })).toThrow(
