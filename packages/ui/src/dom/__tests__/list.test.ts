@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { signal } from '../../runtime/signal';
+import { effect, signal } from '../../runtime/signal';
 import { __list } from '../list';
 
 describe('__list', () => {
@@ -187,5 +187,131 @@ describe('__list', () => {
     ];
     // After dispose, updates should not take effect
     expect(container.children.length).toBe(1);
+  });
+
+  it('disposes effects inside a removed list item', () => {
+    const items = signal([
+      { id: 1, text: 'A' },
+      { id: 2, text: 'B' },
+    ]);
+    const counter = signal(0);
+    let effectRunCount = 0;
+
+    const container = document.createElement('ul');
+    __list(
+      container,
+      items,
+      (item) => item.id,
+      (item) => {
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        // Each item creates an effect that tracks `counter`
+        if (item.id === 2) {
+          effect(() => {
+            counter.value; // subscribe
+            effectRunCount++;
+          });
+        }
+        return li;
+      },
+    );
+
+    // Effect ran once during initial render
+    expect(effectRunCount).toBe(1);
+
+    // Remove item 2 from the list
+    items.value = [{ id: 1, text: 'A' }];
+    expect(container.children.length).toBe(1);
+
+    // Reset counter to verify effect no longer runs
+    effectRunCount = 0;
+    counter.value = 1;
+
+    // The effect from the removed item should NOT run
+    expect(effectRunCount).toBe(0);
+  });
+
+  it('disposes old item effects before creating new ones when array is replaced', () => {
+    const items = signal([
+      { id: 1, text: 'A' },
+      { id: 2, text: 'B' },
+    ]);
+    const counter = signal(0);
+    const log: string[] = [];
+
+    const container = document.createElement('ul');
+    __list(
+      container,
+      items,
+      (item) => item.id,
+      (item) => {
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        effect(() => {
+          counter.value; // subscribe
+          log.push(`effect-${item.id}`);
+        });
+        return li;
+      },
+    );
+
+    // Initial render: effects for items 1 and 2 have run
+    expect(log).toEqual(['effect-1', 'effect-2']);
+    log.length = 0;
+
+    // Replace with entirely new array — old effects (1, 2) should be disposed
+    // before new effects (3, 4) are created
+    items.value = [
+      { id: 3, text: 'C' },
+      { id: 4, text: 'D' },
+    ];
+
+    // New effects for items 3 and 4 should have run
+    expect(log).toEqual(['effect-3', 'effect-4']);
+    log.length = 0;
+
+    // Trigger counter change — only new effects should run
+    counter.value = 1;
+    expect(log).toEqual(['effect-3', 'effect-4']);
+
+    // Old effects should NOT have run
+    expect(log).not.toContain('effect-1');
+    expect(log).not.toContain('effect-2');
+  });
+
+  it('disposes all item effects when the list itself is disposed', () => {
+    const items = signal([
+      { id: 1, text: 'A' },
+      { id: 2, text: 'B' },
+    ]);
+    const counter = signal(0);
+    let effectRunCount = 0;
+
+    const container = document.createElement('ul');
+    const dispose = __list(
+      container,
+      items,
+      (item) => item.id,
+      (item) => {
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        effect(() => {
+          counter.value; // subscribe
+          effectRunCount++;
+        });
+        return li;
+      },
+    );
+
+    // Effects ran once each during initial render
+    expect(effectRunCount).toBe(2);
+    effectRunCount = 0;
+
+    // Dispose the entire list
+    dispose();
+
+    // Trigger counter change — no item effects should run
+    counter.value = 1;
+    expect(effectRunCount).toBe(0);
   });
 });
