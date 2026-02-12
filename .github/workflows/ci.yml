@@ -7,12 +7,19 @@ on:
     branches:
       - main
       - 'feat/**'
+  # Allow the auto-rebase workflow to re-trigger CI on rebased branches.
+  # Pushes made with GITHUB_TOKEN do not fire pull_request events, so the
+  # auto-rebase workflow dispatches this workflow explicitly after each
+  # successful rebase+push.
+  workflow_dispatch:
 
 jobs:
   # ---------------------------------------------------------------------------
   # Detect whether source files changed.
   #
   # For push-to-main events we always run the full pipeline.
+  # For workflow_dispatch events (triggered by auto-rebase) we also always
+  # run the full pipeline since there is no PR diff context available.
   # For pull requests we compare the PR diff against SOURCE_PATTERNS (kept in
   # sync with ci/src/index.ts).  If only non-source files changed (docs, plans,
   # .claude rules, etc.) the heavy jobs below are skipped.
@@ -35,10 +42,10 @@ jobs:
       - name: Check for source changes
         id: filter
         run: |
-          # Pushes to main always run the full pipeline
-          if [ "${{ github.event_name }}" = "push" ]; then
+          # Pushes to main and workflow_dispatch (auto-rebase) always run the full pipeline
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "src=true" >> "$GITHUB_OUTPUT"
-            echo "Push to main — running full pipeline"
+            echo "${{ github.event_name }} — running full pipeline"
             exit 0
           fi
 
@@ -107,6 +114,14 @@ jobs:
 
       - name: Run CI pipeline (pull request — smart skip)
         if: github.event_name == 'pull_request'
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "latest"
+          verb: call
+          args: smart-ci --base-branch main --progress plain
+
+      - name: Run CI pipeline (workflow_dispatch — auto-rebase)
+        if: github.event_name == 'workflow_dispatch'
         uses: dagger/dagger-for-github@v8.2.0
         with:
           version: "latest"
