@@ -1,4 +1,4 @@
-import type { AppIR, CompileResult, Compiler, Diagnostic, VertzConfig } from '@vertz/compiler';
+import type { AppIR, CompileResult, Compiler, Diagnostic } from '@vertz/compiler';
 import { describe, expect, it, vi } from 'vitest';
 import { checkAction } from '../check';
 
