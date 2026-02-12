@@ -107,7 +107,15 @@ describe('Subpath Exports — @vertz/ui/query', () => {
 });
 
 describe('Subpath Exports — @vertz/ui/css', () => {
-  const expectedExports = ['ThemeProvider', 'css', 'defineTheme', 'globalCss', 's', 'variants'];
+  const expectedExports = [
+    'ThemeProvider',
+    'compileTheme',
+    'css',
+    'defineTheme',
+    'globalCss',
+    's',
+    'variants',
+  ];
 
   test('exports exactly the public API (no internal leaks)', async () => {
     const mod = await import('../css/public');
@@ -125,7 +133,6 @@ describe('Subpath Exports — @vertz/ui/css', () => {
   test('does NOT export internal symbols', async () => {
     const mod = (await import('../css/public')) as Record<string, unknown>;
     expect(mod.generateClassName).toBeUndefined();
-    expect(mod.compileTheme).toBeUndefined();
     expect(mod.parseShorthand).toBeUndefined();
     expect(mod.ShorthandParseError).toBeUndefined();
     expect(mod.InlineStyleError).toBeUndefined();
@@ -138,6 +145,7 @@ describe('Subpath Exports — @vertz/ui/css', () => {
   test('same references as main barrel', async () => {
     const main = await import('../index');
     const subpath = await import('../css/public');
+    expect(subpath.compileTheme).toBe(main.compileTheme);
     expect(subpath.css).toBe(main.css);
     expect(subpath.defineTheme).toBe(main.defineTheme);
     expect(subpath.globalCss).toBe(main.globalCss);
@@ -201,6 +209,7 @@ describe('Subpath Exports — main barrel backward compat', () => {
 
   test('main barrel re-exports all css symbols', async () => {
     const main = await import('../index');
+    expect(main.compileTheme).toBeTypeOf('function');
     expect(main.css).toBeTypeOf('function');
     expect(main.variants).toBeTypeOf('function');
     expect(main.defineTheme).toBeTypeOf('function');

@@ -2,7 +2,7 @@
  * @vertz/ui/css — Public subpath barrel.
  *
  * Only the curated public API is exported here.
- * Internal symbols (generateClassName, compileTheme, parseShorthand,
+ * Internal symbols (generateClassName, parseShorthand,
  * ShorthandParseError, InlineStyleError, isKnownProperty, isValidColorToken,
  * resolveToken, TokenResolveError) live in @vertz/ui/internals or the
  * internal barrel (./index.ts).
@@ -18,7 +18,7 @@ export type {
   Theme,
   ThemeInput,
 } from './theme';
-export { defineTheme } from './theme';
+export { compileTheme, defineTheme } from './theme';
 export type { ThemeProviderProps } from './theme-provider';
 export { ThemeProvider } from './theme-provider';
 export type { VariantFunction, VariantProps, VariantsConfig } from './variants';
