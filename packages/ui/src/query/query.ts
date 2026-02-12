@@ -46,6 +46,14 @@ const defaultCache = new MemoryCache<unknown>();
 const inflight = new Map<string, Promise<unknown>>();
 
 /**
+ * Exposed for testing — returns the current size of the in-flight registry.
+ * @internal
+ */
+export function __inflightSize(): number {
+  return inflight.size;
+}
+
+/**
  * Create a reactive data-fetching query.
  *
  * The thunk is wrapped in an effect so that when reactive dependencies
@@ -91,6 +99,9 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
   let fetchId = 0;
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // Track all in-flight keys for this query instance so dispose() can clean them all.
+  const inflightKeys = new Set<string>();
+
   /**
    * Trigger signal to force the effect to re-run on manual refetch.
    */
@@ -105,6 +116,7 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
     promise.then(
       (result) => {
         inflight.delete(key);
+        inflightKeys.delete(key);
         if (id !== fetchId) return; // stale
         cache.set(key, result);
         data.value = result;
@@ -112,6 +124,7 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
       },
       (err: unknown) => {
         inflight.delete(key);
+        inflightKeys.delete(key);
         if (id !== fetchId) return; // stale
         error.value = err;
         loading.value = false;
@@ -141,6 +154,7 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
 
     // Register and handle the fetch promise.
     inflight.set(key, fetchPromise);
+    inflightKeys.add(key);
     handleFetchPromise(fetchPromise, id, key);
   }
 
@@ -200,7 +214,12 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
       prevRefetchTrigger = currentTrigger;
       if (!isFirst && !isRefetch && !customKey) {
         untrack(() => {
+          // Capture the old key before bumping the version so we can clean it up.
+          const oldKey = getCacheKey();
           keyVersionSignal.value = keyVersionSignal.peek() + 1;
+          // Delete the stale cache entry for the previous version to prevent
+          // unbounded memory growth (BLOCKING 1 fix).
+          cache.delete(oldKey);
         });
       }
 
@@ -237,6 +256,10 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
 
       if (debounceMs !== undefined && debounceMs > 0) {
         clearTimeout(debounceTimer);
+        // Suppress unhandled rejection on the debounced promise in case a
+        // future signal change clears the timer before it fires. Without
+        // this, the orphaned promise would reject with no handler attached.
+        promise.catch(() => {});
         // Use the tracking promise directly instead of calling thunk() again.
         // This avoids a redundant fetch call in the setTimeout.
         // Previous tracking promises (from rapid dep changes) are invalidated
@@ -260,8 +283,14 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
     clearTimeout(debounceTimer);
     // Invalidate any pending fetch responses by bumping fetchId.
     fetchId++;
-    // Clean up inflight entry if this query owns it.
-    inflight.delete(getCacheKey());
+    // Clean up ALL in-flight entries for this query instance, not just the
+    // current version. Without this, old versioned keys (v0, v1, ...) would
+    // leak in the global inflight map if the query is disposed while multiple
+    // fetches are still pending (BLOCKING 2 fix).
+    for (const key of inflightKeys) {
+      inflight.delete(key);
+    }
+    inflightKeys.clear();
   }
 
   return {

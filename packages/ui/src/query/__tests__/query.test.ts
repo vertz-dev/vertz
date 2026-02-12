@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { signal } from '../../runtime/signal';
-import { query } from '../query';
+import { MemoryCache } from '../cache';
+import { __inflightSize, query } from '../query';
 
 describe('query()', () => {
   beforeEach(() => {
@@ -330,5 +331,173 @@ describe('query()', () => {
 
     expect(result.data.value).toBe('fresh');
     expect(result.loading.value).toBe(false);
+  });
+
+  test('stale cache entries are deleted when key version bumps', async () => {
+    const cache = new MemoryCache<string>();
+    const deleteSpy = vi.spyOn(cache, 'delete');
+    const filter = signal('a');
+    const resolvers: Array<{ value: string; resolve: (v: string) => void }> = [];
+
+    query(
+      () => {
+        const f = filter.value;
+        return new Promise<string>((resolve) => {
+          resolvers.push({ value: f, resolve });
+        });
+      },
+      { cache },
+    );
+
+    // Resolve the first fetch (filter='a') — this writes to the v0 cache entry
+    resolvers[0]?.resolve('data-a');
+    await Promise.resolve();
+
+    // Change signal — bumps key version to v1, which should delete the v0 entry
+    filter.value = 'b';
+
+    // Resolve the second fetch (filter='b') — writes to the v1 cache entry
+    resolvers[1]?.resolve('data-b');
+    await Promise.resolve();
+
+    // Change signal again — bumps to v2, should delete v1 entry
+    filter.value = 'c';
+    resolvers[2]?.resolve('data-c');
+    await Promise.resolve();
+
+    // Change once more — bumps to v3, should delete v2 entry
+    filter.value = 'd';
+    resolvers[3]?.resolve('data-d');
+    await Promise.resolve();
+
+    // 3 signal changes = 3 version bumps = 3 old key deletions.
+    // (v0 deleted when v1 created, v1 deleted when v2 created, v2 deleted when v3 created)
+    // The delete spy was installed before query creation, so it captures all calls.
+    const deleteCallKeys = deleteSpy.mock.calls.map((call) => call[0]);
+    expect(deleteCallKeys.length).toBeGreaterThanOrEqual(3);
+
+    // Verify the deleted keys follow the versioned pattern (baseKey:v0, baseKey:v1, baseKey:v2)
+    const versionedDeletes = deleteCallKeys.filter(
+      (k) => typeof k === 'string' && k.includes(':v'),
+    );
+    expect(versionedDeletes.length).toBeGreaterThanOrEqual(3);
+  });
+
+  test('dispose cleans all in-flight keys, not just the current version', async () => {
+    const filter = signal('a');
+    const resolvers: Array<{ value: string; resolve: (v: string) => void }> = [];
+
+    const inflightBefore = __inflightSize();
+
+    const result = query(() => {
+      const f = filter.value;
+      return new Promise<string>((resolve) => {
+        resolvers.push({ value: f, resolve });
+      });
+    });
+
+    // First fetch is in-flight (v0)
+    expect(resolvers).toHaveLength(1);
+    expect(__inflightSize()).toBe(inflightBefore + 1);
+
+    // Change signal — creates second in-flight entry (v1)
+    filter.value = 'b';
+    expect(resolvers).toHaveLength(2);
+    expect(__inflightSize()).toBe(inflightBefore + 2);
+
+    // Change signal again — creates third in-flight entry (v2)
+    filter.value = 'c';
+    expect(resolvers).toHaveLength(3);
+    expect(__inflightSize()).toBe(inflightBefore + 3);
+
+    // Dispose should clean ALL in-flight entries, not just the current one (v2)
+    result.dispose();
+
+    // All 3 in-flight entries should be removed from the global map
+    expect(__inflightSize()).toBe(inflightBefore);
+
+    // Resolve all — none should update data (all invalidated)
+    resolvers[0]?.resolve('data-a');
+    resolvers[1]?.resolve('data-b');
+    resolvers[2]?.resolve('data-c');
+    await Promise.resolve();
+
+    expect(result.data.value).toBeUndefined();
+  });
+
+  test('rapid triple signal change A->B->C resolves correctly', async () => {
+    const filter = signal('A');
+    const resolvers: Array<{ value: string; resolve: (v: string) => void }> = [];
+
+    const result = query(() => {
+      const f = filter.value;
+      return new Promise<string>((resolve) => {
+        resolvers.push({ value: f, resolve });
+      });
+    });
+
+    // Rapid signal changes: A -> B -> C
+    filter.value = 'B';
+    filter.value = 'C';
+
+    // Three thunk calls total (initial + 2 signal changes)
+    expect(resolvers).toHaveLength(3);
+    expect(resolvers[0]?.value).toBe('A');
+    expect(resolvers[1]?.value).toBe('B');
+    expect(resolvers[2]?.value).toBe('C');
+
+    // Resolve in reverse order to test stale response handling
+    resolvers[2]?.resolve('data-C');
+    await Promise.resolve();
+    expect(result.data.value).toBe('data-C');
+    expect(result.loading.value).toBe(false);
+
+    // Stale resolves should be ignored
+    resolvers[1]?.resolve('data-B');
+    resolvers[0]?.resolve('data-A');
+    await Promise.resolve();
+
+    // Data should still be 'data-C' — stale responses are dropped
+    expect(result.data.value).toBe('data-C');
+  });
+
+  test('debounce discard does not cause unhandled promise rejection', async () => {
+    const filter = signal('a');
+
+    // If unhandled rejections occur, this listener will catch them
+    const unhandledRejections: unknown[] = [];
+
+    // Use process-level listener for bun
+    const processHandler = (_reason: unknown) => {
+      unhandledRejections.push(_reason);
+    };
+    process.on('unhandledRejection', processHandler);
+
+    try {
+      const result = query(
+        () => {
+          const f = filter.value;
+          return Promise.reject(new Error(`rejected-${f}`));
+        },
+        { debounce: 100 },
+      );
+
+      // Rapid signal changes while debounced — each discarded thunk promise
+      // should NOT produce an unhandled rejection
+      filter.value = 'b';
+      filter.value = 'c';
+
+      // Give microtasks time to propagate
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // No unhandled rejections should have occurred
+      expect(unhandledRejections).toHaveLength(0);
+
+      result.dispose();
+    } finally {
+      process.removeListener('unhandledRejection', processHandler);
+    }
   });
 });
