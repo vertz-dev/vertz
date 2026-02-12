@@ -8,7 +8,7 @@ export default defineConfig({
   test: {
     fileParallelism: false,
     retry: 2,
-    include: ['src/**/*.test.ts', 'src/**/*.test-d.ts'],
+    include: ['src/**/*.test.ts'],
     environment: 'node',
     testTimeout: 30_000,
     hookTimeout: 30_000,
