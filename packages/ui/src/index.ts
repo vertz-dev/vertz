@@ -70,7 +70,7 @@ export type { ExtractParams } from './router/params';
 export { parseSearchParams, useSearchParams } from './router/search-params';
 
 // Reactivity runtime
-export { onCleanup } from './runtime/disposal';
+export { DisposalScopeError, onCleanup } from './runtime/disposal';
 export { batch } from './runtime/scheduler';
 export { computed, effect, signal } from './runtime/signal';
 export type {
