@@ -26,7 +26,7 @@ export type {
   VariantProps,
   VariantsConfig,
 } from './css';
-export { css, defineTheme, globalCss, s, ThemeProvider, variants } from './css';
+export { compileTheme, css, defineTheme, globalCss, s, ThemeProvider, variants } from './css';
 
 // Forms
 export type { FormInstance, FormOptions, SdkMethod, SubmitCallbacks } from './form/form';
@@ -70,7 +70,7 @@ export type { ExtractParams } from './router/params';
 export { parseSearchParams, useSearchParams } from './router/search-params';
 
 // Reactivity runtime
-export { onCleanup } from './runtime/disposal';
+export { DisposalScopeError, onCleanup } from './runtime/disposal';
 export { batch } from './runtime/scheduler';
 export { computed, effect, signal } from './runtime/signal';
 export type {

@@ -49,6 +49,29 @@ export interface CSSOutput {
 /** Default file path used when none is provided (runtime fallback). */
 const DEFAULT_FILE_PATH = '__runtime__';
 
+// ─── Runtime CSS injection ──────────────────────────────────────
+
+/** Track which CSS strings have already been injected to avoid duplicates. */
+const injectedCSS = new Set<string>();
+
+/**
+ * Inject CSS text into the document head via a <style> tag.
+ * Only runs in browser environments. Deduplicates by CSS content.
+ */
+export function injectCSS(cssText: string): void {
+  if (!cssText || typeof document === 'undefined' || injectedCSS.has(cssText)) return;
+  injectedCSS.add(cssText);
+  const style = document.createElement('style');
+  style.setAttribute('data-vertz-css', '');
+  style.textContent = cssText;
+  document.head.appendChild(style);
+}
+
+/** Reset injected styles tracking. Used in tests. */
+export function resetInjectedStyles(): void {
+  injectedCSS.clear();
+}
+
 /**
  * Process a css() call and produce class names + extracted CSS.
  *
@@ -115,9 +138,15 @@ export function css(input: CSSInput, filePath: string = DEFAULT_FILE_PATH): CSSO
     cssRules.push(...nestedRules);
   }
 
+  const cssText = cssRules.join('\n');
+
+  // In dev mode (runtime), auto-inject CSS into the DOM.
+  // In production, the compiler handles CSS extraction.
+  injectCSS(cssText);
+
   return {
     classNames,
-    css: cssRules.join('\n'),
+    css: cssText,
   };
 }
 

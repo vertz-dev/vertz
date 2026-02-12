@@ -7,11 +7,96 @@ on:
     branches:
       - main
       - 'feat/**'
+  # Allow the auto-rebase workflow to re-trigger CI on rebased branches.
+  # Pushes made with GITHUB_TOKEN do not fire pull_request events, so the
+  # auto-rebase workflow dispatches this workflow explicitly after each
+  # successful rebase+push.
+  workflow_dispatch:
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Detect whether source files changed.
+  #
+  # For push-to-main events we always run the full pipeline.
+  # For workflow_dispatch events (triggered by auto-rebase) we also always
+  # run the full pipeline since there is no PR diff context available.
+  # For pull requests we compare the PR diff against SOURCE_PATTERNS (kept in
+  # sync with ci/src/index.ts).  If only non-source files changed (docs, plans,
+  # .claude rules, etc.) the heavy jobs below are skipped.
+  #
+  # IMPORTANT: When a job is skipped via `if:`, GitHub reports its status as
+  # "Success", so required status checks are still satisfied and the PR remains
+  # mergeable.  This is NOT the same as skipping the entire workflow with
+  # `paths-ignore`, which would leave the check in "Pending" and block merges.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      src: ${{ steps.filter.outputs.src }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for source changes
+        id: filter
+        run: |
+          # Pushes to main and workflow_dispatch (auto-rebase) always run the full pipeline
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "src=true" >> "$GITHUB_OUTPUT"
+            echo "${{ github.event_name }} — running full pipeline"
+            exit 0
+          fi
+
+          BASE_SHA=${{ github.event.pull_request.base.sha }}
+          HEAD_SHA=${{ github.event.pull_request.head.sha }}
+          CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+
+          if [ -z "$CHANGED" ]; then
+            echo "src=false" >> "$GITHUB_OUTPUT"
+            echo "No files changed"
+            exit 0
+          fi
+
+          # Source patterns — must stay in sync with ci/src/index.ts SOURCE_PATTERNS
+          SOURCE_PATTERNS=(
+            "packages/"
+            "biome-plugins/"
+            "ci/"
+            "biome.json"
+            "tsconfig.json"
+            "package.json"
+            "bun.lock"
+            "dagger.json"
+            "lefthook.yml"
+          )
+
+          HAS_SOURCE=false
+          while IFS= read -r file; do
+            for pattern in "${SOURCE_PATTERNS[@]}"; do
+              if [[ "$file" == "$pattern"* ]] || [[ "$file" == "${pattern%/}" ]]; then
+                HAS_SOURCE=true
+                echo "Source file changed: $file (matched $pattern)"
+                break
+              fi
+            done
+          done <<< "$CHANGED"
+
+          echo "src=$HAS_SOURCE" >> "$GITHUB_OUTPUT"
+
+          if [ "$HAS_SOURCE" = "false" ]; then
+            echo ""
+            echo "No source changes detected — heavy CI jobs will be skipped."
+            echo "Changed files (docs/config only):"
+            echo "$CHANGED" | sed 's/^/  /'
+          fi
+
   check:
     name: Lint, typecheck, test
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.src == 'true'
 
     steps:
       - uses: actions/checkout@v4
@@ -35,11 +120,19 @@ jobs:
           verb: call
           args: smart-ci --base-branch main --progress plain
 
+      - name: Run CI pipeline (workflow_dispatch — auto-rebase)
+        if: github.event_name == 'workflow_dispatch'
+        uses: dagger/dagger-for-github@v8.2.0
+        with:
+          version: "latest"
+          verb: call
+          args: smart-ci --base-branch main --progress plain
+
   coverage:
     name: Coverage report
     runs-on: ubuntu-latest
-    needs: check
-    if: github.event_name == 'pull_request'
+    needs: [changes, check]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.src == 'true'
 
     permissions:
       pull-requests: write

@@ -1,3 +1,5 @@
+import { type ContextScope, getContextScope, setContextScope } from '../component/context';
+import { _tryOnCleanup } from './disposal';
 import { batch, scheduleNotify } from './scheduler';
 import type { Computed, DisposeFn, Signal, Subscriber, SubscriberSource } from './signal-types';
 import { getSubscriber, setSubscriber } from './tracking';
@@ -154,10 +156,14 @@ class EffectImpl implements Subscriber {
   _fn: () => void;
   _disposed = false;
   _sources: Set<SubscriberSource> = new Set();
+  /** Context scope captured at effect creation time. */
+  _contextScope: ContextScope | null;
 
   constructor(fn: () => void) {
     this._id = nextId++;
     this._fn = fn;
+    // Capture the current context scope so it can be restored on re-runs
+    this._contextScope = getContextScope();
   }
 
   _addSource(source: SubscriberSource): void {
@@ -175,9 +181,12 @@ class EffectImpl implements Subscriber {
     // Clear old subscriptions before re-tracking
     this._clearSources();
     const prev = setSubscriber(this);
+    // Restore the context scope that was active when this effect was created
+    const prevCtx = setContextScope(this._contextScope);
     try {
       this._fn();
     } finally {
+      setContextScope(prevCtx);
       setSubscriber(prev);
     }
   }
@@ -193,6 +202,8 @@ class EffectImpl implements Subscriber {
     this._disposed = true;
     // Remove from all signal/computed subscriber sets
     this._clearSources();
+    // Release captured context scope so the Map (and its values) can be GC'd
+    this._contextScope = null;
   }
 }
 
@@ -204,5 +215,8 @@ export function effect(fn: () => void): DisposeFn {
   const eff = new EffectImpl(fn);
   // Run the effect immediately to establish subscriptions
   eff._run();
-  return () => eff._dispose();
+  const dispose = () => eff._dispose();
+  // Auto-register with the current disposal scope if one is active
+  _tryOnCleanup(dispose);
+  return dispose;
 }

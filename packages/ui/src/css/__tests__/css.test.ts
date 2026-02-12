@@ -1,5 +1,47 @@
-import { describe, expect, it } from 'vitest';
-import { css } from '../css';
+import { afterEach, describe, expect, it } from 'vitest';
+import { css, resetInjectedStyles } from '../css';
+
+describe('css() runtime style injection', () => {
+  afterEach(() => {
+    // Clean up injected <style> elements and reset tracking
+    for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
+      el.remove();
+    }
+    resetInjectedStyles();
+  });
+
+  it('injects generated CSS into document.head as a <style> tag', () => {
+    css({ card: ['p:4', 'bg:background'] }, 'inject-test.tsx');
+
+    const styles = document.head.querySelectorAll('style[data-vertz-css]');
+    expect(styles.length).toBe(1);
+    expect(styles[0]?.textContent).toContain('padding: 1rem');
+    expect(styles[0]?.textContent).toContain('background-color: var(--color-background)');
+  });
+
+  it('does not inject the same CSS twice (deduplication)', () => {
+    css({ card: ['p:4'] }, 'dedup-test.tsx');
+    css({ card: ['p:4'] }, 'dedup-test.tsx');
+
+    const styles = document.head.querySelectorAll('style[data-vertz-css]');
+    expect(styles.length).toBe(1);
+  });
+
+  it('injects separate <style> tags for different css() calls', () => {
+    css({ a: ['p:4'] }, 'file-a.tsx');
+    css({ b: ['m:4'] }, 'file-b.tsx');
+
+    const styles = document.head.querySelectorAll('style[data-vertz-css]');
+    expect(styles.length).toBe(2);
+  });
+
+  it('does not inject when css produces empty output', () => {
+    css({}, 'empty-test.tsx');
+
+    const styles = document.head.querySelectorAll('style[data-vertz-css]');
+    expect(styles.length).toBe(0);
+  });
+});
 
 describe('css()', () => {
   it('returns class names for each block', () => {

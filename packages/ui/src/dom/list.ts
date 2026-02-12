@@ -1,3 +1,4 @@
+import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { effect } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
 
@@ -22,15 +23,25 @@ export function __list<T>(
 ): DisposeFn {
   // Map from key to the rendered DOM node
   const nodeMap = new Map<string | number, Node>();
+  // Map from key to the disposal scope for that item's reactive children
+  const scopeMap = new Map<string | number, DisposeFn[]>();
 
-  // Let the effect handle both initial render and reactive updates
-  const dispose = effect(() => {
+  // Wrap the outer effect in its own scope so that any parent disposal scope
+  // (e.g., __conditional) captures the outerScope — not the raw effect dispose.
+  // This ensures parent disposal triggers our full cleanup (scopeMap + effect).
+  const outerScope = pushScope();
+  effect(() => {
     const newItems = items.value;
     const newKeySet = new Set(newItems.map(keyFn));
 
-    // Remove nodes whose keys are no longer present
+    // Remove nodes whose keys are no longer present — dispose their scopes first
     for (const [key, node] of nodeMap) {
       if (!newKeySet.has(key)) {
+        const scope = scopeMap.get(key);
+        if (scope) {
+          runCleanups(scope);
+          scopeMap.delete(key);
+        }
         node.parentNode?.removeChild(node);
         nodeMap.delete(key);
       }
@@ -42,8 +53,12 @@ export function __list<T>(
       const key = keyFn(item);
       let node = nodeMap.get(key);
       if (!node) {
+        // Wrap renderFn in a disposal scope to capture any effects/computeds
+        const scope = pushScope();
         node = renderFn(item);
+        popScope();
         nodeMap.set(key, node);
+        scopeMap.set(key, scope);
       }
       desiredNodes.push(node);
     }
@@ -57,6 +72,19 @@ export function __list<T>(
       }
     }
   });
+  popScope();
 
-  return dispose;
+  const wrapper = () => {
+    // Dispose all remaining item scopes before stopping the outer effect
+    for (const scope of scopeMap.values()) {
+      runCleanups(scope);
+    }
+    scopeMap.clear();
+    runCleanups(outerScope);
+  };
+
+  // Register the full wrapper (not the raw effect dispose) with any active parent scope
+  _tryOnCleanup(wrapper);
+
+  return wrapper;
 }

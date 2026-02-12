@@ -13,9 +13,14 @@ import { argument, type Container, type Directory, type Service, dag, func, obje
  * Glob patterns for paths that require the full CI pipeline.
  * If a changed file matches any of these, all checks run.
  * Everything else (docs, plans, config files, etc.) is skipped.
+ *
+ * IMPORTANT: These patterns are duplicated in .github/workflows/ci.yml
+ * (the "changes" job) for the GitHub-level skip logic. If you add or
+ * remove a pattern here, update the workflow file too.
  */
 const SOURCE_PATTERNS = [
   "packages/",
+  "examples/",
   "biome-plugins/",
   "ci/",
   "biome.json",

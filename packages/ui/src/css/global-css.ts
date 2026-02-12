@@ -23,6 +23,8 @@
  * ```
  */
 
+import { injectCSS } from './css';
+
 /** Input to globalCss(): selector → property-value map. */
 export type GlobalCSSInput = Record<string, Record<string, string>>;
 
@@ -55,8 +57,13 @@ export function globalCss(input: GlobalCSSInput): GlobalCSSOutput {
     rules.push(`${selector} {\n${declarations}\n}`);
   }
 
+  const cssText = rules.join('\n');
+
+  // Auto-inject into the DOM, matching the behavior of css().
+  injectCSS(cssText);
+
   return {
-    css: rules.join('\n'),
+    css: cssText,
   };
 }
 

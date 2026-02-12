@@ -13,13 +13,13 @@ export interface RenderTestResult {
   /** The container element that wraps the rendered component. */
   container: HTMLElement;
   /** Find an element by its text content. Throws if not found. */
-  findByText: (text: string) => Element;
+  findByText: (text: string) => HTMLElement;
   /** Find an element by its text content. Returns null if not found. */
-  queryByText: (text: string) => Element | null;
+  queryByText: (text: string) => HTMLElement | null;
   /** Find an element by `data-testid`. Throws if not found. */
-  findByTestId: (id: string) => Element;
+  findByTestId: (id: string) => HTMLElement;
   /** Find an element by `data-testid`. Returns null if not found. */
-  queryByTestId: (id: string) => Element | null;
+  queryByTestId: (id: string) => HTMLElement | null;
   /** Simulate a click on the given element. */
   click: (el: Element) => Promise<void>;
   /** Simulate typing text into an input element. */

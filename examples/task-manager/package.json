@@ -1,0 +1,25 @@
+{
+  "name": "@vertz-examples/task-manager",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./jsx-runtime": "./src/jsx-runtime.ts",
+    "./jsx-dev-runtime": "./src/jsx-runtime.ts"
+  },
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@vertz/ui": "workspace:*",
+    "@vertz/primitives": "workspace:*"
+  },
+  "devDependencies": {
+    "@vertz/ui-compiler": "workspace:*",
+    "bun-types": "^1.3.9",
+    "typescript": "^5.8.0",
+    "vite": "^6.0.0"
+  }
+}
