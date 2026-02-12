@@ -1,0 +1,55 @@
+/**
+ * Main test helper for Vertz UI components.
+ *
+ * `renderTest()` mounts a component into a lightweight DOM container
+ * and returns query / interaction helpers scoped to that container.
+ */
+
+import { click as clickInteraction, type as typeInteraction } from './interactions';
+import { findByTestId, findByText, queryByTestId, queryByText } from './queries';
+
+/** The result returned by `renderTest()`. */
+export interface RenderTestResult {
+  /** The container element that wraps the rendered component. */
+  container: HTMLElement;
+  /** Find an element by its text content. Throws if not found. */
+  findByText: (text: string) => Element;
+  /** Find an element by its text content. Returns null if not found. */
+  queryByText: (text: string) => Element | null;
+  /** Find an element by `data-testid`. Throws if not found. */
+  findByTestId: (id: string) => Element;
+  /** Find an element by `data-testid`. Returns null if not found. */
+  queryByTestId: (id: string) => Element | null;
+  /** Simulate a click on the given element. */
+  click: (el: Element) => Promise<void>;
+  /** Simulate typing text into an input element. */
+  type: (el: Element, text: string) => Promise<void>;
+  /** Remove the container from the DOM and clean up. */
+  unmount: () => void;
+}
+
+/**
+ * Render a component (Element or DocumentFragment) into a fresh container
+ * attached to `document.body`.
+ *
+ * Returns scoped query and interaction helpers for the rendered tree.
+ */
+export function renderTest(component: Element | DocumentFragment): RenderTestResult {
+  const container = document.createElement('div');
+  container.setAttribute('data-testid', 'render-test-container');
+  container.appendChild(component);
+  document.body.appendChild(container);
+
+  return {
+    click: clickInteraction,
+    container,
+    findByTestId: (id: string) => findByTestId(container, id),
+    findByText: (text: string) => findByText(container, text),
+    queryByTestId: (id: string) => queryByTestId(container, id),
+    queryByText: (text: string) => queryByText(container, text),
+    type: typeInteraction,
+    unmount() {
+      container.remove();
+    },
+  };
+}

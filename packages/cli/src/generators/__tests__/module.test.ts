@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { GeneratedFile } from '../../config/defaults';
 import { generateModule } from '../module';
 
 describe('generateModule', () => {
