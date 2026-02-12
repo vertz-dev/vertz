@@ -70,6 +70,27 @@ describe('resolveToken', () => {
       expect(result.declarations).toEqual([{ property: 'background-color', value: 'transparent' }]);
     });
 
+    it('resolves bg:surface', () => {
+      const result = resolveToken({ property: 'bg', value: 'surface', pseudo: null });
+      expect(result.declarations).toEqual([
+        { property: 'background-color', value: 'var(--color-surface)' },
+      ]);
+    });
+
+    it('resolves text:danger.500', () => {
+      const result = resolveToken({ property: 'text', value: 'danger.500', pseudo: null });
+      expect(result.declarations).toEqual([
+        { property: 'color', value: 'var(--color-danger-500)' },
+      ]);
+    });
+
+    it('resolves bg:gray.100', () => {
+      const result = resolveToken({ property: 'bg', value: 'gray.100', pseudo: null });
+      expect(result.declarations).toEqual([
+        { property: 'background-color', value: 'var(--color-gray-100)' },
+      ]);
+    });
+
     it('throws on unknown color token', () => {
       expect(() => resolveToken({ property: 'bg', value: 'potato', pseudo: null })).toThrow(
         TokenResolveError,
