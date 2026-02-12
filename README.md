@@ -168,6 +168,7 @@ The answer so far: with strong conventions, explicit over implicit, and compile-
 
 We're building this in public. Follow the journey:
 
+- [Vision](./VISION.md) — Where we're going and the 8 principles that guide every decision
 - [Manifesto](./MANIFESTO.md) — What we believe and why
 - [Design docs](./plans/) — How every feature is planned before it's built
 - [@viniciusdacal](https://x.com/viniciusdacal) on X/Twitter — Build-in-public updates
