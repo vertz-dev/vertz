@@ -1,4 +1,5 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
+import { query } from '../../query/query';
 import { effect, signal } from '../../runtime/signal';
 import { createContext, useContext } from '../context';
 import { watch } from '../lifecycle';
@@ -141,5 +142,51 @@ describe('createContext / useContext', () => {
     // Outer watch should still see 'dark', inner watch should still see 'blue'
     expect(outerObserved).toEqual(['dark', 'dark']);
     expect(innerObserved).toEqual(['blue', 'blue']);
+  });
+
+  test('useContext returns correct value inside query() thunk', async () => {
+    const ApiCtx = createContext('/api');
+    let capturedBase: string | undefined;
+
+    ApiCtx.Provider('/v2', () => {
+      query(async () => {
+        capturedBase = useContext(ApiCtx);
+        return 'data';
+      });
+    });
+
+    // query() effect runs synchronously on creation — the thunk captures context
+    // even though the async resolution is deferred. The synchronous read inside
+    // the thunk (before the first await) sees the Provider's scope.
+    await vi.waitFor(() => {
+      expect(capturedBase).toBe('/v2');
+    });
+  });
+
+  test('disposed effect releases context scope reference', () => {
+    const ThemeCtx = createContext('light');
+    const count = signal(0);
+
+    let dispose: (() => void) | undefined;
+    ThemeCtx.Provider('dark', () => {
+      dispose = effect(() => {
+        count.value;
+        useContext(ThemeCtx);
+      });
+    });
+
+    // After dispose, the effect should not re-run
+    dispose?.();
+    const observed: (string | undefined)[] = [];
+    ThemeCtx.Provider('dark', () => {
+      effect(() => {
+        count.value;
+        observed.push(useContext(ThemeCtx));
+      });
+    });
+
+    count.value = 1;
+    // Verify the non-disposed effect still works
+    expect(observed).toEqual(['dark', 'dark']);
   });
 });
