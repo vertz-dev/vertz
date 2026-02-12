@@ -55,16 +55,27 @@ export function App(): HTMLElement {
       </div>
     ) as HTMLElement;
 
-    // ── Reactive route rendering ────────────────────
+    // ── Reactive route rendering with page transitions ──
+
+    /** Swap main content, using the View Transitions API when available. */
+    function updateContent(node: Node) {
+      const swap = () => {
+        main.innerHTML = '';
+        main.appendChild(node);
+      };
+
+      if (typeof document !== 'undefined' && 'startViewTransition' in document) {
+        (document as any).startViewTransition(swap);
+      } else {
+        swap();
+      }
+    }
 
     effect(() => {
       const match = appRouter.current.value;
 
-      // Clear the main area
-      main.innerHTML = '';
-
       if (!match) {
-        main.appendChild(<div data-testid="not-found">Page not found</div> as Node);
+        updateContent(<div data-testid="not-found">Page not found</div> as Node);
         return;
       }
 
@@ -74,10 +85,10 @@ export function App(): HTMLElement {
         // Handle async components
         component.then((mod) => {
           const node = (mod as { default: () => Node }).default();
-          main.appendChild(node);
+          updateContent(node);
         });
       } else {
-        main.appendChild(component);
+        updateContent(component);
       }
     });
 

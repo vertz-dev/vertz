@@ -79,6 +79,27 @@ const globalStyleEl = document.createElement('style');
 globalStyleEl.textContent = globalStyles.css;
 document.head.appendChild(globalStyleEl);
 
+// ── View Transitions CSS ─────────────────────────────
+
+const viewTransitionEl = document.createElement('style');
+viewTransitionEl.textContent = `
+::view-transition-old(root) {
+  animation: fade-out 120ms ease-in;
+}
+::view-transition-new(root) {
+  animation: fade-in 200ms ease-out;
+}
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+`;
+document.head.appendChild(viewTransitionEl);
+
 // ── Mount ────────────────────────────────────────────
 
 const app = App();
