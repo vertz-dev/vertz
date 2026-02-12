@@ -70,4 +70,16 @@ describe('MutationTransformer', () => {
     // No semicolons inside the mutation expression itself
     expect(result).not.toContain('push("x"); items');
   });
+
+  it('does not rewrite identifiers that end with the variable name', () => {
+    // Variable "items" appears as a suffix inside "myitems" — the transformer
+    // must not turn "myitems.length" into "myitems.peek().length"
+    const code = `function App() {\n  let items = [];\n  items.push(myitems.length);\n  return <div>{items}</div>;\n}`;
+    const result = transform(code, [{ name: 'items', kind: 'signal', start: 0, end: 0 }]);
+    // "items.push" should be rewritten
+    expect(result).toContain('items.peek().push');
+    // "myitems.length" must NOT be rewritten — "myitems" is not the signal variable
+    expect(result).toContain('myitems.length');
+    expect(result).not.toContain('myitems.peek()');
+  });
 });

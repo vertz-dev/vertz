@@ -1,6 +1,6 @@
 import { defineConfig } from 'bunup';
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/test/index.ts'],
+  entry: ['src/index.ts', 'src/internals.ts', 'src/test/index.ts'],
   dts: true,
 });

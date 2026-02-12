@@ -118,6 +118,11 @@ export function compile(source: string, filename = 'input.tsx'): CompileOutput {
   const propsDiags = new PropsDestructuringDiagnostics();
   allDiagnostics.push(...propsDiags.analyze(sourceFile, components));
 
+  // Scan transformed output for DOM helpers that may have been emitted
+  // by transformers or present in the source code. These helpers need to be
+  // imported from @vertz/ui/internals.
+  detectDomHelpers(s.toString(), usedFeatures);
+
   // 12. Add runtime imports
   const imports = buildImportStatement(usedFeatures);
   if (imports) {
@@ -135,6 +140,18 @@ export function compile(source: string, filename = 'input.tsx'): CompileOutput {
     map,
     diagnostics: allDiagnostics,
   };
+}
+
+/** DOM helpers that the compiler may emit and need importing from @vertz/ui/internals. */
+const DOM_HELPERS = ['__conditional', '__list', '__show', '__classList'] as const;
+
+/** Scan transformed output for DOM helper function calls and add them to usedFeatures. */
+function detectDomHelpers(output: string, usedFeatures: Set<string>): void {
+  for (const helper of DOM_HELPERS) {
+    if (output.includes(`${helper}(`)) {
+      usedFeatures.add(helper);
+    }
+  }
 }
 
 /** Build import statements based on used features. */

@@ -68,4 +68,31 @@ function Counter() {
     expect(result.code).toBe(source);
     expect(result.diagnostics).toHaveLength(0);
   });
+
+  it('generates internals import for DOM helpers when present in output', () => {
+    // The compiler should scan its output for DOM helper calls (__conditional,
+    // __list, __show, __classList) and include them in the internals import.
+    // This component manually uses these helpers alongside reactive JSX.
+    const result = compile(
+      `
+function App() {
+  let count = 0;
+  __show(el, () => count);
+  __conditional(() => count, () => "yes", () => "no");
+  __list(items, (item) => item);
+  __classList(el, { active: count });
+  return <div>{count}</div>;
+}
+      `.trim(),
+    );
+
+    const internalsImport = result.code
+      .split('\n')
+      .find((line) => line.includes("from '@vertz/ui/internals'"));
+    expect(internalsImport).toBeDefined();
+    expect(internalsImport).toContain('__conditional');
+    expect(internalsImport).toContain('__list');
+    expect(internalsImport).toContain('__show');
+    expect(internalsImport).toContain('__classList');
+  });
 });

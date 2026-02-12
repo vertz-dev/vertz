@@ -1,6 +1,31 @@
 import type MagicString from 'magic-string';
 import type { ComponentInfo, MutationInfo } from '../types';
 
+/** Escape special regex characters in a string. */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Replace all occurrences of `variableName` followed by `suffix` with
+ * `replacement`, but only when `variableName` is at a word boundary
+ * (not preceded by an identifier character).
+ *
+ * This prevents e.g. `items.` inside `myitems.` from being rewritten.
+ */
+function replaceWithBoundary(
+  text: string,
+  variableName: string,
+  suffix: string,
+  replacement: string,
+): string {
+  const pattern = new RegExp(
+    `(?<![a-zA-Z0-9_$])${escapeRegExp(variableName)}${escapeRegExp(suffix)}`,
+    'g',
+  );
+  return text.replace(pattern, replacement);
+}
+
 /**
  * Transform in-place mutations on signal variables into peek() + notify() pattern.
  *
@@ -45,7 +70,12 @@ export class MutationTransformer {
     originalText: string,
   ): void {
     const { variableName } = mutation;
-    const peekText = originalText.replaceAll(`${variableName}.`, `${variableName}.peek().`);
+    const peekText = replaceWithBoundary(
+      originalText,
+      variableName,
+      '.',
+      `${variableName}.peek().`,
+    );
     source.overwrite(mutation.start, mutation.end, `(${peekText}, ${variableName}.notify())`);
   }
 
@@ -56,7 +86,12 @@ export class MutationTransformer {
     originalText: string,
   ): void {
     const { variableName } = mutation;
-    const peekText = originalText.replaceAll(`${variableName}.`, `${variableName}.peek().`);
+    const peekText = replaceWithBoundary(
+      originalText,
+      variableName,
+      '.',
+      `${variableName}.peek().`,
+    );
     source.overwrite(mutation.start, mutation.end, `(${peekText}, ${variableName}.notify())`);
   }
 
@@ -67,7 +102,12 @@ export class MutationTransformer {
     originalText: string,
   ): void {
     const { variableName } = mutation;
-    const peekText = originalText.replaceAll(`${variableName}[`, `${variableName}.peek()[`);
+    const peekText = replaceWithBoundary(
+      originalText,
+      variableName,
+      '[',
+      `${variableName}.peek()[`,
+    );
     source.overwrite(mutation.start, mutation.end, `(${peekText}, ${variableName}.notify())`);
   }
 
@@ -78,7 +118,12 @@ export class MutationTransformer {
     originalText: string,
   ): void {
     const { variableName } = mutation;
-    const peekText = originalText.replaceAll(`${variableName}.`, `${variableName}.peek().`);
+    const peekText = replaceWithBoundary(
+      originalText,
+      variableName,
+      '.',
+      `${variableName}.peek().`,
+    );
     source.overwrite(mutation.start, mutation.end, `(${peekText}, ${variableName}.notify())`);
   }
 
