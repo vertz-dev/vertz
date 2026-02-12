@@ -9,6 +9,6 @@ export default defineConfig({
     'src/diagnostic/index.ts',
   ],
   format: ['esm'],
-  dts: true,
+  dts: { inferTypes: true },
   clean: true,
 });
