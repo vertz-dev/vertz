@@ -22,9 +22,10 @@ export async function executeLoaders(
   params: Record<string, string>,
   signal?: AbortSignal,
 ): Promise<unknown[]> {
+  const loaderSignal = signal ?? new AbortController().signal;
   const promises = matched.map((m) => {
     if (!m.route.loader) return Promise.resolve(undefined);
-    return Promise.resolve(m.route.loader({ params, signal } as never));
+    return Promise.resolve(m.route.loader({ params, signal: loaderSignal }));
   });
 
   return Promise.all(promises);

@@ -23,7 +23,10 @@ describe('executeLoaders', () => {
 
     const results = await executeLoaders(matched, { id: '1' });
 
-    expect(loader).toHaveBeenCalledWith({ params: { id: '1' } });
+    expect(loader).toHaveBeenCalledWith({
+      params: { id: '1' },
+      signal: expect.any(AbortSignal),
+    });
     expect(results).toHaveLength(1);
     expect(results[0]).toEqual({ name: 'Alice' });
   });
@@ -84,5 +87,33 @@ describe('executeLoaders', () => {
 
     const results = await executeLoaders(matched, {});
     expect(results[0]).toEqual({ sync: true });
+  });
+
+  test('passes AbortSignal to loader context', async () => {
+    const controller = new AbortController();
+    const loader = vi.fn().mockResolvedValue({ ok: true });
+    const matched = [makeMatchedRoute(loader, { id: '1' })];
+
+    await executeLoaders(matched, { id: '1' }, controller.signal);
+
+    expect(loader).toHaveBeenCalledWith({
+      params: { id: '1' },
+      signal: controller.signal,
+    });
+  });
+
+  test('provides a fallback AbortSignal when none given', async () => {
+    const loader = vi.fn().mockResolvedValue({ ok: true });
+    const matched = [makeMatchedRoute(loader)];
+
+    await executeLoaders(matched, {});
+
+    expect(loader).toHaveBeenCalledWith({
+      params: {},
+      signal: expect.any(AbortSignal),
+    });
+    // Fallback signal should not be aborted
+    const ctx = loader.mock.calls[0][0] as { signal: AbortSignal };
+    expect(ctx.signal.aborted).toBe(false);
   });
 });
