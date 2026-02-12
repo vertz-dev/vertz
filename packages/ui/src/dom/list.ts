@@ -1,4 +1,4 @@
-import { popScope, pushScope, runCleanups } from '../runtime/disposal';
+import { onCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { effect } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
 
@@ -26,8 +26,11 @@ export function __list<T>(
   // Map from key to the disposal scope for that item's reactive children
   const scopeMap = new Map<string | number, DisposeFn[]>();
 
-  // Let the effect handle both initial render and reactive updates
-  const dispose = effect(() => {
+  // Wrap the outer effect in its own scope so that any parent disposal scope
+  // (e.g., __conditional) captures the outerScope — not the raw effect dispose.
+  // This ensures parent disposal triggers our full cleanup (scopeMap + effect).
+  const outerScope = pushScope();
+  effect(() => {
     const newItems = items.value;
     const newKeySet = new Set(newItems.map(keyFn));
 
@@ -69,13 +72,19 @@ export function __list<T>(
       }
     }
   });
+  popScope();
 
-  return () => {
+  const wrapper = () => {
     // Dispose all remaining item scopes before stopping the outer effect
     for (const scope of scopeMap.values()) {
       runCleanups(scope);
     }
     scopeMap.clear();
-    dispose();
+    runCleanups(outerScope);
   };
+
+  // Register the full wrapper (not the raw effect dispose) with any active parent scope
+  onCleanup(wrapper);
+
+  return wrapper;
 }

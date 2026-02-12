@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { effect, signal } from '../../runtime/signal';
 import { __list } from '../list';
 
@@ -312,6 +313,97 @@ describe('__list', () => {
 
     // Trigger counter change — no item effects should run
     counter.value = 1;
+    expect(effectRunCount).toBe(0);
+  });
+
+  it('disposes item effects when a parent scope is cleaned up (nested scope)', () => {
+    const items = signal([
+      { id: 1, text: 'A' },
+      { id: 2, text: 'B' },
+    ]);
+    const counter = signal(0);
+    let effectRunCount = 0;
+
+    const container = document.createElement('ul');
+
+    // Simulate __list being nested inside a parent disposal scope
+    // (e.g., inside __conditional)
+    const parentScope = pushScope();
+    __list(
+      container,
+      items,
+      (item) => item.id,
+      (item) => {
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        effect(() => {
+          counter.value; // subscribe
+          effectRunCount++;
+        });
+        return li;
+      },
+    );
+    popScope();
+
+    // Effects ran once each during initial render
+    expect(effectRunCount).toBe(2);
+    effectRunCount = 0;
+
+    // Verify effects are still live before parent disposal
+    counter.value = 1;
+    expect(effectRunCount).toBe(2);
+    effectRunCount = 0;
+
+    // Dispose the parent scope — this should clean up __list AND its item effects
+    runCleanups(parentScope);
+
+    // Trigger counter change — no item effects should run
+    counter.value = 2;
+    expect(effectRunCount).toBe(0);
+  });
+
+  it('handles rapid updates without leaking effects (nested scope)', () => {
+    const items = signal<{ id: number; text: string }[]>([]);
+    const counter = signal(0);
+    let effectRunCount = 0;
+
+    const container = document.createElement('ul');
+
+    const parentScope = pushScope();
+    __list(
+      container,
+      items,
+      (item) => item.id,
+      (item) => {
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        effect(() => {
+          counter.value; // subscribe
+          effectRunCount++;
+        });
+        return li;
+      },
+    );
+    popScope();
+
+    // Rapidly add and remove items
+    for (let i = 0; i < 10; i++) {
+      items.value = [
+        { id: i * 2, text: `X${i * 2}` },
+        { id: i * 2 + 1, text: `X${i * 2 + 1}` },
+      ];
+    }
+
+    // Only the last two items should be active (ids 18 and 19)
+    effectRunCount = 0;
+    counter.value = 99;
+    expect(effectRunCount).toBe(2);
+
+    // Dispose the parent scope
+    runCleanups(parentScope);
+
+    effectRunCount = 0;
+    counter.value = 100;
     expect(effectRunCount).toBe(0);
   });
 });
