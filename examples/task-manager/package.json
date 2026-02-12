@@ -8,7 +8,7 @@
     "./jsx-dev-runtime": "./src/jsx-runtime.ts"
   },
   "scripts": {
-    "dev": "echo 'No build tooling yet — this is a code-only demo'",
+    "dev": "vite",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
@@ -17,7 +17,9 @@
     "@vertz/primitives": "workspace:*"
   },
   "devDependencies": {
+    "@vertz/ui-compiler": "workspace:*",
     "bun-types": "^1.3.9",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "vite": "^6.0.0"
   }
 }
