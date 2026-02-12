@@ -19,6 +19,10 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
+    "./internals": {
+      "import": "./dist/internals.js",
+      "types": "./dist/internals.d.ts"
+    },
     "./test": {
       "import": "./dist/test/index.js",
       "types": "./dist/test/index.d.ts"

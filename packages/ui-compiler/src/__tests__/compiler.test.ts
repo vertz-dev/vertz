@@ -58,6 +58,8 @@ function Counter() {
     expect(result.code).toContain('import { ');
     expect(result.code).toContain("from '@vertz/ui'");
     expect(result.code).toContain('signal');
+    // DOM helpers import from internals subpath
+    expect(result.code).toContain("from '@vertz/ui/internals'");
   });
 
   it('returns source unchanged when no components found', () => {

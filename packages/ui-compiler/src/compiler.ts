@@ -137,7 +137,7 @@ export function compile(source: string, filename = 'input.tsx'): CompileOutput {
   };
 }
 
-/** Build import statement based on used features. */
+/** Build import statements based on used features. */
 function buildImportStatement(features: Set<string>): string | null {
   const runtimeImports: string[] = [];
   const domImports: string[] = [];
@@ -157,9 +157,11 @@ function buildImportStatement(features: Set<string>): string | null {
   }
 
   const parts: string[] = [];
-  if (runtimeImports.length > 0 || domImports.length > 0) {
-    const allImports = [...runtimeImports, ...domImports].sort();
-    parts.push(`import { ${allImports.join(', ')} } from '@vertz/ui';`);
+  if (runtimeImports.length > 0) {
+    parts.push(`import { ${runtimeImports.sort().join(', ')} } from '@vertz/ui';`);
+  }
+  if (domImports.length > 0) {
+    parts.push(`import { ${domImports.sort().join(', ')} } from '@vertz/ui/internals';`);
   }
 
   return parts.length > 0 ? parts.join('\n') : null;

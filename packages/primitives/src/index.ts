@@ -1,8 +1,6 @@
-// Utilities
-
+// Components
 export type { AccordionElements, AccordionOptions, AccordionState } from './accordion/accordion';
 export { Accordion } from './accordion/accordion';
-// Components
 export type { ButtonElements, ButtonOptions, ButtonState } from './button/button';
 export { Button } from './button/button';
 export type {
@@ -40,25 +38,3 @@ export type { ToastElements, ToastMessage, ToastOptions, ToastState } from './to
 export { Toast } from './toast/toast';
 export type { TooltipElements, TooltipOptions, TooltipState } from './tooltip/tooltip';
 export { Tooltip } from './tooltip/tooltip';
-export {
-  setChecked,
-  setControls,
-  setDataState,
-  setDescribedBy,
-  setDisabled,
-  setExpanded,
-  setHidden,
-  setLabelledBy,
-  setSelected,
-  setValueRange,
-  toggleExpanded,
-} from './utils/aria';
-export {
-  focusFirst,
-  getFocusableElements,
-  saveFocus,
-  setRovingTabindex,
-  trapFocus,
-} from './utils/focus';
-export { linkedIds, resetIdCounter, uniqueId } from './utils/id';
-export { handleActivation, handleListNavigation, isKey, Keys } from './utils/keyboard';
