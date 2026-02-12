@@ -1,0 +1,74 @@
+name: Auto-Rebase Open PRs
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Rebase open PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Fetching open PRs targeting main..."
+          prs=$(gh pr list --base main --state open --json number,headRefName --jq '.[] | "\(.number) \(.headRefName)"')
+
+          if [ -z "$prs" ]; then
+            echo "No open PRs targeting main."
+            exit 0
+          fi
+
+          echo "$prs" | while read -r pr_number branch; do
+            echo ""
+            echo "=== PR #${pr_number} (${branch}) ==="
+
+            # Fetch the branch
+            if ! git fetch origin "${branch}" 2>/dev/null; then
+              echo "  SKIP: could not fetch branch ${branch}"
+              continue
+            fi
+
+            # Check if rebase is needed (is the branch already up to date with main?)
+            if git merge-base --is-ancestor main "origin/${branch}" 2>/dev/null; then
+              echo "  SKIP: already up to date with main"
+              continue
+            fi
+
+            # Attempt rebase
+            git checkout -B "_rebase-tmp" "origin/${branch}" 2>/dev/null
+
+            if git rebase main 2>/dev/null; then
+              echo "  Rebase succeeded. Pushing..."
+              if git push --force-with-lease origin "_rebase-tmp:${branch}" 2>/dev/null; then
+                echo "  OK: rebased and pushed"
+              else
+                echo "  SKIP: push failed (branch may be protected or force-push disabled)"
+              fi
+            else
+              echo "  SKIP: conflicts detected, rebase aborted"
+              git rebase --abort 2>/dev/null
+            fi
+
+            # Clean up
+            git checkout --detach 2>/dev/null
+          done
+
+          echo ""
+          echo "Done."
