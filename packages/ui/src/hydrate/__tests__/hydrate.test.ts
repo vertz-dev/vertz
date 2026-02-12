@@ -131,6 +131,33 @@ describe('hydrate()', () => {
     expect(hydrateSpy).toHaveBeenCalled();
   });
 
+  it('reports error via console.error when chunk load fails during hydration', async () => {
+    document.body.innerHTML = `
+      <div data-v-id="BrokenComponent" data-v-key="b1" hydrate="eager">
+        <script type="application/json">{}</script>
+        <div>Content</div>
+      </div>
+    `;
+
+    const chunkError = new Error('Failed to fetch chunk');
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const registry: ComponentRegistry = {
+      BrokenComponent: () => Promise.reject(chunkError),
+    };
+
+    hydrate(registry);
+
+    await vi.waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        '[hydrate] Failed to hydrate component "BrokenComponent":',
+        chunkError,
+      );
+    });
+
+    consoleSpy.mockRestore();
+  });
+
   // Default strategy is lazy
   it('defaults to lazy strategy when no hydrate attribute', () => {
     document.body.innerHTML = `

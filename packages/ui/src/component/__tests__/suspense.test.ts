@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { Suspense } from '../suspense';
 
 describe('Suspense', () => {
@@ -76,5 +76,56 @@ describe('Suspense', () => {
         fallback: () => document.createElement('span'),
       }),
     ).toThrow('real error');
+  });
+
+  test('reports error via console.error when the thrown promise rejects', async () => {
+    const error = new Error('async failure');
+    const rejecting = Promise.reject(error);
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    Suspense({
+      children: () => {
+        throw rejecting;
+      },
+      fallback: () => document.createElement('span'),
+    });
+
+    // Wait for the rejection to propagate
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(consoleSpy).toHaveBeenCalledWith('[Suspense] Async child rejected:', error);
+
+    consoleSpy.mockRestore();
+  });
+
+  test('reports error via console.error when retry throws a non-Promise error', async () => {
+    let resolvePromise: () => void;
+    const pending = new Promise<void>((resolve) => {
+      resolvePromise = resolve;
+    });
+
+    const retryError = new TypeError('component crashed');
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    let attempt = 0;
+    Suspense({
+      children: () => {
+        attempt++;
+        if (attempt === 1) {
+          throw pending;
+        }
+        // On retry after promise resolves, throw a regular error
+        throw retryError;
+      },
+      fallback: () => document.createElement('span'),
+    });
+
+    resolvePromise?.();
+    await pending;
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(consoleSpy).toHaveBeenCalledWith('[Suspense] Async child error on retry:', retryError);
+
+    consoleSpy.mockRestore();
   });
 });

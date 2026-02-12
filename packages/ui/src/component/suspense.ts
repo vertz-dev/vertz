@@ -36,17 +36,21 @@ export function Suspense(props: SuspenseProps): Node {
     // Create a placeholder that will be replaced after the promise resolves
     const placeholder = props.fallback();
 
-    thrown.then(() => {
-      try {
-        const resolved = props.children();
-        // Replace placeholder in the DOM if it has a parent
-        if (placeholder.parentNode) {
-          placeholder.parentNode.replaceChild(resolved, placeholder);
+    thrown
+      .then(() => {
+        try {
+          const resolved = props.children();
+          // Replace placeholder in the DOM if it has a parent
+          if (placeholder.parentNode) {
+            placeholder.parentNode.replaceChild(resolved, placeholder);
+          }
+        } catch (retryError: unknown) {
+          console.error('[Suspense] Async child error on retry:', retryError);
         }
-      } catch (_retryError: unknown) {
-        // If children throw again on retry, keep the fallback
-      }
-    });
+      })
+      .catch((error: unknown) => {
+        console.error('[Suspense] Async child rejected:', error);
+      });
 
     return placeholder;
   }
