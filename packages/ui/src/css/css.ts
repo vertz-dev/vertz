@@ -58,7 +58,7 @@ const injectedCSS = new Set<string>();
  * Inject CSS text into the document head via a <style> tag.
  * Only runs in browser environments. Deduplicates by CSS content.
  */
-function injectCSS(cssText: string): void {
+export function injectCSS(cssText: string): void {
   if (!cssText || typeof document === 'undefined' || injectedCSS.has(cssText)) return;
   injectedCSS.add(cssText);
   const style = document.createElement('style');
