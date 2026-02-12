@@ -1,3 +1,4 @@
+import { onCleanup } from './disposal';
 import { batch, scheduleNotify } from './scheduler';
 import type { Computed, DisposeFn, Signal, Subscriber, SubscriberSource } from './signal-types';
 import { getSubscriber, setSubscriber } from './tracking';
@@ -204,5 +205,8 @@ export function effect(fn: () => void): DisposeFn {
   const eff = new EffectImpl(fn);
   // Run the effect immediately to establish subscriptions
   eff._run();
-  return () => eff._dispose();
+  const dispose = () => eff._dispose();
+  // Auto-register with the current disposal scope if one is active
+  onCleanup(dispose);
+  return dispose;
 }
