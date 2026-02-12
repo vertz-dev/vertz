@@ -36,11 +36,7 @@ const taskRouter = taskDef
   .get('/', {
     query: listTasksQuery,
     handler: async (ctx) => {
-      // NOTE: The cast is needed because @vertz/core's inject system types
-      // services as `unknown`. This is a known DX gap — not a @vertz/db issue.
-      // Tracked for fix: make router generic over its inject map.
-      const svc = ctx.taskService as ReturnType<typeof createTaskMethods>;
-      return svc.list({
+      return ctx.taskService.list({
         limit: ctx.query.limit,
         offset: ctx.query.offset,
         status: ctx.query.status,
@@ -52,30 +48,26 @@ const taskRouter = taskDef
   .post('/', {
     body: createTaskBody,
     handler: async (ctx) => {
-      const svc = ctx.taskService as ReturnType<typeof createTaskMethods>;
-      return svc.create(ctx.body);
+      return ctx.taskService.create(ctx.body);
     },
   })
   .get('/:id', {
     params: taskIdParams,
     handler: async (ctx) => {
-      const svc = ctx.taskService as ReturnType<typeof createTaskMethods>;
-      return svc.getById(ctx.params.id);
+      return ctx.taskService.getById(ctx.params.id);
     },
   })
   .patch('/:id', {
     params: taskIdParams,
     body: updateTaskBody,
     handler: async (ctx) => {
-      const svc = ctx.taskService as ReturnType<typeof createTaskMethods>;
-      return svc.update(ctx.params.id, ctx.body);
+      return ctx.taskService.update(ctx.params.id, ctx.body);
     },
   })
   .delete('/:id', {
     params: taskIdParams,
     handler: async (ctx) => {
-      const svc = ctx.taskService as ReturnType<typeof createTaskMethods>;
-      return svc.remove(ctx.params.id);
+      return ctx.taskService.remove(ctx.params.id);
     },
   });
 
