@@ -17,11 +17,12 @@ function Counter() {
     expect(result.code).toContain('const count = signal(0)');
     // Read in JSX becomes .value
     expect(result.code).toContain('count.value');
-    // Import added
+    // Runtime imports from @vertz/ui
     expect(result.code).toContain('import {');
     expect(result.code).toContain('signal');
     expect(result.code).toContain("from '@vertz/ui'");
-    // JSX becomes DOM helpers
+    // DOM helpers from @vertz/ui/internals
+    expect(result.code).toContain("from '@vertz/ui/internals'");
     expect(result.code).toContain('__element("button")');
     expect(result.code).toContain('__on(');
     expect(result.code).toContain('__text(');
