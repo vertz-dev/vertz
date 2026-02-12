@@ -26,7 +26,7 @@ export type {
   VariantProps,
   VariantsConfig,
 } from './css';
-export { css, defineTheme, globalCss, s, ThemeProvider, variants } from './css';
+export { compileTheme, css, defineTheme, globalCss, s, ThemeProvider, variants } from './css';
 
 // Forms
 export type { FormInstance, FormOptions, SdkMethod, SubmitCallbacks } from './form/form';
