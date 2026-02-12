@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@mjackson/node-fetch-server": "^0.7.0",
+    "@types/node": "^22.15.0",
     "@vertz/core": "workspace:*",
     "@vertz/schema": "workspace:*",
     "typescript": "^5.7.0",
