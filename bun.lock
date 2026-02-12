@@ -23,6 +23,17 @@
         "typescript": "^5.7.0",
       },
     },
+    "examples/task-manager": {
+      "name": "@vertz-examples/task-manager",
+      "version": "0.0.1",
+      "dependencies": {
+        "@vertz/primitives": "workspace:*",
+        "@vertz/ui": "workspace:*",
+      },
+      "devDependencies": {
+        "typescript": "^5.8.0",
+      },
+    },
     "packages/cli": {
       "name": "@vertz/cli",
       "version": "0.1.0",
@@ -561,6 +572,8 @@
     "@types/react": ["@types/react@19.2.14", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w=="],
 
     "@types/whatwg-mimetype": ["@types/whatwg-mimetype@3.0.2", "", {}, "sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA=="],
+
+    "@vertz-examples/task-manager": ["@vertz-examples/task-manager@workspace:examples/task-manager"],
 
     "@vertz/cli": ["@vertz/cli@workspace:packages/cli"],
 
