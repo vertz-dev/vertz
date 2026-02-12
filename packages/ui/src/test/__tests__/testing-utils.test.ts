@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { signal } from '../../runtime/signal';
-import { click, press, type } from '../interactions';
+import { click, fillForm, press, submitForm, type } from '../interactions';
 import { findByTestId, findByText, queryByTestId, queryByText, waitFor } from '../queries';
 import { renderTest } from '../render-test';
 import { createTestRouter } from '../test-router';
@@ -393,6 +393,298 @@ describe('Testing Utilities', () => {
 
       expect(submitted).toHaveBeenCalledWith({
         email: 'alice@example.com',
+        name: 'Alice',
+      });
+    });
+  });
+
+  // ─── fillForm ──────────────────────────────────────────────────────────────
+  describe('fillForm', () => {
+    function createFormWithFields(): HTMLFormElement {
+      const formEl = document.createElement('form');
+
+      const nameInput = document.createElement('input');
+      nameInput.name = 'name';
+      nameInput.type = 'text';
+
+      const emailInput = document.createElement('input');
+      emailInput.name = 'email';
+      emailInput.type = 'email';
+
+      formEl.appendChild(nameInput);
+      formEl.appendChild(emailInput);
+
+      return formEl;
+    }
+
+    test('populates text inputs by field name', async () => {
+      const formEl = createFormWithFields();
+      document.body.appendChild(formEl);
+      cleanups.push(() => formEl.remove());
+
+      await fillForm(formEl, { name: 'Alice', email: 'alice@test.com' });
+
+      const nameInput = formEl.querySelector('[name="name"]') as HTMLInputElement;
+      const emailInput = formEl.querySelector('[name="email"]') as HTMLInputElement;
+
+      expect(nameInput.value).toBe('Alice');
+      expect(emailInput.value).toBe('alice@test.com');
+    });
+
+    test('populates a select element by field name', async () => {
+      const formEl = document.createElement('form');
+
+      const select = document.createElement('select');
+      select.name = 'role';
+
+      const opt1 = document.createElement('option');
+      opt1.value = 'user';
+      opt1.textContent = 'User';
+
+      const opt2 = document.createElement('option');
+      opt2.value = 'admin';
+      opt2.textContent = 'Admin';
+
+      select.appendChild(opt1);
+      select.appendChild(opt2);
+      formEl.appendChild(select);
+
+      document.body.appendChild(formEl);
+      cleanups.push(() => formEl.remove());
+
+      await fillForm(formEl, { role: 'admin' });
+
+      expect(select.value).toBe('admin');
+    });
+
+    test('populates a textarea by field name', async () => {
+      const formEl = document.createElement('form');
+
+      const textarea = document.createElement('textarea');
+      textarea.name = 'bio';
+      formEl.appendChild(textarea);
+
+      document.body.appendChild(formEl);
+      cleanups.push(() => formEl.remove());
+
+      await fillForm(formEl, { bio: 'Hello world\nSecond line' });
+
+      expect(textarea.value).toBe('Hello world\nSecond line');
+    });
+
+    test('dispatches input and change events for each field', async () => {
+      const formEl = document.createElement('form');
+
+      const input = document.createElement('input');
+      input.name = 'name';
+      formEl.appendChild(input);
+
+      document.body.appendChild(formEl);
+      cleanups.push(() => formEl.remove());
+
+      const inputHandler = vi.fn();
+      const changeHandler = vi.fn();
+      input.addEventListener('input', inputHandler);
+      input.addEventListener('change', changeHandler);
+
+      await fillForm(formEl, { name: 'Alice' });
+
+      expect(inputHandler).toHaveBeenCalledOnce();
+      expect(changeHandler).toHaveBeenCalledOnce();
+    });
+
+    test('fills multiple fields in one call', async () => {
+      const formEl = document.createElement('form');
+
+      const nameInput = document.createElement('input');
+      nameInput.name = 'name';
+
+      const emailInput = document.createElement('input');
+      emailInput.name = 'email';
+
+      const textarea = document.createElement('textarea');
+      textarea.name = 'message';
+
+      formEl.appendChild(nameInput);
+      formEl.appendChild(emailInput);
+      formEl.appendChild(textarea);
+
+      document.body.appendChild(formEl);
+      cleanups.push(() => formEl.remove());
+
+      await fillForm(formEl, {
+        name: 'Bob',
+        email: 'bob@test.com',
+        message: 'Hello',
+      });
+
+      expect(nameInput.value).toBe('Bob');
+      expect(emailInput.value).toBe('bob@test.com');
+      expect(textarea.value).toBe('Hello');
+    });
+
+    test('throws when a named field is not found in the form', async () => {
+      const formEl = document.createElement('form');
+      document.body.appendChild(formEl);
+      cleanups.push(() => formEl.remove());
+
+      await expect(fillForm(formEl, { missing: 'value' })).rejects.toThrow('missing');
+    });
+
+    test('throws when form argument is not a form element', async () => {
+      const div = document.createElement('div');
+      document.body.appendChild(div);
+      cleanups.push(() => div.remove());
+
+      await expect(fillForm(div as unknown as HTMLFormElement, { x: '1' })).rejects.toThrow();
+    });
+
+    test('handles checkbox inputs by setting checked state', async () => {
+      const formEl = document.createElement('form');
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.name = 'agree';
+      formEl.appendChild(checkbox);
+
+      document.body.appendChild(formEl);
+      cleanups.push(() => formEl.remove());
+
+      await fillForm(formEl, { agree: 'true' });
+
+      expect(checkbox.checked).toBe(true);
+    });
+
+    test('unchecks a checkbox when value is "false"', async () => {
+      const formEl = document.createElement('form');
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.name = 'agree';
+      checkbox.checked = true;
+      formEl.appendChild(checkbox);
+
+      document.body.appendChild(formEl);
+      cleanups.push(() => formEl.remove());
+
+      await fillForm(formEl, { agree: 'false' });
+
+      expect(checkbox.checked).toBe(false);
+    });
+
+    test('handles radio inputs by checking the matching value', async () => {
+      const formEl = document.createElement('form');
+
+      const radio1 = document.createElement('input');
+      radio1.type = 'radio';
+      radio1.name = 'color';
+      radio1.value = 'red';
+
+      const radio2 = document.createElement('input');
+      radio2.type = 'radio';
+      radio2.name = 'color';
+      radio2.value = 'blue';
+
+      formEl.appendChild(radio1);
+      formEl.appendChild(radio2);
+
+      document.body.appendChild(formEl);
+      cleanups.push(() => formEl.remove());
+
+      await fillForm(formEl, { color: 'blue' });
+
+      expect(radio1.checked).toBe(false);
+      expect(radio2.checked).toBe(true);
+    });
+  });
+
+  // ─── submitForm ────────────────────────────────────────────────────────────
+  describe('submitForm', () => {
+    test('triggers the form submit handler', async () => {
+      const handler = vi.fn((e: Event) => e.preventDefault());
+      const formEl = document.createElement('form');
+      formEl.addEventListener('submit', handler);
+
+      document.body.appendChild(formEl);
+      cleanups.push(() => formEl.remove());
+
+      await submitForm(formEl);
+
+      expect(handler).toHaveBeenCalledOnce();
+    });
+
+    test('dispatches a submit event that bubbles', async () => {
+      const formEl = document.createElement('form');
+      const wrapper = document.createElement('div');
+      wrapper.appendChild(formEl);
+      document.body.appendChild(wrapper);
+      cleanups.push(() => wrapper.remove());
+
+      const bubbleHandler = vi.fn((e: Event) => e.preventDefault());
+      wrapper.addEventListener('submit', bubbleHandler);
+
+      await submitForm(formEl);
+
+      expect(bubbleHandler).toHaveBeenCalledOnce();
+    });
+
+    test('the submit event is cancelable', async () => {
+      const formEl = document.createElement('form');
+      document.body.appendChild(formEl);
+      cleanups.push(() => formEl.remove());
+
+      let eventWasCancelable = false;
+      formEl.addEventListener('submit', (e) => {
+        eventWasCancelable = e.cancelable;
+        e.preventDefault();
+      });
+
+      await submitForm(formEl);
+
+      expect(eventWasCancelable).toBe(true);
+    });
+
+    test('throws when argument is not a form element', async () => {
+      const div = document.createElement('div');
+      document.body.appendChild(div);
+      cleanups.push(() => div.remove());
+
+      await expect(submitForm(div as unknown as HTMLFormElement)).rejects.toThrow();
+    });
+  });
+
+  // ─── IT-8A-3 (updated): fillForm + submitForm full lifecycle ───────────────
+  describe('fillForm + submitForm lifecycle', () => {
+    test('fillForm then submitForm exercises the full form lifecycle', async () => {
+      const submitted = vi.fn();
+
+      const formEl = document.createElement('form');
+      formEl.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fd = new FormData(formEl);
+        submitted({
+          email: fd.get('email'),
+          name: fd.get('name'),
+        });
+      });
+
+      const nameInput = document.createElement('input');
+      nameInput.name = 'name';
+
+      const emailInput = document.createElement('input');
+      emailInput.name = 'email';
+
+      formEl.appendChild(nameInput);
+      formEl.appendChild(emailInput);
+
+      document.body.appendChild(formEl);
+      cleanups.push(() => formEl.remove());
+
+      await fillForm(formEl, { name: 'Alice', email: 'alice@test.com' });
+      await submitForm(formEl);
+
+      expect(submitted).toHaveBeenCalledWith({
+        email: 'alice@test.com',
         name: 'Alice',
       });
     });

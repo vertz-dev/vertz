@@ -1,4 +1,4 @@
-export { click, press, type } from './interactions';
+export { click, fillForm, press, submitForm, type } from './interactions';
 export type { WaitForOptions } from './queries';
 export { findByTestId, findByText, queryByTestId, queryByText, waitFor } from './queries';
 export type { RenderTestResult } from './render-test';
