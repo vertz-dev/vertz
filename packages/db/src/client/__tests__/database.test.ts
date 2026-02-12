@@ -132,16 +132,18 @@ describe('db.close()', () => {
 
 describe('db.isHealthy()', () => {
   it('exists and returns a promise resolving to a boolean', async () => {
+    // Use _queryFn to avoid creating a real connection
     const db = createDb({
       url: 'postgres://localhost:5432/test',
       tables: {
         organizations: { table: organizations, relations: {} },
       },
+      _queryFn: async () => ({ rows: [], rowCount: 0 }),
     });
 
     const result = db.isHealthy();
     expect(result).toBeInstanceOf(Promise);
-    // Stub returns true
+    // When using _queryFn (no real driver), isHealthy returns true
     await expect(result).resolves.toBe(true);
   });
 });
@@ -188,9 +190,9 @@ describe('db.query()', () => {
     expect(typeof db.query).toBe('function');
   });
 
-  it('throws because driver is not yet connected', async () => {
+  it('throws when no url and no _queryFn are provided', async () => {
     const db = createDb({
-      url: 'postgres://localhost:5432/test',
+      url: '',
       tables: {
         organizations: { table: organizations, relations: {} },
       },
