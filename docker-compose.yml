@@ -1,0 +1,36 @@
+# Local development services for vertz
+#
+# Usage:
+#   docker compose up -d          # start Postgres in the background
+#   docker compose down            # stop and remove containers
+#   docker compose down -v         # stop and remove containers + data volumes
+#
+# The Postgres instance provides two databases:
+#   - vertz_dev  : for local development (examples/task-api, manual testing)
+#   - vertz_test : for integration tests (wiped between test runs)
+#
+# Connection URLs (also documented in .env.example):
+#   DATABASE_URL=postgres://postgres:postgres@localhost:5432/vertz_dev
+#   DATABASE_TEST_URL=postgres://postgres:postgres@localhost:5432/vertz_test
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vertz_dev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/01-init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:

@@ -14,6 +14,7 @@ import type {
 } from '../schema/inference';
 import type { RelationDef } from '../schema/relation';
 import type { SqlFragment } from '../sql/tagged';
+import { createPostgresDriver, type PostgresDriver } from './postgres-driver';
 import { computeTenantGraph, type TenantGraph } from './tenant-graph';
 
 // ---------------------------------------------------------------------------
@@ -372,8 +373,9 @@ function resolveTable<TTables extends Record<string, TableEntry>>(
  * traversing references to find indirect tenant paths.
  * Logs notices for tables without tenant paths and not .shared().
  *
- * Connection pool management is stubbed — real postgres driver
- * integration will be added in a later phase.
+ * When `url` is provided and `_queryFn` is NOT provided, creates a real
+ * postgres connection using the `postgres` package (porsager/postgres).
+ * The `_queryFn` escape hatch still works for testing with PGlite.
  */
 export function createDb<TTables extends Record<string, TableEntry>>(
   options: CreateDbOptions<TTables>,
@@ -406,15 +408,29 @@ export function createDb<TTables extends Record<string, TableEntry>>(
   // TableEntry is structurally compatible with TableRegistryEntry
   const tablesRegistry = tables as Record<string, TableRegistryEntry>;
 
-  // Query function: use injected _queryFn or throw
-  const queryFn: QueryFn =
-    options._queryFn ??
-    (async () => {
+  // Create the postgres driver if _queryFn is not provided
+  let driver: PostgresDriver | null = null;
+
+  const queryFn: QueryFn = (() => {
+    // If _queryFn is explicitly provided (e.g., PGlite for testing), use it
+    if (options._queryFn) {
+      return options._queryFn;
+    }
+
+    // Otherwise, create a real postgres driver from the URL
+    if (options.url) {
+      driver = createPostgresDriver(options.url, options.pool);
+      return driver.queryFn;
+    }
+
+    // Fallback: no driver, no _queryFn — throw on query
+    return (async () => {
       throw new Error(
         'db.query() requires a connected postgres driver. ' +
-          'Driver integration is not yet available — see the implementation plan for the driver phase.',
+          'Provide a `url` to connect to PostgreSQL, or `_queryFn` for testing.',
       );
-    });
+    }) as QueryFn;
+  })();
 
   // -----------------------------------------------------------------------
   // Implementation note: The interface provides fully typed signatures.
@@ -435,11 +451,16 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     },
 
     async close(): Promise<void> {
-      // Stub — real pool.end() will be called here when postgres driver is integrated
+      if (driver) {
+        await driver.close();
+      }
     },
 
     async isHealthy(): Promise<boolean> {
-      // Stub — real health check (SELECT 1) will be done here when postgres driver is integrated
+      if (driver) {
+        return driver.isHealthy();
+      }
+      // When using _queryFn (PGlite), assume healthy
       return true;
     },
 
