@@ -144,26 +144,41 @@ describe('createContext / useContext', () => {
     expect(innerObserved).toEqual(['blue', 'blue']);
   });
 
-  test('useContext returns correct value inside query() thunk', async () => {
+  test('useContext returns correct value inside query() thunk on re-fetch', async () => {
     const ApiCtx = createContext('/api');
-    let capturedBase: string | undefined;
+    const dep = signal(0);
+    const capturedBases: (string | undefined)[] = [];
 
+    let q: ReturnType<typeof query>;
     ApiCtx.Provider('/v2', () => {
-      query(async () => {
-        capturedBase = useContext(ApiCtx);
+      q = query(async () => {
+        dep.value; // track reactive dependency
+        capturedBases.push(useContext(ApiCtx));
         return 'data';
       });
     });
 
-    // query() effect runs synchronously on creation — the thunk captures context
-    // even though the async resolution is deferred. The synchronous read inside
-    // the thunk (before the first await) sees the Provider's scope.
+    // Initial run: Provider is on the call stack → sync path.
+    // Wait for the first thunk call to complete.
     await vi.waitFor(() => {
-      expect(capturedBase).toBe('/v2');
+      expect(capturedBases).toHaveLength(1);
     });
+    expect(capturedBases[0]).toBe('/v2');
+
+    // After Provider has popped, trigger a re-fetch via signal change.
+    // This forces useContext to use the captured _contextScope (async path).
+    dep.value = 1;
+
+    await vi.waitFor(() => {
+      expect(capturedBases).toHaveLength(2);
+    });
+    // The re-fetch should still see '/v2' via the captured context scope
+    expect(capturedBases[1]).toBe('/v2');
+
+    q?.dispose();
   });
 
-  test('disposed effect releases context scope reference', () => {
+  test('disposed effect does not re-run on signal change', () => {
     const ThemeCtx = createContext('light');
     const count = signal(0);
 
