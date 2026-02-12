@@ -18,6 +18,11 @@ export interface Context<T> {
   _default: T | undefined;
 }
 
+/** Erase a typed Context<T> to the untyped key used by ContextScope maps. */
+function asKey<T>(ctx: Context<T>): Context<unknown> {
+  return ctx as Context<unknown>;
+}
+
 /**
  * Create a context with an optional default value.
  * Returns an object with a `Provider` function.
@@ -28,7 +33,7 @@ export function createContext<T>(defaultValue?: T): Context<T> {
       // Build a new scope that inherits all existing context values
       const parentScope = currentScope;
       const scope: ContextScope = parentScope ? new Map(parentScope) : new Map();
-      scope.set(ctx as Context<unknown>, value);
+      scope.set(asKey(ctx), value);
 
       ctx._stack.push(value);
       const prevScope = currentScope;
@@ -58,8 +63,9 @@ export function useContext<T>(ctx: Context<T>): T | undefined {
     return ctx._stack[ctx._stack.length - 1] as T;
   }
   // Async path: check the captured context scope
-  if (currentScope?.has(ctx as Context<unknown>)) {
-    return currentScope.get(ctx as Context<unknown>) as T;
+  const key = asKey(ctx);
+  if (currentScope?.has(key)) {
+    return currentScope.get(key) as T;
   }
   return ctx._default;
 }
