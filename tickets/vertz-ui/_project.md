@@ -63,22 +63,34 @@
 - **Blocked by:** Phases 1-6
 - Tickets: ui-014 (Testing Utilities, 40h), ui-015 (Vite Plugin, 32h)
 
-## Ticket Index
+## v0.1.x Patch — Bug Fixes from DX Review
+
+Post-merge bug fixes discovered during josh's task-manager demo (PR #210).
+
+| ID | Title | Priority | Assigned | Estimate | Status |
+|----|-------|----------|----------|----------|--------|
+| ui-016 | onCleanup() silently no-ops without disposal scope | P1 | nora | 3h | 🟢 Done |
+| ui-017 | globalCss() does not auto-inject like css() does | P1 | nora | 1h | 🟢 Done |
+| ui-018 | compileTheme() not exported from public API | P1 | nora | 30m | 🟢 Done |
+| ui-019 | Compiler conditional & list transforms with disposal scopes | P1 | ben+nora | 12h | 🔴 Todo |
+| ui-020 | E2E testing infrastructure with Playwright | P2 | ava+edson | 6h | 🟡 In Progress |
+
+## Ticket Index (v1.0 Roadmap)
 
 | ID | Title | Phase | Assigned | Estimate | Status |
 |----|-------|-------|----------|----------|--------|
-| ui-001 | Reactivity Runtime | 1A | nora | 40h | 🔴 Todo |
-| ui-002 | Compiler Core | 1B | ben | 56h | 🔴 Todo |
-| ui-003 | Component Model | 1C | nora | 32h | 🔴 Todo |
-| ui-004 | css() Compile-Time Style Blocks | 2A | nora | 48h | 🔴 Todo |
-| ui-005 | variants() API | 2B | nora | 24h | 🔴 Todo |
-| ui-006 | defineTheme() and Theming | 2C | nora | 24h | 🔴 Todo |
-| ui-007 | Zero-Runtime CSS Extraction | 2D | nora | 32h | 🔴 Todo |
-| ui-008 | Forms | 3 | nora | 32h | 🔴 Todo |
-| ui-009 | Data Fetching (query) | 4 | nora | 32h | 🔴 Todo |
+| ui-001 | Reactivity Runtime | 1A | nora | 40h | 🟢 Done |
+| ui-002 | Compiler Core | 1B | ben | 56h | 🟢 Done |
+| ui-003 | Component Model | 1C | nora | 32h | 🟢 Done |
+| ui-004 | css() Compile-Time Style Blocks | 2A | nora | 48h | 🟢 Done |
+| ui-005 | variants() API | 2B | nora | 24h | 🟢 Done |
+| ui-006 | defineTheme() and Theming | 2C | nora | 24h | 🟢 Done |
+| ui-007 | Zero-Runtime CSS Extraction | 2D | nora | 32h | 🟢 Done |
+| ui-008 | Forms | 3 | nora | 32h | 🟢 Done |
+| ui-009 | Data Fetching (query) | 4 | nora | 32h | 🟢 Done |
 | ui-010 | Server-Side Rendering (SSR) | 5A | nora | 40h | 🔴 Todo |
 | ui-011 | Atomic Hydration | 5B | nora | 32h | 🔴 Todo |
-| ui-012 | Router | 6 | nora | 40h | 🔴 Todo |
+| ui-012 | Router | 6 | nora | 40h | 🟢 Done |
 | ui-013 | @vertz/primitives | 7 | nora | 80h | 🔴 Todo |
 | ui-014 | Testing Utilities | 8A | ava | 40h | 🔴 Todo |
 | ui-015 | Vite Plugin Complete | 8B | nora | 32h | 🔴 Todo |
