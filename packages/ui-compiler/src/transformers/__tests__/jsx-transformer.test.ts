@@ -39,12 +39,13 @@ describe('JsxTransformer', () => {
     expect(result).toContain('() =>');
   });
 
-  it('wraps static expression in __child(() => ...)', () => {
+  it('uses __insert for static expressions', () => {
     const result = transform(`function App() {\n  return <div>{title}</div>;\n}`, [
       { name: 'title', kind: 'static', start: 0, end: 0 },
     ]);
-    // Now uses __child for all expression children to handle both Nodes and primitives
-    expect(result).toContain('__child(');
+    // Static expressions use __insert (no effect overhead)
+    expect(result).toContain('__insert(');
+    expect(result).not.toContain('__child(');
     expect(result).not.toContain('createTextNode(String');
   });
 

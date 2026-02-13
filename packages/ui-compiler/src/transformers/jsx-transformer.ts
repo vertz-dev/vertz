@@ -275,12 +275,12 @@ function transformChild(
     // Read from MagicString to pick up signal/computed .value transforms
     const exprText = source.slice(exprNode.getStart(), exprNode.getEnd());
 
-    // Use __child() for all expression children to handle both Nodes and primitives
-    // This prevents HTMLElements from being stringified to "[object HTMLElement]"
+    // Use __child() for reactive expressions (wraps in effect)
+    // Use __insert() for static expressions (direct insertion, no effect overhead)
     if (exprInfo?.reactive) {
       return `${parentVar}.appendChild(__child(() => ${exprText}))`;
     }
-    return `${parentVar}.appendChild(__child(() => ${exprText}))`;
+    return `__insert(${parentVar}, ${exprText})`;
   }
 
   if (child.isKind(SyntaxKind.JsxElement) || child.isKind(SyntaxKind.JsxSelfClosingElement)) {

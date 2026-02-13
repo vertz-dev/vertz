@@ -33,7 +33,9 @@ export function __text(fn: () => string): DisposableText {
  *
  * Returns a wrapper element with `display: contents` and a `dispose` property.
  */
-export function __child(fn: () => Node | string | number | null | undefined): HTMLElement & {
+export function __child(
+  fn: () => Node | string | number | boolean | null | undefined,
+): HTMLElement & {
   dispose: DisposeFn;
 } {
   // Use a span with display:contents so it doesn't affect layout
@@ -48,8 +50,8 @@ export function __child(fn: () => Node | string | number | null | undefined): HT
       wrapper.removeChild(wrapper.firstChild);
     }
 
-    // Handle null/undefined
-    if (value == null) {
+    // Skip null, undefined, and booleans (consistent with __insert)
+    if (value == null || typeof value === 'boolean') {
       return;
     }
 
@@ -65,6 +67,34 @@ export function __child(fn: () => Node | string | number | null | undefined): HT
   });
 
   return wrapper;
+}
+
+/**
+ * Insert a static (non-reactive) child value into a parent node.
+ * This is used for static JSX expression children to avoid the performance
+ * overhead of effect() when reactivity isn't needed.
+ *
+ * Handles Node values (appended directly), primitives (converted to text),
+ * and nullish/boolean values (skipped).
+ */
+export function __insert(
+  parent: Node,
+  value: Node | string | number | boolean | null | undefined,
+): void {
+  // Skip null, undefined, and booleans
+  if (value == null || typeof value === 'boolean') {
+    return;
+  }
+
+  // If it's a Node, append it directly
+  if (value instanceof Node) {
+    parent.appendChild(value);
+    return;
+  }
+
+  // Otherwise create a text node
+  const textValue = typeof value === 'string' ? value : String(value);
+  parent.appendChild(document.createTextNode(textValue));
 }
 
 /**
