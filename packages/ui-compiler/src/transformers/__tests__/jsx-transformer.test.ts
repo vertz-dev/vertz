@@ -145,4 +145,24 @@ describe('JsxTransformer', () => {
     expect(result).toContain('__element("div")');
     expect(result).not.toContain('<div>');
   });
+
+  it('transforms JSX inside ternary expressions (variable assignment)', () => {
+    const code = `function App() {\n  const el = cond ? <div>yes</div> : <span>no</span>;\n  return el;\n}`;
+    const result = transform(code, [
+      { name: 'cond', kind: 'signal', start: 0, end: 0 },
+    ]);
+    expect(result).toContain('__element("div")');
+    expect(result).toContain('__element("span")');
+    expect(result).not.toContain('<div>');
+    expect(result).not.toContain('<span>');
+  });
+
+  it('transforms JSX inside array literals (variable assignment)', () => {
+    const code = `function App() {\n  const els = [<div>a</div>, <span>b</span>];\n  return els;\n}`;
+    const result = transform(code, []);
+    expect(result).toContain('__element("div")');
+    expect(result).toContain('__element("span")');
+    expect(result).not.toContain('<div>');
+    expect(result).not.toContain('<span>');
+  });
 });
