@@ -52,9 +52,10 @@ export class ComponentAnalyzer {
     }
 
     // Check the entire function body for any JSX nodes
-    const body = node.isKind(SyntaxKind.FunctionDeclaration) || node.isKind(SyntaxKind.FunctionExpression)
-      ? node.getBody()
-      : node;
+    const body =
+      node.isKind(SyntaxKind.FunctionDeclaration) || node.isKind(SyntaxKind.FunctionExpression)
+        ? node.getBody()
+        : node;
 
     if (body && this._containsJsx(body)) return true;
 
