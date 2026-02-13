@@ -17,8 +17,8 @@
  *   DELETE /api/tasks/:id      — delete a task
  */
 import { vertz } from '@vertz/core';
-import { userModule } from './modules/users/user.module';
 import { taskModule } from './modules/tasks/task.module';
+import { userModule } from './modules/users/user.module';
 
 const PORT = Number(process.env.PORT) || 3000;
 

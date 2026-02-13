@@ -1,6 +1,6 @@
 # ui-025: Extract shared CSS token tables
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** ben
 - **Phase:** v0.1.x patch
 - **Estimate:** 6h
@@ -32,3 +32,4 @@ Consider extracting shared lookup tables into a shared module that both packages
 ## Progress
 
 - 2026-02-12: Ticket created from follow-up #6 (PR #177 review)
+- 2026-02-12: Implemented — created token-tables.ts as single source of truth, removed ~500 lines of duplicates from compiler/extractor. Fixed drift (missing colors, keywords, breakpoints). 122 new regression tests.

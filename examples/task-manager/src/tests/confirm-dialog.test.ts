@@ -20,7 +20,9 @@ describe('ConfirmDialog', () => {
         triggerLabel: 'Delete',
         title: 'Confirm Delete',
         description: 'Are you sure?',
-        onConfirm: () => { confirmed = true; },
+        onConfirm: () => {
+          confirmed = true;
+        },
       }),
     );
 
@@ -38,7 +40,9 @@ describe('ConfirmDialog', () => {
         triggerLabel: 'Delete',
         title: 'Confirm Delete',
         description: 'Are you sure?',
-        onConfirm: () => { confirmed = true; },
+        onConfirm: () => {
+          confirmed = true;
+        },
       }),
     );
 
@@ -60,7 +64,9 @@ describe('ConfirmDialog', () => {
         title: 'Confirm Delete',
         description: 'Are you sure?',
         confirmLabel: 'Yes, delete it',
-        onConfirm: () => { confirmed = true; },
+        onConfirm: () => {
+          confirmed = true;
+        },
       }),
     );
 

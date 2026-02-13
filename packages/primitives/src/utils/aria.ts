@@ -28,10 +28,15 @@ export function setSelected(el: HTMLElement, selected: boolean): void {
 }
 
 /**
- * Set aria-hidden on an element.
+ * Set aria-hidden on an element and toggle visual display.
+ *
+ * aria-hidden alone only affects assistive technology — it does not visually
+ * hide the element. We pair it with style.display so that primitives like
+ * Dialog, Tabs, and Tooltip actually disappear when hidden.
  */
 export function setHidden(el: HTMLElement, hidden: boolean): void {
   el.setAttribute('aria-hidden', String(hidden));
+  el.style.display = hidden ? 'none' : '';
 }
 
 /**

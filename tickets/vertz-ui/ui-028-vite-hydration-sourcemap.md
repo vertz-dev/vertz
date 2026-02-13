@@ -1,6 +1,6 @@
 # ui-028: Fix Vite plugin hydration source map
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 2h
@@ -24,3 +24,4 @@ The Vite plugin discards the hydration source map — only the compile result so
 ## Progress
 
 - 2026-02-12: Ticket created from ben's review on PR #199
+- 2026-02-12: Fixed — chained hydration + compile source maps via @ampproject/remapping. New test verifies end-to-end source mapping.

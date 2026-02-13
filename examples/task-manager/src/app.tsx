@@ -5,15 +5,16 @@
  * - JSX for layout composition
  * - ThemeProvider for theme context
  * - createContext / useContext for app-wide settings
- * - effect() for reactive route rendering
+ * - effect() for reactive route rendering (driven by external router signal)
  * - Full composition of all @vertz/ui features
+ *
+ * Note: All reactive state here comes from external signals (appRouter.current,
+ * settings.theme), so effect() is still needed. No local `let` → signal
+ * transform applies in this file.
  */
 
-import { ThemeProvider, css, effect } from '@vertz/ui';
-import {
-  SettingsContext,
-  createSettingsValue,
-} from './lib/settings-context';
+import { css, effect, ThemeProvider } from '@vertz/ui';
+import { createSettingsValue, SettingsContext } from './lib/settings-context';
 import { appRouter, Link } from './router';
 import { layoutStyles } from './styles/components';
 
@@ -33,12 +34,14 @@ const navStyles = css({
 export function App(): HTMLElement {
   const settings = createSettingsValue();
 
-  const container = <div data-testid="app-root" /> as HTMLElement;
+  const container = (<div data-testid="app-root" />) as HTMLElement;
 
   // We wrap the render in the SettingsContext.Provider scope
   SettingsContext.Provider(settings, () => {
     // Main content area — referenced by the route rendering effect
-    const main = <main class={layoutStyles.classNames.main} data-testid="main-content" /> as HTMLElement;
+    const main = (
+      <main class={layoutStyles.classNames.main} data-testid="main-content" />
+    ) as HTMLElement;
 
     // Shell layout: sidebar + main, composed with JSX
     const shell = (
@@ -46,9 +49,24 @@ export function App(): HTMLElement {
         <nav class={layoutStyles.classNames.sidebar} aria-label="Main navigation">
           <div class={navStyles.classNames.navTitle}>Task Manager</div>
           <div class={navStyles.classNames.navList}>
-            <Link href="/" children="All Tasks" activeClass="font-bold" className={navStyles.classNames.navItem} />
-            <Link href="/tasks/new" children="Create Task" activeClass="font-bold" className={navStyles.classNames.navItem} />
-            <Link href="/settings" children="Settings" activeClass="font-bold" className={navStyles.classNames.navItem} />
+            <Link
+              href="/"
+              children="All Tasks"
+              activeClass="font-bold"
+              className={navStyles.classNames.navItem}
+            />
+            <Link
+              href="/tasks/new"
+              children="Create Task"
+              activeClass="font-bold"
+              className={navStyles.classNames.navItem}
+            />
+            <Link
+              href="/settings"
+              children="Settings"
+              activeClass="font-bold"
+              className={navStyles.classNames.navItem}
+            />
           </div>
         </nav>
         {main}
@@ -75,7 +93,7 @@ export function App(): HTMLElement {
       const match = appRouter.current.value;
 
       if (!match) {
-        updateContent(<div data-testid="not-found">Page not found</div> as Node);
+        updateContent((<div data-testid="not-found">Page not found</div>) as Node);
         return;
       }
 

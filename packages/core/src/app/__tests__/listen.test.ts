@@ -4,7 +4,9 @@ import { createModuleDef } from '../../module/module-def';
 import type { ServerHandle } from '../../types/server-adapter';
 import { createApp } from '../app-builder';
 
-describe('app.listen', () => {
+const hasBun = 'Bun' in globalThis;
+
+describe.skipIf(!hasBun)('app.listen', () => {
   let handle: ServerHandle | undefined;
 
   afterEach(async () => {

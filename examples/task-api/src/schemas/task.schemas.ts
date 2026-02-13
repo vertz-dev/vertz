@@ -2,7 +2,7 @@
  * Task validation schemas — request/response schemas for the tasks module.
  */
 import { s } from '@vertz/schema';
-import { TASK_STATUSES, TASK_PRIORITIES } from '../db/schema';
+import { TASK_PRIORITIES, TASK_STATUSES } from '../db/schema';
 
 // ---------------------------------------------------------------------------
 // Shared enums (derived from database schema constants)

@@ -4,7 +4,7 @@
 import { NotFoundException } from '@vertz/core';
 import type { FilterType } from '@vertz/db';
 import { db } from '../../db';
-import { tasks, users } from '../../db/schema';
+import type { tasks, users } from '../../db/schema';
 
 // ---------------------------------------------------------------------------
 // Inferred types from the database schema — no manual definitions needed.
@@ -114,9 +114,7 @@ export function createTaskMethods() {
           where: { id: input.assigneeId },
         });
         if (!user) {
-          throw new NotFoundException(
-            `Assignee with id "${input.assigneeId}" not found`,
-          );
+          throw new NotFoundException(`Assignee with id "${input.assigneeId}" not found`);
         }
       }
 
@@ -144,9 +142,7 @@ export function createTaskMethods() {
           where: { id: input.assigneeId },
         });
         if (!user) {
-          throw new NotFoundException(
-            `Assignee with id "${input.assigneeId}" not found`,
-          );
+          throw new NotFoundException(`Assignee with id "${input.assigneeId}" not found`);
         }
       }
 

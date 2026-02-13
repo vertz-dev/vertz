@@ -9,10 +9,10 @@
  * - findByTestId() for locating form elements
  */
 
-import { describe, expect, it, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { renderTest, waitFor } from '@vertz/ui/test';
-import { TaskForm } from '../components/task-form';
 import { resetMockData } from '../api/mock-data';
+import { TaskForm } from '../components/task-form';
 import type { Task } from '../lib/types';
 
 describe('TaskForm', () => {
@@ -58,14 +58,20 @@ describe('TaskForm', () => {
     let createdTask: Task | null = null;
     const { findByTestId, type, click, unmount } = renderTest(
       TaskForm({
-        onSuccess: (task) => { createdTask = task; },
+        onSuccess: (task) => {
+          createdTask = task;
+        },
         onCancel: () => {},
       }),
     );
 
     // Fill in the form
-    const titleInput = findByTestId('create-task-form').querySelector('#task-title') as HTMLInputElement;
-    const descInput = findByTestId('create-task-form').querySelector('#task-description') as HTMLTextAreaElement;
+    const titleInput = findByTestId('create-task-form').querySelector(
+      '#task-title',
+    ) as HTMLInputElement;
+    const descInput = findByTestId('create-task-form').querySelector(
+      '#task-description',
+    ) as HTMLTextAreaElement;
 
     await type(titleInput, 'New test task');
     await type(descInput, 'A description for the test task');
@@ -86,7 +92,12 @@ describe('TaskForm', () => {
   it('calls onCancel when cancel button is clicked', async () => {
     let cancelled = false;
     const { findByText, click, unmount } = renderTest(
-      TaskForm({ onSuccess: () => {}, onCancel: () => { cancelled = true; } }),
+      TaskForm({
+        onSuccess: () => {},
+        onCancel: () => {
+          cancelled = true;
+        },
+      }),
     );
 
     const cancelBtn = findByText('Cancel');
@@ -102,8 +113,12 @@ describe('TaskForm', () => {
       TaskForm({ onSuccess: () => {}, onCancel: () => {} }),
     );
 
-    const titleInput = findByTestId('create-task-form').querySelector('#task-title') as HTMLInputElement;
-    const descInput = findByTestId('create-task-form').querySelector('#task-description') as HTMLTextAreaElement;
+    const titleInput = findByTestId('create-task-form').querySelector(
+      '#task-title',
+    ) as HTMLInputElement;
+    const descInput = findByTestId('create-task-form').querySelector(
+      '#task-description',
+    ) as HTMLTextAreaElement;
 
     await type(titleInput, 'Test task');
     await type(descInput, 'Description');

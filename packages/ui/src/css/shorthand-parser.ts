@@ -2,33 +2,13 @@
  * Parses CSS shorthand strings like 'p:4', 'hover:bg:primary.700'.
  *
  * Syntax:
- * - 'property:value'          → { property, value, pseudo: null }
- * - 'pseudo:property:value'   → { property, value, pseudo }
- * - 'keyword'                 → { property: keyword, value: null, pseudo: null }
- * - 'pseudo:keyword'          → { property: keyword, value: null, pseudo }
+ * - 'property:value'          -> { property, value, pseudo: null }
+ * - 'pseudo:property:value'   -> { property, value, pseudo }
+ * - 'keyword'                 -> { property: keyword, value: null, pseudo: null }
+ * - 'pseudo:keyword'          -> { property: keyword, value: null, pseudo }
  */
 
-/** Supported pseudo-state prefixes. */
-const PSEUDO_PREFIXES = new Set([
-  'hover',
-  'focus',
-  'focus-visible',
-  'active',
-  'disabled',
-  'first',
-  'last',
-]);
-
-/** Map pseudo shorthand names to CSS pseudo-selectors. */
-const PSEUDO_MAP: Record<string, string> = {
-  hover: ':hover',
-  focus: ':focus',
-  'focus-visible': ':focus-visible',
-  active: ':active',
-  disabled: ':disabled',
-  first: ':first-child',
-  last: ':last-child',
-};
+import { PSEUDO_MAP, PSEUDO_PREFIXES } from './token-tables';
 
 /** Keywords that resolve to display values with no explicit value. */
 const DISPLAY_KEYWORDS = new Set(['flex', 'grid', 'block', 'inline', 'hidden']);
@@ -68,11 +48,11 @@ export function parseShorthand(input: string): ParsedShorthand {
     // Check if first part is a pseudo prefix
     if (PSEUDO_PREFIXES.has(first)) {
       const pseudo = PSEUDO_MAP[first] ?? first;
-      // 'hover:flex' → pseudo keyword
+      // 'hover:flex' -> pseudo keyword
       if (DISPLAY_KEYWORDS.has(second)) {
         return { property: second, value: null, pseudo };
       }
-      // 'hover:keyword' — treat as pseudo + keyword for non-display keywords too
+      // 'hover:keyword' -- treat as pseudo + keyword for non-display keywords too
       // But this is ambiguous with 'property:value'.
       // Rule: if first is a known pseudo, treat as pseudo:keyword
       return { property: second, value: null, pseudo };
@@ -110,7 +90,7 @@ export function parseShorthand(input: string): ParsedShorthand {
  * We split on ':' only where it acts as a separator (not inside pseudo names).
  */
 function splitShorthand(input: string): string[] {
-  // Handle 'focus-visible' specially — it contains no colons itself,
+  // Handle 'focus-visible' specially -- it contains no colons itself,
   // but could be confused if we do naive splitting.
   // Actually, since 'focus-visible' doesn't contain ':', simple split works.
   return input.split(':');

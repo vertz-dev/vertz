@@ -1,6 +1,6 @@
 # ui-017: globalCss() does not auto-inject like css() does
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 1h
@@ -37,3 +37,4 @@ The `injectCSS()` helper already exists inside `css.ts`. This fix just needs to 
 ## Progress
 
 - 2026-02-12: Ticket created from PR #210 DX review (ava + nora)
+- 2026-02-12: Already fixed in commit a454791 (PR #229) — globalCss() calls injectCSS() with dedup

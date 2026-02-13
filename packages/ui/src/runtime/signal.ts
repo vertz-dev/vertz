@@ -2,7 +2,7 @@ import { type ContextScope, getContextScope, setContextScope } from '../componen
 import { _tryOnCleanup } from './disposal';
 import { batch, scheduleNotify } from './scheduler';
 import type { Computed, DisposeFn, Signal, Subscriber, SubscriberSource } from './signal-types';
-import { getSubscriber, setSubscriber } from './tracking';
+import { getReadValueCallback, getSubscriber, setSubscriber } from './tracking';
 
 /** Global ID counter for subscriber deduplication. */
 let nextId = 0;
@@ -22,6 +22,8 @@ class SignalImpl<T> implements Signal<T> {
     if (sub) {
       this._subscribers.add(sub);
       sub._addSource(this);
+      const cb = getReadValueCallback();
+      if (cb) cb(this._value);
     }
     return this._value;
   }

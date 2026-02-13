@@ -28,10 +28,7 @@ export function CreateTaskPage(props: CreateTaskPageProps): HTMLElement {
   return (
     <div class={pageStyles.classNames.page} data-testid="create-task-page">
       <h1 class={pageStyles.classNames.title}>Create New Task</h1>
-      <TaskForm
-        onSuccess={() => navigate('/')}
-        onCancel={() => navigate('/')}
-      />
+      <TaskForm onSuccess={() => navigate('/')} onCancel={() => navigate('/')} />
     </div>
   ) as HTMLElement;
 }

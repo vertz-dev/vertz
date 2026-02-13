@@ -1,6 +1,6 @@
 # ui-027: Clean up duplicate test files and build config
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 1h
@@ -24,3 +24,4 @@
 ## Progress
 
 - 2026-02-12: Ticket created from mike's review on PR #199
+- 2026-02-12: Deleted 4 duplicate test files from ui-server root (asset-pipeline.test.ts, head.test.ts, html-serializer.test.ts, render-to-stream.test.ts)

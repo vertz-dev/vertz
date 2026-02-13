@@ -1,6 +1,6 @@
 # ui-020: Fix compiler replaceAll fragility and missing import generation
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** ben
 - **Phase:** v0.1.x patch
 - **Estimate:** 4h
@@ -42,3 +42,4 @@ The compiler never detects or generates imports for `__conditional`, `__list`, `
 ## Progress
 
 - 2026-02-12: Ticket created from ben's review on PR #199
+- 2026-02-12: Already fixed in commit e6c30f7 (PR #216) — replaceWithBoundary() regex, detectDomHelpers() import generation, internals entry point in bunup.config.ts

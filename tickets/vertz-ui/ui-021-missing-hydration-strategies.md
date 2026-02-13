@@ -1,6 +1,6 @@
 # ui-021: Add missing hydration strategies (idle/media/visible)
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 6h
@@ -35,3 +35,4 @@ Additionally:
 ## Progress
 
 - 2026-02-12: Ticket created from mike's review on PR #199 + follow-ups #8, #9
+- 2026-02-12: Implemented — idleStrategy (requestIdleCallback + setTimeout fallback), mediaStrategy (matchMedia), visibleStrategy (IntersectionObserver), double-hydration guard (data-v-hydrated), lazyStrategy fallback test. 17 new tests, 627 total passing.

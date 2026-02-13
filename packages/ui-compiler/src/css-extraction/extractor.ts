@@ -1,14 +1,32 @@
 /**
- * CSS File Extractor — Extracts CSS from `css()` calls into separate `.css` files.
+ * CSS File Extractor -- Extracts CSS from `css()` calls into separate `.css` files.
  *
  * Walks the AST to find css() calls, resolves the array shorthands statically
- * (using the same token resolution as the runtime/css-transformer), generates
+ * (using the shared token tables from @vertz/ui/internals), generates
  * CSS rule text for each block, and outputs extracted CSS as a string.
  *
  * This is the core of zero-runtime CSS extraction: all css() calls resolve
  * at build time, so no CSS-in-JS runtime ships in the browser.
  */
 
+import {
+  ALIGNMENT_MAP,
+  COLOR_NAMESPACES,
+  CONTENT_MAP,
+  CSS_COLOR_KEYWORDS,
+  DISPLAY_MAP,
+  FONT_SIZE_SCALE,
+  FONT_WEIGHT_SCALE,
+  HEIGHT_AXIS_PROPERTIES,
+  LINE_HEIGHT_SCALE,
+  PROPERTY_MAP,
+  PSEUDO_MAP,
+  PSEUDO_PREFIXES,
+  RADIUS_SCALE,
+  SHADOW_SCALE,
+  SIZE_KEYWORDS,
+  SPACING_SCALE,
+} from '@vertz/ui/internals';
 import type { Node } from 'ts-morph';
 import { Project, SyntaxKind, ts } from 'ts-morph';
 
@@ -225,27 +243,7 @@ function formatCSSRule(selector: string, declarations: string[]): string {
   return `${selector} {\n${props}\n}`;
 }
 
-// ─── Shorthand Parser (mirrors css-transformer.ts) ─────────────
-
-const PSEUDO_PREFIXES = new Set([
-  'hover',
-  'focus',
-  'focus-visible',
-  'active',
-  'disabled',
-  'first',
-  'last',
-]);
-
-const PSEUDO_MAP: Record<string, string> = {
-  hover: ':hover',
-  focus: ':focus',
-  'focus-visible': ':focus-visible',
-  active: ':active',
-  disabled: ':disabled',
-  first: ':first-child',
-  last: ':last-child',
-};
+// ─── Shorthand Parser (uses shared token tables) ─────────────
 
 interface ParsedShorthand {
   property: string;
@@ -275,193 +273,12 @@ function parseShorthand(input: string): ParsedShorthand | null {
   return null;
 }
 
-// ─── Token Resolver (mirrors css-transformer.ts) ───────────────
+// ─── Token Resolver (uses shared token tables) ───────────────
 
-const DISPLAY_MAP: Record<string, string> = {
-  flex: 'flex',
-  grid: 'grid',
-  block: 'block',
-  inline: 'inline',
-  hidden: 'none',
-};
-
-const SPACING_SCALE: Record<string, string> = {
-  '0': '0',
-  '0.5': '0.125rem',
-  '1': '0.25rem',
-  '1.5': '0.375rem',
-  '2': '0.5rem',
-  '2.5': '0.625rem',
-  '3': '0.75rem',
-  '3.5': '0.875rem',
-  '4': '1rem',
-  '5': '1.25rem',
-  '6': '1.5rem',
-  '7': '1.75rem',
-  '8': '2rem',
-  '9': '2.25rem',
-  '10': '2.5rem',
-  '11': '2.75rem',
-  '12': '3rem',
-  '14': '3.5rem',
-  '16': '4rem',
-  '20': '5rem',
-  '24': '6rem',
-  '28': '7rem',
-  '32': '8rem',
-  '36': '9rem',
-  '40': '10rem',
-  '44': '11rem',
-  '48': '12rem',
-  '52': '13rem',
-  '56': '14rem',
-  '60': '15rem',
-  '64': '16rem',
-  '72': '18rem',
-  '80': '20rem',
-  '96': '24rem',
-  auto: 'auto',
-};
-
-const RADIUS_SCALE: Record<string, string> = {
-  none: '0',
-  sm: '0.125rem',
-  md: '0.375rem',
-  lg: '0.5rem',
-  xl: '0.75rem',
-  '2xl': '1rem',
-  '3xl': '1.5rem',
-  full: '9999px',
-};
-
-const SHADOW_SCALE: Record<string, string> = {
-  sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-  md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-  lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
-  xl: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
-  '2xl': '0 25px 50px -12px rgb(0 0 0 / 0.25)',
-  none: 'none',
-};
-
-const FONT_SIZE_SCALE: Record<string, string> = {
-  xs: '0.75rem',
-  sm: '0.875rem',
-  base: '1rem',
-  lg: '1.125rem',
-  xl: '1.25rem',
-  '2xl': '1.5rem',
-  '3xl': '1.875rem',
-  '4xl': '2.25rem',
-  '5xl': '3rem',
-};
-
-const FONT_WEIGHT_SCALE: Record<string, string> = {
-  thin: '100',
-  extralight: '200',
-  light: '300',
-  normal: '400',
-  medium: '500',
-  semibold: '600',
-  bold: '700',
-  extrabold: '800',
-  black: '900',
-};
-
-const LINE_HEIGHT_SCALE: Record<string, string> = {
-  none: '1',
-  tight: '1.25',
-  snug: '1.375',
-  normal: '1.5',
-  relaxed: '1.625',
-  loose: '2',
-};
-
-const ALIGNMENT_MAP: Record<string, string> = {
-  start: 'flex-start',
-  end: 'flex-end',
-  center: 'center',
-  between: 'space-between',
-  around: 'space-around',
-  evenly: 'space-evenly',
-  stretch: 'stretch',
-  baseline: 'baseline',
-};
-
-const SIZE_KEYWORDS: Record<string, string> = {
-  full: '100%',
-  svw: '100svw',
-  dvw: '100dvw',
-  min: 'min-content',
-  max: 'max-content',
-  fit: 'fit-content',
-  auto: 'auto',
-};
-
-const HEIGHT_AXIS_PROPERTIES = new Set(['h', 'min-h', 'max-h']);
-
-const COLOR_NAMESPACES = new Set([
-  'primary',
-  'secondary',
-  'accent',
-  'background',
-  'foreground',
-  'muted',
-  'destructive',
-  'success',
-  'warning',
-  'info',
-  'border',
-  'ring',
-  'input',
-  'card',
-  'popover',
-]);
-
-interface PropertyMapping {
+interface CompilerPropertyMapping {
   properties: string[];
   valueType: string;
 }
-
-const PROPERTY_MAP: Record<string, PropertyMapping> = {
-  p: { properties: ['padding'], valueType: 'spacing' },
-  px: { properties: ['padding-inline'], valueType: 'spacing' },
-  py: { properties: ['padding-block'], valueType: 'spacing' },
-  pt: { properties: ['padding-top'], valueType: 'spacing' },
-  pr: { properties: ['padding-right'], valueType: 'spacing' },
-  pb: { properties: ['padding-bottom'], valueType: 'spacing' },
-  pl: { properties: ['padding-left'], valueType: 'spacing' },
-  m: { properties: ['margin'], valueType: 'spacing' },
-  mx: { properties: ['margin-inline'], valueType: 'spacing' },
-  my: { properties: ['margin-block'], valueType: 'spacing' },
-  mt: { properties: ['margin-top'], valueType: 'spacing' },
-  mr: { properties: ['margin-right'], valueType: 'spacing' },
-  mb: { properties: ['margin-bottom'], valueType: 'spacing' },
-  ml: { properties: ['margin-left'], valueType: 'spacing' },
-  w: { properties: ['width'], valueType: 'size' },
-  h: { properties: ['height'], valueType: 'size' },
-  'min-w': { properties: ['min-width'], valueType: 'size' },
-  'max-w': { properties: ['max-width'], valueType: 'size' },
-  'min-h': { properties: ['min-height'], valueType: 'size' },
-  'max-h': { properties: ['max-height'], valueType: 'size' },
-  bg: { properties: ['background-color'], valueType: 'color' },
-  text: { properties: ['color'], valueType: 'color' },
-  border: { properties: ['border-color'], valueType: 'color' },
-  rounded: { properties: ['border-radius'], valueType: 'radius' },
-  shadow: { properties: ['box-shadow'], valueType: 'shadow' },
-  gap: { properties: ['gap'], valueType: 'spacing' },
-  items: { properties: ['align-items'], valueType: 'alignment' },
-  justify: { properties: ['justify-content'], valueType: 'alignment' },
-  font: { properties: ['font-size'], valueType: 'font-size' },
-  weight: { properties: ['font-weight'], valueType: 'font-weight' },
-  leading: { properties: ['line-height'], valueType: 'line-height' },
-  ring: { properties: ['outline'], valueType: 'ring' },
-  content: { properties: ['content'], valueType: 'content' },
-};
-
-const CONTENT_MAP: Record<string, string> = {
-  empty: "''",
-  none: 'none',
-};
 
 function resolveDeclarations(parsed: ParsedShorthand): string[] | null {
   const { property, value } = parsed;
@@ -471,7 +288,7 @@ function resolveDeclarations(parsed: ParsedShorthand): string[] | null {
     return [`display: ${DISPLAY_MAP[property]};`];
   }
 
-  const mapping = PROPERTY_MAP[property];
+  const mapping = PROPERTY_MAP[property] as CompilerPropertyMapping | undefined;
   if (!mapping || value === null) return null;
 
   const resolvedValue = resolveValue(value, mapping.valueType, property);
@@ -529,14 +346,13 @@ function resolveColor(value: string): string | null {
   if (COLOR_NAMESPACES.has(value)) {
     return `var(--color-${value})`;
   }
-  const cssKeywords = new Set(['transparent', 'inherit', 'currentColor', 'initial', 'unset']);
-  if (cssKeywords.has(value)) return value;
+  if (CSS_COLOR_KEYWORDS.has(value)) return value;
   return null;
 }
 
 // ─── Class Name Generation ─────────────────────────────────────
 
-/** Deterministic class name generation (mirrors css-transformer.ts). */
+/** Deterministic class name generation (mirrors @vertz/ui class-generator.ts). */
 function generateClassName(filePath: string, blockName: string): string {
   const input = `${filePath}::${blockName}`;
   const hash = djb2Hash(input);

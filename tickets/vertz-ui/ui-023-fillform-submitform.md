@@ -1,6 +1,6 @@
 # ui-023: Add fillForm/submitForm test utilities
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** ava
 - **Phase:** v0.1.x patch
 - **Estimate:** 4h
@@ -29,3 +29,4 @@ These utilities should be added to `@vertz/ui/test` to match the design doc prom
 ## Progress
 
 - 2026-02-12: Ticket created from josh's DX review on PR #199
+- 2026-02-12: Already implemented — fillForm and submitForm in test/interactions.ts with full coverage (text, select, textarea, checkbox, radio)

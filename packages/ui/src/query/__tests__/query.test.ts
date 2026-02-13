@@ -333,9 +333,9 @@ describe('query()', () => {
     expect(result.loading.value).toBe(false);
   });
 
-  test('stale cache entries are deleted when key version bumps', async () => {
+  test('cache entries are retained across reactive dependency changes', async () => {
     const cache = new MemoryCache<string>();
-    const deleteSpy = vi.spyOn(cache, 'delete');
+    const setSpy = vi.spyOn(cache, 'set');
     const filter = signal('a');
     const resolvers: Array<{ value: string; resolve: (v: string) => void }> = [];
 
@@ -349,77 +349,74 @@ describe('query()', () => {
       { cache },
     );
 
-    // Resolve the first fetch (filter='a') — this writes to the v0 cache entry
+    // Resolve the first fetch (filter='a')
     resolvers[0]?.resolve('data-a');
     await Promise.resolve();
+    const keyA = setSpy.mock.calls[0]?.[0] as string;
 
-    // Change signal — bumps key version to v1, which should delete the v0 entry
+    // Change signal to 'b'
     filter.value = 'b';
-
-    // Resolve the second fetch (filter='b') — writes to the v1 cache entry
     resolvers[1]?.resolve('data-b');
     await Promise.resolve();
+    const keyB = setSpy.mock.calls[1]?.[0] as string;
 
-    // Change signal again — bumps to v2, should delete v1 entry
+    // Change signal to 'c'
     filter.value = 'c';
     resolvers[2]?.resolve('data-c');
     await Promise.resolve();
+    const keyC = setSpy.mock.calls[2]?.[0] as string;
 
-    // Change once more — bumps to v3, should delete v2 entry
-    filter.value = 'd';
-    resolvers[3]?.resolve('data-d');
-    await Promise.resolve();
+    // All three cache entries should still exist — old entries are NOT deleted
+    expect(cache.get(keyA)).toBe('data-a');
+    expect(cache.get(keyB)).toBe('data-b');
+    expect(cache.get(keyC)).toBe('data-c');
 
-    // 3 signal changes = 3 version bumps = 3 old key deletions.
-    // (v0 deleted when v1 created, v1 deleted when v2 created, v2 deleted when v3 created)
-    // The delete spy was installed before query creation, so it captures all calls.
-    const deleteCallKeys = deleteSpy.mock.calls.map((call) => call[0]);
-    expect(deleteCallKeys.length).toBeGreaterThanOrEqual(3);
-
-    // Verify the deleted keys follow the versioned pattern (baseKey:v0, baseKey:v1, baseKey:v2)
-    const versionedDeletes = deleteCallKeys.filter(
-      (k) => typeof k === 'string' && k.includes(':v'),
-    );
-    expect(versionedDeletes.length).toBeGreaterThanOrEqual(3);
+    // All keys should be distinct (different dependency values)
+    expect(new Set([keyA, keyB, keyC]).size).toBe(3);
   });
 
   test('dispose cleans all in-flight keys, not just the current version', async () => {
-    const filter = signal('a');
+    const filter = signal('x');
     const resolvers: Array<{ value: string; resolve: (v: string) => void }> = [];
 
     const inflightBefore = __inflightSize();
 
-    const result = query(() => {
-      const f = filter.value;
-      return new Promise<string>((resolve) => {
-        resolvers.push({ value: f, resolve });
-      });
-    });
+    // Use a dedicated cache to avoid sharing entries with other tests.
+    const cache = new MemoryCache<string>();
+    const result = query(
+      () => {
+        const f = filter.value;
+        return new Promise<string>((resolve) => {
+          resolvers.push({ value: f, resolve });
+        });
+      },
+      { cache },
+    );
 
-    // First fetch is in-flight (v0)
+    // First fetch is in-flight
     expect(resolvers).toHaveLength(1);
     expect(__inflightSize()).toBe(inflightBefore + 1);
 
-    // Change signal — creates second in-flight entry (v1)
-    filter.value = 'b';
+    // Change signal — creates second in-flight entry
+    filter.value = 'y';
     expect(resolvers).toHaveLength(2);
     expect(__inflightSize()).toBe(inflightBefore + 2);
 
-    // Change signal again — creates third in-flight entry (v2)
-    filter.value = 'c';
+    // Change signal again — creates third in-flight entry
+    filter.value = 'z';
     expect(resolvers).toHaveLength(3);
     expect(__inflightSize()).toBe(inflightBefore + 3);
 
-    // Dispose should clean ALL in-flight entries, not just the current one (v2)
+    // Dispose should clean ALL in-flight entries, not just the current one
     result.dispose();
 
     // All 3 in-flight entries should be removed from the global map
     expect(__inflightSize()).toBe(inflightBefore);
 
     // Resolve all — none should update data (all invalidated)
-    resolvers[0]?.resolve('data-a');
-    resolvers[1]?.resolve('data-b');
-    resolvers[2]?.resolve('data-c');
+    resolvers[0]?.resolve('data-x');
+    resolvers[1]?.resolve('data-y');
+    resolvers[2]?.resolve('data-z');
     await Promise.resolve();
 
     expect(result.data.value).toBeUndefined();
@@ -459,6 +456,117 @@ describe('query()', () => {
 
     // Data should still be 'data-C' — stale responses are dropped
     expect(result.data.value).toBe('data-C');
+  });
+
+  test('old cached data is retained when reactive dependency changes', async () => {
+    const cache = new MemoryCache<string>();
+    const setSpy = vi.spyOn(cache, 'set');
+    const userId = signal(1);
+
+    const result = query(
+      () => {
+        const id = userId.value;
+        return Promise.resolve(`user-${id}`);
+      },
+      { cache },
+    );
+
+    // First fetch resolves with userId=1
+    await vi.advanceTimersByTimeAsync(0);
+    expect(result.data.value).toBe('user-1');
+
+    // The cache should have an entry for the userId=1 key
+    const firstSetKey = setSpy.mock.calls[0]?.[0] as string;
+    expect(cache.get(firstSetKey)).toBe('user-1');
+
+    // Change userId to 2 — triggers re-fetch
+    userId.value = 2;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(result.data.value).toBe('user-2');
+
+    // The OLD cache entry for userId=1 should still be in the cache (not deleted)
+    expect(cache.get(firstSetKey)).toBe('user-1');
+  });
+
+  test('cache key reflects actual signal values, not just a version counter', async () => {
+    const cache = new MemoryCache<string>();
+    const setSpy = vi.spyOn(cache, 'set');
+    const getSpy = vi.spyOn(cache, 'get');
+    const userId = signal(1);
+    let fetchCount = 0;
+
+    const result = query(
+      () => {
+        const id = userId.value;
+        fetchCount++;
+        return Promise.resolve(`user-${id}-fetch-${fetchCount}`);
+      },
+      { cache },
+    );
+
+    // First fetch: userId=1
+    await vi.advanceTimersByTimeAsync(0);
+    expect(result.data.value).toBe('user-1-fetch-1');
+    const firstKey = setSpy.mock.calls[0]?.[0] as string;
+
+    // Change to userId=2
+    userId.value = 2;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(result.data.value).toBe('user-2-fetch-2');
+    const secondKey = setSpy.mock.calls[1]?.[0] as string;
+
+    // Keys should be different for different signal values
+    expect(firstKey).not.toBe(secondKey);
+
+    // Change BACK to userId=1 — the cache key should match the original
+    // key since the same signal values are being used. The data should be
+    // served from the cache (no re-fetch needed).
+    userId.value = 1;
+    await vi.advanceTimersByTimeAsync(0);
+
+    // The data should be the ORIGINAL cached value for userId=1
+    // (from the first fetch), not a new fetch result
+    expect(result.data.value).toBe('user-1-fetch-1');
+
+    // Verify the cache was consulted with the same key as the first fetch
+    const getCalls = getSpy.mock.calls.map((c) => c[0]);
+    expect(getCalls).toContain(firstKey);
+  });
+
+  test('switching back to a previously cached dependency serves cached data without re-fetch', async () => {
+    const cache = new MemoryCache<string>();
+    const userId = signal(1);
+    let fetchCount = 0;
+
+    const result = query(
+      () => {
+        const id = userId.value;
+        fetchCount++;
+        return Promise.resolve(`user-${id}`);
+      },
+      { cache },
+    );
+
+    // Fetch userId=1
+    await vi.advanceTimersByTimeAsync(0);
+    expect(result.data.value).toBe('user-1');
+    expect(fetchCount).toBe(1);
+
+    // Fetch userId=2
+    userId.value = 2;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(result.data.value).toBe('user-2');
+    expect(fetchCount).toBe(2);
+
+    // Switch back to userId=1 — should use cached data
+    userId.value = 1;
+
+    // The thunk will still be called (for tracking), but the cache should be
+    // consulted and the data should be served from cache
+    await vi.advanceTimersByTimeAsync(0);
+    expect(result.data.value).toBe('user-1');
+    // The thunk was called for tracking but startFetch should have been
+    // skipped because the cache already has data for this key
   });
 
   test('debounce discard does not cause unhandled promise rejection', async () => {

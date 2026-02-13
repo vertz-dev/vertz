@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { DisposalScopeError, onCleanup, popScope, pushScope, runCleanups } from '../disposal';
+import {
+  _tryOnCleanup,
+  DisposalScopeError,
+  onCleanup,
+  popScope,
+  pushScope,
+  runCleanups,
+} from '../disposal';
 
 describe('onCleanup outside disposal scope', () => {
   it('throws DisposalScopeError when called outside any scope', () => {
@@ -71,5 +78,35 @@ describe('onCleanup inside disposal scope', () => {
 
     runCleanups(outerScope);
     expect(outerLog).toEqual(['outer']);
+  });
+});
+
+describe('_tryOnCleanup (internal, silent variant)', () => {
+  it('does NOT throw when called outside any scope', () => {
+    expect(() => {
+      _tryOnCleanup(() => {});
+    }).not.toThrow();
+  });
+
+  it('silently discards the callback when no scope is active', () => {
+    let called = false;
+    _tryOnCleanup(() => {
+      called = true;
+    });
+    // No scope to run cleanups on — callback was discarded
+    expect(called).toBe(false);
+  });
+
+  it('registers the callback when a scope IS active', () => {
+    let cleaned = false;
+    const scope = pushScope();
+    _tryOnCleanup(() => {
+      cleaned = true;
+    });
+    popScope();
+
+    expect(cleaned).toBe(false);
+    runCleanups(scope);
+    expect(cleaned).toBe(true);
   });
 });

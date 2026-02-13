@@ -1,6 +1,6 @@
 # ui-026: Add AbortSignal to RouteConfig.loader context type
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 2h
@@ -27,3 +27,4 @@
 ## Progress
 
 - 2026-02-12: Ticket created from follow-up #5 (PR #176 review)
+- 2026-02-12: Already implemented — RouteConfig.loader context includes AbortSignal
