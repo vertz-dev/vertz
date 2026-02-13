@@ -34,6 +34,10 @@
     "./diagnostic": {
       "types": "./dist/diagnostic/index.d.ts",
       "import": "./dist/diagnostic/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
     }
   },
   "files": [
