@@ -58,6 +58,9 @@ export class ComponentAnalyzer {
 
     if (body && this._containsJsx(body)) return true;
 
+    // Check if the function body contains JSX anywhere (e.g., in variable assignments)
+    if (this._containsJsx(node)) return true;
+
     return false;
   }
 
