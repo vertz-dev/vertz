@@ -8,8 +8,20 @@ import { untrack } from '../runtime/tracking';
  * Supports `onCleanup` inside for teardown on unmount.
  */
 export function onMount(callback: () => void): void {
-  // Execute untracked so signal reads inside do not create subscriptions
-  untrack(callback);
+  // Push a disposal scope so onCleanup() calls inside the callback are captured
+  const scope = pushScope();
+  try {
+    // Execute untracked so signal reads inside do not create subscriptions
+    untrack(callback);
+  } finally {
+    popScope();
+
+    // Forward any captured cleanups to the parent scope so they run on disposal.
+    // This is in `finally` so cleanups registered before an exception are still forwarded.
+    if (scope.length > 0) {
+      _tryOnCleanup(() => runCleanups(scope));
+    }
+  }
 }
 
 /**
