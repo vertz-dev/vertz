@@ -38,6 +38,10 @@
     "./core": {
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js"
+    },
+    "./schema-derive": {
+      "types": "./dist/schema-derive/index.d.ts",
+      "import": "./dist/schema-derive/index.js"
     }
   },
   "files": [
@@ -61,6 +65,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@vertz/schema": "workspace:*",
     "postgres": "^3.4.8"
   }
 }
