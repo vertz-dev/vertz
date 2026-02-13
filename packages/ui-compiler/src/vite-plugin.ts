@@ -71,6 +71,7 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
 
   return {
     name: 'vertz',
+    enforce: 'pre',
 
     configResolved(cfg) {
       resolvedConfig = cfg;

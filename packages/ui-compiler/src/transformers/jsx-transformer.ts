@@ -38,25 +38,48 @@ export class JsxTransformer {
     );
     const jsxMap = new Map(jsxExpressions.map((e) => [e.start, e]));
 
-    // Find return statements with JSX
-    const returnStmts = bodyNode.getDescendantsOfKind(SyntaxKind.ReturnStatement);
-    for (const ret of returnStmts) {
-      const expr = ret.getExpression();
-      if (!expr) continue;
-      if (isJsx(expr)) {
-        const transformed = transformJsxNode(expr, reactiveNames, jsxMap, source);
-        source.overwrite(expr.getStart(), expr.getEnd(), transformed);
-      }
+    // Find ALL JSX nodes in the function body (not just return statements).
+    // This handles JSX in variable assignments, for-loops, function arguments,
+    // if-blocks, and any other imperative position.
+    this.transformAllJsx(bodyNode, reactiveNames, jsxMap, source);
+  }
+
+  /**
+   * Walk the full function body and transform every top-level JSX node.
+   * "Top-level" means JSX that isn't nested inside other JSX (children are
+   * handled recursively by transformJsxNode).
+   */
+  private transformAllJsx(
+    node: Node,
+    reactiveNames: Set<string>,
+    jsxMap: Map<number, JsxExpressionInfo>,
+    source: MagicString,
+  ): void {
+    // If this node is a JSX element/fragment, transform it and stop recursing
+    // (children are handled by transformJsxNode internally).
+    if (isJsxTopLevel(node)) {
+      const transformed = transformJsxNode(node, reactiveNames, jsxMap, source);
+      source.overwrite(node.getStart(), node.getEnd(), transformed);
+      return;
+    }
+
+    // Otherwise recurse into children
+    for (const child of node.getChildren()) {
+      this.transformAllJsx(child, reactiveNames, jsxMap, source);
     }
   }
 }
 
-function isJsx(node: Node): boolean {
+/**
+ * Check if a node is a top-level JSX node (element, self-closing, or fragment).
+ * Does NOT match ParenthesizedExpression — we want to recurse into parens
+ * so we transform the inner JSX node directly (the parens stay).
+ */
+function isJsxTopLevel(node: Node): boolean {
   return (
     node.isKind(SyntaxKind.JsxElement) ||
     node.isKind(SyntaxKind.JsxSelfClosingElement) ||
-    node.isKind(SyntaxKind.JsxFragment) ||
-    (node.isKind(SyntaxKind.ParenthesizedExpression) && isJsx(node.getExpression()))
+    node.isKind(SyntaxKind.JsxFragment)
   );
 }
 

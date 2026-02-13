@@ -83,4 +83,66 @@ describe('JsxTransformer', () => {
     const result = transform(`function App() {\n  return <input />;\n}`, []);
     expect(result).toContain('__element("input")');
   });
+
+  it('transforms JSX assigned to a variable', () => {
+    const code = `function App() {
+  const el = <div>hello</div>;
+  return el;
+}`;
+    const result = transform(code, []);
+    expect(result).toContain('__element("div")');
+    expect(result).not.toContain('<div>');
+  });
+
+  it('transforms JSX in a for-loop body', () => {
+    const code = `function App() {
+  const items = [];
+  for (const x of data) {
+    const btn = <button>{x}</button>;
+    items.push(btn);
+  }
+  return <div>{items}</div>;
+}`;
+    const result = transform(code, []);
+    expect(result).toContain('__element("button")');
+    expect(result).toContain('__element("div")');
+    expect(result).not.toContain('<button>');
+  });
+
+  it('transforms JSX in if-block', () => {
+    const code = `function App() {
+  let el;
+  if (condition) {
+    el = <span>yes</span>;
+  } else {
+    el = <span>no</span>;
+  }
+  return el;
+}`;
+    const result = transform(code, []);
+    expect(result).toContain('__element("span")');
+    expect(result).not.toContain('<span>');
+  });
+
+  it('transforms JSX used as function argument', () => {
+    const code = `function App() {
+  container.appendChild(<div>child</div>);
+  return <div>parent</div>;
+}`;
+    const result = transform(code, []);
+    // Both JSX nodes should be transformed
+    expect(result).not.toContain('<div>child</div>');
+    expect(result).not.toContain('<div>parent</div>');
+    expect(result).toContain('__element("div")');
+  });
+
+  it('transforms JSX with `as` type assertion', () => {
+    const code = `function App() {
+  const el = (<div>hello</div>) as HTMLElement;
+  return el;
+}`;
+    const result = transform(code, []);
+    expect(result).toContain('__element("div")');
+    expect(result).not.toContain('<div>');
+  });
 });
