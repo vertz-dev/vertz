@@ -111,11 +111,11 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
 
   onMount(() => {
     console.log('TaskListPage mounted');
-  });
 
-  onCleanup(() => {
-    tasksQuery.dispose();
-    console.log('TaskListPage cleaned up');
+    onCleanup(() => {
+      tasksQuery.dispose();
+      console.log('TaskListPage cleaned up');
+    });
   });
 
   // ── Page layout with declarative conditionals and list rendering ──
