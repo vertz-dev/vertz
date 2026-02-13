@@ -1,6 +1,6 @@
 # ui-016: Fix query() cache key reactivity
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 4h
@@ -28,3 +28,4 @@ This is a correctness bug in the caching layer.
 ## Progress
 
 - 2026-02-12: Ticket created from mike's review on PR #199
+- 2026-02-12: Fixed — replaced version counter with deterministic hash of captured signal values via read-value callback. Old cache entries retained for reuse. 3 new tests, 610 total passing.

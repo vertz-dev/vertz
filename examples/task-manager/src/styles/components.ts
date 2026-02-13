@@ -34,7 +34,13 @@ export const button = variants({
   variants: {
     intent: {
       primary: ['bg:primary.600', 'text:white', 'hover:bg:primary.700'],
-      secondary: ['bg:surface', 'text:foreground', 'border:1', 'border:border', 'hover:bg:gray.100'],
+      secondary: [
+        'bg:surface',
+        'text:foreground',
+        'border:1',
+        'border:border',
+        'hover:bg:gray.100',
+      ],
       danger: ['bg:danger.500', 'text:white', 'hover:bg:danger.700'],
       ghost: ['text:muted', 'hover:text:foreground', 'hover:bg:surface'],
     },
@@ -71,7 +77,15 @@ export const badge = variants({
 // ── Card styles ──────────────────────────────────────────────────
 
 export const cardStyles = css({
-  card: ['bg:surface', 'rounded:lg', 'border:1', 'border:border', 'p:4', 'hover:shadow:md', 'transition:shadow'],
+  card: [
+    'bg:surface',
+    'rounded:lg',
+    'border:1',
+    'border:border',
+    'p:4',
+    'hover:shadow:md',
+    'transition:shadow',
+  ],
   cardHeader: ['flex', 'justify:between', 'items:start', 'mb:2'],
   cardTitle: ['font:lg', 'font:semibold', 'text:foreground'],
   cardBody: ['text:sm', 'text:muted'],

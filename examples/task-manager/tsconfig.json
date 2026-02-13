@@ -1,16 +1,16 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
+    "declaration": true,
+    "esModuleInterop": true,
     "jsx": "react-jsx",
     "jsxImportSource": "@vertz-examples/task-manager",
-    "esModuleInterop": true,
-    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "outDir": "dist",
     "rootDir": "src",
-    "declaration": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022",
     "types": ["bun-types"]
   },
   "include": ["src"]

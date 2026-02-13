@@ -41,8 +41,11 @@ export type { ComponentFunction, ComponentLoader, ComponentRegistry } from './hy
 export {
   eagerStrategy,
   hydrate,
+  idleStrategy,
   interactionStrategy,
   lazyStrategy,
+  mediaStrategy,
+  visibleStrategy,
 } from './hydrate';
 
 // Data fetching

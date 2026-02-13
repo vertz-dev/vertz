@@ -1,6 +1,6 @@
 # ui-019: Fix __list effect leak on child removal
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 3h
@@ -26,3 +26,4 @@
 ## Progress
 
 - 2026-02-12: Ticket created from ben's review on PR #199
+- 2026-02-12: Fixed — __list now wraps renderFn in pushScope/popScope, stores cleanups per key, runs cleanups on removal and dispose

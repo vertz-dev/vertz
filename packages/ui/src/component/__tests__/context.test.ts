@@ -144,7 +144,7 @@ describe('createContext / useContext', () => {
     expect(innerObserved).toEqual(['blue', 'blue']);
   });
 
-  test('useContext returns correct value inside query() thunk on re-fetch', async () => {
+  test('useContext returns correct value inside query() thunk on re-fetch', () => {
     const ApiCtx = createContext('/api');
     const dep = signal(0);
     const capturedBases: (string | undefined)[] = [];
@@ -159,23 +159,22 @@ describe('createContext / useContext', () => {
     });
 
     // Initial run: Provider is on the call stack → sync path.
-    // Wait for the first thunk call to complete.
-    await vi.waitFor(() => {
-      expect(capturedBases).toHaveLength(1);
-    });
+    // The thunk is called synchronously by the effect (useContext runs
+    // before the first await), so capturedBases is populated immediately.
+    expect(capturedBases).toHaveLength(1);
     expect(capturedBases[0]).toBe('/v2');
 
     // After Provider has popped, trigger a re-fetch via signal change.
     // This forces useContext to use the captured _contextScope (async path).
     dep.value = 1;
 
-    await vi.waitFor(() => {
-      expect(capturedBases).toHaveLength(2);
-    });
+    // The effect re-runs synchronously on signal change, calling the thunk
+    // again. useContext reads from the captured context scope.
+    expect(capturedBases).toHaveLength(2);
     // The re-fetch should still see '/v2' via the captured context scope
     expect(capturedBases[1]).toBe('/v2');
 
-    q?.dispose();
+    q!.dispose();
   });
 
   test('disposed effect does not re-run on signal change', () => {

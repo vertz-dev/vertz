@@ -1,6 +1,6 @@
 # ui-019: Compiler conditional & list transforms with disposal scopes
 
-- **Status:** 🔴 Todo
+- **Status:** 🟡 In Progress
 - **Assigned:** ben (compiler) + nora (runtime)
 - **Phase:** v0.1.x patch
 - **Estimate:** 12h
@@ -132,3 +132,5 @@ If the expression is just text (`{x ? "yes" : "no"}`), keep the current `__text(
 ## Progress
 
 - 2026-02-12: Ticket created. Research complete — see exploration agent findings for current compiler/runtime state.
+- 2026-02-12: Part 2 (Compiler) DONE — conditional and list transforms added to jsx-transformer.ts with 14 new tests (8 conditional, 6 list), all 205 compiler tests passing
+- 2026-02-12: Part 1 (Runtime) PARTIAL — __conditional disposal scopes working (pushScope/popScope/runCleanups), _tryOnCleanup fix applied. __list disposal scopes also fixed (ui-019-list-effect-leak). Remaining: E2E integration tests

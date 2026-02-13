@@ -1,3 +1,4 @@
+import remapping from '@ampproject/remapping';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
 import type { Plugin, ResolvedConfig } from 'vite';
@@ -117,12 +118,47 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
       hydrationTransformer.transform(hydrationS, hydrationSourceFile);
       const hydratedCode = hydrationS.toString();
 
+      // Generate hydration source map (maps hydratedCode -> original code)
+      const hydrationMap = hydrationS.generateMap({
+        source: cleanId,
+        includeContent: true,
+      });
+
       // 2. Run the main compile pipeline (reactive + component + JSX transforms)
       const compileResult = compile(hydratedCode, cleanId);
 
+      // 3. Chain source maps: compile map (final -> hydrated) + hydration map
+      //    (hydrated -> original) = chained map (final -> original).
+      //    This ensures developers can trace from the transformed output all
+      //    the way back to the original source, even through hydration edits.
+      const remapped = remapping(
+        [
+          compileResult.map as import('@ampproject/remapping').EncodedSourceMap,
+          hydrationMap as import('@ampproject/remapping').EncodedSourceMap,
+        ],
+        () => null,
+      );
+
+      // Convert to a plain object compatible with Vite's ExistingRawSourceMap.
+      // remapping's SourceMap may have `file: null` and `mappings` as decoded
+      // arrays; Vite expects `file?: string` and `mappings: string`.
+      const rawChainedMap = JSON.parse(remapped.toString()) as {
+        version: number;
+        file?: string;
+        sources: string[];
+        sourcesContent?: (string | null)[];
+        names: string[];
+        mappings: string;
+      };
+
+      const chainedMap = {
+        ...rawChainedMap,
+        sourcesContent: rawChainedMap.sourcesContent?.map((c) => c ?? '') as string[] | undefined,
+      };
+
       let transformedCode = compileResult.code;
 
-      // 3. CSS extraction (run on original code to find css() calls)
+      // 4. CSS extraction (run on original code to find css() calls)
       const extraction = cssExtractor.extract(code, cleanId);
       if (extraction.css.length > 0) {
         fileExtractions.set(cleanId, extraction);
@@ -138,7 +174,7 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
 
       return {
         code: transformedCode,
-        map: compileResult.map,
+        map: chainedMap,
       };
     },
 

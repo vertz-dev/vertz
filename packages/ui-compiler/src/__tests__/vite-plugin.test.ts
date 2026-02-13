@@ -1,3 +1,4 @@
+import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping';
 import type { HmrContext, ModuleNode, Plugin, ResolvedConfig, ViteDevServer } from 'vite';
 import { describe, expect, it, vi } from 'vitest';
 import { CSSHMRHandler } from '../css-extraction/hmr';
@@ -270,6 +271,68 @@ function Counter() {
       expect(result?.map).toHaveProperty('version');
       expect(result?.map).toHaveProperty('mappings');
       expect(result?.map).toHaveProperty('sources');
+    });
+
+    it('chains hydration source map with compile source map', () => {
+      const plugin = vertzPlugin();
+      setMode(plugin, 'development');
+
+      // The hydration transformer inserts ` data-v-id="App"` into the opening
+      // <div> tag.  This shifts every subsequent character position.  If the Vite
+      // plugin only returns the compile source map (which operates on the
+      // post-hydration code), positions after the insertion will be off.
+      //
+      // We use a component with content AFTER the root JSX opening tag so the
+      // source map must correctly trace through both transforms. Specifically,
+      // we check that the closing </div> maps back to the correct line/column
+      // in the original source.
+      const code = ['function App() {', '  let x = 0;', '  return <div>{x}</div>;', '}'].join('\n');
+
+      const result = callTransform(plugin, code, 'App.tsx');
+      expect(result).toBeDefined();
+
+      const map = result?.map as {
+        version: number;
+        sources: string[];
+        sourcesContent?: (string | null)[];
+        mappings: string;
+        names: string[];
+      };
+
+      // The source map must reference the original file
+      expect(map.sources).toContain('App.tsx');
+
+      // sourcesContent must contain the ORIGINAL source, not the hydrated
+      // intermediate.  The hydration transformer inserts data-v-id, so if
+      // sourcesContent contains that string, the chaining is broken.
+      const content = (map.sourcesContent ?? []).join('');
+      expect(content).not.toContain('data-v-id');
+
+      // Use trace-mapping to verify mappings resolve to original positions.
+      const tracer = new TraceMap(map);
+      const outputCode = result?.code ?? '';
+      const lines = outputCode.split('\n');
+
+      // Find "App" function declaration in the output. In the original source
+      // "App" starts at line 1, column 9.
+      let appLine = -1;
+      let appCol = -1;
+      for (let i = 0; i < lines.length; i++) {
+        const idx = (lines[i] ?? '').indexOf('function App');
+        if (idx !== -1) {
+          appLine = i + 1;
+          appCol = idx + 'function '.length; // column of 'A' in 'App'
+          break;
+        }
+      }
+      expect(appLine).toBeGreaterThan(0);
+
+      const appOriginal = originalPositionFor(tracer, {
+        line: appLine,
+        column: appCol,
+      });
+      expect(appOriginal.source).toBe('App.tsx');
+      expect(appOriginal.line).toBe(1);
     });
   });
 

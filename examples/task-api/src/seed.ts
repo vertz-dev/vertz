@@ -10,7 +10,7 @@
  *   - Tables created (run migrations first)
  */
 import { db } from './db';
-import { users, tasks } from './db/schema';
+import type { tasks, users } from './db/schema';
 
 // ---------------------------------------------------------------------------
 // Inferred insert types — validated at the definition site via `satisfies`.
@@ -21,16 +21,32 @@ type UserInsert = typeof users.$insert;
 type TaskInsert = typeof tasks.$insert;
 
 const USERS = [
-  { id: '00000000-0000-0000-0000-000000000001', email: 'alice@example.com', name: 'Alice Johnson', role: 'admin' },
-  { id: '00000000-0000-0000-0000-000000000002', email: 'bob@example.com', name: 'Bob Smith', role: 'member' },
-  { id: '00000000-0000-0000-0000-000000000003', email: 'carol@example.com', name: 'Carol Williams', role: 'member' },
+  {
+    id: '00000000-0000-0000-0000-000000000001',
+    email: 'alice@example.com',
+    name: 'Alice Johnson',
+    role: 'admin',
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000002',
+    email: 'bob@example.com',
+    name: 'Bob Smith',
+    role: 'member',
+  },
+  {
+    id: '00000000-0000-0000-0000-000000000003',
+    email: 'carol@example.com',
+    name: 'Carol Williams',
+    role: 'member',
+  },
 ] satisfies UserInsert[];
 
 const TASKS = [
   {
     id: '10000000-0000-0000-0000-000000000001',
     title: 'Set up project infrastructure',
-    description: 'Initialize the monorepo, configure CI/CD, and set up the development environment.',
+    description:
+      'Initialize the monorepo, configure CI/CD, and set up the development environment.',
     status: 'done',
     priority: 'high',
     assigneeId: '00000000-0000-0000-0000-000000000001',
@@ -62,7 +78,8 @@ const TASKS = [
   {
     id: '10000000-0000-0000-0000-000000000005',
     title: 'Add filtering and pagination',
-    description: 'Support filtering tasks by status, priority, and assignee. Add pagination to list endpoints.',
+    description:
+      'Support filtering tasks by status, priority, and assignee. Add pagination to list endpoints.',
     status: 'todo',
     priority: 'medium',
     assigneeId: '00000000-0000-0000-0000-000000000003',

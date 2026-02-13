@@ -30,10 +30,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {
+    "@ampproject/remapping": "^2.3.0",
+    "@vertz/ui": "workspace:*",
     "magic-string": "^0.30.0",
     "ts-morph": "^25.0.0"
   },
   "devDependencies": {
+    "@jridgewell/trace-mapping": "^0.3.31",
     "@types/node": "^25.2.1",
     "@vitest/coverage-v8": "^4.0.18",
     "bunup": "latest",

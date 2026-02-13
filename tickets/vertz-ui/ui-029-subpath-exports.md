@@ -1,6 +1,6 @@
 # ui-029: Add subpath exports for router/form/query/css
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 4h
@@ -31,3 +31,4 @@ Currently only `@vertz/ui`, `@vertz/ui/internals`, and `@vertz/ui/test` exist as
 ## Progress
 
 - 2026-02-12: Ticket created from josh's DX review on PR #199
+- 2026-02-12: Already implemented — subpath exports for router, form, query, css, and internals exist in package.json

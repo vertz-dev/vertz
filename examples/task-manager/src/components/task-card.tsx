@@ -7,8 +7,8 @@
  * - variants() for priority badges
  */
 
-import { badge, cardStyles } from '../styles/components';
 import type { Task, TaskPriority, TaskStatus } from '../lib/types';
+import { badge, cardStyles } from '../styles/components';
 
 /** Map priority to badge color. */
 function priorityColor(priority: TaskPriority): 'blue' | 'green' | 'yellow' | 'red' {
@@ -24,9 +24,9 @@ function priorityColor(priority: TaskPriority): 'blue' | 'green' | 'yellow' | 'r
 /** Map status to display label. */
 function statusLabel(status: TaskStatus): string {
   const map: Record<TaskStatus, string> = {
-    'todo': 'To Do',
+    todo: 'To Do',
     'in-progress': 'In Progress',
-    'done': 'Done',
+    done: 'Done',
   };
   return map[status];
 }
@@ -34,9 +34,9 @@ function statusLabel(status: TaskStatus): string {
 /** Map status to badge color. */
 function statusColor(status: TaskStatus): 'gray' | 'blue' | 'green' {
   const map: Record<TaskStatus, 'gray' | 'blue' | 'green'> = {
-    'todo': 'gray',
+    todo: 'gray',
     'in-progress': 'blue',
-    'done': 'green',
+    done: 'green',
   };
   return map[status];
 }

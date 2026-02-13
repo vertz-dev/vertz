@@ -5,8 +5,8 @@
  * (theme, default priority) without prop drilling.
  */
 
-import { createContext, signal, useContext } from '@vertz/ui';
 import type { Signal } from '@vertz/ui';
+import { createContext, signal, useContext } from '@vertz/ui';
 import type { Settings, TaskPriority } from './types';
 
 export interface SettingsContextValue {

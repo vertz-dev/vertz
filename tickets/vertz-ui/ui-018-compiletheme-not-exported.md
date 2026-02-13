@@ -1,6 +1,6 @@
 # ui-018: compileTheme() not exported from public API
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 30m
@@ -46,3 +46,4 @@ And ensure `compileTheme` is re-exported from `./css/index.ts` if it isn't alrea
 ## Progress
 
 - 2026-02-12: Ticket created from PR #210 DX review (ava + nora)
+- 2026-02-12: Already fixed in commit e17ccb2 (PR #230) — compileTheme exported from @vertz/ui public API

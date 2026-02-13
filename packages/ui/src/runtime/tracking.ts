@@ -8,6 +8,13 @@ import type { Subscriber } from './signal-types';
 let currentSubscriber: Subscriber | null = null;
 
 /**
+ * Optional callback invoked whenever a signal value is read inside a tracking
+ * context. Used by the query module to capture dependency values for
+ * deterministic cache key derivation.
+ */
+let readValueCallback: ((value: unknown) => void) | null = null;
+
+/**
  * Get the currently active subscriber (if any).
  */
 export function getSubscriber(): Subscriber | null {
@@ -21,6 +28,26 @@ export function getSubscriber(): Subscriber | null {
 export function setSubscriber(sub: Subscriber | null): Subscriber | null {
   const prev = currentSubscriber;
   currentSubscriber = sub;
+  return prev;
+}
+
+/**
+ * Get the current read-value callback (if any).
+ */
+export function getReadValueCallback(): ((value: unknown) => void) | null {
+  return readValueCallback;
+}
+
+/**
+ * Set the read-value callback. Returns the previous callback so it can be
+ * restored. When set, the callback is invoked with the value each time a
+ * signal's `.value` is read inside a tracking context.
+ */
+export function setReadValueCallback(
+  cb: ((value: unknown) => void) | null,
+): ((value: unknown) => void) | null {
+  const prev = readValueCallback;
+  readValueCallback = cb;
   return prev;
 }
 

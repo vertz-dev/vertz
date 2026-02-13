@@ -1,8 +1,8 @@
 import { computed, effect, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
-import { untrack } from '../runtime/tracking';
+import { setReadValueCallback, untrack } from '../runtime/tracking';
 import { type CacheStore, MemoryCache } from './cache';
-import { deriveKey } from './key-derivation';
+import { deriveKey, hashString } from './key-derivation';
 
 /** Options for query(). */
 export interface QueryOptions<T> {
@@ -74,15 +74,43 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
 
   const baseKey = deriveKey(thunk);
 
-  // Reactive key version — incremented inside the effect each time reactive
-  // dependencies change. Combined with the base key to produce a cache key
-  // that updates when the thunk's signal dependencies change.
-  const keyVersionSignal: Signal<number> = signal(0);
-  const cacheKeyComputed = computed(() => customKey ?? `${baseKey}:v${keyVersionSignal.value}`);
+  // Reactive key derived from the actual signal values read by the thunk.
+  // When a dependency changes, the thunk is re-called inside the effect
+  // and the captured signal values produce a new hash. Using actual values
+  // (instead of a monotonic version counter) means that returning to a
+  // previously-seen set of dependencies produces the same cache key,
+  // enabling cache hits without re-fetching.
+  const depHashSignal: Signal<string> = signal('');
+  const cacheKeyComputed = computed(() => {
+    const dh = depHashSignal.value;
+    return customKey ?? (dh ? `${baseKey}:${dh}` : `${baseKey}:init`);
+  });
 
   /** Read the current reactive cache key. */
   function getCacheKey(): string {
     return cacheKeyComputed.value;
+  }
+
+  /**
+   * Call the thunk while capturing the values of all signals it reads.
+   * Returns the thunk's promise and updates `depHashSignal` with a
+   * deterministic hash of the captured values.
+   */
+  function callThunkWithCapture(): Promise<T> {
+    const captured: unknown[] = [];
+    const prevCb = setReadValueCallback((v) => captured.push(v));
+    let promise: Promise<T>;
+    try {
+      promise = thunk();
+    } finally {
+      setReadValueCallback(prevCb);
+    }
+    // Build a deterministic hash from the captured dependency values.
+    const serialized = captured.map((v) => JSON.stringify(v)).join('|');
+    untrack(() => {
+      depHashSignal.value = hashString(serialized);
+    });
+    return promise;
   }
 
   // -- Reactive signals --
@@ -176,17 +204,17 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
   // automatically tracked as dependencies. When those deps change, the
   // effect re-runs, triggering a new fetch.
   //
-  // The cache key is reactive: each time the effect re-runs due to a
-  // dependency change (not a refetch), the key version is bumped so that
-  // deduplication and cache operations use a fresh key.
+  // The cache key is derived from the actual values of signals read by
+  // the thunk, so identical dependency values produce the same key.
+  // This enables cache hits when switching back to previously-fetched
+  // dependency combinations.
   let disposeFn: (() => void) | undefined;
 
   if (enabled) {
     let isFirst = true;
-    let prevRefetchTrigger = refetchTrigger.peek();
     disposeFn = effect(() => {
-      // Read the refetch trigger to re-run on manual refetch()
-      const currentTrigger = refetchTrigger.value;
+      // Read the refetch trigger so this effect re-runs on manual refetch().
+      refetchTrigger.value;
 
       // When a custom key is provided, deduplication can be checked before
       // calling the thunk — the key is static so the check is reliable.
@@ -206,29 +234,18 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
 
       // Call the thunk inside the tracking context so that reactive
       // signals read by the thunk are captured as effect dependencies.
-      const promise = thunk();
+      // callThunkWithCapture also records the actual signal values to
+      // produce a deterministic cache key based on dependency values.
+      const promise = callThunkWithCapture();
 
-      // Bump the key version when the effect re-runs due to a dependency
-      // change (not a manual refetch, which manages its own key).
-      const isRefetch = currentTrigger !== prevRefetchTrigger;
-      prevRefetchTrigger = currentTrigger;
-      if (!isFirst && !isRefetch && !customKey) {
-        untrack(() => {
-          // Capture the old key before bumping the version so we can clean it up.
-          const oldKey = getCacheKey();
-          keyVersionSignal.value = keyVersionSignal.peek() + 1;
-          // Delete the stale cache entry for the previous version to prevent
-          // unbounded memory growth (BLOCKING 1 fix).
-          cache.delete(oldKey);
-        });
-      }
-
-      // Snapshot the cache key for this effect run.
+      // Snapshot the cache key for this effect run. The depHashSignal was
+      // updated by callThunkWithCapture, so the key now reflects the actual
+      // signal values the thunk read.
       const key = untrack(() => getCacheKey());
 
       // Deduplication check for derived keys: now that the thunk has been
-      // called and the key version has been bumped, check if an in-flight
-      // request exists for the new key.
+      // called and the dep hash updated, check if an in-flight request
+      // exists for this key.
       if (!customKey) {
         const existing = untrack(() => inflight.get(key) as Promise<T> | undefined);
         if (existing) {
@@ -239,6 +256,23 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
             error.value = undefined;
           });
           handleFetchPromise(existing, id, key);
+          isFirst = false;
+          return;
+        }
+      }
+
+      // Cache hit: if the cache already has data for this key (e.g. the
+      // user switched back to a previously-fetched dependency combination),
+      // serve it from cache without re-fetching.
+      if (!isFirst && !customKey) {
+        const cached = untrack(() => cache.get(key));
+        if (cached !== undefined) {
+          promise.catch(() => {});
+          untrack(() => {
+            data.value = cached;
+            loading.value = false;
+            error.value = undefined;
+          });
           isFirst = false;
           return;
         }

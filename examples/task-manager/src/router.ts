@@ -9,6 +9,7 @@
  * - Route params extraction (task ID)
  */
 
+import type { OutletContext, Router } from '@vertz/ui';
 import {
   createContext,
   createLink,
@@ -17,7 +18,6 @@ import {
   defineRoutes,
   signal,
 } from '@vertz/ui';
-import type { OutletContext, Router } from '@vertz/ui';
 import { fetchTask, fetchTasks } from './api/mock-data';
 import { CreateTaskPage } from './pages/create-task';
 import { SettingsPage } from './pages/settings';

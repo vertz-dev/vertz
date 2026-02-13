@@ -54,6 +54,9 @@ export function ConfirmDialog(props: ConfirmDialogProps): HTMLElement {
   dialog.trigger.textContent = triggerLabel;
   dialog.trigger.setAttribute('data-testid', 'confirm-dialog-trigger');
 
+  // Style the overlay (semi-transparent backdrop)
+  dialog.overlay.className = dialogStyles.classNames.overlay;
+
   dialog.content.className = dialogStyles.classNames.panel;
   dialog.content.setAttribute('data-testid', 'confirm-dialog-content');
 
@@ -66,27 +69,30 @@ export function ConfirmDialog(props: ConfirmDialogProps): HTMLElement {
   // Build dialog body with JSX — compose primitive elements with new ones
   dialog.content.append(
     dialog.title,
-    <p class={dialogStyles.classNames.description}>{description}</p> as Node,
-    <div class={dialogStyles.classNames.actions}>
-      {dialog.close}
-      <button
-        type="button"
-        class={button({ intent: 'danger', size: 'sm' })}
-        data-testid="confirm-action"
-        onClick={() => {
-          onConfirm();
-          dialog.close.click();
-        }}
-      >
-        {confirmLabel}
-      </button>
-    </div> as Node,
+    (<p class={dialogStyles.classNames.description}>{description}</p>) as Node,
+    (
+      <div class={dialogStyles.classNames.actions}>
+        {dialog.close}
+        <button
+          type="button"
+          class={button({ intent: 'danger', size: 'sm' })}
+          data-testid="confirm-action"
+          onClick={() => {
+            onConfirm();
+            dialog.close.click();
+          }}
+        >
+          {confirmLabel}
+        </button>
+      </div>
+    ) as Node,
   );
 
-  // Wrap trigger and content in a container using JSX
+  // Wrap trigger, overlay, and content in a container using JSX
   return (
     <div>
       {dialog.trigger}
+      {dialog.overlay}
       {dialog.content}
     </div>
   ) as HTMLElement;
