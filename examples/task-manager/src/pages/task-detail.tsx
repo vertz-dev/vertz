@@ -11,7 +11,7 @@
  */
 
 import { Tabs } from '@vertz/primitives';
-import { css, effect, onCleanup, query } from '@vertz/ui';
+import { css, effect, onCleanup, onMount, query } from '@vertz/ui';
 import { deleteTask, fetchTask, updateTask } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import type { Task, TaskStatus } from '../lib/types';
@@ -200,8 +200,10 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
 
   // ── Cleanup ────────────────────────────────────────
 
-  onCleanup(() => {
-    taskQuery.dispose();
+  onMount(() => {
+    onCleanup(() => {
+      taskQuery.dispose();
+    });
   });
 
   // ── Page layout with declarative conditionals ──────

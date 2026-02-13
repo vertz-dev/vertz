@@ -96,6 +96,11 @@ describe('Vite Plugin', () => {
     expect(plugin.name).toBe('vertz');
   });
 
+  it('sets enforce: "pre" to run before esbuild JSX transform', () => {
+    const plugin = vertzPlugin();
+    expect(plugin.enforce).toBe('pre');
+  });
+
   it('has all required hooks', () => {
     const plugin = vertzPlugin();
     expect(typeof plugin.configResolved).toBe('function');
