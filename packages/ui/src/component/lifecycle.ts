@@ -15,12 +15,12 @@ export function onMount(callback: () => void): void {
     untrack(callback);
   } finally {
     popScope();
-  }
 
-  // If any cleanups were registered, attach them to the parent scope
-  // so they run when the parent (e.g., route effect or list item) is disposed.
-  if (scope.length > 0) {
-    _tryOnCleanup(() => runCleanups(scope));
+    // Forward any captured cleanups to the parent scope so they run on disposal.
+    // This is in `finally` so cleanups registered before an exception are still forwarded.
+    if (scope.length > 0) {
+      _tryOnCleanup(() => runCleanups(scope));
+    }
   }
 }
 

@@ -132,6 +132,83 @@ describe('watch', () => {
   });
 });
 
+describe('onMount edge cases', () => {
+  test('onCleanup inside onMount no longer throws DisposalScopeError (regression)', () => {
+    // Before the fix, onCleanup() inside onMount() would throw DisposalScopeError
+    // because onMount didn't push a disposal scope for the callback.
+    expect(() => {
+      pushScope();
+      onMount(() => {
+        onCleanup(() => {});
+      });
+      popScope();
+    }).not.toThrow();
+  });
+
+  test('nested onMount with onCleanup in both levels', () => {
+    const log: string[] = [];
+    const scope = pushScope();
+    onMount(() => {
+      onCleanup(() => log.push('outer cleanup'));
+      onMount(() => {
+        onCleanup(() => log.push('inner cleanup'));
+      });
+    });
+    popScope();
+    expect(log).toEqual([]);
+    runCleanups(scope);
+    // Both cleanups should run; inner registered first via inner onMount forwarding
+    expect(log).toContain('outer cleanup');
+    expect(log).toContain('inner cleanup');
+  });
+
+  test('cleanup is forwarded to parent scope even if callback throws', () => {
+    let cleaned = false;
+    const scope = pushScope();
+    expect(() => {
+      onMount(() => {
+        onCleanup(() => {
+          cleaned = true;
+        });
+        throw new Error('boom');
+      });
+    }).toThrow('boom');
+    popScope();
+    expect(cleaned).toBe(false);
+    runCleanups(scope);
+    expect(cleaned).toBe(true);
+  });
+
+  test('multiple onCleanup calls inside onMount execute in LIFO order', () => {
+    const order: number[] = [];
+    const scope = pushScope();
+    onMount(() => {
+      onCleanup(() => order.push(1));
+      onCleanup(() => order.push(2));
+      onCleanup(() => order.push(3));
+    });
+    popScope();
+    runCleanups(scope);
+    expect(order).toEqual([3, 2, 1]);
+  });
+
+  test('onMount without parent scope silently discards cleanups', () => {
+    // When onMount is called without a parent scope (no pushScope()),
+    // _tryOnCleanup silently discards the forwarded cleanups.
+    // This matches watch() behavior — no error, just no-op.
+    let cleaned = false;
+    expect(() => {
+      onMount(() => {
+        onCleanup(() => {
+          cleaned = true;
+        });
+      });
+    }).not.toThrow();
+    // Cleanup was discarded — no parent scope to attach to
+    expect(cleaned).toBe(false);
+  });
+});
+
 describe('onCleanup LIFO ordering', () => {
   test('cleanup handlers run in reverse registration order', () => {
     const order: number[] = [];
