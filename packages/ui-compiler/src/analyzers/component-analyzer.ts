@@ -39,27 +39,24 @@ export class ComponentAnalyzer {
     return components;
   }
 
-  /** Check whether a function/arrow body contains a JSX return. */
+  /**
+   * Check whether a function contains JSX — either in a return statement
+   * or anywhere in the function body (e.g., variable assignments, loops,
+   * function call arguments).
+   */
   private _returnsJsx(node: Node): boolean {
     // Arrow with expression body: const X = () => <div/>
     if (node.isKind(SyntaxKind.ArrowFunction)) {
       const body = node.getBody();
-      if (
-        body.isKind(SyntaxKind.JsxElement) ||
-        body.isKind(SyntaxKind.JsxSelfClosingElement) ||
-        body.isKind(SyntaxKind.JsxFragment) ||
-        body.isKind(SyntaxKind.ParenthesizedExpression)
-      ) {
-        if (this._containsJsx(body)) return true;
-      }
+      if (this._containsJsx(body)) return true;
     }
 
-    // Look for return statements containing JSX
-    const returns = node.getDescendantsOfKind(SyntaxKind.ReturnStatement);
-    for (const ret of returns) {
-      const expr = ret.getExpression();
-      if (expr && this._containsJsx(expr)) return true;
-    }
+    // Check the entire function body for any JSX nodes
+    const body = node.isKind(SyntaxKind.FunctionDeclaration) || node.isKind(SyntaxKind.FunctionExpression)
+      ? node.getBody()
+      : node;
+
+    if (body && this._containsJsx(body)) return true;
 
     return false;
   }
