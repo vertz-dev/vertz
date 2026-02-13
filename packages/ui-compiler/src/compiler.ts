@@ -89,6 +89,8 @@ export function compile(source: string, filename = 'input.tsx'): CompileOutput {
     // Detect used DOM helpers from JSX
     if (jsxExpressions.length > 0) {
       usedFeatures.add('__element');
+      // __child is used for all JSX expression children to handle both Nodes and primitives
+      usedFeatures.add('__child');
     }
     if (jsxExpressions.some((e) => e.reactive)) {
       usedFeatures.add('__text');
