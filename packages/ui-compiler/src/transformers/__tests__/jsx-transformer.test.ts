@@ -31,20 +31,22 @@ describe('JsxTransformer', () => {
     expect(result).toContain('__element("div")');
   });
 
-  it('wraps reactive expression in __text(() => ...)', () => {
+  it('wraps reactive expression in __child(() => ...)', () => {
     const result = transform(`function Counter() {\n  return <div>{count}</div>;\n}`, [
       { name: 'count', kind: 'signal', start: 0, end: 0 },
     ]);
-    expect(result).toContain('__text(');
+    expect(result).toContain('__child(');
     expect(result).toContain('() =>');
   });
 
-  it('passes static expression without wrapper', () => {
+  it('uses __insert for static expressions', () => {
     const result = transform(`function App() {\n  return <div>{title}</div>;\n}`, [
       { name: 'title', kind: 'static', start: 0, end: 0 },
     ]);
-    expect(result).toContain('createTextNode');
-    expect(result).not.toContain('__text');
+    // Static expressions use __insert (no effect overhead)
+    expect(result).toContain('__insert(');
+    expect(result).not.toContain('__child(');
+    expect(result).not.toContain('createTextNode(String');
   });
 
   it('transforms onClick to __on', () => {

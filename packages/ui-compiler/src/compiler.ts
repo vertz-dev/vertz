@@ -89,6 +89,8 @@ export function compile(source: string, filename = 'input.tsx'): CompileOutput {
     // Detect used DOM helpers from JSX
     if (jsxExpressions.length > 0) {
       usedFeatures.add('__element');
+      // __child is used for all JSX expression children to handle both Nodes and primitives
+      usedFeatures.add('__child');
     }
     if (jsxExpressions.some((e) => e.reactive)) {
       usedFeatures.add('__text');
@@ -143,7 +145,7 @@ export function compile(source: string, filename = 'input.tsx'): CompileOutput {
 }
 
 /** DOM helpers that the compiler may emit and need importing from @vertz/ui/internals. */
-const DOM_HELPERS = ['__conditional', '__list', '__show', '__classList'] as const;
+const DOM_HELPERS = ['__child', '__insert', '__conditional', '__list', '__show', '__classList'] as const;
 
 /** Scan transformed output for DOM helper function calls and add them to usedFeatures. */
 function detectDomHelpers(output: string, usedFeatures: Set<string>): void {
