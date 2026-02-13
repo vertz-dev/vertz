@@ -1,12 +1,12 @@
 # ui-010: Server-Side Rendering (SSR)
 
-- **Status:** 🔴 Todo
+- **Status:** ✅ Complete
 - **Assigned:** nora
 - **Phase:** Phase 5A — Server-Side Rendering
 - **Estimate:** 40 hours
 - **Blocked by:** ui-001, ui-002, ui-003
 - **Blocks:** ui-011, ui-014
-- **PR:** —
+- **PR:** #175 (implementation), #253 (documentation)
 
 ## Description
 
@@ -47,18 +47,18 @@ Implement server-side rendering for `@vertz/ui` in the `@vertz/ui-server` packag
 
 ## Acceptance Criteria
 
-- [ ] `renderToStream()` returns a `ReadableStream` of valid HTML
-- [ ] Component tree serializes to HTML correctly
-- [ ] Suspense boundaries emit placeholder first, then replacement chunk (out-of-order streaming)
-- [ ] Slot placeholders (`v-slot-N`) appear in initial stream
-- [ ] Template replacement chunks (`v-tmpl-N`) appear when async content resolves
-- [ ] `<Head>` component injects `<title>`, `<meta>`, etc. into the HTML head
-- [ ] Script and stylesheet assets are injected correctly
-- [ ] Critical CSS is inlined in the streamed HTML
-- [ ] Interactive components (with `let` variables) get `data-v-id` markers
-- [ ] Interactive components have serialized props in `<script type="application/json">`
-- [ ] Static components (no `let`) produce NO hydration markers
-- [ ] Integration tests pass (see below)
+- [x] `renderToStream()` returns a `ReadableStream` of valid HTML
+- [x] Component tree serializes to HTML correctly
+- [x] Suspense boundaries emit placeholder first, then replacement chunk (out-of-order streaming)
+- [x] Slot placeholders (`v-slot-N`) appear in initial stream
+- [x] Template replacement chunks (`v-tmpl-N`) appear when async content resolves
+- [x] `<Head>` component injects `<title>`, `<meta>`, etc. into the HTML head
+- [x] Script and stylesheet assets are injected correctly
+- [x] Critical CSS is inlined in the streamed HTML
+- [x] Interactive components (with `let` variables) get `data-v-id` markers
+- [x] Interactive components have serialized props in `<script type="application/json">`
+- [x] Static components (no `let`) produce NO hydration markers
+- [x] Integration tests pass (see below)
 
 ### Integration Tests
 
@@ -115,3 +115,20 @@ test('Head component injects <title> into HTML head', async () => {
 ## Progress
 
 - 2026-02-10: Ticket created from implementation plan.
+- 2026-02-11: Implementation completed on feat/ui-v1-phase-5-ssr (PR #175). All SSR core functionality implemented following TDD:
+  - `renderToStream()` with streaming HTML output
+  - Component-to-HTML serialization with proper escaping
+  - Out-of-order streaming with Suspense boundaries
+  - Slot placeholders (`v-slot-N`) and template chunks (`v-tmpl-N`)
+  - Head management (`HeadCollector`, `renderHeadToHtml()`)
+  - Asset pipeline (`renderAssetTags()`)
+  - Critical CSS inlining (`inlineCriticalCss()`)
+  - Hydration markers (`wrapWithHydrationMarkers()`)
+  - CSP nonce support for inline scripts
+  - 59 tests passing (PR #175), expanded to 66 tests in subsequent updates
+  - Quality gates pass (typecheck, lint, tests)
+  - Merged to feat/ui-v1, then to main via PR #199
+- 2026-02-13: Documentation added via feat/ui-010-ssr (PR #253):
+  - Comprehensive README.md with usage examples and API reference
+  - CHANGELOG.md documenting 0.1.0 release features
+  - All 66 tests confirmed passing
