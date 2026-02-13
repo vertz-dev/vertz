@@ -148,9 +148,7 @@ describe('JsxTransformer', () => {
 
   it('transforms JSX inside ternary expressions (variable assignment)', () => {
     const code = `function App() {\n  const el = cond ? <div>yes</div> : <span>no</span>;\n  return el;\n}`;
-    const result = transform(code, [
-      { name: 'cond', kind: 'signal', start: 0, end: 0 },
-    ]);
+    const result = transform(code, [{ name: 'cond', kind: 'signal', start: 0, end: 0 }]);
     expect(result).toContain('__element("div")');
     expect(result).toContain('__element("span")');
     expect(result).not.toContain('<div>');
