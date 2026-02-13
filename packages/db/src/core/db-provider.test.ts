@@ -25,8 +25,11 @@ let queryFn: QueryFn;
 beforeAll(async () => {
   pg = new PGlite();
   queryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
-    const result = await pg.query<T>(sqlStr, params as unknown[]);
-    return (result.rows ?? []) as T[];
+    const result = await pg.query(sqlStr, params as unknown[]);
+    return {
+      rows: result.rows as readonly T[],
+      rowCount: result.affectedRows ?? result.rows.length,
+    };
   };
 });
 
