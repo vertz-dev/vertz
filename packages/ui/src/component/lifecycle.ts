@@ -8,8 +8,20 @@ import { untrack } from '../runtime/tracking';
  * Supports `onCleanup` inside for teardown on unmount.
  */
 export function onMount(callback: () => void): void {
-  // Execute untracked so signal reads inside do not create subscriptions
-  untrack(callback);
+  // Push a disposal scope so onCleanup() calls inside the callback are captured
+  const scope = pushScope();
+  try {
+    // Execute untracked so signal reads inside do not create subscriptions
+    untrack(callback);
+  } finally {
+    popScope();
+  }
+
+  // If any cleanups were registered, attach them to the parent scope
+  // so they run when the parent (e.g., route effect or list item) is disposed.
+  if (scope.length > 0) {
+    _tryOnCleanup(() => runCleanups(scope));
+  }
 }
 
 /**
