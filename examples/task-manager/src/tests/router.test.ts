@@ -8,7 +8,7 @@
  * - Loader execution
  */
 
-import { describe, expect, it, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { createTestRouter, renderTest, waitFor } from '@vertz/ui/test';
 import { resetMockData } from '../api/mock-data';
 

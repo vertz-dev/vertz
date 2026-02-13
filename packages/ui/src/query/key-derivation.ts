@@ -12,7 +12,7 @@ export function deriveKey(thunk: () => unknown): string {
  * Simple string hash (djb2 variant).
  * Fast, deterministic, and sufficient for cache key deduplication.
  */
-function hashString(str: string): string {
+export function hashString(str: string): string {
   let hash = 5381;
   for (let i = 0; i < str.length; i++) {
     hash = (hash * 33) ^ str.charCodeAt(i);

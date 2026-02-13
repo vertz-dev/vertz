@@ -10,6 +10,11 @@
 declare namespace JSX {
   type Element = HTMLElement;
 
+  /** Allow `key` on all JSX elements — the compiler extracts it for __list(). */
+  interface IntrinsicAttributes {
+    key?: string | number;
+  }
+
   interface ElementChildrenAttribute {
     children: {};
   }

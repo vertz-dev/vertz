@@ -33,6 +33,18 @@ export interface HeadEntry {
   textContent?: string;
 }
 
+/** Options for {@link renderToStream}. */
+export interface RenderToStreamOptions {
+  /**
+   * CSP nonce to inject on all inline `<script>` tags emitted during SSR.
+   *
+   * When set, every inline script (e.g. Suspense replacement scripts) will
+   * include `nonce="<value>"` so that strict Content-Security-Policy headers
+   * do not block them.
+   */
+  nonce?: string;
+}
+
 /** Asset descriptor for script/stylesheet injection. */
 export interface AssetDescriptor {
   type: 'script' | 'stylesheet';

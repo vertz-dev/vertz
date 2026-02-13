@@ -7,5 +7,12 @@ export { renderToStream } from './render-to-stream';
 export { createSlotPlaceholder, resetSlotCounter } from './slot-placeholder';
 export { collectStreamChunks, encodeChunk, streamToString } from './streaming';
 export { createTemplateChunk } from './template-chunk';
-export type { AssetDescriptor, HeadEntry, HydrationOptions, RawHtml, VNode } from './types';
+export type {
+  AssetDescriptor,
+  HeadEntry,
+  HydrationOptions,
+  RawHtml,
+  RenderToStreamOptions,
+  VNode,
+} from './types';
 export { rawHtml } from './types';

@@ -1,6 +1,6 @@
 # ui-017: Fix Suspense error handling and hydrate promise catch
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 4h
@@ -35,3 +35,4 @@ Two related error handling gaps:
 ## Progress
 
 - 2026-02-12: Ticket created from mike's review (S3) and ben's follow-up #7
+- 2026-02-12: Already implemented — Suspense has .catch() with propagateError (ErrorBoundary or re-throw), hydrate has .catch() with console.error. 4 tests covering all scenarios.

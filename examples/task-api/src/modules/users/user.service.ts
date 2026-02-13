@@ -6,9 +6,9 @@
  * simplicity since @vertz/db doesn't yet have a driver phase that
  * supports real Postgres connections at runtime.
  */
-import { NotFoundException, ConflictException } from '@vertz/core';
+import { ConflictException, NotFoundException } from '@vertz/core';
 import { db } from '../../db';
-import { users } from '../../db/schema';
+import type { users } from '../../db/schema';
 
 // ---------------------------------------------------------------------------
 // Inferred types from the database schema — no manual definitions needed.
@@ -81,13 +81,8 @@ export function createUserMethods() {
         return serializeUser(user);
       } catch (error) {
         // Handle unique constraint violations on email
-        if (
-          error instanceof Error &&
-          error.message.includes('unique')
-        ) {
-          throw new ConflictException(
-            `A user with email "${input.email}" already exists`,
-          );
+        if (error instanceof Error && error.message.includes('unique')) {
+          throw new ConflictException(`A user with email "${input.email}" already exists`);
         }
         throw error;
       }

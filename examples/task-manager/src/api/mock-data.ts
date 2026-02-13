@@ -14,7 +14,8 @@ const tasks: Task[] = [
   {
     id: '1',
     title: 'Set up CI/CD pipeline',
-    description: 'Configure GitHub Actions for automated testing and deployment. Include lint, typecheck, and test stages.',
+    description:
+      'Configure GitHub Actions for automated testing and deployment. Include lint, typecheck, and test stages.',
     status: 'done',
     priority: 'high',
     createdAt: '2026-02-01T10:00:00Z',
@@ -23,7 +24,8 @@ const tasks: Task[] = [
   {
     id: '2',
     title: 'Implement user authentication',
-    description: 'Add JWT-based auth with login, register, and token refresh endpoints. Use bcrypt for password hashing.',
+    description:
+      'Add JWT-based auth with login, register, and token refresh endpoints. Use bcrypt for password hashing.',
     status: 'in-progress',
     priority: 'urgent',
     createdAt: '2026-02-03T09:00:00Z',
@@ -32,7 +34,8 @@ const tasks: Task[] = [
   {
     id: '3',
     title: 'Write API documentation',
-    description: 'Document all REST endpoints using OpenAPI spec. Include request/response examples and error codes.',
+    description:
+      'Document all REST endpoints using OpenAPI spec. Include request/response examples and error codes.',
     status: 'todo',
     priority: 'medium',
     createdAt: '2026-02-08T11:00:00Z',
@@ -107,20 +110,19 @@ export async function deleteTask(id: string): Promise<{ success: boolean }> {
  * with `.url` and `.method` metadata for progressive enhancement.
  */
 export const taskApi = {
-  create: Object.assign(
-    (body: CreateTaskBody) => createTask(body),
-    { url: '/api/tasks', method: 'POST' },
-  ),
+  create: Object.assign((body: CreateTaskBody) => createTask(body), {
+    url: '/api/tasks',
+    method: 'POST',
+  }),
 
-  update: (id: string) => Object.assign(
-    (body: UpdateTaskBody) => updateTask(id, body),
-    { url: `/api/tasks/${id}`, method: 'PATCH' },
-  ),
+  update: (id: string) =>
+    Object.assign((body: UpdateTaskBody) => updateTask(id, body), {
+      url: `/api/tasks/${id}`,
+      method: 'PATCH',
+    }),
 
-  delete: (id: string) => Object.assign(
-    () => deleteTask(id),
-    { url: `/api/tasks/${id}`, method: 'DELETE' },
-  ),
+  delete: (id: string) =>
+    Object.assign(() => deleteTask(id), { url: `/api/tasks/${id}`, method: 'DELETE' }),
 };
 
 /** Reset mock data to initial state (for tests). */

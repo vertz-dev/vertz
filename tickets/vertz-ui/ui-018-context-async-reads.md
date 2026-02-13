@@ -1,6 +1,6 @@
 # ui-018: Fix context for async reads (watch/query)
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 6h
@@ -30,3 +30,4 @@ This is a correctness bug that breaks any pattern where context is read asynchro
 ## Progress
 
 - 2026-02-12: Ticket created from mike's review on PR #199
+- 2026-02-12: Already implemented — EffectImpl captures/restores context scope. Fixed broken test using vi.waitFor() (not in bun). All 11 context tests pass.

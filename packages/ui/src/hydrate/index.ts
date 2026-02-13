@@ -2,4 +2,11 @@ export type { ComponentFunction, ComponentLoader, ComponentRegistry } from './co
 export { resolveComponent } from './component-registry';
 export { hydrate } from './hydrate';
 export { deserializeProps } from './props-deserializer';
-export { eagerStrategy, interactionStrategy, lazyStrategy } from './strategies';
+export {
+  eagerStrategy,
+  idleStrategy,
+  interactionStrategy,
+  lazyStrategy,
+  mediaStrategy,
+  visibleStrategy,
+} from './strategies';

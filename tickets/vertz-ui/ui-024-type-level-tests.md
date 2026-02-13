@@ -1,6 +1,6 @@
 # ui-024: Add type-level tests for core types
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 6h
@@ -38,3 +38,4 @@ Each type needs both positive (compiles correctly) and negative (`@ts-expect-err
 ## Progress
 
 - 2026-02-12: Ticket created from mike's review (S2) and follow-up #4
+- 2026-02-12: Implemented — 5 new .test-d.ts files (Signal, QueryResult, FormInstance, Context, css), 2 already existed (variants, RouteConfig). 31 @ts-expect-error negative tests. vitest typecheck configured.

@@ -1,6 +1,6 @@
 # ui-016: onCleanup() silently no-ops without disposal scope
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 3h
@@ -44,3 +44,4 @@ Option 1 is the minimal bug fix. Option 2 is a feature that requires design work
 ## Progress
 
 - 2026-02-12: Ticket created from PR #210 DX review (ava + nora)
+- 2026-02-12: Already implemented — onCleanup() throws DisposalScopeError, _tryOnCleanup() silently discards. Added 3 new tests for _tryOnCleanup coverage.

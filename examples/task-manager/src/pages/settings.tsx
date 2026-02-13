@@ -4,13 +4,14 @@
  * Demonstrates:
  * - JSX for settings layout with theme cards
  * - useContext() to consume the SettingsContext
- * - signal() for local form state
- * - effect() for reactive theme application
+ * - Compiler `let` → signal transform for local state
+ * - Reactive JSX attributes via className={expr}
+ * - Compiler conditional transform: {showSaved && <div>...</div>} → __conditional()
  * - watch() to observe theme changes
  * - ThemeProvider for live theme preview
  */
 
-import { ThemeProvider, css, effect, signal, watch } from '@vertz/ui';
+import { css, effect, ThemeProvider, watch } from '@vertz/ui';
 import { useSettings } from '../lib/settings-context';
 import { button, formStyles } from '../styles/components';
 
@@ -20,13 +21,7 @@ const settingsStyles = css({
   section: ['mb:8'],
   sectionTitle: ['font:lg', 'font:semibold', 'text:foreground', 'mb:4'],
   themeGrid: ['grid', 'grid-cols:2', 'gap:4'],
-  themeCard: [
-    'p:4',
-    'rounded:lg',
-    'border:2',
-    'cursor:pointer',
-    'transition:all',
-  ],
+  themeCard: ['p:4', 'rounded:lg', 'border:2', 'cursor:pointer', 'transition:all'],
   themeCardActive: ['border:primary.500'],
   themeCardInactive: ['border:border'],
   previewBox: ['p:3', 'rounded:md', 'mb:2'],
@@ -43,12 +38,14 @@ export interface SettingsPageProps {
  */
 export function SettingsPage(_props: SettingsPageProps): HTMLElement {
   const settings = useSettings();
-  const showSaved = signal(false);
+
+  // Local state: compiler transforms `let` to signal()
+  let showSaved = false;
 
   function flashSaved(): void {
-    showSaved.value = true;
+    showSaved = true;
     setTimeout(() => {
-      showSaved.value = false;
+      showSaved = false;
     }, 2000);
   }
 
@@ -56,26 +53,34 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
 
   const lightPreview = ThemeProvider({
     theme: 'light',
-    children: [<div class={settingsStyles.classNames.previewText}>Light theme preview</div> as HTMLElement],
+    children: [
+      (<div class={settingsStyles.classNames.previewText}>Light theme preview</div>) as HTMLElement,
+    ],
   });
   lightPreview.className = settingsStyles.classNames.previewBox;
   lightPreview.style.backgroundColor = '#ffffff';
 
   const darkPreview = ThemeProvider({
     theme: 'dark',
-    children: [<div class={settingsStyles.classNames.previewText}>Dark theme preview</div> as HTMLElement],
+    children: [
+      (<div class={settingsStyles.classNames.previewText}>Dark theme preview</div>) as HTMLElement,
+    ],
   });
   darkPreview.className = settingsStyles.classNames.previewBox;
   darkPreview.style.backgroundColor = '#111827';
 
-  // ── Theme cards with JSX ────────────────────────────
+  // ── Theme cards with reactive className via external signal ──
+  // settings.theme is an external signal, so we use .value and effect() for className
 
   const lightCard = (
     <div
       data-testid="theme-light"
       role="button"
       tabindex="0"
-      onClick={() => { settings.setTheme('light'); flashSaved(); }}
+      onClick={() => {
+        settings.setTheme('light');
+        flashSaved();
+      }}
     >
       {lightPreview}
       <div style="font-weight: 500">Light</div>
@@ -87,14 +92,17 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
       data-testid="theme-dark"
       role="button"
       tabindex="0"
-      onClick={() => { settings.setTheme('dark'); flashSaved(); }}
+      onClick={() => {
+        settings.setTheme('dark');
+        flashSaved();
+      }}
     >
       {darkPreview}
       <div style="font-weight: 500">Dark</div>
     </div>
   ) as HTMLElement;
 
-  // Reactive active state for theme cards
+  // Reactive active state — settings.theme is an external signal, keep effect()
   effect(() => {
     const current = settings.theme.value;
     lightCard.className = `${settingsStyles.classNames.themeCard} ${
@@ -109,18 +117,6 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
     }`;
   });
 
-  // ── Saved confirmation message ──────────────────────
-
-  const savedMsg = (
-    <div class={settingsStyles.classNames.savedMsg} data-testid="saved-message" style="display: none">
-      Settings saved!
-    </div>
-  ) as HTMLElement;
-
-  effect(() => {
-    savedMsg.style.display = showSaved.value ? 'block' : 'none';
-  });
-
   // ── Priority select ─────────────────────────────────
 
   const prioritySelect = (
@@ -132,7 +128,7 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
     </select>
   ) as HTMLSelectElement;
 
-  // Sync select with current setting
+  // Sync select with current external signal
   effect(() => {
     prioritySelect.value = settings.defaultPriority.value;
   });
@@ -163,14 +159,16 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
           {lightCard}
           {darkCard}
         </div>
-        {savedMsg}
+        {showSaved && (
+          <div class={settingsStyles.classNames.savedMsg} data-testid="saved-message">
+            Settings saved!
+          </div>
+        )}
       </section>
 
       <section class={settingsStyles.classNames.section}>
         <h2 class={settingsStyles.classNames.sectionTitle}>Default Priority</h2>
-        <div class={formStyles.classNames.formGroup}>
-          {prioritySelect}
-        </div>
+        <div class={formStyles.classNames.formGroup}>{prioritySelect}</div>
       </section>
     </div>
   ) as HTMLElement;

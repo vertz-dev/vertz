@@ -1,138 +1,34 @@
 /**
- * CSS Diagnostics — Detect invalid tokens, magic numbers, and
+ * CSS Diagnostics -- Detect invalid tokens, magic numbers, and
  * other CSS-related issues in css() calls.
+ *
+ * Uses shared token tables from @vertz/ui/internals as the single source
+ * of truth for valid properties, pseudos, spacing values, and color namespaces.
  */
 
+import {
+  COLOR_NAMESPACES,
+  CSS_COLOR_KEYWORDS,
+  KEYWORD_MAP,
+  PROPERTY_MAP,
+  PSEUDO_PREFIXES,
+  SPACING_SCALE,
+} from '@vertz/ui/internals';
 import { type SourceFile, SyntaxKind } from 'ts-morph';
 import type { CompilerDiagnostic } from '../types';
 
-/** Known property shorthands. */
-const KNOWN_PROPERTIES = new Set([
-  'p',
-  'px',
-  'py',
-  'pt',
-  'pr',
-  'pb',
-  'pl',
-  'm',
-  'mx',
-  'my',
-  'mt',
-  'mr',
-  'mb',
-  'ml',
-  'w',
-  'h',
-  'min-w',
-  'max-w',
-  'min-h',
-  'max-h',
-  'bg',
-  'text',
-  'border',
-  'rounded',
-  'shadow',
-  'flex',
-  'grid',
-  'block',
-  'inline',
-  'hidden',
-  'gap',
-  'items',
-  'justify',
-  'font',
-  'weight',
-  'leading',
-]);
+/** Known property shorthands: union of PROPERTY_MAP keys and KEYWORD_MAP keys. */
+const KNOWN_PROPERTIES = new Set([...Object.keys(PROPERTY_MAP), ...Object.keys(KEYWORD_MAP)]);
 
-/** Known pseudo prefixes. */
-const KNOWN_PSEUDOS = new Set([
-  'hover',
-  'focus',
-  'focus-visible',
-  'active',
-  'disabled',
-  'first',
-  'last',
-]);
+/** Valid spacing scale values (derived from SPACING_SCALE keys). */
+const SPACING_VALUES = new Set(Object.keys(SPACING_SCALE));
 
-/** Known color token namespaces. */
-const COLOR_NAMESPACES = new Set([
-  'primary',
-  'secondary',
-  'accent',
-  'background',
-  'foreground',
-  'muted',
-  'destructive',
-  'success',
-  'warning',
-  'info',
-  'border',
-  'ring',
-  'input',
-  'card',
-  'popover',
-]);
-
-/** Valid spacing scale values. */
-const SPACING_VALUES = new Set([
-  '0',
-  '0.5',
-  '1',
-  '1.5',
-  '2',
-  '2.5',
-  '3',
-  '3.5',
-  '4',
-  '5',
-  '6',
-  '7',
-  '8',
-  '9',
-  '10',
-  '11',
-  '12',
-  '14',
-  '16',
-  '20',
-  '24',
-  '28',
-  '32',
-  '36',
-  '40',
-  '44',
-  '48',
-  '52',
-  '56',
-  '60',
-  '64',
-  '72',
-  '80',
-  '96',
-  'auto',
-]);
-
-/** Properties that use the spacing scale. */
-const SPACING_PROPERTIES = new Set([
-  'p',
-  'px',
-  'py',
-  'pt',
-  'pr',
-  'pb',
-  'pl',
-  'm',
-  'mx',
-  'my',
-  'mt',
-  'mr',
-  'mb',
-  'ml',
-  'gap',
-]);
+/** Properties that use the spacing scale (derived from PROPERTY_MAP entries with valueType 'spacing'). */
+const SPACING_PROPERTIES = new Set(
+  Object.entries(PROPERTY_MAP)
+    .filter(([_, mapping]) => mapping.valueType === 'spacing')
+    .map(([key]) => key),
+);
 
 /**
  * Analyze css() calls for diagnostic issues.
@@ -200,7 +96,7 @@ export class CSSDiagnostics {
       property = p;
     } else if (parts.length === 2) {
       const [a, b] = parts as [string, string];
-      if (KNOWN_PSEUDOS.has(a)) {
+      if (PSEUDO_PREFIXES.has(a)) {
         pseudo = a;
         property = b;
       } else {
@@ -224,14 +120,14 @@ export class CSSDiagnostics {
     }
 
     // Validate pseudo
-    if (pseudo && !KNOWN_PSEUDOS.has(pseudo)) {
+    if (pseudo && !PSEUDO_PREFIXES.has(pseudo)) {
       diagnostics.push({
         code: 'css-unknown-pseudo',
-        message: `Unknown pseudo prefix '${pseudo}'. Supported: ${[...KNOWN_PSEUDOS].join(', ')}`,
+        message: `Unknown pseudo prefix '${pseudo}'. Supported: ${[...PSEUDO_PREFIXES].join(', ')}`,
         severity: 'error',
         line,
         column,
-        fix: `Use one of: ${[...KNOWN_PSEUDOS].join(', ')}`,
+        fix: `Use one of: ${[...PSEUDO_PREFIXES].join(', ')}`,
       });
     }
 
@@ -275,8 +171,7 @@ export class CSSDiagnostics {
     column: number,
     diagnostics: CompilerDiagnostic[],
   ): void {
-    const cssKeywords = new Set(['transparent', 'inherit', 'currentColor', 'initial', 'unset']);
-    if (cssKeywords.has(value)) return;
+    if (CSS_COLOR_KEYWORDS.has(value)) return;
 
     const dotIndex = value.indexOf('.');
     if (dotIndex !== -1) {

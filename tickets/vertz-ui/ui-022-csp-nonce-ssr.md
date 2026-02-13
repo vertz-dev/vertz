@@ -1,6 +1,6 @@
 # ui-022: Add CSP nonce parameter to renderToStream
 
-- **Status:** 🔴 Todo
+- **Status:** 🟢 Done
 - **Assigned:** nora
 - **Phase:** v0.1.x patch
 - **Estimate:** 3h
@@ -26,3 +26,4 @@ The design doc specifies a `nonce` parameter for `renderToStream()` to support C
 ## Progress
 
 - 2026-02-12: Ticket created from mike's review on PR #199
+- 2026-02-12: Implemented — RenderToStreamOptions.nonce, escapeNonce() XSS prevention, 7 new tests, 66 total passing

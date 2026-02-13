@@ -1,4 +1,4 @@
-import { onCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
+import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { effect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
 
@@ -60,8 +60,10 @@ export function __conditional(
     runCleanups(outerScope);
   };
 
-  // Register the full wrapper with any active parent scope
-  onCleanup(wrapper);
+  // Register the full wrapper with any active parent scope (if one exists).
+  // When __conditional is called at the top level, no parent scope exists — that's fine,
+  // the caller is responsible for calling dispose() manually.
+  _tryOnCleanup(wrapper);
 
   // Return a fragment containing both anchor and initial rendered content
   const fragment = document.createDocumentFragment();

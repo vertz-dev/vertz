@@ -3,13 +3,16 @@
  *
  * Demonstrates:
  * - JSX for form layout with multiple fields
- * - form() with schema validation
+ * - form() with schema validation (external signals — still use .value)
  * - SdkMethod metadata for progressive enhancement
- * - Reactive submitting state and error display via effect()
+ * - effect() for reactive updates driven by external signals (form state)
+ *
+ * Note: All reactive state here comes from form() (external signals),
+ * so effect() is still needed. No local `let` → signal transform applies.
  */
 
-import { effect, form } from '@vertz/ui';
 import type { FormSchema } from '@vertz/ui';
+import { effect, form } from '@vertz/ui';
 import { taskApi } from '../api/mock-data';
 import type { CreateTaskBody, Task, TaskPriority } from '../lib/types';
 import { button, formStyles } from '../styles/components';
@@ -76,13 +79,23 @@ export function TaskForm(props: TaskFormProps): HTMLFormElement {
   const formAttrs = taskForm.attrs();
 
   // Error display elements — referenced by effect() for reactive updates
-  const titleError = <span class={formStyles.classNames.error} data-testid="title-error" /> as HTMLElement;
-  const descError = <span class={formStyles.classNames.error} data-testid="description-error" /> as HTMLElement;
-  const priorityError = <span class={formStyles.classNames.error} data-testid="priority-error" /> as HTMLElement;
+  const titleError = (
+    <span class={formStyles.classNames.error} data-testid="title-error" />
+  ) as HTMLElement;
+  const descError = (
+    <span class={formStyles.classNames.error} data-testid="description-error" />
+  ) as HTMLElement;
+  const priorityError = (
+    <span class={formStyles.classNames.error} data-testid="priority-error" />
+  ) as HTMLElement;
 
   // Submit button — referenced by effect() for reactive submitting state
   const submitBtn = (
-    <button type="submit" class={button({ intent: 'primary', size: 'md' })} data-testid="submit-task">
+    <button
+      type="submit"
+      class={button({ intent: 'primary', size: 'md' })}
+      data-testid="submit-task"
+    >
       Create Task
     </button>
   ) as HTMLButtonElement;
@@ -105,7 +118,9 @@ export function TaskForm(props: TaskFormProps): HTMLFormElement {
   const formEl = (
     <form action={formAttrs.action} method={formAttrs.method} data-testid="create-task-form">
       <div class={formStyles.classNames.formGroup}>
-        <label class={formStyles.classNames.label} for="task-title">Title</label>
+        <label class={formStyles.classNames.label} for="task-title">
+          Title
+        </label>
         <input
           class={formStyles.classNames.input}
           id="task-title"
@@ -117,7 +132,9 @@ export function TaskForm(props: TaskFormProps): HTMLFormElement {
       </div>
 
       <div class={formStyles.classNames.formGroup}>
-        <label class={formStyles.classNames.label} for="task-description">Description</label>
+        <label class={formStyles.classNames.label} for="task-description">
+          Description
+        </label>
         <textarea
           class={formStyles.classNames.textarea}
           id="task-description"
@@ -128,10 +145,14 @@ export function TaskForm(props: TaskFormProps): HTMLFormElement {
       </div>
 
       <div class={formStyles.classNames.formGroup}>
-        <label class={formStyles.classNames.label} for="task-priority">Priority</label>
+        <label class={formStyles.classNames.label} for="task-priority">
+          Priority
+        </label>
         <select class={formStyles.classNames.select} id="task-priority" name="priority">
           <option value="low">Low</option>
-          <option value="medium" selected>Medium</option>
+          <option value="medium" selected>
+            Medium
+          </option>
           <option value="high">High</option>
           <option value="urgent">Urgent</option>
         </select>
@@ -139,7 +160,11 @@ export function TaskForm(props: TaskFormProps): HTMLFormElement {
       </div>
 
       <div style="display: flex; gap: 0.5rem; justify-content: flex-end">
-        <button type="button" class={button({ intent: 'secondary', size: 'md' })} onClick={onCancel}>
+        <button
+          type="button"
+          class={button({ intent: 'secondary', size: 'md' })}
+          onClick={onCancel}
+        >
           Cancel
         </button>
         {submitBtn}

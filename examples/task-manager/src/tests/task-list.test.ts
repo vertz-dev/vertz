@@ -9,10 +9,10 @@
  * - createTestRouter() for route testing
  */
 
-import { describe, expect, it, beforeEach } from 'bun:test';
-import { renderTest, waitFor, findByTestId } from '@vertz/ui/test';
-import { TaskListPage } from '../pages/task-list';
+import { beforeEach, describe, expect, it } from 'bun:test';
+import { findByTestId, renderTest, waitFor } from '@vertz/ui/test';
 import { resetMockData } from '../api/mock-data';
+import { TaskListPage } from '../pages/task-list';
 
 describe('TaskListPage', () => {
   beforeEach(() => {

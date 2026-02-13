@@ -9,7 +9,7 @@ import {
 import { createSlotPlaceholder } from './slot-placeholder';
 import { encodeChunk } from './streaming';
 import { createTemplateChunk } from './template-chunk';
-import type { RawHtml, VNode } from './types';
+import type { RawHtml, RenderToStreamOptions, VNode } from './types';
 
 /**
  * Internal interface for suspense VNodes with async resolution.
@@ -42,7 +42,10 @@ function isSuspenseNode(node: VNode | string | RawHtml): node is SuspenseVNode {
  * This enables out-of-order streaming: the browser can paint the fallback
  * immediately and swap in the resolved content when it arrives.
  */
-export function renderToStream(tree: VNode | string | RawHtml): ReadableStream<Uint8Array> {
+export function renderToStream(
+  tree: VNode | string | RawHtml,
+  options?: RenderToStreamOptions,
+): ReadableStream<Uint8Array> {
   // Collect pending suspense boundaries
   const pendingBoundaries: Array<{
     slotId: number;
@@ -102,17 +105,18 @@ export function renderToStream(tree: VNode | string | RawHtml): ReadableStream<U
 
       // Phase 2: Resolve all suspense boundaries and emit replacement chunks
       if (pendingBoundaries.length > 0) {
+        const nonce = options?.nonce;
         const resolutions = pendingBoundaries.map(async (boundary) => {
           try {
             const resolved = await boundary.resolve;
             const resolvedHtml = serializeToHtml(resolved);
-            return createTemplateChunk(boundary.slotId, resolvedHtml);
+            return createTemplateChunk(boundary.slotId, resolvedHtml, nonce);
           } catch (_err: unknown) {
             // Emit an error placeholder so the stream stays alive
             const errorHtml =
               `<div data-v-ssr-error="true" id="v-ssr-error-${boundary.slotId}">` +
               '<!--SSR error--></div>';
-            return createTemplateChunk(boundary.slotId, errorHtml);
+            return createTemplateChunk(boundary.slotId, errorHtml, nonce);
           }
         });
 

@@ -235,6 +235,20 @@ function transformChild(
     const exprInfo = jsxMap.get(child.getStart());
     const exprNode = child.getExpression();
     if (!exprNode) return null;
+
+    // Check for conditional pattern (reactive ternary or logical AND)
+    if (exprInfo?.reactive) {
+      const conditionalCode = tryTransformConditional(exprNode, reactiveNames, jsxMap, source);
+      if (conditionalCode) {
+        return `${parentVar}.appendChild(${conditionalCode}.node)`;
+      }
+
+      const listCode = tryTransformList(exprNode, reactiveNames, jsxMap, parentVar, source);
+      if (listCode) {
+        return listCode;
+      }
+    }
+
     // Read from MagicString to pick up signal/computed .value transforms
     const exprText = source.slice(exprNode.getStart(), exprNode.getEnd());
 
@@ -250,6 +264,223 @@ function transformChild(
   }
 
   return null;
+}
+
+/**
+ * Try to transform a conditional expression (ternary or logical AND) into __conditional().
+ * Returns the __conditional(...) call string if the expression matches, null otherwise.
+ */
+function tryTransformConditional(
+  exprNode: Node,
+  reactiveNames: Set<string>,
+  jsxMap: Map<number, JsxExpressionInfo>,
+  source: MagicString,
+): string | null {
+  // Ternary: condition ? trueExpr : falseExpr
+  if (exprNode.isKind(SyntaxKind.ConditionalExpression)) {
+    const condition = exprNode.getCondition();
+    const whenTrue = exprNode.getWhenTrue();
+    const whenFalse = exprNode.getWhenFalse();
+
+    const condText = source.slice(condition.getStart(), condition.getEnd());
+    const trueBranch = transformBranch(whenTrue, reactiveNames, jsxMap, source);
+    const falseBranch = transformBranch(whenFalse, reactiveNames, jsxMap, source);
+
+    return `__conditional(() => ${condText}, () => ${trueBranch}, () => ${falseBranch})`;
+  }
+
+  // Logical AND: condition && element
+  if (
+    exprNode.isKind(SyntaxKind.BinaryExpression) &&
+    exprNode.getOperatorToken().getKind() === SyntaxKind.AmpersandAmpersandToken
+  ) {
+    const left = exprNode.getLeft();
+    const right = exprNode.getRight();
+
+    const condText = source.slice(left.getStart(), left.getEnd());
+    const trueBranch = transformBranch(right, reactiveNames, jsxMap, source);
+
+    return `__conditional(() => ${condText}, () => ${trueBranch}, () => null)`;
+  }
+
+  return null;
+}
+
+/**
+ * Transform a conditional branch expression into a DOM-producing expression.
+ * If the branch contains JSX, it's transformed into DOM helper calls.
+ * Otherwise, the expression text (from MagicString) is used as-is.
+ */
+function transformBranch(
+  node: Node,
+  reactiveNames: Set<string>,
+  jsxMap: Map<number, JsxExpressionInfo>,
+  source: MagicString,
+): string {
+  if (
+    node.isKind(SyntaxKind.JsxElement) ||
+    node.isKind(SyntaxKind.JsxSelfClosingElement) ||
+    node.isKind(SyntaxKind.JsxFragment)
+  ) {
+    return transformJsxNode(node, reactiveNames, jsxMap, source);
+  }
+
+  // For nested conditionals (ternary inside ternary)
+  if (node.isKind(SyntaxKind.ConditionalExpression)) {
+    const nested = tryTransformConditional(node, reactiveNames, jsxMap, source);
+    if (nested) return `${nested}.node`;
+  }
+
+  // Fallback: use the text from MagicString
+  return source.slice(node.getStart(), node.getEnd());
+}
+
+/**
+ * Try to transform a .map() call into __list().
+ * Returns the __list(...) statement string if the expression matches, null otherwise.
+ *
+ * Pattern: items.map(item => <Element ... />)  or  items.map((item) => <Element ... />)
+ */
+function tryTransformList(
+  exprNode: Node,
+  reactiveNames: Set<string>,
+  jsxMap: Map<number, JsxExpressionInfo>,
+  parentVar: string,
+  source: MagicString,
+): string | null {
+  if (!exprNode.isKind(SyntaxKind.CallExpression)) return null;
+
+  const propAccess = exprNode.getExpression();
+  if (!propAccess.isKind(SyntaxKind.PropertyAccessExpression)) return null;
+
+  const methodName = propAccess.getNameNode().getText();
+  if (methodName !== 'map') return null;
+
+  const args = exprNode.getArguments();
+  if (args.length === 0) return null;
+
+  const callbackArg = args[0];
+  if (!callbackArg) return null;
+
+  // Get the source object (e.g. "items" or "items.value")
+  const sourceObj = propAccess.getExpression();
+  const sourceObjText = source.slice(sourceObj.getStart(), sourceObj.getEnd());
+
+  // Extract callback parameter name(s)
+  let itemParam: string | null = null;
+  let indexParam: string | null = null;
+  let callbackBody: Node | null = null;
+
+  if (callbackArg.isKind(SyntaxKind.ArrowFunction)) {
+    const params = callbackArg.getParameters();
+    itemParam = params[0]?.getName() ?? null;
+    indexParam = params[1]?.getName() ?? null;
+
+    // Get the body of the arrow function
+    const body = callbackArg.getBody();
+    callbackBody = body;
+  }
+
+  if (!itemParam || !callbackBody) return null;
+
+  // Extract key function from the JSX element's key prop
+  const keyFn = extractKeyFunction(callbackBody, itemParam, indexParam);
+
+  // Build the render function
+  const renderFn = buildListRenderFunction(callbackBody, itemParam, reactiveNames, jsxMap, source);
+
+  return `__list(${parentVar}, () => ${sourceObjText}, ${keyFn}, ${renderFn})`;
+}
+
+/**
+ * Extract a key function from the callback body.
+ * Looks for a `key` prop on the outermost JSX element.
+ * Falls back to index-based key if no key prop is found.
+ */
+function extractKeyFunction(
+  callbackBody: Node,
+  itemParam: string,
+  indexParam: string | null,
+): string {
+  // The body might be the JSX element directly (arrow without block)
+  const jsxNode = findJsxInBody(callbackBody);
+  if (jsxNode) {
+    const keyValue = extractKeyPropValue(jsxNode);
+    if (keyValue) {
+      return `(${itemParam}) => ${keyValue}`;
+    }
+  }
+
+  // Fallback: use index if available, otherwise use a stringified item
+  if (indexParam) {
+    return `(_item, ${indexParam}) => ${indexParam}`;
+  }
+  return `(_item, __i) => __i`;
+}
+
+/**
+ * Find the outermost JSX element in a callback body.
+ */
+function findJsxInBody(node: Node): Node | null {
+  if (node.isKind(SyntaxKind.JsxElement) || node.isKind(SyntaxKind.JsxSelfClosingElement)) {
+    return node;
+  }
+  if (node.isKind(SyntaxKind.Block)) {
+    // Look for return statement
+    const returnStmt = node.getFirstDescendantByKind(SyntaxKind.ReturnStatement);
+    if (returnStmt) {
+      const expr = returnStmt.getExpression();
+      if (expr) return findJsxInBody(expr);
+    }
+  }
+  if (node.isKind(SyntaxKind.ParenthesizedExpression)) {
+    return findJsxInBody(node.getExpression());
+  }
+  return null;
+}
+
+/**
+ * Extract the value of the `key` prop from a JSX element.
+ * Returns the expression text (e.g. "item.id") or null if no key prop.
+ */
+function extractKeyPropValue(jsxNode: Node): string | null {
+  const attrs = jsxNode.getDescendantsOfKind(SyntaxKind.JsxAttribute);
+  for (const attr of attrs) {
+    if (attr.getNameNode().getText() !== 'key') continue;
+    const init = attr.getInitializer();
+    if (!init) continue;
+    if (init.isKind(SyntaxKind.JsxExpression)) {
+      const expr = init.getExpression();
+      if (expr) return expr.getText();
+    }
+    if (init.isKind(SyntaxKind.StringLiteral)) {
+      return init.getText();
+    }
+  }
+  return null;
+}
+
+/**
+ * Build the render function for __list.
+ * Transforms the JSX in the callback body into DOM helper calls.
+ */
+function buildListRenderFunction(
+  callbackBody: Node,
+  itemParam: string,
+  reactiveNames: Set<string>,
+  jsxMap: Map<number, JsxExpressionInfo>,
+  source: MagicString,
+): string {
+  const jsxNode = findJsxInBody(callbackBody);
+  if (jsxNode) {
+    // Strip the key prop from the JSX before transforming
+    const transformed = transformJsxNode(jsxNode, reactiveNames, jsxMap, source);
+    return `(${itemParam}) => ${transformed}`;
+  }
+
+  // Fallback: use the body text
+  const bodyText = source.slice(callbackBody.getStart(), callbackBody.getEnd());
+  return `(${itemParam}) => ${bodyText}`;
 }
 
 function buildPropsObject(

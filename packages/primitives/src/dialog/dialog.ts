@@ -1,6 +1,9 @@
 /**
  * Dialog primitive - modal/non-modal dialog with focus trap and Escape to close.
  * Follows WAI-ARIA dialog pattern.
+ *
+ * When modal, provides an overlay element and centers the content via a wrapper.
+ * Clicking the overlay closes the dialog.
  */
 
 import type { Signal } from '@vertz/ui';
@@ -23,6 +26,7 @@ export interface DialogState {
 export interface DialogElements {
   trigger: HTMLButtonElement;
   content: HTMLDivElement;
+  overlay: HTMLDivElement;
   title: HTMLHeadingElement;
   close: HTMLButtonElement;
 }
@@ -43,11 +47,28 @@ export const Dialog = {
     setExpanded(trigger, defaultOpen);
     setDataState(trigger, defaultOpen ? 'open' : 'closed');
 
+    // ── Overlay: covers the viewport behind the dialog ──
+    const overlay = document.createElement('div');
+    overlay.setAttribute('data-dialog-overlay', '');
+    if (modal) {
+      overlay.style.position = 'fixed';
+      overlay.style.inset = '0';
+      overlay.style.zIndex = '49';
+    }
+    setHidden(overlay, !defaultOpen);
+    setDataState(overlay, defaultOpen ? 'open' : 'closed');
+
     const content = document.createElement('div');
     content.setAttribute('role', 'dialog');
     content.id = ids.contentId;
     if (modal) {
       content.setAttribute('aria-modal', 'true');
+      // Center the dialog on screen
+      content.style.position = 'fixed';
+      content.style.top = '50%';
+      content.style.left = '50%';
+      content.style.transform = 'translate(-50%, -50%)';
+      content.style.zIndex = '50';
     }
     setLabelledBy(content, titleId);
     setHidden(content, !defaultOpen);
@@ -63,8 +84,10 @@ export const Dialog = {
     function openDialog(): void {
       state.open.value = true;
       setExpanded(trigger, true);
+      setHidden(overlay, false);
       setHidden(content, false);
       setDataState(trigger, 'open');
+      setDataState(overlay, 'open');
       setDataState(content, 'open');
 
       restoreFocus = saveFocus();
@@ -79,8 +102,10 @@ export const Dialog = {
     function closeDialog(): void {
       state.open.value = false;
       setExpanded(trigger, false);
+      setHidden(overlay, true);
       setHidden(content, true);
       setDataState(trigger, 'closed');
+      setDataState(overlay, 'closed');
       setDataState(content, 'closed');
 
       removeTrap?.();
@@ -102,6 +127,11 @@ export const Dialog = {
       closeDialog();
     });
 
+    // Click on overlay closes the dialog
+    overlay.addEventListener('click', () => {
+      closeDialog();
+    });
+
     content.addEventListener('keydown', (event) => {
       if (isKey(event, Keys.Escape)) {
         event.preventDefault();
@@ -110,6 +140,6 @@ export const Dialog = {
       }
     });
 
-    return { trigger, content, title, close, state };
+    return { trigger, overlay, content, title, close, state };
   },
 };
