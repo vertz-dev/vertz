@@ -12,12 +12,12 @@
  * - Fragment          — document fragment
  */
 
-type Tag = string | ((props: any) => any);
+type Tag = string | ((props: Record<string, unknown>) => Node | Node[] | null);
 
 /**
  * Apply children to a parent node, recursively handling arrays
  */
-function applyChildren(parent: Node, children: any): void {
+function applyChildren(parent: Node, children: unknown): void {
   if (children == null || children === false || children === true) return;
   if (Array.isArray(children)) {
     for (const child of children) {
@@ -32,11 +32,11 @@ function applyChildren(parent: Node, children: any): void {
 
 /**
  * JSX factory function for client-side rendering.
- * 
+ *
  * When tag is a function (component), calls it with props.
  * When tag is a string (HTML element), creates a DOM element.
  */
-export function jsx(tag: Tag, props: Record<string, any>): any {
+export function jsx(tag: Tag, props: Record<string, unknown>): Node | Node[] | null {
   // Component call — pass props through to the function
   if (typeof tag === 'function') {
     return tag(props);
@@ -77,7 +77,7 @@ export const jsxs: typeof jsx = jsx;
 /**
  * Fragment component — a DocumentFragment container for multiple children.
  */
-export function Fragment(props: { children?: any }): DocumentFragment {
+export function Fragment(props: { children?: unknown }): DocumentFragment {
   const frag = document.createDocumentFragment();
   applyChildren(frag, props?.children);
   return frag;

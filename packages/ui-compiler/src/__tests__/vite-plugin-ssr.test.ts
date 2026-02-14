@@ -96,7 +96,11 @@ describe('vertzPlugin SSR', () => {
     it('should return JSX aliases for SSR builds', () => {
       const plugin = vertzPlugin({ ssr: true }) as Plugin;
       const config = plugin.config as Function;
-      const result = config.call(plugin, {}, { isSsrBuild: true, command: 'build', mode: 'production' });
+      const result = config.call(
+        plugin,
+        {},
+        { isSsrBuild: true, command: 'build', mode: 'production' },
+      );
 
       expect(result).toBeDefined();
       expect(result?.resolve?.alias).toEqual({
@@ -108,7 +112,11 @@ describe('vertzPlugin SSR', () => {
     it('should not return aliases for non-SSR builds', () => {
       const plugin = vertzPlugin({ ssr: true }) as Plugin;
       const config = plugin.config as Function;
-      const result = config.call(plugin, {}, { isSsrBuild: false, command: 'serve', mode: 'development' });
+      const result = config.call(
+        plugin,
+        {},
+        { isSsrBuild: false, command: 'serve', mode: 'development' },
+      );
 
       expect(result).toBeUndefined();
     });
@@ -116,7 +124,11 @@ describe('vertzPlugin SSR', () => {
     it('should not return aliases when SSR is not enabled', () => {
       const plugin = vertzPlugin() as Plugin;
       const config = plugin.config as Function;
-      const result = config.call(plugin, {}, { isSsrBuild: true, command: 'build', mode: 'production' });
+      const result = config.call(
+        plugin,
+        {},
+        { isSsrBuild: true, command: 'build', mode: 'production' },
+      );
 
       expect(result).toBeUndefined();
     });

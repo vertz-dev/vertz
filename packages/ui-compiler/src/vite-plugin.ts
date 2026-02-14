@@ -164,7 +164,7 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
               if (scriptMatch?.[1]) {
                 entry = scriptMatch[1];
               } else {
-                // biome-ignore plugin: Build-time configuration error, not an HTTP error
+                // biome-ignore lint: Build-time configuration error, not an HTTP error
                 throw new Error(
                   'Could not auto-detect entry from index.html. Please specify ssr.entry in vertz plugin options.',
                 );
