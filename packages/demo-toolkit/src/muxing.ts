@@ -5,11 +5,33 @@
  * Self-contained module that can be extracted into a separate package.
  */
 
-import { exec } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+/**
+ * Shell metacharacters that could enable command injection (CWE-78)
+ */
+const SHELL_METACHARACTERS = /[;&|`$()<>]/;
+
+/**
+ * Validate that a file path doesn't contain shell metacharacters
+ *
+ * @param path - The file path to validate
+ * @throws Error if the path contains dangerous shell metacharacters
+ */
+function validatePath(path: string): void {
+  if (SHELL_METACHARACTERS.test(path)) {
+    // biome-ignore lint: Security validation error, not an HTTP response error
+    throw new Error(
+      `Path contains shell metacharacters: ${path}. ` +
+        `This could enable command injection (CWE-78).`,
+    );
+  }
+}
 
 /**
  * Check if FFmpeg is available in the system
@@ -41,6 +63,11 @@ export async function combineVideoAudio(
   audioPath: string,
   outputPath: string,
 ): Promise<void> {
+  // Validate paths to prevent shell injection (CWE-78)
+  validatePath(videoPath);
+  validatePath(audioPath);
+  validatePath(outputPath);
+
   const hasFFmpeg = await checkFFmpeg();
 
   if (!hasFFmpeg) {
@@ -51,13 +78,22 @@ export async function combineVideoAudio(
     return;
   }
 
-  // Combine video and audio
+  // Combine video and audio using execFile with argument array (no shell interpolation)
   // -c:v copy = Copy video codec (fast, no re-encoding)
   // -c:a aac = Convert audio to AAC
   // -shortest = Match output duration to shortest input
-  await execAsync(
-    `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac -shortest "${outputPath}"`,
-  );
+  await execFileAsync('ffmpeg', [
+    '-i',
+    videoPath,
+    '-i',
+    audioPath,
+    '-c:v',
+    'copy',
+    '-c:a',
+    'aac',
+    '-shortest',
+    outputPath,
+  ]);
 }
 
 /**
@@ -87,6 +123,9 @@ export async function createAudioTimeline(
   duration: number,
   outputPath: string,
 ): Promise<void> {
+  // Validate output path to prevent shell injection (CWE-78)
+  validatePath(outputPath);
+
   const hasFFmpeg = await checkFFmpeg();
 
   if (!hasFFmpeg || clips.length === 0) {
@@ -95,19 +134,34 @@ export async function createAudioTimeline(
   }
 
   if (clips.length === 1) {
+    // Validate the single clip path
+    validatePath(clips[0].audioPath);
     // Simple case: just copy the single audio file
     await fs.copyFile(clips[0].audioPath, outputPath);
     return;
   }
 
+  // Validate all clip paths to prevent shell injection
+  for (const clip of clips) {
+    validatePath(clip.audioPath);
+  }
+
   // Build FFmpeg filter_complex command for multiple audio clips
   // Example: [0]adelay=1000|1000[a0];[1]adelay=5000|5000[a1];[a0][a1]amix=inputs=2
-  const inputs = clips.map((clip) => `-i "${clip.audioPath}"`).join(' ');
   const delays = clips.map((clip, i) => `[${i}]adelay=${clip.timestamp}|${clip.timestamp}[a${i}]`);
   const mix = `${clips.map((_, i) => `[a${i}]`).join('')}amix=inputs=${clips.length}:duration=longest`;
   const filterComplex = `${delays.join(';')};${mix}`;
 
-  await execAsync(
-    `ffmpeg ${inputs} -filter_complex "${filterComplex}" -t ${duration / 1000} "${outputPath}"`,
-  );
+  // Build argument array (no shell interpolation)
+  const args: string[] = [];
+
+  // Add all input files as separate arguments
+  for (const clip of clips) {
+    args.push('-i', clip.audioPath);
+  }
+
+  // Add filter complex and output options
+  args.push('-filter_complex', filterComplex, '-t', (duration / 1000).toString(), outputPath);
+
+  await execFileAsync('ffmpeg', args);
 }
