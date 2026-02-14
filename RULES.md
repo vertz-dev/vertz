@@ -155,8 +155,81 @@ A ticket is done when:
 - [ ] PR reviewed by different bot
 - [ ] Ticket status updated
 - [ ] No `TODO`, `FIXME`, or placeholder implementations
+- [ ] **Developer Walkthrough passes** (see below)
 
 Full rules: `/workspace/vertz/.claude/rules/definition-of-done.md`
+
+---
+
+## Developer Walkthrough Gate — MANDATORY
+
+> **"It works" ≠ "someone can use it."** A rendering engine that produces perfect HTML
+> but needs 400 lines of glue code is not a feature — it's a toolkit. We ship features.
+
+Every feature ticket MUST include a **Developer Walkthrough** section. The feature is NOT done until this walkthrough passes end-to-end.
+
+### What a Developer Walkthrough looks like
+
+```markdown
+## Developer Walkthrough (must pass before closing)
+
+1. Start from a clean `npm create vertz-app` project (or minimal existing project)
+2. Follow ONLY the public docs/README to enable [feature]
+3. Run the standard dev command (`vite dev`, `bun run dev`, etc.)
+4. Verify [expected user-visible outcome] in the browser/terminal
+5. No undocumented steps. No copying from examples. No reading source code.
+```
+
+### Rules
+
+1. **Acceptance criteria must include at least one user outcome** — not just "renderToStream returns valid HTML" but "developer runs `vite dev` and view-source shows rendered HTML."
+
+2. **Examples must use only the public API** — if an example imports internal modules, writes custom glue code, or needs a different dev command than documented, that's a framework bug, not a feature of the example.
+
+3. **"Fresh start" test before milestone close** — before marking any milestone done, someone must go through the setup from scratch in a new project. "It works in our monorepo" is not sufficient.
+
+4. **The "5-minute rule"** — can a developer go from zero to working in 5 minutes with just the docs? If not, the feature isn't done.
+
+### Review gate question
+
+When reviewing any PR that adds or completes a feature, explicitly ask:
+
+> **"Can a developer use this without reading the source code?"**
+
+If the answer is no, the PR is not ready to merge.
+
+---
+
+## Feature Design — Vertical Slices
+
+> Primitives without integration are not features. Never ship a "Phase N: internals"
+> without also shipping the integration that makes it usable.
+
+### Slice, don't layer
+
+**Wrong (horizontal layers):**
+```
+Phase 5: Build renderToStream, Suspense, hydration markers (all internals)
+Phase 8: Wire it into the Vite plugin (integration, done months later... or never)
+```
+
+**Right (vertical slices):**
+```
+Slice 1: vite dev serves SSR HTML for a simple component (end-to-end)
+Slice 2: Add streaming SSR with Suspense (still end-to-end)
+Slice 3: Add head management (still end-to-end)
+Slice 4: Add hydration (still end-to-end)
+```
+
+### Rules
+
+1. **Every slice must be usable on its own.** No slice ships without the integration/DX layer.
+
+2. **First slice = thinnest possible end-to-end.** Get the developer-facing flow working (even minimally) before building out the internals.
+
+3. **If a PR adds internals with no user-facing integration, it must be explicitly labeled as such** and a follow-up ticket for the integration must exist and be linked. The parent feature stays open until integration ships.
+
+4. **When planning features, start from the developer experience and work backward.** Write the ideal `vite.config.ts` / API call / CLI command first, then figure out what internals are needed. Not the other way around.
 
 ---
 
