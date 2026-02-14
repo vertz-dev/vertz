@@ -1,6 +1,6 @@
 /**
  * Vertz Framework Showcase Demo
- * 
+ *
  * A YC demo day-style presentation showcasing what makes Vertz special.
  */
 
@@ -9,7 +9,8 @@ import type { DemoScript } from '../src/types.js';
 export const showcaseDemo: DemoScript = {
   id: 'vertz-showcase',
   name: 'Vertz Framework Showcase',
-  description: 'A compelling demo highlighting what makes Vertz different from React, Solid, and Vue',
+  description:
+    'A compelling demo highlighting what makes Vertz different from React, Solid, and Vue',
   startUrl: 'http://localhost:5174',
   outputPath: 'vertz-showcase.webm',
   defaultDelay: {
@@ -22,10 +23,10 @@ export const showcaseDemo: DemoScript = {
       type: 'wait',
       ms: 1500,
     },
-    
+
     {
       type: 'narrate',
-      text: 'Meet Vertz — a full-stack framework that combines React\'s developer experience with the performance of fine-grained reactivity.',
+      text: "Meet Vertz — a full-stack framework that combines React's developer experience with the performance of fine-grained reactivity.",
     },
 
     {
@@ -80,7 +81,7 @@ export const showcaseDemo: DemoScript = {
 
     {
       type: 'narrate',
-      text: 'No virtual DOM diffing. No reconciliation. Vertz updates only the exact DOM nodes that changed. This is fine-grained reactivity — and it\'s blazingly fast.',
+      text: "No virtual DOM diffing. No reconciliation. Vertz updates only the exact DOM nodes that changed. This is fine-grained reactivity — and it's blazingly fast.",
     },
 
     {
@@ -133,7 +134,7 @@ export const showcaseDemo: DemoScript = {
 
     {
       type: 'narrate',
-      text: 'Let\'s create a new task. Type-safe forms with built-in validation.',
+      text: "Let's create a new task. Type-safe forms with built-in validation.",
     },
 
     {
@@ -300,7 +301,7 @@ export const showcaseDemo: DemoScript = {
 
     {
       type: 'narrate',
-      text: 'Vertz gives you React\'s JSX and developer experience, Solid\'s fine-grained reactivity, and Remix\'s full-stack primitives — all with TypeScript and Vite.',
+      text: "Vertz gives you React's JSX and developer experience, Solid's fine-grained reactivity, and Remix's full-stack primitives — all with TypeScript and Vite.",
     },
 
     {

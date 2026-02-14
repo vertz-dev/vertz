@@ -1,21 +1,22 @@
 /**
  * Script Runner
- * 
+ *
  * Executes demo scripts with timing and coordination.
  */
 
-import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
-import { DemoRecorder, calculateDelay } from './recorder.js';
-import type { DemoScript, DemoAction, DemoResult, DelayConfig, NarrationClip } from './types.js';
-import { generateTTS, getAudioDuration, combineVideoAudio, createAudioTimeline } from './tts.js';
+import * as path from 'node:path';
+import { BadRequestException } from '@vertz/core';
+import { calculateDelay, type DemoRecorder } from './recorder.js';
+import { combineVideoAudio, createAudioTimeline, generateTTS, getAudioDuration } from './tts.js';
+import type { DelayConfig, DemoAction, DemoResult, DemoScript, NarrationClip } from './types.js';
 
 /**
  * Execute a demo script and record it
  */
 export async function runDemoScript(
   script: DemoScript,
-  recorder: DemoRecorder
+  recorder: DemoRecorder,
 ): Promise<DemoResult> {
   const startTime = Date.now();
   const screenshots: string[] = [];
@@ -40,12 +41,12 @@ export async function runDemoScript(
     // Execute each action
     for (let i = 0; i < script.actions.length; i++) {
       const action = script.actions[i];
-      
+
       console.log(`   → Action ${i + 1}/${script.actions.length}: ${describeAction(action)}`);
-      
+
       // Track timestamp before action
       const actionStartTime = Date.now();
-      
+
       await executeAction(action, recorder, screenshots, narrationClips, currentTimestamp);
 
       // Update current timestamp
@@ -66,30 +67,30 @@ export async function runDemoScript(
 
     // Close and get video path
     const rawVideoPath = await recorder.close();
-    
+
     if (rawVideoPath) {
       const outputPath = path.join(recorder.getOutputDir(), script.outputPath);
-      
+
       // If we have narration clips, combine them with the video
       if (narrationClips.length > 0) {
         console.log(`   🎙️  Processing ${narrationClips.length} narration clip(s)...`);
-        
+
         // Create audio timeline
         const audioTimelinePath = path.join(recorder.getOutputDir(), `${script.id}-audio.mp3`);
         await createAudioTimeline(
-          narrationClips.map(clip => ({ audioPath: clip.audioPath, timestamp: clip.timestamp })),
+          narrationClips.map((clip) => ({ audioPath: clip.audioPath, timestamp: clip.timestamp })),
           currentTimestamp,
-          audioTimelinePath
+          audioTimelinePath,
         );
 
         // Combine video and audio
         const finalOutputPath = outputPath.replace('.webm', '-narrated.webm');
         await combineVideoAudio(rawVideoPath, audioTimelinePath, finalOutputPath);
-        
+
         // Clean up intermediate files
         await fs.unlink(rawVideoPath).catch(() => {});
         await fs.unlink(audioTimelinePath).catch(() => {});
-        
+
         videoPath = finalOutputPath;
         console.log(`   🎙️  Narration added to video`);
       } else {
@@ -150,7 +151,7 @@ async function executeAction(
   recorder: DemoRecorder,
   screenshots: string[],
   narrationClips: NarrationClip[],
-  currentTimestamp: number
+  currentTimestamp: number,
 ): Promise<void> {
   switch (action.type) {
     case 'navigate':
@@ -178,22 +179,22 @@ async function executeAction(
     case 'narrate': {
       const audioPath = path.join(
         recorder.getOutputDir(),
-        `narration-${narrationClips.length + 1}.mp3`
+        `narration-${narrationClips.length + 1}.mp3`,
       );
-      
+
       // Generate TTS audio
       await generateTTS(action.text, audioPath);
-      
+
       // Get audio duration
       const duration = await getAudioDuration(audioPath);
-      
+
       narrationClips.push({
         text: action.text,
         audioPath,
         timestamp: currentTimestamp,
         duration,
       });
-      
+
       // Wait for the audio to "play" (simulate narration time)
       await recorder.wait(duration);
       break;
@@ -203,8 +204,10 @@ async function executeAction(
       await action.fn(recorder.getPage());
       break;
 
-    default:
-      throw new Error(`Unknown action type: ${(action as any).type}`);
+    default: {
+      const _action = action as DemoAction;
+      throw new BadRequestException(`Unknown action type: ${_action.type}`);
+    }
   }
 }
 
