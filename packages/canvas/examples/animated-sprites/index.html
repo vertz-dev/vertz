@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vertz Canvas - Animated Sprites Demo</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: white;
+    }
+    
+    h1 {
+      margin: 0 0 10px 0;
+      font-size: 24px;
+    }
+    
+    .info {
+      margin-bottom: 20px;
+      font-size: 14px;
+      color: #aaa;
+    }
+    
+    .canvas-container {
+      position: relative;
+      display: inline-block;
+      border: 2px solid #333;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    
+    .stats {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #0f0;
+    }
+    
+    .controls {
+      margin-top: 20px;
+    }
+    
+    button {
+      background: #4a90e2;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+    
+    button:hover {
+      background: #357abd;
+    }
+    
+    #root {
+      /* Placeholder for vertz-rendered content */
+    }
+  </style>
+</head>
+<body>
+  <h1>🎨 Vertz Canvas - Animated Sprites</h1>
+  <div class="info">
+    <strong>Spike 01:</strong> 100 animated sprites driven by vertz signals, rendered via PixiJS<br>
+    Each sprite bounces around the canvas with physics. FPS counter shows performance.
+  </div>
+  
+  <div id="root"></div>
+  
+  <script type="module" src="./app.ts"></script>
+</body>
+</html>
