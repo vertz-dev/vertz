@@ -290,10 +290,12 @@ Full rules: `/workspace/backstage/.claude/rules/bot-roles.md`
 - New dependencies require tech lead (ben) approval
 - Zero runtime dependencies for core packages where possible
 
-### Security
+### Security (Zeroth Law)
 - No `eval()` or `new Function()`
+- **No shell string interpolation** — never use `execAsync()` or `exec()` with template literals. Always use `spawn()` with argument arrays: `spawn('cmd', ['--arg', value])`. This prevents command injection (CWE-78).
 - Sanitize user input in examples and docs
 - Document security implications of any API that handles raw HTTP
+- A single critical security violation is an **automatic F** in audits, regardless of other quality
 
 ---
 
@@ -332,3 +334,9 @@ These are failure modes specific to AI coding agents. Read this every session.
 9. **Don't skip reading the ticket and design doc.** The answer to "what should I build?" is in the ticket and design doc, not in your training data. Read them completely before writing any code.
 
 10. **Don't make assumptions about unchanged code.** If you need to modify a file, read it first. Don't assume you know what's there from a previous session.
+
+11. **Don't deliver the wrong ticket's work.** Read the ticket ID in your branch name. Read the actual ticket. Verify what you're building matches what was asked. If the ticket says "5 diagnostic rules" and you're writing bug fixes, stop.
+
+12. **Don't create branches from a dirty worktree.** Always use `git worktree add` for isolated work. If your PR diff contains files from another feature, you've broken isolation. Check `git status` before branching.
+
+13. **Don't ship code that handles external input without spawn().** Any code that shells out with user-controllable input MUST use `spawn()` with argument arrays. This is a Zeroth Law (security) requirement. Violations are automatic F grades.
