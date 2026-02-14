@@ -106,4 +106,41 @@ describe('Signal Auto-Unwrap', () => {
     expect(result.code).toContain('loader.error.value');
     expect(result.diagnostics).toHaveLength(0);
   });
+
+  it('should handle aliased imports', () => {
+    const source = `
+      import { query as fetchData } from '@vertz/ui';
+
+      function TaskList() {
+        const tasks = fetchData('/api/tasks');
+        const data = tasks.data;
+        return <div>{data}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // Should still auto-unwrap even with aliased import
+    expect(result.code).toContain('tasks.data.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('should not auto-unwrap plain (non-signal) properties', () => {
+    const source = `
+      import { query } from '@vertz/ui';
+
+      function TaskList() {
+        const tasks = query('/api/tasks');
+        const refetch = tasks.refetch;
+        return <button onClick={refetch}>Refetch</button>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // Should NOT insert .value for plain properties like refetch
+    expect(result.code).toContain('tasks.refetch');
+    expect(result.code).not.toContain('tasks.refetch.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
 });

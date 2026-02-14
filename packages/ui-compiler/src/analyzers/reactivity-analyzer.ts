@@ -17,6 +17,9 @@ export class ReactivityAnalyzer {
     const bodyNode = findBodyNode(sourceFile, component);
     if (!bodyNode) return [];
 
+    // Build import alias map for signal APIs
+    const importAliases = buildImportAliasMap(sourceFile);
+
     // Pass 1: Collect declarations
     const lets = new Map<string, { start: number; end: number; deps: string[] }>();
     const consts = new Map<string, { start: number; end: number; deps: string[] }>();
@@ -60,8 +63,10 @@ export class ReactivityAnalyzer {
           const callName = callExpr.getExpression();
           if (callName.isKind(SyntaxKind.Identifier)) {
             const fnName = callName.getText();
-            if (isSignalApi(fnName)) {
-              const config = getSignalApiConfig(fnName);
+            // Check both direct name and aliased name
+            const originalName = importAliases.get(fnName) ?? fnName;
+            if (isSignalApi(originalName)) {
+              const config = getSignalApiConfig(originalName);
               if (config) {
                 signalApiVars.set(name, config.signalProperties);
               }
@@ -196,4 +201,33 @@ function collectIdentifierRefs(node: Node): string[] {
   };
   walk(node);
   return refs;
+}
+
+/**
+ * Build a map of import aliases for signal APIs.
+ * Maps local name → original name (e.g., 'q' → 'query')
+ */
+function buildImportAliasMap(sourceFile: SourceFile): Map<string, string> {
+  const aliases = new Map<string, string>();
+
+  for (const importDecl of sourceFile.getImportDeclarations()) {
+    const moduleSpecifier = importDecl.getModuleSpecifierValue();
+    // Only process imports from @vertz/ui
+    if (moduleSpecifier !== '@vertz/ui') continue;
+
+    const namedImports = importDecl.getNamedImports();
+    for (const namedImport of namedImports) {
+      const originalName = namedImport.getName();
+      const aliasNode = namedImport.getAliasNode();
+      if (aliasNode) {
+        const aliasName = aliasNode.getText();
+        // Only track if it's a signal API
+        if (isSignalApi(originalName)) {
+          aliases.set(aliasName, originalName);
+        }
+      }
+    }
+  }
+
+  return aliases;
 }
