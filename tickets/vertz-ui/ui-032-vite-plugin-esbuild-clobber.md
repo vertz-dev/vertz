@@ -1,6 +1,6 @@
 # ui-032: Fix Vite plugin — esbuild clobbers compiler output
 
-- **Status:** 🔴 Todo
+- **Status:** ✅ Complete
 - **Assigned:** ben
 - **Phase:** v0.2.0
 - **Priority:** P0 — blocks demo

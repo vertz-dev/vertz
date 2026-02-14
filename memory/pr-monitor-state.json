@@ -1,0 +1,21 @@
+{
+  "lastRun": "2026-02-14T01:56:00Z",
+  "openPRs": {
+    "262": {
+      "title": "feat(task-manager): Implement REAL SSR with Vite",
+      "author": "app/vertz-dev-core",
+      "status": "BLOCKED",
+      "mergeable": "MERGEABLE",
+      "reviews": [],
+      "note": "No reviewer assigned — bot-authored, needs reviewer"
+    },
+    "220": {
+      "title": "chore: version packages",
+      "author": "app/github-actions",
+      "status": "UNKNOWN",
+      "mergeable": "UNKNOWN",
+      "reviews": [],
+      "note": "Parked — intentionally open until next release"
+    }
+  }
+}
