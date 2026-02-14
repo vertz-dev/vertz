@@ -4,11 +4,13 @@ import { installDomShim, removeDomShim, toVNode } from '../index';
 describe('DOM Shim', () => {
   beforeEach(() => {
     // Set SSR context flag
+    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
     (globalThis as any).__SSR_URL__ = '/test-path';
   });
 
   afterEach(() => {
     removeDomShim();
+    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
     delete (globalThis as any).__SSR_URL__;
   });
 
@@ -22,6 +24,7 @@ describe('DOM Shim', () => {
     it('should create a minimal window object', () => {
       installDomShim();
       expect(globalThis).toHaveProperty('window');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       expect((window as any).location.pathname).toBe('/test-path');
     });
 
@@ -41,6 +44,7 @@ describe('DOM Shim', () => {
     it('should create an element with the given tag', () => {
       const el = document.createElement('div');
       expect(el).toBeDefined();
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       expect((el as any).tag).toBe('div');
     });
 
@@ -54,24 +58,31 @@ describe('DOM Shim', () => {
       const parent = document.createElement('div');
       const child = document.createElement('span');
       parent.appendChild(child);
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       expect((parent as any).children).toHaveLength(1);
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       expect((parent as any).children[0]).toBe(child);
     });
 
     it('should handle className property', () => {
       const el = document.createElement('div');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       (el as any).className = 'foo bar';
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       expect((el as any).className).toBe('foo bar');
       expect(el.getAttribute('class')).toBe('foo bar');
     });
 
     it('should support classList.add and classList.remove', () => {
       const el = document.createElement('div');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       (el as any).classList.add('foo');
       expect(el.getAttribute('class')).toBe('foo');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       (el as any).classList.add('bar');
       expect(el.getAttribute('class')).toContain('foo');
       expect(el.getAttribute('class')).toContain('bar');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       (el as any).classList.remove('foo');
       expect(el.getAttribute('class')).toBe('bar');
     });
@@ -94,13 +105,17 @@ describe('DOM Shim', () => {
 
     it('should create a text node with the given text', () => {
       const textNode = document.createTextNode('Hello');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       expect((textNode as any).text).toBe('Hello');
     });
 
     it('should support data property', () => {
       const textNode = document.createTextNode('Hello');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       expect((textNode as any).data).toBe('Hello');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       (textNode as any).data = 'World';
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       expect((textNode as any).text).toBe('World');
     });
   });
@@ -114,6 +129,7 @@ describe('DOM Shim', () => {
       const fragment = document.createDocumentFragment();
       const child = document.createElement('div');
       fragment.appendChild(child);
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       expect((fragment as any).childNodes).toHaveLength(1);
     });
 
@@ -128,6 +144,7 @@ describe('DOM Shim', () => {
       parent.appendChild(fragment);
 
       // Fragment children should be moved to parent
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       expect((parent as any).children).toHaveLength(2);
     });
   });
@@ -209,7 +226,9 @@ describe('DOM Shim', () => {
 
     it('should update style attribute when setting style properties', () => {
       const el = document.createElement('div');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       (el as any).style.color = 'red';
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       (el as any).style.fontSize = '16px';
 
       const styleAttr = el.getAttribute('style');
@@ -219,6 +238,7 @@ describe('DOM Shim', () => {
 
     it('should convert camelCase to kebab-case', () => {
       const el = document.createElement('div');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
       (el as any).style.backgroundColor = 'blue';
 
       const styleAttr = el.getAttribute('style');

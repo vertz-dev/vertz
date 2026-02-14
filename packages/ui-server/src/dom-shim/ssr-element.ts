@@ -6,6 +6,7 @@ import { SSRTextNode } from './ssr-text-node';
 /**
  * Proxy-based CSSStyleDeclaration shim
  */
+// biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
 function createStyleProxy(element: SSRElement): Record<string, any> {
   const styles: Record<string, string> = {};
 
@@ -42,6 +43,7 @@ export class SSRElement extends SSRNode {
   _classList: Set<string> = new Set();
   _textContent: string | null = null;
   _innerHTML: string | null = null;
+  // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
   style: Record<string, any>;
 
   constructor(tag: string) {
@@ -162,10 +164,12 @@ export class SSRElement extends SSRNode {
     return this._innerHTML ?? '';
   }
 
+  // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
   addEventListener(_event: string, _handler: any): void {
     // No-op in SSR — event handlers are client-side only
   }
 
+  // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
   removeEventListener(_event: string, _handler: any): void {
     // No-op in SSR — event handlers are client-side only
   }

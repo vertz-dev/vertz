@@ -121,6 +121,7 @@ export function removeDomShim(): void {
     'Event',
   ];
   for (const g of globals) {
+    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
     delete (globalThis as any)[g];
   }
 }
@@ -128,6 +129,7 @@ export function removeDomShim(): void {
 /**
  * Convert an SSRElement to a VNode
  */
+// biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
 export function toVNode(element: any): VNode {
   if (element instanceof SSRElement) {
     return element.toVNode();
