@@ -14,6 +14,40 @@ import type { VNode } from '@vertz/ui-server';
 import { installDomShim, removeDomShim, toVNode } from './dom-shim';
 
 /**
+ * Simple route pattern matcher for SSR router fix.
+ * Matches a URL path against a pattern like "/tasks/:id".
+ */
+function matchPattern(pattern: string, path: string): Record<string, string> | null {
+  const patternParts = pattern.split('/').filter(Boolean);
+  const pathParts = path.split('/').filter(Boolean);
+  
+  if (patternParts.length !== pathParts.length) {
+    // Special case: root pattern '/' matches empty path
+    if (pattern === '/' && pathParts.length === 0) {
+      return {};
+    }
+    return null;
+  }
+  
+  const params: Record<string, string> = {};
+  
+  for (let i = 0; i < patternParts.length; i++) {
+    const patternPart = patternParts[i];
+    const pathPart = pathParts[i];
+    
+    if (patternPart.startsWith(':')) {
+      // This is a parameter
+      params[patternPart.slice(1)] = pathPart;
+    } else if (patternPart !== pathPart) {
+      // Literal parts must match exactly
+      return null;
+    }
+  }
+  
+  return params;
+}
+
+/**
  * Render the app to an HTML stream for the given URL.
  */
 export async function render(url: string): Promise<ReadableStream<Uint8Array>> {
@@ -24,8 +58,32 @@ export async function render(url: string): Promise<ReadableStream<Uint8Array>> {
   installDomShim();
   
   try {
-    // Import App dynamically to ensure the DOM shim is installed first
-    // (module-level code in router.ts, settings-context.ts etc. may run)
+    // CRITICAL FIX: Update router match BEFORE importing App
+    // This prevents triggering effects after the app tree is already built.
+    // When router.ts is cached from a previous render, its match is stale.
+    const routerModule = await import('./router');
+    const cleanPath = url.split('?')[0].split('#')[0];
+    
+    // Try to match each route pattern
+    let matchedRoute = null;
+    for (const route of routerModule.routes) {
+      const params = matchPattern(route.pattern, cleanPath);
+      if (params !== null) {
+        matchedRoute = {
+          params,
+          route,
+          matched: [{ route, params }],
+          searchParams: new URLSearchParams(),
+          search: {},
+        };
+        break;
+      }
+    }
+    
+    // Update the router's current match signal directly
+    routerModule.appRouter.current.value = matchedRoute;
+    
+    // NOW import App - the router already has the correct match
     const { App } = await import('./app');
     
     // Call the REAL App component

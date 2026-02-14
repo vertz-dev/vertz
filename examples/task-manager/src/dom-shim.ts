@@ -177,7 +177,14 @@ class SSRDocumentFragment extends SSRNode {
 
 /** Create and install the DOM shim */
 export function installDomShim(): void {
-  if (typeof document !== 'undefined') return; // Already in browser
+  // In a real browser, the document will have a proper doctype and won't be Happy-DOM
+  // Check for Happy-DOM or other test environments by looking for __SSR_URL__ global
+  // If __SSR_URL__ is set, we ALWAYS want to install our shim, even if document exists
+  const isSSRContext = typeof (globalThis as any).__SSR_URL__ !== 'undefined';
+  
+  if (typeof document !== 'undefined' && !isSSRContext) {
+    return; // Already in a real browser, don't override
+  }
   
   const fakeDocument = {
     createElement(tag: string): SSRElement {
@@ -211,6 +218,14 @@ export function installDomShim(): void {
         pushState: () => {},
         replaceState: () => {},
       },
+    };
+  } else {
+    // CRITICAL FIX: Update window.location.pathname even if window already exists
+    // This handles module caching where router.ts was already loaded but we're
+    // rendering a different URL
+    (globalThis as any).window.location = {
+      ...((globalThis as any).window.location || {}),
+      pathname: (globalThis as any).__SSR_URL__ || '/',
     };
   }
   
