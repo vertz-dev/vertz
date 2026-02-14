@@ -28,7 +28,8 @@
     "record:task-manager": "bun src/cli.ts scripts/task-manager.ts"
   },
   "dependencies": {
-    "@playwright/test": "^1.49.1"
+    "@playwright/test": "^1.49.1",
+    "@vertz/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.2.1",

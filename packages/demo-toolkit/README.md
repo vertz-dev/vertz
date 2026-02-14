@@ -7,9 +7,11 @@ Automated demo recording toolkit for Vertz framework.
 Record polished, automated browser demos with:
 - Scripted interactions (clicks, typing, navigation)
 - Video recording via Playwright
+- **Text-to-speech narration** synchronized with video
 - Screenshots at key moments
 - Realistic human-like timing
 - Headless operation
+- Audio/video muxing with FFmpeg
 
 ## Quick Start
 
@@ -38,8 +40,16 @@ export const myDemo: DemoScript = {
   },
   actions: [
     {
+      type: 'narrate',
+      text: 'Welcome to our application. Let me show you how it works.',
+    },
+    {
       type: 'navigate',
       url: '/dashboard',
+    },
+    {
+      type: 'narrate',
+      text: 'First, we\'ll add a new item.',
     },
     {
       type: 'click',
@@ -110,6 +120,15 @@ export const myDemo: DemoScript = {
 }
 ```
 
+### Narrate
+```typescript
+{
+  type: 'narrate',
+  text: 'This is narration text that will be spoken over the video',
+  description: 'Optional description'
+}
+```
+
 ### Custom
 ```typescript
 {
@@ -120,6 +139,21 @@ export const myDemo: DemoScript = {
   }
 }
 ```
+
+## Requirements
+
+- **FFmpeg**: Required for audio/video muxing
+  ```bash
+  # Ubuntu/Debian
+  apt-get install ffmpeg
+  
+  # macOS
+  brew install ffmpeg
+  ```
+
+- **OpenClaw TTS**: The narration feature requires OpenClaw's TTS tool
+  - Professional, warm voice (not robotic)
+  - Automatically synchronized with video
 
 ## Configuration
 
