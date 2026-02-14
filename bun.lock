@@ -30,6 +30,7 @@
       "dependencies": {
         "@vertz/primitives": "workspace:*",
         "@vertz/ui": "workspace:*",
+        "@vertz/ui-server": "workspace:*",
       },
       "devDependencies": {
         "@playwright/test": "^1.58.2",
@@ -132,6 +133,19 @@
         "@electric-sql/pglite": "^0.3.14",
         "@types/node": "^25.2.1",
         "@vitest/coverage-v8": "^4.0.18",
+        "bunup": "latest",
+        "typescript": "^5.7.0",
+        "vitest": "^4.0.18",
+      },
+    },
+    "packages/demo-toolkit": {
+      "name": "@vertz/demo-toolkit",
+      "version": "0.0.0",
+      "dependencies": {
+        "@playwright/test": "^1.49.1",
+      },
+      "devDependencies": {
+        "@types/node": "^25.2.1",
         "bunup": "latest",
         "typescript": "^5.7.0",
         "vitest": "^4.0.18",
@@ -246,7 +260,11 @@
         "@vitest/coverage-v8": "^4.0.18",
         "bunup": "latest",
         "typescript": "^5.7.0",
+        "vite": "^6.0.0",
         "vitest": "^4.0.18",
+      },
+      "peerDependencies": {
+        "vite": "^6.0.0",
       },
     },
   },
@@ -596,6 +614,8 @@
     "@vertz/core": ["@vertz/core@workspace:packages/core"],
 
     "@vertz/db": ["@vertz/db@workspace:packages/db"],
+
+    "@vertz/demo-toolkit": ["@vertz/demo-toolkit@workspace:packages/demo-toolkit"],
 
     "@vertz/fetch": ["@vertz/fetch@workspace:packages/fetch"],
 

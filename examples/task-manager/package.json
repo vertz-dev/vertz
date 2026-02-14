@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@vertz/ui": "workspace:*",
+    "@vertz/ui-server": "workspace:*",
     "@vertz/primitives": "workspace:*"
   },
   "devDependencies": {

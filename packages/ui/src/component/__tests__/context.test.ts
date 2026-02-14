@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import { query } from '../../query/query';
 import { effect, signal } from '../../runtime/signal';
 import { createContext, useContext } from '../context';
@@ -174,7 +174,7 @@ describe('createContext / useContext', () => {
     // The re-fetch should still see '/v2' via the captured context scope
     expect(capturedBases[1]).toBe('/v2');
 
-    q!.dispose();
+    q?.dispose();
   });
 
   test('disposed effect does not re-run on signal change', () => {

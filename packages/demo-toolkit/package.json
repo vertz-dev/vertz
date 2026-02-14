@@ -1,16 +1,13 @@
 {
-  "name": "@vertz/ui-server",
-  "version": "0.1.0",
+  "name": "@vertz/demo-toolkit",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
-    "directory": "packages/ui-server"
-  },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "directory": "packages/demo-toolkit"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -27,19 +24,16 @@
     "build": "bunup",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "record:task-manager": "bun src/cli.ts scripts/task-manager.ts"
   },
   "dependencies": {
-    "@vertz/ui": "workspace:*"
-  },
-  "peerDependencies": {
-    "vite": "^6.0.0"
+    "@playwright/test": "^1.49.1"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.0.18",
+    "@types/node": "^25.2.1",
     "bunup": "latest",
     "typescript": "^5.7.0",
-    "vite": "^6.0.0",
     "vitest": "^4.0.18"
   },
   "engines": {

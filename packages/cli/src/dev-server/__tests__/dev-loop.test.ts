@@ -104,7 +104,7 @@ describe('createDevLoop', () => {
     await loop.start();
     expect(changeHandler).toBeDefined();
 
-    await changeHandler!([{ type: 'change', path: '/project/src/app.ts' }]);
+    await changeHandler?.([{ type: 'change', path: '/project/src/app.ts' }]);
 
     expect(deps.compile).toHaveBeenCalledTimes(2);
     expect(deps.stopProcess).toHaveBeenCalledOnce();
@@ -153,7 +153,7 @@ describe('createDevLoop', () => {
     const loop = createDevLoop(deps);
 
     await loop.start();
-    await changeHandler!([{ type: 'change', path: '/project/src/app.ts' }]);
+    await changeHandler?.([{ type: 'change', path: '/project/src/app.ts' }]);
 
     expect(deps.compile).toHaveBeenCalledTimes(2);
     expect(deps.startProcess).toHaveBeenCalledTimes(1);
