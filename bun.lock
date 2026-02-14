@@ -143,6 +143,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@playwright/test": "^1.49.1",
+        "@vertz/core": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^25.2.1",
@@ -254,6 +255,7 @@
       "name": "@vertz/ui-server",
       "version": "0.1.0",
       "dependencies": {
+        "@vertz/core": "workspace:*",
         "@vertz/ui": "workspace:*",
       },
       "devDependencies": {
