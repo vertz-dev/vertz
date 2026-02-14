@@ -19,12 +19,28 @@ A feature (all phases of a design) is done when:
 
 - [ ] All phase PRs merged to the feature branch
 - [ ] E2E acceptance test passing — the test defined in the design doc at design time
+- [ ] **Developer Walkthrough passing** — a fresh-start walkthrough confirms a developer can use the feature with only the public API and docs. No undocumented steps, no copying from examples, no reading source code.
 - [ ] CI green — all tests, lint, typecheck across the monorepo
 - [ ] Design doc updated — if any deviations occurred during implementation, the design doc reflects the final state
 - [ ] Changeset added — with appropriate semver bump
+- [ ] **Examples use only the public API** — if any example requires internal imports, custom glue code, or a non-standard dev command, the framework has a gap that must be fixed before closing.
 - [ ] Retrospective written — `plans/post-implementation-reviews/<feature>.md`
 - [ ] All Linear tickets marked done
 - [ ] Human approval — an org admin approves the feature branch to main PR
+
+### Developer Walkthrough (mandatory for every feature)
+
+Every feature ticket MUST include a Developer Walkthrough section. The feature is NOT done until this walkthrough passes end-to-end:
+
+1. Start from a clean project (`npm create vertz-app` or minimal setup)
+2. Follow ONLY the public docs/README to enable the feature
+3. Run the standard dev command (`vite dev`, `bun run dev`, etc.)
+4. Verify the expected user-visible outcome
+5. No undocumented steps. No workarounds. No "just read the source."
+
+**The "5-minute rule":** Can a developer go from zero to working in 5 minutes with just the docs? If not, the feature isn't done.
+
+**Review gate question:** When reviewing any feature PR, explicitly ask: *"Can a developer use this without reading the source code?"* If no, the PR is not ready.
 
 ## Bug Fix Done
 
