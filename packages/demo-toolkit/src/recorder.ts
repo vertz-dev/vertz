@@ -7,7 +7,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { type Browser, type BrowserContext, chromium, type Page } from '@playwright/test';
-import { BadRequestException } from '@vertz/core';
 import type { DemoResult, RecorderConfig } from './types.js';
 
 /**
@@ -66,7 +65,7 @@ export class DemoRecorder {
    */
   getPage(): Page {
     if (!this.page) {
-      throw new BadRequestException('Recorder not initialized. Call init() first.');
+      throw new Error('Recorder not initialized. Call init() first.');
     }
     return this.page;
   }

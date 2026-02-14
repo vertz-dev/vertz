@@ -6,7 +6,6 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { BadRequestException } from '@vertz/core';
 import { calculateDelay, type DemoRecorder } from './recorder.js';
 import { combineVideoAudio, createAudioTimeline, generateTTS, getAudioDuration } from './tts.js';
 import type { DelayConfig, DemoAction, DemoResult, DemoScript, NarrationClip } from './types.js';
@@ -204,10 +203,8 @@ async function executeAction(
       await action.fn(recorder.getPage());
       break;
 
-    default: {
-      const _action = action as DemoAction;
-      throw new BadRequestException(`Unknown action type: ${_action.type}`);
-    }
+    default:
+      throw new Error(`Unknown action type: ${(action as any).type}`);
   }
 }
 
