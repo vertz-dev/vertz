@@ -1,0 +1,209 @@
+{
+  "schema": "vertz.audit.v1",
+  "timestamp": "2026-02-14T14:06:00Z",
+  "pr": {
+    "number": 255,
+    "title": "fix(ui-compiler): prevent [object HTMLElement] rendering in JSX expressions",
+    "author": "vertz-dev-core[bot]",
+    "mergedAt": "2026-02-13T23:53:02Z",
+    "filesChanged": 12,
+    "linesAdded": 262,
+    "linesRemoved": 14
+  },
+  "agent": {
+    "id": "vertz-dev-core",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "sessionDurationMs": null,
+    "totalTokens": null
+  },
+  "grade": "D",
+  "gradeNumeric": 1.0,
+  "scores": {
+    "tdd": {
+      "grade": "D",
+      "numeric": 1.0,
+      "checks": {
+        "testBeforeImpl": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Commit messages show 'fix(ui): push disposal scope in onMount' followed by 'test(ui): add edge case tests for onMount disposal scope' - tests written AFTER implementation"
+        },
+        "redGreenCycle": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Cannot verify from commit history alone; session transcript unavailable"
+        },
+        "oneTestAtATime": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Tests appear to be added incrementally based on commit structure"
+        },
+        "qualityGatesBeforeCommit": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Cannot verify without session transcript; no logs of 'bun run test && bun run typecheck && bun run lint' before commits"
+        },
+        "noTypeEscapes": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No @ts-ignore, as any, .skip, or --no-verify found in diff"
+        }
+      }
+    },
+    "process": {
+      "grade": "F",
+      "numeric": 0.0,
+      "checks": {
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Branch 'fix/htmlelement-rendering-bug' used"
+        },
+        "atomicCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Multiple logical commits shown in merge commit message"
+        },
+        "changesetAdded": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "git show cca3d38 --name-only shows no .changeset/*.md file; packages @vertz/ui and @vertz/ui-compiler modified without changeset"
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Author is vertz-dev-core[bot], proper bot identity used"
+        },
+        "noPushToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR merged via GitHub, not pushed directly to main"
+        },
+        "ciGreenBeforeMerge": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "gh pr checks 255 shows 'Lint, typecheck, test: fail' - PR merged with failing CI (Dagger infrastructure error)"
+        }
+      }
+    },
+    "design": {
+      "grade": "C",
+      "numeric": 2.0,
+      "checks": {
+        "readTicketFirst": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No ticket linked in PR body; cannot verify ticket was read first"
+        },
+        "readRules": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Cannot verify without session transcript"
+        },
+        "scopeCompliance": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "PR title says 'prevent [object HTMLElement] rendering' but also includes unrelated onMount/onCleanup disposal scope fix (lifecycle.ts + 77 lines of lifecycle.test.ts)"
+        },
+        "deviationsEscalated": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Scope expanded to include unrelated fix without documenting as design deviation"
+        }
+      }
+    },
+    "dx": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "developerWalkthrough": {
+          "pass": true,
+          "severity": null,
+          "evidence": "N/A - internal framework fix, no public API change requiring walkthrough"
+        },
+        "userOutcomeTests": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Tests verify actual DOM behavior, not just internal API"
+        },
+        "publicApiOnly": {
+          "pass": true,
+          "severity": null,
+          "evidence": "New exports properly added to @vertz/ui/internals"
+        },
+        "verticalSlice": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Complete feature: __child() and __insert() fully integrated into compiler and runtime"
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() in diff"
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No hardcoded secrets found"
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Proper type checking with 'instanceof Node' before DOM operations"
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "process.changesetAdded",
+      "severity": "critical",
+      "description": "Missing changeset for package changes",
+      "evidence": "Modified @vertz/ui and @vertz/ui-compiler without adding .changeset/*.md file",
+      "recommendation": "Add changeset retroactively: 'bun changeset add' selecting both packages with patch bump"
+    },
+    {
+      "rule": "process.ciGreenBeforeMerge",
+      "severity": "major",
+      "description": "PR merged with failing CI",
+      "evidence": "gh pr checks 255 shows 'Lint, typecheck, test: fail' status",
+      "recommendation": "Re-run CI or investigate failure before merge, even for infrastructure issues"
+    },
+    {
+      "rule": "design.scopeCompliance",
+      "severity": "major",
+      "description": "Significant scope creep - bundled unrelated fixes",
+      "evidence": "PR includes both HTMLElement rendering fix AND onMount disposal scope fix (lifecycle.ts + 77 lines lifecycle.test.ts)",
+      "recommendation": "Split unrelated fixes into separate PRs, or document multi-fix PRs explicitly in description"
+    },
+    {
+      "rule": "tdd.testBeforeImpl",
+      "severity": "major",
+      "description": "Tests written after implementation",
+      "evidence": "Commit sequence: 'fix(ui): push disposal scope' → 'test(ui): add edge case tests'",
+      "recommendation": "Write ONE failing test first, see it fail, then implement minimal code to pass"
+    },
+    {
+      "rule": "tdd.qualityGatesBeforeCommit",
+      "severity": "major",
+      "description": "Cannot verify quality gates run before commits",
+      "evidence": "No session transcript available; no logged evidence of 'bun run test && typecheck && lint' before commits",
+      "recommendation": "Bot sessions should log quality gate runs with timestamps for audit trail"
+    },
+    {
+      "rule": "design.readTicketFirst",
+      "severity": "minor",
+      "description": "No ticket linked",
+      "evidence": "PR body does not reference a ticket number",
+      "recommendation": "Even for bug fixes, create ticket or reference issue that triggered the fix"
+    }
+  ],
+  "summary": "Technically sound fix with comprehensive test coverage and good code quality. However, multiple major process violations: missing changeset (critical), merged with failing CI, significant scope creep (bundled unrelated onMount fix), and likely TDD violations (tests after implementation). Grade: D - process compliance issues prevent higher grade despite quality code."
+}
