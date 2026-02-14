@@ -1,0 +1,224 @@
+{
+  "schema": "vertz.audit.v1",
+  "timestamp": "2026-02-14T17:19:00Z",
+  "pr": {
+    "number": 269,
+    "title": "feat(compiler): eliminate .value from public API — auto-unwrap signal properties",
+    "author": "nora",
+    "agentId": "vertz-tech-lead",
+    "mergedAt": "2026-02-14T17:14:45Z",
+    "filesChanged": 8,
+    "linesAdded": 681,
+    "linesRemoved": 4
+  },
+  "agent": {
+    "id": "nora",
+    "role": "vertz-tech-lead",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "sessionDurationMs": null,
+    "totalTokens": null
+  },
+  "grade": "D",
+  "gradeNumeric": 1.0,
+  "scores": {
+    "tdd": {
+      "grade": "F",
+      "numeric": 0.0,
+      "checks": {
+        "testBeforeImpl": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "All 681 lines (tests + implementation) committed together in fda3d59be6b508ae921f285e0baa95b22f93e4ad at 15:53:26Z. Zero incremental development."
+        },
+        "redGreenCycle": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "No evidence of RED phase. All tests written alongside implementation, no failing test runs observed."
+        },
+        "oneTestAtATime": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "411 lines of tests committed in batch with 270 lines of implementation. No incremental test → code → test cycle."
+        },
+        "qualityGatesBeforeCommit": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Commit 1631ef43ba2a4be68733617d352b24938065da30 (16:10:11Z) fixes lint violations from first commit. Proves 'bun run lint' was NOT run before initial commit."
+        },
+        "noTypeEscapes": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No @ts-ignore, as any, .skip, or --no-verify found in diff."
+        }
+      }
+    },
+    "process": {
+      "grade": "D",
+      "numeric": 1.0,
+      "checks": {
+        "worktreeIsolation": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "PR claims to be 'clean recreation' to fix worktree pollution from PR #264, but commit b7ca1e1f9203b942c678b2a2da170592c1f893b3 (audit for PR #267) was picked up, requiring cleanup commit 183ce173ab3d738486b92750de0c7c26e48f7a9d. Worktree isolation was NOT used."
+        },
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Feature branch feat/signal-unwrap created."
+        },
+        "atomicCommits": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "First commit contains 681 lines across 8 files. Not atomic — should be multiple smaller commits (one per test case)."
+        },
+        "changesetAdded": {
+          "pass": true,
+          "severity": null,
+          "evidence": ".changeset/signal-auto-unwrap.md present with correct format."
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Commits authored by kai@vertz.dev (bot identity)."
+        },
+        "noPushToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All commits on feature branch, PR merged via GitHub UI."
+        }
+      }
+    },
+    "design": {
+      "grade": "F",
+      "numeric": 0.0,
+      "checks": {
+        "ticketExists": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "No ticket found in /workspace/vertz/tickets/, no GitHub issue found via 'gh issue list --search signal value unwrap'. RULES.md: 'Never commit without a ticket.'"
+        },
+        "designDocExists": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "No design doc found in /workspace/vertz/plans/. No stakeholder approval (josh for DX, pm for product) obtained."
+        },
+        "readTicketFirst": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Cannot verify — no ticket exists."
+        },
+        "readRules": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify from available data."
+        },
+        "scopeCompliance": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All 8 files changed are within ui-compiler package, relevant to signal unwrapping."
+        },
+        "deviationsEscalated": {
+          "pass": null,
+          "severity": null,
+          "evidence": "N/A - no documented scope to deviate from."
+        }
+      }
+    },
+    "dx": {
+      "grade": "B",
+      "numeric": 3.0,
+      "checks": {
+        "developerWalkthrough": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Demo test file (signal-unwrap-demo.test.ts) effectively serves as walkthrough showing before/after developer experience."
+        },
+        "userOutcomeTests": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Tests verify developer-facing behavior (compiler output) not just internal state."
+        },
+        "publicApiOnly": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Tests use compile() function from public API, no internal imports."
+        },
+        "verticalSlice": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Feature is end-to-end: registry → analyzer → transformer → compiler output. Developer can use immediately."
+        },
+        "testCoverage": {
+          "pass": true,
+          "severity": null,
+          "evidence": "411 lines of tests for 270 lines of implementation (1.52x ratio). Comprehensive edge cases covered."
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() in diff."
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No secrets in diff."
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "N/A - pure compiler transformation, no external input."
+        },
+        "noShellInjection": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No shell commands executed."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "tdd.testBeforeImpl",
+      "severity": "critical",
+      "description": "All tests and implementation (681 lines) committed together with no incremental development",
+      "evidence": "Commit fda3d59be6b508ae921f285e0baa95b22f93e4ad (2026-02-14 15:53:26Z) contains all 8 files (tests + implementation) in one commit. No evidence of test-first RED-GREEN cycle.",
+      "recommendation": "Practice TDD on next ticket: write ONE test, run it (RED), write minimal code (GREEN), run quality gates, commit, repeat. Read /workspace/vertz/.claude/rules/tdd.md."
+    },
+    {
+      "rule": "tdd.qualityGatesBeforeCommit",
+      "severity": "major",
+      "description": "Lint not run before first commit",
+      "evidence": "Commit 1631ef43ba2a4be68733617d352b24938065da30 (16:10:11Z) titled 'fix: format test file' contains formatting-only changes (double quotes → single quotes). This proves lint was not run before the initial commit.",
+      "recommendation": "Run 'bun run test && bun run typecheck && bun run lint' before EVERY commit. Consider pre-commit hooks to enforce this."
+    },
+    {
+      "rule": "process.worktreeIsolation",
+      "severity": "major",
+      "description": "Worktree isolation not used despite PR claiming to fix that exact issue",
+      "evidence": "PR #269 was created to replace PR #264 which had worktree pollution. However, commit b7ca1e1f9203b942c678b2a2da170592c1f893b3 (audit for PR #267) was picked up, requiring cleanup commit 183ce173ab3d738486b92750de0c7c26e48f7a9d.",
+      "recommendation": "Always use 'git worktree add /tmp/worktrees/<feature> -b <branch> main' for isolated feature work. Read auditor.md and pr-policies.md for the complete workflow."
+    },
+    {
+      "rule": "design.ticketRequired",
+      "severity": "critical",
+      "description": "No ticket or design doc exists for this feature",
+      "evidence": "Searched /workspace/vertz/tickets/, /workspace/vertz/plans/, and GitHub issues — no ticket found. RULES.md states 'Never commit without a ticket.'",
+      "recommendation": "Create tickets BEFORE starting work. If unsure whether work needs a ticket, ask. Architectural changes like this require design doc + stakeholder approval (josh for DX, pm for product)."
+    },
+    {
+      "rule": "process.atomicCommits",
+      "severity": "major",
+      "description": "First commit is a 681-line mega-commit across 8 files",
+      "evidence": "Commit fda3d59be6b508ae921f285e0baa95b22f93e4ad adds 681 lines in one commit. Should be broken into logical increments (registry, analyzer, transformer, tests).",
+      "recommendation": "One logical change per commit. For TDD: each test case + its implementation = one commit. Makes review easier and git history more useful."
+    }
+  ],
+  "summary": "PR #269 delivers excellent code quality (comprehensive tests, clean architecture, zero security issues) but with systematic process violations: TDD cycle completely skipped (all 681 lines in one commit), quality gates not run before first commit, worktree isolation not used despite claiming to fix that issue, and no ticket or design doc authorization. Grade D: good code, broken process. Requires immediate corrective action and TDD training."
+}

@@ -1,0 +1,284 @@
+{
+  "schema": "vertz.audit.v1",
+  "audit": {
+    "date": "2026-02-14",
+    "auditor": "auditor-bot",
+    "model": "anthropic/claude-sonnet-4-5-20250929"
+  },
+  "pr": {
+    "number": 259,
+    "title": "feat/ui 033 compiler diagnostics",
+    "url": "https://github.com/vertz-dev/vertz/pull/259",
+    "author": {
+      "id": "app/vertz-dev-core",
+      "type": "bot"
+    },
+    "mergedAt": "2026-02-14T00:25:07Z",
+    "additions": 213,
+    "deletions": 7,
+    "filesChanged": 6
+  },
+  "agent": {
+    "id": "vertz-dev-core",
+    "secondaryAgents": ["vertz-tech-lead"],
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "durationMinutes": null,
+    "tokensUsed": null
+  },
+  "ticket": {
+    "id": "ui-033",
+    "title": "Compiler diagnostic rules — catch runtime bugs at build time",
+    "path": "/workspace/vertz/tickets/vertz-ui/ui-033-compiler-diagnostic-rules.md"
+  },
+  "grade": {
+    "overall": "F",
+    "numeric": 0,
+    "summary": "Critical violation: PR delivers completely wrong work. Ticket ui-033 requires implementing 5 compiler diagnostic rules; PR delivers zero diagnostic rules and instead contains two unrelated bug fixes (lefthook config + conditional JSX). This represents complete failure to read and execute the assigned ticket."
+  },
+  "scores": {
+    "tdd": {
+      "grade": "Unknown",
+      "numeric": null,
+      "summary": "Cannot verify TDD compliance without session transcript. Tests exist and are comprehensive, but order of writes unknown.",
+      "checks": {
+        "testFirst": {
+          "pass": null,
+          "severity": null,
+          "evidence": "No session transcript available to verify if tests were written before implementation"
+        },
+        "redGreenCycle": {
+          "pass": null,
+          "severity": null,
+          "evidence": "No session transcript available to verify test runs and failures before implementation"
+        },
+        "oneTestAtATime": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify incremental TDD without transcript"
+        },
+        "qualityGatesBeforeCommit": {
+          "pass": null,
+          "severity": null,
+          "evidence": "No session transcript showing 'bun run test && bun run typecheck && bun run lint' before commits"
+        },
+        "noTypeBypass": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No @ts-ignore, as any, or .skip found in diff"
+        }
+      }
+    },
+    "process": {
+      "grade": "F",
+      "numeric": 0,
+      "summary": "Critical failures: delivered wrong ticket entirely (ui-033 not implemented), mixed scope (two unrelated fixes), missing ticket for one fix, mislabeled PR type.",
+      "checks": {
+        "ticketRead": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Ticket ui-033 requires 5 diagnostic rules (lifecycle-scope, untransformed-jsx, missing-cleanup, raw-dom-mutation, signal-outside-component). PR implements NONE of these. Delivered lefthook config and conditional JSX fixes instead."
+        },
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Branch feat/ui-033-compiler-diagnostics created"
+        },
+        "atomicCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Two commits, each is atomic and well-structured"
+        },
+        "changesetAdded": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No changeset file in diff for package changes"
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Commit authors show [bot] suffix: vertz-tech-lead[bot] and vertz-dev-core[bot]"
+        },
+        "noDirectMainPush": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR merged to main, not pushed directly"
+        },
+        "scopeAdherence": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "PR contains two unrelated fixes (infra-002 + conditional JSX) neither of which is the assigned work (ui-033 diagnostic rules)"
+        },
+        "commitWithoutTicket": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Commit 2 (conditional JSX fix) has no ticket. References issue #255 but that's a different bug (HTMLElement stringification)"
+        }
+      }
+    },
+    "design": {
+      "grade": "F",
+      "numeric": 0,
+      "summary": "Complete deviation from design. Zero overlap between ticket specification and delivered work. No escalation of deviation.",
+      "checks": {
+        "designDocRead": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "ui-033 specifies diagnostic rules, file structure, and acceptance criteria. None followed. Expected files: lifecycle-diagnostics.ts, jsx-diagnostics.ts, etc. Actual files: lefthook.yml, jsx-transformer.ts, conditional.ts"
+        },
+        "filesMatchScope": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Zero files match ui-033 specification. Changed files are from different features entirely"
+        },
+        "deviationsEscalated": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "No evidence of escalation despite delivering completely different work than assigned"
+        },
+        "acceptanceCriteriaMet": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "ui-033 has 10 acceptance criteria for diagnostic rules. Zero met. PR delivered different features."
+        }
+      }
+    },
+    "dx": {
+      "grade": "B",
+      "numeric": 3,
+      "summary": "Code quality is high for what was delivered. Tests are comprehensive, fixes are correct, commit messages follow convention. But high code quality on the wrong code doesn't help.",
+      "checks": {
+        "testCoverage": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Both fixes have comprehensive test files: lefthook-config.test.ts (68 lines) and jsx-conditional-nested.test.ts (120 lines)"
+        },
+        "publicApiDoc": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Changes are internal fixes, not new public API"
+        },
+        "examplesUsePublicApi": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No examples modified"
+        },
+        "conventionalCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Both commits follow convention: 'fix(infra):' and 'fix(ui-compiler):'"
+        },
+        "developerWalkthrough": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Not applicable — these are bug fixes, not new features requiring walkthrough"
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4,
+      "summary": "No security violations detected.",
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() in diff"
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No secrets or credentials in diff"
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No user input handling in changed code"
+        },
+        "noShellInjection": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No shell command execution in diff. Lefthook config uses dagger but not with interpolation."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "Ticket Scope Adherence",
+      "severity": "critical",
+      "category": "process",
+      "description": "PR #259 claims to implement ui-033 (Compiler Diagnostic Rules) but delivers ZERO of the 5 required diagnostic rules. Instead contains two unrelated bug fixes.",
+      "evidence": "Ticket ui-033 at /workspace/vertz/tickets/vertz-ui/ui-033-compiler-diagnostic-rules.md specifies: lifecycle-scope, untransformed-jsx, missing-cleanup, raw-dom-mutation, signal-outside-component rules. PR diff shows lefthook.yml, jsx-transformer.ts, conditional.ts — none of the files listed in ui-033.",
+      "recommendation": "Before implementation, agent must output: 'Ticket: [ID]. Summary: [one sentence]. Acceptance criteria: [list].' This forces explicit ticket reading and prevents scope confusion."
+    },
+    {
+      "rule": "Design Compliance",
+      "severity": "critical",
+      "category": "design",
+      "description": "Complete deviation from ticket specification with no escalation. Agent never read or followed the design.",
+      "evidence": "Zero overlap between expected files (lifecycle-diagnostics.ts, jsx-diagnostics.ts, etc.) and actual changes (lefthook.yml, jsx-transformer.ts). No escalation to VP Eng or Tech Lead despite fundamental deviation.",
+      "recommendation": "At PR creation, agent must compare changed files against ticket's 'Files' section and flag mismatches immediately. Require explicit confirmation: 'Files changed match ticket specification: Y/N'."
+    },
+    {
+      "rule": "Commit Without Ticket",
+      "severity": "major",
+      "category": "process",
+      "description": "Second commit (conditional JSX fix) has no ticket. References issue #255 but that's about a different bug.",
+      "evidence": "Commit message: 'fix(ui-compiler): transform JSX in conditional branches, remove .node access' references 'after PR #255' but issue #255 is about HTMLElement stringification, not conditional JSX. No ticket found for this work.",
+      "recommendation": "When discovering bugs during development, create separate ticket before fixing. Never commit without a ticket ID. Enforce with pre-commit hook checking for ticket reference."
+    },
+    {
+      "rule": "Mixed Scope in PR",
+      "severity": "major",
+      "category": "process",
+      "description": "PR contains two unrelated fixes: lefthook configuration (infra) and conditional JSX (ui-compiler). Should be separate PRs.",
+      "evidence": "Commit 1: 'fix(infra): add quality-gates command to pre-push hook (infra-002)'. Commit 2: 'fix(ui-compiler): transform JSX in conditional branches'. Different packages, different concerns.",
+      "recommendation": "One PR per logical change. When fixing multiple unrelated issues, create separate branches and PRs. This makes rollback and review cleaner."
+    },
+    {
+      "rule": "PR Type Mismatch",
+      "severity": "minor",
+      "category": "process",
+      "description": "PR title says 'feat/ui 033' but both commits are 'fix:' types.",
+      "evidence": "PR title: 'feat/ui 033 compiler diagnostics'. Commit 1: 'fix(infra)'. Commit 2: 'fix(ui-compiler)'. No feat commits in PR.",
+      "recommendation": "Derive PR title from commit types, not from branch name. Branch name can be wrong (as here). Use conventional commit types consistently."
+    },
+    {
+      "rule": "Missing Changeset",
+      "severity": "minor",
+      "category": "process",
+      "description": "Package changes require changeset file. None present.",
+      "evidence": "PR modifies packages/integration-tests/package.json (adds yaml dependency) and packages/ui-compiler/src/ and packages/ui/src/. No .changeset file in diff.",
+      "recommendation": "Run 'changeset add' before committing any package changes. This should be enforced in pre-commit hook."
+    },
+    {
+      "rule": "TDD Verification Impossible",
+      "severity": "major",
+      "category": "process",
+      "description": "Cannot verify TDD compliance without session transcript. Tests exist but order of writes unknown.",
+      "evidence": "No session transcript in /workspace or linked in PR. Cannot verify if tests were written before implementation, if quality gates ran before commits, or if red-green cycle was followed.",
+      "recommendation": "ALL merged PRs must have session transcript stored at plans/audits/sessions/YYYY-MM-DD-prNNN.md or equivalent. Without it, TDD auditing is impossible. Make transcript generation automatic at session end."
+    }
+  ],
+  "metrics": {
+    "filesChanged": 6,
+    "testsAdded": 2,
+    "testLines": 188,
+    "implementationLines": 44,
+    "testToImplRatio": 4.27,
+    "commitsCount": 2,
+    "reviewers": 0,
+    "timeToMergeHours": null
+  },
+  "recommendations": [
+    "Immediate: Close or retitle PR #259 to reflect actual contents. Create proper tickets for the two fixes delivered.",
+    "Immediate: Create NEW branch and PR for actual ui-033 implementation. Update ui-033 status to Todo.",
+    "Process: Require agents to output ticket summary and acceptance criteria at session start before any implementation.",
+    "Process: At PR creation, validate changed files against ticket specification. Flag mismatches automatically.",
+    "Process: Store session transcripts for all merged PRs to enable TDD auditing.",
+    "Process: Separate bug fix flow — when bugs discovered during feature work, create separate ticket and PR.",
+    "Tooling: Add pre-commit hook to verify ticket reference in commit messages.",
+    "Tooling: Add pre-commit hook to require changeset for package changes."
+  ]
+}
