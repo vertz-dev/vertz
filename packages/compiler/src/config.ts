@@ -1,21 +1,3 @@
-import type {
-  CodegenCLIConfig,
-  CodegenCLIPublishableConfig,
-  CodegenConfig,
-  GeneratorName as CodegenGeneratorName,
-  CodegenPublishableConfig,
-  CodegenTypescriptConfig,
-} from '@vertz/codegen';
-
-export type {
-  CodegenCLIConfig,
-  CodegenCLIPublishableConfig,
-  CodegenConfig,
-  CodegenPublishableConfig,
-  CodegenTypescriptConfig,
-};
-export type { CodegenGeneratorName };
-
 export interface SchemaConfig {
   enforceNaming: boolean;
   enforcePlacement: boolean;
@@ -50,14 +32,12 @@ export interface VertzConfig {
   strict?: boolean;
   forceGenerate?: boolean;
   compiler?: Partial<CompilerConfig>;
-  codegen?: CodegenConfig;
 }
 
 export interface ResolvedConfig {
   strict: boolean;
   forceGenerate: boolean;
   compiler: CompilerConfig;
-  codegen?: CodegenConfig;
 }
 
 export function defineConfig(config: VertzConfig): VertzConfig {
@@ -68,7 +48,6 @@ export function resolveConfig(config?: VertzConfig): ResolvedConfig {
   return {
     strict: config?.strict ?? false,
     forceGenerate: config?.forceGenerate ?? false,
-    codegen: config?.codegen,
     compiler: {
       sourceDir: config?.compiler?.sourceDir ?? 'src',
       outputDir: config?.compiler?.outputDir ?? '.vertz/generated',

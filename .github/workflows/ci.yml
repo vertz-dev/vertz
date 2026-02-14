@@ -59,16 +59,15 @@ jobs:
             exit 0
           fi
 
-          # Source patterns — must stay in sync with ci/src/index.ts SOURCE_PATTERNS
+          # Source patterns — if any of these change, run the full CI pipeline
           SOURCE_PATTERNS=(
             "packages/"
             "biome-plugins/"
-            "ci/"
             "biome.json"
             "tsconfig.json"
             "package.json"
             "bun.lock"
-            "dagger.json"
+            "turbo.json"
             "lefthook.yml"
           )
 
@@ -101,32 +100,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # smart-ci needs git history to find the common ancestor with main
           fetch-depth: 0
 
-      - name: Run CI pipeline (push to main)
-        if: github.event_name == 'push'
-        uses: dagger/dagger-for-github@v8.2.0
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: "latest"
-          verb: call
-          args: ci --progress plain
+          bun-version: latest
 
-      - name: Run CI pipeline (pull request — smart skip)
-        if: github.event_name == 'pull_request'
-        uses: dagger/dagger-for-github@v8.2.0
-        with:
-          version: "latest"
-          verb: call
-          args: smart-ci --base-branch main --progress plain
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
-      - name: Run CI pipeline (workflow_dispatch — auto-rebase)
-        if: github.event_name == 'workflow_dispatch'
-        uses: dagger/dagger-for-github@v8.2.0
-        with:
-          version: "latest"
-          verb: call
-          args: smart-ci --base-branch main --progress plain
+      - name: CI pipeline
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            bun run ci
+          else
+            bun run ci:affected
+          fi
 
   coverage:
     name: Coverage report
