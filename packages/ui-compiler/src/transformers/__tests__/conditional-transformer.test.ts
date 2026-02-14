@@ -143,4 +143,38 @@ function App() {
       expect(internalsImport).toContain('__conditional');
     });
   });
+
+  describe('nested parentheses', () => {
+    it('handles nested parentheses (((expr))) in conditional expressions', () => {
+      const result = compile(
+        `
+function App() {
+  let active = true;
+  return <div>{(((active))) ? <span>Yes</span> : <span>No</span>}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__conditional(');
+      // Parentheses are preserved but reactivity works correctly
+      expect(result.code).toContain('active.value');
+      expect(result.code).toContain('__element("span")');
+    });
+
+    it('handles mixed parentheses and logical operators', () => {
+      const result = compile(
+        `
+function App() {
+  let show = true;
+  return <div>{((show)) && <span>Content</span>}</div>;
+}
+        `.trim(),
+      );
+
+      expect(result.code).toContain('__conditional(');
+      // Parentheses are preserved but reactivity works correctly
+      expect(result.code).toContain('show.value');
+      expect(result.code).toContain('() => null');
+    });
+  });
 });
