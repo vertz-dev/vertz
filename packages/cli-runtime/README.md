@@ -46,20 +46,18 @@ const config: CLIConfig = {
         description: 'List all users',
         method: 'GET',
         path: '/users',
-        parameters: [],
       },
       get: {
         description: 'Get a user by ID',
         method: 'GET',
         path: '/users/:id',
-        parameters: [
-          {
-            name: 'id',
+        params: {
+          id: {
             type: 'string',
             description: 'User ID',
             required: true,
           },
-        ],
+        },
       },
     },
   },
@@ -109,46 +107,66 @@ console.log(parsed);
 
 ```typescript
 import { resolveParameters } from '@vertz/cli-runtime';
-import type { CommandDefinition, ResolverContext } from '@vertz/cli-runtime';
+import type { CommandDefinition, ResolverContext, PromptAdapter } from '@vertz/cli-runtime';
 
 const command: CommandDefinition = {
   description: 'Create a user',
   method: 'POST',
   path: '/users',
-  parameters: [
-    {
-      name: 'name',
+  body: {
+    name: {
       type: 'string',
       description: 'User name',
       required: true,
     },
-    {
-      name: 'role',
-      type: 'select',
+    role: {
+      type: 'string',
       description: 'User role',
       required: true,
-      options: [
-        { value: 'admin', label: 'Administrator' },
-        { value: 'user', label: 'Standard User' },
-      ],
-    },
-  ],
-};
-
-const context: ResolverContext = {
-  flags: { name: 'Alice' }, // role not provided
-  promptAdapter: {
-    // Interactive prompt for missing values
-    async prompt(message, type, opts) {
-      if (type === 'select') {
-        return opts.options[0].value; // Pick first option
-      }
-      return 'default';
+      enum: ['admin', 'user'],
     },
   },
 };
 
-const resolved = await resolveParameters(command.parameters, context);
+const flags = { name: 'Alice' }; // role not provided
+
+const resolvers = {
+  // Custom resolvers for parameters that need dynamic options
+  organization: {
+    param: 'organization',
+    prompt: 'Select organization',
+    async fetchOptions(context: ResolverContext) {
+      // Fetch from API
+      return [
+        { value: 'org1', label: 'Organization 1' },
+        { value: 'org2', label: 'Organization 2' },
+      ];
+    },
+  },
+};
+
+const context: ResolverContext = {
+  client: createFetchClient({ baseURL: 'https://api.example.com' }),
+  args: {},
+};
+
+const promptAdapter: PromptAdapter = {
+  async select({ message, choices }) {
+    // Pick first option in non-interactive mode
+    return choices[0]?.value ?? '';
+  },
+  async text({ message, defaultValue }) {
+    return defaultValue ?? '';
+  },
+};
+
+const resolved = await resolveParameters(
+  command,
+  flags,
+  resolvers,
+  context,
+  promptAdapter,
+);
 
 console.log(resolved);
 // { name: 'Alice', role: 'admin' }
@@ -160,45 +178,76 @@ The `AuthManager` handles OAuth device code flow and token storage:
 
 ```typescript
 import { createAuthManager } from '@vertz/cli-runtime';
+import { createFetchClient } from '@vertz/fetch';
 
+// Create auth manager with config directory
 const auth = createAuthManager({
-  tokenURL: 'https://auth.example.com/token',
-  deviceCodeURL: 'https://auth.example.com/device',
-  clientId: 'my-cli-app',
   configDir: '~/.myapp',
 });
 
-// Start device code flow
-const deviceCode = await auth.startDeviceCodeFlow();
+// Create a fetch client for API requests
+const client = createFetchClient({ baseURL: 'https://api.example.com' });
 
-console.log(`Visit ${deviceCode.verificationUri}`);
-console.log(`Code: ${deviceCode.userCode}`);
+// Initiate device code flow
+const deviceCode = await auth.initiateDeviceCodeFlow(
+  client,
+  'https://auth.example.com/device',
+  'my-cli-app',
+  ['read', 'write'], // optional scopes
+);
+
+console.log(`Visit ${deviceCode.verification_uri}`);
+console.log(`Code: ${deviceCode.user_code}`);
 
 // Poll for token
-const credentials = await auth.pollForToken(
-  deviceCode.deviceCode,
+const tokenResponse = await auth.pollForToken(
+  client,
+  'https://auth.example.com/token',
+  deviceCode.device_code,
+  'my-cli-app',
   deviceCode.interval,
+  deviceCode.expires_in,
 );
 
 console.log('Logged in!');
-console.log(credentials.accessToken);
+console.log(tokenResponse.access_token);
 
 // Later: retrieve stored credentials
 const stored = await auth.loadCredentials();
-if (stored) {
+if (stored.accessToken) {
   console.log('Already logged in');
 }
+
+// Get access token (checks expiration)
+const token = await auth.getAccessToken();
+if (token) {
+  console.log('Valid token:', token);
+}
+
+// Refresh token if needed
+const refreshed = await auth.refreshAccessToken(
+  client,
+  'https://auth.example.com/token',
+  'my-cli-app',
+);
+
+// Store tokens manually if needed
+await auth.storeTokens(tokenResponse);
+
+// Clear credentials
+await auth.clearCredentials();
 ```
 
 **Config storage:**
 
-Credentials are stored in `~/.myapp/config.json` (or your custom config dir):
+Credentials are stored in `~/.myapp/credentials.json` (or your custom config dir):
 
 ```json
 {
   "accessToken": "...",
   "refreshToken": "...",
-  "expiresAt": 1234567890
+  "expiresAt": 1234567890,
+  "apiKey": "..."
 }
 ```
 
@@ -225,8 +274,8 @@ console.log(formatOutput(data, 'table'));
 // │ 2   │ Bob   │ user  │
 // └─────┴───────┴───────┘
 
-// Plain text output
-console.log(formatOutput(data, 'text'));
+// Human-readable output
+console.log(formatOutput(data, 'human'));
 // id: 1
 // name: Alice
 // role: admin
@@ -269,30 +318,36 @@ console.log(cmdHelp);
 
 ### Parameter Resolution
 
-- **`resolveParameters(params, context)`** — Resolve command parameters
+- **`resolveParameters(definition, flags, resolvers, context, promptAdapter?)`** — Resolve command parameters
+  - `definition`: Full command definition (includes params, query, body)
+  - `flags`: Parsed flags from command line
+  - `resolvers`: Map of parameter resolvers for dynamic options
+  - `context`: Resolver context with fetch client and args
+  - `promptAdapter`: Optional custom prompt adapter
   - Resolves from flags, prompts for missing values, applies defaults
   - Returns object with resolved parameter values
   - Throws `CliRuntimeError` if required parameters are missing and prompting is disabled
 
 ### Authentication
 
-- **`createAuthManager(config)`** — Create auth manager
-  - `config.tokenURL`: OAuth token endpoint
-  - `config.deviceCodeURL`: Device code endpoint
-  - `config.clientId`: OAuth client ID
+- **`createAuthManager(config, store?)`** — Create auth manager
   - `config.configDir`: Config storage directory
+  - `store`: Optional custom `ConfigStore` implementation
   - Methods:
-    - `startDeviceCodeFlow()`: Initiate device code flow
-    - `pollForToken(deviceCode, interval)`: Poll for access token
+    - `initiateDeviceCodeFlow(client, deviceAuthUrl, clientId, scopes?)`: Initiate device code flow
+    - `pollForToken(client, tokenUrl, deviceCode, clientId, interval, expiresIn)`: Poll for access token
     - `loadCredentials()`: Load stored credentials
-    - `saveCredentials(creds)`: Save credentials
+    - `storeTokens(tokenResponse)`: Store token response
     - `clearCredentials()`: Remove stored credentials
-    - `isAuthenticated()`: Check if valid credentials exist
+    - `getAccessToken()`: Get access token (checks expiration)
+    - `getApiKey()`: Get stored API key
+    - `setApiKey(apiKey)`: Store API key
+    - `refreshAccessToken(client, tokenUrl, clientId)`: Refresh access token using refresh token
 
 ### Output Formatting
 
 - **`formatOutput(data, format)`** — Format data for CLI output
-  - `format`: `'json'`, `'table'`, or `'text'`
+  - `format`: `'json'`, `'table'`, or `'human'`
   - Handles arrays, objects, primitives
 
 ### Help Generation
@@ -324,8 +379,9 @@ interface CommandDefinition {
   description: string;
   method: HttpMethod;
   path: string;
-  parameters: FieldDefinition[];
-  auth?: 'required' | 'optional';
+  params?: Record<string, FieldDefinition>;
+  query?: Record<string, FieldDefinition>;
+  body?: Record<string, FieldDefinition>;
 }
 ```
 
@@ -333,12 +389,10 @@ interface CommandDefinition {
 
 ```typescript
 interface FieldDefinition {
-  name: string;
-  type: 'string' | 'number' | 'boolean' | 'select' | 'multiselect';
-  description: string;
-  required?: boolean;
-  default?: unknown;
-  options?: SelectOption[]; // For select/multiselect
+  type: string;
+  description?: string;
+  required: boolean;
+  enum?: string[];
 }
 ```
 
@@ -346,14 +400,8 @@ interface FieldDefinition {
 
 ```typescript
 interface PromptAdapter {
-  prompt(
-    message: string,
-    type: 'string' | 'number' | 'boolean' | 'select' | 'multiselect',
-    options?: {
-      default?: unknown;
-      options?: SelectOption[];
-    }
-  ): Promise<unknown>;
+  select: (options: { message: string; choices: SelectOption[] }) => Promise<string>;
+  text: (options: { message: string; defaultValue?: string }) => Promise<string>;
 }
 ```
 
