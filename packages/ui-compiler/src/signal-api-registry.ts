@@ -12,7 +12,13 @@ export interface SignalApiConfig {
  */
 export const SIGNAL_API_REGISTRY: Record<string, SignalApiConfig> = {
   query: {
-    signalProperties: new Set(['data', 'loading']),
+    signalProperties: new Set(['data', 'loading', 'error']),
+  },
+  form: {
+    signalProperties: new Set(['submitting', 'errors', 'values']),
+  },
+  createLoader: {
+    signalProperties: new Set(['data', 'loading', 'error']),
   },
 };
 
