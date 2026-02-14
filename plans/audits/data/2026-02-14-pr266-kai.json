@@ -1,0 +1,42 @@
+{
+  "schema": "vertz.audit.v1",
+  "timestamp": "2026-02-14T14:06:00Z",
+  "pr": {
+    "number": 266,
+    "title": "chore(rules): Developer Walkthrough gate + vertical slice policy",
+    "author": "kai",
+    "mergedAt": "2026-02-14T13:10:59Z",
+    "filesChanged": 4,
+    "linesAdded": 700,
+    "linesRemoved": 0
+  },
+  "agent": {
+    "id": "kai",
+    "model": "unknown",
+    "sessionKey": "unknown"
+  },
+  "grade": "B",
+  "gradeNumeric": 3.0,
+  "scores": {
+    "tdd": { "grade": "N/A", "numeric": null },
+    "process": { "grade": "C", "numeric": 2.0 },
+    "design": { "grade": "B", "numeric": 3.0 },
+    "dx": { "grade": "A", "numeric": 4.0 },
+    "security": { "grade": "A", "numeric": 4.0 }
+  },
+  "violations": [
+    {
+      "rule": "process.ticketExists",
+      "severity": "major",
+      "description": "No ticket found for this work",
+      "recommendation": "Create ticket for process work OR document exception for CTO rule changes"
+    },
+    {
+      "rule": "process.humanApprovalForMain",
+      "severity": "major",
+      "description": "PR merged to main by bot without visible human approval",
+      "recommendation": "Document CTO authorization in team.json or enforce human approval"
+    }
+  ],
+  "summary": "Exceptional content quality but process violations: no ticket, bot-merged to main."
+}
