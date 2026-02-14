@@ -17,6 +17,7 @@
     "@vertz/core": "workspace:*",
     "@vertz/schema": "workspace:*",
     "typescript": "^5.7.0",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "yaml": "^2.3.0"
   }
 }
