@@ -30,6 +30,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@vertz/core": "workspace:*",
     "@vertz/ui": "workspace:*"
   },
   "peerDependencies": {

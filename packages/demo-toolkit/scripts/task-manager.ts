@@ -28,6 +28,11 @@ export const taskManagerDemo: DemoScript = {
       description: 'Wait for app to load',
     },
 
+    {
+      type: 'narrate',
+      text: 'Welcome to Vertz — a full-stack framework with fine-grained reactivity and server-side rendering.',
+    },
+
     // Take initial screenshot
     {
       type: 'screenshot',
@@ -35,6 +40,16 @@ export const taskManagerDemo: DemoScript = {
         name: 'task-manager-01-initial',
         annotation: 'Task Manager - Initial View',
       },
+    },
+
+    {
+      type: 'narrate',
+      text: 'This is the task manager demo. The entire page is server-side rendered, then hydrated with reactive components.',
+    },
+
+    {
+      type: 'narrate',
+      text: "Let's filter the tasks by status. Watch how signals update only the affected DOM nodes.",
     },
 
     // Click on "In Progress" filter
@@ -57,6 +72,11 @@ export const taskManagerDemo: DemoScript = {
       },
     },
 
+    {
+      type: 'narrate',
+      text: 'Filtering is instant. No virtual DOM diffing — just pure reactive updates.',
+    },
+
     // Reset to "All" filter
     {
       type: 'click',
@@ -67,6 +87,11 @@ export const taskManagerDemo: DemoScript = {
     {
       type: 'wait',
       ms: 600,
+    },
+
+    {
+      type: 'narrate',
+      text: "Now let's create a new task. This demonstrates progressive enhancement with forms.",
     },
 
     // Click "New Task" button to navigate to create page
@@ -87,6 +112,11 @@ export const taskManagerDemo: DemoScript = {
         name: 'task-manager-03-create-form',
         annotation: 'Create Task form',
       },
+    },
+
+    {
+      type: 'narrate',
+      text: 'Forms in Vertz are progressively enhanced. They work without JavaScript, but get better with it.',
     },
 
     // Type task title
@@ -155,6 +185,11 @@ export const taskManagerDemo: DemoScript = {
       },
     },
 
+    {
+      type: 'narrate',
+      text: 'The new task appears instantly. Vertz handles the state updates automatically.',
+    },
+
     // Navigate to settings via sidebar
     {
       type: 'click',
@@ -173,6 +208,11 @@ export const taskManagerDemo: DemoScript = {
         name: 'task-manager-05-settings',
         annotation: 'Settings page',
       },
+    },
+
+    {
+      type: 'narrate',
+      text: "Vertz combines the best of React's developer experience with the performance of fine-grained reactivity. Ready to build something amazing?",
     },
 
     // Final wait to ensure everything is captured
