@@ -140,6 +140,15 @@ function transformSignalApiProperties(
     const signalProps = signalApiVars.get(varName);
     if (!signalProps || !signalProps.has(propName)) return;
 
+    // Guard: Check if .value is already present (migration case)
+    const parent = expr.getParent();
+    if (parent?.isKind(SyntaxKind.PropertyAccessExpression)) {
+      const parentProp = parent.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
+      if (parentProp.getExpression() === expr && parentProp.getName() === 'value') {
+        return; // Already has .value, skip transformation
+      }
+    }
+
     // Append .value to this property access
     source.appendRight(expr.getEnd(), '.value');
   });

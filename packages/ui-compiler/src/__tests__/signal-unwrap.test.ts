@@ -143,4 +143,23 @@ describe('Signal Auto-Unwrap', () => {
     expect(result.code).not.toContain('tasks.refetch.value');
     expect(result.diagnostics).toHaveLength(0);
   });
+
+  it('should NOT double-unwrap when .value already exists (migration case)', () => {
+    const source = `
+      import { query } from '@vertz/ui';
+      
+      function TaskList() {
+        const tasks = query('/api/tasks');
+        const data = tasks.data.value; // Old style, already has .value
+        return <div>{data}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // Should NOT become tasks.data.value.value
+    expect(result.code).toContain('tasks.data.value');
+    expect(result.code).not.toContain('tasks.data.value.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
 });

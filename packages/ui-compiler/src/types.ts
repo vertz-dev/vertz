@@ -46,7 +46,15 @@ export interface VariableInfo {
   start: number;
   /** 0-based end position of the declaration in source. */
   end: number;
-  /** Signal properties on this variable (for signal-returning APIs like query()). */
+  /**
+   * Signal properties on this variable (for signal-returning APIs like query()).
+   *
+   * @remarks
+   * Uses `Set<string>` for O(1) lookup performance during transformation.
+   * **Not JSON-serializable** — if this type is serialized (e.g., for caching or IPC),
+   * convert to `Array.from(signalProperties)` before serialization and reconstruct
+   * the Set on deserialization.
+   */
   signalProperties?: Set<string>;
 }
 
