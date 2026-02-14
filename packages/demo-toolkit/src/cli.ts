@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Demo Recorder CLI
- *
+ * 
  * Usage: bun src/cli.ts scripts/task-manager.ts
  */
 
@@ -34,7 +34,7 @@ async function main() {
 
     // Create recorder
     const recorder = new DemoRecorder({
-      baseUrl: demoScript.startUrl.startsWith('http')
+      baseUrl: demoScript.startUrl.startsWith('http') 
         ? demoScript.startUrl.split('/').slice(0, 3).join('/')
         : 'http://localhost:3000',
       outputDir: 'demos',

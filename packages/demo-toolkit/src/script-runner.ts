@@ -1,19 +1,19 @@
 /**
  * Script Runner
- *
+ * 
  * Executes demo scripts with timing and coordination.
  */
 
 import * as path from 'node:path';
-import { calculateDelay, type DemoRecorder } from './recorder.js';
-import type { DelayConfig, DemoAction, DemoResult, DemoScript } from './types.js';
+import { DemoRecorder, calculateDelay } from './recorder.js';
+import type { DemoScript, DemoAction, DemoResult, DelayConfig } from './types.js';
 
 /**
  * Execute a demo script and record it
  */
 export async function runDemoScript(
   script: DemoScript,
-  recorder: DemoRecorder,
+  recorder: DemoRecorder
 ): Promise<DemoResult> {
   const startTime = Date.now();
   const screenshots: string[] = [];
@@ -36,9 +36,9 @@ export async function runDemoScript(
     // Execute each action
     for (let i = 0; i < script.actions.length; i++) {
       const action = script.actions[i];
-
+      
       console.log(`   → Action ${i + 1}/${script.actions.length}: ${describeAction(action)}`);
-
+      
       await executeAction(action, recorder, screenshots);
 
       // Add delay between actions (except after the last one)
@@ -53,7 +53,7 @@ export async function runDemoScript(
 
     // Close and get video path
     const rawVideoPath = await recorder.close();
-
+    
     if (rawVideoPath) {
       // Move video to desired output path
       const outputPath = path.join(recorder.getOutputDir(), script.outputPath);
@@ -106,7 +106,7 @@ export async function runDemoScript(
 async function executeAction(
   action: DemoAction,
   recorder: DemoRecorder,
-  screenshots: string[],
+  screenshots: string[]
 ): Promise<void> {
   switch (action.type) {
     case 'navigate':
@@ -136,7 +136,7 @@ async function executeAction(
       break;
 
     default:
-      throw new Error(`Unknown action type: ${(action as { type?: string }).type ?? 'unknown'}`);
+      throw new Error(`Unknown action type: ${(action as any).type}`);
   }
 }
 

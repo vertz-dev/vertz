@@ -1,6 +1,6 @@
 /**
  * Demo Script Type Definitions
- *
+ * 
  * These types define the structure for automated demo recordings.
  */
 

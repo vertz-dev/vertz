@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest';
-import type { DelayConfig, DemoAction, DemoScript } from '../src/types.js';
+import { describe, test, expect } from 'vitest';
+import type { DemoScript, DemoAction, DelayConfig } from '../src/types.js';
 
 describe('Types', () => {
   test('DemoScript type structure is valid', () => {
