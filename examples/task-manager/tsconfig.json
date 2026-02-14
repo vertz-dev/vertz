@@ -3,7 +3,7 @@
     "declaration": true,
     "esModuleInterop": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "@vertz-examples/task-manager",
+    "jsxImportSource": "@vertz/ui",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "outDir": "dist",

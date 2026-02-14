@@ -1,0 +1,285 @@
+{
+  "schema": "vertz.audit.v1",
+  "audit": {
+    "id": "audit-pr263-2026-02-14",
+    "date": "2026-02-14T15:08:00Z",
+    "auditor": "agent:auditor:subagent:9d5d559c",
+    "session": "audit-pr263"
+  },
+  "pr": {
+    "number": 263,
+    "title": "feat(demo-toolkit): Add automated demo recording pipeline",
+    "author": "app/vertz-dev-dx",
+    "authorType": "bot",
+    "mergedAt": "2026-02-14T12:13:39Z",
+    "linesAdded": 1041,
+    "linesDeleted": 11,
+    "commits": 8
+  },
+  "agent": {
+    "id": "vertz-dev-dx",
+    "type": "bot",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "durationMinutes": null,
+    "tokensUsed": null
+  },
+  "grade": {
+    "overall": "F",
+    "numeric": 0,
+    "summary": "CRITICAL security vulnerabilities (4x shell injection RCE) + major TDD violations (147 lines untested) + process failures (no changeset). Immediate revert required."
+  },
+  "categories": {
+    "tdd": {
+      "grade": "F",
+      "numeric": 0,
+      "checks": {
+        "testsBeforeImplementation": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "tts.ts added 147 lines with ZERO functional tests. Only 13 lines of type tests added to types.test.ts."
+        },
+        "redGreenCycle": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "No test failures before implementation. No RED phase in any commit."
+        },
+        "oneTestAtATime": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "No tests written for core TTS functions: generateTTS(), getAudioDuration(), checkFFmpeg(), combineVideoAudio(), createAudioTimeline()."
+        },
+        "qualityGatesBeforeCommit": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Multiple 'fix lint errors' and 'fix TypeScript errors' commits AFTER implementation. Quality gates not run before initial commits."
+        },
+        "noTestSkips": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No .skip or @ts-ignore found in test files."
+        }
+      }
+    },
+    "security": {
+      "grade": "F",
+      "numeric": 0,
+      "checks": {
+        "noEvalOrFunction": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() usage detected."
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No hardcoded secrets found."
+        },
+        "inputSanitization": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "4 shell injection vulnerabilities: generateTTS() line 25, getAudioDuration() line 66, combineVideoAudio() line 104, createAudioTimeline() line 139. All use execAsync with template literals and unescaped parameters."
+        },
+        "shellInjectionPrevention": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "execAsync() used with string interpolation instead of spawn() with argument arrays. Attack vectors: command substitution, command chaining, path traversal."
+        }
+      }
+    },
+    "process": {
+      "grade": "D",
+      "numeric": 1,
+      "checks": {
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR created from branch (not direct to main)."
+        },
+        "atomicCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "8 commits in PR - reasonably atomic."
+        },
+        "changesetAdded": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No changeset found. package.json modified in demo-toolkit and ui-server."
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR author is vertz-dev-dx[bot], indicating bot scripts used."
+        },
+        "noPushToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR workflow used (not direct push)."
+        }
+      }
+    },
+    "design": {
+      "grade": "C",
+      "numeric": 2,
+      "checks": {
+        "ticketReferenced": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No ticket ID in commits or PR description."
+        },
+        "rulesReadAtStart": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify from PR diff alone."
+        },
+        "filesMatchScope": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Scope creep: 5 workspace template files (HEARTBEAT.md, IDENTITY.md, SOUL.md, TOOLS.md, USER.md) unrelated to demo-toolkit feature."
+        },
+        "deviationsEscalated": {
+          "pass": null,
+          "severity": null,
+          "evidence": "No design doc reference to check against."
+        }
+      }
+    },
+    "dx": {
+      "grade": "C",
+      "numeric": 2,
+      "checks": {
+        "developerWalkthrough": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No Developer Walkthrough in PR description."
+        },
+        "acceptanceCriteriaWithOutcomes": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Feature list provided but no user-outcome-focused acceptance criteria."
+        },
+        "examplesUsePublicAPI": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Examples reference OpenClaw TTS internal tool, not public demo-toolkit API."
+        },
+        "verticalSlices": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Feature is end-to-end (TTS generation → audio sync → video muxing)."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "TDD: Tests before implementation",
+      "severity": "critical",
+      "category": "tdd",
+      "description": "147 lines of production code in tts.ts with zero functional tests",
+      "evidence": "File packages/demo-toolkit/src/tts.ts added 5 functions (generateTTS, getAudioDuration, checkFFmpeg, combineVideoAudio, createAudioTimeline) with no corresponding tests. Only type validation tests added.",
+      "recommendation": "Revert PR. Rewrite with TDD: write test → watch fail → implement → watch pass. Repeat for each function."
+    },
+    {
+      "rule": "Security: No shell injection",
+      "severity": "critical",
+      "category": "security",
+      "description": "Shell injection vulnerability in generateTTS() - RCE risk",
+      "evidence": "Line 25: execAsync(`openclaw tts --text \"${text.replace(/\"/g, '\\\"')}\" --output \"${outputPath}\"`) - insufficient escaping allows command injection via $(cmd), semicolons, pipes",
+      "recommendation": "Replace execAsync + template literals with spawn('openclaw', ['tts', '--text', text, '--output', outputPath])"
+    },
+    {
+      "rule": "Security: No shell injection",
+      "severity": "critical",
+      "category": "security",
+      "description": "Shell injection vulnerability in getAudioDuration() - RCE risk",
+      "evidence": "Line 66: execAsync with unescaped audioPath parameter in ffprobe command",
+      "recommendation": "Use spawn('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', audioPath])"
+    },
+    {
+      "rule": "Security: No shell injection",
+      "severity": "critical",
+      "category": "security",
+      "description": "Shell injection vulnerability in combineVideoAudio() - RCE risk",
+      "evidence": "Line 104: execAsync with unescaped videoPath, audioPath, outputPath in ffmpeg command",
+      "recommendation": "Use spawn('ffmpeg', ['-i', videoPath, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac', '-shortest', outputPath])"
+    },
+    {
+      "rule": "Security: No shell injection",
+      "severity": "critical",
+      "category": "security",
+      "description": "Shell injection vulnerability in createAudioTimeline() - RCE risk",
+      "evidence": "Line 139: execAsync with array of unescaped clip.audioPath values and unescaped outputPath",
+      "recommendation": "Build spawn argument array programmatically: const args = []; clips.forEach(c => args.push('-i', c.audioPath)); args.push('-filter_complex', filterComplex, '-t', String(duration/1000), outputPath); spawn('ffmpeg', args)"
+    },
+    {
+      "rule": "Process: Changeset required for package changes",
+      "severity": "major",
+      "category": "process",
+      "description": "No changeset added despite package.json modifications",
+      "evidence": "Files modified: packages/demo-toolkit/package.json (added @vertz/core), packages/ui-server/package.json (added @vertz/core). No .changeset/*.md file in commit.",
+      "recommendation": "Run `bunx changeset add` and select appropriate version bump (minor for new feature)"
+    },
+    {
+      "rule": "TDD: Quality gates before every commit",
+      "severity": "major",
+      "category": "tdd",
+      "description": "Quality gates not run before initial commits",
+      "evidence": "Commits 'fix(demo-toolkit, ui-server): Fix lint errors' and 'fix(demo-toolkit): Fix TypeScript errors' came AFTER implementation commits, proving gates weren't run first",
+      "recommendation": "Run `bun run test && bun run typecheck && bun run lint` before EVERY commit. Add pre-commit hook to enforce."
+    },
+    {
+      "rule": "Design: Files must match ticket scope",
+      "severity": "minor",
+      "category": "design",
+      "description": "Scope creep - workspace template files unrelated to demo-toolkit",
+      "evidence": "Added HEARTBEAT.md, IDENTITY.md, SOUL.md, TOOLS.md, USER.md at workspace root. These are agent configuration templates, not demo-toolkit feature files.",
+      "recommendation": "Remove from this PR. Create separate PR for workspace templates with their own ticket."
+    },
+    {
+      "rule": "Design: Never commit without a ticket",
+      "severity": "minor",
+      "category": "design",
+      "description": "No ticket ID referenced",
+      "evidence": "No 'Closes #NNN' or ticket reference in commits or PR description",
+      "recommendation": "Reference ticket ID in PR description and commit messages"
+    },
+    {
+      "rule": "DX: Developer Walkthrough required",
+      "severity": "minor",
+      "category": "dx",
+      "description": "No Developer Walkthrough in PR",
+      "evidence": "PR description provides feature list and architecture but no step-by-step walkthrough for developers",
+      "recommendation": "Add Developer Walkthrough showing: 1) Install, 2) Write a demo script, 3) Run recorder, 4) View output"
+    }
+  ],
+  "stats": {
+    "totalViolations": 10,
+    "criticalViolations": 5,
+    "majorViolations": 2,
+    "minorViolations": 3,
+    "filesAudited": 6,
+    "linesAudited": 1041,
+    "testCoverage": "~9%",
+    "untestedLinesOfCode": 230
+  },
+  "recommendations": [
+    "IMMEDIATE: Revert PR #263 from main branch",
+    "Create new branch fix/demo-toolkit-tdd-security",
+    "Rewrite with strict TDD: test first, watch fail, implement, watch pass",
+    "Replace ALL execAsync() calls with spawn() and argument arrays",
+    "Add comprehensive test coverage (target: 80%+)",
+    "Add changeset for package.json changes",
+    "Run quality gates before every commit",
+    "Remove scope creep (workspace templates) to separate PR",
+    "Add pre-commit hook to enforce quality gates",
+    "Add eslint-plugin-security to detect shell injection patterns"
+  ],
+  "metadata": {
+    "auditVersion": "1.0",
+    "toolsUsed": ["gh", "git", "read", "exec"],
+    "priorAudits": ["2026-02-14-pr263-kai.md"],
+    "agreesWithPriorAudit": true,
+    "additionalFindings": "Confirmed all findings from kai's audit. Added detailed spawn() fix recommendations and comprehensive JSON audit data."
+  }
+}

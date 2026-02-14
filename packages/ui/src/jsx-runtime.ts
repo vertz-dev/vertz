@@ -9,12 +9,15 @@
  * Implements the "react-jsx" automatic runtime interface:
  * - jsx(type, props)  — single child
  * - jsxs(type, props) — multiple children
- * - Fragment           — document fragment
+ * - Fragment          — document fragment
  */
 
-type Tag = string | ((props: any) => any);
+type Tag = string | ((props: Record<string, unknown>) => Node | Node[] | null);
 
-function applyChildren(parent: Node, children: any): void {
+/**
+ * Apply children to a parent node, recursively handling arrays
+ */
+function applyChildren(parent: Node, children: unknown): void {
   if (children == null || children === false || children === true) return;
   if (Array.isArray(children)) {
     for (const child of children) {
@@ -27,7 +30,13 @@ function applyChildren(parent: Node, children: any): void {
   }
 }
 
-export function jsx(tag: Tag, props: Record<string, any>): any {
+/**
+ * JSX factory function for client-side rendering.
+ *
+ * When tag is a function (component), calls it with props.
+ * When tag is a string (HTML element), creates a DOM element.
+ */
+export function jsx(tag: Tag, props: Record<string, unknown>): Node | Node[] | null {
   // Component call — pass props through to the function
   if (typeof tag === 'function') {
     return tag(props);
@@ -40,7 +49,7 @@ export function jsx(tag: Tag, props: Record<string, any>): any {
   for (const [key, value] of Object.entries(attrs)) {
     if (key.startsWith('on') && key.length > 2 && typeof value === 'function') {
       // Event handler: onClick → click, onKeyDown → keydown
-      const event = key[2].toLowerCase() + key.slice(3);
+      const event = key.slice(2).toLowerCase();
       el.addEventListener(event, value as EventListener);
     } else if (key === 'class') {
       if (value != null) el.setAttribute('class', String(value));
@@ -58,12 +67,24 @@ export function jsx(tag: Tag, props: Record<string, any>): any {
   return el;
 }
 
-export const jsxs = jsx;
+/**
+ * JSX factory for elements with multiple children.
+ * In the automatic runtime, this is used when there are multiple children.
+ * For our implementation, it's the same as jsx().
+ */
+export const jsxs: typeof jsx = jsx;
 
-export function Fragment(props: { children?: any }): DocumentFragment {
+/**
+ * Fragment component — a DocumentFragment container for multiple children.
+ */
+export function Fragment(props: { children?: unknown }): DocumentFragment {
   const frag = document.createDocumentFragment();
   applyChildren(frag, props?.children);
   return frag;
 }
 
-export const jsxDEV = jsx;
+/**
+ * JSX development mode factory (used with @jsxImportSource in tsconfig).
+ * Same as jsx() for our implementation.
+ */
+export const jsxDEV: typeof jsx = jsx;

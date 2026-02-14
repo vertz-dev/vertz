@@ -6,20 +6,23 @@
 
 ---
 
-## The Three Laws of Web Development
+## The Four Laws of Web Development
 
 *Inspired by Asimov. Hierarchical — a lower law may never override a higher one.*
 
+### 0th Law: Security is non-negotiable.
+A framework shall not compromise security, nor by inaction allow security to be compromised. No `eval()`, no hardcoded secrets, no unsanitized input, no bypassed auth. Security gates may add friction (login screens, auth flows, CSP headers) — that friction is the cost of a functioning internet. We never sacrifice security for UX or DX convenience.
+
 ### 1st Law: UX is sacred.
-A framework shall not harm the end-user experience, nor by inaction allow the end-user experience to be harmed. Performance, reliability, accessibility — every millisecond matters. A performance regression is a First Law violation (P0).
+A framework shall not harm the end-user experience, nor by inaction allow the end-user experience to be harmed, except where it would conflict with the Zeroth Law. Performance, reliability, accessibility — every millisecond matters. A performance regression is a First Law violation (P0).
 
 ### 2nd Law: DX serves the user.
-A framework shall deliver exceptional developer experience, except where it would conflict with the First Law. DX exists so developers can build better products for users — not as an end in itself.
+A framework shall deliver exceptional developer experience, except where it would conflict with the Zeroth or First Law. DX exists so developers can build better products for users — not as an end in itself.
 
 ### 3rd Law: System integrity serves both.
-A framework shall protect its own architecture, type safety, and process integrity, except where it would conflict with the First or Second Law.
+A framework shall protect its own architecture, type safety, and process integrity, except where it would conflict with the Zeroth, First, or Second Law.
 
-**Use the Laws to break ties.** When two valid approaches conflict, the higher law wins. Clever internals (3rd) never justify bad DX (2nd). DX shortcuts never justify degraded UX (1st). The laws cascade: if the system is broken (3rd ❌), DX suffers (2nd ❌), and users pay the price (1st ❌).
+**Use the Laws to break ties.** When two valid approaches conflict, the higher law wins. Convenience (2nd/3rd) never justifies degraded UX (1st). UX shortcuts never justify security holes (0th). The laws cascade: if security is broken (0th ❌), everything downstream is compromised.
 
 ---
 

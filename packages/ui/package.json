@@ -42,6 +42,14 @@
     "./css": {
       "types": "./dist/css/public.d.ts",
       "import": "./dist/css/public.js"
+    },
+    "./jsx-runtime": {
+      "types": "./dist/jsx-runtime/index.d.ts",
+      "import": "./dist/jsx-runtime/index.js"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/jsx-runtime/index.d.ts",
+      "import": "./dist/jsx-runtime/index.js"
     }
   },
   "files": [
