@@ -126,6 +126,13 @@ export async function createAudioTimeline(
   // Validate output path to prevent shell injection (CWE-78)
   validatePath(outputPath);
 
+  // Validate all clip paths to prevent shell injection (CWE-78)
+  // This must happen BEFORE the hasFFmpeg check to ensure security validation
+  // runs even when FFmpeg is not available
+  for (const clip of clips) {
+    validatePath(clip.audioPath);
+  }
+
   const hasFFmpeg = await checkFFmpeg();
 
   if (!hasFFmpeg || clips.length === 0) {
@@ -134,16 +141,9 @@ export async function createAudioTimeline(
   }
 
   if (clips.length === 1) {
-    // Validate the single clip path
-    validatePath(clips[0].audioPath);
     // Simple case: just copy the single audio file
     await fs.copyFile(clips[0].audioPath, outputPath);
     return;
-  }
-
-  // Validate all clip paths to prevent shell injection
-  for (const clip of clips) {
-    validatePath(clip.audioPath);
   }
 
   // Build FFmpeg filter_complex command for multiple audio clips
