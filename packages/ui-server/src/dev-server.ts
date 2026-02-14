@@ -23,6 +23,7 @@
 
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { createServer as createHttpServer } from 'node:http';
+import { InternalServerErrorException } from '@vertz/core';
 import type { InlineConfig, ViteDevServer } from 'vite';
 import { createServer as createViteServer } from 'vite';
 
@@ -171,7 +172,9 @@ export function createDevServer(options: DevServerOptions): DevServer {
         const entryModule = await vite.ssrLoadModule(entry);
 
         if (!entryModule.renderToString) {
-          throw new Error(`Entry module "${entry}" does not export a renderToString function`);
+          throw new InternalServerErrorException(
+            `Entry module "${entry}" does not export a renderToString function`,
+          );
         }
 
         // Render the app to HTML
