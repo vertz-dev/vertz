@@ -49,5 +49,4 @@ describe('resolveConfig', () => {
     expect(config.strict).toBe(false);
     expect(config.compiler.sourceDir).toBe('src');
   });
-
 });

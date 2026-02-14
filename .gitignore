@@ -43,3 +43,6 @@ generated/
 # Temporary files
 tmp/
 temp/
+.turbo
+memory/
+MEMORY.md
