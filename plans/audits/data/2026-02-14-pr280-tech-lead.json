@@ -1,0 +1,360 @@
+{
+  "schema": "vertz.audit.v1",
+  "timestamp": "2026-02-14T17:49:00Z",
+  "pr": {
+    "number": 280,
+    "title": "revert: signal auto-unwrap (PR #269) — Grade D audit, mandatory TDD redo",
+    "author": "vertz-tech-lead",
+    "authorBot": true,
+    "mergedAt": "2026-02-14T17:49:42Z",
+    "mergedBy": "vertz-tech-lead",
+    "mergedByBot": true,
+    "filesChanged": 14,
+    "linesAdded": 930,
+    "linesDeleted": 690,
+    "branch": "revert/pr269-with-fixes"
+  },
+  "agent": {
+    "id": "vertz-tech-lead",
+    "alias": "nora/mike",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "durationMinutes": null,
+    "tokensUsed": null
+  },
+  "grade": {
+    "overall": "D",
+    "numeric": 1.0,
+    "summary": "PR mixes 4 unrelated concerns (security fix + revert + policy + audit). TDD bypassed — 222-line commit, then follow-up commit fixes failing tests. No ticket. Security fix itself is excellent (CWE-78 eliminated), but process violations mirror the ones being 'fixed' from PR #269. Mandatory rework required."
+  },
+  "categories": {
+    "tdd": {
+      "grade": "F",
+      "numeric": 0,
+      "checks": {
+        "testBeforeImpl": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Commit 4bf9b75 (17:28:44Z) contains 222 lines (+212, -10) with both implementation AND tests committed together. Files: muxing.ts (+80 lines impl) + muxing.test.ts (+132 lines tests). No evidence of red-green-refactor cycle. RULES.md: 'Write ONE failing test, write MINIMAL code to pass it, run quality gates, commit, repeat.'"
+        },
+        "redGreenCycle": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Expected 8+ incremental commits (one per test case). Actual: 1 mega-commit with all code. No RED → GREEN cycle visible."
+        },
+        "qualityGatesBeforeCommit": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Commit ed0c8ff (17:41:44Z, 13 minutes after initial commit) message: 'fix(demo-toolkit): validate AudioClip paths before FFmpeg check. This fixes the failing test: should reject malicious AudioClip path in createAudioTimeline'. Tests were FAILING in commit 1, fixed in commit 6. RULES.md: 'A push with failing gates is a process violation.'"
+        },
+        "oneTestAtATime": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "All 11 security test cases (149 lines) committed in one batch with implementation. No incremental test → implement → commit cycle."
+        },
+        "noSkips": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No .skip, @ts-ignore, or --no-verify found in diff."
+        }
+      }
+    },
+    "process": {
+      "grade": "D",
+      "numeric": 1.0,
+      "checks": {
+        "scopeDiscipline": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "PR bundles 4 separate concerns: (1) Shell injection security fix (222 lines), (2) Revert of PR #269 (690 deletions), (3) Audit enforcement policy (RULES.md), (4) Audit of PR #277 (2 files). RULES.md: 'One feature per PR. Scope creep is the #1 agent failure mode.' Commits: 4bf9b75 (security), 3ab3386 (policy), 943f131 (revert), ac65f79 (changeset), ab9863e (audit), ed0c8ff (test fix)."
+        },
+        "ticketExists": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No ticket found in /workspace/vertz/tickets/ for 'shell injection', 'CWE-78', 'muxing', 'revert 269', or 'signal unwrap redo'. RULES.md: 'Never commit without a ticket.'"
+        },
+        "auditWorktreeIsolation": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Commit ab9863e adds audit files for PR #277 from main branch. auditor.md: 'When you open a PR to publish your audit report, you MUST use an isolated git worktree. This prevents your audit branch from picking up uncommitted changes from other features.' Irony: PR #280 is reverting PR #269 for worktree pollution, while itself committing audit files picked up from main worktree."
+        },
+        "botIdentity": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Commit author: auditor@vertz.dev for commits 1-5. Merged by vertz-tech-lead[bot]. Bot scripts used (though author mismatch suggests coordination between agents)."
+        },
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR #280 via feature branch revert/pr269-with-fixes, not pushed directly to main."
+        },
+        "conventionalCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All 6 commits follow conventional format: fix(), docs:, Revert, chore:, audit:, fix()."
+        },
+        "changesetAtomic": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Changeset added in commit 4 (ac65f79, 17:32:30Z), not with implementation in commit 1 (4bf9b75, 17:28:44Z). 4-minute gap. Should be atomic with implementation."
+        },
+        "changesetRequired": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Changeset .changeset/fix-muxing-shell-injection.md added for @vertz/demo-toolkit patch. Content is correct."
+        }
+      }
+    },
+    "design": {
+      "grade": "F",
+      "numeric": 0,
+      "checks": {
+        "ticketExists": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "No ticket for security fix or revert work. RULES.md absolute rule: 'Never commit without a ticket.' Even Tier 1 critical bugs require tickets per bug-process.md."
+        },
+        "readRules": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR correctly adds audit enforcement policy to RULES.md. Security fix uses spawn() pattern per RULES.md security guidelines. Shows awareness of rules."
+        },
+        "scopeCompliance": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "PR title: 'revert: signal auto-unwrap (PR #269)'. Actual content: revert + security fix + policy + audit. Scope violation already covered under process."
+        },
+        "designDocRequired": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No design doc for revert strategy. Given complexity (4 concerns bundled), a strategy doc would have helped prevent scope creep. Minor because individual pieces (revert, security fix) are straightforward."
+        }
+      }
+    },
+    "dx": {
+      "grade": "C",
+      "numeric": 2.0,
+      "checks": {
+        "securityFixCritical": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Shell injection (CWE-78) vulnerability fixed. Before: execAsync with template literals. After: execFileAsync with argument array + validatePath() defense-in-depth. Correct mitigation."
+        },
+        "comprehensiveTests": {
+          "pass": true,
+          "severity": null,
+          "evidence": "149 lines of security tests covering 11 cases: malicious videoPath, audioPath, outputPath, shell metacharacters (semicolon, pipe, backticks, dollar), AudioClip paths, valid paths with spaces. Tests verify commands don't execute (no PWNED marker files created). Excellent coverage."
+        },
+        "revertClean": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All 8 files from PR #269 properly reverted: signal-api-registry.ts, reactivity-analyzer.ts changes, signal-transformer.ts changes, tests, types.ts, changeset. No partial reverts or leftover code."
+        },
+        "policyDocClear": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Audit enforcement policy added to RULES.md is clear and well-explained. Includes rationale for 'no code reuse' on D/F grades."
+        },
+        "changesetCorrect": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Changeset content is accurate: '@vertz/demo-toolkit: patch' with clear description. Timing was wrong (commit 4 vs 1), but content is correct."
+        },
+        "testsFailing": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Commit 6 (ed0c8ff) fixes 'failing test' from commit 1. Tests were pushed while failing, violating quality gates."
+        }
+      }
+    },
+    "security": {
+      "grade": "A+",
+      "numeric": 4.5,
+      "checks": {
+        "cwe78Fixed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "CWE-78 (OS Command Injection) eliminated. Attack vector closed: attacker-controlled paths can no longer execute arbitrary shell commands via execAsync string interpolation."
+        },
+        "defenseInDepth": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Two layers: (1) execFileAsync with argument array (no shell), (2) validatePath() rejects shell metacharacters. Provides safety net if execFileAsync is misused in future."
+        },
+        "allEntryPointsSecured": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Both muxing entry points secured: combineVideoAudio (3 paths validated), createAudioTimeline (N+1 paths validated). All parameters covered."
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No secrets, eval(), new Function(), or type-safety bypasses in diff."
+        },
+        "errorMessagesSecure": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Error messages reveal problematic path (necessary for debugging) and explain WHY rejected (CWE-78 reference). No sensitive system info leaked."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "tdd.testBeforeImpl",
+      "category": "tdd",
+      "severity": "critical",
+      "description": "Implementation + tests (222 lines) committed together in mega-commit",
+      "evidence": "Commit 4bf9b75 (17:28:44Z) contains both muxing.ts implementation (+80 lines) and muxing.test.ts tests (+132 lines) in a single commit. No red-green-refactor cycle. RULES.md: 'Write ONE failing test, write MINIMAL code to pass it, run quality gates, commit, repeat.'",
+      "recommendation": "Redo security fix following strict TDD: Write first test (RED) → implement minimal fix (GREEN) → commit → repeat for each test case. Target: 8-10 incremental commits."
+    },
+    {
+      "rule": "tdd.qualityGatesPassed",
+      "category": "tdd",
+      "severity": "critical",
+      "description": "Tests were FAILING in initial commit, fixed 13 minutes later",
+      "evidence": "Commit ed0c8ff (17:41:44Z) message: 'This fixes the failing test: should reject malicious AudioClip path in createAudioTimeline'. Proves commit 1 had failing tests. RULES.md: 'A push with failing gates is a process violation.'",
+      "recommendation": "Never push code with failing tests. Run 'bun run test && bun run typecheck && bun run lint' before EVERY commit. If test fails, fix it before committing."
+    },
+    {
+      "rule": "process.scopeDiscipline",
+      "category": "process",
+      "severity": "critical",
+      "description": "PR bundles 4 unrelated concerns",
+      "evidence": "6 commits spanning: (1) shell injection fix, (2) audit policy update, (3) PR #269 revert, (4) changeset, (5) PR #277 audit, (6) test fix. RULES.md: 'One feature per PR. Scope creep is the #1 agent failure mode.'",
+      "recommendation": "Create 4 separate PRs: (1) Security fix (URGENT), (2) Revert PR #269, (3) Add audit policy, (4) Publish PR #277 audit (isolated worktree). Never bundle for convenience."
+    },
+    {
+      "rule": "design.ticketRequired",
+      "category": "design",
+      "severity": "critical",
+      "description": "No ticket for security fix or revert work",
+      "evidence": "Searched /workspace/vertz/tickets/ for 'shell injection', 'CWE-78', 'revert 269', 'signal unwrap' — no tickets found. RULES.md: 'Never commit without a ticket.'",
+      "recommendation": "Create tickets/security/sec-001-shell-injection-muxing.md (Tier 1 critical bug) and tickets/rework/rework-001-revert-pr269.md before starting work."
+    },
+    {
+      "rule": "process.auditWorktreeIsolation",
+      "category": "process",
+      "severity": "major",
+      "description": "PR #277 audit files committed from main branch (worktree pollution)",
+      "evidence": "Commit ab9863e adds plans/audits/2026-02-14-pr277-agent.md and .json from main branch. auditor.md: 'When you open a PR to publish your audit report, you MUST use an isolated git worktree.' Irony: PR #280 reverts PR #269 for worktree pollution while repeating the same mistake.",
+      "recommendation": "Auditor agent: After writing audit report, immediately use 'git worktree add /tmp/worktrees/audit-prNNN' to isolate and PR the audit files. Never commit audits from main workspace."
+    },
+    {
+      "rule": "process.changesetAtomic",
+      "category": "process",
+      "severity": "minor",
+      "description": "Changeset added 4 minutes after implementation (not atomic)",
+      "evidence": "Changeset in commit 4 (ac65f79, 17:32:30Z), implementation in commit 1 (4bf9b75, 17:28:44Z). Should be committed together.",
+      "recommendation": "Add changeset with implementation commit for atomic changes: 'git add packages/ .changeset/ && git commit'."
+    }
+  ],
+  "metrics": {
+    "filesChanged": 14,
+    "securityTestLines": 149,
+    "securityTestCases": 11,
+    "commitsTotal": 6,
+    "commitsExpectedTDD": 10,
+    "codeChanges": {
+      "additions": 930,
+      "deletions": 690
+    },
+    "securityFixLines": 222,
+    "revertLines": 690,
+    "violationsBySeverity": {
+      "critical": 5,
+      "major": 1,
+      "minor": 1
+    },
+    "concernsBundled": 4,
+    "timeBetweenFailingTestCommits": "13 minutes"
+  },
+  "highlights": [
+    "Security fix eliminates critical CWE-78 vulnerability (shell injection)",
+    "Comprehensive security tests (149 lines, 11 test cases, real temp files)",
+    "Defense-in-depth: Both spawn() and validatePath()",
+    "Revert cleanly undoes all PR #269 changes",
+    "Clear audit enforcement policy documentation with rationale",
+    "Changeset content is accurate and descriptive"
+  ],
+  "weaknesses": [
+    "TDD bypassed: 222-line mega-commit, no red-green-refactor",
+    "Tests were FAILING in commit 1, fixed in commit 6 (13 min later)",
+    "Scope violation: Bundles 4 unrelated concerns (security + revert + policy + audit)",
+    "No ticket for security fix or revert work",
+    "Audit files committed from main branch (worktree pollution)",
+    "Changeset added 4 minutes after implementation (not atomic)",
+    "Repeats exact violations from PR #269 that triggered this revert"
+  ],
+  "recommendations": [
+    {
+      "priority": "immediate",
+      "title": "Revert PR #280 (MANDATORY per Grade D policy)",
+      "description": "Per RULES.md audit enforcement policy (which this PR added): 'Grade D: Mandatory rework. Revert the PR and redo the work from scratch following strict TDD. Do NOT reuse the original code.' This PR violates the very policy it introduces."
+    },
+    {
+      "priority": "immediate",
+      "title": "Create 4 separate PRs",
+      "description": "Split concerns: (1) Security fix with strict TDD (URGENT - Zeroth Law), (2) Revert PR #269 only, (3) Add audit policy only, (4) Publish PR #277 audit via isolated worktree."
+    },
+    {
+      "priority": "immediate",
+      "title": "Security fix redo with strict TDD",
+      "description": "Follow red-green-refactor: Write ONE test (RED) → implement minimal fix (GREEN) → run quality gates → commit → repeat. Target: 8-10 incremental commits. Never commit with failing tests."
+    },
+    {
+      "priority": "short-term",
+      "title": "Create tickets for all work",
+      "description": "tickets/security/sec-001-shell-injection-muxing.md (Tier 1 critical) and tickets/rework/rework-001-revert-pr269.md with context, scope, acceptance criteria."
+    },
+    {
+      "priority": "short-term",
+      "title": "TDD training for vertz-tech-lead",
+      "description": "Supervised practice session: Watch agent perform red-green-refactor live on a simple feature. Review commit history for incremental progress. Don't approve PRs until TDD demonstrated."
+    },
+    {
+      "priority": "process",
+      "title": "Auditor worktree workflow automation",
+      "description": "After writing audit report, immediately: git worktree add /tmp/worktrees/audit-prNNN → commit audit files → push → create PR → remove worktree → delete source files from main workspace."
+    },
+    {
+      "priority": "process",
+      "title": "Pre-push hooks enforcement",
+      "description": "Make 'bun run test && bun run typecheck && bun run lint' mandatory in ALL worktrees. Hooks must pass before push succeeds."
+    },
+    {
+      "priority": "process",
+      "title": "CI check for failing tests in PR",
+      "description": "GitHub Actions: Run tests on EACH commit in PR. Fail PR if ANY commit had failing tests. This would have caught commit 1 → commit 6 pattern."
+    }
+  ],
+  "rework": {
+    "required": true,
+    "reason": "Grade D per audit enforcement policy (RULES.md): 'Mandatory rework. Revert the PR and redo the work from scratch following strict TDD. Do NOT reuse the original code.'",
+    "scope": [
+      "Revert entire PR #280 (all 6 commits)",
+      "Do NOT cherry-pick security fix — redo from scratch with TDD",
+      "Create ticket for security fix (tickets/security/sec-001-shell-injection-muxing.md)",
+      "Create ticket for revert (tickets/rework/rework-001-revert-pr269.md)",
+      "Create ticket for signal unwrap redo (tickets/compiler/comp-NNN-signal-auto-unwrap-tdd-redo.md)"
+    ],
+    "tddCycle": [
+      "Cycle 1: Write test 'should reject malicious videoPath' → RED → implement validatePath() → GREEN → commit",
+      "Cycle 2: Write test 'should reject malicious audioPath' → RED → validate in combineVideoAudio → GREEN → commit",
+      "Cycle 3: Write test 'should reject malicious outputPath' → RED → validate in combineVideoAudio → GREEN → commit",
+      "Cycle 4: Write test 'should replace execAsync with execFileAsync' → RED → implement → GREEN → commit",
+      "Cycle 5: Write test 'should reject malicious AudioClip path' → RED → validate in createAudioTimeline → GREEN → commit",
+      "Cycle 6: Write test 'should accept paths with spaces' → RED → ensure validation doesn't break valid paths → GREEN → commit",
+      "Target: 8-10 incremental commits, each atomic with test + minimal impl"
+    ],
+    "assignee": "Different agent (preferred) OR vertz-tech-lead with CTO supervision",
+    "timeline": {
+      "revertPR": "Immediate (5 minutes)",
+      "securityFixRedo": "URGENT - within 24 hours (Zeroth Law)",
+      "revertPR269": "HIGH - within 48 hours",
+      "auditPolicy": "MEDIUM - within 1 week",
+      "signalUnwrapRedo": "MEDIUM - within 2 weeks"
+    }
+  },
+  "summary": "PR #280 ostensibly reverts PR #269 (Grade D for TDD violations) per new audit enforcement policy. However, PR bundles 4 unrelated concerns (security fix + revert + policy + audit) and commits the security fix (222 lines) as a mega-commit with no red-green-refactor. Commit 6 reveals tests were FAILING in commit 1, proving quality gates were bypassed. No ticket for any work. Audit files for PR #277 committed from main branch (worktree pollution). Ironically, this PR adds the audit enforcement policy to RULES.md while simultaneously violating it. Security fix itself is critical and correct (CWE-78 eliminated, excellent tests), but process violations mirror the exact issues being 'fixed' from PR #269. Grade D: Mandatory rework — revert and redo from scratch with strict TDD, no code reuse."
+}
