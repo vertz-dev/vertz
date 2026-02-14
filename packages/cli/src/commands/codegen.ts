@@ -1,4 +1,4 @@
-import type { CodegenConfig } from '@vertz/compiler';
+import type { CodegenConfig } from '@vertz/codegen';
 
 export interface CodegenIR {
   basePath: string;

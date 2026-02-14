@@ -30,7 +30,6 @@
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {
-    "@vertz/codegen": "workspace:*",
     "ts-morph": "^25.0.0"
   },
   "devDependencies": {
