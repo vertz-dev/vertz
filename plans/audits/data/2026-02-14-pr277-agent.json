@@ -1,0 +1,33 @@
+{
+  "schema": "vertz.audit.v1",
+  "timestamp": "2026-02-14T17:30:00Z",
+  "pr": {
+    "number": 277,
+    "title": "fix: resolve lint errors + update pre-push hooks for Turborepo",
+    "author": "vertz-tech-lead",
+    "mergedAt": "2026-02-14T17:27:02Z",
+    "filesChanged": 28,
+    "linesAdded": 5002,
+    "linesDeleted": 64
+  },
+  "agent": {
+    "id": "vertz-tech-lead"
+  },
+  "grade": {
+    "overall": "C",
+    "numeric": 2.0,
+    "summary": "Fixes critical lint violations and improves pre-push hooks, but bundles 18 unrelated audit files (scope violation) and has no ticket."
+  },
+  "violations": [
+    {
+      "rule": "process.scopeDiscipline",
+      "severity": "major",
+      "description": "PR bundles 18 audit files with unrelated infrastructure fixes"
+    },
+    {
+      "rule": "design.ticketRequired",
+      "severity": "major",
+      "description": "No ticket found for this cleanup work"
+    }
+  ]
+}
