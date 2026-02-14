@@ -5,8 +5,10 @@
  */
 
 import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
 import { DemoRecorder, calculateDelay } from './recorder.js';
-import type { DemoScript, DemoAction, DemoResult, DelayConfig } from './types.js';
+import type { DemoScript, DemoAction, DemoResult, DelayConfig, NarrationClip } from './types.js';
+import { generateTTS, getAudioDuration, combineVideoAudio, createAudioTimeline } from './tts.js';
 
 /**
  * Execute a demo script and record it
@@ -17,7 +19,9 @@ export async function runDemoScript(
 ): Promise<DemoResult> {
   const startTime = Date.now();
   const screenshots: string[] = [];
+  const narrationClips: NarrationClip[] = [];
   let videoPath: string | undefined;
+  let currentTimestamp = 0;
 
   try {
     console.log(`🎬 Starting demo: ${script.name}`);
@@ -39,27 +43,60 @@ export async function runDemoScript(
       
       console.log(`   → Action ${i + 1}/${script.actions.length}: ${describeAction(action)}`);
       
-      await executeAction(action, recorder, screenshots);
+      // Track timestamp before action
+      const actionStartTime = Date.now();
+      
+      await executeAction(action, recorder, screenshots, narrationClips, currentTimestamp);
+
+      // Update current timestamp
+      const actionDuration = Date.now() - actionStartTime;
+      currentTimestamp += actionDuration;
 
       // Add delay between actions (except after the last one)
       if (i < script.actions.length - 1) {
         const delay = calculateDelay(defaultDelay.base, defaultDelay.variance);
         await recorder.wait(delay);
+        currentTimestamp += delay;
       }
     }
 
     // Extra wait before closing to ensure video captures everything
     await recorder.wait(1000);
+    currentTimestamp += 1000;
 
     // Close and get video path
     const rawVideoPath = await recorder.close();
     
     if (rawVideoPath) {
-      // Move video to desired output path
       const outputPath = path.join(recorder.getOutputDir(), script.outputPath);
-      const fs = await import('node:fs/promises');
-      await fs.rename(rawVideoPath, outputPath);
-      videoPath = outputPath;
+      
+      // If we have narration clips, combine them with the video
+      if (narrationClips.length > 0) {
+        console.log(`   🎙️  Processing ${narrationClips.length} narration clip(s)...`);
+        
+        // Create audio timeline
+        const audioTimelinePath = path.join(recorder.getOutputDir(), `${script.id}-audio.mp3`);
+        await createAudioTimeline(
+          narrationClips.map(clip => ({ audioPath: clip.audioPath, timestamp: clip.timestamp })),
+          currentTimestamp,
+          audioTimelinePath
+        );
+
+        // Combine video and audio
+        const finalOutputPath = outputPath.replace('.webm', '-narrated.webm');
+        await combineVideoAudio(rawVideoPath, audioTimelinePath, finalOutputPath);
+        
+        // Clean up intermediate files
+        await fs.unlink(rawVideoPath).catch(() => {});
+        await fs.unlink(audioTimelinePath).catch(() => {});
+        
+        videoPath = finalOutputPath;
+        console.log(`   🎙️  Narration added to video`);
+      } else {
+        // No narration, just rename the video
+        await fs.rename(rawVideoPath, outputPath);
+        videoPath = outputPath;
+      }
     }
 
     const duration = Date.now() - startTime;
@@ -69,6 +106,9 @@ export async function runDemoScript(
       console.log(`   Video: ${videoPath}`);
     }
     console.log(`   Screenshots: ${screenshots.length}`);
+    if (narrationClips.length > 0) {
+      console.log(`   Narration clips: ${narrationClips.length}`);
+    }
 
     return {
       id: script.id,
@@ -76,6 +116,7 @@ export async function runDemoScript(
       duration,
       videoPath,
       screenshots,
+      narrationClips: narrationClips.length,
     };
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -95,6 +136,7 @@ export async function runDemoScript(
       success: false,
       duration,
       screenshots,
+      narrationClips: narrationClips.length,
       error: errorMessage,
     };
   }
@@ -106,7 +148,9 @@ export async function runDemoScript(
 async function executeAction(
   action: DemoAction,
   recorder: DemoRecorder,
-  screenshots: string[]
+  screenshots: string[],
+  narrationClips: NarrationClip[],
+  currentTimestamp: number
 ): Promise<void> {
   switch (action.type) {
     case 'navigate':
@@ -128,6 +172,30 @@ async function executeAction(
     case 'screenshot': {
       const screenshotPath = await recorder.screenshot(action.options.name);
       screenshots.push(screenshotPath);
+      break;
+    }
+
+    case 'narrate': {
+      const audioPath = path.join(
+        recorder.getOutputDir(),
+        `narration-${narrationClips.length + 1}.mp3`
+      );
+      
+      // Generate TTS audio
+      await generateTTS(action.text, audioPath);
+      
+      // Get audio duration
+      const duration = await getAudioDuration(audioPath);
+      
+      narrationClips.push({
+        text: action.text,
+        audioPath,
+        timestamp: currentTimestamp,
+        duration,
+      });
+      
+      // Wait for the audio to "play" (simulate narration time)
+      await recorder.wait(duration);
       break;
     }
 
@@ -155,6 +223,8 @@ function describeAction(action: DemoAction): string {
       return action.description ?? `Wait ${action.ms}ms`;
     case 'screenshot':
       return `Screenshot: ${action.options.name}`;
+    case 'narrate':
+      return `🎙️  Narrate: "${action.text.substring(0, 50)}${action.text.length > 50 ? '...' : ''}"`;
     case 'custom':
       return action.description ?? 'Custom action';
     default:
