@@ -1,0 +1,310 @@
+{
+  "schema": "vertz.audit.v1",
+  "auditDate": "2026-02-14T14:06:00Z",
+  "pr": {
+    "number": 256,
+    "title": "feat(cli): add create-vertz-app scaffolding CLI",
+    "author": "vertz-advocate[bot]",
+    "mergedAt": "2026-02-14T00:04:07Z",
+    "branch": "feat/ui-030-create-vertz-app",
+    "linesAdded": 1701,
+    "linesDeleted": 0,
+    "filesChanged": 9,
+    "commits": 1
+  },
+  "agent": {
+    "id": "vertz-advocate[bot]",
+    "role": "developer-advocate",
+    "model": "unknown",
+    "sessionKey": "unavailable",
+    "durationMinutes": null,
+    "totalTokens": null
+  },
+  "ticket": {
+    "id": "ui-030",
+    "title": "create-vertz-app scaffolding CLI",
+    "estimate": "8h"
+  },
+  "grade": {
+    "overall": "F",
+    "numeric": 0,
+    "summary": "Critical process violations: merged with failing CI, missing required package configuration files, single mega-commit, no changeset. Code quality is excellent but process discipline broke down completely."
+  },
+  "categories": {
+    "tdd": {
+      "grade": "UNVERIFIABLE",
+      "numeric": null,
+      "checks": {
+        "testsBeforeImplementation": {
+          "pass": null,
+          "severity": null,
+          "evidence": "No session transcript available to verify TDD process. Only one commit (1,701 lines) suggests batch implementation rather than test-first."
+        },
+        "redGreenCycle": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify without transcript. Commit message mentions 'Added failing tests' which suggests TDD awareness."
+        },
+        "oneTestAtATime": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify without transcript. Single commit pattern is a red flag."
+        },
+        "qualityGatesBeforeCommit": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "CI check-runs show 'Lint, typecheck, test: failure' on commit 4196bc978402322983a77a1cc4705ff477c93152. PR was merged with failing CI."
+        },
+        "noSkipsOrIgnores": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Code review shows no @ts-ignore, as any, .skip, or --no-verify in diff."
+        },
+        "testsExist": {
+          "pass": true,
+          "severity": null,
+          "evidence": "74 tests across 3 test files (scaffold.test.ts, prompts.test.ts, templates.test.ts). Test coverage is comprehensive."
+        },
+        "testQuality": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Tests use proper assertions, temp directories for file system tests, mocks for readline, cover positive and negative cases, runtime-specific behaviors."
+        }
+      }
+    },
+    "process": {
+      "grade": "F",
+      "numeric": 0,
+      "checks": {
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Branch feat/ui-030-create-vertz-app created before work. Git log shows branch creation timestamp."
+        },
+        "atomicCommits": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Single mega-commit with 1,701 lines across 9 files. Should have been 5-7 atomic commits (package setup, types, prompts, scaffold, templates, CLI, integration)."
+        },
+        "changesetAdded": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No changeset file found in commit 9c9ae6b. Checked with: git show 9c9ae6b --name-only | grep .changeset"
+        },
+        "botScriptsUsed": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify without transcript. Commit author is vertz-advocate[bot] which suggests correct bot identity."
+        },
+        "noPushToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR #256 was used. No direct push to main detected."
+        },
+        "ciPassed": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "GitHub API check-runs for commit 4196bc9: 'Lint, typecheck, test: failure'. PR merged despite failing CI."
+        },
+        "requiredFilesPresent": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Missing package.json, tsconfig.json, vitest.config.ts, bunup.config.ts for the new package. Only source code files shipped. Git ls-tree shows no config files."
+        }
+      }
+    },
+    "design": {
+      "grade": "C",
+      "numeric": 2,
+      "checks": {
+        "readDesignDocFirst": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify without transcript."
+        },
+        "readRulesFirst": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify without transcript."
+        },
+        "filesMatchScope": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All changes in packages/create-vertz-app/. No scope creep detected."
+        },
+        "designDocCompliance": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Design doc phase-11-create-vertz-app.md requires package.json, tsconfig.json, vitest.config.ts, bunup.config.ts. None were created. Source files match design but package config is missing."
+        },
+        "deviationsEscalated": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Template flag was removed (design doc says 'Include a --template flag'). Commit message explains rationale but no evidence of escalation to VP Eng or Tech Lead."
+        }
+      }
+    },
+    "dx": {
+      "grade": "F",
+      "numeric": 0,
+      "checks": {
+        "developerWalkthrough": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Cannot pass Developer Walkthrough. Package.json missing means cannot install dependencies, cannot publish to npm, cannot run 'npm create vertz-app'. Feature is non-functional."
+        },
+        "acceptanceCriteriaIncludeOutcomes": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Ticket ui-030 states 'Must work out of the box after install + dev' - clear user outcome."
+        },
+        "examplesUsePublicAPI": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Example health module uses only public @vertz/core APIs. No internal imports detected."
+        },
+        "verticalSlices": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Single-phase implementation with end-to-end functionality (would be functional if package.json existed)."
+        },
+        "documentationComplete": {
+          "pass": true,
+          "severity": null,
+          "evidence": "CLI help is clear, template comments guide users, example module demonstrates best practices."
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4,
+      "checks": {
+        "noEvalOrNewFunction": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() found in diff."
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No hardcoded secrets in diff. .env file uses placeholders."
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Runtime validation present (InvalidRuntimeError). Directory existence check prevents overwrites. Minor suggestion: add project name validation for path traversal."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "Quality gates must pass before merge",
+      "severity": "critical",
+      "category": "process",
+      "description": "PR merged with failing CI. GitHub check-runs show 'Lint, typecheck, test: failure' on the merged commit.",
+      "evidence": "gh api repos/vertz-dev/vertz/commits/4196bc978402322983a77a1cc4705ff477c93152/check-runs shows: 'Lint, typecheck, test: failure'",
+      "recommendation": "Add branch protection rule requiring all CI checks to pass before merge. Never merge failing CI."
+    },
+    {
+      "rule": "New packages require package.json and build config",
+      "severity": "critical",
+      "category": "design",
+      "description": "Design doc requires package.json, tsconfig.json, vitest.config.ts, bunup.config.ts for the new package. None were created. Feature is non-functional without package.json.",
+      "evidence": "git ls-tree -r 9c9ae6b packages/create-vertz-app/ | grep -E 'package\\.json|tsconfig\\.json' returns no results",
+      "recommendation": "Create immediate follow-up PR adding all required package configuration files. Add checklist to PR template for new packages."
+    },
+    {
+      "rule": "Commits must be atomic",
+      "severity": "major",
+      "category": "process",
+      "description": "Single commit with 1,701 lines across 9 files. Should have been 5-7 atomic commits for package setup, types, prompts, scaffold, templates, CLI, and integration.",
+      "evidence": "git show 4196bc978402322983a77a1cc4705ff477c93152 --stat shows: 9 files changed, 1701 insertions(+)",
+      "recommendation": "Enforce commit size limits. Flag PRs with single commits >500 lines for mandatory review."
+    },
+    {
+      "rule": "Changeset required for package changes",
+      "severity": "major",
+      "category": "process",
+      "description": "New package create-vertz-app added without changeset file for version management.",
+      "evidence": "git show 9c9ae6b --name-only | grep .changeset returns no results",
+      "recommendation": "Add changeset in follow-up PR. Consider CI check that blocks merge if changeset is missing."
+    },
+    {
+      "rule": "Developer Walkthrough must pass",
+      "severity": "critical",
+      "category": "dx",
+      "description": "Feature cannot pass Developer Walkthrough (Definition of Done gate). Without package.json, cannot install dependencies, publish to npm, or run 'npm create vertz-app'.",
+      "evidence": "Ticket ui-030 requires 'Must work out of the box after install + dev'. Missing package.json makes this impossible.",
+      "recommendation": "Do not close ticket until Developer Walkthrough passes. Add follow-up PR with package config and verify end-to-end."
+    },
+    {
+      "rule": "Design doc compliance",
+      "severity": "major",
+      "category": "design",
+      "description": "Design doc explicitly lists required files that were not created. Template flag was removed without documented escalation.",
+      "evidence": "phase-11-create-vertz-app.md shows package.json, tsconfig.json, vitest.config.ts, bunup.config.ts in required files list. Commit message says 'Removed unused --template flag' but design doc says to include it.",
+      "recommendation": "When deviating from design doc, escalate to VP Eng or Tech Lead and document decision in commit/PR."
+    }
+  ],
+  "positives": [
+    "Code quality is excellent: strict TypeScript, custom error classes, proper type guards, no type hacks",
+    "Test coverage is comprehensive: 74 tests across 3 files, proper mocking, temp directories, runtime-specific coverage",
+    "Review process worked well: 3 review cycles, adversarial reviews caught critical issues, changes were addressed",
+    "No security issues: no eval, no hardcoded secrets, input validation present",
+    "Scope discipline: all changes within packages/create-vertz-app/, no scope creep",
+    "Error handling: descriptive messages, context included, proper error classes",
+    "Documentation: clear CLI help, helpful template comments, example module demonstrates best practices"
+  ],
+  "recommendations": [
+    {
+      "priority": "immediate",
+      "action": "Add missing package.json, tsconfig.json, vitest.config.ts, bunup.config.ts in follow-up PR"
+    },
+    {
+      "priority": "immediate",
+      "action": "Add changeset for create-vertz-app package"
+    },
+    {
+      "priority": "immediate",
+      "action": "Investigate and fix CI failures (lint/typecheck/test)"
+    },
+    {
+      "priority": "immediate",
+      "action": "Verify Developer Walkthrough passes after package config is added"
+    },
+    {
+      "priority": "high",
+      "action": "Add branch protection rule requiring all CI checks to pass before merge"
+    },
+    {
+      "priority": "high",
+      "action": "Require session transcript archival for all bot work to enable TDD audits"
+    },
+    {
+      "priority": "high",
+      "action": "Add PR template checklist for new packages (package.json, tsconfig, test config, changeset)"
+    },
+    {
+      "priority": "medium",
+      "action": "Enforce commit atomicity: flag PRs with single commits >500 lines"
+    },
+    {
+      "priority": "medium",
+      "action": "Add CI check that blocks merge if changeset is missing for package changes"
+    },
+    {
+      "priority": "low",
+      "action": "Add project name validation to prevent path traversal attacks (defensive improvement)"
+    }
+  ],
+  "metrics": {
+    "testCount": 74,
+    "testFiles": 3,
+    "linesOfCode": 1701,
+    "commits": 1,
+    "reviewCycles": 3,
+    "daysToMerge": 0,
+    "filesChanged": 9
+  }
+}
