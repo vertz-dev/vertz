@@ -1,0 +1,252 @@
+{
+  "schema": "vertz.audit.v1",
+  "auditDate": "2026-02-14T14:06:00Z",
+  "auditor": "auditor-agent",
+  "pr": {
+    "number": 259,
+    "title": "feat/ui 033 compiler diagnostics",
+    "author": "vertz-dev-core[bot]",
+    "createdAt": "2026-02-14T00:19:16Z",
+    "mergedAt": "2026-02-14T00:25:07Z",
+    "additions": 213,
+    "deletions": 7,
+    "filesChanged": 6,
+    "commits": [
+      {
+        "sha": "fc14d12499bd285944005fcec673883cc3be22d8",
+        "author": "vertz-tech-lead[bot]",
+        "message": "fix(infra): add quality-gates command to pre-push hook (infra-002)",
+        "timestamp": "2026-02-14T00:10:10Z"
+      },
+      {
+        "sha": "304e71bbd22498068421c61389d7cd32b9e3452a",
+        "author": "vertz-dev-core[bot]",
+        "message": "fix(ui-compiler): transform JSX in conditional branches, remove .node access",
+        "timestamp": "2026-02-14T00:15:53Z"
+      }
+    ]
+  },
+  "agent": {
+    "id": "vertz-dev-core[bot]",
+    "model": "unknown",
+    "sessionKey": "unavailable",
+    "durationMinutes": null,
+    "tokensUsed": null
+  },
+  "grade": {
+    "overall": "D",
+    "numeric": 1,
+    "summary": "Critical scope violation: PR claims to implement ui-033 diagnostic rules but actually contains two unrelated bug fixes (infra-002 + JSX conditional transform). Missing changeset for package changes. Work is functional but process violations are severe."
+  },
+  "scores": {
+    "tdd": {
+      "grade": "C",
+      "numeric": 2,
+      "weight": 0.35,
+      "checks": {
+        "testBeforeImpl": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify test-first order without session transcript. Tests exist and are comprehensive (188 lines across 2 test files)."
+        },
+        "redGreenCycle": {
+          "pass": null,
+          "severity": null,
+          "evidence": "No transcript available to verify red-green-refactor cycle."
+        },
+        "qualityGates": {
+          "pass": null,
+          "severity": null,
+          "evidence": "No transcript available to verify 'bun run test && bun run typecheck && bun run lint' was run before commits."
+        },
+        "noSkips": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Code review shows no @ts-ignore, as any, .skip, or --no-verify in changed files."
+        },
+        "testQuality": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Tests verify behavior from outside, not implementation details. Multiple edge cases covered. Test names are descriptive."
+        }
+      }
+    },
+    "process": {
+      "grade": "F",
+      "numeric": 0,
+      "weight": 0.25,
+      "checks": {
+        "changeset": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "PR modifies packages/integration-tests/package.json (added yaml dep), packages/ui-compiler/src/transformers/*, and packages/ui/src/dom/conditional.ts but includes NO changeset. Rule: 'Changeset required for any package change'."
+        },
+        "branchNaming": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Branch 'feat/ui-033-compiler-diagnostics' claims to implement ticket ui-033 (5 diagnostic rules), but PR actually contains infra-002 (lefthook fix) and an unrelated JSX bug fix. Branch name is misleading."
+        },
+        "atomicCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Two commits, each addressing one logical change: (1) lefthook config, (2) JSX conditional transform."
+        },
+        "botScripts": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Both commits use bot Git identities: vertz-tech-lead[bot] and vertz-dev-core[bot]."
+        },
+        "conventionalCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Both commits follow conventional format: 'fix(infra): ...' and 'fix(ui-compiler): ...'"
+        }
+      }
+    },
+    "design": {
+      "grade": "F",
+      "numeric": 0,
+      "weight": 0.25,
+      "checks": {
+        "ticketScope": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Ticket ui-033 requires implementing 5 diagnostic rules (lifecycle-scope, untransformed-jsx, missing-cleanup, raw-dom-mutation, signal-outside-component). PR #259 implements NONE of these. Actual diagnostic implementation exists as commit d800177 on separate branch 'pr-258' and was never merged."
+        },
+        "readDesignDoc": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No session transcript to verify, but scope violation suggests design doc was not followed. Ticket ui-033 clearly specifies 5 diagnostic rules; PR delivers infra fix + JSX bug fix instead."
+        },
+        "noScopeCreep": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "PR bundles two unrelated fixes (infra-002 lefthook + JSX conditional bug) under ui-033 feature branch. Rule: 'Never refactor unrelated code. Stay in scope.'"
+        },
+        "filesMatchScope": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Ticket ui-033 specifies files: packages/ui-compiler/src/diagnostics/*.ts. PR modifies: lefthook.yml, packages/integration-tests/*, packages/ui-compiler/src/transformers/*, packages/ui/src/dom/*. Complete mismatch."
+        }
+      }
+    },
+    "dx": {
+      "grade": "C",
+      "numeric": 2,
+      "weight": 0.10,
+      "checks": {
+        "developerWalkthrough": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "PR title claims 'feat/ui 033' but no Developer Walkthrough included. Mitigation: actual changes are bug fixes (not features), so walkthrough may not be required."
+        },
+        "examples": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No examples demonstrating the fixes. Lefthook change lacks usage documentation."
+        },
+        "documentation": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No documentation updates for lefthook configuration changes."
+        },
+        "testComprehensiveness": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Tests cover multiple edge cases: parenthesized JSX, ternary branches, multi-level conditionals, .node property access bug."
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4,
+      "weight": 0.05,
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() in changed files."
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No hardcoded credentials or tokens in diff."
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Not applicable - changes are test infrastructure and compiler internals, no user input handling."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "design-compliance",
+      "severity": "critical",
+      "category": "design",
+      "description": "PR #259 title claims to implement 'feat/ui 033 compiler diagnostics' but does not implement any of the 5 diagnostic rules from ticket ui-033",
+      "evidence": "Ticket ui-033 acceptance criteria: '[ ] lifecycle-scope rule detects bare onCleanup() and onMount() calls', '[ ] untransformed-jsx rule detects JSX the compiler skipped', etc. PR contains: (1) lefthook config fix for infra-002, (2) JSX conditional transform bug fix. Diagnostic implementation (commit d800177) exists on separate branch and was never merged.",
+      "recommendation": "1. Close or rename PR #259 - it does not match its title. 2. Update ticket ui-033 status to 'Todo' - diagnostic rules were never merged. 3. Create NEW PR from commit d800177 that actually implements ui-033. 4. Review session transcript to understand why scope was violated."
+    },
+    {
+      "rule": "scope-discipline",
+      "severity": "major",
+      "category": "design",
+      "description": "PR bundles two unrelated fixes (infra-002 + JSX bug) under ui-033 feature branch",
+      "evidence": "Commit fc14d12: 'fix(infra): add quality-gates command to pre-push hook (infra-002)' from vertz-tech-lead[bot]. Commit 1d425f6: 'fix(ui-compiler): transform JSX in conditional branches' from vertz-dev-core[bot]. Neither relates to ui-033 diagnostic rules.",
+      "recommendation": "Split unrelated work into separate PRs. Rule: 'Never refactor unrelated code. Stay in scope.' Each ticket should get its own branch and PR."
+    },
+    {
+      "rule": "changeset-required",
+      "severity": "major",
+      "category": "process",
+      "description": "Package changes merged without changeset",
+      "evidence": "Modified: packages/integration-tests/package.json (added yaml@^2.3.0 dep), packages/ui-compiler/src/transformers/*.ts, packages/ui/src/dom/conditional.ts. No changeset file in .changeset/ for these changes.",
+      "recommendation": "Add changeset with type 'patch' for @vertz/ui-compiler and @vertz/ui bug fixes. Run: npx changeset add"
+    },
+    {
+      "rule": "branch-naming",
+      "severity": "major",
+      "category": "process",
+      "description": "Branch name 'feat/ui-033-compiler-diagnostics' does not match actual work delivered",
+      "evidence": "Branch implies feature work on diagnostic rules. Actual work: infrastructure fix (infra-002) + compiler bug fix (no ticket). This creates false expectations for reviewers and stakeholders.",
+      "recommendation": "Use accurate branch names that match ticket scope. If scope changes mid-development, create a new branch or escalate to VP Eng."
+    },
+    {
+      "rule": "ticket-reference",
+      "severity": "minor",
+      "category": "process",
+      "description": "JSX bug fix commit references 'Bug #255' in test descriptions but has no associated ticket",
+      "evidence": "Test file jsx-conditional-nested.test.ts line 28: 'describe('JsxTransformer — conditional branch JSX (Bug #255)')'. Bug #255 was a previous PR, not a ticket. Current fix has no ticket of its own.",
+      "recommendation": "All bug fixes should have tickets (even if Tier 1 critical). Create retroactive ticket for JSX conditional transform bug or reference the correct ticket if one exists."
+    }
+  ],
+  "timeline": {
+    "prCreated": "2026-02-14T00:19:16Z",
+    "prMerged": "2026-02-14T00:25:07Z",
+    "prDurationMinutes": 6,
+    "firstCommit": "2026-02-14T00:10:10Z",
+    "lastCommit": "2026-02-14T00:15:53Z",
+    "developmentDurationMinutes": 6
+  },
+  "metrics": {
+    "linesChanged": 220,
+    "testLinesAdded": 188,
+    "testCoverageRatio": 0.85,
+    "commitCount": 2,
+    "filesChanged": 6,
+    "packagesAffected": [
+      "integration-tests",
+      "ui-compiler",
+      "ui"
+    ]
+  },
+  "notes": [
+    "Session transcript unavailable - TDD order and quality gate execution could not be verified",
+    "PR title is false advertising - creates confusion about what was delivered",
+    "Actual ui-033 diagnostic implementation exists as orphaned commit d800177 on branch 'pr-258'",
+    "Work quality is good (tests are comprehensive, bugs are fixed), but process violations are severe",
+    "Two different bots contributed to the same 'feature' branch (tech-lead + core) suggesting coordination issue"
+  ]
+}
