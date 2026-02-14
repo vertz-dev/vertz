@@ -121,4 +121,74 @@ describe('ReactivityAnalyzer', () => {
     expect(findVar(results[0]?.variables, 'count')?.kind).toBe('signal');
     expect(findVar(results[1]?.variables, 'label')?.kind).toBe('static');
   });
+
+  describe('signal-object detection', () => {
+    it('detects query() call as signal-object', () => {
+      const [result] = analyze(`
+        function TaskList() {
+          const tasks = query('/api/tasks');
+          return <div>{tasks.loading}</div>;
+        }
+      `);
+      const v = findVar(result?.variables, 'tasks');
+      expect(v?.kind).toBe('signal-object');
+      expect(v?.signalProperties).toBeInstanceOf(Set);
+      expect(v?.signalProperties?.has('data')).toBe(true);
+      expect(v?.signalProperties?.has('loading')).toBe(true);
+      expect(v?.signalProperties?.has('error')).toBe(true);
+    });
+
+    it('detects form() call as signal-object', () => {
+      const [result] = analyze(`
+        function UserForm() {
+          const userForm = form(schema);
+          return <div>{userForm.submitting}</div>;
+        }
+      `);
+      const v = findVar(result?.variables, 'userForm');
+      expect(v?.kind).toBe('signal-object');
+      expect(v?.signalProperties?.has('submitting')).toBe(true);
+      expect(v?.signalProperties?.has('errors')).toBe(true);
+      expect(v?.signalProperties?.has('values')).toBe(true);
+    });
+
+    it('detects createLoader() call as signal-object', () => {
+      const [result] = analyze(`
+        function DataView() {
+          const loader = createLoader(() => fetchData());
+          return <div>{loader.loading}</div>;
+        }
+      `);
+      const v = findVar(result?.variables, 'loader');
+      expect(v?.kind).toBe('signal-object');
+      expect(v?.signalProperties?.has('data')).toBe(true);
+      expect(v?.signalProperties?.has('loading')).toBe(true);
+      expect(v?.signalProperties?.has('error')).toBe(true);
+    });
+
+    it('ignores non-signal API calls', () => {
+      const [result] = analyze(`
+        function App() {
+          const result = someOtherFunc();
+          return <div>{result}</div>;
+        }
+      `);
+      const v = findVar(result?.variables, 'result');
+      // Should be static, not signal-object
+      expect(v?.kind).toBe('static');
+      expect(v?.signalProperties).toBeUndefined();
+    });
+
+    it('detects namespaced signal API calls', () => {
+      const [result] = analyze(`
+        function TaskList() {
+          const tasks = UI.query('/api/tasks');
+          return <div>{tasks.loading}</div>;
+        }
+      `);
+      const v = findVar(result?.variables, 'tasks');
+      expect(v?.kind).toBe('signal-object');
+      expect(v?.signalProperties?.has('loading')).toBe(true);
+    });
+  });
 });

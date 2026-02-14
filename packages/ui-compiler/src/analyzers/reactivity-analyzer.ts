@@ -1,4 +1,5 @@
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
+import { getSignalApiConfig, isSignalApi } from '../signal-api-registry';
 import type { ComponentInfo, VariableInfo } from '../types';
 import { findBodyNode } from '../utils';
 
@@ -19,6 +20,7 @@ export class ReactivityAnalyzer {
     // Pass 1: Collect declarations
     const lets = new Map<string, { start: number; end: number; deps: string[] }>();
     const consts = new Map<string, { start: number; end: number; deps: string[] }>();
+    const signalObjects = new Map<string, { start: number; end: number; signalProperties: Set<string> }>();
 
     for (const stmt of bodyNode.getChildSyntaxList()?.getChildren() ?? []) {
       if (!stmt.isKind(SyntaxKind.VariableStatement)) continue;
@@ -51,6 +53,22 @@ export class ReactivityAnalyzer {
         const name = decl.getName();
         const deps = init ? collectIdentifierRefs(init) : [];
         const entry = { start: decl.getStart(), end: decl.getEnd(), deps };
+
+        // Check if this const is initialized with a signal API call
+        if (isConst && init) {
+          const apiName = extractSignalApiCall(init);
+          if (apiName) {
+            const config = getSignalApiConfig(apiName);
+            if (config) {
+              signalObjects.set(name, {
+                start: decl.getStart(),
+                end: decl.getEnd(),
+                signalProperties: new Set(config.signalProperties),
+              });
+              continue; // Don't add to regular consts
+            }
+          }
+        }
 
         if (isLet) {
           lets.set(name, entry);
@@ -134,6 +152,17 @@ export class ReactivityAnalyzer {
       });
     }
 
+    // Add signal-object entries
+    for (const [name, info] of signalObjects) {
+      results.push({
+        name,
+        kind: 'signal-object',
+        start: info.start,
+        end: info.end,
+        signalProperties: info.signalProperties,
+      });
+    }
+
     return results;
   }
 }
@@ -171,4 +200,35 @@ function collectIdentifierRefs(node: Node): string[] {
   };
   walk(node);
   return refs;
+}
+
+/**
+ * Extract the name of a signal API call from an initializer expression.
+ * Returns the function name if it's a registered signal API, otherwise null.
+ * 
+ * Examples:
+ *   query(...) -> "query"
+ *   form(...) -> "form"
+ *   vertz.query(...) -> "query"
+ *   someOtherFunc(...) -> null
+ */
+function extractSignalApiCall(node: Node): string | null {
+  // Direct call: query(...)
+  if (node.isKind(SyntaxKind.CallExpression)) {
+    const expr = node.getExpression();
+    
+    // Simple identifier: query(...)
+    if (expr.isKind(SyntaxKind.Identifier)) {
+      const name = expr.getText();
+      return isSignalApi(name) ? name : null;
+    }
+    
+    // Property access: vertz.query(...), UI.form(...)
+    if (expr.isKind(SyntaxKind.PropertyAccessExpression)) {
+      const propName = expr.getName();
+      return isSignalApi(propName) ? propName : null;
+    }
+  }
+  
+  return null;
 }
