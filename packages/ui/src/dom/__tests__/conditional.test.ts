@@ -228,7 +228,7 @@ describe('__conditional', () => {
     const container = document.createElement('div');
     const fragment = __conditional(
       () => show.value,
-      () => null as any, // null branch
+      () => null as unknown as Node, // null branch
       () => {
         const span = document.createElement('span');
         span.textContent = 'hidden';
@@ -236,10 +236,10 @@ describe('__conditional', () => {
       },
     );
     container.appendChild(fragment);
-    
+
     // Should have anchor comment + null placeholder comment
     expect(container.childNodes.length).toBeGreaterThanOrEqual(2);
-    
+
     // Verify no crash and we can switch branches
     show.value = false;
     expect(container.textContent).toBe('hidden');
@@ -255,13 +255,13 @@ describe('__conditional', () => {
         span.textContent = 'visible';
         return span;
       },
-      () => null as any, // null branch
+      () => null as unknown as Node, // null branch
     );
     container.appendChild(fragment);
-    
+
     // Should have anchor comment + null placeholder comment
     expect(container.childNodes.length).toBeGreaterThanOrEqual(2);
-    
+
     // Verify no crash and we can switch branches
     show.value = true;
     expect(container.textContent).toBe('visible');
@@ -272,19 +272,19 @@ describe('__conditional', () => {
     const container = document.createElement('div');
     const fragment = __conditional(
       () => show.value,
-      () => null as any,
-      () => null as any,
+      () => null as unknown as Node,
+      () => null as unknown as Node,
     );
     container.appendChild(fragment);
-    
+
     // Should not crash with both branches null
     expect(container.childNodes.length).toBeGreaterThanOrEqual(2);
     expect(container.textContent).toBe('');
-    
+
     // Switching should also work
     show.value = false;
     expect(container.textContent).toBe('');
-    
+
     show.value = true;
     expect(container.textContent).toBe('');
   });

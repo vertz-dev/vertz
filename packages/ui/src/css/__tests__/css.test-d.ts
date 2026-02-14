@@ -66,7 +66,7 @@ const _cssStr: string = output.css;
 void _cssStr;
 
 // classNames values are strings
-const _className: string = output.classNames['card'] as string;
+const _className: string = output.classNames.card as string;
 void _className;
 
 // ─── css() — return type ──────────────────────────────────────────
@@ -84,7 +84,7 @@ const _resultCss: string = result.css;
 void _resultCss;
 
 // Accessing a specific class name
-const _cardClass: string | undefined = result.classNames['card'];
+const _cardClass: string | undefined = result.classNames.card;
 void _cardClass;
 
 // ─── css() — input validation ─────────────────────────────────────
@@ -118,9 +118,9 @@ const styles = css({
   footer: ['mt:4'],
 });
 
-const _containerClass: string | undefined = styles.classNames['container'];
-const _headerClass: string | undefined = styles.classNames['header'];
-const _footerClass: string | undefined = styles.classNames['footer'];
+const _containerClass: string | undefined = styles.classNames.container;
+const _headerClass: string | undefined = styles.classNames.header;
+const _footerClass: string | undefined = styles.classNames.footer;
 void _containerClass;
 void _headerClass;
 void _footerClass;

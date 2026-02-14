@@ -59,7 +59,7 @@ describe('__insert (static child insertion)', () => {
     __insert(parent, frag);
 
     expect(parent.children.length).toBe(2);
-    expect(parent.children[0]!.tagName).toBe('P');
-    expect(parent.children[1]!.tagName).toBe('SPAN');
+    expect(parent.children[0]?.tagName).toBe('P');
+    expect(parent.children[1]?.tagName).toBe('SPAN');
   });
 });

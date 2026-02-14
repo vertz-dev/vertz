@@ -29,15 +29,18 @@ export function generateAction(options: GenerateOptions): GenerateResult {
     };
   }
 
+  // At this point, if type requires a module, moduleName is guaranteed to be defined
+  const ensuredModuleName = moduleName as string;
+
   switch (type) {
     case 'module':
       return { success: true, files: generateModule(name, sourceDir) };
     case 'service':
-      return { success: true, files: generateService(name, moduleName!, sourceDir) };
+      return { success: true, files: generateService(name, ensuredModuleName, sourceDir) };
     case 'router':
-      return { success: true, files: generateRouter(name, moduleName!, sourceDir) };
+      return { success: true, files: generateRouter(name, ensuredModuleName, sourceDir) };
     case 'schema':
-      return { success: true, files: generateSchema(name, moduleName!, sourceDir) };
+      return { success: true, files: generateSchema(name, ensuredModuleName, sourceDir) };
     default:
       return {
         success: false,

@@ -339,7 +339,7 @@ describe('hydrate()', () => {
     expect(hydrateSpy).not.toHaveBeenCalled();
 
     // Simulate media query match
-    mediaChangeHandler!({ matches: true });
+    mediaChangeHandler?.({ matches: true });
     expect(hydrateSpy).toHaveBeenCalled();
   });
 });
