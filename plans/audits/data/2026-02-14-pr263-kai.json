@@ -1,0 +1,19 @@
+{
+  "schema": "vertz.audit.v1",
+  "audit": {"id": "2026-02-14-pr263-kai", "date": "2026-02-14T14:06:00Z", "auditor": "agent:auditor"},
+  "pr": {"number": 263, "title": "feat(demo-toolkit): Add automated demo recording pipeline", "author": "kai", "authorBot": "vertz-dev-dx", "mergedAt": "2026-02-14T12:13:39Z", "additions": 1041, "deletions": 11},
+  "grade": {"overall": "F", "numeric": 0, "summary": "CRITICAL security vulnerabilities (shell injection) and major TDD violations"},
+  "scores": {
+    "tdd": {"grade": "F", "numeric": 0},
+    "process": {"grade": "D", "numeric": 1},
+    "design": {"grade": "N/A", "numeric": null},
+    "dx": {"grade": "A", "numeric": 4},
+    "security": {"grade": "F", "numeric": 0}
+  },
+  "violations": [
+    {"category": "security", "severity": "critical", "rule": "No shell injection", "evidence": "tts.ts line 25: execAsync with template literals, insufficient escaping for shell execution"},
+    {"category": "tdd", "severity": "major", "rule": "Tests before implementation", "evidence": "144 lines of tts.ts with zero functional tests"},
+    {"category": "process", "severity": "major", "rule": "Changeset required", "evidence": "package.json modified but no changeset added"}
+  ],
+  "actionRequired": {"revertRequired": true, "blocksMerge": true, "securityReview": true, "flagToLeadership": true}
+}
