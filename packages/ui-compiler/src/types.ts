@@ -46,6 +46,8 @@ export interface VariableInfo {
   start: number;
   /** 0-based end position of the declaration in source. */
   end: number;
+  /** Signal properties on this variable (for signal-returning APIs like query()). */
+  signalProperties?: Set<string>;
 }
 
 /** Information about a detected component function. */

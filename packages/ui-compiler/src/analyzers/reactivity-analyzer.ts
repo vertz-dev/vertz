@@ -1,4 +1,5 @@
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
+import { getSignalApiConfig, isSignalApi } from '../signal-api-registry';
 import type { ComponentInfo, VariableInfo } from '../types';
 import { findBodyNode } from '../utils';
 
@@ -19,6 +20,7 @@ export class ReactivityAnalyzer {
     // Pass 1: Collect declarations
     const lets = new Map<string, { start: number; end: number; deps: string[] }>();
     const consts = new Map<string, { start: number; end: number; deps: string[] }>();
+    const signalApiVars = new Map<string, Set<string>>(); // Track variables assigned from signal APIs
 
     for (const stmt of bodyNode.getChildSyntaxList()?.getChildren() ?? []) {
       if (!stmt.isKind(SyntaxKind.VariableStatement)) continue;
@@ -51,6 +53,21 @@ export class ReactivityAnalyzer {
         const name = decl.getName();
         const deps = init ? collectIdentifierRefs(init) : [];
         const entry = { start: decl.getStart(), end: decl.getEnd(), deps };
+
+        // Check if this is assigned from a signal API call
+        if (init?.isKind(SyntaxKind.CallExpression)) {
+          const callExpr = init.asKindOrThrow(SyntaxKind.CallExpression);
+          const callName = callExpr.getExpression();
+          if (callName.isKind(SyntaxKind.Identifier)) {
+            const fnName = callName.getText();
+            if (isSignalApi(fnName)) {
+              const config = getSignalApiConfig(fnName);
+              if (config) {
+                signalApiVars.set(name, config.signalProperties);
+              }
+            }
+          }
+        }
 
         if (isLet) {
           lets.set(name, entry);
@@ -117,21 +134,29 @@ export class ReactivityAnalyzer {
     const results: VariableInfo[] = [];
 
     for (const [name, info] of lets) {
-      results.push({
+      const varInfo: VariableInfo = {
         name,
         kind: signals.has(name) ? 'signal' : 'static',
         start: info.start,
         end: info.end,
-      });
+      };
+      if (signalApiVars.has(name)) {
+        varInfo.signalProperties = signalApiVars.get(name);
+      }
+      results.push(varInfo);
     }
 
     for (const [name, info] of consts) {
-      results.push({
+      const varInfo: VariableInfo = {
         name,
         kind: computeds.has(name) ? 'computed' : 'static',
         start: info.start,
         end: info.end,
-      });
+      };
+      if (signalApiVars.has(name)) {
+        varInfo.signalProperties = signalApiVars.get(name);
+      }
+      results.push(varInfo);
     }
 
     return results;
