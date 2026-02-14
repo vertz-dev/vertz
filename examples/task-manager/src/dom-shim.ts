@@ -14,6 +14,50 @@ import type { VNode } from '@vertz/ui-server';
 class SSRNode {
   childNodes: SSRNode[] = [];
   parentNode: SSRNode | null = null;
+  
+  get firstChild(): SSRNode | null {
+    return this.childNodes[0] ?? null;
+  }
+  
+  get nextSibling(): SSRNode | null {
+    if (!this.parentNode) return null;
+    const index = this.parentNode.childNodes.indexOf(this);
+    return this.parentNode.childNodes[index + 1] ?? null;
+  }
+  
+  removeChild(child: SSRNode): SSRNode {
+    const index = this.childNodes.indexOf(child);
+    if (index !== -1) {
+      this.childNodes.splice(index, 1);
+      child.parentNode = null;
+    }
+    return child;
+  }
+  
+  insertBefore(newNode: SSRNode, referenceNode: SSRNode | null): SSRNode {
+    if (!referenceNode) {
+      // Append to end
+      this.childNodes.push(newNode);
+      newNode.parentNode = this;
+    } else {
+      const index = this.childNodes.indexOf(referenceNode);
+      if (index !== -1) {
+        this.childNodes.splice(index, 0, newNode);
+        newNode.parentNode = this;
+      }
+    }
+    return newNode;
+  }
+  
+  replaceChild(newNode: SSRNode, oldNode: SSRNode): SSRNode {
+    const index = this.childNodes.indexOf(oldNode);
+    if (index !== -1) {
+      this.childNodes[index] = newNode;
+      newNode.parentNode = this;
+      oldNode.parentNode = null;
+    }
+    return oldNode;
+  }
 }
 
 /** Proxy-based CSSStyleDeclaration shim */
@@ -72,15 +116,52 @@ class SSRElement extends SSRNode {
     return this.attrs[name] ?? null;
   }
   
-  appendChild(child: SSRElement | SSRTextNode): void {
+  removeAttribute(name: string): void {
+    delete this.attrs[name];
+    if (name === 'class') {
+      this._classList.clear();
+    }
+  }
+  
+  appendChild(child: SSRElement | SSRTextNode | SSRDocumentFragment): void {
     if (child instanceof SSRTextNode) {
       this.children.push(child.text);
+      this.childNodes.push(child);
+      child.parentNode = this;
     } else if (child instanceof SSRDocumentFragment) {
       // Flatten fragment children
-      this.children.push(...child.children);
+      for (const fragmentChild of child.childNodes) {
+        if (fragmentChild instanceof SSRTextNode) {
+          this.children.push(fragmentChild.text);
+        } else if (fragmentChild instanceof SSRElement) {
+          this.children.push(fragmentChild);
+        }
+        this.childNodes.push(fragmentChild);
+        fragmentChild.parentNode = this;
+      }
     } else {
       this.children.push(child);
+      this.childNodes.push(child);
+      child.parentNode = this;
     }
+  }
+  
+  // Override to sync children array
+  removeChild(child: SSRNode): SSRNode {
+    const result = super.removeChild(child);
+    // Also remove from children array
+    if (child instanceof SSRTextNode) {
+      const textIndex = this.children.indexOf(child.text);
+      if (textIndex !== -1) {
+        this.children.splice(textIndex, 1);
+      }
+    } else if (child instanceof SSRElement) {
+      const index = this.children.indexOf(child);
+      if (index !== -1) {
+        this.children.splice(index, 1);
+      }
+    }
+    return result;
   }
   
   get classList(): { add: (cls: string) => void; remove: (cls: string) => void } {
@@ -118,6 +199,7 @@ class SSRElement extends SSRNode {
   set textContent(value: string | null) {
     this._textContent = value;
     this.children = value ? [value] : [];
+    this.childNodes = [];
   }
   
   get textContent(): string | null {
@@ -128,6 +210,7 @@ class SSRElement extends SSRNode {
     this._innerHTML = value;
     // Clear children when innerHTML is set
     this.children = value ? [value] : [];
+    this.childNodes = [];
   }
   
   get innerHTML(): string {
@@ -135,6 +218,10 @@ class SSRElement extends SSRNode {
   }
   
   addEventListener(_event: string, _handler: any): void {
+    // No-op in SSR — event handlers are client-side only
+  }
+  
+  removeEventListener(_event: string, _handler: any): void {
     // No-op in SSR — event handlers are client-side only
   }
   
@@ -158,6 +245,15 @@ class SSRTextNode extends SSRNode {
     super();
     this.text = text;
   }
+  
+  // Alias for compatibility with browser Text nodes
+  get data(): string {
+    return this.text;
+  }
+  
+  set data(value: string) {
+    this.text = value;
+  }
 }
 
 /** SSR document fragment */
@@ -167,10 +263,18 @@ class SSRDocumentFragment extends SSRNode {
   appendChild(child: SSRElement | SSRTextNode | SSRDocumentFragment): void {
     if (child instanceof SSRTextNode) {
       this.children.push(child.text);
+      this.childNodes.push(child);
+      child.parentNode = this;
     } else if (child instanceof SSRDocumentFragment) {
       this.children.push(...child.children);
+      this.childNodes.push(...child.childNodes);
+      for (const fragmentChild of child.childNodes) {
+        fragmentChild.parentNode = this;
+      }
     } else {
       this.children.push(child);
+      this.childNodes.push(child);
+      child.parentNode = this;
     }
   }
 }

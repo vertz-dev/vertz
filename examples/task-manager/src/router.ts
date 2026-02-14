@@ -84,15 +84,14 @@ export const routes = defineRoutes({
  * The router provides reactive signals for the current route,
  * loader data, and navigation methods.
  * 
- * In browser context, use window.location.pathname.
- * In SSR context (no window), fall back to __SSR_URL__ or '/'.
+ * SSR-compatible: Falls back to __SSR_URL__ or '/' when window is not available.
  */
-const initialUrl = 
-  typeof window !== 'undefined' 
+const initialPath = 
+  typeof window !== 'undefined' && window.location
     ? window.location.pathname
     : (globalThis as any).__SSR_URL__ || '/';
 
-export const appRouter: Router = createRouter(routes, initialUrl);
+export const appRouter: Router = createRouter(routes, initialPath);
 
 /**
  * Create the Link component factory, bound to the router's current path.
@@ -101,7 +100,7 @@ export const appRouter: Router = createRouter(routes, initialUrl);
  * - Intercept clicks for SPA navigation
  * - Apply an activeClass when the href matches the current path
  */
-const currentPath = signal(initialUrl);
+const currentPath = signal(initialPath);
 
 // Keep currentPath in sync with the router
 // (In a real app, the router would expose a path signal directly)

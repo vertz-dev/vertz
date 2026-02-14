@@ -57,49 +57,46 @@ export async function render(url: string): Promise<ReadableStream<Uint8Array>> {
   // Install DOM shim so @vertz/ui library functions work
   installDomShim();
   
-  try {
-    // CRITICAL FIX: Update router match BEFORE importing App
-    // This prevents triggering effects after the app tree is already built.
-    // When router.ts is cached from a previous render, its match is stale.
-    const routerModule = await import('./router');
-    const cleanPath = url.split('?')[0].split('#')[0];
-    
-    // Try to match each route pattern
-    let matchedRoute = null;
-    for (const route of routerModule.routes) {
-      const params = matchPattern(route.pattern, cleanPath);
-      if (params !== null) {
-        matchedRoute = {
-          params,
-          route,
-          matched: [{ route, params }],
-          searchParams: new URLSearchParams(),
-          search: {},
-        };
-        break;
-      }
+  // CRITICAL FIX: Update router match BEFORE importing App
+  // This prevents triggering effects after the app tree is already built.
+  // When router.ts is cached from a previous render, its match is stale.
+  const routerModule = await import('./router');
+  const cleanPath = url.split('?')[0].split('#')[0];
+  
+  // Try to match each route pattern
+  let matchedRoute = null;
+  for (const route of routerModule.routes) {
+    const params = matchPattern(route.pattern, cleanPath);
+    if (params !== null) {
+      matchedRoute = {
+        params,
+        route,
+        matched: [{ route, params }],
+        searchParams: new URLSearchParams(),
+        search: {},
+      };
+      break;
     }
-    
-    // Update the router's current match signal directly
-    routerModule.appRouter.current.value = matchedRoute;
-    
-    // NOW import App - the router already has the correct match
-    const { App } = await import('./app');
-    
-    // Call the REAL App component
-    // The result may be a VNode (from JSX) or an SSRElement (from DOM shim)
-    const appResult = App();
-    
-    // Convert to VNode if needed
-    const appVNode = toVNode(appResult);
-    
-    // Render the VNode tree to a stream
-    return renderToStream(appVNode);
-  } finally {
-    // Clean up
-    delete (globalThis as any).__SSR_URL__;
-    removeDomShim();
   }
+  
+  // Update the router's current match signal directly
+  routerModule.appRouter.current.value = matchedRoute;
+  
+  // NOW import App - the router already has the correct match
+  const { App } = await import('./app');
+  
+  // Call the REAL App component
+  // The result may be a VNode (from JSX) or an SSRElement (from DOM shim)
+  const appResult = App();
+  
+  // Convert to VNode if needed
+  const appVNode = toVNode(appResult);
+  
+  // Render the VNode tree to a stream
+  // NOTE: DO NOT remove DOM shim here! Effects may still be running.
+  // The shim will remain installed for the entire server process,
+  // which is fine since it's per-request in SSR mode (checked by __SSR_URL__).
+  return renderToStream(appVNode);
 }
 
 /**
@@ -108,6 +105,12 @@ export async function render(url: string): Promise<ReadableStream<Uint8Array>> {
 export async function renderToString(url: string): Promise<string> {
   const appStream = await render(url);
   const appHtml = await streamToString(appStream);
+
+  // NOTE: We do NOT remove the DOM shim or __SSR_URL__ after rendering.
+  // In SSR with Vite's ssrLoadModule, each request gets its own module instance,
+  // so global state is already isolated. Effects may continue running after
+  // streamToString completes, and they need the DOM shim to be present.
+  // The next request will re-install the shim with a new URL anyway.
 
   return `<!DOCTYPE html>
 <html lang="en">
