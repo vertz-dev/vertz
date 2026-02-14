@@ -5,15 +5,11 @@
  * Full integration testing requires FFmpeg to be installed.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { AudioClip } from '../src/muxing';
 
 // Import functions to verify exports
-import {
-  checkFFmpeg,
-  combineVideoAudio,
-  createAudioTimeline,
-} from '../src/muxing';
+import { checkFFmpeg, combineVideoAudio, createAudioTimeline } from '../src/muxing';
 
 describe('Audio/Video Muxing Module', () => {
   describe('Module Structure', () => {

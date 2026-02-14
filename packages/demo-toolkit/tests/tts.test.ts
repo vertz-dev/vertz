@@ -2,16 +2,11 @@
  * Tests for MiniMax TTS Integration
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import * as os from 'node:os';
-import {
-  generateTTS,
-  cloneVoice,
-  MiniMaxTTSError,
-  type TTSOptions,
-} from '../src/tts';
+import * as path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cloneVoice, generateTTS, MiniMaxTTSError, type TTSOptions } from '../src/tts';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -25,10 +20,10 @@ describe('MiniMax TTS Integration', () => {
     // Create a temporary directory for test outputs
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tts-test-'));
     testOutputPath = path.join(tempDir, 'output.mp3');
-    
+
     // Reset mocks
     mockFetch.mockReset();
-    
+
     // Set test API key
     process.env.MINIMAX_API_KEY = 'test-api-key';
   });
@@ -40,7 +35,7 @@ describe('MiniMax TTS Integration', () => {
     } catch {
       // Ignore cleanup errors
     }
-    
+
     // Clear environment variable
     delete process.env.MINIMAX_API_KEY;
   });
@@ -64,7 +59,7 @@ describe('MiniMax TTS Integration', () => {
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key',
+            Authorization: 'Bearer test-api-key',
             'Content-Type': 'application/json',
           }),
           body: expect.stringContaining('Hello, world!'),
@@ -72,7 +67,10 @@ describe('MiniMax TTS Integration', () => {
       );
 
       // Verify output file was created
-      const fileExists = await fs.access(testOutputPath).then(() => true).catch(() => false);
+      const fileExists = await fs
+        .access(testOutputPath)
+        .then(() => true)
+        .catch(() => false);
       expect(fileExists).toBe(true);
 
       // Verify file content
@@ -146,9 +144,7 @@ describe('MiniMax TTS Integration', () => {
     it('should throw error when API key is missing', async () => {
       delete process.env.MINIMAX_API_KEY;
 
-      await expect(generateTTS('Test', testOutputPath)).rejects.toThrow(
-        MiniMaxTTSError,
-      );
+      await expect(generateTTS('Test', testOutputPath)).rejects.toThrow(MiniMaxTTSError);
       await expect(generateTTS('Test', testOutputPath)).rejects.toThrow(
         'MINIMAX_API_KEY environment variable is required',
       );
@@ -162,9 +158,7 @@ describe('MiniMax TTS Integration', () => {
         json: async () => ({ error: 'Invalid API key' }),
       });
 
-      await expect(generateTTS('Test', testOutputPath)).rejects.toThrow(
-        MiniMaxTTSError,
-      );
+      await expect(generateTTS('Test', testOutputPath)).rejects.toThrow(MiniMaxTTSError);
     });
 
     it('should handle rate limit errors', async () => {
@@ -198,15 +192,13 @@ describe('MiniMax TTS Integration', () => {
         retryWithFallbackEndpoints: false, // Disable retries for this test
       };
 
-      await expect(generateTTS('Test', testOutputPath, options)).rejects.toThrow(
-        'Network error',
-      );
+      await expect(generateTTS('Test', testOutputPath, options)).rejects.toThrow('Network error');
     });
 
     it('should retry with fallback endpoints on failure', async () => {
       // First endpoint fails
       mockFetch.mockRejectedValueOnce(new Error('Connection failed'));
-      
+
       // Second endpoint succeeds
       const mockAudioData = Buffer.from('fake-audio-data');
       mockFetch.mockResolvedValueOnce({
@@ -264,7 +256,7 @@ describe('MiniMax TTS Integration', () => {
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
-            'Authorization': 'Bearer test-api-key',
+            Authorization: 'Bearer test-api-key',
           }),
         }),
       );
@@ -273,15 +265,11 @@ describe('MiniMax TTS Integration', () => {
     it('should throw error when audio file does not exist', async () => {
       const nonExistentPath = '/tmp/nonexistent.mp3';
 
-      await expect(cloneVoice(nonExistentPath, 'Test')).rejects.toThrow(
-        'Audio file not found',
-      );
+      await expect(cloneVoice(nonExistentPath, 'Test')).rejects.toThrow('Audio file not found');
     });
 
     it('should throw error when voice name is empty', async () => {
-      await expect(cloneVoice(testAudioPath, '')).rejects.toThrow(
-        'Voice name is required',
-      );
+      await expect(cloneVoice(testAudioPath, '')).rejects.toThrow('Voice name is required');
     });
 
     it('should handle voice cloning API errors', async () => {
@@ -292,9 +280,7 @@ describe('MiniMax TTS Integration', () => {
         json: async () => ({ error: 'Invalid audio format' }),
       });
 
-      await expect(cloneVoice(testAudioPath, 'Test')).rejects.toThrow(
-        MiniMaxTTSError,
-      );
+      await expect(cloneVoice(testAudioPath, 'Test')).rejects.toThrow(MiniMaxTTSError);
     });
 
     it('should throw error when API key is missing', async () => {
@@ -309,7 +295,7 @@ describe('MiniMax TTS Integration', () => {
   describe('MiniMaxTTSError', () => {
     it('should create error with status code', () => {
       const error = new MiniMaxTTSError('Test error', 401);
-      
+
       expect(error.message).toBe('Test error');
       expect(error.statusCode).toBe(401);
       expect(error.name).toBe('MiniMaxTTSError');
@@ -317,7 +303,7 @@ describe('MiniMax TTS Integration', () => {
 
     it('should create error with retry-after', () => {
       const error = new MiniMaxTTSError('Rate limit', 429, 60);
-      
+
       expect(error.statusCode).toBe(429);
       expect(error.retryAfter).toBe(60);
     });
