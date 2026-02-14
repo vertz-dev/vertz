@@ -39,7 +39,7 @@ export async function generateTTS(text: string, outputPath: string): Promise<voi
   } catch (_error) {
     // Fallback: create a silent audio file or a text marker
     console.warn(
-      `⚠️  TTS generation failed: ${error instanceof Error ? error.message : String(error)}`,
+      `⚠️  TTS generation failed: ${_error instanceof Error ? _error.message : String(_error)}`,
     );
     console.warn(`   Creating silent placeholder for narration: "${text}"`);
 

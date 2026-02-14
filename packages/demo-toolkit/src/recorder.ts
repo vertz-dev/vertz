@@ -7,6 +7,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { type Browser, type BrowserContext, chromium, type Page } from '@playwright/test';
+import { BadRequestException } from '@vertz/core';
 import type { RecorderConfig } from './types.js';
 
 /**
