@@ -182,7 +182,7 @@ export async function generateTTS(
   const fetchOptions: RequestInit = {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody),
@@ -209,7 +209,7 @@ export async function generateTTS(
         if (response.status === 429) {
           const retryAfter = response.headers.get('retry-after');
           const retryAfterSeconds = retryAfter ? parseInt(retryAfter, 10) : undefined;
-          
+
           let errorMessage = 'Rate limit exceeded';
           if (retryAfterSeconds) {
             errorMessage += `. Retry after ${retryAfterSeconds} seconds`;
@@ -234,7 +234,7 @@ export async function generateTTS(
 
       // Download audio data
       const audioData = await response.arrayBuffer();
-      
+
       // Ensure output directory exists
       const outputDir = path.dirname(outputPath);
       await fs.mkdir(outputDir, { recursive: true });
@@ -246,7 +246,7 @@ export async function generateTTS(
       return;
     } catch (error) {
       lastError = error as Error;
-      
+
       // If this is a MiniMaxTTSError (API error), don't retry with other endpoints
       if (error instanceof MiniMaxTTSError) {
         throw error;
@@ -276,10 +276,7 @@ export async function generateTTS(
  * @param voiceName - Name to assign to the cloned voice
  * @returns Promise resolving to the voice_id of the cloned voice
  */
-export async function cloneVoice(
-  audioFilePath: string,
-  voiceName: string,
-): Promise<string> {
+export async function cloneVoice(audioFilePath: string, voiceName: string): Promise<string> {
   const apiKey = getApiKey();
 
   // Validate inputs
@@ -309,7 +306,7 @@ export async function cloneVoice(
     {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: formData,
     },
@@ -341,10 +338,10 @@ export async function cloneVoice(
 
 /**
  * Get the duration of an audio file in milliseconds
- * 
+ *
  * Note: This is a simple estimation based on file size.
  * For accurate duration, use ffprobe or a dedicated audio analysis tool.
- * 
+ *
  * @param audioPath - Path to the audio file
  * @returns Promise resolving to estimated duration in milliseconds
  */
