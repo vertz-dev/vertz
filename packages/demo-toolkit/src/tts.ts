@@ -2,28 +2,73 @@
  * Text-to-Speech Integration
  *
  * Generates narration audio for demo scripts.
+ * SECURITY: Uses spawn() with argument arrays to prevent shell injection.
  */
 
-import { exec } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import * as fs from 'node:fs/promises';
-import { promisify } from 'node:util';
-import { InternalServerErrorException } from '@vertz/core';
 
-const execAsync = promisify(exec);
+/**
+ * Execute a command safely using spawn (no shell interpolation)
+ */
+async function spawnAsync(
+  command: string,
+  args: string[],
+  options?: { timeout?: number },
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    child.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    const timeoutId = options?.timeout
+      ? setTimeout(() => {
+          child.kill('SIGTERM');
+          reject(new Error(`Command timed out after ${options.timeout}ms`));
+        }, options.timeout)
+      : null;
+
+    child.on('close', (code) => {
+      if (timeoutId) clearTimeout(timeoutId);
+
+      if (code === 0) {
+        resolve({ stdout, stderr });
+      } else {
+        reject(new Error(`Command failed with exit code ${code}: ${stderr || stdout}`));
+      }
+    });
+
+    child.on('error', (error) => {
+      if (timeoutId) clearTimeout(timeoutId);
+      reject(error);
+    });
+  });
+}
 
 /**
  * Generate TTS audio using OpenClaw's TTS system
  *
- * This calls the OpenClaw TTS tool via shell command.
+ * This calls the OpenClaw TTS tool via spawn (safe from shell injection).
  * The TTS tool is expected to be available in the environment.
  */
 export async function generateTTS(text: string, outputPath: string): Promise<void> {
   try {
-    // Call OpenClaw TTS tool via shell
-    // The openclaw binary should have a tts subcommand
-    const { stdout: _stdout, stderr } = await execAsync(
-      `openclaw tts --text "${text.replace(/"/g, '\\"')}" --output "${outputPath}"`,
-      { timeout: 30000 },
+    // Call OpenClaw TTS tool via spawn with argument array (SECURE)
+    const { stderr } = await spawnAsync(
+      'openclaw',
+      ['tts', '--text', text, '--output', outputPath],
+      { timeout: 10000 },
     );
 
     if (stderr && !stderr.includes('MEDIA:')) {
@@ -34,14 +79,16 @@ export async function generateTTS(text: string, outputPath: string): Promise<voi
     try {
       await fs.access(outputPath);
     } catch {
-      throw new InternalServerErrorException('TTS output file was not created');
+      throw new Error('TTS output file was not created');
     }
   } catch (_error) {
     // Fallback: create a silent audio file or a text marker
     console.warn(
       `⚠️  TTS generation failed: ${_error instanceof Error ? _error.message : String(_error)}`,
     );
-    console.warn(`   Creating silent placeholder for narration: "${text}"`);
+    console.warn(
+      `   Creating silent placeholder for narration: "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`,
+    );
 
     // Create a minimal silent MP3 (1 second of silence)
     // This is a base64-encoded silent MP3 file
@@ -57,17 +104,29 @@ export async function generateTTS(text: string, outputPath: string): Promise<voi
  */
 export async function getAudioDuration(audioPath: string): Promise<number> {
   try {
-    // Use ffprobe to get audio duration
-    const { stdout } = await execAsync(
-      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${audioPath}"`,
-    );
+    // Use ffprobe to get audio duration (SECURE: argument array)
+    const { stdout } = await spawnAsync('ffprobe', [
+      '-v',
+      'error',
+      '-show_entries',
+      'format=duration',
+      '-of',
+      'default=noprint_wrappers=1:nokey=1',
+      audioPath,
+    ]);
     const durationSeconds = parseFloat(stdout.trim());
     return Math.ceil(durationSeconds * 1000);
   } catch (_error) {
-    // If ffprobe fails, estimate based on text length (rough estimate: 150 words per minute)
-    const words = audioPath.split(/\s+/).length;
-    const minutes = words / 150;
-    return Math.ceil(minutes * 60 * 1000);
+    // If ffprobe fails, estimate based on file size (very rough: ~32kbps MP3)
+    try {
+      const stats = await fs.stat(audioPath);
+      const fileSizeBytes = stats.size;
+      const estimatedDurationMs = (fileSizeBytes / ((32 * 1024) / 8)) * 1000;
+      return Math.ceil(estimatedDurationMs) || 1000; // At least 1 second
+    } catch {
+      // If file doesn't exist, return minimal duration
+      return 1000;
+    }
   }
 }
 
@@ -76,7 +135,7 @@ export async function getAudioDuration(audioPath: string): Promise<number> {
  */
 export async function checkFFmpeg(): Promise<boolean> {
   try {
-    await execAsync('ffmpeg -version');
+    await spawnAsync('ffmpeg', ['-version']);
     return true;
   } catch {
     return false;
@@ -105,10 +164,19 @@ export async function combineVideoAudio(
     return;
   }
 
-  // Combine video and audio
-  await execAsync(
-    `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac -shortest "${outputPath}"`,
-  );
+  // Combine video and audio (SECURE: argument array)
+  await spawnAsync('ffmpeg', [
+    '-i',
+    videoPath,
+    '-i',
+    audioPath,
+    '-c:v',
+    'copy',
+    '-c:a',
+    'aac',
+    '-shortest',
+    outputPath,
+  ]);
 }
 
 /**
@@ -135,13 +203,22 @@ export async function createAudioTimeline(
     return;
   }
 
-  // Build FFmpeg filter_complex command for multiple audio clips
-  const inputs = clips.map((clip) => `-i "${clip.audioPath}"`).join(' ');
+  // Build FFmpeg filter_complex command for multiple audio clips (SECURE)
+  const inputArgs: string[] = [];
+  clips.forEach((clip) => {
+    inputArgs.push('-i', clip.audioPath);
+  });
+
   const delays = clips.map((clip, i) => `[${i}]adelay=${clip.timestamp}|${clip.timestamp}[a${i}]`);
   const mix = `${clips.map((_, i) => `[a${i}]`).join('')}amix=inputs=${clips.length}:duration=longest`;
   const filterComplex = `${delays.join(';')};${mix}`;
 
-  await execAsync(
-    `ffmpeg ${inputs} -filter_complex "${filterComplex}" -t ${duration / 1000} "${outputPath}"`,
-  );
+  await spawnAsync('ffmpeg', [
+    ...inputArgs,
+    '-filter_complex',
+    filterComplex,
+    '-t',
+    (duration / 1000).toString(),
+    outputPath,
+  ]);
 }
