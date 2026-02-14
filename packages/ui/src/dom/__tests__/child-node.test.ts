@@ -8,7 +8,7 @@ describe('Child node rendering', () => {
     span.textContent = 'hello';
 
     // Setting text.data to an object calls its toString()
-    text.data = span as any;
+    text.data = span as unknown as string;
 
     // In a real browser (and happy-dom), this converts to string
     expect(typeof text.data).toBe('string');
@@ -20,7 +20,7 @@ describe('Child node rendering', () => {
     child.textContent = 'child content';
 
     // This demonstrates the bug: __text calls node.data = fn(), which stringifies HTMLElements
-    const textNode = __text(() => child as any);
+    const textNode = __text(() => child as unknown as string);
     parent.appendChild(textNode);
 
     // In happy-dom, this renders as HTML. In real browsers, it would be "[object HTMLElement]"

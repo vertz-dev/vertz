@@ -228,7 +228,7 @@ describe('__conditional', () => {
     const container = document.createElement('div');
     const fragment = __conditional(
       () => show.value,
-      () => null as any, // null branch
+      () => null as unknown as Node, // null branch
       () => {
         const span = document.createElement('span');
         span.textContent = 'hidden';
@@ -255,7 +255,7 @@ describe('__conditional', () => {
         span.textContent = 'visible';
         return span;
       },
-      () => null as any, // null branch
+      () => null as unknown as Node, // null branch
     );
     container.appendChild(fragment);
 
@@ -272,8 +272,8 @@ describe('__conditional', () => {
     const container = document.createElement('div');
     const fragment = __conditional(
       () => show.value,
-      () => null as any,
-      () => null as any,
+      () => null as unknown as Node,
+      () => null as unknown as Node,
     );
     container.appendChild(fragment);
 
