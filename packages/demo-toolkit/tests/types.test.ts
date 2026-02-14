@@ -67,6 +67,19 @@ describe('Types', () => {
     expect(action.type).toBe('screenshot');
   });
 
+  test('DemoAction narrate type is valid', () => {
+    const action: DemoAction = {
+      type: 'narrate',
+      text: 'This is narration text',
+      description: 'Narrate the demo',
+    };
+
+    expect(action.type).toBe('narrate');
+    if (action.type === 'narrate') {
+      expect(action.text).toBe('This is narration text');
+    }
+  });
+
   test('DelayConfig with variance is valid', () => {
     const delay: DelayConfig = {
       base: 500,

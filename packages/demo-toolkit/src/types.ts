@@ -37,6 +37,7 @@ export type DemoAction =
   | { type: 'type'; selector: string; text: string; description?: string }
   | { type: 'wait'; ms: number; description?: string }
   | { type: 'screenshot'; options: ScreenshotOptions }
+  | { type: 'narrate'; text: string; description?: string }
   | { type: 'custom'; fn: (page: Page) => Promise<void>; description?: string };
 
 /**
@@ -96,6 +97,22 @@ export interface DemoResult {
   videoPath?: string;
   /** Paths to screenshots */
   screenshots: string[];
+  /** Narration audio clips generated */
+  narrationClips: number;
   /** Error message if failed */
   error?: string;
+}
+
+/**
+ * Narration clip with timing information
+ */
+export interface NarrationClip {
+  /** Text that was narrated */
+  text: string;
+  /** Path to the generated audio file */
+  audioPath: string;
+  /** Timestamp when this narration should start (ms from video start) */
+  timestamp: number;
+  /** Duration of the audio clip in milliseconds */
+  duration: number;
 }
