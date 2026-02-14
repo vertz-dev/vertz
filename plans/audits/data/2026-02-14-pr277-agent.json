@@ -1,0 +1,258 @@
+{
+  "schema": "vertz.audit.v1",
+  "timestamp": "2026-02-14T17:30:00Z",
+  "pr": {
+    "number": 277,
+    "title": "fix: resolve lint errors + update pre-push hooks for Turborepo",
+    "author": "vertz-tech-lead",
+    "authorBot": true,
+    "mergedAt": "2026-02-14T17:27:02Z",
+    "mergedBy": "viniciusdacal",
+    "filesChanged": 28,
+    "linesAdded": 5002,
+    "linesDeleted": 64,
+    "branch": "fix/quality-gates-turborepo"
+  },
+  "agent": {
+    "id": "vertz-tech-lead",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "durationMinutes": null,
+    "tokensUsed": null
+  },
+  "grade": {
+    "overall": "C",
+    "numeric": 2.0,
+    "summary": "Fixes critical lint violations and improves pre-push hooks, but bundles 18 unrelated audit files in the same PR (scope violation) and has no ticket. Work quality is good, process compliance is poor."
+  },
+  "categories": {
+    "tdd": {
+      "grade": "N/A",
+      "numeric": null,
+      "applicability": "not_applicable",
+      "reason": "Infrastructure/cleanup PR with no new behavioral code",
+      "checks": {
+        "testBeforeImpl": {
+          "pass": null,
+          "severity": null,
+          "evidence": "No new features or testable behavior. Lint fixes are formatting-only."
+        },
+        "qualityGatesRun": {
+          "pass": null,
+          "severity": "minor",
+          "evidence": "Cannot verify without session transcript. Assume lint passed since PR fixes lint errors."
+        }
+      }
+    },
+    "process": {
+      "grade": "D",
+      "numeric": 1.0,
+      "checks": {
+        "scopeDiscipline": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "PR mixes infrastructure fixes (7 lint files + lefthook.yml + .gitignore) with 18 audit files (9 markdown + 9 JSON). PR body: 'Also includes pending audit reports that were on disk but not pushed.'"
+        },
+        "ticketExists": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No ticket found in /workspace/vertz/tickets/ for this work. RULES.md: 'Never commit without a ticket.'"
+        },
+        "auditWorktreeIsolation": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Audit files committed from main branch alongside infrastructure fixes. auditor.md requires isolated worktrees for audit PRs."
+        },
+        "botIdentity": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Commit author: vertz-tech-lead[bot]. Bot scripts used correctly."
+        },
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR #277 via feature branch, not direct push to main."
+        },
+        "conventionalCommit": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Commit message: 'fix: resolve lint errors + update pre-push hooks for Turborepo' follows convention."
+        },
+        "changesetRequired": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Not required — changes are repo infrastructure (lefthook.yml, .gitignore) and cosmetic lint fixes, not package behavior changes."
+        }
+      }
+    },
+    "design": {
+      "grade": "C",
+      "numeric": 2.0,
+      "checks": {
+        "ticketExists": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No ticket for this work. Even Tier 1 bug fixes require tickets per bug-process.md."
+        },
+        "readRules": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR correctly identifies root cause (quality gate bypass) and solution aligns with RULES.md."
+        },
+        "scopeCompliance": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Lint fixes and hook update align with PR title. 18 audit files do NOT align with title."
+        },
+        "designDocRequired": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Not required — Tier 1 bug fix (release workflow failing). Per bug-process.md, no design doc needed."
+        }
+      }
+    },
+    "dx": {
+      "grade": "B",
+      "numeric": 3.0,
+      "checks": {
+        "fixesRealProblem": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR body: 'Fixed 7 files with formatting/lint violations... causing the release workflow to fail.' Unblocks releases."
+        },
+        "improvesQualityGates": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Old hook: only typecheck+lint, referenced removed Dagger. New hook: lint+typecheck+test via Turborepo with caching."
+        },
+        "appropriateGitignore": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Added .turbo/, memory/, MEMORY.md — all appropriate for generated/state files."
+        },
+        "lintFixesNecessary": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Cosmetic but required to pass CI. 7 files fixed: trailing whitespace, import ordering, quote consistency."
+        },
+        "clearPRDescription": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Explains what fixed, what updated, root cause, and acknowledges audit bundling."
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "noSecurityChanges": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Lint fixes (formatting only), lefthook.yml (config only), .gitignore (safe additions). No code execution changes."
+        },
+        "noSecretsExposed": {
+          "pass": true,
+          "severity": null,
+          "evidence": ".gitignore additions don't expose secrets. Audit files are documentation."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "process.scopeDiscipline",
+      "category": "process",
+      "severity": "major",
+      "description": "PR bundles 18 audit files with unrelated infrastructure fixes",
+      "evidence": "Files changed: 7 lint fixes + lefthook.yml + .gitignore + 9 audit markdown + 9 audit JSON + 1 ticket. PR body acknowledges: 'Also includes pending audit reports that were on disk but not pushed.' RULES.md: 'One feature per PR. Scope creep is the #1 agent failure mode.'",
+      "recommendation": "Create separate PRs: #277 for infrastructure fixes, #278 for audit reports. Never bundle unrelated work even if 'on disk and ready'."
+    },
+    {
+      "rule": "design.ticketRequired",
+      "category": "process",
+      "severity": "major",
+      "description": "No ticket found for this cleanup work",
+      "evidence": "Searched /workspace/vertz/tickets/ — no ticket for lint cleanup or lefthook update. RULES.md: 'Never commit without a ticket.' Even Tier 1 bug fixes require tickets per bug-process.md.",
+      "recommendation": "Create tickets for all work, even quick fixes: tickets/infra/infra-NNN-quality-gate-bypass-fix.md with context, root cause, fix, acceptance criteria."
+    },
+    {
+      "rule": "process.auditWorktreeIsolation",
+      "category": "process",
+      "severity": "minor",
+      "description": "Audit files committed from main branch, not isolated worktree",
+      "evidence": "All 18 audit files committed alongside infrastructure fixes in same branch. auditor.md: 'When you open a PR to publish your audit report, you MUST use an isolated git worktree. This prevents your audit branch from picking up uncommitted changes from other features.'",
+      "recommendation": "Use 'git worktree add /tmp/worktrees/audit-prNNN' when publishing audit PRs to avoid contamination."
+    },
+    {
+      "rule": "tdd.qualityGatesVerification",
+      "category": "process",
+      "severity": "minor",
+      "description": "Cannot verify quality gates were run before commit",
+      "evidence": "No session transcript available to confirm 'bun run lint && bun run test' were executed before commits.",
+      "recommendation": "Implement session transcript capture for all bot PRs to enable TDD/quality gate auditing."
+    }
+  ],
+  "metrics": {
+    "filesChanged": 28,
+    "lintFilesFixed": 7,
+    "auditFilesAdded": 18,
+    "codeChanges": {
+      "additions": 10,
+      "deletions": 64
+    },
+    "auditReportLines": 4992,
+    "violationsBySeverity": {
+      "critical": 0,
+      "major": 2,
+      "minor": 2
+    }
+  },
+  "highlights": [
+    "Addresses real problem: release workflow blocked by lint errors",
+    "Improves quality gates: old hook didn't run tests, new one does",
+    "Uses Turborepo caching for faster subsequent hook runs",
+    "Appropriate .gitignore additions for generated files",
+    "Clear PR description explaining what, why, and root cause",
+    "Fixed all 7 files with lint violations thoroughly"
+  ],
+  "weaknesses": [
+    "Scope violation: bundled 18 audit files with infrastructure fixes",
+    "No ticket for this work (violates mandatory rule)",
+    "Audit files not committed via isolated worktree",
+    "Cannot verify TDD/quality gate compliance without session transcript"
+  ],
+  "recommendations": [
+    {
+      "priority": "immediate",
+      "title": "Never bundle unrelated work",
+      "description": "Even if files are 'on disk and ready', create separate PRs for separate concerns. Infrastructure fixes ≠ audit reports."
+    },
+    {
+      "priority": "immediate",
+      "title": "Always create tickets",
+      "description": "Even for quick fixes or Tier 1 bugs. Tickets provide context and traceability."
+    },
+    {
+      "priority": "short-term",
+      "title": "Audit reports need isolated worktrees",
+      "description": "Use 'git worktree add /tmp/worktrees/audit-prNNN -b audit/prNNN main' when publishing audit PRs to avoid contamination."
+    },
+    {
+      "priority": "process",
+      "title": "Session transcripts for bots",
+      "description": "Implement transcript capture so audits can verify TDD/quality gate compliance."
+    },
+    {
+      "priority": "process",
+      "title": "Enforce lefthook in all worktrees",
+      "description": "When creating worktrees, run 'lefthook install' to ensure hooks are active."
+    },
+    {
+      "priority": "process",
+      "title": "CI check for lint violations on main",
+      "description": "Add GitHub Actions check that fails if 'bun run lint' finds violations on main branch."
+    }
+  ],
+  "summary": "PR #277 fixes critical lint violations and updates pre-push hooks to enforce full quality gates via Turborepo. The work is necessary and correct. However, significant process violations: (1) bundles 18 unrelated audit files in the same PR (scope violation), (2) no ticket for this work, (3) audit files not committed via isolated worktree. Grade C: work is functional and important, but process compliance is poor."
+}

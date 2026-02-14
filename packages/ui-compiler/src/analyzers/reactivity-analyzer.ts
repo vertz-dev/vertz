@@ -1,5 +1,4 @@
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
-import { getSignalApiConfig, isSignalApi } from '../signal-api-registry';
 import type { ComponentInfo, VariableInfo } from '../types';
 import { findBodyNode } from '../utils';
 
@@ -17,17 +16,9 @@ export class ReactivityAnalyzer {
     const bodyNode = findBodyNode(sourceFile, component);
     if (!bodyNode) return [];
 
-    // Track import aliases: map from alias → original name
-    // Example: import { query as q } → importAliases.set('q', 'query')
-    const importAliases = collectImportAliases(sourceFile);
-
     // Pass 1: Collect declarations
     const lets = new Map<string, { start: number; end: number; deps: string[] }>();
     const consts = new Map<string, { start: number; end: number; deps: string[] }>();
-    const signalObjects = new Map<
-      string,
-      { start: number; end: number; signalProperties: Set<string> }
-    >();
 
     for (const stmt of bodyNode.getChildSyntaxList()?.getChildren() ?? []) {
       if (!stmt.isKind(SyntaxKind.VariableStatement)) continue;
@@ -60,22 +51,6 @@ export class ReactivityAnalyzer {
         const name = decl.getName();
         const deps = init ? collectIdentifierRefs(init) : [];
         const entry = { start: decl.getStart(), end: decl.getEnd(), deps };
-
-        // Check if this const is initialized with a signal API call
-        if (isConst && init) {
-          const apiName = extractSignalApiCall(init, importAliases);
-          if (apiName) {
-            const config = getSignalApiConfig(apiName);
-            if (config) {
-              signalObjects.set(name, {
-                start: decl.getStart(),
-                end: decl.getEnd(),
-                signalProperties: new Set(config.signalProperties),
-              });
-              continue; // Don't add to regular consts
-            }
-          }
-        }
 
         if (isLet) {
           lets.set(name, entry);
@@ -159,17 +134,6 @@ export class ReactivityAnalyzer {
       });
     }
 
-    // Add signal-object entries
-    for (const [name, info] of signalObjects) {
-      results.push({
-        name,
-        kind: 'signal-object',
-        start: info.start,
-        end: info.end,
-        signalProperties: info.signalProperties,
-      });
-    }
-
     return results;
   }
 }
@@ -207,75 +171,4 @@ function collectIdentifierRefs(node: Node): string[] {
   };
   walk(node);
   return refs;
-}
-
-/**
- * Collect import aliases from the source file.
- * Returns a map from alias/imported name → original name.
- *
- * Examples:
- * - import { query } → map.set('query', 'query')
- * - import { query as q } → map.set('q', 'query')
- * - import * as vertz → map.set('vertz', '*')
- */
-function collectImportAliases(sourceFile: SourceFile): Map<string, string> {
-  const aliases = new Map<string, string>();
-
-  for (const importDecl of sourceFile.getImportDeclarations()) {
-    // Named imports: import { query, form as f }
-    for (const namedImport of importDecl.getNamedImports()) {
-      const aliasNode = namedImport.getAliasNode();
-      const name = namedImport.getName();
-
-      if (aliasNode) {
-        // import { query as q } → aliases.set('q', 'query')
-        aliases.set(aliasNode.getText(), name);
-      } else {
-        // import { query } → aliases.set('query', 'query')
-        aliases.set(name, name);
-      }
-    }
-
-    // Namespace import: import * as vertz
-    const namespaceImport = importDecl.getNamespaceImport();
-    if (namespaceImport) {
-      aliases.set(namespaceImport.getText(), '*');
-    }
-  }
-
-  return aliases;
-}
-
-/**
- * Extract the name of a signal API call from an initializer expression.
- * Returns the function name if it's a registered signal API, otherwise null.
- *
- * Examples:
- *   query(...) -> "query"
- *   q(...) where q is alias for query -> "query"
- *   form(...) -> "form"
- *   vertz.query(...) -> "query"
- *   someOtherFunc(...) -> null
- */
-function extractSignalApiCall(node: Node, importAliases: Map<string, string>): string | null {
-  // Direct call: query(...) or q(...) where q is an alias for query
-  if (node.isKind(SyntaxKind.CallExpression)) {
-    const expr = node.getExpression();
-
-    // Simple identifier: query(...) or q(...)
-    if (expr.isKind(SyntaxKind.Identifier)) {
-      const name = expr.getText();
-      // Resolve alias: q → query
-      const originalName = importAliases.get(name) ?? name;
-      return isSignalApi(originalName) ? originalName : null;
-    }
-
-    // Property access: vertz.query(...), UI.form(...)
-    if (expr.isKind(SyntaxKind.PropertyAccessExpression)) {
-      const propName = expr.getName();
-      return isSignalApi(propName) ? propName : null;
-    }
-  }
-
-  return null;
 }
