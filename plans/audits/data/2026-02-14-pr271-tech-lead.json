@@ -1,0 +1,172 @@
+{
+  "schema": "vertz.audit.v1",
+  "timestamp": "2026-02-14T17:04:00Z",
+  "pr": {
+    "number": 271,
+    "title": "docs: add security and process rules from audit findings",
+    "author": "vertz-tech-lead",
+    "mergedAt": "2026-02-14T17:02:28Z",
+    "filesChanged": 1,
+    "linesAdded": 9,
+    "linesRemoved": 1
+  },
+  "agent": {
+    "id": "kai",
+    "role": "vertz-tech-lead",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "sessionDurationMs": null,
+    "totalTokens": null
+  },
+  "grade": "B",
+  "gradeNumeric": 3.0,
+  "scores": {
+    "tdd": {
+      "grade": "N/A",
+      "numeric": null,
+      "checks": {
+        "notApplicable": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Documentation-only PR with no code implementation"
+        }
+      }
+    },
+    "process": {
+      "grade": "B",
+      "numeric": 3.0,
+      "checks": {
+        "ticketReferenced": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No ticket referenced in PR #271 description or commit message. RULES.md: 'Never commit without a ticket.'"
+        },
+        "gitIdentity": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Commits authored by 'kai <kai@vertz.dev>' but PR opened by 'app/vertz-tech-lead'. Git identity mismatch violates bot script requirements."
+        },
+        "cleanScope": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR modifies ONE file only (RULES.md). Net +8 lines. All changes cohesive. Dramatic improvement over PR #270."
+        },
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Feature branch docs/audit-rules-update used, not direct push to main"
+        },
+        "atomicCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Single commit 9eba153 with descriptive message and bullet points"
+        },
+        "conventionalCommit": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Commit message: 'docs: add security and process rules from audit findings' follows conventional format"
+        },
+        "changesetAdded": {
+          "pass": true,
+          "severity": null,
+          "evidence": "N/A - documentation-only change at repo root, not a package change"
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR opened via bot identity (app/vertz-tech-lead)"
+        }
+      }
+    },
+    "design": {
+      "grade": "C",
+      "numeric": 2.0,
+      "checks": {
+        "readTicketFirst": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No ticket found in /workspace/vertz/tickets/ for this work. No ticket referenced in PR."
+        },
+        "readRules": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Changes follow existing RULES.md structure. Formatting and style match. References existing principles."
+        },
+        "scopeCompliance": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Single focused change: security and process rules from audits. No scope creep."
+        },
+        "designDocRequired": {
+          "pass": true,
+          "severity": null,
+          "evidence": "N/A - tactical documentation update, no design doc needed"
+        }
+      }
+    },
+    "dx": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "contentQuality": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Security section enhanced with shell injection rule (CWE-78), spawn() pattern, automatic F enforcement. Three new agent rules with clear what/why/how/verify."
+        },
+        "clarity": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All rules actionable: Rule #12 includes anti-pattern, consequence, correct pattern, diagnostic check."
+        },
+        "properPlacement": {
+          "pass": true,
+          "severity": null,
+          "evidence": "New 'Agent-Specific Rules' section well-placed after core rules, numbered list continues from 1-10 to 11-13."
+        },
+        "consistentStyle": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Matches existing RULES.md formatting, bold emphasis, code blocks, references (Zeroth Law)."
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "criticalGuidance": {
+          "pass": true,
+          "severity": null,
+          "evidence": "New shell injection rule addresses CWE-78, provides spawn() pattern, references PR #263 fix, makes violations automatic F."
+        },
+        "zerothLawReinforcement": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Added '(Zeroth Law)' to Security heading, reinforces hierarchy and priority."
+        },
+        "noSecurityViolations": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Documentation-only change with no security implications"
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "design.ticketReferenced",
+      "severity": "major",
+      "description": "No ticket referenced",
+      "evidence": "PR #271 description and commit message do not reference a ticket. No ticket found in /workspace/vertz/tickets/ for this work. RULES.md: 'Never commit without a ticket.' Loses traceability: why was this change made? Which audit findings prompted these rules?",
+      "recommendation": "Always create ticket before starting work, even for documentation: tickets/process/process-NNN-<name>.md with context, goal, acceptance criteria. Reference in commit: 'docs: add security and process rules (process-NNN)'"
+    },
+    {
+      "rule": "process.gitIdentity",
+      "severity": "major",
+      "description": "Git identity confusion",
+      "evidence": "Both commits authored by 'kai <kai@vertz.dev>' but PR opened by 'app/vertz-tech-lead' (mike). If kai is the agent doing the work, commits should be authored by the bot. Same pattern as PR #270.",
+      "recommendation": "Use /workspace/backstage/bots/git-as.sh $AGENT_BOT for git operations. Use /workspace/backstage/bots/gh-as.sh $AGENT_BOT for GitHub operations. Verify $AGENT_BOT matches commit author."
+    }
+  ],
+  "summary": "Solid documentation update that codifies security and process lessons learned from recent audits. Clean, focused scope with only one file changed (dramatic improvement over PR #270). High-quality content: actionable rules with clear what/why/how/verify, critical shell injection guidance, Zeroth Law enforcement. However, missing ticket and git identity confusion (commit by kai, PR by vertz-tech-lead) prevent an A grade. Grade: B. Key lesson: even small, high-quality changes need tickets for traceability and context."
+}
