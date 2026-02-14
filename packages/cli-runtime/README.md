@@ -431,7 +431,20 @@ Authentication errors throw `AuthError`:
 import { AuthError } from '@vertz/cli-runtime';
 
 try {
-  await auth.startDeviceCodeFlow();
+  const deviceCode = await auth.initiateDeviceCodeFlow(
+    client,
+    'https://auth.example.com/device',
+    'my-cli-app',
+    ['read', 'write']
+  );
+  const token = await auth.pollForToken(
+    client,
+    'https://auth.example.com/token',
+    deviceCode.device_code,
+    'my-cli-app',
+    deviceCode.interval,
+    deviceCode.expires_in
+  );
 } catch (error) {
   if (error instanceof AuthError) {
     console.error(`Auth failed: ${error.message}`);
