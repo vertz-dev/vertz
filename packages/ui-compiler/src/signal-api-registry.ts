@@ -12,7 +12,7 @@ export interface SignalApiConfig {
  */
 export const SIGNAL_API_REGISTRY: Record<string, SignalApiConfig> = {
   query: {
-    signalProperties: new Set(['data']),
+    signalProperties: new Set(['data', 'loading']),
   },
 };
 
