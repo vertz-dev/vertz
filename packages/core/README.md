@@ -21,6 +21,8 @@ bun add @vertz/core
 
 ## Quick Start
 
+**Note:** This example uses only `@vertz/core` with no external dependencies. For schema validation, see the [Schema Validation](#schema-validation) section below.
+
 Create a simple API server in under 5 minutes:
 
 ```typescript
@@ -153,33 +155,6 @@ router.patch('/items/:id', { handler: (ctx) => ({ patched: true }) });
 router.delete('/items/:id', { handler: (ctx) => ({ deleted: true }) });
 ```
 
-### Schema Validation
-
-Use [@vertz/schema](../schema) for request/response validation:
-
-```typescript
-import { s } from '@vertz/schema';
-
-const createUserSchema = s.object({
-  name: s.string().min(1),
-  email: s.string().email(),
-  age: s.number().int().min(18),
-});
-
-router.post('/users', {
-  body: createUserSchema,
-  handler: (ctx) => {
-    // ctx.body is fully typed as { name: string; email: string; age: number }
-    const user = ctx.body;
-    return { created: true, user };
-  },
-});
-```
-
-If the request body doesn't match the schema, a `ValidationException` is thrown automatically.
-
-**Note:** `@vertz/schema` is a separate package. Install it with `npm install @vertz/schema`.
-
 ### Middleware
 
 Middleware can inject values into the request context, perform authentication, logging, etc.
@@ -244,6 +219,79 @@ All exceptions are automatically converted to proper JSON responses:
   "statusCode": 404
 }
 ```
+
+## Schema Validation
+
+`@vertz/core` can be used with [@vertz/schema](../schema) for powerful request and response validation. This is **optional** — the Quick Start example above works without any validation library.
+
+**Installation:**
+
+```bash
+npm install @vertz/schema
+```
+
+**Usage:**
+
+```typescript
+import { createApp, createModuleDef, createModule } from '@vertz/core';
+import { s } from '@vertz/schema';
+
+const moduleDef = createModuleDef({ name: 'users' });
+
+// Define a validation schema
+const createUserSchema = s.object({
+  name: s.string().min(1),
+  email: s.string().email(),
+  age: s.number().int().min(18),
+});
+
+const router = moduleDef.router({ prefix: '/users' });
+
+// Use schema for request body validation
+router.post('/', {
+  body: createUserSchema,
+  handler: (ctx) => {
+    // ctx.body is fully typed as { name: string; email: string; age: number }
+    const user = ctx.body;
+    return { created: true, user };
+  },
+});
+
+const usersModule = createModule(moduleDef, {
+  services: [],
+  routers: [router],
+  exports: [],
+});
+
+const app = createApp({}).register(usersModule);
+await app.listen(3000);
+```
+
+**Automatic Validation:**
+
+When a request body doesn't match the schema, a `ValidationException` is thrown automatically with a 400 status code and detailed error messages:
+
+```json
+{
+  "error": "ValidationException",
+  "message": "Validation failed",
+  "statusCode": 400,
+  "issues": [
+    {
+      "path": ["email"],
+      "message": "Invalid email format"
+    },
+    {
+      "path": ["age"],
+      "message": "Must be at least 18"
+    }
+  ]
+}
+```
+
+**Learn More:**
+
+For comprehensive documentation on schema definition, validation methods, type inference, and advanced features, see the [@vertz/schema README](../schema).
 
 ## API Reference
 
@@ -534,9 +582,9 @@ interface CorsConfig {
 - **[@vertz/testing](../testing)** — Testing utilities for vertz apps (`createTestApp`, `createTestService`)
 - **[@vertz/cli](../cli)** — CLI framework for building command-line tools
 - **[@vertz/compiler](../compiler)** — Static analysis and code generation
-- **@vertz/db** — Type-safe database ORM with migrations _(Coming soon)_
-- **@vertz/fetch** — Type-safe HTTP client with retry and streaming support _(Coming soon)_
-- **@vertz/ui** — Reactive UI framework for vertz apps _(Coming soon)_
+- **[@vertz/db](../db)** — Type-safe database ORM with migrations
+- **[@vertz/fetch](../fetch)** — Type-safe HTTP client with retry and streaming support
+- **[@vertz/ui](../ui)** — Reactive UI framework for vertz apps
 
 ## Examples
 
