@@ -44,20 +44,20 @@ export interface Router {
  */
 export function createRouter(routes: CompiledRoute[], initialUrl?: string): Router {
   // Auto-detect SSR context
-  const isSSR = typeof window === 'undefined' || typeof (globalThis as any).__SSR_URL__ !== 'undefined';
-  
+  const isSSR = typeof window === 'undefined' || typeof globalThis.__SSR_URL__ !== 'undefined';
+
   // Determine the initial URL
   let url: string;
   if (initialUrl) {
     url = initialUrl;
   } else if (isSSR) {
     // In SSR, use the __SSR_URL__ global set by the SSR entry
-    url = (globalThis as any).__SSR_URL__ || '/';
+    url = globalThis.__SSR_URL__ || '/';
   } else {
     // In browser, use window.location
     url = window.location.pathname + window.location.search;
   }
-  
+
   const initialMatch = matchRoute(routes, url);
 
   const current = signal<RouteMatch | null>(initialMatch);
@@ -153,7 +153,7 @@ export function createRouter(routes: CompiledRoute[], initialUrl?: string): Rout
 
   // Listen for popstate (back/forward browser buttons) — skip in SSR
   let onPopState: (() => void) | null = null;
-  
+
   if (!isSSR) {
     onPopState = () => {
       const url = window.location.pathname + window.location.search;

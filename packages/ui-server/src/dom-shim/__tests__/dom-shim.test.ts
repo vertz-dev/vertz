@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { installDomShim, removeDomShim, toVNode } from '../index';
 
 describe('DOM Shim', () => {
@@ -211,7 +211,7 @@ describe('DOM Shim', () => {
       const el = document.createElement('div');
       (el as any).style.color = 'red';
       (el as any).style.fontSize = '16px';
-      
+
       const styleAttr = el.getAttribute('style');
       expect(styleAttr).toContain('color: red');
       expect(styleAttr).toContain('font-size: 16px');
@@ -220,7 +220,7 @@ describe('DOM Shim', () => {
     it('should convert camelCase to kebab-case', () => {
       const el = document.createElement('div');
       (el as any).style.backgroundColor = 'blue';
-      
+
       const styleAttr = el.getAttribute('style');
       expect(styleAttr).toContain('background-color: blue');
     });

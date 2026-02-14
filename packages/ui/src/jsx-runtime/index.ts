@@ -12,12 +12,13 @@
  * - Fragment          — document fragment
  */
 
-type Tag = string | ((props: any) => any);
+type JSXComponent = (props: Record<string, unknown>) => Node | Node[] | null;
+type Tag = string | JSXComponent;
 
 /**
  * Apply children to a parent node, recursively handling arrays
  */
-function applyChildren(parent: Node, children: any): void {
+function applyChildren(parent: Node, children: unknown): void {
   if (children == null || children === false || children === true) return;
   if (Array.isArray(children)) {
     for (const child of children) {
@@ -32,39 +33,44 @@ function applyChildren(parent: Node, children: any): void {
 
 /**
  * JSX factory function for client-side rendering.
- * 
+ *
  * When tag is a function (component), calls it with props.
  * When tag is a string (HTML element), creates a DOM element.
  */
-export function jsx(tag: Tag, props: Record<string, any>): any {
+export function jsx(tag: Tag, props: Record<string, unknown>): Node | null {
   // Component call — pass props through to the function
   if (typeof tag === 'function') {
     return tag(props);
   }
 
-  // HTML element
-  const el = document.createElement(tag);
+  // Tag is a string → create a DOM element
   const { children, ...attrs } = props || {};
 
+  const element = document.createElement(tag);
+
+  // Apply attributes
   for (const [key, value] of Object.entries(attrs)) {
-    if (key.startsWith('on') && key.length > 2 && typeof value === 'function') {
-      // Event handler: onClick → click, onKeyDown → keydown
-      const event = key.slice(2).toLowerCase();
-      el.addEventListener(event, value as EventListener);
-    } else if (key === 'class') {
-      if (value != null) el.setAttribute('class', String(value));
-    } else if (key === 'style' && typeof value === 'string') {
-      el.setAttribute('style', value);
+    if (key.startsWith('on') && typeof value === 'function') {
+      // Event handler — addEventListener
+      const eventName = key.slice(2).toLowerCase();
+      element.addEventListener(eventName, value as EventListener);
+    } else if (key === 'class' && value != null) {
+      element.className = String(value);
+    } else if (key === 'style' && value != null) {
+      element.setAttribute('style', String(value));
     } else if (value === true) {
-      // Boolean attribute (e.g., selected, disabled)
-      el.setAttribute(key, '');
-    } else if (value !== false && value != null) {
-      el.setAttribute(key, String(value));
+      // Boolean attribute (e.g. checked, disabled)
+      element.setAttribute(key, '');
+    } else if (value != null && value !== false) {
+      // All other attributes
+      element.setAttribute(key, String(value));
     }
   }
 
-  applyChildren(el, children);
-  return el;
+  // Apply children
+  applyChildren(element, children);
+
+  return element;
 }
 
 /**
@@ -77,7 +83,7 @@ export const jsxs: typeof jsx = jsx;
 /**
  * Fragment component — a DocumentFragment container for multiple children.
  */
-export function Fragment(props: { children?: any }): DocumentFragment {
+export function Fragment(props: { children?: unknown }): DocumentFragment {
   const frag = document.createDocumentFragment();
   applyChildren(frag, props?.children);
   return frag;

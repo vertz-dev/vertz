@@ -124,7 +124,7 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
       if (!options?.ssr) return;
 
       const ssrOptions = typeof options.ssr === 'object' ? options.ssr : {};
-      
+
       return () => {
         server.middlewares.use(async (req, res, next) => {
           const url = req.url || '/';
@@ -164,6 +164,7 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
               if (scriptMatch?.[1]) {
                 entry = scriptMatch[1];
               } else {
+                // biome-ignore plugin: Build-time configuration error, not an HTTP error
                 throw new Error(
                   'Could not auto-detect entry from index.html. Please specify ssr.entry in vertz plugin options.',
                 );

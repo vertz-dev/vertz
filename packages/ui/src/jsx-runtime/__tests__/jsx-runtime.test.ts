@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { jsx, jsxs, jsxDEV, Fragment } from '../index';
+import { describe, expect, it } from 'vitest';
+import { Fragment, jsx, jsxDEV, jsxs } from '../index';
 
 describe('JSX Runtime (Client)', () => {
   describe('jsx - intrinsic elements', () => {
@@ -28,10 +28,7 @@ describe('JSX Runtime (Client)', () => {
 
     it('should append multiple children', () => {
       const el = jsx('ul', {
-        children: [
-          jsx('li', { children: 'Item 1' }),
-          jsx('li', { children: 'Item 2' }),
-        ],
+        children: [jsx('li', { children: 'Item 1' }), jsx('li', { children: 'Item 2' })],
       });
       expect(el.children.length).toBe(2);
       expect(el.children[0].textContent).toBe('Item 1');
@@ -48,7 +45,10 @@ describe('JSX Runtime (Client)', () => {
 
     it('should flatten nested arrays', () => {
       const el = jsx('div', {
-        children: [['a', 'b'], ['c', 'd']],
+        children: [
+          ['a', 'b'],
+          ['c', 'd'],
+        ],
       });
       expect(el.textContent).toBe('abcd');
       expect(el.childNodes.length).toBe(4); // 4 text nodes
@@ -61,18 +61,22 @@ describe('JSX Runtime (Client)', () => {
 
     it('should attach event handlers', () => {
       let clicked = false;
-      const onClick = () => { clicked = true; };
+      const onClick = () => {
+        clicked = true;
+      };
       const el = jsx('button', { onClick, children: 'Click me' });
-      
+
       el.dispatchEvent(new MouseEvent('click'));
       expect(clicked).toBe(true);
     });
 
     it('should normalize event handler names', () => {
       let keyPressed = false;
-      const onKeyDown = () => { keyPressed = true; };
+      const onKeyDown = () => {
+        keyPressed = true;
+      };
       const el = jsx('input', { onKeyDown });
-      
+
       el.dispatchEvent(new KeyboardEvent('keydown'));
       expect(keyPressed).toBe(true);
     });
@@ -112,7 +116,7 @@ describe('JSX Runtime (Client)', () => {
     });
 
     it('should pass children to function components', () => {
-      const Wrapper = (props: { children: any }) => {
+      const Wrapper = (props: { children: unknown }) => {
         return jsx('section', { class: 'wrapper', children: props.children });
       };
 
@@ -154,10 +158,7 @@ describe('JSX Runtime (Client)', () => {
 
     it('should hold multiple children', () => {
       const frag = Fragment({
-        children: [
-          jsx('div', { children: 'first' }),
-          jsx('span', { children: 'second' }),
-        ],
+        children: [jsx('div', { children: 'first' }), jsx('span', { children: 'second' })],
       });
       expect(frag.childNodes.length).toBe(2);
     });

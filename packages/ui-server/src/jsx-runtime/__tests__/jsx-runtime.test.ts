@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { jsx, jsxs, jsxDEV, Fragment } from '../index';
+import { describe, expect, it } from 'vitest';
+import type { VNode } from '../../types';
+import { Fragment, jsx, jsxDEV, jsxs } from '../index';
 
 describe('JSX Runtime (Server)', () => {
   describe('jsx - intrinsic elements', () => {
@@ -23,14 +24,11 @@ describe('JSX Runtime (Server)', () => {
 
     it('should handle children as an array', () => {
       const result = jsx('ul', {
-        children: [
-          jsx('li', { children: 'Item 1' }),
-          jsx('li', { children: 'Item 2' }),
-        ],
+        children: [jsx('li', { children: 'Item 1' }), jsx('li', { children: 'Item 2' })],
       });
       expect(result.tag).toBe('ul');
       expect(result.children).toHaveLength(2);
-      expect((result.children[0] as any).tag).toBe('li');
+      expect((result.children[0] as VNode).tag).toBe('li');
     });
 
     it('should filter out null, undefined, false, true children', () => {
@@ -42,7 +40,10 @@ describe('JSX Runtime (Server)', () => {
 
     it('should flatten nested arrays', () => {
       const result = jsx('div', {
-        children: [['a', 'b'], ['c', 'd']],
+        children: [
+          ['a', 'b'],
+          ['c', 'd'],
+        ],
       });
       expect(result.children).toEqual(['a', 'b', 'c', 'd']);
     });
@@ -100,7 +101,7 @@ describe('JSX Runtime (Server)', () => {
     });
 
     it('should pass children to function components', () => {
-      const Wrapper = (props: { children: any }) => {
+      const Wrapper = (props: { children: unknown }) => {
         return jsx('section', { class: 'wrapper', children: props.children });
       };
 
@@ -201,8 +202,8 @@ describe('JSX Runtime (Server)', () => {
         ],
       });
       expect(result.tag).toBe('div');
-      expect((result.children[0] as any).tag).toBe('div');
-      expect(((result.children[0] as any).children[0] as any).tag).toBe('span');
+      expect((result.children[0] as VNode).tag).toBe('div');
+      expect(((result.children[0] as VNode).children[0] as VNode).tag).toBe('span');
     });
   });
 });

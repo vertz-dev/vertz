@@ -1,5 +1,5 @@
+import type { SSRElement } from './ssr-element';
 import { SSRNode } from './ssr-node';
-import { SSRElement } from './ssr-element';
 import { SSRTextNode } from './ssr-text-node';
 
 /**
@@ -7,7 +7,7 @@ import { SSRTextNode } from './ssr-text-node';
  */
 export class SSRDocumentFragment extends SSRNode {
   children: (SSRElement | string)[] = [];
-  
+
   appendChild(child: SSRElement | SSRTextNode | SSRDocumentFragment): void {
     if (child instanceof SSRTextNode) {
       this.children.push(child.text);
