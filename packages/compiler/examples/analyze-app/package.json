@@ -1,0 +1,14 @@
+{
+  "name": "compiler-example",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run index.ts",
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@vertz/compiler": "workspace:*",
+    "@vertz/core": "workspace:*"
+  }
+}
