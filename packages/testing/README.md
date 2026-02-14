@@ -2,6 +2,13 @@
 
 Test utilities for Vertz applications. Write fast, isolated tests for your routes, services, and business logic.
 
+## Prerequisites
+
+- **Node.js** 18+ or **Bun** 1.0+
+- **TypeScript** 5.0+
+- **Dependencies:** `@vertz/core`
+- **Test Framework:** Vitest (recommended) or any other test framework
+
 ## Installation
 
 ```bash

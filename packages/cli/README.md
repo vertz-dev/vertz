@@ -2,6 +2,12 @@
 
 The official command-line interface for building, developing, and managing Vertz applications.
 
+## Prerequisites
+
+- **Node.js** 18+ or **Bun** 1.0+
+- **TypeScript** 5.0+
+- **Dependencies:** `@vertz/core`, `@vertz/compiler`
+
 ## Installation
 
 ```bash
@@ -16,7 +22,7 @@ cd my-app
 npm install
 ```
 
-## Usage
+## Quick Start
 
 ### As a Binary
 

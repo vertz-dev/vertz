@@ -4,6 +4,11 @@
 
 The vertz compiler analyzes TypeScript source code to extract application structure, validate conventions, and generate runtime artifacts like route tables, dependency graphs, and OpenAPI specs.
 
+## Prerequisites
+
+- **Node.js** 18+ or **Bun** 1.0+
+- **TypeScript** 5.0+
+
 ## Installation
 
 ```bash

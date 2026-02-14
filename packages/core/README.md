@@ -4,6 +4,11 @@
 
 The core framework package for building modular web applications with built-in routing, middleware, dependency injection, and schema validation. Designed for developer experience with end-to-end type safety.
 
+## Prerequisites
+
+- **Node.js** 18+ or **Bun** 1.0+
+- **TypeScript** 5.0+
+
 ## Installation
 
 ```bash
@@ -150,7 +155,7 @@ router.delete('/items/:id', { handler: (ctx) => ({ deleted: true }) });
 
 ### Schema Validation
 
-Use `@vertz/schema` for request/response validation:
+Use [@vertz/schema](../schema) for request/response validation:
 
 ```typescript
 import { s } from '@vertz/schema';
@@ -172,6 +177,8 @@ router.post('/users', {
 ```
 
 If the request body doesn't match the schema, a `ValidationException` is thrown automatically.
+
+**Note:** `@vertz/schema` is a separate package. Install it with `npm install @vertz/schema`.
 
 ### Middleware
 
@@ -524,11 +531,12 @@ interface CorsConfig {
 ## Related Packages
 
 - **[@vertz/schema](../schema)** — Type-safe schema definition and validation (`s.string()`, `s.object()`, etc.)
-- **[@vertz/db](../db)** — Type-safe database ORM with migrations
 - **[@vertz/testing](../testing)** — Testing utilities for vertz apps (`createTestApp`, `createTestService`)
-- **[@vertz/fetch](../fetch)** — Type-safe HTTP client with retry and streaming support
-- **[@vertz/ui](../ui)** — Reactive UI framework for vertz apps
 - **[@vertz/cli](../cli)** — CLI framework for building command-line tools
+- **[@vertz/compiler](../compiler)** — Static analysis and code generation
+- **@vertz/db** — Type-safe database ORM with migrations _(Coming soon)_
+- **@vertz/fetch** — Type-safe HTTP client with retry and streaming support _(Coming soon)_
+- **@vertz/ui** — Reactive UI framework for vertz apps _(Coming soon)_
 
 ## Examples
 

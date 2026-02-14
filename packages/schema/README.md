@@ -4,6 +4,11 @@
 
 A powerful validation library with end-to-end type inference, inspired by Zod. Define schemas with a fluent API and get full TypeScript types automatically.
 
+## Prerequisites
+
+- **Node.js** 18+ or **Bun** 1.0+
+- **TypeScript** 5.0+
+
 ## Installation
 
 ```bash
