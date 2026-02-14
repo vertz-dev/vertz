@@ -26,6 +26,16 @@ A framework shall protect its own architecture, type safety, and process integri
 
 ---
 
+## Core Principles
+
+### Determinism
+Builds, tests, deploys, and CI must be reproducible. Same input → same output. Local and CI must behave identically. Flaky infrastructure is a process violation. We don't tolerate "works on my machine" or "CI was just being weird." If it's not deterministic, it's broken.
+
+### Fail Fast, Fix Even Faster
+Surface errors as early as possible — don't let them compound. TDD is the embodiment of this: write the test first, watch it fail (fast), fix it immediately (faster). This applies beyond code: catch design misalignments in review, catch process gaps in audits, catch regressions in CI. The cost of a bug grows exponentially with the distance from where it was introduced to where it's caught. Shrink that distance to zero.
+
+---
+
 ## Quick Reference
 
 ```
