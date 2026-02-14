@@ -1,0 +1,249 @@
+{
+  "schema": "vertz.audit.v1",
+  "pr": {
+    "number": 275,
+    "title": "feat(demo-toolkit): MiniMax Speech API integration with voice cloning",
+    "author": "mike",
+    "authorBot": "app/vertz-tech-lead",
+    "mergedAt": "2026-02-14T17:19:12Z",
+    "linesAdded": 1807,
+    "linesDeleted": 105,
+    "filesChanged": 10,
+    "commits": 3,
+    "reviewers": ["viniciusdacal"],
+    "approvedAt": "2026-02-14T17:12:03Z"
+  },
+  "agent": {
+    "id": "mike",
+    "role": "vertz-tech-lead",
+    "model": "unknown",
+    "sessionKey": "not-found",
+    "durationMinutes": null,
+    "tokensUsed": null,
+    "notes": "Agent session transcript not found. Unable to verify TDD compliance order."
+  },
+  "grade": {
+    "overall": "F",
+    "numeric": 0,
+    "rationale": "Critical security violation (shell command injection CWE-78) in muxing.ts. Per audit rules, a single critical security violation is an automatic F regardless of other quality metrics. The violation explicitly breaks the Zeroth Law (Security is non-negotiable) as defined in RULES.md."
+  },
+  "categories": {
+    "tdd": {
+      "grade": "C",
+      "numeric": 2,
+      "checks": {
+        "testsExist": {
+          "pass": true,
+          "severity": null,
+          "evidence": "23 tests total: 16 in tts.test.ts, 7 in muxing.test.ts"
+        },
+        "testsBeforeImplementation": {
+          "pass": null,
+          "severity": "major",
+          "evidence": "Cannot verify - no agent session transcript found to confirm test-first order"
+        },
+        "redGreenCycle": {
+          "pass": null,
+          "severity": "major",
+          "evidence": "Cannot verify without session transcript"
+        },
+        "qualityGatesRun": {
+          "pass": null,
+          "severity": "major",
+          "evidence": "Cannot verify - no session transcript showing 'bun run test && typecheck && lint' before commits"
+        },
+        "noTestSkips": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No .skip or @ts-ignore found in test files"
+        },
+        "testCoverage": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Comprehensive coverage: basic TTS, voice cloning, error handling, retries, muxing functions"
+        }
+      }
+    },
+    "process": {
+      "grade": "D",
+      "numeric": 1,
+      "checks": {
+        "ticketExists": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No ticket found in /workspace/vertz/tickets/ for MiniMax TTS integration. Only reference is in later cleanup ticket chore-move-demo-toolkit-to-backstage.md"
+        },
+        "branchNaming": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Branch: feat/minimax-tts-integration (correct format)"
+        },
+        "atomicCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "3 commits with clear, focused purposes: feat -> refactor -> docs"
+        },
+        "changesetAdded": {
+          "pass": true,
+          "severity": null,
+          "evidence": ".changeset/minimax-tts-integration.md with breaking changes and migration guide"
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR author: app/vertz-tech-lead (bot identity), git author: kai@vertz.dev"
+        },
+        "isolatedWorktree": {
+          "pass": null,
+          "severity": "minor",
+          "evidence": "Cannot verify without session transcript. Diff appears clean (all changes in demo-toolkit scope)"
+        },
+        "prApproved": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Approved by viniciusdacal at 2026-02-14T17:12:03Z"
+        },
+        "noPushToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR merged via GitHub, not direct push"
+        }
+      }
+    },
+    "design": {
+      "grade": "C",
+      "numeric": 2,
+      "checks": {
+        "designDocExists": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No pre-implementation design doc in /workspace/vertz/plans/ or /workspace/backstage/plans/. ARCHITECTURE.md was added in PR (post-facto)"
+        },
+        "rulesReadAtStart": {
+          "pass": null,
+          "severity": "minor",
+          "evidence": "Cannot verify without session transcript"
+        },
+        "scopeAdherence": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All 10 changed files within packages/demo-toolkit/ scope. No scope creep."
+        },
+        "filesMatchTicket": {
+          "pass": null,
+          "severity": "minor",
+          "evidence": "No ticket to compare against"
+        }
+      }
+    },
+    "dx": {
+      "grade": "B",
+      "numeric": 3,
+      "checks": {
+        "developerWalkthrough": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No end-to-end walkthrough demonstrating fresh setup to working demo"
+        },
+        "acceptanceCriteria": {
+          "pass": null,
+          "severity": "minor",
+          "evidence": "No ticket with acceptance criteria found"
+        },
+        "examplesUsePublicAPI": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All TTS.md examples import from '@vertz/demo-toolkit' public API"
+        },
+        "documentationQuality": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Excellent: TTS.md (361 lines), ARCHITECTURE.md (384 lines), PR_SUMMARY.md (206 lines)"
+        },
+        "typeSafety": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Full TypeScript with TTSOptions interface, MiniMaxTTSError class, all functions typed"
+        },
+        "errorHandling": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Comprehensive error handling for 401, 429, network failures with retry logic"
+        }
+      }
+    },
+    "security": {
+      "grade": "F",
+      "numeric": 0,
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() found in code"
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "API key from environment variable MINIMAX_API_KEY"
+        },
+        "noShellInterpolation": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "muxing.ts lines 57-59 and 105-110 use execAsync() with template literals containing user-provided paths (videoPath, audioPath, outputPath, clip.audioPath). Allows command injection (CWE-78). Violates RULES.md: 'No shell string interpolation — never use execAsync() or exec() with template literals. Always use spawn() with argument arrays.'"
+        },
+        "inputSanitization": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "File paths not validated before passing to shell commands"
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "Zeroth Law: Security is non-negotiable",
+      "category": "security",
+      "severity": "critical",
+      "description": "Shell command injection vulnerability in muxing.ts",
+      "evidence": "Lines 57-59 (combineVideoAudio): execAsync(`ffmpeg -i \"${videoPath}\" -i \"${audioPath}\" -c:v copy -c:a aac -shortest \"${outputPath}\"`). Lines 105-110 (createAudioTimeline): execAsync with interpolated clip.audioPath array. User-controlled paths allow command injection.",
+      "recommendation": "Replace execAsync() with spawn() using argument arrays. Example: spawn('ffmpeg', ['-i', videoPath, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac', '-shortest', outputPath]). Add path validation. Add integration tests with malicious paths.",
+      "blocking": true
+    },
+    {
+      "rule": "Never commit without a ticket",
+      "category": "process",
+      "severity": "major",
+      "description": "No ticket found for this feature",
+      "evidence": "Searched /workspace/vertz/tickets/ - no MiniMax TTS ticket. Only reference is in later cleanup ticket chore-move-demo-toolkit-to-backstage.md which mentions PR #275",
+      "recommendation": "Create tickets for all features, even small ones. Ticket should exist before work begins and be referenced in commit messages.",
+      "blocking": false
+    },
+    {
+      "rule": "Design doc required before implementation",
+      "category": "design",
+      "severity": "major",
+      "description": "No pre-implementation design document",
+      "evidence": "No design doc in /workspace/vertz/plans/ or /workspace/backstage/plans/. ARCHITECTURE.md was created during implementation, not pre-approved.",
+      "recommendation": "Write design docs before implementation. Get approvals from josh (DX), pm (product), and tech lead. Architectural changes like modular extraction strategy need pre-approval.",
+      "blocking": false
+    },
+    {
+      "rule": "Developer Walkthrough gate mandatory",
+      "category": "dx",
+      "severity": "minor",
+      "description": "No end-to-end developer walkthrough provided",
+      "evidence": "Documentation exists but no walkthrough showing: 1) Fresh project setup, 2) Following docs to enable feature, 3) Verifying user-visible outcome, 4) No undocumented steps",
+      "recommendation": "Add developer walkthrough section to ticket and documentation. Test the '5-minute rule' - can a developer go from zero to working in 5 minutes with just the docs?",
+      "blocking": false
+    }
+  ],
+  "summary": "PR #275 adds MiniMax Speech API integration with excellent documentation and architecture, but contains a critical shell command injection vulnerability in muxing.ts that violates the Zeroth Law (Security). This results in an automatic F grade per audit rules. The vulnerability must be fixed immediately as a high-priority follow-up. Additional issues: missing ticket, no pre-implementation design doc, and unable to verify TDD compliance due to missing session transcript. PR was already merged before audit - remediation required retroactively.",
+  "mergedBeforeAudit": true,
+  "remediationRequired": true,
+  "remediationPriority": "critical",
+  "followUpTickets": [
+    "Security fix: Replace execAsync with spawn in muxing.ts (P0/critical)",
+    "Add security linting to detect shell interpolation patterns",
+    "Create missing ticket documentation for MiniMax TTS feature"
+  ]
+}
