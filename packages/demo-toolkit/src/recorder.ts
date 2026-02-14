@@ -1,13 +1,13 @@
 /**
  * Core Recording Engine
- * 
+ *
  * Wraps Playwright to provide video recording capabilities for demo scripts.
  */
 
-import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import type { RecorderConfig, DemoResult } from './types.js';
+import { type Browser, type BrowserContext, chromium, type Page } from '@playwright/test';
+import type { RecorderConfig } from './types.js';
 
 /**
  * Demo recorder powered by Playwright
@@ -76,9 +76,9 @@ export class DemoRecorder {
   async navigate(url: string, waitFor?: string): Promise<void> {
     const page = this.getPage();
     const fullUrl = url.startsWith('http') ? url : `${this.config.baseUrl}${url}`;
-    
+
     await page.goto(fullUrl);
-    
+
     if (waitFor) {
       await page.waitForSelector(waitFor);
     }

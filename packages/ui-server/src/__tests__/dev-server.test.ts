@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import { createDevServer } from '../dev-server';
 
 describe('createDevServer', () => {
@@ -7,7 +7,7 @@ describe('createDevServer', () => {
       entry: '/src/entry-server.ts',
       port: 9999,
     });
-    
+
     expect(server).toBeDefined();
     expect(typeof server.listen).toBe('function');
     expect(typeof server.close).toBe('function');
@@ -23,7 +23,7 @@ describe('createDevServer', () => {
       middleware: (_req, _res, next) => next(),
       viteConfig: { root: '/tmp' },
     });
-    
+
     expect(server).toBeDefined();
     expect(typeof server.listen).toBe('function');
     expect(typeof server.close).toBe('function');
@@ -33,7 +33,7 @@ describe('createDevServer', () => {
     const server = createDevServer({
       entry: '/src/entry-server.ts',
     });
-    
+
     expect(server).toBeDefined();
   });
 });

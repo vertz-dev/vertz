@@ -1,6 +1,6 @@
 /**
  * Task Manager Demo Script
- * 
+ *
  * Demonstrates the task-manager app:
  * - Load page with task list
  * - Filter tasks by status
@@ -27,7 +27,7 @@ export const taskManagerDemo: DemoScript = {
       ms: 2000,
       description: 'Wait for app to load',
     },
-    
+
     // Take initial screenshot
     {
       type: 'screenshot',

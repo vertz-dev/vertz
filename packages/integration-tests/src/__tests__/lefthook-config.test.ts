@@ -5,7 +5,9 @@ import YAML from 'yaml';
 
 describe('lefthook configuration', () => {
   it('should have quality-gates command that runs typecheck and lint without dagger', () => {
-    const lefthookPath = path.join(process.cwd(), 'lefthook.yml');
+    // Find monorepo root (where lefthook.yml lives)
+    const monorepoRoot = path.resolve(process.cwd(), '../..');
+    const lefthookPath = path.join(monorepoRoot, 'lefthook.yml');
     const content = fs.readFileSync(lefthookPath, 'utf-8');
     const config = YAML.parse(content);
 
@@ -30,7 +32,9 @@ describe('lefthook configuration', () => {
   });
 
   it('should have ci command that runs dagger conditionally', () => {
-    const lefthookPath = path.join(process.cwd(), 'lefthook.yml');
+    // Find monorepo root (where lefthook.yml lives)
+    const monorepoRoot = path.resolve(process.cwd(), '../..');
+    const lefthookPath = path.join(monorepoRoot, 'lefthook.yml');
     const content = fs.readFileSync(lefthookPath, 'utf-8');
     const config = YAML.parse(content);
 
@@ -52,7 +56,9 @@ describe('lefthook configuration', () => {
   it('should not require LEFTHOOK=0 environment variable', () => {
     // This is a structural test - the configuration should work
     // without needing to skip via LEFTHOOK=0
-    const lefthookPath = path.join(process.cwd(), 'lefthook.yml');
+    // Find monorepo root (where lefthook.yml lives)
+    const monorepoRoot = path.resolve(process.cwd(), '../..');
+    const lefthookPath = path.join(monorepoRoot, 'lefthook.yml');
     const content = fs.readFileSync(lefthookPath, 'utf-8');
     const config = YAML.parse(content);
 
