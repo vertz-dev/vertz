@@ -1,5 +1,6 @@
 export { renderAssetTags } from './asset-pipeline';
 export { inlineCriticalCss } from './critical-css';
+export { createDevServer } from './dev-server';
 export { HeadCollector, renderHeadToHtml } from './head';
 export { serializeToHtml } from './html-serializer';
 export { wrapWithHydrationMarkers } from './hydration-markers';
@@ -15,4 +16,5 @@ export type {
   RenderToStreamOptions,
   VNode,
 } from './types';
+export type { DevServer, DevServerOptions } from './dev-server';
 export { rawHtml } from './types';
