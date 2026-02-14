@@ -1,6 +1,6 @@
 /**
  * Registry of known APIs that return objects with signal properties.
- * 
+ *
  * When the compiler encounters a call to one of these functions, it marks
  * the result variable as a 'signal-object' and tracks which properties are
  * signals that need automatic .value unwrapping.

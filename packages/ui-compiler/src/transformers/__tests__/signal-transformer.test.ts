@@ -94,13 +94,15 @@ describe('SignalTransformer', () => {
     it('auto-unwraps signal properties from signal-objects', () => {
       const result = transform(
         `function TaskList() {\n  const tasks = query('/api/tasks');\n  return <div>{tasks.loading}</div>;\n}`,
-        [{
-          name: 'tasks',
-          kind: 'signal-object',
-          start: 0,
-          end: 0,
-          signalProperties: new Set(['data', 'loading', 'error']),
-        }],
+        [
+          {
+            name: 'tasks',
+            kind: 'signal-object',
+            start: 0,
+            end: 0,
+            signalProperties: new Set(['data', 'loading', 'error']),
+          },
+        ],
       );
       // Should insert .value after the signal property access
       expect(result).toContain('tasks.loading.value');
@@ -109,13 +111,15 @@ describe('SignalTransformer', () => {
     it('unwraps multiple signal properties', () => {
       const result = transform(
         `function TaskList() {\n  const tasks = query('/api/tasks');\n  const isLoading = tasks.loading;\n  const data = tasks.data;\n  const err = tasks.error;\n  return <div>{isLoading}</div>;\n}`,
-        [{
-          name: 'tasks',
-          kind: 'signal-object',
-          start: 0,
-          end: 0,
-          signalProperties: new Set(['data', 'loading', 'error']),
-        }],
+        [
+          {
+            name: 'tasks',
+            kind: 'signal-object',
+            start: 0,
+            end: 0,
+            signalProperties: new Set(['data', 'loading', 'error']),
+          },
+        ],
       );
       expect(result).toContain('tasks.loading.value');
       expect(result).toContain('tasks.data.value');
@@ -125,13 +129,15 @@ describe('SignalTransformer', () => {
     it('does NOT unwrap non-signal properties', () => {
       const result = transform(
         `function TaskList() {\n  const tasks = query('/api/tasks');\n  tasks.refetch();\n  return <div>OK</div>;\n}`,
-        [{
-          name: 'tasks',
-          kind: 'signal-object',
-          start: 0,
-          end: 0,
-          signalProperties: new Set(['data', 'loading', 'error']),
-        }],
+        [
+          {
+            name: 'tasks',
+            kind: 'signal-object',
+            start: 0,
+            end: 0,
+            signalProperties: new Set(['data', 'loading', 'error']),
+          },
+        ],
       );
       // refetch is not a signal property, should not be unwrapped
       expect(result).toContain('tasks.refetch()');
@@ -141,13 +147,15 @@ describe('SignalTransformer', () => {
     it('handles chained property access correctly', () => {
       const result = transform(
         `function UserForm() {\n  const form = form(schema);\n  const nameError = form.errors.name;\n  return <div>{nameError}</div>;\n}`,
-        [{
-          name: 'form',
-          kind: 'signal-object',
-          start: 0,
-          end: 0,
-          signalProperties: new Set(['errors', 'values', 'submitting']),
-        }],
+        [
+          {
+            name: 'form',
+            kind: 'signal-object',
+            start: 0,
+            end: 0,
+            signalProperties: new Set(['errors', 'values', 'submitting']),
+          },
+        ],
       );
       // Should unwrap .errors (it's a signal), then access .name on the unwrapped value
       expect(result).toContain('form.errors.value.name');
@@ -156,13 +164,15 @@ describe('SignalTransformer', () => {
     it('handles optional chaining on signal properties', () => {
       const result = transform(
         `function TaskList() {\n  const tasks = query('/api/tasks');\n  const data = tasks?.data;\n  return <div>{data}</div>;\n}`,
-        [{
-          name: 'tasks',
-          kind: 'signal-object',
-          start: 0,
-          end: 0,
-          signalProperties: new Set(['data', 'loading', 'error']),
-        }],
+        [
+          {
+            name: 'tasks',
+            kind: 'signal-object',
+            start: 0,
+            end: 0,
+            signalProperties: new Set(['data', 'loading', 'error']),
+          },
+        ],
       );
       expect(result).toContain('tasks?.data.value');
     });

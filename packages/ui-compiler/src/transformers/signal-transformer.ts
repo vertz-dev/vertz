@@ -19,10 +19,10 @@ export class SignalTransformer {
     mutationRanges: Array<{ start: number; end: number }> = [],
   ): void {
     const signals = new Set(variables.filter((v) => v.kind === 'signal').map((v) => v.name));
-    const signalObjects = new Map(
+    const signalObjects = new Map<string, Set<string>>(
       variables
         .filter((v) => v.kind === 'signal-object')
-        .map((v) => [v.name, v.signalProperties ?? new Set()]),
+        .map((v) => [v.name, v.signalProperties ?? new Set<string>()]),
     );
 
     const bodyNode = findBodyNode(sourceFile, component);
@@ -118,7 +118,7 @@ function transformReferences(
 
 /**
  * Transform property access on signal-objects to auto-unwrap signal properties.
- * 
+ *
  * Example: tasks.loading → tasks.loading.value (if loading is a signal property)
  * Example: tasks.refetch() → tasks.refetch() (if refetch is not a signal property)
  * Example: form.errors.name → form.errors.value.name (unwrap .errors, then access .name)
@@ -146,8 +146,8 @@ function transformSignalObjectProperties(
     if (expression.isKind(SyntaxKind.Identifier)) {
       const objName = expression.getText();
       const signalProps = signalObjects.get(objName);
-      
-      if (signalProps && signalProps.has(propertyName)) {
+
+      if (signalProps?.has(propertyName)) {
         // This is a signal property access — insert .value after it
         const propertyNode = node.getNameNode();
         source.appendRight(propertyNode.getEnd(), '.value');
@@ -175,7 +175,7 @@ function transformSignalObjectProperties(
           // Check if the first property in the chain is a signal property
           const firstPropName = current.getName();
           const firstPropEnd = current.getNameNode().getEnd();
-          
+
           if (signalProps.has(firstPropName) && !transformed.has(firstPropEnd)) {
             // Insert .value after the signal property access
             source.appendRight(firstPropEnd, '.value');

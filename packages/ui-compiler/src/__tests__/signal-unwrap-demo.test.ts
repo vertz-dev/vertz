@@ -1,6 +1,6 @@
 /**
  * Demo: Signal property auto-unwrapping
- * 
+ *
  * This test demonstrates the "eliminate .value" feature where the compiler
  * automatically unwraps signal properties from query(), form(), and other APIs.
  */
@@ -24,12 +24,12 @@ describe('Signal property auto-unwrapping demo', () => {
     `;
 
     const result = compile(source, 'test.tsx');
-    
+
     // The compiler should insert .value
     expect(result.code).toContain('tasks.loading.value');
     expect(result.code).toContain('tasks.data.value');
     expect(result.code).toContain('tasks.error.value');
-    
+
     // But not for refetch (it's a plain function)
     expect(result.code).not.toContain('refetch.value');
   });
@@ -48,7 +48,7 @@ describe('Signal property auto-unwrapping demo', () => {
     `;
 
     const result = compile(source, 'test.tsx');
-    
+
     expect(result.code).toContain('userForm.submitting.value');
     expect(result.code).toContain('userForm.errors.value');
   });
@@ -66,7 +66,7 @@ describe('Signal property auto-unwrapping demo', () => {
     `;
 
     const result = compile(source, 'test.tsx');
-    
+
     // Should unwrap .errors first, then access .name
     expect(result.code).toContain('userForm.errors.value.name');
   });
@@ -85,11 +85,11 @@ describe('Signal property auto-unwrapping demo', () => {
     `;
 
     const result = compile(source, 'test.tsx');
-    
+
     // Local signal transform
     expect(result.code).toContain('const statusFilter = signal(');
     expect(result.code).toContain('statusFilter.value');
-    
+
     // Signal-object auto-unwrap
     expect(result.code).toContain('tasks.loading.value');
   });
@@ -110,13 +110,19 @@ describe('Signal property auto-unwrapping demo', () => {
     `;
 
     // Both compile to the same output
-    const beforeResult = compile(`import { query } from '@vertz/ui'; function A() { ${before} return <div/>; }`, 'test.tsx');
-    const afterResult = compile(`import { query } from '@vertz/ui'; function A() { ${after} return <div/>; }`, 'test.tsx');
+    const beforeResult = compile(
+      `import { query } from '@vertz/ui'; function A() { ${before} return <div/>; }`,
+      'test.tsx',
+    );
+    const afterResult = compile(
+      `import { query } from '@vertz/ui'; function A() { ${after} return <div/>; }`,
+      'test.tsx',
+    );
 
     // After compilation, both have .value inserted
     expect(beforeResult.code).toContain('tasks.loading.value');
     expect(afterResult.code).toContain('tasks.loading.value');
-    
+
     // The "after" source doesn't require manual .value (only in comments)
     const afterNoComments = after.split('//')[0]; // Remove comment
     expect(afterNoComments).not.toContain('.value');

@@ -20,7 +20,10 @@ export class ReactivityAnalyzer {
     // Pass 1: Collect declarations
     const lets = new Map<string, { start: number; end: number; deps: string[] }>();
     const consts = new Map<string, { start: number; end: number; deps: string[] }>();
-    const signalObjects = new Map<string, { start: number; end: number; signalProperties: Set<string> }>();
+    const signalObjects = new Map<
+      string,
+      { start: number; end: number; signalProperties: Set<string> }
+    >();
 
     for (const stmt of bodyNode.getChildSyntaxList()?.getChildren() ?? []) {
       if (!stmt.isKind(SyntaxKind.VariableStatement)) continue;
@@ -205,7 +208,7 @@ function collectIdentifierRefs(node: Node): string[] {
 /**
  * Extract the name of a signal API call from an initializer expression.
  * Returns the function name if it's a registered signal API, otherwise null.
- * 
+ *
  * Examples:
  *   query(...) -> "query"
  *   form(...) -> "form"
@@ -216,19 +219,19 @@ function extractSignalApiCall(node: Node): string | null {
   // Direct call: query(...)
   if (node.isKind(SyntaxKind.CallExpression)) {
     const expr = node.getExpression();
-    
+
     // Simple identifier: query(...)
     if (expr.isKind(SyntaxKind.Identifier)) {
       const name = expr.getText();
       return isSignalApi(name) ? name : null;
     }
-    
+
     // Property access: vertz.query(...), UI.form(...)
     if (expr.isKind(SyntaxKind.PropertyAccessExpression)) {
       const propName = expr.getName();
       return isSignalApi(propName) ? propName : null;
     }
   }
-  
+
   return null;
 }
