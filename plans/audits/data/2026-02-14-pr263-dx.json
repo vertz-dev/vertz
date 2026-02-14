@@ -1,0 +1,217 @@
+{
+  "schema": "vertz.audit.v1",
+  "timestamp": "2026-02-14T16:09:00Z",
+  "pr": {
+    "number": 263,
+    "title": "feat(demo-toolkit): Add automated demo recording pipeline",
+    "author": "vertz-dev-dx",
+    "mergedAt": "2026-02-14T12:13:39Z",
+    "filesChanged": 23,
+    "linesAdded": 1041,
+    "linesRemoved": 11
+  },
+  "agent": {
+    "id": "vertz-dev-dx",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "sessionDurationMs": null,
+    "totalTokens": null
+  },
+  "grade": "D",
+  "gradeNumeric": 1.0,
+  "scores": {
+    "tdd": {
+      "grade": "D",
+      "numeric": 1.0,
+      "checks": {
+        "testBeforeImpl": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "First commit claims 'Full test coverage with TDD approach' but commit history suggests batch implementation. Only types.test.ts visible in diff (+13 lines)."
+        },
+        "redGreenCycle": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No evidence of red-green cycles in commit history. Large feature implemented in single commits."
+        },
+        "oneTestAtATime": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Cannot verify incremental test development from diff."
+        },
+        "qualityGatesBeforeCommit": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Commit 6 (b2e689f): 'fix: Fix lint errors'. Commit 7 (cad9800): 'fix: add missing dependency'. Commit 8 (c98b51e): 'fix: Fix TypeScript errors'. Gates were NOT run before commits 1-5."
+        },
+        "noTypeEscapes": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No @ts-ignore or 'as any' found in diff. Uses proper @vertz/core exceptions."
+        }
+      }
+    },
+    "process": {
+      "grade": "F",
+      "numeric": 0.0,
+      "checks": {
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Feature branch 'feat/demo-toolkit-final' used."
+        },
+        "atomicCommits": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "8 commits total, but 3 are fix commits that should've been squashed or prevented. Not truly atomic."
+        },
+        "changesetAdded": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No changeset file in diff. Command: 'git show 7f006e8 --name-only | grep .changeset' returned no results. packages/demo-toolkit/package.json and packages/ui-server/package.json modified (added @vertz/core dependency) but no changeset created."
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Commits authored by vertz-dev-dx[bot] and vertz-dev-core[bot]. Bot scripts appear to be used correctly."
+        },
+        "noPushToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR workflow used, not direct push to main."
+        },
+        "scopeCompliance": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "PR includes unrelated workspace files: HEARTBEAT.md, IDENTITY.md, SOUL.md, TOOLS.md, USER.md. These are OpenClaw agent configs, not demo-toolkit features. RULES.md: 'Scope creep is the #1 agent failure mode.'"
+        },
+        "noGitArtifacts": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Binary MP3 files committed: narration-6.mp3, narration-7.mp3, narration-8.mp3. Test artifacts should not be in git."
+        }
+      }
+    },
+    "design": {
+      "grade": "C",
+      "numeric": 2.0,
+      "checks": {
+        "readTicketFirst": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No ticket found in /workspace/vertz/tickets/. PR is exploratory ('Part of Demo Squad exploration')."
+        },
+        "readRules": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify from commit history. Assumed agent read RULES.md."
+        },
+        "scopeCompliance": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Workspace config files (HEARTBEAT.md, etc.) included in PR scope. Clear scope violation."
+        },
+        "deviationsEscalated": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "PR references 'plans/explorations/demo-squad/README.md' which does not exist. If exploratory work, should be documented or escalated."
+        },
+        "designDocExists": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Referenced design doc does not exist: /workspace/vertz/plans/explorations/demo-squad/README.md"
+        }
+      }
+    },
+    "dx": {
+      "grade": "B",
+      "numeric": 3.0,
+      "checks": {
+        "developerWalkthrough": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No formal ticket with Developer Walkthrough section. PR provides examples but no structured walkthrough."
+        },
+        "userOutcomeTests": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR includes working demo script (scripts/task-manager.ts) that demonstrates end-to-end usage."
+        },
+        "publicApiOnly": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Examples use exported APIs from @vertz/demo-toolkit. No internal imports visible."
+        },
+        "verticalSlice": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Feature is end-to-end: recorder + script-runner + TTS + FFmpeg muxing. Fully usable."
+        },
+        "documentation": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Excellent documentation: README.md, NARRATION.md, STORYBOARD.md. Clear usage examples."
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() in code."
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No hardcoded secrets found in diff."
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Shell commands properly escape input: text.replace(/\"/g, '\\\"'). Paths quoted in FFmpeg commands."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "process.changesetAdded",
+      "severity": "major",
+      "description": "Package.json modified without changeset",
+      "evidence": "packages/demo-toolkit/package.json and packages/ui-server/package.json both added dependency '@vertz/core': 'workspace:*', but no changeset file found in commit 7f006e8.",
+      "recommendation": "Run 'bunx changeset' and select affected packages (demo-toolkit, ui-server). Add changeset commit before merging."
+    },
+    {
+      "rule": "tdd.qualityGatesBeforeCommit",
+      "severity": "major",
+      "description": "Quality gates bypassed - fix commits after implementation",
+      "evidence": "Commit 6 (b2e689f): 'fix: Fix lint errors'. Commit 7 (cad9800): 'fix: add missing dependency'. Commit 8 (c98b51e): 'fix: Fix TypeScript errors in recorder and tts'. These errors should have been caught BEFORE commits 1-5 if quality gates were run.",
+      "recommendation": "ALWAYS run 'bun run test && bun run typecheck && bun run lint' before EVERY commit. Consider adding git pre-commit hooks to enforce."
+    },
+    {
+      "rule": "process.scopeCompliance",
+      "severity": "major",
+      "description": "Scope creep - unrelated workspace files included",
+      "evidence": "PR includes HEARTBEAT.md, IDENTITY.md, SOUL.md, TOOLS.md, USER.md — OpenClaw agent configuration files unrelated to demo-toolkit feature.",
+      "recommendation": "Move workspace configuration files to a separate PR. Keep feature PRs focused. Review 'git diff --cached' before committing to catch scope violations."
+    },
+    {
+      "rule": "design.designDocExists",
+      "severity": "major",
+      "description": "Referenced design document does not exist",
+      "evidence": "PR body mentions 'Demo Squad brief: plans/explorations/demo-squad/README.md' but file does not exist at that path.",
+      "recommendation": "Create the referenced design doc retroactively, or update PR description to remove the reference. Exploratory work should be documented."
+    },
+    {
+      "rule": "process.noGitArtifacts",
+      "severity": "minor",
+      "description": "Binary test artifacts committed to git",
+      "evidence": "packages/demo-toolkit/demos/narration-6.mp3, narration-7.mp3, narration-8.mp3 (497 bytes each) committed.",
+      "recommendation": "Add '*.mp3' and '*.webm' to .gitignore under packages/demo-toolkit/demos/. Use Git LFS if demo videos need to be tracked."
+    }
+  ],
+  "summary": "PR #263 adds valuable demo recording functionality with TTS narration, but the implementation process violated multiple critical rules: no changeset for package changes, quality gates bypassed (fix commits after implementation), scope creep with unrelated workspace files, and missing design documentation. The feature is functional and well-documented, but the process discipline was poor. Grade: D — Multiple major violations."
+}
