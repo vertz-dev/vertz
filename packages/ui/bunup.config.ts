@@ -9,6 +9,7 @@ export default defineConfig({
     'src/form/public.ts',
     'src/query/public.ts',
     'src/css/public.ts',
+    'src/jsx-runtime/index.ts',
   ],
   dts: true,
 });

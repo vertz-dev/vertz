@@ -1,6 +1,6 @@
 import { defineConfig } from 'bunup';
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: ['src/index.ts', 'src/dom-shim/index.ts', 'src/jsx-runtime/index.ts'],
   dts: true,
 });
