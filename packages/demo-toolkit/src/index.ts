@@ -6,4 +6,5 @@
 
 export * from './recorder.js';
 export * from './script-runner.js';
+export * from './tts.js';
 export * from './types.js';
