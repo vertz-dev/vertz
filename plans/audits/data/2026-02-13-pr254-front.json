@@ -1,0 +1,161 @@
+{
+  "schema": "vertz.audit.v1",
+  "timestamp": "2026-02-14T14:06:00Z",
+  "pr": {
+    "number": 254,
+    "title": "fix(tickets): complete ui-010-ssr ticket status",
+    "author": "vertz-dev-front[bot]",
+    "mergedAt": "2026-02-13T22:24:43Z",
+    "filesChanged": 1,
+    "linesAdded": 31,
+    "linesRemoved": 14
+  },
+  "agent": {
+    "id": "vertz-dev-front",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "sessionDurationMs": null,
+    "totalTokens": null
+  },
+  "grade": "A",
+  "gradeNumeric": 4.0,
+  "scores": {
+    "tdd": {
+      "grade": "N/A",
+      "numeric": null,
+      "checks": {
+        "testBeforeImpl": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Not applicable - markdown-only change, no code implementation"
+        },
+        "redGreenCycle": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Not applicable - no tests needed for ticket status update"
+        },
+        "oneTestAtATime": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Not applicable - no tests needed"
+        },
+        "qualityGatesBeforeCommit": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Not applicable - markdown file does not require test/typecheck/lint gates"
+        },
+        "noTypeEscapes": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Not applicable - no TypeScript code changed"
+        }
+      }
+    },
+    "process": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Branch fix/ui-010-ticket-status created before work, follows naming convention"
+        },
+        "atomicCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Single focused commit dc3ccbe994263899ede7c5fcdc8bad6670ed114e"
+        },
+        "changesetAdded": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Not required - ticket markdown is not a package change"
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Commit author and committer both vertz-dev-front[bot] with correct email"
+        },
+        "noPushToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR merged to main with human approval from viniciusdacal (CONTRIBUTOR) on 2026-02-13T22:23:27Z, reviewDecision: APPROVED"
+        }
+      }
+    },
+    "design": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "readTicketFirst": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Work references ui-010 ticket correctly, content shows understanding of ticket state"
+        },
+        "readRules": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Commit format, branch naming, and process all follow RULES.md conventions"
+        },
+        "scopeCompliance": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Only changed tickets/vertz-ui/ui-010-ssr.md as intended, no scope creep"
+        },
+        "deviationsEscalated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No deviations - straightforward ticket status update"
+        }
+      }
+    },
+    "dx": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "developerWalkthrough": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Not applicable - this is ticket bookkeeping, not a feature"
+        },
+        "userOutcomeTests": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Not applicable - administrative change"
+        },
+        "publicApiOnly": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Not applicable - no code examples"
+        },
+        "verticalSlice": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Ticket update is complete and provides full context for readers"
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Not applicable - no code changed"
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Markdown only, no secrets"
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Not applicable - no user input handling"
+        }
+      }
+    }
+  },
+  "violations": [],
+  "summary": "Exemplary administrative work. PR #254 is a clean ticket status update that follows all process rules: proper branch naming (fix/ui-010-ticket-status), conventional commit format, atomic change, bot identity used correctly, human review obtained. TDD not applicable (markdown-only). No violations found."
+}
