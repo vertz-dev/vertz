@@ -1,6 +1,6 @@
 # ui-019: Compiler conditional & list transforms with disposal scopes
 
-- **Status:** 🟡 In Progress
+- **Status:** ✅ Complete
 - **Assigned:** ben (compiler) + nora (runtime)
 - **Phase:** v0.1.x patch
 - **Estimate:** 12h

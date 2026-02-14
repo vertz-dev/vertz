@@ -8,6 +8,7 @@ import { exec } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
+import { InternalServerErrorException } from '@vertz/core';
 
 const execAsync = promisify(exec);
 
@@ -21,7 +22,7 @@ export async function generateTTS(text: string, outputPath: string): Promise<voi
   try {
     // Call OpenClaw TTS tool via shell
     // The openclaw binary should have a tts subcommand
-    const { stdout, stderr } = await execAsync(
+    const { stdout: _stdout, stderr } = await execAsync(
       `openclaw tts --text "${text.replace(/"/g, '\\"')}" --output "${outputPath}"`,
       { timeout: 30000 },
     );
@@ -34,7 +35,7 @@ export async function generateTTS(text: string, outputPath: string): Promise<voi
     try {
       await fs.access(outputPath);
     } catch {
-      throw new Error('TTS output file was not created');
+      throw new InternalServerErrorException('TTS output file was not created');
     }
   } catch (error) {
     // Fallback: create a silent audio file or a text marker
@@ -63,7 +64,7 @@ export async function getAudioDuration(audioPath: string): Promise<number> {
     );
     const durationSeconds = parseFloat(stdout.trim());
     return Math.ceil(durationSeconds * 1000);
-  } catch (error) {
+  } catch (_error) {
     // If ffprobe fails, estimate based on text length (rough estimate: 150 words per minute)
     const words = audioPath.split(/\s+/).length;
     const minutes = words / 150;

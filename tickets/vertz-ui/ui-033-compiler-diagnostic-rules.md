@@ -1,6 +1,6 @@
 # ui-033: Compiler diagnostic rules — catch runtime bugs at build time
 
-- **Status:** 🔴 Todo
+- **Status:** ✅ Complete
 - **Assigned:** ben
 - **Phase:** v0.2.0
 - **Priority:** P1

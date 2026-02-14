@@ -1,6 +1,6 @@
 /**
  * Task Manager Demo Script
- * 
+ *
  * Demonstrates the task-manager app:
  * - Load page with task list
  * - Filter tasks by status
@@ -27,12 +27,12 @@ export const taskManagerDemo: DemoScript = {
       ms: 2000,
       description: 'Wait for app to load',
     },
-    
+
     {
       type: 'narrate',
       text: 'Welcome to Vertz — a full-stack framework with fine-grained reactivity and server-side rendering.',
     },
-    
+
     // Take initial screenshot
     {
       type: 'screenshot',
@@ -49,7 +49,7 @@ export const taskManagerDemo: DemoScript = {
 
     {
       type: 'narrate',
-      text: 'Let\'s filter the tasks by status. Watch how signals update only the affected DOM nodes.',
+      text: "Let's filter the tasks by status. Watch how signals update only the affected DOM nodes.",
     },
 
     // Click on "In Progress" filter
@@ -91,7 +91,7 @@ export const taskManagerDemo: DemoScript = {
 
     {
       type: 'narrate',
-      text: 'Now let\'s create a new task. This demonstrates progressive enhancement with forms.',
+      text: "Now let's create a new task. This demonstrates progressive enhancement with forms.",
     },
 
     // Click "New Task" button to navigate to create page
@@ -212,7 +212,7 @@ export const taskManagerDemo: DemoScript = {
 
     {
       type: 'narrate',
-      text: 'Vertz combines the best of React\'s developer experience with the performance of fine-grained reactivity. Ready to build something amazing?',
+      text: "Vertz combines the best of React's developer experience with the performance of fine-grained reactivity. Ready to build something amazing?",
     },
 
     // Final wait to ensure everything is captured

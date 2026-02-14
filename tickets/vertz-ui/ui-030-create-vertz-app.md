@@ -1,6 +1,6 @@
 # ui-030: create-vertz-app scaffolding CLI
 
-- **Status:** 🔴 Todo
+- **Status:** ✅ Complete
 - **Assigned:** josh (developer advocate)
 - **Phase:** v0.2.0
 - **Estimate:** 8h
