@@ -19,13 +19,26 @@ export class SignalTransformer {
     mutationRanges: Array<{ start: number; end: number }> = [],
   ): void {
     const signals = new Set(variables.filter((v) => v.kind === 'signal').map((v) => v.name));
-    if (signals.size === 0) return;
+
+    // Build map of variables with signal properties (from signal APIs)
+    const signalApiVars = new Map<string, Set<string>>();
+    for (const v of variables) {
+      if (v.signalProperties && v.signalProperties.size > 0) {
+        signalApiVars.set(v.name, v.signalProperties);
+      }
+    }
 
     const bodyNode = findBodyNode(sourceFile, component);
     if (!bodyNode) return;
 
-    transformDeclarations(source, bodyNode, signals);
-    transformReferences(source, bodyNode, signals, mutationRanges);
+    if (signals.size > 0) {
+      transformDeclarations(source, bodyNode, signals);
+      transformReferences(source, bodyNode, signals, mutationRanges);
+    }
+
+    if (signalApiVars.size > 0) {
+      transformSignalApiProperties(source, bodyNode, signalApiVars);
+    }
   }
 }
 
@@ -101,5 +114,42 @@ function transformReferences(
 
     // Use overwrite so source.slice() includes the .value transform
     source.overwrite(node.getStart(), node.getEnd(), `${name}.value`);
+  });
+}
+
+/**
+ * Transform property accesses on signal API variables to auto-unwrap.
+ * E.g., tasks.data → tasks.data.value
+ */
+function transformSignalApiProperties(
+  source: MagicString,
+  bodyNode: Node,
+  signalApiVars: Map<string, Set<string>>,
+): void {
+  bodyNode.forEachDescendant((node) => {
+    if (!node.isKind(SyntaxKind.PropertyAccessExpression)) return;
+
+    const expr = node.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
+    const objExpr = expr.getExpression();
+    const propName = expr.getName();
+
+    // Check if the object is a signal API variable
+    if (!objExpr.isKind(SyntaxKind.Identifier)) return;
+    const varName = objExpr.getText();
+
+    const signalProps = signalApiVars.get(varName);
+    if (!signalProps || !signalProps.has(propName)) return;
+
+    // Guard: Check if .value is already present (migration case)
+    const parent = expr.getParent();
+    if (parent?.isKind(SyntaxKind.PropertyAccessExpression)) {
+      const parentProp = parent.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
+      if (parentProp.getExpression() === expr && parentProp.getName() === 'value') {
+        return; // Already has .value, skip transformation
+      }
+    }
+
+    // Append .value to this property access
+    source.appendRight(expr.getEnd(), '.value');
   });
 }
