@@ -258,7 +258,7 @@ describe('getStringValue', () => {
 
   it('returns null for template literal with substitutions', () => {
     const project = createProject();
-    const expr = getExpr(project, 'const name = "world"; const x = `hello ${name}`;');
+    const expr = getExpr(project, 'const name = "world"; const x = `hello $' + '{name}`;');
     expect(getStringValue(expr)).toBeNull();
   });
 

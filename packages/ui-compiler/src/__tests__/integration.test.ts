@@ -25,7 +25,8 @@ function Counter() {
     expect(result.code).toContain("from '@vertz/ui/internals'");
     expect(result.code).toContain('__element("button")');
     expect(result.code).toContain('__on(');
-    expect(result.code).toContain('__text(');
+    // Now uses __child for expression children to handle both Nodes and primitives
+    expect(result.code).toContain('__child(');
   });
 
   it('IT-1B-2: Computed chain — let quantity, const total, const formatted', () => {

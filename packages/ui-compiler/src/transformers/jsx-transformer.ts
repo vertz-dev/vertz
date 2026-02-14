@@ -263,7 +263,8 @@ function transformChild(
     if (exprInfo?.reactive) {
       const conditionalCode = tryTransformConditional(exprNode, reactiveNames, jsxMap, source);
       if (conditionalCode) {
-        return `${parentVar}.appendChild(${conditionalCode}.node)`;
+        // __conditional returns a Node (DocumentFragment) directly — no .node property
+        return `${parentVar}.appendChild(${conditionalCode})`;
       }
 
       const listCode = tryTransformList(exprNode, reactiveNames, jsxMap, parentVar, source);
@@ -275,10 +276,12 @@ function transformChild(
     // Read from MagicString to pick up signal/computed .value transforms
     const exprText = source.slice(exprNode.getStart(), exprNode.getEnd());
 
+    // Use __child() for reactive expressions (wraps in effect)
+    // Use __insert() for static expressions (direct insertion, no effect overhead)
     if (exprInfo?.reactive) {
-      return `${parentVar}.appendChild(__text(() => ${exprText}))`;
+      return `${parentVar}.appendChild(__child(() => ${exprText}))`;
     }
-    return `${parentVar}.appendChild(document.createTextNode(String(${exprText})))`;
+    return `__insert(${parentVar}, ${exprText})`;
   }
 
   if (child.isKind(SyntaxKind.JsxElement) || child.isKind(SyntaxKind.JsxSelfClosingElement)) {
@@ -340,6 +343,12 @@ function transformBranch(
   jsxMap: Map<number, JsxExpressionInfo>,
   source: MagicString,
 ): string {
+  // Unwrap parenthesized expressions — JSX in conditional branches is often
+  // wrapped in parens: {show && (<div>...</div>)}
+  if (node.isKind(SyntaxKind.ParenthesizedExpression)) {
+    return transformBranch(node.getExpression(), reactiveNames, jsxMap, source);
+  }
+
   if (
     node.isKind(SyntaxKind.JsxElement) ||
     node.isKind(SyntaxKind.JsxSelfClosingElement) ||
@@ -351,7 +360,8 @@ function transformBranch(
   // For nested conditionals (ternary inside ternary)
   if (node.isKind(SyntaxKind.ConditionalExpression)) {
     const nested = tryTransformConditional(node, reactiveNames, jsxMap, source);
-    if (nested) return `${nested}.node`;
+    // __conditional returns a Node directly — no .node property
+    if (nested) return nested;
   }
 
   // Fallback: use the text from MagicString

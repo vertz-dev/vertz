@@ -18,8 +18,8 @@ export interface DisposableNode extends Node {
  */
 export function __conditional(
   condFn: () => boolean,
-  trueFn: () => Node,
-  falseFn: () => Node,
+  trueFn: () => Node | null,
+  falseFn: () => Node | null,
 ): DisposableNode {
   // Use a comment node as a stable anchor/placeholder
   const anchor = document.createComment('conditional');
@@ -37,9 +37,13 @@ export function __conditional(
 
     // Push a new disposal scope to capture cleanups from the branch function
     const scope = pushScope();
-    const newNode = show ? trueFn() : falseFn();
+    const branchResult = show ? trueFn() : falseFn();
     popScope();
     branchCleanups = scope;
+
+    // Branch may return null (e.g. false-branch of {show && <el/>}).
+    // Use a comment placeholder so replaceChild always has a valid Node.
+    const newNode = branchResult ?? document.createComment('empty');
 
     if (currentNode?.parentNode) {
       // Replace old node with new node

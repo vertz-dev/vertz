@@ -30,12 +30,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@vertz/core": "workspace:*",
     "@vertz/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "vite": "^6.0.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",
     "bunup": "latest",
     "typescript": "^5.7.0",
+    "vite": "^6.0.0",
     "vitest": "^4.0.18"
   },
   "engines": {

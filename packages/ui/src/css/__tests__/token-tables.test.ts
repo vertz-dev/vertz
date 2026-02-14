@@ -100,11 +100,11 @@ describe('token-tables', () => {
 
   describe('svw/dvw viewport units are present (regression for prior drift)', () => {
     it('SIZE_KEYWORDS contains svw', () => {
-      expect(SIZE_KEYWORDS['svw']).toBe('100svw');
+      expect(SIZE_KEYWORDS.svw).toBe('100svw');
     });
 
     it('SIZE_KEYWORDS contains dvw', () => {
-      expect(SIZE_KEYWORDS['dvw']).toBe('100dvw');
+      expect(SIZE_KEYWORDS.dvw).toBe('100dvw');
     });
   });
 

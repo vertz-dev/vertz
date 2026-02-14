@@ -157,7 +157,7 @@ describe('idleStrategy', () => {
     expect(idleCallback).toBeDefined();
 
     // Simulate idle callback firing
-    idleCallback!({} as IdleDeadline);
+    idleCallback?.({} as IdleDeadline);
     expect(hydrateFn).toHaveBeenCalledOnce();
   });
 
@@ -217,7 +217,7 @@ describe('mediaStrategy', () => {
     expect(changeHandler).toBeDefined();
 
     // Simulate media query matching
-    changeHandler!({ matches: true });
+    changeHandler?.({ matches: true });
     expect(hydrateFn).toHaveBeenCalledOnce();
   });
 
@@ -236,7 +236,7 @@ describe('mediaStrategy', () => {
     const hydrateFn = vi.fn();
     mediaStrategy('(min-width: 768px)')(el, hydrateFn);
 
-    changeHandler!({ matches: false });
+    changeHandler?.({ matches: false });
     expect(hydrateFn).not.toHaveBeenCalled();
   });
 
@@ -256,7 +256,7 @@ describe('mediaStrategy', () => {
     const hydrateFn = vi.fn();
     mediaStrategy('(min-width: 768px)')(el, hydrateFn);
 
-    changeHandler!({ matches: true });
+    changeHandler?.({ matches: true });
     expect(removeEventListenerSpy).toHaveBeenCalledWith('change', changeHandler);
   });
 });

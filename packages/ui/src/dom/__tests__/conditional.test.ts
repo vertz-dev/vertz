@@ -222,4 +222,70 @@ describe('__conditional', () => {
     counter.value = 1;
     expect(effectRunCount).toBe(0);
   });
+
+  it('handles null from true branch without crashing, uses comment placeholder', () => {
+    const show = signal(true);
+    const container = document.createElement('div');
+    const fragment = __conditional(
+      () => show.value,
+      () => null as unknown as Node, // null branch
+      () => {
+        const span = document.createElement('span');
+        span.textContent = 'hidden';
+        return span;
+      },
+    );
+    container.appendChild(fragment);
+
+    // Should have anchor comment + null placeholder comment
+    expect(container.childNodes.length).toBeGreaterThanOrEqual(2);
+
+    // Verify no crash and we can switch branches
+    show.value = false;
+    expect(container.textContent).toBe('hidden');
+  });
+
+  it('handles null from false branch without crashing, uses comment placeholder', () => {
+    const show = signal(false);
+    const container = document.createElement('div');
+    const fragment = __conditional(
+      () => show.value,
+      () => {
+        const span = document.createElement('span');
+        span.textContent = 'visible';
+        return span;
+      },
+      () => null as unknown as Node, // null branch
+    );
+    container.appendChild(fragment);
+
+    // Should have anchor comment + null placeholder comment
+    expect(container.childNodes.length).toBeGreaterThanOrEqual(2);
+
+    // Verify no crash and we can switch branches
+    show.value = true;
+    expect(container.textContent).toBe('visible');
+  });
+
+  it('handles both branches returning null without crashing', () => {
+    const show = signal(true);
+    const container = document.createElement('div');
+    const fragment = __conditional(
+      () => show.value,
+      () => null as unknown as Node,
+      () => null as unknown as Node,
+    );
+    container.appendChild(fragment);
+
+    // Should not crash with both branches null
+    expect(container.childNodes.length).toBeGreaterThanOrEqual(2);
+    expect(container.textContent).toBe('');
+
+    // Switching should also work
+    show.value = false;
+    expect(container.textContent).toBe('');
+
+    show.value = true;
+    expect(container.textContent).toBe('');
+  });
 });
