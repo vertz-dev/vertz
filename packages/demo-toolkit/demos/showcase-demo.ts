@@ -86,7 +86,7 @@ export const showcaseDemo: DemoScript = {
 
     {
       type: 'click',
-      selector: '[data-testid="filter-done"]',
+      selector: '[data-testid="filter-completed"]',
     },
 
     {

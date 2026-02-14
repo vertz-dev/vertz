@@ -6,7 +6,6 @@
 
 import { exec } from 'node:child_process';
 import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
@@ -21,7 +20,7 @@ export async function generateTTS(text: string, outputPath: string): Promise<voi
   try {
     // Call OpenClaw TTS tool via shell
     // The openclaw binary should have a tts subcommand
-    const { stdout, stderr } = await execAsync(
+    const { stdout: _stdout, stderr } = await execAsync(
       `openclaw tts --text "${text.replace(/"/g, '\\"')}" --output "${outputPath}"`,
       { timeout: 30000 },
     );
@@ -138,8 +137,7 @@ export async function createAudioTimeline(
   // Build FFmpeg filter_complex command for multiple audio clips
   const inputs = clips.map((clip) => `-i "${clip.audioPath}"`).join(' ');
   const delays = clips.map((clip, i) => `[${i}]adelay=${clip.timestamp}|${clip.timestamp}[a${i}]`);
-  const mix =
-    clips.map((_, i) => `[a${i}]`).join('') + `amix=inputs=${clips.length}:duration=longest`;
+  const mix = `${clips.map((_, i) => `[a${i}]`).join('')}amix=inputs=${clips.length}:duration=longest`;
   const filterComplex = `${delays.join(';')};${mix}`;
 
   await execAsync(

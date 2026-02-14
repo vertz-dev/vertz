@@ -1,9 +1,10 @@
-# Ignore all demo output files
-*.webm
-*.mp4
-*.png
-*.jpg
-*.jpeg
+# Temp recording artifacts
+narration-*.mp3
+*-audio.mp3
 
-# But track this directory
-!.gitignore
+# Raw Playwright video files (random hashes)
+[0-9a-f]*.webm
+
+# Keep showcase outputs
+!vertz-showcase.webm
+!showcase-*.png

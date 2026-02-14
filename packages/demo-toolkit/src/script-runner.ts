@@ -203,8 +203,10 @@ async function executeAction(
       await action.fn(recorder.getPage());
       break;
 
-    default:
-      throw new Error(`Unknown action type: ${(action as any).type}`);
+    default: {
+      const _action = action as DemoAction;
+      throw new Error(`Unknown action type: ${_action.type}`);
+    }
   }
 }
 
