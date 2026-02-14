@@ -1,0 +1,243 @@
+{
+  "schema": "vertz.audit.v1",
+  "audit": {
+    "date": "2026-02-14T17:25:00Z",
+    "auditor": "auditor",
+    "auditorSession": "agent:auditor:subagent:f99c1da1-c186-4b64-9260-8b8ccc6d0bd7"
+  },
+  "pr": {
+    "number": 266,
+    "title": "chore(rules): Developer Walkthrough gate + vertical slice policy",
+    "author": "vertz-tech-lead",
+    "authorHuman": "mike",
+    "type": "chore",
+    "mergedAt": "2026-02-14T13:10:59Z",
+    "baseRef": "main",
+    "headRef": "chore/dx-walkthrough-rules",
+    "additions": 700,
+    "deletions": 0,
+    "changedFiles": 4,
+    "commits": 4,
+    "reviewers": ["viniciusdacal"],
+    "ciStatus": "partial",
+    "filesChanged": [
+      ".claude/rules/definition-of-done.md",
+      "RULES.md",
+      "plans/retro-ssr-dx-gap.md",
+      "plans/ssr-zero-config.md"
+    ]
+  },
+  "agent": {
+    "id": "mike",
+    "bot": "vertz-tech-lead",
+    "role": "vp-engineering",
+    "sessionKey": "unknown",
+    "model": "unknown",
+    "durationMinutes": null,
+    "tokensUsed": null
+  },
+  "grade": {
+    "overall": "B+",
+    "numeric": 3.3,
+    "passingThreshold": 3.0,
+    "passed": true
+  },
+  "categories": {
+    "tdd": {
+      "grade": "N/A",
+      "numeric": null,
+      "reason": "Documentation-only PR, no code implementation",
+      "checks": {
+        "testBeforeImpl": {
+          "pass": null,
+          "severity": null,
+          "evidence": "No code changes — TDD does not apply"
+        },
+        "redGreenCycle": {
+          "pass": null,
+          "severity": null,
+          "evidence": "No code changes — TDD does not apply"
+        },
+        "qualityGates": {
+          "pass": true,
+          "severity": null,
+          "evidence": "CI skipped lint/test for docs-only changes (path filters). Not a violation."
+        },
+        "noEscapeHatches": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No @ts-ignore, as any, .skip, or --no-verify found"
+        }
+      }
+    },
+    "process": {
+      "grade": "B+",
+      "numeric": 3.3,
+      "reason": "Clean git process with proper review. Minor: no ticket reference (but acceptable for reactive process work).",
+      "checks": {
+        "branchNaming": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Branch: chore/dx-walkthrough-rules (follows chore/<name> convention)"
+        },
+        "conventionalCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All 4 commits use chore(rules): or plan: prefix"
+        },
+        "atomicCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Work split into 4 logical commits: SSR plan, retrospective, rule updates, Three Laws"
+        },
+        "noSelfReview": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Approved by viniciusdacal (different person)"
+        },
+        "cleanDiff": {
+          "pass": true,
+          "severity": null,
+          "evidence": "4 files changed, all directly related to PR scope (no stray files)"
+        },
+        "changesetPresent": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No changeset needed (docs-only, no package changes)"
+        },
+        "botScriptsUsed": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify (no session transcript). Commit author format suggests compliance."
+        },
+        "worktreeIsolation": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify (no session transcript). Clean diff suggests no leakage."
+        },
+        "ticketReference": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No ticket ID in PR body or commits. PR says 'Post-mortem from SSR DX gap' but no ticket created."
+        }
+      }
+    },
+    "design": {
+      "grade": "A",
+      "numeric": 4.0,
+      "reason": "Exemplary retrospective and process design. Clear root cause analysis, concrete solutions.",
+      "checks": {
+        "readTicket": {
+          "pass": null,
+          "severity": null,
+          "evidence": "No ticket (reactive process work). PR body provides full context."
+        },
+        "readRules": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Work establishes new rules, demonstrating deep understanding of existing process gaps"
+        },
+        "scopeMatches": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All changes match stated scope: rules updates + retrospective + SSR plan"
+        },
+        "deviationsEscalated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No deviations (this work defines the baseline)"
+        }
+      }
+    },
+    "dx": {
+      "grade": "A",
+      "numeric": 4.0,
+      "reason": "High-quality writing. Establishes Developer Walkthrough requirement that will improve future DX.",
+      "checks": {
+        "developerWalkthrough": {
+          "pass": null,
+          "severity": null,
+          "evidence": "N/A — this PR establishes the Developer Walkthrough requirement (meta-work)"
+        },
+        "acceptanceCriteria": {
+          "pass": true,
+          "severity": null,
+          "evidence": "New rules include clear, testable criteria for future work"
+        },
+        "examplesUsePublicAPI": {
+          "pass": true,
+          "severity": null,
+          "evidence": "New policy requires examples use public API only"
+        },
+        "verticalSlices": {
+          "pass": true,
+          "severity": null,
+          "evidence": "New policy mandates vertical slices with clear wrong/right examples"
+        }
+      }
+    },
+    "security": {
+      "grade": "N/A",
+      "numeric": null,
+      "reason": "Documentation-only PR, no security-sensitive changes",
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No code changes"
+        },
+        "noSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No secrets in docs"
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No user input handling"
+        },
+        "securityRulesIntact": {
+          "pass": true,
+          "severity": null,
+          "evidence": "New rules don't weaken security (Three Laws reference 0th Law: Security)"
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "Never commit without a ticket (RULES.md)",
+      "severity": "minor",
+      "category": "process",
+      "description": "No ticket reference in PR body or commits",
+      "evidence": "PR #266 body says 'Post-mortem from the SSR DX gap' but doesn't reference a ticket ID (e.g., process-001). RULES.md states 'Never commit without a ticket.'",
+      "recommendation": "For future process improvements, either: (1) Create a lightweight ticket for traceability, OR (2) Document in RULES.md that retrospectives triggered by specific incidents can be ticket-less if incident is referenced in PR body."
+    },
+    {
+      "rule": "Bot script usage verification",
+      "severity": "info",
+      "category": "process",
+      "description": "Cannot verify bot scripts were used (no session transcript access)",
+      "evidence": "Commit author format (vertz-tech-lead[bot]) suggests compliance, but auditor lacks session transcript to confirm git-as.sh and gh-as.sh were used.",
+      "recommendation": "Provide auditors with session transcript access for full process verification."
+    }
+  ],
+  "summary": "High-quality process improvement work. Establishes Developer Walkthrough and vertical slice requirements that will prevent future 'works but unusable' features. Exemplary retrospective with honest root cause analysis and concrete solutions. Clean git process with proper review. Only minor gap: no ticket reference (acceptable for reactive process work, but should be documented as an exception in RULES.md). Grade: B+ (would be A with ticket).",
+  "strengths": [
+    "Honest, specific retrospective identifying 5 distinct failure modes",
+    "Concrete, actionable new rules with wrong/right examples",
+    "High writing quality — professional, structured, scannable",
+    "Clean git process: proper branch naming, atomic commits, conventional commit messages",
+    "Different reviewer (viniciusdacal) — no self-review",
+    "Clean diff with no scope creep or stray files",
+    "Systemic fixes (Developer Walkthrough, vertical slices) will prevent future gaps"
+  ],
+  "recommendations": [
+    "Create retrospective template based on retro-ssr-dx-gap.md structure",
+    "Document when ticket-less PRs are acceptable (e.g., incident-driven process improvements)",
+    "Update PR template to remind reviewers to check Developer Walkthrough section for feature PRs",
+    "Schedule follow-up audit after zero-config SSR ships (issue #265) to verify new rules work",
+    "Track rule adoption: how will you verify future PRs follow Developer Walkthrough requirement?",
+    "Measure DX improvement after zero-config SSR: setup time, LOC reduced, error rate"
+  ]
+}
