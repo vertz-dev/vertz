@@ -1,4 +1,5 @@
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
+import { getSignalApiConfig, isSignalApi } from '../signal-api-registry';
 import type { ComponentInfo, VariableInfo } from '../types';
 import { findBodyNode } from '../utils';
 
@@ -16,9 +17,13 @@ export class ReactivityAnalyzer {
     const bodyNode = findBodyNode(sourceFile, component);
     if (!bodyNode) return [];
 
+    // Build import alias map for signal APIs
+    const importAliases = buildImportAliasMap(sourceFile);
+
     // Pass 1: Collect declarations
     const lets = new Map<string, { start: number; end: number; deps: string[] }>();
     const consts = new Map<string, { start: number; end: number; deps: string[] }>();
+    const signalApiVars = new Map<string, Set<string>>(); // Track variables assigned from signal APIs
 
     for (const stmt of bodyNode.getChildSyntaxList()?.getChildren() ?? []) {
       if (!stmt.isKind(SyntaxKind.VariableStatement)) continue;
@@ -51,6 +56,23 @@ export class ReactivityAnalyzer {
         const name = decl.getName();
         const deps = init ? collectIdentifierRefs(init) : [];
         const entry = { start: decl.getStart(), end: decl.getEnd(), deps };
+
+        // Check if this is assigned from a signal API call
+        if (init?.isKind(SyntaxKind.CallExpression)) {
+          const callExpr = init.asKindOrThrow(SyntaxKind.CallExpression);
+          const callName = callExpr.getExpression();
+          if (callName.isKind(SyntaxKind.Identifier)) {
+            const fnName = callName.getText();
+            // Check both direct name and aliased name
+            const originalName = importAliases.get(fnName) ?? fnName;
+            if (isSignalApi(originalName)) {
+              const config = getSignalApiConfig(originalName);
+              if (config) {
+                signalApiVars.set(name, config.signalProperties);
+              }
+            }
+          }
+        }
 
         if (isLet) {
           lets.set(name, entry);
@@ -117,21 +139,29 @@ export class ReactivityAnalyzer {
     const results: VariableInfo[] = [];
 
     for (const [name, info] of lets) {
-      results.push({
+      const varInfo: VariableInfo = {
         name,
         kind: signals.has(name) ? 'signal' : 'static',
         start: info.start,
         end: info.end,
-      });
+      };
+      if (signalApiVars.has(name)) {
+        varInfo.signalProperties = signalApiVars.get(name);
+      }
+      results.push(varInfo);
     }
 
     for (const [name, info] of consts) {
-      results.push({
+      const varInfo: VariableInfo = {
         name,
         kind: computeds.has(name) ? 'computed' : 'static',
         start: info.start,
         end: info.end,
-      });
+      };
+      if (signalApiVars.has(name)) {
+        varInfo.signalProperties = signalApiVars.get(name);
+      }
+      results.push(varInfo);
     }
 
     return results;
@@ -171,4 +201,33 @@ function collectIdentifierRefs(node: Node): string[] {
   };
   walk(node);
   return refs;
+}
+
+/**
+ * Build a map of import aliases for signal APIs.
+ * Maps local name → original name (e.g., 'q' → 'query')
+ */
+function buildImportAliasMap(sourceFile: SourceFile): Map<string, string> {
+  const aliases = new Map<string, string>();
+
+  for (const importDecl of sourceFile.getImportDeclarations()) {
+    const moduleSpecifier = importDecl.getModuleSpecifierValue();
+    // Only process imports from @vertz/ui
+    if (moduleSpecifier !== '@vertz/ui') continue;
+
+    const namedImports = importDecl.getNamedImports();
+    for (const namedImport of namedImports) {
+      const originalName = namedImport.getName();
+      const aliasNode = namedImport.getAliasNode();
+      if (aliasNode) {
+        const aliasName = aliasNode.getText();
+        // Only track if it's a signal API
+        if (isSignalApi(originalName)) {
+          aliases.set(aliasName, originalName);
+        }
+      }
+    }
+  }
+
+  return aliases;
 }
