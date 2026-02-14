@@ -1,4 +1,4 @@
-# Pull Request: Direct MiniMax Speech API Integration with Voice Cloning
+# Pull Request: MiniMax TTS Integration with Modular Architecture
 
 **Branch:** `feat/minimax-tts-integration`  
 **Base:** `main`  
@@ -8,7 +8,27 @@
 
 ## Summary
 
-Replace shell-based TTS with direct MiniMax Speech 2.6 API integration, adding voice cloning capabilities for demos.
+Replace shell-based TTS with direct MiniMax Speech 2.6 API integration, adding voice cloning capabilities and redesigning demo-toolkit as **self-contained, extractable modules** ready to become standalone packages or services.
+
+## Architectural Design
+
+This PR implements a **modular, extractable architecture** where each capability is a self-contained module:
+
+```
+demo-toolkit/
+├── tts.ts          → Can become @vertz/tts (MiniMax TTS)
+├── muxing.ts       → Can become @vertz/video-muxing (FFmpeg)
+├── recorder.ts     → Can become @vertz/demo-recorder
+└── script-runner.ts → Orchestration layer (stays)
+```
+
+**Key principles:**
+- **Zero coupling** - Modules don't import from each other (except types.ts)
+- **Configuration isolation** - Env vars or parameters only, never shared state
+- **Testable in isolation** - All dependencies mockable
+- **Extraction ready** - Copy files → new repo → ship (no refactoring!)
+
+See `packages/demo-toolkit/ARCHITECTURE.md` for complete design documentation.
 
 ## Changes
 
@@ -152,10 +172,24 @@ Voice cloning:
 
 ## Files Changed
 
-1. **packages/demo-toolkit/src/tts.ts** - New MiniMax API implementation
-2. **packages/demo-toolkit/tests/tts.test.ts** - Comprehensive test suite (16 tests)
-3. **packages/demo-toolkit/TTS.md** - Complete documentation
-4. **.changeset/minimax-tts-integration.md** - Changeset for release
+### New Modules
+1. **packages/demo-toolkit/src/tts.ts** - MiniMax TTS (self-contained, 300+ lines)
+2. **packages/demo-toolkit/src/muxing.ts** - FFmpeg muxing (extracted, 120+ lines)
+
+### Tests
+3. **packages/demo-toolkit/tests/tts.test.ts** - TTS tests (16 passing)
+4. **packages/demo-toolkit/tests/muxing.test.ts** - Muxing tests (7 passing)
+
+### Documentation
+5. **packages/demo-toolkit/TTS.md** - API reference and examples
+6. **packages/demo-toolkit/ARCHITECTURE.md** - Modular design documentation
+
+### Integration
+7. **packages/demo-toolkit/src/index.ts** - Export muxing module
+8. **packages/demo-toolkit/src/script-runner.ts** - Import from separated modules
+
+### Release
+9. **.changeset/minimax-tts-integration.md** - Changeset for release
 
 ## Documentation
 
