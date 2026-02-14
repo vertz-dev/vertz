@@ -1,0 +1,204 @@
+{
+  "schema": "vertz.audit.v1",
+  "timestamp": "2026-02-14T15:08:00Z",
+  "pr": {
+    "number": 256,
+    "title": "feat(cli): add create-vertz-app scaffolding CLI",
+    "author": "vertz-tech-lead[bot] / vertz-advocate[bot]",
+    "mergedAt": "2026-02-14T00:04:07Z",
+    "filesChanged": 9,
+    "linesAdded": 1701,
+    "linesRemoved": 0
+  },
+  "agent": {
+    "id": "vertz-tech-lead / vertz-advocate",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "sessionDurationMs": null,
+    "totalTokens": null
+  },
+  "grade": "F",
+  "gradeNumeric": 0.0,
+  "scores": {
+    "tdd": {
+      "grade": "F",
+      "numeric": 0.0,
+      "checks": {
+        "testBeforeImpl": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "All 1,701 lines (tests + implementation) added in single commit 4196bc9. No evidence of test-first development."
+        },
+        "redGreenCycle": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Single mega-commit with all files. No incremental commits showing red→green cycle."
+        },
+        "oneTestAtATime": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "86 tests added simultaneously with implementation in one commit. No incremental test development."
+        },
+        "qualityGatesBeforeCommit": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No evidence of incremental quality gate runs. Commit message claims 'all tests pass' but this is post-hoc, not during TDD cycles."
+        },
+        "noTypeEscapes": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No @ts-ignore, as any, .skip, or --no-verify found in code."
+        }
+      }
+    },
+    "process": {
+      "grade": "D",
+      "numeric": 1.0,
+      "checks": {
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR created from branch pr-255 (later renamed to feat/cli-create-vertz-app based on typical naming)"
+        },
+        "atomicCommits": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Single commit with 1,701 line changes across 9 files. RULES.md requires atomic commits."
+        },
+        "changesetAdded": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No changeset file found in commit 4196bc9. RULES.md requires changeset for any package change."
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Commit author is vertz-advocate[bot], indicating bot script usage."
+        },
+        "noPushToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR merged via standard process, not direct push to main."
+        }
+      }
+    },
+    "design": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "readTicketFirst": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Implementation matches ticket ui-030 requirements precisely. All design doc requirements met."
+        },
+        "readRules": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Cannot verify session transcript, but code quality suggests rules awareness (no forbidden patterns)."
+        },
+        "scopeCompliance": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All files are within packages/create-vertz-app/. No scope creep detected."
+        },
+        "deviationsEscalated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No design deviations detected. Implementation follows phase-11-create-vertz-app.md precisely."
+        }
+      }
+    },
+    "dx": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "developerWalkthrough": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Templates include helpful comments. CLI provides clear next steps after scaffolding."
+        },
+        "userOutcomeTests": {
+          "pass": true,
+          "severity": null,
+          "evidence": "86 tests cover user outcomes: scaffold creation, prompts, template generation, runtime selection."
+        },
+        "publicApiOnly": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Health module example uses only public @vertz/core APIs."
+        },
+        "verticalSlice": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Feature is complete end-to-end: CLI → prompts → scaffold → runnable project."
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() in codebase."
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No secrets in code. Templates use placeholder values."
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Runtime enum validation, project name validation via prompts."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "tdd.testBeforeImpl",
+      "severity": "critical",
+      "description": "Mega-commit: All 1,701 lines (tests + implementation) added in single commit",
+      "evidence": "Commit 4196bc9 shows: '9 files changed, 1701 insertions(+), 0 deletions(-)'. No prior commits with failing tests. No subsequent commits with passing implementation.",
+      "recommendation": "Break feature into 10-20 atomic commits. For each function: (1) Write failing test, commit. (2) Implement minimal code, commit. (3) Refactor, commit. Never batch 1,700 lines."
+    },
+    {
+      "rule": "tdd.redGreenCycle",
+      "severity": "critical",
+      "description": "No evidence of red-green-refactor cycle",
+      "evidence": "Git history shows no incremental commits. Cannot verify tests were written first or that they failed before implementation.",
+      "recommendation": "Practice TDD on smaller feature (2-4 hour estimate). Commit after every test→implementation cycle. Aim for 5-10 commits minimum."
+    },
+    {
+      "rule": "tdd.oneTestAtATime",
+      "severity": "critical",
+      "description": "86 tests added simultaneously with implementation",
+      "evidence": "Test files created: prompts.test.ts (11 tests), scaffold.test.ts (34 tests), templates.test.ts (41 tests) — all in one commit with implementation.",
+      "recommendation": "Write ONE test case, make it pass, commit. Repeat. Test count should grow linearly with implementation, not in one batch."
+    },
+    {
+      "rule": "process.atomicCommits",
+      "severity": "critical",
+      "description": "Single commit for entire feature (1,701 lines)",
+      "evidence": "PR #256 contains 1 commit (4196bc9) with 9 files. RULES.md requires atomic commits.",
+      "recommendation": "Split into commits like: (1) Package setup, (2) Types, (3) Prompts + tests, (4) Scaffold + tests, (5) Templates + tests, (6) CLI entry point, (7) Runtime logic, (8) Docs."
+    },
+    {
+      "rule": "process.changesetAdded",
+      "severity": "major",
+      "description": "Missing changeset for new package",
+      "evidence": "No .changeset/*.md file found in commit. RULES.md requires changeset for package changes.",
+      "recommendation": "Run 'bun changeset' before final commit. For new package, describe initial version (0.1.0) and feature set."
+    },
+    {
+      "rule": "process.gitHistory",
+      "severity": "minor",
+      "description": "Confusing commit message with unrelated PR messages",
+      "evidence": "Commit 4196bc9 message body includes messages from PRs #255, #252, #254, #251, #250, #249, #246, #244 (200+ lines).",
+      "recommendation": "Clean up commit messages after rebase. Use 'git rebase -i' to edit messages and remove unrelated content."
+    }
+  ],
+  "summary": "Critical TDD and git process violations. Feature is excellent (86 tests, clean code, complete design compliance), but development process broke fundamental rules: (1) Mega-commit with 1,701 lines, (2) No evidence of test-first development, (3) No atomic commits, (4) Missing changeset. Grade F because process violations are critical and systematic. Agent needs TDD retraining."
+}

@@ -1,88 +1,88 @@
 /**
  * Entry point for the Task Manager demo app.
  *
- * Mounts the App component and injects global theme CSS.
- * In a real vertz app, the compiler would handle CSS injection.
- *
- * NOTE: compileTheme() is currently only available from internals.
- * This is noted as gotcha G1 in the DX Journal — developers need to
- * call compileTheme() to get CSS from defineTheme(), but it's not
- * part of the public API. For this demo we import from the CSS module.
+ * Exports App for SSR and mounts it on the client.
+ * With zero-config SSR (`ssr: true` in vite.config.ts), the framework
+ * auto-detects this entry from index.html and calls the default export
+ * during server rendering.
  */
 
 import { globalCss } from '@vertz/ui';
 import { App } from './app';
 import { taskManagerTheme } from './styles/theme';
 
-// ── Theme CSS injection ──────────────────────────────
+// Re-export App as default for SSR entry auto-detection
+export { App };
+export default App;
 
-// In a real app, the compiler would handle theme compilation.
-// For this demo, we manually build CSS custom properties from the theme definition.
-// compileTheme() is an internal API — see DX Journal G1.
-//
-// Workaround: construct theme CSS manually from the defineTheme() output,
-// which gives us access to the raw token data.
-function buildThemeCss(theme: typeof taskManagerTheme): string {
-  const rootVars: string[] = [];
-  const darkVars: string[] = [];
+// ── Client-side initialization (skipped during SSR) ──
 
-  for (const [name, values] of Object.entries(theme.colors)) {
-    for (const [key, value] of Object.entries(values)) {
-      if (key === 'DEFAULT') {
-        rootVars.push(`  --color-${name}: ${value};`);
-      } else if (key === '_dark') {
-        darkVars.push(`  --color-${name}: ${value};`);
-      } else {
-        rootVars.push(`  --color-${name}-${key}: ${value};`);
+const isSSR = typeof (globalThis as any).__SSR_URL__ !== 'undefined';
+
+if (!isSSR) {
+  // ── Theme CSS injection ──────────────────────────────
+
+  function buildThemeCss(theme: typeof taskManagerTheme): string {
+    const rootVars: string[] = [];
+    const darkVars: string[] = [];
+
+    for (const [name, values] of Object.entries(theme.colors)) {
+      for (const [key, value] of Object.entries(values)) {
+        if (key === 'DEFAULT') {
+          rootVars.push(`  --color-${name}: ${value};`);
+        } else if (key === '_dark') {
+          darkVars.push(`  --color-${name}: ${value};`);
+        } else {
+          rootVars.push(`  --color-${name}-${key}: ${value};`);
+        }
       }
     }
-  }
 
-  if (theme.spacing) {
-    for (const [name, value] of Object.entries(theme.spacing)) {
-      rootVars.push(`  --spacing-${name}: ${value};`);
+    if (theme.spacing) {
+      for (const [name, value] of Object.entries(theme.spacing)) {
+        rootVars.push(`  --spacing-${name}: ${value};`);
+      }
     }
+
+    const blocks: string[] = [];
+    if (rootVars.length > 0) blocks.push(`:root {\n${rootVars.join('\n')}\n}`);
+    if (darkVars.length > 0) blocks.push(`[data-theme="dark"] {\n${darkVars.join('\n')}\n}`);
+    return blocks.join('\n');
   }
 
-  const blocks: string[] = [];
-  if (rootVars.length > 0) blocks.push(`:root {\n${rootVars.join('\n')}\n}`);
-  if (darkVars.length > 0) blocks.push(`[data-theme="dark"] {\n${darkVars.join('\n')}\n}`);
-  return blocks.join('\n');
-}
+  const themeStyleEl = document.createElement('style');
+  themeStyleEl.textContent = buildThemeCss(taskManagerTheme);
+  document.head.appendChild(themeStyleEl);
 
-const themeStyleEl = document.createElement('style');
-themeStyleEl.textContent = buildThemeCss(taskManagerTheme);
-document.head.appendChild(themeStyleEl);
+  // ── Global reset styles ──────────────────────────────
 
-// ── Global reset styles ──────────────────────────────
+  const globalStyles = globalCss({
+    '*, *::before, *::after': {
+      boxSizing: 'border-box',
+      margin: '0',
+      padding: '0',
+    },
+    body: {
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      backgroundColor: 'var(--color-background)',
+      color: 'var(--color-foreground)',
+      minHeight: '100vh',
+      lineHeight: '1.5',
+    },
+    a: {
+      textDecoration: 'none',
+      color: 'inherit',
+    },
+  });
 
-const globalStyles = globalCss({
-  '*, *::before, *::after': {
-    boxSizing: 'border-box',
-    margin: '0',
-    padding: '0',
-  },
-  body: {
-    fontFamily: 'system-ui, -apple-system, sans-serif',
-    backgroundColor: 'var(--color-background)',
-    color: 'var(--color-foreground)',
-    minHeight: '100vh',
-    lineHeight: '1.5',
-  },
-  a: {
-    textDecoration: 'none',
-    color: 'inherit',
-  },
-});
+  const globalStyleEl = document.createElement('style');
+  globalStyleEl.textContent = globalStyles.css;
+  document.head.appendChild(globalStyleEl);
 
-const globalStyleEl = document.createElement('style');
-globalStyleEl.textContent = globalStyles.css;
-document.head.appendChild(globalStyleEl);
+  // ── View Transitions CSS ─────────────────────────────
 
-// ── View Transitions CSS ─────────────────────────────
-
-const viewTransitionEl = document.createElement('style');
-viewTransitionEl.textContent = `
+  const viewTransitionEl = document.createElement('style');
+  viewTransitionEl.textContent = `
 ::view-transition-old(root) {
   animation: fade-out 120ms ease-in;
 }
@@ -98,11 +98,20 @@ viewTransitionEl.textContent = `
   to { opacity: 1; }
 }
 `;
-document.head.appendChild(viewTransitionEl);
+  document.head.appendChild(viewTransitionEl);
 
-// ── Mount ────────────────────────────────────────────
+  // ── Mount ────────────────────────────────────────────
 
-const app = App();
-document.getElementById('app')?.appendChild(app);
+  const app = App();
+  const root = document.getElementById('app');
 
-console.log('Task Manager app mounted');
+  if (root) {
+    // If SSR HTML is present, clear and remount (true hydration is Phase 2)
+    if (root.hasChildNodes()) {
+      root.innerHTML = '';
+    }
+    root.appendChild(app);
+  }
+
+  console.log('Task Manager app mounted');
+}
