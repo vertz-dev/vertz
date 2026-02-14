@@ -1,6 +1,0 @@
-/sdk
-/**/node_modules/**
-/**/.pnpm-store/**
-/.env
-yarn.lock
-bun.lock

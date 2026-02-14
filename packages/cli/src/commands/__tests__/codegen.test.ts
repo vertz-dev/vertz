@@ -1,4 +1,4 @@
-import type { CodegenConfig } from '@vertz/compiler';
+import type { CodegenConfig } from '@vertz/codegen';
 import { describe, expect, it, vi } from 'vitest';
 import type { CodegenIR, CodegenPipeline, IncrementalStats } from '../codegen';
 import { codegenAction } from '../codegen';
