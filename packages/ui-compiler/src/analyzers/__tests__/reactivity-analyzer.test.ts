@@ -190,5 +190,31 @@ describe('ReactivityAnalyzer', () => {
       expect(v?.kind).toBe('signal-object');
       expect(v?.signalProperties?.has('loading')).toBe(true);
     });
+
+    it('detects vertz.query() pattern', () => {
+      const [result] = analyze(`
+        function TaskList() {
+          const tasks = vertz.query('/api/tasks');
+          return <div>{tasks.data}</div>;
+        }
+      `);
+      const v = findVar(result?.variables, 'tasks');
+      expect(v?.kind).toBe('signal-object');
+      expect(v?.signalProperties?.has('data')).toBe(true);
+      expect(v?.signalProperties?.has('loading')).toBe(true);
+    });
+
+    it('detects vertz.form() pattern', () => {
+      const [result] = analyze(`
+        function UserForm() {
+          const userForm = vertz.form(schema);
+          return <div>{userForm.submitting}</div>;
+        }
+      `);
+      const v = findVar(result?.variables, 'userForm');
+      expect(v?.kind).toBe('signal-object');
+      expect(v?.signalProperties?.has('submitting')).toBe(true);
+      expect(v?.signalProperties?.has('values')).toBe(true);
+    });
   });
 });
