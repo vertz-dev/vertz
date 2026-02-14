@@ -5,15 +5,15 @@
  * Self-contained module that can be extracted into a separate package.
  */
 
-import * as fs from 'node:fs/promises';
 import { exec } from 'node:child_process';
+import * as fs from 'node:fs/promises';
 import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
 
 /**
  * Check if FFmpeg is available in the system
- * 
+ *
  * @returns Promise resolving to true if FFmpeg is installed
  */
 export async function checkFFmpeg(): Promise<boolean> {
