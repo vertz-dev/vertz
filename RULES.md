@@ -34,6 +34,22 @@ Builds, tests, deploys, and CI must be reproducible. Same input → same output.
 ### Fail Fast, Fix Even Faster
 Surface errors as early as possible — don't let them compound. TDD is the embodiment of this: write the test first, watch it fail (fast), fix it immediately (faster). This applies beyond code: catch design misalignments in review, catch process gaps in audits, catch regressions in CI. The cost of a bug grows exponentially with the distance from where it was introduced to where it's caught. Shrink that distance to zero.
 
+### Audit Grades Enforce Rework
+
+Every merged PR gets audited. Bad grades have consequences:
+
+| Grade | Action |
+|-------|--------|
+| **A** | No action needed. Exemplary work. |
+| **B** | Minor feedback noted. No rework required. |
+| **C** | Document lessons learned. Flag process gaps. No rework required. |
+| **D** | **Mandatory rework.** Revert the PR and redo the work from scratch following strict TDD. Do NOT reuse the original code — write it fresh, test-first. The point is to prove the work through the process, not to rubber-stamp existing code. |
+| **F** | **Mandatory revert + redo.** Same as D, but escalate to CTO. Critical violations (security, data loss) may require immediate revert before redo is complete. |
+
+**Why no code reuse on D/F?** Because TDD isn't about having tests — it's about the tests *driving* the implementation. Copying code and writing tests after is speculative testing. You're testing what you wrote, not writing what you test. The whole point of TDD is that the test comes first, fails, and the implementation exists *only* to make it pass. Reusing code bypasses this entirely.
+
+**The process IS the product.** Code that works but was written without TDD is accidental correctness. We need *proven* correctness through red-green-refactor.
+
 ---
 
 ## Quick Reference
