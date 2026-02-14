@@ -18,19 +18,20 @@ import {
 
 const TEST_DIR = '/tmp/tts-test';
 
-beforeEach(async () => {
-  // Create test directory
-  await fs.mkdir(TEST_DIR, { recursive: true });
-});
+describe('TTS Integration Tests', () => {
+  beforeEach(async () => {
+    // Create test directory
+    await fs.mkdir(TEST_DIR, { recursive: true });
+  });
 
-afterEach(async () => {
-  // Clean up test directory
-  try {
-    await fs.rm(TEST_DIR, { recursive: true, force: true });
-  } catch {
-    // Ignore cleanup errors
-  }
-});
+  afterEach(async () => {
+    // Clean up test directory
+    try {
+      await fs.rm(TEST_DIR, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+  });
 
 describe('generateTTS - Security Tests', () => {
   test(
@@ -290,4 +291,5 @@ describe('createAudioTimeline - Security Tests', () => {
       .catch(() => false);
     expect(exists).toBe(true);
   });
+});
 });
