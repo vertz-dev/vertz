@@ -1,0 +1,393 @@
+{
+  "schema": "vertz.audit.v1",
+  "timestamp": "2026-02-14T17:49:00Z",
+  "pr": {
+    "number": 279,
+    "title": "fix(demo-toolkit): shell injection remediation (CWE-78)",
+    "author": "vertz-tech-lead",
+    "authorBot": true,
+    "createdAt": "2026-02-14T17:29:10Z",
+    "mergedAt": "2026-02-14T17:49:40Z",
+    "mergedBy": "app/vertz-tech-lead",
+    "filesChanged": 14,
+    "linesAdded": 930,
+    "linesDeleted": 690,
+    "branch": "fix/cwe78-muxing"
+  },
+  "agent": {
+    "id": "vertz-tech-lead",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "durationMinutes": null,
+    "tokensUsed": null
+  },
+  "grade": {
+    "overall": "D",
+    "numeric": 1.0,
+    "summary": "Security fix is exemplary (Grade A), but severe scope violations and bundled changes (4 unrelated concerns in one PR) result in mandatory rework. Process failure is systemic."
+  },
+  "categories": {
+    "tdd": {
+      "grade": "C",
+      "numeric": 2.0,
+      "applicability": "partial",
+      "reason": "Security tests exist and are comprehensive, but cannot verify test-first development without session transcript. Likely retrofitted.",
+      "checks": {
+        "testBeforeImpl": {
+          "pass": null,
+          "severity": "minor",
+          "evidence": "PR body claims 'This fix follows TDD approach (tests first, then fix)' but no session transcript to verify. Squash merge hides commit history."
+        },
+        "comprehensiveTests": {
+          "pass": true,
+          "severity": null,
+          "evidence": "10 new security test cases covering all injection vectors: command injection, semicolon, pipe, backticks, dollar substitution. Tests verify exploits are blocked."
+        },
+        "qualityGatesRun": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR body shows: 'bun test packages/demo-toolkit/tests/muxing.test.ts ✅ 17 tests pass' and 'bun run tsc --noEmit ✅ No type errors'. Merged PR suggests lint passed."
+        },
+        "redGreenCycle": {
+          "pass": null,
+          "severity": "minor",
+          "evidence": "Cannot verify red-green-refactor cycle without session transcript or individual commit history."
+        }
+      }
+    },
+    "process": {
+      "grade": "F",
+      "numeric": 0.0,
+      "checks": {
+        "scopeDiscipline": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "PR bundles 4 completely unrelated changes: (1) security fix in muxing.ts (2 files), (2) feature removal of signal auto-unwrap from ui-compiler (7 files, ~600 lines), (3) RULES.md documentation update, (4) PR #277 audit report (2 files, ~700 lines). RULES.md: 'One feature per PR. Scope creep is the #1 agent failure mode.'"
+        },
+        "ticketExists": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No ticket found in /workspace/vertz/tickets/ for this security remediation. Even Tier 1 critical fixes require tickets for traceability. RULES.md: 'Never commit without a ticket.'"
+        },
+        "auditWorktreeIsolation": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "PR #277 audit report bundled into security fix PR instead of isolated worktree. auditor.md: 'When you open a PR to publish your audit report, you MUST use an isolated git worktree.'"
+        },
+        "featureRemovalJustified": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Signal auto-unwrap feature removed from ui-compiler (~600 lines deleted) with NO explanation in PR body, no ticket, no separate PR. Includes deletion of: signal-unwrap-demo.test.ts, signal-api-registry.ts, and changes across 7 files."
+        },
+        "botIdentity": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR author: app/vertz-tech-lead. Bot identity used correctly."
+        },
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Feature branch used, not direct push to main."
+        },
+        "changesetUpdated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Added .changeset/fix-muxing-shell-injection.md (patch). Deleted .changeset/signal-auto-unwrap.md (aligns with feature removal)."
+        },
+        "selfMerge": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "PR merged by same bot that created it (app/vertz-tech-lead). Should have different bot or human reviewer."
+        }
+      }
+    },
+    "design": {
+      "grade": "D",
+      "numeric": 1.0,
+      "checks": {
+        "ticketExists": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No ticket for security remediation work. Traceability is critical for security fixes."
+        },
+        "readRules": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Security fix follows RULES.md requirements: uses execFileAsync() with argument arrays, adds validation, cites CWE-78."
+        },
+        "scopeCompliance": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Security fix aligns with title (40% of changes). Feature removal, docs, audit report do NOT align (60% of changes)."
+        },
+        "designDocRequired": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Not required for Tier 1 security fix per bug-process.md. However, feature removal (signal auto-unwrap) DOES require design justification."
+        },
+        "featureRemovalExplained": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Signal auto-unwrap removal has zero explanation. Was it experimental? Broken? Accidental? Unknown."
+        }
+      }
+    },
+    "dx": {
+      "grade": "B",
+      "numeric": 3.0,
+      "checks": {
+        "securityFixQuality": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Exemplary: (1) Input validation with validatePath(), (2) Safe API with execFileAsync(), (3) Argument arrays prevent interpolation, (4) Defense in depth."
+        },
+        "validationFunction": {
+          "pass": true,
+          "severity": null,
+          "evidence": "SHELL_METACHARACTERS regex covers all dangerous chars: ; & | ` $ ( ) < >. Explicit error message cites CWE-78. Fails fast."
+        },
+        "securityTests": {
+          "pass": true,
+          "severity": null,
+          "evidence": "10 comprehensive security tests: command injection (3 params), shell metacharacters (4 types), exploit verification (marker file check), valid paths."
+        },
+        "bothFunctionsFixed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Both vulnerable functions from PR #275 audit fixed: combineVideoAudio() and createAudioTimeline(). All paths validated."
+        },
+        "clearPRDescription": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR body explains problem (shell injection), references audit (PR #275), shows solution, includes verification. Missing: explanation for bundled changes."
+        },
+        "rulesUpdateOutOfScope": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "RULES.md update (audit grade enforcement) is good documentation but should be separate PR."
+        },
+        "bundledChangesHurtClarity": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Bundling 4 concerns makes review difficult. Security fix should be reviewable in isolation for time-critical evaluation."
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "fixesCWE78": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Textbook correct CWE-78 remediation. Follows OWASP/SANS guidance. Three layers: validation, safe API, argument separation."
+        },
+        "noNewVulnerabilities": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval(), no new shell invocations, no hardcoded secrets, no unsafe deserialization."
+        },
+        "validationRegexComplete": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Regex /[;&|`$()<>]/ covers all shell metacharacters. Missing newlines but mitigated by execFile()."
+        },
+        "testsVerifyExploitBlocked": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All security tests attempt real exploits and verify marker file is NOT created. Correct security testing methodology."
+        },
+        "defenseInDepth": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Multiple layers: (1) input validation, (2) safe API (execFile), (3) argument arrays. If one layer fails, others protect."
+        },
+        "fastResponse": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR #275 audited 2026-02-14, fix shipped same day. Excellent response time for critical security issue."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "process.scopeDiscipline",
+      "category": "process",
+      "severity": "critical",
+      "description": "PR bundles 4 unrelated changes in single merge",
+      "evidence": "Changes span: (1) security fix in demo-toolkit/muxing.ts (2 files), (2) feature removal of signal auto-unwrap from ui-compiler (7 files, ~600 lines deleted), (3) RULES.md documentation update (+16 lines), (4) PR #277 audit report (2 files, +693 lines). Each should be separate PR with own ticket.",
+      "recommendation": "Split into PR #279 (security only), PR #280 (feature removal with justification), PR #281 (RULES.md docs), PR #282 (audit report via isolated worktree)."
+    },
+    {
+      "rule": "design.ticketRequired",
+      "category": "process",
+      "severity": "major",
+      "description": "No ticket for security remediation work",
+      "evidence": "Searched /workspace/vertz/tickets/ — no ticket for CWE-78 fix or shell injection remediation. RULES.md: 'Never commit without a ticket.' Even Tier 1 critical fixes require tickets for traceability.",
+      "recommendation": "Create tickets/security/security-001-cwe78-muxing.md with context (PR #275 audit), impact (command injection), fix (execFileAsync), acceptance (tests pass, audit passes)."
+    },
+    {
+      "rule": "process.auditWorktreeIsolation",
+      "category": "process",
+      "severity": "major",
+      "description": "Audit report bundled instead of isolated PR",
+      "evidence": "plans/audits/2026-02-14-pr277-agent.md (+435) and data file (+258) committed alongside security fix. auditor.md: 'When you open a PR to publish your audit report, you MUST use an isolated git worktree.'",
+      "recommendation": "Use 'git worktree add /tmp/worktrees/audit-pr277 -b audit/pr277-tech-lead main' for audit PRs. Never commit audits from main working directory."
+    },
+    {
+      "rule": "process.featureRemovalJustified",
+      "category": "design",
+      "severity": "major",
+      "description": "Signal auto-unwrap feature removed without explanation",
+      "evidence": "Deleted 7 files with ~600 lines: signal-unwrap-demo.test.ts, signal-api-registry.ts, reactivity-analyzer changes, signal-transformer changes. PR body makes NO MENTION of this removal. No ticket, no justification.",
+      "recommendation": "Either: (1) Revert the deletion and restore feature, or (2) Create separate PR with ticket explaining why feature is being removed (experimental? broken? scope creep?)."
+    },
+    {
+      "rule": "tdd.testFirstVerification",
+      "category": "tdd",
+      "severity": "minor",
+      "description": "Cannot verify test-first development",
+      "evidence": "No session transcript available. Squash merge hides commit history. PR claims 'TDD approach (tests first, then fix)' but cannot verify order.",
+      "recommendation": "Implement session transcript logging: agents document TDD steps in memory/YYYY-MM-DD.md with timestamps showing red-green-refactor cycle."
+    },
+    {
+      "rule": "process.selfMerge",
+      "category": "process",
+      "severity": "minor",
+      "description": "PR merged by same bot that created it",
+      "evidence": "Created by app/vertz-tech-lead, merged by app/vertz-tech-lead. Should have different reviewer.",
+      "recommendation": "Require different bot or human approval for merges. No self-approvals."
+    }
+  ],
+  "metrics": {
+    "filesChanged": 14,
+    "securityFixFiles": 2,
+    "featureRemovalFiles": 7,
+    "documentationFiles": 1,
+    "auditFiles": 2,
+    "testFiles": 1,
+    "codeChanges": {
+      "additions": 930,
+      "deletions": 690,
+      "securityFixAdditions": 212,
+      "featureRemovalDeletions": 600,
+      "auditAdditions": 693,
+      "docsAdditions": 16
+    },
+    "securityTests": {
+      "newTests": 10,
+      "totalTests": 17,
+      "coverageVectors": [
+        "command injection (3 params)",
+        "semicolon separator",
+        "pipe operator",
+        "backtick substitution",
+        "dollar substitution",
+        "exploit verification (marker files)",
+        "valid paths with spaces"
+      ]
+    },
+    "violationsBySeverity": {
+      "critical": 1,
+      "major": 4,
+      "minor": 2
+    },
+    "scopeAdherence": 0.4,
+    "responseTimeHours": 0.33
+  },
+  "highlights": [
+    "Security fix is exemplary: defense in depth with validation, safe API, and argument arrays",
+    "Comprehensive security tests (10 cases) with real exploit verification",
+    "Both vulnerable functions fixed (combineVideoAudio and createAudioTimeline)",
+    "Fast response: PR #275 audited and fixed same day (F → remediation in <1 hour)",
+    "Clear error messages citing CWE-78",
+    "Validation regex covers all shell metacharacters",
+    "Tests verify exploits are blocked, not just input validation"
+  ],
+  "weaknesses": [
+    "Scope violation: 4 unrelated changes bundled in one PR (security, feature removal, docs, audit)",
+    "No ticket for security remediation work",
+    "Signal auto-unwrap feature removed (~600 lines) with zero explanation or separate PR",
+    "Audit report bundled instead of isolated worktree PR",
+    "Cannot verify test-first development (no session transcript)",
+    "Self-merged by same bot that created PR",
+    "This is third consecutive PR to violate scope discipline (PR #277, #279)"
+  ],
+  "recommendations": [
+    {
+      "priority": "immediate",
+      "title": "Keep security fix, separate bundled changes",
+      "description": "DO NOT revert the entire PR (would reintroduce CWE-78). Instead: (1) Keep the muxing.ts security fix, (2) Create PR #280 to revert or explain signal auto-unwrap removal, (3) Create PR #281 to re-apply RULES.md update, (4) Create PR #282 to re-apply PR #277 audit via isolated worktree."
+    },
+    {
+      "priority": "immediate",
+      "title": "Create missing security ticket",
+      "description": "Create tickets/security/security-001-cwe78-muxing.md documenting: context (PR #275 audit F-grade), vulnerability (command injection), fix (execFileAsync + validation), acceptance (tests pass, security verified)."
+    },
+    {
+      "priority": "immediate",
+      "title": "Explain signal auto-unwrap removal",
+      "description": "Either revert the deletion (restore feature) or document why it was removed. Was it experimental? Causing issues? Accidental? Create ticket before any action."
+    },
+    {
+      "priority": "short-term",
+      "title": "Enforce scope discipline checklist",
+      "description": "Pre-merge check: 'Does PR change files in more than one package? Are all changes related to same ticket?' If no, split into multiple PRs. Add to bot prompts."
+    },
+    {
+      "priority": "short-term",
+      "title": "Mandatory session transcripts",
+      "description": "Agents must log TDD steps in memory/YYYY-MM-DD.md with timestamps: '17:30 - Wrote test for malicious videoPath → RED → Implemented validatePath() → GREEN'."
+    },
+    {
+      "priority": "process",
+      "title": "Automate audit PR creation",
+      "description": "When audit completes, run script: ./backstage/bots/create-audit-pr.sh <pr-number> <grade> — automatically creates isolated worktree, commits audit files, opens PR, cleans up."
+    },
+    {
+      "priority": "process",
+      "title": "Document this failure mode",
+      "description": "Add to AGENTS.md: '13. Don't bundle security fixes with other work. Security fixes are time-critical and must be reviewable in isolation. Never mix with feature removals, docs, or audits.'"
+    }
+  ],
+  "rework": {
+    "required": true,
+    "grade": "D",
+    "reason": "Scope violations and bundled changes demonstrate systemic process failure. This is third consecutive PR to violate scope discipline.",
+    "action": "Modified rework (keep security fix, separate bundled changes)",
+    "tasks": [
+      {
+        "priority": 1,
+        "title": "PR #280: Revert or explain signal auto-unwrap removal",
+        "ticket": "tickets/ui-compiler/revert-signal-unwrap.md",
+        "action": "Either restore feature OR document removal justification"
+      },
+      {
+        "priority": 2,
+        "title": "PR #281: Re-apply RULES.md update in isolation",
+        "ticket": "tickets/process/document-audit-grades.md",
+        "action": "Cherry-pick RULES.md change with rationale"
+      },
+      {
+        "priority": 3,
+        "title": "PR #282: Re-apply PR #277 audit via isolated worktree",
+        "ticket": "chore/audit-pr277",
+        "action": "Use git worktree, commit only audit files"
+      },
+      {
+        "priority": 4,
+        "title": "Create missing security ticket",
+        "ticket": "tickets/security/security-001-cwe78-muxing.md",
+        "action": "Document vulnerability, fix, acceptance criteria"
+      }
+    ]
+  },
+  "escalation": {
+    "required": true,
+    "reason": "Grade D requires CTO visibility per RULES.md",
+    "summary": "PR #279 fixes critical CWE-78 vulnerability with exemplary engineering (Grade A security), but severely violates process by bundling 4 unrelated changes. Security fix should be kept (time-critical), but bundled changes must be separated. This is third consecutive PR to violate scope discipline, indicating systemic process failure.",
+    "action": "Recommend keeping security fix, immediate separation of bundled changes, and implementation of scope discipline enforcement."
+  },
+  "summary": "PR #279 provides an exemplary security fix for CWE-78 (shell injection) with comprehensive tests and defense in depth. However, severe scope violations (bundling 4 unrelated changes), missing ticket, and unexplained feature removal result in Grade D. The security engineering deserves Grade A, but the process failures are systemic. This is the third consecutive PR to violate scope discipline. Keep the security fix but immediately separate bundled changes into follow-up PRs."
+}
