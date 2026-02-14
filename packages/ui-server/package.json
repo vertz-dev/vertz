@@ -18,6 +18,14 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./dom-shim": {
+      "import": "./dist/dom-shim/index.js",
+      "types": "./dist/dom-shim/index.d.ts"
+    },
+    "./jsx-runtime": {
+      "import": "./dist/jsx-runtime/index.js",
+      "types": "./dist/jsx-runtime/index.d.ts"
     }
   },
   "files": [
