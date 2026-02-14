@@ -34,7 +34,7 @@ export interface CompileOutput {
 }
 
 /** Classification of a variable's reactivity. */
-export type ReactivityKind = 'signal' | 'computed' | 'static' | 'signal-object';
+export type ReactivityKind = 'signal' | 'computed' | 'static';
 
 /** Information about a variable inside a component. */
 export interface VariableInfo {
@@ -46,8 +46,6 @@ export interface VariableInfo {
   start: number;
   /** 0-based end position of the declaration in source. */
   end: number;
-  /** For signal-object kind: which properties are signals that need auto-unwrapping. */
-  signalProperties?: Set<string>;
 }
 
 /** Information about a detected component function. */
