@@ -1,0 +1,215 @@
+{
+  "schema": "vertz.audit.v1",
+  "audit": {
+    "date": "2026-02-14",
+    "auditor": "agent:auditor:subagent:91134986-9665-4587-b5e1-427286cc46f3",
+    "pr": {
+      "number": 283,
+      "title": "feat(ui-compiler): eliminate .value from public API — signal auto-unwrap",
+      "author": "app/vertz-dev-core",
+      "mergedBy": "viniciusdacal",
+      "mergedAt": "2026-02-14T18:21:49Z",
+      "branch": "feat/signal-unwrap-tdd-redo",
+      "additions": 397,
+      "deletions": 7,
+      "filesChanged": 7,
+      "commits": 8
+    },
+    "agent": {
+      "id": "vertz-dev-core",
+      "type": "bot",
+      "sessionKey": "unknown",
+      "duration": "unknown",
+      "tokens": "unknown"
+    },
+    "grade": {
+      "overall": "C",
+      "numeric": 2,
+      "reasoning": "Significant TDD violation (implementation and tests written simultaneously) but work is functional, well-tested, and has no other major violations. One major violation = C grade per rubric."
+    },
+    "scores": {
+      "tdd": {
+        "grade": "F",
+        "numeric": 0,
+        "checks": {
+          "testBeforeImplementation": {
+            "pass": false,
+            "severity": "major",
+            "evidence": "Commit 22853d0 includes BOTH test file (+25 lines) AND full implementation (reactivity-analyzer +29, signal-api-registry +31 NEW FILE, signal-transformer +44, types +2). Not RED → GREEN."
+          },
+          "oneTestAtATime": {
+            "pass": false,
+            "severity": "major",
+            "evidence": "Commit f412d81 adds 67 lines covering tests for form(), createLoader(), and multiple properties at once. Multiple tests batched before implementation."
+          },
+          "redGreenRefactor": {
+            "pass": false,
+            "severity": "major",
+            "evidence": "No clear RED → GREEN cycles in commit history. Implementation written simultaneously with or before tests."
+          },
+          "qualityGates": {
+            "pass": null,
+            "severity": null,
+            "evidence": "Cannot verify without session transcript. PR claims gates were run, but no proof."
+          },
+          "noTestSkips": {
+            "pass": true,
+            "severity": null,
+            "evidence": "No .skip, @ts-ignore, or --no-verify found in diff."
+          }
+        }
+      },
+      "process": {
+        "grade": "B",
+        "numeric": 3,
+        "checks": {
+          "branchCreated": {
+            "pass": true,
+            "severity": null,
+            "evidence": "Branch feat/signal-unwrap-tdd-redo follows naming convention."
+          },
+          "atomicCommits": {
+            "pass": true,
+            "severity": null,
+            "evidence": "8 commits, each focused on specific aspect (though test/implementation should be separated)."
+          },
+          "changesetAdded": {
+            "pass": true,
+            "severity": null,
+            "evidence": "Commit 19dbc89 adds comprehensive changeset with migration guide."
+          },
+          "botScriptsUsed": {
+            "pass": null,
+            "severity": null,
+            "evidence": "PR claims bot scripts used, but cannot verify without session transcript."
+          },
+          "worktreeIsolation": {
+            "pass": null,
+            "severity": null,
+            "evidence": "PR claims worktree isolation, but cannot verify without session transcript."
+          },
+          "noPushToMain": {
+            "pass": true,
+            "severity": null,
+            "evidence": "PR merged via review by viniciusdacal, not pushed directly."
+          },
+          "commitCountAccuracy": {
+            "pass": false,
+            "severity": "minor",
+            "evidence": "PR claims 6 commits, actual count is 8."
+          }
+        }
+      },
+      "design": {
+        "grade": "A",
+        "numeric": 4,
+        "checks": {
+          "ticketExists": {
+            "pass": true,
+            "severity": null,
+            "evidence": "This is a redo of Grade D PR #269 with clear scope."
+          },
+          "scopeMatch": {
+            "pass": true,
+            "severity": null,
+            "evidence": "All changes relate to signal auto-unwrap feature. No scope creep."
+          },
+          "verticalSlice": {
+            "pass": true,
+            "severity": null,
+            "evidence": "Complete vertical slice: public API + internals + tests + docs. No internals-only phase."
+          },
+          "noScopeCreep": {
+            "pass": true,
+            "severity": null,
+            "evidence": "Only modified files related to signal unwrap feature."
+          },
+          "deviationsEscalated": {
+            "pass": true,
+            "severity": null,
+            "evidence": "No evidence of design deviations."
+          }
+        }
+      },
+      "dx": {
+        "grade": "A",
+        "numeric": 4,
+        "checks": {
+          "developerWalkthrough": {
+            "pass": true,
+            "severity": null,
+            "evidence": "Changeset includes clear before/after examples showing public API usage."
+          },
+          "publicApiExamples": {
+            "pass": true,
+            "severity": null,
+            "evidence": "Examples use only public API (query(), form(), createLoader())."
+          },
+          "migrationGuide": {
+            "pass": true,
+            "severity": null,
+            "evidence": "Comprehensive migration guide in changeset with warnings and automated grace period."
+          },
+          "edgeCasesHandled": {
+            "pass": true,
+            "severity": null,
+            "evidence": "Handles aliased imports, plain properties, double .value guard."
+          }
+        }
+      },
+      "security": {
+        "grade": "A",
+        "numeric": 4,
+        "checks": {
+          "noEval": {
+            "pass": true,
+            "severity": null,
+            "evidence": "No eval() or new Function() in diff."
+          },
+          "noHardcodedSecrets": {
+            "pass": true,
+            "severity": null,
+            "evidence": "No credentials or secrets in diff."
+          },
+          "inputSanitization": {
+            "pass": true,
+            "severity": null,
+            "evidence": "Operates on type-safe AST nodes, not raw strings."
+          },
+          "noShellInjection": {
+            "pass": true,
+            "severity": null,
+            "evidence": "No shell commands in this PR."
+          }
+        }
+      }
+    },
+    "violations": [
+      {
+        "category": "tdd",
+        "rule": "Test written BEFORE implementation",
+        "severity": "major",
+        "description": "Commit 22853d0 includes both test and full implementation (4 files modified: analyzer, registry, transformer, types). This is speculative implementation, not test-driven development.",
+        "evidence": "gh api repos/vertz-dev/vertz/commits/22853d0 shows: signal-unwrap.test.ts +25, reactivity-analyzer.ts +29/-4, signal-api-registry.ts +31/-0 (NEW), signal-transformer.ts +44/-3, types.ts +2/-0",
+        "recommendation": "Follow strict RED → GREEN → refactor: (1) Write ONE test, (2) Run bun run test → see failure (RED), (3) Write MINIMAL code to pass, (4) Run quality gates (GREEN), (5) Commit. Repeat for each test."
+      },
+      {
+        "category": "tdd",
+        "rule": "One test at a time",
+        "severity": "major",
+        "description": "Commit f412d81 adds 67 lines to test file covering multiple tests at once (form(), createLoader(), multiple properties). Tests were batched rather than incremental.",
+        "evidence": "gh api repos/vertz-dev/vertz/commits/f412d81 shows signal-unwrap.test.ts +67/-1",
+        "recommendation": "Write one test, implement it, commit. Then write next test. Never batch multiple tests before implementing them."
+      },
+      {
+        "category": "process",
+        "rule": "Accurate documentation",
+        "severity": "minor",
+        "description": "PR body claims '6 commits, each following RED → GREEN → refactor' but actual commit count is 8, and commits show simultaneous test+implementation, not RED → GREEN cycles.",
+        "evidence": "gh pr view 283 shows 8 commits. Commit history shows tests and implementation together, not in sequence.",
+        "recommendation": "Only claim TDD compliance when actually followed. Don't copy templates or make aspirational claims about process adherence."
+      }
+    ],
+    "summary": "PR #283 implements signal auto-unwrap feature with good architecture, comprehensive tests, and exemplary changeset documentation. However, the development process violated TDD requirements by writing tests and implementation simultaneously rather than following red-green-refactor cycles. The work is functional and well-tested (C grade), but process violations prevent higher grades. This is a redo of Grade D PR #269 — extra care was expected. Agent should follow strict TDD on next feature."
+  }
+}
