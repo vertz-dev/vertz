@@ -1,0 +1,204 @@
+{
+  "schema": "vertz.audit.v1",
+  "timestamp": "2026-02-14T14:06:00Z",
+  "pr": {
+    "number": 262,
+    "title": "feat(task-manager): Implement REAL SSR with Vite",
+    "author": "kai",
+    "mergedAt": "2026-02-14T11:03:27Z",
+    "filesChanged": 43,
+    "linesAdded": 2679,
+    "linesRemoved": 55
+  },
+  "agent": {
+    "id": "kai",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "sessionDurationMs": null,
+    "totalTokens": null
+  },
+  "grade": "C",
+  "gradeNumeric": 2.0,
+  "scores": {
+    "tdd": {
+      "grade": "D",
+      "numeric": 1.0,
+      "checks": {
+        "testBeforeImpl": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Commit e97c380 includes both implementation (dom-shim.ts, jsx-runtime-server.ts, entry-server.ts) and tests (dom-shim.test.ts, jsx-runtime-server.test.ts, ssr.test.ts) in same commit. Message states 'Comprehensive SSR tests (20/20 passing)' indicating tests written after working implementation."
+        },
+        "redGreenCycle": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No evidence of red-green cycle in commit history. No 'test failing' commits followed by 'implementation' commits. Tests passed immediately."
+        },
+        "oneTestAtATime": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "First commit adds 487 lines of tests at once (3 test files). Not incremental one-test-at-a-time."
+        },
+        "qualityGatesBeforeCommit": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Commit 2595efe (6.5h later): 'fix(ci): Fix lint errors and failing tests'. Commit 283bdbf (2h after that): 'fix(lint): Fix remaining lint errors'. Commit 866a23c: 'add missing dependency'. Three fix commits prove gates were not run before initial commits."
+        },
+        "noTypeEscapes": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Commit 283bdbf fixes multiple 'as any' instances. Should not have been committed in first place."
+        }
+      }
+    },
+    "process": {
+      "grade": "C",
+      "numeric": 2.0,
+      "checks": {
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR was merged via feature branch, not direct push to main"
+        },
+        "atomicCommits": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "First commit e97c380 adds 1,162 lines (dom-shim: 384, jsx-runtime: 120, entry-server: 127, entry-client: 30, dev server: 14, tests: 487). Should be split into separate commits."
+        },
+        "changesetAdded": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "No changeset file in PR. ui-server added exports (createDevServer, DevServer, DevServerOptions) and vite peer dep. demo-toolkit is entirely new package. task-manager added @vertz/ui-server dependency."
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Commits show vertz-dev-core[bot] and vertz-dev-dx[bot] identities"
+        },
+        "noPushToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR merged via proper review process, not direct push"
+        }
+      }
+    },
+    "design": {
+      "grade": "C",
+      "numeric": 2.0,
+      "checks": {
+        "readTicketFirst": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No ticket referenced in PR description or commits. RULES.md requires 'Never commit without a ticket'."
+        },
+        "readRules": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Multiple violations (missing changeset, no ticket, scope creep) suggest RULES.md was not consulted before session start"
+        },
+        "scopeCompliance": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "PR bundles THREE features: (1) task-manager SSR (700+ lines), (2) demo-toolkit package (600+ lines), (3) ui-server createDevServer (259 lines), plus test fixes across packages. RULES.md: 'Scope creep is the #1 agent failure mode'."
+        },
+        "deviationsEscalated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "N/A - no deviations from non-existent design doc"
+        }
+      }
+    },
+    "dx": {
+      "grade": "B",
+      "numeric": 3.0,
+      "checks": {
+        "developerWalkthrough": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR description includes clear 'What's new', 'How it works', 'Test results', and 'Try it' sections"
+        },
+        "userOutcomeTests": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Integration tests verify SSR renders real routes (/, /settings, /tasks/new)"
+        },
+        "publicApiOnly": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Examples use exported APIs from @vertz/ui-server (createDevServer, renderToStream)"
+        },
+        "verticalSlice": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Feature is end-to-end usable: 'bun src/server.ts' works, renders all routes"
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() in any new files"
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No secrets in diff"
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "N/A - SSR renders VNode trees (structured data), no user input handling"
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "tdd.testBeforeImpl",
+      "severity": "major",
+      "description": "Tests written AFTER implementation, not before",
+      "evidence": "First commit e97c380 includes both implementation and tests. Message states 'Comprehensive SSR tests (20/20 passing)' indicating tests were retrofitted to working code.",
+      "recommendation": "Write ONE failing test, implement to pass it, commit test THEN implementation separately. Follow strict red-green-refactor cycle."
+    },
+    {
+      "rule": "tdd.qualityGatesBeforeCommit",
+      "severity": "major",
+      "description": "Quality gates NOT run before commits",
+      "evidence": "Three separate fix commits: 2595efe 'Fix lint errors', 283bdbf 'Fix remaining lint errors', 866a23c 'add missing dependency'. Proves gates were not run before initial commits.",
+      "recommendation": "Run 'bun run test && bun run typecheck && bun run lint' before EVERY commit. Use lefthook pre-commit hook to enforce."
+    },
+    {
+      "rule": "process.changesetAdded",
+      "severity": "critical",
+      "description": "Missing changeset for package changes",
+      "evidence": "ui-server added exports (createDevServer, etc.) and vite peer dep. demo-toolkit is new package. task-manager added @vertz/ui-server dep. No changeset file in PR.",
+      "recommendation": "Run 'bun changeset' when ANY package changes. Describe user-facing changes for changelog."
+    },
+    {
+      "rule": "design.scopeCompliance",
+      "severity": "major",
+      "description": "Scope creep — three separate features in one PR",
+      "evidence": "PR bundles: (1) task-manager SSR (700+ lines), (2) demo-toolkit package (600+ lines), (3) ui-server createDevServer (259 lines). RULES.md: 'Scope creep is the #1 agent failure mode'.",
+      "recommendation": "Split into 3 PRs: (1) task-manager SSR, (2) ui-server abstraction, (3) demo-toolkit. One feature per PR."
+    },
+    {
+      "rule": "design.readTicketFirst",
+      "severity": "major",
+      "description": "No ticket referenced in PR",
+      "evidence": "PR description and commits don't reference any ticket. RULES.md requires 'Never commit without a ticket'.",
+      "recommendation": "Before implementing, check tickets/ for existing ticket or create one. Reference ticket in commits: 'feat: SSR (closes #123)'."
+    },
+    {
+      "rule": "process.atomicCommits",
+      "severity": "major",
+      "description": "Non-atomic commits (batched work)",
+      "evidence": "First commit e97c380 adds 1,162 lines: dom-shim (384), jsx-runtime (120), entry-server (127), tests (487), etc. Should be split into smaller commits.",
+      "recommendation": "Aim for <200 lines per commit. Break into: (1) dom-shim + tests, (2) jsx-runtime + tests, (3) entry-server + tests, (4) dev server."
+    }
+  ],
+  "summary": "Substantial feature with high-quality code and comprehensive test coverage. However, critical TDD and process violations: tests written AFTER implementation, quality gates not run before commits (evidenced by 3 fix commits), and missing changeset for package changes. The 'implementation-first, fix-later' approach is the opposite of TDD's red-green-refactor discipline. Code quality: A. Process compliance: D. Overall grade: C."
+}
