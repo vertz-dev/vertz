@@ -31,7 +31,7 @@ function normalizeChildren(children: unknown): (VNode | string | RawHtml)[] {
 
   // VNode or RawHtml object
   if (typeof children === 'object' && ('tag' in children || '__raw' in children)) {
-    return [children];
+    return [children as VNode | RawHtml];
   }
 
   // Convert primitives to strings

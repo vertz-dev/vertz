@@ -37,7 +37,7 @@ function applyChildren(parent: Node, children: unknown): void {
  * When tag is a function (component), calls it with props.
  * When tag is a string (HTML element), creates a DOM element.
  */
-export function jsx(tag: Tag, props: Record<string, unknown>): Node | null {
+export function jsx(tag: Tag, props: Record<string, unknown>): Node | Node[] | null {
   // Component call — pass props through to the function
   if (typeof tag === 'function') {
     return tag(props);
