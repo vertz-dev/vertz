@@ -5,7 +5,7 @@
  * Following TDD: Write test FIRST, see it FAIL, then fix implementation.
  */
 
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import {
@@ -36,6 +36,7 @@ describe('TTS Integration Tests', () => {
 describe('generateTTS - Security Tests', () => {
   test(
     'should safely handle shell metacharacters in text',
+    { timeout: 40000 },
     async () => {
       // Test key injection vectors - spawn() should pass them as literal strings
       const testCases = [
@@ -61,11 +62,11 @@ describe('generateTTS - Security Tests', () => {
         await fs.unlink(outputPath).catch(() => {});
       }
     },
-    { timeout: 40000 },
   );
 
   test(
     'should safely handle shell metacharacters in outputPath',
+    { timeout: 25000 },
     async () => {
       const testPaths = [
         path.join(TEST_DIR, 'test-$(whoami).mp3'),
@@ -87,7 +88,6 @@ describe('generateTTS - Security Tests', () => {
         await fs.unlink(maliciousPath).catch(() => {});
       }
     },
-    { timeout: 25000 },
   );
 
   test('should handle empty text gracefully', async () => {
