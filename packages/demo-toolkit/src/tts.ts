@@ -343,7 +343,10 @@ export async function cloneVoice(
  * Get the duration of an audio file in milliseconds
  * 
  * Note: This is a simple estimation based on file size.
- * For accurate duration, use ffprobe or similar tools.
+ * For accurate duration, use ffprobe or a dedicated audio analysis tool.
+ * 
+ * @param audioPath - Path to the audio file
+ * @returns Promise resolving to estimated duration in milliseconds
  */
 export async function getAudioDuration(audioPath: string): Promise<number> {
   try {
@@ -355,90 +358,4 @@ export async function getAudioDuration(audioPath: string): Promise<number> {
     // If file doesn't exist or can't be read, return 0
     return 0;
   }
-}
-
-/**
- * Check if FFmpeg is available
- */
-export async function checkFFmpeg(): Promise<boolean> {
-  try {
-    const { exec } = await import('node:child_process');
-    const { promisify } = await import('node:util');
-    const execAsync = promisify(exec);
-    await execAsync('ffmpeg -version');
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Combine video and audio tracks using FFmpeg
- *
- * @param videoPath - Path to the input video file
- * @param audioPath - Path to the audio file
- * @param outputPath - Path for the output file
- */
-export async function combineVideoAudio(
-  videoPath: string,
-  audioPath: string,
-  outputPath: string,
-): Promise<void> {
-  const hasFFmpeg = await checkFFmpeg();
-
-  if (!hasFFmpeg) {
-    console.warn('⚠️  FFmpeg not found. Skipping audio/video muxing.');
-    console.warn('   Install FFmpeg to enable narration: apt-get install ffmpeg');
-    // Just copy the video file as-is
-    await fs.copyFile(videoPath, outputPath);
-    return;
-  }
-
-  const { exec } = await import('node:child_process');
-  const { promisify } = await import('node:util');
-  const execAsync = promisify(exec);
-
-  // Combine video and audio
-  await execAsync(
-    `ffmpeg -i "${videoPath}" -i "${audioPath}" -c:v copy -c:a aac -shortest "${outputPath}"`,
-  );
-}
-
-/**
- * Create a complex audio timeline from multiple narration clips
- *
- * This uses FFmpeg's filter_complex to overlay multiple audio clips
- * at specific timestamps.
- */
-export async function createAudioTimeline(
-  clips: Array<{ audioPath: string; timestamp: number }>,
-  duration: number,
-  outputPath: string,
-): Promise<void> {
-  const hasFFmpeg = await checkFFmpeg();
-
-  if (!hasFFmpeg || clips.length === 0) {
-    // Create a silent audio file or skip
-    return;
-  }
-
-  if (clips.length === 1) {
-    // Simple case: just copy the audio file
-    await fs.copyFile(clips[0].audioPath, outputPath);
-    return;
-  }
-
-  const { exec } = await import('node:child_process');
-  const { promisify } = await import('node:util');
-  const execAsync = promisify(exec);
-
-  // Build FFmpeg filter_complex command for multiple audio clips
-  const inputs = clips.map((clip) => `-i "${clip.audioPath}"`).join(' ');
-  const delays = clips.map((clip, i) => `[${i}]adelay=${clip.timestamp}|${clip.timestamp}[a${i}]`);
-  const mix = `${clips.map((_, i) => `[a${i}]`).join('')}amix=inputs=${clips.length}:duration=longest`;
-  const filterComplex = `${delays.join(';')};${mix}`;
-
-  await execAsync(
-    `ffmpeg ${inputs} -filter_complex "${filterComplex}" -t ${duration / 1000} "${outputPath}"`,
-  );
 }
