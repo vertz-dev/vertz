@@ -1,7 +1,7 @@
 /**
  * @file Tests for automatic signal property unwrapping from query(), form(), and createLoader()
  */
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 import { compile } from '../compiler';
 
 describe('Signal Auto-Unwrap', () => {
