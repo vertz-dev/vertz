@@ -218,3 +218,81 @@ describe('ReactivityAnalyzer', () => {
     });
   });
 });
+
+
+  describe("Import alias tracking", () => {
+    it("detects signal API with aliased import: import { query as q }", () => {
+      const [result] = analyze(`
+        import { query as q } from "@vertz/ui";
+        
+        function TaskList() {
+          const tasks = q("/api/tasks");
+          return <div>{tasks.loading}</div>;
+        }
+      `);
+      const v = findVar(result?.variables, "tasks");
+      expect(v?.kind).toBe("signal-object");
+      expect(v?.signalProperties?.has("data")).toBe(true);
+      expect(v?.signalProperties?.has("loading")).toBe(true);
+    });
+
+    it("detects signal API with aliased import: import { form as f }", () => {
+      const [result] = analyze(`
+        import { form as f } from "@vertz/ui";
+        
+        function UserForm() {
+          const userForm = f(schema);
+          return <div>{userForm.submitting}</div>;
+        }
+      `);
+      const v = findVar(result?.variables, "userForm");
+      expect(v?.kind).toBe("signal-object");
+      expect(v?.signalProperties?.has("submitting")).toBe(true);
+      expect(v?.signalProperties?.has("errors")).toBe(true);
+    });
+
+    it("handles multiple aliased imports", () => {
+      const [result] = analyze(`
+        import { query as q, form as f } from "@vertz/ui";
+        
+        function Component() {
+          const tasks = q("/api/tasks");
+          const userForm = f(schema);
+          return <div>{tasks.loading} {userForm.submitting}</div>;
+        }
+      `);
+      const tasks = findVar(result?.variables, "tasks");
+      const form = findVar(result?.variables, "userForm");
+      expect(tasks?.kind).toBe("signal-object");
+      expect(form?.kind).toBe("signal-object");
+    });
+
+    it("handles mix of aliased and non-aliased imports", () => {
+      const [result] = analyze(`
+        import { query, form as f } from "@vertz/ui";
+        
+        function Component() {
+          const tasks = query("/api/tasks");
+          const userForm = f(schema);
+          return <div>{tasks.loading} {userForm.submitting}</div>;
+        }
+      `);
+      const tasks = findVar(result?.variables, "tasks");
+      const form = findVar(result?.variables, "userForm");
+      expect(tasks?.kind).toBe("signal-object");
+      expect(form?.kind).toBe("signal-object");
+    });
+
+    it("does not detect non-signal-API aliased functions", () => {
+      const [result] = analyze(`
+        import { something as s } from "@vertz/ui";
+        
+        function Component() {
+          const data = s();
+          return <div>{data}</div>;
+        }
+      `);
+      const v = findVar(result?.variables, "data");
+      expect(v?.kind).not.toBe("signal-object");
+    });
+  });
