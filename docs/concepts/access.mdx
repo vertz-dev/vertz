@@ -12,40 +12,57 @@ Vertz provides a unified access control system for authentication and authorizat
 - **Authentication** — Who is the user? (Identity)
 - **Authorization** — What can they do? (Permissions)
 
-## Getting Started
+## Using ctx.can()
+
+Access checks are performed using `ctx.can()` in your route handlers and server functions:
 
 ```typescript
-import { defineAccess } from 'vertz/schema';
+import { route$ } from 'vertz/server';
 
-const access = defineAccess({
-  // Authentication providers
-  providers: {
-    email: {
-      type: 'email',
-      // Configure your email/password setup
-    },
-    oauth: {
-      github: {
-        clientId: process.env.GITHUB_CLIENT_ID,
-        clientSecret: process.env.GITHUB_CLIENT_SECRET,
-      },
-    },
+export const getPost = route$({
+  method: 'GET',
+  path: '/api/posts/:id',
+  handler: async (req, ctx) => {
+    // Check if user can read the post
+    const canRead = await ctx.can('post:read');
+    
+    if (!canRead) {
+      return { error: 'Unauthorized' };
+    }
+    
+    // Fetch and return post
+    return { post: await getPostFromDb(req.params.id) };
   },
-  
-  // Session configuration
-  session: {
-    duration: '7d',
-    refreshable: true,
+});
+```
+
+## Defining Permissions
+
+Permissions are defined in your domain schema:
+
+```typescript
+import { domain } from 'vertz/schema';
+
+export const blogDomain = domain({
+  name: 'blog',
+  access: {
+    Post: {
+      read: 'public',
+      create: 'authenticated',
+      update: 'author',
+      delete: 'author',
+    },
   },
 });
 ```
 
 ## Role-Based Access
 
-Define roles and permissions:
+Define roles in your domain:
 
 ```typescript
-const access = defineAccess({
+export const blogDomain = domain({
+  name: 'blog',
   roles: {
     admin: {
       permissions: ['*'],
@@ -62,44 +79,38 @@ const access = defineAccess({
 
 ## Protecting Routes
 
-```typescript
-import { protected$ } from 'vertz/server';
+Use `ctx.can()` to protect routes:
 
-export const adminRoute = protected$({
-  role: 'admin',
-  handler: async (req, { user }) => {
-    // Only admins can reach here
-    return { user };
+```typescript
+import { route$ } from 'vertz/server';
+
+export const adminRoute = route$({
+  method: 'GET',
+  path: '/admin',
+  handler: async (req, ctx) => {
+    const canAccess = await ctx.can('admin:access');
+    
+    if (!canAccess) {
+      return { error: 'Forbidden' };
+    }
+    
+    return { message: 'Welcome, admin!' };
   },
 });
 ```
 
 ## Field-Level Security
 
-Control access at the field level:
+Control access at the field level in your domain:
 
 ```typescript
-const access = defineAccess({
+export const userDomain = domain({
+  name: 'user',
   fields: {
     User: {
-      email: 'self',        // Only the user themselves
-      name: 'authenticated', // Any logged-in user
-      role: 'admin',        // Only admins
-    },
-  },
-});
-```
-
-## Middleware
-
-Use access middleware for custom logic:
-
-```typescript
-const access = defineAccess({
-  middleware: {
-    onLogin: async (user, provider) => {
-      // Custom logic after login
-      await analytics.track('user_login', { userId: user.id });
+      email: 'self',
+      name: 'authenticated',
+      role: 'admin',
     },
   },
 });

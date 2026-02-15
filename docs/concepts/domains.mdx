@@ -18,9 +18,9 @@ A domain represents a bounded context in your application:
 ## Defining a Domain
 
 ```typescript
-import { defineDomain } from 'vertz/schema';
+import { domain } from 'vertz/schema';
 
-export const blogDomain = defineDomain({
+export const blogDomain = domain({
   name: 'blog',
   entities: {
     Post: {
@@ -45,7 +45,7 @@ export const blogDomain = defineDomain({
 Domains can reference each other through relations:
 
 ```typescript
-export const userDomain = defineDomain({
+export const userDomain = domain({
   name: 'user',
   entities: {
     User: {
@@ -63,7 +63,7 @@ export const userDomain = defineDomain({
 Domains define their own access rules:
 
 ```typescript
-export const blogDomain = defineDomain({
+export const blogDomain = domain({
   name: 'blog',
   access: {
     Post: {

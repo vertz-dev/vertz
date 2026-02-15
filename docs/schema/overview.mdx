@@ -30,13 +30,16 @@ Detailed schema documentation is coming as part of the progressive launch.
 ## Quick Example
 
 ```typescript
-import { defineSchema } from 'vertz/schema';
+import { domain } from 'vertz/schema';
 
-const schema = defineSchema({
-  User: {
-    id: { type: 'uuid', primary: true },
-    email: { type: 'string', unique: true },
-    name: { type: 'string' },
+const blog = domain({
+  name: 'blog',
+  entities: {
+    User: {
+      id: { type: 'uuid', primary: true },
+      email: { type: 'string', unique: true },
+      name: { type: 'string' },
+    },
   },
 });
 ```
