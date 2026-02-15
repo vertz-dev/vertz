@@ -81,8 +81,8 @@ function saveDomainHash(cwd: string, hash: string): void {
  */
 async function loadDomainDefinitions(cwd: string, files: string[]): Promise<DomainDefinition[]> {
   // Dynamic import jiti for module resolution
-  const { jiti } = await import('jiti');
-  const jitiImport = jiti(cwd);
+  const { createJiti } = await import('jiti');
+  const jitiImport = createJiti(cwd);
   
   const domains: DomainDefinition[] = [];
   
