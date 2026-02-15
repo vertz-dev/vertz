@@ -10,6 +10,12 @@ import type {
   VarcharMeta,
 } from './schema/column';
 import { createColumn, createSerialColumn, createTenantColumn } from './schema/column';
+
+// Duck-typing interface so @vertz/db can accept EnumSchema from @vertz/schema
+// without a hard runtime import (keeps the dependency boundary clean).
+interface EnumSchemaLike<T extends readonly string[]> {
+  readonly values: T;
+}
 import type { TableEntry } from './schema/inference';
 import type { ManyRelationDef, RelationDef } from './schema/relation';
 import { createManyRelation, createOneRelation } from './schema/relation';
@@ -42,6 +48,10 @@ export const d: {
   enum<TName extends string, const TValues extends readonly string[]>(
     name: TName,
     values: TValues,
+  ): ColumnBuilder<TValues[number], EnumMeta<TName, TValues>>;
+  enum<TName extends string, const TValues extends readonly [string, ...string[]]>(
+    name: TName,
+    schema: EnumSchemaLike<TValues>,
   ): ColumnBuilder<TValues[number], EnumMeta<TName, TValues>>;
   tenant(targetTable: TableDef<ColumnRecord>): ColumnBuilder<string, TenantMeta>;
   table<TColumns extends ColumnRecord>(
@@ -96,12 +106,18 @@ export const d: {
   integerArray: () => createColumn<number[], DefaultMeta<'integer[]'>>('integer[]'),
   enum: <TName extends string, const TValues extends readonly string[]>(
     name: TName,
-    values: TValues,
-  ) =>
-    createColumn<TValues[number], EnumMeta<TName, TValues>>('enum', {
+    valuesOrSchema: TValues | EnumSchemaLike<TValues>,
+  ) => {
+    const values =
+      !Array.isArray(valuesOrSchema) &&
+      typeof (valuesOrSchema as EnumSchemaLike<TValues>).values !== 'undefined'
+        ? (valuesOrSchema as EnumSchemaLike<TValues>).values
+        : (valuesOrSchema as TValues);
+    return createColumn<TValues[number], EnumMeta<TName, TValues>>('enum', {
       enumName: name,
       enumValues: values,
-    }),
+    });
+  },
   tenant: (targetTable: TableDef<ColumnRecord>) => createTenantColumn(targetTable._name),
   table: <TColumns extends ColumnRecord>(name: string, columns: TColumns, options?: TableOptions) =>
     createTable(name, columns, options),

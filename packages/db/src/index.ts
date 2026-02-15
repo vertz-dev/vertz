@@ -87,6 +87,8 @@ export type {
   UpdateInput,
 } from './schema/inference';
 export { createRegistry } from './schema/registry';
+export type { RegisteredEnum } from './schema/enum-registry';
+export { createEnumRegistry } from './schema/enum-registry';
 export type { RelationDef } from './schema/relation';
 export type { IndexDef, TableDef } from './schema/table';
 

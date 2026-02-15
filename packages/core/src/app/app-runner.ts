@@ -199,7 +199,7 @@ export function buildHandler(
       const ctx = buildCtx({
         params: validatedParams as Record<string, unknown>,
         body: validatedBody,
-        query: validatedQuery as Record<string, unknown>,
+        query: validatedQuery as Record<string, string>,
         headers: validatedHeaders as Record<string, string>,
         raw,
         middlewareState,
