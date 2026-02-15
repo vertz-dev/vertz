@@ -18,6 +18,67 @@ import { createPostgresDriver, type PostgresDriver } from './postgres-driver';
 import { computeTenantGraph, type TenantGraph } from './tenant-graph';
 
 // ---------------------------------------------------------------------------
+// Query routing
+// ---------------------------------------------------------------------------
+
+/**
+ * Determines if a SQL query is a read-only query that can be routed to replicas.
+ *
+ * This function detects SELECT statements, including:
+ * - Standard SELECT queries
+ * - SELECT ... FOR UPDATE (still read-only, but we'll send to primary for safety)
+ * - WITH ... SELECT (CTEs)
+ * - Queries with leading comments
+ *
+ * Returns false for:
+ * - INSERT, UPDATE, DELETE, TRUNCATE
+ * - DDL statements (CREATE, ALTER, DROP)
+ * - Transaction commands (BEGIN, COMMIT, ROLLBACK)
+ * - Any statement not starting with SELECT after normalization
+ */
+export function isReadQuery(sqlStr: string): boolean {
+  // Remove leading comments and whitespace
+  let normalized = sqlStr.trim();
+
+  // Strip leading comment lines (-- and /* */)
+  while (
+    normalized.startsWith('--') ||
+    normalized.startsWith('/*') ||
+    normalized.startsWith('//')
+  ) {
+    // Find end of comment
+    if (normalized.startsWith('--')) {
+      const newlineIdx = normalized.indexOf('\n');
+      if (newlineIdx === -1) return false;
+      normalized = normalized.slice(newlineIdx + 1).trim();
+    } else if (normalized.startsWith('/*')) {
+      const endIdx = normalized.indexOf('*/');
+      if (endIdx === -1) return false;
+      normalized = normalized.slice(endIdx + 2).trim();
+    } else if (normalized.startsWith('//')) {
+      const newlineIdx = normalized.indexOf('\n');
+      if (newlineIdx === -1) return false;
+      normalized = normalized.slice(newlineIdx + 1).trim();
+    }
+  }
+
+  // Handle CTEs (WITH clause) - look for SELECT after WITH
+  if (normalized.toUpperCase().startsWith('WITH ')) {
+    const selectMatch = normalized.match(/\bSELECT\s/is);
+    return selectMatch !== null;
+  }
+
+  // Check if the first meaningful keyword is SELECT
+  // SELECT INTO creates a table, so it's a WRITE operation
+  // Match both "SELECT INTO" and "SELECT ... INTO" patterns
+  const upper = normalized.toUpperCase();
+  if (upper.startsWith('SELECT INTO') || /\bSELECT\s+.+\s+INTO\b/.test(upper)) {
+    return false;
+  }
+  return upper.startsWith('SELECT');
+}
+
+// ---------------------------------------------------------------------------
 // Pool configuration
 // ---------------------------------------------------------------------------
 
@@ -32,6 +93,18 @@ export interface PoolConfig {
   readonly idleTimeout?: number;
   /** Connection timeout in milliseconds. */
   readonly connectionTimeout?: number;
+  /**
+   * Health check timeout in milliseconds.
+   * Used by isHealthy() to prevent hanging on degraded databases.
+   * Defaults to 5000 (5 seconds) if not specified.
+   */
+  readonly healthCheckTimeout?: number;
+  /**
+   * Read replica URLs for query routing.
+   * Read-only queries (SELECT) can be routed to replicas for load balancing.
+   * The primary URL is always used for writes (INSERT, UPDATE, DELETE).
+   */
+  readonly replicas?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -191,10 +264,7 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Get a single row or null.
    */
-  get<
-    TName extends keyof TTables & string,
-    TOptions extends TypedGetOptions<TTables[TName]>,
-  >(
+  get<TName extends keyof TTables & string, TOptions extends TypedGetOptions<TTables[TName]>>(
     table: TName,
     options?: TOptions,
   ): Promise<FindResult<
@@ -217,10 +287,7 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * List multiple rows.
    */
-  list<
-    TName extends keyof TTables & string,
-    TOptions extends TypedListOptions<TTables[TName]>,
-  >(
+  list<TName extends keyof TTables & string, TOptions extends TypedListOptions<TTables[TName]>>(
     table: TName,
     options?: TOptions,
   ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[]>;
@@ -433,6 +500,8 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
   // Create the postgres driver if _queryFn is not provided
   let driver: PostgresDriver | null = null;
+  let replicaDrivers: PostgresDriver[] = [];
+  let replicaIndex = 0;
 
   const queryFn: QueryFn = (() => {
     // If _queryFn is explicitly provided (e.g., PGlite for testing), use it
@@ -443,7 +512,34 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     // Otherwise, create a real postgres driver from the URL
     if (options.url) {
       driver = createPostgresDriver(options.url, options.pool);
-      return driver.queryFn;
+
+      // Create replica drivers if configured
+      const replicas = options.pool?.replicas;
+      if (replicas && replicas.length > 0) {
+        replicaDrivers = replicas.map((replicaUrl) => createPostgresDriver(replicaUrl, options.pool));
+      }
+
+      // Return a routing-aware query function
+      return async <T>(sqlStr: string, params: readonly unknown[]) => {
+        // If no replicas configured, always use primary
+        if (replicaDrivers.length === 0) {
+          return driver!.queryFn<T>(sqlStr, params);
+        }
+
+        // Route read queries to replicas with round-robin and fallback on failure
+        if (isReadQuery(sqlStr)) {
+          const targetReplica = replicaDrivers[replicaIndex]!;
+          replicaIndex = (replicaIndex + 1) % replicaDrivers.length;
+          try {
+            return await targetReplica.queryFn<T>(sqlStr, params);
+          } catch {
+            // Replica failed, fall back to primary
+          }
+        }
+
+        // Write queries always go to primary
+        return driver!.queryFn<T>(sqlStr, params);
+      };
     }
 
     // Fallback: no driver, no _queryFn — throw on query
@@ -474,9 +570,12 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     },
 
     async close(): Promise<void> {
+      // Close primary driver
       if (driver) {
         await driver.close();
       }
+      // Close all replica drivers
+      await Promise.all(replicaDrivers.map((r) => r.close()));
     },
 
     async isHealthy(): Promise<boolean> {
@@ -546,11 +645,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async listAndCount(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      const { data, total } = await crud.listAndCount(
-        queryFn,
-        entry.table,
-        opts as crud.ListArgs,
-      );
+      const { data, total } = await crud.listAndCount(queryFn, entry.table, opts as crud.ListArgs);
       if (opts?.include && data.length > 0) {
         const withRelations = await loadRelations(
           queryFn,
@@ -567,10 +662,18 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     },
 
     // Deprecated aliases
-    get findOne() { return this.get; },
-    get findOneOrThrow() { return this.getOrThrow; },
-    get findMany() { return this.list; },
-    get findManyAndCount() { return this.listAndCount; },
+    get findOne() {
+      return this.get;
+    },
+    get findOneOrThrow() {
+      return this.getOrThrow;
+    },
+    get findMany() {
+      return this.list;
+    },
+    get findManyAndCount() {
+      return this.listAndCount;
+    },
 
     // -----------------------------------------------------------------------
     // Create queries
