@@ -32,3 +32,5 @@ globalThis.Event = window.Event;
 globalThis.navigator = window.navigator;
 // @ts-expect-error - Injecting DOM globals
 globalThis.location = window.location;
+// @ts-expect-error - Injecting DOM globals — native FormData can't read happy-dom forms
+globalThis.FormData = window.FormData;

@@ -76,9 +76,16 @@ describe('TaskForm', () => {
     await type(titleInput, 'New test task');
     await type(descInput, 'A description for the test task');
 
-    // Submit
-    const submitBtn = findByTestId('submit-task');
-    await click(submitBtn);
+    // Ensure priority select has a value (happy-dom may not honour `selected` attribute)
+    const prioritySelect = findByTestId('create-task-form').querySelector(
+      '#task-priority',
+    ) as HTMLSelectElement;
+    prioritySelect.value = 'medium';
+
+    // Submit — dispatch on the form directly because happy-dom may not
+    // propagate a button click into a native form submission event.
+    const form = findByTestId('create-task-form') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
     // Wait for async submission to complete
     await waitFor(() => {

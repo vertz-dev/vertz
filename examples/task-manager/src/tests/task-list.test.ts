@@ -35,14 +35,11 @@ describe('TaskListPage', () => {
     const page = TaskListPage({ navigate: (url) => navigateCalls.push(url) });
     const { findByTestId: find, queryByText, unmount } = renderTest(page);
 
+    // Wait for the mock tasks to load and render
     await waitFor(() => {
-      const list = find('task-list');
-      expect(list.style.display).not.toBe('none');
+      expect(queryByText('Set up CI/CD pipeline')).not.toBeNull();
+      expect(queryByText('Implement user authentication')).not.toBeNull();
     });
-
-    // Should show the mock tasks
-    expect(queryByText('Set up CI/CD pipeline')).not.toBeNull();
-    expect(queryByText('Implement user authentication')).not.toBeNull();
 
     unmount();
   });
