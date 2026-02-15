@@ -138,6 +138,21 @@
         "vitest": "^4.0.18",
       },
     },
+    "packages/demo-toolkit": {
+      "name": "@vertz/demo-toolkit",
+      "version": "0.0.0",
+      "dependencies": {
+        "@playwright/test": "^1.49.1",
+        "@vertz/core": "workspace:*",
+        "@vertz/server": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^25.2.1",
+        "bunup": "latest",
+        "typescript": "^5.7.0",
+        "vitest": "^4.0.18",
+      },
+    },
     "packages/fetch": {
       "name": "@vertz/fetch",
       "version": "0.1.0",
@@ -619,6 +634,8 @@
     "@vertz/core": ["@vertz/core@workspace:packages/core"],
 
     "@vertz/db": ["@vertz/db@workspace:packages/db"],
+
+    "@vertz/demo-toolkit": ["@vertz/demo-toolkit@workspace:packages/demo-toolkit"],
 
     "@vertz/fetch": ["@vertz/fetch@workspace:packages/fetch"],
 
