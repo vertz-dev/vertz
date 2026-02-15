@@ -1,147 +1,6 @@
-// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`OpenAPIGenerator > snapshot tests > snapshot: discriminated union response 1`] = `
-{
-  "components": {
-    "schemas": {
-      "ErrorResponse": {
-        "properties": {
-          "message": {
-            "type": "string",
-          },
-          "status": {
-            "const": "error",
-          },
-        },
-        "required": [
-          "status",
-        ],
-        "type": "object",
-      },
-      "SuccessResponse": {
-        "properties": {
-          "data": {
-            "type": "object",
-          },
-          "status": {
-            "const": "success",
-          },
-        },
-        "required": [
-          "status",
-        ],
-        "type": "object",
-      },
-    },
-  },
-  "info": {
-    "title": "Union API",
-    "version": "1.0.0",
-  },
-  "openapi": "3.1.0",
-  "paths": {
-    "/result": {
-      "get": {
-        "operationId": "getResult",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "discriminator": {
-                    "propertyName": "status",
-                  },
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/SuccessResponse",
-                    },
-                    {
-                      "$ref": "#/components/schemas/ErrorResponse",
-                    },
-                  ],
-                },
-              },
-            },
-            "description": "OK",
-          },
-        },
-        "tags": [
-          "results",
-        ],
-      },
-    },
-  },
-  "servers": [
-    {
-      "url": "/api",
-    },
-  ],
-  "tags": [
-    {
-      "name": "results",
-    },
-  ],
-}
-`;
-
-exports[`OpenAPIGenerator > snapshot tests > snapshot: middleware headers in spec 1`] = `
-{
-  "components": {
-    "schemas": {},
-  },
-  "info": {
-    "title": "Auth API",
-    "version": "1.0.0",
-  },
-  "openapi": "3.1.0",
-  "paths": {
-    "/users": {
-      "get": {
-        "operationId": "user_list",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": true,
-            "schema": {
-              "type": "string",
-            },
-          },
-          {
-            "in": "header",
-            "name": "x-request-id",
-            "required": true,
-            "schema": {
-              "type": "string",
-            },
-          },
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-          },
-        },
-        "tags": [
-          "users",
-        ],
-      },
-    },
-  },
-  "servers": [
-    {
-      "url": "/api",
-    },
-  ],
-  "tags": [
-    {
-      "name": "users",
-    },
-  ],
-}
-`;
-
-exports[`OpenAPIGenerator > snapshot tests > snapshot: minimal single-route API 1`] = `
+exports[`OpenAPIGenerator snapshot tests snapshot: minimal single-route API 1`] = `
 {
   "components": {
     "schemas": {},
@@ -205,7 +64,7 @@ exports[`OpenAPIGenerator > snapshot tests > snapshot: minimal single-route API 
 }
 `;
 
-exports[`OpenAPIGenerator > snapshot tests > snapshot: multi-module CRUD API 1`] = `
+exports[`OpenAPIGenerator snapshot tests snapshot: multi-module CRUD API 1`] = `
 {
   "components": {
     "schemas": {
@@ -391,6 +250,147 @@ exports[`OpenAPIGenerator > snapshot tests > snapshot: multi-module CRUD API 1`]
   "tags": [
     {
       "name": "users",
+    },
+  ],
+}
+`;
+
+exports[`OpenAPIGenerator snapshot tests snapshot: middleware headers in spec 1`] = `
+{
+  "components": {
+    "schemas": {},
+  },
+  "info": {
+    "title": "Auth API",
+    "version": "1.0.0",
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/users": {
+      "get": {
+        "operationId": "user_list",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": true,
+            "schema": {
+              "type": "string",
+            },
+          },
+          {
+            "in": "header",
+            "name": "x-request-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+            },
+          },
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+          },
+        },
+        "tags": [
+          "users",
+        ],
+      },
+    },
+  },
+  "servers": [
+    {
+      "url": "/api",
+    },
+  ],
+  "tags": [
+    {
+      "name": "users",
+    },
+  ],
+}
+`;
+
+exports[`OpenAPIGenerator snapshot tests snapshot: discriminated union response 1`] = `
+{
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+          },
+          "status": {
+            "const": "error",
+          },
+        },
+        "required": [
+          "status",
+        ],
+        "type": "object",
+      },
+      "SuccessResponse": {
+        "properties": {
+          "data": {
+            "type": "object",
+          },
+          "status": {
+            "const": "success",
+          },
+        },
+        "required": [
+          "status",
+        ],
+        "type": "object",
+      },
+    },
+  },
+  "info": {
+    "title": "Union API",
+    "version": "1.0.0",
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/result": {
+      "get": {
+        "operationId": "getResult",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "discriminator": {
+                    "propertyName": "status",
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessResponse",
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse",
+                    },
+                  ],
+                },
+              },
+            },
+            "description": "OK",
+          },
+        },
+        "tags": [
+          "results",
+        ],
+      },
+    },
+  },
+  "servers": [
+    {
+      "url": "/api",
+    },
+  ],
+  "tags": [
+    {
+      "name": "results",
     },
   ],
 }
