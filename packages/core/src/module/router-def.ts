@@ -32,6 +32,8 @@ export interface RouteConfig<
   body?: TBody;
   query?: TQuery;
   response?: unknown;
+  /** Error schemas for errors-as-values pattern. Keys are HTTP status codes. */
+  errors?: Record<number, unknown>;
   headers?: THeaders;
   middlewares?: unknown[];
   handler: (
