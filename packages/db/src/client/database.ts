@@ -1,6 +1,6 @@
 import * as agg from '../query/aggregate';
 import * as crud from '../query/crud';
-import type { QueryFn } from '../query/executor';
+import { executeQuery, type QueryFn } from '../query/executor';
 import { type IncludeSpec, loadRelations, type TableRegistryEntry } from '../query/relation-loader';
 import type {
   FilterType,
@@ -24,7 +24,11 @@ import { computeTenantGraph, type TenantGraph } from './tenant-graph';
 export interface PoolConfig {
   /** Maximum number of connections in the pool. */
   readonly max?: number;
-  /** Idle timeout in milliseconds before a connection is closed. */
+  /**
+   * Idle timeout in milliseconds before a connection is closed.
+   * Defaults to 30000 (30 seconds) if not specified, preventing
+   * idle connections from staying open indefinitely.
+   */
   readonly idleTimeout?: number;
   /** Connection timeout in milliseconds. */
   readonly connectionTimeout?: number;
@@ -376,6 +380,16 @@ function resolveTable<TTables extends Record<string, TableEntry>>(
  * When `url` is provided and `_queryFn` is NOT provided, creates a real
  * postgres connection using the `postgres` package (porsager/postgres).
  * The `_queryFn` escape hatch still works for testing with PGlite.
+ *
+ * **Timestamp coercion:** The postgres driver automatically converts string
+ * values matching ISO 8601 timestamp patterns to `Date` objects. This applies
+ * to all columns, not just declared timestamp columns. If you store
+ * timestamp-formatted strings in plain text columns, they will be coerced
+ * to `Date` objects. See the postgres-driver source for details.
+ *
+ * **Connection pool defaults:** When no `pool.idleTimeout` is specified,
+ * idle connections are closed after 30 seconds. Set `idleTimeout` explicitly
+ * to override (value in milliseconds, e.g., `60000` for 60s).
  */
 export function createDb<TTables extends Record<string, TableEntry>>(
   options: CreateDbOptions<TTables>,
@@ -447,7 +461,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     $tenantGraph: tenantGraph,
 
     async query<T = Record<string, unknown>>(fragment: SqlFragment): Promise<QueryResult<T>> {
-      return queryFn<T>(fragment.sql, fragment.params);
+      return executeQuery<T>(queryFn, fragment.sql, fragment.params);
     },
 
     async close(): Promise<void> {
