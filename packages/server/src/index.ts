@@ -73,3 +73,39 @@ export type {
   Result,
   DomainError,
 } from './domain';
+
+// Auth Module - Phase 1
+export { 
+  createAuth, 
+  createAccess, 
+  defaultAccess, 
+  hashPassword, 
+  verifyPassword, 
+  validatePassword,
+  AuthorizationError,
+} from './auth';
+export type {
+  AuthConfig,
+  AuthInstance,
+  AuthApi,
+  AuthResult,
+  AuthError,
+  AuthUser,
+  AuthContext,
+  Session,
+  SessionPayload,
+  SessionStrategy,
+  SessionConfig,
+  CookieConfig,
+  EmailPasswordConfig,
+  PasswordRequirements,
+  RateLimitConfig,
+  RateLimitResult,
+  SignUpInput,
+  SignInInput,
+  AccessConfig,
+  AccessInstance,
+  Entitlement,
+  EntitlementDefinition,
+  Resource,
+} from './auth';

@@ -8,6 +8,7 @@ export interface CodegenPipeline {
   validate(config: CodegenConfig): string[];
   generate(ir: CodegenIR, config: CodegenConfig): GenerateResult;
   resolveOutputDir(config: CodegenConfig): string;
+  resolveConfig(config: CodegenConfig): ReturnType<typeof resolveCodegenConfig>;
 }
 
 export function createCodegenPipeline(): CodegenPipeline {
@@ -24,6 +25,10 @@ export function createCodegenPipeline(): CodegenPipeline {
     resolveOutputDir(config: CodegenConfig): string {
       const resolved = resolveCodegenConfig(config);
       return resolved.outputDir;
+    },
+
+    resolveConfig(config: CodegenConfig) {
+      return resolveCodegenConfig(config);
     },
   };
 }
