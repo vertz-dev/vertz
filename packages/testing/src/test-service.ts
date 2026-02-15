@@ -1,5 +1,4 @@
 import type { NamedServiceDef } from '@vertz/core';
-import type { Schema } from '@vertz/schema';
 
 import type { DeepPartial } from './types';
 
