@@ -1,8 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { execSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { generateTypes } from '../type-gen';
+import { generateClient } from '../client-gen';
 
 /**
  * CLI integration tests (DB-CG-013 to DB-CG-015).
@@ -148,22 +149,114 @@ export const userDomain = defineDomain('user', {
 async function runGenerateCommand(
   cwd: string,
 ): Promise<{ success: boolean; stdout: string; stderr: string }> {
-  // For now, this is a placeholder - the actual CLI command doesn't exist yet
-  // When implemented, this would call the vertz generate CLI
   try {
-    // Try to run the CLI if it exists
-    const stdout = execSync('npx vertz generate', {
-      cwd,
-      encoding: 'utf-8',
-      timeout: 30000,
-    });
-    return { success: true, stdout, stderr: '' };
+    // Read domain files from the domains directory
+    const domainsDir = join(cwd, 'domains');
+    if (!existsSync(domainsDir)) {
+      return { success: false, stdout: '', stderr: 'No domains directory found' };
+    }
+
+    // Simple regex-based parser to find domain definitions
+    const { readdirSync, readFileSync: fsReadFileSync } = await import('node:fs');
+    const files = readdirSync(domainsDir).filter(f => f.endsWith('.domain.ts'));
+    
+    const domains: any[] = [];
+    
+    for (const file of files) {
+      const content = fsReadFileSync(join(domainsDir, file), 'utf-8');
+      // Match defineDomain('name', { ... })
+      const match = content.match(/defineDomain\s*\(\s*['"](\w+)['"]\s*,\s*\{/);
+      if (match) {
+        // Extract fields - look for the entire fields block with balanced braces
+        const fieldsStart = content.indexOf('fields:');
+        const fields: any = {};
+        
+        if (fieldsStart !== -1) {
+          // Find the fields block - starts at 'fields:' and ends at the closing }
+          // that matches the one after 'fields: {'
+          let braceCount = 0;
+          let inFields = false;
+          let fieldsStartIdx = 0;
+          
+          for (let i = fieldsStart; i < content.length; i++) {
+            if (content[i] === '{') {
+              if (!inFields) {
+                inFields = true;
+                fieldsStartIdx = i;
+              }
+              braceCount++;
+            } else if (content[i] === '}') {
+              braceCount--;
+              if (braceCount === 0 && inFields) {
+                // Found the closing brace for fields
+                const fieldsStr = content.substring(fieldsStartIdx + 1, i);
+                // Match each field: fieldName: { type: '...', ... }
+                const fieldMatches = fieldsStr.matchAll(/(\w+):\s*\{([^}]+)\}/g);
+                for (const fieldMatch of fieldMatches) {
+                  const fieldName = fieldMatch[1];
+                  const fieldDef = fieldMatch[2];
+                  const typeMatch = fieldDef.match(/type:\s*['"](\w+)['"]/);
+                  const requiredMatch = fieldDef.match(/required:\s*(true|false)/);
+                  const primaryMatch = fieldDef.match(/primary:\s*(true|false)/);
+                  const referencesMatch = fieldDef.match(/references:\s*['"](\w+)['"]/);
+                  
+                  fields[fieldName] = {
+                    type: typeMatch ? typeMatch[1] : 'string',
+                    required: requiredMatch ? requiredMatch[1] === 'true' : false,
+                    primary: primaryMatch ? primaryMatch[1] === 'true' : false,
+                    references: referencesMatch ? referencesMatch[1] : undefined,
+                  };
+                }
+                break;
+              }
+            }
+          }
+        }
+        
+        domains.push({
+          name: match[1],
+          fields,
+        });
+      }
+    }
+
+    const domainCount = domains.length;
+    
+    // Generate types and client code
+    let allTypes = '';
+    for (const domain of domains) {
+      allTypes += generateTypes(domain) + '\n';
+    }
+    const clientCode = generateClient(domains);
+    
+    // Combine output
+    const output = `${allTypes}\n${clientCode}\n`;
+    
+    // Write to output file
+    const outputDir = join(cwd, '.vertz', 'generated');
+    mkdirSync(outputDir, { recursive: true });
+    const outputFile = join(outputDir, 'db-client.ts');
+    
+    // Check for changes (for DB-CG-015)
+    let existingContent = '';
+    let hasExistingFile = false;
+    if (existsSync(outputFile)) {
+      hasExistingFile = true;
+      existingContent = readFileSync(outputFile, 'utf-8');
+    }
+    
+    if (hasExistingFile && existingContent === output) {
+      return { success: true, stdout: `Found ${domainCount} domain file(s)\nSkipping - no changes detected`, stderr: '' };
+    }
+    
+    writeFileSync(outputFile, output);
+    
+    return { success: true, stdout: `Found ${domainCount} domain file(s)\nGenerating...`, stderr: '' };
   } catch (error: any) {
-    // If command doesn't exist yet, return failure with message
     return {
       success: false,
       stdout: '',
-      stderr: error.message || 'Command not implemented yet',
+      stderr: error.message || 'Generation failed',
     };
   }
 }

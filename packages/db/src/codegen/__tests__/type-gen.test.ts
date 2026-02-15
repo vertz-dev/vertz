@@ -106,8 +106,10 @@ describe('Type Generation (DB-CG-001 to DB-CG-005)', () => {
     // Create input should only have required fields
     expect(result).toContain('interface CreateUserInput');
     expect(result).toContain('name: string;');
-    expect(result).not.toContain('CreateUserInput');
-    expect(result).not.toContain('email?:');
+    // Extract just the CreateUserInput block and check it doesn't have optional fields
+    const createInputBlock = result.split('interface CreateUserInput')[1]?.split('}')[0] || '';
+    expect(createInputBlock).not.toContain('email');
+    expect(createInputBlock).not.toContain('bio');
   });
 
   // DB-CG-005: Handles relations

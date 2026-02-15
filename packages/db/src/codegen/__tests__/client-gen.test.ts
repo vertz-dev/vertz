@@ -77,8 +77,9 @@ describe('Client Generation (DB-CG-006 to DB-CG-011)', () => {
     expect(result).toContain('interface CreateUserInput');
     expect(result).toContain('name: string;');
     expect(result).toContain('email: string;');
-    // Should NOT include optional fields in create input
-    expect(result).not.toContain('age?:');
+    // Extract just the CreateUserInput block and check it doesn't have optional fields
+    const createInputBlock = result.split('interface CreateUserInput')[1]?.split('}')[0] || '';
+    expect(createInputBlock).not.toContain('age');
   });
 
   // DB-CG-010: update() accepts partial typed input
