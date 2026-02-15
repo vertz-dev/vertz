@@ -81,9 +81,9 @@ const ERROR_PATTERNS: ReadonlyArray<{
   {
     pattern: /Record not found in table ([^\s]+)/,
     code: 'NOT_FOUND',
-    explanation: 'A findOneOrThrow, update, or delete query did not match any rows.',
+    explanation: 'A getOrThrow, update, or delete query did not match any rows.',
     suggestion:
-      'Verify the where clause matches existing rows. Use findOne() if the record may not exist.',
+      'Verify the where clause matches existing rows. Use get() if the record may not exist.',
   },
   {
     pattern: /Table "([^"]+)" is not registered in the database/,

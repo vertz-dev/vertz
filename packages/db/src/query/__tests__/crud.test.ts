@@ -84,15 +84,15 @@ describe('CRUD queries (DB-010)', () => {
   // find queries
   // -------------------------------------------------------------------------
 
-  describe('findOne', () => {
+  describe('get', () => {
     it('returns typed result or null when no match', async () => {
-      const result = await db.findOne('users', { where: { name: 'Nobody' } });
+      const result = await db.get('users', { where: { name: 'Nobody' } });
       expect(result).toBeNull();
     });
 
     it('returns a row when match exists', async () => {
       await db.create('users', { data: { name: 'Alice', email: 'alice@test.com' } });
-      const result = await db.findOne('users', { where: { name: 'Alice' } });
+      const result = await db.get('users', { where: { name: 'Alice' } });
       expect(result).not.toBeNull();
       expect((result as Record<string, unknown>).name).toBe('Alice');
       expect((result as Record<string, unknown>).email).toBe('alice@test.com');
@@ -100,7 +100,7 @@ describe('CRUD queries (DB-010)', () => {
 
     it('returns camelCase keys from snake_case columns', async () => {
       await db.create('users', { data: { name: 'Bob', email: 'bob@test.com' } });
-      const result = (await db.findOne('users', {
+      const result = (await db.get('users', {
         where: { name: 'Bob' },
       })) as Record<string, unknown>;
       expect(result).toHaveProperty('createdAt');
@@ -109,34 +109,34 @@ describe('CRUD queries (DB-010)', () => {
     });
   });
 
-  describe('findOneOrThrow', () => {
+  describe('getOrThrow', () => {
     it('throws NotFoundError when no match', async () => {
-      await expect(db.findOneOrThrow('users', { where: { name: 'Nobody' } })).rejects.toThrow(
+      await expect(db.getOrThrow('users', { where: { name: 'Nobody' } })).rejects.toThrow(
         NotFoundError,
       );
     });
 
     it('returns row when match exists', async () => {
       await db.create('users', { data: { name: 'Alice', email: 'alice@test.com' } });
-      const result = (await db.findOneOrThrow('users', {
+      const result = (await db.getOrThrow('users', {
         where: { name: 'Alice' },
       })) as Record<string, unknown>;
       expect(result.name).toBe('Alice');
     });
   });
 
-  describe('findMany', () => {
+  describe('list', () => {
     it('returns array with pagination support', async () => {
       await db.create('users', { data: { name: 'Alice', email: 'a@test.com', age: 30 } });
       await db.create('users', { data: { name: 'Bob', email: 'b@test.com', age: 25 } });
       await db.create('users', { data: { name: 'Carol', email: 'c@test.com', age: 35 } });
 
       // No filter — return all
-      const all = await db.findMany('users');
+      const all = await db.list('users');
       expect(all).toHaveLength(3);
 
       // With limit/offset
-      const page = await db.findMany('users', {
+      const page = await db.list('users', {
         orderBy: { name: 'asc' },
         limit: 2,
         offset: 0,
@@ -146,7 +146,7 @@ describe('CRUD queries (DB-010)', () => {
       expect((page[1] as Record<string, unknown>).name).toBe('Bob');
 
       // Page 2
-      const page2 = await db.findMany('users', {
+      const page2 = await db.list('users', {
         orderBy: { name: 'asc' },
         limit: 2,
         offset: 2,
@@ -156,7 +156,7 @@ describe('CRUD queries (DB-010)', () => {
     });
 
     it('returns empty array when no matches', async () => {
-      const result = await db.findMany('users', { where: { name: 'Nobody' } });
+      const result = await db.list('users', { where: { name: 'Nobody' } });
       expect(result).toEqual([]);
     });
 
@@ -167,7 +167,7 @@ describe('CRUD queries (DB-010)', () => {
       await db.create('users', { data: { name: 'Dave', email: 'd@test.com', age: 35 } });
 
       // First page — no cursor, just take
-      const page1 = await db.findMany('users', {
+      const page1 = await db.list('users', {
         orderBy: { name: 'asc' },
         take: 2,
       });
@@ -177,7 +177,7 @@ describe('CRUD queries (DB-010)', () => {
 
       // Second page — cursor from last result
       const lastNamePage1 = (page1[1] as Record<string, unknown>).name as string;
-      const page2 = await db.findMany('users', {
+      const page2 = await db.list('users', {
         orderBy: { name: 'asc' },
         cursor: { name: lastNamePage1 },
         take: 2,
@@ -188,7 +188,7 @@ describe('CRUD queries (DB-010)', () => {
 
       // Third page — cursor from last result, should be empty
       const lastNamePage2 = (page2[1] as Record<string, unknown>).name as string;
-      const page3 = await db.findMany('users', {
+      const page3 = await db.list('users', {
         orderBy: { name: 'asc' },
         cursor: { name: lastNamePage2 },
         take: 2,
@@ -211,7 +211,7 @@ describe('CRUD queries (DB-010)', () => {
       });
 
       // Cursor with where: only active users after Alice
-      const result = await db.findMany('users', {
+      const result = await db.list('users', {
         where: { active: true },
         orderBy: { name: 'asc' },
         cursor: { name: 'Alice' },
@@ -228,7 +228,7 @@ describe('CRUD queries (DB-010)', () => {
       await db.create('users', { data: { name: 'Carol', email: 'c@test.com', age: 30 } });
 
       // Desc ordering: start from Carol, go backwards
-      const result = await db.findMany('users', {
+      const result = await db.list('users', {
         orderBy: { name: 'desc' },
         cursor: { name: 'Carol' },
         take: 10,
@@ -239,13 +239,13 @@ describe('CRUD queries (DB-010)', () => {
     });
   });
 
-  describe('findManyAndCount', () => {
+  describe('listAndCount', () => {
     it('returns { data, total } in a single query', async () => {
       await db.create('users', { data: { name: 'Alice', email: 'a@test.com' } });
       await db.create('users', { data: { name: 'Bob', email: 'b@test.com' } });
       await db.create('users', { data: { name: 'Carol', email: 'c@test.com' } });
 
-      const { data, total } = await db.findManyAndCount('users', {
+      const { data, total } = await db.listAndCount('users', {
         orderBy: { name: 'asc' },
         limit: 2,
       });
@@ -255,7 +255,7 @@ describe('CRUD queries (DB-010)', () => {
     });
 
     it('returns { data: [], total: 0 } when no rows', async () => {
-      const { data, total } = await db.findManyAndCount('users', {
+      const { data, total } = await db.listAndCount('users', {
         where: { name: 'Nobody' },
       });
       expect(data).toEqual([]);
@@ -297,7 +297,7 @@ describe('CRUD queries (DB-010)', () => {
       });
       expect(count).toBe(2);
 
-      const all = await db.findMany('users');
+      const all = await db.list('users');
       expect(all).toHaveLength(2);
     });
 
@@ -366,7 +366,7 @@ describe('CRUD queries (DB-010)', () => {
       ).rejects.toThrow(/empty where/i);
 
       // Verify the row was NOT modified
-      const alice = (await db.findOne('users', {
+      const alice = (await db.get('users', {
         where: { email: 'a@test.com' },
       })) as Record<string, unknown>;
       expect(alice.name).toBe('Alice');
@@ -417,7 +417,7 @@ describe('CRUD queries (DB-010)', () => {
 
       expect(deleted.name).toBe('Alice');
 
-      const remaining = await db.findMany('users');
+      const remaining = await db.list('users');
       expect(remaining).toHaveLength(0);
     });
 
@@ -443,7 +443,7 @@ describe('CRUD queries (DB-010)', () => {
       await expect(db.deleteMany('users', { where: {} })).rejects.toThrow(/empty where/i);
 
       // Verify the row was NOT deleted
-      const all = await db.findMany('users');
+      const all = await db.list('users');
       expect(all).toHaveLength(1);
     });
   });
@@ -456,7 +456,7 @@ describe('CRUD queries (DB-010)', () => {
     it('narrows returned columns when select is provided', async () => {
       await db.create('users', { data: { name: 'Alice', email: 'alice@test.com', age: 30 } });
 
-      const result = (await db.findOne('users', {
+      const result = (await db.get('users', {
         where: { name: 'Alice' },
         select: { name: true, email: true },
       })) as Record<string, unknown>;
@@ -499,7 +499,7 @@ describe('CRUD queries (DB-010)', () => {
       expect(created.name).toBe('Alice');
 
       // Find
-      const found = (await db.findOne('users', {
+      const found = (await db.get('users', {
         where: { id: created.id },
       })) as Record<string, unknown>;
       expect(found).not.toBeNull();
@@ -520,7 +520,7 @@ describe('CRUD queries (DB-010)', () => {
       expect(deleted.name).toBe('Alice Smith');
 
       // Verify deleted
-      const notFound = await db.findOne('users', { where: { id: created.id } });
+      const notFound = await db.get('users', { where: { id: created.id } });
       expect(notFound).toBeNull();
     });
   });

@@ -38,12 +38,12 @@ describe('@vertz/db dist type preservation', () => {
 
   // ---- Generic type parameters on key types ----
 
-  it('TypedFindManyOptions has a generic TEntry parameter', () => {
-    expect(dts).toMatch(/type TypedFindManyOptions<\s*TEntry\s+extends\s+TableEntry/);
+  it('TypedListOptions has a generic TEntry parameter', () => {
+    expect(dts).toMatch(/type TypedListOptions<\s*TEntry\s+extends\s+TableEntry/);
   });
 
-  it('TypedFindOneOptions has a generic TEntry parameter', () => {
-    expect(dts).toMatch(/type TypedFindOneOptions<\s*TEntry\s+extends\s+TableEntry/);
+  it('TypedGetOptions has a generic TEntry parameter', () => {
+    expect(dts).toMatch(/type TypedGetOptions<\s*TEntry\s+extends\s+TableEntry/);
   });
 
   it('TypedCreateOptions has a generic TEntry parameter', () => {
@@ -102,21 +102,21 @@ describe('@vertz/db dist type preservation', () => {
     );
   });
 
-  it('DatabaseInstance.findMany has TName and TOptions generic parameters', () => {
+  it('DatabaseInstance.list has TName and TOptions generic parameters', () => {
     expect(dts).toMatch(
-      /findMany<\s*\n?\s*TName\s+extends\s+keyof\s+TTables\s*&\s*string[\s\S]*?TOptions\s+extends\s+TypedFindManyOptions/,
+      /list<\s*\n?\s*TName\s+extends\s+keyof\s+TTables\s*&\s*string[\s\S]*?TOptions\s+extends\s+TypedListOptions/,
     );
   });
 
-  it('DatabaseInstance.findManyAndCount has TName and TOptions generic parameters', () => {
+  it('DatabaseInstance.listAndCount has TName and TOptions generic parameters', () => {
     expect(dts).toMatch(
-      /findManyAndCount<\s*\n?\s*TName\s+extends\s+keyof\s+TTables\s*&\s*string[\s\S]*?TOptions\s+extends\s+TypedFindManyOptions/,
+      /listAndCount<\s*\n?\s*TName\s+extends\s+keyof\s+TTables\s*&\s*string[\s\S]*?TOptions\s+extends\s+TypedListOptions/,
     );
   });
 
-  it('DatabaseInstance.findOne has TName and TOptions generic parameters', () => {
+  it('DatabaseInstance.get has TName and TOptions generic parameters', () => {
     expect(dts).toMatch(
-      /findOne<\s*\n?\s*TName\s+extends\s+keyof\s+TTables\s*&\s*string[\s\S]*?TOptions\s+extends\s+TypedFindOneOptions/,
+      /get<\s*\n?\s*TName\s+extends\s+keyof\s+TTables\s*&\s*string[\s\S]*?TOptions\s+extends\s+TypedGetOptions/,
     );
   });
 
@@ -164,9 +164,9 @@ describe('@vertz/db dist type preservation', () => {
 
   // ---- Negative assertions: patterns that indicate erased generics ----
 
-  it('TypedFindManyOptions.where is NOT Record<string, unknown>', () => {
-    // Extract TypedFindManyOptions definition
-    const match = dts.match(/type TypedFindManyOptions[\s\S]*?};/);
+  it('TypedListOptions.where is NOT Record<string, unknown>', () => {
+    // Extract TypedListOptions definition
+    const match = dts.match(/type TypedListOptions[\s\S]*?};/);
     expect(match).not.toBeNull();
     if (match) {
       // where should use FilterType<...>, NOT Record<string, unknown>
@@ -175,13 +175,13 @@ describe('@vertz/db dist type preservation', () => {
     }
   });
 
-  it('findMany return type is NOT Promise<unknown[]>', () => {
-    // The findMany return should include FindResult, not just unknown[]
-    const findManyMatch = dts.match(/findMany<[\s\S]*?>\([\s\S]*?\):\s*Promise<([\s\S]*?)>;/);
-    expect(findManyMatch).not.toBeNull();
-    if (findManyMatch) {
-      expect(findManyMatch[1]).toMatch(/FindResult/);
-      expect(findManyMatch[1]).not.toBe('unknown[]');
+  it('list return type is NOT Promise<unknown[]>', () => {
+    // The list return should include FindResult, not just unknown[]
+    const listMatch = dts.match(/list<[\s\S]*?>\([\s\S]*?\):\s*Promise<([\s\S]*?)>;/);
+    expect(listMatch).not.toBeNull();
+    if (listMatch) {
+      expect(listMatch[1]).toMatch(/FindResult/);
+      expect(listMatch[1]).not.toBe('unknown[]');
     }
   });
 

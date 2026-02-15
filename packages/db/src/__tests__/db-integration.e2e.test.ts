@@ -156,7 +156,7 @@ describe('db-integration e2e', () => {
     expect(created.email).toBe('bob@test.com');
 
     // Read back
-    const found = await db.findMany('users', {
+    const found = await db.list('users', {
       where: { email: 'bob@test.com' },
     });
     expect(found).toHaveLength(1);
@@ -206,7 +206,7 @@ describe('db-integration e2e', () => {
     expect(methods).toBe(db);
 
     // Can query
-    const allUsers = await db.findMany('users');
+    const allUsers = await db.list('users');
     expect(allUsers.length).toBeGreaterThan(0);
 
     // Validate result with derived schema

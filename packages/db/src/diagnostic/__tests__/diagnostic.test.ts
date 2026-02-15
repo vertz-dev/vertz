@@ -85,7 +85,7 @@ describe('diagnoseError', () => {
     const result = diagnoseError(err.message);
     expect(result).not.toBeNull();
     expect(result?.code).toBe('NOT_FOUND');
-    expect(result?.suggestion).toContain('findOne');
+    expect(result?.suggestion).toContain('get');
   });
 
   it('diagnoses unregistered table messages', () => {
