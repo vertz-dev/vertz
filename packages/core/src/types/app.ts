@@ -26,4 +26,6 @@ export interface AppConfig {
   domains?: DomainDefinition[];
   /** API prefix for domain routes (default: '/api/') */
   apiPrefix?: string;
+  /** Enable response schema validation in dev mode (logs warnings but doesn't break response) */
+  validateResponses?: boolean;
 }

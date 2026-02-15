@@ -37,6 +37,7 @@ interface RouteEntry {
   bodySchema?: SchemaLike;
   querySchema?: SchemaLike;
   headersSchema?: SchemaLike;
+  responseSchema?: SchemaLike;
 }
 
 function resolveServices(registrations: ModuleRegistration[]): Map<NamedServiceDef, unknown> {
@@ -109,6 +110,7 @@ function registerRoutes(
           bodySchema: route.config.body as SchemaLike | undefined,
           querySchema: route.config.query as SchemaLike | undefined,
           headersSchema: route.config.headers as SchemaLike | undefined,
+          responseSchema: route.config.response as SchemaLike | undefined,
         };
         trie.add(route.method, fullPath, entry);
       }
@@ -209,6 +211,17 @@ export function buildHandler(
       });
 
       const result = await entry.handler(ctx);
+
+      // Validate response against schema if enabled
+      if (config.validateResponses && entry.responseSchema) {
+        try {
+          entry.responseSchema.parse(result);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Response schema validation failed';
+          console.warn(`[vertz] Response validation warning: ${message}`);
+        }
+      }
+
       const response =
         result === undefined ? new Response(null, { status: 204 }) : createJsonResponse(result);
 
