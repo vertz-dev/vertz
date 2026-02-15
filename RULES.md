@@ -71,14 +71,14 @@ Bot gh:    /workspace/backstage/bots/gh-as.sh $AGENT_BOT <cmd>
 
 **Implementing a feature:**
 1. This file (RULES.md)
-2. Your ticket in `/workspace/vertz/tickets/`
+2. Your issue on the **Vertz Roadmap** GitHub Project board
 3. The design doc in `plans/`
 4. `/workspace/vertz/.claude/rules/tdd.md`
 5. `/workspace/vertz/.claude/rules/commits.md`
 6. `/workspace/vertz/.claude/rules/definition-of-done.md`
 
 **Fixing a bug:**
-1. This file → ticket → `/workspace/backstage/.claude/rules/bug-process.md`
+1. This file → GitHub Project board → `/workspace/backstage/.claude/rules/bug-process.md`
 
 **Writing a design doc:**
 1. This file → PRD → `/workspace/vertz/.claude/rules/design-docs.md`
@@ -123,11 +123,32 @@ Full rules: `/workspace/vertz/.claude/rules/tdd.md`, `/workspace/backstage/.clau
 
 ## Git & PR Policies
 
-- **Never push to `main`** — all changes go through PRs
-- **Never merge PRs to `main`** — requires human (CTO) approval
-- **Never commit without a ticket**
+### ALL Work Goes Through GitHub PRs — No Exceptions
+
+- **Never push to `main` directly** — all changes go through PRs
+- **Never commit directly to `main`** — except trivial changes (e.g., `.gitignore`, typo fixes in comments)
+- **No local-only workflows** — all work must be visible in GitHub for audit and compliance
+- **PRs are mandatory** — even for hotfixes, small changes, and urgent fixes
+
+### Workflow
+
+1. **Create a feature branch:** `feat/<ticket-id>-<description>`, `fix/<ticket-id>-<description>`, `chore/<ticket-id>-<description>`
+2. **Push the branch:** Use `bots/git-as.sh $AGENT_BOT push origin <branch-name>`
+3. **Open a PR:** Use `bots/gh-as.sh $AGENT_BOT pr create --title "..." --body "..." --base main`
+4. **PR Monitor** assigns reviewers automatically (cross-bot review required)
+5. **Auto-merge:** When CI passes + approved by different bot → auto-merge enabled
+6. **Post-merge audit:** Every merged PR gets graded by the auditor bot
+
+### Bot Scripts (Required)
+
+- **Git:** `bots/git-as.sh $AGENT_BOT <command>` — all git operations
+- **GitHub:** `bots/gh-as.sh $AGENT_BOT <command>` — all GitHub operations (PRs, reviews, merges)
+
+### Rules
+
+- **Never merge PRs to `main`** — auto-merge when CI green + approved by different bot
 - **Never review your own PR** — reviews must come from a different bot
-- **Use bot scripts only:** `bots/git-as.sh $AGENT_BOT` and `bots/gh-as.sh $AGENT_BOT`
+- **Never commit without a ticket**
 - **Branch naming:** `feat/<name>`, `fix/<name>`, `chore/<name>`
 - **One feature branch per design** — phase PRs target the feature branch
 - **Changeset required** for any package change
@@ -183,7 +204,7 @@ Full rules: `/workspace/backstage/.claude/rules/dev-lifecycle.md`
 
 ## Bug Fix Process
 
-- **Tier 1 (Critical):** Fix immediately, no design doc needed. Direct PR to main.
+- **Tier 1 (Critical):** Fix immediately, open PR, request expedited review.
 - **Tier 2 (Important):** Ticket + PR, one reviewer.
 - **Tier 3 (Minor):** Batch into next milestone.
 
@@ -287,6 +308,31 @@ Slice 4: Add hydration (still end-to-end)
 - All git/GitHub ops through bot scripts — never use personal credentials
 
 Full rules: `/workspace/backstage/.claude/rules/bot-roles.md`
+
+---
+
+## GitHub Projects — Issue Tracking
+
+The **Vertz Roadmap** GitHub Project (board view) is the single source of truth for issue tracking.
+
+### Rules
+
+- **All new issues go to the project board** — never track issues in local files or other tools
+- **PRs with "Fixes #N" auto-close issues** — GitHub automatically closes the linked issue when the PR merges
+- **Use `gh project` commands to move items between columns:**
+  - `gh project item-edit <project> <item> --field Status --value "Backlog"` — newly created issues
+  - `gh project item-edit <project> <item> --field Status --value "In Progress"` — actively being worked on
+  - `gh project item-edit <project> <item> --field Status --value "In Review"` — PR open, awaiting review
+  - `gh project item-edit <project> <item> --field Status --value "Done"` — merged and verified
+
+### Column Workflow
+
+| Column | When to Move |
+|--------|--------------|
+| Backlog | New issue created, not yet assigned |
+| In Progress | Someone is actively working on it |
+| In Review | PR opened, under review |
+| Done | PR merged, issue resolved |
 
 ---
 
