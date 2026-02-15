@@ -46,3 +46,6 @@ temp/
 .turbo
 memory/
 MEMORY.md
+
+# Shared skills (symlinks to /opt/openclaw/skills/)
+skills/
