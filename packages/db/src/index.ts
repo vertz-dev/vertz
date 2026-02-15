@@ -101,3 +101,11 @@ export type {
   StrictKeys,
   ValidateKeys,
 } from './types/branded-errors';
+
+// Domain definitions for codegen
+export { defineDomain, generateTypes, generateClient } from './domain';
+export type {
+  DomainDefinition,
+  DomainField,
+  DomainRelation,
+} from './domain';
