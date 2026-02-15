@@ -1,9 +1,0 @@
-# Ignore all demo output files
-*.webm
-*.mp4
-*.png
-*.jpg
-*.jpeg
-
-# But track this directory
-!.gitignore
