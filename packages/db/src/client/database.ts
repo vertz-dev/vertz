@@ -38,6 +38,12 @@ export interface PoolConfig {
    * Defaults to 5000 (5 seconds) if not specified.
    */
   readonly healthCheckTimeout?: number;
+  /**
+   * Read replica URLs for query routing.
+   * Read-only queries (SELECT) can be routed to replicas for load balancing.
+   * The primary URL is always used for writes (INSERT, UPDATE, DELETE).
+   */
+  readonly replicas?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------

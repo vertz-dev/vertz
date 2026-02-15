@@ -93,9 +93,17 @@ export interface PostgresDriver {
  *
  * @param url - PostgreSQL connection URL (e.g., postgres://user:pass@host:5432/db)
  * @param pool - Optional pool configuration
+ * @param replicas - Optional array of read replica URLs for query routing
  * @returns A PostgresDriver with queryFn, close(), and isHealthy()
  */
-export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDriver {
+export function createPostgresDriver(
+  url: string,
+  pool?: PoolConfig,
+  replicas?: readonly string[],
+): PostgresDriver {
+  // Support replicas via third parameter or pool config
+  const replicaUrls = replicas ?? pool?.replicas ?? [];
+  const hasReplicas = replicaUrls.length > 0;
   const sql: PostgresSql = postgresLib(url, {
     max: pool?.max ?? 10,
     idle_timeout: pool?.idleTimeout !== undefined ? pool.idleTimeout / 1000 : 30,
@@ -105,10 +113,54 @@ export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDr
     fetch_types: false,
   });
 
+  // Create replica pools if replicas are configured
+  let replicaPools: PostgresSql[] = [];
+  let currentReplicaIndex = 0;
+
+  if (hasReplicas) {
+    replicaPools = replicaUrls.map((replicaUrl) =>
+      postgresLib(replicaUrl, {
+        max: pool?.max ?? 10,
+        idle_timeout: pool?.idleTimeout !== undefined ? pool.idleTimeout / 1000 : 30,
+        connect_timeout: pool?.connectionTimeout !== undefined ? pool.connectionTimeout / 1000 : 10,
+        fetch_types: false,
+      }),
+    );
+  }
+
+  /**
+   * Check if a query is a read-only query (SELECT).
+   * Used for routing read queries to replicas.
+   */
+  function isReadQuery(sqlStr: string): boolean {
+    const trimmed = sqlStr.trim().toUpperCase();
+    return trimmed.startsWith('SELECT');
+  }
+
+  /**
+   * Get the next replica in round-robin fashion.
+   * Returns null if no replicas are configured.
+   */
+  function getNextReplica(): PostgresSql | null {
+    if (replicaPools.length === 0) return null;
+    const replica = replicaPools[currentReplicaIndex];
+    currentReplicaIndex = (currentReplicaIndex + 1) % replicaPools.length;
+    return replica ?? null;
+  }
+
   const queryFn: QueryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
     try {
+      // Route SELECT queries to replicas if available
+      let poolToUse: PostgresSql;
+      if (hasReplicas && isReadQuery(sqlStr)) {
+        const replica = getNextReplica();
+        poolToUse = replica ?? sql; // Fallback to primary if no replica
+      } else {
+        poolToUse = sql;
+      }
+
       // biome-ignore lint/suspicious/noExplicitAny: postgres.js unsafe() expects any[] for dynamic params
-      const result = await sql.unsafe<Record<string, unknown>[]>(sqlStr, params as any[]);
+      const result = await poolToUse.unsafe<Record<string, unknown>[]>(sqlStr, params as any[]);
 
       // Map rows: convert timestamp strings to Date objects
       const rows = result.map((row) => {
@@ -132,7 +184,10 @@ export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDr
     queryFn,
 
     async close(): Promise<void> {
+      // Close primary pool
       await sql.end();
+      // Close all replica pools
+      await Promise.all(replicaPools.map((pool) => pool.end()));
     },
 
     async isHealthy(): Promise<boolean> {

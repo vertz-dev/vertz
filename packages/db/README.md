@@ -240,6 +240,10 @@ const db = createDb({
     idleTimeout: 30000,       // Idle timeout ms (default: 30000)
     connectionTimeout: 5000,  // Connection timeout ms (default: 10000)
     healthCheckTimeout: 5000,  // Health check timeout ms (default: 5000)
+    replicas: [               // Read replica URLs for query routing
+      'postgresql://user:pass@localhost:5433/mydb',
+      'postgresql://user:pass@localhost:5434/mydb',
+    ],
   },
   casing: 'snake_case',       // or 'camelCase' (default: 'snake_case')
   log: (msg) => console.log(msg), // Optional logger
