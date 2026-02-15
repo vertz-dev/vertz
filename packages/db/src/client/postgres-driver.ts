@@ -15,6 +15,7 @@
 import postgresLib from 'postgres';
 import type { ExecutorResult, QueryFn } from '../query/executor';
 import type { PoolConfig } from './database';
+import { isReadQuery } from './database';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -129,15 +130,6 @@ export function createPostgresDriver(
   }
 
   /**
-   * Check if a query is a read-only query (SELECT).
-   * Used for routing read queries to replicas.
-   */
-  function isReadQuery(sqlStr: string): boolean {
-    const trimmed = sqlStr.trim().toUpperCase();
-    return trimmed.startsWith('SELECT');
-  }
-
-  /**
    * Get the next replica in round-robin fashion.
    * Returns null if no replicas are configured.
    */
@@ -149,18 +141,39 @@ export function createPostgresDriver(
   }
 
   const queryFn: QueryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
-    try {
-      // Route SELECT queries to replicas if available
-      let poolToUse: PostgresSql;
-      if (hasReplicas && isReadQuery(sqlStr)) {
-        const replica = getNextReplica();
-        poolToUse = replica ?? sql; // Fallback to primary if no replica
-      } else {
-        poolToUse = sql;
-      }
+    // Route SELECT queries to replicas if available, with fallback to primary on failure
+    let poolToUse: PostgresSql = sql;
 
+    if (hasReplicas && isReadQuery(sqlStr)) {
+      const replica = getNextReplica();
+      if (replica) {
+        try {
+          // biome-ignore lint/suspicious/noExplicitAny: postgres.js unsafe() expects any[] for dynamic params
+          const result = await replica.unsafe<Record<string, unknown>[]>(sqlStr, params as any[]);
+
+          // Map rows: convert timestamp strings to Date objects
+          const rows = result.map((row) => {
+            const mapped: Record<string, unknown> = {};
+            for (const [key, value] of Object.entries(row)) {
+              mapped[key] = coerceValue(value);
+            }
+            return mapped;
+          }) as readonly T[];
+
+          return {
+            rows,
+            rowCount: result.count ?? rows.length,
+          } as ExecutorResult<T>;
+        } catch {
+          // Replica failed, fall through to use primary
+        }
+      }
+    }
+
+    // Use primary for writes or as fallback from failed replica
+    try {
       // biome-ignore lint/suspicious/noExplicitAny: postgres.js unsafe() expects any[] for dynamic params
-      const result = await poolToUse.unsafe<Record<string, unknown>[]>(sqlStr, params as any[]);
+      const result = await sql.unsafe<Record<string, unknown>[]>(sqlStr, params as any[]);
 
       // Map rows: convert timestamp strings to Date objects
       const rows = result.map((row) => {

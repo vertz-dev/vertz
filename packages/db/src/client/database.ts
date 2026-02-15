@@ -69,9 +69,13 @@ export function isReadQuery(sqlStr: string): boolean {
   }
 
   // Check if the first meaningful keyword is SELECT
-  // Handle "SELECT INTO" as read-only
+  // SELECT INTO creates a table, so it's a WRITE operation
+  // Match both "SELECT INTO" and "SELECT ... INTO" patterns
   const upper = normalized.toUpperCase();
-  return upper.startsWith('SELECT') || upper.startsWith('SELECT INTO');
+  if (upper.startsWith('SELECT INTO') || /\bSELECT\s+.+\s+INTO\b/.test(upper)) {
+    return false;
+  }
+  return upper.startsWith('SELECT');
 }
 
 // ---------------------------------------------------------------------------
@@ -522,11 +526,15 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           return driver!.queryFn<T>(sqlStr, params);
         }
 
-        // Route read queries to replicas with round-robin
+        // Route read queries to replicas with round-robin and fallback on failure
         if (isReadQuery(sqlStr)) {
           const targetReplica = replicaDrivers[replicaIndex]!;
           replicaIndex = (replicaIndex + 1) % replicaDrivers.length;
-          return targetReplica.queryFn<T>(sqlStr, params);
+          try {
+            return await targetReplica.queryFn<T>(sqlStr, params);
+          } catch {
+            // Replica failed, fall back to primary
+          }
         }
 
         // Write queries always go to primary
