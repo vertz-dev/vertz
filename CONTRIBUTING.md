@@ -47,7 +47,7 @@ bun run lint
 ```
 packages/
   schema/      # @vertz/schema — validation and type inference
-  core/        # @vertz/core — HTTP framework, modules, middleware
+  server/      # @vertz/server — HTTP framework, modules, middleware
   compiler/    # @vertz/compiler — static analysis and code generation
   testing/     # @vertz/testing — integration test utilities
 plans/         # Design docs and implementation plans
