@@ -15,7 +15,6 @@
 import postgresLib from 'postgres';
 import type { ExecutorResult, QueryFn } from '../query/executor';
 import type { PoolConfig } from './database';
-import { isReadQuery } from './database';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -92,19 +91,14 @@ export interface PostgresDriver {
 /**
  * Create a PostgreSQL driver from a connection URL and optional pool config.
  *
+ * Note: Query routing (to replicas) is handled at the database.ts layer (createDb).
+ * This driver provides a simple connection to a single PostgreSQL instance.
+ *
  * @param url - PostgreSQL connection URL (e.g., postgres://user:pass@host:5432/db)
  * @param pool - Optional pool configuration
- * @param replicas - Optional array of read replica URLs for query routing
  * @returns A PostgresDriver with queryFn, close(), and isHealthy()
  */
-export function createPostgresDriver(
-  url: string,
-  pool?: PoolConfig,
-  replicas?: readonly string[],
-): PostgresDriver {
-  // Support replicas via third parameter or pool config
-  const replicaUrls = replicas ?? pool?.replicas ?? [];
-  const hasReplicas = replicaUrls.length > 0;
+export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDriver {
   const sql: PostgresSql = postgresLib(url, {
     max: pool?.max ?? 10,
     idle_timeout: pool?.idleTimeout !== undefined ? pool.idleTimeout / 1000 : 30,
@@ -114,63 +108,7 @@ export function createPostgresDriver(
     fetch_types: false,
   });
 
-  // Create replica pools if replicas are configured
-  let replicaPools: PostgresSql[] = [];
-  let currentReplicaIndex = 0;
-
-  if (hasReplicas) {
-    replicaPools = replicaUrls.map((replicaUrl) =>
-      postgresLib(replicaUrl, {
-        max: pool?.max ?? 10,
-        idle_timeout: pool?.idleTimeout !== undefined ? pool.idleTimeout / 1000 : 30,
-        connect_timeout: pool?.connectionTimeout !== undefined ? pool.connectionTimeout / 1000 : 10,
-        fetch_types: false,
-      }),
-    );
-  }
-
-  /**
-   * Get the next replica in round-robin fashion.
-   * Returns null if no replicas are configured.
-   */
-  function getNextReplica(): PostgresSql | null {
-    if (replicaPools.length === 0) return null;
-    const replica = replicaPools[currentReplicaIndex];
-    currentReplicaIndex = (currentReplicaIndex + 1) % replicaPools.length;
-    return replica ?? null;
-  }
-
   const queryFn: QueryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
-    // Route SELECT queries to replicas if available, with fallback to primary on failure
-    let poolToUse: PostgresSql = sql;
-
-    if (hasReplicas && isReadQuery(sqlStr)) {
-      const replica = getNextReplica();
-      if (replica) {
-        try {
-          // biome-ignore lint/suspicious/noExplicitAny: postgres.js unsafe() expects any[] for dynamic params
-          const result = await replica.unsafe<Record<string, unknown>[]>(sqlStr, params as any[]);
-
-          // Map rows: convert timestamp strings to Date objects
-          const rows = result.map((row) => {
-            const mapped: Record<string, unknown> = {};
-            for (const [key, value] of Object.entries(row)) {
-              mapped[key] = coerceValue(value);
-            }
-            return mapped;
-          }) as readonly T[];
-
-          return {
-            rows,
-            rowCount: result.count ?? rows.length,
-          } as ExecutorResult<T>;
-        } catch {
-          // Replica failed, fall through to use primary
-        }
-      }
-    }
-
-    // Use primary for writes or as fallback from failed replica
     try {
       // biome-ignore lint/suspicious/noExplicitAny: postgres.js unsafe() expects any[] for dynamic params
       const result = await sql.unsafe<Record<string, unknown>[]>(sqlStr, params as any[]);
@@ -197,10 +135,7 @@ export function createPostgresDriver(
     queryFn,
 
     async close(): Promise<void> {
-      // Close primary pool
       await sql.end();
-      // Close all replica pools
-      await Promise.all(replicaPools.map((pool) => pool.end()));
     },
 
     async isHealthy(): Promise<boolean> {
