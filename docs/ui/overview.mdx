@@ -83,27 +83,32 @@ count.value++;  // Logs: "Count is now: 1"
 
 ### Building a Component
 
-Components are functions that return DOM elements. Use `ref` to attach reactive references:
+Components are plain functions that return DOM elements. Use `ref` to attach reactive references:
 
 ```tsx
-import { component$, ref, signal } from '@vertz/ui';
+import { ref, signal } from '@vertz/ui';
 
-export const Counter = component$(() => {
+export const Counter = () => {
   const count = signal(0);
   const buttonRef = ref<HTMLButtonElement>();
 
-  return (
-    <button
-      ref={buttonRef}
-      onClick$={() => {
-        count.value++;
-        console.log(buttonRef.value?.textContent);
-      }}
-    >
-      Clicks: {count.value}
-    </button>
-  );
-});
+  const handler = () => {
+    count.value++;
+    console.log(buttonRef.value?.textContent);
+  };
+
+  const button = document.createElement('button');
+  button.textContent = `Clicks: ${count.value}`;
+  button.addEventListener('click', handler);
+  
+  // Or use effect to update DOM reactively
+  import { effect } from '@vertz/ui';
+  effect(() => {
+    button.textContent = `Clicks: ${count.value}`;
+  });
+
+  return button;
+};
 ```
 
 ### Context for Dependency Injection
@@ -111,24 +116,27 @@ export const Counter = component$(() => {
 Share state across components without passing props:
 
 ```tsx
-import { createContext, useContext, component$ } from '@vertz/ui';
+import { createContext, useContext } from '@vertz/ui';
 
 // Create a context
 const ThemeContext = createContext<string>('theme');
 
-export const App = component$(() => {
+export const App = () => {
   // Provide a value
   useContext(ThemeContext, 'dark');
   
-  return <ThemedButton />;
-});
+  return ThemedButton();
+};
 
-const ThemedButton = component$(() => {
+const ThemedButton = () => {
   // Consume the value
   const theme = useContext(ThemeContext);
   
-  return <button class={theme}>Themed Button</button>;
-});
+  const button = document.createElement('button');
+  button.className = theme;
+  button.textContent = 'Themed Button';
+  return button;
+};
 ```
 
 ### Error Boundaries
@@ -136,21 +144,22 @@ const ThemedButton = component$(() => {
 Handle errors gracefully with error boundaries:
 
 ```tsx
-import { ErrorBoundary, component$ } from '@vertz/ui';
+import { ErrorBoundary } from '@vertz/ui';
 
-const RiskyComponent = component$(() => {
+const RiskyComponent = () => {
   throw new Error('Something went wrong');
-});
+};
 
-export const SafeWrapper = component$(() => {
-  return (
-    <ErrorBoundary
-      fallback$={(error) => <div>Error: {error.message}</div>}
-    >
-      <RiskyComponent />
-    </ErrorBoundary>
+export const SafeWrapper = () => {
+  const div = document.createElement('div');
+  
+  ErrorBoundary(
+    { fallback$: (error) => { div.textContent = `Error: ${error.message}`; } },
+    () => { div.appendChild(RiskyComponent()); }
   );
-});
+  
+  return div;
+};
 ```
 
 ---
@@ -162,7 +171,7 @@ export const SafeWrapper = component$(() => {
 Write styles that are automatically scoped to your component:
 
 ```tsx
-import { css, component$ } from '@vertz/ui';
+import { css } from '@vertz/ui';
 
 const styles = css`
   .button {
@@ -177,13 +186,12 @@ const styles = css`
   }
 `;
 
-export const StyledButton = component$(() => {
-  return (
-    <button class={styles.button}>
-      Click Me
-    </button>
-  );
-});
+export const StyledButton = () => {
+  const button = document.createElement('button');
+  button.className = styles.button;
+  button.textContent = 'Click Me';
+  return button;
+};
 ```
 
 ### Global Styles
@@ -210,7 +218,7 @@ globalCss`
 Create customizable themes with variants:
 
 ```tsx
-import { defineTheme, css, ThemeProvider, component$ } from '@vertz/ui';
+import { defineTheme, css, ThemeProvider } from '@vertz/ui';
 
 const theme = defineTheme({
   colors: {
@@ -233,13 +241,13 @@ const buttonStyles = css`
   }
 `;
 
-export const ThemedApp = component$(() => {
-  return (
-    <ThemeProvider value={theme}>
-      <button class={buttonStyles.btn}>Primary</button>
-    </ThemeProvider>
-  );
-});
+export const ThemedApp = () => {
+  const button = document.createElement('button');
+  button.className = buttonStyles.btn;
+  button.textContent = 'Primary';
+  
+  return ThemeProvider({ value: theme }, button);
+};
 ```
 
 ---
@@ -272,17 +280,25 @@ const routes = defineRoutes({
 Navigate programmatically or with links:
 
 ```tsx
-import { createRouter, createLink, component$ } from '@vertz/ui';
+import { defineRoutes, createRouter, createLink } from '@vertz/ui';
 
-const router = createRouter();
+const routes = defineRoutes({
+  '/': { component: () => document.createElement('div') },
+  '/users/:id': { component: () => document.createElement('div') },
+});
+
+const router = createRouter(routes);
 
 // Programmatic navigation
 router.navigate('/users/123');
 
-// Link component
-export const NavLink = createLink((props) => (
-  <a href={props.href}>{props.children}</a>
-));
+// Link component factory
+const NavLink = createLink((props) => {
+  const a = document.createElement('a');
+  a.href = props.href;
+  a.textContent = String(props.children);
+  return a;
+});
 ```
 
 ### Nested Layouts
@@ -290,18 +306,21 @@ export const NavLink = createLink((props) => (
 Use outlets for nested layouts:
 
 ```tsx
-import { createOutlet, component$ } from '@vertz/ui';
+import { createOutlet } from '@vertz/ui';
 
-const Layout = component$(() => {
+const Layout = () => {
   const outlet = createOutlet();
   
-  return (
-    <div>
-      <nav>...</nav>
-      <main>{outlet}</main>
-    </div>
-  );
-});
+  const container = document.createElement('div');
+  const nav = document.createElement('nav');
+  nav.textContent = '...';
+  const main = document.createElement('main');
+  main.appendChild(outlet());
+  
+  container.appendChild(nav);
+  container.appendChild(main);
+  return container;
+};
 ```
 
 ---
@@ -310,47 +329,62 @@ const Layout = component$(() => {
 
 ### Creating Forms
 
-Build forms with schema validation:
+Build forms with schema validation. The form binds to an SDK method and provides progressive enhancement:
 
 ```tsx
 import { form, component$ } from '@vertz/ui';
+import { s } from '@vertz/schema';
 
-const loginForm = form({
-  email: {
-    type: 'string',
-    required: true,
-    validators: ['email'],
-  },
-  password: {
-    type: 'string',
-    required: true,
-    minLength: 8,
+// Define SDK method with metadata for progressive enhancement
+const loginSDK = async (data: { email: string; password: string }) => {
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return res.json();
+};
+// Attach URL and method for form.attrs()
+loginSDK.url = '/api/login';
+loginSDK.method = 'POST';
+
+// Create form with schema validation
+const loginForm = form(loginSDK, {
+  schema: {
+    email: s.string().email(),
+    password: s.string().minLength(8),
   },
 });
 
-export const Login = component$(() => {
-  const { form$, state, errors } = loginForm();
+// Use in a component
+export const Login = () => {
+  const formEl = document.createElement('form');
   
-  return (
-    <form preventdefault:submit onSubmit$={form$}>
-      <input
-        name="email"
-        value={state.email}
-        onInput$={(e) => state.email = e.target.value}
-      />
-      {errors.email && <span class="error">{errors.email}</span>}
-      
-      <input
-        name="password"
-        type="password"
-        value={state.password}
-        onInput$={(e) => state.password = e.target.value}
-      />
-      
-      <button type="submit">Login</button>
-    </form>
-  );
-});
+  // Get action/method for progressive enhancement
+  const { action, method } = loginForm.attrs();
+  formEl.action = action;
+  formEl.method = method;
+  
+  const emailInput = document.createElement('input');
+  emailInput.name = 'email';
+  
+  const passwordInput = document.createElement('input');
+  passwordInput.name = 'password';
+  passwordInput.type = 'password';
+  
+  const errorDiv = document.createElement('div');
+  const submitBtn = document.createElement('button');
+  submitBtn.type = 'submit';
+  submitBtn.textContent = 'Login';
+  
+  // Handle submission
+  formEl.addEventListener('submit', loginForm.handleSubmit({
+    onSuccess: (result) => { console.log('Logged in:', result); },
+    onError: (errors) => { errorDiv.textContent = JSON.stringify(errors); },
+  }));
+  
+  formEl.append(emailInput, passwordInput, submitBtn, errorDiv);
+  return formEl;
+};
 ```
 
 ### Validation
@@ -389,26 +423,48 @@ if (result.success) {
 Fetch and cache data with automatic invalidation:
 
 ```tsx
-import { query, component$ } from '@vertz/ui';
+import { query, effect } from '@vertz/ui';
 
-const fetchUser = query({
-  queryKey: ['user', (id: string) => id],
-  queryFn: async ({ queryKey }) => {
-    const [, id] = queryKey;
-    const res = await fetch(`/api/users/${id}`);
-    return res.json();
-  },
-  // Optional: staleTime, cacheTime, etc.
+// Create a query with a thunk that returns a promise
+const userQuery = query(async () => {
+  const res = await fetch('/api/user');
+  return res.json();
+}, {
+  // Optional: provide initial data to skip initial fetch
+  // initialData: { name: 'Anonymous' },
+  // Optional: debounce refetches in ms
+  // debounce: 300,
+  // Optional: custom cache key
+  // key: 'user-cache-key',
 });
 
-export const UserProfile = component$(() => {
-  const user = fetchUser({ id: '123' });
+// Use in a component
+const UserProfile = () => {
+  const container = document.createElement('div');
   
-  if (user.isLoading) return <div>Loading...</div>;
-  if (user.isError) return <div>Error: {user.error}</div>;
+  // Use effect to reactively update when data/loading/error changes
+  effect(() => {
+    const data = userQuery.data.value;
+    const loading = userQuery.loading.value;
+    const error = userQuery.error.value;
+    
+    if (loading) {
+      container.textContent = 'Loading...';
+    } else if (error) {
+      container.textContent = `Error: ${error}`;
+    } else if (data) {
+      container.textContent = data.name;
+    }
+  });
   
-  return <div>{user.data.name}</div>;
-});
+  return container;
+};
+
+// Manually refetch when needed
+// userQuery.refetch();
+
+// Clean up when done
+// userQuery.dispose();
 ```
 
 ---
@@ -452,7 +508,9 @@ hydrate(() => <App />, { strategy: visibleStrategy });
 | `signal(initial)` | Create a reactive value |
 | `computed(fn)` | Create a derived value |
 | `effect(fn)` | Run side effects reactively |
-| `component$(fn)` | Define a component |
+| `untrack(fn)` | Execute fn without tracking dependencies |
+| `batch(fn)` | Batch multiple signal updates |
+| `onCleanup(fn)` | Register cleanup callback |
 | `ref()` | Create a DOM/component ref |
 | `createContext()` | Create a context for DI |
 | `useContext()` | Consume a context value |
@@ -479,8 +537,15 @@ hydrate(() => <App />, { strategy: visibleStrategy });
 
 | Export | Description |
 |--------|-------------|
-| `form()` | Create a form with validation |
+| `form(sdkMethod, options)` | Create a form bound to an SDK method with schema validation |
+| `formDataToObject` | Convert FormData to plain object |
 | `validate` | Validate data against schema |
+
+### Query Exports
+
+| Export | Description |
+|--------|-------------|
+| `query(thunk, options)` | Create a reactive query with caching |
 
 ---
 
