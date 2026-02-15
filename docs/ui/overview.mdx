@@ -3,45 +3,489 @@ title: UI Overview
 description: Building reactive UIs with Vertz
 ---
 
-# UI
+# @vertz/ui
 
-Vertz UI is a reactive component framework built on signals.
+Vertz UI is a reactive component framework built on signals. It provides fine-grained reactivity without a virtual DOM, scoped styling, routing, forms, and data fetching — all with full TypeScript support.
 
-## Features
+## What You'll Build
 
-- **Signal-based reactivity** — Fine-grained updates without virtual DOM
-- **JSX support** — Write familiar JSX with full type safety
-- **CSS-in-JS** — Scoped styles with zero runtime overhead
-- **SSR-ready** — Server-side rendering with progressive hydration
+- Interactive components with reactive state
+- Type-safe forms with schema validation
+- Client-side routing with nested layouts
+- Data fetching with caching and invalidation
 
-## Coming Soon
+## Key Features
 
-Detailed UI documentation is coming as part of the progressive launch.
+- **Signal-based reactivity** — Fine-grained updates that only touch what changed
+- **Scoped CSS** — Zero-runtime stylesheets with compile-time optimization  
+- **Progressive hydration** — SSR-ready with configurable hydration strategies
+- **Type-safe routing** — Full TypeScript inference for params and search
 
-### What's Next
+---
 
-- Components and signals
-- Styling system
-- Routing
-- Forms and state management
+## Getting Started
 
-## Quick Example
+### Reactivity with Signals
+
+The core primitive is the `signal`, which holds a value that automatically updates any component that reads it:
 
 ```tsx
-import { component$, useSignal } from 'vertz/ui';
+import { signal } from '@vertz/ui';
 
-export default component$(() => {
-  const count = useSignal(0);
-  
+const count = signal(0);
+
+// Read and write
+console.log(count.value);      // 0
+count.value++;
+console.log(count.value);      // 1
+```
+
+### Creating Computed Values
+
+Use `computed` for derived state that updates automatically:
+
+```tsx
+import { signal, computed } from '@vertz/ui';
+
+const firstName = signal('Jane');
+const lastName = signal('Doe');
+
+const fullName = computed(() => {
+  return `${firstName.value} ${lastName.value}`;
+});
+
+console.log(fullName.value);  // "Jane Doe"
+lastName.value = 'Smith';
+console.log(fullName.value);  // "Jane Smith"
+```
+
+### Reactive Effects
+
+Run side effects that re-execute when dependencies change:
+
+```tsx
+import { signal, effect, onCleanup } from '@vertz/ui';
+
+const count = signal(0);
+
+const dispose = effect(() => {
+  console.log(`Count is now: ${count.value}`);
+});
+
+onCleanup(() => dispose());
+
+count.value++;  // Logs: "Count is now: 1"
+```
+
+---
+
+## Components
+
+### Building a Component
+
+Components are functions that return DOM elements. Use `ref` to attach reactive references:
+
+```tsx
+import { component$, ref, signal } from '@vertz/ui';
+
+export const Counter = component$(() => {
+  const count = signal(0);
+  const buttonRef = ref<HTMLButtonElement>();
+
   return (
-    <button onClick$={() => count.value++}>
+    <button
+      ref={buttonRef}
+      onClick$={() => {
+        count.value++;
+        console.log(buttonRef.value?.textContent);
+      }}
+    >
       Clicks: {count.value}
     </button>
   );
 });
 ```
 
-## Related
+### Context for Dependency Injection
 
-- [Quickstart](/quickstart) — Build your first UI
-- [Server](/concepts/server) — SSR integration
+Share state across components without passing props:
+
+```tsx
+import { createContext, useContext, component$ } from '@vertz/ui';
+
+// Create a context
+const ThemeContext = createContext<string>('theme');
+
+export const App = component$(() => {
+  // Provide a value
+  useContext(ThemeContext, 'dark');
+  
+  return <ThemedButton />;
+});
+
+const ThemedButton = component$(() => {
+  // Consume the value
+  const theme = useContext(ThemeContext);
+  
+  return <button class={theme}>Themed Button</button>;
+});
+```
+
+### Error Boundaries
+
+Handle errors gracefully with error boundaries:
+
+```tsx
+import { ErrorBoundary, component$ } from '@vertz/ui';
+
+const RiskyComponent = component$(() => {
+  throw new Error('Something went wrong');
+});
+
+export const SafeWrapper = component$(() => {
+  return (
+    <ErrorBoundary
+      fallback$={(error) => <div>Error: {error.message}</div>}
+    >
+      <RiskyComponent />
+    </ErrorBoundary>
+  );
+});
+```
+
+---
+
+## Styling
+
+### Scoped CSS
+
+Write styles that are automatically scoped to your component:
+
+```tsx
+import { css, component$ } from '@vertz/ui';
+
+const styles = css`
+  .button {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    background: #0070f3;
+    color: white;
+  }
+  
+  .button:hover {
+    background: #0050a0;
+  }
+`;
+
+export const StyledButton = component$(() => {
+  return (
+    <button class={styles.button}>
+      Click Me
+    </button>
+  );
+});
+```
+
+### Global Styles
+
+Define global CSS that applies across your app:
+
+```tsx
+import { globalCss } from '@vertz/ui';
+
+globalCss`
+  * {
+    box-sizing: border-box;
+  }
+  
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+  }
+`;
+```
+
+### Theming
+
+Create customizable themes with variants:
+
+```tsx
+import { defineTheme, css, ThemeProvider, component$ } from '@vertz/ui';
+
+const theme = defineTheme({
+  colors: {
+    primary: '#0070f3',
+    secondary: '#666',
+  },
+});
+
+const buttonStyles = css`
+  .btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    background: ${theme.colors.primary};
+    color: white;
+  }
+  
+  .btn.secondary {
+    background: ${theme.colors.secondary};
+  }
+`;
+
+export const ThemedApp = component$(() => {
+  return (
+    <ThemeProvider value={theme}>
+      <button class={buttonStyles.btn}>Primary</button>
+    </ThemeProvider>
+  );
+});
+```
+
+---
+
+## Routing
+
+### Defining Routes
+
+Define your application's routes with type-safe parameters:
+
+```tsx
+import { defineRoutes } from '@vertz/ui';
+
+const routes = defineRoutes({
+  '/': {
+    component: () => import('./pages/Home'),
+  },
+  '/users/:id': {
+    component: () => import('./pages/UserProfile'),
+    // Type-safe: id will be typed as string
+  },
+  '/posts/:postId/comments/:commentId': {
+    component: () => import('./pages/Comment'),
+  },
+});
+```
+
+### Navigation
+
+Navigate programmatically or with links:
+
+```tsx
+import { createRouter, createLink, component$ } from '@vertz/ui';
+
+const router = createRouter();
+
+// Programmatic navigation
+router.navigate('/users/123');
+
+// Link component
+export const NavLink = createLink((props) => (
+  <a href={props.href}>{props.children}</a>
+));
+```
+
+### Nested Layouts
+
+Use outlets for nested layouts:
+
+```tsx
+import { createOutlet, component$ } from '@vertz/ui';
+
+const Layout = component$(() => {
+  const outlet = createOutlet();
+  
+  return (
+    <div>
+      <nav>...</nav>
+      <main>{outlet}</main>
+    </div>
+  );
+});
+```
+
+---
+
+## Forms
+
+### Creating Forms
+
+Build forms with schema validation:
+
+```tsx
+import { } from '@vert form, component$z/ui';
+
+const loginForm = form({
+  email: {
+    type: 'string',
+    required: true,
+    validators: ['email'],
+  },
+  password: {
+    type: 'string',
+    required: true,
+    minLength: 8,
+  },
+});
+
+export const Login = component$(() => {
+  const { form$, state, errors } = loginForm();
+  
+  return (
+    <form preventdefault:submit onSubmit$={form$}>
+      <input
+        name="email"
+        value={state.email}
+        onInput$={(e) => state.email = e.target.value}
+      />
+      {errors.email && <span class="error">{errors.email}</span>}
+      
+      <input
+        name="password"
+        type="password"
+        value={state.password}
+        onInput$={(e) => state.password = e.target.value}
+      />
+      
+      <button type="submit">Login</button>
+    </form>
+  );
+});
+```
+
+### Validation
+
+Validate form data against schemas:
+
+```tsx
+import { validate } from '@vertz/ui';
+import { s } from '@vertz/schema';
+
+const userSchema = s.object({
+  name: s.string().minLength(1),
+  age: s.number().int().min(0),
+  email: s.string().email(),
+});
+
+const result = validate(userSchema, {
+  name: 'Alice',
+  age: 30,
+  email: 'alice@example.com',
+});
+
+if (result.success) {
+  console.log(result.data);  // Typed as { name: string; age: number; email: string }
+} else {
+  console.log(result.errors);
+}
+```
+
+---
+
+## Data Fetching
+
+### Query with Caching
+
+Fetch and cache data with automatic invalidation:
+
+```tsx
+import { query, component$ } from '@vertz/ui';
+
+const fetchUser = query({
+  queryKey: ['user', (id: string) => id],
+  queryFn: async ({ queryKey }) => {
+    const [, id] = queryKey;
+    const res = await fetch(`/api/users/${id}`);
+    return res.json();
+  },
+  // Optional: staleTime, cacheTime, etc.
+});
+
+export const UserProfile = component$(() => {
+  const user = fetchUser({ id: '123' });
+  
+  if (user.isLoading) return <div>Loading...</div>;
+  if (user.isError) return <div>Error: {user.error}</div>;
+  
+  return <div>{user.data.name}</div>;
+});
+```
+
+---
+
+## Hydration Strategies
+
+### Progressive Hydration
+
+Control when components hydrate with different strategies:
+
+```tsx
+import { 
+  hydrate, 
+  eagerStrategy, 
+  idleStrategy, 
+  interactionStrategy,
+  visibleStrategy 
+} from '@vertz/ui';
+
+// Hydrate immediately
+hydrate(() => <App />, { strategy: eagerStrategy });
+
+// Hydrate when browser is idle
+hydrate(() => <App />, { strategy: idleStrategy });
+
+// Hydrate on user interaction
+hydrate(() => <App />, { strategy: interactionStrategy });
+
+// Hydrate when visible
+hydrate(() => <App />, { strategy: visibleStrategy });
+```
+
+---
+
+## API Reference
+
+### Core Exports
+
+| Export | Description |
+|--------|-------------|
+| `signal(initial)` | Create a reactive value |
+| `computed(fn)` | Create a derived value |
+| `effect(fn)` | Run side effects reactively |
+| `component$(fn)` | Define a component |
+| `ref()` | Create a DOM/component ref |
+| `createContext()` | Create a context for DI |
+| `useContext()` | Consume a context value |
+
+### CSS Exports
+
+| Export | Description |
+|--------|-------------|
+| `css` | Create scoped styles |
+| `globalCss` | Define global styles |
+| `ThemeProvider` | Provide theme values |
+| `defineTheme` | Define a theme |
+
+### Router Exports
+
+| Export | Description |
+|--------|-------------|
+| `defineRoutes` | Define route configuration |
+| `createRouter` | Create a router instance |
+| `createLink` | Create a link component |
+| `createOutlet` | Create a nested outlet |
+
+### Form Exports
+
+| Export | Description |
+|--------|-------------|
+| `form()` | Create a form with validation |
+| `validate` | Validate data against schema |
+
+---
+
+## Next Steps
+
+- [Schema](/schema/overview) — Define your data types
+- [Quickstart](/quickstart) — Build your first full-stack app
+- [API Reference](/api) — Detailed API documentation

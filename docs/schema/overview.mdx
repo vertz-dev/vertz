@@ -3,48 +3,493 @@ title: Schema Overview
 description: Type-safe schema definitions in Vertz
 ---
 
-# Schema
+# @vertz/schema
 
-The Vertz schema system provides type-safe data modeling.
+Vertz Schema is a type-safe validation and parsing library. It provides composable schemas for validating data at runtime while inferring TypeScript types at compile time.
 
-## Overview
+## What You'll Build
 
-Define your data once, get type-safe code everywhere:
+- Input validation for API endpoints
+- Form data validation
+- Type-safe data transformations
+- JSON Schema generation
 
-- **Entity definitions** — Type-safe data models
-- **Relations** — Connect entities together
-- **Validation** — Built-in data validation
-- **Migrations** — Schema versioning
+## Key Features
 
-## Coming Soon
+- **Type inference** — Automatic TypeScript types from schema definitions
+- **Composability** — Build complex types from simple primitives
+- **Refinements** — Add custom validation logic
+- **Transforms** — Parse and transform data during validation
+- **Formats** — Built-in validation for emails, UUIDs, URLs, and more
 
-Detailed schema documentation is coming as part of the progressive launch.
+---
 
-### What's Next
+## Getting Started
 
-- Defining entities
-- Field types and validation
-- Relations and joins
-- Schema migrations
+### The Schema Factory
 
-## Quick Example
+Use the `s` object to create schemas:
 
 ```typescript
-import { domain } from 'vertz/schema';
+import { s, type Input, type Output } from '@vertz/schema';
 
-const blog = domain({
-  name: 'blog',
-  entities: {
-    User: {
-      id: { type: 'uuid', primary: true },
-      email: { type: 'string', unique: true },
-      name: { type: 'string' },
-    },
-  },
+// Create a string schema
+const stringSchema = s.string();
+
+// Create an object schema
+const userSchema = s.object({
+  name: s.string(),
+  email: s.string().email(),
+  age: s.number().int().min(0),
 });
 ```
 
-## Related
+### Validating Data
 
-- [Domains](/concepts/domains) — Domain-driven modeling
-- [Server](/concepts/server) — Using schema in APIs
+Validate data against a schema:
+
+```typescript
+import { s } from '@vertz/schema';
+
+const userSchema = s.object({
+  name: s.string(),
+  email: s.string().email(),
+});
+
+const result = userSchema.parse({
+  name: 'Alice',
+  email: 'alice@example.com',
+});
+
+if (result.success) {
+  console.log(result.data);  // { name: 'Alice', email: 'alice@example.com' }
+} else {
+  console.log(result.errors);  // Validation errors
+}
+```
+
+---
+
+## Primitive Schemas
+
+### Strings, Numbers, Booleans
+
+```typescript
+import { s } from '@vertz/schema';
+
+// String with validations
+const name = s.string().minLength(1).maxLength(100);
+const slug = s.string().regex(/^[a-z0-9-]+$/);
+const content = s.string().trim().toLower();
+
+// Number with validations
+const age = s.number().int().min(0).max(150);
+const price = s.number().positive().max(9999.99);
+
+// Boolean
+const isActive = s.boolean();
+```
+
+### Special Types
+
+```typescript
+import { s } from '@vertz/schema';
+
+// Enums
+const status = s.enum(['pending', 'active', 'completed']);
+
+// Literals
+const direction = s.literal('up', 'down', 'left', 'right');
+const version = s.literal(1);
+
+// Dates
+const createdAt = s.date();
+const birthDate = s.date().min(new Date('1900-01-01'));
+```
+
+---
+
+## Composite Schemas
+
+### Objects
+
+```typescript
+import { s } from '@vertz/schema';
+
+const userSchema = s.object({
+  // Required string
+  name: s.string().minLength(1),
+  
+  // Optional field
+  bio: s.string().optional(),
+  
+  // With default value
+  role: s.literal('user', 'admin').default('user'),
+  
+  // Nested objects
+  address: s.object({
+    street: s.string(),
+    city: s.string(),
+    zipCode: s.string().regex(/^\d{5}$/),
+  }).optional(),
+});
+```
+
+### Arrays
+
+```typescript
+import { s } from '@vertz/schema';
+
+// Array of strings
+const tags = s.array(s.string()).minLength(1).maxLength(10);
+
+// Array of objects
+const items = s.array(s.object({
+  id: s.string().uuid(),
+  quantity: s.number().int().positive(),
+}));
+
+// Tuple (fixed-length arrays)
+const coordinate = s.tuple([
+  s.number(),  // x
+  s.number(),  // y
+  s.number().optional(),  // z
+]);
+```
+
+### Unions and Discriminated Unions
+
+```typescript
+import { s } from '@vertz/schema';
+
+// Union types
+const status = s.union([
+  s.literal('pending'),
+  s.literal('active'),
+  s.literal('completed'),
+]);
+
+// Discriminated unions
+const eventSchema = s.discriminatedUnion('type', [
+  s.object({
+    type: s.literal('click'),
+    x: s.number(),
+    y: s.number(),
+  }),
+  s.object({
+    type: s.literal('keydown'),
+    key: s.string(),
+  }),
+]);
+```
+
+### Records and Maps
+
+```typescript
+import { s } from '@vertz/schema';
+
+// Record (object with dynamic keys)
+const translations = s.record(s.string());
+
+// Map (key-value pairs)
+const userRoles = s.map(s.string(), s.literal('user', 'admin'));
+
+// Set (unique values)
+const uniqueTags = s.set(s.string());
+```
+
+---
+
+## Validation
+
+### Built-in Validators
+
+```typescript
+import { s } from '@vertz/schema';
+
+// String validators
+s.string()
+  .minLength(n)
+  .maxLength(n)
+  .regex(pattern)
+  .includes(substring)
+  .startsWith(prefix)
+  .endsWith(suffix)
+  .trim()
+  .toLower()
+  .toUpper();
+
+// Number validators
+s.number()
+  .int()
+  .positive()
+  .negative()
+  .min(limit)
+  .max(limit)
+  .multipleOf(factor);
+```
+
+### Custom Refinements
+
+Add custom validation logic:
+
+```typescript
+import { s } from '@vertz/schema';
+
+const passwordSchema = s.string().minLength(8).refine(
+  (val) => /[A-Z]/.test(val),
+  { message: 'Password must contain at least one uppercase letter' }
+).refine(
+  (val) => /[0-9]/.test(val),
+  { message: 'Password must contain at least one number' }
+);
+
+// Super refinement for complex validation
+const strongPassword = s.string().superRefine((val, ctx) => {
+  if (val.length < 8) {
+    ctx.addIssue({ code: 'too_small', message: 'Too short' });
+  }
+  if (!/[A-Z]/.test(val)) {
+    ctx.addIssue({ code: 'custom', message: 'Need uppercase' });
+  }
+  if (!/[0-9]/.test(val)) {
+    ctx.addIssue({ code: 'custom', message: 'Need number' });
+  }
+});
+```
+
+---
+
+## Transformations
+
+### Preprocessing
+
+Transform data before validation:
+
+```typescript
+import { s, preprocess } from '@vertz/schema';
+
+// Trim and parse integer
+const ageSchema = s.preprocess(
+  (val) => (typeof val === 'string' ? val.trim() : val),
+  s.number().int()
+);
+
+// Parse JSON string
+const dataSchema = s.preprocess(
+  (val) => (typeof val === 'string' ? JSON.parse(val) : val),
+  s.object({ ... })
+);
+
+// Coercion (automatic type conversion)
+import { s } from '@vertz/schema';
+
+const coercedNumber = s.coerce.number();
+// "42" -> 42
+// 42 -> 42
+
+const coercedBoolean = s.coerce.boolean();
+// "true" -> true
+// "false" -> false
+// 0 -> false
+// 1 -> true
+
+const coercedDate = s.coerce.date();
+// "2024-01-15" -> Date object
+```
+
+---
+
+## Formats
+
+### Built-in Format Validators
+
+```typescript
+import { s } from '@vertz/schema';
+
+// Common formats
+s.string().email();
+s.string().uuid();
+s.string().url();
+s.string().hostname();
+s.string().ipv4();
+s.string().ipv6();
+s.string().base64();
+s.string().hex();
+
+// ID formats
+s.string().cuid();      // Cloudflare UID
+s.string().ulid();      // Universally Unique Lexicographically Sortable ID
+s.string().nanoid();    // Nano ID
+
+// JWT
+s.string().jwt();
+
+// ISO formats
+s.iso.date();        // "2024-01-15"
+s.iso.time();        // "14:30:00"
+s.iso.datetime();    // "2024-01-15T14:30:00Z"
+s.iso.duration();    // "P1DT2H30M"
+```
+
+---
+
+## Type Inference
+
+### Automatic TypeScript Types
+
+Schemas automatically infer TypeScript types:
+
+```typescript
+import { s, type Input, type Output } from '@vertz/schema';
+
+const userSchema = s.object({
+  name: s.string(),
+  email: s.string().email(),
+  age: s.number().int().optional(),
+});
+
+// TypeScript automatically infers:
+// type User = {
+//   name: string;
+//   email: string;
+//   age?: number;
+// }
+
+// You can also explicitly get the types
+type User = Output<typeof userSchema>;
+type UserInput = Input<typeof userSchema>;
+```
+
+---
+
+## Integration with Vertz UI Forms
+
+Use schemas directly with UI forms:
+
+```typescript
+import { s } from '@vertz/schema';
+import { form } from '@vertz/ui';
+
+// Define schema
+const loginSchema = s.object({
+  email: s.string().email(),
+  password: s.string().minLength(8),
+});
+
+// Create form with schema
+const loginForm = form(loginSchema);
+```
+
+---
+
+## JSON Schema Export
+
+Generate JSON Schema for documentation or tooling:
+
+```typescript
+import { s, toJSONSchema } from '@vertz/schema';
+
+const userSchema = s.object({
+  name: s.string(),
+  email: s.string().email(),
+});
+
+const jsonSchema = toJSONSchema(userSchema);
+// {
+//   "type": "object",
+//   "properties": {
+//     "name": { "type": "string" },
+//     "email": { "type": "string", "format": "email" }
+//   },
+//   "required": ["name", "email"]
+// }
+```
+
+---
+
+## Database Integration
+
+### Enum Bridge
+
+Connect database enums to your schema:
+
+```typescript
+import { s } from '@vertz/schema';
+
+// When you have a database column type with enum values
+// This bridges the compile-time and runtime types
+const statusEnum = s.fromDbEnum({
+  _meta: { enumValues: ['pending', 'active', 'completed'] as const }
+});
+
+// Type is: s.enum(['pending', 'active', 'completed'])
+```
+
+---
+
+## API Reference
+
+### Factory Methods
+
+| Method | Description |
+|--------|-------------|
+| `s.string()` | String primitive |
+| `s.number()` | Number primitive |
+| `s.boolean()` | Boolean primitive |
+| `s.date()` | Date primitive |
+| `s.object(shape)` | Object schema |
+| `s.array(item)` | Array schema |
+| `s.tuple(items)` | Tuple schema |
+| `s.union(options)` | Union type |
+| `s.discriminatedUnion(discriminator, options)` | Discriminated union |
+| `s.enum(values)` | Enum values |
+| `s.literal(value)` | Literal value |
+
+### String Methods
+
+| Method | Description |
+|--------|-------------|
+| `.email()` | Validate email format |
+| `.uuid()` | Validate UUID format |
+| `.minLength(n)` | Minimum length |
+| `.maxLength(n)` | Maximum length |
+| `.regex(pattern)` | Regex pattern |
+| `.optional()` | Make optional |
+| `.default(value)` | Default value |
+
+### Number Methods
+
+| Method | Description |
+|--------|-------------|
+| `.int()` | Must be integer |
+| `.min(n)` | Minimum value |
+| `.max(n)` | Maximum value |
+| `.positive()` | Must be positive |
+| `.negative()` | Must be negative |
+
+### Object Methods
+
+| Method | Description |
+|--------|-------------|
+| `.optional()` | Make optional |
+| `.default(value)` | Default value |
+| `.nullable()` | Allow null |
+
+### Utility Exports
+
+| Export | Description |
+|--------|-------------|
+| `s` | Schema factory object |
+| `schema` | Alias for `s` |
+| `toJSONSchema()` | Convert to JSON Schema |
+| `Input<T>` | Get input type |
+| `Output<T>` | Get output type |
+
+---
+
+## Next Steps
+
+- [UI Overview](/ui/overview) — Build UIs with validated forms
+- [Quickstart](/quickstart) — Build your first full-stack app
+- [API Reference](/api) — Detailed API documentation
