@@ -3,23 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { d } from '@vertz/db';
 import { domain, createServer } from '@vertz/server';
-
-// ---------------------------------------------------------------------------
-// Test Setup - Mock Tables
-// ---------------------------------------------------------------------------
-
-const usersTable = d.table({
-  name: 'users',
-  columns: {
-    id: d.uuid().primaryKey(),
-    name: d.varchar(255).notNull(),
-    email: d.email().notNull(),
-    role: d.enum('user_role', ['admin', 'editor', 'viewer']).notNull().default('viewer'),
-    orgId: d.uuid().notNull(),
-    createdAt: d.timestamp().notNull().default('now'),
-    updatedAt: d.timestamp().notNull().default('now'),
-  },
-});
+import { usersTable } from './fixtures';
 
 // ---------------------------------------------------------------------------
 // Deny by Default Tests

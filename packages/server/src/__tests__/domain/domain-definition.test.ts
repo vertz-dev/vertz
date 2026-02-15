@@ -5,51 +5,9 @@ import { d } from '@vertz/db';
 import { domain } from '@vertz/server';
 
 // Helper types for test scenarios
+import { usersTable, orgsTable, postsTable } from "./fixtures";
 import type { TableEntry } from '@vertz/db';
 import type { DomainDefinition, DomainType, DomainOptions } from '@vertz/server';
-
-// ---------------------------------------------------------------------------
-// Test Setup - Mock Table Definitions
-// ---------------------------------------------------------------------------
-
-// Simple users table for basic tests
-const usersTable = d.table({
-  name: 'users',
-  columns: {
-    id: d.uuid().primaryKey(),
-    name: d.varchar(255).notNull(),
-    email: d.email().notNull(),
-    role: d.enum('user_role', ['admin', 'editor', 'viewer']).notNull().default('viewer'),
-    orgId: d.uuid().notNull(),
-    passwordHash: d.varchar(255).notNull(),
-    createdAt: d.timestamp().notNull().default('now'),
-    updatedAt: d.timestamp().notNull().default('now'),
-  },
-});
-
-// Organizations table for relation tests
-const orgsTable = d.table({
-  name: 'organizations',
-  columns: {
-    id: d.uuid().primaryKey(),
-    name: d.varchar(255).notNull(),
-    billingEmail: d.email().notNull(),
-    createdAt: d.timestamp().notNull().default('now'),
-  },
-});
-
-// Posts table for relation tests
-const postsTable = d.table({
-  name: 'posts',
-  columns: {
-    id: d.uuid().primaryKey(),
-    authorId: d.uuid().notNull(),
-    title: d.varchar(255).notNull(),
-    content: d.text(),
-    published: d.boolean().notNull().default(false),
-    createdAt: d.timestamp().notNull().default('now'),
-  },
-});
 
 // ---------------------------------------------------------------------------
 // domain() Function Tests

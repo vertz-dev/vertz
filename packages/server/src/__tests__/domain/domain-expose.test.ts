@@ -3,73 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { d } from '@vertz/db';
 import { domain, createServer } from '@vertz/server';
-
-// ---------------------------------------------------------------------------
-// Test Setup - Mock Tables
-// ---------------------------------------------------------------------------
-
-const usersTable = d.table({
-  name: 'users',
-  columns: {
-    id: d.uuid().primaryKey(),
-    name: d.varchar(255).notNull(),
-    email: d.email().notNull(),
-    role: d.enum('user_role', ['admin', 'editor', 'viewer']).notNull().default('viewer'),
-    orgId: d.uuid().notNull(),
-    passwordHash: d.varchar(255).notNull(),
-    internalNotes: d.text(),
-    createdAt: d.timestamp().notNull().default('now'),
-    updatedAt: d.timestamp().notNull().default('now'),
-  },
-});
-
-const orgsTable = d.table({
-  name: 'organizations',
-  columns: {
-    id: d.uuid().primaryKey(),
-    name: d.varchar(255).notNull(),
-    logo: d.varchar(255),
-    billingEmail: d.email().notNull(),
-    taxId: d.varchar(50),
-    createdAt: d.timestamp().notNull().default('now'),
-  },
-});
-
-const postsTable = d.table({
-  name: 'posts',
-  columns: {
-    id: d.uuid().primaryKey(),
-    authorId: d.uuid().notNull(),
-    title: d.varchar(255).notNull(),
-    content: d.text(),
-    published: d.boolean().notNull().default(false),
-    views: d.integer().notNull().default(0),
-    createdAt: d.timestamp().notNull().default('now'),
-  },
-});
-
-const commentsTable = d.table({
-  name: 'comments',
-  columns: {
-    id: d.uuid().primaryKey(),
-    postId: d.uuid().notNull(),
-    authorId: d.uuid().notNull(),
-    content: d.text().notNull(),
-    createdAt: d.timestamp().notNull().default('now'),
-  },
-});
-
-const auditLogsTable = d.table({
-  name: 'audit_logs',
-  columns: {
-    id: d.uuid().primaryKey(),
-    userId: d.uuid().notNull(),
-    action: d.varchar(100).notNull(),
-    ipAddress: d.varchar(50),
-    userAgent: d.text(),
-    createdAt: d.timestamp().notNull().default('now'),
-  },
-});
+import { usersTable, orgsTable, postsTable, commentsTable, auditLogsTable } from './fixtures';
 
 // ---------------------------------------------------------------------------
 // Secure by Default Tests
