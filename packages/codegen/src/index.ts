@@ -46,6 +46,7 @@ export {
   emitSharedTypesFile,
   emitStreamingEventType,
 } from './generators/typescript/emit-types';
+export { emitRouteMapType } from './generators/typescript/emit-routes';
 export { hashContent } from './hasher';
 export type { IncrementalOptions, IncrementalResult } from './incremental';
 export { writeIncremental } from './incremental';
