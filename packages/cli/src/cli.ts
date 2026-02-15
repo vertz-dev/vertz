@@ -1,4 +1,6 @@
 import { Command } from 'commander';
+import { generateAction } from './commands/generate';
+import { generateDomainAction } from './commands/domain-gen';
 
 export function createCLI(): Command {
   const program = new Command();
@@ -27,10 +29,41 @@ export function createCLI(): Command {
     .option('--host <host>', 'Server host', 'localhost')
     .option('--no-typecheck', 'Disable background type checking');
 
+  // Generate command - supports both explicit type and auto-discovery mode
   program
-    .command('generate <type> [name]')
-    .description('Generate a module, service, router, or schema')
-    .option('--dry-run', 'Preview generated files without writing');
+    .command('generate [type] [name]')
+    .description('Generate a module, service, router, schema, or auto-discover domains')
+    .option('--dry-run', 'Preview generated files without writing')
+    .option('--source-dir <dir>', 'Source directory', 'src')
+    .allowUnknownOption()
+    .action(async (type, name, options) => {
+      // If no type provided or type is not recognized, try domain auto-discovery
+      if (!type) {
+        await generateDomainAction(options);
+        return;
+      }
+      
+      const validTypes = ['module', 'service', 'router', 'schema'];
+      if (!validTypes.includes(type)) {
+        // Try domain generation
+        await generateDomainAction(options);
+        return;
+      }
+      
+      // Handle traditional generate types
+      const result = generateAction({
+        type,
+        name: name || '',
+        module: options.module,
+        sourceDir: options.sourceDir,
+        dryRun: options.dryRun,
+      });
+      
+      if (!result.success) {
+        console.error(result.error);
+        process.exit(1);
+      }
+    });
 
   program
     .command('codegen')
