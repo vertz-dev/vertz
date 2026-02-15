@@ -20,6 +20,8 @@ interface AuthConfig {
     ttl: Duration
     refreshable?: boolean
     cookie?: CookieConfig
+    // Custom claims added to JWT (inspired by Clerk)
+    claims?: (user: User) => Promise<Record<string, unknown>> | Record<string, unknown>
   }
 
   // Authentication methods
@@ -46,7 +48,7 @@ interface AuthInstance {
 ### 1.2 Integration with `createServer()`
 
 ```typescript
-// Option A: Plugin-style (recommended)
+// Plugin-style (recommended for Phase 1+)
 const server = createServer({
   auth: createAuth({
     session: { strategy: 'jwt', ttl: '7d' },
@@ -57,9 +59,17 @@ const server = createServer({
 
 // Auth routes auto-mounted at /api/auth/*
 // ctx.user available in all domain handlers
+// CSRF protection auto-configured
+// Access rules introspected from domain definitions
 ```
 
-**Decision needed:** Plugin-style (Option A) or middleware function (Option B)?
+**Decision:** Plugin-style (NOT middleware). Auth is a first-class concern, not bolt-on.
+
+The plugin:
+- Auto-mounts auth routes (`/api/auth/*`)
+- Injects `ctx.user` into context
+- Sets up CSRF protection
+- Introspects domain access rules
 
 ### 1.3 Session Strategies
 
@@ -70,6 +80,26 @@ const server = createServer({
 | `hybrid` | JWT for speed + database for revocation check | Balanced |
 
 **Phase 1:** JWT default. Database sessions deferred.
+
+#### Custom Claims (Clerk-style)
+
+```typescript
+// Add custom claims to JWT tokens
+const auth = createAuth({
+  session: {
+    strategy: 'jwt',
+    ttl: '7d',
+    claims: (user) => ({
+      plan: user.plan,
+      tenantId: user.tenantId,
+      permissions: user.permissions,
+    }),
+  },
+})
+
+// Claims available in ctx.user.claims
+ctx.user.claims.plan // 'free' | 'pro' | 'enterprise'
+```
 
 ### 1.4 Email/Password
 
@@ -99,7 +129,7 @@ emailPassword: {
 oauth: {
   google: { clientId, clientSecret },
   github: { clientId, clientSecret },
-  // 35+ providers available via better-auth adapter
+  // Additional providers via own implementation
 }
 ```
 
@@ -299,9 +329,55 @@ password: {
 
 ---
 
-## 6. Comparison
+## 6. Vertz Cloud Integration
 
-### 6.1 vs BetterAuth
+### 6.1 Cloud-Aware Design
+
+The auth module is designed with the same API surface everywhere — self-hosted and Vertz Cloud. The difference is in the defaults and automatic infrastructure integration.
+
+```typescript
+// Same code works everywhere
+const auth = createAuth({
+  session: { strategy: 'jwt', ttl: '7d' },
+  emailPassword: { enabled: true },
+})
+
+// On Vertz Cloud: Plugin auto-detects environment
+// - Connects to managed session store (hybrid mode zero-config)
+// - Auto-connects to email delivery (transactional emails)
+// - Applies built-in rate limiting from edge
+// - Integrates with managed MFA service
+
+// On self-hosted: User manages own session store if needed
+```
+
+### 6.2 Cloud Auto-Configuration
+
+| Feature | Self-Hosted | Vertz Cloud |
+|---------|-------------|-------------|
+| Session strategy | JWT (stateless) | JWT + revocation (hybrid) |
+| Session store | User-provided (optional) | Managed (zero-config) |
+| Email delivery | User-configured SMTP | Built-in transactional |
+| Rate limiting | Configurable | Edge-managed |
+| MFA | User implements | Managed TOTP/backup codes |
+| JWT claims | Manual | Auto-populated with plan/tenant |
+
+### 6.3 Hybrid Session Mode (Cloud Only)
+
+On Vertz Cloud, the plugin automatically enables hybrid mode:
+
+- JWT for fast request processing
+- Server-side revocation check against managed session store
+- Zero configuration required
+- Instant session invalidation when needed
+
+This is additive — the Session interface is designed so hybrid can be added later for self-hosted users who want revocation.
+
+---
+
+## 7. Comparison
+
+### 7.1 vs BetterAuth
 
 | Aspect | BetterAuth | Vertz (Phase 1) |
 |--------|------------|-----------------|
@@ -315,7 +391,9 @@ password: {
 
 **Vertz advantage:** Built-in authorization that integrates with the entity system. BetterAuth punts on this.
 
-### 6.2 vs NextAuth (Auth.js)
+**Note:** Vertz does NOT integrate with BetterAuth. We implement our own auth from scratch to avoid schema constraints that an adapter would impose.
+
+### 7.2 vs NextAuth (Auth.js)
 
 | Aspect | NextAuth | Vertz (Phase 1) |
 |--------|----------|-----------------|
@@ -324,7 +402,7 @@ password: {
 | Type safety | Partial | Full stack |
 | Session | JWT | JWT (same) |
 
-### 6.3 vs Lucia
+### 7.3 vs Lucia
 
 | Aspect | Lucia | Vertz (Phase 1) |
 |--------|-------|-----------------|
@@ -334,26 +412,25 @@ password: {
 
 ---
 
-## 7. Open Questions for CTO
+## 8. Open Questions for CTO
 
-1. **Session strategy default:** `jwt` or `database`? (Recommend `jwt` for v1 simplicity)
+### DECIDED
 
-2. **Auth integration pattern:** Plugin in `createServer()` or middleware function?
-   - Plugin: `createServer({ auth: createAuth(...) })`
-   - Middleware: `createServer({ middleware: [authMiddleware()] })`
+1. **Session strategy default:** ✅ DECIDED — `jwt` for Phase 1. Hybrid (JWT + server-side revocation) zero-config on Vertz Cloud. Self-hosted users manage their own session store if they want revocation. Session interface designed so hybrid is additive later.
 
-3. **Role storage:** In user table or separate table?
-   - Option A: `user.role` field
-   - Option B: `role_assignments` table (enables per-resource roles in Phase 2)
+2. **Auth integration pattern:** ✅ DECIDED — Plugin in `createServer()`. NOT middleware. Auth is a first-class concern. The plugin auto-mounts routes, injects `ctx.user`, sets up CSRF, introspects domains for access rules.
 
-4. **Migration path:** Should we support BetterAuth adapter for existing apps?
+3. **Role storage:** ✅ DECIDED — Separate `role_assignments` table. Enables per-resource roles in Phase 2 (Blimu model). Convenience helpers like `access.assignRole(userId, 'admin')` for the simple case. NOT `user.role` field (dead end for hierarchy).
+
+4. **BetterAuth adapter:** ✅ DECIDED — No adapter. Clean replacement with own implementation. Supporting their adapter constrains our schema design.
+
+5. **Custom claims:** ✅ DECIDED — Added `session.claims` config (inspired by Clerk): `createAuth({ session: { claims: (user) => ({ plan: user.plan }) } })`
 
 ---
 
-## 8. Next Steps
+## 9. Next Steps
 
 - [ ] CTO approval on this spec
-- [ ] Decide open questions above
 - [ ] Begin implementation of `createAuth()`
 - [ ] Design `createAccess()` for Phase 1 RBAC
 - [ ] Implement domain access rules integration
