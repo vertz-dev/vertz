@@ -1129,23 +1129,25 @@ Tests are written BEFORE implementation. Each test file covers one concern.
 ### 11.2 Test Plan
 
 ```
-packages/server/src/entity/__tests__/
-├── entity-definition.test.ts       # domain() returns correct DomainDefinition
-├── pluralization.test.ts           # auto-pluralization + overrides
-├── route-generation.test.ts        # createServer registers correct routes
+packages/server/src/domain/__tests__/
+├── domain-definition.test.ts       # domain() returns correct DomainDefinition with type field
+├── module-definition.test.ts       # createModule() groups domains with middleware
+├── route-generation.test.ts        # createServer registers correct routes (no auto-pluralize)
+├── custom-actions.test.ts          # POST /api/{domainName}/:id/{action} endpoints
+├── result-type.test.ts             # Result<T> pattern — ok/err helpers, error shapes
 ├── crud-list.test.ts               # GET /api/{domainName} — pagination, filtering
 ├── crud-get.test.ts                # GET /api/{domainName}/:id — found, not found
 ├── crud-create.test.ts             # POST /api/{domainName} — validation, creation
 ├── crud-update.test.ts             # PUT /api/{domainName}/:id — partial update
 ├── crud-delete.test.ts             # DELETE /api/{domainName}/:id
-├── access-rules.test.ts           # Access rule enforcement across all operations
+├── access-rules.test.ts           # Access rule enforcement (sync-only)
 ├── access-deny-default.test.ts    # No access rules → deny all
 ├── relation-exposure.test.ts      # expose: relations included/excluded
 ├── handler-overrides.test.ts      # Custom handlers, defaultHandler access
 ├── validation.test.ts             # Schema-derived validation (create + update)
-├── error-format.test.ts           # Consistent error response shape
+├── error-format.test.ts           # Consistent error response shape (Result pattern)
 ├── pagination.test.ts             # Cursor encoding/decoding, limits, hasMore
-└── integration.test.ts            # Full server with multiple domains
+└── integration.test.ts            # Full server with modules + multiple domains
 ```
 
 ### 11.3 Key Test Cases
@@ -1153,10 +1155,10 @@ packages/server/src/entity/__tests__/
 **Access rules — deny by default:**
 ```ts
 test('entity with no access rules denies all operations', async () => {
-  const Locked = domain('locked', { table: d.entry(someTable) })
+  const Locked = domain('locked', { type: 'persisted', table: d.entry(someTable) })
   const app = createServer({ domains: [Locked] })
   
-  const res = await app.request('/api/lockeds')
+  const res = await app.request('/api/locked')
   expect(res.status).toBe(403)
 })
 ```
@@ -1173,7 +1175,8 @@ test('list excludes rows that fail access.read', async () => {
 **Relation exposure — secure by default:**
 ```ts
 test('entity without expose returns no relations', async () => {
-  const User = domain('user', {
+  const User = domain('users', {
+    type: 'persisted',
     table: d.entry(usersTable, usersRelations),
     access: { read: () => true },
     // no expose
@@ -1189,7 +1192,8 @@ test('entity without expose returns no relations', async () => {
 ```ts
 test('custom create handler can call defaultHandler', async () => {
   let sideEffectRan = false
-  const User = domain('user', {
+  const User = domain('users', {
+    type: 'persisted',
     table: d.entry(usersTable),
     access: { create: () => true },
     handlers: {
