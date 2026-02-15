@@ -214,10 +214,30 @@ export function createAuth(config: AuthConfig): AuthInstance {
   const {
     session,
     emailPassword,
-    jwtSecret = process.env.AUTH_JWT_SECRET || 'dev-secret-change-in-production',
+    jwtSecret: configJwtSecret,
     jwtAlgorithm = 'HS256',
     claims,
   } = config;
+
+  // Validate JWT secret - throw in production, warn in development
+  const envJwtSecret = process.env.AUTH_JWT_SECRET;
+  let jwtSecret: string;
+
+  if (configJwtSecret) {
+    jwtSecret = configJwtSecret;
+  } else if (envJwtSecret) {
+    jwtSecret = envJwtSecret;
+  } else {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'AUTH_JWT_SECRET is required in production. Provide a secret via createAuth({ session: { secret: "..." } }) or set the AUTH_JWT_SECRET environment variable.'
+      );
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn('⚠️ Using insecure default JWT secret. Set AUTH_JWT_SECRET for production.');
+      jwtSecret = 'dev-secret-change-in-production';
+    }
+  }
 
   const cookieConfig = { ...DEFAULT_COOKIE_CONFIG, ...session.cookie };
   const ttlMs = parseDuration(session.ttl);
