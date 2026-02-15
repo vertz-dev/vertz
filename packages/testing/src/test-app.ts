@@ -18,36 +18,49 @@ import {
 
 import type { DeepPartial } from './types';
 
-class ResponseValidationError extends Error {
-  constructor(message: string) {
-    super(`Response validation failed: ${message}`);
-    this.name = 'ResponseValidationError';
-  }
+/**
+ * Route map entry shape that each route in AppRouteMap must follow.
+ */
+export interface RouteMapEntry {
+  params: Record<string, string>;
+  query: Record<string, string>;
+  body: unknown;
+  headers: Record<string, string>;
+  response: unknown;
 }
 
-export interface TestResponse {
+/**
+ * TestResponse with typed body based on route's response type.
+ */
+export interface TestResponse<TResponse = unknown> {
   status: number;
-  body: unknown;
+  body: TResponse;
   headers: Record<string, string>;
   ok: boolean;
 }
 
-export interface TestRequestBuilder extends PromiseLike<TestResponse> {
+export interface TestRequestBuilder<TResponse = unknown> extends PromiseLike<TestResponse<TResponse>> {
   mock<TDeps, TState, TMethods>(
     service: NamedServiceDef<TDeps, TState, TMethods>,
     impl: DeepPartial<TMethods>,
-  ): TestRequestBuilder;
+  ): TestRequestBuilder<TResponse>;
   mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
     middleware: NamedMiddlewareDef<TReq, TProv>,
     result: TProv,
-  ): TestRequestBuilder;
+  ): TestRequestBuilder<TResponse>;
 }
 
-interface RequestOptions {
-  body?: unknown;
+/**
+ * Input options for a request, with typed body from the route map.
+ */
+export interface RequestOptions<TBody = unknown> {
+  body?: TBody;
   headers?: Record<string, string>;
 }
 
+/**
+ * Untyped test app interface for backwards compatibility.
+ */
 export interface TestApp {
   register(module: NamedModule, options?: Record<string, unknown>): TestApp;
   mock<TDeps, TState, TMethods>(
@@ -65,6 +78,90 @@ export interface TestApp {
   patch(path: string, options?: RequestOptions): TestRequestBuilder;
   delete(path: string, options?: RequestOptions): TestRequestBuilder;
   head(path: string, options?: RequestOptions): TestRequestBuilder;
+}
+
+/**
+ * Typed test app interface with route map for type-safe requests.
+ * @template TRouteMap - Route map interface mapping route keys (e.g., 'GET /users') to their types.
+ */
+export interface TestAppWithRoutes<TRouteMap extends RouteMapEntry> {
+  register(module: NamedModule, options?: Record<string, unknown>): TestAppWithRoutes<TRouteMap>;
+  mock<TDeps, TState, TMethods>(
+    service: NamedServiceDef<TDeps, TState, TMethods>,
+    impl: DeepPartial<TMethods>,
+  ): TestAppWithRoutes<TRouteMap>;
+  mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
+    middleware: NamedMiddlewareDef<TReq, TProv>,
+    result: TProv,
+  ): TestAppWithRoutes<TRouteMap>;
+  env(vars: Record<string, unknown>): TestAppWithRoutes<TRouteMap>;
+  get<TKey extends `GET ${string}` & keyof TRouteMap>(
+    path: string,
+    options?: RequestOptions<TRouteMap[TKey] extends { body: infer TBody } ? TBody : never>,
+  ): TestRequestBuilder<TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown>;
+  post<TKey extends `POST ${string}` & keyof TRouteMap>(
+    path: string,
+    options?: RequestOptions<TRouteMap[TKey] extends { body: infer TBody } ? TBody : never>,
+  ): TestRequestBuilder<TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown>;
+  put<TKey extends `PUT ${string}` & keyof TRouteMap>(
+    path: string,
+    options?: RequestOptions<TRouteMap[TKey] extends { body: infer TBody } ? TBody : never>,
+  ): TestRequestBuilder<TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown>;
+  patch<TKey extends `PATCH ${string}` & keyof TRouteMap>(
+    path: string,
+    options?: RequestOptions<TRouteMap[TKey] extends { body: infer TBody } ? TBody : never>,
+  ): TestRequestBuilder<TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown>;
+  delete<TKey extends `DELETE ${string}` & keyof TRouteMap>(
+    path: string,
+    options?: RequestOptions<TRouteMap[TKey] extends { body: infer TBody } ? TBody : never>,
+  ): TestRequestBuilder<TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown>;
+  head<TKey extends `HEAD ${string}` & keyof TRouteMap>(
+    path: string,
+    options?: RequestOptions<TRouteMap[TKey] extends { body: infer TBody } ? TBody : never>,
+  ): TestRequestBuilder<TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown>;
+}
+
+// Type for untyped HTTP methods (backwards compatibility)
+interface UntypedRequestOptions {
+  body?: unknown;
+  headers?: Record<string, string>;
+}
+
+interface UntypedTestResponse {
+  status: number;
+  body: unknown;
+  headers: Record<string, string>;
+  ok: boolean;
+}
+
+interface UntypedTestRequestBuilder extends PromiseLike<UntypedTestResponse> {
+  mock<TDeps, TState, TMethods>(
+    service: NamedServiceDef<TDeps, TState, TMethods>,
+    impl: DeepPartial<TMethods>,
+  ): UntypedTestRequestBuilder;
+  mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
+    middleware: NamedMiddlewareDef<TReq, TProv>,
+    result: TProv,
+  ): UntypedTestRequestBuilder;
+}
+
+interface UntypedTestApp {
+  register(module: NamedModule, options?: Record<string, unknown>): UntypedTestApp;
+  mock<TDeps, TState, TMethods>(
+    service: NamedServiceDef<TDeps, TState, TMethods>,
+    impl: DeepPartial<TMethods>,
+  ): UntypedTestApp;
+  mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
+    middleware: NamedMiddlewareDef<TReq, TProv>,
+    result: TProv,
+  ): UntypedTestApp;
+  env(vars: Record<string, unknown>): UntypedTestApp;
+  get(path: string, options?: UntypedRequestOptions): UntypedTestRequestBuilder;
+  post(path: string, options?: UntypedRequestOptions): UntypedTestRequestBuilder;
+  put(path: string, options?: UntypedRequestOptions): UntypedTestRequestBuilder;
+  patch(path: string, options?: UntypedRequestOptions): UntypedTestRequestBuilder;
+  delete(path: string, options?: UntypedRequestOptions): UntypedTestRequestBuilder;
+  head(path: string, options?: UntypedRequestOptions): UntypedTestRequestBuilder;
 }
 
 // Use `object` key type since we compare service/middleware defs by reference identity
@@ -102,7 +199,21 @@ interface RouteEntry {
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
 const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
 
-export function createTestApp(): TestApp {
+/**
+ * Creates a test app for making HTTP requests against registered modules.
+ * Returns an untyped app for backwards compatibility.
+ * @returns A test app instance for registering modules and making requests.
+ */
+export function createTestApp(): TestApp;
+
+/**
+ * Creates a typed test app with route map for type-safe requests.
+ * @template TRouteMap - Route map interface mapping route keys to their types.
+ * @returns A typed test app instance.
+ */
+export function createTestApp<TRouteMap extends RouteMapEntry>(): TestAppWithRoutes<TRouteMap>;
+
+export function createTestApp(): UntypedTestApp {
   const serviceMocks = new Map<object, unknown>();
   const middlewareMocks = new Map<MiddlewareKey, Record<string, unknown>>();
   const registrations: { module: NamedModule; options?: Record<string, unknown> }[] = [];
@@ -258,9 +369,9 @@ export function createTestApp(): TestApp {
   async function executeRequest(
     method: string,
     path: string,
-    options: RequestOptions | undefined,
+    options: UntypedRequestOptions | undefined,
     perRequest: PerRequestMocks,
-  ): Promise<TestResponse> {
+  ): Promise<UntypedTestResponse> {
     const handler = buildHandler(perRequest);
 
     const { body, headers: customHeaders } = options ?? {};
@@ -290,14 +401,14 @@ export function createTestApp(): TestApp {
   function createRequestBuilder(
     method: string,
     path: string,
-    options?: RequestOptions,
-  ): TestRequestBuilder {
+    options?: UntypedRequestOptions,
+  ): UntypedTestRequestBuilder {
     const perRequest: PerRequestMocks = {
       services: new Map<NamedServiceDef, unknown>(),
       middlewares: new Map<NamedMiddlewareDef, Record<string, unknown>>(),
     };
 
-    const builder: TestRequestBuilder = {
+    const builder: UntypedTestRequestBuilder = {
       mock(service, impl) {
         perRequest.services.set(service, impl);
         return builder;
@@ -318,11 +429,11 @@ export function createTestApp(): TestApp {
   const httpMethods = Object.fromEntries(
     HTTP_METHODS.map((m) => [
       m.toLowerCase(),
-      (path: string, options?: RequestOptions) => createRequestBuilder(m, path, options),
+      (path: string, options?: UntypedRequestOptions) => createRequestBuilder(m, path, options),
     ]),
-  ) as Pick<TestApp, 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head'>;
+  ) as Pick<UntypedTestApp, 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head'>;
 
-  const app: TestApp = {
+  const app: UntypedTestApp = {
     register(module, options) {
       registrations.push({ module, options });
       return app;
@@ -343,4 +454,11 @@ export function createTestApp(): TestApp {
   };
 
   return app;
+}
+
+class ResponseValidationError extends Error {
+  constructor(message: string) {
+    super(`Response validation failed: ${message}`);
+    this.name = 'ResponseValidationError';
+  }
 }
