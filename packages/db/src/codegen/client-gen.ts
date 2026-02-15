@@ -41,17 +41,18 @@ export function generateClient(domains: DomainDefinition[]): string {
     }
 
     lines.push(`  ${name}: {`);
-    lines.push(`    list: function(params?: List${pascalName}Params): Promise<${pascalName}[]> { throw new Error('Not implemented'); },`);
-    lines.push(`    get: function(${idField}: string): Promise<${pascalName} | null> { throw new Error('Not implemented'); },`);
-    lines.push(`    create: function(data: Create${pascalName}Input): Promise<${pascalName}> { throw new Error('Not implemented'); },`);
-    lines.push(`    update: function(${idField}: string, data: Update${pascalName}Input): Promise<${pascalName}> { throw new Error('Not implemented'); },`);
-    lines.push(`    delete: function(${idField}: string): Promise<void> { throw new Error('Not implemented'); },`);
+    lines.push(`    list: (params?: List${pascalName}Params) => Promise<${pascalName}[]>,`);
+    lines.push(`    get: (${idField}: string) => Promise<${pascalName} | null>,`);
+    lines.push(`    create: (data: Create${pascalName}Input) => Promise<${pascalName}>,`);
+    lines.push(`    update: (${idField}: string, data: Update${pascalName}Input) => Promise<${pascalName}>,`);
+    lines.push(`    delete: (${idField}: string) => Promise<void>,`);
 
-    // Add relation accessors
+    // Add relation accessors - use method syntax for relations
     if (relations) {
       for (const [relName, rel] of Object.entries(relations)) {
         if (rel.type === 'belongsTo') {
           const targetPascal = rel.target.charAt(0).toUpperCase() + rel.target.slice(1);
+          const RelName = relName.charAt(0).toUpperCase() + relName.slice(1);
           // Use entity name + 'Id' for relation accessor parameter
           const relParamName = `${name}Id`;
           lines.push(`    ${relName}: {`);
