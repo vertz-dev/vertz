@@ -11,6 +11,7 @@ import {
   emitSchemaReExports,
 } from './generators/typescript/emit-sdk';
 import { emitModuleTypesFile, emitSharedTypesFile } from './generators/typescript/emit-types';
+import { emitRouteMapType } from './generators/typescript/emit-routes';
 import type { IncrementalResult } from './incremental';
 import { writeIncremental } from './incremental';
 import { adaptIR } from './ir-adapter';
@@ -67,6 +68,9 @@ function runTypescriptGenerator(ir: CodegenIR, config: ResolvedCodegenConfig): G
   if (sharedSchemas.length > 0) {
     files.push(emitSharedTypesFile(sharedSchemas));
   }
+
+  // Route map type for typed test app
+  files.push(emitRouteMapType(ir));
 
   // Module client files
   for (const mod of ir.modules) {

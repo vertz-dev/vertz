@@ -1,7 +1,7 @@
 import { createMiddleware, createModuleDef } from '@vertz/server';
 import { describe, it } from 'vitest';
 
-import { createTestApp } from '../test-app';
+import { createTestApp, type RouteMapEntry, type TestResponse } from '../test-app';
 
 describe('createTestApp type safety', () => {
   it('rejects wrong service mock key', () => {
@@ -46,5 +46,106 @@ describe('createTestApp type safety', () => {
     const app = createTestApp();
     // @ts-expect-error — 'wrong' is not a valid key on the middleware provides
     app.mockMiddleware(authMiddleware, { wrong: 'data' });
+  });
+});
+
+// Typed route map for testing
+interface TestRouteMap extends RouteMapEntry {
+  'GET /users': {
+    params: Record<string, never>;
+    query: Record<string, never>;
+    body: never;
+    headers: Record<string, never>;
+    response: Array<{ id: string; name: string }>;
+  };
+  'GET /users/:id': {
+    params: { id: string };
+    query: Record<string, never>;
+    body: never;
+    headers: Record<string, never>;
+    response: { id: string; name: string };
+  };
+  'POST /users': {
+    params: Record<string, never>;
+    query: Record<string, never>;
+    body: { name: string };
+    headers: Record<string, never>;
+    response: { id: string; name: string };
+  };
+  'GET /users/:id/posts': {
+    params: { id: string };
+    query: { page?: number };
+    body: never;
+    headers: Record<string, never>;
+    response: Array<{ id: string; title: string }>;
+  };
+}
+
+describe('TestAppWithRoutes<TRouteMap> type safety', () => {
+  it('creates typed test app with route map', () => {
+    // Should compile — typed app created successfully
+    createTestApp<TestRouteMap>();
+  });
+
+  it('accepts valid GET /users route', () => {
+    const app = createTestApp<TestRouteMap>();
+    // Should compile — valid route key
+    app.get('/users');
+  });
+
+  it('accepts valid GET /users/:id route with param', () => {
+    const app = createTestApp<TestRouteMap>();
+    // Should compile — valid route key with param
+    app.get('/users/123');
+  });
+
+  it('accepts valid POST /users route with body type', () => {
+    const app = createTestApp<TestRouteMap>();
+    // Should compile — valid POST route with body
+    app.post('/users', { body: { name: 'Alice' } });
+  });
+
+  it('narrows body type for POST /users', () => {
+    const app = createTestApp<TestRouteMap>();
+    // @ts-expect-error — wrong body type (missing required 'name')
+    app.post('/users', { body: { wrong: 'field' } });
+  });
+
+  it('accepts correct body type for POST /users', () => {
+    const app = createTestApp<TestRouteMap>();
+    // Should compile — correct body type
+    app.post('/users', { body: { name: 'Alice' } });
+  });
+
+  it('backwards compatible when no type parameter', () => {
+    // When no generic is provided, should fall back to untyped behavior
+    const app = createTestApp();
+    // Should compile — untyped request
+    app.get('/any/path');
+    app.post('/any/path', { body: { any: 'thing' } });
+  });
+});
+
+describe('TestResponse type narrowing', () => {
+  it('TestResponse can be used with generic type', () => {
+    const response: TestResponse<{ id: string }> = {
+      status: 200,
+      body: { id: '123' },
+      headers: {},
+      ok: true,
+    };
+    // Should compile — typed response (accessing id works)
+    void response.body.id;
+  });
+
+  it('TestResponse defaults to unknown when no type', () => {
+    const response: TestResponse = {
+      status: 200,
+      body: { id: '123' },
+      headers: {},
+      ok: true,
+    };
+    // Should compile — untyped response
+    void response.body;
   });
 });
