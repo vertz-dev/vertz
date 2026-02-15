@@ -1,4 +1,6 @@
 pre-push:
   commands:
+    trojan-source:
+      run: bash scripts/check-unicode.sh
     quality-gates:
       run: turbo run lint typecheck test --output-logs=errors-only
