@@ -66,7 +66,7 @@ export function generateTypes(domain: DomainDefinition): string {
   const lines: string[] = [];
 
   // Generate enum types first
-  for (const [fieldName, field] of Object.entries(fields)) {
+  for (const field of Object.values(fields)) {
     if (field.type === 'enum' && field.enumName && field.enumValues) {
       lines.push(`enum ${field.enumName} {`);
       for (const value of field.enumValues) {
