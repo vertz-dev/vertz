@@ -1,0 +1,79 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Vertz",
+  "logo": {
+    "dark": "/logo-dark.svg",
+    "light": "/logo.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#7C3AED",
+    "light": "#A78BFA",
+    "dark": "#5B21B6",
+    "background": {
+      "light": "#FFFFFF",
+      "dark": "#0F0F12"
+    },
+    "sidebar": {
+      "light": "#F9FAFB",
+      "dark": "#0F0F12"
+    }
+  },
+  "anchors": [
+    {
+      "name": "Getting Started",
+      "icon": "rocket",
+      "path": "/"
+    },
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/vertz/vertz"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction",
+        "quickstart"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "concepts/domains",
+        "concepts/server",
+        "concepts/access"
+      ]
+    },
+    {
+      "group": "UI",
+      "pages": [
+        "ui/overview"
+      ]
+    },
+    {
+      "group": "Schema",
+      "pages": [
+        "schema/overview"
+      ]
+    },
+    {
+      "group": "Server",
+      "pages": [
+        "server/overview"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api/overview"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/vertz/vertz",
+    "twitter": "https://twitter.com/vertz"
+  }
+}

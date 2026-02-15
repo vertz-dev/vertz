@@ -1,0 +1,82 @@
+---
+title: Domains
+description: Domain-driven data modeling in Vertz
+---
+
+# Domains
+
+Domains are the core organizational unit in Vertz. They encapsulate related data, behavior, and access rules.
+
+## Overview
+
+A domain represents a bounded context in your application:
+
+- **Entities** — The data structures within the domain
+- **Services** — Business logic operations
+- **Access** — Who can do what within the domain
+
+## Defining a Domain
+
+```typescript
+import { defineDomain } from 'vertz/schema';
+
+export const blogDomain = defineDomain({
+  name: 'blog',
+  entities: {
+    Post: {
+      id: { type: 'uuid', primary: true },
+      title: { type: 'string', maxLength: 200 },
+      content: { type: 'text' },
+      publishedAt: { type: 'datetime', optional: true },
+      author: { type: 'relation', to: 'User' },
+    },
+    Comment: {
+      id: { type: 'uuid', primary: true },
+      content: { type: 'text' },
+      post: { type: 'relation', to: 'Post' },
+      author: { type: 'relation', to: 'User' },
+    },
+  },
+});
+```
+
+## Domain Relationships
+
+Domains can reference each other through relations:
+
+```typescript
+export const userDomain = defineDomain({
+  name: 'user',
+  entities: {
+    User: {
+      id: { type: 'uuid', primary: true },
+      email: { type: 'string', unique: true },
+      name: { type: 'string' },
+      posts: { type: 'relation', to: 'Post', many: true },
+    },
+  },
+});
+```
+
+## Access Control
+
+Domains define their own access rules:
+
+```typescript
+export const blogDomain = defineDomain({
+  name: 'blog',
+  access: {
+    Post: {
+      read: 'public',
+      create: 'authenticated',
+      update: 'author',
+      delete: 'author',
+    },
+  },
+});
+```
+
+## Next Steps
+
+- **[Server](/concepts/server)** — Learn about server-side rendering
+- **[Access Control](/concepts/access)** — Authentication and authorization

@@ -1,0 +1,100 @@
+---
+title: Server
+description: Server-side rendering and API routes in Vertz
+---
+
+# Server
+
+Vertz provides a unified server that handles both server-side rendering (SSR) and API routes.
+
+## Overview
+
+The Vertz server is designed for progressive enhancement:
+
+- **SSR by default** — Pages render on the server for fast initial loads
+- **Streaming** — Progressive hydration for interactive content
+- **API Routes** — Full-stack type-safe APIs
+
+## Creating a Server
+
+```typescript
+import { createServer } from 'vertz/server';
+
+const server = createServer({
+  domains: [blogDomain, userDomain],
+  port: 3000,
+});
+
+server.start();
+```
+
+## API Routes
+
+Define API endpoints alongside your components:
+
+```typescript
+import { route$ } from 'vertz/server';
+
+export const useGetPosts = route$({
+  method: 'GET',
+  path: '/api/posts',
+  handler: async (req, { db }) => {
+    const posts = await db.query('SELECT * FROM posts');
+    return { posts };
+  },
+});
+
+export const useCreatePost = route$({
+  method: 'POST',
+  path: '/api/posts',
+  handler: async (req, { db, user }) => {
+    const { title, content } = await req.json();
+    const post = await db.create('Post', {
+      title,
+      content,
+      author: user.id,
+    });
+    return { post };
+  },
+});
+```
+
+## Server Functions
+
+Use server functions to call backend logic from your UI:
+
+```typescript
+import { server$ } from 'vertz/server';
+
+export const getPost = server$(async (id: string) => {
+  'use server';
+  return db.query('SELECT * FROM posts WHERE id = ?', [id]);
+});
+
+// In your component:
+const post = await getPost(postId);
+```
+
+## Streaming SSR
+
+Vertz supports streaming for progressive loading:
+
+```typescript
+import { component$, Suspense } from 'vertz/ui';
+
+export default component$(() => {
+  return (
+    <div>
+      <h1>My Page</h1>
+      <Suspense fallback={<Loading />}>
+        <HeavyComponent />
+      </Suspense>
+    </div>
+  );
+});
+```
+
+## Next Steps
+
+- **[Access Control](/concepts/access)** — Secure your server routes
+- **[Schema](/schema/overview)** — Define your data model

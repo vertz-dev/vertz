@@ -1,0 +1,44 @@
+---
+title: Server Overview
+description: Server-side rendering and API routes in Vertz
+---
+
+# Server
+
+The Vertz server handles SSR, API routes, and server functions.
+
+## Overview
+
+- **SSR** — Server-side rendering for fast initial loads
+- **Streaming** — Progressive hydration
+- **API Routes** — Type-safe endpoints
+- **Server Functions** — Call backend from UI
+
+## Coming Soon
+
+Detailed server documentation is coming as part of the progressive launch.
+
+### What's Next
+
+- Creating a server
+- API routes
+- Server functions
+- Middleware
+
+## Quick Example
+
+```typescript
+import { createServer } from 'vertz/server';
+
+const server = createServer({
+  domains: [blogDomain],
+  port: 3000,
+});
+
+server.start();
+```
+
+## Related
+
+- [Quickstart](/quickstart) — Run your first server
+- [Access Control](/concepts/access) — Secure your routes

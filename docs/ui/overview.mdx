@@ -1,0 +1,47 @@
+---
+title: UI Overview
+description: Building reactive UIs with Vertz
+---
+
+# UI
+
+Vertz UI is a reactive component framework built on signals.
+
+## Features
+
+- **Signal-based reactivity** — Fine-grained updates without virtual DOM
+- **JSX support** — Write familiar JSX with full type safety
+- **CSS-in-JS** — Scoped styles with zero runtime overhead
+- **SSR-ready** — Server-side rendering with progressive hydration
+
+## Coming Soon
+
+Detailed UI documentation is coming as part of the progressive launch.
+
+### What's Next
+
+- Components and signals
+- Styling system
+- Routing
+- Forms and state management
+
+## Quick Example
+
+```tsx
+import { component$, useSignal } from 'vertz/ui';
+
+export default component$(() => {
+  const count = useSignal(0);
+  
+  return (
+    <button onClick$={() => count.value++}>
+      Clicks: {count.value}
+    </button>
+  );
+});
+```
+
+## Related
+
+- [Quickstart](/quickstart) — Build your first UI
+- [Server](/concepts/server) — SSR integration
