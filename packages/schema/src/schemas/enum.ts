@@ -12,6 +12,11 @@ export class EnumSchema<T extends readonly [string, ...string[]]> extends Schema
     this._values = values;
   }
 
+  /** Public accessor for the enum's allowed values. */
+  get values(): T {
+    return this._values;
+  }
+
   _parse(value: unknown, ctx: ParseContext): T[number] {
     if (!this._values.includes(value as string)) {
       ctx.addIssue({
