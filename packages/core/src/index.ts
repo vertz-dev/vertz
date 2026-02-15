@@ -1,8 +1,25 @@
 // @vertz/core — public API
 
 export type { AppBuilder } from './app';
-// App
-export { createApp } from './app';
+
+import type { AppBuilder } from './app';
+import { createApp as _createApp } from './app';
+// App / Server
+import type { AppConfig } from './types';
+
+/**
+ * Creates an HTTP server. Preferred entry point for building Vertz services.
+ * @since 0.2.0
+ */
+export const createServer: (config: AppConfig) => AppBuilder = _createApp;
+
+/**
+ * @deprecated Use `createServer` instead. `createApp` will be removed in v0.3.0.
+ */
+export const createApp: (config: AppConfig) => AppBuilder = (...args) => {
+  console.warn('⚠️ createApp() is deprecated. Use createServer() from @vertz/server instead.');
+  return _createApp(...args);
+};
 // Environment
 export { createEnv } from './env';
 // Exceptions

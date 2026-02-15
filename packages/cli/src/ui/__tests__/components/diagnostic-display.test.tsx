@@ -2,7 +2,7 @@ import type { Diagnostic } from '@vertz/compiler';
 import { render } from 'ink-testing-library';
 import { describe, expect, it } from 'vitest';
 import { DiagnosticDisplay } from '../../components/DiagnosticDisplay';
-import { symbols } from '../../theme';
+import { symbols } from '@vertz/tui';
 
 function makeDiagnostic(overrides: Partial<Diagnostic> = {}): Diagnostic {
   return {

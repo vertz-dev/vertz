@@ -1,9 +1,4 @@
 pre-push:
   commands:
     quality-gates:
-      run: bun run typecheck && bun run lint
-    ci:
-      run: |
-        if command -v dagger &> /dev/null; then
-          dagger call smart-ci --base-branch main
-        fi
+      run: turbo run lint typecheck test --output-logs=errors-only

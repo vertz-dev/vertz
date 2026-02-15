@@ -118,7 +118,7 @@ describe('Relation loading (DB-011)', () => {
         data: { title: 'Post 1', authorId: user.id },
       });
 
-      const post = (await db.findOne('posts', {
+      const post = (await db.get('posts', {
         where: { title: 'Post 1' },
         include: { author: true },
       })) as Record<string, unknown>;
@@ -140,7 +140,7 @@ describe('Relation loading (DB-011)', () => {
       });
 
       // The author exists, so it should load
-      const post = (await db.findOne('posts', {
+      const post = (await db.get('posts', {
         where: { title: 'Post 1' },
         include: { author: true },
       })) as Record<string, unknown>;
@@ -166,7 +166,7 @@ describe('Relation loading (DB-011)', () => {
         data: { title: 'Post 2', authorId: user.id },
       });
 
-      const result = (await db.findOne('users', {
+      const result = (await db.get('users', {
         where: { name: 'Alice' },
         include: { posts: true },
       })) as Record<string, unknown>;
@@ -185,7 +185,7 @@ describe('Relation loading (DB-011)', () => {
         data: { name: 'Bob', email: 'bob@test.com' },
       });
 
-      const result = (await db.findOne('users', {
+      const result = (await db.get('users', {
         where: { name: 'Bob' },
         include: { posts: true },
       })) as Record<string, unknown>;
@@ -212,8 +212,8 @@ describe('Relation loading (DB-011)', () => {
       await db.create('posts', { data: { title: 'Alice Post 2', authorId: alice.id } });
       await db.create('posts', { data: { title: 'Bob Post 1', authorId: bob.id } });
 
-      // findMany with include should batch the relation query
-      const users = (await db.findMany('users', {
+      // list with include should batch the relation query
+      const users = (await db.list('users', {
         orderBy: { name: 'asc' },
         include: { posts: true },
       })) as Record<string, unknown>[];
@@ -244,7 +244,7 @@ describe('Relation loading (DB-011)', () => {
         data: { title: 'Post 1', authorId: user.id },
       });
 
-      const post = (await db.findOne('posts', {
+      const post = (await db.get('posts', {
         where: { title: 'Post 1' },
         include: { author: { select: { name: true } } },
       })) as Record<string, unknown>;
@@ -258,10 +258,10 @@ describe('Relation loading (DB-011)', () => {
   });
 
   // -------------------------------------------------------------------------
-  // findManyAndCount with include
+  // listAndCount with include
   // -------------------------------------------------------------------------
 
-  describe('findManyAndCount with include', () => {
+  describe('listAndCount with include', () => {
     it('loads relations alongside paginated results', async () => {
       const user = (await db.create('users', {
         data: { name: 'Alice', email: 'alice@test.com' },
@@ -271,7 +271,7 @@ describe('Relation loading (DB-011)', () => {
       await db.create('posts', { data: { title: 'Post 2', authorId: user.id } });
       await db.create('posts', { data: { title: 'Post 3', authorId: user.id } });
 
-      const { data, total } = await db.findManyAndCount('posts', {
+      const { data, total } = await db.listAndCount('posts', {
         orderBy: { title: 'asc' },
         limit: 2,
         include: { author: true },
@@ -304,7 +304,7 @@ describe('Relation loading (DB-011)', () => {
         data: { text: 'Nice one!', postId: post.id, authorId: user.id },
       });
 
-      const result = (await db.findOne('users', {
+      const result = (await db.get('users', {
         where: { name: 'Alice' },
         include: { posts: { include: { comments: true } } },
       })) as Record<string, unknown>;
@@ -332,7 +332,7 @@ describe('Relation loading (DB-011)', () => {
         data: { text: 'Great post!', postId: post.id, authorId: user.id },
       });
 
-      const comment = (await db.findOne('comments', {
+      const comment = (await db.get('comments', {
         where: { text: 'Great post!' },
         include: { post: { include: { author: true } } },
       })) as Record<string, unknown>;
@@ -478,7 +478,7 @@ describe('Many-to-many relation loading (B2)', () => {
     await db.create('postTags', { data: { postId: post2.id, tagId: tag2.id } });
     await db.create('postTags', { data: { postId: post2.id, tagId: tag3.id } });
 
-    const result = (await db.findMany('posts', {
+    const result = (await db.list('posts', {
       orderBy: { title: 'asc' },
       include: { tags: true },
     })) as Record<string, unknown>[];
@@ -507,7 +507,7 @@ describe('Many-to-many relation loading (B2)', () => {
       data: { title: 'Lonely Post', authorId: user.id },
     });
 
-    const result = (await db.findOne('posts', {
+    const result = (await db.get('posts', {
       where: { title: 'Lonely Post' },
       include: { tags: true },
     })) as Record<string, unknown>;
@@ -533,7 +533,7 @@ describe('Many-to-many relation loading (B2)', () => {
     await db.create('postTags', { data: { postId: post1.id, tagId: tag.id } });
     await db.create('postTags', { data: { postId: post2.id, tagId: tag.id } });
 
-    const result = (await db.findOne('tags', {
+    const result = (await db.get('tags', {
       where: { label: 'TypeScript' },
       include: { posts: true },
     })) as Record<string, unknown>;
@@ -621,7 +621,7 @@ describe('Relation loading with non-standard PK', () => {
     await db.create('countries', { data: { code: 'US', name: 'United States' } });
     await db.create('cities', { data: { name: 'New York', countryCode: 'US' } });
 
-    const city = (await db.findOne('cities', {
+    const city = (await db.get('cities', {
       where: { name: 'New York' },
       include: { country: true },
     })) as Record<string, unknown>;
@@ -638,7 +638,7 @@ describe('Relation loading with non-standard PK', () => {
     await db.create('cities', { data: { name: 'New York', countryCode: 'US' } });
     await db.create('cities', { data: { name: 'Los Angeles', countryCode: 'US' } });
 
-    const country = (await db.findOne('countries', {
+    const country = (await db.get('countries', {
       where: { code: 'US' },
       include: { cities: true },
     })) as Record<string, unknown>;

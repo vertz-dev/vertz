@@ -5,7 +5,7 @@ import type { DbPlugin, QueryContext } from '../plugin-types';
 describe('createPluginRunner', () => {
   const baseContext: QueryContext = {
     table: 'users',
-    operation: 'findMany',
+    operation: 'list',
     args: { where: { id: '1' } },
     fingerprint: '12345',
   };

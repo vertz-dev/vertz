@@ -32,6 +32,7 @@ interface RouteEntry {
   handler: (ctx: HandlerCtx) => unknown;
   options: Record<string, unknown>;
   services: Record<string, unknown>;
+  middlewares: ResolvedMiddleware[];
   paramsSchema?: SchemaLike;
   bodySchema?: SchemaLike;
   querySchema?: SchemaLike;
@@ -89,10 +90,21 @@ function registerRoutes(
 
       for (const route of router.routes) {
         const fullPath = basePath + router.prefix + route.path;
+        const routeMiddlewares: ResolvedMiddleware[] = (
+          (route.config.middlewares ?? []) as NamedMiddlewareDef<
+            Record<string, unknown>,
+            Record<string, unknown>
+          >[]
+        ).map((mw) => ({
+          name: mw.name,
+          handler: mw.handler,
+          resolvedInject: {},
+        }));
         const entry: RouteEntry = {
           handler: route.config.handler,
           options: options ?? {},
           services: resolvedServices,
+          middlewares: routeMiddlewares,
           paramsSchema: route.config.params as SchemaLike | undefined,
           bodySchema: route.config.body as SchemaLike | undefined,
           querySchema: route.config.query as SchemaLike | undefined,
@@ -163,6 +175,13 @@ export function buildHandler(
 
       const entry = match.handler;
 
+      // Run route-level middlewares after global ones
+      if (entry.middlewares.length > 0) {
+        const routeCtx = { ...requestCtx, ...middlewareState };
+        const routeState = await runMiddlewareChain(entry.middlewares, routeCtx);
+        Object.assign(middlewareState, routeState);
+      }
+
       // Validate schemas if provided
       const validatedParams = entry.paramsSchema
         ? validateSchema(entry.paramsSchema, match.params, 'params')
@@ -180,7 +199,7 @@ export function buildHandler(
       const ctx = buildCtx({
         params: validatedParams as Record<string, unknown>,
         body: validatedBody,
-        query: validatedQuery as Record<string, unknown>,
+        query: validatedQuery as Record<string, string>,
         headers: validatedHeaders as Record<string, string>,
         raw,
         middlewareState,

@@ -1,4 +1,4 @@
-import { createApp, type ServerHandle } from '@vertz/core';
+import { createServer, type ServerHandle } from '@vertz/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authMiddleware } from '../app/middleware/auth';
 import { createTodosModule } from '../app/modules/todos';
@@ -13,7 +13,7 @@ beforeAll(async () => {
   const { module: usersModule, userService } = createUsersModule();
   const { module: todosModule } = createTodosModule(userService);
 
-  const app = createApp({ basePath: '/api', cors: { origins: true } })
+  const app = createServer({ basePath: '/api', cors: { origins: true } })
     .middlewares([authMiddleware])
     .register(usersModule)
     .register(todosModule);

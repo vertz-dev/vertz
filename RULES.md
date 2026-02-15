@@ -6,20 +6,49 @@
 
 ---
 
-## The Three Laws of Web Development
+## The Four Laws of Web Development
 
 *Inspired by Asimov. Hierarchical — a lower law may never override a higher one.*
 
+### 0th Law: Security is non-negotiable.
+A framework shall not compromise security, nor by inaction allow security to be compromised. No `eval()`, no hardcoded secrets, no unsanitized input, no bypassed auth. Security gates may add friction (login screens, auth flows, CSP headers) — that friction is the cost of a functioning internet. We never sacrifice security for UX or DX convenience.
+
 ### 1st Law: UX is sacred.
-A framework shall not harm the end-user experience, nor by inaction allow the end-user experience to be harmed. Performance, reliability, accessibility — every millisecond matters. A performance regression is a First Law violation (P0).
+A framework shall not harm the end-user experience, nor by inaction allow the end-user experience to be harmed, except where it would conflict with the Zeroth Law. Performance, reliability, accessibility — every millisecond matters. A performance regression is a First Law violation (P0).
 
 ### 2nd Law: DX serves the user.
-A framework shall deliver exceptional developer experience, except where it would conflict with the First Law. DX exists so developers can build better products for users — not as an end in itself.
+A framework shall deliver exceptional developer experience, except where it would conflict with the Zeroth or First Law. DX exists so developers can build better products for users — not as an end in itself.
 
 ### 3rd Law: System integrity serves both.
-A framework shall protect its own architecture, type safety, and process integrity, except where it would conflict with the First or Second Law.
+A framework shall protect its own architecture, type safety, and process integrity, except where it would conflict with the Zeroth, First, or Second Law.
 
-**Use the Laws to break ties.** When two valid approaches conflict, the higher law wins. Clever internals (3rd) never justify bad DX (2nd). DX shortcuts never justify degraded UX (1st). The laws cascade: if the system is broken (3rd ❌), DX suffers (2nd ❌), and users pay the price (1st ❌).
+**Use the Laws to break ties.** When two valid approaches conflict, the higher law wins. Convenience (2nd/3rd) never justifies degraded UX (1st). UX shortcuts never justify security holes (0th). The laws cascade: if security is broken (0th ❌), everything downstream is compromised.
+
+---
+
+## Core Principles
+
+### Determinism
+Builds, tests, deploys, and CI must be reproducible. Same input → same output. Local and CI must behave identically. Flaky infrastructure is a process violation. We don't tolerate "works on my machine" or "CI was just being weird." If it's not deterministic, it's broken.
+
+### Fail Fast, Fix Even Faster
+Surface errors as early as possible — don't let them compound. TDD is the embodiment of this: write the test first, watch it fail (fast), fix it immediately (faster). This applies beyond code: catch design misalignments in review, catch process gaps in audits, catch regressions in CI. The cost of a bug grows exponentially with the distance from where it was introduced to where it's caught. Shrink that distance to zero.
+
+### Audit Grades Enforce Rework
+
+Every merged PR gets audited. Bad grades have consequences:
+
+| Grade | Action |
+|-------|--------|
+| **A** | No action needed. Exemplary work. |
+| **B** | Minor feedback noted. No rework required. |
+| **C** | Document lessons learned. Flag process gaps. No rework required. |
+| **D** | **Mandatory rework.** Revert the PR and redo the work from scratch following strict TDD. Do NOT reuse the original code — write it fresh, test-first. The point is to prove the work through the process, not to rubber-stamp existing code. |
+| **F** | **Mandatory revert + redo.** Same as D, but escalate to CTO. Critical violations (security, data loss) may require immediate revert before redo is complete. |
+
+**Why no code reuse on D/F?** Because TDD isn't about having tests — it's about the tests *driving* the implementation. Copying code and writing tests after is speculative testing. You're testing what you wrote, not writing what you test. The whole point of TDD is that the test comes first, fails, and the implementation exists *only* to make it pass. Reusing code bypasses this entirely.
+
+**The process IS the product.** Code that works but was written without TDD is accidental correctness. We need *proven* correctness through red-green-refactor.
 
 ---
 
@@ -277,10 +306,12 @@ Full rules: `/workspace/backstage/.claude/rules/bot-roles.md`
 - New dependencies require tech lead (ben) approval
 - Zero runtime dependencies for core packages where possible
 
-### Security
+### Security (Zeroth Law)
 - No `eval()` or `new Function()`
+- **No shell string interpolation** — never use `execAsync()` or `exec()` with template literals. Always use `spawn()` with argument arrays: `spawn('cmd', ['--arg', value])`. This prevents command injection (CWE-78).
 - Sanitize user input in examples and docs
 - Document security implications of any API that handles raw HTTP
+- A single critical security violation is an **automatic F** in audits, regardless of other quality
 
 ---
 
@@ -319,3 +350,9 @@ These are failure modes specific to AI coding agents. Read this every session.
 9. **Don't skip reading the ticket and design doc.** The answer to "what should I build?" is in the ticket and design doc, not in your training data. Read them completely before writing any code.
 
 10. **Don't make assumptions about unchanged code.** If you need to modify a file, read it first. Don't assume you know what's there from a previous session.
+
+11. **Don't deliver the wrong ticket's work.** Read the ticket ID in your branch name. Read the actual ticket. Verify what you're building matches what was asked. If the ticket says "5 diagnostic rules" and you're writing bug fixes, stop.
+
+12. **Don't create branches from a dirty worktree.** Always use `git worktree add` for isolated work. If your PR diff contains files from another feature, you've broken isolation. Check `git status` before branching.
+
+13. **Don't ship code that handles external input without spawn().** Any code that shells out with user-controllable input MUST use `spawn()` with argument arrays. This is a Zeroth Law (security) requirement. Violations are automatic F grades.

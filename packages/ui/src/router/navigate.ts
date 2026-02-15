@@ -39,11 +39,26 @@ export interface Router {
  * Create a router instance.
  *
  * @param routes - Compiled route list from defineRoutes()
- * @param initialUrl - The initial URL to match
+ * @param initialUrl - The initial URL to match (optional; auto-detects from window.location or __SSR_URL__)
  * @returns Router instance with reactive state and navigation methods
  */
-export function createRouter(routes: CompiledRoute[], initialUrl: string): Router {
-  const initialMatch = matchRoute(routes, initialUrl);
+export function createRouter(routes: CompiledRoute[], initialUrl?: string): Router {
+  // Auto-detect SSR context
+  const isSSR = typeof window === 'undefined' || typeof globalThis.__SSR_URL__ !== 'undefined';
+
+  // Determine the initial URL
+  let url: string;
+  if (initialUrl) {
+    url = initialUrl;
+  } else if (isSSR) {
+    // In SSR, use the __SSR_URL__ global set by the SSR entry
+    url = globalThis.__SSR_URL__ || '/';
+  } else {
+    // In browser, use window.location
+    url = window.location.pathname + window.location.search;
+  }
+
+  const initialMatch = matchRoute(routes, url);
 
   const current = signal<RouteMatch | null>(initialMatch);
   const loaderData = signal<unknown[]>([]);
@@ -110,11 +125,13 @@ export function createRouter(routes: CompiledRoute[], initialUrl: string): Route
   }
 
   async function navigate(url: string, options?: NavigateOptions): Promise<void> {
-    // Update browser history
-    if (options?.replace) {
-      window.history.replaceState(null, '', url);
-    } else {
-      window.history.pushState(null, '', url);
+    // Update browser history (skip in SSR)
+    if (!isSSR) {
+      if (options?.replace) {
+        window.history.replaceState(null, '', url);
+      } else {
+        window.history.pushState(null, '', url);
+      }
     }
 
     await applyNavigation(url);
@@ -134,18 +151,23 @@ export function createRouter(routes: CompiledRoute[], initialUrl: string): Route
     }
   }
 
-  // Listen for popstate (back/forward browser buttons)
-  function onPopState(): void {
-    const url = window.location.pathname + window.location.search;
-    applyNavigation(url).catch(() => {
-      // Error is stored in loaderError signal
-    });
+  // Listen for popstate (back/forward browser buttons) — skip in SSR
+  let onPopState: (() => void) | null = null;
+
+  if (!isSSR) {
+    onPopState = () => {
+      const url = window.location.pathname + window.location.search;
+      applyNavigation(url).catch(() => {
+        // Error is stored in loaderError signal
+      });
+    };
+    window.addEventListener('popstate', onPopState);
   }
 
-  window.addEventListener('popstate', onPopState);
-
   function dispose(): void {
-    window.removeEventListener('popstate', onPopState);
+    if (onPopState) {
+      window.removeEventListener('popstate', onPopState);
+    }
     if (currentAbort) {
       currentAbort.abort();
     }

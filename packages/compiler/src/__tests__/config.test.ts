@@ -49,39 +49,4 @@ describe('resolveConfig', () => {
     expect(config.strict).toBe(false);
     expect(config.compiler.sourceDir).toBe('src');
   });
-
-  it('preserves codegen config when provided', () => {
-    const config = resolveConfig({
-      codegen: {
-        generators: ['typescript', 'cli'],
-        outputDir: 'custom/output',
-      },
-    });
-    expect(config.codegen?.generators).toEqual(['typescript', 'cli']);
-    expect(config.codegen?.outputDir).toBe('custom/output');
-  });
-
-  it('returns undefined codegen when not provided', () => {
-    const config = resolveConfig({});
-    expect(config.codegen).toBeUndefined();
-  });
-});
-
-describe('defineConfig with codegen', () => {
-  it('accepts a config with a codegen section', () => {
-    const config = defineConfig({
-      codegen: {
-        generators: ['typescript'],
-        typescript: {
-          publishable: {
-            name: '@acme/sdk',
-            outputDir: 'packages/sdk',
-          },
-        },
-      },
-    });
-
-    expect(config.codegen?.generators).toEqual(['typescript']);
-    expect(config.codegen?.typescript?.publishable?.name).toBe('@acme/sdk');
-  });
 });

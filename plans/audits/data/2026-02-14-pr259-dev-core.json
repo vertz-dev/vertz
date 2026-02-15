@@ -1,0 +1,234 @@
+{
+  "schema": "vertz.audit.v1",
+  "timestamp": "2026-02-14T15:08:00Z",
+  "pr": {
+    "number": 259,
+    "title": "feat/ui 033 compiler diagnostics",
+    "author": "vertz-dev-core",
+    "mergedAt": "2026-02-14T00:25:07Z",
+    "filesChanged": 6,
+    "linesAdded": 213,
+    "linesRemoved": 7
+  },
+  "agent": {
+    "id": "vertz-dev-core",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "sessionDurationMs": null,
+    "totalTokens": null
+  },
+  "grade": "F",
+  "gradeNumeric": 0.0,
+  "scores": {
+    "tdd": {
+      "grade": "C",
+      "numeric": 2.0,
+      "checks": {
+        "testBeforeImpl": {
+          "pass": null,
+          "severity": "minor",
+          "evidence": "Cannot verify without session transcript — tests exist but order unknown"
+        },
+        "redGreenCycle": {
+          "pass": null,
+          "severity": "minor",
+          "evidence": "Cannot verify without session transcript"
+        },
+        "oneTestAtATime": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify without session transcript"
+        },
+        "qualityGatesBeforeCommit": {
+          "pass": null,
+          "severity": "minor",
+          "evidence": "Cannot verify without session transcript"
+        },
+        "noTypeEscapes": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No @ts-ignore, as any, .skip, or --no-verify found in diff"
+        },
+        "testQuality": {
+          "pass": true,
+          "severity": null,
+          "evidence": "jsx-conditional-nested.test.ts has 4 comprehensive test cases covering all bug scenarios"
+        }
+      }
+    },
+    "process": {
+      "grade": "F",
+      "numeric": 0.0,
+      "checks": {
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Branch feat/ui-033-compiler-diagnostics created"
+        },
+        "atomicCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "2 commits: one for infra-002, one for ui-compiler bugs"
+        },
+        "changesetAdded": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Changeset ui-019-conditional-disposal.md exists"
+        },
+        "changesetMatchesTicket": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Changeset references ui-019 but PR title claims ui-033 — complete mismatch"
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Author is vertz-dev-core[bot], co-authored by vertz-tech-lead[bot]"
+        },
+        "noPushToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR was merged to main via proper PR review process"
+        },
+        "noDuplicateWork": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Commit fc14d12 (infra-002 lefthook fix) already merged in PR #257 — included again in this PR"
+        },
+        "correctTicketReference": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "PR title says 'ui 033 compiler diagnostics' but delivers zero diagnostics from ui-033"
+        }
+      }
+    },
+    "design": {
+      "grade": "F",
+      "numeric": 0.0,
+      "checks": {
+        "readTicketFirst": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "If ticket ui-033 was read, agent ignored all requirements (5 diagnostic rules) and delivered different work (conditional JSX bug fixes)"
+        },
+        "readRules": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify without session transcript"
+        },
+        "scopeCompliance": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Ticket ui-033 scope: 5 diagnostic rules (lifecycle-scope, untransformed-jsx, missing-cleanup, raw-dom-mutation, signal-outside-component). PR #259 scope: 0 diagnostic rules, 3 conditional JSX bug fixes. Zero overlap."
+        },
+        "correctTicketLabeling": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Branch name (feat/ui-033-*) and PR title reference ui-033 but all work belongs to ui-019. Changeset correctly says ui-019."
+        },
+        "deviationsEscalated": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "Complete scope replacement (not deviation) — implemented entirely different ticket without escalation"
+        }
+      }
+    },
+    "dx": {
+      "grade": "B",
+      "numeric": 3.0,
+      "checks": {
+        "developerWalkthrough": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No walkthrough for bug fixes (acceptable for bug fixes vs features)"
+        },
+        "userOutcomeTests": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Tests verify JSX transformation correctness from developer perspective"
+        },
+        "publicApiOnly": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Bug fixes are internal compiler changes with no public API modifications"
+        },
+        "verticalSlice": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Bug fixes are complete — conditional JSX now transforms correctly end-to-end"
+        },
+        "testQuality": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Tests are clear, comprehensive, and would catch regressions"
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4.0,
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() in diff"
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No secrets in diff"
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "N/A - compiler internal changes only"
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "design.scopeCompliance",
+      "severity": "critical",
+      "description": "Complete scope violation — PR delivers zero requirements from stated ticket",
+      "evidence": "Ticket ui-033 requires 5 diagnostic rules (lifecycle-scope, untransformed-jsx, missing-cleanup, raw-dom-mutation, signal-outside-component). PR #259 files changed: lefthook.yml (infra), jsx-conditional-nested.test.ts (test), jsx-transformer.ts (bug fix), conditional.ts (bug fix). Zero diagnostic rule files created. Zero diagnostic rules implemented.",
+      "recommendation": "Before creating a branch, verify you are reading the CORRECT ticket. The ticket number in branch name, PR title, changeset, and actual work MUST all match. Add pre-commit validation that branch name matches a real ticket's scope."
+    },
+    {
+      "rule": "design.readTicketFirst",
+      "severity": "critical",
+      "description": "Did not read correct ticket or intentionally ignored requirements",
+      "evidence": "PR title 'feat/ui 033 compiler diagnostics' but changeset references ui-019. This proves agent knew the actual ticket was ui-019 but labeled the PR with wrong ticket (ui-033). Either the agent did not read ui-033, read it and ignored it, or intentionally mislabeled.",
+      "recommendation": "Add to agent rules: 'After reading a ticket, verify the acceptance criteria match what you are about to implement. If not, STOP and verify ticket number.' Add example of this failure to agent-failure-modes.md."
+    },
+    {
+      "rule": "process.correctTicketReference",
+      "severity": "critical",
+      "description": "PR title and branch reference wrong ticket number",
+      "evidence": "Branch: feat/ui-033-compiler-diagnostics. PR title: 'feat/ui 033 compiler diagnostics'. Actual work: ui-019 conditional JSX bugs + infra-002 lefthook. Changeset: ui-019-conditional-disposal.md (correct). The changeset is the only artifact that references the correct ticket.",
+      "recommendation": "Require ticket validation in bot scripts. Modify bots/git-as.sh to require --ticket flag and verify it exists in tickets/ directory. Add pre-push hook that checks branch name ticket number matches changeset ticket numbers."
+    },
+    {
+      "rule": "process.noDuplicateWork",
+      "severity": "major",
+      "description": "Included work already merged in another PR",
+      "evidence": "Commit fc14d12 'fix(infra): add quality-gates command to pre-push hook (infra-002)' appears in this PR. Git log shows the same work already merged in PR #257 (commit a5807fc) on 2026-02-13. This suggests branch was not rebased or work was cherry-picked without checking existing PRs.",
+      "recommendation": "Before pushing, run 'git log --all --oneline | grep <ticket-number>' to check if the ticket is already done. Rebase feature branches regularly to avoid including stale commits."
+    },
+    {
+      "rule": "design.deviationsEscalated",
+      "severity": "critical",
+      "description": "Complete scope replacement without escalation",
+      "evidence": "RULES.md line 107: 'Design deviations: If implementation needs to diverge from design doc: 1. STOP. Do not silently deviate. 2. Escalate to mike (VP Eng) or ben (Tech Lead)'. This is not a deviation — it's a complete replacement. No escalation occurred. Ticket ui-033 remains unstarted while PR claims to implement it.",
+      "recommendation": "Add agent rule: 'If you find yourself implementing work that does not match ANY of the ticket's acceptance criteria, STOP immediately. You are working on the wrong ticket. Verify ticket number and branch name before continuing.'"
+    },
+    {
+      "rule": "tdd.testBeforeImpl",
+      "severity": "minor",
+      "description": "Cannot verify test-first discipline without session transcript",
+      "evidence": "No session transcript available. Tests exist and are high quality, but cannot verify they were written before implementation (red-green cycle). This is marked minor because test quality is good, but the process gap prevents verification.",
+      "recommendation": "Ensure session transcripts are preserved for future audits. Consider adding timestamps to test files (via commit metadata) to verify test-first order."
+    }
+  ],
+  "summary": "CRITICAL FAILURE — PR must be relabeled or reverted. The technical work is good quality (comprehensive tests, correct bug fixes, no security issues), but the process failure is catastrophic: PR title claims to implement ticket ui-033 (5 diagnostic rules) but delivers ZERO diagnostic rules and instead ships bug fixes from ticket ui-019. Changeset correctly references ui-019, proving the agent knew the real ticket but mislabeled the PR. This corrupts the audit trail, misleads reviewers, and leaves ui-033 unstarted while appearing done. Additionally, duplicate work from PR #257 (infra-002) was included. Action required: CTO must relabel PR, update ticket statuses (ui-033 → Todo, ui-019 → Done), and ensure agent reads tickets correctly before next session."
+}

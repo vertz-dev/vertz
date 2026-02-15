@@ -98,7 +98,7 @@ export interface PostgresDriver {
 export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDriver {
   const sql: PostgresSql = postgresLib(url, {
     max: pool?.max ?? 10,
-    idle_timeout: pool?.idleTimeout !== undefined ? pool.idleTimeout / 1000 : undefined,
+    idle_timeout: pool?.idleTimeout !== undefined ? pool.idleTimeout / 1000 : 30,
     connect_timeout: pool?.connectionTimeout !== undefined ? pool.connectionTimeout / 1000 : 10,
     // Disable automatic type fetching — we handle type conversion ourselves
     // to ensure consistent behavior with PGlite tests
@@ -137,7 +137,10 @@ export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDr
 
     async isHealthy(): Promise<boolean> {
       try {
-        await sql`SELECT 1`;
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Health check timed out')), 5000),
+        );
+        await Promise.race([sql`SELECT 1`, timeout]);
         return true;
       } catch {
         return false;
@@ -157,6 +160,14 @@ export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDr
  * timestamp values may come as strings. This function ensures:
  * - ISO 8601 timestamp strings → Date objects
  * - Everything else passes through unchanged
+ *
+ * **⚠️ False-positive risk:** This heuristic coerces ANY string matching the
+ * ISO 8601 timestamp pattern (e.g., `"2024-01-15T10:30:00Z"`) into a `Date`,
+ * even if the column is a plain `text` type. If you store timestamp-like
+ * strings in text columns, they will be silently converted to Date objects.
+ *
+ * A future iteration may add column-type-aware coercion to eliminate this
+ * risk by inspecting the PG column OID or schema metadata.
  */
 function coerceValue(value: unknown): unknown {
   if (typeof value === 'string' && isTimestampString(value)) {
@@ -175,6 +186,11 @@ function coerceValue(value: unknown): unknown {
  * - "2024-01-15T10:30:00.000Z"
  * - "2024-01-15 10:30:00+00"
  * - "2024-01-15 10:30:00.123456+00:00"
+ *
+ * **Note:** This is a heuristic check using regex. Any string column value
+ * matching this pattern will be coerced to a Date object, which may produce
+ * false positives for text columns containing timestamp-formatted strings.
+ * See {@link coerceValue} for details on the false-positive risk.
  */
 function isTimestampString(value: string): boolean {
   // Must start with a date pattern YYYY-MM-DD and contain time separator

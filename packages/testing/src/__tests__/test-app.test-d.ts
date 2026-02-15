@@ -1,4 +1,4 @@
-import { createMiddleware, createModuleDef } from '@vertz/core';
+import { createMiddleware, createModuleDef } from '@vertz/server';
 import { describe, it } from 'vitest';
 
 import { createTestApp } from '../test-app';

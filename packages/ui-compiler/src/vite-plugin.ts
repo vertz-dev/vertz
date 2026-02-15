@@ -17,6 +17,26 @@ const VIRTUAL_CSS_PREFIX = '\0vertz-css:';
 /** Default file extensions for component files. */
 const DEFAULT_INCLUDE = ['**/*.tsx', '**/*.jsx'];
 
+/** SSR configuration options. */
+export interface SSROptions {
+  /**
+   * Path to the root component. Auto-detected from index.html if omitted.
+   * @default auto-detect from <script type="module" src="..."> in index.html
+   */
+  entry?: string;
+
+  /**
+   * Streaming SSR vs buffered.
+   * @default 'buffered'
+   */
+  mode?: 'buffered' | 'streaming';
+
+  /**
+   * Port override for the dev server (uses Vite's default if unset).
+   */
+  port?: number;
+}
+
 /** Options for the Vertz Vite plugin. */
 export interface VertzPluginOptions {
   /** Glob patterns for component files. Defaults to tsx and jsx. */
@@ -27,6 +47,12 @@ export interface VertzPluginOptions {
   cssExtraction?: boolean;
   /** Route-to-file mapping for CSS code splitting (production only). */
   routeMap?: Map<string, string[]>;
+  /**
+   * Enable SSR in development mode.
+   * When true, `vite dev` serves SSR'd HTML automatically.
+   * When an object, provides SSR configuration options.
+   */
+  ssr?: boolean | SSROptions;
 }
 
 /**
@@ -73,13 +99,121 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
     name: 'vertz',
     enforce: 'pre',
 
+    config(_userConfig, env) {
+      // When SSR is enabled, alias the JSX runtime for SSR modules
+      if (options?.ssr && env.isSsrBuild) {
+        return {
+          resolve: {
+            alias: {
+              '@vertz/ui/jsx-runtime': '@vertz/ui-server/jsx-runtime',
+              '@vertz/ui/jsx-dev-runtime': '@vertz/ui-server/jsx-runtime',
+            },
+          },
+        };
+      }
+      return undefined;
+    },
+
     configResolved(cfg) {
       resolvedConfig = cfg;
       isProduction = resolvedConfig.command === 'build' || resolvedConfig.mode === 'production';
     },
 
+    configureServer(server) {
+      // Only enable SSR middleware in dev mode
+      if (!options?.ssr) return;
+
+      const ssrOptions = typeof options.ssr === 'object' ? options.ssr : {};
+
+      // Register middleware BEFORE Vite's internal middleware to avoid
+      // Vite's SPA fallback rewriting URLs (e.g., '/' → '/index.html').
+      server.middlewares.use(async (req, res, next) => {
+        const url = req.url || '/';
+
+        // Skip non-HTML requests
+        if (
+          !req.headers.accept?.includes('text/html') &&
+          !req.url?.endsWith('.html') &&
+          req.url !== '/'
+        ) {
+          return next();
+        }
+
+        // Skip Vite internals and assets
+        if (
+          url.startsWith('/@') ||
+          url.startsWith('/node_modules') ||
+          url.includes('?') ||
+          /\.(js|css|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$/.test(url)
+        ) {
+          return next();
+        }
+
+        try {
+          // 1. Read the HTML template
+          const { readFileSync } = await import('node:fs');
+          const { resolve } = await import('node:path');
+          let template = readFileSync(resolve(server.config.root, 'index.html'), 'utf-8');
+
+          // 2. Transform the HTML template (adds Vite client, HMR)
+          template = await server.transformIndexHtml(url, template);
+
+          // 3. Auto-detect entry from HTML if not provided
+          let entry = ssrOptions.entry;
+          if (!entry) {
+            const scriptMatch = template.match(/<script[^>]*type="module"[^>]*src="([^"]+)"/);
+            if (scriptMatch?.[1]) {
+              entry = scriptMatch[1];
+            } else {
+              // biome-ignore lint: Build-time configuration error, not an HTTP error
+              throw new Error(
+                'Could not auto-detect entry from index.html. Please specify ssr.entry in vertz plugin options.',
+              );
+            }
+          }
+
+          // 4. Invalidate only the SSR entry module so each request gets fresh state.
+          // This is surgical: we only invalidate the virtual SSR entry (which re-imports
+          // the user's app), not the entire SSR module graph.
+          const ssrEntryMod = server.moduleGraph.getModuleById('\0vertz:ssr-entry');
+          if (ssrEntryMod) {
+            server.moduleGraph.invalidateModule(ssrEntryMod);
+          }
+
+          // 5. Load the virtual SSR entry via Vite's SSR module system
+          const ssrEntry = await server.ssrLoadModule('\0vertz:ssr-entry');
+
+          // 6. Render the app to HTML
+          const appHtml = await ssrEntry.renderToString(url);
+
+          // 7. Inject into template
+          // Try to find <!--ssr-outlet--> first, then fall back to <div id="app">
+          let html: string;
+          if (template.includes('<!--ssr-outlet-->')) {
+            html = template.replace('<!--ssr-outlet-->', appHtml);
+          } else {
+            // Replace content inside <div id="app">
+            html = template.replace(
+              /(<div[^>]*id="app"[^>]*>)([\s\S]*?)(<\/div>)/,
+              `$1${appHtml}$3`,
+            );
+          }
+
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(html);
+        } catch (err) {
+          // Fix stack trace for SSR errors
+          server.ssrFixStacktrace(err as Error);
+          next(err);
+        }
+      });
+    },
+
     resolveId(id) {
       if (id.startsWith(VIRTUAL_CSS_PREFIX)) {
+        return id;
+      }
+      if (id === '\0vertz:ssr-entry') {
         return id;
       }
       return undefined;
@@ -93,6 +227,12 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
           return extraction.css;
         }
         return '';
+      }
+      if (id === '\0vertz:ssr-entry') {
+        const ssrOptions = typeof options?.ssr === 'object' ? options.ssr : {};
+        // The entry will be set during configureServer, but we need a default
+        const entry = ssrOptions.entry || '/src/index.ts';
+        return generateSSREntry(entry);
       }
       return undefined;
     },
@@ -271,6 +411,56 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
       }
     },
   };
+}
+
+// ─── SSR Entry Generator ───────────────────────────────────────
+
+/**
+ * Generate the virtual SSR entry module that renders the app.
+ * This module installs the DOM shim, imports the user's app, and exports renderToString.
+ */
+function generateSSREntry(userEntry: string): string {
+  return `
+import { installDomShim, toVNode } from '@vertz/ui-server/dom-shim';
+import { renderToStream, streamToString } from '@vertz/ui-server';
+
+/**
+ * Render the app to an HTML string for the given URL.
+ */
+export async function renderToString(url) {
+  // Normalize URL: strip /index.html suffix that Vite's SPA fallback may add
+  const normalizedUrl = url.endsWith('/index.html')
+    ? url.slice(0, -'/index.html'.length) || '/'
+    : url;
+  
+  // Set SSR context flag — invalidate and re-set on every call so
+  // module-scope code (e.g. createRouter) picks up the current URL.
+  globalThis.__SSR_URL__ = normalizedUrl;
+  
+  // Install DOM shim so @vertz/ui components work
+  installDomShim();
+  
+  // Import the user's app entry (dynamic import for fresh module state)
+  const userModule = await import('${userEntry}');
+  
+  // Call the default export or named App export
+  const createApp = userModule.default || userModule.App;
+  if (typeof createApp !== 'function') {
+    throw new Error('App entry must export a default function or named App function');
+  }
+  
+  const app = createApp();
+  
+  // Convert to VNode if needed
+  const vnode = toVNode(app);
+  
+  // Render to stream and convert to string
+  const stream = renderToStream(vnode);
+  const html = await streamToString(stream);
+  
+  return html;
+}
+`;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────

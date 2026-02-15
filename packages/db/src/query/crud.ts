@@ -40,19 +40,19 @@ function assertNonEmptyWhere(where: Record<string, unknown>, operation: string):
 // Find queries
 // ---------------------------------------------------------------------------
 
-export interface FindOneArgs {
+export interface GetArgs {
   readonly where?: Record<string, unknown>;
   readonly select?: Record<string, unknown>;
   readonly orderBy?: Record<string, 'asc' | 'desc'>;
 }
 
 /**
- * Find a single row matching the filter, or null if not found.
+ * Get a single row matching the filter, or null if not found.
  */
-export async function findOne<T>(
+export async function get<T>(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
-  options?: FindOneArgs,
+  options?: GetArgs,
 ): Promise<T | null> {
   const columns = resolveSelectColumns(table, options?.select);
   const result = buildSelect({
@@ -71,21 +71,21 @@ export async function findOne<T>(
 }
 
 /**
- * Find a single row matching the filter, or throw NotFoundError.
+ * Get a single row matching the filter, or throw NotFoundError.
  */
-export async function findOneOrThrow<T>(
+export async function getOrThrow<T>(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
-  options?: FindOneArgs,
+  options?: GetArgs,
 ): Promise<T> {
-  const row = await findOne<T>(queryFn, table, options);
+  const row = await get<T>(queryFn, table, options);
   if (row === null) {
     throw new NotFoundError(table._name);
   }
   return row;
 }
 
-export interface FindManyArgs {
+export interface ListArgs {
   readonly where?: Record<string, unknown>;
   readonly select?: Record<string, unknown>;
   readonly orderBy?: Record<string, 'asc' | 'desc'>;
@@ -98,12 +98,12 @@ export interface FindManyArgs {
 }
 
 /**
- * Find multiple rows matching the filter.
+ * List multiple rows matching the filter.
  */
-export async function findMany<T>(
+export async function list<T>(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
-  options?: FindManyArgs,
+  options?: ListArgs,
 ): Promise<T[]> {
   const columns = resolveSelectColumns(table, options?.select);
   const result = buildSelect({
@@ -122,12 +122,12 @@ export async function findMany<T>(
 }
 
 /**
- * Find multiple rows with total count (using COUNT(*) OVER()).
+ * List multiple rows with total count (using COUNT(*) OVER()).
  */
-export async function findManyAndCount<T>(
+export async function listAndCount<T>(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
-  options?: FindManyArgs,
+  options?: ListArgs,
 ): Promise<{ data: T[]; total: number }> {
   const columns = resolveSelectColumns(table, options?.select);
   const result = buildSelect({
@@ -421,3 +421,20 @@ export async function deleteMany(
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
   return { count: res.rowCount };
 }
+
+// ---------------------------------------------------------------------------
+// Deprecated aliases (backwards compatibility)
+// ---------------------------------------------------------------------------
+
+/** @deprecated Use `GetArgs` instead */
+export type FindOneArgs = GetArgs;
+/** @deprecated Use `ListArgs` instead */
+export type FindManyArgs = ListArgs;
+/** @deprecated Use `get` instead */
+export const findOne: typeof get = get;
+/** @deprecated Use `getOrThrow` instead */
+export const findOneOrThrow: typeof getOrThrow = getOrThrow;
+/** @deprecated Use `list` instead */
+export const findMany: typeof list = list;
+/** @deprecated Use `listAndCount` instead */
+export const findManyAndCount: typeof listAndCount = listAndCount;

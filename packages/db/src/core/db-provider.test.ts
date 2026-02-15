@@ -65,7 +65,7 @@ describe('createDbProvider', () => {
 
     const db = await provider.onInit({});
     expect(db).toBeDefined();
-    expect(typeof db.findMany).toBe('function');
+    expect(typeof db.list).toBe('function');
     expect(typeof db.create).toBe('function');
     expect(typeof db.close).toBe('function');
     expect(typeof db.isHealthy).toBe('function');

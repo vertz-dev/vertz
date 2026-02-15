@@ -202,4 +202,32 @@ describe('db.query()', () => {
       'db.query() requires a connected postgres driver',
     );
   });
+
+  it('#205: maps PG errors through parsePgError for consistent error hierarchy', async () => {
+    // Simulate a postgres error with a PG error code (unique constraint violation)
+    const pgError = Object.assign(new Error('duplicate key value violates unique constraint'), {
+      code: '23505',
+      table: 'users',
+      constraint: 'users_email_key',
+      detail: 'Key (email)=(test@test.com) already exists.',
+    });
+
+    const failingQueryFn = async () => {
+      throw pgError;
+    };
+
+    const db = createDb({
+      url: 'postgres://localhost:5432/test',
+      tables: {
+        organizations: { table: organizations, relations: {} },
+      },
+      _queryFn: failingQueryFn as import('../../query/executor').QueryFn,
+    });
+
+    // db.query() should map the PG error to a UniqueConstraintError
+    const { UniqueConstraintError } = await import('../../errors/db-error');
+    await expect(
+      db.query({ _tag: 'SqlFragment', sql: 'INSERT INTO users ...', params: [] }),
+    ).rejects.toBeInstanceOf(UniqueConstraintError);
+  });
 });

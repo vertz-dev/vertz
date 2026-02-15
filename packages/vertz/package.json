@@ -1,0 +1,66 @@
+{
+  "name": "vertz",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vertz-dev/vertz.git",
+    "directory": "packages/vertz"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "sideEffects": false,
+  "exports": {
+    "./server": {
+      "import": "./src/server.ts",
+      "types": "./src/server.ts"
+    },
+    "./schema": {
+      "import": "./src/schema.ts",
+      "types": "./src/schema.ts"
+    },
+    "./db": {
+      "import": "./src/db.ts",
+      "types": "./src/db.ts"
+    },
+    "./router": {
+      "import": "./src/router.ts",
+      "types": "./src/router.ts"
+    },
+    "./testing": {
+      "import": "./src/testing.ts",
+      "types": "./src/testing.ts"
+    },
+    "./ui": {
+      "import": "./src/ui.ts",
+      "types": "./src/ui.ts"
+    },
+    "./ui-compiler": {
+      "import": "./src/ui-compiler.ts",
+      "types": "./src/ui-compiler.ts"
+    },
+    "./signal": {
+      "import": "./src/signal.ts",
+      "types": "./src/signal.ts"
+    }
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "echo 'meta-package: no build needed'"
+  },
+  "dependencies": {
+    "@vertz/server": "workspace:*",
+    "@vertz/schema": "workspace:*",
+    "@vertz/db": "workspace:*",
+    "@vertz/testing": "workspace:*",
+    "@vertz/ui": "workspace:*",
+    "@vertz/ui-compiler": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}

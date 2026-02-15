@@ -3,10 +3,6 @@
   "version": "0.0.2",
   "private": true,
   "type": "module",
-  "exports": {
-    "./jsx-runtime": "./src/jsx-runtime.ts",
-    "./jsx-dev-runtime": "./src/jsx-runtime.ts"
-  },
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc --noEmit",

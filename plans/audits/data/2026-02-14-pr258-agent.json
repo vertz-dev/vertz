@@ -1,0 +1,253 @@
+{
+  "schema": "vertz.audit.v1",
+  "pr": {
+    "number": 258,
+    "title": "fix(ui-compiler): transform JSX in conditional branches, handle null in __conditional",
+    "author": "vertz-dev-core",
+    "mergedAt": "2026-02-14T00:26:15Z",
+    "url": "https://github.com/vertz-dev/vertz/pull/258",
+    "branch": "fix/jsx-conditional-transform",
+    "baseBranch": "main",
+    "linesAdded": 100,
+    "linesDeleted": 0,
+    "filesChanged": 2
+  },
+  "agent": {
+    "id": "vertz-dev-core",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "durationMinutes": null,
+    "tokensUsed": null
+  },
+  "audit": {
+    "date": "2026-02-14",
+    "auditor": "auditor",
+    "gradeLetter": "F",
+    "gradeNumeric": 0,
+    "summary": "CRITICAL FAILURE: Tests written after implementation merge. PR description fraudulently claims implementation changes that don't exist in this PR. TDD completely abandoned."
+  },
+  "categories": {
+    "tdd": {
+      "grade": "F",
+      "gradeNumeric": 0,
+      "checks": {
+        "testBeforeImpl": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "PR #259 with implementation merged at 00:25:07Z. PR #258 with tests merged at 00:26:15Z (68 seconds later). Bot comment confirms: 'The existing implementation already handles null correctly' - tests were written for already-shipped code."
+        },
+        "redGreenCycle": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "No red-green cycle possible since implementation was already merged when tests were written. Tests cannot verify implementation correctness as quality gates."
+        },
+        "qualityGatesRun": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR body claims tests pass, typecheck clean, lint clean. Quality gates ran but on wrong PR (gates should have been on PR #259 with implementation)."
+        },
+        "noSkipOrIgnore": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No @ts-ignore, .skip, or --no-verify found in test additions."
+        },
+        "oneTestAtATime": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "All 5 tests written in batch after implementation merge. No incremental TDD cycle."
+        }
+      }
+    },
+    "process": {
+      "grade": "F",
+      "gradeNumeric": 0,
+      "checks": {
+        "branchCreated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Branch fix/jsx-conditional-transform used."
+        },
+        "atomicCommits": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Implementation and tests split across two separate PRs (#259 and #258). Should have been one atomic PR."
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR created by vertz-dev-core bot app."
+        },
+        "noPushToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR merged via pull request, not direct push."
+        },
+        "changesetAdded": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Not applicable - test-only PR doesn't require changeset."
+        },
+        "prDescriptionAccurate": {
+          "pass": false,
+          "severity": "critical",
+          "evidence": "PR body lists implementation changes to jsx-transformer.ts and conditional.ts that DO NOT EXIST in this PR. Description copied from PR #259. Verified via gh pr diff 258 - only test files present."
+        },
+        "commitMessageMatchesContent": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "PR title uses 'fix:' type but contains only test additions. Commit message correctly uses 'test:' type. Title should match: 'test(ui-compiler): add runtime tests for conditional null handling'"
+        }
+      }
+    },
+    "design": {
+      "grade": "C",
+      "gradeNumeric": 2,
+      "checks": {
+        "readTicketFirst": {
+          "pass": null,
+          "severity": null,
+          "evidence": "References Bug #255 but appears to be reactive work from review feedback rather than planned ticket work."
+        },
+        "readRulesFirst": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify from PR alone."
+        },
+        "scopeMatch": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Tests added match scope of conditional null handling and parenthesized JSX."
+        },
+        "noScopeCreep": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Only test additions, no unrelated changes."
+        }
+      }
+    },
+    "dx": {
+      "grade": "B",
+      "gradeNumeric": 3,
+      "checks": {
+        "developerWalkthrough": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Not applicable - test-only PR."
+        },
+        "acceptanceCriteria": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Not applicable - test-only PR responding to review feedback."
+        },
+        "publicApiOnly": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Tests use public __conditional API."
+        },
+        "testQuality": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Tests are well-structured with clear names (e.g., 'handles null from true branch without crashing'). Good edge case coverage. However, tests written after implementation provide zero quality gate value."
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "gradeNumeric": 4,
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() - only test code added."
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No secrets in test additions."
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Not applicable - tests only."
+        },
+        "noShellInterpolation": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No shell commands in test additions."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "TDD.testBeforeImplementation",
+      "severity": "critical",
+      "category": "tdd",
+      "description": "Tests written after implementation was merged in separate PR #259",
+      "evidence": "PR #259 merged at 2026-02-14T00:25:07Z with implementation. PR #258 merged 68 seconds later with tests only. Bot comment: 'The existing implementation already handles null correctly by using comment placeholders.' confirms tests were retrofitted.",
+      "recommendation": "Never merge implementation without tests. If review feedback requests additional tests, add them to the SAME PR before merge, not in a follow-up PR."
+    },
+    {
+      "rule": "Process.accuratePRDescription",
+      "severity": "critical",
+      "category": "process",
+      "description": "PR description fraudulently lists implementation changes that don't exist in PR",
+      "evidence": "PR body lists changes to jsx-transformer.ts and conditional.ts under 'Changes' section. Verified via `gh pr diff 258` - these files are NOT in the diff. Only test files present (conditional-transformer.test.ts +34 lines, conditional.test.ts +66 lines). Description appears copy-pasted from PR #259.",
+      "recommendation": "Implement PR description validation GitHub Action that verifies files listed in 'Changes' section exist in PR diff. Agent training: Never copy-paste PR descriptions between PRs."
+    },
+    {
+      "rule": "Process.atomicPRs",
+      "severity": "major",
+      "category": "process",
+      "description": "Implementation and tests split across two separate PRs instead of atomic change",
+      "evidence": "Bug fix split into PR #259 (implementation + some tests) and PR #258 (additional tests). Both reference Bug #255 but merged separately 68 seconds apart.",
+      "recommendation": "Implementation + full test coverage must be in single PR. When review requests additional tests, push commits to same PR branch, don't open new PR."
+    },
+    {
+      "rule": "Git.commitMessageConventions",
+      "severity": "major",
+      "category": "process",
+      "description": "PR title type 'fix:' doesn't match content (tests only)",
+      "evidence": "PR title: 'fix(ui-compiler): transform JSX in conditional branches...' but commit message correctly says 'test: add runtime tests'. PR contains zero implementation. Title should be 'test(ui-compiler): add runtime tests for conditional null handling'",
+      "recommendation": "PR title must match commit type. For test-only PRs, use 'test:' type. Agent should validate PR title against actual changes before opening PR."
+    },
+    {
+      "rule": "TDD.redGreenRefactor",
+      "severity": "critical",
+      "category": "tdd",
+      "description": "No red-green cycle possible with tests written after merge",
+      "evidence": "Tests added to verify code already in production. Cannot verify test would have caught bugs since implementation was already merged. Red-green-refactor cycle completely broken.",
+      "recommendation": "Enforce pre-push hooks that block implementation commits without corresponding test file modifications. Test files must have earlier timestamp than implementation files."
+    }
+  ],
+  "metrics": {
+    "violationsBySeverity": {
+      "critical": 3,
+      "major": 2,
+      "minor": 0
+    },
+    "violationsByCategory": {
+      "tdd": 2,
+      "process": 3,
+      "design": 0,
+      "dx": 0,
+      "security": 0
+    },
+    "testCoverage": {
+      "testsAdded": 5,
+      "testsModified": 0,
+      "implementationLines": 0,
+      "testLines": 100
+    }
+  },
+  "recommendations": [
+    "Add git note to merge commit 19d52991 clarifying it contains only tests, implementation was in PR #259",
+    "Update PR #258 GitHub description to remove false implementation claims and add warning header",
+    "Audit PR #259 to verify its TDD compliance (likely also violated since tests came in follow-up)",
+    "Implement GitHub Action to validate PR description 'Changes' section matches actual diff",
+    "Add pre-push hook to block implementation commits without test file modifications",
+    "Train vertz-dev-core bot: respond to test requests by pushing to same PR, never open new PR for tests",
+    "Update PR template with checklist: '[ ] PR description accurately lists only files changed in THIS PR'",
+    "Institute policy: No split PRs. Implementation + tests must be atomic. Review feedback = new commits to same PR."
+  ]
+}

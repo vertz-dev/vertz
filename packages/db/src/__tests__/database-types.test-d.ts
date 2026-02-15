@@ -93,10 +93,10 @@ type CommentEntry = (typeof tables)['comments'];
 type FlagEntry = (typeof tables)['featureFlags'];
 
 // ---------------------------------------------------------------------------
-// Cycle 1: findOne return type
+// Cycle 1: get return type
 // ---------------------------------------------------------------------------
 
-describe('Cycle 1: findOne return type', () => {
+describe('Cycle 1: get return type', () => {
   it('returns correct field types for organizations (default select)', () => {
     type Result = FindResult<OrgEntry['table'], Record<string, never>, OrgEntry['relations']>;
 
@@ -117,20 +117,20 @@ describe('Cycle 1: findOne return type', () => {
     expectTypeOf<Result>().not.toHaveProperty('passwordHash');
   });
 
-  it('DatabaseInstance findOne method exists and is a function', () => {
-    expectTypeOf<DB['findOne']>().toBeFunction();
+  it('DatabaseInstance get method exists and is a function', () => {
+    expectTypeOf<DB['get']>().toBeFunction();
   });
 
-  it('DatabaseInstance findOneOrThrow method exists and is a function', () => {
-    expectTypeOf<DB['findOneOrThrow']>().toBeFunction();
+  it('DatabaseInstance getOrThrow method exists and is a function', () => {
+    expectTypeOf<DB['getOrThrow']>().toBeFunction();
   });
 });
 
 // ---------------------------------------------------------------------------
-// Cycle 2: findMany return type
+// Cycle 2: list return type
 // ---------------------------------------------------------------------------
 
-describe('Cycle 2: findMany return type', () => {
+describe('Cycle 2: list return type', () => {
   it('array elements have correct types', () => {
     type Result = FindResult<PostEntry['table'], Record<string, never>, PostEntry['relations']>;
 
@@ -141,7 +141,7 @@ describe('Cycle 2: findMany return type', () => {
     expectTypeOf<Result['views']>().toBeNumber();
   });
 
-  it('findManyAndCount result structure', () => {
+  it('listAndCount result structure', () => {
     type Element = FindResult<PostEntry['table'], Record<string, never>, PostEntry['relations']>;
     type Result = { data: Element[]; total: number };
 
@@ -240,7 +240,7 @@ describe('Cycle 4: update, upsert, delete return types', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Cycle 5: findOne with select narrowing
+// Cycle 5: get with select narrowing
 // ---------------------------------------------------------------------------
 
 describe('Cycle 5: select narrowing', () => {
@@ -272,7 +272,7 @@ describe('Cycle 5: select narrowing', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Cycle 6: findOne with include
+// Cycle 6: get with include
 // ---------------------------------------------------------------------------
 
 describe('Cycle 6: include resolution', () => {
@@ -353,12 +353,12 @@ describe('Cycle 7: where/filter typing', () => {
 // ---------------------------------------------------------------------------
 
 describe('Cycle 8: DatabaseInstance method signatures', () => {
-  it('findOne method is defined', () => {
-    expectTypeOf<DB['findOne']>().toBeFunction();
+  it('get method is defined', () => {
+    expectTypeOf<DB['get']>().toBeFunction();
   });
 
-  it('findMany method is defined', () => {
-    expectTypeOf<DB['findMany']>().toBeFunction();
+  it('list method is defined', () => {
+    expectTypeOf<DB['list']>().toBeFunction();
   });
 
   it('create method is defined', () => {

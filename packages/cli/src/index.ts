@@ -14,14 +14,18 @@ export { createWatcher } from './dev-server/watcher';
 export { Banner } from './ui/components/Banner';
 export { DiagnosticDisplay } from './ui/components/DiagnosticDisplay';
 export { DiagnosticSummary } from './ui/components/DiagnosticSummary';
-export { Message } from './ui/components/Message';
-export { SelectList } from './ui/components/SelectList';
-export { Task } from './ui/components/Task';
-export { TaskList } from './ui/components/TaskList';
 export { formatDiagnostic, formatDiagnosticSummary } from './ui/diagnostic-formatter';
-export type { TaskGroup, TaskHandle, TaskRunner } from './ui/task-runner';
-export { createTaskRunner } from './ui/task-runner';
-export { colors, symbols } from './ui/theme';
+// Re-export reusable TUI components from @vertz/tui for backwards compatibility
+export {
+  colors,
+  createTaskRunner,
+  Message,
+  SelectList,
+  symbols,
+  Task,
+  TaskList,
+} from '@vertz/tui';
+export type { TaskGroup, TaskHandle, TaskRunner } from '@vertz/tui';
 export { formatDuration, formatFileSize, formatPath } from './utils/format';
 export { findProjectRoot } from './utils/paths';
 export { isCI, requireParam } from './utils/prompt';

@@ -2,11 +2,11 @@ import type { HandlerCtx } from '../types/context';
 import type { RouterDef, ServiceDef } from '../types/module';
 import type { NamedServiceDef } from './service';
 
-type InferOutput<T> = T extends { _output: infer O }
+type InferOutput<T, TDefault = unknown> = T extends { _output: infer O }
   ? O
   : T extends { parse(v: unknown): infer P }
     ? P
-    : unknown;
+    : TDefault;
 
 type TypedHandlerCtx<
   TParams = unknown,
@@ -37,7 +37,7 @@ export interface RouteConfig<
   handler: (
     ctx: TypedHandlerCtx<
       InferOutput<TParams>,
-      InferOutput<TQuery>,
+      InferOutput<TQuery, Record<string, string>>,
       InferOutput<THeaders>,
       InferOutput<TBody>,
       TMiddleware

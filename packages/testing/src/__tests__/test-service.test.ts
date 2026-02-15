@@ -1,4 +1,4 @@
-import { createModuleDef } from '@vertz/core';
+import { createModuleDef } from '@vertz/server';
 import { describe, expect, it } from 'vitest';
 
 import { createTestService } from '../test-service';

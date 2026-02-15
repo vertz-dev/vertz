@@ -1,0 +1,221 @@
+{
+  "schema": "vertz.audit.v1",
+  "audit": {
+    "date": "2026-02-14",
+    "auditor": "auditor",
+    "timestamp": "2026-02-14T17:10:00Z"
+  },
+  "pr": {
+    "number": 260,
+    "title": "feat(ui-014): Configure bun test with happy-dom environment for task-manager",
+    "author": "vertz-dev-dx",
+    "reviewer": "vertz-tech-lead",
+    "mergedAt": "2026-02-14T00:58:21Z",
+    "additions": 56,
+    "deletions": 3,
+    "filesChanged": 4,
+    "ticket": "ui-014"
+  },
+  "agent": {
+    "id": "vertz-dev-dx",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "durationMinutes": null,
+    "tokensUsed": null
+  },
+  "grade": {
+    "overall": "B",
+    "numeric": 3,
+    "summary": "Technically solid configuration work that solves a real problem (0/17 → 13/17 tests passing), but violates vertical slice principle by shipping test infrastructure without usage examples in the same PR. Extensive use of @ts-expect-error (13 instances) is borderline but acceptable for global injection context. Security good, design compliance good, scope appropriate."
+  },
+  "scores": {
+    "tdd": {
+      "grade": "B",
+      "checks": {
+        "testsBeforeImplementation": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify from diff alone - no session transcript available. PR contains only configuration files, no test files."
+        },
+        "redGreenCycle": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify without session transcript."
+        },
+        "oneTestAtATime": {
+          "pass": null,
+          "severity": null,
+          "evidence": "No test files in diff to evaluate."
+        },
+        "qualityGatesBeforeCommit": {
+          "pass": null,
+          "severity": null,
+          "evidence": "PR body claims 'bun run test && bun run typecheck' passed. Quote: '@vertz/ui tests still pass (772 tests), bun run typecheck all packages pass'. Cannot verify from transcript."
+        },
+        "noTypeBypass": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "13 instances of @ts-expect-error in test-setup.ts for DOM global injection (lines 12-33). Borderline acceptable since these are type-level expected errors for injecting globals into globalThis, not runtime type bypasses."
+        },
+        "noSkipOrNoVerify": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No .skip or --no-verify found in diff."
+        }
+      }
+    },
+    "process": {
+      "grade": "B",
+      "checks": {
+        "isolatedWorktree": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify from diff. No evidence of worktree pollution - diff is clean with only 4 relevant files."
+        },
+        "branchBeforeWork": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR authored by vertz-dev-dx bot with proper feat/ui-014 naming (inferred)."
+        },
+        "atomicCommits": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot evaluate commit granularity from PR diff alone."
+        },
+        "changesetAdded": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No changeset needed - task-manager has 'private: true' in package.json (examples/task-manager/package.json line 3)."
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR authored by vertz-dev-dx bot, merged by vertz-tech-lead bot. Proper bot separation."
+        },
+        "noPushToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR workflow used (#260)."
+        },
+        "diffContainsOnlyRelevantChanges": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Violates vertical slice principle: ships test infrastructure (bunfig.toml, test-setup.ts, happy-dom dependency) without any test files that use it. PR body claims '13/17 tests passing' but those tests are not in this diff. RULES.md: 'Never ship a Phase N: internals without also shipping the integration that makes it usable.'"
+        }
+      }
+    },
+    "design": {
+      "grade": "A",
+      "checks": {
+        "readTicketBeforeImplementing": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR description accurately reflects ticket ui-014 scope. Quote: 'Closes vertz-dev/vertz#ui-014 (Phase 1: DOM test environment + renderTest)'."
+        },
+        "readRulesAtStart": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify from diff."
+        },
+        "filesMatchTicketScope": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All changes in examples/task-manager scope. No modifications to core packages. Clean, focused diff."
+        },
+        "deviationsEscalated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No deviations from ticket scope detected."
+        }
+      }
+    },
+    "dx": {
+      "grade": "B",
+      "checks": {
+        "developerWalkthroughIncluded": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Implicit walkthrough in PR body with clear results: 'cd examples/task-manager && bun test src/tests/' produces '13 pass, 4 fail'. Sufficient for infrastructure PR."
+        },
+        "acceptanceCriteriaIncludeUserOutcomes": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR body quantifies user outcome: 'Before: 0/17 tests passing (all crashed with document is not defined). After: 13/17 tests passing (76% pass rate)'."
+        },
+        "examplesUseOnlyPublicApi": {
+          "pass": true,
+          "severity": null,
+          "evidence": "test-setup.ts uses happy-dom public API (GlobalWindow). No internal module imports."
+        },
+        "verticalSlices": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "MAJOR VIOLATION: Ships test infrastructure (DOM environment configuration) without test files demonstrating usage. RULES.md: 'Primitives without integration are not features. Never ship a Phase N: internals without also shipping the integration that makes it usable.' Defense: PR body claims tests exist elsewhere ('13/17 passing'), but vertical slice principle requires bundling infrastructure with usage in same PR."
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "checks": {
+        "noEvalOrNewFunction": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() in diff."
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No credentials or secrets in diff."
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No user input handling in this PR - pure configuration."
+        },
+        "noShellStringInterpolation": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No shell commands in diff."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "Vertical Slice Principle",
+      "severity": "minor",
+      "category": "dx",
+      "description": "Ships test infrastructure (bunfig.toml, test-setup.ts, happy-dom dependency) without accompanying test files that demonstrate usage in the same PR.",
+      "evidence": "Diff contains only configuration files. No .test.ts files included. PR body claims '13/17 tests passing' but those tests are not in this PR's diff. RULES.md citation: 'Slice, don't layer' section: 'Never ship a Phase N: internals without also shipping the integration that makes it usable.'",
+      "recommendation": "Bundle infrastructure with usage: when adding test infrastructure, include at least one working test file in the same PR to demonstrate end-to-end functionality. Example: This PR could have included src/tests/button.test.ts."
+    },
+    {
+      "rule": "Type Safety (no @ts-ignore, as any)",
+      "severity": "minor",
+      "category": "tdd",
+      "description": "Extensive use of @ts-expect-error (13 instances) for DOM global injection.",
+      "evidence": "test-setup.ts lines 12-33 use @ts-expect-error for each globalThis property assignment (window, document, HTMLElement, Element, Node, NodeList, NodeFilter, MouseEvent, KeyboardEvent, Event, navigator, location).",
+      "recommendation": "Reduce noise by creating typed interface and casting once: 'interface TestGlobals { window: GlobalWindow; ... } const globals = globalThis as unknown as TestGlobals;' then assign without suppressions. Rationale: One cast acknowledging the type boundary is cleaner than 13 individual suppressions."
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "medium",
+      "title": "Bundle infrastructure with usage",
+      "description": "When adding test infrastructure in future PRs, include at least one working test file to demonstrate end-to-end functionality.",
+      "rationale": "Makes PRs reviewable end-to-end and ensures infrastructure is actually usable, not just theoretically complete. Maintains vertical slice principle from RULES.md."
+    },
+    {
+      "priority": "low",
+      "title": "Reduce @ts-expect-error usage",
+      "description": "Consolidate 13 type suppressions into a single cast with typed interface.",
+      "rationale": "Cleaner code, clearer intent. One acknowledgment of type boundary rather than 13 suppressions."
+    },
+    {
+      "priority": "low",
+      "title": "Document the workaround",
+      "description": "Add comment block in test-setup.ts explaining WHY global injection is needed, and document in task-manager README that tests use happy-dom environment.",
+      "rationale": "Future maintainers will understand the architecture without archaeology."
+    }
+  ]
+}

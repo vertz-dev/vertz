@@ -94,11 +94,18 @@ describe('App Router', () => {
   it('extracts route params', async () => {
     let capturedId = '';
 
+    // Store a reference that will be set after createTestRouter returns.
+    // The component closure reads routerRef.current which is assigned
+    // before renderCurrentRoute, avoiding the TDZ.
+    const routerRef: { current: Awaited<ReturnType<typeof createTestRouter>>['router'] | null } = { current: null };
+
     const { component, navigate, router } = await createTestRouter(
       {
         '/tasks/:id': {
           component: () => {
-            const match = router.current.value;
+            // Access params from the router via the ref (populated after init)
+            // or fall back to the URL directly for the initial render.
+            const match = routerRef.current?.current.value;
             capturedId = match?.params.id ?? '';
             const el = document.createElement('div');
             el.textContent = `Task ${capturedId}`;
@@ -109,6 +116,11 @@ describe('App Router', () => {
       },
       { initialPath: '/tasks/42' },
     );
+
+    routerRef.current = router;
+
+    // Re-navigate to the same path so the component re-renders with the ref set.
+    await navigate('/tasks/42');
 
     const { findByTestId, unmount } = renderTest(component);
     const detail = findByTestId('task-detail');

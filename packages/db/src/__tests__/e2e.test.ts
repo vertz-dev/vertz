@@ -352,7 +352,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       expect(deleted.id).toBe(COMMENT_ID);
 
       // Verify it is gone
-      const result = await db.findOne('comments', {
+      const result = await db.get('comments', {
         where: { id: COMMENT_ID },
       });
       expect(result).toBeNull();
@@ -375,8 +375,8 @@ describe('E2E Acceptance Test (db-018)', () => {
   // =========================================================================
 
   describe('3. Relation includes', () => {
-    it('findMany posts with include author', async () => {
-      const postsResult = await db.findMany('posts', {
+    it('list posts with include author', async () => {
+      const postsResult = await db.list('posts', {
         include: { author: true },
       });
 
@@ -390,8 +390,8 @@ describe('E2E Acceptance Test (db-018)', () => {
       }
     });
 
-    it('findMany posts with include comments', async () => {
-      const postsResult = await db.findMany('posts', {
+    it('list posts with include comments', async () => {
+      const postsResult = await db.list('posts', {
         where: { id: POST_ID },
         include: { comments: true },
       });
@@ -409,7 +409,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('4. Select narrowing', () => {
     it('select: { title: true, status: true } narrows returned fields', async () => {
-      const result = await db.findMany('posts', {
+      const result = await db.list('posts', {
         select: { title: true, status: true },
       });
 
@@ -431,7 +431,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('5. Visibility filter', () => {
     it('select: { not: "sensitive" } excludes email', async () => {
-      const result = await db.findMany('users', {
+      const result = await db.list('users', {
         select: { not: 'sensitive' },
       });
 
@@ -456,7 +456,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('6. Filter operators', () => {
     it('gte, in, and contains work correctly', async () => {
-      const result = await db.findMany('posts', {
+      const result = await db.list('posts', {
         where: {
           views: { gte: 0 },
           status: { in: ['published', 'draft'] },
@@ -471,7 +471,7 @@ describe('E2E Acceptance Test (db-018)', () => {
     });
 
     it('eq filter works as direct value shorthand', async () => {
-      const result = await db.findMany('posts', {
+      const result = await db.list('posts', {
         where: { title: 'First Post' },
       });
 
@@ -480,7 +480,7 @@ describe('E2E Acceptance Test (db-018)', () => {
     });
 
     it('gt filter works for numeric columns', async () => {
-      const result = await db.findMany('posts', {
+      const result = await db.list('posts', {
         where: { views: { gt: 50 } },
       });
 
@@ -490,12 +490,12 @@ describe('E2E Acceptance Test (db-018)', () => {
   });
 
   // =========================================================================
-  // 7. findManyAndCount
+  // 7. listAndCount
   // =========================================================================
 
-  describe('7. findManyAndCount', () => {
+  describe('7. listAndCount', () => {
     it('returns paginated results with total count', async () => {
-      const { data, total } = await db.findManyAndCount('posts', {
+      const { data, total } = await db.listAndCount('posts', {
         limit: 1,
         offset: 0,
         orderBy: { views: 'desc' },
@@ -507,7 +507,7 @@ describe('E2E Acceptance Test (db-018)', () => {
     });
 
     it('returns second page correctly', async () => {
-      const { data, total } = await db.findManyAndCount('posts', {
+      const { data, total } = await db.listAndCount('posts', {
         limit: 1,
         offset: 1,
         orderBy: { views: 'desc' },
@@ -565,9 +565,9 @@ describe('E2E Acceptance Test (db-018)', () => {
       }
     });
 
-    it('throws NotFoundError on findOneOrThrow with no match', async () => {
+    it('throws NotFoundError on getOrThrow with no match', async () => {
       try {
-        await db.findOneOrThrow('posts', {
+        await db.getOrThrow('posts', {
           where: { id: '00000000-0000-0000-0000-000000000000' },
         });
         expect.unreachable('Should have thrown NotFoundError');
@@ -715,15 +715,15 @@ describe('E2E Acceptance Test (db-018)', () => {
       expect(result.count).toBe(2);
     });
 
-    it('findOne returns null when not found', async () => {
-      const result = await db.findOne('posts', {
+    it('get returns null when not found', async () => {
+      const result = await db.get('posts', {
         where: { id: '00000000-0000-0000-0000-000000000000' },
       });
       expect(result).toBeNull();
     });
 
-    it('findOneOrThrow returns the row when found', async () => {
-      const result = await db.findOneOrThrow('posts', {
+    it('getOrThrow returns the row when found', async () => {
+      const result = await db.getOrThrow('posts', {
         where: { id: POST_ID },
       });
       expect(result).toBeDefined();
