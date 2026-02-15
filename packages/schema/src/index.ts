@@ -220,6 +220,17 @@ export const s = {
     duration: (): IsoDurationSchema => new IsoDurationSchema(),
   },
 
+  // Database enum bridge
+  fromDbEnum: <const TValues extends readonly [string, ...string[]]>(column: {
+    _meta: { enumValues: TValues };
+  }): EnumSchema<TValues> => {
+    const values = column._meta.enumValues;
+    if (!values || values.length === 0) {
+      throw new Error('s.fromDbEnum(): not an enum column — _meta.enumValues is missing or empty');
+    }
+    return new EnumSchema(values);
+  },
+
   // Coercion
   coerce: {
     string: (): CoercedStringSchema => new CoercedStringSchema(),
