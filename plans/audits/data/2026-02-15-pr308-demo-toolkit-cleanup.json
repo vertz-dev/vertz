@@ -1,0 +1,113 @@
+{
+  "schema": "vertz.audit.v1",
+  "pr": {
+    "number": 308,
+    "title": "fix(ci): remove stale changeset for @vertz/demo-toolkit",
+    "author": "app/vertz-dev-core",
+    "mergedAt": "2026-02-15T12:17:45Z",
+    "additions": 0,
+    "deletions": 5,
+    "changedFiles": 1
+  },
+  "agent": {
+    "id": "vertz-dev-ops",
+    "model": "bot",
+    "sessionKey": null,
+    "durationMs": null,
+    "tokens": null
+  },
+  "grade": {
+    "letter": "A",
+    "numeric": 4,
+    "summary": "Simple CI cleanup - removing stale changeset file. No TDD applicable for file deletion cleanup."
+  },
+  "categories": {
+    "tdd": {
+      "grade": "pass",
+      "checks": [
+        {
+          "check": "test_before_implementation",
+          "pass": true,
+          "severity": null,
+          "evidence": "N/A - file deletion cleanup, no implementation"
+        },
+        {
+          "check": "red_green_cycle",
+          "pass": true,
+          "severity": null,
+          "evidence": "N/A - no code written"
+        },
+        {
+          "check": "quality_gates",
+          "pass": true,
+          "severity": null,
+          "evidence": "CI passed"
+        }
+      ]
+    },
+    "process": {
+      "grade": "pass",
+      "checks": [
+        {
+          "check": "branch_used",
+          "pass": true,
+          "severity": null,
+          "evidence": "Proper branch used"
+        },
+        {
+          "check": "commit_conventions",
+          "pass": true,
+          "severity": null,
+          "evidence": "fix(ci): remove stale changeset referencing removed @vertz/demo-toolkit"
+        },
+        {
+          "check": "review_done",
+          "pass": true,
+          "severity": null,
+          "evidence": "Approved by vertz-dev-front"
+        }
+      ]
+    },
+    "design": {
+      "grade": "pass",
+      "checks": [
+        {
+          "check": "design_doc_read",
+          "pass": true,
+          "severity": null,
+          "evidence": "N/A - cleanup task"
+        }
+      ]
+    },
+    "dx": {
+      "grade": "pass",
+      "checks": [
+        {
+          "check": "developer_walkthrough",
+          "pass": true,
+          "severity": null,
+          "evidence": "N/A - internal CI fix"
+        }
+      ]
+    },
+    "security": {
+      "grade": "pass",
+      "checks": [
+        {
+          "check": "no_shell_injection",
+          "pass": true,
+          "severity": null,
+          "evidence": "File deletion only"
+        },
+        {
+          "check": "no_hardcoded_secrets",
+          "pass": true,
+          "severity": null,
+          "evidence": "N/A"
+        }
+      ]
+    }
+  },
+  "violations": [],
+  "createdAt": "2026-02-15T12:25:00Z"
+}
