@@ -5,6 +5,11 @@ import { defineConfig } from 'vitest/config';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@vertz/schema': resolve(__dirname, '../schema/src/index.ts'),
+    },
+  },
   test: {
     fileParallelism: false,
     retry: 2,

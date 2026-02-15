@@ -4,7 +4,7 @@ import type { HandlerCtx, RawRequest } from '../types/context';
 export interface CtxConfig {
   params: Record<string, unknown>;
   body: unknown;
-  query: Record<string, unknown>;
+  query: Record<string, string>;
   headers: Record<string, unknown>;
   raw: RawRequest;
   middlewareState: Record<string, unknown>;

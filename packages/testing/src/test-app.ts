@@ -209,8 +209,8 @@ export function createTestApp(): TestApp {
         const ctx = buildCtx({
           params: match.params,
           body: validatedBody,
-          query: validatedQuery as Record<string, unknown>,
-          headers: validatedHeaders as Record<string, string>,
+          query: validatedQuery as Record<string, string>,
+          headers: validatedHeaders as Record<string, unknown>,
           raw,
           middlewareState,
           services: entry.services,
