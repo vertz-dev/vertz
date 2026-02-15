@@ -80,3 +80,6 @@ export type {
 } from './types';
 // Namespace
 export { vertz } from './vertz';
+// Result type for errors-as-values pattern
+export { ok, err, isOk, isErr } from './result';
+export type { Ok, Err, Result } from './result';
