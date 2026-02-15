@@ -10,6 +10,23 @@ import { parseBody, parseRequest } from '../server/request-utils';
 import { createErrorResponse, createJsonResponse } from '../server/response-utils';
 import type { AppConfig } from '../types/app';
 import type { HandlerCtx } from '../types/context';
+import { isOk, isResult } from '../result';
+
+/**
+ * Creates a JSON response and applies CORS headers if configured.
+ */
+function createResponseWithCors(
+  data: unknown,
+  status: number,
+  config: AppConfig,
+  request: Request,
+): Response {
+  const response = createJsonResponse(data, status);
+  if (config.cors) {
+    return applyCorsHeaders(config.cors, request, response);
+  }
+  return response;
+}
 
 export interface ModuleRegistration {
   module: NamedModule;
@@ -38,6 +55,7 @@ interface RouteEntry {
   querySchema?: SchemaLike;
   headersSchema?: SchemaLike;
   responseSchema?: SchemaLike;
+  errorsSchema?: Record<number, SchemaLike>;
 }
 
 function resolveServices(registrations: ModuleRegistration[]): Map<NamedServiceDef, unknown> {
@@ -111,6 +129,7 @@ function registerRoutes(
           querySchema: route.config.query as SchemaLike | undefined,
           headersSchema: route.config.headers as SchemaLike | undefined,
           responseSchema: route.config.response as SchemaLike | undefined,
+          errorsSchema: route.config.errors as unknown as Record<number, SchemaLike> | undefined,
         };
         trie.add(route.method, fullPath, entry);
       }
@@ -212,12 +231,52 @@ export function buildHandler(
 
       const result = await entry.handler(ctx);
 
-      // Validate response against schema if enabled
+      // Handle Result type (errors-as-values pattern)
+      if (isResult(result)) {
+        if (isOk(result)) {
+          // Ok result - extract data and validate against response schema if enabled
+          const data = result.data;
+          if (config.validateResponses && entry.responseSchema) {
+            try {
+              entry.responseSchema.parse(data);
+            } catch (error) {
+              const message =
+                error instanceof Error ? error.message : 'Response schema validation failed';
+              console.warn(`[vertz] Response validation warning: ${message}`);
+            }
+          }
+          return createResponseWithCors(data, 200, config, request);
+        } else {
+          // Err result - use error status and body
+          const errorStatus = result.status;
+          const errorBody = result.body;
+
+          // Validate error response against error schema if enabled
+          if (config.validateResponses && entry.errorsSchema) {
+            const errorSchema = entry.errorsSchema[errorStatus];
+            if (errorSchema) {
+              try {
+                errorSchema.parse(errorBody);
+              } catch (error) {
+                const message =
+                  error instanceof Error
+                    ? `Error schema validation failed for status ${errorStatus}: ${error.message}`
+                    : `Error schema validation failed for status ${errorStatus}`;
+                console.warn(`[vertz] Response validation warning: ${message}`);
+              }
+            }
+          }
+          return createResponseWithCors(errorBody, errorStatus, config, request);
+        }
+      }
+
+      // Validate response against schema if enabled (backwards compat for plain objects)
       if (config.validateResponses && entry.responseSchema) {
         try {
           entry.responseSchema.parse(result);
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Response schema validation failed';
+          const message =
+            error instanceof Error ? error.message : 'Response schema validation failed';
           console.warn(`[vertz] Response validation warning: ${message}`);
         }
       }
