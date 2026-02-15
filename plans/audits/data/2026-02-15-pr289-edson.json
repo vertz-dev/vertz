@@ -1,0 +1,218 @@
+{
+  "schema": "vertz.audit.v1",
+  "auditDate": "2026-02-15T01:09:00Z",
+  "pr": {
+    "number": 289,
+    "title": "chore(demo-toolkit): remove package, moved to backstage",
+    "author": "edson",
+    "authorBot": "vertz-devops",
+    "mergedAt": "2026-02-15T01:06:35Z",
+    "linesAdded": 476,
+    "linesDeleted": 3619,
+    "filesChanged": 23
+  },
+  "agent": {
+    "id": "edson",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "durationMinutes": null,
+    "tokensUsed": null
+  },
+  "grade": {
+    "overall": "C",
+    "numeric": 2,
+    "summary": "PR accomplishes its goal (removing demo-toolkit) but violates critical process requirements: no changeset added for package removal, and unrelated file included (scope creep). Functionally correct but process failures require attention."
+  },
+  "categories": {
+    "tdd": {
+      "grade": "N/A",
+      "applicable": false,
+      "reason": "Pure deletion PR - no implementation code written",
+      "checks": {
+        "testsBeforeImplementation": { "pass": true, "severity": null, "evidence": "N/A - deletion only" },
+        "redGreenCycle": { "pass": true, "severity": null, "evidence": "N/A - deletion only" },
+        "qualityGates": { "pass": false, "severity": "minor", "evidence": "No evidence of running bun test && bun typecheck && bun lint before push" },
+        "noTypeIgnores": { "pass": true, "severity": null, "evidence": "No code changes to check" }
+      }
+    },
+    "process": {
+      "grade": "D",
+      "checks": {
+        "changesetAdded": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No .changeset file added for package removal. Required by pr-policies.md for any package change."
+        },
+        "isolatedWorktree": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Unrelated file (plans/package-naming-strategy.md) included in PR proves branch was not created from clean worktree."
+        },
+        "scopeCreep": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "PR includes unrelated file: plans/package-naming-strategy.md (+476 lines). Ticket only covers demo-toolkit removal."
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Commits by vertz-devops[bot] <2832183+vertz-devops[bot]@users.noreply.github.com>"
+        },
+        "branchNaming": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Branch: chore/remove-demo-toolkit (correct format)"
+        },
+        "atomicCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Lockfile updated in separate commit from main deletion"
+        },
+        "conventionalCommits": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All commits follow type(scope): description format"
+        },
+        "noPushToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR process used correctly"
+        }
+      }
+    },
+    "design": {
+      "grade": "A",
+      "checks": {
+        "ticketExists": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Ticket: chore-move-demo-toolkit-to-backstage.md exists and was followed"
+        },
+        "ticketScopeFollowed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All ticket requirements met: package deleted, no broken dependencies"
+        },
+        "rulesReadAtStart": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Assumed (standard practice)"
+        },
+        "noScopeCreep": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Unrelated file (package-naming-strategy.md) included - not in ticket scope"
+        },
+        "deviationsEscalated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No deviations from ticket"
+        }
+      }
+    },
+    "dx": {
+      "grade": "N/A",
+      "applicable": false,
+      "reason": "Internal tooling removal - not a public API feature",
+      "checks": {
+        "developerWalkthrough": { "pass": true, "severity": null, "evidence": "N/A - internal package" },
+        "publicAPIOnly": { "pass": true, "severity": null, "evidence": "N/A - internal package" },
+        "verticalSlices": { "pass": true, "severity": null, "evidence": "N/A - not a feature" }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() in deleted code"
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Reviewed all source files - env vars used correctly (MINIMAX_API_KEY)"
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Security checks in muxing.ts validated paths correctly"
+        },
+        "noShellInjection": {
+          "pass": true,
+          "severity": null,
+          "evidence": "execFile() with argument arrays used (no string interpolation)"
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "Changeset required for package changes",
+      "severity": "major",
+      "category": "process",
+      "description": "No changeset file created for package removal",
+      "evidence": "Package @vertz/demo-toolkit removed but no .changeset/ file added. Required by pr-policies.md.",
+      "recommendation": "Always run `bun changeset` when modifying package.json or removing packages. Select 'major' for removals."
+    },
+    {
+      "rule": "Isolated git worktree used",
+      "severity": "major",
+      "category": "process",
+      "description": "Branch not created from isolated worktree",
+      "evidence": "Unrelated file (plans/package-naming-strategy.md) present in PR diff proves branch picked up uncommitted changes from main workspace.",
+      "recommendation": "Use `git worktree add /tmp/worktrees/pr289 -b chore/remove-demo-toolkit main` to create isolated workspace before making changes."
+    },
+    {
+      "rule": "PR diff contains only ticket-related changes",
+      "severity": "major",
+      "category": "process",
+      "description": "Scope creep - unrelated file included in PR",
+      "evidence": "plans/package-naming-strategy.md (+476 lines) is unrelated to demo-toolkit removal ticket.",
+      "recommendation": "Review `git diff main...HEAD --name-status` before opening PR. Extract unrelated changes to separate PR."
+    },
+    {
+      "rule": "Quality gates before every push",
+      "severity": "minor",
+      "category": "tdd",
+      "description": "No evidence of quality gates execution",
+      "evidence": "PR body and commits don't mention running bun test && bun typecheck && bun lint",
+      "recommendation": "Always document quality gate results in PR description. Add pre-push hook if needed."
+    }
+  ],
+  "strengths": [
+    "Clean deletion - no broken dependencies or imports",
+    "Correct use of bot scripts (vertz-devops[bot])",
+    "Atomic commits with clear conventional commit messages",
+    "Branch naming follows convention (chore/remove-demo-toolkit)",
+    "Ticket scope followed accurately for core work",
+    "No security violations"
+  ],
+  "recommendations": [
+    {
+      "priority": "critical",
+      "action": "Add changeset before merging any package change PR",
+      "reason": "Monorepo versioning depends on changesets for semantic releases"
+    },
+    {
+      "priority": "critical",
+      "action": "Always use git worktree for isolated PR branches",
+      "reason": "Prevents scope creep and contamination from main workspace"
+    },
+    {
+      "priority": "high",
+      "action": "Add pre-push hook to check for changesets when package.json modified",
+      "reason": "Automate detection of missing changesets"
+    },
+    {
+      "priority": "medium",
+      "action": "Include quality gate results in PR template",
+      "reason": "Makes gate execution visible to reviewers"
+    },
+    {
+      "priority": "low",
+      "action": "Review git diff before opening PR",
+      "reason": "Catch scope creep before submission"
+    }
+  ]
+}
