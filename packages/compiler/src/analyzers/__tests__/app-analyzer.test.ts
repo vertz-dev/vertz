@@ -25,6 +25,18 @@ const app = vertz.app({ basePath: '/api' });`,
     expect(result.app.basePath).toBe('/api');
   });
 
+  it('extracts basePath from vertz.server() config', async () => {
+    const project = createProject();
+    project.createSourceFile(
+      'src/app.ts',
+      `import { vertz } from '@vertz/server';
+const app = vertz.server({ basePath: '/api' });`,
+    );
+    const analyzer = new AppAnalyzer(project, resolveConfig());
+    const result = await analyzer.analyze();
+    expect(result.app.basePath).toBe('/api');
+  });
+
   it('extracts version from vertz.app() config', async () => {
     const project = createProject();
     project.createSourceFile(

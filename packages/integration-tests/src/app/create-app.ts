@@ -1,4 +1,4 @@
-import { createApp } from '@vertz/core';
+import { createServer } from '@vertz/server';
 import type { RuntimeAdapter } from '../runtime-adapters/types';
 import { authMiddleware } from './middleware/auth';
 import { createTodosModule } from './modules/todos';
@@ -16,7 +16,7 @@ export function createIntegrationApp(): TestServer {
   const { module: usersModule, userService } = createUsersModule();
   const { module: todosModule } = createTodosModule(userService);
 
-  const app = createApp({ basePath: '/api', cors: { origins: true } })
+  const app = createServer({ basePath: '/api', cors: { origins: true } })
     .middlewares([authMiddleware])
     .register(usersModule)
     .register(todosModule);
@@ -36,7 +36,7 @@ export async function createIntegrationServer(adapter: RuntimeAdapter): Promise<
   const { module: usersModule, userService } = createUsersModule();
   const { module: todosModule } = createTodosModule(userService);
 
-  const app = createApp({ basePath: '/api', cors: { origins: true } })
+  const app = createServer({ basePath: '/api', cors: { origins: true } })
     .middlewares([authMiddleware])
     .register(usersModule)
     .register(todosModule);

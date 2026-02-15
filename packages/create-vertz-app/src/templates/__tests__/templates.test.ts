@@ -31,10 +31,10 @@ describe('templates', () => {
       expect(pkg.name).toBe('my-app');
     });
 
-    it('includes @vertz/core dependency', () => {
+    it('includes @vertz/server dependency', () => {
       const result = packageJsonTemplate({ projectName: 'test-app', runtime: 'bun' });
       const pkg = JSON.parse(result);
-      expect(pkg.dependencies['@vertz/core']).toBeDefined();
+      expect(pkg.dependencies['@vertz/server']).toBeDefined();
     });
 
     it('includes @vertz/cli as dev dependency', () => {
@@ -196,9 +196,9 @@ describe('templates', () => {
       expect(result.length).toBeGreaterThan(0);
     });
 
-    it('exports createApp', () => {
+    it('exports createServer', () => {
       const result = appTemplate();
-      expect(result).toContain('createApp');
+      expect(result).toContain('createServer');
     });
   });
 

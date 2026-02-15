@@ -1,10 +1,3 @@
-import {
-  BadRequestException,
-  type HandlerCtx,
-  type NamedMiddlewareDef,
-  type NamedModule,
-  type NamedServiceDef,
-} from '@vertz/core';
 import type { ResolvedMiddleware } from '@vertz/core/internals';
 import {
   buildCtx,
@@ -15,6 +8,13 @@ import {
   runMiddlewareChain,
   Trie,
 } from '@vertz/core/internals';
+import {
+  BadRequestException,
+  type HandlerCtx,
+  type NamedMiddlewareDef,
+  type NamedModule,
+  type NamedServiceDef,
+} from '@vertz/server';
 
 import type { DeepPartial } from './types';
 

@@ -12,7 +12,7 @@ export function packageJsonTemplate({
   includeExample?: boolean;
 }): string {
   const deps: Record<string, string> = {
-    '@vertz/core': '^0.1.0',
+    '@vertz/server': '^0.1.0',
   };
 
   const devDeps: Record<string, string> = {
@@ -99,7 +99,7 @@ export function tsconfigTemplate(runtime: Runtime): string {
  * vertz.config.ts template
  */
 export function vertzConfigTemplate(): string {
-  return `import { defineConfig } from '@vertz/core';
+  return `import { defineConfig } from '@vertz/server';
 
 export default defineConfig({
   modules: [],
@@ -189,9 +189,9 @@ export const env = envsafe({
  * src/app.ts template
  */
 export function appTemplate(): string {
-  return `import { createApp } from '@vertz/core';
+  return `import { createServer } from '@vertz/server';
 
-export const app = createApp({
+export const app = createServer({
   name: 'vertz-app',
   requestId: {
     header: 'x-request-id',
@@ -223,7 +223,7 @@ main();
  * src/middlewares/request-id.middleware.ts template
  */
 export function requestIdMiddlewareTemplate(): string {
-  return `import type { Middleware } from '@vertz/core';
+  return `import type { Middleware } from '@vertz/server';
 import { randomUUID } from 'crypto';
 
 export const requestIdMiddleware: Middleware = {
@@ -247,7 +247,7 @@ export const requestIdMiddleware: Middleware = {
  * src/modules/health.module-def.ts template
  */
 export function healthModuleDefTemplate(): string {
-  return `import type { ModuleDefinition } from '@vertz/core';
+  return `import type { ModuleDefinition } from '@vertz/server';
 
 export const healthModuleDef = {
   name: 'health',
@@ -260,7 +260,7 @@ export const healthModuleDef = {
  * src/modules/health.module.ts template
  */
 export function healthModuleTemplate(): string {
-  return `import type { Module } from '@vertz/core';
+  return `import type { Module } from '@vertz/server';
 import { healthModuleDef } from './health.module-def.js';
 import { healthRouter } from './health.router.js';
 import { HealthService } from './health.service.js';
@@ -277,7 +277,7 @@ export const healthModule = {
  * src/modules/health.service.ts template
  */
 export function healthServiceTemplate(): string {
-  return `import type { Service } from '@vertz/core';
+  return `import type { Service } from '@vertz/server';
 import { HealthCheckSchema } from './schemas/health-check.schema.js';
 
 export class HealthService implements Service {
@@ -300,7 +300,7 @@ export const healthService = new HealthService();
  * src/modules/health.router.ts template
  */
 export function healthRouterTemplate(): string {
-  return `import type { Router } from '@vertz/core';
+  return `import type { Router } from '@vertz/server';
 import { healthService } from './health.service.js';
 
 export const healthRouter: Router = {
@@ -341,7 +341,7 @@ export const HealthCheckSchema = s.object({
 export function denoConfigTemplate(): string {
   const config = {
     imports: {
-      '@vertz/core': 'jsr:@vertz/core@^0.1.0',
+      '@vertz/server': 'jsr:@vertz/server@^0.1.0',
       '@vertz/schema': 'jsr:@vertz/schema@^0.1.0',
     },
     tasks: {

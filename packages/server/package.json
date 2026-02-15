@@ -1,12 +1,12 @@
 {
-  "name": "@vertz/ui-server",
+  "name": "@vertz/server",
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
-    "directory": "packages/ui-server"
+    "directory": "packages/server"
   },
   "publishConfig": {
     "access": "public",
@@ -18,14 +18,6 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    },
-    "./dom-shim": {
-      "import": "./dist/dom-shim/index.js",
-      "types": "./dist/dom-shim/index.d.ts"
-    },
-    "./jsx-runtime": {
-      "import": "./dist/jsx-runtime/index.js",
-      "types": "./dist/jsx-runtime/index.d.ts"
     }
   },
   "files": [
@@ -38,18 +30,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vertz/core": "workspace:*",
-    "@vertz/server": "workspace:*",
-    "@vertz/ui": "workspace:*"
-  },
-  "peerDependencies": {
-    "vite": "^6.0.0"
+    "@vertz/core": "workspace:*"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.0.18",
+    "@types/node": "^22.0.0",
     "bunup": "latest",
     "typescript": "^5.7.0",
-    "vite": "^6.0.0",
     "vitest": "^4.0.18"
   },
   "engines": {
