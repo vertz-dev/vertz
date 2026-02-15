@@ -1,5 +1,5 @@
 import type { Diagnostic } from '@vertz/compiler';
-import { symbols } from './theme';
+import { symbols } from '@vertz/tui';
 
 export function formatDiagnostic(diagnostic: Diagnostic): string {
   const icon = diagnostic.severity === 'error' ? symbols.error : symbols.warning;
