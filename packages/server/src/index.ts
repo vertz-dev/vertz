@@ -60,3 +60,16 @@ export {
   VertzException,
   vertz,
 } from '@vertz/core';
+
+// Domain API (STUB for TDD red phase)
+export { domain } from './domain';
+export type {
+  DomainDefinition,
+  DomainOptions,
+  DomainType,
+  DomainContext,
+  AccessRule,
+  AccessRules,
+  Result,
+  DomainError,
+} from './domain';
