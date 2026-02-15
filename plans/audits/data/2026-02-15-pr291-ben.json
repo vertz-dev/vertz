@@ -1,0 +1,236 @@
+{
+  "schema": "vertz.audit.v1",
+  "audit": {
+    "date": "2026-02-15",
+    "auditor": "auditor"
+  },
+  "pr": {
+    "number": 291,
+    "title": "fix(db): address 5 postgres driver issues (#203 #204 #205 #206 #207)",
+    "author": "ben",
+    "authorBot": "vertz-dev-core",
+    "createdAt": "2026-02-15T01:00:40Z",
+    "mergedAt": "2026-02-15T01:06:17Z",
+    "linesAdded": 449,
+    "linesDeleted": 170,
+    "filesChanged": 6,
+    "commits": 1
+  },
+  "agent": {
+    "id": "vertz-dev-core",
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "durationMinutes": null,
+    "tokenCount": null
+  },
+  "grade": {
+    "overall": "C",
+    "numeric": 2,
+    "summary": "Technically sound implementation addressing 5 postgres driver issues with good test coverage. Major process violations: mega-commit bundling 5 issues, unverifiable TDD compliance without session transcript. Work is functional but process not followed."
+  },
+  "categories": {
+    "tdd": {
+      "grade": "C",
+      "numeric": 2,
+      "checks": {
+        "testFirst": {
+          "pass": null,
+          "severity": "major",
+          "evidence": "Cannot verify test-first order. Single commit 857c324 contains tests AND implementation atomically. Without session transcript, TDD compliance is unverifiable."
+        },
+        "redGreenCycle": {
+          "pass": null,
+          "severity": "major",
+          "evidence": "No evidence of red-green cycle in git history. Commit shows final state only."
+        },
+        "oneTestAtATime": {
+          "pass": null,
+          "severity": "major",
+          "evidence": "Cannot determine if tests were written one at a time or batched."
+        },
+        "qualityGates": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "PR body claims '805 tests pass, 0 type errors' but commit message shows no gate output. Cannot verify gates ran before commit."
+        },
+        "testsAdded": {
+          "pass": true,
+          "severity": null,
+          "evidence": "New unit test file postgres-driver.test.ts (82 lines), new test in database.test.ts (+28 lines), integration test in postgres-integration.test.ts for #205, major refactor for #207 (458 lines)."
+        },
+        "noSkipsOrIgnores": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No @ts-ignore, as any, .skip, or --no-verify found in diff."
+        }
+      }
+    },
+    "process": {
+      "grade": "D",
+      "numeric": 1,
+      "checks": {
+        "atomicCommits": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Mega-commit 857c324 bundles 5 separate issues (#203 #204 #205 #206 #207) into ONE commit. Violates 'Keep commits atomic — one logical change per commit'."
+        },
+        "branchNaming": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Branch 'fix/db-postgres-issues' follows convention."
+        },
+        "changesetAdded": {
+          "pass": true,
+          "severity": null,
+          "evidence": ".changeset/fix-db-postgres-issues.md added for package changes."
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Committed as vertz-dev-core[bot] via bot scripts."
+        },
+        "prNotDirectMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR #291 used, not direct push to main."
+        },
+        "isolatedWorktree": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify from commit, but PR diff contains only relevant files (no stray changes), suggesting isolation maintained."
+        }
+      }
+    },
+    "design": {
+      "grade": "A",
+      "numeric": 4,
+      "checks": {
+        "ticketExists": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Issues #203, #204, #205, #206, #207 all exist with clear acceptance criteria."
+        },
+        "acceptanceCriteriaMet": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All 5 issues addressed: #203 timeout added, #204 docs added, #205 error mapping fixed, #206 default idle_timeout set, #207 test isolation improved."
+        },
+        "noScopeCreep": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR diff contains only 6 files directly related to the 5 issues. No unrelated changes."
+        },
+        "rulesRead": {
+          "pass": null,
+          "severity": null,
+          "evidence": "Cannot verify RULES.md was read at session start (no transcript)."
+        }
+      }
+    },
+    "dx": {
+      "grade": "A",
+      "numeric": 4,
+      "checks": {
+        "documentation": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Issue #204: Added comprehensive JSDoc documenting timestamp coercion false-positive risk on coerceValue, isTimestampString, and createDb interface."
+        },
+        "verticalSlice": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Each fix includes both implementation and tests. Integration tests verify end-to-end behavior."
+        },
+        "publicApiExamples": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Test cases use public API: createDb, createPostgresDriver. Integration tests use full db.findMany, db.create, etc."
+        },
+        "developerWalkthrough": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Not required for bug fixes. All fixes maintain existing public API."
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4,
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() in diff."
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No hardcoded secrets found."
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "executeQuery properly uses parameterized queries. No shell string interpolation."
+        },
+        "noShellInjection": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No exec() or shell calls in PR."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "atomic-commits",
+      "category": "process",
+      "severity": "major",
+      "description": "Mega-commit bundling 5 issues into 1 commit",
+      "evidence": "Commit 857c324 addresses #203, #204, #205, #206, #207 in ONE commit. Expected: 5 separate commits, one per issue.",
+      "recommendation": "Split multi-issue work into atomic commits during implementation. Each issue should have its own commit with TDD cycle: test commit, implementation commit."
+    },
+    {
+      "rule": "tdd-test-first",
+      "category": "tdd",
+      "severity": "major",
+      "description": "TDD compliance unverifiable without session transcript",
+      "evidence": "Single atomic commit contains tests AND implementation. Cannot determine if tests were written before implementation.",
+      "recommendation": "Maintain session transcripts for audit trail, or include TDD evidence in commit messages showing red-green cycle."
+    },
+    {
+      "rule": "quality-gates-evidence",
+      "category": "tdd",
+      "severity": "minor",
+      "description": "No evidence of quality gates in commit message",
+      "evidence": "PR body claims 'All 805 tests pass, 0 type errors' but commit message shows no gate output.",
+      "recommendation": "Include quality gate output in PR body or commit message: 'bun run test (805 pass) && typecheck (0 errors) && lint (clean)'."
+    }
+  ],
+  "metrics": {
+    "testCoverage": {
+      "newTests": 3,
+      "newTestFiles": 1,
+      "testLinesAdded": 192,
+      "integrationTestsRefactored": true
+    },
+    "codeQuality": {
+      "filesChanged": 6,
+      "linesAdded": 449,
+      "linesDeleted": 170,
+      "netChange": 279,
+      "complexity": "low"
+    },
+    "timeline": {
+      "prCreatedAt": "2026-02-15T01:00:40Z",
+      "commitTimestamp": "2026-02-15T00:59:50Z",
+      "mergedAt": "2026-02-15T01:06:17Z",
+      "timeToMergeMinutes": 6
+    }
+  },
+  "recommendations": [
+    "Enforce atomic commits: split multi-issue work into separate commits",
+    "Maintain session transcripts or include TDD evidence in commit messages",
+    "Show quality gate output in PR body to build trust",
+    "Consider separate PRs for large test refactors (e.g., #207 was 458 lines)"
+  ]
+}
