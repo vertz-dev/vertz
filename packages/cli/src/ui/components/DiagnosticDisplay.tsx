@@ -1,7 +1,7 @@
 import type { Diagnostic } from '@vertz/compiler';
 import { Box, Text } from 'ink';
 import type React from 'react';
-import { colors, symbols } from '../theme';
+import { colors, symbols } from '@vertz/tui';
 
 interface DiagnosticDisplayProps {
   diagnostic: Diagnostic;

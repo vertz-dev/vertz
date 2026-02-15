@@ -2,7 +2,7 @@ import type { Diagnostic } from '@vertz/compiler';
 import { render } from 'ink-testing-library';
 import { describe, expect, it } from 'vitest';
 import { DiagnosticSummary } from '../../components/DiagnosticSummary';
-import { symbols } from '../../theme';
+import { symbols } from '@vertz/tui';
 
 function makeDiagnostic(severity: 'error' | 'warning'): Diagnostic {
   return {
