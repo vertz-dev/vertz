@@ -238,7 +238,12 @@ const db = createDb({
   pool: {
     max: 20,                  // Max connections (default: 10)
     idleTimeout: 30000,       // Idle timeout ms (default: 30000)
-    connectionTimeout: 5000,  // Connection timeout ms (default: 5000)
+    connectionTimeout: 5000,  // Connection timeout ms (default: 10000)
+    healthCheckTimeout: 5000,  // Health check timeout ms (default: 5000)
+    replicas: [               // Read replica URLs for query routing
+      'postgresql://user:pass@localhost:5433/mydb',
+      'postgresql://user:pass@localhost:5434/mydb',
+    ],
   },
   casing: 'snake_case',       // or 'camelCase' (default: 'snake_case')
   log: (msg) => console.log(msg), // Optional logger
@@ -510,6 +515,14 @@ console.log(results.rows[0].count);
 ```
 
 **Security note:** Always use `sql` tagged template for user input to prevent SQL injection.
+
+#### Timestamp Coercion
+
+> ⚠️ **Important:** The PostgreSQL driver automatically coerces string values that match ISO 8601 timestamp patterns into JavaScript `Date` objects. This applies to all columns, not just declared timestamp columns.
+
+If you store timestamp-formatted strings in plain `text` columns (e.g., `"2024-01-15T10:30:00Z"`), they will be silently converted to `Date` objects when returned from queries.
+
+This behavior uses a heuristic regex (`/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/`) to detect timestamp-like strings. Future versions may add column-type-aware coercion to eliminate false positives.
 
 ### Migrations
 
