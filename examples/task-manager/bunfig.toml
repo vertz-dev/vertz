@@ -1,2 +1,3 @@
 [test]
-preload = ["./test-setup.ts"]
+preload = ["./test-setup.ts", "./test-compiler-plugin.ts"]
+root = "./src"
