@@ -7,8 +7,23 @@ export interface CorsConfig {
   exposedHeaders?: string[];
 }
 
+// Forward declare DomainDefinition - actual type is in @vertz/server
+export interface DomainDefinition {
+  readonly name: string;
+  readonly type: string;
+  readonly table: unknown;
+  readonly exposedRelations: Record<string, unknown>;
+  readonly access: Record<string, unknown>;
+  readonly handlers: Record<string, unknown>;
+  readonly actions: Record<string, unknown>;
+}
+
 export interface AppConfig {
   basePath?: string;
   version?: string;
   cors?: CorsConfig;
+  /** Domain definitions for auto-CRUD route generation */
+  domains?: DomainDefinition[];
+  /** API prefix for domain routes (default: '/api/') */
+  apiPrefix?: string;
 }

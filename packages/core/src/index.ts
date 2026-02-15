@@ -1,6 +1,7 @@
 // @vertz/core — public API
 
 export type { AppBuilder } from './app';
+export type { RouteInfo } from './app/app-builder';
 
 import type { AppBuilder } from './app';
 import { createApp as _createApp } from './app';
