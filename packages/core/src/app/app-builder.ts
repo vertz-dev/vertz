@@ -1,6 +1,6 @@
 import type { AccumulateProvides, NamedMiddlewareDef } from '../middleware/middleware-def';
 import type { NamedModule } from '../module/module';
-import type { AppConfig, DomainDefinition } from '../types/app';
+import type { AppConfig } from '../types/app';
 import type { ListenOptions, ServerHandle } from '../types/server-adapter';
 import { buildHandler, type ModuleRegistration } from './app-runner';
 import { detectAdapter } from './detect-adapter';
