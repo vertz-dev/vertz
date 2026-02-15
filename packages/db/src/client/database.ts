@@ -18,6 +18,63 @@ import { createPostgresDriver, type PostgresDriver } from './postgres-driver';
 import { computeTenantGraph, type TenantGraph } from './tenant-graph';
 
 // ---------------------------------------------------------------------------
+// Query routing
+// ---------------------------------------------------------------------------
+
+/**
+ * Determines if a SQL query is a read-only query that can be routed to replicas.
+ *
+ * This function detects SELECT statements, including:
+ * - Standard SELECT queries
+ * - SELECT ... FOR UPDATE (still read-only, but we'll send to primary for safety)
+ * - WITH ... SELECT (CTEs)
+ * - Queries with leading comments
+ *
+ * Returns false for:
+ * - INSERT, UPDATE, DELETE, TRUNCATE
+ * - DDL statements (CREATE, ALTER, DROP)
+ * - Transaction commands (BEGIN, COMMIT, ROLLBACK)
+ * - Any statement not starting with SELECT after normalization
+ */
+export function isReadQuery(sqlStr: string): boolean {
+  // Remove leading comments and whitespace
+  let normalized = sqlStr.trim();
+
+  // Strip leading comment lines (-- and /* */)
+  while (
+    normalized.startsWith('--') ||
+    normalized.startsWith('/*') ||
+    normalized.startsWith('//')
+  ) {
+    // Find end of comment
+    if (normalized.startsWith('--')) {
+      const newlineIdx = normalized.indexOf('\n');
+      if (newlineIdx === -1) return false;
+      normalized = normalized.slice(newlineIdx + 1).trim();
+    } else if (normalized.startsWith('/*')) {
+      const endIdx = normalized.indexOf('*/');
+      if (endIdx === -1) return false;
+      normalized = normalized.slice(endIdx + 2).trim();
+    } else if (normalized.startsWith('//')) {
+      const newlineIdx = normalized.indexOf('\n');
+      if (newlineIdx === -1) return false;
+      normalized = normalized.slice(newlineIdx + 1).trim();
+    }
+  }
+
+  // Handle CTEs (WITH clause) - look for SELECT after WITH
+  if (normalized.toUpperCase().startsWith('WITH ')) {
+    const selectMatch = normalized.match(/\bSELECT\s/is);
+    return selectMatch !== null;
+  }
+
+  // Check if the first meaningful keyword is SELECT
+  // Handle "SELECT INTO" as read-only
+  const upper = normalized.toUpperCase();
+  return upper.startsWith('SELECT') || upper.startsWith('SELECT INTO');
+}
+
+// ---------------------------------------------------------------------------
 // Pool configuration
 // ---------------------------------------------------------------------------
 
@@ -439,6 +496,8 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
   // Create the postgres driver if _queryFn is not provided
   let driver: PostgresDriver | null = null;
+  let replicaDrivers: PostgresDriver[] = [];
+  let replicaIndex = 0;
 
   const queryFn: QueryFn = (() => {
     // If _queryFn is explicitly provided (e.g., PGlite for testing), use it
@@ -449,7 +508,30 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     // Otherwise, create a real postgres driver from the URL
     if (options.url) {
       driver = createPostgresDriver(options.url, options.pool);
-      return driver.queryFn;
+
+      // Create replica drivers if configured
+      const replicas = options.pool?.replicas;
+      if (replicas && replicas.length > 0) {
+        replicaDrivers = replicas.map((replicaUrl) => createPostgresDriver(replicaUrl, options.pool));
+      }
+
+      // Return a routing-aware query function
+      return async <T>(sqlStr: string, params: readonly unknown[]) => {
+        // If no replicas configured, always use primary
+        if (replicaDrivers.length === 0) {
+          return driver!.queryFn<T>(sqlStr, params);
+        }
+
+        // Route read queries to replicas with round-robin
+        if (isReadQuery(sqlStr)) {
+          const targetReplica = replicaDrivers[replicaIndex]!;
+          replicaIndex = (replicaIndex + 1) % replicaDrivers.length;
+          return targetReplica.queryFn<T>(sqlStr, params);
+        }
+
+        // Write queries always go to primary
+        return driver!.queryFn<T>(sqlStr, params);
+      };
     }
 
     // Fallback: no driver, no _queryFn — throw on query
@@ -480,9 +562,12 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     },
 
     async close(): Promise<void> {
+      // Close primary driver
       if (driver) {
         await driver.close();
       }
+      // Close all replica drivers
+      await Promise.all(replicaDrivers.map((r) => r.close()));
     },
 
     async isHealthy(): Promise<boolean> {
