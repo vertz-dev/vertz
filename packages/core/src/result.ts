@@ -1,4 +1,10 @@
 /**
+ * Symbol used to brand Result objects to prevent accidental matches with user data.
+ * Using a Symbol makes it impossible for user objects to accidentally match isResult().
+ */
+const RESULT_BRAND: unique symbol = Symbol.for('vertz.result');
+
+/**
  * Result type for explicit error handling in route handlers.
  *
  * This provides an alternative to exception-based error handling,
@@ -24,6 +30,7 @@
 export interface Ok<T> {
   readonly ok: true;
   readonly data: T;
+  readonly [RESULT_BRAND]: true;
 }
 
 /**
@@ -33,6 +40,7 @@ export interface Err<E> {
   readonly ok: false;
   readonly status: number;
   readonly body: E;
+  readonly [RESULT_BRAND]: true;
 }
 
 /**
@@ -60,7 +68,7 @@ export type Result<T, E = unknown> = Ok<T> | Err<E>;
  * ```
  */
 export function ok<T>(data: T): Ok<T> {
-  return { ok: true, data };
+  return { ok: true, data, [RESULT_BRAND]: true };
 }
 
 /**
@@ -76,7 +84,7 @@ export function ok<T>(data: T): Ok<T> {
  * ```
  */
 export function err<E>(status: number, body: E): Err<E> {
-  return { ok: false, status, body };
+  return { ok: false, status, body, [RESULT_BRAND]: true };
 }
 
 /**
@@ -111,4 +119,24 @@ export function isOk<T, E>(result: Result<T, E>): result is Ok<T> {
  */
 export function isErr<T, E>(result: Result<T, E>): result is Err<E> {
   return result.ok === false;
+}
+
+/**
+ * Type guard to check if a value is a Result type (Ok or Err).
+ * Uses Symbol brand for reliable detection that won't match user objects.
+ *
+ * @param value - The value to check
+ * @returns True if the value is a Result
+ *
+ * @example
+ * ```typescript
+ * if (isResult(value)) {
+ *   // value is Result<unknown, unknown>
+ * }
+ * ```
+ */
+export function isResult(value: unknown): value is Result<unknown, unknown> {
+  if (value === null || typeof value !== 'object') return false;
+  const obj = value as Record<string | symbol, unknown>;
+  return obj[RESULT_BRAND] === true;
 }

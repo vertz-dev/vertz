@@ -10,17 +10,7 @@ import { parseBody, parseRequest } from '../server/request-utils';
 import { createErrorResponse, createJsonResponse } from '../server/response-utils';
 import type { AppConfig } from '../types/app';
 import type { HandlerCtx } from '../types/context';
-import { isOk, type Result } from '../result';
-
-/**
- * Checks if a value is a Result type (either Ok or Err).
- * This is a simple check that works for our discriminated union.
- */
-function isResult(value: unknown): value is Result<unknown, unknown> {
-  if (value === null || typeof value !== 'object') return false;
-  const obj = value as Record<string, unknown>;
-  return typeof obj.ok === 'boolean' && ('data' in obj || ('status' in obj && 'body' in obj));
-}
+import { isOk, isResult } from '../result';
 
 /**
  * Creates a JSON response and applies CORS headers if configured.
@@ -270,7 +260,7 @@ export function buildHandler(
               } catch (error) {
                 const message =
                   error instanceof Error
-                    ? `Error schema validation failed for status ${errorStatus}`
+                    ? `Error schema validation failed for status ${errorStatus}: ${error.message}`
                     : `Error schema validation failed for status ${errorStatus}`;
                 console.warn(`[vertz] Response validation warning: ${message}`);
               }
