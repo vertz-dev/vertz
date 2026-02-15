@@ -41,7 +41,7 @@ export function createUserMethods() {
       const limit = input.limit ?? 20;
       const offset = input.offset ?? 0;
 
-      const { data, total } = await db.findManyAndCount('users', {
+      const { data, total } = await db.listAndCount('users', {
         limit,
         offset,
         orderBy: { createdAt: 'desc' },
@@ -56,7 +56,7 @@ export function createUserMethods() {
     },
 
     async getById(id: string) {
-      const user = await db.findOne('users', {
+      const user = await db.get('users', {
         where: { id },
       });
 

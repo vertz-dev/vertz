@@ -83,16 +83,16 @@ type EntryColumns<TEntry extends TableEntry> = EntryTable<TEntry>['_columns'];
 // Typed query option types
 // ---------------------------------------------------------------------------
 
-/** Options for findOne / findOneOrThrow — typed per-table. */
-type TypedFindOneOptions<TEntry extends TableEntry> = {
+/** Options for get / getOrThrow — typed per-table. */
+type TypedGetOptions<TEntry extends TableEntry> = {
   readonly where?: FilterType<EntryColumns<TEntry>>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
   readonly orderBy?: OrderByType<EntryColumns<TEntry>>;
   readonly include?: IncludeOption<EntryRelations<TEntry>>;
 };
 
-/** Options for findMany / findManyAndCount — typed per-table. */
-type TypedFindManyOptions<TEntry extends TableEntry> = {
+/** Options for list / listAndCount — typed per-table. */
+type TypedListOptions<TEntry extends TableEntry> = {
   readonly where?: FilterType<EntryColumns<TEntry>>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
   readonly orderBy?: OrderByType<EntryColumns<TEntry>>;
@@ -185,15 +185,15 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   isHealthy(): Promise<boolean>;
 
   // -------------------------------------------------------------------------
-  // Find queries (DB-010)
+  // Query methods (DB-010)
   // -------------------------------------------------------------------------
 
   /**
-   * Find a single row or null.
+   * Get a single row or null.
    */
-  findOne<
+  get<
     TName extends keyof TTables & string,
-    TOptions extends TypedFindOneOptions<TTables[TName]>,
+    TOptions extends TypedGetOptions<TTables[TName]>,
   >(
     table: TName,
     options?: TOptions,
@@ -204,33 +204,33 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   > | null>;
 
   /**
-   * Find a single row or throw NotFoundError.
+   * Get a single row or throw NotFoundError.
    */
-  findOneOrThrow<
+  getOrThrow<
     TName extends keyof TTables & string,
-    TOptions extends TypedFindOneOptions<TTables[TName]>,
+    TOptions extends TypedGetOptions<TTables[TName]>,
   >(
     table: TName,
     options?: TOptions,
   ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>>;
 
   /**
-   * Find multiple rows.
+   * List multiple rows.
    */
-  findMany<
+  list<
     TName extends keyof TTables & string,
-    TOptions extends TypedFindManyOptions<TTables[TName]>,
+    TOptions extends TypedListOptions<TTables[TName]>,
   >(
     table: TName,
     options?: TOptions,
   ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[]>;
 
   /**
-   * Find multiple rows with total count.
+   * List multiple rows with total count.
    */
-  findManyAndCount<
+  listAndCount<
     TName extends keyof TTables & string,
-    TOptions extends TypedFindManyOptions<TTables[TName]>,
+    TOptions extends TypedListOptions<TTables[TName]>,
   >(
     table: TName,
     options?: TOptions,
@@ -238,6 +238,15 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
     data: FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[];
     total: number;
   }>;
+
+  /** @deprecated Use `get` instead */
+  findOne: DatabaseInstance<TTables>['get'];
+  /** @deprecated Use `getOrThrow` instead */
+  findOneOrThrow: DatabaseInstance<TTables>['getOrThrow'];
+  /** @deprecated Use `list` instead */
+  findMany: DatabaseInstance<TTables>['list'];
+  /** @deprecated Use `listAndCount` instead */
+  findManyAndCount: DatabaseInstance<TTables>['listAndCount'];
 
   // -------------------------------------------------------------------------
   // Create queries (DB-010)
@@ -479,12 +488,12 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     },
 
     // -----------------------------------------------------------------------
-    // Find queries
+    // Query methods
     // -----------------------------------------------------------------------
 
-    async findOne(name, opts): Promise<AnyResult> {
+    async get(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      const result = await crud.findOne(queryFn, entry.table, opts as crud.FindOneArgs);
+      const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs);
       if (result !== null && opts?.include) {
         const rows = await loadRelations(
           queryFn,
@@ -500,9 +509,9 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       return result;
     },
 
-    async findOneOrThrow(name, opts): Promise<AnyResult> {
+    async getOrThrow(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      const result = await crud.findOneOrThrow(queryFn, entry.table, opts as crud.FindOneArgs);
+      const result = await crud.getOrThrow(queryFn, entry.table, opts as crud.GetArgs);
       if (opts?.include) {
         const rows = await loadRelations(
           queryFn,
@@ -518,9 +527,9 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       return result;
     },
 
-    async findMany(name, opts): Promise<AnyResult> {
+    async list(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      const results = await crud.findMany(queryFn, entry.table, opts as crud.FindManyArgs);
+      const results = await crud.list(queryFn, entry.table, opts as crud.ListArgs);
       if (opts?.include && results.length > 0) {
         return loadRelations(
           queryFn,
@@ -535,12 +544,12 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       return results;
     },
 
-    async findManyAndCount(name, opts): Promise<AnyResult> {
+    async listAndCount(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      const { data, total } = await crud.findManyAndCount(
+      const { data, total } = await crud.listAndCount(
         queryFn,
         entry.table,
-        opts as crud.FindManyArgs,
+        opts as crud.ListArgs,
       );
       if (opts?.include && data.length > 0) {
         const withRelations = await loadRelations(
@@ -556,6 +565,12 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       }
       return { data, total };
     },
+
+    // Deprecated aliases
+    get findOne() { return this.get; },
+    get findOneOrThrow() { return this.getOrThrow; },
+    get findMany() { return this.list; },
+    get findManyAndCount() { return this.listAndCount; },
 
     // -----------------------------------------------------------------------
     // Create queries

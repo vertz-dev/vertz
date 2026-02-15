@@ -7,7 +7,7 @@
  * - ORDER BY with direction
  * - LIMIT / OFFSET pagination (parameterized)
  * - Cursor-based pagination (cursor + take)
- * - COUNT(*) OVER() for findManyAndCount
+ * - COUNT(*) OVER() for listAndCount
  */
 
 import { camelToSnake } from './casing';

@@ -79,7 +79,7 @@ export function createTaskMethods() {
       if (input.priority) where.priority = input.priority;
       if (input.assigneeId) where.assigneeId = input.assigneeId;
 
-      const { data, total } = await db.findManyAndCount('tasks', {
+      const { data, total } = await db.listAndCount('tasks', {
         where,
         limit,
         offset,
@@ -95,7 +95,7 @@ export function createTaskMethods() {
     },
 
     async getById(id: string) {
-      const task = await db.findOne('tasks', {
+      const task = await db.get('tasks', {
         where: { id },
         include: { assignee: true },
       });
@@ -110,7 +110,7 @@ export function createTaskMethods() {
     async create(input: CreateTaskInput) {
       // If assigneeId is provided, verify the user exists
       if (input.assigneeId) {
-        const user = await db.findOne('users', {
+        const user = await db.get('users', {
           where: { id: input.assigneeId },
         });
         if (!user) {
@@ -138,7 +138,7 @@ export function createTaskMethods() {
     async update(id: string, input: UpdateTaskInput) {
       // If assigneeId is being set, verify the user exists
       if (input.assigneeId) {
-        const user = await db.findOne('users', {
+        const user = await db.get('users', {
           where: { id: input.assigneeId },
         });
         if (!user) {
