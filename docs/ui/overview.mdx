@@ -351,7 +351,7 @@ loginSDK.method = 'POST';
 const loginForm = form(loginSDK, {
   schema: {
     email: s.string().email(),
-    password: s.string().minLength(8),
+    password: s.string().min(8),
   },
 });
 
@@ -396,7 +396,7 @@ import { validate } from '@vertz/ui';
 import { s } from '@vertz/schema';
 
 const userSchema = s.object({
-  name: s.string().minLength(1),
+  name: s.string().min(1),
   age: s.number().int().min(0),
   email: s.string().email(),
 });

@@ -78,9 +78,9 @@ if (result.success) {
 import { s } from '@vertz/schema';
 
 // String with validations
-const name = s.string().minLength(1).maxLength(100);
+const name = s.string().min(1).max(100);
 const slug = s.string().regex(/^[a-z0-9-]+$/);
-const content = s.string().trim().toLower();
+const content = s.string().trim().toLowerCase();
 
 // Number with validations
 const age = s.number().int().min(0).max(150);
@@ -118,7 +118,7 @@ import { s } from '@vertz/schema';
 
 const userSchema = s.object({
   // Required string
-  name: s.string().minLength(1),
+  name: s.string().min(1),
   
   // Optional field
   bio: s.string().optional(),
@@ -141,7 +141,7 @@ const userSchema = s.object({
 import { s } from '@vertz/schema';
 
 // Array of strings
-const tags = s.array(s.string()).minLength(1).maxLength(10);
+const tags = s.array(s.string()).min(1).max(10);
 
 // Array of objects
 const items = s.array(s.object({
@@ -209,15 +209,15 @@ import { s } from '@vertz/schema';
 
 // String validators
 s.string()
-  .minLength(n)
-  .maxLength(n)
+  .min(n)
+  .max(n)
   .regex(pattern)
   .includes(substring)
   .startsWith(prefix)
   .endsWith(suffix)
   .trim()
-  .toLower()
-  .toUpper();
+  .toLowerCase()
+  .toUpperCase();
 
 // Number validators
 s.number()
@@ -236,7 +236,7 @@ Add custom validation logic:
 ```typescript
 import { s } from '@vertz/schema';
 
-const passwordSchema = s.string().minLength(8).refine(
+const passwordSchema = s.string().min(8).refine(
   (val) => /[A-Z]/.test(val),
   { message: 'Password must contain at least one uppercase letter' }
 ).refine(
@@ -374,7 +374,7 @@ import { form } from '@vertz/ui';
 // Define schema
 const loginSchema = s.object({
   email: s.string().email(),
-  password: s.string().minLength(8),
+  password: s.string().min(8),
 });
 
 // Create form with schema
@@ -452,8 +452,8 @@ const statusEnum = s.fromDbEnum({
 |--------|-------------|
 | `.email()` | Validate email format |
 | `.uuid()` | Validate UUID format |
-| `.minLength(n)` | Minimum length |
-| `.maxLength(n)` | Maximum length |
+| `.min(n)` | Minimum length |
+| `.max(n)` | Maximum length |
 | `.regex(pattern)` | Regex pattern |
 | `.optional()` | Make optional |
 | `.default(value)` | Default value |
