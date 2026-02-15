@@ -6,7 +6,7 @@ import {
   formatDiagnosticsAsGitHub,
   formatDiagnosticsAsJSON,
 } from '../diagnostic-formatter';
-import { symbols } from '../theme';
+import { symbols } from '@vertz/tui';
 
 function makeDiagnostic(overrides: Partial<Diagnostic> = {}): Diagnostic {
   return {

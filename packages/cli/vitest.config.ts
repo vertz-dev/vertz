@@ -9,6 +9,7 @@ export default defineConfig({
     alias: {
       '@vertz/codegen': resolve(__dirname, '../codegen/src/index.ts'),
       '@vertz/compiler': resolve(__dirname, '../compiler/src/index.ts'),
+      '@vertz/tui': resolve(__dirname, '../tui/src/index.ts'),
     },
   },
   test: {

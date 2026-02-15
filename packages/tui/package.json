@@ -1,19 +1,16 @@
 {
-  "name": "@vertz/cli",
+  "name": "@vertz/tui",
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
-    "directory": "packages/cli"
+    "directory": "packages/tui"
   },
   "publishConfig": {
     "access": "public",
     "provenance": true
-  },
-  "bin": {
-    "vertz": "./dist/vertz.js"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -28,17 +25,12 @@
   ],
   "scripts": {
     "build": "bunup",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
+    "lint": "biome check src/"
   },
   "dependencies": {
-    "@vertz/codegen": "workspace:*",
-    "@vertz/tui": "workspace:*",
-    "@vertz/compiler": "workspace:*",
-    "commander": "^14.0.0",
     "ink": "^6.6.0",
-    "jiti": "^2.4.2",
     "react": "^19.2.4"
   },
   "devDependencies": {

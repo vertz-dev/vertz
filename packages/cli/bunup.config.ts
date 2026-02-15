@@ -6,14 +6,14 @@ export default defineConfig([
     format: ['esm'],
     dts: { inferTypes: true },
     clean: true,
-    external: ['@vertz/compiler', 'commander', 'jiti'],
+    external: ['@vertz/compiler', '@vertz/tui', 'commander', 'jiti'],
   },
   {
     entry: ['bin/vertz.ts'],
     format: ['esm'],
     dts: false,
     clean: false,
-    external: ['@vertz/compiler', 'commander', 'jiti'],
+    external: ['@vertz/compiler', '@vertz/tui', 'commander', 'jiti'],
     banner: '#!/usr/bin/env node',
   },
 ]);
