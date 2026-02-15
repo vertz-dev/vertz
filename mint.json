@@ -1,6 +1,11 @@
 {
   "$schema": "https://mintlify.com/schema.json",
   "name": "Vertz",
+  "logo": {
+    "dark": "/logo-dark.svg",
+    "light": "/logo.svg"
+  },
+  "favicon": "/favicon.svg",
   "colors": {
     "primary": "#7C3AED",
     "light": "#A78BFA",
@@ -23,7 +28,7 @@
     {
       "name": "GitHub",
       "icon": "github",
-      "url": "https://github.com/vertz-dev/vertz"
+      "url": "https://github.com/vertz/vertz"
     }
   ],
   "navigation": [
@@ -68,7 +73,7 @@
     }
   ],
   "footerSocials": {
-    "github": "https://github.com/vertz-dev/vertz",
+    "github": "https://github.com/vertz/vertz",
     "twitter": "https://twitter.com/vertz"
   }
 }
