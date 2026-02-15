@@ -9,10 +9,18 @@ export interface ModuleDef<
   options?: Schema<TOptions>;
 }
 
-export interface ServiceDef<TDeps = unknown, TState = unknown, TMethods = unknown> {
+export interface ServiceDef<
+  TDeps = unknown,
+  TState = unknown,
+  TMethods = unknown,
+  TOptions extends Record<string, unknown> = Record<string, unknown>,
+  TEnv extends Record<string, unknown> = Record<string, unknown>,
+> {
   inject?: Record<string, unknown>;
-  onInit?: (deps: TDeps) => Promise<TState> | TState;
-  methods: (deps: TDeps, state: TState) => TMethods;
+  options?: Schema<TOptions>;
+  env?: Schema<TEnv>;
+  onInit?: (deps: TDeps, opts: TOptions, env: TEnv) => Promise<TState> | TState;
+  methods: (deps: TDeps, state: TState, opts: TOptions, env: TEnv) => TMethods;
   onDestroy?: (deps: TDeps, state: TState) => Promise<void> | void;
 }
 

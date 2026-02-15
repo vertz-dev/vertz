@@ -61,10 +61,26 @@ interface RouteEntry {
 function resolveServices(registrations: ModuleRegistration[]): Map<NamedServiceDef, unknown> {
   const serviceMap = new Map<NamedServiceDef, unknown>();
 
-  for (const { module } of registrations) {
+  for (const { module, options } of registrations) {
     for (const service of module.services) {
       if (!serviceMap.has(service)) {
-        serviceMap.set(service, service.methods({}, undefined));
+        // Parse options from module registration against service schema
+        let parsedOptions: Record<string, unknown> = {};
+        if (service.options && options) {
+          const parsed = service.options.safeParse(options);
+          if (parsed.success) {
+            parsedOptions = parsed.data;
+          } else {
+            throw new Error(
+              `Invalid options for service ${service.moduleName}: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+            );
+          }
+        }
+
+        // For now, env is empty - could be extended to accept env from config
+        const env: Record<string, unknown> = {};
+
+        serviceMap.set(service, service.methods({}, undefined, parsedOptions, env));
       }
     }
   }
