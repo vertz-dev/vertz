@@ -301,4 +301,106 @@ describe('BootExecutor', () => {
       receivedDeps.config = 'mutated';
     }).toThrow();
   });
+
+  it('throws on invalid options', async () => {
+    const sequence: BootSequence = {
+      instructions: [
+        {
+          type: 'service',
+          id: 'svc',
+          deps: [],
+          factory: {
+            options: {
+              safeParse: (value: unknown) => {
+                if (typeof value === 'object' && value !== null && 'port' in value) {
+                  return { success: true as const, data: value };
+                }
+                return { success: false as const, error: { issues: [{ message: 'port is required' }] } };
+              },
+            } as unknown,
+            methods: () => ({}),
+          },
+          options: { timeout: 300 }, // invalid - missing required 'port'
+        },
+      ],
+      shutdownOrder: ['svc'],
+    };
+
+    const executor = new BootExecutor();
+    await expect(executor.execute(sequence)).rejects.toThrow('Invalid options for service svc');
+  });
+
+  it('throws on invalid env', async () => {
+    const sequence: BootSequence = {
+      instructions: [
+        {
+          type: 'service',
+          id: 'svc',
+          deps: [],
+          factory: {
+            env: {
+              safeParse: (value: unknown) => {
+                if (typeof value === 'object' && value !== null && 'DATABASE_URL' in value) {
+                  return { success: true as const, data: value };
+                }
+                return { success: false as const, error: { issues: [{ message: 'DATABASE_URL is required' }] } };
+              },
+            } as unknown,
+            methods: () => ({}),
+          },
+          env: { REDIS_URL: 'redis://localhost' }, // invalid - missing required 'DATABASE_URL'
+        },
+      ],
+      shutdownOrder: ['svc'],
+    };
+
+    const executor = new BootExecutor();
+    await expect(executor.execute(sequence)).rejects.toThrow('Invalid env for service svc');
+  });
+
+  it('passes options to onInit and methods', async () => {
+    let receivedOptions: Record<string, unknown> = {};
+    let receivedEnv: Record<string, unknown> = {};
+
+    const sequence: BootSequence = {
+      instructions: [
+        {
+          type: 'service',
+          id: 'svc',
+          deps: [],
+          factory: {
+            options: {
+              safeParse: (value: unknown) => ({ success: true as const, data: value ?? { maxRetries: 3 } }),
+            } as unknown,
+            env: {
+              safeParse: (value: unknown) => ({ success: true as const, data: value ?? { NODE_ENV: 'development' } }),
+            } as unknown,
+            onInit: async (_deps, opts, env) => {
+              receivedOptions = opts;
+              receivedEnv = env;
+              return { initialized: true };
+            },
+            methods: (_deps, state, opts, env) => {
+              receivedOptions = opts;
+              receivedEnv = env;
+              return { getOptions: () => opts, getEnv: () => env, state };
+            },
+          },
+          options: { maxRetries: 5 },
+          env: { NODE_ENV: 'production' },
+        },
+      ],
+      shutdownOrder: ['svc'],
+    };
+
+    const executor = new BootExecutor();
+    const serviceMap = await executor.execute(sequence);
+
+    expect(receivedOptions).toEqual({ maxRetries: 5 });
+    expect(receivedEnv).toEqual({ NODE_ENV: 'production' });
+
+    const svc = serviceMap.get('svc') as { getOptions: () => Record<string, unknown>; getEnv: () => Record<string, unknown> };
+    expect(svc.getOptions()).toEqual({ maxRetries: 5 });
+    expect(svc.getEnv()).toEqual({ NODE_ENV: 'production' });
+  });
 });
