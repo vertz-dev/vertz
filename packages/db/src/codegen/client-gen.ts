@@ -24,33 +24,6 @@ export function generateClient(domains: DomainDefinition[]): string {
     lines.push('');
   }
 
-  // Generate relation accessors for each domain
-  for (const domain of domains) {
-    const { name, relations } = domain;
-    const pascalName = name.charAt(0).toUpperCase() + name.slice(1);
-
-    if (relations) {
-      for (const [relName, rel] of Object.entries(relations)) {
-        if (rel.type === 'belongsTo') {
-          const targetPascal = rel.target.charAt(0).toUpperCase() + rel.target.slice(1);
-          // Find primary key of current entity
-          let idField = 'id';
-          for (const [fieldName, field] of Object.entries(domain.fields)) {
-            if (field.primary) {
-              idField = fieldName;
-              break;
-            }
-          }
-          
-          lines.push(`interface ${pascalName}${relName.charAt(0).toUpperCase() + relName.slice(1)}Client {`);
-          lines.push(`  get(${idField}: string): Promise<${targetPascal} | null>;`);
-          lines.push('}');
-          lines.push('');
-        }
-      }
-    }
-  }
-
   // Generate the main db export
   lines.push('export const db = {');
 
