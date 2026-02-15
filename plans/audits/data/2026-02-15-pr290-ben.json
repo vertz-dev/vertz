@@ -1,0 +1,265 @@
+{
+  "schema": "vertz.audit.v1",
+  "auditDate": "2026-02-15T01:13:00Z",
+  "auditor": {
+    "id": "auditor",
+    "session": "agent:auditor:subagent:0739f29f-26b4-470a-83ef-eaad9ceeae92"
+  },
+  "pr": {
+    "number": 290,
+    "title": "refactor(core): rename @vertz/core → @vertz/server, createApp → createServer",
+    "author": {
+      "login": "app/vertz-dev-core",
+      "name": "vertz-dev-core[bot]",
+      "email": "2828081+vertz-dev-core[bot]@users.noreply.github.com",
+      "isBot": true
+    },
+    "mergedAt": "2026-02-15T01:11:11Z",
+    "mergedBy": {
+      "login": "app/vertz-tech-lead",
+      "isBot": true
+    },
+    "state": "MERGED",
+    "additions": 323,
+    "deletions": 53,
+    "filesChanged": 35,
+    "commits": 2,
+    "reviews": [
+      {
+        "author": "vertz-dev-front",
+        "state": "CHANGES_REQUESTED",
+        "submittedAt": "2026-02-15T01:07:12Z",
+        "summary": "Documentation not updated in initial commit"
+      },
+      {
+        "author": "vertz-dev-front",
+        "state": "APPROVED",
+        "submittedAt": "2026-02-15T01:11:10Z",
+        "summary": "Doc fixes applied, re-approved after rebase"
+      }
+    ],
+    "branch": "feat/core-to-server",
+    "baseBranch": "main"
+  },
+  "agent": {
+    "id": "vertz-dev-core",
+    "aliases": ["ben", "ava"],
+    "model": "unknown",
+    "sessionKey": "unknown",
+    "durationSeconds": null,
+    "tokensUsed": null
+  },
+  "grade": {
+    "overall": "C",
+    "numeric": 2,
+    "reason": "Major TDD violation (no evidence of red-green-refactor cycle, implementation and tests bundled in mega-commit). Work is technically excellent and functional, but process shortcut cannot be ignored. Per RULES.md: 'The process IS the product.'"
+  },
+  "categories": {
+    "tdd": {
+      "grade": "D",
+      "numeric": 1,
+      "checks": {
+        "testsBeforeImplementation": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "Commit f01b0e5 (323 additions) includes implementation + tests + docs bundled together. No evidence of tests written first, failing, then implementation added. Commit message: 'Add @vertz/server package... Add createServer... Add tests...' suggests batch development."
+        },
+        "redGreenCycle": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "No evidence of red phase (test failure) followed by green phase (test pass). Single mega-commit includes both test and implementation."
+        },
+        "oneTestAtATime": {
+          "pass": false,
+          "severity": "major",
+          "evidence": "All tests added in one commit: packages/server/src/__tests__/re-exports.test.ts (36 lines), packages/core/src/__tests__/vertz.test.ts (28 lines added), packages/compiler/src/analyzers/__tests__/app-analyzer.test.ts (12 lines added). Should have been written incrementally."
+        },
+        "qualityGatesBeforeCommit": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No commit messages showing 'bun run test && bun run typecheck && bun run lint' run between steps. Likely run once at end, not incrementally per TDD cycle."
+        },
+        "noTestSkipsOrIgnores": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No @ts-ignore, as any, .skip, or --no-verify found in diff."
+        },
+        "testCoverageExists": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Comprehensive tests exist: re-exports verified, deprecation warnings tested, namespace aliases tested, compiler compatibility tested. Test quality is high — timing of writing them is the issue."
+        }
+      }
+    },
+    "process": {
+      "grade": "B",
+      "numeric": 3,
+      "checks": {
+        "branchUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR #290 merged via bot (vertz-tech-lead), not pushed directly to main. Branch: feat/core-to-server."
+        },
+        "atomicCommits": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "First commit is 323 additions, 53 deletions — mega-commit violates 'one logical change per commit'. Should have been split into 8-10 atomic commits."
+        },
+        "changesetAdded": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Changeset .changeset/core-to-server-rename.md correctly specifies: @vertz/core (minor), @vertz/server (minor), @vertz/testing (patch), @vertz/integration-tests (patch)."
+        },
+        "botScriptsUsed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Commit author: vertz-dev-core[bot] with email 2828081+vertz-dev-core[bot]@users.noreply.github.com. Bot scripts were used."
+        },
+        "neverPushedToMain": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Merged via PR #290 by bot vertz-tech-lead. No direct push to main."
+        },
+        "isolatedWorktree": {
+          "pass": null,
+          "severity": null,
+          "evidence": "No explicit evidence of git worktree usage. PR diff is clean (no stray files), but best practice is to use worktrees proactively. INFO level — no violation, but process should be documented."
+        },
+        "reviewCycle": {
+          "pass": true,
+          "severity": null,
+          "evidence": "PR received review from vertz-dev-front: 1) Changes requested (docs missing), 2) Approved after fixes, 3) Re-approved after rebase. Feedback loop handled correctly."
+        }
+      }
+    },
+    "design": {
+      "grade": "A",
+      "numeric": 4,
+      "checks": {
+        "designDocExists": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Design doc at /workspace/vertz/plans/package-naming-strategy.md (authored by Josh, 2026-02-14) provides detailed analysis and recommendation to rename @vertz/core → @vertz/server."
+        },
+        "designFollowed": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Implementation matches design exactly: new @vertz/server package created, createServer() added, createApp() deprecated, vertz.server namespace added, migration path follows design (v0.2.0: both names, v0.3.0: remove old)."
+        },
+        "scopeMatches": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All changes within scope: package creation, API aliases, deprecation warnings, internal import updates, compiler support, documentation updates. No scope creep detected."
+        },
+        "deviationsEscalated": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No deviations from design doc. Implementation is faithful to the plan."
+        },
+        "documentationUpdated": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "Initial PR omitted documentation updates (README.md, CONTRIBUTING.md). Caught by reviewer vertz-dev-front, fixed in commit 43e2476. Minor process issue — should have been in initial commit."
+        }
+      }
+    },
+    "dx": {
+      "grade": "B",
+      "numeric": 3,
+      "checks": {
+        "developerWalkthrough": {
+          "pass": false,
+          "severity": "minor",
+          "evidence": "No migration walkthrough documented. RULES.md requires Developer Walkthrough for features, but this is a refactor/rename with backward compatibility. Mitigating factors: comprehensive tests, examples updated, old API still works. Should still include migration steps."
+        },
+        "examplesUsePublicAPI": {
+          "pass": true,
+          "severity": null,
+          "evidence": "All template updates (packages/create-vertz-app/src/templates/index.ts) use public API: createServer from @vertz/server, no internal imports."
+        },
+        "verticalSlice": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Change is end-to-end: package layer, API layer, namespace layer, compiler layer, template layer, documentation layer. Fully integrated."
+        },
+        "ciGreen": {
+          "pass": true,
+          "severity": null,
+          "evidence": "Per review: 'CI is green (all checks passed)'. All quality gates passed: bun run test, bun run typecheck, bun run lint."
+        }
+      }
+    },
+    "security": {
+      "grade": "A",
+      "numeric": 4,
+      "checks": {
+        "noEval": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No eval() or new Function() introduced. Pure refactor/rename."
+        },
+        "noHardcodedSecrets": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No secrets in diff."
+        },
+        "inputSanitization": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No user input handling changes. Runtime behavior unchanged."
+        },
+        "noShellInterpolation": {
+          "pass": true,
+          "severity": null,
+          "evidence": "No shell commands in diff. Pure TypeScript refactor."
+        }
+      }
+    }
+  },
+  "violations": [
+    {
+      "rule": "TDD: Tests before implementation",
+      "severity": "major",
+      "description": "No evidence of red-green-refactor cycle. Implementation and tests bundled in single 323-line commit.",
+      "evidence": "Commit f01b0e5 (2026-02-15 00:59:36Z) includes: new @vertz/server package + createServer implementation + deprecation warnings + test files + compiler updates + import updates + changeset. Commit message: 'Add @vertz/server package... Add createServer... Add tests...' suggests batch development, not incremental TDD.",
+      "recommendation": "Future refactors should follow TDD even for 'simple' renames: 1) Write ONE test (e.g., verifies createServer alias exists), 2) Run test → RED, 3) Implement minimal code (export const createServer = createApp), 4) Run quality gates → GREEN, 5) Commit atomically, 6) Repeat for next test (deprecation warning, namespace alias, etc.). Aim for 8-10 atomic commits instead of one mega-commit."
+    },
+    {
+      "rule": "Git: Atomic commits",
+      "severity": "minor",
+      "description": "Mega-commit of 323 additions violates 'one logical change per commit'.",
+      "evidence": "First commit includes package creation + implementation + tests + internal import updates + changeset. Should have been split into multiple atomic commits.",
+      "recommendation": "Split large refactors into logical commits: 1) Create package skeleton, 2) Add re-export tests, 3) Implement re-exports, 4) Add alias tests, 5) Implement aliases, 6) Add deprecation tests, 7) Implement deprecation, 8) Update internal imports, 9) Update compiler, 10) Add changeset. Each commit should pass quality gates independently."
+    },
+    {
+      "rule": "TDD: Quality gates before every commit",
+      "severity": "minor",
+      "description": "No evidence of quality gates run incrementally during development.",
+      "evidence": "Commit history shows no intermediate 'test passing' commits. Likely gates were run once at end, not after each TDD micro-step.",
+      "recommendation": "Run 'bun run test && bun run typecheck && bun run lint' after each atomic change, before committing. Consider adding gate results to commit messages: 'test(server): add createServer alias test (RED)' followed by 'feat(server): implement createServer alias (GREEN after gates)'."
+    },
+    {
+      "rule": "Documentation: Update in initial commit",
+      "severity": "minor",
+      "description": "Documentation updates missed in initial commit, caught in review.",
+      "evidence": "Review from vertz-dev-front (2026-02-15 01:07:12Z) requested changes: 'README.md - Import Example (Line 29) should use @vertz/server, not @vertz/core'. Fixed in commit 43e2476.",
+      "recommendation": "Include documentation updates in the same commit as implementation. Before committing, check: README examples, CONTRIBUTING package listings, design docs. Avoid review cycles for 'obvious' doc updates."
+    },
+    {
+      "rule": "DX: Developer Walkthrough",
+      "severity": "info",
+      "description": "No migration walkthrough documented for rename.",
+      "evidence": "RULES.md requires Developer Walkthrough for features. While this is a refactor/rename (not new feature), breaking changes benefit from migration guidance. No walkthrough in PR description or design doc.",
+      "recommendation": "For future renames/refactors, include a migration walkthrough: '1. Update imports: @vertz/core → @vertz/server, 2. Update method: createApp() → createServer(), 3. Run typecheck/test, 4. Verify deprecation warnings gone.' Helps future developers and auditors."
+    }
+  ],
+  "summary": "PR #290 implements a package rename from @vertz/core to @vertz/server following the design doc accurately. Implementation is technically excellent with comprehensive tests, backward compatibility, and clear deprecation warnings. However, major TDD process violation: no evidence of red-green-refactor cycle — implementation and tests appear to have been written together in one 323-line mega-commit. Work is functional and well-tested, but process shortcut cannot be ignored. Grade: C (significant violations but work is functional). No mandatory rework required, but agent team should review to reinforce TDD discipline for future refactors.",
+  "metadata": {
+    "designDoc": "/workspace/vertz/plans/package-naming-strategy.md",
+    "sessionTranscript": null,
+    "ciStatus": "green",
+    "backwardCompatible": true,
+    "breakingChanges": false,
+    "deprecationWarningsAdded": true
+  }
+}
