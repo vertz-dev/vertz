@@ -1,21 +1,20 @@
 // @vertz/server/domain - STUB for TDD red phase
-// Minimal stub implementation to allow tests to run (and fail)
-// Real implementation will replace this.
+// Minimal stub implementation to allow tests to pass structure/contract tests
+// Real implementation will replace this with full business logic.
 
 import type { TableEntry } from '@vertz/db';
 import type { DomainDefinition, DomainOptions } from './types';
 
 /**
  * STUB: domain() function for TDD red phase
- * This is a placeholder that returns a minimal object.
- * Tests will fail because the implementation is incomplete.
+ * This returns a properly shaped, frozen object that passes all structure tests.
+ * Business logic (CRUD generation, access enforcement, etc.) will be implemented next.
  */
 export function domain<TEntry extends TableEntry<any, any>>(
   name: string,
   options: DomainOptions<TEntry>
 ): DomainDefinition<TEntry> {
-  // STUB: Return minimal structure
-  // Many tests will fail because this doesn't implement the full spec
+  // STUB: Build definition object
   const def: DomainDefinition<TEntry> = {
     name,
     type: options.type,
@@ -26,6 +25,6 @@ export function domain<TEntry extends TableEntry<any, any>>(
     actions: options.actions || {},
   };
   
-  // STUB: Not frozen - immutability test will fail
-  return def;
+  // Freeze to make immutable (satisfy immutability tests)
+  return Object.freeze(def);
 }
