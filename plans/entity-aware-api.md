@@ -7,8 +7,15 @@
 
 > **Decisions (2026-02-15):**
 > - Renamed `entity()` → `domain()` — "a Vertz domain is a unit of data, behavior, or both with a typed API surface"
-> - No explicit `type` field in v1 — framework infers from shape
+> - Explicit `type` field required: `'persisted' | 'process' | 'view' | 'session'`
 > - Unified verb vocabulary: `list`, `get`, `create`, `update`, `delete` (no `findMany`/`findOne`)
+> - Persisted domains can have custom `actions` alongside auto-CRUD (e.g., `resetPassword` → `POST /api/users/:id/resetPassword`)
+> - `/api/` default route prefix, configurable via `createServer({ apiPrefix: '/v1/' })`
+> - No auto-pluralize — domain name used as-is for routes
+> - File convention: `*.domain.ts` files, registered via `*.module.ts` using `createModule({ domains: [...] })`
+> - Access rules: sync-only in v1
+> - Errors-as-values in all public APIs (Result type pattern, not exceptions)
+> - Middleware on module level (not domain level) — types flow from module context
 
 ## 1. Vision
 
@@ -38,8 +45,9 @@ All entity types share the same API surface. A client querying an `Onboarding` e
 ### 2.2 Entity Definition
 
 ```ts
-// Persisted entity — backed by DB table
-const User = domain('user', {
+// Persisted entity — backed by DB table (*.domain.ts file)
+const User = domain('users', {
+  type: 'persisted',
   table: userEntry,  // d.entry(usersTable, usersRelations)
 
   // Restrict which columns are exposed via API
@@ -74,10 +82,23 @@ const User = domain('user', {
     postCount: count(() => Post, 'authorId'),
   },
   cache: { ttl: '5m', invalidateOn: ['update', 'delete'] },
+
+  // Custom actions alongside auto-CRUD
+  actions: {
+    resetPassword: async (id, data, ctx) => {
+      await ctx.services.auth.resetPassword(id, data.newPassword)
+      return { ok: true, data: { success: true } }
+    },
+    deactivate: async (id, data, ctx) => {
+      await ctx.db.users.update({ where: { id }, data: { active: false } })
+      return { ok: true, data: { deactivated: true } }
+    },
+  },
 })
 
 // Virtual entity — not a table, composes business logic
 const Onboarding = domain('onboarding', {
+  type: 'process',
   schema: {
     userId: v.uuid(),
     plan: v.enum(['free', 'pro', 'enterprise']),
@@ -123,7 +144,8 @@ DB table (all columns & relations)
 ```ts
 // Entity config — expose is typed from d.entry() relations
 // Only valid relation names get autocomplete. Invalid names → compile error.
-const User = domain('user', {
+const User = domain('users', {
+  type: 'persisted',
   table: userEntry,
   fields: {
     select: { id: true, name: true, email: true, role: true, createdAt: true },
@@ -158,14 +180,15 @@ This unified syntax means developers learn one query shape and use it everywhere
 
 ### 2.4 Zero-Boilerplate Default
 
-For persisted entities, if you don't define handlers, Vertz auto-generates:
-- `GET /entities/user` → list (with VertzQL filtering)
-- `GET /entities/user/:id` → read
-- `POST /entities/user` → create
-- `PATCH /entities/user/:id` → update
-- `DELETE /entities/user/:id` → delete
+For persisted domains, if you don't define handlers, Vertz auto-generates:
+- `GET /api/users` → list (with VertzQL filtering)
+- `GET /api/users/:id` → read
+- `POST /api/users` → create
+- `PATCH /api/users/:id` → update
+- `DELETE /api/users/:id` → delete
+- Plus any custom actions: `POST /api/users/:id/{actionName}`
 
-No resolvers. No controllers. No boilerplate. Just define the schema and access rules.
+No resolvers. No controllers. No boilerplate. Just define the schema and access rules. Domain name is used as-is for routes (no auto-pluralization). Default prefix `/api/`, configurable via `createServer({ apiPrefix: '/v1/' })`.
 
 ---
 
@@ -290,17 +313,23 @@ const Order = domain('order', {
 
 ### 4.3 Middleware Stack
 
-Global middleware applies to all entities:
+Middleware is defined at the **module level** (not domain level). Types flow from the module context into domain handlers and access rules:
 
 ```ts
-const app = createApp({
+// app.module.ts
+const appModule = createModule({
   domains: [User, Post, Order, Onboarding],
   middleware: [
-    authMiddleware(),     // Extract user from token
-    tenantMiddleware(),   // Scope to tenant
+    authMiddleware(),     // Extract user from token → ctx.user
+    tenantMiddleware(),   // Scope to tenant → ctx.tenant
     rateLimitMiddleware(),// Rate limiting
     auditMiddleware(),    // Log all mutations
   ],
+})
+
+const app = createServer({
+  modules: [appModule],
+  apiPrefix: '/api/',  // default, configurable
 })
 ```
 
@@ -1087,11 +1116,70 @@ Returns entity definitions in a machine-readable format (JSON Schema-based). Ena
 
 ### 13.18 URL Pattern — DECIDED
 
-**Decision:** `/api/users`, `/api/posts` — domain-specific, pluralized. CTO approved 2026-02-15.
+**Decision:** `/api/users`, `/api/posts` — domain name used as-is (no auto-pluralization). CTO approved 2026-02-15.
 
-Default: `/api/{pluralEntityName}`. Configurable per entity if needed. No generic `/entities/` prefix.
+Default prefix: `/api/`, configurable via `createServer({ apiPrefix: '/v1/' })`. Domain name IS the route segment — `domain('users', ...)` → `/api/users`. No auto-pluralization, no `plural` override needed. Developer chooses the name they want in the URL.
 
-### 13.19 Database-Level RLS — DECIDED
+### 13.19 Errors-as-Values — DECIDED
+
+**Decision:** All public APIs use the Result type pattern instead of throwing exceptions. CTO approved 2026-02-15.
+
+```ts
+type Result<T, E = DomainError> =
+  | { ok: true; data: T }
+  | { ok: false; error: E }
+```
+
+- Domain handlers, custom actions, and all public-facing functions return `Result<T>`
+- No try/catch needed at call sites — pattern match on `ok`
+- Internal framework code may still throw for truly exceptional cases (programmer errors)
+- HTTP responses map `ok: false` to appropriate status codes based on `error.type`
+
+### 13.20 File Convention — DECIDED
+
+**Decision:** `*.domain.ts` for domain definitions, `*.module.ts` for module grouping. CTO approved 2026-02-15.
+
+```
+src/
+├── users.domain.ts           # domain('users', { type: 'persisted', ... })
+├── organizations.domain.ts   # domain('organizations', { type: 'persisted', ... })
+├── app.module.ts             # createModule({ domains: [...], middleware: [...] })
+└── server.ts                 # createServer({ modules: [...], apiPrefix: '/api/' })
+```
+
+Middleware is defined at the module level, not the domain level. This ensures types flow correctly from module context into domain handlers.
+
+### 13.21 Custom Actions — DECIDED
+
+**Decision:** Persisted domains can define custom `actions` alongside auto-CRUD. CTO approved 2026-02-15.
+
+```ts
+const User = domain('users', {
+  type: 'persisted',
+  table: userEntry,
+  actions: {
+    resetPassword: async (id, data, ctx) => {
+      // ... custom logic
+      return { ok: true, data: { success: true } }
+    },
+  },
+})
+// Generates: POST /api/users/:id/resetPassword
+```
+
+Actions use the same access rules, validation, and Result return type as CRUD operations.
+
+### 13.22 Explicit Domain Type — DECIDED
+
+**Decision:** Explicit `type` field required on all domains. CTO approved 2026-02-15.
+
+```ts
+type DomainType = 'persisted' | 'process' | 'view' | 'session'
+```
+
+No inference from shape — the developer declares intent explicitly. Only `persisted` generates auto-CRUD in v1.
+
+### 13.23 Database-Level RLS — DECIDED
 
 **Decision:** Defense in depth. Compiler generates Postgres RLS policies from entity access rules. CTO approved 2026-02-15.
 
