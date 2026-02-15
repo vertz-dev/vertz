@@ -137,8 +137,9 @@ export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDr
 
     async isHealthy(): Promise<boolean> {
       try {
+        const healthCheckTimeout = pool?.healthCheckTimeout ?? 5000;
         const timeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Health check timed out')), 5000),
+          setTimeout(() => reject(new Error('Health check timed out')), healthCheckTimeout),
         );
         await Promise.race([sql`SELECT 1`, timeout]);
         return true;

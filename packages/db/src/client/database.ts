@@ -32,6 +32,12 @@ export interface PoolConfig {
   readonly idleTimeout?: number;
   /** Connection timeout in milliseconds. */
   readonly connectionTimeout?: number;
+  /**
+   * Health check timeout in milliseconds.
+   * Used by isHealthy() to prevent hanging on degraded databases.
+   * Defaults to 5000 (5 seconds) if not specified.
+   */
+  readonly healthCheckTimeout?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -191,10 +197,7 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Get a single row or null.
    */
-  get<
-    TName extends keyof TTables & string,
-    TOptions extends TypedGetOptions<TTables[TName]>,
-  >(
+  get<TName extends keyof TTables & string, TOptions extends TypedGetOptions<TTables[TName]>>(
     table: TName,
     options?: TOptions,
   ): Promise<FindResult<
@@ -217,10 +220,7 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * List multiple rows.
    */
-  list<
-    TName extends keyof TTables & string,
-    TOptions extends TypedListOptions<TTables[TName]>,
-  >(
+  list<TName extends keyof TTables & string, TOptions extends TypedListOptions<TTables[TName]>>(
     table: TName,
     options?: TOptions,
   ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[]>;
@@ -546,11 +546,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async listAndCount(name, opts): Promise<AnyResult> {
       const entry = resolveTable(tables, name);
-      const { data, total } = await crud.listAndCount(
-        queryFn,
-        entry.table,
-        opts as crud.ListArgs,
-      );
+      const { data, total } = await crud.listAndCount(queryFn, entry.table, opts as crud.ListArgs);
       if (opts?.include && data.length > 0) {
         const withRelations = await loadRelations(
           queryFn,
@@ -567,10 +563,18 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     },
 
     // Deprecated aliases
-    get findOne() { return this.get; },
-    get findOneOrThrow() { return this.getOrThrow; },
-    get findMany() { return this.list; },
-    get findManyAndCount() { return this.listAndCount; },
+    get findOne() {
+      return this.get;
+    },
+    get findOneOrThrow() {
+      return this.getOrThrow;
+    },
+    get findMany() {
+      return this.list;
+    },
+    get findManyAndCount() {
+      return this.listAndCount;
+    },
 
     // -----------------------------------------------------------------------
     // Create queries

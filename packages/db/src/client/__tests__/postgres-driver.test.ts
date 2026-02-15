@@ -7,7 +7,7 @@
  * - #206: Default idle_timeout for connection pool
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 // We test the internal createPostgresDriver by mocking postgres
 // Since we can't easily mock the postgres module, we test behavior
@@ -44,6 +44,26 @@ describe('PostgreSQL Driver', () => {
         await driver.close();
       } catch {
         // ignore close errors
+      }
+    });
+
+    it('accepts configurable healthCheckTimeout in pool config', async () => {
+      const { createPostgresDriver } = await import('../postgres-driver');
+
+      // Create a driver with explicit healthCheckTimeout
+      const driver = createPostgresDriver('postgres://localhost:5432/nonexistent', {
+        max: 1,
+        healthCheckTimeout: 3000,
+      });
+
+      // Driver should be created with the custom timeout
+      expect(driver).toBeDefined();
+      expect(driver.isHealthy).toBeDefined();
+
+      try {
+        await driver.close();
+      } catch {
+        // ignore
       }
     });
   });
