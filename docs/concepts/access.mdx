@@ -1,0 +1,122 @@
+---
+title: Access Control
+description: Authentication and authorization in Vertz
+---
+
+# Access Control
+
+Vertz provides a unified access control system for authentication and authorization.
+
+## Overview
+
+- **Authentication** — Who is the user? (Identity)
+- **Authorization** — What can they do? (Permissions)
+
+## Using ctx.can()
+
+Access checks are performed using `ctx.can()` in your route handlers and server functions:
+
+```typescript
+import { route$ } from 'vertz/server';
+
+export const getPost = route$({
+  method: 'GET',
+  path: '/api/posts/:id',
+  handler: async (req, ctx) => {
+    // Check if user can read the post
+    const canRead = await ctx.can('post:read');
+    
+    if (!canRead) {
+      return { error: 'Unauthorized' };
+    }
+    
+    // Fetch and return post
+    return { post: await getPostFromDb(req.params.id) };
+  },
+});
+```
+
+## Defining Permissions
+
+Permissions are defined in your domain schema:
+
+```typescript
+import { domain } from 'vertz/schema';
+
+export const blogDomain = domain({
+  name: 'blog',
+  access: {
+    Post: {
+      read: 'public',
+      create: 'authenticated',
+      update: 'author',
+      delete: 'author',
+    },
+  },
+});
+```
+
+## Role-Based Access
+
+Define roles in your domain:
+
+```typescript
+export const blogDomain = domain({
+  name: 'blog',
+  roles: {
+    admin: {
+      permissions: ['*'],
+    },
+    editor: {
+      permissions: ['post:read', 'post:create', 'post:update'],
+    },
+    viewer: {
+      permissions: ['post:read'],
+    },
+  },
+});
+```
+
+## Protecting Routes
+
+Use `ctx.can()` to protect routes:
+
+```typescript
+import { route$ } from 'vertz/server';
+
+export const adminRoute = route$({
+  method: 'GET',
+  path: '/admin',
+  handler: async (req, ctx) => {
+    const canAccess = await ctx.can('admin:access');
+    
+    if (!canAccess) {
+      return { error: 'Forbidden' };
+    }
+    
+    return { message: 'Welcome, admin!' };
+  },
+});
+```
+
+## Field-Level Security
+
+Control access at the field level in your domain:
+
+```typescript
+export const userDomain = domain({
+  name: 'user',
+  fields: {
+    User: {
+      email: 'self',
+      name: 'authenticated',
+      role: 'admin',
+    },
+  },
+});
+```
+
+## Next Steps
+
+- **[Server](/concepts/server)** — Learn about server routes
+- **[Domains](/concepts/domains)** — Domain-driven access rules

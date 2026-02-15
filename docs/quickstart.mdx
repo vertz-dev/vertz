@@ -1,0 +1,62 @@
+---
+title: Quickstart
+description: Get up and running with Vertz in 5 minutes
+---
+
+# Quickstart
+
+Get a Vertz project running in under 5 minutes.
+
+## Prerequisites
+
+- **Node.js** 18+ 
+- **Bun** (recommended) or npm/pnpm
+
+## Step 1: Create a New Project
+
+```bash
+# Using Bun (recommended)
+bun create vertz-app my-vertz-app
+
+# Or using npm
+npm create vertz-app my-vertz-app
+```
+
+## Step 2: Start the Dev Server
+
+```bash
+cd my-vertz-app
+bun dev
+```
+
+Your app is now running at `http://localhost:3000`.
+
+## Step 3: Create Your First Component
+
+Edit `src/app.tsx`:
+
+```tsx
+import { component$, useSignal } from 'vertz/ui';
+
+export default component$(() => {
+  const count = useSignal(0);
+  
+  return (
+    <div class="p-8">
+      <h1 class="text-2xl font-bold mb-4">Hello Vertz!</h1>
+      <button 
+        onClick$={() => count.value++}
+        class="px-4 py-2 bg-primary text-white rounded"
+      >
+        Count: {count.value}
+      </button>
+    </div>
+  );
+});
+```
+
+## What's Next?
+
+- **[Core Concepts](/concepts/domains)** — Learn about the domain system
+- **[UI Guide](/ui/overview)** — Deep dive into the UI framework
+- **[Schema](/schema/overview)** — Define your data model

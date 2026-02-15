@@ -71,7 +71,7 @@ Bot gh:    /workspace/backstage/bots/gh-as.sh $AGENT_BOT <cmd>
 
 **Implementing a feature:**
 1. This file (RULES.md)
-2. Your ticket in `/workspace/vertz/tickets/`
+2. Your ticket in GitHub Projects board (#2): https://github.com/orgs/vertz-dev/projects/2
 3. The design doc in `plans/`
 4. `/workspace/vertz/.claude/rules/tdd.md`
 5. `/workspace/vertz/.claude/rules/commits.md`
