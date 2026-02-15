@@ -17,6 +17,12 @@
       "outputs": [],
       "env": ["DATABASE_TEST_URL"]
     },
+    "test:tree-shaking": {
+      "dependsOn": ["build"],
+      "inputs": ["tests/tree-shaking/**", "packages/*/dist/**"],
+      "outputs": [],
+      "cache": false
+    },
     "lint": {
       "inputs": ["src/**", "package.json"],
       "outputs": []
