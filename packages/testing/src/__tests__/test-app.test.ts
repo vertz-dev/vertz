@@ -1,3 +1,4 @@
+import { s } from '@vertz/schema';
 import {
   createMiddleware,
   createModule,
@@ -6,8 +7,7 @@ import {
   type NamedModule,
   type NamedRouterDef,
   type NamedServiceDef,
-} from '@vertz/core';
-import { s } from '@vertz/schema';
+} from '@vertz/server';
 import { describe, expect, it } from 'vitest';
 
 import { createTestApp } from '../test-app';

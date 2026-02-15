@@ -1,11 +1,11 @@
+import { s } from '@vertz/schema';
 import {
   createModule,
   createModuleDef,
   type NamedModule,
   type NamedServiceDef,
   NotFoundException,
-} from '@vertz/core';
-import { s } from '@vertz/schema';
+} from '@vertz/server';
 
 interface User {
   id: string;

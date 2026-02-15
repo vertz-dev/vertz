@@ -10,7 +10,7 @@ export function generateSchema(
   const pascal = toPascalCase(kebab);
   const moduleKebab = toKebabCase(moduleName);
 
-  const content = `import { createSchema } from '@vertz/core';
+  const content = `import { createSchema } from '@vertz/server';
 import { z } from '@vertz/schema';
 
 export const ${pascal}Schema = createSchema('${pascal}', z.object({

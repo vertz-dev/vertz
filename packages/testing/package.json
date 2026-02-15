@@ -30,7 +30,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vertz/core": "workspace:*"
+    "@vertz/core": "workspace:*",
+    "@vertz/server": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.2.1",

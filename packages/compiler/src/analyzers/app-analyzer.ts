@@ -33,7 +33,11 @@ export class AppAnalyzer extends BaseAnalyzer<AppAnalyzerResult> {
     const allAppCalls: { call: CallExpression; file: SourceFile }[] = [];
 
     for (const file of this.project.getSourceFiles()) {
-      const appCalls = findCallExpressions(file, 'vertz', 'app');
+      // Support both vertz.app() (deprecated) and vertz.server() (preferred)
+      const appCalls = [
+        ...findCallExpressions(file, 'vertz', 'app'),
+        ...findCallExpressions(file, 'vertz', 'server'),
+      ];
       for (const call of appCalls) {
         allAppCalls.push({ call, file });
       }

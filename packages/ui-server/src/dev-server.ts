@@ -23,7 +23,7 @@
 
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { createServer as createHttpServer } from 'node:http';
-import { InternalServerErrorException } from '@vertz/core';
+import { InternalServerErrorException } from '@vertz/server';
 import type { InlineConfig, ViteDevServer } from 'vite';
 import { createServer as createViteServer } from 'vite';
 
