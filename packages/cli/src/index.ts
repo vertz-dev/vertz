@@ -2,8 +2,15 @@ export { createCLI } from './cli';
 export { buildAction } from './commands/build';
 export { checkAction } from './commands/check';
 export { deployAction } from './commands/deploy';
+export { devAction, registerDevCommand } from './commands/dev';
 export { generateAction } from './commands/generate';
 export { routesAction } from './commands/routes';
+
+// Pipeline exports (Phase 1)
+export { PipelineOrchestrator, createPipelineOrchestrator } from './pipeline';
+export type { PipelineConfig, PipelineStage, PipelineResult, StageResult } from './pipeline';
+export type { FileCategory, FileChange, Watcher, PipelineWatcher } from './pipeline';
+export { categorizeFileChange, getAffectedStages, createPipelineWatcher } from './pipeline';
 export type { CLIConfig, DevConfig, GeneratedFile, GeneratorDefinition } from './config/defaults';
 export { defaultCLIConfig } from './config/defaults';
 export { findConfigFile, loadConfig } from './config/loader';
