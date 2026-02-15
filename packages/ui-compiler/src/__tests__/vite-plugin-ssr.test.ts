@@ -80,15 +80,21 @@ describe('vertzPlugin SSR', () => {
       }
     });
 
-    it('should return a middleware function when SSR is enabled', () => {
+    it('should register middleware directly when SSR is enabled (pre-hook)', () => {
       const plugin = vertzPlugin({ ssr: true }) as Plugin;
       const configureServer = plugin.configureServer as Function;
       expect(configureServer).toBeDefined();
 
-      // configureServer returns a function (post-middleware) when SSR is enabled
-      const mockServer = {} as ViteDevServer;
-      const postMiddleware = configureServer.call(plugin, mockServer);
-      expect(typeof postMiddleware).toBe('function');
+      // configureServer should register middleware directly via server.middlewares.use()
+      // and NOT return a post-hook function, to avoid Vite's SPA fallback rewriting URLs
+      const useFn = vi.fn();
+      const mockServer = {
+        middlewares: { use: useFn },
+        config: { root: '/tmp' },
+      } as unknown as ViteDevServer;
+      const result = configureServer.call(plugin, mockServer);
+      expect(useFn).toHaveBeenCalled();
+      expect(result).toBeUndefined();
     });
   });
 

@@ -2,6 +2,14 @@ import type { Plugin, ViteDevServer } from 'vite';
 import { describe, expect, it, vi } from 'vitest';
 import vertzPlugin from '../vite-plugin';
 
+// Mock node:fs so the middleware can read the HTML template
+vi.mock('node:fs', () => ({
+  readFileSync: vi.fn(
+    () =>
+      '<html><body><!--ssr-outlet--><script type="module" src="/src/main.ts"></script></body></html>',
+  ),
+}));
+
 /**
  * Behavioral tests for SSR routing (ticket: fix-ssr-route-rendering).
  *
@@ -21,10 +29,7 @@ import vertzPlugin from '../vite-plugin';
  * Creates a mock ViteDevServer that simulates the SSR pipeline.
  * The mock tracks middleware registration and simulates the full render cycle.
  */
-function createMockServer(options?: {
-  renderedHtml?: string;
-  templateHtml?: string;
-}) {
+function createMockServer(options?: { renderedHtml?: string; templateHtml?: string }) {
   const renderedHtml = options?.renderedHtml ?? '<div>Hello World</div>';
   const templateHtml =
     options?.templateHtml ??
@@ -109,10 +114,7 @@ describe('SSR routing fix', () => {
      * Helper: configures the plugin, registers middleware, and sends a request.
      * Returns the response HTML.
      */
-    async function renderViaSSR(
-      url: string,
-      options?: { renderedHtml?: string },
-    ) {
+    async function renderViaSSR(url: string, options?: { renderedHtml?: string }) {
       const plugin = vertzPlugin({ ssr: true }) as Plugin;
       const configureServer = plugin.configureServer as Function;
 
@@ -133,15 +135,7 @@ describe('SSR routing fix', () => {
 
       const { req, res, next, getHtml } = createMockReqRes(url);
 
-      // Mock fs.readFileSync for the index.html template
-      const { readFileSync } = await import('node:fs');
-      vi.spyOn(await import('node:fs'), 'readFileSync').mockReturnValue(
-        '<html><body><!--ssr-outlet--><script type="module" src="/src/main.ts"></script></body></html>',
-      );
-
       await middleware(req, res, next);
-
-      vi.restoreAllMocks();
 
       return { html: getHtml(), res, next, mockServer };
     }
@@ -202,11 +196,6 @@ describe('SSR routing fix', () => {
 
       const middleware = registeredMiddlewares[0];
 
-      // Mock fs for template reading
-      vi.spyOn(await import('node:fs'), 'readFileSync').mockReturnValue(
-        '<html><body><!--ssr-outlet--><script type="module" src="/src/main.ts"></script></body></html>',
-      );
-
       // First request
       const req1 = createMockReqRes('/');
       await middleware(req1.req, req1.res, req1.next);
@@ -214,8 +203,6 @@ describe('SSR routing fix', () => {
       // Second request
       const req2 = createMockReqRes('/about');
       await middleware(req2.req, req2.res, req2.next);
-
-      vi.restoreAllMocks();
 
       const invalidateModule = (mockServer.moduleGraph as any).invalidateModule;
       // Should have invalidated before EACH render (at least once per request)
