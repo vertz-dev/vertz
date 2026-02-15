@@ -158,7 +158,7 @@ describe('buildSelect', () => {
     });
   });
 
-  describe('COUNT(*) OVER() for findManyAndCount', () => {
+  describe('COUNT(*) OVER() for listAndCount', () => {
     it('adds COUNT(*) OVER() to column list', () => {
       const result = buildSelect({
         table: 'users',

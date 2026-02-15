@@ -318,10 +318,10 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
   });
 
   // =========================================================================
-  // 2. Create + findOne roundtrip (self-contained)
+  // 2. Create + get roundtrip (self-contained)
   // =========================================================================
 
-  describe('2. Create + findOne roundtrip', () => {
+  describe('2. Create + get roundtrip', () => {
     const ids = testIds();
 
     afterEach(async () => {
@@ -339,7 +339,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
       expect(org.slug).toBe('acme-create-test');
       expect(org.createdAt).toBeInstanceOf(Date);
 
-      const found = await db.findOne('organizations', { where: { id: ids.ORG_ID } });
+      const found = await db.get('organizations', { where: { id: ids.ORG_ID } });
       expect(found).not.toBeNull();
       expect(found?.id).toBe(ids.ORG_ID);
       expect(found?.name).toBe('Acme Corp');
@@ -447,10 +447,10 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
   });
 
   // =========================================================================
-  // 3. findMany with where filters (self-contained)
+  // 3. list with where filters (self-contained)
   // =========================================================================
 
-  describe('3. findMany with where filters', () => {
+  describe('3. list with where filters', () => {
     const ids = testIds();
 
     beforeEach(async () => {
@@ -459,51 +459,51 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('finds all posts', async () => {
-      const result = await db.findMany('posts');
+      const result = await db.list('posts');
       expect(result).toHaveLength(2);
     });
 
     it('filters by status', async () => {
-      const result = await db.findMany('posts', { where: { status: 'published' } });
+      const result = await db.list('posts', { where: { status: 'published' } });
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('First Post');
     });
 
     it('filters by views with gte', async () => {
-      const result = await db.findMany('posts', { where: { views: { gte: 50 } } });
+      const result = await db.list('posts', { where: { views: { gte: 50 } } });
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('First Post');
     });
 
     it('filters with in operator', async () => {
-      const result = await db.findMany('posts', {
+      const result = await db.list('posts', {
         where: { status: { in: ['published', 'draft'] } },
       });
       expect(result).toHaveLength(2);
     });
 
     it('filters with contains operator', async () => {
-      const result = await db.findMany('posts', { where: { title: { contains: 'First' } } });
+      const result = await db.list('posts', { where: { title: { contains: 'First' } } });
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('First Post');
     });
 
     it('filters with gt operator', async () => {
-      const result = await db.findMany('posts', { where: { views: { gt: 50 } } });
+      const result = await db.list('posts', { where: { views: { gt: 50 } } });
       expect(result).toHaveLength(1);
     });
 
     it('returns empty array when no match', async () => {
-      const result = await db.findMany('posts', { where: { title: 'nonexistent' } });
+      const result = await db.list('posts', { where: { title: 'nonexistent' } });
       expect(result).toHaveLength(0);
     });
   });
 
   // =========================================================================
-  // 4. findManyAndCount with pagination (self-contained)
+  // 4. listAndCount with pagination (self-contained)
   // =========================================================================
 
-  describe('4. findManyAndCount with pagination', () => {
+  describe('4. listAndCount with pagination', () => {
     const ids = testIds();
 
     beforeEach(async () => {
@@ -512,7 +512,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('returns paginated results with total count', async () => {
-      const { data, total } = await db.findManyAndCount('posts', {
+      const { data, total } = await db.listAndCount('posts', {
         limit: 1,
         offset: 0,
         orderBy: { views: 'desc' },
@@ -523,7 +523,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('returns second page correctly', async () => {
-      const { data, total } = await db.findManyAndCount('posts', {
+      const { data, total } = await db.listAndCount('posts', {
         limit: 1,
         offset: 1,
         orderBy: { views: 'desc' },
@@ -534,7 +534,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('count returns 0 for no matches', async () => {
-      const { data, total } = await db.findManyAndCount('posts', {
+      const { data, total } = await db.listAndCount('posts', {
         where: { title: 'nonexistent' },
       });
       expect(data).toHaveLength(0);
@@ -576,7 +576,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
       expect(deleted).toBeDefined();
       expect(deleted.id).toBe(ids.COMMENT_ID);
 
-      const found = await db.findOne('comments', { where: { id: ids.COMMENT_ID } });
+      const found = await db.get('comments', { where: { id: ids.COMMENT_ID } });
       expect(found).toBeNull();
     });
 
@@ -609,8 +609,8 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
       await seedTestData(db, ids, 'relations');
     });
 
-    it('findMany posts with include author', async () => {
-      const postsResult = await db.findMany('posts', { include: { author: true } });
+    it('list posts with include author', async () => {
+      const postsResult = await db.list('posts', { include: { author: true } });
       expect(postsResult.length).toBeGreaterThan(0);
       for (const post of postsResult) {
         expect(post.author).toBeDefined();
@@ -619,8 +619,8 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
       }
     });
 
-    it('findMany posts with include comments', async () => {
-      const postsResult = await db.findMany('posts', {
+    it('list posts with include comments', async () => {
+      const postsResult = await db.list('posts', {
         where: { id: ids.POST_ID },
         include: { comments: true },
       });
@@ -630,8 +630,8 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
       expect(post.comments[0].body).toBe('Great post!');
     });
 
-    it('findOne with single include works', async () => {
-      const post = await db.findOne('posts', {
+    it('get with single include works', async () => {
+      const post = await db.get('posts', {
         where: { id: ids.POST_ID },
         include: { author: true },
       });
@@ -640,8 +640,8 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
       expect(post?.author.name).toBe('Alice');
     });
 
-    it('findOneOrThrow with multiple includes works', async () => {
-      const post = await db.findOneOrThrow('posts', {
+    it('getOrThrow with multiple includes works', async () => {
+      const post = await db.getOrThrow('posts', {
         where: { id: ids.POST_ID },
         include: { author: true, comments: true },
       });
@@ -651,8 +651,8 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
       expect(post.comments[0].body).toBe('Great post!');
     });
 
-    it('findManyAndCount with include works', async () => {
-      const { data } = await db.findManyAndCount('posts', {
+    it('listAndCount with include works', async () => {
+      const { data } = await db.listAndCount('posts', {
         where: { id: ids.POST_ID },
         include: { author: true, comments: true },
       });
@@ -714,9 +714,9 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
       }
     });
 
-    it('throws NotFoundError on findOneOrThrow with no match', async () => {
+    it('throws NotFoundError on getOrThrow with no match', async () => {
       try {
-        await db.findOneOrThrow('posts', {
+        await db.getOrThrow('posts', {
           where: { id: '00000000-0000-0000-0000-000000000000' },
         });
         expect.unreachable('Should have thrown NotFoundError');
@@ -857,16 +857,16 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
       expect(result.count).toBe(2);
     });
 
-    it('findOne returns null when not found', async () => {
-      const result = await db.findOne('posts', {
+    it('get returns null when not found', async () => {
+      const result = await db.get('posts', {
         where: { id: '00000000-0000-0000-0000-000000000000' },
       });
       expect(result).toBeNull();
     });
 
-    it('findOneOrThrow returns the row when found', async () => {
+    it('getOrThrow returns the row when found', async () => {
       await seedTestData(db, ids, 'batch-find');
-      const result = await db.findOneOrThrow('posts', { where: { id: ids.POST_ID } });
+      const result = await db.getOrThrow('posts', { where: { id: ids.POST_ID } });
       expect(result).toBeDefined();
       expect(result.id).toBe(ids.POST_ID);
     });
@@ -885,7 +885,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('timestamps are returned as Date objects', async () => {
-      const org = await db.findOneOrThrow('organizations', { where: { id: ids.ORG_ID } });
+      const org = await db.getOrThrow('organizations', { where: { id: ids.ORG_ID } });
       expect(org.createdAt).toBeInstanceOf(Date);
       const now = new Date();
       const diff = now.getTime() - (org.createdAt as Date).getTime();
@@ -893,7 +893,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('post timestamps are Date objects', async () => {
-      const post = await db.findOneOrThrow('posts', { where: { id: ids.POST_ID } });
+      const post = await db.getOrThrow('posts', { where: { id: ids.POST_ID } });
       expect(post.createdAt).toBeInstanceOf(Date);
       expect(post.updatedAt).toBeInstanceOf(Date);
     });
@@ -912,7 +912,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('select narrows returned fields', async () => {
-      const result = await db.findMany('posts', { select: { title: true, status: true } });
+      const result = await db.list('posts', { select: { title: true, status: true } });
       expect(result.length).toBeGreaterThan(0);
       const first = result[0];
       expect(first.title).toBeDefined();
@@ -921,7 +921,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('select with not sensitive excludes email', async () => {
-      const result = await db.findMany('users', { select: { not: 'sensitive' } });
+      const result = await db.list('users', { select: { not: 'sensitive' } });
       expect(result.length).toBeGreaterThan(0);
       const first = result[0];
       expect(first.name).toBeDefined();

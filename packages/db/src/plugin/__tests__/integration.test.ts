@@ -33,14 +33,14 @@ describe('Plugin Integration Tests', () => {
   it('IT-6-2: fingerprint produces stable hashes for same query shape', () => {
     const shape1 = {
       table: 'users',
-      operation: 'findMany',
+      operation: 'list',
       where: { email: 'alice@example.com', active: true },
       select: { id: true, email: true },
     };
 
     const shape2 = {
       table: 'users',
-      operation: 'findMany',
+      operation: 'list',
       where: { email: 'bob@example.com', active: false },
       select: { id: true, email: true },
     };
@@ -53,7 +53,7 @@ describe('Plugin Integration Tests', () => {
     // Different shape produces different fingerprint
     const shape3 = {
       table: 'users',
-      operation: 'findMany',
+      operation: 'list',
       where: { name: 'Charlie' },
       select: { id: true, email: true },
     };
@@ -68,7 +68,7 @@ describe('Plugin Integration Tests', () => {
   it('IT-6-3: plugin beforeQuery hook is invoked and first non-undefined return wins', () => {
     const context: QueryContext = {
       table: 'users',
-      operation: 'findMany',
+      operation: 'list',
       args: { where: { id: '1' } },
       fingerprint: 'abc123',
     };
