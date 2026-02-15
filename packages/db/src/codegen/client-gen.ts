@@ -52,7 +52,6 @@ export function generateClient(domains: DomainDefinition[]): string {
       for (const [relName, rel] of Object.entries(relations)) {
         if (rel.type === 'belongsTo') {
           const targetPascal = rel.target.charAt(0).toUpperCase() + rel.target.slice(1);
-          const RelName = relName.charAt(0).toUpperCase() + relName.slice(1);
           // Use entity name + 'Id' for relation accessor parameter
           const relParamName = `${name}Id`;
           lines.push(`    ${relName}: {`);
