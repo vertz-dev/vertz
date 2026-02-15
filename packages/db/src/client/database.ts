@@ -26,12 +26,14 @@ import { computeTenantGraph, type TenantGraph } from './tenant-graph';
  *
  * This function detects SELECT statements, including:
  * - Standard SELECT queries
- * - SELECT ... FOR UPDATE (still read-only, but we'll send to primary for safety)
- * - WITH ... SELECT (CTEs)
+ * - WITH ... SELECT (CTEs) - only if SELECT is the only/top-level DML
  * - Queries with leading comments
  *
  * Returns false for:
  * - INSERT, UPDATE, DELETE, TRUNCATE
+ * - Writable CTEs: WITH ... INSERT/UPDATE/DELETE (writes inside CTE)
+ * - SELECT ... FOR UPDATE/FOR NO KEY UPDATE/FOR SHARE/FOR KEY SHARE (acquire locks)
+ * - SELECT INTO (creates table)
  * - DDL statements (CREATE, ALTER, DROP)
  * - Transaction commands (BEGIN, COMMIT, ROLLBACK)
  * - Any statement not starting with SELECT after normalization
@@ -62,16 +64,34 @@ export function isReadQuery(sqlStr: string): boolean {
     }
   }
 
-  // Handle CTEs (WITH clause) - look for SELECT after WITH
-  if (normalized.toUpperCase().startsWith('WITH ')) {
+  const upper = normalized.toUpperCase();
+
+  // Handle CTEs (WITH clause) - check for DML verbs inside CTE
+  if (upper.startsWith('WITH ')) {
+    // Check if CTE contains writable operations (INSERT, UPDATE, DELETE)
+    const hasInsert = /\bINSERT\s+INTO\b/is.test(normalized);
+    const hasUpdate = /\bUPDATE\b/is.test(normalized);
+    const hasDelete = /\bDELETE\s+FROM\b/is.test(normalized);
+
+    // If there's INSERT/UPDATE/DELETE in the query, it's a write
+    if (hasInsert || hasUpdate || hasDelete) {
+      return false;
+    }
+
+    // Otherwise, check for SELECT
     const selectMatch = normalized.match(/\bSELECT\s/is);
     return selectMatch !== null;
+  }
+
+  // Check for SELECT ... FOR UPDATE/FOR NO KEY UPDATE/FOR SHARE/FOR KEY SHARE
+  // These acquire row-level locks and should go to primary
+  if (/\bFOR\s+(NO\s+KEY\s+)?(UPDATE|KEY\s+SHARE|SHARE)\b/is.test(upper)) {
+    return false;
   }
 
   // Check if the first meaningful keyword is SELECT
   // SELECT INTO creates a table, so it's a WRITE operation
   // Match both "SELECT INTO" and "SELECT ... INTO" patterns
-  const upper = normalized.toUpperCase();
   if (upper.startsWith('SELECT INTO') || /\bSELECT\s+.+\s+INTO\b/.test(upper)) {
     return false;
   }
@@ -532,8 +552,9 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           replicaIndex = (replicaIndex + 1) % replicaDrivers.length;
           try {
             return await targetReplica.queryFn<T>(sqlStr, params);
-          } catch {
+          } catch (err) {
             // Replica failed, fall back to primary
+            console.warn('[vertz/db] replica query failed, falling back to primary:', (err as Error).message);
           }
         }
 
