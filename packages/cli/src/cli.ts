@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { generateAction } from './commands/generate';
 import { generateDomainAction } from './commands/domain-gen';
+import { devAction } from './commands/dev';
 
 export function createCLI(): Command {
   const program = new Command();
@@ -22,12 +23,24 @@ export function createCLI(): Command {
     .option('--strict', 'Enable strict mode')
     .option('--output <dir>', 'Output directory');
 
+  // Unified dev command - Phase 1 implementation
   program
     .command('dev')
-    .description('Start development server with hot reload')
+    .description('Start development server with hot reload (unified pipeline)')
     .option('-p, --port <port>', 'Server port', '3000')
     .option('--host <host>', 'Server host', 'localhost')
-    .option('--no-typecheck', 'Disable background type checking');
+    .option('--open', 'Open browser on start')
+    .option('--no-typecheck', 'Disable background type checking')
+    .option('-v, --verbose', 'Verbose output')
+    .action(async (opts) => {
+      await devAction({
+        port: parseInt(opts.port, 10),
+        host: opts.host,
+        open: opts.open,
+        typecheck: opts.typecheck !== false && !opts.noTypecheck,
+        verbose: opts.verbose,
+      });
+    });
 
   // Generate command - supports both explicit type and auto-discovery mode
   program
