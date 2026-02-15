@@ -1,0 +1,50 @@
+---
+title: Schema Overview
+description: Type-safe schema definitions in Vertz
+---
+
+# Schema
+
+The Vertz schema system provides type-safe data modeling.
+
+## Overview
+
+Define your data once, get type-safe code everywhere:
+
+- **Entity definitions** — Type-safe data models
+- **Relations** — Connect entities together
+- **Validation** — Built-in data validation
+- **Migrations** — Schema versioning
+
+## Coming Soon
+
+Detailed schema documentation is coming as part of the progressive launch.
+
+### What's Next
+
+- Defining entities
+- Field types and validation
+- Relations and joins
+- Schema migrations
+
+## Quick Example
+
+```typescript
+import { domain } from 'vertz/schema';
+
+const blog = domain({
+  name: 'blog',
+  entities: {
+    User: {
+      id: { type: 'uuid', primary: true },
+      email: { type: 'string', unique: true },
+      name: { type: 'string' },
+    },
+  },
+});
+```
+
+## Related
+
+- [Domains](/concepts/domains) — Domain-driven modeling
+- [Server](/concepts/server) — Using schema in APIs
