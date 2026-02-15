@@ -139,7 +139,7 @@ function registerRoutes(
           querySchema: route.config.query as SchemaLike | undefined,
           headersSchema: route.config.headers as SchemaLike | undefined,
           responseSchema: route.config.response as SchemaLike | undefined,
-          errorsSchema: (route.config.errors as Record<number, SchemaLike>) | undefined,
+          errorsSchema: route.config.errors as unknown as Record<number, SchemaLike> | undefined,
         };
         trie.add(route.method, fullPath, entry);
       }

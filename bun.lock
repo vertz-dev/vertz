@@ -53,6 +53,7 @@
       "dependencies": {
         "@vertz/codegen": "workspace:*",
         "@vertz/compiler": "workspace:*",
+        "@vertz/db": "workspace:*",
         "@vertz/tui": "workspace:*",
         "commander": "^14.0.0",
         "ink": "^6.6.0",
