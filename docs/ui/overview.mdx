@@ -3,45 +3,554 @@ title: UI Overview
 description: Building reactive UIs with Vertz
 ---
 
-# UI
+# @vertz/ui
 
-Vertz UI is a reactive component framework built on signals.
+Vertz UI is a reactive component framework built on signals. It provides fine-grained reactivity without a virtual DOM, scoped styling, routing, forms, and data fetching — all with full TypeScript support.
 
-## Features
+## What You'll Build
 
-- **Signal-based reactivity** — Fine-grained updates without virtual DOM
-- **JSX support** — Write familiar JSX with full type safety
-- **CSS-in-JS** — Scoped styles with zero runtime overhead
-- **SSR-ready** — Server-side rendering with progressive hydration
+- Interactive components with reactive state
+- Type-safe forms with schema validation
+- Client-side routing with nested layouts
+- Data fetching with caching and invalidation
 
-## Coming Soon
+## Key Features
 
-Detailed UI documentation is coming as part of the progressive launch.
+- **Signal-based reactivity** — Fine-grained updates that only touch what changed
+- **Scoped CSS** — Zero-runtime stylesheets with compile-time optimization  
+- **Progressive hydration** — SSR-ready with configurable hydration strategies
+- **Type-safe routing** — Full TypeScript inference for params and search
 
-### What's Next
+---
 
-- Components and signals
-- Styling system
-- Routing
-- Forms and state management
+## Getting Started
 
-## Quick Example
+### Reactivity with Signals
+
+The core primitive is the `signal`, which holds a value that automatically updates any component that reads it:
 
 ```tsx
-import { component$, useSignal } from 'vertz/ui';
+import { signal } from '@vertz/ui';
 
-export default component$(() => {
-  const count = useSignal(0);
+const count = signal(0);
+
+// Read and write
+console.log(count.value);      // 0
+count.value++;
+console.log(count.value);      // 1
+```
+
+### Creating Computed Values
+
+Use `computed` for derived state that updates automatically:
+
+```tsx
+import { signal, computed } from '@vertz/ui';
+
+const firstName = signal('Jane');
+const lastName = signal('Doe');
+
+const fullName = computed(() => {
+  return `${firstName.value} ${lastName.value}`;
+});
+
+console.log(fullName.value);  // "Jane Doe"
+lastName.value = 'Smith';
+console.log(fullName.value);  // "Jane Smith"
+```
+
+### Reactive Effects
+
+Run side effects that re-execute when dependencies change:
+
+```tsx
+import { signal, effect, onCleanup } from '@vertz/ui';
+
+const count = signal(0);
+
+const dispose = effect(() => {
+  console.log(`Count is now: ${count.value}`);
+});
+
+onCleanup(() => dispose());
+
+count.value++;  // Logs: "Count is now: 1"
+```
+
+---
+
+## Components
+
+### Building a Component
+
+Components are plain functions that return DOM elements. Use `ref` to attach reactive references:
+
+```tsx
+import { ref, signal } from '@vertz/ui';
+
+export const Counter = () => {
+  const count = signal(0);
+  const buttonRef = ref<HTMLButtonElement>();
+
+  const handler = () => {
+    count.value++;
+    console.log(buttonRef.value?.textContent);
+  };
+
+  const button = document.createElement('button');
+  button.textContent = `Clicks: ${count.value}`;
+  button.addEventListener('click', handler);
   
-  return (
-    <button onClick$={() => count.value++}>
-      Clicks: {count.value}
-    </button>
+  // Or use effect to update DOM reactively
+  import { effect } from '@vertz/ui';
+  effect(() => {
+    button.textContent = `Clicks: ${count.value}`;
+  });
+
+  return button;
+};
+```
+
+### Context for Dependency Injection
+
+Share state across components without passing props:
+
+```tsx
+import { createContext, useContext } from '@vertz/ui';
+
+// Create a context
+const ThemeContext = createContext<string>('theme');
+
+export const App = () => {
+  // Provide a value
+  useContext(ThemeContext, 'dark');
+  
+  return ThemedButton();
+};
+
+const ThemedButton = () => {
+  // Consume the value
+  const theme = useContext(ThemeContext);
+  
+  const button = document.createElement('button');
+  button.className = theme;
+  button.textContent = 'Themed Button';
+  return button;
+};
+```
+
+### Error Boundaries
+
+Handle errors gracefully with error boundaries:
+
+```tsx
+import { ErrorBoundary } from '@vertz/ui';
+
+const RiskyComponent = () => {
+  throw new Error('Something went wrong');
+};
+
+export const SafeWrapper = () => {
+  const div = document.createElement('div');
+  
+  ErrorBoundary(
+    { fallback$: (error) => { div.textContent = `Error: ${error.message}`; } },
+    () => { div.appendChild(RiskyComponent()); }
   );
+  
+  return div;
+};
+```
+
+---
+
+## Styling
+
+### Scoped CSS
+
+Write styles that are automatically scoped to your component:
+
+```tsx
+import { css } from '@vertz/ui';
+
+const styles = css`
+  .button {
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    background: #0070f3;
+    color: white;
+  }
+  
+  .button:hover {
+    background: #0050a0;
+  }
+`;
+
+export const StyledButton = () => {
+  const button = document.createElement('button');
+  button.className = styles.button;
+  button.textContent = 'Click Me';
+  return button;
+};
+```
+
+### Global Styles
+
+Define global CSS that applies across your app:
+
+```tsx
+import { globalCss } from '@vertz/ui';
+
+globalCss`
+  * {
+    box-sizing: border-box;
+  }
+  
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+  }
+`;
+```
+
+### Theming
+
+Create customizable themes with variants:
+
+```tsx
+import { defineTheme, css, ThemeProvider } from '@vertz/ui';
+
+const theme = defineTheme({
+  colors: {
+    primary: '#0070f3',
+    secondary: '#666',
+  },
+});
+
+const buttonStyles = css`
+  .btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    background: ${theme.colors.primary};
+    color: white;
+  }
+  
+  .btn.secondary {
+    background: ${theme.colors.secondary};
+  }
+`;
+
+export const ThemedApp = () => {
+  const button = document.createElement('button');
+  button.className = buttonStyles.btn;
+  button.textContent = 'Primary';
+  
+  return ThemeProvider({ value: theme }, button);
+};
+```
+
+---
+
+## Routing
+
+### Defining Routes
+
+Define your application's routes with type-safe parameters:
+
+```tsx
+import { defineRoutes } from '@vertz/ui';
+
+const routes = defineRoutes({
+  '/': {
+    component: () => import('./pages/Home'),
+  },
+  '/users/:id': {
+    component: () => import('./pages/UserProfile'),
+    // Type-safe: id will be typed as string
+  },
+  '/posts/:postId/comments/:commentId': {
+    component: () => import('./pages/Comment'),
+  },
 });
 ```
 
-## Related
+### Navigation
 
-- [Quickstart](/quickstart) — Build your first UI
-- [Server](/concepts/server) — SSR integration
+Navigate programmatically or with links:
+
+```tsx
+import { defineRoutes, createRouter, createLink } from '@vertz/ui';
+
+const routes = defineRoutes({
+  '/': { component: () => document.createElement('div') },
+  '/users/:id': { component: () => document.createElement('div') },
+});
+
+const router = createRouter(routes);
+
+// Programmatic navigation
+router.navigate('/users/123');
+
+// Link component factory
+const NavLink = createLink((props) => {
+  const a = document.createElement('a');
+  a.href = props.href;
+  a.textContent = String(props.children);
+  return a;
+});
+```
+
+### Nested Layouts
+
+Use outlets for nested layouts:
+
+```tsx
+import { createOutlet } from '@vertz/ui';
+
+const Layout = () => {
+  const outlet = createOutlet();
+  
+  const container = document.createElement('div');
+  const nav = document.createElement('nav');
+  nav.textContent = '...';
+  const main = document.createElement('main');
+  main.appendChild(outlet());
+  
+  container.appendChild(nav);
+  container.appendChild(main);
+  return container;
+};
+```
+
+---
+
+## Forms
+
+### Creating Forms
+
+Build forms with schema validation. The form binds to an SDK method and provides progressive enhancement:
+
+```tsx
+import { form, component$ } from '@vertz/ui';
+import { s } from '@vertz/schema';
+
+// Define SDK method with metadata for progressive enhancement
+const loginSDK = async (data: { email: string; password: string }) => {
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return res.json();
+};
+// Attach URL and method for form.attrs()
+loginSDK.url = '/api/login';
+loginSDK.method = 'POST';
+
+// Create form with schema validation
+const loginForm = form(loginSDK, {
+  schema: {
+    email: s.string().email(),
+    password: s.string().min(8),
+  },
+});
+
+// Use in a component
+export const Login = () => {
+  const formEl = document.createElement('form');
+  
+  // Get action/method for progressive enhancement
+  const { action, method } = loginForm.attrs();
+  formEl.action = action;
+  formEl.method = method;
+  
+  const emailInput = document.createElement('input');
+  emailInput.name = 'email';
+  
+  const passwordInput = document.createElement('input');
+  passwordInput.name = 'password';
+  passwordInput.type = 'password';
+  
+  const errorDiv = document.createElement('div');
+  const submitBtn = document.createElement('button');
+  submitBtn.type = 'submit';
+  submitBtn.textContent = 'Login';
+  
+  // Handle submission
+  formEl.addEventListener('submit', loginForm.handleSubmit({
+    onSuccess: (result) => { console.log('Logged in:', result); },
+    onError: (errors) => { errorDiv.textContent = JSON.stringify(errors); },
+  }));
+  
+  formEl.append(emailInput, passwordInput, submitBtn, errorDiv);
+  return formEl;
+};
+```
+
+### Validation
+
+Validate form data against schemas:
+
+```tsx
+import { validate } from '@vertz/ui';
+import { s } from '@vertz/schema';
+
+const userSchema = s.object({
+  name: s.string().min(1),
+  age: s.number().int().min(0),
+  email: s.string().email(),
+});
+
+const result = validate(userSchema, {
+  name: 'Alice',
+  age: 30,
+  email: 'alice@example.com',
+});
+
+if (result.success) {
+  console.log(result.data);  // Typed as { name: string; age: number; email: string }
+} else {
+  console.log(result.errors);
+}
+```
+
+---
+
+## Data Fetching
+
+### Query with Caching
+
+Fetch and cache data with automatic invalidation:
+
+```tsx
+import { query, effect } from '@vertz/ui';
+
+// Create a query with a thunk that returns a promise
+const userQuery = query(async () => {
+  const res = await fetch('/api/user');
+  return res.json();
+}, {
+  // Optional: provide initial data to skip initial fetch
+  // initialData: { name: 'Anonymous' },
+  // Optional: debounce refetches in ms
+  // debounce: 300,
+  // Optional: custom cache key
+  // key: 'user-cache-key',
+});
+
+// Use in a component
+const UserProfile = () => {
+  const container = document.createElement('div');
+  
+  // Use effect to reactively update when data/loading/error changes
+  effect(() => {
+    const data = userQuery.data.value;
+    const loading = userQuery.loading.value;
+    const error = userQuery.error.value;
+    
+    if (loading) {
+      container.textContent = 'Loading...';
+    } else if (error) {
+      container.textContent = `Error: ${error}`;
+    } else if (data) {
+      container.textContent = data.name;
+    }
+  });
+  
+  return container;
+};
+
+// Manually refetch when needed
+// userQuery.refetch();
+
+// Clean up when done
+// userQuery.dispose();
+```
+
+---
+
+## Hydration Strategies
+
+### Progressive Hydration
+
+Control when components hydrate with different strategies:
+
+```tsx
+import { 
+  hydrate, 
+  eagerStrategy, 
+  idleStrategy, 
+  interactionStrategy,
+  visibleStrategy 
+} from '@vertz/ui';
+
+// Hydrate immediately
+hydrate(() => <App />, { strategy: eagerStrategy });
+
+// Hydrate when browser is idle
+hydrate(() => <App />, { strategy: idleStrategy });
+
+// Hydrate on user interaction
+hydrate(() => <App />, { strategy: interactionStrategy });
+
+// Hydrate when visible
+hydrate(() => <App />, { strategy: visibleStrategy });
+```
+
+---
+
+## API Reference
+
+### Core Exports
+
+| Export | Description |
+|--------|-------------|
+| `signal(initial)` | Create a reactive value |
+| `computed(fn)` | Create a derived value |
+| `effect(fn)` | Run side effects reactively |
+| `untrack(fn)` | Execute fn without tracking dependencies |
+| `batch(fn)` | Batch multiple signal updates |
+| `onCleanup(fn)` | Register cleanup callback |
+| `ref()` | Create a DOM/component ref |
+| `createContext()` | Create a context for DI |
+| `useContext()` | Consume a context value |
+
+### CSS Exports
+
+| Export | Description |
+|--------|-------------|
+| `css` | Create scoped styles |
+| `globalCss` | Define global styles |
+| `ThemeProvider` | Provide theme values |
+| `defineTheme` | Define a theme |
+
+### Router Exports
+
+| Export | Description |
+|--------|-------------|
+| `defineRoutes` | Define route configuration |
+| `createRouter` | Create a router instance |
+| `createLink` | Create a link component |
+| `createOutlet` | Create a nested outlet |
+
+### Form Exports
+
+| Export | Description |
+|--------|-------------|
+| `form(sdkMethod, options)` | Create a form bound to an SDK method with schema validation |
+| `formDataToObject` | Convert FormData to plain object |
+| `validate` | Validate data against schema |
+
+### Query Exports
+
+| Export | Description |
+|--------|-------------|
+| `query(thunk, options)` | Create a reactive query with caching |
+
+---
+
+## Next Steps
+
+- [Schema](/schema/overview) — Define your data types
+- [Quickstart](/quickstart) — Build your first full-stack app
+- [API Reference](/api) — Detailed API documentation
