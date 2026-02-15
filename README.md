@@ -26,7 +26,7 @@ So we built Vertz — a framework designed so that an LLM can nail it on the fir
 **This entire codebase is written with [Claude Code](https://claude.ai/claude-code).** Not scaffolded by AI and finished by hand — written, tested, and iterated by an LLM from first commit to last. Vertz is both the product and the experiment.
 
 ```typescript
-import { vertz, s } from '@vertz/core';
+import { vertz, s } from '@vertz/server';
 
 const userDef = vertz.moduleDef({ name: 'users' });
 
@@ -180,7 +180,7 @@ Vertz is in active development. Here's where things stand:
 | Package | Status | Description |
 |---------|--------|-------------|
 | `@vertz/schema` | Stable | 40+ schema types, runtime validation, type inference, JSON Schema / OpenAPI output |
-| `@vertz/core` | Stable | App factory, modules, services, routers, middleware, DI, CORS, env validation, exception handling |
+| `@vertz/server` | Stable | App factory, modules, services, routers, middleware, DI, CORS, env validation, exception handling |
 | `@vertz/compiler` | Stable | 8 analyzers, 4 validators, 5 generators (OpenAPI, boot sequence, route table, schema registry, manifest), incremental compilation |
 | `@vertz/testing` | Stable | `createTestApp()` with service/middleware mocking, `createTestService()` for unit testing |
 

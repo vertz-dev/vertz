@@ -158,6 +158,7 @@
         "@vertz/core": "workspace:*",
         "@vertz/db": "workspace:*",
         "@vertz/schema": "workspace:*",
+        "@vertz/server": "workspace:*",
         "typescript": "^5.7.0",
         "vitest": "^4.0.18",
         "yaml": "^2.3.0",
@@ -187,11 +188,25 @@
         "vitest": "^4.0.18",
       },
     },
+    "packages/server": {
+      "name": "@vertz/server",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vertz/core": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "bunup": "latest",
+        "typescript": "^5.7.0",
+        "vitest": "^4.0.18",
+      },
+    },
     "packages/testing": {
       "name": "@vertz/testing",
       "version": "0.1.0",
       "dependencies": {
         "@vertz/core": "workspace:*",
+        "@vertz/server": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^25.2.1",
@@ -243,6 +258,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@vertz/core": "workspace:*",
+        "@vertz/server": "workspace:*",
         "@vertz/ui": "workspace:*",
       },
       "devDependencies": {
@@ -611,6 +627,8 @@
     "@vertz/primitives": ["@vertz/primitives@workspace:packages/primitives"],
 
     "@vertz/schema": ["@vertz/schema@workspace:packages/schema"],
+
+    "@vertz/server": ["@vertz/server@workspace:packages/server"],
 
     "@vertz/testing": ["@vertz/testing@workspace:packages/testing"],
 
@@ -1076,6 +1094,8 @@
 
     "@vertz/primitives/happy-dom": ["happy-dom@18.0.1", "", { "dependencies": { "@types/node": "^20.0.0", "@types/whatwg-mimetype": "^3.0.2", "whatwg-mimetype": "^3.0.0" } }, "sha512-qn+rKOW7KWpVTtgIUi6RVmTBZJSe2k0Db0vh1f7CWrWclkkc7/Q+FrOfkZIb2eiErLyqu5AXEzE7XthO9JVxRA=="],
 
+    "@vertz/server/@types/node": ["@types/node@22.19.11", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-BH7YwL6rA93ReqeQS1c4bsPpcfOmJasG+Fkr6Y59q83f9M1WcBRHR2vM+P9eOisYRcN3ujQoiZY8uk5W+1WL8w=="],
+
     "@vertz/ui/happy-dom": ["happy-dom@18.0.1", "", { "dependencies": { "@types/node": "^20.0.0", "@types/whatwg-mimetype": "^3.0.2", "whatwg-mimetype": "^3.0.0" } }, "sha512-qn+rKOW7KWpVTtgIUi6RVmTBZJSe2k0Db0vh1f7CWrWclkkc7/Q+FrOfkZIb2eiErLyqu5AXEzE7XthO9JVxRA=="],
 
     "micromatch/picomatch": ["picomatch@2.3.1", "", {}, "sha512-JU3teHTNjmE2VCGFzuY8EXzCDVwEqB2a8fsIvwaStHhAWJEeVd1o1QD80CU6+ZdEXXSLbSsuLwJjkCBWqRQUVA=="],
@@ -1101,6 +1121,8 @@
     "@vertz/integration-tests/@types/node/undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 
     "@vertz/primitives/happy-dom/@types/node": ["@types/node@20.19.33", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-Rs1bVAIdBs5gbTIKza/tgpMuG1k3U/UMJLWecIMxNdJFDMzcM5LOiLVRYh3PilWEYDIeUDv7bpiHPLPsbydGcw=="],
+
+    "@vertz/server/@types/node/undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 
     "@vertz/ui/happy-dom/@types/node": ["@types/node@20.19.33", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-Rs1bVAIdBs5gbTIKza/tgpMuG1k3U/UMJLWecIMxNdJFDMzcM5LOiLVRYh3PilWEYDIeUDv7bpiHPLPsbydGcw=="],
 

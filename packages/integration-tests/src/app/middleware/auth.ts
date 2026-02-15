@@ -1,4 +1,4 @@
-import { createMiddleware, UnauthorizedException } from '@vertz/core';
+import { createMiddleware, UnauthorizedException } from '@vertz/server';
 
 export const authMiddleware = createMiddleware({
   name: 'auth',

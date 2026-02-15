@@ -98,7 +98,7 @@ describe('scaffold', () => {
       expect(pkg.name).toBe('my-awesome-app');
     });
 
-    it('package.json includes @vertz/core as dependency', async () => {
+    it('package.json includes @vertz/server as dependency', async () => {
       const options: ScaffoldOptions = {
         projectName: 'test-app',
         runtime: 'bun',
@@ -110,7 +110,7 @@ describe('scaffold', () => {
       const pkgJsonPath = path.join(tempDir, 'test-app', 'package.json');
       const content = await fs.readFile(pkgJsonPath, 'utf-8');
       const pkg = JSON.parse(content);
-      expect(pkg.dependencies['@vertz/core']).toBeDefined();
+      expect(pkg.dependencies['@vertz/server']).toBeDefined();
     });
 
     it('package.json includes @vertz/cli as dev dependency', async () => {
@@ -244,7 +244,7 @@ describe('scaffold', () => {
 
       const appPath = path.join(tempDir, 'test-app', 'src', 'app.ts');
       const content = await fs.readFile(appPath, 'utf-8');
-      expect(content).toContain('createApp');
+      expect(content).toContain('createServer');
     });
 
     it('generates src/main.ts as the entry point', async () => {

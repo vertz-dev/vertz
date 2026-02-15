@@ -10,7 +10,7 @@ export function generateRouter(
   const pascal = toPascalCase(kebab);
   const moduleKebab = toKebabCase(moduleName);
 
-  const content = `import { createRouter } from '@vertz/core';
+  const content = `import { createRouter } from '@vertz/server';
 import { ${pascal}ModuleDef } from './${moduleKebab}.module-def';
 
 export const ${kebab}Router = createRouter(${pascal}ModuleDef, '/${kebab}', (r) => {

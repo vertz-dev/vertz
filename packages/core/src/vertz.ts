@@ -10,10 +10,13 @@ export const vertz: {
   readonly moduleDef: typeof createModuleDef;
   readonly module: typeof createModule;
   readonly app: typeof createApp;
+  /** @since 0.2.0 — preferred alias for `app` */
+  readonly server: typeof createApp;
 } = deepFreeze({
   env: createEnv,
   middleware: createMiddleware,
   moduleDef: createModuleDef,
   module: createModule,
   app: createApp,
+  server: createApp,
 });
