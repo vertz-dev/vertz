@@ -11,4 +11,11 @@ export interface AppConfig {
   basePath?: string;
   version?: string;
   cors?: CorsConfig;
+  /**
+   * Enable response schema validation in development mode.
+   * When enabled, responses are validated against the response schema
+   * defined in route handlers and warnings are logged for mismatches.
+   * @default false
+   */
+  validateResponses?: boolean;
 }

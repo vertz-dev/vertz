@@ -7,6 +7,10 @@ describe('AppConfig', () => {
     expectTypeOf<AppConfig>().toHaveProperty('version');
     expectTypeOf<AppConfig>().toHaveProperty('cors');
   });
+
+  it('has optional validateResponses for dev mode', () => {
+    expectTypeOf<AppConfig>().toHaveProperty('validateResponses');
+  });
 });
 
 describe('CorsConfig', () => {
