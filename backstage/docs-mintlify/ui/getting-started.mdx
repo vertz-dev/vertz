@@ -1,0 +1,184 @@
+---
+title: Getting Started
+description: Install Vertz UI, configure the Vite plugin, and build your first component.
+---
+
+# Getting Started
+
+Get Vertz UI set up in your project in under 5 minutes.
+
+## Installation
+
+```bash
+npm install @vertz/ui @vertz/ui-compiler
+```
+
+## Vite Configuration
+
+Add the Vertz compiler plugin to your Vite config:
+
+```ts
+// vite.config.ts
+import vertz from '@vertz/ui-compiler/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [vertz()],
+});
+```
+
+The plugin transforms all `.tsx` and `.jsx` files by default. You can customize the file patterns:
+
+```ts
+vertz({
+  include: ['**/*.tsx'],
+  exclude: ['**/vendor/**'],
+  cssExtraction: true, // default: true in production
+})
+```
+
+## Your First Component
+
+Create a file (e.g., `src/App.tsx`):
+
+```tsx
+import { render } from '@vertz/ui';
+
+function App() {
+  let name = 'World';
+
+  return (
+    <div>
+      <h1>Hello, {name}!</h1>
+      <input
+        value={name}
+        onInput={(e) => (name = (e.target as HTMLInputElement).value)}
+      />
+    </div>
+  );
+}
+
+// Mount to the DOM
+render(document.body, <App />);
+```
+
+Run your dev server:
+
+```bash
+npm run dev
+```
+
+Open http://localhost:3000. Type in the input — the heading updates instantly.
+
+## How Reactivity Works
+
+Write this:
+
+```tsx
+let count = 0;
+<span>{count}</span>
+<button onClick={() => count++}>+</button>
+```
+
+The compiler transforms it to:
+
+```tsx
+const count = signal(0);
+<span>{__text(() => count.value)}</span>
+<button onClick={() => count.value++}>+</button>
+```
+
+The signal notifies the text node directly. No virtual DOM, no re-render — just the exact update needed.
+
+## Adding Styles
+
+Use the built-in CSS-in-JS solution:
+
+```tsx
+import { css } from '@vertz/ui/css';
+
+const styles = css({
+  card: ['p:4', 'bg:white', 'rounded:lg', 'shadow:md'],
+  title: ['font:xl', 'weight:bold', 'text:gray.800'],
+  button: ['px:4', 'py:2', 'bg:blue.600', 'text:white', 'rounded:md'],
+});
+
+function Card() {
+  return (
+    <div className={styles.classNames.card}>
+      <h2 className={styles.classNames.title}>Hello</h2>
+      <button className={styles.classNames.button}>Click me</button>
+    </div>
+  );
+}
+```
+
+## Data Fetching
+
+Use the query helper for data fetching:
+
+```tsx
+import { query } from '@vertz/ui/query';
+
+function UserList() {
+  const { data, loading, error, refetch } = query(
+    () => fetch('/api/users').then(r => r.json())
+  );
+
+  return (
+    <div>
+      <button onClick={refetch}>Refresh</button>
+      
+      {loading.value && <p>Loading...</p>}
+      {error.value && <p>Error: {error.value.message}</p>}
+      
+      <ul>
+        {data.value?.map((user: any) => (
+          <li key={user.id}>{user.name}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+Queries automatically re-fetch when their dependencies change.
+
+## Routing
+
+Set up client-side routing:
+
+```tsx
+import { defineRoutes, createRouter, createLink } from '@vertz/ui/router';
+
+const routes = defineRoutes({
+  '/': { component: () => <Home /> },
+  '/users/:id': { 
+    component: () => <UserProfile />,
+    loader: async ({ params }) => {
+      const res = await fetch(`/api/users/${params.id}`);
+      return res.json();
+    },
+  },
+});
+
+const router = createRouter(routes, window.location.pathname + window.location.search);
+
+// Create a Link component
+const Link = createLink(router.current, (url) => router.navigate(url));
+
+function Nav() {
+  return (
+    <nav>
+      {Link({ href: '/', children: 'Home' })}
+      {Link({ href: '/users/1', children: 'User 1' })}
+    </nav>
+  );
+}
+```
+
+## Next Steps
+
+- **[Components](/docs/ui/components)** — Props, children, composition
+- **[Styling](/docs/ui/components#styling)** — CSS API, variants, themes
+- **[Primitives](/docs/ui-primitives/overview)** — Headless accessible components
