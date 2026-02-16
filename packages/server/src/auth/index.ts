@@ -706,11 +706,20 @@ export type {
 } from './types';
 
 // Re-export OAuth (Phase 2)
-export { google, github, discord, getProviderById, validateProviderConfig } from './oauth/providers';
-export { createPKCE, generateState, OAuthStateStore, buildSessionCookie, clearSessionCookie } from './oauth/security';
-export { createOAuthRoutes, createOAuthRouter } from './oauth/routes';
-export type { PKCE } from './oauth/types';
-export type { OAuthRouteConfig, OAuthRoutes } from './oauth/routes';
+export {
+  google,
+  github,
+  discord,
+  getProviderById,
+  validateProviderConfig,
+  createPKCE,
+  generateState,
+  OAuthStateStore,
+  buildSessionCookie,
+  clearSessionCookie,
+  createOAuthRoutes,
+  createOAuthRouter,
+} from './oauth';
 export type {
   OAuthProvider,
   OAuthConfig,
@@ -721,4 +730,7 @@ export type {
   GoogleOAuthConfig,
   GitHubOAuthConfig,
   DiscordOAuthConfig,
-} from './oauth/types';
+  PKCE,
+  OAuthRouteConfig,
+  OAuthRoutes,
+} from './oauth';

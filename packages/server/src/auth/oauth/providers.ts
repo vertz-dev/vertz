@@ -34,7 +34,7 @@ export interface ProviderOptions {
 }
 
 export function createOAuthProvider(options: ProviderOptions): OAuthProvider {
-  const { id, name, config, transformUserInfo } = options;
+  const { id, name, config } = options;
   const scopes = config.scopes || [];
 
   function buildAuthorizationUrl(state: string, pkce?: PKCE): string {

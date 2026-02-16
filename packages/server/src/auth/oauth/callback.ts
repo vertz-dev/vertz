@@ -224,7 +224,6 @@ export function createOAuthInitiateHandler(options: {
     const pkce = createPKCE();
 
     // Build authorization URL with PKCE
-    const redirectUriFinal = redirectUri || provider.config.redirectUri || callbackUri;
     const authUrl = provider.getAuthorizationUrl(state, pkce);
 
     // For now, state contains both state param and PKCE verifier

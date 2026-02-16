@@ -5,7 +5,6 @@
 
 import type { OAuthProvider, OAuthUserInfo, OAuthTokens } from './types';
 import { createPKCE, generateState, OAuthStateStore, createOAuthError, type OAuthSecurityError } from './security';
-import { createOAuthCallbackHandler } from './callback';
 import * as jose from 'jose';
 
 // ============================================================================
@@ -179,12 +178,11 @@ export function createOAuthRoutes(config: OAuthRouteConfig): OAuthRoutes {
 
       // Find or create user (if callback provided)
       let user = userInfo;
-      let isNewUser = false;
       
       if (findOrCreateUser) {
         const result = await findOrCreateUser(userInfo);
         user = result.user;
-        isNewUser = result.isNew;
+        // isNewUser could be used for analytics/tracking
       }
 
       // Create JWT session
@@ -280,11 +278,10 @@ function jsonError(error: OAuthSecurityError): Response {
 
 export interface OAuthRouterOptions {
   providers: Map<string, OAuthRouteConfig>;
-  defaultCallbackPath?: string;
 }
 
 export function createOAuthRouter(options: OAuthRouterOptions) {
-  const { providers, defaultCallbackPath = '/api/auth/callback' } = options;
+  const { providers } = options;
 
   /**
    * Handle OAuth requests

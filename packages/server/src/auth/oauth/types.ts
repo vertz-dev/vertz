@@ -3,7 +3,13 @@
  * Types for OAuth providers and OAuth-based authentication
  */
 
-// Re-export security error type only (PKCE exported from security.ts)
+// Import PKCE from security module
+import type { PKCE } from './security';
+
+// Re-export for convenience
+export type { PKCE };
+
+// Re-export security error type
 export type { OAuthSecurityError } from './security';
 
 // ============================================================================
@@ -31,15 +37,6 @@ export interface GitHubOAuthConfig extends OAuthConfig {
 export interface DiscordOAuthConfig extends OAuthConfig {
   // Discord-specific options
   guildId?: string;
-}
-
-// ============================================================================
-// PKCE Support
-// ============================================================================
-
-export interface PKCE {
-  codeVerifier: string;
-  codeChallenge: string;
 }
 
 // ============================================================================
