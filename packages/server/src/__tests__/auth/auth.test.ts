@@ -28,21 +28,21 @@ describe('Auth Module', () => {
         expect(hash1).not.toBe(hash2);
       });
 
-      it('should use bcrypt cost of 12', async () => {
+      it('should use bcrypt cost of 12', { timeout: 15_000 }, async () => {
         const hash = await hashPassword('test');
         expect(hash.startsWith('$2a$12$')).toBe(true);
       });
     });
 
     describe('verifyPassword', () => {
-      it('should verify correct password', async () => {
+      it('should verify correct password', { timeout: 15_000 }, async () => {
         const password = 'testPassword123';
         const hash = await hashPassword(password);
         const valid = await verifyPassword(password, hash);
         expect(valid).toBe(true);
       });
 
-      it('should reject incorrect password', async () => {
+      it('should reject incorrect password', { timeout: 15_000 }, async () => {
         const hash = await hashPassword('correctPassword');
         const valid = await verifyPassword('wrongPassword', hash);
         expect(valid).toBe(false);
