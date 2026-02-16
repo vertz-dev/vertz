@@ -1,1 +1,0 @@
-{"version":3,"file":"dead-css.d.ts","sourceRoot":"","sources":["dead-css.ts"],"names":[],"mappings":"AAAA;;;;;;;;;GASG;AAEH,OAAO,KAAK,EAAE,mBAAmB,EAAE,MAAM,aAAa,CAAC;AAEvD;;GAEG;AACH,qBAAa,iBAAiB;IAC5B;;;;;;OAMG;IACH,SAAS,CAAC,WAAW,EAAE,GAAG,CAAC,MAAM,EAAE,mBAAmB,CAAC,EAAE,SAAS,EAAE,GAAG,CAAC,MAAM,CAAC,GAAG,MAAM;CAWzF"}

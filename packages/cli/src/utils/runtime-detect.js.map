@@ -1,1 +1,0 @@
-{"version":3,"file":"runtime-detect.js","sourceRoot":"","sources":["runtime-detect.ts"],"names":[],"mappings":"AAEA,MAAM,UAAU,aAAa;IAC3B,IAAI,OAAO,UAAU,KAAK,WAAW,IAAI,KAAK,IAAI,UAAU,EAAE,CAAC;QAC7D,OAAO,KAAK,CAAC;IACf,CAAC;IACD,OAAO,MAAM,CAAC;AAChB,CAAC"}
