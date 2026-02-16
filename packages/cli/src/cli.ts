@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { generateAction } from './commands/generate';
 import { generateDomainAction } from './commands/domain-gen';
 import { devAction } from './commands/dev';
+import { buildAction } from './commands/build';
 
 export function createCLI(): Command {
   const program = new Command();
@@ -21,7 +22,23 @@ export function createCLI(): Command {
     .command('build')
     .description('Compile the project for production')
     .option('--strict', 'Enable strict mode')
-    .option('--output <dir>', 'Output directory');
+    .option('-o, --output <dir>', 'Output directory', '.vertz/build')
+    .option('-t, --target <target>', 'Build target (node, edge, worker)', 'node')
+    .option('--no-typecheck', 'Disable type checking')
+    .option('--no-minify', 'Disable minification')
+    .option('--sourcemap', 'Generate sourcemaps')
+    .option('-v, --verbose', 'Verbose output')
+    .action(async (opts) => {
+      await buildAction({
+        strict: opts.strict,
+        output: opts.output,
+        target: opts.target,
+        noTypecheck: opts.noTypecheck,
+        noMinify: opts.noMinify,
+        sourcemap: opts.sourcemap,
+        verbose: opts.verbose,
+      });
+    });
 
   // Unified dev command - Phase 1 implementation
   program
