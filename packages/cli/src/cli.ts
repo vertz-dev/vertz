@@ -3,6 +3,7 @@ import { generateAction } from './commands/generate';
 import { generateDomainAction } from './commands/domain-gen';
 import { devAction } from './commands/dev';
 import { buildAction } from './commands/build';
+import { createAction } from './commands/create';
 
 export function createCLI(): Command {
   const program = new Command();
@@ -11,6 +12,21 @@ export function createCLI(): Command {
     .name('vertz')
     .description('Vertz CLI — build, check, and serve your Vertz app')
     .version('0.1.0');
+
+  // Create command - scaffold a new Vertz project
+  program
+    .command('create <name>')
+    .description('Scaffold a new Vertz project')
+    .option('-r, --runtime <runtime>', 'Runtime to use (bun, node, deno)', 'bun')
+    .option('-e, --example', 'Include example health module')
+    .option('--no-example', 'Exclude example health module')
+    .action(async (name: string, opts: { runtime: string; example?: boolean }) => {
+      await createAction({
+        projectName: name,
+        runtime: opts.runtime,
+        example: opts.example,
+      });
+    });
 
   program
     .command('check')
