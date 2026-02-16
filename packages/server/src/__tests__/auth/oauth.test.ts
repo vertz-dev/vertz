@@ -58,7 +58,13 @@ describe('OAuth Providers', () => {
       expect(authUrl).toContain('calendar');
     });
 
-    it('should throw when exchanging code in mock mode', async () => {
+    it('should attempt exchange code with fetch', async () => {
+      // Mock the fetch to prevent actual network call
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+      });
+      
       await expect(provider.exchangeCode('test-code')).rejects.toThrow();
     });
   });

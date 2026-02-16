@@ -11,6 +11,7 @@ import type {
   GoogleOAuthConfig,
   GitHubOAuthConfig,
   DiscordOAuthConfig,
+  PKCE,
 } from './types';
 
 // ============================================================================
@@ -36,7 +37,7 @@ export function createOAuthProvider(options: ProviderOptions): OAuthProvider {
   const { id, name, config, transformUserInfo } = options;
   const scopes = config.scopes || [];
 
-  function buildAuthorizationUrl(state: string): string {
+  function buildAuthorizationUrl(state: string, pkce?: PKCE): string {
     const params = new URLSearchParams({
       client_id: config.clientId,
       redirect_uri: config.redirectUri || getDefaultRedirectUri(id),
@@ -45,10 +46,16 @@ export function createOAuthProvider(options: ProviderOptions): OAuthProvider {
       state,
     });
 
+    // Add PKCE parameters if provided
+    if (pkce) {
+      params.set('code_challenge', pkce.codeChallenge);
+      params.set('code_challenge_method', 'S256');
+    }
+
     return `${config.authUrl}?${params.toString()}`;
   }
 
-  async function exchangeCode(_code: string): Promise<OAuthTokens> {
+  async function exchangeCode(_code: string, _codeVerifier?: string): Promise<OAuthTokens> {
     // In production, this would make an HTTP request
     // For now, we throw to indicate this needs to be implemented with actual HTTP client
     throw new Error('OAuth token exchange requires HTTP client. Use provider-specific implementation.');
@@ -97,7 +104,7 @@ export function google(config: GoogleOAuthConfig): OAuthProvider {
       tokenUrl: GOOGLE_TOKEN_URL,
       userInfoUrl: GOOGLE_USERINFO_URL,
     },
-    getAuthorizationUrl(state: string): string {
+    getAuthorizationUrl(state: string, pkce?: PKCE): string {
       const params = new URLSearchParams({
         client_id: config.clientId,
         redirect_uri: config.redirectUri || getDefaultRedirectUri('google'),
@@ -108,21 +115,32 @@ export function google(config: GoogleOAuthConfig): OAuthProvider {
         prompt: config.prompt || 'consent',
       });
 
+      // Add PKCE parameters if provided
+      if (pkce) {
+        params.set('code_challenge', pkce.codeChallenge);
+        params.set('code_challenge_method', 'S256');
+      }
+
       return `${GOOGLE_AUTH_URL}?${params.toString()}`;
     },
-    async exchangeCode(code: string): Promise<OAuthTokens> {
-      // This would use fetch in real implementation
-      // For now, return mock structure
+    async exchangeCode(code: string, codeVerifier?: string): Promise<OAuthTokens> {
+      const bodyParams = new URLSearchParams({
+        code,
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        redirect_uri: config.redirectUri || getDefaultRedirectUri('google'),
+        grant_type: 'authorization_code',
+      });
+
+      // Add PKCE code_verifier if provided
+      if (codeVerifier) {
+        bodyParams.set('code_verifier', codeVerifier);
+      }
+
       const response = await fetch(GOOGLE_TOKEN_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          code,
-          client_id: config.clientId,
-          client_secret: config.clientSecret,
-          redirect_uri: config.redirectUri || getDefaultRedirectUri('google'),
-          grant_type: 'authorization_code',
-        }),
+        body: bodyParams,
       });
 
       if (!response.ok) {
@@ -187,7 +205,7 @@ export function github(config: GitHubOAuthConfig): OAuthProvider {
       tokenUrl: GITHUB_TOKEN_URL,
       userInfoUrl: GITHUB_USERINFO_URL,
     },
-    getAuthorizationUrl(state: string): string {
+    getAuthorizationUrl(state: string, pkce?: PKCE): string {
       const params = new URLSearchParams({
         client_id: config.clientId,
         redirect_uri: config.redirectUri || getDefaultRedirectUri('github'),
@@ -196,21 +214,34 @@ export function github(config: GitHubOAuthConfig): OAuthProvider {
         ...(config.allowSignUp !== undefined && { allow_signup: config.allowSignUp.toString() }),
       });
 
+      // Add PKCE parameters if provided
+      if (pkce) {
+        params.set('code_challenge', pkce.codeChallenge);
+        params.set('code_challenge_method', 'S256');
+      }
+
       return `${GITHUB_AUTH_URL}?${params.toString()}`;
     },
-    async exchangeCode(code: string): Promise<OAuthTokens> {
+    async exchangeCode(code: string, codeVerifier?: string): Promise<OAuthTokens> {
+      const bodyParams = new URLSearchParams({
+        code,
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        redirect_uri: config.redirectUri || getDefaultRedirectUri('github'),
+      });
+
+      // Add PKCE code_verifier if provided
+      if (codeVerifier) {
+        bodyParams.set('code_verifier', codeVerifier);
+      }
+
       const response = await fetch(GITHUB_TOKEN_URL, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({
-          code,
-          client_id: config.clientId,
-          client_secret: config.clientSecret,
-          redirect_uri: config.redirectUri || getDefaultRedirectUri('github'),
-        }),
+        body: bodyParams,
       });
 
       if (!response.ok) {
@@ -292,7 +323,7 @@ export function discord(config: DiscordOAuthConfig): OAuthProvider {
       tokenUrl: DISCORD_TOKEN_URL,
       userInfoUrl: DISCORD_USERINFO_URL,
     },
-    getAuthorizationUrl(state: string): string {
+    getAuthorizationUrl(state: string, pkce?: PKCE): string {
       const params = new URLSearchParams({
         client_id: config.clientId,
         redirect_uri: config.redirectUri || getDefaultRedirectUri('discord'),
@@ -303,21 +334,34 @@ export function discord(config: DiscordOAuthConfig): OAuthProvider {
         permissions: '0',
       });
 
+      // Add PKCE parameters if provided
+      if (pkce) {
+        params.set('code_challenge', pkce.codeChallenge);
+        params.set('code_challenge_method', 'S256');
+      }
+
       return `${DISCORD_AUTH_URL}?${params.toString()}`;
     },
-    async exchangeCode(code: string): Promise<OAuthTokens> {
+    async exchangeCode(code: string, codeVerifier?: string): Promise<OAuthTokens> {
+      const bodyParams = new URLSearchParams({
+        code,
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        redirect_uri: config.redirectUri || getDefaultRedirectUri('discord'),
+        grant_type: 'authorization_code',
+      });
+
+      // Add PKCE code_verifier if provided
+      if (codeVerifier) {
+        bodyParams.set('code_verifier', codeVerifier);
+      }
+
       const response = await fetch(DISCORD_TOKEN_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({
-          code,
-          client_id: config.clientId,
-          client_secret: config.clientSecret,
-          redirect_uri: config.redirectUri || getDefaultRedirectUri('discord'),
-          grant_type: 'authorization_code',
-        }),
+        body: bodyParams,
       });
 
       if (!response.ok) {
@@ -381,3 +425,13 @@ export function validateProviderConfig(config: OAuthConfig): { valid: boolean; e
   }
   return { valid: true };
 }
+
+// Re-export security functions
+export {
+  createPKCE,
+  generateState,
+  OAuthStateStore,
+  buildSessionCookie,
+  clearSessionCookie,
+  type PKCE,
+} from './security';

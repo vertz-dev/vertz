@@ -3,6 +3,10 @@
  * Types for OAuth providers and OAuth-based authentication
  */
 
+// Re-export security types
+export type { PKCE } from './security';
+export type { OAuthSecurityError } from './security';
+
 // ============================================================================
 // OAuth Configuration
 // ============================================================================
@@ -31,6 +35,15 @@ export interface DiscordOAuthConfig extends OAuthConfig {
 }
 
 // ============================================================================
+// PKCE Support
+// ============================================================================
+
+export interface PKCE {
+  codeVerifier: string;
+  codeChallenge: string;
+}
+
+// ============================================================================
 // OAuth Provider
 // ============================================================================
 
@@ -50,10 +63,10 @@ export interface OAuthProvider {
     tokenUrl?: string;
     userInfoUrl?: string;
   };
-  /** Build authorization URL */
-  getAuthorizationUrl(state: string): string;
-  /** Exchange code for tokens */
-  exchangeCode(code: string): Promise<OAuthTokens>;
+  /** Build authorization URL (with optional PKCE) */
+  getAuthorizationUrl(state: string, pkce?: PKCE): string;
+  /** Exchange code for tokens (with PKCE code_verifier) */
+  exchangeCode(code: string, codeVerifier?: string): Promise<OAuthTokens>;
   /** Get user info from provider */
   getUserInfo(accessToken: string): Promise<OAuthUserInfo>;
 }

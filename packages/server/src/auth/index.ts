@@ -707,6 +707,10 @@ export type {
 
 // Re-export OAuth (Phase 2)
 export { google, github, discord, getProviderById, validateProviderConfig } from './oauth/providers';
+export { createPKCE, generateState, OAuthStateStore, buildSessionCookie, clearSessionCookie } from './oauth/security';
+export { createOAuthRoutes, createOAuthRouter } from './oauth/routes';
+export type { PKCE } from './oauth/types';
+export type { OAuthRouteConfig, OAuthRoutes } from './oauth/routes';
 export type {
   OAuthProvider,
   OAuthConfig,
