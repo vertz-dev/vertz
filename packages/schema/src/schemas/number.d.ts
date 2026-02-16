@@ -1,0 +1,40 @@
+import type { ParseContext } from '../core/parse-context';
+import { Schema } from '../core/schema';
+import { SchemaType } from '../core/types';
+import type { JSONSchemaObject, RefTracker } from '../introspection/json-schema';
+export declare class NumberSchema extends Schema<number> {
+  private _gte;
+  private _gteMessage;
+  private _gt;
+  private _gtMessage;
+  private _lte;
+  private _lteMessage;
+  private _lt;
+  private _ltMessage;
+  private _int;
+  private _positive;
+  private _negative;
+  private _nonnegative;
+  private _nonpositive;
+  private _multipleOf;
+  private _finite;
+  _parse(value: unknown, ctx: ParseContext): number;
+  gte(n: number, message?: string): NumberSchema;
+  min(n: number, message?: string): NumberSchema;
+  gt(n: number, message?: string): NumberSchema;
+  lte(n: number, message?: string): NumberSchema;
+  max(n: number, message?: string): NumberSchema;
+  lt(n: number, message?: string): NumberSchema;
+  int(): NumberSchema;
+  positive(): NumberSchema;
+  negative(): NumberSchema;
+  nonnegative(): NumberSchema;
+  nonpositive(): NumberSchema;
+  multipleOf(n: number): NumberSchema;
+  step(n: number): NumberSchema;
+  finite(): NumberSchema;
+  _schemaType(): SchemaType;
+  _toJSONSchema(_tracker: RefTracker): JSONSchemaObject;
+  _clone(): NumberSchema;
+}
+//# sourceMappingURL=number.d.ts.map

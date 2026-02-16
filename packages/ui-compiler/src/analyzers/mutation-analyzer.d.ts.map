@@ -1,0 +1,1 @@
+{"version":3,"file":"mutation-analyzer.d.ts","sourceRoot":"","sources":["mutation-analyzer.ts"],"names":[],"mappings":"AAAA,OAAO,EAAa,KAAK,UAAU,EAAc,MAAM,UAAU,CAAC;AAClE,OAAO,KAAK,EAAE,aAAa,EAAE,YAAY,EAAE,YAAY,EAAE,MAAM,UAAU,CAAC;AAgB1E;;;GAGG;AACH,qBAAa,gBAAgB;IAC3B,OAAO,CACL,UAAU,EAAE,UAAU,EACtB,SAAS,EAAE,aAAa,EACxB,SAAS,EAAE,YAAY,EAAE,GACxB,YAAY,EAAE;CAqGlB"}

@@ -1,5 +1,7 @@
 # @vertz/codegen
 
+> ⚠️ **Internal package** — This package is an implementation detail of the Vertz framework. It is published for use by other `@vertz/*` packages. No API stability is guaranteed between versions.
+
 Code generation for Vertz applications. Generates TypeScript SDKs, CLIs, and type definitions from your Vertz app's intermediate representation (IR).
 
 ## What it does

@@ -2,7 +2,7 @@
  * Tests for the ConfirmDialog component.
  *
  * Demonstrates:
- * - Testing Dialog primitive from @vertz/primitives
+ * - Testing Dialog primitive from @vertz/ui-primitives
  * - click() for opening/closing the dialog
  * - press() for keyboard interaction (Escape to close)
  * - Verifying ARIA attributes

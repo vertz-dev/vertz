@@ -1,5 +1,7 @@
 # @vertz/cli-runtime
 
+> ⚠️ **Internal package** — This package is an implementation detail of the Vertz framework. It is published for use by other `@vertz/*` packages. No API stability is guaranteed between versions.
+
 Runtime utilities for building CLIs with Vertz. Provides command parsing, help generation, parameter resolution, authentication, and formatted output.
 
 ## What it does
