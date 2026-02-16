@@ -9,10 +9,6 @@
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/tui"
   },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
