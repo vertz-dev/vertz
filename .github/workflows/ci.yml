@@ -109,6 +109,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Trojan Source check
+        run: bash scripts/check-unicode.sh
+
       - name: CI pipeline
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
