@@ -1,0 +1,43 @@
+{
+  "name": "@vertz/create-vertz-app",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vertz-dev/vertz.git",
+    "directory": "packages/create-vertz-app"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "bin": {
+    "create-vertz-app": "./bin/create-vertz-app.ts"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "commander": "^14.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
