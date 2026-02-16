@@ -29,7 +29,7 @@ export function createCLI(): Command {
     .option('--sourcemap', 'Generate sourcemaps')
     .option('-v, --verbose', 'Verbose output')
     .action(async (opts) => {
-      await buildAction({
+      const exitCode = await buildAction({
         strict: opts.strict,
         output: opts.output,
         target: opts.target,
@@ -38,6 +38,7 @@ export function createCLI(): Command {
         sourcemap: opts.sourcemap,
         verbose: opts.verbose,
       });
+      process.exit(exitCode);
     });
 
   // Unified dev command - Phase 1 implementation

@@ -4,7 +4,7 @@
  * Production build command that orchestrates:
  * 1. Codegen - runs the full pipeline to generate types, routes, OpenAPI
  * 2. Typecheck - runs TypeScript compiler for type checking
- * 3. Bundle - bundles the server for production (esbuild/Bun)
+ * 3. Bundle - bundles the server for production (esbuild)
  * 4. Manifest - generates build manifest for vertz publish
  */
 
@@ -26,10 +26,11 @@ export interface BuildCommandOptions {
 
 /**
  * Run the build command
+ * @returns Exit code (0 for success, 1 for failure)
  */
-export async function buildAction(options: BuildCommandOptions = {}): Promise<void> {
+export async function buildAction(options: BuildCommandOptions = {}): Promise<number> {
   const {
-    strict = false,
+    strict: _strict = false,
     output,
     target = 'node',
     noTypecheck = false,
@@ -42,7 +43,7 @@ export async function buildAction(options: BuildCommandOptions = {}): Promise<vo
   const projectRoot = findProjectRoot(process.cwd());
   if (!projectRoot) {
     console.error('Error: Could not find project root. Are you in a Vertz project?');
-    process.exit(1);
+    return 1;
   }
 
   // Check for entry point
@@ -51,7 +52,7 @@ export async function buildAction(options: BuildCommandOptions = {}): Promise<vo
   if (!existsSync(entryPath)) {
     console.error(`Error: Entry point not found at ${entryPoint}`);
     console.error('Make sure you have an app.ts in your src directory.');
-    process.exit(1);
+    return 1;
   }
 
   console.log('🚀 Starting Vertz production build...\n');
@@ -88,7 +89,7 @@ export async function buildAction(options: BuildCommandOptions = {}): Promise<vo
       console.error('\n❌ Build failed:');
       console.error(`   ${result.error}`);
       await orchestrator.dispose();
-      process.exit(1);
+      return 1;
     }
 
     // Print summary
@@ -112,38 +113,11 @@ export async function buildAction(options: BuildCommandOptions = {}): Promise<vo
     }
 
     await orchestrator.dispose();
-    process.exit(0);
+    return 0;
 
   } catch (error) {
     console.error('\n❌ Fatal error:', error instanceof Error ? error.message : String(error));
     await orchestrator.dispose();
-    process.exit(1);
+    return 1;
   }
-}
-
-/**
- * Register the build command with a Commander program
- */
-export function registerBuildCommand(program: any): void {
-  program
-    .command('build')
-    .description('Compile the project for production')
-    .option('--strict', 'Enable strict mode')
-    .option('-o, --output <dir>', 'Output directory', '.vertz/build')
-    .option('-t, --target <target>', 'Build target (node, edge, worker)', 'node')
-    .option('--no-typecheck', 'Disable type checking')
-    .option('--no-minify', 'Disable minification')
-    .option('--sourcemap', 'Generate sourcemaps')
-    .option('-v, --verbose', 'Verbose output')
-    .action(async (opts: BuildCommandOptions) => {
-      await buildAction({
-        strict: opts.strict,
-        output: opts.output,
-        target: opts.target,
-        noTypecheck: opts.noTypecheck,
-        noMinify: opts.noMinify,
-        sourcemap: opts.sourcemap,
-        verbose: opts.verbose,
-      });
-    });
 }

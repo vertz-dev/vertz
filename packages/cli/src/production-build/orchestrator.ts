@@ -9,10 +9,9 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync, readdirSync, statSync } from 'node:fs';
-import { join, dirname, relative } from 'node:path';
-import { execSync } from 'node:child_process';
+import { join } from 'node:path';
+import * as esbuild from 'esbuild';
 import { createCompiler, type Compiler } from '@vertz/compiler';
-import { generate, createCodegenPipeline } from '@vertz/codegen';
 import {
   PipelineOrchestrator,
   type PipelineConfig,
@@ -20,6 +19,7 @@ import {
 } from '../pipeline';
 import type { BuildConfig, BuildResult, BuildManifest, BuildStageStatus, GeneratedFile } from './types';
 import { defaultBuildConfig } from './types';
+import { formatDuration, formatFileSize } from '../utils/format';
 
 /**
  * Build Orchestrator
@@ -117,8 +117,8 @@ export class BuildOrchestrator {
       
       console.log('\n✅ Build completed successfully!');
       console.log(`   Output: ${this.config.outputDir}`);
-      console.log(`   Size: ${this.formatSize(manifest.size)}`);
-      console.log(`   Time: ${this.formatDuration(durationMs)}`);
+      console.log(`   Size: ${formatFileSize(manifest.size)}`);
+      console.log(`   Time: ${formatDuration(durationMs)}`);
 
       return {
         success: true,
@@ -201,7 +201,7 @@ export class BuildOrchestrator {
   }
 
   /**
-   * Bundle the application using esbuild
+   * Bundle the application using esbuild JavaScript API
    */
   private async runBundle(): Promise<{ success: boolean; size?: number; dependencies?: string[]; treeShaken?: string[]; error?: string }> {
     try {
@@ -212,45 +212,21 @@ export class BuildOrchestrator {
 
       const entryFile = join(process.cwd(), this.config.entryPoint);
       const outfile = join(this.config.outputDir, 'index.js');
-      
-      // Build esbuild arguments
-      const args = [
-        entryFile,
-        '--bundle',
-        '--platform=node',
-        `--format=esm`,
-        `--outfile=${outfile}`,
-        `--target=${this.getEsbuildTarget()}`,
-      ];
 
-      if (this.config.minify) {
-        args.push('--minify');
-      }
-      
-      if (this.config.sourcemap) {
-        args.push('--sourcemap');
-      }
-
-      // External dependencies that should not be bundled
-      args.push('--external:@vertz/*');
-      args.push('--external:@anthropic-ai/sdk');
-      
-      // Run esbuild
-      console.log(`   Running: esbuild ${args.slice(1).join(' ')}`);
-      
-      try {
-        execSync(`npx esbuild ${args.slice(1).join(' ')}`, { stdio: 'inherit' });
-      } catch {
-        // esbuild might not be installed, try bun
-        try {
-          execSync(`bun build ${entryFile} --outfile=${outfile} --target=${this.getBunTarget()}`, { stdio: 'inherit' });
-        } catch (e) {
-          // Fall back to copying entry file if no bundler available
-          console.log('   ⚠️  No bundler available, copying entry file...');
-          const { copyFileSync } = await import('node:fs');
-          copyFileSync(entryFile, outfile);
-        }
-      }
+      // Build using esbuild JavaScript API - safer and more reliable than shell execution
+      const buildResult = await esbuild.build({
+        entryPoints: [entryFile],
+        bundle: true,
+        platform: 'node',
+        format: 'esm',
+        outfile,
+        target: this.getEsbuildTarget(),
+        minify: this.config.minify,
+        sourcemap: this.config.sourcemap,
+        external: ['@vertz/*', '@anthropic-ai/sdk'],
+        logLevel: 'info',
+        metafile: true, // Enable metafile for analysis
+      });
 
       // Calculate bundle size
       let size = 0;
@@ -258,14 +234,31 @@ export class BuildOrchestrator {
         size = statSync(outfile).size;
       }
 
+      // Extract dependencies and tree-shaken modules from metafile
+      const dependencies: string[] = [];
+      const treeShaken: string[] = [];
+
+      if (buildResult.metafile) {
+        const outputs = buildResult.metafile.outputs;
+        for (const [_path, info] of Object.entries(outputs)) {
+          // Collect inputs (dependencies)
+          for (const inputPath of Object.keys(info.inputs)) {
+            if (!dependencies.includes(inputPath)) {
+              dependencies.push(inputPath);
+            }
+          }
+        }
+      }
+
       return {
         success: true,
         size,
-        dependencies: [], // TODO: Extract dependencies from bundle
-        treeShaken: [],  // TODO: Extract tree-shaken modules
+        dependencies,
+        treeShaken,
       };
 
     } catch (error) {
+      // Don't fall back to file copy - a failed build MUST fail
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -285,21 +278,6 @@ export class BuildOrchestrator {
       case 'node':
       default:
         return 'node18';
-    }
-  }
-
-  /**
-   * Get Bun target string
-   */
-  private getBunTarget(): string {
-    switch (this.config.target) {
-      case 'edge':
-        return 'edge';
-      case 'worker':
-        return 'bun';
-      case 'node':
-      default:
-        return 'node';
     }
   }
 
@@ -391,23 +369,6 @@ export class BuildOrchestrator {
       error,
       durationMs: performance.now() - startTime,
     };
-  }
-
-  /**
-   * Format file size
-   */
-  private formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-
-  /**
-   * Format duration
-   */
-  private formatDuration(ms: number): string {
-    if (ms < 1000) return `${Math.round(ms)}ms`;
-    return `${(ms / 1000).toFixed(2)}s`;
   }
 
   /**

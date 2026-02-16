@@ -4,13 +4,14 @@
  * Tests for the production build orchestrator that handles:
  * - Codegen pipeline execution
  * - Type checking
- * - Bundling
+ * - Bundling (using esbuild JavaScript API)
  * - Manifest generation
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { BuildOrchestrator, createBuildOrchestrator } from '../orchestrator';
 import type { BuildConfig, BuildManifest } from '../types';
+import type * as Esbuild from 'esbuild';
 
 // Mock dependencies
 vi.mock('@vertz/compiler', () => ({
@@ -47,10 +48,21 @@ vi.mock('@vertz/codegen', () => ({
   }),
 }));
 
-// Mock exec for bundling
-vi.mock('node:child_process', () => ({
-  exec: vi.fn(),
-  execSync: vi.fn(),
+// Mock esbuild - create a default mock implementation
+vi.mock('esbuild', () => ({
+  build: vi.fn().mockResolvedValue({
+    errors: [],
+    warnings: [],
+    metafile: {
+      inputs: {},
+      outputs: {
+        '.vertz/build/index.js': {
+          bytes: 1000,
+          inputs: {},
+        },
+      },
+    },
+  }),
 }));
 
 describe('BuildOrchestrator', () => {
@@ -66,12 +78,29 @@ describe('BuildOrchestrator', () => {
     entryPoint: 'src/app.ts',
   };
 
-  beforeEach(() => {
-    orchestrator = new BuildOrchestrator(defaultConfig);
+  beforeEach(async () => {
+    // Get the mocked esbuild module and reset its implementation
+    const esbuild = await import('esbuild');
+    const mockBuild = esbuild.build as Mock;
+    mockBuild.mockResolvedValue({
+      errors: [],
+      warnings: [],
+      outputFiles: [],
+      mangleCache: {},
+      metafile: {
+        inputs: {},
+        outputs: {
+          '.vertz/build/index.js': {
+            bytes: 1000,
+            inputs: {},
+          },
+        },
+      },
+    });
   });
 
   afterEach(async () => {
-    await orchestrator.dispose();
+    vi.restoreAllMocks();
   });
 
   describe('initialization', () => {
@@ -97,7 +126,8 @@ describe('BuildOrchestrator', () => {
   });
 
   describe('build', () => {
-    it('should run the full build pipeline', async () => {
+    it('should run the full build pipeline with all stages', async () => {
+      orchestrator = new BuildOrchestrator(defaultConfig);
       const result = await orchestrator.build();
       
       expect(result.success).toBe(true);
@@ -107,32 +137,41 @@ describe('BuildOrchestrator', () => {
     });
 
     it('should skip typecheck when disabled', async () => {
-      const noTypecheckOrchestrator = new BuildOrchestrator({
+      orchestrator = new BuildOrchestrator({
         ...defaultConfig,
         typecheck: false,
       });
       
-      const result = await noTypecheckOrchestrator.build();
+      const result = await orchestrator.build();
       
       expect(result.success).toBe(true);
       expect(result.stages.typecheck).toBe(false);
     });
 
-    it('should return error when codegen fails', async () => {
-      // Create a mock that fails codegen
-      const failingOrchestrator = new BuildOrchestrator({
+    it('should return failure when bundle fails', async () => {
+      // Mock esbuild to fail
+      const esbuild = await import('esbuild');
+      const mockBuild = esbuild.build as Mock;
+      mockBuild.mockRejectedValue(new Error('Build failed'));
+      
+      orchestrator = new BuildOrchestrator({
         ...defaultConfig,
-        sourceDir: 'nonexistent', // This should cause analyze to fail
+        typecheck: false, // Skip typecheck to focus on bundle failure
       });
       
-      // We expect it to handle the error gracefully
-      const result = await failingOrchestrator.build();
-      // The build might succeed with empty output, but we test the structure
-      expect(result).toHaveProperty('success');
-      expect(result).toHaveProperty('manifest');
+      const result = await orchestrator.build();
+      
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Build failed');
+      expect(result.stages.bundle).toBe(false);
     });
 
     it('should generate a manifest', async () => {
+      orchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: false,
+      });
+      
       const result = await orchestrator.build();
       
       expect(result.manifest).toBeDefined();
@@ -143,27 +182,79 @@ describe('BuildOrchestrator', () => {
     });
 
     it('should include generated files in manifest', async () => {
+      orchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: false,
+      });
+      
       const result = await orchestrator.build();
       
       expect(result.manifest).toHaveProperty('generatedFiles');
       expect(Array.isArray(result.manifest.generatedFiles)).toBe(true);
     });
+
+    it('should include bundle size in manifest', async () => {
+      // This test verifies size is extracted from the bundle
+      // The actual file size might be 0 in mock environment
+      orchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: false,
+      });
+      
+      const result = await orchestrator.build();
+      
+      // Size should be present in the manifest (actual value depends on fs)
+      expect(result.manifest.size).toBeDefined();
+    });
+
+    it('should return error when bundle fails', async () => {
+      // Mock esbuild to fail
+      const esbuild = await import('esbuild');
+      const mockBuild = esbuild.build as Mock;
+      mockBuild.mockRejectedValue(new Error('Bundle failed'));
+      
+      const failingOrchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: false,
+      });
+      
+      const result = await failingOrchestrator.build();
+      
+      // The result should have error field when bundle fails
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Bundle failed');
+    });
   });
 
   describe('manifest', () => {
     it('should include entry point in manifest', async () => {
+      orchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: false,
+      });
+      
       const result = await orchestrator.build();
       
       expect(result.manifest.entryPoint).toBe(defaultConfig.entryPoint);
     });
 
     it('should include output directory in manifest', async () => {
+      orchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: false,
+      });
+      
       const result = await orchestrator.build();
       
       expect(result.manifest.outputDir).toBe(defaultConfig.outputDir);
     });
 
     it('should include build timestamp in manifest', async () => {
+      orchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: false,
+      });
+      
       const beforeBuild = Date.now();
       const result = await orchestrator.build();
       const afterBuild = Date.now();
@@ -171,12 +262,44 @@ describe('BuildOrchestrator', () => {
       expect(result.manifest.buildTime).toBeGreaterThanOrEqual(beforeBuild);
       expect(result.manifest.buildTime).toBeLessThanOrEqual(afterBuild);
     });
+
+    it('should include target in manifest', async () => {
+      orchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: false,
+        target: 'edge',
+      });
+      
+      const result = await orchestrator.build();
+      
+      expect(result.manifest.target).toBe('edge');
+    });
   });
 
   describe('createBuildOrchestrator', () => {
     it('should create a new build orchestrator', () => {
       const orch = createBuildOrchestrator(defaultConfig);
       expect(orch).toBeDefined();
+    });
+  });
+
+  describe('build duration', () => {
+    it('should record build duration', async () => {
+      orchestrator = new BuildOrchestrator({
+        ...defaultConfig,
+        typecheck: false,
+      });
+      
+      const result = await orchestrator.build();
+      
+      expect(result.durationMs).toBeGreaterThan(0);
+    });
+  });
+
+  describe('dispose', () => {
+    it('should clean up resources', async () => {
+      orchestrator = new BuildOrchestrator(defaultConfig);
+      await expect(orchestrator.dispose()).resolves.toBeUndefined();
     });
   });
 });
