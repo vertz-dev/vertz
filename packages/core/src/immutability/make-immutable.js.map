@@ -1,0 +1,1 @@
+{"version":3,"file":"make-immutable.js","sourceRoot":"","sources":["make-immutable.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,oBAAoB,EAAE,MAAM,aAAa,CAAC;AAEnD,MAAM,UAAU,aAAa,CAAmB,GAAM,EAAE,WAAmB;IACzE,IAAI,OAAO,CAAC,GAAG,CAAC,QAAQ,KAAK,aAAa,EAAE,CAAC;QAC3C,OAAO,oBAAoB,CAAC,GAAG,EAAE,WAAW,CAAoB,CAAC;IACnE,CAAC;IACD,OAAO,GAAsB,CAAC;AAChC,CAAC"}

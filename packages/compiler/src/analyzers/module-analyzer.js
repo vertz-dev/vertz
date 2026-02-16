@@ -1,0 +1,100 @@
+import { SyntaxKind } from 'ts-morph';
+import { createDiagnosticFromLocation } from '../errors';
+import {
+  extractObjectLiteral,
+  findCallExpressions,
+  getProperties,
+  getPropertyValue,
+  getSourceLocation,
+  getStringValue,
+  getVariableNameForCall,
+} from '../utils/ast-helpers';
+import { BaseAnalyzer } from './base-analyzer';
+import { createNamedSchemaRef } from './schema-analyzer';
+export class ModuleAnalyzer extends BaseAnalyzer {
+  async analyze() {
+    const modules = [];
+    // Map from moduleDef variable name to module index
+    const defVarToIndex = new Map();
+    // Pass 1: find vertz.moduleDef() calls
+    for (const file of this.project.getSourceFiles()) {
+      const defCalls = findCallExpressions(file, 'vertz', 'moduleDef');
+      for (const call of defCalls) {
+        const obj = extractObjectLiteral(call, 0);
+        if (!obj) continue;
+        const nameExpr = getPropertyValue(obj, 'name');
+        const name = nameExpr ? getStringValue(nameExpr) : null;
+        if (!name) {
+          this.addDiagnostic(
+            createDiagnosticFromLocation(getSourceLocation(call), {
+              severity: 'error',
+              code: 'VERTZ_MODULE_DYNAMIC_NAME',
+              message: 'vertz.moduleDef() requires a static string `name` property.',
+            }),
+          );
+          continue;
+        }
+        const varName = getVariableNameForCall(call);
+        const importsExpr = getPropertyValue(obj, 'imports');
+        const imports = importsExpr?.isKind(SyntaxKind.ObjectLiteralExpression)
+          ? parseImports(importsExpr)
+          : [];
+        const optionsExpr = getPropertyValue(obj, 'options');
+        let options;
+        if (optionsExpr?.isKind(SyntaxKind.Identifier)) {
+          options = createNamedSchemaRef(optionsExpr.getText(), file.getFilePath());
+        }
+        const loc = getSourceLocation(call);
+        const idx = modules.length;
+        modules.push({
+          name,
+          ...loc,
+          imports,
+          options,
+          services: [],
+          routers: [],
+          exports: [],
+        });
+        if (varName) {
+          defVarToIndex.set(varName, idx);
+        }
+      }
+    }
+    // Pass 2: find vertz.module() calls and link to moduleDef
+    for (const file of this.project.getSourceFiles()) {
+      const moduleCalls = findCallExpressions(file, 'vertz', 'module');
+      for (const call of moduleCalls) {
+        const args = call.getArguments();
+        if (args.length < 2) continue;
+        const defArg = args.at(0);
+        if (!defArg?.isKind(SyntaxKind.Identifier)) continue;
+        const defVarName = defArg.getText();
+        const idx = defVarToIndex.get(defVarName);
+        if (idx === undefined) continue;
+        const mod = modules.at(idx);
+        if (!mod) continue;
+        const assemblyObj = extractObjectLiteral(call, 1);
+        if (!assemblyObj) continue;
+        const exportsExpr = getPropertyValue(assemblyObj, 'exports');
+        if (exportsExpr) {
+          mod.exports = extractIdentifierNames(exportsExpr);
+        }
+      }
+    }
+    return { modules };
+  }
+}
+export function parseImports(obj) {
+  return getProperties(obj).map(({ name }) => ({
+    localName: name,
+    isEnvImport: false,
+  }));
+}
+export function extractIdentifierNames(expr) {
+  if (!expr.isKind(SyntaxKind.ArrayLiteralExpression)) return [];
+  return expr
+    .getElements()
+    .filter((e) => e.isKind(SyntaxKind.Identifier))
+    .map((e) => e.getText());
+}
+//# sourceMappingURL=module-analyzer.js.map
