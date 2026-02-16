@@ -1,0 +1,105 @@
+---
+title: Introduction
+description: Vertz is the first TypeScript stack built for LLMs. A complete solution from database to browser with type-safe, schema-first, entity-aware architecture.
+---
+
+# Vertz: The TypeScript Stack for LLMs
+
+Vertz is a full-stack TypeScript framework designed from the ground up for building AI-powered applications. It provides end-to-end type safety, schema validation, and entity-aware data management — everything you need to build robust LLM applications.
+
+## Why Vertz?
+
+Traditional web frameworks weren't built for AI. Vertz is:
+
+- **Type-safe end-to-end** — Share types between your API and UI. Define a schema once, use it everywhere.
+- **Schema-first** — Data validation at the boundary. Your API routes, form handlers, and database queries all use the same schema definition.
+- **Entity-aware** — Vertz understands your data model. TypeScript knows about your users, posts, and products — not just generic types.
+- **LLM-optimized** — Built for AI agents. Clear patterns, predictable APIs, and comprehensive type definitions that work with code generation.
+
+## The Stack
+
+Vertz isn't just a UI framework — it's a complete stack:
+
+| Layer | Package | Purpose |
+|-------|---------|---------|
+| **Database** | `@vertz/db` | Type-safe database queries with entity awareness |
+| **API** | `@vertz/server` | Schema-validated API routes with auto-generated SDKs |
+| **Schema** | `@vertz/schema` | Define and validate data shapes |
+| **Code Gen** | `@vertz/codegen` | Generate TypeScript SDKs from your API |
+| **UI** | `@vertz/ui` | Signal-based reactive UI with compiler |
+| **Primitives** | `@vertz/primitives` | Headless, accessible UI components |
+
+## Key Concepts
+
+### Schema-First Development
+
+Define your data once:
+
+```typescript
+import { schema } from '@vertz/schema';
+
+const userSchema = schema.object({
+  id: schema.string(),
+  name: schema.string(),
+  email: schema.string().email(),
+  role: schema.enum(['admin', 'user', 'guest']),
+});
+```
+
+Use the same schema for:
+- Database queries
+- API request/response validation
+- Form validation
+- TypeScript types (auto-generated)
+
+### Entity Awareness
+
+Vertz understands your domain:
+
+```typescript
+// Define an entity
+const User = entity({
+  schema: userSchema,
+  table: 'users',
+});
+
+// Type-safe queries
+const user = await User.find('user_123');
+await User.update('user_123', { name: 'Alice' });
+```
+
+### Signal-Based Reactivity
+
+The UI uses fine-grained reactivity powered by signals:
+
+```tsx
+function Counter() {
+  let count = 0; // Becomes a signal automatically
+
+  return (
+    <div>
+      <span>{count}</span>
+      <button onClick={() => count++}>+</button>
+    </div>
+  );
+}
+```
+
+No virtual DOM. No reconciliation. Just direct DOM updates when signals change.
+
+## Getting Started
+
+```bash
+npx @vertz/create-vertz-app my-app
+cd my-app
+npm run dev
+```
+
+Then open http://localhost:3000 and start building.
+
+## Next Steps
+
+- **[Quickstart](/docs/quickstart)** — Create your first Vertz app in 5 minutes
+- **[UI Guide](/docs/ui/overview)** — Learn about the signal-based UI framework
+- **[Primitives](/docs/ui-primitives/overview)** — Headless accessible components
+- **[API Routes](/docs/server/overview)** — Build type-safe backend APIs

@@ -1,6 +1,6 @@
 {
   "name": "@vertz/ui-compiler",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "license": "MIT",
   "description": "Vertz UI compiler — SSR and build-time optimizations",
