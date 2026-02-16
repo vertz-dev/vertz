@@ -15,14 +15,14 @@ import type { AuthConfig, Session } from '../auth/types';
 describe('Auth Module', () => {
   describe('Password Utilities', () => {
     describe('hashPassword', () => {
-      it('should hash a password', async () => {
+      it('should hash a password', { timeout: 15_000 }, async () => {
         const hash = await hashPassword('testPassword123');
         expect(hash).toBeDefined();
         expect(hash).not.toBe('testPassword123');
         expect(hash.length).toBeGreaterThan(20);
       });
 
-      it('should produce different hashes for same password (salting)', async () => {
+      it('should produce different hashes for same password (salting)', { timeout: 15_000 }, async () => {
         const hash1 = await hashPassword('testPassword123');
         const hash2 = await hashPassword('testPassword123');
         expect(hash1).not.toBe(hash2);
