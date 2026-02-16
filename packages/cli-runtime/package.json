@@ -3,15 +3,11 @@
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
-  "description": "Vertz CLI runtime internals — internal, no stability guarantee",
+  "description": "Vertz CLI runtime internals \u2014 internal, no stability guarantee",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/cli-runtime"
-  },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -42,5 +38,6 @@
   },
   "engines": {
     "node": ">=22"
-  }
+  },
+  "private": true
 }
