@@ -45,9 +45,9 @@ const PACKAGES: { name: string; singleImport: string; distEntry: string }[] = [
     distEntry: 'packages/core/dist/index.js',
   },
   {
-    name: '@vertz/primitives',
-    singleImport: `import { Button } from '@vertz/primitives'; console.log(Button);`,
-    distEntry: 'packages/primitives/dist/index.js',
+    name: '@vertz/ui-primitives',
+    singleImport: `import { Button } from '@vertz/ui-primitives'; console.log(Button);`,
+    distEntry: 'packages/ui-primitives/dist/index.js',
   },
   {
     name: '@vertz/fetch',

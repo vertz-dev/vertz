@@ -1,0 +1,40 @@
+function normalizePath(path) {
+  // Collapse consecutive slashes (e.g. "//users/" → "/users/")
+  let normalized = path.replace(/\/+/g, '/');
+  // Remove trailing slash unless path is just "/"
+  if (normalized.length > 1 && normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1);
+  }
+  return normalized || '/';
+}
+export function collectRoutes(basePath, registrations) {
+  const routes = [];
+  for (const { module } of registrations) {
+    for (const router of module.routers) {
+      for (const route of router.routes) {
+        routes.push({
+          method: route.method,
+          path: normalizePath(basePath + router.prefix + route.path),
+        });
+      }
+    }
+  }
+  return routes;
+}
+export function formatRouteLog(listenUrl, routes) {
+  const header = `vertz server listening on ${listenUrl}`;
+  if (routes.length === 0) {
+    return header;
+  }
+  const sorted = [...routes].sort(
+    (a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method),
+  );
+  const MIN_METHOD_WIDTH = 6; // "DELETE".length — keeps output stable
+  const maxMethodLen = Math.max(MIN_METHOD_WIDTH, ...sorted.map((r) => r.method.length));
+  const lines = sorted.map((r) => {
+    const paddedMethod = r.method.padEnd(maxMethodLen);
+    return `  ${paddedMethod} ${r.path}`;
+  });
+  return [header, '', ...lines].join('\n');
+}
+//# sourceMappingURL=route-log.js.map

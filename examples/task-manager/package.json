@@ -13,7 +13,7 @@
   "dependencies": {
     "@vertz/ui": "workspace:*",
     "@vertz/ui-server": "workspace:*",
-    "@vertz/primitives": "workspace:*"
+    "@vertz/ui-primitives": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
