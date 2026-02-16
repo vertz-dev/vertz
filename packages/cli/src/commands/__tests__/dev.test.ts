@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { categorizeFileChange, getAffectedStages, type FileCategory } from '../../pipeline/watcher';
+import { describe, expect, it, vi } from 'vitest';
+import { categorizeFileChange, getAffectedStages } from '../../pipeline/watcher';
 
 describe('Pipeline Orchestrator', () => {
   describe('categorizeFileChange', () => {
@@ -88,7 +88,7 @@ describe('Pipeline Orchestrator', () => {
     it('should identify that schema changes trigger codegen but not UI build', () => {
       const category = categorizeFileChange('src/schemas/user.schema.ts');
       const stages = getAffectedStages(category);
-      
+
       // Schema changes should only affect codegen
       expect(stages).toEqual(expect.arrayContaining(['codegen']));
       expect(stages).not.toContain('build-ui');
@@ -97,7 +97,7 @@ describe('Pipeline Orchestrator', () => {
     it('should identify that domain changes trigger analyze and codegen', () => {
       const category = categorizeFileChange('src/domains/auth.domain.ts');
       const stages = getAffectedStages(category);
-      
+
       // Domain changes affect the IR analysis and codegen
       expect(stages).toEqual(expect.arrayContaining(['analyze', 'codegen']));
     });
@@ -109,11 +109,9 @@ describe('Pipeline Orchestrator', () => {
       const mockCompiler = {
         analyze: vi.fn().mockRejectedValue(new Error('Syntax error')),
       };
-      
+
       // The error should propagate - the orchestrator catches it
-      await expect(
-        mockCompiler.analyze()
-      ).rejects.toThrow('Syntax error');
+      await expect(mockCompiler.analyze()).rejects.toThrow('Syntax error');
     });
 
     it('should propagate codegen errors correctly', async () => {
@@ -121,11 +119,9 @@ describe('Pipeline Orchestrator', () => {
       const mockCodegen = {
         generate: vi.fn().mockRejectedValue(new Error('Codegen failed')),
       };
-      
+
       // The error should propagate
-      await expect(
-        mockCodegen.generate({}, {})
-      ).rejects.toThrow('Codegen failed');
+      await expect(mockCodegen.generate({}, {})).rejects.toThrow('Codegen failed');
     });
   });
 });

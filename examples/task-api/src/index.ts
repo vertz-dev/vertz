@@ -19,8 +19,12 @@
 import { vertz } from '@vertz/core';
 import { taskModule } from './modules/tasks/task.module';
 import { userModule } from './modules/users/user.module';
+import { ensureTables } from './db';
 
 const PORT = Number(process.env.PORT) || 3000;
+
+// Initialize database tables (auto-creates tables and seeds data)
+await ensureTables();
 
 const app = vertz
   .app({

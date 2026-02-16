@@ -1,7 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createModule } from '../../module/module';
 import { createModuleDef } from '../../module/module-def';
-import type { HandlerCtx } from '../../types/context';
 import { createApp } from '../app-builder';
 
 describe('Response Schema Validation', () => {
@@ -21,7 +20,7 @@ describe('Response Schema Validation', () => {
     };
 
     // Handler returns wrong type (string instead of number)
-    router.get('/' , {
+    router.get('/', {
       response: responseSchema,
       handler: () => ({ id: 'not-a-number' }), // Wrong type!
     });

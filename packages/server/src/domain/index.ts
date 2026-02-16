@@ -2,12 +2,12 @@
 
 export { domain } from './domain';
 export type {
-  DomainDefinition,
-  DomainOptions,
-  DomainType,
-  DomainContext,
   AccessRule,
   AccessRules,
-  Result,
+  DomainContext,
+  DomainDefinition,
   DomainError,
+  DomainOptions,
+  DomainType,
+  Result,
 } from './types';

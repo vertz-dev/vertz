@@ -1,6 +1,6 @@
 /**
  * Vertz Dev Command - Phase 1 Implementation
- * 
+ *
  * Unified `vertz dev` command that orchestrates the full development workflow:
  * 1. Analyze - runs @vertz/compiler to produce AppIR
  * 2. Generate - runs @vertz/codegen to emit types, route map, DB client
@@ -8,19 +8,18 @@
  * 4. Serve - dev server with HMR
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { join } from 'node:path';
 import type { Command } from 'commander';
 import {
-  PipelineOrchestrator,
   createPipelineWatcher,
-  type PipelineConfig,
   type FileChange,
+  type PipelineConfig,
+  PipelineOrchestrator,
   type PipelineStage,
 } from '../pipeline';
-import { findProjectRoot } from '../utils/paths';
 import { formatDuration } from '../utils/format';
+import { findProjectRoot } from '../utils/paths';
 
 export interface DevCommandOptions {
   port?: number;
@@ -74,11 +73,11 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
   const shutdown = async () => {
     console.log('\n\n👋 Shutting down...');
     isRunning = false;
-    
+
     if (viteProcess) {
       viteProcess.kill('SIGTERM');
     }
-    
+
     await orchestrator.dispose();
     process.exit(0);
   };
@@ -90,7 +89,7 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
     // Step 1: Initial analysis and codegen
     console.log('📦 Running initial pipeline...');
     const initialResult = await orchestrator.runFull();
-    
+
     if (!initialResult.success) {
       console.error('\n❌ Initial pipeline failed:');
       for (const stage of initialResult.stages) {
@@ -110,24 +109,24 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
 
     // Step 2: Start file watcher for incremental builds
     console.log('\n👀 Watching for file changes...');
-    
-    const watcher = createPipelineWatcher({
+
+    const _watcher = createPipelineWatcher({
       dir: join(projectRoot, 'src'),
       debounceMs: 100,
       onChange: async (changes: FileChange[]) => {
         if (!isRunning) return;
-        
+
         // Determine which stages to run
         const stages = getStagesForFileChanges(changes);
-        
+
         if (verbose) {
-          console.log(`\n🔄 File change detected: ${changes.map(c => c.path).join(', ')}`);
+          console.log(`\n🔄 File change detected: ${changes.map((c) => c.path).join(', ')}`);
           console.log(`   Running stages: ${stages.join(', ')}`);
         }
-        
+
         // Run the affected stages
         const result = await orchestrator.runStages(stages);
-        
+
         if (!result.success) {
           console.error('\n❌ Pipeline update failed:');
           for (const stage of result.stages) {
@@ -147,7 +146,7 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
     // Step 3: Start Vite dev server
     // Note: For now, we delegate to Vite. In Phase 3+, we'll use our own dev server.
     console.log(`\n🌐 Starting Vite dev server on http://${host}:${port}...`);
-    
+
     viteProcess = spawn('npx', ['vite', '--port', String(port), '--host', host], {
       cwd: projectRoot,
       stdio: 'inherit',
@@ -165,7 +164,6 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
       }
       shutdown();
     });
-
   } catch (error) {
     console.error('\n❌ Fatal error:', error instanceof Error ? error.message : String(error));
     await shutdown();
@@ -179,15 +177,17 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
  */
 function getStagesForFileChanges(changes: FileChange[]): PipelineStage[] {
   const stages = new Set<PipelineStage>();
-  
+
   for (const change of changes) {
     const path = change.path.toLowerCase();
-    
+
     // Domain, module, service, route changes → analyze + codegen
-    if (path.includes('.domain.ts') || 
-        path.includes('.module.ts') || 
-        path.includes('.service.ts') ||
-        path.includes('.route.ts')) {
+    if (
+      path.includes('.domain.ts') ||
+      path.includes('.module.ts') ||
+      path.includes('.service.ts') ||
+      path.includes('.route.ts')
+    ) {
       stages.add('analyze');
       stages.add('codegen');
     }
@@ -210,12 +210,12 @@ function getStagesForFileChanges(changes: FileChange[]): PipelineStage[] {
       stages.add('build-ui');
     }
   }
-  
+
   // Always analyze before codegen
   if (stages.has('codegen') && !stages.has('analyze')) {
     stages.add('analyze');
   }
-  
+
   return Array.from(stages);
 }
 

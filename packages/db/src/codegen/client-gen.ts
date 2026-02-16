@@ -4,7 +4,7 @@
  * This module generates the typed database client.
  */
 
-import { generateTypes, type DomainDefinition } from './type-gen';
+import { type DomainDefinition, generateTypes } from './type-gen';
 
 /**
  * Generate the typed database client from domain definitions.
@@ -30,7 +30,7 @@ export function generateClient(domains: DomainDefinition[]): string {
   for (const domain of domains) {
     const { name, fields, relations } = domain;
     const pascalName = name.charAt(0).toUpperCase() + name.slice(1);
-    
+
     // Find primary key field name
     let idField = 'id';
     for (const [fieldName, field] of Object.entries(fields)) {
@@ -44,7 +44,9 @@ export function generateClient(domains: DomainDefinition[]): string {
     lines.push(`    list: (params?: List${pascalName}Params) => Promise<${pascalName}[]>,`);
     lines.push(`    get: (${idField}: string) => Promise<${pascalName} | null>,`);
     lines.push(`    create: (data: Create${pascalName}Input) => Promise<${pascalName}>,`);
-    lines.push(`    update: (${idField}: string, data: Update${pascalName}Input) => Promise<${pascalName}>,`);
+    lines.push(
+      `    update: (${idField}: string, data: Update${pascalName}Input) => Promise<${pascalName}>,`,
+    );
     lines.push(`    delete: (${idField}: string) => Promise<void>,`);
 
     // Add relation accessors - use method syntax for relations

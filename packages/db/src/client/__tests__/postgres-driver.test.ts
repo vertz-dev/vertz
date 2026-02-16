@@ -9,7 +9,7 @@
  * - #207: Connection cleanup
  */
 
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock postgres module
 const mockEnd = vi.fn().mockResolvedValue(undefined);
@@ -41,24 +41,40 @@ describe('PostgreSQL Driver', () => {
       const { isReadQuery } = await import('../database');
 
       // Writable CTEs: WITH clause containing INSERT should be write
-      expect(isReadQuery('WITH cte AS (INSERT INTO users (name) VALUES (x) RETURNING id) SELECT * FROM cte')).toBe(false);
-      expect(isReadQuery('with cte as (insert into orders (total) values (100)) select * from cte')).toBe(false);
+      expect(
+        isReadQuery(
+          'WITH cte AS (INSERT INTO users (name) VALUES (x) RETURNING id) SELECT * FROM cte',
+        ),
+      ).toBe(false);
+      expect(
+        isReadQuery('with cte as (insert into orders (total) values (100)) select * from cte'),
+      ).toBe(false);
     });
 
     it('correctly identifies WITH ... UPDATE as write query', async () => {
       const { isReadQuery } = await import('../database');
 
       // Writable CTEs: WITH clause containing UPDATE should be write
-      expect(isReadQuery('WITH cte AS (UPDATE users SET name = x WHERE id = y RETURNING id) SELECT * FROM cte')).toBe(false);
-      expect(isReadQuery('with cte as (update products set price = price * 1.1) select * from cte')).toBe(false);
+      expect(
+        isReadQuery(
+          'WITH cte AS (UPDATE users SET name = x WHERE id = y RETURNING id) SELECT * FROM cte',
+        ),
+      ).toBe(false);
+      expect(
+        isReadQuery('with cte as (update products set price = price * 1.1) select * from cte'),
+      ).toBe(false);
     });
 
     it('correctly identifies WITH ... DELETE as write query', async () => {
       const { isReadQuery } = await import('../database');
 
       // Writable CTEs: WITH clause containing DELETE should be write
-      expect(isReadQuery('WITH cte AS (DELETE FROM users WHERE id = x RETURNING id) SELECT * FROM cte')).toBe(false);
-      expect(isReadQuery('with cte as (delete from sessions where expired) select * from cte')).toBe(false);
+      expect(
+        isReadQuery('WITH cte AS (DELETE FROM users WHERE id = x RETURNING id) SELECT * FROM cte'),
+      ).toBe(false);
+      expect(
+        isReadQuery('with cte as (delete from sessions where expired) select * from cte'),
+      ).toBe(false);
     });
 
     it('correctly identifies CTE with only SELECT as read query', async () => {
@@ -66,7 +82,11 @@ describe('PostgreSQL Driver', () => {
 
       // CTE with only SELECT should still be read
       expect(isReadQuery('WITH cte AS (SELECT 1) SELECT * FROM cte')).toBe(true);
-      expect(isReadQuery('with active_users as (select * from users where active) select * from active_users')).toBe(true);
+      expect(
+        isReadQuery(
+          'with active_users as (select * from users where active) select * from active_users',
+        ),
+      ).toBe(true);
     });
   });
 
@@ -76,7 +96,7 @@ describe('PostgreSQL Driver', () => {
 
       // SELECT FOR UPDATE acquires a lock, should go to primary
       expect(isReadQuery('SELECT * FROM users WHERE id = 1 FOR UPDATE')).toBe(false);
-      expect(isReadQuery('SELECT * FROM orders WHERE status = \'pending\' FOR UPDATE')).toBe(false);
+      expect(isReadQuery("SELECT * FROM orders WHERE status = 'pending' FOR UPDATE")).toBe(false);
       expect(isReadQuery('select * from users for update')).toBe(false);
     });
 
@@ -133,9 +153,11 @@ describe('PostgreSQL Driver', () => {
       const { isReadQuery } = await import('../database');
 
       expect(isReadQuery('WITH cte AS (SELECT 1) SELECT * FROM cte')).toBe(true);
-      expect(isReadQuery('with active_users as (select * from users where active) select * from active_users')).toBe(
-        true,
-      );
+      expect(
+        isReadQuery(
+          'with active_users as (select * from users where active) select * from active_users',
+        ),
+      ).toBe(true);
     });
 
     it('correctly identifies INSERT as write query', async () => {

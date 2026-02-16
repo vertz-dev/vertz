@@ -3,14 +3,9 @@
  * Tests for createAuth(), JWT, password hashing, sign-up/sign-in flows
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import {
-  createAuth,
-  hashPassword,
-  verifyPassword,
-  validatePassword,
-} from '../../auth/index';
-import type { AuthConfig, Session } from '../auth/types';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createAuth, hashPassword, validatePassword, verifyPassword } from '../../auth/index';
+import type { AuthConfig } from '../auth/types';
 
 describe('Auth Module', () => {
   describe('Password Utilities', () => {
@@ -174,7 +169,7 @@ describe('Auth Module', () => {
 
       it('should reject duplicate email', async () => {
         const auth = createAuth(authConfig);
-        
+
         await auth.api.signUp({
           email: 'duplicate@example.com',
           password: 'password123',
@@ -192,7 +187,7 @@ describe('Auth Module', () => {
       it('should include custom claims in JWT', async () => {
         const auth = createAuth({
           ...authConfig,
-          claims: (user) => ({ plan: 'premium', tier: 2 }),
+          claims: (_user) => ({ plan: 'premium', tier: 2 }),
         });
 
         const result = await auth.api.signUp({
@@ -280,7 +275,7 @@ describe('Auth Module', () => {
         });
 
         expect(signUpResult.ok).toBe(true);
-        
+
         // Create headers with session (in real scenario, cookie would be set)
         const headers = new Headers();
         headers.set('cookie', 'vertz.sid=test-token');
@@ -311,7 +306,7 @@ describe('Auth Module', () => {
               email: 'handler@example.com',
               password: 'password123',
             }),
-          })
+          }),
         );
 
         expect(response.status).toBe(201);
@@ -337,7 +332,7 @@ describe('Auth Module', () => {
               email: 'handlerlogin@example.com',
               password: 'password123',
             }),
-          })
+          }),
         );
 
         expect(response.status).toBe(200);
@@ -349,7 +344,7 @@ describe('Auth Module', () => {
         const response = await auth.handler(
           new Request('http://localhost/api/auth/session', {
             method: 'GET',
-          })
+          }),
         );
 
         expect(response.status).toBe(200);
@@ -361,7 +356,7 @@ describe('Auth Module', () => {
         const response = await auth.handler(
           new Request('http://localhost/api/auth/unknown', {
             method: 'GET',
-          })
+          }),
         );
 
         expect(response.status).toBe(404);

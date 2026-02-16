@@ -4,13 +4,13 @@ import type { NamedMiddlewareDef } from '../middleware/middleware-def';
 import { type ResolvedMiddleware, runMiddlewareChain } from '../middleware/middleware-runner';
 import type { NamedModule } from '../module/module';
 import type { NamedServiceDef } from '../module/service';
+import { isOk, isResult } from '../result';
 import { Trie } from '../router/trie';
 import { applyCorsHeaders, handleCors } from '../server/cors';
 import { parseBody, parseRequest } from '../server/request-utils';
 import { createErrorResponse, createJsonResponse } from '../server/response-utils';
 import type { AppConfig } from '../types/app';
 import type { HandlerCtx } from '../types/context';
-import { isOk, isResult } from '../result';
 
 /**
  * Creates a JSON response and applies CORS headers if configured.

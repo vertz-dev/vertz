@@ -1,6 +1,6 @@
 /**
  * Build Orchestrator - Production Build Pipeline
- * 
+ *
  * Coordinates the full production build:
  * 1. Codegen - runs the pipeline to generate types, routes, OpenAPI
  * 2. Typecheck - runs TypeScript compiler
@@ -8,22 +8,24 @@
  * 4. Manifest - generates build manifest
  */
 
-import { existsSync, mkdirSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { type Compiler, createCompiler } from '@vertz/compiler';
 import * as esbuild from 'esbuild';
-import { createCompiler, type Compiler } from '@vertz/compiler';
-import {
-  PipelineOrchestrator,
-  type PipelineConfig,
-  type PipelineResult,
-} from '../pipeline';
-import type { BuildConfig, BuildResult, BuildManifest, BuildStageStatus, GeneratedFile } from './types';
-import { defaultBuildConfig } from './types';
+import { type PipelineConfig, PipelineOrchestrator, type PipelineResult } from '../pipeline';
 import { formatDuration, formatFileSize } from '../utils/format';
+import type {
+  BuildConfig,
+  BuildManifest,
+  BuildResult,
+  BuildStageStatus,
+  GeneratedFile,
+} from './types';
+import { defaultBuildConfig } from './types';
 
 /**
  * Build Orchestrator
- * 
+ *
  * Coordinates the full production build pipeline
  */
 export class BuildOrchestrator {
@@ -33,7 +35,7 @@ export class BuildOrchestrator {
 
   constructor(config: Partial<BuildConfig> = {}) {
     this.config = { ...defaultBuildConfig, ...config };
-    
+
     // Create the underlying pipeline orchestrator
     const pipelineConfig: Partial<PipelineConfig> = {
       sourceDir: this.config.sourceDir,
@@ -43,7 +45,7 @@ export class BuildOrchestrator {
       port: 3000,
       host: 'localhost',
     };
-    
+
     this.pipeline = new PipelineOrchestrator(pipelineConfig);
   }
 
@@ -57,8 +59,8 @@ export class BuildOrchestrator {
       typecheck: false,
       bundle: false,
     };
-    
-    let manifest: BuildManifest = {
+
+    const manifest: BuildManifest = {
       entryPoint: this.config.entryPoint,
       outputDir: this.config.outputDir,
       generatedFiles: [],
@@ -72,16 +74,16 @@ export class BuildOrchestrator {
       console.log('📦 Running codegen pipeline...');
       const codegenResult = await this.runCodegen();
       stages.codegen = codegenResult.success;
-      
+
       if (!codegenResult.success) {
         return this.createFailureResult(
           stages,
           manifest,
           startTime,
-          `Codegen failed: ${codegenResult.stages.map(s => s.error?.message).join(', ')}`
+          `Codegen failed: ${codegenResult.stages.map((s) => s.error?.message).join(', ')}`,
         );
       }
-      
+
       // Collect generated files for manifest
       manifest.generatedFiles = this.collectGeneratedFiles();
 
@@ -90,7 +92,7 @@ export class BuildOrchestrator {
         console.log('🔍 Running TypeScript type checking...');
         const typecheckResult = await this.runTypecheck();
         stages.typecheck = typecheckResult;
-        
+
         if (!typecheckResult) {
           return this.createFailureResult(stages, manifest, startTime, 'Type checking failed');
         }
@@ -100,9 +102,14 @@ export class BuildOrchestrator {
       console.log('📦 Bundling application...');
       const bundleResult = await this.runBundle();
       stages.bundle = bundleResult.success;
-      
+
       if (!bundleResult.success) {
-        return this.createFailureResult(stages, manifest, startTime, bundleResult.error || 'Bundling failed');
+        return this.createFailureResult(
+          stages,
+          manifest,
+          startTime,
+          bundleResult.error || 'Bundling failed',
+        );
       }
 
       // Update manifest with bundle info
@@ -114,7 +121,7 @@ export class BuildOrchestrator {
       await this.writeManifest(manifest);
 
       const durationMs = performance.now() - startTime;
-      
+
       console.log('\n✅ Build completed successfully!');
       console.log(`   Output: ${this.config.outputDir}`);
       console.log(`   Size: ${formatFileSize(manifest.size)}`);
@@ -126,13 +133,12 @@ export class BuildOrchestrator {
         manifest,
         durationMs,
       };
-
     } catch (error) {
       return this.createFailureResult(
         stages,
         manifest,
         startTime,
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -176,23 +182,23 @@ export class BuildOrchestrator {
 
       const ir = await this.compiler.analyze();
       const diagnostics = await this.compiler.validate(ir);
-      
-      const hasErrors = diagnostics.some(d => d.severity === 'error');
-      
+
+      const hasErrors = diagnostics.some((d) => d.severity === 'error');
+
       if (hasErrors) {
-        const errors = diagnostics.filter(d => d.severity === 'error');
+        const errors = diagnostics.filter((d) => d.severity === 'error');
         console.error(`\n❌ Type checking found ${errors.length} error(s):`);
-        errors.forEach(d => {
+        errors.forEach((d) => {
           console.error(`   ${d.file || 'unknown'}:${d.line}:${d.column} - ${d.message}`);
         });
         return false;
       }
-      
-      const warnings = diagnostics.filter(d => d.severity === 'warning');
+
+      const warnings = diagnostics.filter((d) => d.severity === 'warning');
       if (warnings.length > 0) {
         console.log(`⚠️  Type checking found ${warnings.length} warning(s)`);
       }
-      
+
       return true;
     } catch (error) {
       console.error('Type checking error:', error instanceof Error ? error.message : String(error));
@@ -203,7 +209,13 @@ export class BuildOrchestrator {
   /**
    * Bundle the application using esbuild JavaScript API
    */
-  private async runBundle(): Promise<{ success: boolean; size?: number; dependencies?: string[]; treeShaken?: string[]; error?: string }> {
+  private async runBundle(): Promise<{
+    success: boolean;
+    size?: number;
+    dependencies?: string[];
+    treeShaken?: string[];
+    error?: string;
+  }> {
     try {
       // Ensure output directory exists
       if (!existsSync(this.config.outputDir)) {
@@ -256,7 +268,6 @@ export class BuildOrchestrator {
         dependencies,
         treeShaken,
       };
-
     } catch (error) {
       // Don't fall back to file copy - a failed build MUST fail
       return {
@@ -275,7 +286,6 @@ export class BuildOrchestrator {
         return 'edge88';
       case 'worker':
         return 'esnext';
-      case 'node':
       default:
         return 'node18';
     }
@@ -294,12 +304,12 @@ export class BuildOrchestrator {
 
     const collectRecursive = (dir: string, basePath: string = '') => {
       const entries = readdirSync(dir);
-      
+
       for (const entry of entries) {
         const fullPath = join(dir, entry);
         const relativePath = join(basePath, entry);
         const stat = statSync(fullPath);
-        
+
         if (stat.isDirectory()) {
           collectRecursive(fullPath, relativePath);
         } else if (stat.isFile()) {
@@ -339,16 +349,16 @@ export class BuildOrchestrator {
    */
   private async writeManifest(manifest: BuildManifest): Promise<void> {
     const manifestPath = join(this.config.outputDir, 'manifest.json');
-    
+
     const manifestData = {
       ...manifest,
-      generatedFiles: manifest.generatedFiles.map(f => ({
+      generatedFiles: manifest.generatedFiles.map((f) => ({
         ...f,
         // Convert backslashes to forward slashes for cross-platform compatibility
         path: f.path.replace(/\\/g, '/'),
       })),
     };
-    
+
     writeFileSync(manifestPath, JSON.stringify(manifestData, null, 2));
     console.log(`   Manifest: ${manifestPath}`);
   }
@@ -360,7 +370,7 @@ export class BuildOrchestrator {
     stages: BuildStageStatus,
     manifest: BuildManifest,
     startTime: number,
-    error: string
+    error: string,
   ): BuildResult {
     return {
       success: false,

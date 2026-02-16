@@ -1,9 +1,9 @@
 import { Command } from 'commander';
-import { generateAction } from './commands/generate';
-import { generateDomainAction } from './commands/domain-gen';
-import { devAction } from './commands/dev';
 import { buildAction } from './commands/build';
 import { createAction } from './commands/create';
+import { devAction } from './commands/dev';
+import { generateDomainAction } from './commands/domain-gen';
+import { generateAction } from './commands/generate';
 
 export function createCLI(): Command {
   const program = new Command();
@@ -89,14 +89,14 @@ export function createCLI(): Command {
         await generateDomainAction(options);
         return;
       }
-      
+
       const validTypes = ['module', 'service', 'router', 'schema'];
       if (!validTypes.includes(type)) {
         // Try domain generation
         await generateDomainAction(options);
         return;
       }
-      
+
       // Handle traditional generate types
       const result = generateAction({
         type,
@@ -105,7 +105,7 @@ export function createCLI(): Command {
         sourceDir: options.sourceDir,
         dryRun: options.dryRun,
       });
-      
+
       if (!result.success) {
         console.error(result.error);
         process.exit(1);

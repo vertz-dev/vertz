@@ -1,7 +1,7 @@
 import type { Diagnostic } from '@vertz/compiler';
+import { colors, symbols } from '@vertz/tui';
 import { Text } from 'ink';
 import type React from 'react';
-import { colors, symbols } from '@vertz/tui';
 
 interface DiagnosticSummaryProps {
   diagnostics: readonly Diagnostic[];

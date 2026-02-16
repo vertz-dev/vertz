@@ -155,7 +155,7 @@ export function generateTypes(domain: DomainDefinition): string {
   // Include both simple list() and parameterized list(params?) versions for overloads
   lines.push(`  list(): Promise<${pascalName}[]>;`);
   lines.push(`  list(params?: List${pascalName}Params): Promise<${pascalName}[]>;`);
-  
+
   // Find primary key field name
   let idField = 'id';
   for (const [fieldName, field] of Object.entries(fields)) {
@@ -164,10 +164,12 @@ export function generateTypes(domain: DomainDefinition): string {
       break;
     }
   }
-  
+
   lines.push(`  get(${idField}: string): Promise<${pascalName} | null>;`);
   lines.push(`  create(data: Create${pascalName}Input): Promise<${pascalName}>;`);
-  lines.push(`  update(${idField}: string, data: Update${pascalName}Input): Promise<${pascalName}>;`);
+  lines.push(
+    `  update(${idField}: string, data: Update${pascalName}Input): Promise<${pascalName}>;`,
+  );
   lines.push(`  delete(${idField}: string): Promise<void>;`);
   lines.push('}');
 

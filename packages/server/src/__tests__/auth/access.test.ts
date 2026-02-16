@@ -3,8 +3,8 @@
  * Tests for createAccess(), ctx.can(), ctx.authorize()
  */
 
-import { describe, it, expect } from 'vitest';
-import { createAccess, AuthorizationError } from '../../auth/access';
+import { describe, expect, it } from 'vitest';
+import { AuthorizationError, createAccess } from '../../auth/access';
 import type { AuthUser } from '../../auth/types';
 
 describe('Access Control Module', () => {
@@ -133,7 +133,7 @@ describe('Access Control Module', () => {
     it('should not throw when authorized', async () => {
       const access = createAccess({
         roles: { user: { entitlements: ['read'] } },
-        entitlements: { 'read': { roles: ['user'] } },
+        entitlements: { read: { roles: ['user'] } },
       });
 
       // Should resolve without error
@@ -144,7 +144,7 @@ describe('Access Control Module', () => {
     it('should throw AuthorizationError when not authorized', async () => {
       const access = createAccess({
         roles: { user: { entitlements: ['read'] } },
-        entitlements: { 'delete': { roles: ['admin'] } },
+        entitlements: { delete: { roles: ['admin'] } },
       });
 
       await expect(access.authorize('delete', testUser)).rejects.toThrow(AuthorizationError);
@@ -171,19 +171,15 @@ describe('Access Control Module', () => {
       const access = createAccess({
         roles: { user: { entitlements: ['read', 'create'] } },
         entitlements: {
-          'read': { roles: ['user'] },
-          'create': { roles: ['user'] },
-          'delete': { roles: ['admin'] },
+          read: { roles: ['user'] },
+          create: { roles: ['user'] },
+          delete: { roles: ['admin'] },
         },
       });
 
       const results = await access.canAll(
-        [
-          { entitlement: 'read' },
-          { entitlement: 'create' },
-          { entitlement: 'delete' },
-        ],
-        testUser
+        [{ entitlement: 'read' }, { entitlement: 'create' }, { entitlement: 'delete' }],
+        testUser,
       );
 
       expect(results.get('read')).toBe(true);
@@ -199,7 +195,7 @@ describe('Access Control Module', () => {
 
       const results = await access.canAll(
         [{ entitlement: 'post:read', resource: { id: 'post-1', type: 'post' } }],
-        testUser
+        testUser,
       );
 
       expect(results.has('post:read:post-1')).toBe(true);
@@ -209,7 +205,7 @@ describe('Access Control Module', () => {
   describe('getEntitlementsForRole()', () => {
     it('should return all entitlements for a role', () => {
       const access = createAccess({
-        roles: { 
+        roles: {
           user: { entitlements: ['read', 'create'] },
           admin: { entitlements: ['read', 'create', 'update', 'delete'] },
         },
@@ -293,10 +289,10 @@ describe('Access Control Module', () => {
 
       // User should be able to read
       expect(await defaultAccess.can('read', testUser)).toBe(true);
-      
+
       // User should not be able to delete
       expect(await defaultAccess.can('delete', testUser)).toBe(false);
-      
+
       // Admin should be able to delete
       expect(await defaultAccess.can('delete', adminUser)).toBe(true);
 

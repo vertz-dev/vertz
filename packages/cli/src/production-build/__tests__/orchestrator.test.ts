@@ -1,6 +1,6 @@
 /**
  * Build Orchestrator Tests
- * 
+ *
  * Tests for the production build orchestrator that handles:
  * - Codegen pipeline execution
  * - Type checking
@@ -8,20 +8,19 @@
  * - Manifest generation
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { BuildOrchestrator, createBuildOrchestrator } from '../orchestrator';
 import type { BuildConfig, BuildManifest } from '../types';
-import type * as Esbuild from 'esbuild';
 
 // Mock dependencies
 vi.mock('@vertz/compiler', () => ({
   createCompiler: vi.fn(() => ({
-    analyze: vi.fn().mockResolvedValue({ 
-      modules: [{ name: 'test', services: [], routes: [], schemas: [] }], 
+    analyze: vi.fn().mockResolvedValue({
+      modules: [{ name: 'test', services: [], routes: [], schemas: [] }],
       routes: [],
       schemas: [],
       env: { variables: [] },
-      middlewares: []
+      middlewares: [],
     }),
     validate: vi.fn().mockResolvedValue([]),
     compile: vi.fn().mockResolvedValue({ success: true, diagnostics: [] }),
@@ -129,7 +128,7 @@ describe('BuildOrchestrator', () => {
     it('should run the full build pipeline with all stages', async () => {
       orchestrator = new BuildOrchestrator(defaultConfig);
       const result = await orchestrator.build();
-      
+
       expect(result.success).toBe(true);
       expect(result.stages.codegen).toBe(true);
       expect(result.stages.typecheck).toBe(true);
@@ -141,9 +140,9 @@ describe('BuildOrchestrator', () => {
         ...defaultConfig,
         typecheck: false,
       });
-      
+
       const result = await orchestrator.build();
-      
+
       expect(result.success).toBe(true);
       expect(result.stages.typecheck).toBe(false);
     });
@@ -153,14 +152,14 @@ describe('BuildOrchestrator', () => {
       const esbuild = await import('esbuild');
       const mockBuild = esbuild.build as Mock;
       mockBuild.mockRejectedValue(new Error('Build failed'));
-      
+
       orchestrator = new BuildOrchestrator({
         ...defaultConfig,
         typecheck: false, // Skip typecheck to focus on bundle failure
       });
-      
+
       const result = await orchestrator.build();
-      
+
       expect(result.success).toBe(false);
       expect(result.error).toContain('Build failed');
       expect(result.stages.bundle).toBe(false);
@@ -171,9 +170,9 @@ describe('BuildOrchestrator', () => {
         ...defaultConfig,
         typecheck: false,
       });
-      
+
       const result = await orchestrator.build();
-      
+
       expect(result.manifest).toBeDefined();
       expect(result.manifest).toHaveProperty('entryPoint');
       expect(result.manifest).toHaveProperty('outputDir');
@@ -186,9 +185,9 @@ describe('BuildOrchestrator', () => {
         ...defaultConfig,
         typecheck: false,
       });
-      
+
       const result = await orchestrator.build();
-      
+
       expect(result.manifest).toHaveProperty('generatedFiles');
       expect(Array.isArray(result.manifest.generatedFiles)).toBe(true);
     });
@@ -200,9 +199,9 @@ describe('BuildOrchestrator', () => {
         ...defaultConfig,
         typecheck: false,
       });
-      
+
       const result = await orchestrator.build();
-      
+
       // Size should be present in the manifest (actual value depends on fs)
       expect(result.manifest.size).toBeDefined();
     });
@@ -212,14 +211,14 @@ describe('BuildOrchestrator', () => {
       const esbuild = await import('esbuild');
       const mockBuild = esbuild.build as Mock;
       mockBuild.mockRejectedValue(new Error('Bundle failed'));
-      
+
       const failingOrchestrator = new BuildOrchestrator({
         ...defaultConfig,
         typecheck: false,
       });
-      
+
       const result = await failingOrchestrator.build();
-      
+
       // The result should have error field when bundle fails
       expect(result.success).toBe(false);
       expect(result.error).toContain('Bundle failed');
@@ -232,9 +231,9 @@ describe('BuildOrchestrator', () => {
         ...defaultConfig,
         typecheck: false,
       });
-      
+
       const result = await orchestrator.build();
-      
+
       expect(result.manifest.entryPoint).toBe(defaultConfig.entryPoint);
     });
 
@@ -243,9 +242,9 @@ describe('BuildOrchestrator', () => {
         ...defaultConfig,
         typecheck: false,
       });
-      
+
       const result = await orchestrator.build();
-      
+
       expect(result.manifest.outputDir).toBe(defaultConfig.outputDir);
     });
 
@@ -254,11 +253,11 @@ describe('BuildOrchestrator', () => {
         ...defaultConfig,
         typecheck: false,
       });
-      
+
       const beforeBuild = Date.now();
       const result = await orchestrator.build();
       const afterBuild = Date.now();
-      
+
       expect(result.manifest.buildTime).toBeGreaterThanOrEqual(beforeBuild);
       expect(result.manifest.buildTime).toBeLessThanOrEqual(afterBuild);
     });
@@ -269,9 +268,9 @@ describe('BuildOrchestrator', () => {
         typecheck: false,
         target: 'edge',
       });
-      
+
       const result = await orchestrator.build();
-      
+
       expect(result.manifest.target).toBe('edge');
     });
   });
@@ -289,9 +288,9 @@ describe('BuildOrchestrator', () => {
         ...defaultConfig,
         typecheck: false,
       });
-      
+
       const result = await orchestrator.build();
-      
+
       expect(result.durationMs).toBeGreaterThan(0);
     });
   });
@@ -314,7 +313,7 @@ describe('BuildManifest', () => {
       buildTime: Date.now(),
       target: 'node',
     };
-    
+
     expect(manifest.entryPoint).toBeDefined();
     expect(manifest.outputDir).toBeDefined();
     expect(manifest.generatedFiles).toBeDefined();

@@ -32,6 +32,7 @@ export {
   emitSDKConfig,
   emitStreamingMethod,
 } from './generators/typescript/emit-client';
+export { emitRouteMapType } from './generators/typescript/emit-routes';
 export type { PackageOptions } from './generators/typescript/emit-sdk';
 export {
   emitBarrelIndex,
@@ -46,7 +47,6 @@ export {
   emitSharedTypesFile,
   emitStreamingEventType,
 } from './generators/typescript/emit-types';
-export { emitRouteMapType } from './generators/typescript/emit-routes';
 export { hashContent } from './hasher';
 export type { IncrementalOptions, IncrementalResult } from './incremental';
 export { writeIncremental } from './incremental';

@@ -536,14 +536,16 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       // Create replica drivers if configured
       const replicas = options.pool?.replicas;
       if (replicas && replicas.length > 0) {
-        replicaDrivers = replicas.map((replicaUrl) => createPostgresDriver(replicaUrl, options.pool));
+        replicaDrivers = replicas.map((replicaUrl) =>
+          createPostgresDriver(replicaUrl, options.pool),
+        );
       }
 
       // Return a routing-aware query function
       return async <T>(sqlStr: string, params: readonly unknown[]) => {
         // If no replicas configured, always use primary
         if (replicaDrivers.length === 0) {
-          return driver!.queryFn<T>(sqlStr, params);
+          return driver?.queryFn<T>(sqlStr, params);
         }
 
         // Route read queries to replicas with round-robin and fallback on failure
@@ -554,12 +556,15 @@ export function createDb<TTables extends Record<string, TableEntry>>(
             return await targetReplica.queryFn<T>(sqlStr, params);
           } catch (err) {
             // Replica failed, fall back to primary
-            console.warn('[vertz/db] replica query failed, falling back to primary:', (err as Error).message);
+            console.warn(
+              '[vertz/db] replica query failed, falling back to primary:',
+              (err as Error).message,
+            );
           }
         }
 
         // Write queries always go to primary
-        return driver!.queryFn<T>(sqlStr, params);
+        return driver?.queryFn<T>(sqlStr, params);
       };
     }
 

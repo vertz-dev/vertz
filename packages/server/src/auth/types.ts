@@ -145,9 +145,7 @@ export interface AuthContext {
 // Result Type
 // ============================================================================
 
-export type AuthResult<T> = 
-  | { ok: true; data: T }
-  | { ok: false; error: AuthError };
+export type AuthResult<T> = { ok: true; data: T } | { ok: false; error: AuthError };
 
 export interface AuthError {
   code: string;

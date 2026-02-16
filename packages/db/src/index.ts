@@ -34,6 +34,13 @@ export { d } from './d';
 // Diagnostic
 export type { DiagnosticResult } from './diagnostic/index';
 export { diagnoseError, explainError, formatDiagnostic } from './diagnostic/index';
+export type {
+  DomainDefinition,
+  DomainField,
+  DomainRelation,
+} from './domain';
+// Domain definitions for codegen
+export { defineDomain, generateClient, generateTypes } from './domain';
 // Errors
 export type {
   CheckConstraintErrorOptions,
@@ -73,6 +80,8 @@ export type {
   TenantMeta,
   VarcharMeta,
 } from './schema/column';
+export type { RegisteredEnum } from './schema/enum-registry';
+export { createEnumRegistry } from './schema/enum-registry';
 export type { FilterType, OrderByType } from './schema/filter';
 export type {
   Database,
@@ -87,11 +96,8 @@ export type {
   UpdateInput,
 } from './schema/inference';
 export { createRegistry } from './schema/registry';
-export type { RegisteredEnum } from './schema/enum-registry';
-export { createEnumRegistry } from './schema/enum-registry';
 export type { RelationDef } from './schema/relation';
 export type { IndexDef, TableDef } from './schema/table';
-
 // Branded error types
 export type {
   InvalidColumn,
@@ -101,11 +107,3 @@ export type {
   StrictKeys,
   ValidateKeys,
 } from './types/branded-errors';
-
-// Domain definitions for codegen
-export { defineDomain, generateTypes, generateClient } from './domain';
-export type {
-  DomainDefinition,
-  DomainField,
-  DomainRelation,
-} from './domain';

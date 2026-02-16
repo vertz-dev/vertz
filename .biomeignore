@@ -1,0 +1,11 @@
+# Placeholder files that intentionally throw errors
+packages/vertz/src/router.ts
+packages/vertz/src/router.js
+packages/vertz/src/signal.ts
+packages/vertz/src/signal.js
+
+# Test files with necessary type assertions
+packages/cli/src/commands/__tests__/check.test.ts
+packages/cli/src/commands/__tests__/create.test.ts
+packages/cli/src/commands/__tests__/routes.test.ts
+packages/cli/src/config/loader.ts

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ok, err, isOk, isErr, type Result } from '../result';
+import { err, isErr, isOk, ok, type Result } from '../result';
 
 describe('Result', () => {
   describe('ok()', () => {

@@ -1,8 +1,9 @@
 // Domain Access Rules Tests
 // Tests for sync access rules, ctx.can(), and access enforcement
-import { describe, expect, it, vi } from 'vitest';
+
 import { d } from '@vertz/db';
-import { domain, createServer } from '@vertz/server';
+import { createServer, domain } from '@vertz/server';
+import { describe, expect, it, vi } from 'vitest';
 import { usersTable } from './fixtures';
 
 // ---------------------------------------------------------------------------
@@ -58,8 +59,8 @@ describe('Access Rules - Deny by Default', () => {
 
 describe('Access Rules - Evaluation', () => {
   it('should pass row and context to read access rule', () => {
-    const mockReadRule = vi.fn((row: any, ctx: any) => true);
-    
+    const mockReadRule = vi.fn((_row: any, _ctx: any) => true);
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -68,14 +69,14 @@ describe('Access Rules - Evaluation', () => {
       },
     });
 
-    const app = createServer({ domains: [User] });
+    const _app = createServer({ domains: [User] });
     // The read rule should be called with row and ctx
     expect(mockReadRule).toBeDefined();
   });
 
   it('should pass input data and context to create access rule', () => {
-    const mockCreateRule = vi.fn((data: any, ctx: any) => true);
-    
+    const mockCreateRule = vi.fn((_data: any, _ctx: any) => true);
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -84,13 +85,13 @@ describe('Access Rules - Evaluation', () => {
       },
     });
 
-    const app = createServer({ domains: [User] });
+    const _app = createServer({ domains: [User] });
     expect(mockCreateRule).toBeDefined();
   });
 
   it('should pass existing row and context to update access rule', () => {
-    const mockUpdateRule = vi.fn((row: any, ctx: any) => true);
-    
+    const mockUpdateRule = vi.fn((_row: any, _ctx: any) => true);
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -99,13 +100,13 @@ describe('Access Rules - Evaluation', () => {
       },
     });
 
-    const app = createServer({ domains: [User] });
+    const _app = createServer({ domains: [User] });
     expect(mockUpdateRule).toBeDefined();
   });
 
   it('should pass existing row and context to delete access rule', () => {
-    const mockDeleteRule = vi.fn((row: any, ctx: any) => true);
-    
+    const mockDeleteRule = vi.fn((_row: any, _ctx: any) => true);
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -114,16 +115,16 @@ describe('Access Rules - Evaluation', () => {
       },
     });
 
-    const app = createServer({ domains: [User] });
+    const _app = createServer({ domains: [User] });
     expect(mockDeleteRule).toBeDefined();
   });
 
   it('should evaluate access rules synchronously', () => {
-    const syncRule = (row: any, ctx: any) => {
+    const syncRule = (row: any, _ctx: any) => {
       // Synchronous function - no async/await
       return row.id !== undefined;
     };
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -143,10 +144,10 @@ describe('Access Rules - Evaluation', () => {
 
 describe('Access Rules - Context', () => {
   it('should provide user in context', () => {
-    const rule = (row: any, ctx: any) => {
+    const rule = (_row: any, ctx: any) => {
       return ctx.user !== null;
     };
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -158,10 +159,10 @@ describe('Access Rules - Context', () => {
   });
 
   it('should provide tenant in context', () => {
-    const rule = (row: any, ctx: any) => {
+    const rule = (_row: any, ctx: any) => {
       return ctx.tenant?.id !== undefined;
     };
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -173,10 +174,10 @@ describe('Access Rules - Context', () => {
   });
 
   it('should provide request metadata in context', () => {
-    const rule = (row: any, ctx: any) => {
+    const rule = (_row: any, ctx: any) => {
       return ctx.request?.method !== undefined;
     };
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -188,10 +189,10 @@ describe('Access Rules - Context', () => {
   });
 
   it('should provide user.id in context when authenticated', () => {
-    const rule = (row: any, ctx: any) => {
+    const rule = (_row: any, ctx: any) => {
       return ctx.user?.id !== undefined;
     };
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -203,10 +204,10 @@ describe('Access Rules - Context', () => {
   });
 
   it('should provide user.role in context when authenticated', () => {
-    const rule = (row: any, ctx: any) => {
+    const rule = (_row: any, ctx: any) => {
       return ['admin', 'editor', 'viewer'].includes(ctx.user?.role);
     };
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -298,12 +299,12 @@ describe('Access Rules - Denied Response', () => {
 
 describe('Access Rules - Row-Based', () => {
   it('should filter rows based on access.read in list', () => {
-    const orgId = 'org-1';
-    
+    const _orgId = 'org-1';
+
     const rule = (row: any, ctx: any) => {
       return row.orgId === ctx.tenant?.id;
     };
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -320,7 +321,7 @@ describe('Access Rules - Row-Based', () => {
     const rule = (row: any, ctx: any) => {
       return row.id === ctx.user?.id || ctx.user?.role === 'admin';
     };
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -334,10 +335,10 @@ describe('Access Rules - Row-Based', () => {
   });
 
   it('should allow admins to delete any record', () => {
-    const rule = (row: any, ctx: any) => {
+    const rule = (_row: any, ctx: any) => {
       return ctx.user?.role === 'admin';
     };
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -354,7 +355,7 @@ describe('Access Rules - Row-Based', () => {
     const rule = (data: any, ctx: any) => {
       return data.orgId === ctx.tenant?.id;
     };
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -374,8 +375,8 @@ describe('Access Rules - Row-Based', () => {
 
 describe('Access Rules - List Filtering', () => {
   it('should exclude rows that fail access.read from list results', () => {
-    const rule = (row: any, ctx: any) => row.orgId === 'org-1';
-    
+    const rule = (row: any, _ctx: any) => row.orgId === 'org-1';
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -389,8 +390,8 @@ describe('Access Rules - List Filtering', () => {
   });
 
   it('should not error when some rows are filtered', () => {
-    const rule = (row: any, ctx: any) => row.active === true;
-    
+    const rule = (row: any, _ctx: any) => row.active === true;
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -404,8 +405,8 @@ describe('Access Rules - List Filtering', () => {
   });
 
   it('should report total count of all matching rows', () => {
-    const rule = (row: any, ctx: any) => true;
-    
+    const rule = (_row: any, _ctx: any) => true;
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -419,8 +420,8 @@ describe('Access Rules - List Filtering', () => {
   });
 
   it('should return empty page when all rows filtered out', () => {
-    const rule = (row: any, ctx: any) => false; // Deny all
-    
+    const rule = (_row: any, _ctx: any) => false; // Deny all
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -434,8 +435,8 @@ describe('Access Rules - List Filtering', () => {
   });
 
   it('may return fewer rows than limit due to filtering', () => {
-    const rule = (row: any, ctx: any) => row.id.startsWith('a');
-    
+    const rule = (row: any, _ctx: any) => row.id.startsWith('a');
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -519,7 +520,7 @@ describe('Access Rules - Create', () => {
       type: 'persisted',
       table: d.entry(usersTable),
       access: {
-        create: (data, ctx) => data.orgId !== undefined,
+        create: (data, _ctx) => data.orgId !== undefined,
       },
     });
 
@@ -532,7 +533,7 @@ describe('Access Rules - Create', () => {
       type: 'persisted',
       table: d.entry(usersTable),
       access: {
-        create: (data, ctx) => ctx.user?.role === 'admin',
+        create: (_data, ctx) => ctx.user?.role === 'admin',
       },
     });
 
@@ -578,7 +579,7 @@ describe('Access Rules - Update', () => {
       type: 'persisted',
       table: d.entry(usersTable),
       access: {
-        update: (row, ctx) => true,
+        update: (_row, _ctx) => true,
       },
     });
 
@@ -610,7 +611,7 @@ describe('Access Rules - Delete', () => {
       type: 'persisted',
       table: d.entry(usersTable),
       access: {
-        delete: (row, ctx) => ctx.user?.role === 'admin',
+        delete: (_row, ctx) => ctx.user?.role === 'admin',
       },
     });
 
@@ -676,8 +677,8 @@ describe('Access Rules - Error Handling', () => {
 
 describe('Access Rules - Sync-Only v1', () => {
   it('should work with sync access rules', () => {
-    const syncRule = (row: any, ctx: any) => true;
-    
+    const syncRule = (_row: any, _ctx: any) => true;
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),

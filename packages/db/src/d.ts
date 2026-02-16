@@ -16,6 +16,7 @@ import { createColumn, createSerialColumn, createTenantColumn } from './schema/c
 interface EnumSchemaLike<T extends readonly string[]> {
   readonly values: T;
 }
+
 import type { TableEntry } from './schema/inference';
 import type { ManyRelationDef, RelationDef } from './schema/relation';
 import { createManyRelation, createOneRelation } from './schema/relation';

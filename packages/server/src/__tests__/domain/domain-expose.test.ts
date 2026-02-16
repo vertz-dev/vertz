@@ -1,9 +1,10 @@
 // Domain Expose Tests
 // Tests for secure-by-default relation exposure with { select } syntax
-import { describe, expect, it } from 'vitest';
+
 import { d } from '@vertz/db';
-import { domain, createServer } from '@vertz/server';
-import { usersTable, orgsTable, postsTable, commentsTable, auditLogsTable } from './fixtures';
+import { createServer, domain } from '@vertz/server';
+import { describe, expect, it } from 'vitest';
+import { auditLogsTable, orgsTable, postsTable, usersTable } from './fixtures';
 
 // ---------------------------------------------------------------------------
 // Secure by Default Tests

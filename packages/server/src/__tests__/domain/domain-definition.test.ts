@@ -1,13 +1,11 @@
 // Domain Definition Tests
 // Tests that domain() returns a valid DomainDefinition with correct type, fields, and expose config
-import { describe, expect, it } from 'vitest';
+
 import { d } from '@vertz/db';
 import { domain } from '@vertz/server';
-
+import { describe, expect, it } from 'vitest';
 // Helper types for test scenarios
-import { usersTable, orgsTable, postsTable } from "./fixtures";
-import type { TableEntry } from '@vertz/db';
-import type { DomainDefinition, DomainType, DomainOptions } from '@vertz/server';
+import { orgsTable, postsTable, usersTable } from './fixtures';
 
 // ---------------------------------------------------------------------------
 // domain() Function Tests
@@ -35,7 +33,7 @@ describe('domain() - DomainDefinition return type', () => {
       type: 'persisted',
       table: d.entry(usersTable),
     });
-    
+
     expect(User).toHaveProperty('name');
     expect(User.name).toBe('users');
   });
@@ -45,7 +43,7 @@ describe('domain() - DomainDefinition return type', () => {
       type: 'persisted',
       table: d.entry(usersTable),
     });
-    
+
     expect(User).toHaveProperty('type');
     expect(User.type).toBe('persisted');
   });
@@ -56,7 +54,7 @@ describe('domain() - DomainDefinition return type', () => {
       type: 'persisted',
       table: entry,
     });
-    
+
     expect(User).toHaveProperty('table');
     expect(User.table).toBe(entry);
   });
@@ -66,7 +64,7 @@ describe('domain() - DomainDefinition return type', () => {
       type: 'persisted',
       table: d.entry(usersTable),
     });
-    
+
     expect(User).toHaveProperty('exposedRelations');
     expect(typeof User.exposedRelations).toBe('object');
   });
@@ -79,7 +77,7 @@ describe('domain() - DomainDefinition return type', () => {
         read: () => true,
       },
     });
-    
+
     expect(User).toHaveProperty('access');
     expect(User.access).toHaveProperty('read');
   });
@@ -92,7 +90,7 @@ describe('domain() - DomainDefinition return type', () => {
         create: async () => ({}),
       },
     });
-    
+
     expect(User).toHaveProperty('handlers');
   });
 
@@ -104,7 +102,7 @@ describe('domain() - DomainDefinition return type', () => {
         resetPassword: async () => ({ ok: true, data: {} }),
       },
     });
-    
+
     expect(User).toHaveProperty('actions');
   });
 });
@@ -115,7 +113,7 @@ describe('domain() - type field validation', () => {
       type: 'persisted',
       table: d.entry(usersTable),
     });
-    
+
     expect(User.type).toBe('persisted');
   });
 
@@ -124,7 +122,7 @@ describe('domain() - type field validation', () => {
       type: 'process',
       table: d.entry(usersTable), // process type can reference any table for now
     });
-    
+
     expect(Process.type).toBe('process');
   });
 
@@ -133,7 +131,7 @@ describe('domain() - type field validation', () => {
       type: 'view',
       table: d.entry(usersTable),
     });
-    
+
     expect(View.type).toBe('view');
   });
 
@@ -142,7 +140,7 @@ describe('domain() - type field validation', () => {
       type: 'session',
       table: d.entry(usersTable),
     });
-    
+
     expect(Session.type).toBe('session');
   });
 
@@ -176,7 +174,7 @@ describe('domain() - fields configuration', () => {
         },
       },
     });
-    
+
     expect(User).toHaveProperty('table');
   });
 
@@ -185,7 +183,7 @@ describe('domain() - fields configuration', () => {
       type: 'persisted',
       table: d.entry(usersTable),
     });
-    
+
     expect(User).toBeDefined();
   });
 });
@@ -205,7 +203,7 @@ describe('domain() - expose configuration', () => {
         posts: true,
       },
     });
-    
+
     expect(User.exposedRelations.organization).toBe(true);
     expect(User.exposedRelations.posts).toBe(true);
   });
@@ -224,7 +222,7 @@ describe('domain() - expose configuration', () => {
         },
       },
     });
-    
+
     expect(User.exposedRelations.organization).toEqual({ select: { id: true, name: true } });
   });
 
@@ -238,7 +236,7 @@ describe('domain() - expose configuration', () => {
       table: entry,
       expose: {},
     });
-    
+
     expect(Object.keys(User.exposedRelations)).toHaveLength(0);
   });
 
@@ -251,7 +249,7 @@ describe('domain() - expose configuration', () => {
       type: 'persisted',
       table: entry,
     });
-    
+
     expect(User.exposedRelations).toEqual({});
   });
 });
@@ -259,7 +257,7 @@ describe('domain() - expose configuration', () => {
 describe('domain() - access rules', () => {
   it('should accept read access rule', () => {
     const accessRule = (row: any, ctx: any) => row.orgId === ctx.tenant?.id;
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -267,13 +265,13 @@ describe('domain() - access rules', () => {
         read: accessRule,
       },
     });
-    
+
     expect(User.access.read).toBe(accessRule);
   });
 
   it('should accept create access rule', () => {
-    const createRule = (data: any, ctx: any) => ctx.user?.role === 'admin';
-    
+    const createRule = (_data: any, ctx: any) => ctx.user?.role === 'admin';
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -281,13 +279,13 @@ describe('domain() - access rules', () => {
         create: createRule,
       },
     });
-    
+
     expect(User.access.create).toBe(createRule);
   });
 
   it('should accept update access rule', () => {
     const updateRule = (row: any, ctx: any) => row.id === ctx.user?.id;
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -295,13 +293,13 @@ describe('domain() - access rules', () => {
         update: updateRule,
       },
     });
-    
+
     expect(User.access.update).toBe(updateRule);
   });
 
   it('should accept delete access rule', () => {
-    const deleteRule = (row: any, ctx: any) => ctx.user?.role === 'admin';
-    
+    const deleteRule = (_row: any, ctx: any) => ctx.user?.role === 'admin';
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -309,35 +307,35 @@ describe('domain() - access rules', () => {
         delete: deleteRule,
       },
     });
-    
+
     expect(User.access.delete).toBe(deleteRule);
   });
 
   it('should accept all access rules together', () => {
     const rules = {
-      read: (row: any, ctx: any) => true,
-      create: (data: any, ctx: any) => true,
-      update: (row: any, ctx: any) => true,
-      delete: (row: any, ctx: any) => false,
+      read: (_row: any, _ctx: any) => true,
+      create: (_data: any, _ctx: any) => true,
+      update: (_row: any, _ctx: any) => true,
+      delete: (_row: any, _ctx: any) => false,
     };
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
       access: rules,
     });
-    
+
     expect(User.access).toEqual(rules);
   });
 });
 
 describe('domain() - handler overrides', () => {
   it('should accept list handler override', () => {
-    const listHandler = async (params: any, ctx: any) => ({
+    const listHandler = async (_params: any, _ctx: any) => ({
       data: [],
       pagination: { cursor: null, hasMore: false, total: 0 },
     });
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -345,13 +343,13 @@ describe('domain() - handler overrides', () => {
         list: listHandler,
       },
     });
-    
+
     expect(User.handlers.list).toBe(listHandler);
   });
 
   it('should accept get handler override', () => {
-    const getHandler = async (id: string, ctx: any) => ({ id, name: 'test' });
-    
+    const getHandler = async (id: string, _ctx: any) => ({ id, name: 'test' });
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -359,13 +357,13 @@ describe('domain() - handler overrides', () => {
         get: getHandler,
       },
     });
-    
+
     expect(User.handlers.get).toBe(getHandler);
   });
 
   it('should accept create handler override', () => {
-    const createHandler = async (data: any, ctx: any) => ({ id: '1', ...data });
-    
+    const createHandler = async (data: any, _ctx: any) => ({ id: '1', ...data });
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -373,13 +371,13 @@ describe('domain() - handler overrides', () => {
         create: createHandler,
       },
     });
-    
+
     expect(User.handlers.create).toBe(createHandler);
   });
 
   it('should accept update handler override', () => {
-    const updateHandler = async (id: string, data: any, ctx: any) => ({ id, ...data });
-    
+    const updateHandler = async (id: string, data: any, _ctx: any) => ({ id, ...data });
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -387,13 +385,13 @@ describe('domain() - handler overrides', () => {
         update: updateHandler,
       },
     });
-    
+
     expect(User.handlers.update).toBe(updateHandler);
   });
 
   it('should accept delete handler override', () => {
-    const deleteHandler = async (id: string, ctx: any) => ({ id, deleted: true });
-    
+    const deleteHandler = async (id: string, _ctx: any) => ({ id, deleted: true });
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -401,18 +399,18 @@ describe('domain() - handler overrides', () => {
         delete: deleteHandler,
       },
     });
-    
+
     expect(User.handlers.delete).toBe(deleteHandler);
   });
 });
 
 describe('domain() - custom actions', () => {
   it('should accept custom action', () => {
-    const resetPassword = async (id: string, data: any, ctx: any) => ({
+    const resetPassword = async (_id: string, _data: any, _ctx: any) => ({
       ok: true,
       data: { success: true },
     });
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
@@ -420,7 +418,7 @@ describe('domain() - custom actions', () => {
         resetPassword,
       },
     });
-    
+
     expect(User.actions.resetPassword).toBe(resetPassword);
   });
 
@@ -429,13 +427,13 @@ describe('domain() - custom actions', () => {
       resetPassword: async () => ({ ok: true, data: {} }),
       deactivate: async () => ({ ok: true, data: {} }),
     };
-    
+
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
       actions,
     });
-    
+
     expect(User.actions.resetPassword).toBe(actions.resetPassword);
     expect(User.actions.deactivate).toBe(actions.deactivate);
   });
@@ -470,7 +468,7 @@ describe('domain() - immutable definition', () => {
       type: 'persisted',
       table: d.entry(usersTable),
     });
-    
+
     // The definition should be read-only
     expect(Object.isFrozen(User)).toBe(true);
   });
@@ -480,7 +478,7 @@ describe('domain() - immutable definition', () => {
       type: 'persisted',
       table: d.entry(usersTable),
     });
-    
+
     // Attempting to modify should throw or be ignored
     expect(() => {
       (User as any).name = 'other';

@@ -1,6 +1,6 @@
 /**
  * Vertz Build Command - Production Build
- * 
+ *
  * Production build command that orchestrates:
  * 1. Codegen - runs the full pipeline to generate types, routes, OpenAPI
  * 2. Typecheck - runs TypeScript compiler for type checking
@@ -10,9 +10,9 @@
 
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { BuildOrchestrator, type BuildConfig } from '../production-build';
-import { findProjectRoot } from '../utils/paths';
+import { type BuildConfig, BuildOrchestrator } from '../production-build';
 import { formatDuration, formatFileSize } from '../utils/format';
+import { findProjectRoot } from '../utils/paths';
 
 export interface BuildCommandOptions {
   strict?: boolean;
@@ -99,7 +99,7 @@ export async function buildAction(options: BuildCommandOptions = {}): Promise<nu
     console.log(`   Size: ${formatFileSize(result.manifest.size)}`);
     console.log(`   Time: ${formatDuration(result.durationMs)}`);
     console.log(`   Target: ${result.manifest.target}`);
-    
+
     if (result.manifest.generatedFiles.length > 0) {
       console.log(`\n📁 Generated Files (${result.manifest.generatedFiles.length}):`);
       const byType = new Map<string, number>();
@@ -114,7 +114,6 @@ export async function buildAction(options: BuildCommandOptions = {}): Promise<nu
 
     await orchestrator.dispose();
     return 0;
-
   } catch (error) {
     console.error('\n❌ Fatal error:', error instanceof Error ? error.message : String(error));
     await orchestrator.dispose();
