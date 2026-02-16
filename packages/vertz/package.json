@@ -38,6 +38,10 @@
     "./ui-compiler": {
       "import": "./src/ui-compiler.ts",
       "types": "./src/ui-compiler.ts"
+    },
+    "./router": {
+      "import": "./src/router.ts",
+      "types": "./src/router.ts"
     }
   },
   "scripts": {
