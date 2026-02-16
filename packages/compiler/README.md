@@ -1,5 +1,7 @@
 # @vertz/compiler
 
+> ⚠️ **Internal package** — This package is an implementation detail of the Vertz framework. It is published for use by other `@vertz/*` packages. No API stability is guaranteed between versions.
+
 > Static analysis and code generation for vertz applications
 
 The vertz compiler analyzes TypeScript source code to extract application structure, validate conventions, and generate runtime artifacts like route tables, dependency graphs, and OpenAPI specs.

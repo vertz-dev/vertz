@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Compiled output
+*.js
+*.d.ts
+*.d.ts.map
+*.js.map
+
+# Keep config files
+!*.config.js
+
+# Environment
+.env
+.env.local
+
+# Build artifacts
+dist/
+.turbo/

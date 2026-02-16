@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
+  "description": "Vertz CLI runtime internals — internal, no stability guarantee",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",

@@ -1,0 +1,1 @@
+{"version":3,"file":"create.d.ts","sourceRoot":"","sources":["create.ts"],"names":[],"mappings":"AAGA,MAAM,WAAW,aAAa;IAC5B,WAAW,CAAC,EAAE,MAAM,CAAC;IACrB,OAAO,CAAC,EAAE,MAAM,CAAC;IACjB,OAAO,CAAC,EAAE,OAAO,CAAC;CACnB;AAED,wBAAsB,YAAY,CAAC,OAAO,EAAE,aAAa,GAAG,OAAO,CAAC,IAAI,CAAC,CAgExE"}

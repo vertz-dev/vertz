@@ -1,0 +1,1 @@
+{"version":3,"file":"jsx-analyzer.d.ts","sourceRoot":"","sources":["jsx-analyzer.ts"],"names":[],"mappings":"AAAA,OAAO,EAAa,KAAK,UAAU,EAAc,MAAM,UAAU,CAAC;AAClE,OAAO,KAAK,EAAE,aAAa,EAAE,iBAAiB,EAAE,YAAY,EAAE,MAAM,UAAU,CAAC;AAG/E;;;GAGG;AACH,qBAAa,WAAW;IACtB,OAAO,CACL,UAAU,EAAE,UAAU,EACtB,SAAS,EAAE,aAAa,EACxB,SAAS,EAAE,YAAY,EAAE,GACxB,iBAAiB,EAAE;CA2BvB"}

@@ -2,7 +2,7 @@
  * ConfirmDialog component — modal confirmation using Dialog primitive.
  *
  * Demonstrates:
- * - Dialog from @vertz/primitives (WAI-ARIA compliant)
+ * - Dialog from @vertz/ui-primitives (WAI-ARIA compliant)
  * - Focus trap and Escape to close
  * - Composing primitives with JSX and @vertz/ui styling
  *
@@ -10,7 +10,7 @@
  * so its creation stays imperative. JSX is used for new elements and composition.
  */
 
-import { Dialog } from '@vertz/primitives';
+import { Dialog } from '@vertz/ui-primitives';
 import { css } from '@vertz/ui';
 import { button } from '../styles/components';
 
@@ -35,7 +35,7 @@ export interface ConfirmDialogProps {
  * Create a confirmation dialog with trigger button.
  *
  * Returns a container element with the trigger button and the dialog panel.
- * The dialog is managed entirely by the Dialog primitive from @vertz/primitives.
+ * The dialog is managed entirely by the Dialog primitive from @vertz/ui-primitives.
  */
 export function ConfirmDialog(props: ConfirmDialogProps): HTMLElement {
   const {

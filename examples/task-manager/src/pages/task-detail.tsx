@@ -10,7 +10,7 @@
  * - Local `let` signals bridging external query signals for compiler reactivity
  */
 
-import { Tabs } from '@vertz/primitives';
+import { Tabs } from '@vertz/ui-primitives';
 import { css, effect, onCleanup, onMount, query } from '@vertz/ui';
 import { deleteTask, fetchTask, updateTask } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
