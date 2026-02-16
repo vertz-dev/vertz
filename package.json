@@ -21,7 +21,7 @@
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "bun run build && changeset publish",
-    "postinstall": "lefthook install || true",
+    "postinstall": "if [ \"$(git rev-parse --git-dir 2>/dev/null)\" = \"$(git rev-parse --git-common-dir 2>/dev/null)\" ]; then lefthook install || true; fi",
     "test:tree-shaking": "npx vitest run --config tests/tree-shaking/vitest.config.ts --root tests/tree-shaking"
   },
   "devDependencies": {
