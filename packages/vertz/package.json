@@ -27,10 +27,6 @@
       "import": "./src/db.ts",
       "types": "./src/db.ts"
     },
-    "./router": {
-      "import": "./src/router.ts",
-      "types": "./src/router.ts"
-    },
     "./testing": {
       "import": "./src/testing.ts",
       "types": "./src/testing.ts"
@@ -42,6 +38,10 @@
     "./ui-compiler": {
       "import": "./src/ui-compiler.ts",
       "types": "./src/ui-compiler.ts"
+    },
+    "./router": {
+      "import": "./src/router.ts",
+      "types": "./src/router.ts"
     },
     "./signal": {
       "import": "./src/signal.ts",

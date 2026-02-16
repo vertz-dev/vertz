@@ -1,1 +1,0 @@
-{"version":3,"file":"props-destructuring.d.ts","sourceRoot":"","sources":["props-destructuring.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,UAAU,EAAE,MAAM,UAAU,CAAC;AAC3C,OAAO,KAAK,EAAE,kBAAkB,EAAE,aAAa,EAAE,MAAM,UAAU,CAAC;AAElE;;;GAGG;AACH,qBAAa,6BAA6B;IACxC,OAAO,CAAC,UAAU,EAAE,UAAU,EAAE,UAAU,EAAE,aAAa,EAAE,GAAG,kBAAkB,EAAE;CAoBnF"}

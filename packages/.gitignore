@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Compiled TypeScript in src/ (should only commit .ts files)
+*.js
+*.d.ts
+*.js.map
+*.d.ts.map
+
+# Keep config files
+!*.config.js
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Turbo
+.turbo/
