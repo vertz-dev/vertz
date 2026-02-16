@@ -545,7 +545,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       return async <T>(sqlStr: string, params: readonly unknown[]) => {
         // If no replicas configured, always use primary
         if (replicaDrivers.length === 0) {
-          return driver?.queryFn<T>(sqlStr, params);
+          return driver!.queryFn<T>(sqlStr, params);
         }
 
         // Route read queries to replicas with round-robin and fallback on failure
@@ -564,7 +564,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
         }
 
         // Write queries always go to primary
-        return driver?.queryFn<T>(sqlStr, params);
+        return driver!.queryFn<T>(sqlStr, params);
       };
     }
 
