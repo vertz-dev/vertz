@@ -3,15 +3,11 @@
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
-  "description": "Vertz UI compiler — SSR and build-time optimizations",
+  "description": "Vertz UI compiler \u2014 SSR and build-time optimizations",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/ui-compiler"
-  },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -55,5 +51,6 @@
   },
   "engines": {
     "node": ">=22"
-  }
+  },
+  "private": true
 }

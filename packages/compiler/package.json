@@ -3,15 +3,11 @@
   "version": "0.2.0",
   "type": "module",
   "license": "MIT",
-  "description": "Vertz compiler — internal, no stability guarantee",
+  "description": "Vertz compiler \u2014 internal, no stability guarantee",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
     "directory": "packages/compiler"
-  },
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -42,5 +38,6 @@
   },
   "engines": {
     "node": ">=22"
-  }
+  },
+  "private": true
 }
