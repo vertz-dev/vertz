@@ -1,0 +1,63 @@
+---
+title: Project Setup
+description: Create your first Vertz project
+---
+
+# Step 1: Project Setup
+
+Let's start by creating a new Vertz project.
+
+## Create the Project
+
+```bash
+npx @vertz/create-vertz-app@latest chatbot-app
+cd chatbot-app
+```
+
+## Project Structure
+
+```
+chatbot-app/
+├── src/
+│   ├── ui/           # React components
+│   ├── server/       # API routes
+│   ├── db/           # Database entities
+│   └── domain/       # Business logic
+├── package.json
+└── vite.config.ts
+```
+
+## Install Dependencies
+
+The scaffold includes all core packages:
+
+```bash
+npm install @vertz/ui @vertz/server @vertz/db @vertz/schema
+```
+
+## Environment Variables
+
+Create a `.env` file:
+
+```bash
+# Database (SQLite for local development)
+DATABASE_URL="file:./dev.db"
+
+# LLM Provider
+OPENAI_API_KEY="your-openai-api-key"
+
+# Auth Secret (generate a secure random string)
+AUTH_SECRET="your-secret-key-here"
+```
+
+## Start Development Server
+
+```bash
+npm run dev
+```
+
+You should see the Vertz welcome page at `http://localhost:5173`.
+
+## Next Steps
+
+Now let's set up the database in [Step 2: Database & Entities](/tutorial/database).
