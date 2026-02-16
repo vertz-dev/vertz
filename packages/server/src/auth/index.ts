@@ -702,4 +702,35 @@ export type {
   SignInInput,
   UserTableEntry,
   RoleAssignmentTableEntry,
+  MFAConfig,
 } from './types';
+
+// Re-export OAuth (Phase 2)
+export {
+  google,
+  github,
+  discord,
+  getProviderById,
+  validateProviderConfig,
+  createPKCE,
+  generateState,
+  OAuthStateStore,
+  buildSessionCookie,
+  clearSessionCookie,
+  createOAuthRoutes,
+  createOAuthRouter,
+} from './oauth';
+export type {
+  OAuthProvider,
+  OAuthConfig,
+  OAuthTokens,
+  OAuthUserInfo,
+  OAuthAuthResult,
+  OAuthCallbackResult,
+  GoogleOAuthConfig,
+  GitHubOAuthConfig,
+  DiscordOAuthConfig,
+  PKCE,
+  OAuthRouteConfig,
+  OAuthRoutes,
+} from './oauth';
