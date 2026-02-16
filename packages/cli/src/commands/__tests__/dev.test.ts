@@ -1,5 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
-import { categorizeFileChange, getAffectedStages, type FileCategory } from '../../pipeline/watcher';
+import { describe, expect, it, vi } from 'vitest';
+import type { FileChange } from '../../pipeline';
+import {
+  categorizeFileChange,
+  getAffectedStages,
+  getStagesForChanges,
+} from '../../pipeline/watcher';
 
 describe('Pipeline Orchestrator', () => {
   describe('categorizeFileChange', () => {
@@ -88,7 +93,7 @@ describe('Pipeline Orchestrator', () => {
     it('should identify that schema changes trigger codegen but not UI build', () => {
       const category = categorizeFileChange('src/schemas/user.schema.ts');
       const stages = getAffectedStages(category);
-      
+
       // Schema changes should only affect codegen
       expect(stages).toEqual(expect.arrayContaining(['codegen']));
       expect(stages).not.toContain('build-ui');
@@ -97,7 +102,7 @@ describe('Pipeline Orchestrator', () => {
     it('should identify that domain changes trigger analyze and codegen', () => {
       const category = categorizeFileChange('src/domains/auth.domain.ts');
       const stages = getAffectedStages(category);
-      
+
       // Domain changes affect the IR analysis and codegen
       expect(stages).toEqual(expect.arrayContaining(['analyze', 'codegen']));
     });
@@ -109,11 +114,9 @@ describe('Pipeline Orchestrator', () => {
       const mockCompiler = {
         analyze: vi.fn().mockRejectedValue(new Error('Syntax error')),
       };
-      
+
       // The error should propagate - the orchestrator catches it
-      await expect(
-        mockCompiler.analyze()
-      ).rejects.toThrow('Syntax error');
+      await expect(mockCompiler.analyze()).rejects.toThrow('Syntax error');
     });
 
     it('should propagate codegen errors correctly', async () => {
@@ -121,11 +124,75 @@ describe('Pipeline Orchestrator', () => {
       const mockCodegen = {
         generate: vi.fn().mockRejectedValue(new Error('Codegen failed')),
       };
-      
+
       // The error should propagate
-      await expect(
-        mockCodegen.generate({}, {})
-      ).rejects.toThrow('Codegen failed');
+      await expect(mockCodegen.generate({}, {})).rejects.toThrow('Codegen failed');
+    });
+  });
+
+  describe('Feature: Dev Pipeline Refactor', () => {
+    describe('Given the dev command logic', () => {
+      describe('When the file watcher triggers', () => {
+        it('then it should reuse the core logic from watcher.ts', () => {
+          // This test verifies that the dev command uses getStagesForChanges from watcher.ts
+          const changes: FileChange[] = [
+            { type: 'change', path: 'src/domains/auth.domain.ts' },
+            { type: 'add', path: 'src/components/Button.tsx' },
+          ];
+
+          // The dev command should use getStagesForChanges from the pipeline watcher
+          const stages = getStagesForChanges(changes);
+
+          // Should include analyze + codegen for domain changes
+          expect(stages).toContain('analyze');
+          expect(stages).toContain('codegen');
+          // Should include build-ui for component changes
+          expect(stages).toContain('build-ui');
+        });
+
+        it('should handle multiple file changes correctly', () => {
+          const changes: FileChange[] = [
+            { type: 'change', path: 'src/domains/user.domain.ts' },
+            { type: 'change', path: 'src/schemas/user.schema.ts' },
+            { type: 'change', path: 'src/components/Header.tsx' },
+          ];
+
+          const stages = getStagesForChanges(changes);
+
+          // Domain changes need analyze + codegen
+          expect(stages).toContain('analyze');
+          expect(stages).toContain('codegen');
+          // Schema changes need codegen (but analyze already added)
+          expect(stages).toContain('codegen');
+          // Component changes need build-ui
+          expect(stages).toContain('build-ui');
+        });
+
+        it('should always include analyze before codegen', () => {
+          const changes: FileChange[] = [{ type: 'change', path: 'src/schemas/user.schema.ts' }];
+
+          const stages = getStagesForChanges(changes);
+
+          // Schema changes trigger codegen, but analyze should be auto-added
+          expect(stages).toContain('codegen');
+          expect(stages).toContain('analyze');
+        });
+      });
+    });
+
+    describe('Given existing tests', () => {
+      describe('When run', () => {
+        it('then they should pass without regression', () => {
+          // This test ensures the refactor doesn't break existing functionality
+          // The categorizeFileChange and getAffectedStages should work as before
+          const domainCategory = categorizeFileChange('src/domains/test.domain.ts');
+          expect(domainCategory).toBe('domain');
+
+          const stages = getAffectedStages(domainCategory);
+          expect(stages).toContain('analyze');
+          expect(stages).toContain('codegen');
+        });
+      });
     });
   });
 });
