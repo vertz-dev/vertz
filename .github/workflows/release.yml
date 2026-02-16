@@ -2,7 +2,8 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -12,34 +13,26 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
-
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build all packages
+      - name: Build
         run: bun run build
 
-      - name: Create Release PR
+      - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1
         with:
-          version: bun run changeset:version
-          title: "chore: version packages"
-          commit: "chore: version packages"
+          publish: bunx changeset publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
