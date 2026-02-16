@@ -1,9 +1,10 @@
 /**
- * Auth Module Types - Phase 1
- * JWT sessions, email/password authentication, RBAC
+ * Auth Module Types - Phase 1 & 2
+ * JWT sessions, email/password authentication, RBAC, OAuth, MFA
  */
 
 import type { TableEntry } from '@vertz/db';
+import type { OAuthProvider, MFAConfig as OAuthMFAConfig } from './oauth/types';
 
 // ============================================================================
 // Session Types
@@ -60,7 +61,14 @@ export interface AuthConfig {
   jwtAlgorithm?: 'HS256' | 'HS384' | 'HS512' | 'RS256';
   /** Custom claims function for JWT payload */
   claims?: (user: AuthUser) => Record<string, unknown>;
+  /** OAuth providers - Phase 2 */
+  providers?: OAuthProvider[];
+  /** MFA configuration - Phase 2 */
+  mfa?: OAuthMFAConfig;
 }
+
+// Re-export MFA config for convenience
+export type MFAConfig = OAuthMFAConfig;
 
 // ============================================================================
 // User & Session Types

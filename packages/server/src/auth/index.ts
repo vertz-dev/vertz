@@ -702,4 +702,19 @@ export type {
   SignInInput,
   UserTableEntry,
   RoleAssignmentTableEntry,
+  MFAConfig,
 } from './types';
+
+// Re-export OAuth (Phase 2)
+export { google, github, discord, getProviderById, validateProviderConfig } from './oauth/providers';
+export type {
+  OAuthProvider,
+  OAuthConfig,
+  OAuthTokens,
+  OAuthUserInfo,
+  OAuthAuthResult,
+  OAuthCallbackResult,
+  GoogleOAuthConfig,
+  GitHubOAuthConfig,
+  DiscordOAuthConfig,
+} from './oauth/types';

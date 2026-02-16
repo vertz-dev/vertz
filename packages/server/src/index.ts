@@ -74,7 +74,7 @@ export type {
   DomainError,
 } from './domain';
 
-// Auth Module - Phase 1
+// Auth Module - Phase 1 & 2
 export { 
   createAuth, 
   createAccess, 
@@ -83,6 +83,12 @@ export {
   verifyPassword, 
   validatePassword,
   AuthorizationError,
+  // OAuth providers - Phase 2
+  google,
+  github,
+  discord,
+  getProviderById,
+  validateProviderConfig,
 } from './auth';
 export type {
   AuthConfig,
@@ -108,4 +114,15 @@ export type {
   Entitlement,
   EntitlementDefinition,
   Resource,
+  // OAuth types - Phase 2
+  OAuthProvider,
+  OAuthConfig,
+  OAuthTokens,
+  OAuthUserInfo,
+  OAuthAuthResult,
+  OAuthCallbackResult,
+  GoogleOAuthConfig,
+  GitHubOAuthConfig,
+  DiscordOAuthConfig,
+  MFAConfig,
 } from './auth';
