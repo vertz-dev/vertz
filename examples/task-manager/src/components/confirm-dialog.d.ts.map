@@ -1,1 +1,0 @@
-{"version":3,"file":"confirm-dialog.d.ts","sourceRoot":"","sources":["confirm-dialog.tsx"],"names":[],"mappings":"AAAA;;;;;;;;;;GAUG;AAeH,MAAM,WAAW,kBAAkB;IACjC,YAAY,EAAE,MAAM,CAAC;IACrB,KAAK,EAAE,MAAM,CAAC;IACd,WAAW,EAAE,MAAM,CAAC;IACpB,YAAY,CAAC,EAAE,MAAM,CAAC;IACtB,SAAS,EAAE,MAAM,IAAI,CAAC;CACvB;AAED;;;;;GAKG;AACH,wBAAgB,aAAa,CAAC,KAAK,EAAE,kBAAkB,GAAG,WAAW,CA2DpE"}
