@@ -42,6 +42,10 @@
     "./router": {
       "import": "./src/router.ts",
       "types": "./src/router.ts"
+    },
+    "./signal": {
+      "import": "./src/signal.ts",
+      "types": "./src/signal.ts"
     }
   },
   "scripts": {
