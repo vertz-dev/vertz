@@ -1,2 +1,7 @@
 test-results/
 playwright-report/
+# Build artifacts
+*.js
+*.d.ts
+*.js.map
+*.d.ts.map
