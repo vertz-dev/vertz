@@ -3,8 +3,7 @@
  * Types for OAuth providers and OAuth-based authentication
  */
 
-// Re-export security types
-export type { PKCE } from './security';
+// Re-export security error type only (PKCE exported from security.ts)
 export type { OAuthSecurityError } from './security';
 
 // ============================================================================
