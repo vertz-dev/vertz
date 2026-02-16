@@ -1,0 +1,139 @@
+---
+title: Quickstart
+description: Create your first Vertz app in under 5 minutes. Set up a project, create a page, and add an API route.
+---
+
+# Quickstart
+
+Get a full-stack Vertz application running in under 5 minutes.
+
+## Prerequisites
+
+- Node.js 18+
+- npm, yarn, or bun
+
+## Step 1: Create Your Project
+
+```bash
+npx @vertz/create-vertz-app my-vertz-app
+```
+
+This creates a new Vertz project with:
+
+- TypeScript configuration
+- Vite dev server
+- @vertz/ui and @vertz/ui-compiler
+- @vertz/server for API routes
+
+## Step 2: Start the Dev Server
+
+```bash
+cd my-vertz-app
+npm run dev
+```
+
+Open http://localhost:3000 in your browser. You should see the default Vertz welcome page.
+
+## Step 3: Create Your First Page
+
+The default project includes a basic app structure. Let's modify the main page.
+
+Open `src/app.tsx` (or the entry point in your project):
+
+```tsx
+import { render } from '@vertz/ui';
+
+function HomePage() {
+  let name = 'World';
+
+  return (
+    <div style={{ padding: '2rem', fontFamily: 'system-ui' }}>
+      <h1>Hello, {name}!</h1>
+      <p>Welcome to Vertz.</p>
+      
+      <div style={{ marginTop: '1rem' }}>
+        <label>
+          Your name:{' '}
+          <input
+            value={name}
+            onInput={(e) => (name = (e.target as HTMLInputElement).value)}
+            style={{ padding: '0.5rem' }}
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+render(document.body, <HomePage />);
+```
+
+Type in the input — the heading updates instantly. No state management, no re-renders. Just signals.
+
+## Step 4: Add an API Route
+
+Create a new file at `src/routes/hello.ts`:
+
+```typescript
+import { defineRoute } from '@vertz/server';
+import { schema } from '@vertz/schema';
+
+export const helloRoute = defineRoute({
+  path: '/api/hello',
+  method: 'GET',
+  response: schema.object({
+    message: schema.string(),
+    timestamp: schema.number(),
+  }),
+  handler: async () => {
+    return {
+      message: 'Hello from Vertz!',
+      timestamp: Date.now(),
+    };
+  },
+});
+```
+
+## Step 5: Call the API from the UI
+
+Update your page to fetch from the API:
+
+```tsx
+import { query } from '@vertz/ui/query';
+
+function HomePage() {
+  const { data, loading } = query(
+    () => fetch('/api/hello').then(r => r.json())
+  );
+
+  return (
+    <div style={{ padding: '2rem', fontFamily: 'system-ui' }}>
+      <h1>Vertz App</h1>
+      
+      {loading.value ? (
+        <p>Loading...</p>
+      ) : (
+        <p>{data.value?.message}</p>
+      )}
+      
+      <p style={{ color: '#666', fontSize: '0.875rem' }}>
+        Timestamp: {data.value?.timestamp}
+      </p>
+    </div>
+  );
+}
+```
+
+## What's Next?
+
+You've built a full-stack app with:
+- Reactive UI with signals
+- Type-safe API route
+- Data fetching with automatic re-fetching
+
+Explore the docs to learn more:
+
+- **[UI Overview](/docs/ui/overview)** — Deep dive into the signal-based UI
+- **[Components](/docs/ui/components)** — Component API and patterns
+- **[Server](/docs/server/overview)** — Build APIs with schema validation
+- **[Primitives](/docs/ui-primitives/overview)** — Headless accessible components

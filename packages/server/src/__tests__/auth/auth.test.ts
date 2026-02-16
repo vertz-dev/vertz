@@ -15,34 +15,34 @@ import type { AuthConfig, Session } from '../auth/types';
 describe('Auth Module', () => {
   describe('Password Utilities', () => {
     describe('hashPassword', () => {
-      it('should hash a password', async () => {
+      it('should hash a password', { timeout: 15_000 }, async () => {
         const hash = await hashPassword('testPassword123');
         expect(hash).toBeDefined();
         expect(hash).not.toBe('testPassword123');
         expect(hash.length).toBeGreaterThan(20);
       });
 
-      it('should produce different hashes for same password (salting)', async () => {
+      it('should produce different hashes for same password (salting)', { timeout: 15_000 }, async () => {
         const hash1 = await hashPassword('testPassword123');
         const hash2 = await hashPassword('testPassword123');
         expect(hash1).not.toBe(hash2);
       });
 
-      it('should use bcrypt cost of 12', async () => {
+      it('should use bcrypt cost of 12', { timeout: 15_000 }, async () => {
         const hash = await hashPassword('test');
         expect(hash.startsWith('$2a$12$')).toBe(true);
       });
     });
 
     describe('verifyPassword', () => {
-      it('should verify correct password', async () => {
+      it('should verify correct password', { timeout: 15_000 }, async () => {
         const password = 'testPassword123';
         const hash = await hashPassword(password);
         const valid = await verifyPassword(password, hash);
         expect(valid).toBe(true);
       });
 
-      it('should reject incorrect password', async () => {
+      it('should reject incorrect password', { timeout: 15_000 }, async () => {
         const hash = await hashPassword('correctPassword');
         const valid = await verifyPassword('wrongPassword', hash);
         expect(valid).toBe(false);

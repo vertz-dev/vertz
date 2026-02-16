@@ -1,0 +1,135 @@
+---
+title: Overview
+description: Vertz UI is a compiler-driven framework with fine-grained reactivity. Write plain variables and JSX — the compiler transforms them into efficient reactive DOM operations. No virtual DOM.
+---
+
+# Vertz UI
+
+Vertz UI is a compiler-driven UI framework with fine-grained reactivity. Write plain variables and JSX — the compiler transforms them into efficient reactive DOM operations.
+
+## Why Vertz UI?
+
+Most UI frameworks use a virtual DOM — they re-render component trees and diff the results. Vertz UI takes a different approach:
+
+- **No virtual DOM** — Direct DOM updates when state changes
+- **Fine-grained reactivity** — Only the exact DOM node that depends on a signal updates
+- **Compiler-powered** — Write declarative code, get optimized runtime
+- **Familiar syntax** — Standard JSX, standard TypeScript
+
+## The Mental Model
+
+Write code that looks like this:
+
+```tsx
+function Counter() {
+  let count = 0;
+
+  return (
+    <div>
+      <span>{count}</span>
+      <button onClick={() => count++}>+</button>
+    </div>
+  );
+}
+```
+
+The compiler transforms it into this:
+
+```tsx
+function Counter() {
+  const count = signal(0);
+  
+  const __el = __element("div");
+  __el.appendChild(__text(() => count.value));
+  
+  const __btn = __element("button");
+  __btn.textContent = "+";
+  __on(__btn, "click", () => count.value++);
+  
+  __el.appendChild(__btn);
+  return __el;
+}
+```
+
+Only the text node updates when `count` changes. No component re-render, no tree diff.
+
+## Key Features
+
+### Signal-Based Reactivity
+
+Any `let` declaration read in JSX becomes a signal automatically:
+
+```tsx
+let name = 'Alice';      // Static — captured once
+let count = 0;           // Reactive — updates when changed
+let items = ['a', 'b'];  // Reactive array — mutations work
+```
+
+Assignments (`count = 5`, `count++`, `items.push('c')`) are all intercepted and notify the reactivity system.
+
+### Computed Values
+
+`const` declarations that depend on signals become computed automatically:
+
+```tsx
+let quantity = 1;
+const total = 10 * quantity;  // Recomputes when quantity changes
+const formatted = `$${total}`; // Recomputes when total changes
+```
+
+### No Hooks
+
+There's no `useState`, `useEffect`, or `useCallback`. Use plain variables and functions:
+
+```tsx
+// No hooks needed
+function Timer() {
+  let seconds = 0;
+
+  onMount(() => {
+    const id = setInterval(() => seconds++, 1000);
+    onCleanup(() => clearInterval(id));
+  });
+
+  return <span>{seconds}s</span>;
+}
+```
+
+## How It Works
+
+1. **Compile time** — The Vite plugin scans your `.tsx` files for reactive patterns
+2. **Transform** — `let` declarations become signals, JSX expressions become effect subscriptions
+3. **Runtime** — Signals notify their subscribers, effects update exactly the DOM nodes that changed
+
+This means:
+- Smaller bundles (no runtime framework)
+- Faster updates (no VDOM diff)
+- Simpler code (write plain TypeScript)
+
+## Getting Started
+
+Install the packages:
+
+```bash
+npm install @vertz/ui @vertz/ui-compiler
+```
+
+Configure Vite:
+
+```ts
+// vite.config.ts
+import vertz from '@vertz/ui-compiler/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [vertz()],
+});
+```
+
+Start building — the compiler handles the rest.
+
+## See Also
+
+- **[Getting Started](/docs/ui/getting-started)** — Step-by-step setup
+- **[Components](/docs/ui/components)** — Component API and props
+- **[Primitives](/docs/ui-primitives/overview)** — Headless accessible components

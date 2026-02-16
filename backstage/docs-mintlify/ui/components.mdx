@@ -1,0 +1,400 @@
+---
+title: Components
+description: Component API, props, children, lifecycle, and advanced patterns in Vertx UI.
+---
+
+# Components
+
+Components are plain functions that return DOM elements. No classes, no special APIs.
+
+## Basic Component
+
+```tsx
+function Greeting() {
+  return <h1>Hello</h1>;
+}
+
+// Use it
+document.body.appendChild(Greeting());
+```
+
+## Props
+
+Props are plain objects. For reactive props (values that change), use getter functions:
+
+```tsx
+interface CardProps {
+  title: string;        // static — captured once
+  count: () => number;  // reactive — re-evaluated on access
+}
+
+function Card(props: CardProps) {
+  return (
+    <div>
+      <h2>{props.title}</h2>
+      <span>{props.count()}</span>
+    </div>
+  );
+}
+
+// Usage
+function App() {
+  let n = 0;
+  return (
+    <div>
+      <Card title="Score" count={() => n} />
+      <button onClick={() => n++}>+</button>
+    </div>
+  );
+}
+```
+
+The `() => n` getter ensures `Card` re-reads the value reactively.
+
+## Children
+
+Access children via the `children` helper:
+
+```tsx
+import { children, type ChildrenAccessor } from '@vertz/ui';
+
+interface PanelProps {
+  children: ChildrenAccessor;
+}
+
+function Panel(props: PanelProps) {
+  const getChildren = children(props.children);
+  const el = <div className="panel" />;
+  for (const child of getChildren()) {
+    (el as HTMLElement).appendChild(child);
+  }
+  return el;
+}
+```
+
+## Conditional Rendering
+
+Use standard JSX conditionals — the compiler transforms them:
+
+```tsx
+function Toggle() {
+  let show = false;
+
+  return (
+    <div>
+      {show && <p>Now you see me</p>}
+      <button onClick={() => show = !show}>Toggle</button>
+    </div>
+  );
+}
+```
+
+Ternaries work too:
+
+```tsx
+function StatusBadge() {
+  let online = true;
+  return (
+    <div>
+      {online 
+        ? <span className="green">Online</span> 
+        : <span className="gray">Offline</span>
+      }
+    </div>
+  );
+}
+```
+
+## List Rendering
+
+Use `.map()` with a `key` prop:
+
+```tsx
+function TodoList() {
+  let todos = [
+    { id: '1', text: 'Learn Vertz' },
+    { id: '2', text: 'Build something' },
+  ];
+
+  return (
+    <div>
+      <ul>
+        {todos.map(todo => (
+          <li key={todo.id}>{todo.text}</li>
+        ))}
+      </ul>
+      <button onClick={() => {
+        todos = [...todos, { id: String(Date.now()), text: 'New todo' }];
+      }}>
+        Add
+      </button>
+    </div>
+  );
+}
+```
+
+Always provide a stable, unique `key` for each item.
+
+## Styling
+
+### css() — Scoped Styles
+
+```tsx
+import { css } from '@vertz/ui/css';
+
+const styles = css({
+  card: ['p:4', 'bg:white', 'rounded:lg'],
+  title: ['font:xl', 'weight:bold'],
+});
+
+function Card() {
+  return (
+    <div className={styles.classNames.card}>
+      <h2 className={styles.classNames.title}>Hello</h2>
+    </div>
+  );
+}
+```
+
+Pseudo-states:
+
+```tsx
+const button = css({
+  root: ['p:4', 'bg:blue.600', 'hover:bg:blue.700', 'rounded:md'],
+});
+```
+
+### variants() — Typed Variants
+
+```tsx
+import { variants } from '@vertz/ui/css';
+
+const button = variants({
+  base: ['flex', 'font:medium', 'rounded:md'],
+  variants: {
+    intent: {
+      primary: ['bg:blue.600', 'text:white'],
+      secondary: ['bg:gray.100', 'text:gray.800'],
+    },
+    size: {
+      sm: ['text:xs', 'h:8'],
+      md: ['text:sm', 'h:10'],
+      lg: ['text:base', 'h:12'],
+    },
+  },
+  defaultVariants: { intent: 'primary', size: 'md' },
+});
+
+button({ intent: 'secondary', size: 'sm' }); // returns className string
+```
+
+### ThemeProvider
+
+```tsx
+import { defineTheme, compileTheme, ThemeProvider } from '@vertz/ui/css';
+
+const theme = defineTheme({
+  colors: {
+    primary: { 500: '#3b82f6', 600: '#2563eb' },
+    background: { DEFAULT: '#ffffff', _dark: '#111827' },
+  },
+});
+
+const compiled = compileTheme(theme);
+
+const app = ThemeProvider({
+  theme: 'dark',
+  children: [MyApp()],
+});
+document.body.appendChild(app);
+```
+
+## Lifecycle
+
+### onMount
+
+Runs once when the component is created:
+
+```tsx
+import { onMount, onCleanup } from '@vertz/ui';
+
+function Timer() {
+  let elapsed = 0;
+
+  onMount(() => {
+    const id = setInterval(() => elapsed++, 1000);
+    onCleanup(() => clearInterval(id));
+  });
+
+  return <span>{elapsed}s</span>;
+}
+```
+
+### watch
+
+Watch a reactive dependency and run a callback when it changes:
+
+```tsx
+import { watch } from '@vertz/ui';
+
+function Logger() {
+  let count = 0;
+
+  watch(
+    () => count,
+    (value) => {
+      console.log('count changed to', value);
+    }
+  );
+
+  return <button onClick={() => count++}>+</button>;
+}
+```
+
+### ref
+
+Access a DOM element after creation:
+
+```tsx
+import { ref, onMount } from '@vertz/ui';
+
+function FocusInput() {
+  const inputRef = ref<HTMLInputElement>();
+
+  onMount(() => {
+    inputRef.current?.focus();
+  });
+
+  const el = <input /> as HTMLInputElement;
+  inputRef.current = el;
+
+  return el;
+}
+```
+
+## Context
+
+Share values down the component tree:
+
+```tsx
+import { createContext, useContext } from '@vertz/ui';
+
+const ThemeCtx = createContext<'light' | 'dark'>('light');
+
+function App() {
+  const el = document.createDocumentFragment();
+
+  ThemeCtx.Provider('dark', () => {
+    el.appendChild(ThemedCard());
+  });
+
+  return el;
+}
+
+function ThemedCard() {
+  const theme = useContext(ThemeCtx); // => 'dark'
+  return <div className={theme === 'dark' ? 'dark' : 'light'}>Themed</div>;
+}
+```
+
+## Effects
+
+`effect()` runs a callback whenever its signal dependencies change:
+
+```tsx
+import { effect, onCleanup } from '@vertz/ui';
+
+function Analytics() {
+  let page = '/home';
+
+  effect(() => {
+    sendPageView(page);
+    onCleanup(() => console.log('cleanup'));
+  });
+
+  return <button onClick={() => page = '/about'}>Go to About</button>;
+}
+```
+
+### batch()
+
+Group multiple signal writes:
+
+```tsx
+import { batch } from '@vertz/ui';
+
+batch(() => {
+  firstName = 'Jane';
+  lastName = 'Doe';
+  age = 30;
+});
+// Effects run once, not three times
+```
+
+### untrack()
+
+Read a signal without subscribing:
+
+```tsx
+import { untrack } from '@vertz/ui';
+
+effect(() => {
+  const tracked = count;                    // subscribes
+  const notTracked = untrack(() => other);   // doesn't subscribe
+});
+```
+
+## Error Handling
+
+### ErrorBoundary
+
+Catch errors in child components:
+
+```tsx
+import { ErrorBoundary } from '@vertz/ui';
+
+function App() {
+  return ErrorBoundary({
+    children: () => <RiskyComponent />,
+    fallback: (error, retry) => (
+      <div>
+        <p>Error: {error.message}</p>
+        <button onClick={retry}>Retry</button>
+      </div>
+    ),
+  });
+}
+```
+
+### Suspense
+
+Handle async components:
+
+```tsx
+import { Suspense } from '@vertz/ui';
+
+function App() {
+  return Suspense({
+    children: () => <AsyncComponent />,
+    fallback: () => <div>Loading...</div>,
+  });
+}
+```
+
+If `children()` throws a Promise, the fallback renders. When it resolves, the actual content replaces the fallback.
+
+## When NOT to Use effect()
+
+The compiler handles most reactivity automatically. Avoid `effect()` for:
+
+- **Manual DOM updates** — Use JSX interpolation instead
+- **Manual attribute updates** — Use JSX attributes
+- **Manual child rendering** — Use conditionals and `.map()`
+
+```tsx
+// DON'T
+effect(() => { span.textContent = String(count); });
+
+// DO
+<span>{count}</span>
+```

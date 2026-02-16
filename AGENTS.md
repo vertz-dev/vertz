@@ -10,7 +10,7 @@ If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out w
 
 **MANDATORY — Read these before any work:**
 - `RULES.md` — Condensed engineering rules (TDD, PRs, quality gates, lifecycle)
-- Full rules: `/workspace/backstage/.claude/rules/` and `/workspace/vertz/.claude/rules/`
+- Full rules: `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/` and `/Users/viniciusdacal/openclaw-workspace/vertz/.claude/rules/`
 
 Before doing anything else:
 
@@ -116,6 +116,49 @@ On platforms that support reactions (Discord, Slack), use emoji reactions natura
 Reactions are lightweight social signals. Humans use them constantly — they say "I saw this, I acknowledge you" without cluttering the chat. You should too.
 
 **Don't overdo it:** One reaction per message max. Pick the one that fits best.
+
+## 🧠 Opus Conservation — Delegate Everything Mechanical
+
+**You (main agent) run on Opus. Opus is expensive. Protect it.**
+
+Your role is **reasoning, strategy, and coordination** — not mechanical work. Any time you're about to do something that doesn't require Opus-level thinking, **spawn a MiniMax subagent instead**.
+
+### ALWAYS delegate to subagents:
+- **Web research** — spawn agent to search, read pages, save summary to `backstage/research/`
+- **Large file reading/analysis** — "read these files, tell me X" instead of loading into your context
+- **Code generation** — write a brief spec + test plan, spawn agent to implement
+- **Report generation** — audits, design docs, summaries. Agent writes full doc, you review summary
+- **Git operations** — commits, PRs, rebases, worktree setup. Pure mechanical work
+- **Config/infrastructure changes** — cron jobs, CI fixes, file reorganization
+- **Parallel investigations** — spawn 2-3 agents to explore different approaches simultaneously
+
+### KEEP for yourself (Opus):
+- Strategic conversations with CTO
+- Architecture decisions requiring nuance and pushback
+- Cross-agent coordination and conflict resolution
+- Reviewing agent output summaries (not the full output)
+- Situations where you need to challenge an idea or say no
+
+### The pattern:
+1. CTO asks for something → **you think** (Opus reasoning)
+2. You write a **brief task spec** (what to do, where to save output, what to summarize)
+3. You **spawn MiniMax agent(s)** with `sessions_spawn`
+4. They do the work → you **review the summary**
+5. You relay the result to CTO
+
+### Anti-patterns (STOP doing these):
+- ❌ Reading 5+ files yourself — spawn an agent to summarize them
+- ❌ Writing 100+ line outputs — spawn an agent, have them save to file
+- ❌ Web searching yourself — spawn a research agent
+- ❌ Running long shell pipelines — spawn an agent
+- ❌ Generating design docs from scratch — spawn an agent with an outline
+- ❌ Reading gateway/system configs yourself — spawn an agent to check and summarize
+- ❌ Investigating cron job failures yourself — spawn an agent to diagnose and report
+- ❌ Doing multiple edit+commit+push cycles — batch into one spawn task
+- ❌ Loading large API responses (config.get, session lists, run histories) — spawn an agent to query and extract what you need
+- ❌ Treating "quick" tasks as exceptions — small tasks accumulate into large context. If in doubt, delegate.
+
+**Rule of thumb:** If it's not reasoning, it's delegation.
 
 ## Tools
 
