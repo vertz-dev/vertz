@@ -2,6 +2,8 @@ import { Command } from 'commander';
 import { generateAction } from './commands/generate';
 import { generateDomainAction } from './commands/domain-gen';
 import { devAction } from './commands/dev';
+import { buildAction } from './commands/build';
+import { createAction } from './commands/create';
 
 export function createCLI(): Command {
   const program = new Command();
@@ -10,6 +12,21 @@ export function createCLI(): Command {
     .name('vertz')
     .description('Vertz CLI — build, check, and serve your Vertz app')
     .version('0.1.0');
+
+  // Create command - scaffold a new Vertz project
+  program
+    .command('create <name>')
+    .description('Scaffold a new Vertz project')
+    .option('-r, --runtime <runtime>', 'Runtime to use (bun, node, deno)', 'bun')
+    .option('-e, --example', 'Include example health module')
+    .option('--no-example', 'Exclude example health module')
+    .action(async (name: string, opts: { runtime: string; example?: boolean }) => {
+      await createAction({
+        projectName: name,
+        runtime: opts.runtime,
+        example: opts.example,
+      });
+    });
 
   program
     .command('check')
@@ -21,7 +38,24 @@ export function createCLI(): Command {
     .command('build')
     .description('Compile the project for production')
     .option('--strict', 'Enable strict mode')
-    .option('--output <dir>', 'Output directory');
+    .option('-o, --output <dir>', 'Output directory', '.vertz/build')
+    .option('-t, --target <target>', 'Build target (node, edge, worker)', 'node')
+    .option('--no-typecheck', 'Disable type checking')
+    .option('--no-minify', 'Disable minification')
+    .option('--sourcemap', 'Generate sourcemaps')
+    .option('-v, --verbose', 'Verbose output')
+    .action(async (opts) => {
+      const exitCode = await buildAction({
+        strict: opts.strict,
+        output: opts.output,
+        target: opts.target,
+        noTypecheck: opts.noTypecheck,
+        noMinify: opts.noMinify,
+        sourcemap: opts.sourcemap,
+        verbose: opts.verbose,
+      });
+      process.exit(exitCode);
+    });
 
   // Unified dev command - Phase 1 implementation
   program

@@ -36,6 +36,7 @@
     "@vertz/codegen": "workspace:*",
     "@vertz/tui": "workspace:*",
     "@vertz/compiler": "workspace:*",
+    "@vertz/create-vertz-app": "workspace:*",
     "@vertz/db": "workspace:*",
     "commander": "^14.0.0",
     "ink": "^6.6.0",

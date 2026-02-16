@@ -1,6 +1,7 @@
 export { createCLI } from './cli';
 export { buildAction } from './commands/build';
 export { checkAction } from './commands/check';
+export { createAction } from './commands/create';
 export { deployAction } from './commands/deploy';
 export { devAction, registerDevCommand } from './commands/dev';
 export { generateAction } from './commands/generate';
