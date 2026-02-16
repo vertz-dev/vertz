@@ -1,1 +1,0 @@
-{"version":3,"file":"cuid.d.ts","sourceRoot":"","sources":["cuid.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,YAAY,EAAE,MAAM,iBAAiB,CAAC;AAI/C,qBAAa,UAAW,SAAQ,YAAY;IAC1C,SAAS,CAAC,aAAa,SAAkB;IAEzC,SAAS,CAAC,SAAS,CAAC,KAAK,EAAE,MAAM,GAAG,OAAO;CAG5C"}

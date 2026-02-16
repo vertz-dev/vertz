@@ -1,1 +1,0 @@
-{"version":3,"file":"code-splitting.d.ts","sourceRoot":"","sources":["code-splitting.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AAEH,OAAO,KAAK,EAAE,mBAAmB,EAAE,MAAM,aAAa,CAAC;AAEvD;;GAEG;AACH,qBAAa,eAAe;IAC1B;;;;;;OAMG;IACH,KAAK,CACH,QAAQ,EAAE,GAAG,CAAC,MAAM,EAAE,MAAM,EAAE,CAAC,EAC/B,eAAe,EAAE,GAAG,CAAC,MAAM,EAAE,mBAAmB,CAAC,GAChD,MAAM,CAAC,MAAM,EAAE,MAAM,CAAC;CAkD1B"}

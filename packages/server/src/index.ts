@@ -61,7 +61,7 @@ export {
   vertz,
 } from '@vertz/core';
 
-// Domain API (STUB for TDD red phase)
+// Domain API - re-exported from internal domain module
 export { domain } from './domain';
 export type {
   DomainDefinition,
