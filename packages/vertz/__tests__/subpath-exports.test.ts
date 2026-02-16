@@ -54,12 +54,16 @@ describe('vertz meta-package subpath exports', () => {
     expect(pkg.main).toBeUndefined();
   });
 
-  it('vertz/router throws not-yet-available error', async () => {
-    await expect(import('vertz/router')).rejects.toThrow('not yet available');
+  it('vertz/router re-exports @vertz/ui', async () => {
+    const mod = await import('vertz/router');
+    // Should have router-related exports
+    expect(Object.keys(mod).length).toBeGreaterThan(0);
   });
 
-  it('vertz/signal throws not-yet-available error', async () => {
-    await expect(import('vertz/signal')).rejects.toThrow('not yet available');
+  it('vertz/signal re-exports @vertz/ui', async () => {
+    const mod = await import('vertz/signal');
+    // Should have signal-related exports
+    expect(Object.keys(mod).length).toBeGreaterThan(0);
   });
 });
 
