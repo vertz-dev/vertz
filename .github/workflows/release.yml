@@ -4,24 +4,20 @@ on:
   push:
     branches: [main]
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+permissions:
+  contents: read
+  id-token: write  # Required for npm provenance
 
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          fetch-depth: 0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -34,12 +30,8 @@ jobs:
       - name: Build all packages
         run: bun run build
 
-      - name: Create Release PR
-        id: changesets
-        uses: changesets/action@v1
-        with:
-          version: bun run changeset:version
-          title: "chore: version packages"
-          commit: "chore: version packages"
+      - name: Publish to npm
+        run: bun run changeset publish
         env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
