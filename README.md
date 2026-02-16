@@ -198,6 +198,10 @@ This is pre-release software. APIs will change. But the architecture and philoso
 
 > **Note:** The `app.listen()` convenience method is [in design](https://github.com/vertz-dev/vertz/issues/70). Currently, use `app.handler` directly as shown above.
 
+## Documentation
+
+Documentation has moved to our private repo for launch control. Visit **[docs.vertz.dev](https://docs.vertz.dev)** for the latest guides and API reference.
+
 ## Getting Started
 
 > Vertz requires [Bun](https://bun.sh) for development.
