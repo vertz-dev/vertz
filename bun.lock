@@ -53,6 +53,7 @@
       "dependencies": {
         "@vertz/codegen": "workspace:*",
         "@vertz/compiler": "workspace:*",
+        "@vertz/create-vertz-app": "workspace:*",
         "@vertz/db": "workspace:*",
         "@vertz/tui": "workspace:*",
         "commander": "^14.0.0",
@@ -124,6 +125,19 @@
         "bunup": "latest",
         "typescript": "^5.7.0",
         "vitest": "^4.0.18",
+      },
+    },
+    "packages/create-vertz-app": {
+      "name": "@vertz/create-vertz-app",
+      "version": "0.1.0",
+      "bin": {
+        "create-vertz-app": "./bin/create-vertz-app.ts",
+      },
+      "dependencies": {
+        "commander": "^14.0.0",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
       },
     },
     "packages/db": {
@@ -659,6 +673,8 @@
     "@vertz/compiler": ["@vertz/compiler@workspace:packages/compiler"],
 
     "@vertz/core": ["@vertz/core@workspace:packages/core"],
+
+    "@vertz/create-vertz-app": ["@vertz/create-vertz-app@workspace:packages/create-vertz-app"],
 
     "@vertz/db": ["@vertz/db@workspace:packages/db"],
 
