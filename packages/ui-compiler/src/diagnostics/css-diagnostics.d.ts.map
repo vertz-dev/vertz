@@ -1,1 +1,0 @@
-{"version":3,"file":"css-diagnostics.d.ts","sourceRoot":"","sources":["css-diagnostics.ts"],"names":[],"mappings":"AAAA;;;;;;GAMG;AAUH,OAAO,EAAE,KAAK,UAAU,EAAc,MAAM,UAAU,CAAC;AACvD,OAAO,KAAK,EAAE,kBAAkB,EAAE,MAAM,UAAU,CAAC;AAenD;;GAEG;AACH,qBAAa,cAAc;IACzB,OAAO,CAAC,UAAU,EAAE,UAAU,GAAG,kBAAkB,EAAE;IAqCrD,0CAA0C;IAC1C,OAAO,CAAC,iBAAiB;IA2FzB,oCAAoC;IACpC,OAAO,CAAC,kBAAkB;CAoC3B"}

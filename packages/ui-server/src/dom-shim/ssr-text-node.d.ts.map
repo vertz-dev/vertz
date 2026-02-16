@@ -1,1 +1,0 @@
-{"version":3,"file":"ssr-text-node.d.ts","sourceRoot":"","sources":["ssr-text-node.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,MAAM,YAAY,CAAC;AAErC;;GAEG;AACH,qBAAa,WAAY,SAAQ,OAAO;IACtC,IAAI,EAAE,MAAM,CAAC;gBAED,IAAI,EAAE,MAAM;IAMxB,IAAI,IAAI,IAAI,MAAM,CAEjB;IAED,IAAI,IAAI,CAAC,KAAK,EAAE,MAAM,EAErB;CACF"}

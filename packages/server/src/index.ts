@@ -61,18 +61,18 @@ export {
   vertz,
 } from '@vertz/core';
 
-// Domain API (STUB for TDD red phase)
-export { domain } from './domain';
-export type {
-  DomainDefinition,
-  DomainOptions,
-  DomainType,
-  DomainContext,
-  AccessRule,
-  AccessRules,
-  Result,
-  DomainError,
-} from './domain';
+// Domain API (STUB for TDD red phase) — REMOVED from public exports
+// export { domain } from './domain';
+// export type {
+//   DomainDefinition,
+//   DomainOptions,
+//   DomainType,
+//   DomainContext,
+//   AccessRule,
+//   AccessRules,
+//   Result,
+//   DomainError,
+// } from './domain';
 
 // Auth Module - Phase 1
 export { 
