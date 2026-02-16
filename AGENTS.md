@@ -9,6 +9,7 @@ If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out w
 ## Every Session
 
 **MANDATORY — Read these before any work:**
+- `PROCESS.md` — Process framework (verification pyramid, task lifecycle, WIP limits)
 - `RULES.md` — Condensed engineering rules (TDD, PRs, quality gates, lifecycle)
 - Full rules: `/workspace/backstage/.claude/rules/` and `/workspace/vertz/.claude/rules/`
 
