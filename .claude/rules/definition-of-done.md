@@ -11,7 +11,7 @@ A phase (one milestone in an implementation plan) is done when:
 - [ ] Type flow verification — every generic type parameter introduced in this phase has a `.test-d.ts` test proving it flows from definition to consumer. No dead generics. (See `tdd.md` → Type Flow Verification)
 - [ ] Quality gates passing — lint, format, typecheck all clean
 - [ ] PR reviewed and approved by a different engineer
-- [ ] Linear ticket updated to done
+- [ ] GitHub issue updated to done
 
 ## Feature Done
 
@@ -25,7 +25,7 @@ A feature (all phases of a design) is done when:
 - [ ] Changeset added — with appropriate semver bump
 - [ ] **Examples use only the public API** — if any example requires internal imports, custom glue code, or a non-standard dev command, the framework has a gap that must be fixed before closing.
 - [ ] Retrospective written — `plans/post-implementation-reviews/<feature>.md`
-- [ ] All Linear tickets marked done
+- [ ] All GitHub issues marked done
 - [ ] Human approval — an org admin approves the feature branch to main PR
 
 ### Developer Walkthrough (mandatory for every feature)
@@ -46,7 +46,7 @@ Every feature ticket MUST include a Developer Walkthrough section. The feature i
 
 ### Tier 1 — Internal (no public API impact)
 
-- [ ] Linear ticket exists
+- [ ] GitHub issue exists
 - [ ] Failing test reproduces the bug
 - [ ] Fix makes the test pass
 - [ ] Quality gates passing
@@ -55,7 +55,7 @@ Every feature ticket MUST include a Developer Walkthrough section. The feature i
 
 ### Tier 2 — Public API change or breaking change
 
-- [ ] Linear ticket exists
+- [ ] GitHub issue exists
 - [ ] Approach validated by tech lead before implementation begins
 - [ ] Failing test reproduces the bug
 - [ ] Fix makes the test pass
@@ -70,7 +70,7 @@ Every feature ticket MUST include a Developer Walkthrough section. The feature i
 
 Refactors, DX tweaks, internal cleanup, performance improvements that don't change public API.
 
-- [ ] Linear ticket exists
+- [ ] GitHub issue exists
 - [ ] TDD if there's behavior involved
 - [ ] Quality gates passing
 - [ ] PR reviewed and approved by one engineer
