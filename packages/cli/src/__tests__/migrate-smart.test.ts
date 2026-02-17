@@ -7,7 +7,8 @@ const findProjectRootMock = vi.fn().mockReturnValue(mockProjectRoot);
 
 // Mock the dependencies
 vi.mock('../utils/paths', () => ({
-  findProjectRoot: (...args: unknown[]) => findProjectRootMock(...args),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  findProjectRoot: (...args: any[]) => (findProjectRootMock as any)(...args),
 }));
 
 const spawnMock = vi.fn(() => ({
@@ -22,7 +23,8 @@ const spawnMock = vi.fn(() => ({
 }));
 
 vi.mock('node:child_process', () => ({
-  spawn: (...args: unknown[]) => spawnMock(...args),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  spawn: (...args: any[]) => (spawnMock as any)(...args),
 }));
 
 describe('Feature: Smart Migrate Command', () => {
