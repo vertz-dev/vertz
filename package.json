@@ -11,7 +11,6 @@
     "build": "turbo run build",
     "test": "turbo run test --filter='!@vertz-examples/*'",
     "test:watch": "bun run --filter '*' test:watch",
-    "typecheck": "turbo run typecheck",
     "lint": "biome check packages/",
     "lint:fix": "biome check --fix packages/",
     "format": "biome format packages/",
