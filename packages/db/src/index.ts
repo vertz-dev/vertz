@@ -34,17 +34,24 @@ export { d } from './d';
 // Diagnostic
 export type { DiagnosticResult } from './diagnostic/index';
 export { diagnoseError, explainError, formatDiagnostic } from './diagnostic/index';
-// Errors
+// Errors - includes both original error classes and new Result error types
 export type {
   CheckConstraintErrorOptions,
   DbErrorCodeName,
   DbErrorCodeValue,
   DbErrorJson,
+  DbErrorBase,
+  DbConnectionError,
+  DbQueryError,
+  DbConstraintError,
+  DbNotFoundError,
   ForeignKeyErrorOptions,
   HttpErrorResponse,
   NotNullErrorOptions,
   PgErrorInput,
+  ReadError,
   UniqueConstraintErrorOptions,
+  WriteError,
 } from './errors';
 export {
   CheckConstraintError,
@@ -59,6 +66,8 @@ export {
   PgCodeToName,
   parsePgError,
   resolveErrorCode,
+  toReadError,
+  toWriteError,
   UniqueConstraintError,
 } from './errors';
 // Schema types

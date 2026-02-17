@@ -16,6 +16,14 @@ import type { RelationDef } from '../schema/relation';
 import type { SqlFragment } from '../sql/tagged';
 import { createPostgresDriver, type PostgresDriver } from './postgres-driver';
 import { computeTenantGraph, type TenantGraph } from './tenant-graph';
+import { ok, err, type Result } from '@vertz/schema';
+import {
+  NotFoundError,
+  type ReadError,
+  type WriteError,
+  toReadError,
+  toWriteError,
+} from '../errors';
 
 // ---------------------------------------------------------------------------
 // Query routing
@@ -265,7 +273,7 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Execute a raw SQL query via the sql tagged template.
    */
-  query<T = Record<string, unknown>>(fragment: SqlFragment): Promise<QueryResult<T>>;
+  query<T = Record<string, unknown>>(fragment: SqlFragment): Promise<Result<QueryResult<T>, ReadError>>;
 
   /**
    * Close all pool connections.
@@ -283,26 +291,27 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
 
   /**
    * Get a single row or null.
+   * Returns ok(null) when no record is found - absence is not an error.
    */
   get<TName extends keyof TTables & string, TOptions extends TypedGetOptions<TTables[TName]>>(
     table: TName,
     options?: TOptions,
-  ): Promise<FindResult<
-    EntryTable<TTables[TName]>,
-    TOptions,
-    EntryRelations<TTables[TName]>
-  > | null>;
+  ): Promise<Result<
+    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>> | null,
+    ReadError
+  >>;
 
   /**
-   * Get a single row or throw NotFoundError.
+   * Get a single row or return NotFoundError.
+   * Use when absence of a record is an error condition.
    */
-  getOrThrow<
-    TName extends keyof TTables & string,
-    TOptions extends TypedGetOptions<TTables[TName]>,
-  >(
+  getRequired<TName extends keyof TTables & string, TOptions extends TypedGetOptions<TTables[TName]>>(
     table: TName,
     options?: TOptions,
-  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>>;
+  ): Promise<Result<
+    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+    ReadError
+  >>;
 
   /**
    * List multiple rows.
@@ -310,7 +319,10 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   list<TName extends keyof TTables & string, TOptions extends TypedListOptions<TTables[TName]>>(
     table: TName,
     options?: TOptions,
-  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[]>;
+  ): Promise<Result<
+    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[],
+    ReadError
+  >>;
 
   /**
    * List multiple rows with total count.
@@ -321,15 +333,18 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   >(
     table: TName,
     options?: TOptions,
-  ): Promise<{
-    data: FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[];
-    total: number;
-  }>;
+  ): Promise<Result<
+    {
+      data: FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[];
+      total: number;
+    },
+    ReadError
+  >>;
 
   /** @deprecated Use `get` instead */
   findOne: DatabaseInstance<TTables>['get'];
-  /** @deprecated Use `getOrThrow` instead */
-  findOneOrThrow: DatabaseInstance<TTables>['getOrThrow'];
+  /** @deprecated Use `getRequired` instead */
+  findOneRequired: DatabaseInstance<TTables>['getRequired'];
   /** @deprecated Use `list` instead */
   findMany: DatabaseInstance<TTables>['list'];
   /** @deprecated Use `listAndCount` instead */
@@ -345,7 +360,10 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   create<TName extends keyof TTables & string, TOptions extends TypedCreateOptions<TTables[TName]>>(
     table: TName,
     options: TOptions,
-  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>>;
+  ): Promise<Result<
+    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+    WriteError
+  >>;
 
   /**
    * Insert multiple rows and return the count.
@@ -353,7 +371,7 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   createMany<TName extends keyof TTables & string>(
     table: TName,
     options: TypedCreateManyOptions<TTables[TName]>,
-  ): Promise<{ count: number }>;
+  ): Promise<Result<{ count: number }, WriteError>>;
 
   /**
    * Insert multiple rows and return them.
@@ -364,19 +382,26 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   >(
     table: TName,
     options: TOptions,
-  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[]>;
+  ): Promise<Result<
+    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[],
+    WriteError
+  >>;
 
   // -------------------------------------------------------------------------
   // Update queries (DB-010)
   // -------------------------------------------------------------------------
 
   /**
-   * Update matching rows and return the first. Throws NotFoundError if none match.
+   * Update matching rows and return the first.
+   * Returns NotFoundError if no rows match.
    */
   update<TName extends keyof TTables & string, TOptions extends TypedUpdateOptions<TTables[TName]>>(
     table: TName,
     options: TOptions,
-  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>>;
+  ): Promise<Result<
+    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+    WriteError
+  >>;
 
   /**
    * Update matching rows and return the count.
@@ -384,7 +409,7 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   updateMany<TName extends keyof TTables & string>(
     table: TName,
     options: TypedUpdateManyOptions<TTables[TName]>,
-  ): Promise<{ count: number }>;
+  ): Promise<Result<{ count: number }, WriteError>>;
 
   // -------------------------------------------------------------------------
   // Upsert (DB-010)
@@ -396,19 +421,26 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   upsert<TName extends keyof TTables & string, TOptions extends TypedUpsertOptions<TTables[TName]>>(
     table: TName,
     options: TOptions,
-  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>>;
+  ): Promise<Result<
+    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+    WriteError
+  >>;
 
   // -------------------------------------------------------------------------
   // Delete queries (DB-010)
   // -------------------------------------------------------------------------
 
   /**
-   * Delete a matching row and return it. Throws NotFoundError if none match.
+   * Delete a matching row and return it.
+   * Returns NotFoundError if no rows match.
    */
   delete<TName extends keyof TTables & string, TOptions extends TypedDeleteOptions<TTables[TName]>>(
     table: TName,
     options: TOptions,
-  ): Promise<FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>>;
+  ): Promise<Result<
+    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+    WriteError
+  >>;
 
   /**
    * Delete matching rows and return the count.
@@ -416,7 +448,7 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   deleteMany<TName extends keyof TTables & string>(
     table: TName,
     options: TypedDeleteManyOptions<TTables[TName]>,
-  ): Promise<{ count: number }>;
+  ): Promise<Result<{ count: number }, WriteError>>;
 
   // -------------------------------------------------------------------------
   // Aggregation queries (DB-012)
@@ -428,7 +460,7 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   count<TName extends keyof TTables & string>(
     table: TName,
     options?: TypedCountOptions<TTables[TName]>,
-  ): Promise<number>;
+  ): Promise<Result<number, ReadError>>;
 
   /**
    * Run aggregation functions on a table.
@@ -436,7 +468,7 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   aggregate<TName extends keyof TTables & string>(
     table: TName,
     options: agg.AggregateArgs,
-  ): Promise<Record<string, unknown>>;
+  ): Promise<Result<Record<string, unknown>, ReadError>>;
 
   /**
    * Group rows by columns and apply aggregation functions.
@@ -444,7 +476,7 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   groupBy<TName extends keyof TTables & string>(
     table: TName,
     options: agg.GroupByArgs,
-  ): Promise<Record<string, unknown>[]>;
+  ): Promise<Result<Record<string, unknown>[], ReadError>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -586,8 +618,13 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     _tables: tables,
     $tenantGraph: tenantGraph,
 
-    async query<T = Record<string, unknown>>(fragment: SqlFragment): Promise<QueryResult<T>> {
-      return executeQuery<T>(queryFn, fragment.sql, fragment.params);
+    async query<T = Record<string, unknown>>(fragment: SqlFragment): Promise<Result<QueryResult<T>, ReadError>> {
+      try {
+        const result = await executeQuery<T>(queryFn, fragment.sql, fragment.params);
+        return ok(result);
+      } catch (e) {
+        return err(toReadError(e, fragment.sql));
+      }
     },
 
     async close(): Promise<void> {
@@ -612,82 +649,102 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     // -----------------------------------------------------------------------
 
     async get(name, opts): Promise<AnyResult> {
-      const entry = resolveTable(tables, name);
-      const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs);
-      if (result !== null && opts?.include) {
-        const rows = await loadRelations(
-          queryFn,
-          [result as Record<string, unknown>],
-          entry.relations as Record<string, RelationDef>,
-          opts.include as IncludeSpec,
-          0,
-          tablesRegistry,
-          entry.table,
-        );
-        return rows[0] ?? null;
+      try {
+        const entry = resolveTable(tables, name);
+        const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs);
+        if (result !== null && opts?.include) {
+          const rows = await loadRelations(
+            queryFn,
+            [result as Record<string, unknown>],
+            entry.relations as Record<string, RelationDef>,
+            opts.include as IncludeSpec,
+            0,
+            tablesRegistry,
+            entry.table,
+          );
+          return ok(rows[0] ?? null);
+        }
+        return ok(result);
+      } catch (e) {
+        return err(toReadError(e));
       }
-      return result;
     },
 
-    async getOrThrow(name, opts): Promise<AnyResult> {
-      const entry = resolveTable(tables, name);
-      const result = await crud.getOrThrow(queryFn, entry.table, opts as crud.GetArgs);
-      if (opts?.include) {
-        const rows = await loadRelations(
-          queryFn,
-          [result as Record<string, unknown>],
-          entry.relations as Record<string, RelationDef>,
-          opts.include as IncludeSpec,
-          0,
-          tablesRegistry,
-          entry.table,
-        );
-        return rows[0] as Record<string, unknown>;
+    async getRequired(name, opts): Promise<AnyResult> {
+      try {
+        const entry = resolveTable(tables, name);
+        const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs);
+        if (result === null) {
+          return err(new NotFoundError(name));
+        }
+        if (opts?.include) {
+          const rows = await loadRelations(
+            queryFn,
+            [result as Record<string, unknown>],
+            entry.relations as Record<string, RelationDef>,
+            opts.include as IncludeSpec,
+            0,
+            tablesRegistry,
+            entry.table,
+          );
+          return ok(rows[0] as Record<string, unknown>);
+        }
+        return ok(result);
+      } catch (e) {
+        return err(toReadError(e));
       }
-      return result;
     },
 
     async list(name, opts): Promise<AnyResult> {
-      const entry = resolveTable(tables, name);
-      const results = await crud.list(queryFn, entry.table, opts as crud.ListArgs);
-      if (opts?.include && results.length > 0) {
-        return loadRelations(
-          queryFn,
-          results as Record<string, unknown>[],
-          entry.relations as Record<string, RelationDef>,
-          opts.include as IncludeSpec,
-          0,
-          tablesRegistry,
-          entry.table,
-        );
+      try {
+        const entry = resolveTable(tables, name);
+        const results = await crud.list(queryFn, entry.table, opts as crud.ListArgs);
+        if (opts?.include && results.length > 0) {
+          const withRelations = await loadRelations(
+            queryFn,
+            results as Record<string, unknown>[],
+            entry.relations as Record<string, RelationDef>,
+            opts.include as IncludeSpec,
+            0,
+            tablesRegistry,
+            entry.table,
+          );
+          return ok(withRelations);
+        }
+        return ok(results);
+      } catch (e) {
+        return err(toReadError(e));
       }
-      return results;
     },
 
     async listAndCount(name, opts): Promise<AnyResult> {
-      const entry = resolveTable(tables, name);
-      const { data, total } = await crud.listAndCount(queryFn, entry.table, opts as crud.ListArgs);
-      if (opts?.include && data.length > 0) {
-        const withRelations = await loadRelations(
-          queryFn,
-          data as Record<string, unknown>[],
-          entry.relations as Record<string, RelationDef>,
-          opts.include as IncludeSpec,
-          0,
-          tablesRegistry,
-          entry.table,
-        );
-        return { data: withRelations, total };
+      try {
+        const entry = resolveTable(tables, name);
+        const { data, total } = await crud.listAndCount(queryFn, entry.table, opts as crud.ListArgs);
+        if (opts?.include && data.length > 0) {
+          const withRelations = await loadRelations(
+            queryFn,
+            data as Record<string, unknown>[],
+            entry.relations as Record<string, RelationDef>,
+            opts.include as IncludeSpec,
+            0,
+            tablesRegistry,
+            entry.table,
+          );
+          return ok({ data: withRelations, total });
+        }
+        return ok({ data, total });
+      } catch (e) {
+        return err(toReadError(e));
       }
-      return { data, total };
     },
 
     // Deprecated aliases
     get findOne() {
       return this.get;
     },
-    get findOneOrThrow() {
-      return this.getOrThrow;
+    get findOneRequired() {
+      return this.getRequired;
     },
     get findMany() {
       return this.list;
@@ -701,18 +758,33 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     // -----------------------------------------------------------------------
 
     async create(name, opts): Promise<AnyResult> {
-      const entry = resolveTable(tables, name);
-      return crud.create(queryFn, entry.table, opts as crud.CreateArgs);
+      try {
+        const entry = resolveTable(tables, name);
+        const result = await crud.create(queryFn, entry.table, opts as crud.CreateArgs);
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
     },
 
     async createMany(name, opts): Promise<AnyResult> {
-      const entry = resolveTable(tables, name);
-      return crud.createMany(queryFn, entry.table, opts as crud.CreateManyArgs);
+      try {
+        const entry = resolveTable(tables, name);
+        const result = await crud.createMany(queryFn, entry.table, opts as crud.CreateManyArgs);
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
     },
 
     async createManyAndReturn(name, opts): Promise<AnyResult> {
-      const entry = resolveTable(tables, name);
-      return crud.createManyAndReturn(queryFn, entry.table, opts as crud.CreateManyAndReturnArgs);
+      try {
+        const entry = resolveTable(tables, name);
+        const result = await crud.createManyAndReturn(queryFn, entry.table, opts as crud.CreateManyAndReturnArgs);
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
     },
 
     // -----------------------------------------------------------------------
@@ -720,13 +792,23 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     // -----------------------------------------------------------------------
 
     async update(name, opts): Promise<AnyResult> {
-      const entry = resolveTable(tables, name);
-      return crud.update(queryFn, entry.table, opts as crud.UpdateArgs);
+      try {
+        const entry = resolveTable(tables, name);
+        const result = await crud.update(queryFn, entry.table, opts as crud.UpdateArgs);
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
     },
 
     async updateMany(name, opts): Promise<AnyResult> {
-      const entry = resolveTable(tables, name);
-      return crud.updateMany(queryFn, entry.table, opts as crud.UpdateManyArgs);
+      try {
+        const entry = resolveTable(tables, name);
+        const result = await crud.updateMany(queryFn, entry.table, opts as crud.UpdateManyArgs);
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
     },
 
     // -----------------------------------------------------------------------
@@ -734,8 +816,13 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     // -----------------------------------------------------------------------
 
     async upsert(name, opts): Promise<AnyResult> {
-      const entry = resolveTable(tables, name);
-      return crud.upsert(queryFn, entry.table, opts as crud.UpsertArgs);
+      try {
+        const entry = resolveTable(tables, name);
+        const result = await crud.upsert(queryFn, entry.table, opts as crud.UpsertArgs);
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
     },
 
     // -----------------------------------------------------------------------
@@ -743,32 +830,57 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     // -----------------------------------------------------------------------
 
     async delete(name, opts): Promise<AnyResult> {
-      const entry = resolveTable(tables, name);
-      return crud.deleteOne(queryFn, entry.table, opts as crud.DeleteArgs);
+      try {
+        const entry = resolveTable(tables, name);
+        const result = await crud.deleteOne(queryFn, entry.table, opts as crud.DeleteArgs);
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
     },
 
     async deleteMany(name, opts): Promise<AnyResult> {
-      const entry = resolveTable(tables, name);
-      return crud.deleteMany(queryFn, entry.table, opts as crud.DeleteManyArgs);
+      try {
+        const entry = resolveTable(tables, name);
+        const result = await crud.deleteMany(queryFn, entry.table, opts as crud.DeleteManyArgs);
+        return ok(result);
+      } catch (e) {
+        return err(toWriteError(e));
+      }
     },
 
     // -----------------------------------------------------------------------
     // Aggregation queries
     // -----------------------------------------------------------------------
 
-    async count(name, opts) {
-      const entry = resolveTable(tables, name);
-      return agg.count(queryFn, entry.table, opts as { where?: Record<string, unknown> });
+    async count(name, opts): Promise<AnyResult> {
+      try {
+        const entry = resolveTable(tables, name);
+        const result = await agg.count(queryFn, entry.table, opts as { where?: Record<string, unknown> });
+        return ok(result);
+      } catch (e) {
+        return err(toReadError(e));
+      }
     },
 
-    async aggregate(name, opts) {
-      const entry = resolveTable(tables, name);
-      return agg.aggregate(queryFn, entry.table, opts);
+    async aggregate(name, opts): Promise<AnyResult> {
+      try {
+        const entry = resolveTable(tables, name);
+        const result = await agg.aggregate(queryFn, entry.table, opts);
+        return ok(result);
+      } catch (e) {
+        return err(toReadError(e));
+      }
     },
 
-    async groupBy(name, opts) {
-      const entry = resolveTable(tables, name);
-      return agg.groupBy(queryFn, entry.table, opts);
+    async groupBy(name, opts): Promise<AnyResult> {
+      try {
+        const entry = resolveTable(tables, name);
+        const result = await agg.groupBy(queryFn, entry.table, opts);
+        return ok(result);
+      } catch (e) {
+        return err(toReadError(e));
+      }
     },
   };
 }
