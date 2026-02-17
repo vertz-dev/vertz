@@ -4,6 +4,7 @@
 import { NotFoundException } from '@vertz/core';
 import type { FilterType } from '@vertz/db';
 import { db } from '../../db';
+import { unwrap } from '@vertz/schema';
 import type { tasks, users } from '../../db/schema';
 
 // ---------------------------------------------------------------------------
@@ -79,12 +80,13 @@ export function createTaskMethods() {
       if (input.priority) where.priority = input.priority;
       if (input.assigneeId) where.assigneeId = input.assigneeId;
 
-      const { data, total } = await db.listAndCount('tasks', {
+      const result = await db.listAndCount('tasks', {
         where,
         limit,
         offset,
         orderBy: { createdAt: 'desc' },
       });
+      const { data, total } = unwrap(result);
 
       return {
         data: data.map((t) => serializeTask(t)),
@@ -95,10 +97,11 @@ export function createTaskMethods() {
     },
 
     async getById(id: string) {
-      const task = await db.get('tasks', {
+      const result = await db.get('tasks', {
         where: { id },
         include: { assignee: true },
       });
+      const task = unwrap(result);
 
       if (!task) {
         throw new NotFoundException(`Task with id "${id}" not found`);
@@ -110,16 +113,17 @@ export function createTaskMethods() {
     async create(input: CreateTaskInput) {
       // If assigneeId is provided, verify the user exists
       if (input.assigneeId) {
-        const user = await db.get('users', {
+        const userResult = await db.get('users', {
           where: { id: input.assigneeId },
         });
+        const user = unwrap(userResult);
         if (!user) {
           throw new NotFoundException(`Assignee with id "${input.assigneeId}" not found`);
         }
       }
 
       const now = new Date();
-      const task = await db.create('tasks', {
+      const result = await db.create('tasks', {
         data: {
           id: crypto.randomUUID(),
           title: input.title,
@@ -131,6 +135,7 @@ export function createTaskMethods() {
           updatedAt: now,
         },
       });
+      const task = unwrap(result);
 
       return serializeTask(task);
     },
@@ -138,9 +143,10 @@ export function createTaskMethods() {
     async update(id: string, input: UpdateTaskInput) {
       // If assigneeId is being set, verify the user exists
       if (input.assigneeId) {
-        const user = await db.get('users', {
+        const userResult = await db.get('users', {
           where: { id: input.assigneeId },
         });
+        const user = unwrap(userResult);
         if (!user) {
           throw new NotFoundException(`Assignee with id "${input.assigneeId}" not found`);
         }
@@ -156,18 +162,20 @@ export function createTaskMethods() {
         ...(input.assigneeId !== undefined && { assigneeId: input.assigneeId }),
       };
 
-      const task = await db.update('tasks', {
+      const result = await db.update('tasks', {
         where: { id },
         data,
       });
+      const task = unwrap(result);
 
       return serializeTask(task);
     },
 
     async remove(id: string) {
-      const task = await db.delete('tasks', {
+      const result = await db.delete('tasks', {
         where: { id },
       });
+      const task = unwrap(result);
 
       return serializeTask(task);
     },
