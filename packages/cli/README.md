@@ -1,132 +1,154 @@
 # @vertz/cli
 
-The `vertz` command. Create, develop, build, and publish Vertz applications.
+The `vertz` CLI — create, develop, build, and deploy Vertz applications.
 
-> **5-minute rule:** You should understand what this CLI does and how to use it in 5 minutes or less. If not, [open an issue](https://github.com/nicholasgriffintn/vertz/issues) — that's a bug in our docs.
+> **5-minute rule:** You should understand what this CLI does and how to use it in 5 minutes or less. If not, [open an issue](https://github.com/vertz-dev/vertz/issues) — that's a bug in our docs.
 
-## What is this?
-
-`@vertz/cli` is the developer tool for Vertz projects. It's the `vertz` binary you run in your terminal. If you're looking for terminal UI building blocks (spinners, task lists, select menus), that's `@vertz/tui`.
-
----
-
-## You want to start a new project
+## Quick Start
 
 ```bash
+# Create a new project
 npx @vertz/cli create my-app
 cd my-app
+
+# Start development
+npx vertz dev
+
+# Build for production
+npx vertz build
 ```
-
-This scaffolds a new Vertz app with a working `src/app.ts`, config file, and dev scripts. You'll have a running server in under a minute.
-
-Your entry point will look something like this:
-
-```ts
-import { createServer } from '@vertz/server';
-
-const app = createServer();
-// ... define your routes, modules, services
-```
-
----
-
-## You want to develop locally
-
-```bash
-vertz dev
-```
-
-That's it. This starts your dev server with hot reload, background type-checking, and compiler diagnostics right in your terminal.
-
-**Common options:**
-
-```bash
-vertz dev --port 4000          # custom port
-vertz dev --host 0.0.0.0      # expose to network
-vertz dev --no-typecheck       # skip background type-checking
-```
-
-**What happens under the hood:**
-1. Compiles your `src/` directory
-2. Starts your server (default: `localhost:3000`)
-3. Watches for file changes and recompiles automatically
-4. Runs type-checking in the background so errors show inline
-
----
-
-## You want to build for production
-
-```bash
-vertz build
-```
-
-Compiles your project, runs validation, and outputs production-ready code.
-
-```bash
-vertz build --strict           # treat warnings as errors
-vertz build --output dist      # custom output directory
-```
-
----
-
-## You want to check your code without building
-
-```bash
-vertz check
-```
-
-Type-checks and validates your project without producing output. Useful in CI or as a pre-commit hook.
-
-```bash
-vertz check --strict           # fail on warnings
-vertz check --format json      # machine-readable output (text | json | github)
-```
-
----
-
-## You want to generate code
-
-```bash
-vertz generate module users
-vertz generate service user --module users
-vertz generate router api --module users
-vertz generate schema user --module users
-```
-
-Scaffolds modules, services, routers, and schemas. Use `--dry-run` to preview what will be generated.
-
-You can also define [custom generators](#custom-generators) in your config.
-
----
-
-## You want to deploy *(coming soon)*
-
-```bash
-vertz publish
-```
-
-One-command deployment to your configured target. **This command is not yet available** — it's on the roadmap.
-
----
-
-## You want to see your routes
-
-```bash
-vertz routes                   # table format
-vertz routes --format json     # JSON output
-```
-
-Displays every route your application exposes.
 
 ---
 
 ## Installation
 
 ```bash
-npm install @vertz/cli         # or bun add @vertz/cli
+npm install @vertz/cli
+# or
+bun add @vertz/cli
 ```
 
-**Requirements:** Node.js 18+ or Bun 1.0+, TypeScript 5.0+
+**Requirements:** Node.js 22+ or Bun 1.0+
+
+---
+
+## Commands
+
+### `vertz create <name>`
+
+Scaffold a new Vertz project.
+
+```bash
+vertz create my-app                # Create with Bun (default)
+vertz create my-app --runtime node # Create with Node.js
+vertz create my-app --runtime deno # Create with Deno
+vertz create my-app --example      # Include example health module
+vertz create my-app --no-example   # Exclude example (default)
+```
+
+### `vertz dev`
+
+Start the development server with hot reload. Runs the full pipeline (analyze → generate → build → serve) and watches for file changes.
+
+```bash
+vertz dev                          # Start on localhost:3000
+vertz dev --port 4000              # Custom port
+vertz dev --host 0.0.0.0           # Expose to network
+vertz dev --open                   # Open browser on start
+vertz dev --no-typecheck           # Disable background type-checking
+vertz dev -v                       # Verbose output
+```
+
+### `vertz build`
+
+Compile your project for production.
+
+```bash
+vertz build                        # Build for Node.js
+vertz build --target edge          # Build for edge runtime
+vertz build --target worker        # Build for worker runtime
+vertz build --output dist          # Custom output directory
+vertz build --no-typecheck         # Skip type checking
+vertz build --no-minify            # Skip minification
+vertz build --sourcemap            # Generate sourcemaps
+vertz build -v                     # Verbose output
+```
+
+### `vertz check`
+
+Type-check and validate your project without producing output. Useful in CI or as a pre-commit hook.
+
+```bash
+vertz check                        # Text output
+vertz check --format json           # JSON output
+vertz check --format github        # GitHub Actions format
+```
+
+### `vertz generate [type] [name]`
+
+Generate code scaffolds. Supports multiple types:
+
+```bash
+# Generate a new module
+vertz generate module users
+
+# Generate service/router/schema within a module
+vertz generate service user --module users
+vertz generate router api --module users
+vertz generate schema user --module users
+
+# Auto-discover domains and generate all (experimental)
+vertz generate
+
+# Preview without writing files
+vertz generate module users --dry-run
+```
+
+### `vertz codegen`
+
+Generate SDK and CLI clients from your compiled API.
+
+```bash
+vertz codegen                      # Generate clients
+vertz codegen --dry-run            # Preview without writing
+vertz codegen --output ./sdk       # Custom output directory
+```
+
+Requires `codegen` configuration in `vertz.config.ts`:
+
+```ts
+const config = {
+  codegen: {
+    output: './src/clients',
+    generators: ['typescript', 'swift', 'kotlin'],
+  },
+};
+```
+
+### `vertz routes`
+
+Display all routes in your application.
+
+```bash
+vertz routes                       # Table format
+vertz routes --format json         # JSON output
+```
+
+### `vertz db migrate`
+
+Smart database migration. Automatically chooses the right Prisma command based on environment.
+
+```bash
+vertz db migrate                   # Auto-detect: dev=dev, prod=deploy
+vertz db migrate --status         # Show migration status
+vertz db migrate --create-only    # Create migration file without applying
+vertz db migrate --name my-change # Specify migration name
+vertz db migrate --reset          # Reset database (drop all tables)
+vertz db migrate -v               # Verbose output
+```
+
+In development: runs `prisma migrate dev` (applies pending + creates new if schema changed).
+In production: runs `prisma migrate deploy` (applies pending only).
 
 ---
 
@@ -147,60 +169,24 @@ const config: CLIConfig = {
     port: 3000,
     host: 'localhost',
     typecheck: true,
+    open: false,
+  },
+  codegen: {
+    output: './src/clients',
+    generators: ['typescript'],
   },
 };
 
 export default config;
 ```
 
-Also supports `.js` and `.mjs`. See [Configuration Reference](#configuration-reference) for all options.
-
----
-
-## Custom Generators
-
-Extend `vertz generate` with your own templates:
-
-```ts
-import type { CLIConfig, GeneratorDefinition } from '@vertz/cli';
-
-const entity: GeneratorDefinition = {
-  name: 'entity',
-  description: 'Generate a domain entity with schema and service',
-  arguments: [{ name: 'name', description: 'Entity name', required: true }],
-  options: [
-    { name: 'timestamps', flag: '--timestamps', description: 'Include timestamp fields', default: 'true' },
-  ],
-  async run({ name, sourceDir }) {
-    return [
-      { path: `${sourceDir}/entities/${name}.schema.ts`, content: `export const ${name}Schema = s.object({});` },
-      { path: `${sourceDir}/entities/${name}.service.ts`, content: `export class ${name}Service {}` },
-    ];
-  },
-};
-
-const config: CLIConfig = {
-  generators: { entity },
-};
-
-export default config;
-```
-
-```bash
-vertz generate entity product
-vertz generate entity product --timestamps false
-```
-
----
-
-## Configuration Reference
+### Configuration Reference
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `strict` | `boolean` | `false` | Treat warnings as errors |
-| `forceGenerate` | `boolean` | `false` | Force code generation even if up-to-date |
 | `compiler.sourceDir` | `string` | `'src'` | Source directory |
-| `compiler.entryFile` | `string` | `'src/app.ts'` | Entry file path |
+| `compiler.entryFile` | `string` | `'src/app.ts'` | Entry file |
 | `compiler.outputDir` | `string` | `'.vertz/generated'` | Generated code output |
 | `dev.port` | `number` | `3000` | Dev server port |
 | `dev.host` | `string` | `'localhost'` | Dev server host |
@@ -211,7 +197,14 @@ vertz generate entity product --timestamps false
 
 ## Programmatic API
 
-The CLI exports its internals for custom tooling. See the [Programmatic API docs](./docs/programmatic-api.md) for details on `buildAction`, `generateAction`, `createDevLoop`, `createTaskRunner`, and more.
+Import CLI functions for custom tooling:
+
+```ts
+import { buildAction, devAction, createDevLoop } from '@vertz/cli';
+
+await buildAction({ output: './dist' });
+await devAction({ port: 3000 });
+```
 
 ---
 
@@ -220,6 +213,7 @@ The CLI exports its internals for custom tooling. See the [Programmatic API docs
 - [`@vertz/server`](../server) — Server framework (`createServer`)
 - [`@vertz/compiler`](../compiler) — Vertz compiler
 - [`@vertz/codegen`](../codegen) — Code generation utilities
+- [`@vertz/tui`](../tui) — Terminal UI components
 
 ## License
 
