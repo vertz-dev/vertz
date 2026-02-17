@@ -256,6 +256,8 @@ await push({
 
 ### Errors
 
+Vertz uses typed error classes instead of generic exceptions. Each error type maps to a specific database failure, so you can handle them precisely — and `dbErrorToHttpError` converts them to the right HTTP status code automatically.
+
 ```typescript
 import {
   NotFoundError,
@@ -288,6 +290,8 @@ const httpError = dbErrorToHttpError(error);
 
 ### Diagnostic Utilities
 
+When queries fail, raw database errors are cryptic. Diagnostics turn them into actionable messages — identifying the error type, explaining what went wrong, and suggesting a fix. Great for dev-time debugging and for surfacing helpful errors in CLI tools.
+
 ```typescript
 import { diagnoseError, formatDiagnostic, explainError } from '@vertz/db';
 
@@ -306,6 +310,8 @@ try {
 
 ### Tenant Graph
 
+Multi-tenant apps need data isolation — each customer (tenant) should only see their own data. `computeTenantGraph` analyzes your schema's foreign keys to automatically determine which tables belong to which tenant, so you can enforce row-level isolation without manual configuration.
+
 ```typescript
 import { computeTenantGraph } from '@vertz/db';
 
@@ -320,6 +326,8 @@ console.log(tenantGraph.scopedTables); // ['posts', 'users']
 ```
 
 ### Domain Codegen
+
+Generate type-safe client code directly from your schema definitions. Instead of hand-writing CRUD operations for each table, `defineDomain` produces typed queries, mutations, and client SDKs automatically — keeping your API layer in sync with your database.
 
 ```typescript
 import { defineDomain, generateTypes, generateClient } from '@vertz/db';
