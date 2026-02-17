@@ -6,6 +6,7 @@ import { ForeignKeyError, NotFoundError, UniqueConstraintError } from '../errors
 import type { QueryFn } from '../query/executor';
 import { createRegistry } from '../schema/registry';
 import { sql } from '../sql/tagged';
+import { unwrap } from '@vertz/schema';
 
 // ---------------------------------------------------------------------------
 // Schema definition — organizations, users, posts, comments, featureFlags
@@ -231,13 +232,13 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('2. CRUD operations', () => {
     it('creates an organization', async () => {
-      const org = await db.create('organizations', {
+      const org = unwrap(await db.create('organizations', {
         data: {
           id: ORG_ID,
           name: 'Acme Corp',
           slug: 'acme',
         },
-      });
+      }));
 
       expect(org).toBeDefined();
       expect(org.id).toBe(ORG_ID);
@@ -246,7 +247,7 @@ describe('E2E Acceptance Test (db-018)', () => {
     });
 
     it('creates a user', async () => {
-      const user = await db.create('users', {
+      const user = unwrap(await db.create('users', {
         data: {
           id: USER_ID,
           organizationId: ORG_ID,
@@ -254,7 +255,7 @@ describe('E2E Acceptance Test (db-018)', () => {
           email: 'alice@acme.com',
           passwordHash: 'hash123',
         },
-      });
+      }));
 
       expect(user).toBeDefined();
       expect(user.id).toBe(USER_ID);
@@ -262,7 +263,7 @@ describe('E2E Acceptance Test (db-018)', () => {
     });
 
     it('creates a second user', async () => {
-      const user = await db.create('users', {
+      const user = unwrap(await db.create('users', {
         data: {
           id: USER2_ID,
           organizationId: ORG_ID,
@@ -270,14 +271,14 @@ describe('E2E Acceptance Test (db-018)', () => {
           email: 'bob@acme.com',
           passwordHash: 'hash456',
         },
-      });
+      }));
 
       expect(user).toBeDefined();
       expect(user.name).toBe('Bob');
     });
 
     it('creates posts', async () => {
-      const post1 = await db.create('posts', {
+      const post1 = unwrap(await db.create('posts', {
         data: {
           id: POST_ID,
           authorId: USER_ID,
@@ -286,12 +287,12 @@ describe('E2E Acceptance Test (db-018)', () => {
           status: 'published',
           views: 100,
         },
-      });
+      }));
 
       expect(post1).toBeDefined();
       expect(post1.title).toBe('First Post');
 
-      const post2 = await db.create('posts', {
+      const post2 = unwrap(await db.create('posts', {
         data: {
           id: POST2_ID,
           authorId: USER_ID,
@@ -300,73 +301,73 @@ describe('E2E Acceptance Test (db-018)', () => {
           status: 'draft',
           views: 5,
         },
-      });
+      }));
 
       expect(post2).toBeDefined();
       expect(post2.title).toBe('Second Post');
     });
 
     it('creates a comment', async () => {
-      const comment = await db.create('comments', {
+      const comment = unwrap(await db.create('comments', {
         data: {
           id: COMMENT_ID,
           postId: POST_ID,
           authorId: USER2_ID,
           body: 'Great post!',
         },
-      });
+      }));
 
       expect(comment).toBeDefined();
       expect(comment.body).toBe('Great post!');
     });
 
     it('creates a feature flag', async () => {
-      const flag = await db.create('featureFlags', {
+      const flag = unwrap(await db.create('featureFlags', {
         data: {
           id: FLAG_ID,
           name: 'dark_mode',
           enabled: true,
         },
-      });
+      }));
 
       expect(flag).toBeDefined();
       expect(flag.name).toBe('dark_mode');
     });
 
     it('updates a post', async () => {
-      const updated = await db.update('posts', {
+      const updated = unwrap(await db.update('posts', {
         where: { id: POST_ID },
         data: { views: 150, status: 'published' },
-      });
+      }));
 
       expect(updated).toBeDefined();
       expect(updated.views).toBe(150);
     });
 
     it('deletes a comment', async () => {
-      const deleted = await db.delete('comments', {
+      const deleted = unwrap(await db.delete('comments', {
         where: { id: COMMENT_ID },
-      });
+      }));
 
       expect(deleted).toBeDefined();
       expect(deleted.id).toBe(COMMENT_ID);
 
       // Verify it is gone
-      const result = await db.get('comments', {
+      const result = unwrap(await db.get('comments', {
         where: { id: COMMENT_ID },
-      });
+      }));
       expect(result).toBeNull();
     });
 
     it('re-creates the comment for subsequent tests', async () => {
-      await db.create('comments', {
+      unwrap(await db.create('comments', {
         data: {
           id: COMMENT_ID,
           postId: POST_ID,
           authorId: USER2_ID,
           body: 'Great post!',
         },
-      });
+      }));
     });
   });
 
@@ -376,9 +377,9 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('3. Relation includes', () => {
     it('list posts with include author', async () => {
-      const postsResult = await db.list('posts', {
+      const postsResult = unwrap(await db.list('posts', {
         include: { author: true },
-      });
+      }));
 
       expect(postsResult.length).toBeGreaterThan(0);
 
@@ -391,10 +392,10 @@ describe('E2E Acceptance Test (db-018)', () => {
     });
 
     it('list posts with include comments', async () => {
-      const postsResult = await db.list('posts', {
+      const postsResult = unwrap(await db.list('posts', {
         where: { id: POST_ID },
         include: { comments: true },
-      });
+      }));
 
       expect(postsResult).toHaveLength(1);
       const post = postsResult[0];
@@ -409,9 +410,9 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('4. Select narrowing', () => {
     it('select: { title: true, status: true } narrows returned fields', async () => {
-      const result = await db.list('posts', {
+      const result = unwrap(await db.list('posts', {
         select: { title: true, status: true },
-      });
+      }));
 
       expect(result.length).toBeGreaterThan(0);
       const first = result[0];
@@ -431,9 +432,9 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('5. Visibility filter', () => {
     it('select: { not: "sensitive" } excludes email', async () => {
-      const result = await db.list('users', {
+      const result = unwrap(await db.list('users', {
         select: { not: 'sensitive' },
-      });
+      }));
 
       expect(result.length).toBeGreaterThan(0);
       const first = result[0];
@@ -456,13 +457,13 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('6. Filter operators', () => {
     it('gte, in, and contains work correctly', async () => {
-      const result = await db.list('posts', {
+      const result = unwrap(await db.list('posts', {
         where: {
           views: { gte: 0 },
           status: { in: ['published', 'draft'] },
           title: { contains: 'Post' },
         },
-      });
+      }));
 
       expect(result.length).toBeGreaterThan(0);
       for (const post of result) {
@@ -471,18 +472,18 @@ describe('E2E Acceptance Test (db-018)', () => {
     });
 
     it('eq filter works as direct value shorthand', async () => {
-      const result = await db.list('posts', {
+      const result = unwrap(await db.list('posts', {
         where: { title: 'First Post' },
-      });
+      }));
 
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('First Post');
     });
 
     it('gt filter works for numeric columns', async () => {
-      const result = await db.list('posts', {
+      const result = unwrap(await db.list('posts', {
         where: { views: { gt: 50 } },
-      });
+      }));
 
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('First Post');
@@ -495,11 +496,11 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('7. listAndCount', () => {
     it('returns paginated results with total count', async () => {
-      const { data, total } = await db.listAndCount('posts', {
+      const { data, total } = unwrap(await db.listAndCount('posts', {
         limit: 1,
         offset: 0,
         orderBy: { views: 'desc' },
-      });
+      }));
 
       expect(data).toHaveLength(1);
       expect(total).toBe(2); // We have 2 posts total
@@ -507,11 +508,11 @@ describe('E2E Acceptance Test (db-018)', () => {
     });
 
     it('returns second page correctly', async () => {
-      const { data, total } = await db.listAndCount('posts', {
+      const { data, total } = unwrap(await db.listAndCount('posts', {
         limit: 1,
         offset: 1,
         orderBy: { views: 'desc' },
-      });
+      }));
 
       expect(data).toHaveLength(1);
       expect(total).toBe(2);
@@ -525,57 +526,48 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('8. Error handling', () => {
     it('throws UniqueConstraintError on duplicate email', async () => {
-      try {
-        await db.create('users', {
-          data: {
-            id: '99999999-9999-9999-9999-999999999999',
-            organizationId: ORG_ID,
-            name: 'Duplicate Alice',
-            email: 'alice@acme.com', // Duplicate email
-            passwordHash: 'hash',
-          },
-        });
-        // Should not reach here
-        expect.unreachable('Should have thrown UniqueConstraintError');
-      } catch (error) {
-        // PGlite throws raw PG errors, which the executor maps
-        expect(error).toBeInstanceOf(UniqueConstraintError);
-        const uErr = error as UniqueConstraintError;
-        expect(uErr.code).toBe('UNIQUE_VIOLATION');
-        expect(uErr.table).toBeDefined();
+      const result = await db.create('users', {
+        data: {
+          id: '99999999-9999-9999-9999-999999999999',
+          organizationId: ORG_ID,
+          name: 'Duplicate Alice',
+          email: 'alice@acme.com', // Duplicate email
+          passwordHash: 'hash',
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok && result.error) {
+        expect(result.error.code).toBe('CONSTRAINT_ERROR');
+        expect(result.error.table).toBeDefined();
       }
     });
 
     it('throws ForeignKeyError on invalid FK reference', async () => {
-      try {
-        await db.create('posts', {
-          data: {
-            id: '99999999-9999-9999-9999-999999999998',
-            authorId: '00000000-0000-0000-0000-000000000000', // Non-existent user
-            title: 'Invalid Post',
-            content: 'This should fail',
-          },
-        });
-        expect.unreachable('Should have thrown ForeignKeyError');
-      } catch (error) {
-        expect(error).toBeInstanceOf(ForeignKeyError);
-        const fkErr = error as ForeignKeyError;
-        expect(fkErr.code).toBe('FOREIGN_KEY_VIOLATION');
-        expect(fkErr.table).toBeDefined();
+      const result = await db.create('posts', {
+        data: {
+          id: '99999999-9999-9999-9999-999999999998',
+          authorId: '00000000-0000-0000-0000-000000000000', // Non-existent user
+          title: 'Invalid Post',
+          content: 'This should fail',
+        },
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok && result.error) {
+        expect(result.error.code).toBe('CONSTRAINT_ERROR');
+        expect(result.error.table).toBeDefined();
       }
     });
 
-    it('throws NotFoundError on getOrThrow with no match', async () => {
-      try {
-        await db.getOrThrow('posts', {
-          where: { id: '00000000-0000-0000-0000-000000000000' },
-        });
-        expect.unreachable('Should have thrown NotFoundError');
-      } catch (error) {
-        expect(error).toBeInstanceOf(NotFoundError);
-        const nfErr = error as NotFoundError;
-        expect(nfErr.code).toBe('NOT_FOUND');
-        expect(nfErr.table).toBe('posts');
+    it('returns null when get finds no match', async () => {
+      const result = await db.get('posts', {
+        where: { id: '00000000-0000-0000-0000-000000000000' },
+      });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data).toBeNull();
       }
     });
   });
@@ -589,7 +581,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       const minViews = 50;
       const fragment = sql`SELECT "title", "views" FROM "posts" WHERE "views" > ${minViews} ORDER BY "views" DESC`;
 
-      const result = await db.query<{ title: string; views: number }>(fragment);
+      const result = unwrap(await db.query<{ title: string; views: number }>(fragment));
 
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0]?.title).toBe('First Post');
@@ -600,7 +592,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       const whereClause = sql`WHERE "status" = ${'published'}`;
       const fragment = sql`SELECT "id", "title" FROM "posts" ${whereClause}`;
 
-      const result = await db.query<{ id: string; title: string }>(fragment);
+      const result = unwrap(await db.query<{ id: string; title: string }>(fragment));
 
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0]?.title).toBe('First Post');
@@ -637,28 +629,28 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('Additional coverage', () => {
     it('count returns correct number', async () => {
-      const count = await db.count('posts');
+      const count = unwrap(await db.count('posts'));
       expect(count).toBe(2);
     });
 
     it('count with where filter', async () => {
-      const count = await db.count('posts', {
+      const count = unwrap(await db.count('posts', {
         where: { status: 'published' },
-      });
+      }));
       expect(count).toBe(1);
     });
 
     it('updateMany returns correct count', async () => {
-      const result = await db.updateMany('posts', {
+      const result = unwrap(await db.updateMany('posts', {
         where: { status: 'draft' },
         data: { views: 10 },
-      });
+      }));
       expect(result.count).toBe(1);
     });
 
     it('deleteMany returns correct count', async () => {
       // Insert a temp post to delete
-      await db.create('posts', {
+      unwrap(await db.create('posts', {
         data: {
           id: '88888888-8888-8888-8888-888888888888',
           authorId: USER_ID,
@@ -666,16 +658,16 @@ describe('E2E Acceptance Test (db-018)', () => {
           content: 'To be deleted',
           status: 'draft',
         },
-      });
+      }));
 
-      const result = await db.deleteMany('posts', {
+      const result = unwrap(await db.deleteMany('posts', {
         where: { id: '88888888-8888-8888-8888-888888888888' },
-      });
+      }));
       expect(result.count).toBe(1);
     });
 
     it('upsert creates a new row', async () => {
-      const result = await db.upsert('featureFlags', {
+      const result = unwrap(await db.upsert('featureFlags', {
         where: { name: 'new_feature' },
         create: {
           id: '66666666-6666-6666-6666-666666666666',
@@ -683,14 +675,14 @@ describe('E2E Acceptance Test (db-018)', () => {
           enabled: false,
         },
         update: { enabled: true },
-      });
+      }));
 
       expect(result).toBeDefined();
       expect(result.name).toBe('new_feature');
     });
 
     it('upsert updates existing row', async () => {
-      const result = await db.upsert('featureFlags', {
+      const result = unwrap(await db.upsert('featureFlags', {
         where: { name: 'new_feature' },
         create: {
           id: '77777777-7777-7777-7777-777777777777',
@@ -698,34 +690,34 @@ describe('E2E Acceptance Test (db-018)', () => {
           enabled: false,
         },
         update: { enabled: true },
-      });
+      }));
 
       expect(result).toBeDefined();
       expect(result.enabled).toBe(true);
     });
 
     it('createMany inserts multiple rows', async () => {
-      const result = await db.createMany('featureFlags', {
+      const result = unwrap(await db.createMany('featureFlags', {
         data: [
           { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', name: 'feature_a', enabled: true },
           { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', name: 'feature_b', enabled: false },
         ],
-      });
+      }));
 
       expect(result.count).toBe(2);
     });
 
     it('get returns null when not found', async () => {
-      const result = await db.get('posts', {
+      const result = unwrap(await db.get('posts', {
         where: { id: '00000000-0000-0000-0000-000000000000' },
-      });
+      }));
       expect(result).toBeNull();
     });
 
-    it('getOrThrow returns the row when found', async () => {
-      const result = await db.getOrThrow('posts', {
+    it('get returns the row when found', async () => {
+      const result = unwrap(await db.get('posts', {
         where: { id: POST_ID },
-      });
+      }));
       expect(result).toBeDefined();
       expect(result.id).toBe(POST_ID);
     });
