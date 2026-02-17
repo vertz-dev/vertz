@@ -4,6 +4,8 @@ export type { DevServer, DevServerOptions } from './dev-server';
 export { createDevServer } from './dev-server';
 export { HeadCollector, renderHeadToHtml } from './head';
 export { serializeToHtml } from './html-serializer';
+export { renderPage } from './render-page';
+export type { PageOptions } from './render-page';
 export { wrapWithHydrationMarkers } from './hydration-markers';
 export { renderToStream } from './render-to-stream';
 export { createSlotPlaceholder, resetSlotCounter } from './slot-placeholder';
