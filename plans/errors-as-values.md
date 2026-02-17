@@ -5,6 +5,15 @@
 **Owner:** Platform Team  
 **Target:** v2.0.0 (major version bump)
 
+### Packages in Scope
+
+- `@vertz/schema` — Shared types, Result, schema validation
+- `@vertz/db` — Database operations, migrations
+- `@vertz/server` — Server runtime, domain actions, auth
+- `@vertz/client` — Generated SDK / codegen fetch
+- `@vertz/ui` — UI primitives (query, form)
+- `@vertz/cli` — CLI commands
+
 ---
 
 ## 1. Problem Statement
@@ -285,7 +294,87 @@ function useUser(id: string): QueryState<Result<User, ReadError>>;
 
 ---
 
-## 5. Helper Utilities
+## 4.5 Full API Surface Map
+
+Every public API that can fail must return `Result`. No exceptions (literally).
+
+### `@vertz/schema`
+| API | Current | After |
+|-----|---------|-------|
+| `parse()` | Throws on invalid input | `Result<T, SchemaError>` |
+| `s.coerce()` | Throws on coercion failure | `Result<T, SchemaError>` |
+| `s.transform()` | Throws on transform failure | `Result<T, SchemaError>` |
+
+### `@vertz/db`
+| API | Current | After |
+|-----|---------|-------|
+| `db.table.create()` | Throws `UniqueConstraintError`, etc. | `Result<T, WriteError>` |
+| `db.table.createMany()` | Throws | `Result<void, WriteError>` |
+| `db.table.createManyAndReturn()` | Throws | `Result<T[], WriteError>` |
+| `db.table.findOne()` | Returns `T | null`, throws on connection error | `Result<T | null, ReadError>` |
+| `db.table.findOneRequired()` | N/A (was `findOneOrThrow`) | `Result<T, NotFoundError | ReadError>` |
+| `db.table.findMany()` | Throws on connection error | `Result<T[], ReadError>` |
+| `db.table.findManyAndCount()` | Throws | `Result<{ rows: T[], count: number }, ReadError>` |
+| `db.table.update()` | Throws | `Result<T, NotFoundError | WriteError>` |
+| `db.table.updateMany()` | Throws | `Result<{ count: number }, WriteError>` |
+| `db.table.upsert()` | Throws | `Result<T, WriteError>` |
+| `db.table.delete()` | Throws | `Result<void, NotFoundError | WriteError>` |
+| `db.table.deleteMany()` | Throws | `Result<{ count: number }, WriteError>` |
+| `db.table.count()` | Throws | `Result<number, ReadError>` |
+| `db.query()` (raw SQL) | Throws | `Result<QueryResult<T>, ConnectionError>` |
+| `migrateDev()` | Throws | `Result<MigrateDevResult, MigrationError>` |
+| `migrateDeploy()` | Throws | `Result<MigrateDeployResult, MigrationError>` |
+| `push()` | Throws | `Result<PushResult, MigrationError>` |
+| `migrateStatus()` | Throws | `Result<MigrateStatusResult, ConnectionError>` |
+
+### `@vertz/server`
+| API | Current | After |
+|-----|---------|-------|
+| Domain actions (CRUD) | Throws | `Result<T, DomainError | WriteError | ReadError>` |
+| `createAuth().signIn()` | Returns `AuthResult` | `Result<Session, AuthError>` |
+| `createAuth().signUp()` | Returns `AuthResult` | `Result<Session, AuthError | SchemaError>` |
+| `createAuth().signOut()` | Returns `AuthResult` | `Result<void, AuthError>` |
+| `createAuth().getSession()` | Returns `AuthResult` | `Result<Session | null, AuthError>` |
+| `createAuth().refreshSession()` | Returns `AuthResult` | `Result<Session, AuthError>` |
+| Middleware rejection (auth, rate limit) | Throws HTTP exceptions | Returns `Result` — framework composes |
+| `createServer().listen()` | Throws on boot failure | `Result<ServerHandle, BootError>` |
+| Module initialization | Throws | `Result<Module, BootError>` |
+
+### `@vertz/client` (Generated SDK / Codegen Fetch)
+| API | Current | After |
+|-----|---------|-------|
+| `api.resource.list()` | `Promise<T[]>` | `Promise<Result<T[], ApiError>>` |
+| `api.resource.get(id)` | `Promise<T>` | `Promise<Result<T, NotFoundError | ApiError>>` |
+| `api.resource.create(data)` | `Promise<T>` | `Promise<Result<T, ApiError>>` |
+| `api.resource.update(id, data)` | `Promise<T>` | `Promise<Result<T, ApiError>>` |
+| `api.resource.delete(id)` | `Promise<void>` | `Promise<Result<void, ApiError>>` |
+
+**Key insight:** The codegen knows the server's error types from the domain definition. Generated client SDK carries matching error unions — `matchErr` works on both server and client with the same error codes. Full-stack exhaustive error handling.
+
+### `@vertz/ui`
+| API | Current | After |
+|-----|---------|-------|
+| `query()` | Returns data or throws | Query state carries `Result<T, ApiError>` |
+| `form().submit()` | Throws on validation/API error | `Result<T, SchemaError | ApiError>` |
+
+> **Note:** `query()` and `form()` are the current primitives. No `useQuery`/`useMutation` — those may come later. The pattern applies regardless of naming.
+
+### `@vertz/cli`
+| API | Current | After |
+|-----|---------|-------|
+| `vertz dev` | Throws/exits | `Result<void, CliError>` |
+| `vertz build` | Throws/exits | `Result<BuildResult, CliError>` |
+| `vertz db migrate` | Throws/exits | `Result<MigrateResult, CliError | MigrationError>` |
+| `vertz db push` | Throws/exits | `Result<PushResult, CliError>` |
+
+### Domain Codegen (`defineDomain`)
+| API | Current | After |
+|-----|---------|-------|
+| Generated CRUD operations | Throws | Return `Result` with error types declared in domain definition |
+
+The domain definition declares which errors each action can produce. Codegen enforces the contract on both server implementation and client SDK.
+
+## 6. Helper Utilities
 
 We provide four core helpers in `@vertz/schema` v1:
 
@@ -438,7 +527,7 @@ export class NotNullError extends DbError {
 
 ---
 
-## 6. Migration Strategy
+## 7. Migration Strategy
 
 This is a **breaking change** requiring a major version bump to v2.0.0. Since we're pre-launch with ~zero external consumers, we can ship Result-only APIs directly without deprecated parallel APIs.
 
@@ -479,7 +568,7 @@ function resultToThrow<T, E>(result: Result<T, E>): T {
 
 ---
 
-## 7. Naming Changes
+## 8. Naming Changes
 
 | Old Name | New Name | Rationale |
 |----------|----------|-----------|
@@ -492,7 +581,7 @@ function resultToThrow<T, E>(result: Result<T, E>): T {
 
 ---
 
-## 8. Integration Example
+## 9. Integration Example
 
 Here's a full request handler demonstrating the pattern:
 
@@ -568,7 +657,7 @@ async function handleCreateUser(req: Request): Promise<Response> {
 
 ---
 
-## 9. Key Principles
+## 10. Key Principles
 
 | Principle | Description |
 |-----------|-------------|
@@ -581,14 +670,14 @@ async function handleCreateUser(req: Request): Promise<Response> {
 
 ---
 
-## 10. Open Questions
+## 11. Open Questions
 
 1. **Error code standardization?** Should all errors have string codes for programmatic handling?
 2. **Version bump to v2.0.0?** Any other considerations for the major version?
 
 ---
 
-## 11. Related Issues
+## 12. Related Issues
 
 - #393 (this issue)
 - #287 — Schema validation errors
