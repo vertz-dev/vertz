@@ -1,0 +1,383 @@
+---
+title: "@vertz/server README"
+description: Comprehensive guide to @vertz/server package
+---
+
+# @vertz/server
+
+`@vertz/server` is Vertz's HTTP server framework, providing type-safe APIs, server functions, and authentication.
+
+## Installation
+
+```bash
+npm install @vertz/server
+```
+
+## Core Features
+
+- **Type-safe Router** — Full TypeScript inference for requests and responses
+- **Server Functions** — Call server code directly from the client with full type safety
+- **Authentication** — Built-in email/password authentication with sessions
+- **Authorization** — Fine-grained access control with entitlements
+- **Domain API** — Define business logic with type-safe domain models
+- **Middleware** — Composable middleware for cross-cutting concerns
+
+## Quick Start
+
+```typescript
+import { vertz, router, procedure } from '@vertz/server';
+import { z } from '@vertz/schema';
+
+const app = router({
+  greeting: procedure
+    .input(z.object({ name: z.string() }))
+    .query(({ input }) => {
+      return { message: `Hello, ${input.name}!` };
+    }),
+});
+
+export type AppRouter = typeof app;
+
+// Create the HTTP server
+const server = vertz({
+  routers: {
+    app,
+  },
+});
+
+server.listen(3000);
+```
+
+## Architecture
+
+### Router
+
+The router is the foundation of your API:
+
+```typescript
+import { router } from '@vertz/server';
+
+export const appRouter = router({
+  // Define procedures here
+});
+```
+
+### Procedures
+
+Procedures are type-safe functions that can be called from the client:
+
+```typescript
+import { procedure } from '@vertz/server';
+
+// Query - for fetching data
+const getUser = procedure
+  .input(z.object({ id: z.string() }))
+  .query(({ input, ctx }) => {
+    return db.user.findUnique({ where: { id: input.id } });
+  });
+
+// Mutation - for modifying data
+const createUser = procedure
+  .input(z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }))
+  .mutation(({ input, ctx }) => {
+    return db.user.create({ data: input });
+  });
+```
+
+### Context
+
+The context provides request-specific data:
+
+```typescript
+// Default context includes:
+interface Context {
+  req: Request;
+  res: Response;
+  db: Database;
+  user: User | null;
+  session: Session | null;
+}
+
+// Extend context with custom data
+const app = vertz({
+  createContext: ({ req, res }) => ({
+    req,
+    res,
+    db,
+    user: null,
+    session: null,
+    // Add your own
+    myCustomValue: getMyCustomValue(req),
+  }),
+});
+```
+
+## Authentication
+
+### Setup
+
+```typescript
+import { createAuth } from '@vertz/server';
+
+const auth = createAuth({
+  providers: {
+    emailPassword: {
+      password: {
+        minLength: 8,
+        requireUppercase: true,
+        requireNumbers: true,
+      },
+    },
+  },
+  session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    cookieName: 'session',
+  },
+});
+```
+
+### Usage
+
+```typescript
+import { createAuth } from '@vertz/server';
+
+const authRouter = router({
+  signup: procedure
+    .input(z.object({
+      email: z.string().email(),
+      password: z.string(),
+      name: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const result = await auth.signUp({
+        email: input.email,
+        password: input.password,
+        metadata: { name: input.name },
+      });
+      
+      return { userId: result.userId };
+    }),
+  
+  signin: procedure
+    .input(z.object({
+      email: z.string().email(),
+      password: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const result = await auth.signIn({
+        email: input.email,
+        password: input.password,
+      });
+      
+      return { sessionId: result.sessionId };
+    }),
+});
+```
+
+## Authorization
+
+### Access Control
+
+```typescript
+import { createAccess } from '@vertz/server';
+
+const access = createAccess({
+  resources: {
+    document: {
+      entitlements: {
+        read: 'document:read',
+        write: 'document:write',
+        delete: 'document:delete',
+      },
+    },
+  },
+});
+
+// Use in procedures
+const getDocument = procedure
+  .use(access.require('document:read'))
+  .query(({ ctx }) => {
+    // Document read logic
+  });
+```
+
+## Domain API
+
+Define business logic with type-safe domain models:
+
+```typescript
+import { domain } from '@vertz/server';
+
+const UserDomain = domain('users', {
+  type: 'persisted',
+  table: 'users',
+  
+  expose: {
+    profile: {
+      type: 'one',
+      from: 'posts',
+    },
+  },
+  
+  access: {
+    read: 'user:read',
+    write: 'user:write',
+  },
+  
+  handlers: {
+    beforeCreate: async (data) => {
+      // Validate or transform data
+      return data;
+    },
+  },
+});
+```
+
+## Middleware
+
+### Creating Middleware
+
+```typescript
+import { middleware } from '@vertz/server';
+
+const logging = middleware(async ({ path, type, next }) => {
+  const start = Date.now();
+  const result = await next();
+  const duration = Date.now() - start;
+  
+  console.log(`${type} ${path} - ${duration}ms`);
+  
+  return result;
+});
+
+const withUser = middleware(async ({ ctx, next }) => {
+  const user = await getUserFromSession(ctx.headers.authorization);
+  
+  return next({
+    ctx: {
+      ...ctx,
+      user,
+    },
+  });
+});
+```
+
+### Using Middleware
+
+```typescript
+// Global middleware
+const app = router({
+  greeting: procedure
+    .use(logging)
+    .query(() => 'Hello!'),
+});
+
+// Protected procedure
+const protectedProcedure = procedure.use(withUser);
+
+const protectedRouter = router({
+  profile: protectedProcedure.query(({ ctx }) => {
+    return ctx.user;
+  }),
+});
+```
+
+## Streaming
+
+For LLM responses and real-time data:
+
+```typescript
+import { streamingProcedure } from '@vertz/server';
+
+const streamChat = streamingProcedure
+  .input(z.object({ prompt: z.string() }))
+  .query(async ({ input, emit }) => {
+    for await (const chunk of llm.stream(input.prompt)) {
+      emit(chunk);
+    }
+  });
+```
+
+## Client Usage
+
+### Type-Safe Client
+
+```typescript
+import { createClient } from '@vertz/server/client';
+import type { AppRouter } from '../server';
+
+const client = createClient<AppRouter>('http://localhost:3000');
+
+// Query
+const greeting = await client.greeting.query({ name: 'World' });
+
+// Mutation
+const user = await client.createUser.mutate({
+  name: 'John',
+  email: 'john@example.com',
+});
+
+// Streaming
+for await (const chunk of client.streamChat.query({ prompt: 'Hello' })) {
+  console.log(chunk);
+}
+```
+
+## Error Handling
+
+```typescript
+import { 
+  BadRequestException,
+  UnauthorizedException,
+  ForbiddenException,
+  NotFoundException,
+  InternalServerErrorException,
+  ValidationException,
+} from '@vertz/server';
+
+// In procedures
+const getUser = procedure
+  .input(z.object({ id: z.string() }))
+  .query(({ input }) => {
+    const user = db.user.findUnique({ where: { id: input.id } });
+    
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    
+    return user;
+  });
+```
+
+## Environment Configuration
+
+```typescript
+import { createEnv } from '@vertz/server';
+
+const env = createEnv({
+  database: {
+    url: z.string().url(),
+  },
+  auth: {
+    secret: z.string().min(32),
+  },
+  llm: {
+    apiKey: z.string().optional(),
+  },
+});
+```
+
+## API Reference
+
+- [Routing](/server/routing) — Define routes and procedures
+- [Middleware](/server/middleware) — Add middleware to your routes
+- [API Reference](/api-reference/server) — Full API documentation
+
+## Related Packages
+
+- [`@vertz/schema`](/schema/overview) — Schema validation
+- [`@vertz/db`](/db/overview) — Database access
+- [`@vertz/ui`](/ui/overview) — React components
