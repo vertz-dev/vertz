@@ -296,13 +296,25 @@ When queries fail, raw database errors are cryptic. Diagnostics turn them into a
 import { diagnoseError, formatDiagnostic, explainError } from '@vertz/db';
 
 try {
-  await db.users.findOne({ where: { invalidColumn: 'x' } });
+  await db.users.create({ data: { email: null, name: 'Test' } });
 } catch (error) {
-  const diag = diagnoseError(error.message);
-  if (diag) {
-    console.log(formatDiagnostic(diag));
+  const diagnostic = diagnoseError(error.message);
+  // DiagnosticResult shape:
+  // {
+  //   code: 'NOT_NULL_VIOLATION',
+  //   explanation: 'Not null constraint violated on column "email"',
+  //   table: 'users',
+  //   suggestion: 'Ensure the email field is provided and not null'
+  // }
+
+  if (diagnostic) {
+    console.log(formatDiagnostic(diagnostic));
+    // Output:
+    // ERROR: Not null constraint violated on column "email"
+    // Table: users
+    // Suggestion: Ensure the email field is provided and not null
   }
-  
+
   // Or one-liner
   console.log(explainError(error.message));
 }
