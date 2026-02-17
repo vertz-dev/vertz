@@ -58,9 +58,10 @@ export function createComponent<R extends Renderable>(
   update: (factory: () => R) => void;
 } {
   let instance = factory();
+  let effectCleanup: (() => void) | undefined;
 
   // Set up effect to track signal dependencies
-  effect(() => {
+  effectCleanup = effect(() => {
     // Reading instance.render() subscribes to all signals used inside
     instance.render();
   });
@@ -72,10 +73,19 @@ export function createComponent<R extends Renderable>(
     instance,
     // Allow updating the instance
     update(factory: () => R) {
+      // Dispose old effect before creating new one
+      if (effectCleanup) {
+        effectCleanup();
+        effectCleanup = undefined;
+      }
       if (instance.dispose) {
         instance.dispose();
       }
       instance = factory();
+      // Set up new effect for the updated instance
+      effectCleanup = effect(() => {
+        instance.render();
+      });
     },
   };
 }
