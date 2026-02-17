@@ -240,27 +240,45 @@ function LoginForm() {
 ```tsx
 import { form } from '@vertz/ui';
 
-function LoginForm() {
-  const f = form({
-    email: '',
-    password: '',
-  });
+// Create an SDK method with url and method metadata
+const login = ((body: { email: string; password: string }) =>
+  fetch('/api/login', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }).then(r => r.json())) as typeof login & { url: string; method: string };
+login.url = '/api/login';
+login.method = 'POST';
 
-  function handleSubmit() {
-    submit(f.value);
+// Simple validation schema (or use @vertz/schema for more complex validation)
+const loginSchema = {
+  parse(data: unknown) {
+    const d = data as { email?: string; password?: string };
+    if (!d.email) throw { fieldErrors: { email: 'Email is required' } };
+    if (!d.password) throw { fieldErrors: { password: 'Password is required' } };
+    return d as { email: string; password: string };
   }
+};
+
+function LoginForm() {
+  const f = form(login, { schema: loginSchema });
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form {...f.attrs()} onSubmit={f.handleSubmit()}>
       <input {...f.bind('email')} />
+      {f.error('email') && <span class="error">{f.error('email')}</span>}
       <input type="password" {...f.bind('password')} />
-      <button type="submit">Login</button>
+      {f.error('password') && <span class="error">{f.error('password')}</span>}
+      <button type="submit">{f.submitting.value ? 'Logging in...' : 'Login'}</button>
     </form>
   );
 }
 ```
 
-The `form()` helper gives you reactive form state with validation built-in.
+The `form()` helper takes an SDK method (with `.url` and `.method` properties) and a validation schema. It provides:
+- `attrs()` for progressive enhancement (returns action/method)
+- `bind(fieldName)` for reactive input binding
+- `error(fieldName)` for field-level error messages
+- `submitting.value` for loading state
 
 ---
 
@@ -294,18 +312,21 @@ import { query } from '@vertz/ui';
 function UserList() {
   const q = query(() => fetch('/api/users').then(r => r.json()));
 
-  if (q.loading) return <Spinner />;
-  if (q.error) return <Error error={q.error} />;
+  if (q.loading.value) return <Spinner />;
+  if (q.error.value) return <Error error={q.error.value} />;
 
   return (
     <ul>
-      {q.value?.map(u => <li key={u.id}>{u.name}</li>)}
+      {q.data.value?.map(u => <li key={u.id}>{u.name}</li>)}
     </ul>
   );
 }
 ```
 
-The `query()` helper wraps fetch and gives you `loading`, `error`, and `value` as reactive properties.
+The `query()` helper wraps fetch and gives you reactive signals:
+- `loading.value` — true while fetching
+- `error.value` — error object if fetch failed
+- `data.value` — the fetched data
 
 ---
 
