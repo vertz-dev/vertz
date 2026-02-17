@@ -16,9 +16,16 @@ const response = renderPage(App)
 
 // With options
 const response = renderPage(App, {
+  // Status code (e.g., 404 for not found, 500 for errors)
+  status: 200,  // default: 200
+
+  // Page metadata
   title: 'My App',
   description: 'Built with vertz',
   lang: 'en',               // default: 'en'
+
+  // Favicon — most apps have one, so it's typed
+  favicon: '/favicon.ico',
 
   // Open Graph
   og: {
@@ -63,7 +70,7 @@ new Response(stream, {
 ## Behavior
 
 ### renderPage returns Response
-- Status: 200
+- Status: configurable via `status` option (default: 200)
 - Content-Type: `text/html; charset=utf-8`
 - Body: streaming ReadableStream of the full HTML document
 
@@ -93,6 +100,17 @@ new Response(stream, {
 </html>
 ```
 
+### HeadCollector Integration
+
+`renderPage` options set **default** head values. Components using `HeadCollector` can **override** these defaults.
+
+**Precedence: Component HeadCollector > renderPage options**
+
+This means:
+- A layout can set default title/description/OG tags
+- Individual pages override only what they need
+- renderPage internally creates a HeadCollector context, renders the component, then merges — component values win over option values
+
 ### Defaults
 - `lang`: `'en'`
 - `og.type`: `'website'`
@@ -102,8 +120,9 @@ new Response(stream, {
 - Scripts use `type="module"` by default
 
 ### Component Input
-- Accepts a VNode (from JSX/createElement) or a component function
-- Passed directly to renderToStream internally
+- Accepts a VNode (from JSX/createElement): `renderPage(<App />)`
+- Accepts a component function: `renderPage(App)` — renderPage calls it internally to get the VNode
+- Internally, if it receives a function, it wraps it: `renderToStream(component())` or similar
 
 ## Design Decisions
 
@@ -111,8 +130,11 @@ new Response(stream, {
 2. **OG falls back to title/description** — no duplication for simple cases
 3. **Viewport + charset not configurable** — there's no valid reason to omit these
 4. **Scripts at end of body** — better loading performance, standard practice
-5. **head escape hatch** — raw HTML string for anything not yet typed (favicons, preloads, structured data)
+5. **head escape hatch** — raw HTML string for anything not yet typed (preloads, structured data, custom meta tags)
 6. **Cloud-agnostic** — returns web-standard Response. Works on Cloudflare, Deno, AWS, Node, Bun.
+7. **Component HeadCollector overrides renderPage defaults** — components know their context better (e.g., a /about page knows its own title)
+8. **favicon is typed because 95%+ of apps have one** — common enough to warrant a dedicated option, not an escape hatch
+9. **status option enables error pages without dropping to renderToStream** — 404/500 pages are common, no need to abandon the simple API
 
 ## Integration with Cloudflare Example
 
