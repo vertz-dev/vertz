@@ -1,0 +1,48 @@
+{
+  "name": "@vertz/ui-canvas",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Vertz Canvas renderer with PixiJS and signals",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vertz-dev/vertz.git",
+    "directory": "packages/ui-canvas"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bunup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pixi.js": "^8.0.0"
+  },
+  "devDependencies": {
+    "@vertz/ui": "workspace:*",
+    "@vitest/coverage-v8": "^4.0.18",
+    "bunup": "latest",
+    "happy-dom": "^18.0.1",
+    "typescript": "^5.7.0",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "sideEffects": false
+}
