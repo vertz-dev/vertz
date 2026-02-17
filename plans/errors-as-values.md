@@ -356,6 +356,43 @@ export function match<T, E, Ok, Err>(
 ): Ok | Err {
   return result.ok ? handlers.ok(result.data) : handlers.err(result.error);
 }
+
+/**
+ * Exhaustive pattern matching on Result errors.
+ * 
+ * Unlike `match()` which gives you a single `err` handler,
+ * `matchErr` requires a handler for every error type in the union.
+ * The compiler enforces exhaustiveness — add a new error type to the union
+ * and every callsite lights up until you handle it.
+ * 
+ * Errors are discriminated by their `code` string literal field.
+ *
+ * @example
+ * const response = matchErr(result, {
+ *   ok: (user) => json({ data: user }, 201),
+ *   UNIQUE_CONSTRAINT: (e) => json({ error: 'EMAIL_EXISTS', field: e.column }, 409),
+ *   NOT_NULL: (e) => json({ error: 'REQUIRED', field: e.column }, 422),
+ *   CHECK_CONSTRAINT: (e) => json({ error: 'INVALID' }, 422),
+ * });
+ * // ^ Compile error if WriteError adds a new member you didn't handle
+ */
+type ErrorHandlers<E, R> = {
+  [K in E as K extends { readonly code: infer C extends string } ? C : never]: (error: K) => R;
+};
+
+export function matchErr<T, E extends { readonly code: string }, R>(
+  result: Result<T, E>,
+  handlers: { ok: (data: T) => R } & ErrorHandlers<E, R>
+): R {
+  if (result.ok) {
+    return handlers.ok(result.data);
+  }
+  const handler = (handlers as any)[result.error.code];
+  if (!handler) {
+    throw new Error(`Unhandled error code: ${result.error.code}`);
+  }
+  return handler(result.error);
+}
 ```
 
 ### Usage Examples
@@ -382,6 +419,21 @@ const html = match(result, {
 
 // unwrap — when you just want the value or crash
 const user = unwrap(await repo.findOneRequired(id));
+```
+
+> **Note:** For `matchErr` to work with exhaustive matching, all error classes must have a `readonly code` field as a string literal type (not just `string`):
+
+```typescript
+// Error classes must use literal code types for exhaustive matching
+export class UniqueConstraintError extends DbError {
+  readonly code = 'UNIQUE_CONSTRAINT' as const;
+  // ...
+}
+
+export class NotNullError extends DbError {
+  readonly code = 'NOT_NULL' as const;
+  // ...
+}
 ```
 
 ---
@@ -483,36 +535,25 @@ export async function createUserAndWelcome(
 
 ```typescript
 // @vertz/server/src/http/handlers.ts
-import { match } from '@vertz/schema';
+import { matchErr } from '@vertz/schema';
 
 async function handleCreateUser(req: Request): Promise<Response> {
   const result = await createUserAndWelcome(req.body);
 
-  return match(result, {
+  return matchErr(result, {
     ok: ({ user, emailSent }) => 
       json({ 
         data: { id: user.id, email: user.email },
         meta: { emailSent } 
       }, 201),
-    
-    err: (error) => {
-      // Type narrowing: TypeScript knows exact error type
-      if (error.code === 'UNIQUE_VIOLATION') {
-        return json({ 
-          error: 'EMAIL_EXISTS', 
-          message: 'A user with this email already exists' 
-        }, 409);
-      }
-      if (error.code === 'VALIDATION_ERROR') {
-        return json({ 
-          error: 'INVALID_INPUT', 
-          fields: error.fields 
-        }, 400);
-      }
-      // Unexpected — log and hide
-      console.error('Unexpected error:', error);
-      return json({ error: 'INTERNAL_ERROR' }, 500);
-    }
+    UNIQUE_CONSTRAINT: (e) => 
+      json({ error: 'EMAIL_EXISTS', message: 'A user with this email already exists' }, 409),
+    VALIDATION_ERROR: (e) => 
+      json({ error: 'INVALID_INPUT', fields: e.fields }, 400),
+    NOT_NULL: (e) => 
+      json({ error: 'REQUIRED', field: e.column }, 422),
+    CHECK_CONSTRAINT: (e) => 
+      json({ error: 'INVALID', message: e.message }, 422),
   });
 }
 ```
