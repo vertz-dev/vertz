@@ -1,0 +1,10 @@
+name = "vertz-task-manager"
+compatibility_date = "2024-01-01"
+
+# Entry point for the Worker
+main = "src/index.ts"
+
+# Environment variables
+[vars]
+GITHUB_ORG = "vertz-dev"
+PROJECT_NUMBER = "2"
