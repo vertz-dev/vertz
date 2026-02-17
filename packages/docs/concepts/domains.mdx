@@ -1,0 +1,66 @@
+---
+title: Domains
+description: Understanding domains in Vertz
+---
+
+# Domains
+
+Organize your application into domains.
+
+## What Are Domains?
+
+Domains are a way to organize your application into bounded contexts. Each domain contains:
+
+- **Schema** — Data types for that domain
+- **API** — Routes and procedures
+- **Database** — Queries and mutations
+
+## Example: E-commerce Domain
+
+```
+src/
+  domains/
+    users/
+      schema.ts      # UserSchema, CreateUserSchema
+      routes.ts      # userRouter
+      queries.ts     # user queries
+    products/
+      schema.ts      # ProductSchema, CreateProductSchema
+      routes.ts      # productRouter
+      queries.ts     # product queries
+    orders/
+      schema.ts      # OrderSchema, CreateOrderSchema
+      routes.ts      # orderRouter
+      queries.ts     # order queries
+```
+
+## Benefits
+
+- **Separation of concerns** — Each domain is self-contained
+- **Team ownership** — Teams can own domains
+- **Reusable** — Domains can be shared across projects
+
+## Combining Domains
+
+```typescript
+import { router } from '@vertz/server';
+import { userRouter } from './domains/users/routes';
+import { productRouter } from './domains/products/routes';
+import { orderRouter } from './domains/orders/routes';
+
+export const appRouter = router({
+  user: userRouter,
+  product: productRouter,
+  order: orderRouter,
+});
+```
+
+Now you have:
+- `trpc.user.*`
+- `trpc.product.*`
+- `trpc.order.*`
+
+## Next Steps
+
+- [Access](/concepts/access) — Authentication and authorization
+- [Type Flow](/concepts/type-flow) — End-to-end type safety

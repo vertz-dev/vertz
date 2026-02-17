@@ -1,0 +1,82 @@
+---
+title: Server Overview
+description: Build type-safe APIs with @vertz/server
+---
+
+# @vertz/server
+
+Build type-safe APIs with full TypeScript inference.
+
+## The Simple Way
+
+```typescript
+import { router, procedure } from '@vertz/server';
+import { z } from '@vertz/schema';
+
+const app = router({
+  greeting: procedure
+    .input(z.object({ name: z.string() }))
+    .query(({ input }) => {
+      return { message: `Hello, ${input.name}!` };
+    }),
+});
+
+export type AppRouter = typeof app;
+```
+
+That's it. Full type inference from schema to API.
+
+## Installation
+
+```bash
+npm install @vertz/server
+```
+
+## Features
+
+- **Type-safe Routes** — Full type inference for requests/responses
+- **Server Functions** — Call server code directly from client
+- **Middleware** — Composable middleware system
+- **Streaming** — Built-in support for streaming responses
+
+## Quick Example
+
+```typescript
+import { router, procedure } from '@vertz/server';
+import { z } from '@vertz/schema';
+
+const app = router({
+  // Query - for fetching data
+  getUser: procedure
+    .input(z.object({ id: z.string() }))
+    .query(({ input }) => {
+      return db.user.findUnique({ where: { id: input.id } });
+    }),
+
+  // Mutation - for changing data
+  createUser: procedure
+    .input(z.object({
+      name: z.string(),
+      email: z.string().email(),
+    }))
+    .mutation(({ input }) => {
+      return db.user.create({ data: input });
+    }),
+});
+```
+
+The `AppRouter` type can be shared with your frontend:
+
+```typescript
+// In your UI - fully typed!
+import { trpc } from '@vertz/ui';
+
+const user = await trpc.getUser.query({ id: '123' });
+// user is fully typed based on the schema
+```
+
+## Next Steps
+
+- [Routing](/server/routing) — Define routes and procedures
+- [Tutorial](/server/tutorial) — Build a full-stack app
+- [Middleware](/server/middleware) — Add middleware

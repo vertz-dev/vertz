@@ -1,0 +1,84 @@
+---
+title: UI Overview
+description: Build type-safe user interfaces with @vertz/ui
+---
+
+# @vertz/ui
+
+Build type-safe user interfaces with React.
+
+## The Simple Way
+
+```tsx
+import { Button, Input, Card } from '@vertz/ui';
+
+function Counter() {
+  let count = 0;  // Just a variable, not a signal
+
+  return (
+    <Card>
+      <p>Count: {count}</p>
+      <Button onClick={() => count++}>Increment</Button>
+    </Card>
+  );
+}
+```
+
+That's it. No signals. No hooks. Just UI.
+
+## Installation
+
+```bash
+npm install @vertz/ui
+```
+
+## Features
+
+- **Simple Variables** — Use regular `let` and the compiler handles reactivity
+- **Type-safe Components** — Every component is fully typed
+- **Streaming Support** — Built-in support for streaming LLM responses
+- **Server Components** — Zero-client-bundle components for static content
+- **Accessible** — WCAG 2.1 AA compliant
+
+## Basic Usage
+
+```tsx
+import { Button, Input, Card } from '@vertz/ui';
+
+export function ChatInterface() {
+  return (
+    <Card>
+      <Input placeholder="Ask anything..." />
+      <Button>Send</Button>
+    </Card>
+  );
+}
+```
+
+## Available Components
+
+- `Button` — Primary action button
+- `Input` — Text input with validation
+- `Card` — Container component
+- `Chat` — Chat interface component
+- `StreamingText` — LLM response streaming
+- And many more...
+
+## Why This Works
+
+The Vertz compiler transforms simple code like `let count = 0` into reactive updates. You write simple code; Vertz handles the reactivity.
+
+This means:
+- Lower learning curve for React developers
+- No need to learn signals, computeds, or effects
+- Code that looks like vanilla React, but with reactivity
+
+## Related Packages
+
+- [@vertz/ui-primitives](/ui-primitives/overview) — Low-level primitives
+- [@vertz/schema](/schema/overview) — Type validation
+
+## Next Steps
+
+- [Getting Started](/ui/getting-started) — Set up in your project
+- [Coming from React](/ui/coming-from-react) — Learn the mapping

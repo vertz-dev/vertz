@@ -1,0 +1,105 @@
+---
+title: Quickstart
+description: Zero to running in 2 minutes
+---
+
+# Quickstart
+
+Zero to running in 2 minutes.
+
+## Prerequisites
+
+- Node.js 18+
+- npm, yarn, or pnpm
+
+## Step 1: Create Your Project
+
+```bash
+npx @vertz/create-vertz-app@latest my-vertz-app
+cd my-vertz-app
+```
+
+## Step 2: Start the Server
+
+```bash
+npm run dev
+```
+
+You should see:
+
+```
+▲ Vertz dev server ready at http://localhost:3000
+```
+
+## Step 3: Create a Schema (Backend First)
+
+In `src/schema.ts`:
+
+```typescript
+import { z } from '@vertz/schema';
+
+export const UserSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  email: z.string().email(),
+});
+```
+
+## Step 4: Create an API Route
+
+In `src/routes/user.ts`:
+
+```typescript
+import { router, procedure } from '@vertz/server';
+import { UserSchema } from '../schema';
+
+const users = [
+  { id: '1', name: 'Alice', email: 'alice@example.com' },
+  { id: '2', name: 'Bob', email: 'bob@example.com' },
+];
+
+export const userRouter = router({
+  list: procedure.query(() => users),
+  get: procedure
+    .input(z.object({ id: z.string() }))
+    .query(({ input }) => users.find(u => u.id === input.id)),
+});
+```
+
+## Step 5: Use in Your UI
+
+In `src/App.tsx`:
+
+```tsx
+import { trpc } from '@vertz/ui';
+
+export function App() {
+  const { data: users } = trpc.user.list.useQuery();
+
+  return (
+    <div>
+      <h1>Users</h1>
+      <ul>
+        {users?.map(user => (
+          <li key={user.id}>{user.name} — {user.email}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+## What Just Happened?
+
+1. **Schema** — Defined `UserSchema` with zod-like API
+2. **Database** — Query typed by that schema
+3. **API** — Route input/output typed by that schema
+4. **Frontend** — Full type inference, end-to-end
+
+That's the type flow. One schema. Zero mismatches.
+
+## Next Steps
+
+- [Installation](/installation) — Install individual packages
+- [UI Overview](/ui/overview) — Build your interface
+- [Server Tutorial](/server/tutorial) — Full-stack tutorial

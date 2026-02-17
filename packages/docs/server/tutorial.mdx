@@ -1,0 +1,174 @@
+---
+title: Server Tutorial
+description: Build a full-stack todo app in 5 minutes
+---
+
+# Server Tutorial
+
+Build a full-stack todo app in 5 minutes.
+
+## What You'll Build
+
+A todo app with:
+- Create todos
+- List todos  
+- Mark todos complete
+
+## Prerequisites
+
+- Node.js 18+
+- A new Vertz project (`npx @vertz/create-vertz-app@latest`)
+
+## Step 1: Define the Schema
+
+In `src/schema.ts`:
+
+```typescript
+import { z } from '@vertz/schema';
+
+export const TodoSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1),
+  completed: z.boolean(),
+});
+
+export const CreateTodoSchema = z.object({
+  title: z.string().min(1),
+});
+```
+
+## Step 2: Set Up the Database
+
+In `src/db.ts`:
+
+```typescript
+import { db } from '@vertz/db';
+
+export const database = db({
+  url: process.env.DATABASE_URL || 'file:./dev.db',
+});
+
+// Initialize tables
+await database.exec(`
+  CREATE TABLE IF NOT EXISTS todos (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    completed INTEGER DEFAULT 0
+  )
+`);
+```
+
+## Step 3: Create the API
+
+In `src/server.ts`:
+
+```typescript
+import { router, procedure } from '@vertz/server';
+import { TodoSchema, CreateTodoSchema } from './schema';
+import { database } from './db';
+import { v4 as uuid } from 'uuid';
+
+export const appRouter = router({
+  listTodos: procedure.query(async () => {
+    const todos = await database.query('SELECT * FROM todos');
+    return todos.map(t => ({ ...t, completed: Boolean(t.completed) }));
+  }),
+
+  createTodo: procedure
+    .input(CreateTodoSchema)
+    .mutation(async ({ input }) => {
+      const id = uuid();
+      await database.execute(
+        'INSERT INTO todos (id, title, completed) VALUES (?, ?, ?)',
+        [id, input.title, 0]
+      );
+      return { id, title: input.title, completed: false };
+    }),
+
+  toggleTodo: procedure
+    .input(z.object({ id: z.string(), completed: z.boolean() }))
+    .mutation(async ({ input }) => {
+      await database.execute(
+        'UPDATE todos SET completed = ? WHERE id = ?',
+        [input.completed ? 1 : 0, input.id]
+      );
+      return { success: true };
+    }),
+});
+
+export type AppRouter = typeof appRouter;
+```
+
+## Step 4: Use in Your UI
+
+In `src/App.tsx`:
+
+```tsx
+import { trpc } from '@vertz/ui';
+
+function TodoApp() {
+  const { data: todos, refetch } = trpc.listTodos.useQuery();
+  const createMutation = trpc.createTodo.useMutation({
+    onSuccess: () => refetch(),
+  });
+  const toggleMutation = trpc.toggleTodo.useMutation({
+    onSuccess: () => refetch(),
+  });
+
+  let newTodo = '';
+
+  return (
+    <div>
+      <h1>Todos</h1>
+      
+      <div>
+        <input
+          value={newTodo}
+          onChange={(e) => newTodo = e.target.value}
+          placeholder="Add a todo..."
+        />
+        <button
+          onClick={() => {
+            if (newTodo.trim()) {
+              createMutation.mutate({ title: newTodo });
+              newTodo = '';
+            }
+          }}
+        >
+          Add
+        </button>
+      </div>
+
+      <ul>
+        {todos?.map(todo => (
+          <li key={todo.id}>
+            <input
+              type="checkbox"
+              checked={todo.completed}
+              onChange={() => toggleMutation.mutate({
+                id: todo.id,
+                completed: !todo.completed,
+              })}
+            />
+            {todo.title}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+## What You Learned
+
+1. **Define schema** — Type-safe data definitions
+2. **Create API** — Type-safe routes with procedure.input/output
+3. **Use in UI** — Full type inference, no manual types needed
+
+That's the full-stack flow: Schema → Database → API → UI
+
+## Next Steps
+
+- [Routing](/server/routing) — More routing patterns
+- [Database](/db/overview) — Advanced queries
+- [Schema](/schema/overview) — More schema features

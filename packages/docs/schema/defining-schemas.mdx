@@ -1,0 +1,98 @@
+---
+title: Defining Schemas
+description: Deep dive into schema definition
+---
+
+# Defining Schemas
+
+Define comprehensive schemas for your data.
+
+## Basic Types
+
+```typescript
+import { z } from '@vertz/schema';
+
+// Primitives
+z.string();
+z.number();
+z.boolean();
+z.bigint();
+z.date();
+
+// With validation
+z.string().uuid();
+z.string().email();
+z.string().url();
+z.number().int();
+z.number().min(0).max(100);
+```
+
+## Objects
+
+```typescript
+const User = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  email: z.string().email(),
+  age: z.number().int().positive().optional(),
+  createdAt: z.date(),
+});
+```
+
+## Arrays
+
+```typescript
+const UserList = z.array(User);
+const StringList = z.array(z.string());
+const Tuple = z.tuple([z.string(), z.number()]);
+```
+
+## Unions & Enums
+
+```typescript
+// Union
+const Status = z.union([
+  z.literal('pending'),
+  z.literal('active'),
+  z.literal('completed'),
+]);
+
+// Enum
+const Role = z.enum(['admin', 'user', 'guest']);
+
+// Discriminated union
+const Event = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('click'), x: z.number(), y: z.number() }),
+  z.object({ type: z.literal('keydown'), key: z.string() }),
+]);
+```
+
+## Transforms & Defaults
+
+```typescript
+const SanitizedString = z.string().transform(s => s.trim().toLowerCase());
+
+const WithDefaults = z.object({
+  name: z.string(),
+  role: z.enum(['admin', 'user']).default('user'),
+});
+```
+
+## Validation
+
+```typescript
+const result = User.safeParse(data);
+
+if (result.success) {
+  // result.data is typed
+  console.log(result.data.name);
+} else {
+  // result.error has details
+  console.log(result.error.issues);
+}
+```
+
+## Next Steps
+
+- [Schema Overview](/schema/overview) — Why use schemas
+- [Server Routing](/server/routing) — Use schemas in API routes

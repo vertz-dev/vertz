@@ -1,0 +1,74 @@
+---
+title: Schema Overview
+description: Define type-safe schemas with @vertz/schema
+---
+
+# @vertz/schema
+
+Define type-safe schemas with runtime validation.
+
+## The Simple Way
+
+```typescript
+import { z } from '@vertz/schema';
+
+const UserSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  email: z.string().email(),
+});
+```
+
+One schema. Used everywhere.
+
+## Installation
+
+```bash
+npm install @vertz/schema
+```
+
+## Why Schema Validation?
+
+- **Runtime Safety** — Catch type errors at runtime, not in production
+- **LLM Output Validation** — Validate what your LLM returns
+- **API Contracts** — Ensure client/server data matches
+
+## Validate Data
+
+```typescript
+const result = UserSchema.safeParse(data);
+
+if (!result.success) {
+  console.log(result.error);
+  return;
+}
+
+// result.data is fully typed
+const user = result.data;
+```
+
+## Use Everywhere
+
+```typescript
+// 1. Database - query typed by schema
+const user = await db.query('SELECT * FROM users WHERE id = ?', [id]);
+// user is typed as UserSchema output
+
+// 2. API - input/output typed by schema  
+const app = router({
+  getUser: procedure
+    .input(z.object({ id: z.string() }))
+    .output(UserSchema)
+    .query(({ input }) => db.query(...)),
+});
+
+// 3. UI - full type inference
+const user = await trpc.getUser.query({ id: '123' });
+// user is typed as UserSchema output
+```
+
+## Next Steps
+
+- [Defining Schemas](/schema/defining-schemas) — Deep dive into schema definition
+- [Server Overview](/server/overview) — Use schemas in your API
+- [Database Overview](/db/overview) — Use schemas in queries

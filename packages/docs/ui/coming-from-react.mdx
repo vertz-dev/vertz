@@ -1,0 +1,150 @@
+---
+title: Coming from React
+description: React hooks → Vertz mapping
+---
+
+# Coming from React
+
+You're familiar with React. Here's how Vertz maps to what you already know.
+
+## State: useState → let
+
+```tsx
+// React
+const [count, setCount] = useState(0);
+
+// Vertz
+let count = 0;
+```
+
+Just use a variable. The compiler handles reactivity.
+
+```tsx
+// React
+<button onClick={() => setCount(count + 1)}>
+
+// Vertz
+<button onClick={() => count++}>
+```
+
+## Effects: useEffect → automatic
+
+```tsx
+// React
+useEffect(() => {
+  console.log('Count changed:', count);
+}, [count]);
+
+// Vertz
+// Just use count - it's automatically tracked
+// The compiler handles dependency tracking
+console.log('Count changed:', count);
+```
+
+No effect cleanup needed. The compiler handles it.
+
+## Fetching: useQuery → trpc.useQuery
+
+```tsx
+// React + React Query
+const { data, isLoading } = useQuery({
+  queryKey: ['users'],
+  queryFn: () => fetch('/api/users').then(r => r.json()),
+});
+
+// Vertz
+const { data, isLoading } = trpc.users.list.useQuery();
+```
+
+Full type inference. No manual type definitions.
+
+## Mutations: useMutation → trpc.useMutation
+
+```tsx
+// React + React Query
+const mutation = useMutation({
+  mutationFn: (user) => fetch('/api/users', {
+    method: 'POST',
+    body: JSON.stringify(user),
+  }),
+});
+mutation.mutate({ name: 'Alice' });
+
+// Vertz
+const mutation = trpc.users.create.useMutation();
+mutation.mutate({ name: 'Alice' });
+```
+
+## Context: useContext → direct import
+
+```tsx
+// React
+const theme = useContext(ThemeContext);
+
+// Vertz
+// Just import what you need
+import { theme } from './theme';
+```
+
+## Derived State: useMemo → just derive
+
+```tsx
+// React
+const doubled = useMemo(() => count * 2, [count]);
+
+// Vertz
+let doubled = count * 2;
+```
+
+The compiler handles memoization automatically.
+
+## Side Effects: Just Code
+
+```tsx
+// React
+useEffect(() => {
+  document.title = `Count: ${count}`;
+}, [count]);
+
+// Vertz
+// Just write the code
+document.title = `Count: ${count}`;
+```
+
+## Comparison Table
+
+| React | Vertz |
+|-------|-------|
+| `useState` | `let` |
+| `useEffect` | (automatic) |
+| `useMemo` | (automatic) |
+| `useCallback` | (automatic) |
+| `useContext` | direct import |
+| `useQuery` | `trpc.*.useQuery` |
+| `useMutation` | `trpc.*.useMutation` |
+
+## The Key Insight
+
+In React, you explicitly declare reactivity with hooks.
+
+In Vertz, you write simple code and the compiler handles reactivity.
+
+```tsx
+// This is valid Vertz code
+function Counter() {
+  let count = 0;
+  
+  return (
+    <button onClick={() => count++}>
+      {count}
+    </button>
+  );
+}
+```
+
+That's it. No hooks. No dependencies. Just UI.
+
+## Next Steps
+
+- [UI Overview](/ui/overview) — Lead with simplicity
+- [Getting Started](/ui/getting-started) — Set up in your project

@@ -1,0 +1,139 @@
+---
+title: Type Flow
+description: The aha moment - schema → DB → API → frontend
+---
+
+# Type Flow
+
+The aha moment: schema → DB → API → frontend.
+
+This is Vertz's superpower. One definition. End-to-end type safety.
+
+## The Flow
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Schema    │────▶│  Database   │────▶│    API      │────▶│   Frontend  │
+│  @vertz/    │     │   @vertz/   │     │  @vertz/    │     │   @vertz/   │
+│   schema    │     │     db      │     │   server    │     │     ui      │
+└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+```
+
+## Step 1: Define Schema
+
+In `src/schema.ts`:
+
+```typescript
+import { z } from '@vertz/schema';
+
+export const UserSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  email: z.string().email(),
+  role: z.enum(['admin', 'user', 'guest']),
+});
+```
+
+## Step 2: Use in Database
+
+In `src/db/users.ts`:
+
+```typescript
+import { db } from '@vertz/db';
+import { UserSchema } from '../schema';
+
+// Results are typed based on schema
+const users = await db.query('SELECT * FROM users');
+
+// users[0] is typed as:
+// { id: string; name: string; email: string; role: 'admin' | 'user' | 'guest' }
+```
+
+## Step 3: Expose via API
+
+In `src/server.ts`:
+
+```typescript
+import { router, procedure } from '@vertz/server';
+import { UserSchema } from './schema';
+
+const app = router({
+  getUser: procedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input }) => {
+      // DB query is typed
+      const user = await db.query(
+        'SELECT * FROM users WHERE id = ?',
+        [input.id]
+      );
+      return user;
+    }),
+});
+```
+
+## Step 4: Consume in UI
+
+In `src/App.tsx`:
+
+```tsx
+import { trpc } from '@vertz/ui';
+
+function UserProfile({ userId }: { userId: string }) {
+  // FULLY TYPED
+  const { data: user } = trpc.getUser.useQuery({ id: userId });
+
+  return (
+    <div>
+      <h1>{user?.name}</h1>      {/* TypeScript knows it's string */}
+      <p>{user?.email}</p>        {/* TypeScript knows it's string */}
+      <p>{user?.role}</p>         {/* TypeScript knows it's 'admin' | 'user' | 'guest' */}
+    </div>
+  );
+}
+```
+
+## What Just Happened?
+
+1. **Schema** — Defined once in `schema.ts`
+2. **Database** — Query results are typed automatically
+3. **API** — Input/output validated and typed by schema
+4. **Frontend** — Full type inference, no manual types
+
+## No More This
+
+```typescript
+// ❌ Manual types - error-prone, redundant
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'user' | 'guest';
+}
+
+// ❌ Sync issues - change in one place, forget another
+// ❌ Runtime errors - typos in property names
+```
+
+## Just This
+
+```typescript
+// ✅ Define once
+const UserSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  email: z.string().email(),
+  role: z.enum(['admin', 'user', 'guest']),
+});
+
+// ✅ Used everywhere - always in sync
+```
+
+## Why It Works
+
+Vertz shares TypeScript types across package boundaries. The schema is the single source of truth.
+
+## Next Steps
+
+- [Quickstart](/quickstart) — Try it yourself
+- [Schema Overview](/schema/overview) — Define schemas
+- [Server Overview](/server/overview) — Build APIs

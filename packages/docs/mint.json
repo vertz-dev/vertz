@@ -1,0 +1,59 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Vertz",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#6366f1",
+    "light": "#818cf8",
+    "dark": "#4f46e5"
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/vertz-dev/vertz"
+    }
+  ],
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": ["introduction", "quickstart", "installation"]
+    },
+    {
+      "group": "UI",
+      "pages": ["ui/overview", "ui/getting-started", "ui/coming-from-react"]
+    },
+    {
+      "group": "Schema",
+      "pages": ["schema/overview", "schema/defining-schemas"]
+    },
+    {
+      "group": "Server",
+      "pages": ["server/overview", "server/routing", "server/tutorial"]
+    },
+    {
+      "group": "Database",
+      "pages": ["db/overview", "db/queries"]
+    },
+    {
+      "group": "CLI",
+      "pages": ["cli/overview", "cli/commands"]
+    },
+    {
+      "group": "Concepts",
+      "pages": ["concepts/domains", "concepts/access", "concepts/type-flow"]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/vertz-dev/vertz"
+  }
+}

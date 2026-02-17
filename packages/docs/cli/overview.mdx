@@ -1,0 +1,74 @@
+---
+title: CLI Overview
+description: Command-line tools for Vertz
+---
+
+# @vertz/cli
+
+The Vertz CLI provides commands for development, building, and deployment.
+
+## Installation
+
+```bash
+npm install @vertz/cli
+```
+
+## Quick Commands
+
+```bash
+# Development
+vertz dev          # Start development server
+vertz dev --port 3000
+
+# Building
+vertz build        # Build for production
+vertz build --types  # Generate type declarations
+
+# Database
+vertz db migrate   # Run database migrations
+vertz db seed      # Seed database
+vertz db studio    # Open database studio
+
+# Code Generation
+vertz codegen      # Generate types from schema
+vertz codegen --watch
+
+# Testing
+vertz test         # Run tests
+vertz test --watch
+vertz test --coverage
+```
+
+## Development Server
+
+```bash
+# Start dev server
+vertz dev
+
+# Custom port
+vertz dev --port 3000
+
+# Expose to network
+vertz dev --host
+
+# Open browser automatically
+vertz dev --open
+```
+
+## Build
+
+```bash
+# Production build
+vertz build
+
+# Generate type declarations
+vertz build --types
+
+# Analyze bundle size
+vertz build --analyze
+```
+
+## Next Steps
+
+- [CLI Commands](/cli/commands) — Detailed command reference
+- [Quickstart](/quickstart) — Create your first app

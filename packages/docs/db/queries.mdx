@@ -1,0 +1,105 @@
+---
+title: Queries
+description: Database query patterns with @vertz/db
+---
+
+# Queries
+
+Learn query patterns with @vertz/db.
+
+## Basic Queries
+
+```typescript
+import { db } from '@vertz/db';
+
+// Simple query
+const users = await db.query('SELECT * FROM users');
+
+// With parameters - fully typed
+const user = await db.query(
+  'SELECT * FROM users WHERE id = ?',
+  [userId]
+);
+```
+
+## Parameterized Queries
+
+```typescript
+// Multiple parameters
+const results = await db.query(
+  'SELECT * FROM users WHERE name = ? AND age > ?',
+  [name, minAge]
+);
+
+// Named parameters
+const user = await db.query(
+  'SELECT * FROM users WHERE id = :id',
+  { id: userId }
+);
+```
+
+## Insert
+
+```typescript
+await db.execute(
+  'INSERT INTO users (id, name, email) VALUES (?, ?, ?)',
+  [uuid(), 'Alice', 'alice@example.com']
+);
+```
+
+## Update
+
+```typescript
+await db.execute(
+  'UPDATE users SET name = ? WHERE id = ?',
+  [newName, userId]
+);
+```
+
+## Delete
+
+```typescript
+await db.execute(
+  'DELETE FROM users WHERE id = ?',
+  [userId]
+);
+```
+
+## Transactions
+
+```typescript
+await db.transaction(async (tx) => {
+  await tx.execute(
+    'INSERT INTO orders (id, user_id) VALUES (?, ?)',
+    [orderId, userId]
+  );
+  await tx.execute(
+    'UPDATE users SET orders_count = orders_count + 1 WHERE id = ?',
+    [userId]
+  );
+});
+```
+
+## With Schema Types
+
+Combine with @vertz/schema for full type safety:
+
+```typescript
+import { z } from '@vertz/schema';
+import { db } from '@vertz/db';
+
+const UserSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  email: z.string().email(),
+});
+
+// Query - returns typed results
+const users = await db.query('SELECT * FROM users');
+// users items are typed based on UserSchema
+```
+
+## Next Steps
+
+- [Database Overview](/db/overview) — Setup and configuration
+- [Server Overview](/server/overview) — Use in API routes

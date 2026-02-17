@@ -1,0 +1,124 @@
+---
+title: Routing
+description: Define type-safe routes with @vertz/server
+---
+
+# Routing
+
+Define type-safe routes with input/output validation.
+
+## Basic Router
+
+```typescript
+import { router, procedure } from '@vertz/server';
+import { z } from '@vertz/schema';
+
+const app = router({
+  // Query procedure - for fetching data
+  getUser: procedure
+    .input(z.object({ id: z.string() }))
+    .query(({ input }) => {
+      return db.user.findUnique({ where: { id: input.id } });
+    }),
+
+  // Mutation procedure - for changing data
+  createUser: procedure
+    .input(z.object({
+      name: z.string(),
+      email: z.string().email(),
+    }))
+    .mutation(({ input }) => {
+      return db.user.create({ data: input });
+    }),
+});
+```
+
+## Nested Routers
+
+Organize routes into modules:
+
+```typescript
+const userRouter = router({
+  get: procedure
+    .input(z.object({ id: z.string() }))
+    .query(...),
+  create: procedure
+    .input(z.object({ name: z.string(), email: z.string().email() }))
+    .mutation(...),
+  list: procedure.query(...),
+});
+
+const app = router({
+  user: userRouter,
+});
+```
+
+Now you have:
+- `trpc.user.get.query({ id: '123' })`
+- `trpc.user.create.mutate({ name: 'Alice', email: 'alice@example.com' })`
+- `trpc.user.list.query()`
+
+## Server Functions
+
+Call server functions directly from client with full type safety:
+
+```typescript
+// Server side - define the procedure
+const getUser = procedure
+  .input(z.object({ id: z.string() }))
+  .query(({ input }) => db.user.findUnique({ where: { id: input.id } }));
+
+// Client side - fully typed!
+const user = await getUser({ id: '123' });
+```
+
+## Streaming
+
+Handle streaming responses for LLM output:
+
+```typescript
+import { streamingProcedure } from '@vertz/server';
+
+const streamChat = streamingProcedure
+  .input(z.object({ prompt: z.string() }))
+  .query(async ({ input, emit }) => {
+    for await (const chunk of llm.stream(input.prompt)) {
+      emit(chunk);
+    }
+  });
+```
+
+On the client:
+
+```typescript
+const stream = await streamChat({ prompt: 'Hello' });
+
+for await (const chunk of stream) {
+  console.log(chunk); // Each chunk as it arrives
+}
+```
+
+## Middleware
+
+Add middleware for auth, logging, etc:
+
+```typescript
+const authenticatedProcedure = procedure.use(async ({ next, ctx }) => {
+  if (!ctx.session) {
+    throw new Error('Not authenticated');
+  }
+  return next({ ctx: { ...ctx, user: ctx.session.user } });
+});
+
+const app = router({
+  protectedData: authenticatedProcedure.query(({ ctx }) => {
+    return { userId: ctx.user.id };
+  }),
+});
+```
+
+## Next Steps
+
+- [Server Overview](/server/overview) — Quick start
+- [Tutorial](/server/tutorial) — Full-stack tutorial
+- [Middleware](/server/middleware) — Advanced middleware patterns

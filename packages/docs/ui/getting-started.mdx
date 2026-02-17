@@ -1,0 +1,102 @@
+---
+title: Getting Started
+description: Set up @vertz/ui in your project
+---
+
+# Getting Started with @vertz/ui
+
+Set up @vertz/ui in your project.
+
+## Installation
+
+```bash
+npm install @vertz/ui
+```
+
+## Setup
+
+Wrap your app with the provider:
+
+```tsx
+import { VertzProvider } from '@vertz/ui';
+
+export function App({ children }) {
+  return (
+    <VertzProvider>
+      {children}
+    </VertzProvider>
+  );
+}
+```
+
+## Your First Component
+
+```tsx
+import { Button, Input, Card } from '@vertz/ui';
+
+function LoginForm() {
+  let email = '';
+  let password = '';
+
+  return (
+    <Card>
+      <h1>Login</h1>
+      <Input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => email = e.target.value}
+      />
+      <Input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => password = e.target.value}
+      />
+      <Button onClick={() => console.log('Login!')}>
+        Sign In
+      </Button>
+    </Card>
+  );
+}
+```
+
+No hooks. No state management libraries. Just variables.
+
+## Calling APIs
+
+```tsx
+import { trpc } from '@vertz/ui';
+
+function UserList() {
+  const { data: users, isLoading } = trpc.users.list.useQuery();
+
+  if (isLoading) return <p>Loading...</p>;
+
+  return (
+    <ul>
+      {users?.map(user => (
+        <li key={user.id}>{user.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Available Components
+
+- `Button` — Primary action button
+- `Input` — Text input with validation
+- `Card` — Container component
+- `Chat` — Chat interface component
+- `StreamingText` — LLM response streaming
+- `Modal` — Dialog component
+- `Dropdown` — Select component
+- And many more...
+
+See [Components](/ui/components) for the full list.
+
+## Next Steps
+
+- [Coming from React](/ui/coming-from-react) — React hooks → Vertz mapping
+- [UI Overview](/ui/overview) — Simplicity first

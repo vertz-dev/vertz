@@ -1,0 +1,84 @@
+---
+title: Database Overview
+description: Database configuration and setup with @vertz/db
+---
+
+# @vertz/db
+
+Database access with zero boilerplate.
+
+## The Simple Way
+
+```typescript
+import { db } from '@vertz/db';
+
+const database = db({
+  url: process.env.DATABASE_URL,
+});
+
+// Query - fully typed based on your schema
+const users = await database.query('SELECT * FROM users');
+```
+
+## Installation
+
+```bash
+npm install @vertz/db
+```
+
+## Supported Databases
+
+- **PostgreSQL** — Primary production database
+- **SQLite** — Development and testing
+- **MySQL** — Support available
+
+## Configuration
+
+```typescript
+import { db } from '@vertz/db';
+
+const database = db({
+  provider: 'postgresql',
+  url: process.env.DATABASE_URL,
+});
+```
+
+## Quick Start
+
+```typescript
+import { db } from '@vertz/db';
+
+const database = db({
+  url: 'file:./dev.db',
+});
+
+// Run migrations
+await database.migrate();
+
+// Seed data
+await database.seed();
+```
+
+## Typed Queries
+
+When you use @vertz/schema to define schemas, queries are typed:
+
+```typescript
+import { z } from '@vertz/schema';
+import { db } from '@vertz/db';
+
+const UserSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  email: z.string().email(),
+});
+
+// Query returns typed results
+const users = await database.query('SELECT * FROM users');
+// users is typed based on UserSchema
+```
+
+## Next Steps
+
+- [Queries](/db/queries) — Learn query patterns
+- [Schema](/schema/overview) — Define schemas for type safety

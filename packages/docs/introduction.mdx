@@ -1,0 +1,62 @@
+---
+title: Introduction
+description: The first TypeScript stack built for LLMs
+---
+
+# Vertz
+
+**The first TypeScript stack built for LLMs**
+
+Vertz is a comprehensive framework designed from the ground up to build applications powered by large language models. It provides a unified TypeScript API across UI, schema validation, server-side logic, database access, and authentication.
+
+## The Type Flow
+
+Within 30 seconds, here's how types flow end-to-end:
+
+```typescript
+// 1. Define your schema (shared across the stack)
+import { z } from '@vertz/schema';
+
+const UserSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  email: z.string().email(),
+});
+
+// 2. Use in your database queries (inferred from schema)
+import { db } from '@vertz/db';
+
+// TypeScript knows exactly what shape your data has
+const user = await db.query('SELECT * FROM users WHERE id = ?', [id]);
+
+// 3. Expose via type-safe API routes
+import { router, procedure } from '@vertz/server';
+
+const app = router({
+  getUser: procedure
+    .input(z.object({ id: z.string() }))
+    .query(({ input }) => {
+      return db.query('SELECT * FROM users WHERE id = ?', [input.id]);
+    }),
+});
+
+// 4. Call from frontend — FULLY TYPED
+import { trpc } from '@vertz/ui';
+
+const user = await trpc.getUser.query({ id: '123' });
+// user is fully typed: { id: string; name: string; email: string }
+```
+
+One schema. Zero type mismatches. End-to-end type safety.
+
+## Why Vertz?
+
+- **Type-safe end-to-end** — From your React components to your database queries, everything is type-safe
+- **Built for LLM Apps** — First-class support for prompts, streaming, tool calling, and model-agnostic code
+- **Progressive Disclosure** — Start simple, scale as needed. Vertz grows with your application
+
+## Quick Links
+
+- [Quickstart](/quickstart) — Get up and running in 2 minutes
+- [Installation](/installation) — npm install steps
+- [GitHub](https://github.com/vertz-dev/vertz) — Star us on GitHub

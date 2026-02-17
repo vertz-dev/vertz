@@ -1,0 +1,128 @@
+---
+title: Access
+description: Authentication and authorization in Vertz
+---
+
+# Access
+
+Authentication and authorization for Vertz applications.
+
+## Installation
+
+```bash
+npm install @vertz/access
+```
+
+## Features
+
+- **Multiple Auth Providers** — Google, GitHub, email/password, magic links
+- **Role-Based Access** — Define roles and permissions
+- **Session Management** — Secure session handling
+- **OAuth Support** — Full OAuth 2.0 / OIDC integration
+
+## Quick Start
+
+```typescript
+import { auth, session } from '@vertz/access';
+
+// Protect a route
+const protectedRoute = procedure.use(
+  session.requireAuth()
+);
+
+// In your route
+const user = ctx.session.user;
+// user.id, user.email, user.role are all typed
+```
+
+## Authentication Providers
+
+### Email/Password
+
+```typescript
+import { auth } from '@vertz/access';
+
+const authRouter = router({
+  signup: procedure
+    .input(z.object({
+      email: z.string().email(),
+      password: z.string().min(8),
+    }))
+    .mutation(async ({ input }) => {
+      return auth.createUser({
+        email: input.email,
+        password: input.password,
+      });
+    }),
+
+  login: procedure
+    .input(z.object({
+      email: z.string().email(),
+      password: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      return auth.verifyLogin(input.email, input.password);
+    }),
+});
+```
+
+### OAuth (Google, GitHub, etc.)
+
+```typescript
+import { auth } from '@vertz/access';
+
+const authRouter = router({
+  google: procedure.query(() => {
+    return auth.oauth.google.getAuthUrl();
+  }),
+
+  googleCallback: procedure
+    .input(z.object({ code: z.string() }))
+    .mutation(async ({ input }) => {
+      return auth.oauth.google.verify(input.code);
+    }),
+});
+```
+
+## Authorization
+
+### Role-Based Access
+
+```typescript
+import { access } from '@vertz/access';
+
+// Define roles
+const roles = {
+  admin: ['read', 'write', 'delete'],
+  user: ['read', 'write'],
+  guest: ['read'],
+};
+
+// Check permissions
+const canDelete = access.check('delete', ctx.session.user.role, roles);
+```
+
+### Protect Routes
+
+```typescript
+const adminProcedure = procedure.use(async ({ next, ctx }) => {
+  if (ctx.session.user.role !== 'admin') {
+    throw new Error('Admin only');
+  }
+  return next({ ctx });
+});
+
+const app = router({
+  deleteUser: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      // Only admins can reach here
+      return db.user.delete({ where: { id: input.id } });
+    }),
+});
+```
+
+## Next Steps
+
+- [Domains](/concepts/domains) — Organize your app
+- [Type Flow](/concepts/type-flow) — End-to-end types

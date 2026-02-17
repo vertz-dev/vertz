@@ -1,0 +1,108 @@
+---
+title: Installation
+description: npm install steps for Vertz
+---
+
+# Installation
+
+Install Vertz in your project.
+
+## Quick Install
+
+```bash
+npm install vertz
+```
+
+This installs the core packages:
+- `@vertz/ui` — React components
+- `@vertz/server` — Type-safe API routes
+- `@vertz/schema` — Runtime type validation
+- `@vertz/db` — Database access
+
+## Install Individual Packages
+
+Install only what you need:
+
+```bash
+# UI Components
+npm install @vertz/ui
+
+# Server
+npm install @vertz/server
+
+# Schema Validation
+npm install @vertz/schema
+
+# Database
+npm install @vertz/db
+
+# CLI
+npm install @vertz/cli
+```
+
+## TypeScript Configuration
+
+Ensure your `tsconfig.json` includes:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  }
+}
+```
+
+## Environment Setup
+
+Create a `.env` file:
+
+```bash
+# Database (SQLite for development)
+DATABASE_URL="file:./dev.db"
+
+# Or PostgreSQL for production
+DATABASE_URL="postgresql://user:password@localhost:5432/mydb"
+
+# Optional: LLM Provider
+OPENAI_API_KEY="your-api-key"
+```
+
+## Verify Installation
+
+Create `src/index.ts`:
+
+```typescript
+import { z } from '@vertz/schema';
+
+// Simple test - define a schema
+const UserSchema = z.object({
+  name: z.string(),
+  email: z.string().email(),
+});
+
+// Validate data
+const result = UserSchema.safeParse({
+  name: 'Alice',
+  email: 'alice@example.com',
+});
+
+console.log(result.success); // true
+```
+
+Run:
+
+```bash
+npx tsx src/index.ts
+```
+
+If you see `true`, you're ready to go.
+
+## Next Steps
+
+- [Quickstart](/quickstart) — Build your first app
+- [UI Overview](/ui/overview) — Learn the UI components
+- [Server Overview](/server/overview) — Build type-safe APIs

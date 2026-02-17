@@ -1,0 +1,150 @@
+---
+title: CLI Commands
+description: Complete reference for Vertz CLI commands
+---
+
+# CLI Commands
+
+Complete reference for all Vertz CLI commands.
+
+## dev
+
+Start the development server.
+
+```bash
+vertz dev [options]
+
+Options:
+  --port <number>     Port to listen on (default: 3000)
+  --host              Expose to network
+  --open              Open browser automatically
+  --env <file>        Environment file
+```
+
+Example:
+
+```bash
+vertz dev --port 3000 --open
+```
+
+## build
+
+Build for production.
+
+```bash
+vertz build [options]
+
+Options:
+  --types             Generate TypeScript declarations
+  --analyze           Analyze bundle size
+  --no-minify         Disable minification
+```
+
+Example:
+
+```bash
+vertz build --types --analyze
+```
+
+## db
+
+Database management commands.
+
+### Migrations
+
+```bash
+# Create a new migration
+vertz db migrate create add_users_table
+
+# Run pending migrations
+vertz db migrate up
+
+# Rollback last migration
+vertz db migrate down
+
+# Check migration status
+vertz db migrate status
+```
+
+### Seeding
+
+```bash
+# Run seeders
+vertz db seed
+
+# Run seeders without clearing existing data
+vertz db seed --no-clear
+```
+
+### Studio
+
+```bash
+# Open database studio
+vertz db studio
+```
+
+## codegen
+
+Generate code from schema definitions.
+
+```bash
+vertz codegen [options]
+
+Options:
+  --watch             Watch for changes
+  --config <file>     Config file path
+```
+
+Example:
+
+```bash
+vertz codegen --watch
+```
+
+## test
+
+Run tests.
+
+```bash
+vertz test [options]
+
+Options:
+  --watch             Watch mode
+  --coverage          Coverage report
+  --update            Update snapshots
+  --ui                UI mode
+```
+
+Example:
+
+```bash
+vertz test --coverage
+```
+
+## lint
+
+Run linter.
+
+```bash
+vertz lint [options]
+
+Options:
+  --fix               Auto-fix issues
+  --staged            Lint staged files only
+```
+
+Example:
+
+```bash
+vertz lint --fix
+```
+
+## Global Options
+
+These options work with all commands:
+
+```bash
+--help              Show help
+--version           Show version
+--verbose           Enable verbose logging
+```
