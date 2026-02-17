@@ -4,8 +4,13 @@ Type-safe PostgreSQL ORM with schema-driven migrations and full TypeScript infer
 
 ## Quickstart
 
+```bash
+# Install the CLI globally
+npm install -g @vertz/db
+```
+
 ```typescript
-import { d, createDb, migrateDev } from '@vertz/db';
+import { d, createDb } from '@vertz/db';
 
 // 1. Define schema
 const users = d.table('users', {
@@ -17,16 +22,11 @@ const users = d.table('users', {
 // 2. Create database client
 const db = createDb({
   url: process.env.DATABASE_URL!,
-  tables: { users: d.entry(users) },
+  tables: { users },
 });
 
-// 3. Run migrations (dev)
-await migrateDev({
-  queryFn: db.queryFn,
-  currentSnapshot: db.snapshot,
-  previousSnapshot: null,
-  migrationsDir: './migrations',
-});
+// 3. Run migrations
+// vertz db migrate
 
 // 4. Query with full type inference
 const user = await db.users.create({
@@ -96,6 +96,8 @@ d.text()
 #### Tables and Relations
 
 ```typescript
+import { d, createRegistry } from '@vertz/db';
+
 const users = d.table('users', {
   id: d.uuid().primaryKey(),
   email: d.email().notNull(),
@@ -108,33 +110,37 @@ const posts = d.table('posts', {
   authorId: d.uuid().notNull(),
 });
 
-// Relations
-const userRelations = {
-  posts: d.ref.many(() => posts, 'authorId'),
-};
-
-const postRelations = {
-  author: d.ref.one(() => users, 'authorId'),
-};
-
-// Register with database
-d.entry(users, userRelations)
-d.entry(posts, postRelations)
+// Define tables with relations using createRegistry
+const tables = createRegistry({ users, posts }, (ref) => ({
+  users: {
+    posts: ref.users.many('posts', 'authorId'),
+  },
+  posts: {
+    author: ref.posts.one('users', 'authorId'),
+  },
+}));
 ```
 
-> **Note:** Relations are defined separately from tables. Use arrow functions (`() => posts`) to reference tables declared later in the file.
+> **Note:** Relations are defined in the callback using `ref.<sourceTable>.one()` or `ref.<sourceTable>.many()`. The FK column refers to the target table for `many` relations, and to the source table for `one` relations.
 
 ### Database Client (`createDb`)
 
 ```typescript
-import { d, createDb } from '@vertz/db';
+import { d, createDb, createRegistry } from '@vertz/db';
+
+// Define tables with relations
+const tables = createRegistry({ users, posts }, (ref) => ({
+  users: {
+    posts: ref.users.many('posts', 'authorId'),
+  },
+  posts: {
+    author: ref.posts.one('users', 'authorId'),
+  },
+}));
 
 const db = createDb({
   url: 'postgresql://user:pass@localhost:5432/mydb',
-  tables: {
-    users: d.entry(usersTable, userRelations),
-    posts: d.entry(postsTable, postRelations),
-  },
+  tables,
   pool: {
     max: 20,
     idleTimeout: 30000,
@@ -352,13 +358,11 @@ const posts = d.table('posts', {
 });
 
 // 3. Compute the tenant graph
-const registry = {
-  organizations: d.entry(organizations),
-  users: d.entry(users),
-  posts: d.entry(posts),
-};
+import { createRegistry } from '@vertz/db';
 
-const tenantGraph = computeTenantGraph(registry);
+const tables = createRegistry({ organizations, users, posts }, () => ({}));
+
+const tenantGraph = computeTenantGraph(tables);
 
 console.log(tenantGraph.root);        // 'organizations'
 console.log(tenantGraph.scopedTables); // ['users', 'posts']
