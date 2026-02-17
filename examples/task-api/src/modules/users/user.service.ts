@@ -8,6 +8,7 @@
  */
 import { ConflictException, NotFoundException } from '@vertz/core';
 import { db } from '../../db';
+import { unwrap } from '@vertz/schema';
 import type { users } from '../../db/schema';
 
 // ---------------------------------------------------------------------------
@@ -41,11 +42,12 @@ export function createUserMethods() {
       const limit = input.limit ?? 20;
       const offset = input.offset ?? 0;
 
-      const { data, total } = await db.listAndCount('users', {
+      const result = await db.listAndCount('users', {
         limit,
         offset,
         orderBy: { createdAt: 'desc' },
       });
+      const { data, total } = unwrap(result);
 
       return {
         data: data.map((u) => serializeUser(u)),
@@ -56,9 +58,10 @@ export function createUserMethods() {
     },
 
     async getById(id: string) {
-      const user = await db.get('users', {
+      const result = await db.get('users', {
         where: { id },
       });
+      const user = unwrap(result);
 
       if (!user) {
         throw new NotFoundException(`User with id "${id}" not found`);
@@ -69,7 +72,7 @@ export function createUserMethods() {
 
     async create(input: CreateUserInput) {
       try {
-        const user = await db.create('users', {
+        const result = await db.create('users', {
           data: {
             id: crypto.randomUUID(),
             email: input.email,
@@ -77,6 +80,7 @@ export function createUserMethods() {
             role: input.role ?? 'member',
           },
         });
+        const user = unwrap(result);
 
         return serializeUser(user);
       } catch (error) {
