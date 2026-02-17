@@ -1,0 +1,9 @@
+name = "task-manager-preview"
+main = "dist/worker.js"
+compatibility_date = "2024-01-01"
+
+[env.preview]
+route = { pattern = "task-manager-preview.*.workers.dev" }
+
+[env.preview.vars]
+ENVIRONMENT = "preview"
