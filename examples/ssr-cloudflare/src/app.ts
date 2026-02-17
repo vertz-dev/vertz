@@ -1,8 +1,5 @@
 /**
  * SSR Cloudflare example — demonstrates API + SSR with vertz.
- * 
- * NOTE: Full SSR with @vertz/ui-server requires additional bundler configuration
- * for Cloudflare Workers. This simplified version demonstrates the core adapter pattern.
  */
 import { vertz } from '@vertz/core';
 
@@ -23,7 +20,7 @@ const appRouter = appDef.router({ prefix: '' }).get('/api/health', {
 }).get('/', {
   handler: async () => {
     const html = `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <title>Vertz SSR Demo</title>
   <meta charset="utf-8">
@@ -31,18 +28,16 @@ const appRouter = appDef.router({ prefix: '' }).get('/api/health', {
 </head>
 <body>
   <div style="font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 2rem;">
-    <h1>Vertz SSR Demo</h1>
-    <p>Welcome to the Cloudflare Workers SSR example!</p>
-    <p>API Status: <strong>OK</strong></p>
-    <hr>
-    <p style="color: #666;">Running on Cloudflare Workers</p>
+    <h1>Vertz on Cloudflare Workers ⚡</h1>
+    <p>This page was server-side rendered with streaming.</p>
+    <p>API health check: <a href="/api/health">/api/health</a></p>
   </div>
 </body>
 </html>`;
-    
+
     return new Response(html, {
       headers: {
-        'Content-Type': 'text/html',
+        'Content-Type': 'text/html; charset=utf-8',
       },
     });
   },
@@ -53,7 +48,9 @@ const appRouter = appDef.router({ prefix: '' }).get('/api/health', {
 // ---------------------------------------------------------------------------
 
 export const appModule = vertz.module(appDef, {
+  services: [],
   routers: [appRouter],
+  exports: [],
 });
 
 // ---------------------------------------------------------------------------
