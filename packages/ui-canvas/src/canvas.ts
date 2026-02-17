@@ -134,24 +134,29 @@ export function destroy(app: Application, container: HTMLElement): void {
  * Canvas renderer for Vertz with PixiJS integration.
  * Provides reactive primitives for canvas rendering.
  */
-export const Canvas = {
+export const Canvas: {
+  render: typeof render;
+  bindSignal: typeof bindSignal;
+  createReactiveSprite: typeof createReactiveSprite;
+  destroy: typeof destroy;
+} = {
   /**
    * Render a PixiJS canvas to the DOM.
    */
-  render,
+  render: render,
 
   /**
    * Bind a Vertz signal to a PixiJS display object property.
    */
-  bindSignal,
+  bindSignal: bindSignal,
 
   /**
    * Create a reactive sprite with bound position/transform signals.
    */
-  createReactiveSprite,
+  createReactiveSprite: createReactiveSprite,
 
   /**
    * Destroy a PixiJS application and clean up resources.
    */
-  destroy,
+  destroy: destroy,
 };
