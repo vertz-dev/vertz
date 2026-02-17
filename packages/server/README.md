@@ -8,36 +8,30 @@ The preferred public API for Vertz HTTP servers. Build type-safe backend service
 npm install @vertz/server
 ```
 
-Create a server, add a route, and start listening:
+Create a server, add a module with routes, and start listening:
 
 ```typescript
-import { createServer, ok, err } from '@vertz/server';
+import { createServer, createModuleDef, createModule, ok, err } from '@vertz/server';
 
-// 1. Create the server
+// 1. Create module definition
+const moduleDef = createModuleDef({ name: 'hello' });
+
+// 2. Create router from module def (chainable)
+const router = moduleDef.router({ prefix: '/hello' });
+router.get('/:name', {
+  handler: async ({ params }) => {
+    return ok({ message: `Hello, ${params.name}!` });
+  },
+});
+
+// 3. Create module with routers
+const helloModule = createModule(moduleDef, { routers: [router] });
+
+// 4. Create server and register
 const app = createServer({
   name: 'my-api',
 });
 
-// 2. Define a module with a route
-const helloModule = {
-  name: 'hello',
-  routers: [
-    {
-      prefix: '/hello',
-      routes: [
-        {
-          method: 'GET',
-          path: '/:name',
-          handler: async ({ params }) => {
-            return ok({ message: `Hello, ${params.name}!` });
-          },
-        },
-      ],
-    },
-  ],
-};
-
-// 3. Register the module and start
 app.register(helloModule);
 
 const handle = await app.listen(3000);
@@ -64,25 +58,19 @@ Requires Node.js 22+.
 Modules organize your application logic. Each module defines routers and can inject dependencies:
 
 ```typescript
-import { createModule, createServer, ok } from '@vertz/server';
+import { createModuleDef, createModule, createServer, ok } from '@vertz/server';
 
-const userModule = createModule({
-  name: 'users',
-  routers: [
-    {
-      prefix: '/api/users',
-      routes: [
-        {
-          method: 'GET',
-          path: '/',
-          handler: async () => {
-            return ok({ users: [] });
-          },
-        },
-      ],
-    },
-  ],
+const moduleDef = createModuleDef({ name: 'users' });
+
+// Define router with chainable API
+const router = moduleDef.router({ prefix: '/api/users' });
+router.get('/', {
+  handler: async () => {
+    return ok({ users: [] });
+  },
 });
+
+const userModule = createModule(moduleDef, { routers: [router] });
 
 const app = createServer({ name: 'my-app' });
 app.register(userModule);
@@ -91,44 +79,50 @@ await app.listen(3000);
 
 ### Services
 
-Services are injected dependencies available in route handlers via `ctx.deps`:
+Services are injected dependencies available in route handlers via `ctx.deps`. Define them using `moduleDef.service()`:
 
 ```typescript
-import { createModule, createServer, ok, err } from '@vertz/server';
+import { createModuleDef, createModule, createServer, ok, err } from '@vertz/server';
 
 interface DbService {
   findUser(id: string): Promise<{ id: string; email: string } | null>;
 }
 
-const userModule = createModule({
+// 1. Create module def with imports
+const moduleDef = createModuleDef<{ deps: { db: DbService } }>({
   name: 'users',
-  routers: [
+  imports: {
+    db: {} as DbService, // Injected at runtime
+  },
+});
+
+// 2. Create router with routes
+const router = moduleDef.router({ prefix: '/api/users' });
+router.get('/:id', {
+  handler: async ({ params, deps }) => {
+    const db = deps.db;
+    const user = await db.findUser(params.id);
+    if (!user) {
+      return err({ code: 'NOT_FOUND', message: 'User not found' });
+    }
+    return ok(user);
+  },
+});
+
+// 3. Create module with routers and services
+const userModule = createModule(moduleDef, {
+  routers: [router],
+  services: [
     {
-      prefix: '/api/users',
-      routes: [
-        {
-          method: 'GET',
-          path: '/:id',
-          handler: async ({ params, deps }) => {
-            const db = deps.db as DbService;
-            const user = await db.findUser(params.id);
-            if (!user) {
-              return err({ code: 'NOT_FOUND', message: 'User not found' });
-            }
-            return ok(user);
-          },
+      name: 'db',
+      methods: () => ({
+        findUser: async (id: string) => {
+          // Your database implementation
+          return null;
         },
-      ],
+      }),
     },
   ],
-  services: {
-    db: {
-      async create() {
-        // Return your database instance
-        return { findUser: async () => null };
-      },
-    },
-  },
 });
 ```
 
@@ -281,31 +275,28 @@ Bun.serve({
 Creates a module with routers and services.
 
 ```typescript
-import { createModule } from '@vertz/server';
+import { createModuleDef, createModule, ok } from '@vertz/server';
 
-const myModule = createModule({
-  name: 'my-module',
-  routers: [
-    {
-      prefix: '/items',
-      routes: [
-        {
-          method: 'GET',
-          path: '/',
-          handler: async ({ query }) => {
-            return ok({ items: [] });
-          },
-        },
-      ],
-    },
-  ],
-  services: {
-    db: {
-      async create() {
-        return { /* db instance */ };
-      },
-    },
+const moduleDef = createModuleDef({ name: 'my-module' });
+
+// Define router
+const router = moduleDef.router({ prefix: '/items' });
+router.get('/', {
+  handler: async ({ query }) => {
+    return ok({ items: [] });
   },
+});
+
+// Define service
+const dbService = moduleDef.service({
+  methods: () => ({
+    // Service methods
+  }),
+});
+
+const myModule = createModule(moduleDef, {
+  routers: [router],
+  services: [dbService],
 });
 ```
 
