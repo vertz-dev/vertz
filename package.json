@@ -8,8 +8,6 @@
     "examples/*"
   ],
   "scripts": {
-    "build": "turbo run build",
-    "test": "turbo run test --filter='!@vertz-examples/*'",
     "test:watch": "bun run --filter '*' test:watch",
     "lint": "biome check packages/",
     "lint:fix": "biome check --fix packages/",
