@@ -169,7 +169,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build packages
-        run: bun run --filter '*' build
+        run: bun run --filter='*' --filter='!@vertz-examples/*' build
 
       - name: Run tests with coverage
         env:
