@@ -1,9 +1,10 @@
 import { Command } from 'commander';
-import { generateAction } from './commands/generate';
-import { generateDomainAction } from './commands/domain-gen';
-import { devAction } from './commands/dev';
 import { buildAction } from './commands/build';
 import { createAction } from './commands/create';
+import { devAction } from './commands/dev';
+import { generateDomainAction } from './commands/domain-gen';
+import { generateAction } from './commands/generate';
+import { smartMigrateAction } from './commands/migrate-smart';
 
 export function createCLI(): Command {
   const program = new Command();
@@ -89,14 +90,14 @@ export function createCLI(): Command {
         await generateDomainAction(options);
         return;
       }
-      
+
       const validTypes = ['module', 'service', 'router', 'schema'];
       if (!validTypes.includes(type)) {
         // Try domain generation
         await generateDomainAction(options);
         return;
       }
-      
+
       // Handle traditional generate types
       const result = generateAction({
         type,
@@ -105,7 +106,7 @@ export function createCLI(): Command {
         sourceDir: options.sourceDir,
         dryRun: options.dryRun,
       });
-      
+
       if (!result.success) {
         console.error(result.error);
         process.exit(1);
@@ -122,6 +123,27 @@ export function createCLI(): Command {
     .command('routes')
     .description('Display the route table')
     .option('--format <format>', 'Output format (table, json)', 'table');
+
+  // Database commands - Smart migrate
+  const dbCommand = program.command('db').description('Database management commands');
+
+  dbCommand
+    .command('migrate')
+    .description('Smart database migration (dev: migrate dev, prod: migrate deploy)')
+    .option('--create-only', 'Create migration file without applying (dev only)')
+    .option('--reset', 'Reset database (drops all tables)')
+    .option('--status', 'Show migration status without running migrations')
+    .option('-n, --name <name>', 'Migration name (required with --create-only)')
+    .option('-v, --verbose', 'Verbose output')
+    .action(async (opts) => {
+      await smartMigrateAction({
+        createOnly: opts.createOnly,
+        reset: opts.reset,
+        status: opts.status,
+        name: opts.name ?? undefined,
+        verbose: opts.verbose,
+      });
+    });
 
   return program;
 }
