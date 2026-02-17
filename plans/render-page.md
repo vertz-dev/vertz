@@ -12,7 +12,7 @@
 import { renderPage } from '@vertz/ui-server'
 
 // Minimal
-const response = renderPage(App)
+const response = renderPage(<App />)
 
 // With options
 const response = renderPage(App, {
@@ -47,7 +47,7 @@ const response = renderPage(App, {
   styles: ['/app.css'],
 
   // Escape hatch — raw HTML injected into <head>
-  head: '<link rel="icon" href="/favicon.ico">',
+  head: '<link rel="preconnect" href="https://fonts.googleapis.com">',
 })
 ```
 
@@ -111,6 +111,20 @@ This means:
 - Individual pages override only what they need
 - renderPage internally creates a HeadCollector context, renders the component, then merges — component values win over option values
 
+### Rendering Strategy: Two-Pass
+
+renderPage uses a two-pass approach:
+
+1. **Pass 1 (Head Collection):** Render the component tree in memory. Collect all HeadCollector values (title, meta, OG tags set by components). This is fast — the component tree is small relative to the stream.
+2. **Pass 2 (Stream):** Build the `<head>` with the correct merged values (component overrides > renderPage defaults), flush it, then stream the `<body>` content.
+
+**Why two-pass?**
+- In streaming SSR, `<head>` is flushed before the body. If a component sets `<Head title="About">` mid-render, it's too late — the old title was already sent.
+- Two-pass ensures `<head>` is always correct, which matters for SEO (crawlers read title/OG from HTML).
+- The head collection pass is negligible in cost — `<head>` is a few hundred bytes.
+
+**Alternative considered:** One-pass streaming with client-side `<script>` injection to patch `<head>`. Rejected — adds complexity, worse for SEO, unnecessary given the low cost of two-pass.
+
 ### Defaults
 - `lang`: `'en'`
 - `og.type`: `'website'`
@@ -120,9 +134,9 @@ This means:
 - Scripts use `type="module"` by default
 
 ### Component Input
-- Accepts a VNode (from JSX/createElement): `renderPage(<App />)`
-- Accepts a component function: `renderPage(App)` — renderPage calls it internally to get the VNode
-- Internally, if it receives a function, it wraps it: `renderToStream(component())` or similar
+- Accepts VNodes only (from JSX/createElement): `renderPage(<App user={user} />, { title: 'Home' })`
+- Component functions are NOT accepted directly — use JSX to create the VNode first
+- This keeps props handling natural (baked into JSX) and avoids inventing a separate `props` option
 
 ## Design Decisions
 
@@ -135,6 +149,8 @@ This means:
 7. **Component HeadCollector overrides renderPage defaults** — components know their context better (e.g., a /about page knows its own title)
 8. **favicon is typed because 95%+ of apps have one** — common enough to warrant a dedicated option, not an escape hatch
 9. **status option enables error pages without dropping to renderToStream** — 404/500 pages are common, no need to abandon the simple API
+10. **VNode-only input** — no bare component functions. JSX naturally handles props; a `props` option would be awkward and redundant.
+11. **Two-pass rendering** — collect head values first, then stream body. Correctness over micro-optimization. Head is tiny; the delay is negligible.
 
 ## Integration with Cloudflare Example
 
