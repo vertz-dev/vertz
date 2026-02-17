@@ -127,7 +127,7 @@ export function destroy(app: Application, container: HTMLElement): void {
   }
 
   // Destroy the PixiJS application to release all resources
-  app.destroy(true, { children: true, texture: true, baseTexture: true });
+  app.destroy(true, { children: true, texture: true });
 }
 
 /**
