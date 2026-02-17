@@ -122,6 +122,8 @@ d.entry(users, userRelations)
 d.entry(posts, postRelations)
 ```
 
+> **Note:** Relations are defined separately after tables to avoid circular dependencies. Use arrow functions (`() => posts`) to reference tables that may be declared later in the file.
+
 ### Database Client (`createDb`)
 
 ```typescript
