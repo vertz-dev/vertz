@@ -122,7 +122,7 @@ d.entry(users, userRelations)
 d.entry(posts, postRelations)
 ```
 
-> **Note:** Relations are defined separately after tables to avoid circular dependencies. Use arrow functions (`() => posts`) to reference tables that may be declared later in the file.
+> **Note:** Relations are defined separately from tables. Use arrow functions (`() => posts`) to reference tables declared later in the file.
 
 ### Database Client (`createDb`)
 
@@ -223,10 +223,29 @@ await db.users.findMany({
 
 ### Migrations
 
+Use the CLI for day-to-day migration work:
+
+```bash
+# Generate and apply migrations (development)
+vertz db migrate
+
+# Apply migrations from files (production)
+vertz db migrate --deploy
+
+# Check migration status
+vertz db migrate --status
+
+# Push schema directly without migration files (dev only)
+vertz db push
+```
+
+#### Programmatic API
+
+For advanced usage (custom scripts, CI pipelines):
+
 ```typescript
 import { migrateDev, migrateDeploy, migrateStatus, push } from '@vertz/db';
 
-// Development: generate and apply
 await migrateDev({
   queryFn: db.queryFn,
   currentSnapshot: db.snapshot,
@@ -234,23 +253,9 @@ await migrateDev({
   migrationsDir: './migrations',
 });
 
-// Production: apply from files
 await migrateDeploy({
   queryFn: db.queryFn,
   migrationsDir: './migrations',
-});
-
-// Check status
-const status = await migrateStatus({
-  queryFn: db.queryFn,
-  migrationsDir: './migrations',
-});
-
-// Push schema (dev only)
-await push({
-  queryFn: db.queryFn,
-  currentSnapshot: db.snapshot,
-  previousSnapshot: loadFromFile(),
 });
 ```
 
@@ -322,40 +327,63 @@ try {
 
 ### Tenant Graph
 
-Multi-tenant apps need data isolation — each customer (tenant) should only see their own data. `computeTenantGraph` analyzes your schema's foreign keys to automatically determine which tables belong to which tenant, so you can enforce row-level isolation without manual configuration.
+Multi-tenant apps need data isolation — each customer (tenant) should only see their own data. Mark a column as tenant-scoped with `d.tenant()`, then `computeTenantGraph` analyzes your schema to determine which tables belong to which tenant automatically.
 
 ```typescript
-import { computeTenantGraph } from '@vertz/db';
+import { d, createDb, computeTenantGraph } from '@vertz/db';
 
-const tenantGraph = computeTenantGraph({
-  organizations: d.entry(orgsTable),
-  posts: d.entry(postsTable),
-  users: d.entry(usersTable),
+// 1. Define the tenant root table
+const organizations = d.table('organizations', {
+  id: d.uuid().primaryKey().defaultValue('gen_random_uuid()'),
+  name: d.text().notNull(),
 });
 
+// 2. Mark tables as tenant-scoped with d.tenant()
+const users = d.table('users', {
+  id: d.uuid().primaryKey().defaultValue('gen_random_uuid()'),
+  email: d.email().notNull(),
+  orgId: d.tenant(organizations), // ← scopes this table to a tenant
+});
+
+const posts = d.table('posts', {
+  id: d.uuid().primaryKey().defaultValue('gen_random_uuid()'),
+  title: d.text().notNull(),
+  orgId: d.tenant(organizations),
+});
+
+// 3. Compute the tenant graph
+const registry = {
+  organizations: d.entry(organizations),
+  users: d.entry(users),
+  posts: d.entry(posts),
+};
+
+const tenantGraph = computeTenantGraph(registry);
+
 console.log(tenantGraph.root);        // 'organizations'
-console.log(tenantGraph.scopedTables); // ['posts', 'users']
+console.log(tenantGraph.scopedTables); // ['users', 'posts']
 ```
 
 ### Domain Codegen
 
-Generate type-safe client code directly from your schema definitions. Instead of hand-writing CRUD operations for each table, `defineDomain` produces typed queries, mutations, and client SDKs automatically — keeping your API layer in sync with your database.
+Generate type-safe client code from your schema definitions. `defineDomain` produces typed queries, mutations, and client SDKs — keeping your API layer in sync with your database.
 
 ```typescript
 import { defineDomain, generateTypes, generateClient } from '@vertz/db';
 
-const domain = defineDomain({
-  name: 'User',
-  table: 'users',
-  columns: {
-    id: d.uuid().primaryKey(),
-    email: d.email(),
-    name: d.text(),
+const userDomain = defineDomain('User', {
+  fields: {
+    id: { type: 'uuid', primary: true },
+    email: { type: 'email' },
+    name: { type: 'text' },
+  },
+  relations: {
+    posts: { type: 'many', target: 'Post', foreignKey: 'authorId' },
   },
 });
 
-const types = generateTypes(domain);
-const client = generateClient(domain);
+const types = generateTypes(userDomain);
+const client = generateClient([userDomain]);
 ```
 
 ### Raw SQL
