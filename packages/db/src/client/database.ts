@@ -314,6 +314,18 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   >>;
 
   /**
+   * Get a single row or throw NotFoundError.
+   * Alias for getRequired.
+   */
+  getOrThrow<TName extends keyof TTables & string, TOptions extends TypedGetOptions<TTables[TName]>>(
+    table: TName,
+    options?: TOptions,
+  ): Promise<Result<
+    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+    ReadError
+  >>;
+
+  /**
    * List multiple rows.
    */
   list<TName extends keyof TTables & string, TOptions extends TypedListOptions<TTables[TName]>>(
@@ -345,6 +357,8 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   findOne: DatabaseInstance<TTables>['get'];
   /** @deprecated Use `getRequired` instead */
   findOneRequired: DatabaseInstance<TTables>['getRequired'];
+  /** @deprecated Use `getOrThrow` instead */
+  findOneOrThrow: DatabaseInstance<TTables>['getOrThrow'];
   /** @deprecated Use `list` instead */
   findMany: DatabaseInstance<TTables>['list'];
   /** @deprecated Use `listAndCount` instead */
@@ -695,6 +709,10 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       }
     },
 
+    async getOrThrow(name, opts): Promise<AnyResult> {
+      return this.getRequired(name, opts);
+    },
+
     async list(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
@@ -745,6 +763,9 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     },
     get findOneRequired() {
       return this.getRequired;
+    },
+    get findOneOrThrow() {
+      return this.getOrThrow;
     },
     get findMany() {
       return this.list;
