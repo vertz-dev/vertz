@@ -1,31 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { smartMigrateAction } from '../commands/migrate-smart';
 
+const mockProjectRoot = '/mock/project';
+
+const findProjectRootMock = vi.fn().mockReturnValue(mockProjectRoot);
+
 // Mock the dependencies
 vi.mock('../utils/paths', () => ({
-  findProjectRoot: vi.fn(),
+  findProjectRoot: (...args: unknown[]) => findProjectRootMock(...args),
+}));
+
+const spawnMock = vi.fn(() => ({
+  on: vi.fn((event: string, callback: (code: number | null) => void) => {
+    if (event === 'close') {
+      callback(0);
+    }
+    if (event === 'error') {
+      // no-op
+    }
+  }),
 }));
 
 vi.mock('node:child_process', () => ({
-  spawn: vi.fn(() => ({
-    on: vi.fn((event: string, callback: (code: number | null) => void) => {
-      if (event === 'close') {
-        callback(0);
-      }
-      if (event === 'error') {
-        // no-op
-      }
-    }),
-  })),
+  spawn: (...args: unknown[]) => spawnMock(...args),
 }));
 
-import { findProjectRoot } from '../utils/paths';
-
 describe('Feature: Smart Migrate Command', () => {
-  const mockProjectRoot = '/mock/project';
-
   beforeEach(() => {
-    vi.mocked(findProjectRoot).mockReturnValue(mockProjectRoot);
+    findProjectRootMock.mockReturnValue(mockProjectRoot);
     vi.stubEnv('NODE_ENV', 'development');
   });
 
@@ -40,9 +42,6 @@ describe('Feature: Smart Migrate Command', () => {
 
     describe('When `vertz db migrate` runs', () => {
       it('then pending migrations are applied', async () => {
-        const { spawn } = await import('node:child_process');
-        const spawnMock = vi.mocked(spawn);
-
         await smartMigrateAction({});
 
         expect(spawnMock).toHaveBeenCalledWith(
@@ -55,9 +54,6 @@ describe('Feature: Smart Migrate Command', () => {
       it('and a new migration file is created if schema changed', async () => {
         // This is inherent to `prisma migrate dev` behavior
         // The test above verifies that `migrate dev` is called, which does this automatically
-        const { spawn } = await import('node:child_process');
-        const spawnMock = vi.mocked(spawn);
-
         await smartMigrateAction({});
 
         // prisma migrate dev automatically creates migrations if schema changed
@@ -71,9 +67,6 @@ describe('Feature: Smart Migrate Command', () => {
 
     describe('When `vertz db migrate --status` runs', () => {
       it('then it shows migration status', async () => {
-        const { spawn } = await import('node:child_process');
-        const spawnMock = vi.mocked(spawn);
-
         await smartMigrateAction({ status: true });
 
         expect(spawnMock).toHaveBeenCalledWith(
@@ -86,9 +79,6 @@ describe('Feature: Smart Migrate Command', () => {
 
     describe('When `vertz db migrate --create-only --name <name>` runs', () => {
       it('then it creates migration file without applying', async () => {
-        const { spawn } = await import('node:child_process');
-        const spawnMock = vi.mocked(spawn);
-
         await smartMigrateAction({ createOnly: true, name: 'add_users_table' });
 
         expect(spawnMock).toHaveBeenCalledWith(
@@ -101,9 +91,6 @@ describe('Feature: Smart Migrate Command', () => {
 
     describe('When `vertz db migrate --reset` runs', () => {
       it('then it resets the database', async () => {
-        const { spawn } = await import('node:child_process');
-        const spawnMock = vi.mocked(spawn);
-
         await smartMigrateAction({ reset: true });
 
         expect(spawnMock).toHaveBeenCalledWith(
@@ -122,9 +109,6 @@ describe('Feature: Smart Migrate Command', () => {
 
     describe('When `vertz db migrate` runs', () => {
       it('then pending migrations are applied', async () => {
-        const { spawn } = await import('node:child_process');
-        const spawnMock = vi.mocked(spawn);
-
         await smartMigrateAction({});
 
         expect(spawnMock).toHaveBeenCalledWith(
@@ -135,8 +119,6 @@ describe('Feature: Smart Migrate Command', () => {
       });
 
       it('and NO new migration files are created', async () => {
-        const { spawn } = await import('node:child_process');
-        const spawnMock = vi.mocked(spawn);
         spawnMock.mockClear(); // Clear previous calls
 
         await smartMigrateAction({});
@@ -164,9 +146,6 @@ describe('Feature: Smart Migrate Command', () => {
 
     describe('When `vertz db migrate` runs', () => {
       it('then it uses migrate deploy (same as production)', async () => {
-        const { spawn } = await import('node:child_process');
-        const spawnMock = vi.mocked(spawn);
-
         await smartMigrateAction({});
 
         expect(spawnMock).toHaveBeenCalledWith(
@@ -180,8 +159,7 @@ describe('Feature: Smart Migrate Command', () => {
 
   describe('Error handling', () => {
     it('exits with error when project root not found', async () => {
-      // Use undefined to match the actual return type of findProjectRoot
-      vi.mocked(findProjectRoot).mockReturnValue(undefined);
+      findProjectRootMock.mockReturnValue(undefined);
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 
