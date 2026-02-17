@@ -5,6 +5,7 @@ import { createDbProvider } from '../core/db-provider';
 import { d } from '../d';
 import type { QueryFn } from '../query/executor';
 import { tableToSchemas } from '../schema-derive/table-to-schemas';
+import { unwrap } from '@vertz/schema';
 
 // ---------------------------------------------------------------------------
 // Schema: a realistic table with various column types and metadata
@@ -144,7 +145,7 @@ describe('db-integration e2e', () => {
     });
 
     // Create a user
-    const created = await db.create('users', {
+    const createdResult = await db.create('users', {
       data: {
         name: 'Bob',
         email: 'bob@test.com',
@@ -152,13 +153,15 @@ describe('db-integration e2e', () => {
         bio: 'Hello world',
       },
     });
+    const created = unwrap(createdResult);
     expect(created.name).toBe('Bob');
     expect(created.email).toBe('bob@test.com');
 
     // Read back
-    const found = await db.list('users', {
+    const foundResult = await db.list('users', {
       where: { email: 'bob@test.com' },
     });
+    const found = unwrap(foundResult);
     expect(found).toHaveLength(1);
     expect(found[0].name).toBe('Bob');
 
@@ -206,7 +209,8 @@ describe('db-integration e2e', () => {
     expect(methods).toBe(db);
 
     // Can query
-    const allUsers = await db.list('users');
+    const allUsersResult = await db.list('users');
+    const allUsers = unwrap(allUsersResult);
     expect(allUsers.length).toBeGreaterThan(0);
 
     // Validate result with derived schema
