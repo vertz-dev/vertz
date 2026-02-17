@@ -1,0 +1,96 @@
+---
+title: Database & Entities
+description: Set up your data layer with Vertz entities
+---
+
+# Step 2: Database & Entities
+
+Now let's set up the database layer to store conversations and messages.
+
+## Define the Schema
+
+Create `src/db/schema.ts`:
+
+```typescript
+import { z } from '@vertz/schema';
+
+export const users = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  name: z.string(),
+  createdAt: z.date(),
+});
+
+export const conversations = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  title: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export const messages = z.object({
+  id: z.string().uuid(),
+  conversationId: z.string().uuid(),
+  role: z.enum(['user', 'assistant']),
+  content: z.string(),
+  createdAt: z.date(),
+});
+```
+
+## Create Entities
+
+Create `src/db/entities.ts`:
+
+```typescript
+import { entity, query } from '@vertz/db';
+import { users, conversations, messages } from './schema';
+
+export const User = entity('users', users);
+export const Conversation = entity('conversations', conversations);
+export const Message = entity('messages', messages);
+```
+
+## Run Migrations
+
+```bash
+npx vertz db migrate
+```
+
+This creates the database tables based on your schema.
+
+## Query Examples
+
+```typescript
+// Create a conversation
+const conversation = await Conversation.create({
+  data: {
+    userId: user.id,
+    title: 'New Chat',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+});
+
+// Add a message
+const message = await Message.create({
+  data: {
+    conversationId: conversation.id,
+    role: 'user',
+    content: 'Hello!',
+    createdAt: new Date(),
+  },
+});
+
+// Get conversation with messages
+const conversationWithMessages = await query(Conversation)
+  .where({ id: conversationId })
+  .include({
+    messages: true,
+  })
+  .first();
+```
+
+## Next Steps
+
+Let's add authentication in [Step 3: Authentication](/tutorial/authentication).

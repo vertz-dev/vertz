@@ -1,0 +1,137 @@
+---
+title: Building the API
+description: Create type-safe server procedures
+---
+
+# Step 4: Building the API
+
+Now let's create the API for our chatbot using @vertz/server.
+
+## Create the Main Router
+
+Create `src/server/routers/chat.ts`:
+
+```typescript
+import { router, procedure } from '@vertz/server';
+import { z } from '@vertz/schema';
+import { Conversation, Message, query } from '../db/entities';
+
+export const chatRouter = router({
+  // List user's conversations
+  listConversations: procedure
+    .query(async ({ ctx }) => {
+      const conversations = await query(Conversation)
+        .where({ userId: ctx.user.id })
+        .orderBy({ createdAt: 'desc' })
+        .all();
+      
+      return conversations;
+    }),
+  
+  // Get a conversation with messages
+  getConversation: procedure
+    .input(z.object({
+      id: z.string().uuid(),
+    }))
+    .query(async ({ input, ctx }) => {
+      const conversation = await query(Conversation)
+        .where({ 
+          id: input.id,
+          userId: ctx.user.id,
+        })
+        .include({ messages: { orderBy: { createdAt: 'asc' } } })
+        .first();
+      
+      if (!conversation) {
+        throw new NotFoundException('Conversation not found');
+      }
+      
+      return conversation;
+    }),
+  
+  // Create a new conversation
+  createConversation: procedure
+    .input(z.object({
+      title: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const conversation = await Conversation.create({
+        data: {
+          userId: ctx.user.id,
+          title: input.title || 'New Chat',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+      
+      return conversation;
+    }),
+  
+  // Send a message (will be connected to LLM in next step)
+  sendMessage: procedure
+    .input(z.object({
+      conversationId: z.string().uuid(),
+      content: z.string(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // Save user message
+      const userMessage = await Message.create({
+        data: {
+          conversationId: input.conversationId,
+          role: 'user',
+          content: input.content,
+          createdAt: new Date(),
+        },
+      });
+      
+      // Update conversation timestamp
+      await Conversation.update({
+        where: { id: input.conversationId },
+        data: { updatedAt: new Date() },
+      });
+      
+      return userMessage;
+    }),
+});
+```
+
+## Register the Router
+
+Update `src/server/index.ts`:
+
+```typescript
+import { vertz } from '@vertz/server';
+import { authRouter } from './routers/auth';
+import { chatRouter } from './routers/chat';
+
+const app = vertz({
+  routers: {
+    auth: authRouter,
+    chat: chatRouter,
+  },
+});
+
+export type AppRouter = typeof app;
+```
+
+## Type-Safe Client
+
+The client gets full type inference:
+
+```typescript
+import { createClient } from '@vertz/server/client';
+import type { AppRouter } from '../server';
+
+const client = createClient<AppRouter>('http://localhost:3000');
+
+// Fully typed!
+const conversations = await client.chat.listConversations.query();
+const newMessage = await client.chat.sendMessage.mutate({
+  conversationId: 'uuid',
+  content: 'Hello!',
+});
+```
+
+## Next Steps
+
+Let's build the UI in [Step 5: Building the UI](/tutorial/ui).
