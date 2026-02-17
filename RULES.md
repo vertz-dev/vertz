@@ -356,3 +356,16 @@ These are failure modes specific to AI coding agents. Read this every session.
 12. **Don't create branches from a dirty worktree.** Always use `git worktree add` for isolated work. If your PR diff contains files from another feature, you've broken isolation. Check `git status` before branching.
 
 13. **Don't ship code that handles external input without spawn().** Any code that shells out with user-controllable input MUST use `spawn()` with argument arrays. This is a Zeroth Law (security) requirement. Violations are automatic F grades.
+
+---
+
+## Process Enforcement
+
+**Design Doc → Implementation Plan → Implementation → Verification**
+
+This sequence is mandatory for all non-bugfix work. Skipping steps causes:
+- Agents building wrong things
+- Multiple fix cycles
+- Wasted tokens and time
+
+See `backstage/.claude/rules/design-docs.md` for full process.
