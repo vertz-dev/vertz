@@ -153,7 +153,7 @@ jobs:
           HEAD_SHA=${{ github.event.pull_request.head.sha }}
           CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
 
-          for pkg in core schema compiler codegen cli cli-runtime fetch testing db; do
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors; do
             if echo "$CHANGED_FILES" | grep -q "^packages/$pkg/"; then
               echo "${pkg//-/_}=true" >> "$GITHUB_OUTPUT"
             else
@@ -179,7 +179,7 @@ jobs:
           HEAD_SHA=${{ github.event.pull_request.head.sha }}
           CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
 
-          for pkg in core schema compiler codegen cli cli-runtime fetch testing db; do
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors; do
             if echo "$CHANGED_FILES" | grep -q "^packages/$pkg/"; then
               echo "::group::Coverage — $pkg"
               cd packages/$pkg
@@ -198,7 +198,7 @@ jobs:
 
       - name: Verify coverage output
         run: |
-          for pkg in core schema compiler codegen cli cli-runtime fetch testing db; do
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors; do
             if [ -f "packages/$pkg/coverage/coverage-summary.json" ]; then
               echo "OK: packages/$pkg/coverage/coverage-summary.json"
             else
@@ -210,7 +210,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: packages/*/coverage/coverage-final.json
-          flags: cli,cli-runtime,codegen,compiler,core,db,fetch,schema,testing
+          flags: cli,cli-runtime,cloudflare,codegen,compiler,core,db,errors,fetch,schema,testing
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -293,4 +293,22 @@ jobs:
           working-directory: packages/db
           vite-config-path: vitest.config.ts
           name: DB
+          file-coverage-mode: all
+
+      - name: Coverage report — Cloudflare
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always() && steps.changes.outputs.cloudflare == 'true'
+        with:
+          working-directory: packages/cloudflare
+          vite-config-path: vitest.config.ts
+          name: Cloudflare
+          file-coverage-mode: all
+
+      - name: Coverage report — Errors
+        uses: davelosert/vitest-coverage-report-action@v2
+        if: always() && steps.changes.outputs.errors == 'true'
+        with:
+          working-directory: packages/errors
+          vite-config-path: vitest.config.ts
+          name: Errors
           file-coverage-mode: all
