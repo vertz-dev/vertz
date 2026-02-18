@@ -108,6 +108,22 @@ function Circle(props: CircleProps) {
 
 The `unwrap` utility resolves `T | (() => T)` to `T`. Inside a `draw` callback that runs within an `effect`, accessor calls are tracked automatically.
 
+`unwrap` is exported from `@vertz/ui-canvas` and is essential for custom canvas components:
+
+```typescript
+import { unwrap } from '@vertz/ui-canvas';
+
+// Type signature:
+function unwrap<T>(value: T | (() => T)): T;
+
+// Implementation:
+function unwrap<T>(value: T | (() => T)): T {
+  return typeof value === 'function' ? (value as () => T)() : value;
+}
+```
+
+In dev mode, `unwrap` logs a warning if called outside an `effect` context with an accessor argument — since the signal read won't be tracked, the value won't update reactively.
+
 ### Hybrid DOM/Canvas Boundary — `<CanvasLayer>`
 
 `<CanvasLayer>` is the bridge between DOM and Canvas worlds. It is a DOM component that mounts a PixiJS `Application` into the DOM and renders its children as PixiJS display objects.
@@ -168,7 +184,6 @@ Canvas elements support PixiJS pointer events via the same `on*` convention as D
 <Graphics
   x={100} y={100}
   draw={(g) => { g.rect(0, 0, 100, 50); g.fill(0x4ecdc4); }}
-  interactive={true}
   onPointerDown={(e: FederatedPointerEvent) => {
     console.log('clicked at', e.global.x, e.global.y);
   }}
@@ -176,6 +191,12 @@ Canvas elements support PixiJS pointer events via the same `on*` convention as D
   onPointerOut={() => { hovered.value = false; }}
 />
 ```
+
+**Auto-interactive:** When any `on*` event prop is present, the runtime automatically sets `displayObject.eventMode = 'static'` (equivalent to PixiJS `interactive = true`). Developers do NOT need to manually set `interactive={true}`. This matches DOM behavior where elements are always interactive — no opt-in needed.
+
+> **Resolved from review (josh):** The original design required explicit `interactive={true}` for events to work. Every DOM developer would forget this. Auto-setting interactive when `on*` props are present eliminates the footgun.
+
+If a developer explicitly sets `interactive={false}`, that takes precedence (opt-out). The `eventMode` prop is also exposed for advanced control (`'static'`, `'passive'`, `'dynamic'`, `'auto'`).
 
 Events flow through PixiJS's built-in `FederatedEventSystem`. The canvas JSX runtime calls `displayObject.on('pointerdown', handler)` — no custom event system needed. PixiJS v8's event system already provides bubbling, hit-testing, and propagation for display objects.
 
@@ -221,6 +242,73 @@ function AnimatedCircle(props: { x: () => number; y: () => number }) {
 
 **Unmount:** When a parent removes a child (e.g., conditional rendering or list change), the disposal scope runs all registered cleanups, the display object is removed from its parent container, and all bound effects are disposed.
 
+### `ref` Escape Hatch
+
+For cases where developers need direct access to the underlying PixiJS display object (custom PixiJS APIs, advanced hit areas, manual transformations), canvas elements accept a `ref` prop:
+
+```typescript
+import { Graphics } from '@vertz/ui-canvas';
+
+function CustomShape() {
+  let graphicsRef: PIXI.Graphics;
+
+  return (
+    <Graphics
+      ref={(g) => { graphicsRef = g; }}
+      x={0} y={0}
+      draw={(g) => { g.rect(0, 0, 100, 50); g.fill(0xff0000); }}
+    />
+  );
+}
+```
+
+The `ref` callback receives the raw PixiJS display object after creation but before children are processed. This is the same pattern as DOM `ref` in Vertz.
+
+### Built-in Convenience Components
+
+In addition to the core intrinsic elements, `@vertz/ui-canvas` exports convenience components for common shapes:
+
+```typescript
+import { Circle, Rect, Line, Ellipse } from '@vertz/ui-canvas';
+
+// These are thin wrappers around <Graphics> with typed props
+<Circle x={100} y={100} radius={50} fill={0xff6347} />
+<Rect x={200} y={150} width={120} height={80} fill={0x4ecdc4} stroke={0xffffff} strokeWidth={2} />
+<Line from={{ x: 0, y: 0 }} to={{ x: 200, y: 100 }} stroke={0xffffff} strokeWidth={1} />
+<Ellipse x={300} y={200} halfWidth={60} halfHeight={40} fill={0x9b59b6} />
+```
+
+These are implemented as canvas components (not new intrinsic types) — they compose `<Graphics>` internally with pre-built `draw` callbacks. This keeps the intrinsic element set small while providing the 80% use case out of the box.
+
+### Sprite Loading and Error Handling
+
+`<Sprite>` loads textures asynchronously via `PIXI.Assets.load()`:
+
+```typescript
+<Sprite x={100} y={100} texture="assets/player.png" />
+```
+
+**Loading behavior:**
+- The sprite is created immediately (added to scene graph) but is invisible until the texture loads.
+- When `PIXI.Assets.load(path)` resolves, `sprite.texture` is set and the sprite becomes visible.
+- If the same path is requested multiple times, PixiJS's built-in cache returns the cached texture.
+
+**Error behavior:**
+- If the texture fails to load, a warning is logged in dev mode.
+- The sprite remains in the scene graph with no texture (invisible). This prevents the scene from breaking due to a missing asset.
+- A future `onError` prop can be added if explicit error handling is needed — not in Phase 2 scope.
+
+### Nested `<CanvasLayer>` — Forbidden
+
+Nesting `<CanvasLayer>` inside another `<CanvasLayer>` is explicitly forbidden. The runtime throws an error:
+
+```
+Error: <CanvasLayer> cannot be nested inside another <CanvasLayer>.
+Use <Container> to group canvas elements.
+```
+
+Each `<CanvasLayer>` manages its own PixiJS `Application`. Nesting would create multiple applications with undefined parent-child relationships. Use `<Container>` for grouping within a single canvas.
+
 ---
 
 ## Architecture Decision: No Virtual Scene Graph Reconciliation
@@ -244,77 +332,100 @@ This architecture gives us O(1) updates per signal change instead of O(n) tree d
 
 ---
 
-## JSX Runtime: Canvas JSX Factory
+## JSX Runtime: Unified Factory with Runtime Dispatch
 
-**Decision: Custom `jsxCanvas()` factory activated by `<CanvasLayer>`.**
+**Decision: Single unified `jsx()` factory with runtime canvas element detection.**
 
-The canvas JSX runtime is a separate factory function, structurally identical to the DOM `jsx()` factory but producing PixiJS display objects instead of DOM nodes.
+> **Resolved from review:** The original design proposed separate `jsxImportSource` for canvas files. All three reviewers (josh, mike, pm) flagged that real-world components contain BOTH DOM and Canvas elements in the same file (e.g., `<div>` sidebar + `<CanvasLayer>` + `<Graphics>`). A file can only have one `jsxImportSource`. The fix is a unified factory.
 
 ### How It Works
 
-1. **`<CanvasLayer>` sets a rendering context.** When `<CanvasLayer>` processes its children, it activates the canvas JSX runtime via a context switch.
+1. **Single JSX factory for all files.** The Vertz `jsx()` factory handles both DOM and canvas elements. There is no separate `jsxImportSource` for canvas.
 
-2. **Intrinsic elements map to PixiJS constructors.** When the canvas JSX factory encounters a string tag like `"Graphics"`, it creates a `PIXI.Graphics` instance. When it encounters a function, it calls the function (component call).
+2. **Canvas intrinsic detection via `Set.has()`.** A constant `Set` of canvas intrinsic names (`"Graphics"`, `"Container"`, `"Sprite"`, `"Text"`) is checked when the factory encounters a string tag. This is a nanosecond-cost check — `Set.has()` on 4 entries is effectively free.
 
-3. **Props become signal bindings or static assignments.** For each prop:
+3. **`<CanvasLayer>` sets a rendering context.** When `<CanvasLayer>` processes its children, it provides a `CanvasRenderContext` via Vertz's context system. Canvas intrinsic elements read this context to get their parent `Container`.
+
+4. **Props become signal bindings or static assignments.** For each prop on a canvas element:
    - If the value is a function (accessor), create an `effect` that updates the property reactively.
    - If the value is static, assign it directly.
-   - Props starting with `on` bind event listeners via `displayObject.on(eventName, handler)`.
+   - Props starting with `on` bind event listeners AND automatically set `interactive = true` on the display object (see Event Handling section).
    - The `draw` prop on `Graphics` is special — it runs inside an `effect` so reactive values inside the draw callback trigger redraws.
 
-4. **Children are added to the parent `Container`.** The canvas JSX factory returns PixiJS `Container` subclasses. Children are added via `parent.addChild(child)`.
+5. **Children are added to the parent `Container`.** Canvas elements return PixiJS `Container` subclasses. Children are added via `parent.addChild(child)`.
 
-### Implementation Sketch
+```typescript
+// Inside the unified jsx() factory
+const CANVAS_INTRINSICS = new Set(['Graphics', 'Container', 'Sprite', 'Text']);
+
+function jsx(tag: string | Component, props: Record<string, unknown>): Node | Container {
+  if (typeof tag === 'string' && CANVAS_INTRINSICS.has(tag)) {
+    return jsxCanvas(tag, props); // Canvas element path
+  }
+  // ... existing DOM element or component path
+}
+```
+
+### Canvas Element Implementation
 
 ```typescript
 // Internal — not exported to users
 function jsxCanvas(
-  tag: string | CanvasComponent,
+  tag: string,
   props: Record<string, unknown>,
 ): Container {
-  if (typeof tag === 'function') {
-    // Component call — runs inside a disposal scope
-    return runInScope(() => tag(props));
-  }
-
   const displayObject = createDisplayObject(tag); // Maps "Graphics" → new PIXI.Graphics(), etc.
-  const cleanups: DisposeFn[] = [];
+  let hasEventProps = false;
 
   for (const [key, value] of Object.entries(props)) {
-    if (key === 'children') continue;
+    if (key === 'children' || key === 'ref') continue;
     if (key === 'draw' && displayObject instanceof PIXI.Graphics) {
       // Special: draw callback runs in an effect for reactive redraws
-      cleanups.push(effect(() => {
+      effect(() => {
         displayObject.clear();
         (value as DrawFn)(displayObject);
-      }));
+      });
     } else if (key.startsWith('on') && typeof value === 'function') {
       const event = key.slice(2).toLowerCase();
-      displayObject.on(event, value);
-      cleanups.push(() => displayObject.off(event, value));
+      displayObject.on(event, value as EventHandler);
+      onCleanup(() => displayObject.off(event, value as EventHandler));
+      hasEventProps = true;
     } else if (typeof value === 'function') {
-      // Reactive prop — bind via effect
-      cleanups.push(effect(() => {
+      // Reactive prop — bind via effect (auto-registered with disposal scope)
+      effect(() => {
         (displayObject as any)[key] = (value as () => unknown)();
-      }));
+      });
     } else {
       // Static prop
       (displayObject as any)[key] = value;
     }
   }
 
+  // Auto-set interactive when event handlers are present
+  if (hasEventProps && !('interactive' in props)) {
+    displayObject.eventMode = 'static';
+  }
+
+  // Handle ref escape hatch
+  if (props.ref && typeof props.ref === 'function') {
+    (props.ref as (obj: Container) => void)(displayObject);
+  }
+
   // Process children
   applyCanvasChildren(displayObject, props.children);
 
-  // Register cleanup with the current disposal scope
+  // Register cleanup: destroy display object when scope disposes
+  // Note: effects created above are auto-registered via Vertz's disposal scope.
+  // Only manual cleanup is event listeners (handled above) and the display object itself.
   onCleanup(() => {
-    cleanups.forEach((fn) => fn());
     displayObject.destroy({ children: true });
   });
 
   return displayObject;
 }
 ```
+
+> **Note on disposal (from mike's review):** Effects created via `effect()` inside a disposal scope are automatically registered for cleanup — they do NOT need explicit tracking in a `cleanups` array. Only non-effect cleanups (event listener `.off()`, `displayObject.destroy()`) need manual `onCleanup` registration. The original sketch had a double-disposal bug by tracking effects both ways.
 
 ### Why Not a Compiler Plugin?
 
@@ -350,32 +461,13 @@ The `text` prop can be reactive. When it changes, the effect calls `textDisplayO
 
 **Not in scope:** Rich text editing, text selection, or cursor management. Those require DOM overlays and are explicitly Phase 4+ work.
 
-### 2. Accessibility
+### 2. Accessibility — Deferred to Phase 3
 
-**Approach: Hidden DOM mirror for critical interactive elements.**
+> **Resolved from review (pm):** The hidden DOM mirror approach is architecturally sound and is the industry standard (Figma, Google Docs). However, it is a substantial feature in its own right — maintaining a shadow DOM tree synchronized with canvas positions is non-trivial. Deferring to Phase 3 keeps Phase 2 focused on proving the core component model.
 
-Canvas content is invisible to screen readers. The `<CanvasLayer>` component maintains an optional hidden DOM subtree (visually hidden, `aria-hidden="false"`, positioned absolutely behind the canvas) that mirrors the semantic structure of the canvas scene.
+**Phase 2:** No accessibility features. Canvas content is not accessible to screen readers. This is documented prominently with a warning.
 
-```typescript
-<CanvasLayer width={800} height={600} accessible={true}>
-  <InteractiveRect
-    x={100} y={100} width={80} height={60}
-    label="Node A"  // This prop generates a hidden DOM element with aria-label
-    role="button"
-    onPointerDown={() => select('a')}
-  />
-</CanvasLayer>
-```
-
-When `accessible={true}`:
-1. `<CanvasLayer>` creates a hidden `<div>` overlay with `aria-hidden="false"`.
-2. Each canvas element with a `label` prop gets a corresponding hidden DOM element positioned to match the canvas element's bounding box.
-3. The hidden DOM elements have `role`, `aria-label`, and keyboard event handlers.
-4. When canvas element positions change (via signals), the hidden DOM mirrors update via the same effects.
-
-**Trade-off:** This doubles the bookkeeping for accessible elements. But it is the industry-standard approach used by Figma, Google Docs Canvas, and others. The alternative — making WebGL intrinsically accessible — does not exist.
-
-**Default:** `accessible={false}` for performance. Developers opt in when building user-facing tools. This is documented prominently.
+**Phase 3 plan (for reference):** Hidden DOM mirror with `accessible={true}` opt-in on `<CanvasLayer>`. Canvas elements with `label` props generate hidden DOM elements with `aria-label`, `role`, and keyboard handlers. Positions sync via the same signal effects. The `label` and `role` prop types are reserved on canvas element interfaces in Phase 2 to avoid breaking changes in Phase 3.
 
 ### 3. Layout Engine — Deferred to Phase 3
 
@@ -385,7 +477,16 @@ Rationale: A layout engine (Yoga, Taffy) is a significant dependency and integra
 
 Phase 3 will evaluate Yoga (via yoga-wasm-web) or Taffy as a layout engine for canvas.
 
-### 4. DevTools — Minimal Built-in Inspector
+### 4. `draw` Callback Performance — Documentation and Debug Warning
+
+> **From review (josh + mike):** The `draw` callback on `<Graphics>` is a potential performance trap. Every signal read inside `draw` triggers a full `clear() + redraw`. If a developer reads 5 signals in one draw callback, one signal change redraws the entire Graphics — including the work for the other 4 unchanged values.
+
+**Mitigation:**
+1. **Document prominently** in the `<Graphics>` API reference: "The `draw` callback re-executes entirely when ANY signal it reads changes. For complex drawings, decompose into multiple `<Graphics>` elements so each redraws independently."
+2. **Debug overlay warning:** When `debug={true}` on `<CanvasLayer>`, the debug overlay highlights Graphics objects that redraw more than once per frame in red, with a count label. This makes performance issues visible during development.
+3. **Convenience components help:** `<Circle>`, `<Rect>`, etc. each create their own `<Graphics>` with a minimal `draw` callback. Using these instead of a single complex `draw` naturally decomposes the rendering.
+
+### 5. DevTools — Minimal Built-in Inspector
 
 Phase 2 ships with a **debug overlay** toggled by a prop:
 
@@ -436,34 +537,49 @@ Full DevTools integration (interactive tree inspector, signal value viewer) is P
 ## Non-Goals
 
 1. **Full layout engine** — No Flexbox/Grid for canvas elements. Deferred to Phase 3.
-2. **Rich text editing** — No text selection, cursor, or inline editing in canvas. Deferred to Phase 4+.
-3. **3D rendering** — This is a 2D canvas renderer. WebGL 3D (Three.js-style) is out of scope entirely.
-4. **Server-side rendering of canvas** — `<CanvasLayer>` is client-only. SSR renders a placeholder `<div>` with dimensions; canvas initializes on hydration.
-5. **Animation primitives** — Phase 2 does not include a built-in animation system (springs, tweens). Users use `requestAnimationFrame` + signals directly. Animation primitives are Phase 5.
-6. **Compiler canvas transforms** — Phase 2 uses a runtime JSX factory. Compiler optimization is a future enhancement.
-7. **Full DevTools** — Phase 2 includes a debug overlay only. Interactive inspector is Phase 4+.
-8. **Asset loading/caching** — Sprites reference textures by path string; actual asset management (preloading, caching, atlases) is Phase 4.
-9. **Drag-and-drop abstraction** — Users implement drag with `onPointerDown`/`onPointerMove`/`onPointerUp` + signals. A higher-level drag abstraction is Phase 5.
+2. **Accessibility** — No hidden DOM mirror, screen reader support, or ARIA annotations. Deferred to Phase 3. The `label` and `role` prop types are reserved on canvas element interfaces to avoid breaking changes.
+3. **Rich text editing** — No text selection, cursor, or inline editing in canvas. Deferred to Phase 4+.
+4. **3D rendering** — This is a 2D canvas renderer. WebGL 3D (Three.js-style) is out of scope entirely.
+5. **Server-side rendering of canvas** — `<CanvasLayer>` is client-only. SSR renders a placeholder `<div>` with dimensions; canvas initializes on hydration.
+6. **Animation primitives** — Phase 2 does not include a built-in animation system (springs, tweens). Users use `requestAnimationFrame` + signals directly. Animation primitives are Phase 5.
+7. **Compiler canvas transforms** — Phase 2 uses a unified runtime JSX factory. Compiler optimization is a future enhancement.
+8. **Full DevTools** — Phase 2 includes a debug overlay only. Interactive inspector is Phase 4+.
+9. **Asset loading/caching** — Sprites reference textures by path string; actual asset management (preloading, caching, atlases) is Phase 4.
+10. **Drag-and-drop abstraction** — Users implement drag with `onPointerDown`/`onPointerMove`/`onPointerUp` + signals. A higher-level drag abstraction is Phase 5.
+11. **Error boundaries for canvas** — If a canvas component throws, the error propagates to the nearest DOM error boundary. Canvas-specific error boundaries are Phase 4+.
 
 ---
 
 ## Unknowns
 
-### 1. Canvas JSX Runtime Activation — Discussion-resolvable
+### 1. Canvas JSX Runtime Activation — RESOLVED
 
-**Question:** How does the JSX factory switch from DOM mode to canvas mode inside `<CanvasLayer>`?
+> **Resolved during review.** See "JSX Runtime: Unified Factory with Runtime Dispatch" section above.
 
-**Proposed resolution:** `<CanvasLayer>` uses Vertz's `createContext` to provide a canvas rendering context. The canvas JSX factory checks this context. If present, it creates PixiJS display objects. If absent, it falls through to the DOM factory.
+**Decision:** Unified JSX factory with `Set.has()` detection for canvas intrinsic names. No separate `jsxImportSource`. DOM and canvas elements coexist in the same file naturally. The cost is a `Set.has()` check on every intrinsic element — negligible for a set of 4 names.
 
-In practice, this means `<CanvasLayer>` is a DOM component (it creates the `<div>` and PixiJS `Application`) that renders its children using the canvas JSX factory by setting a context:
+**`<CanvasLayer>` implementation:**
 
 ```typescript
 function CanvasLayer(props: CanvasLayerProps) {
-  const div = __element('div');
-  const app = new Application({ ... });
-  div.appendChild(app.view);
+  // Forbid nesting
+  if (useContext(CanvasRenderContext)) {
+    throw new Error('<CanvasLayer> cannot be nested inside another <CanvasLayer>. Use <Container> to group canvas elements.');
+  }
 
-  // Render children into the PixiJS scene graph
+  const div = __element('div');
+  const app = new Application();
+
+  onMount(async () => {
+    await app.init({
+      width: props.width,
+      height: props.height,
+      background: props.background ?? 0x000000,
+    });
+    div.appendChild(app.canvas as HTMLCanvasElement);
+  });
+
+  // Provide canvas rendering context to children
   CanvasRenderContext.Provider(app.stage, () => {
     const children = resolveCanvasChildren(props.children);
     for (const child of children) {
@@ -476,15 +592,18 @@ function CanvasLayer(props: CanvasLayerProps) {
 }
 ```
 
-This requires that canvas component functions call `jsxCanvas()` instead of `jsx()`. The switch happens because canvas component files import from `@vertz/ui-canvas` which provides the canvas-specific JSX namespace. The TypeScript `jsxImportSource` for canvas files points to `@vertz/ui-canvas/jsx-runtime`.
-
-**Alternative explored and rejected:** Having a single unified JSX factory that checks context at runtime for every element. This adds overhead to all DOM rendering for a feature most components never use.
-
 ### 2. Reactive List Rendering in Canvas — Discussion-resolvable
 
 **Question:** How do dynamic lists work inside canvas? DOM rendering uses reactive list primitives (`__list`). Canvas needs an equivalent for add/remove of display objects.
 
-**Proposed resolution:** Implement a `canvasList()` primitive analogous to the DOM list primitive. When the source array signal changes, it diffs the key list and calls `parent.addChild()` / `parent.removeChild()` for additions and removals. Moved items call `parent.setChildIndex()`.
+**Proposed resolution:** Implement a `canvasList()` primitive analogous to the DOM `__list` primitive. The implementation:
+
+1. Maintains a `Map<Key, { displayObject: Container, scope: DisposalScope }>` mapping keys to their display objects and disposal scopes.
+2. When the source array signal changes, diffs the key list:
+   - **Added keys:** Create new display objects in their own disposal scope, call `parent.addChild()`.
+   - **Removed keys:** Run the disposal scope (cleans up effects + event listeners), call `parent.removeChild()`, call `displayObject.destroy()`.
+   - **Moved keys:** Call `parent.setChildIndex()` to reorder without re-creating.
+   - **Unchanged keys:** No-op. The existing effects handle property updates via signals.
 
 ```typescript
 // User writes:
@@ -492,14 +611,25 @@ This requires that canvas component functions call `jsxCanvas()` instead of `jsx
   {() => nodes.value.map((n) => <Rect key={n.id} x={n.x} y={n.y} />)}
 </Container>
 
-// Runtime processes the accessor as a reactive list
+// Runtime detects the accessor returns an array and creates a canvasList:
+// canvasList(parentContainer, () => nodes.value, (node) => <Rect ... />, (node) => node.id)
 ```
+
+The `key` prop is required for list items. Items without keys get a dev-mode warning and fall back to index-based identity (which causes unnecessary destroy/recreate on reorder).
 
 ### 3. Graphics Redraw Performance — Needs POC
 
 **Question:** When a reactive value changes inside a `draw` callback, the current design clears and redraws the entire `Graphics` object. For complex drawings with many paths, this could be expensive. Is `clear() + redraw` fast enough for realistic use cases?
 
-**Resolution strategy:** A focused benchmark during early Phase 2 implementation. Draw a `Graphics` with 100+ paths, update one reactive value per frame, and measure FPS. If `clear() + redraw` drops below 60fps, the fallback is to decompose complex drawings into multiple `Graphics` objects with targeted redraws.
+**Resolution strategy:** A focused benchmark during early Phase 2 implementation:
+
+1. Create a `Graphics` object with 100+ paths (rects, circles, lines).
+2. Change one reactive signal per frame that triggers redraw.
+3. Measure FPS over 10 seconds.
+4. **Also test interactive drag** (mike's review): drag a shape that triggers `clear() + redraw` at 60fps with pointer events.
+5. If `clear() + redraw` drops below 60fps, the fallback is to decompose complex drawings into multiple `Graphics` objects with targeted redraws.
+
+**Acceptance criteria for the POC:** 60fps sustained with 100-path Graphics under interactive drag.
 
 ---
 
@@ -644,30 +774,56 @@ describe('Canvas Phase 2: JSX-Based Canvas Rendering', () => {
 
 ## Implementation Phases (Suggested)
 
-### Phase 2a: Core Canvas JSX Runtime
-- Canvas JSX factory (`jsxCanvas`)
+> **Updated from review (pm):** Merged original 2a and 2b — events are just another prop type in the JSX factory, not a separate phase. Accessibility deferred to Phase 3.
+
+### Phase 2a: Core Canvas JSX Runtime + Events
+- Unified JSX factory with canvas intrinsic detection
 - Intrinsic element creation (`Graphics`, `Container`, `Sprite`, `Text`)
 - Static prop assignment
 - Reactive prop binding via `effect()`
-- `<CanvasLayer>` bridge component
+- PixiJS event binding (`on*` props) with auto-interactive
+- `ref` escape hatch
+- `<CanvasLayer>` bridge component (with nested-layer guard)
 - Disposal and cleanup
+- Convenience components (`Circle`, `Rect`, `Line`, `Ellipse`)
+- `unwrap` utility export
+- Graphics redraw POC benchmark (gate for Phase 2b)
 
-### Phase 2b: Events and Interactivity
-- PixiJS event binding (`on*` props)
-- `interactive` prop propagation
-- Hit area configuration
-
-### Phase 2c: Dynamic Children
+### Phase 2b: Dynamic Children
 - Reactive list rendering for canvas (`canvasList`)
 - Conditional rendering (show/hide display objects)
 - Keyed list diffing for efficient add/remove
+- Sprite async texture loading
 
-### Phase 2d: Text, Accessibility, and Debug
+### Phase 2c: Text and Debug
 - `<Text>` element with reactive text content
-- Hidden DOM mirror for accessibility (`accessible` prop)
-- Debug overlay (`debug` prop)
+- Debug overlay (`debug` prop) with redraw highlighting
 
 ---
+
+## Success Metrics
+
+> **Added from review (pm):** The original doc defined what to build but not how to measure success.
+
+| Metric | Target | How We Measure |
+|--------|--------|----------------|
+| Performance | 1000 interactive elements at 60fps with signal-driven updates | Benchmark test: render 1000 `<Rect>` elements, update positions via signals, measure FPS |
+| API parity | Canvas components use same patterns as DOM components | Developer can write a canvas component without reading canvas-specific docs beyond `<CanvasLayer>` |
+| Type safety | Invalid props rejected at compile time | `.test-d.ts` with `@ts-expect-error` for all intrinsic elements |
+| Cleanup correctness | Zero memory leaks on mount/unmount cycles | Test: mount/unmount 100 times, verify PixiJS resource count returns to baseline |
+| E2E acceptance test | All scenarios in the E2E test section pass | Automated test suite |
+
+## Incremental Adoption
+
+> **Added from review (pm):** The doc should explicitly state the adoption story.
+
+`<CanvasLayer>` is designed for incremental adoption into existing Vertz DOM applications:
+
+1. **No refactoring needed.** Add `<CanvasLayer>` anywhere in an existing DOM tree — it creates a self-contained canvas region.
+2. **Signals cross the boundary.** Existing signals and state management work inside canvas components with zero changes.
+3. **Gradual migration.** Start with one `<CanvasLayer>` for a performance-critical section. Expand as needed. The rest of the app stays DOM.
+4. **No build config changes.** The unified JSX factory means no `tsconfig.json` changes, no separate compilation passes, no new file extensions.
+5. **Phase 1 API remains available.** The imperative API (`bindSignal`, `createReactiveSprite`) from Phase 1 continues to work for escape hatches or gradual migration.
 
 ## Dependencies
 
@@ -679,4 +835,6 @@ describe('Canvas Phase 2: JSX-Based Canvas Rendering', () => {
 
 - **Complexity:** M (Medium)
 - **Confidence:** High — Phase 1 and the spike proved the core integration. This is additive.
-- **Estimated Time:** 2-3 weeks for all Phase 2 sub-phases.
+- **Estimated Time:** 3-4 weeks for all Phase 2 sub-phases.
+
+> **Updated from review (pm):** Original estimate was 2-3 weeks. Adjusted to 3-4 weeks to account for the Graphics redraw POC, convenience components, and the unified factory integration. The spike estimated 3 months for a broader scope; Phase 2 is deliberately narrower.
