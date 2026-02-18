@@ -177,6 +177,27 @@ describe('Feature: Canvas Reactivity', () => {
     });
   });
 
+  describe('Issue #443: @vertz/ui is a peerDependency', () => {
+    describe('Given the package.json configuration', () => {
+      it('Then @vertz/ui is listed as a peerDependency', async () => {
+        const fs = await import('node:fs');
+        const path = await import('node:path');
+        const pkgPath = path.resolve(__dirname, '../package.json');
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+        expect(pkg.peerDependencies).toBeDefined();
+        expect(pkg.peerDependencies['@vertz/ui']).toBeDefined();
+      });
+
+      it('Then @vertz/ui is NOT in regular dependencies', async () => {
+        const fs = await import('node:fs');
+        const path = await import('node:path');
+        const pkgPath = path.resolve(__dirname, '../package.json');
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+        expect(pkg.dependencies?.['@vertz/ui']).toBeUndefined();
+      });
+    });
+  });
+
   describe('Feature: Signal Cleanup', () => {
     describe('Given bound signals', () => {
       describe('When dispose is called', () => {
