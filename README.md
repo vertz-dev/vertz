@@ -198,11 +198,24 @@ This is pre-release software. APIs will change. But the architecture and philoso
 
 > **Note:** The `app.listen()` convenience method is [in design](https://github.com/vertz-dev/vertz/issues/70). Currently, use `app.handler` directly as shown above.
 
+## Quickstart
+
+**New to Vertz?** Get your first API running in under 5 minutes:
+
+```bash
+npx create-vertz-app my-api --example
+cd my-api
+bun install
+bun run dev
+```
+
+👉 **[Full Quickstart Guide](./QUICKSTART.md)** — step-by-step with examples
+
 ## Documentation
 
-Documentation has moved to our private repo for launch control. Visit **[docs.vertz.dev](https://docs.vertz.dev)** for the latest guides and API reference.
+Visit **[docs.vertz.dev](https://docs.vertz.dev)** for the full documentation and API reference.
 
-## Getting Started
+## Contributing
 
 > Vertz requires [Bun](https://bun.sh) for development.
 
