@@ -14,6 +14,18 @@
         "vitest": "^4.0.18",
       },
     },
+    "examples/ssr-cloudflare": {
+      "name": "@vertz-examples/ssr-cloudflare",
+      "dependencies": {
+        "@vertz/cloudflare": "workspace:*",
+        "@vertz/core": "workspace:*",
+        "@vertz/server": "workspace:*",
+        "@vertz/ui-server": "workspace:*",
+      },
+      "devDependencies": {
+        "wrangler": "4",
+      },
+    },
     "examples/task-api": {
       "name": "task-api-example",
       "version": "0.0.1",
@@ -86,6 +98,24 @@
         "typescript": "^5.7.0",
         "vitest": "^4.0.18",
       },
+    },
+    "packages/cloudflare": {
+      "name": "@vertz/cloudflare",
+      "version": "0.2.0",
+      "dependencies": {
+        "@vertz/core": "workspace:*",
+      },
+      "devDependencies": {
+        "@cloudflare/workers-types": "^4.20250214.0",
+        "bunup": "latest",
+        "typescript": "^5.7.3",
+      },
+      "peerDependencies": {
+        "@vertz/ui-server": "workspace:*",
+      },
+      "optionalPeers": [
+        "@vertz/ui-server",
+      ],
     },
     "packages/codegen": {
       "name": "@vertz/codegen",
@@ -443,6 +473,8 @@
 
     "@cloudflare/workerd-windows-64": ["@cloudflare/workerd-windows-64@1.20260217.0", "", { "os": "win32", "cpu": "x64" }, "sha512-4T65u1321z1Zet9n7liQsSW7g3EXM5SWIT7kJ/uqkEtkPnIzZBIowMQgkvL5W9SpGZks9t3mTQj7hiUia8Gq9Q=="],
 
+    "@cloudflare/workers-types": ["@cloudflare/workers-types@4.20260217.0", "", {}, "sha512-R5s8h/zj91g6HSB/qndpXGS5Xc8t8Ik3BwY6qwe7XXV6r3Gey1gdthFSK4A2IrPQEmTsc7wEXbs9KpBLNttlqg=="],
+
     "@cspotcode/source-map-support": ["@cspotcode/source-map-support@0.8.1", "", { "dependencies": { "@jridgewell/trace-mapping": "0.3.9" } }, "sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw=="],
 
     "@electric-sql/pglite": ["@electric-sql/pglite@0.3.15", "", {}, "sha512-Cj++n1Mekf9ETfdc16TlDi+cDDQF0W7EcbyRHYOAeZdsAe8M/FJg18itDTSwyHfar2WIezawM9o0EKaRGVKygQ=="],
@@ -767,11 +799,15 @@
 
     "@types/ws": ["@types/ws@8.18.1", "", { "dependencies": { "@types/node": "*" } }, "sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg=="],
 
+    "@vertz-examples/ssr-cloudflare": ["@vertz-examples/ssr-cloudflare@workspace:examples/ssr-cloudflare"],
+
     "@vertz-examples/task-manager": ["@vertz-examples/task-manager@workspace:examples/task-manager"],
 
     "@vertz/cli": ["@vertz/cli@workspace:packages/cli"],
 
     "@vertz/cli-runtime": ["@vertz/cli-runtime@workspace:packages/cli-runtime"],
+
+    "@vertz/cloudflare": ["@vertz/cloudflare@workspace:packages/cloudflare"],
 
     "@vertz/codegen": ["@vertz/codegen@workspace:packages/codegen"],
 

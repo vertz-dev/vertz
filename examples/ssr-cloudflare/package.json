@@ -1,0 +1,17 @@
+{
+  "name": "@vertz-examples/ssr-cloudflare",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@vertz/cloudflare": "workspace:*",
+    "@vertz/core": "workspace:*",
+    "@vertz/server": "workspace:*",
+    "@vertz/ui-server": "workspace:*"
+  },
+  "devDependencies": {
+    "wrangler": "4"
+  }
+}

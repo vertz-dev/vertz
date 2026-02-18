@@ -1,0 +1,4 @@
+name = "vertz-ssr-demo"
+main = "src/worker.ts"
+compatibility_date = "2025-02-17"
+compatibility_flags = ["nodejs_compat"]
