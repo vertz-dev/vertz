@@ -1,5 +1,5 @@
 import { signal } from '@vertz/ui';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { bindSignal, createReactiveSprite } from './canvas';
 
 describe('Feature: Canvas Reactivity', () => {
@@ -118,6 +118,61 @@ describe('Feature: Canvas Reactivity', () => {
 
         // Dispose should not throw
         expect(dispose).not.toThrow();
+      });
+    });
+  });
+
+  describe('Issue #444: bindSignal does not redundantly read signal', () => {
+    describe('Given a signal bound to a display object with a transform', () => {
+      describe('When the signal value changes', () => {
+        it('Then the transform is called once per update, not more', () => {
+          const sig = signal(5);
+          const obj: Record<string, unknown> = { doubled: 0 };
+          const transform = vi.fn((v: number) => v * 2);
+
+          const dispose = bindSignal(sig, obj, 'doubled', transform);
+
+          // bindSignal calls update() explicitly + effect runs it immediately = 2 init calls.
+          // This is the baseline. The important thing is that each subsequent signal change
+          // triggers exactly one additional transform call (not two as with redundant sig.value).
+          const initCalls = transform.mock.calls.length;
+          expect(obj.doubled).toBe(10);
+
+          // Update signal
+          sig.value = 7;
+          // Exactly one additional call (from the effect re-running update())
+          expect(transform).toHaveBeenCalledTimes(initCalls + 1);
+          expect(obj.doubled).toBe(14);
+
+          // Another update
+          sig.value = 10;
+          expect(transform).toHaveBeenCalledTimes(initCalls + 2);
+          expect(obj.doubled).toBe(20);
+
+          dispose();
+        });
+      });
+    });
+  });
+
+  describe('Issue #444: destroy is not part of public API', () => {
+    describe('Given the public exports from index.ts', () => {
+      it('Then destroy is NOT exported as a named export', async () => {
+        const exports = await import('./index');
+        expect(exports).not.toHaveProperty('destroy');
+      });
+
+      it('Then the Canvas namespace does NOT include destroy', async () => {
+        const { Canvas } = await import('./index');
+        expect(Canvas).not.toHaveProperty('destroy');
+      });
+
+      it('Then render, bindSignal, and createReactiveSprite ARE exported', async () => {
+        const exports = await import('./index');
+        expect(exports).toHaveProperty('render');
+        expect(exports).toHaveProperty('bindSignal');
+        expect(exports).toHaveProperty('createReactiveSprite');
+        expect(exports).toHaveProperty('Canvas');
       });
     });
   });

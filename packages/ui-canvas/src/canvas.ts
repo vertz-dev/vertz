@@ -30,10 +30,10 @@ export function bindSignal<T>(
   // Run immediately to set initial value
   update();
 
-  // Create an effect to update when signal changes
-  // We read sig.value inside the effect to track the signal dependency
+  // Create an effect to update when signal changes.
+  // The update() function reads sig.value internally, which
+  // automatically tracks the signal dependency in vertz's effect system.
   const disposeEffect = effect(() => {
-    sig.value; // Track this signal
     update();
   });
 
@@ -127,8 +127,9 @@ export function render(
 
 /**
  * Destroy a PixiJS application and remove its canvas from the DOM.
+ * Internal only — callers use the dispose() function returned by render().
  */
-export function destroy(app: Application, container: HTMLElement): void {
+function destroy(app: Application, container: HTMLElement): void {
   const view = app.view as unknown as Node | null;
 
   // Remove canvas from DOM
@@ -148,7 +149,6 @@ export const Canvas: {
   render: typeof render;
   bindSignal: typeof bindSignal;
   createReactiveSprite: typeof createReactiveSprite;
-  destroy: typeof destroy;
 } = {
   /**
    * Render a PixiJS canvas to the DOM.
@@ -164,9 +164,4 @@ export const Canvas: {
    * Create a reactive sprite with bound position/transform signals.
    */
   createReactiveSprite: createReactiveSprite,
-
-  /**
-   * Destroy a PixiJS application and clean up resources.
-   */
-  destroy: destroy,
 };
