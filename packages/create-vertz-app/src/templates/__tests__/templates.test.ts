@@ -192,12 +192,12 @@ describe('templates', () => {
 
   describe('appTemplate', () => {
     it('returns non-empty string', () => {
-      const result = appTemplate();
+      const result = appTemplate(true);
       expect(result.length).toBeGreaterThan(0);
     });
 
     it('exports createServer', () => {
-      const result = appTemplate();
+      const result = appTemplate(false);
       expect(result).toContain('createServer');
     });
   });
@@ -281,7 +281,7 @@ describe('templates', () => {
         envExampleTemplate,
         gitignoreTemplate,
         envSrcTemplate,
-        appTemplate,
+        () => appTemplate(true),
         mainTemplate,
         requestIdMiddlewareTemplate,
         healthModuleDefTemplate,
