@@ -134,7 +134,7 @@ const schema = s.string()
   .includes('mid')           // Substring check
   .uppercase()               // Must be all uppercase
   .lowercase()               // Must be all lowercase
-  .nonempty()                // Alias for .min(1)
+  .min(1)                   // Minimum length (use for non-empty strings)
   .trim();                   // Trim whitespace (transforms)
 ```
 
@@ -187,7 +187,8 @@ const schema = s.string().optional();
 const schema2 = s.string().nullable();
 // string | null
 
-const schema3 = s.string().nullish();
+// For nullish (T | null | undefined), chain both:
+// const schema3 = s.string().nullable().optional();
 // string | null | undefined
 ```
 
@@ -588,7 +589,6 @@ All schemas inherit these methods:
 - `.safeParse(data)` — Parse and return `{ success, value?, error? }`
 - `.optional()` — Make schema optional (`T | undefined`)
 - `.nullable()` — Make schema nullable (`T | null`)
-- `.nullish()` — Make schema nullish (`T | null | undefined`)
 - `.default(value)` — Provide default value
 - `.transform(fn)` — Transform the value after validation
 - `.refine(fn, opts)` — Add custom validation
