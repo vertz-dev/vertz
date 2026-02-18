@@ -1,5 +1,9 @@
 // @vertz/schema — Public API
 
+// Result type and utilities
+export type { Result, Ok, Err } from './result';
+export { ok, err, unwrap, map, flatMap, match, matchErr } from './result';
+
 export type { ValidationIssue } from './core/errors';
 export { ErrorCode, ParseError } from './core/errors';
 export type { RefinementContext } from './core/parse-context';
