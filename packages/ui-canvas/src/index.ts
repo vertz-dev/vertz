@@ -1,13 +1,16 @@
 // Phase 1: Canvas primitives
 export type { CanvasOptions, CanvasState } from './canvas';
 export { bindSignal, Canvas, createReactiveSprite, render } from './canvas';
-
-// Phase 2: Canvas JSX runtime
-export { CanvasRenderContext } from './canvas-layer';
+export { canvasConditional } from './canvas-conditional';
 export type { CanvasLayerProps } from './canvas-layer';
+// Phase 2: Canvas JSX runtime
+export { CanvasLayer, CanvasRenderContext } from './canvas-layer';
+export { canvasList } from './canvas-list';
+export { createDebugOverlay } from './debug-overlay';
 export { isCanvasIntrinsic, jsxCanvas } from './jsx-canvas';
-export { Circle, Ellipse, Line, Rect } from './shapes';
 export type { CircleProps, EllipseProps, LineProps, RectProps } from './shapes';
+export { Circle, Ellipse, Line, Rect } from './shapes';
+export { loadSpriteTexture } from './sprite-loading';
 export type {
   AccessibilityProps,
   CanvasChild,
@@ -20,9 +23,5 @@ export type {
   SpriteProps,
   TextProps,
 } from './types';
-export { canvasConditional } from './canvas-conditional';
-export { canvasList } from './canvas-list';
-export { createDebugOverlay } from './debug-overlay';
-export { loadSpriteTexture } from './sprite-loading';
 export type { MaybeAccessor } from './unwrap';
 export { unwrap } from './unwrap';

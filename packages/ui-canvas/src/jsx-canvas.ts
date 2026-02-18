@@ -1,7 +1,8 @@
 import { effect } from '@vertz/ui';
+import { _tryOnCleanup } from '@vertz/ui/internals';
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import { loadSpriteTexture } from './sprite-loading';
-import type { DrawFn } from './types';
+import type { CanvasChild, DrawFn } from './types';
 
 const CANVAS_INTRINSICS = new Set(['Graphics', 'Container', 'Sprite', 'Text']);
 
@@ -13,7 +14,8 @@ export function isCanvasIntrinsic(tag: string): boolean {
 /**
  * Create a PixiJS display object from a canvas intrinsic tag and props.
  * Handles static props, reactive (accessor) props, event binding,
- * Graphics draw callbacks, and ref escape hatch.
+ * Graphics draw callbacks, children processing, ref escape hatch,
+ * and disposal cleanup.
  */
 export function jsxCanvas(tag: string, props: Record<string, unknown>): Container {
   const displayObject = createDisplayObject(tag);
@@ -76,7 +78,9 @@ export function jsxCanvas(tag: string, props: Record<string, unknown>): Containe
     } else if (key.startsWith('on') && typeof value === 'function') {
       // Event binding: onClick -> click, onPointerDown -> pointerdown
       const event = key.slice(2).toLowerCase();
-      displayObject.on(event, value as (...args: unknown[]) => void);
+      const handler = value as (...args: unknown[]) => void;
+      displayObject.on(event, handler);
+      _tryOnCleanup(() => displayObject.off(event, handler));
       hasEventProps = true;
     } else if (typeof value === 'function') {
       // Reactive prop: bind via effect so display object updates when signal changes
@@ -100,7 +104,35 @@ export function jsxCanvas(tag: string, props: Record<string, unknown>): Containe
     (props.ref as (obj: Container) => void)(displayObject);
   }
 
+  // Process children — add child display objects to parent
+  applyCanvasChildren(displayObject, props.children);
+
+  // Register cleanup: destroy display object when scope disposes
+  _tryOnCleanup(() => {
+    displayObject.destroy({ children: true });
+  });
+
   return displayObject;
+}
+
+/**
+ * Add child display objects to a parent container.
+ * Handles single children, arrays, and filters out null/undefined/false.
+ */
+function applyCanvasChildren(parent: Container, children: unknown): void {
+  if (children == null || children === false) return;
+
+  if (Array.isArray(children)) {
+    for (const child of children) {
+      applyCanvasChildren(parent, child);
+    }
+    return;
+  }
+
+  if (children instanceof Container) {
+    parent.addChild(children as CanvasChild & Container);
+    return;
+  }
 }
 
 function createDisplayObject(tag: string): Container {

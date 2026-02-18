@@ -1,4 +1,4 @@
-import type { Container as PIXIContainer, FederatedPointerEvent, TextStyleOptions } from 'pixi.js';
+import type { FederatedPointerEvent, Container as PIXIContainer, TextStyleOptions } from 'pixi.js';
 import type { MaybeAccessor } from './unwrap';
 
 /** Common transform props shared by all canvas elements. */
@@ -44,7 +44,7 @@ export interface ContainerProps extends CanvasTransformProps, CanvasEventProps {
 }
 
 export interface SpriteProps extends CanvasTransformProps, CanvasEventProps {
-  texture: string;
+  texture: MaybeAccessor<string>;
   anchor?: MaybeAccessor<number>;
   width?: MaybeAccessor<number>;
   height?: MaybeAccessor<number>;

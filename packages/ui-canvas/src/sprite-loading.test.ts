@@ -42,9 +42,7 @@ describe('Feature: Sprite async texture loading', () => {
         await loadSpriteTexture(sprite, 'assets/missing.png');
 
         expect(sprite.visible).toBe(false);
-        expect(warnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('assets/missing.png'),
-        );
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('assets/missing.png'));
       });
     });
   });

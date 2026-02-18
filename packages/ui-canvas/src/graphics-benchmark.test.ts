@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { Graphics } from 'pixi.js';
+import { describe, expect, it } from 'vitest';
 
 describe('Graphics Redraw Performance POC', () => {
   describe('Given a Graphics with 100+ paths', () => {

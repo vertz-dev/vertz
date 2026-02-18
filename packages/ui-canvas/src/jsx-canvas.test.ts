@@ -1,4 +1,5 @@
-import { effect, onCleanup, signal } from '@vertz/ui';
+import { signal } from '@vertz/ui';
+import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isCanvasIntrinsic, jsxCanvas } from './jsx-canvas';
@@ -321,7 +322,8 @@ describe('Feature: jsxCanvas Sprite texture loading', () => {
       it('then Assets.load is called again with the new URL', async () => {
         const tex1 = Texture.WHITE;
         const tex2 = Texture.WHITE;
-        const loadSpy = vi.spyOn(Assets, 'load')
+        const loadSpy = vi
+          .spyOn(Assets, 'load')
           .mockResolvedValueOnce(tex1)
           .mockResolvedValueOnce(tex2);
 
@@ -335,6 +337,101 @@ describe('Feature: jsxCanvas Sprite texture loading', () => {
 
         await flushPromises();
         expect(loadSpy).toHaveBeenCalledWith('villain.png');
+      });
+    });
+  });
+});
+
+describe('Feature: jsxCanvas children processing', () => {
+  describe('Given a Container with child display objects', () => {
+    describe('When jsxCanvas creates the Container', () => {
+      it('then children are added to the parent via addChild', () => {
+        const child1 = new Container();
+        const child2 = new Container();
+        const parent = jsxCanvas('Container', { children: [child1, child2] });
+
+        expect(parent.children.length).toBe(2);
+        expect(parent.children[0]).toBe(child1);
+        expect(parent.children[1]).toBe(child2);
+      });
+    });
+  });
+
+  describe('Given a Container with a single child', () => {
+    describe('When jsxCanvas creates the Container', () => {
+      it('then the single child is added', () => {
+        const child = new Container();
+        const parent = jsxCanvas('Container', { children: child });
+
+        expect(parent.children.length).toBe(1);
+        expect(parent.children[0]).toBe(child);
+      });
+    });
+  });
+
+  describe('Given children with null/undefined/false values', () => {
+    describe('When jsxCanvas creates the Container', () => {
+      it('then falsy children are filtered out', () => {
+        const child = new Container();
+        const parent = jsxCanvas('Container', {
+          children: [null, child, undefined, false],
+        });
+
+        expect(parent.children.length).toBe(1);
+        expect(parent.children[0]).toBe(child);
+      });
+    });
+  });
+
+  describe('Given no children prop', () => {
+    describe('When jsxCanvas creates the Container', () => {
+      it('then the container has no children', () => {
+        const parent = jsxCanvas('Container', {});
+        expect(parent.children.length).toBe(0);
+      });
+    });
+  });
+});
+
+describe('Feature: jsxCanvas disposal and cleanup', () => {
+  describe('Given a display object with event handlers in a disposal scope', () => {
+    describe('When the scope is disposed', () => {
+      it('then event listeners are removed', () => {
+        const handler = vi.fn();
+        const scope = pushScope();
+
+        const obj = jsxCanvas('Container', { onClick: handler });
+
+        popScope();
+
+        // Event works before cleanup
+        obj.emit('click');
+        expect(handler).toHaveBeenCalledTimes(1);
+
+        // Run cleanups
+        runCleanups(scope);
+
+        // Event handler should be removed after cleanup
+        obj.emit('click');
+        expect(handler).toHaveBeenCalledTimes(1); // no additional call
+      });
+    });
+  });
+
+  describe('Given a display object in a disposal scope', () => {
+    describe('When the scope is disposed', () => {
+      it('then the display object is destroyed', () => {
+        const scope = pushScope();
+
+        const obj = jsxCanvas('Container', { x: 10 });
+
+        popScope();
+
+        expect(obj.destroyed).toBe(false);
+
+        runCleanups(scope);
+
+        expect(obj.destroyed).toBe(true);
       });
     });
   });

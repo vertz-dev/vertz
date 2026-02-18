@@ -95,7 +95,9 @@ export function createReactiveSprite(
 
   return {
     displayObject,
-    dispose: () => cleanups.forEach((fn) => fn()),
+    dispose: () => {
+      for (const fn of cleanups) fn();
+    },
   };
 }
 
@@ -104,10 +106,7 @@ export function createReactiveSprite(
  * Returns the canvas element and a dispose function for cleanup.
  * Async because PixiJS v8 requires `app.init()` for initialization.
  */
-export async function render(
-  container: HTMLElement,
-  options: CanvasOptions,
-): Promise<CanvasState> {
+export async function render(container: HTMLElement, options: CanvasOptions): Promise<CanvasState> {
   const app = new Application();
   await app.init({
     width: options.width,

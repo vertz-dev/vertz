@@ -1,7 +1,7 @@
 import { useContext } from '@vertz/ui';
 import { Container } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
-import { CanvasRenderContext, type CanvasLayerProps } from './canvas-layer';
+import { CanvasLayer, type CanvasLayerProps, CanvasRenderContext } from './canvas-layer';
 
 describe('Feature: CanvasRenderContext', () => {
   describe('Given the CanvasRenderContext', () => {
@@ -59,6 +59,27 @@ describe('Feature: CanvasLayerProps type', () => {
       };
       expect(props.background).toBe(0x1a1a2e);
       expect(props.debug).toBe(true);
+    });
+  });
+});
+
+describe('Feature: CanvasLayer component', () => {
+  describe('Given the CanvasLayer function', () => {
+    it('then it is exported and callable', () => {
+      expect(typeof CanvasLayer).toBe('function');
+    });
+  });
+
+  describe('Given a nested CanvasLayer inside a CanvasRenderContext', () => {
+    describe('When CanvasLayer is called', () => {
+      it('then it throws an error forbidding nesting', () => {
+        const stage = new Container();
+        CanvasRenderContext.Provider(stage, () => {
+          expect(() => CanvasLayer({ width: 400, height: 300 })).toThrow(
+            '<CanvasLayer> cannot be nested inside another <CanvasLayer>',
+          );
+        });
+      });
     });
   });
 });

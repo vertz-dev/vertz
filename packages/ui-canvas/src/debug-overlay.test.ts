@@ -48,9 +48,7 @@ describe('Feature: Canvas Debug Overlay', () => {
         debug.update();
 
         // Should have at least one Text child for the label
-        const textChildren = debug.overlay.children.filter(
-          (c) => c instanceof Text,
-        );
+        const textChildren = debug.overlay.children.filter((c) => c instanceof Text);
         expect(textChildren.length).toBeGreaterThan(0);
 
         debug.destroy();
@@ -70,15 +68,11 @@ describe('Feature: Canvas Debug Overlay', () => {
         debug.update();
 
         // Should still have bounding box graphics
-        const graphicsChildren = debug.overlay.children.filter(
-          (c) => c instanceof Graphics,
-        );
+        const graphicsChildren = debug.overlay.children.filter((c) => c instanceof Graphics);
         expect(graphicsChildren.length).toBeGreaterThan(0);
 
         // No text labels for unlabeled children
-        const textChildren = debug.overlay.children.filter(
-          (c) => c instanceof Text,
-        );
+        const textChildren = debug.overlay.children.filter((c) => c instanceof Text);
         expect(textChildren.length).toBe(0);
 
         debug.destroy();
