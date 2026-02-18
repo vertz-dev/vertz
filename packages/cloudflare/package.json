@@ -1,0 +1,34 @@
+{
+  "name": "@vertz/cloudflare",
+  "version": "0.2.0",
+  "description": "Cloudflare Workers adapter for vertz",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "bunup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vertz/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250214.0",
+    "bunup": "latest",
+    "typescript": "^5.7.3"
+  },
+  "peerDependencies": {
+    "@vertz/ui-server": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@vertz/ui-server": {
+      "optional": true
+    }
+  }
+}

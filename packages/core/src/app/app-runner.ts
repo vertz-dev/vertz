@@ -297,8 +297,12 @@ export function buildHandler(
         }
       }
 
-      const response =
-        result === undefined ? new Response(null, { status: 204 }) : createJsonResponse(result);
+      // If result is already a Response, return it directly (allows HTML/file responses)
+      const response = result === undefined
+        ? new Response(null, { status: 204 })
+        : result instanceof Response
+          ? result
+          : createJsonResponse(result);
 
       if (config.cors) {
         return applyCorsHeaders(config.cors, request, response);
