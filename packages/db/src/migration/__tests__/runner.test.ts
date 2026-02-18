@@ -1,4 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
+import { unwrap } from '@vertz/errors';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { MigrationFile } from '../runner';
 import { computeChecksum, createMigrationRunner, parseMigrationName } from '../runner';
@@ -24,12 +25,13 @@ describe('MigrationRunner', () => {
 
   it('creates the _vertz_migrations history table', async () => {
     const runner = createMigrationRunner();
-    await runner.createHistoryTable(queryFn);
+    const result = await runner.createHistoryTable(queryFn);
+    expect(result.ok).toBe(true);
 
-    const result = await db.query(
+    const tableResult = await db.query(
       "SELECT table_name FROM information_schema.tables WHERE table_name = '_vertz_migrations'",
     );
-    expect(result.rows).toHaveLength(1);
+    expect(tableResult.rows).toHaveLength(1);
   });
 
   it('applies a migration and records it in history', async () => {
@@ -43,7 +45,8 @@ describe('MigrationRunner', () => {
       );
     `;
 
-    await runner.apply(queryFn, migrationSql, '0001_initial.sql');
+    const applyResult = await runner.apply(queryFn, migrationSql, '0001_initial.sql');
+    expect(applyResult.ok).toBe(true);
 
     // Verify table was created
     const tableResult = await db.query(
@@ -52,7 +55,9 @@ describe('MigrationRunner', () => {
     expect(tableResult.rows).toHaveLength(1);
 
     // Verify migration was recorded
-    const applied = await runner.getApplied(queryFn);
+    const appliedResult = await runner.getApplied(queryFn);
+    expect(appliedResult.ok).toBe(true);
+    const applied = unwrap(appliedResult);
     expect(applied).toHaveLength(1);
     expect(applied[0]?.name).toBe('0001_initial.sql');
     expect(applied[0]?.checksum).toBe(computeChecksum(migrationSql));
@@ -64,9 +69,12 @@ describe('MigrationRunner', () => {
     const migrationSql = `
       ALTER TABLE "test_users" ADD COLUMN "email" text;
     `;
-    await runner.apply(queryFn, migrationSql, '0002_add_email.sql');
+    const applyResult = await runner.apply(queryFn, migrationSql, '0002_add_email.sql');
+    expect(applyResult.ok).toBe(true);
 
-    const applied = await runner.getApplied(queryFn);
+    const appliedResult = await runner.getApplied(queryFn);
+    expect(appliedResult.ok).toBe(true);
+    const applied = unwrap(appliedResult);
     expect(applied).toHaveLength(2);
     expect(applied[0]?.name).toBe('0001_initial.sql');
     expect(applied[1]?.name).toBe('0002_add_email.sql');
@@ -153,9 +161,13 @@ describe('MigrationRunner', () => {
         );
       `;
 
-      const result = await runner.apply(queryFn, migrationSql, '0003_dry_run.sql', {
+      const applyResult = await runner.apply(queryFn, migrationSql, '0003_dry_run.sql', {
         dryRun: true,
       });
+
+      // Verify the result is success
+      expect(applyResult.ok).toBe(true);
+      const result = unwrap(applyResult);
 
       // Verify the result contains the expected data
       expect(result.dryRun).toBe(true);
@@ -173,7 +185,9 @@ describe('MigrationRunner', () => {
       expect(tableResult.rows).toHaveLength(0);
 
       // Verify no migration was recorded in history
-      const applied = await runner.getApplied(queryFn);
+      const appliedResult = await runner.getApplied(queryFn);
+      expect(appliedResult.ok).toBe(true);
+      const applied = unwrap(appliedResult);
       const dryRunEntry = applied.find((a) => a.name === '0003_dry_run.sql');
       expect(dryRunEntry).toBeUndefined();
     });
@@ -187,12 +201,16 @@ describe('MigrationRunner', () => {
       const migrationName = '0003_add_bio.sql';
 
       // Get dry-run result
-      const dryResult = await runner.apply(queryFn, migrationSql, migrationName, {
+      const dryApplyResult = await runner.apply(queryFn, migrationSql, migrationName, {
         dryRun: true,
       });
+      expect(dryApplyResult.ok).toBe(true);
+      const dryResult = unwrap(dryApplyResult);
 
       // Now actually apply
-      const realResult = await runner.apply(queryFn, migrationSql, migrationName);
+      const realApplyResult = await runner.apply(queryFn, migrationSql, migrationName);
+      expect(realApplyResult.ok).toBe(true);
+      const realResult = unwrap(realApplyResult);
 
       // SQL and statements should match
       expect(dryResult.sql).toBe(realResult.sql);
@@ -212,7 +230,9 @@ describe('MigrationRunner', () => {
         ALTER TABLE "test_users" ADD COLUMN "avatar" text;
       `;
 
-      const result = await runner.apply(queryFn, migrationSql, '0004_add_avatar.sql');
+      const applyResult = await runner.apply(queryFn, migrationSql, '0004_add_avatar.sql');
+      expect(applyResult.ok).toBe(true);
+      const result = unwrap(applyResult);
 
       expect(result.dryRun).toBe(false);
       expect(result.name).toBe('0004_add_avatar.sql');
@@ -249,5 +269,75 @@ describe('computeChecksum', () => {
 
   it('returns different hash for different input', () => {
     expect(computeChecksum('SELECT 1')).not.toBe(computeChecksum('SELECT 2'));
+  });
+});
+
+describe('Error handling', () => {
+  let db: PGlite;
+  let queryFn: (
+    sql: string,
+    params: readonly unknown[],
+  ) => Promise<{ rows: readonly Record<string, unknown>[]; rowCount: number }>;
+
+  beforeAll(async () => {
+    db = new PGlite();
+    queryFn = async (sql: string, params: readonly unknown[]) => {
+      const result = await db.query(sql, params as unknown[]);
+      return { rows: result.rows as Record<string, unknown>[], rowCount: result.rows.length };
+    };
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  it('returns error when apply fails with invalid SQL', async () => {
+    const runner = createMigrationRunner();
+    await runner.createHistoryTable(queryFn);
+
+    const invalidSql = 'CREATE INVALID SQL SYNTAX';
+    const result = await runner.apply(queryFn, invalidSql, '9999_invalid.sql');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('MIGRATION_QUERY_ERROR');
+      expect(result.error.message).toContain('Failed to apply migration');
+    }
+  });
+
+  it('returns error when getApplied is called before history table exists', async () => {
+    const freshDb = new PGlite();
+    const freshQueryFn = async (sql: string, params: readonly unknown[]) => {
+      const result = await freshDb.query(sql, params as unknown[]);
+      return { rows: result.rows as Record<string, unknown>[], rowCount: result.rows.length };
+    };
+
+    const runner = createMigrationRunner();
+    const result = await runner.getApplied(freshQueryFn);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('MIGRATION_QUERY_ERROR');
+      expect(result.error.message).toContain('Failed to retrieve applied migrations');
+    }
+
+    await freshDb.close();
+  });
+
+  it('returns error when createHistoryTable fails due to permissions or other DB error', async () => {
+    // Mock a queryFn that always throws
+    const failingQueryFn = async () => {
+      throw new Error('Permission denied');
+    };
+
+    const runner = createMigrationRunner();
+    const result = await runner.createHistoryTable(failingQueryFn);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('MIGRATION_QUERY_ERROR');
+      expect(result.error.message).toContain('Failed to create migration history table');
+      expect(result.error.cause).toBeDefined();
+    }
   });
 });

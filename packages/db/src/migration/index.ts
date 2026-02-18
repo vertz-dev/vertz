@@ -20,3 +20,6 @@ export type {
 export { createSnapshot } from './snapshot';
 export type { SqlGeneratorContext } from './sql-generator';
 export { generateMigrationSql, generateRollbackSql } from './sql-generator';
+
+// Re-export MigrationError from @vertz/errors for convenience
+export type { MigrationError } from '@vertz/errors';

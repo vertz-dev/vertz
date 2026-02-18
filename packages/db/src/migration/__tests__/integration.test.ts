@@ -1,4 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
+import { unwrap } from '@vertz/errors';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { d } from '../../d';
 import { computeDiff } from '../differ';
@@ -116,7 +117,8 @@ describe('Migration Integration Tests', () => {
     const runner = createMigrationRunner();
 
     // Create history table
-    await runner.createHistoryTable(queryFn);
+    const createResult = await runner.createHistoryTable(queryFn);
+    expect(createResult.ok).toBe(true);
 
     // Verify history table exists
     const histResult = await db.query(
@@ -127,10 +129,13 @@ describe('Migration Integration Tests', () => {
     // Apply a migration
     const migSql =
       'CREATE TABLE "posts" ("id" uuid NOT NULL, "title" text NOT NULL, PRIMARY KEY ("id"));';
-    await runner.apply(queryFn, migSql, '0001_create_posts.sql');
+    const applyResult = await runner.apply(queryFn, migSql, '0001_create_posts.sql');
+    expect(applyResult.ok).toBe(true);
 
     // Verify migration was recorded
-    const applied = await runner.getApplied(queryFn);
+    const appliedResult = await runner.getApplied(queryFn);
+    expect(appliedResult.ok).toBe(true);
+    const applied = unwrap(appliedResult);
     expect(applied).toHaveLength(1);
     expect(applied[0]?.name).toBe('0001_create_posts.sql');
     expect(applied[0]?.checksum).toBe(computeChecksum(migSql));
@@ -202,7 +207,8 @@ describe('Migration Integration Tests', () => {
     // Apply via runner
     const runner = createMigrationRunner();
     // History table already exists from IT-5-4
-    await runner.apply(queryFn, sql, '0002_create_comments.sql');
+    const applyResult = await runner.apply(queryFn, sql, '0002_create_comments.sql');
+    expect(applyResult.ok).toBe(true);
 
     // Verify table was created
     const result = await db.query(
@@ -211,7 +217,9 @@ describe('Migration Integration Tests', () => {
     expect(result.rows).toHaveLength(1);
 
     // Verify all applied migrations
-    const applied = await runner.getApplied(queryFn);
+    const appliedResult = await runner.getApplied(queryFn);
+    expect(appliedResult.ok).toBe(true);
+    const applied = unwrap(appliedResult);
     expect(applied).toHaveLength(2);
     expect(applied[0]?.name).toBe('0001_create_posts.sql');
     expect(applied[1]?.name).toBe('0002_create_comments.sql');

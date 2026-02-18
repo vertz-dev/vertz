@@ -1,4 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
+import { unwrap } from '@vertz/errors';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { MigrationQueryFn } from '../../migration';
 import { migrateStatus } from '../status';
@@ -25,7 +26,7 @@ describe('migrateStatus', () => {
       { name: '0002_add_email.sql', sql: 'ALTER TABLE users ADD COLUMN email text;', timestamp: 2 },
     ];
 
-    const result = await migrateStatus({ queryFn, migrationFiles });
+    const result = unwrap(await migrateStatus({ queryFn, migrationFiles }));
 
     expect(result.applied).toEqual([]);
     expect(result.pending).toEqual(['0001_init.sql', '0002_add_email.sql']);
@@ -53,7 +54,7 @@ describe('migrateStatus', () => {
       { name: '0002_add_email.sql', sql: 'ALTER TABLE users ADD COLUMN email text;', timestamp: 2 },
     ];
 
-    const result = await migrateStatus({ queryFn, migrationFiles });
+    const result = unwrap(await migrateStatus({ queryFn, migrationFiles }));
 
     expect(result.applied).toHaveLength(1);
     expect(result.applied[0]?.name).toBe('0001_init.sql');

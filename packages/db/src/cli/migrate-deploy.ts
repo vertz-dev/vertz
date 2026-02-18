@@ -1,4 +1,11 @@
-import type { ApplyResult, MigrationFile, MigrationQueryFn } from '../migration';
+import type { Result } from '@vertz/errors';
+import type {
+  AppliedMigration,
+  ApplyResult,
+  MigrationError,
+  MigrationFile,
+  MigrationQueryFn,
+} from '../migration';
 import { createMigrationRunner } from '../migration';
 
 export interface MigrateDeployOptions {
@@ -22,24 +29,34 @@ export interface MigrateDeployResult {
  *
  * In dry-run mode, returns the SQL that would be executed without modifying the database.
  */
-export async function migrateDeploy(options: MigrateDeployOptions): Promise<MigrateDeployResult> {
+export async function migrateDeploy(
+  options: MigrateDeployOptions,
+): Promise<Result<MigrateDeployResult, MigrationError>> {
   const runner = createMigrationRunner();
   const isDryRun = options.dryRun ?? false;
 
   if (!isDryRun) {
-    await runner.createHistoryTable(options.queryFn);
+    const createResult = await runner.createHistoryTable(options.queryFn);
+    if (!createResult.ok) {
+      return createResult;
+    }
   }
 
-  let applied: Awaited<ReturnType<typeof runner.getApplied>>;
+  let applied: AppliedMigration[];
   if (isDryRun) {
-    try {
-      applied = await runner.getApplied(options.queryFn);
-    } catch {
+    const appliedResult = await runner.getApplied(options.queryFn);
+    if (!appliedResult.ok) {
       // History table may not exist yet; treat as no migrations applied.
       applied = [];
+    } else {
+      applied = appliedResult.data;
     }
   } else {
-    applied = await runner.getApplied(options.queryFn);
+    const appliedResult = await runner.getApplied(options.queryFn);
+    if (!appliedResult.ok) {
+      return appliedResult;
+    }
+    applied = appliedResult.data;
   }
 
   const pending = runner.getPending(options.migrationFiles, applied);
@@ -51,14 +68,20 @@ export async function migrateDeploy(options: MigrateDeployOptions): Promise<Migr
     const result = await runner.apply(options.queryFn, migration.sql, migration.name, {
       dryRun: isDryRun,
     });
+    if (!result.ok) {
+      return result;
+    }
     appliedNames.push(migration.name);
-    migrationResults.push(result);
+    migrationResults.push(result.data);
   }
 
   return {
-    applied: appliedNames,
-    alreadyApplied: applied.map((a) => a.name),
-    dryRun: isDryRun,
-    migrations: migrationResults.length > 0 ? migrationResults : undefined,
+    ok: true,
+    data: {
+      applied: appliedNames,
+      alreadyApplied: applied.map((a) => a.name),
+      dryRun: isDryRun,
+      migrations: migrationResults.length > 0 ? migrationResults : undefined,
+    },
   };
 }

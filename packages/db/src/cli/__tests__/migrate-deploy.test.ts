@@ -1,3 +1,4 @@
+import { unwrap } from '@vertz/errors';
 import { describe, expect, it, vi } from 'vitest';
 import type { MigrationFile, MigrationQueryFn } from '../../migration';
 import { migrateDeploy } from '../migrate-deploy';
@@ -19,7 +20,9 @@ describe('migrateDeploy', () => {
       return { rows: [], rowCount: 0 };
     });
 
-    const result = await migrateDeploy({ queryFn, migrationFiles: files });
+    const deployResult = await migrateDeploy({ queryFn, migrationFiles: files });
+    expect(deployResult.ok).toBe(true);
+    const result = unwrap(deployResult);
 
     expect(result.applied).toEqual(['0001_init.sql', '0002_add_users.sql']);
     expect(result.alreadyApplied).toEqual([]);
@@ -41,7 +44,7 @@ describe('migrateDeploy', () => {
       return { rows: [], rowCount: 0 };
     });
 
-    const result = await migrateDeploy({ queryFn, migrationFiles: files });
+    const result = unwrap(await migrateDeploy({ queryFn, migrationFiles: files }));
 
     expect(result.applied).toEqual(['0002_add_users.sql']);
     expect(result.alreadyApplied).toEqual(['0001_init.sql']);
@@ -62,7 +65,7 @@ describe('migrateDeploy', () => {
       return { rows: [], rowCount: 0 };
     });
 
-    const result = await migrateDeploy({ queryFn, migrationFiles: files });
+    const result = unwrap(await migrateDeploy({ queryFn, migrationFiles: files }));
 
     expect(result.applied).toEqual([]);
     expect(result.alreadyApplied).toEqual(['0001_init.sql']);
@@ -80,7 +83,9 @@ describe('migrateDeploy', () => {
         throw new Error('relation "_vertz_migrations" does not exist');
       });
 
-      const result = await migrateDeploy({ queryFn, migrationFiles: files, dryRun: true });
+      const result = unwrap(
+        await migrateDeploy({ queryFn, migrationFiles: files, dryRun: true }),
+      );
 
       expect(result.dryRun).toBe(true);
       expect(result.applied).toEqual(['0001_init.sql', '0002_add_users.sql']);
@@ -122,7 +127,9 @@ describe('migrateDeploy', () => {
         throw new Error('Unexpected SQL in dry-run mode');
       });
 
-      const result = await migrateDeploy({ queryFn, migrationFiles: files, dryRun: true });
+      const result = unwrap(
+        await migrateDeploy({ queryFn, migrationFiles: files, dryRun: true }),
+      );
 
       expect(result.dryRun).toBe(true);
       expect(result.applied).toEqual(['0002_add_users.sql']);
@@ -146,7 +153,7 @@ describe('migrateDeploy', () => {
         return { rows: [], rowCount: 0 };
       });
 
-      const result = await migrateDeploy({ queryFn, migrationFiles: files });
+      const result = unwrap(await migrateDeploy({ queryFn, migrationFiles: files }));
 
       expect(result.dryRun).toBe(false);
       expect(result.migrations).toBeDefined();
@@ -168,7 +175,9 @@ describe('migrateDeploy', () => {
         return { rows: [], rowCount: 0 };
       });
 
-      const result = await migrateDeploy({ queryFn, migrationFiles: files, dryRun: true });
+      const result = unwrap(
+        await migrateDeploy({ queryFn, migrationFiles: files, dryRun: true }),
+      );
 
       expect(result.dryRun).toBe(true);
       expect(result.applied).toEqual([]);
