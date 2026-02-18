@@ -14,6 +14,11 @@ export interface DomainGenOptions {
   sourceDir?: string;
 }
 
+interface DomainHash {
+  file: string;
+  hash: string;
+}
+
 /**
  * Find all domain files in the domains directory
  */
