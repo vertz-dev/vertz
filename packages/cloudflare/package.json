@@ -5,6 +5,11 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vertz-dev/vertz.git",
+    "directory": "packages/cloudflare"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
