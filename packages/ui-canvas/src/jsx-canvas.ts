@@ -1,5 +1,6 @@
 import { effect } from '@vertz/ui';
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
+import { loadSpriteTexture } from './sprite-loading';
 import type { DrawFn } from './types';
 
 const CANVAS_INTRINSICS = new Set(['Graphics', 'Container', 'Sprite', 'Text']);
@@ -37,11 +38,29 @@ export function jsxCanvas(tag: string, props: Record<string, unknown>): Containe
     }
   }
 
+  // Sprite-specific: handle string texture via async loading
+  if (displayObject instanceof Sprite && 'texture' in props) {
+    const textureValue = props.texture;
+    if (typeof textureValue === 'string') {
+      loadSpriteTexture(displayObject, textureValue);
+    } else if (typeof textureValue === 'function') {
+      effect(() => {
+        const url = (textureValue as () => string)();
+        if (typeof url === 'string') {
+          loadSpriteTexture(displayObject as Sprite, url);
+        }
+      });
+    }
+  }
+
   for (const [key, value] of Object.entries(props)) {
     if (key === 'children' || key === 'ref' || key === 'interactive') continue;
 
     // Skip Text-specific props — handled above
     if (displayObject instanceof Text && (key === 'text' || key === 'style')) continue;
+
+    // Skip Sprite texture prop — handled above via loadSpriteTexture
+    if (displayObject instanceof Sprite && key === 'texture') continue;
 
     if (key === 'draw' && displayObject instanceof Graphics) {
       // Draw callback runs inside effect for reactive redraws.

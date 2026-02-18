@@ -1,6 +1,6 @@
 import { effect, onCleanup, signal } from '@vertz/ui';
-import { Container, Graphics, Sprite, Text } from 'pixi.js';
-import { describe, expect, it, vi } from 'vitest';
+import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isCanvasIntrinsic, jsxCanvas } from './jsx-canvas';
 
 describe('Feature: isCanvasIntrinsic', () => {
@@ -278,6 +278,63 @@ describe('Feature: jsxCanvas Graphics draw', () => {
         expect(clearSpy).toHaveBeenCalled();
 
         clearSpy.mockRestore();
+      });
+    });
+  });
+});
+
+// Helper to flush microtask queue (let mocked async loads resolve)
+const flushPromises = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+describe('Feature: jsxCanvas Sprite texture loading', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('Given a Sprite tag with a string texture prop', () => {
+    describe('When jsxCanvas creates the Sprite', () => {
+      it('then Assets.load is called with the texture URL', () => {
+        const mockTexture = Texture.WHITE;
+        const loadSpy = vi.spyOn(Assets, 'load').mockResolvedValue(mockTexture);
+
+        jsxCanvas('Sprite', { texture: 'hero.png' });
+
+        expect(loadSpy).toHaveBeenCalledWith('hero.png');
+      });
+
+      it('then the sprite texture is set once loading completes', async () => {
+        const mockTexture = Texture.WHITE;
+        vi.spyOn(Assets, 'load').mockResolvedValue(mockTexture);
+
+        const sprite = jsxCanvas('Sprite', { texture: 'hero.png' }) as Sprite;
+
+        await flushPromises();
+
+        expect(sprite.texture).toBe(mockTexture);
+        expect(sprite.visible).toBe(true);
+      });
+    });
+  });
+
+  describe('Given a Sprite with a reactive texture accessor', () => {
+    describe('When the texture signal changes', () => {
+      it('then Assets.load is called again with the new URL', async () => {
+        const tex1 = Texture.WHITE;
+        const tex2 = Texture.WHITE;
+        const loadSpy = vi.spyOn(Assets, 'load')
+          .mockResolvedValueOnce(tex1)
+          .mockResolvedValueOnce(tex2);
+
+        const texUrl = signal('hero.png');
+        jsxCanvas('Sprite', { texture: () => texUrl.value }) as Sprite;
+
+        await flushPromises();
+        expect(loadSpy).toHaveBeenCalledWith('hero.png');
+
+        texUrl.value = 'villain.png';
+
+        await flushPromises();
+        expect(loadSpy).toHaveBeenCalledWith('villain.png');
       });
     });
   });

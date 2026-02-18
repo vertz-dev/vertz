@@ -20,6 +20,9 @@ export type {
   SpriteProps,
   TextProps,
 } from './types';
+export { canvasConditional } from './canvas-conditional';
+export { canvasList } from './canvas-list';
 export { createDebugOverlay } from './debug-overlay';
+export { loadSpriteTexture } from './sprite-loading';
 export type { MaybeAccessor } from './unwrap';
 export { unwrap } from './unwrap';
