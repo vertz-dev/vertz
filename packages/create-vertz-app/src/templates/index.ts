@@ -12,7 +12,9 @@ export function packageJsonTemplate({
   includeExample?: boolean;
 }): string {
   const deps: Record<string, string> = {
-    '@vertz/server': '^0.1.0',
+    '@vertz/core': '^0.1.0',
+    '@vertz/schema': '^0.1.0',
+    'envsafe': '^2.0.3',
   };
 
   const devDeps: Record<string, string> = {
@@ -32,19 +34,20 @@ export function packageJsonTemplate({
 
   if (runtime === 'bun') {
     scripts.dev = 'bun run src/main.ts';
-    scripts.build = 'bun run vertz:build';
-    scripts.check = 'bun run vertz:check';
+    scripts.build = 'vertz build';
+    scripts.check = 'vertz check';
   } else if (runtime === 'node') {
     deps.tsx = '^4.19.0';
     scripts.dev = 'tsx watch src/main.ts';
-    scripts.build = 'tsc && vertz build';
-    scripts.check = 'tsc --noEmit';
+    scripts.build = 'vertz build';
+    scripts.check = 'vertz check';
   } else if (runtime === 'deno') {
-    scripts.dev = 'deno run src/main.ts';
+    scripts.dev = 'deno run --watch src/main.ts';
+    scripts.build = 'vertz build';
     scripts.check = 'deno check src/main.ts';
   }
 
-  scripts.start = 'bun run src/main.ts';
+  scripts.start = scripts.dev;
 
   const pkg = {
     name: projectName,
@@ -99,11 +102,10 @@ export function tsconfigTemplate(runtime: Runtime): string {
  * vertz.config.ts template
  */
 export function vertzConfigTemplate(): string {
-  return `import { defineConfig } from '@vertz/server';
+  return `import { defineConfig } from '@vertz/core';
 
 export default defineConfig({
-  modules: [],
-  middlewares: [],
+  entry: './src/app.ts',
 });
 `;
 }
@@ -188,16 +190,23 @@ export const env = envsafe({
 /**
  * src/app.ts template
  */
-export function appTemplate(): string {
-  return `import { createServer } from '@vertz/server';
+export function appTemplate(includeExample: boolean): string {
+  const imports = includeExample
+    ? `import { vertz } from '@vertz/core';
+import { healthModule } from './modules/health.module.js';`
+    : `import { vertz } from '@vertz/core';`;
 
-export const app = createServer({
-  name: 'vertz-app',
-  requestId: {
-    header: 'x-request-id',
-    attribute: 'requestId',
-  },
-});
+  const registerModules = includeExample
+    ? `
+  .register(healthModule)`
+    : '';
+
+  return `${imports}
+
+const app = vertz
+  .app({ basePath: '/api' })${registerModules};
+
+export { app };
 `;
 }
 
@@ -208,14 +217,9 @@ export function mainTemplate(): string {
   return `import { app } from './app.js';
 import { env } from './env.js';
 
-async function main() {
-  const { PORT } = env;
-  
-  await app.start({ port: PORT });
-  console.log(\`Server running at http://localhost:\${PORT}\`);
-}
-
-main();
+app.listen(env.PORT).then((handle) => {
+  console.log(\`✓ Server running at http://localhost:\${handle.port}/api\`);
+});
 `;
 }
 
@@ -247,12 +251,9 @@ export const requestIdMiddleware: Middleware = {
  * src/modules/health.module-def.ts template
  */
 export function healthModuleDefTemplate(): string {
-  return `import type { ModuleDefinition } from '@vertz/server';
+  return `import { vertz } from '@vertz/core';
 
-export const healthModuleDef = {
-  name: 'health',
-  imports: [],
-} satisfies ModuleDefinition;
+export const healthDef = vertz.moduleDef({ name: 'health' });
 `;
 }
 
@@ -260,16 +261,15 @@ export const healthModuleDef = {
  * src/modules/health.module.ts template
  */
 export function healthModuleTemplate(): string {
-  return `import type { Module } from '@vertz/server';
-import { healthModuleDef } from './health.module-def.js';
+  return `import { vertz } from '@vertz/core';
+import { healthDef } from './health.module-def.js';
 import { healthRouter } from './health.router.js';
-import { HealthService } from './health.service.js';
+import { healthService } from './health.service.js';
 
-export const healthModule = {
-  definition: healthModuleDef,
+export const healthModule = vertz.module(healthDef, {
+  services: [healthService],
   routers: [healthRouter],
-  services: [HealthService],
-} satisfies Module;
+});
 `;
 }
 
@@ -277,22 +277,16 @@ export const healthModule = {
  * src/modules/health.service.ts template
  */
 export function healthServiceTemplate(): string {
-  return `import type { Service } from '@vertz/server';
-import { HealthCheckSchema } from './schemas/health-check.schema.js';
+  return `import { healthDef } from './health.module-def.js';
 
-export class HealthService implements Service {
-  readonly name = 'health';
-  
-  async check() {
-    // In a real app, check database, external services, etc.
-    return {
+export const healthService = healthDef.service({
+  methods: () => ({
+    check: () => ({
       status: 'ok',
       timestamp: new Date().toISOString(),
-    };
-  }
-}
-
-export const healthService = new HealthService();
+    }),
+  }),
+});
 `;
 }
 
@@ -300,25 +294,25 @@ export const healthService = new HealthService();
  * src/modules/health.router.ts template
  */
 export function healthRouterTemplate(): string {
-  return `import type { Router } from '@vertz/server';
+  return `import { s } from '@vertz/schema';
+import { healthDef } from './health.module-def.js';
 import { healthService } from './health.service.js';
 
-export const healthRouter: Router = {
-  routes: {
-    'GET /health': {
-      handler: async () => {
-        const health = await healthService.check();
-        return { data: health };
-      },
-    },
-    'GET /health/ready': {
-      handler: async () => {
-        // Additional readiness check
-        return { data: { ready: true } };
-      },
-    },
-  },
-};
+const HealthResponseSchema = s.object({
+  status: s.string(),
+  timestamp: s.string(),
+});
+
+export const healthRouter = healthDef
+  .router({ prefix: '/health', inject: { healthService } })
+  .get('/', {
+    response: HealthResponseSchema,
+    handler: (ctx) => ctx.healthService.check(),
+  })
+  .get('/ready', {
+    response: s.object({ ready: s.boolean() }),
+    handler: () => ({ ready: true }),
+  });
 `;
 }
 

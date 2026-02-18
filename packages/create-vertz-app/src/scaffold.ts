@@ -7,14 +7,12 @@ import {
   envSrcTemplate,
   envTemplate,
   gitignoreTemplate,
-  healthCheckSchemaTemplate,
   healthModuleDefTemplate,
   healthModuleTemplate,
   healthRouterTemplate,
   healthServiceTemplate,
   mainTemplate,
   packageJsonTemplate,
-  requestIdMiddlewareTemplate,
   tsconfigTemplate,
   vertzConfigTemplate,
 } from './templates/index.js';
@@ -56,11 +54,9 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
   // Create subdirectories
   const srcDir = path.join(projectDir, 'src');
   const modulesDir = path.join(srcDir, 'modules');
-  const middlewaresDir = path.join(srcDir, 'middlewares');
 
   await fs.mkdir(srcDir, { recursive: true });
   await fs.mkdir(modulesDir, { recursive: true });
-  await fs.mkdir(middlewaresDir, { recursive: true });
 
   // Generate and write core config files
   await writeFile(
@@ -81,20 +77,15 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
 
   // Generate source files
   await writeFile(srcDir, 'env.ts', envSrcTemplate());
-  await writeFile(srcDir, 'app.ts', appTemplate());
+  await writeFile(srcDir, 'app.ts', appTemplate(includeExample));
   await writeFile(srcDir, 'main.ts', mainTemplate());
-  await writeFile(middlewaresDir, 'request-id.middleware.ts', requestIdMiddlewareTemplate());
 
   // Generate example health module if requested
   if (includeExample) {
-    const schemasDir = path.join(modulesDir, 'schemas');
-    await fs.mkdir(schemasDir, { recursive: true });
-
     await writeFile(modulesDir, 'health.module-def.ts', healthModuleDefTemplate());
-    await writeFile(modulesDir, 'health.module.ts', healthModuleTemplate());
     await writeFile(modulesDir, 'health.service.ts', healthServiceTemplate());
     await writeFile(modulesDir, 'health.router.ts', healthRouterTemplate());
-    await writeFile(schemasDir, 'health-check.schema.ts', healthCheckSchemaTemplate());
+    await writeFile(modulesDir, 'health.module.ts', healthModuleTemplate());
   }
 }
 
