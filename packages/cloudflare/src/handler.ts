@@ -8,7 +8,7 @@ export function createHandler(app: AppBuilder, options?: CloudflareHandlerOption
   const handler = app.handler
 
   return {
-    fetch(request: Request, _env: unknown, _ctx: ExecutionContext): Promise<Response> {
+    async fetch(request: Request, _env: unknown, _ctx: ExecutionContext): Promise<Response> {
       // If basePath, strip it from the URL before routing
       if (options?.basePath) {
         const url = new URL(request.url)
@@ -17,7 +17,12 @@ export function createHandler(app: AppBuilder, options?: CloudflareHandlerOption
           request = new Request(url.toString(), request)
         }
       }
-      return handler(request)
+      try {
+        return await handler(request)
+      } catch (error) {
+        console.error('Unhandled error in worker:', error)
+        return new Response('Internal Server Error', { status: 500 })
+      }
     }
   }
 }

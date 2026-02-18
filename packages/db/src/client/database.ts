@@ -689,7 +689,11 @@ export function createDb<TTables extends Record<string, TableEntry>>(
         const entry = resolveTable(tables, name);
         const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs);
         if (result === null) {
-          return err(new NotFoundError(name));
+          return err({
+            code: 'NOT_FOUND' as const,
+            message: `Record not found in table ${name}`,
+            table: name,
+          });
         }
         if (opts?.include) {
           const rows = await loadRelations(

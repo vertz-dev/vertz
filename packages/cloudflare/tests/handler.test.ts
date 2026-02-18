@@ -152,4 +152,27 @@ describe('createHandler', () => {
     const calledRequest = mockHandler.mock.calls[0][0] as Request
     expect(new URL(calledRequest.url).pathname).toBe('/api/test')
   })
+
+  it('returns 500 response when handler throws an error', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const testError = new Error('Test error')
+    const mockHandler = vi.fn().mockRejectedValue(testError)
+    const mockApp = {
+      handler: mockHandler,
+    } as unknown as AppBuilder
+
+    const worker = createHandler(mockApp)
+    const request = new Request('https://example.com/api/test')
+    const mockEnv = {}
+    const mockCtx = {} as ExecutionContext
+
+    const response = await worker.fetch(request, mockEnv, mockCtx)
+
+    expect(mockHandler).toHaveBeenCalledWith(request)
+    expect(response.status).toBe(500)
+    expect(await response.text()).toBe('Internal Server Error')
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Unhandled error in worker:', testError)
+
+    consoleErrorSpy.mockRestore()
+  })
 })

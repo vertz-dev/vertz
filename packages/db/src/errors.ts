@@ -159,7 +159,7 @@ export function toWriteError(error: unknown, query?: string): WriteError {
     return {
       code: 'CONSTRAINT_ERROR',
       message: error.message,
-      constraint: error.column,
+      column: error.column,
       table: error.table,
       cause: error,
     };
@@ -179,7 +179,7 @@ export function toWriteError(error: unknown, query?: string): WriteError {
     return {
       code: 'CONSTRAINT_ERROR',
       message: error.message,
-      constraint: error.column,
+      column: error.column,
       table: error.table,
       cause: error,
     };
@@ -223,13 +223,24 @@ export function toWriteError(error: unknown, query?: string): WriteError {
       pgError.code === '23502' || // not_null_violation
       pgError.code === '23514'    // check_violation
     ) {
-      return {
+      const result: WriteError = {
         code: 'CONSTRAINT_ERROR',
         message: pgError.message,
-        constraint: pgError.constraint,
         table: pgError.table,
         cause: error,
       };
+      // 23505 (unique) and 23502 (not null) use column field
+      // 23503 (FK) and 23514 (check) use constraint field
+      if (pgError.code === '23505' || pgError.code === '23502') {
+        if (pgError.column) {
+          (result as DbConstraintError).column = pgError.column;
+        }
+      } else {
+        if (pgError.constraint) {
+          (result as DbConstraintError).constraint = pgError.constraint;
+        }
+      }
+      return result;
     }
 
     // Other query errors
