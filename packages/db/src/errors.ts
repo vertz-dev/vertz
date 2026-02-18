@@ -223,24 +223,25 @@ export function toWriteError(error: unknown, query?: string): WriteError {
       pgError.code === '23502' || // not_null_violation
       pgError.code === '23514'    // check_violation
     ) {
-      const result: WriteError = {
-        code: 'CONSTRAINT_ERROR',
-        message: pgError.message,
-        table: pgError.table,
-        cause: error,
-      };
       // 23505 (unique) and 23502 (not null) use column field
       // 23503 (FK) and 23514 (check) use constraint field
       if (pgError.code === '23505' || pgError.code === '23502') {
-        if (pgError.column) {
-          (result as DbConstraintError).column = pgError.column;
-        }
+        return {
+          code: 'CONSTRAINT_ERROR',
+          message: pgError.message,
+          table: pgError.table,
+          column: pgError.column,
+          cause: error,
+        };
       } else {
-        if (pgError.constraint) {
-          (result as DbConstraintError).constraint = pgError.constraint;
-        }
+        return {
+          code: 'CONSTRAINT_ERROR',
+          message: pgError.message,
+          table: pgError.table,
+          constraint: pgError.constraint,
+          cause: error,
+        };
       }
-      return result;
     }
 
     // Other query errors

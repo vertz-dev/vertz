@@ -18,7 +18,6 @@ import { createPostgresDriver, type PostgresDriver } from './postgres-driver';
 import { computeTenantGraph, type TenantGraph } from './tenant-graph';
 import { ok, err, type Result } from '@vertz/schema';
 import {
-  NotFoundError,
   type ReadError,
   type WriteError,
   toReadError,
