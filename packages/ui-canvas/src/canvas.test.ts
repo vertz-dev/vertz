@@ -198,6 +198,44 @@ describe('Feature: Canvas Reactivity', () => {
     });
   });
 
+  describe('Issue #442: render() exposes app and stage', () => {
+    describe('Given the render function return type', () => {
+      it('Then the return type includes app and stage properties', async () => {
+        const mockCanvas = document.createElement('canvas');
+        const mockStage = { label: 'stage' };
+
+        // Reset module cache so our mock takes effect
+        vi.resetModules();
+
+        // Mock pixi.js module to avoid real WebGL/Canvas context
+        vi.doMock('pixi.js', () => {
+          return {
+            Application: class MockApplication {
+              canvas = mockCanvas;
+              stage = mockStage;
+              async init() {}
+              destroy() {}
+            },
+            Container: class MockContainer {},
+          };
+        });
+
+        // Re-import canvas module to pick up mock
+        const { render } = await import('./canvas');
+        const container = document.createElement('div');
+        const result = await render(container, { width: 100, height: 100 });
+
+        expect(result).toHaveProperty('canvas');
+        expect(result).toHaveProperty('app');
+        expect(result).toHaveProperty('stage');
+        expect(result).toHaveProperty('dispose');
+
+        vi.doUnmock('pixi.js');
+        vi.resetModules();
+      });
+    });
+  });
+
   describe('Issue #441: PixiJS v8 API migration', () => {
     describe('Given the render function', () => {
       it('Then render() returns a Promise (is async)', async () => {

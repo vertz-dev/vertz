@@ -8,8 +8,10 @@ export interface CanvasOptions {
 }
 
 export interface CanvasState {
+  canvas: HTMLCanvasElement;
   app: Application;
-  root: Container;
+  stage: Container;
+  dispose: DisposeFn;
 }
 
 /**
@@ -105,7 +107,7 @@ export function createReactiveSprite(
 export async function render(
   container: HTMLElement,
   options: CanvasOptions,
-): Promise<{ canvas: HTMLCanvasElement; dispose: DisposeFn }> {
+): Promise<CanvasState> {
   const app = new Application();
   await app.init({
     width: options.width,
@@ -123,6 +125,8 @@ export async function render(
 
   return {
     canvas: app.canvas as HTMLCanvasElement,
+    app,
+    stage: app.stage,
     dispose,
   };
 }
