@@ -1,8 +1,6 @@
 # @vertz/ui
 
-A compiler-driven UI framework with fine-grained reactivity. Write plain JavaScript — the compiler transforms your code into efficient reactive DOM updates. No virtual DOM, no hooks, no boilerplate.
-
-## Quick Example
+**Use `let` for state. Use `const` for derived. Write JSX. Done.**
 
 ```tsx
 function Counter() {
@@ -10,14 +8,14 @@ function Counter() {
 
   return (
     <div>
-      <span>{count}</span>
-      <button onClick={() => count++}>+</button>
+      <p>Count: {count}</p>
+      <button onClick={() => count++}>Increment</button>
     </div>
   );
 }
 ```
 
-That's it. `count` is reactive. Typing in the input, and the heading updates automatically.
+That's it. `count` is reactive. The compiler transforms your code into efficient reactive DOM updates. No virtual DOM, no hooks, no boilerplate.
 
 ---
 
@@ -27,7 +25,7 @@ That's it. `count` is reactive. Typing in the input, and the heading updates aut
 npm install @vertz/ui @vertz/ui-compiler
 ```
 
-### Vite Config
+### Vite Setup
 
 ```ts
 // vite.config.ts
@@ -41,356 +39,174 @@ export default defineConfig({
 
 ---
 
-## Key Concepts
+## The Basics
 
-### `let` = Reactive State
+### Reactive State: `let`
 
-Any `let` variable read in JSX becomes a reactive signal:
+Any `let` variable read in JSX becomes reactive:
 
 ```tsx
-function Counter() {
-  let count = 0;
-  return <span>{count}</span>;
+function TodoInput() {
+  let text = '';
+
+  return (
+    <div>
+      <input value={text} onInput={(e) => (text = e.target.value)} />
+      <p>You typed: {text}</p>
+    </div>
+  );
 }
 ```
 
-Assignments work naturally: `count++`, `count = 5`, `count += 1`.
+Assignments work naturally: `text = 'hello'`, `count++`, `items.push(item)`.
 
-### `const` = Derived State
+### Derived State: `const`
 
-A `const` that reads a signal becomes a computed (cached, lazy):
+A `const` that reads a reactive variable becomes computed (cached, lazy):
 
 ```tsx
-function Pricing() {
+function Cart() {
   let quantity = 1;
-  const total = 10 * quantity;  // computed
-  const formatted = `$${total}`; // computed
+  let price = 10;
 
-  return <span>{formatted}</span>;
+  const total = quantity * price;
+  const formatted = `$${total}`;
+
+  return <p>Total: {formatted}</p>;
 }
 ```
 
-### Effects
-
-Use `effect()` for side effects that respond to signal changes:
-
-```tsx
-import { effect, onCleanup } from '@vertz/ui';
-
-function Analytics() {
-  let page = '/home';
-
-  effect(() => {
-    sendPageView(page);
-  });
-
-  onCleanup(() => cleanup());
-}
-```
+`total` only recalculates when `quantity` or `price` change.
 
 ### Components
 
-Components are plain functions returning DOM nodes:
+Components are plain functions returning DOM:
 
 ```tsx
+function Greeting({ name }) {
+  return <h1>Hello, {name}!</h1>;
+}
+
+function App() {
+  let name = 'World';
+
+  return (
+    <div>
+      <Greeting name={name} />
+      <button onClick={() => (name = 'Alice')}>Change Name</button>
+    </div>
+  );
+}
+```
+
+### Lifecycle: `onMount`
+
+Run code once when the component is created:
+
+```tsx
+import { onMount, onCleanup } from '@vertz/ui';
+
+function Timer() {
+  let seconds = 0;
+
+  onMount(() => {
+    const id = setInterval(() => seconds++, 1000);
+    onCleanup(() => clearInterval(id));
+  });
+
+  return <p>{seconds}s</p>;
+}
+```
+
+### Data Fetching: `query`
+
+Fetch data reactively:
+
+```tsx
+import { query } from '@vertz/ui';
+
+function UserProfile() {
+  let userId = 1;
+
+  const { data, loading } = query(() =>
+    fetch(`/api/users/${userId}`).then((r) => r.json())
+  );
+
+  return (
+    <div>
+      {loading.value ? 'Loading...' : <p>{data.value?.name}</p>}
+      <button onClick={() => userId++}>Next User</button>
+    </div>
+  );
+}
+```
+
+---
+
+## You're Done (Probably)
+
+**90% of apps only need the above.** The rest is for special cases.
+
+---
+
+## Styling
+
+### `css` — Scoped Styles
+
+```tsx
+import { css } from '@vertz/ui/css';
+
+const styles = css({
+  card: ['p:4', 'bg:white', 'rounded:lg', 'shadow:md'],
+  title: ['font:xl', 'weight:bold', 'mb:2'],
+});
+
 function Card({ title, children }) {
   return (
-    <div className="card">
-      <h2>{title}</h2>
+    <div className={styles.classNames.card}>
+      <h2 className={styles.classNames.title}>{title}</h2>
       {children}
     </div>
   );
 }
 ```
 
----
-
-## API Reference
-
-### Reactivity
-
-#### `signal<T>(initial: T): Signal<T>`
-
-Create a reactive value:
-
-```tsx
-import { signal } from '@vertz/ui';
-
-const count = signal(0);
-count.value;        // 0
-count.value = 5;    // set value
-count.peek();       // read without subscribing
-count.notify();     // manually notify subscribers
-```
-
-#### `computed<T>(fn: () => T): Computed<T>`
-
-Create a derived value that's cached and lazily re-evaluated:
-
-```tsx
-import { computed, signal } from '@vertz/ui';
-
-const count = signal(1);
-const doubled = computed(() => count.value * 2);
-```
-
-#### `effect(fn: () => void): DisposeFn`
-
-Run a side effect whenever dependencies change. Returns a dispose function:
-
-```tsx
-import { effect, signal } from '@vertz/ui';
-
-const count = signal(0);
-const dispose = effect(() => {
-  console.log('count is', count.value);
-});
-
-count.value = 1; // logs: count is 1
-dispose();       // stop the effect
-```
-
-#### `batch(fn: () => void): void`
-
-Group multiple signal updates into a single effect run:
-
-```tsx
-import { batch, effect, signal } from '@vertz/ui';
-
-let first = signal('a');
-let last = signal('b');
-
-effect(() => {
-  console.log(first.value, last.value);
-});
-
-batch(() => {
-  first.value = 'x';
-  last.value = 'y';
-}); // logs only once: x y
-```
-
-#### `untrack<T>(fn: () => T): T`
-
-Read signals without creating a subscription:
-
-```tsx
-import { untrack, signal, effect } from '@vertz/ui';
-
-const count = signal(0);
-const other = signal(1);
-
-effect(() => {
-  const tracked = count.value;     // subscribes to count
-  const notTracked = untrack(() => other.value); // no subscription
-});
-```
-
-#### `onCleanup(fn: () => void): void`
-
-Register a cleanup function. Throws `DisposalScopeError` if called outside a scope:
-
-```tsx
-import { effect, onCleanup } from '@vertz/ui';
-
-effect(() => {
-  const ws = new WebSocket('wss://example.com');
-  onCleanup(() => ws.close());
-});
-```
-
-#### Types
-
-- **Signal<T>** — Read/write reactive value with `.value`
-- **ReadonlySignal<T>** — Read-only (computed values)
-- **Computed<T>** — Derived, cached signal
-- **DisposeFn** — `() => void` for cleanup
-
----
-
-### Components
-
-#### `createContext<T>(defaultValue?: T): Context<T>`
-
-Create a context for passing values without props:
-
-```tsx
-import { createContext, useContext } from '@vertz/ui';
-
-const ThemeCtx = createContext<'light' | 'dark'>('light');
-```
-
-#### `useContext<T>(ctx: Context<T>): T | undefined`
-
-Read a context value:
-
-```tsx
-const theme = useContext(ThemeCtx);
-```
-
-#### `children(accessor: ChildrenAccessor): () => Node[]`
-
-Resolve children to DOM nodes:
-
-```tsx
-import { children } from '@vertz/ui';
-
-function Panel(props) {
-  const getChildren = children(props.children);
-  const el = <div className="panel" />;
-  for (const child of getChildren()) {
-    el.appendChild(child);
-  }
-  return el;
-}
-```
-
-#### `ref<T>(): Ref<T>`
-
-Create a ref for DOM element access:
-
-```tsx
-import { ref, onMount } from '@vertz/ui';
-
-function FocusInput() {
-  const inputRef = ref<HTMLInputElement>();
-
-  onMount(() => {
-    inputRef.current?.focus();
-  });
-
-  const el = <input /> as HTMLInputElement;
-  inputRef.current = el;
-  return el;
-}
-```
-
-#### `onMount(fn: () => void): void`
-
-Run code once when component is created:
-
-```tsx
-import { onMount } from '@vertz/ui';
-
-function Timer() {
-  let elapsed = 0;
-
-  onMount(() => {
-    const id = setInterval(() => elapsed++, 1000);
-    onCleanup(() => clearInterval(id));
-  });
-
-  return <span>{elapsed}s</span>;
-}
-```
-
-#### `watch<T>(dep: () => T, callback: (value: T) => void): void`
-
-Watch a dependency and run callback when it changes:
-
-```tsx
-import { watch } from '@vertz/ui';
-
-function Logger() {
-  let count = 0;
-
-  watch(
-    () => count,
-    (value) => console.log('count changed to', value)
-  );
-
-  return <button onClick={() => count++}>+</button>;
-}
-```
-
-#### `ErrorBoundary(props: { children: () => Node; fallback: (error: Error, retry: () => void) => Node }): Node`
-
-Catch errors in child components:
-
-```tsx
-import { ErrorBoundary } from '@vertz/ui';
-
-function App() {
-  return ErrorBoundary({
-    children: () => RiskyComponent(),
-    fallback: (error, retry) => (
-      <div>
-        <p>Error: {error.message}</p>
-        <button onClick={retry}>Retry</button>
-      </div>
-    ),
-  });
-}
-```
-
-#### `Suspense(props: { children: () => Node; fallback: () => Node }): Node`
-
-Handle async components:
-
-```tsx
-import { Suspense } from '@vertz/ui';
-
-function App() {
-  return Suspense({
-    children: () => AsyncComponent(),
-    fallback: () => <div>Loading...</div>,
-  });
-}
-```
-
----
-
-### CSS
-
-#### `css(styles: CSSInput): CSSOutput`
-
-Create scoped styles:
-
-```tsx
-import { css } from '@vertz/ui/css';
-
-const styles = css({
-  card: ['p:4', 'bg:background', 'rounded:lg'],
-  title: ['font:xl', 'weight:bold'],
-});
-
-function Card() {
-  return (
-    <div className={styles.classNames.card}>
-      <h2 className={styles.classNames.title}>Hello</h2>
-    </div>
-  );
-}
-```
-
-#### `variants(config: VariantsConfig): VariantFunction`
-
-Create typed variants:
+### `variants` — Typed Variants
 
 ```tsx
 import { variants } from '@vertz/ui/css';
 
 const button = variants({
-  base: ['flex', 'font:medium'],
+  base: ['px:4', 'py:2', 'rounded:md', 'font:medium'],
   variants: {
     intent: {
       primary: ['bg:blue.600', 'text:white'],
       secondary: ['bg:gray.100', 'text:gray.800'],
     },
     size: {
-      sm: ['px:2', 'py:1'],
-      lg: ['px:4', 'py:2'],
+      sm: ['px:2', 'py:1', 'text:sm'],
+      lg: ['px:6', 'py:3', 'text:lg'],
     },
   },
   defaultVariants: { intent: 'primary', size: 'md' },
 });
 
-button({ intent: 'secondary', size: 'sm' }); // returns className string
+function Button({ intent, size, children }) {
+  return <button className={button({ intent, size })}>{children}</button>;
+}
 ```
 
-#### `defineTheme(theme: ThemeInput): Theme`
+### `s` — Inline Dynamic Styles
 
-Define a design theme:
+```tsx
+import { s } from '@vertz/ui/css';
+
+function ProgressBar({ percent }) {
+  return <div style={s([`w:${percent}%`, 'bg:green.500', 'h:4'])} />;
+}
+```
+
+### Theming
 
 ```tsx
 import { defineTheme, compileTheme, ThemeProvider } from '@vertz/ui/css';
@@ -403,215 +219,251 @@ const theme = defineTheme({
 });
 
 const compiled = compileTheme(theme);
-// compiled.css contains CSS custom properties
 
-ThemeProvider({ theme: 'dark', children: [app] });
-```
-
-#### `globalCss(styles: GlobalCSSInput): void`
-
-Add global styles:
-
-```tsx
-import { globalCss } from '@vertz/ui/css';
-
-globalCss({
-  '*, *::before, *::after': { boxSizing: 'border-box' },
-  body: { fontFamily: 'system-ui' },
-});
-```
-
-#### `s(styles: CSSInput): string`
-
-Inline dynamic styles:
-
-```tsx
-import { s } from '@vertz/ui/css';
-
-function Bar({ width }) {
-  return <div style={s([`w:${width}px`, 'bg:blue.500'])} />;
-}
+ThemeProvider({ theme: 'dark', children: [<App />] });
 ```
 
 ---
 
-### Forms
+## Forms
 
-#### `form<TBody, TResult>(sdkMethod: SdkMethod<TBody, TResult>, options: FormOptions<TBody>): FormInstance<TBody, TResult>`
-
-Create a form bound to an SDK method:
+Bind forms to SDK methods:
 
 ```tsx
-import { form } from '@vertz/ui/form';
-import type { SdkMethod } from '@vertz/ui/form';
+import { form } from '@vertz/ui';
 
-declare const createUser: SdkMethod<{ name: string; email: string }, { id: string }>;
+// Assuming you have an SDK method
+declare const createUser: (body: { name: string; email: string }) => Promise<{ id: string }>;
 
-const userForm = form(createUser, { schema: userSchema });
+const userForm = form(createUser, {
+  schema: {
+    name: { required: true },
+    email: { required: true, type: 'email' },
+  },
+});
 
-function CreateUserForm() {
+function CreateUser() {
   return (
-    <form {...userForm.attrs()} onSubmit={userForm.handleSubmit({ onSuccess: (r) => console.log(r.id) })}>
-      <input name="name" />
-      {userForm.error('name') && <span>{userForm.error('name')}</span>}
-      <button type="submit">{userForm.submitting.value ? 'Saving...' : 'Create'}</button>
+    <form
+      {...userForm.attrs()}
+      onSubmit={userForm.handleSubmit({
+        onSuccess: (result) => console.log('User created:', result.id),
+      })}
+    >
+      <input name="name" placeholder="Name" />
+      {userForm.error('name') && <span className="error">{userForm.error('name')}</span>}
+
+      <input name="email" type="email" placeholder="Email" />
+      {userForm.error('email') && <span className="error">{userForm.error('email')}</span>}
+
+      <button type="submit" disabled={userForm.submitting.value}>
+        {userForm.submitting.value ? 'Creating...' : 'Create User'}
+      </button>
     </form>
   );
 }
 ```
 
-#### `formDataToObject(formData: FormData, options?: FormDataOptions): Record<string, unknown>`
-
-Convert FormData to plain object:
-
-```tsx
-import { formDataToObject } from '@vertz/ui/form';
-
-const data = formDataToObject(formData, { coerce: true });
-// { name: "Alice", age: 30 } from FormData
-```
-
-#### `validate<T>(schema: FormSchema<T>, data: unknown): ValidationResult<T>`
-
-Validate data against a schema:
-
-```tsx
-import { validate } from '@vertz/ui/form';
-
-const result = validate(userSchema, formData);
-if (result.success) {
-  console.log(result.data);
-} else {
-  console.log(result.errors);
-}
-```
-
 ---
 
-### Data Fetching
-
-#### `query<T>(thunk: () => Promise<T>, options?: QueryOptions<T>): QueryResult<T>`
-
-Create a reactive data fetch:
-
-```tsx
-import { query } from '@vertz/ui/query';
-
-function UserProfile() {
-  let userId = 1;
-
-  const { data, loading, error, refetch } = query(
-    () => fetch(`/api/users/${userId}`).then(r => r.json())
-  );
-
-  return (
-    <div>
-      {loading.value ? 'Loading...' : data.value?.name}
-      <button onClick={() => userId++}>Next</button>
-      <button onClick={refetch}>Refresh</button>
-    </div>
-  );
-}
-```
-
-Options:
-- `initialData` — Pre-populated data
-- `debounce` — Debounce re-fetches (ms)
-- `enabled` — Enable/disable fetching
-- `key` — Custom cache key
-- `cache` — Custom cache store
-
-Returns: `{ data, loading, error, refetch, revalidate, dispose }`
-
----
-
-### Routing
-
-#### `defineRoutes(map: RouteDefinitionMap): CompiledRoute[]`
-
-Define routes:
+## Routing
 
 ```tsx
 import { defineRoutes, createRouter, createLink } from '@vertz/ui/router';
 
 const routes = defineRoutes({
-  '/': { component: () => HomePage() },
+  '/': { component: () => <HomePage /> },
   '/users/:id': {
-    component: () => UserPage(),
-    loader: async ({ params, signal }) => {
-      const res = await fetch(`/api/users/${params.id}`, { signal });
+    component: () => <UserPage />,
+    loader: async ({ params }) => {
+      const res = await fetch(`/api/users/${params.id}`);
       return res.json();
     },
   },
 });
-```
 
-#### `createRouter(routes: CompiledRoute[], initialUrl?: string): Router`
-
-Create a router instance:
-
-```tsx
 const router = createRouter(routes);
-
-router.current;      // Signal<RouteMatch | null>
-router.navigate('/users/42');
-router.revalidate();
-router.dispose();
-```
-
-#### `createLink(currentPath: ReadonlySignal<string>, navigate: (url: string) => void): (props: LinkProps) => HTMLAnchorElement`
-
-Create a Link component:
-
-```tsx
 const Link = createLink(router.current, router.navigate);
 
-Link({ href: '/', children: 'Home', activeClass: 'active' });
-```
-
-#### `createOutlet(outletCtx: Context<OutletContext>): () => Node`
-
-Create an outlet for nested routes:
-
-```tsx
-import { createContext } from '@vertz/ui';
-import { createOutlet } from '@vertz/ui/router';
-
-const outletCtx = createContext<OutletContext>();
-const Outlet = createOutlet(outletCtx);
-```
-
-#### `parseSearchParams<T>(urlParams: URLSearchParams, schema?: SearchParamSchema<T>): T`
-
-Parse search params:
-
-```tsx
-import { parseSearchParams, useSearchParams } from '@vertz/ui/router';
-
-const params = parseSearchParams(new URLSearchParams('?page=1'), mySchema);
-const page = useSearchParams(router.searchParams);
+function Nav() {
+  return (
+    <nav>
+      <Link href="/">Home</Link>
+      <Link href="/users/1">User 1</Link>
+    </nav>
+  );
+}
 ```
 
 ---
 
-### Hydration
+## Context
 
-#### `hydrate(registry: ComponentRegistry, strategy?: Strategy): void`
-
-Hydrate components on the page:
+Share values without passing props:
 
 ```tsx
-import { hydrate, eagerStrategy } from '@vertz/ui/hydrate';
+import { createContext, useContext } from '@vertz/ui';
 
-hydrate(registry, eagerStrategy);
+const ThemeContext = createContext<'light' | 'dark'>('light');
+
+function App() {
+  let theme = 'light';
+
+  return (
+    <ThemeContext.Provider value={theme}>
+      <ThemeToggle />
+    </ThemeContext.Provider>
+  );
+}
+
+function ThemeToggle() {
+  const theme = useContext(ThemeContext);
+  return <p>Current theme: {theme}</p>;
+}
 ```
 
-Strategies:
+---
+
+## Error Handling
+
+```tsx
+import { ErrorBoundary } from '@vertz/ui';
+
+function App() {
+  return (
+    <ErrorBoundary
+      fallback={(error, retry) => (
+        <div>
+          <p>Error: {error.message}</p>
+          <button onClick={retry}>Retry</button>
+        </div>
+      )}
+    >
+      {() => <RiskyComponent />}
+    </ErrorBoundary>
+  );
+}
+```
+
+---
+
+## Advanced
+
+### Manual Signals
+
+Most of the time, the compiler handles reactivity for you. But you can create signals manually:
+
+```tsx
+import { signal } from '@vertz/ui';
+
+const count = signal(0);
+
+count.value;        // Read (subscribes if in tracking context)
+count.value = 5;    // Write
+count.peek();       // Read without subscribing
+count.notify();     // Manually notify subscribers
+```
+
+### Effects
+
+Run side effects that respond to reactive changes:
+
+```tsx
+import { effect } from '@vertz/ui';
+
+const count = signal(0);
+
+const dispose = effect(() => {
+  console.log('Count is now:', count.value);
+});
+
+count.value = 5; // logs: "Count is now: 5"
+dispose();       // Stop the effect
+```
+
+### Batching Updates
+
+Group multiple signal writes into a single effect run:
+
+```tsx
+import { batch, effect, signal } from '@vertz/ui';
+
+const first = signal('a');
+const last = signal('b');
+
+effect(() => {
+  console.log(first.value, last.value);
+});
+
+batch(() => {
+  first.value = 'x';
+  last.value = 'y';
+}); // logs only once: "x y"
+```
+
+### Untracking Reads
+
+Read signals without creating subscriptions:
+
+```tsx
+import { untrack, signal, effect } from '@vertz/ui';
+
+const count = signal(0);
+const other = signal(1);
+
+effect(() => {
+  const tracked = count.value;                 // subscribes to count
+  const notTracked = untrack(() => other.value); // no subscription
+  console.log(tracked, notTracked);
+});
+
+count.value = 5; // effect re-runs
+other.value = 10; // effect does NOT re-run
+```
+
+### Watch
+
+Watch a dependency and run a callback when it changes:
+
+```tsx
+import { watch } from '@vertz/ui';
+
+function Logger() {
+  let count = 0;
+
+  watch(
+    () => count,
+    (value) => console.log('count changed to', value)
+  );
+
+  return <button onClick={() => count++}>Increment</button>;
+}
+```
+
+---
+
+## Hydration
+
+Server-render and hydrate components on the client:
+
+```tsx
+import { hydrate, visibleStrategy } from '@vertz/ui/hydrate';
+
+const registry = {
+  Counter: () => import('./Counter'),
+  TodoList: () => import('./TodoList'),
+};
+
+// Hydrate when components become visible
+hydrate(registry, visibleStrategy);
+```
+
+**Strategies:**
 - `eagerStrategy` — Hydrate immediately
-- `idleStrategy` — Hydrate when idle
-- `visibleStrategy` — Hydrate when visible
-- `interactionStrategy` — Hydrate on first interaction
-- `lazyStrategy` — Never hydrate automatically
+- `idleStrategy` — Hydrate when browser is idle
+- `visibleStrategy` — Hydrate when component is visible
+- `interactionStrategy` — Hydrate on first user interaction
+- `lazyStrategy` — Never auto-hydrate
 - `mediaStrategy` — Hydrate based on media query
 
 ---
@@ -621,8 +473,26 @@ Strategies:
 - How the compiler transforms your code
 - Internal signal implementation details
 - The reactive graph structure
+- How dependency tracking works under the hood
 
-Write ordinary JavaScript. The compiler handles the rest.
+**Write ordinary JavaScript. The compiler handles the rest.**
+
+---
+
+## API Reference
+
+For complete API details, see the TypeScript definitions in `src/index.ts`.
+
+Key exports:
+
+**Reactivity:** `signal`, `computed`, `effect`, `batch`, `untrack`, `onCleanup`  
+**Lifecycle:** `onMount`, `watch`  
+**Components:** `createContext`, `useContext`, `children`, `ref`, `ErrorBoundary`, `Suspense`  
+**CSS:** `css`, `variants`, `defineTheme`, `compileTheme`, `ThemeProvider`, `globalCss`, `s`  
+**Forms:** `form`, `formDataToObject`, `validate`  
+**Data:** `query`  
+**Routing:** `defineRoutes`, `createRouter`, `createLink`, `createOutlet`, `parseSearchParams`, `useSearchParams`  
+**Hydration:** `hydrate`, `eagerStrategy`, `idleStrategy`, `visibleStrategy`, `interactionStrategy`, `lazyStrategy`, `mediaStrategy`
 
 ---
 
