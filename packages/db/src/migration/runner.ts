@@ -1,4 +1,11 @@
 import { createHash } from 'node:crypto';
+import {
+  createMigrationQueryError,
+  err,
+  ok,
+  type MigrationError,
+  type Result,
+} from '@vertz/errors';
 
 /**
  * The query function type expected by the migration runner.
@@ -54,14 +61,14 @@ export interface ApplyResult {
  * The migration runner interface.
  */
 export interface MigrationRunner {
-  createHistoryTable(queryFn: MigrationQueryFn): Promise<void>;
+  createHistoryTable(queryFn: MigrationQueryFn): Promise<Result<void, MigrationError>>;
   apply(
     queryFn: MigrationQueryFn,
     sql: string,
     name: string,
     options?: ApplyOptions,
-  ): Promise<ApplyResult>;
-  getApplied(queryFn: MigrationQueryFn): Promise<AppliedMigration[]>;
+  ): Promise<Result<ApplyResult, MigrationError>>;
+  getApplied(queryFn: MigrationQueryFn): Promise<Result<AppliedMigration[], MigrationError>>;
   getPending(files: MigrationFile[], applied: AppliedMigration[]): MigrationFile[];
   detectDrift(files: MigrationFile[], applied: AppliedMigration[]): string[];
   detectOutOfOrder(files: MigrationFile[], applied: AppliedMigration[]): string[];
@@ -103,8 +110,18 @@ export function parseMigrationName(filename: string): { timestamp: number; name:
  */
 export function createMigrationRunner(): MigrationRunner {
   return {
-    async createHistoryTable(queryFn: MigrationQueryFn): Promise<void> {
-      await queryFn(CREATE_HISTORY_SQL, []);
+    async createHistoryTable(queryFn: MigrationQueryFn): Promise<Result<void, MigrationError>> {
+      try {
+        await queryFn(CREATE_HISTORY_SQL, []);
+        return ok(undefined);
+      } catch (cause) {
+        return err(
+          createMigrationQueryError('Failed to create migration history table', {
+            sql: CREATE_HISTORY_SQL,
+            cause,
+          }),
+        );
+      }
     },
 
     async apply(
@@ -112,7 +129,7 @@ export function createMigrationRunner(): MigrationRunner {
       sql: string,
       name: string,
       options?: ApplyOptions,
-    ): Promise<ApplyResult> {
+    ): Promise<Result<ApplyResult, MigrationError>> {
       const checksum = computeChecksum(sql);
       const recordSql = `INSERT INTO "${HISTORY_TABLE}" ("name", "checksum") VALUES ($1, $2)`;
 
@@ -120,41 +137,62 @@ export function createMigrationRunner(): MigrationRunner {
       const statements = [sql, recordSql];
 
       if (options?.dryRun) {
-        return {
+        return ok({
           name,
           sql,
           checksum,
           dryRun: true,
           statements,
-        };
+        });
       }
 
-      // Execute the migration SQL
-      await queryFn(sql, []);
+      try {
+        // Execute the migration SQL
+        await queryFn(sql, []);
 
-      // Record in history
-      await queryFn(recordSql, [name, checksum]);
+        // Record in history
+        await queryFn(recordSql, [name, checksum]);
 
-      return {
-        name,
-        sql,
-        checksum,
-        dryRun: false,
-        statements,
-      };
+        return ok({
+          name,
+          sql,
+          checksum,
+          dryRun: false,
+          statements,
+        });
+      } catch (cause) {
+        return err(
+          createMigrationQueryError(`Failed to apply migration: ${name}`, {
+            sql,
+            cause,
+          }),
+        );
+      }
     },
 
-    async getApplied(queryFn: MigrationQueryFn): Promise<AppliedMigration[]> {
-      const result = await queryFn(
-        `SELECT "name", "checksum", "applied_at" FROM "${HISTORY_TABLE}" ORDER BY "id" ASC`,
-        [],
-      );
+    async getApplied(
+      queryFn: MigrationQueryFn,
+    ): Promise<Result<AppliedMigration[], MigrationError>> {
+      try {
+        const result = await queryFn(
+          `SELECT "name", "checksum", "applied_at" FROM "${HISTORY_TABLE}" ORDER BY "id" ASC`,
+          [],
+        );
 
-      return result.rows.map((row) => ({
-        name: row.name as string,
-        checksum: row.checksum as string,
-        appliedAt: new Date(row.applied_at as string),
-      }));
+        return ok(
+          result.rows.map((row) => ({
+            name: row.name as string,
+            checksum: row.checksum as string,
+            appliedAt: new Date(row.applied_at as string),
+          })),
+        );
+      } catch (cause) {
+        return err(
+          createMigrationQueryError('Failed to retrieve applied migrations', {
+            cause,
+          }),
+        );
+      }
     },
 
     getPending(files: MigrationFile[], applied: AppliedMigration[]): MigrationFile[] {

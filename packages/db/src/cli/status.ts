@@ -1,4 +1,5 @@
-import type { AppliedMigration, MigrationFile, MigrationQueryFn } from '../migration';
+import type { Result } from '@vertz/errors';
+import type { MigrationError, MigrationFile, MigrationQueryFn } from '../migration';
 import { createMigrationRunner } from '../migration';
 
 export interface MigrateStatusOptions {
@@ -20,18 +21,32 @@ export interface MigrateStatusResult {
 /**
  * Report the status of migrations: which are applied and which are pending.
  */
-export async function migrateStatus(options: MigrateStatusOptions): Promise<MigrateStatusResult> {
+export async function migrateStatus(
+  options: MigrateStatusOptions,
+): Promise<Result<MigrateStatusResult, MigrationError>> {
   const runner = createMigrationRunner();
-  await runner.createHistoryTable(options.queryFn);
-  const applied: AppliedMigration[] = await runner.getApplied(options.queryFn);
+  const createResult = await runner.createHistoryTable(options.queryFn);
+  if (!createResult.ok) {
+    return createResult;
+  }
+
+  const appliedResult = await runner.getApplied(options.queryFn);
+  if (!appliedResult.ok) {
+    return appliedResult;
+  }
+
+  const applied = appliedResult.data;
   const pending = runner.getPending(options.migrationFiles, applied);
 
   return {
-    applied: applied.map((a) => ({
-      name: a.name,
-      checksum: a.checksum,
-      appliedAt: a.appliedAt,
-    })),
-    pending: pending.map((p) => p.name),
+    ok: true,
+    data: {
+      applied: applied.map((a) => ({
+        name: a.name,
+        checksum: a.checksum,
+        appliedAt: a.appliedAt,
+      })),
+      pending: pending.map((p) => p.name),
+    },
   };
 }
