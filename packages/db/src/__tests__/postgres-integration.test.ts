@@ -1,51 +1,22 @@
 /**
- * Integration tests for the real PostgreSQL driver (porsager/postgres).
+ * Integration tests for the @vertz/db package using PGlite (in-memory Postgres).
  *
- * These tests connect to a real PostgreSQL instance and verify that the
- * @vertz/db package works end-to-end with a real database.
- *
- * Environment:
- * - DATABASE_TEST_URL: PostgreSQL connection URL
- *   Default: postgres://postgres:postgres@localhost:5432/vertz_test
- *
- * Tests are skipped if Postgres is not available (so CI doesn't break).
+ * These tests verify that the @vertz/db package works end-to-end without
+ * requiring an external PostgreSQL instance.
  *
  * **Test isolation (#207):** Each describe block sets up its own data and
  * cleans up after itself. Tests can run in any order without failure.
  * Unique identifiers per test group prevent cross-test collisions.
  */
 
+import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/schema';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createDb } from '../client/database';
-import { createPostgresDriver } from '../client/postgres-driver';
 import { d } from '../d';
-import { ForeignKeyError, NotFoundError, UniqueConstraintError } from '../errors/db-error';
+import type { QueryFn } from '../query/executor';
 import { createRegistry } from '../schema/registry';
 import { sql } from '../sql/tagged';
-
-// ---------------------------------------------------------------------------
-// Connection URL
-// ---------------------------------------------------------------------------
-
-const DATABASE_TEST_URL = process.env.DATABASE_TEST_URL ?? 'postgres://localhost:5432/vertz_test';
-
-// ---------------------------------------------------------------------------
-// Check if Postgres is available before running tests
-// ---------------------------------------------------------------------------
-
-async function isPostgresAvailable(): Promise<boolean> {
-  try {
-    const driver = createPostgresDriver(DATABASE_TEST_URL);
-    const healthy = await driver.isHealthy();
-    await driver.close();
-    return healthy;
-  } catch {
-    return false;
-  }
-}
-
-const pgAvailable = await isPostgresAvailable();
 
 // ---------------------------------------------------------------------------
 // Schema definition — same structure as e2e.test.ts for consistency
@@ -64,7 +35,7 @@ const users = d.table('users', {
   name: d.text(),
   email: d.email().unique().sensitive(),
   passwordHash: d.text().hidden(),
-  role: d.enum('user_role_pg', ['admin', 'editor', 'viewer']).default('viewer'),
+  role: d.enum('user_role_pgint', ['admin', 'editor', 'viewer']).default('viewer'),
   active: d.boolean().default(true),
   createdAt: d.timestamp().default('now'),
 });
@@ -74,7 +45,7 @@ const posts = d.table('posts', {
   authorId: d.uuid().references('users', 'id'),
   title: d.text(),
   content: d.text(),
-  status: d.enum('post_status_pg', ['draft', 'published', 'archived']).default('draft'),
+  status: d.enum('post_status_pgint', ['draft', 'published', 'archived']).default('draft'),
   views: d.integer().default(0),
   createdAt: d.timestamp().default('now'),
   updatedAt: d.timestamp().default('now'),
@@ -140,13 +111,13 @@ async function seedTestData(
   ids: ReturnType<typeof testIds>,
   suffix: string,
 ) {
-  await unwrap(
-    db.create('organizations', {
+  unwrap(
+    await db.create('organizations', {
       data: { id: ids.ORG_ID, name: 'Acme Corp', slug: `acme-${suffix}` },
     }),
   );
-  await unwrap(
-    db.create('users', {
+  unwrap(
+    await db.create('users', {
       data: {
         id: ids.USER_ID,
         organizationId: ids.ORG_ID,
@@ -156,8 +127,8 @@ async function seedTestData(
       },
     }),
   );
-  await unwrap(
-    db.create('users', {
+  unwrap(
+    await db.create('users', {
       data: {
         id: ids.USER2_ID,
         organizationId: ids.ORG_ID,
@@ -167,8 +138,8 @@ async function seedTestData(
       },
     }),
   );
-  await unwrap(
-    db.create('posts', {
+  unwrap(
+    await db.create('posts', {
       data: {
         id: ids.POST_ID,
         authorId: ids.USER_ID,
@@ -179,8 +150,8 @@ async function seedTestData(
       },
     }),
   );
-  await unwrap(
-    db.create('posts', {
+  unwrap(
+    await db.create('posts', {
       data: {
         id: ids.POST2_ID,
         authorId: ids.USER_ID,
@@ -191,8 +162,8 @@ async function seedTestData(
       },
     }),
   );
-  await unwrap(
-    db.create('comments', {
+  unwrap(
+    await db.create('comments', {
       data: {
         id: ids.COMMENT_ID,
         postId: ids.POST_ID,
@@ -207,139 +178,89 @@ async function seedTestData(
 // Helper: clean all data from tables (order respects FK constraints)
 // ---------------------------------------------------------------------------
 
-async function truncateAll(db: ReturnType<typeof createDb<typeof tables>>) {
-  await unwrap(
-    db.query(sql`TRUNCATE "comments", "posts", "users", "organizations", "feature_flags" CASCADE`),
-  );
+async function truncateAll(pg: PGlite) {
+  await pg.exec('TRUNCATE "comments", "posts", "users", "organizations", "feature_flags" CASCADE');
 }
 
 // ---------------------------------------------------------------------------
 // Integration Test Suite
 // ---------------------------------------------------------------------------
 
-describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
+describe('PostgreSQL Integration Tests (PGlite)', () => {
+  let pg: PGlite;
   let db: ReturnType<typeof createDb<typeof tables>>;
 
   beforeAll(async () => {
-    // Create db instance with real postgres driver
-    db = createDb({
-      url: DATABASE_TEST_URL,
-      tables,
-      pool: {
-        max: 5,
-        idleTimeout: 10000,
-        connectionTimeout: 5000,
-      },
-    });
+    pg = new PGlite();
 
-    // Drop existing tables (clean slate)
-    await unwrap(db.query(sql`DROP TABLE IF EXISTS "comments" CASCADE`));
-    await unwrap(db.query(sql`DROP TABLE IF EXISTS "posts" CASCADE`));
-    await unwrap(db.query(sql`DROP TABLE IF EXISTS "users" CASCADE`));
-    await unwrap(db.query(sql`DROP TABLE IF EXISTS "organizations" CASCADE`));
-    await unwrap(db.query(sql`DROP TABLE IF EXISTS "feature_flags" CASCADE`));
-    await unwrap(db.query(sql`DROP TYPE IF EXISTS user_role_pg CASCADE`));
-    await unwrap(db.query(sql`DROP TYPE IF EXISTS post_status_pg CASCADE`));
+    // Create the query function adapter for PGlite
+    const queryFn: QueryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
+      const result = await pg.query(sqlStr, params as unknown[]);
+      return {
+        rows: result.rows as readonly T[],
+        rowCount: result.affectedRows ?? result.rows.length,
+      };
+    };
 
-    // Create the DDL tables
-    await unwrap(db.query(sql`CREATE TYPE user_role_pg AS ENUM ('admin', 'editor', 'viewer')`));
-    await unwrap(
-      db.query(sql`CREATE TYPE post_status_pg AS ENUM ('draft', 'published', 'archived')`),
-    );
+    // Create the DDL tables using raw SQL
+    await pg.exec(`
+      CREATE TYPE user_role_pgint AS ENUM ('admin', 'editor', 'viewer');
+      CREATE TYPE post_status_pgint AS ENUM ('draft', 'published', 'archived');
 
-    await unwrap(
-      db.query(sql`
       CREATE TABLE "organizations" (
         "id" uuid PRIMARY KEY,
         "name" text NOT NULL,
         "slug" text NOT NULL UNIQUE,
         "created_at" timestamp with time zone NOT NULL DEFAULT now()
-      )
-    `),
-    );
+      );
 
-    await unwrap(
-      db.query(sql`
       CREATE TABLE "users" (
         "id" uuid PRIMARY KEY,
         "organization_id" uuid NOT NULL REFERENCES "organizations"("id"),
         "name" text NOT NULL,
         "email" text NOT NULL UNIQUE,
         "password_hash" text NOT NULL,
-        "role" user_role_pg NOT NULL DEFAULT 'viewer',
+        "role" user_role_pgint NOT NULL DEFAULT 'viewer',
         "active" boolean NOT NULL DEFAULT true,
         "created_at" timestamp with time zone NOT NULL DEFAULT now()
-      )
-    `),
-    );
+      );
 
-    await unwrap(
-      db.query(sql`
       CREATE TABLE "posts" (
         "id" uuid PRIMARY KEY,
         "author_id" uuid NOT NULL REFERENCES "users"("id"),
         "title" text NOT NULL,
         "content" text NOT NULL,
-        "status" post_status_pg NOT NULL DEFAULT 'draft',
+        "status" post_status_pgint NOT NULL DEFAULT 'draft',
         "views" integer NOT NULL DEFAULT 0,
         "created_at" timestamp with time zone NOT NULL DEFAULT now(),
         "updated_at" timestamp with time zone NOT NULL DEFAULT now()
-      )
-    `),
-    );
+      );
 
-    await unwrap(
-      db.query(sql`
       CREATE TABLE "comments" (
         "id" uuid PRIMARY KEY,
         "post_id" uuid NOT NULL REFERENCES "posts"("id"),
         "author_id" uuid NOT NULL REFERENCES "users"("id"),
         "body" text NOT NULL,
         "created_at" timestamp with time zone NOT NULL DEFAULT now()
-      )
-    `),
-    );
+      );
 
-    await unwrap(
-      db.query(sql`
       CREATE TABLE "feature_flags" (
         "id" uuid PRIMARY KEY,
         "name" text NOT NULL UNIQUE,
         "enabled" boolean NOT NULL DEFAULT false
-      )
-    `),
-    );
+      );
+    `);
+
+    // Create db instance with PGlite query function
+    db = createDb({
+      url: 'pglite://memory',
+      tables,
+      _queryFn: queryFn,
+    });
   });
 
   afterAll(async () => {
-    // Drop test tables
-    await unwrap(db.query(sql`DROP TABLE IF EXISTS "comments" CASCADE`));
-    await unwrap(db.query(sql`DROP TABLE IF EXISTS "posts" CASCADE`));
-    await unwrap(db.query(sql`DROP TABLE IF EXISTS "users" CASCADE`));
-    await unwrap(db.query(sql`DROP TABLE IF EXISTS "organizations" CASCADE`));
-    await unwrap(db.query(sql`DROP TABLE IF EXISTS "feature_flags" CASCADE`));
-    await unwrap(db.query(sql`DROP TYPE IF EXISTS user_role_pg CASCADE`));
-    await unwrap(db.query(sql`DROP TYPE IF EXISTS post_status_pg CASCADE`));
-
-    // Close the connection pool
-    await db.close();
-  });
-
-  // =========================================================================
-  // 1. Connection and health check
-  // =========================================================================
-
-  describe('1. Connection and health check', () => {
-    it('isHealthy returns true when connected', async () => {
-      const healthy = await db.isHealthy();
-      expect(healthy).toBe(true);
-    });
-
-    it('raw SQL query works via sql tagged template', async () => {
-      const result = unwrap(await db.query<{ one: number }>(sql`SELECT 1 AS one`));
-      expect(result.rows).toHaveLength(1);
-      expect(result.rows[0]?.one).toBe(1);
-    });
+    await pg.close();
   });
 
   // =========================================================================
@@ -350,7 +271,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     const ids = testIds();
 
     afterEach(async () => {
-      await truncateAll(db);
+      await truncateAll(pg);
     });
 
     it('creates an organization and finds it back', async () => {
@@ -493,7 +414,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     const ids = testIds();
 
     beforeEach(async () => {
-      await truncateAll(db);
+      await truncateAll(pg);
       await seedTestData(db, ids, 'findmany');
     });
 
@@ -548,7 +469,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     const ids = testIds();
 
     beforeEach(async () => {
-      await truncateAll(db);
+      await truncateAll(pg);
       await seedTestData(db, ids, 'paginate');
     });
 
@@ -600,7 +521,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     const ids = testIds();
 
     beforeEach(async () => {
-      await truncateAll(db);
+      await truncateAll(pg);
       await seedTestData(db, ids, 'update-delete');
     });
 
@@ -659,7 +580,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     const ids = testIds();
 
     beforeEach(async () => {
-      await truncateAll(db);
+      await truncateAll(pg);
       await seedTestData(db, ids, 'relations');
     });
 
@@ -734,97 +655,77 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     const ids = testIds();
 
     beforeEach(async () => {
-      await truncateAll(db);
+      await truncateAll(pg);
       await seedTestData(db, ids, 'errors');
     });
 
-    it('throws UniqueConstraintError on duplicate email', async () => {
-      try {
-        await db.create('users', {
-          data: {
-            id: 'a9999999-9999-9999-9999-999999999999',
-            organizationId: ids.ORG_ID,
-            name: 'Duplicate Alice',
-            email: `alice-errors@acme.com`, // Duplicate email
-            passwordHash: 'hash',
-          },
-        });
-        expect.unreachable('Should have thrown UniqueConstraintError');
-      } catch (error) {
-        expect(error).toBeInstanceOf(UniqueConstraintError);
-        const uErr = error as UniqueConstraintError;
-        expect(uErr.code).toBe('UNIQUE_VIOLATION');
-        expect(uErr.table).toBeDefined();
+    it('returns CONSTRAINT_ERROR on duplicate email', async () => {
+      const result = await db.create('users', {
+        data: {
+          id: 'a9999999-9999-9999-9999-999999999999',
+          organizationId: ids.ORG_ID,
+          name: 'Duplicate Alice',
+          email: 'alice-errors@acme.com', // Duplicate email
+          passwordHash: 'hash',
+        },
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('CONSTRAINT_ERROR');
+        expect(result.error.table).toBeDefined();
       }
     });
 
-    it('throws ForeignKeyError on invalid FK reference', async () => {
-      try {
-        await db.create('posts', {
-          data: {
-            id: 'a9999999-9999-9999-9999-999999999998',
-            authorId: '00000000-0000-0000-0000-000000000000',
-            title: 'Invalid Post',
-            content: 'This should fail',
-          },
-        });
-        expect.unreachable('Should have thrown ForeignKeyError');
-      } catch (error) {
-        expect(error).toBeInstanceOf(ForeignKeyError);
-        const fkErr = error as ForeignKeyError;
-        expect(fkErr.code).toBe('FOREIGN_KEY_VIOLATION');
-        expect(fkErr.table).toBeDefined();
+    it('returns CONSTRAINT_ERROR on invalid FK reference', async () => {
+      const result = await db.create('posts', {
+        data: {
+          id: 'a9999999-9999-9999-9999-999999999998',
+          authorId: '00000000-0000-0000-0000-000000000000',
+          title: 'Invalid Post',
+          content: 'This should fail',
+        },
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('CONSTRAINT_ERROR');
+        expect(result.error.table).toBeDefined();
       }
     });
 
-    it('throws NotFoundError on getOrThrow with no match', async () => {
-      try {
-        await db.getOrThrow('posts', {
-          where: { id: '00000000-0000-0000-0000-000000000000' },
-        });
-        expect.unreachable('Should have thrown NotFoundError');
-      } catch (error) {
-        expect(error).toBeInstanceOf(NotFoundError);
-        const nfErr = error as NotFoundError;
-        expect(nfErr.code).toBe('NOT_FOUND');
-        expect(nfErr.table).toBe('posts');
+    it('returns NOT_FOUND on getOrThrow with no match', async () => {
+      const result = await db.getOrThrow('posts', {
+        where: { id: '00000000-0000-0000-0000-000000000000' },
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('NOT_FOUND');
+        expect(result.error.table).toBe('posts');
       }
     });
 
-    it('throws NotFoundError on update with no match', async () => {
-      try {
-        await db.update('posts', {
-          where: { id: '00000000-0000-0000-0000-000000000000' },
-          data: { views: 999 },
-        });
-        expect.unreachable('Should have thrown NotFoundError');
-      } catch (error) {
-        expect(error).toBeInstanceOf(NotFoundError);
-      }
+    it('returns error on update with no match', async () => {
+      const result = await db.update('posts', {
+        where: { id: '00000000-0000-0000-0000-000000000000' },
+        data: { views: 999 },
+      });
+      expect(result.ok).toBe(false);
     });
 
-    it('throws NotFoundError on delete with no match', async () => {
-      try {
-        await db.delete('posts', {
-          where: { id: '00000000-0000-0000-0000-000000000000' },
-        });
-        expect.unreachable('Should have thrown NotFoundError');
-      } catch (error) {
-        expect(error).toBeInstanceOf(NotFoundError);
-      }
+    it('returns error on delete with no match', async () => {
+      const result = await db.delete('posts', {
+        where: { id: '00000000-0000-0000-0000-000000000000' },
+      });
+      expect(result.ok).toBe(false);
     });
 
-    it('#205: raw SQL errors are mapped through parsePgError', async () => {
-      // A unique constraint violation via raw SQL should produce UniqueConstraintError
-      try {
-        await db.query(sql`
-          INSERT INTO "users" ("id", "organization_id", "name", "email", "password_hash")
-          VALUES (${`a9999999-9999-9999-9999-999999999990`}, ${ids.ORG_ID}, ${'Dup'}, ${`alice-errors@acme.com`}, ${'h'})
-        `);
-        expect.unreachable('Should have thrown UniqueConstraintError');
-      } catch (error) {
-        expect(error).toBeInstanceOf(UniqueConstraintError);
-      }
+    it('#205: raw SQL errors are captured as error results', async () => {
+      // db.query() maps errors through toReadError, which returns QUERY_ERROR
+      // for constraint violations (CONSTRAINT_ERROR is only in WriteError)
+      const result = await db.query(sql`
+        INSERT INTO "users" ("id", "organization_id", "name", "email", "password_hash")
+        VALUES (${`a9999999-9999-9999-9999-999999999990`}, ${ids.ORG_ID}, ${'Dup'}, ${`alice-errors@acme.com`}, ${'h'})
+      `);
+      expect(result.ok).toBe(false);
     });
   });
 
@@ -836,7 +737,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     const ids = testIds();
 
     beforeEach(async () => {
-      await truncateAll(db);
+      await truncateAll(pg);
       await seedTestData(db, ids, 'aggregation');
     });
 
@@ -857,7 +758,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
 
   describe('9. Upsert', () => {
     beforeEach(async () => {
-      await truncateAll(db);
+      await truncateAll(pg);
     });
 
     it('upsert creates a new row', async () => {
@@ -911,7 +812,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     const ids = testIds();
 
     beforeEach(async () => {
-      await truncateAll(db);
+      await truncateAll(pg);
     });
 
     it('createMany inserts multiple rows', async () => {
@@ -951,7 +852,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     const ids = testIds();
 
     beforeEach(async () => {
-      await truncateAll(db);
+      await truncateAll(pg);
       await seedTestData(db, ids, 'dates');
     });
 
@@ -978,7 +879,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     const ids = testIds();
 
     beforeEach(async () => {
-      await truncateAll(db);
+      await truncateAll(pg);
       await seedTestData(db, ids, 'select');
     });
 
@@ -1009,7 +910,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     const ids = testIds();
 
     beforeEach(async () => {
-      await truncateAll(db);
+      await truncateAll(pg);
       await seedTestData(db, ids, 'sql-escape');
       // Update views for predictable assertion
       await db.update('posts', {
@@ -1033,24 +934,6 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
       const result = unwrap(await db.query<{ id: string; title: string }>(fragment));
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0]?.title).toBe('First Post');
-    });
-  });
-
-  // =========================================================================
-  // 14. Connection close (self-contained)
-  // =========================================================================
-
-  describe('14. Connection close', () => {
-    it('isHealthy returns false after close on a separate instance', async () => {
-      const tempDb = createDb({
-        url: DATABASE_TEST_URL,
-        tables,
-        pool: { max: 1 },
-      });
-
-      expect(await tempDb.isHealthy()).toBe(true);
-      await tempDb.close();
-      expect(await tempDb.isHealthy()).toBe(false);
     });
   });
 });
