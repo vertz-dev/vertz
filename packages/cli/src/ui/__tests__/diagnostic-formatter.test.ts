@@ -1,4 +1,5 @@
 import type { Diagnostic } from '@vertz/compiler';
+import { symbols } from '@vertz/tui';
 import { describe, expect, it } from 'vitest';
 import {
   formatDiagnostic,
@@ -6,7 +7,6 @@ import {
   formatDiagnosticsAsGitHub,
   formatDiagnosticsAsJSON,
 } from '../diagnostic-formatter';
-import { symbols } from '@vertz/tui';
 
 function makeDiagnostic(overrides: Partial<Diagnostic> = {}): Diagnostic {
   return {

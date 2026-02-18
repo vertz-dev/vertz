@@ -29,7 +29,7 @@ export interface ValidationError {
  */
 export function createValidationError(
   message: string,
-  issues: readonly ValidationIssue[]
+  issues: readonly ValidationIssue[],
 ): ValidationError {
   return {
     code: 'VALIDATION_FAILED',

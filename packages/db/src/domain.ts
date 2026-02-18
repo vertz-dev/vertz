@@ -22,5 +22,5 @@ export function defineDomain(
   };
 }
 
+export { generateClient, generateTypes } from './codegen';
 export type { DomainDefinition, DomainField, DomainRelation } from './codegen/type-gen';
-export { generateTypes, generateClient } from './codegen';

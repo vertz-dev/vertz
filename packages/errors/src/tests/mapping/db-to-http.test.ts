@@ -1,13 +1,19 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  dbErrorToHttpStatus,
-  notFoundErrorToHttpStatus,
-  uniqueViolationToHttpStatus,
-  fkViolationToHttpStatus,
-  notNullViolationToHttpStatus,
+  createCheckViolation,
+  createFKViolation,
+  createNotFoundError,
+  createNotNullViolation,
+  createUniqueViolation,
+} from '../../domain/db';
+import {
   checkViolationToHttpStatus,
+  dbErrorToHttpStatus,
+  fkViolationToHttpStatus,
+  notFoundErrorToHttpStatus,
+  notNullViolationToHttpStatus,
+  uniqueViolationToHttpStatus,
 } from '../../mapping/db-to-http';
-import { createNotFoundError, createUniqueViolation, createFKViolation, createNotNullViolation, createCheckViolation } from '../../domain/db';
 
 describe('mapping/db-to-http', () => {
   describe('dbErrorToHttpStatus()', () => {

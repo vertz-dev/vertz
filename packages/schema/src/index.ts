@@ -1,9 +1,5 @@
 // @vertz/schema — Public API
 
-// Result type and utilities
-export type { Result, Ok, Err } from './result';
-export { ok, err, unwrap, map, flatMap, match, matchErr } from './result';
-
 export type { ValidationIssue } from './core/errors';
 export { ErrorCode, ParseError } from './core/errors';
 export type { RefinementContext } from './core/parse-context';
@@ -29,6 +25,9 @@ export { SchemaType } from './core/types';
 export type { JSONSchemaObject } from './introspection/json-schema';
 // Introspection
 export { RefTracker, toJSONSchema } from './introspection/json-schema';
+// Result type and utilities
+export type { Err, Ok, Result } from './result';
+export { err, flatMap, map, match, matchErr, ok, unwrap } from './result';
 export { ArraySchema } from './schemas/array';
 export { BigIntSchema } from './schemas/bigint';
 export { BooleanSchema } from './schemas/boolean';

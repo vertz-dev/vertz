@@ -315,7 +315,10 @@ describe('BootExecutor', () => {
                 if (typeof value === 'object' && value !== null && 'port' in value) {
                   return { success: true as const, data: value };
                 }
-                return { success: false as const, error: { issues: [{ message: 'port is required' }] } };
+                return {
+                  success: false as const,
+                  error: { issues: [{ message: 'port is required' }] },
+                };
               },
             } as unknown,
             methods: () => ({}),
@@ -343,7 +346,10 @@ describe('BootExecutor', () => {
                 if (typeof value === 'object' && value !== null && 'DATABASE_URL' in value) {
                   return { success: true as const, data: value };
                 }
-                return { success: false as const, error: { issues: [{ message: 'DATABASE_URL is required' }] } };
+                return {
+                  success: false as const,
+                  error: { issues: [{ message: 'DATABASE_URL is required' }] },
+                };
               },
             } as unknown,
             methods: () => ({}),
@@ -370,10 +376,16 @@ describe('BootExecutor', () => {
           deps: [],
           factory: {
             options: {
-              safeParse: (value: unknown) => ({ success: true as const, data: value ?? { maxRetries: 3 } }),
+              safeParse: (value: unknown) => ({
+                success: true as const,
+                data: value ?? { maxRetries: 3 },
+              }),
             } as unknown,
             env: {
-              safeParse: (value: unknown) => ({ success: true as const, data: value ?? { NODE_ENV: 'development' } }),
+              safeParse: (value: unknown) => ({
+                success: true as const,
+                data: value ?? { NODE_ENV: 'development' },
+              }),
             } as unknown,
             onInit: async (_deps, opts, env) => {
               receivedOptions = opts;
@@ -399,7 +411,10 @@ describe('BootExecutor', () => {
     expect(receivedOptions).toEqual({ maxRetries: 5 });
     expect(receivedEnv).toEqual({ NODE_ENV: 'production' });
 
-    const svc = serviceMap.get('svc') as { getOptions: () => Record<string, unknown>; getEnv: () => Record<string, unknown> };
+    const svc = serviceMap.get('svc') as {
+      getOptions: () => Record<string, unknown>;
+      getEnv: () => Record<string, unknown>;
+    };
     expect(svc.getOptions()).toEqual({ maxRetries: 5 });
     expect(svc.getEnv()).toEqual({ NODE_ENV: 'production' });
   });

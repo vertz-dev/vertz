@@ -33,15 +33,15 @@ const _error: ReadonlySignal<unknown> = result.error;
 void _error;
 
 // refetch returns void
-const _refetchResult: void = result.refetch();
+const _refetchResult: undefined = result.refetch();
 void _refetchResult;
 
 // revalidate returns void
-const _revalidateResult: void = result.revalidate();
+const _revalidateResult: undefined = result.revalidate();
 void _revalidateResult;
 
 // dispose returns void
-const _disposeResult: void = result.dispose();
+const _disposeResult: undefined = result.dispose();
 void _disposeResult;
 
 // ─── query() — generic inference from thunk ───────────────────────

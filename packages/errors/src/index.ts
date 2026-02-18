@@ -23,17 +23,13 @@
  * }
  */
 
-// Result type and utilities
-export * from './result.js';
-
 // AppError base class
 export * from './app-error.js';
-
 // Domain errors
 export * from './domain/index.js';
-
 // Infrastructure errors
 export * from './infra/index.js';
-
 // Mapping functions
 export * from './mapping/index.js';
+// Result type and utilities
+export * from './result.js';

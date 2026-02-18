@@ -1,5 +1,5 @@
-import { resolveOptions, scaffold } from '@vertz/create-vertz-app';
 import type { Runtime } from '@vertz/create-vertz-app';
+import { resolveOptions, scaffold } from '@vertz/create-vertz-app';
 
 export interface CreateOptions {
   projectName?: string;

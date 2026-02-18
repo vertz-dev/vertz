@@ -1,6 +1,6 @@
 /**
  * Pipeline Orchestrator - Phase 1
- * 
+ *
  * Unified `vertz dev` command that orchestrates:
  * 1. Analyze - runs @vertz/compiler to produce AppIR
  * 2. Generate - runs @vertz/codegen to emit types, route map, DB client
@@ -8,11 +8,11 @@
  * 4. Serve - dev server with HMR
  */
 
+import type { CodegenConfig, GenerateResult } from '@vertz/codegen';
+import { createCodegenPipeline, generate } from '@vertz/codegen';
 import type { AppIR } from '@vertz/compiler';
-import type { GenerateResult, ResolvedCodegenConfig, CodegenConfig } from '@vertz/codegen';
-import { createCompiler, type Compiler, type CompilerDependencies, type CompileResult, type Diagnostic } from '@vertz/compiler';
-import { generate, createCodegenPipeline } from '@vertz/codegen';
-import type { PipelineStage, FileCategory } from './types';
+import { type Compiler, createCompiler } from '@vertz/compiler';
+import type { PipelineStage } from './types';
 
 /**
  * Configuration for the pipeline orchestrator
@@ -71,7 +71,7 @@ export const defaultPipelineConfig: PipelineConfig = {
 
 /**
  * Pipeline Orchestrator
- * 
+ *
  * Coordinates the full development pipeline:
  * 1. Analyze (compiler → AppIR)
  * 2. Generate (codegen → types, route map, DB client)
@@ -143,7 +143,6 @@ export class PipelineOrchestrator {
 
       // Stage 3: Build UI (could run in parallel with other stages)
       // For now, we'll defer to the dev server to handle this
-
     } catch (error) {
       success = false;
       stages.push({
@@ -171,7 +170,7 @@ export class PipelineOrchestrator {
 
     for (const stage of stages) {
       let result: StageResult;
-      
+
       switch (stage) {
         case 'analyze':
           result = await this.runAnalyze();
@@ -188,13 +187,13 @@ export class PipelineOrchestrator {
         default:
           continue;
       }
-      
+
       results.push(result);
       this.stages.set(stage, result);
     }
 
-    const allSuccess = results.every(r => r.success);
-    
+    const allSuccess = results.every((r) => r.success);
+
     return {
       success: allSuccess,
       stages: results,
@@ -208,22 +207,22 @@ export class PipelineOrchestrator {
    */
   private async runAnalyze(): Promise<StageResult> {
     const startTime = performance.now();
-    
+
     if (!this.compiler) {
       await this.initialize();
     }
 
     try {
-      this.appIR = await this.compiler!.analyze();
-      const diagnostics = await this.compiler!.validate(this.appIR);
-      const hasErrors = diagnostics.some(d => d.severity === 'error');
-      
+      this.appIR = await this.compiler?.analyze();
+      const diagnostics = await this.compiler?.validate(this.appIR);
+      const hasErrors = diagnostics.some((d) => d.severity === 'error');
+
       return {
         stage: 'analyze',
         success: !hasErrors,
         durationMs: performance.now() - startTime,
-        output: hasErrors 
-          ? `${diagnostics.filter(d => d.severity === 'error').length} errors`
+        output: hasErrors
+          ? `${diagnostics.filter((d) => d.severity === 'error').length} errors`
           : 'Analysis complete',
       };
     } catch (error) {
@@ -241,7 +240,7 @@ export class PipelineOrchestrator {
    */
   private async runCodegen(): Promise<StageResult> {
     const startTime = performance.now();
-    
+
     if (!this.appIR) {
       return {
         stage: 'codegen',
@@ -253,7 +252,7 @@ export class PipelineOrchestrator {
 
     try {
       const pipeline = createCodegenPipeline();
-      
+
       // For now, use basic typescript generator config
       const config: CodegenConfig = {
         generators: ['typescript'],
@@ -261,10 +260,10 @@ export class PipelineOrchestrator {
         format: true,
         incremental: true,
       };
-      
+
       const resolvedConfig = pipeline.resolveConfig(config);
       const result = await generate(this.appIR, resolvedConfig);
-      
+
       return {
         stage: 'codegen',
         success: true,
@@ -287,10 +286,10 @@ export class PipelineOrchestrator {
    */
   private async runBuildUI(): Promise<StageResult> {
     const startTime = performance.now();
-    
+
     // TODO: Integrate @vertz/ui-compiler for component-level builds
     // For now, we just acknowledge the stage
-    
+
     return {
       stage: 'build-ui',
       success: true,
@@ -304,10 +303,10 @@ export class PipelineOrchestrator {
    */
   private async runDbSync(): Promise<StageResult> {
     const startTime = performance.now();
-    
+
     // TODO: Integrate @vertz/db for schema sync
     // For now, we just acknowledge the stage
-    
+
     return {
       stage: 'db-sync',
       success: true,

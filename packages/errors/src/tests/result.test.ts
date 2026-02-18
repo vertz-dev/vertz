@@ -1,6 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { ok, err, unwrap, unwrapOr, map, flatMap, match, matchErr, isOk, isErr } from '../result';
-import type { Result } from '../result';
+import { describe, expect, it } from 'vitest';
+import { err, flatMap, isErr, isOk, map, match, matchErr, ok, unwrap, unwrapOr } from '../result';
 
 describe('Result', () => {
   describe('ok()', () => {
@@ -150,7 +149,7 @@ describe('Result', () => {
         matchErr(result, {
           ok: (data) => data,
           NOT_FOUND: (e) => e.table,
-        })
+        }),
       ).toThrow('Unhandled error code: UNKNOWN');
     });
   });

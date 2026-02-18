@@ -1,5 +1,5 @@
-import { Application, Container } from 'pixi.js';
-import { effect, type Signal, type DisposeFn } from '@vertz/ui';
+import { type DisposeFn, effect, type Signal } from '@vertz/ui';
+import { Application, type Container } from 'pixi.js';
 
 export interface CanvasOptions {
   width: number;
@@ -20,7 +20,7 @@ export function bindSignal<T>(
   sig: Signal<T>,
   displayObject: { [key: string]: unknown },
   property: string,
-  transform?: (value: T) => unknown
+  transform?: (value: T) => unknown,
 ): DisposeFn {
   const update = () => {
     const value = transform ? transform(sig.value) : sig.value;
@@ -53,7 +53,13 @@ export function createReactiveSprite(
     scaleY?: Signal<number>;
     alpha?: Signal<number>;
   },
-  displayObject: { x: number; y: number; rotation: number; scale: { x: number; y: number }; alpha: number }
+  displayObject: {
+    x: number;
+    y: number;
+    rotation: number;
+    scale: { x: number; y: number };
+    alpha: number;
+  },
 ): { displayObject: typeof displayObject; dispose: DisposeFn } {
   const cleanups: DisposeFn[] = [];
 
@@ -70,11 +76,15 @@ export function createReactiveSprite(
   }
 
   if (options.scaleX) {
-    cleanups.push(bindSignal(options.scaleX, displayObject.scale as unknown as Record<string, unknown>, 'x'));
+    cleanups.push(
+      bindSignal(options.scaleX, displayObject.scale as unknown as Record<string, unknown>, 'x'),
+    );
   }
 
   if (options.scaleY) {
-    cleanups.push(bindSignal(options.scaleY, displayObject.scale as unknown as Record<string, unknown>, 'y'));
+    cleanups.push(
+      bindSignal(options.scaleY, displayObject.scale as unknown as Record<string, unknown>, 'y'),
+    );
   }
 
   if (options.alpha) {
@@ -93,7 +103,7 @@ export function createReactiveSprite(
  */
 export function render(
   container: HTMLElement,
-  options: CanvasOptions
+  options: CanvasOptions,
 ): { canvas: HTMLCanvasElement; dispose: DisposeFn } {
   const app = new Application({
     width: options.width,

@@ -33,7 +33,7 @@ export function createValidationError(
     readonly path: readonly (string | number)[];
     readonly message: string;
     readonly code: string;
-  }[]
+  }[],
 ): ValidationError {
   return {
     code: 'VALIDATION_ERROR',
@@ -65,7 +65,7 @@ export interface NotFoundError {
  */
 export function createNotFoundError(
   message = 'Resource not found',
-  resource?: string
+  resource?: string,
 ): NotFoundError {
   return {
     code: 'NOT_FOUND',
@@ -133,9 +133,7 @@ export function createUnauthorizedError(message = 'Authentication required'): Un
 /**
  * Type guard for UnauthorizedError.
  */
-export function isUnauthorizedError(
-  error: { readonly code: string }
-): error is UnauthorizedError {
+export function isUnauthorizedError(error: { readonly code: string }): error is UnauthorizedError {
   return error.code === 'UNAUTHORIZED';
 }
 
@@ -182,7 +180,7 @@ export interface RateLimitedError {
  */
 export function createRateLimitedError(
   message = 'Too many requests',
-  retryAfter?: number
+  retryAfter?: number,
 ): RateLimitedError {
   return {
     code: 'RATE_LIMITED',

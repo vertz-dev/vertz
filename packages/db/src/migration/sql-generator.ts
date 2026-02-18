@@ -80,7 +80,7 @@ export function generateMigrationSql(changes: DiffChange[], ctx?: SqlGeneratorCo
 
         for (const idx of table.indexes) {
           const idxCols = idx.columns.map((c) => `"${camelToSnake(c)}"`).join(', ');
-          const idxName = `idx_${tableName}_${idx.columns.map(camelToSnake).join('_')}`;
+          const idxName = `idx_${tableName}_${idx.columns.map((c) => camelToSnake(c)).join('_')}`;
           statements.push(`CREATE INDEX "${idxName}" ON "${tableName}" (${idxCols});`);
         }
         break;
@@ -155,7 +155,7 @@ export function generateMigrationSql(changes: DiffChange[], ctx?: SqlGeneratorCo
         if (!change.table || !change.columns) break;
         const snakeTable = camelToSnake(change.table);
         const idxCols = change.columns.map((c) => `"${camelToSnake(c)}"`).join(', ');
-        const idxName = `idx_${snakeTable}_${change.columns.map(camelToSnake).join('_')}`;
+        const idxName = `idx_${snakeTable}_${change.columns.map((c) => camelToSnake(c)).join('_')}`;
         statements.push(`CREATE INDEX "${idxName}" ON "${snakeTable}" (${idxCols});`);
         break;
       }
@@ -163,7 +163,7 @@ export function generateMigrationSql(changes: DiffChange[], ctx?: SqlGeneratorCo
       case 'index_removed': {
         if (!change.table || !change.columns) break;
         const snakeTable = camelToSnake(change.table);
-        const idxName = `idx_${snakeTable}_${change.columns.map(camelToSnake).join('_')}`;
+        const idxName = `idx_${snakeTable}_${change.columns.map((c) => camelToSnake(c)).join('_')}`;
         statements.push(`DROP INDEX "${idxName}";`);
         break;
       }

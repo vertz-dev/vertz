@@ -2,7 +2,15 @@
  * Maps database domain errors to HTTP status codes.
  */
 
-import type { ReadError, WriteError, NotFoundError, UniqueViolation, FKViolation, NotNullViolation, CheckViolation } from '../domain/db.js';
+import type {
+  CheckViolation,
+  FKViolation,
+  NotFoundError,
+  NotNullViolation,
+  ReadError,
+  UniqueViolation,
+  WriteError,
+} from '../domain/db.js';
 
 /**
  * Maps a database error to an HTTP status code.

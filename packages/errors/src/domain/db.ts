@@ -69,7 +69,7 @@ export interface UniqueViolation {
  */
 export function createUniqueViolation(
   message: string,
-  options?: { constraint?: string; table?: string; column?: string }
+  options?: { constraint?: string; table?: string; column?: string },
 ): UniqueViolation {
   return {
     code: 'UNIQUE_VIOLATION',
@@ -109,7 +109,7 @@ export function createFKViolation(
     table?: string;
     column?: string;
     referencedTable?: string;
-  }
+  },
 ): FKViolation {
   return {
     code: 'FK_VIOLATION',
@@ -142,7 +142,7 @@ export interface NotNullViolation {
  */
 export function createNotNullViolation(
   message: string,
-  options?: { table?: string; column?: string }
+  options?: { table?: string; column?: string },
 ): NotNullViolation {
   return {
     code: 'NOT_NULL_VIOLATION',
@@ -175,7 +175,7 @@ export interface CheckViolation {
  */
 export function createCheckViolation(
   message: string,
-  options?: { constraint?: string; table?: string }
+  options?: { constraint?: string; table?: string },
 ): CheckViolation {
   return {
     code: 'CHECK_VIOLATION',

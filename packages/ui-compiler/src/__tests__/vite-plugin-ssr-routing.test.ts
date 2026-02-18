@@ -31,7 +31,7 @@ vi.mock('node:fs', () => ({
  */
 function createMockServer(options?: { renderedHtml?: string; templateHtml?: string }) {
   const renderedHtml = options?.renderedHtml ?? '<div>Hello World</div>';
-  const templateHtml =
+  const _templateHtml =
     options?.templateHtml ??
     '<html><head></head><body><div id="app"><!--ssr-outlet--></div><script type="module" src="/src/main.ts"></script></body></html>';
 

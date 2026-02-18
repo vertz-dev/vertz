@@ -1,8 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { d } from '../../d';
 import { createDb } from '../database';
-import { ok, err } from '@vertz/schema';
-import type { ReadError, WriteError } from '../../errors';
 
 // ---------------------------------------------------------------------------
 // Test schema
@@ -20,7 +18,7 @@ const users = d.table('users', {
   email: d.email().unique(),
 });
 
-const projects = d.table('projects', {
+const _projects = d.table('projects', {
   id: d.uuid().primary(),
   organizationId: d.tenant(organizations),
   name: d.text(),
@@ -317,7 +315,9 @@ describe('db.create() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.create('users', { data: { name: null as any, email: 'test@test.com' } });
+    const result = await db.create('users', {
+      data: { name: null as any, email: 'test@test.com' },
+    });
 
     expect(result.ok).toBe(false);
     expect(result.error.code).toBe('CONSTRAINT_ERROR');
@@ -511,7 +511,11 @@ describe('db.query() returns Result', () => {
       _queryFn: async () => ({ rows: [{ count: 5 }], rowCount: 1 }),
     });
 
-    const result = await db.query({ _tag: 'SqlFragment' as const, sql: 'SELECT COUNT(*) as count', params: [] });
+    const result = await db.query({
+      _tag: 'SqlFragment' as const,
+      sql: 'SELECT COUNT(*) as count',
+      params: [],
+    });
 
     expect(result.ok).toBe(true);
     expect(result.data.rows).toEqual([{ count: 5 }]);

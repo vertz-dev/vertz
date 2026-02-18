@@ -1,16 +1,15 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { PipelineOrchestrator, type PipelineConfig } from '../orchestrator';
-import type { PipelineStage } from '../types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { type PipelineConfig, PipelineOrchestrator } from '../orchestrator';
 
 // Mock the compiler and codegen modules
 vi.mock('@vertz/compiler', () => ({
   createCompiler: vi.fn(() => ({
-    analyze: vi.fn().mockResolvedValue({ 
-      modules: [{ name: 'test', services: [], routes: [], schemas: [] }], 
+    analyze: vi.fn().mockResolvedValue({
+      modules: [{ name: 'test', services: [], routes: [], schemas: [] }],
       routes: [],
       schemas: [],
       env: { variables: [] },
-      middlewares: []
+      middlewares: [],
     }),
     validate: vi.fn().mockResolvedValue([]),
     compile: vi.fn().mockResolvedValue({ success: true, diagnostics: [] }),
@@ -76,16 +75,16 @@ describe('PipelineOrchestrator', () => {
   describe('runFull', () => {
     it('should run the full pipeline', async () => {
       const result = await orchestrator.runFull();
-      
+
       expect(result.success).toBe(true);
       expect(result.stages).toHaveLength(2); // analyze + codegen
-      expect(result.stages.map(s => s.stage)).toContain('analyze');
-      expect(result.stages.map(s => s.stage)).toContain('codegen');
+      expect(result.stages.map((s) => s.stage)).toContain('analyze');
+      expect(result.stages.map((s) => s.stage)).toContain('codegen');
     });
 
     it('should return AppIR after successful analysis', async () => {
       const result = await orchestrator.runFull();
-      
+
       expect(result.appIR).toBeDefined();
     });
   });
@@ -93,35 +92,35 @@ describe('PipelineOrchestrator', () => {
   describe('runStages', () => {
     it('should run analyze stage', async () => {
       const result = await orchestrator.runStages(['analyze']);
-      
+
       expect(result.success).toBe(true);
       expect(result.stages).toHaveLength(1);
-      expect(result.stages[0]!.stage).toBe('analyze');
+      expect(result.stages[0]?.stage).toBe('analyze');
     });
 
     it('should run codegen stage', async () => {
       // First run analyze to have AppIR
       await orchestrator.runStages(['analyze']);
-      
+
       const result = await orchestrator.runStages(['codegen']);
-      
+
       expect(result.success).toBe(true);
       expect(result.stages).toHaveLength(1);
-      expect(result.stages[0]!.stage).toBe('codegen');
+      expect(result.stages[0]?.stage).toBe('codegen');
     });
 
     it('should run multiple stages', async () => {
       const result = await orchestrator.runStages(['analyze', 'codegen']);
-      
+
       expect(result.success).toBe(true);
       expect(result.stages).toHaveLength(2);
     });
 
     it('should run build-ui stage', async () => {
       const result = await orchestrator.runStages(['build-ui']);
-      
+
       expect(result.success).toBe(true);
-      expect(result.stages[0]!.stage).toBe('build-ui');
+      expect(result.stages[0]?.stage).toBe('build-ui');
     });
   });
 
@@ -133,9 +132,9 @@ describe('PipelineOrchestrator', () => {
 
     it('should return result after running stage', async () => {
       await orchestrator.runStages(['analyze']);
-      
+
       const result = orchestrator.getStageResult('analyze');
-      
+
       expect(result).toBeDefined();
       expect(result?.stage).toBe('analyze');
       expect(result?.success).toBe(true);
@@ -146,7 +145,7 @@ describe('PipelineOrchestrator', () => {
     it('should clean up resources', async () => {
       await orchestrator.runFull();
       await orchestrator.dispose();
-      
+
       // After dispose, running stages should re-initialize
       const result = await orchestrator.runStages(['analyze']);
       expect(result.success).toBe(true);
