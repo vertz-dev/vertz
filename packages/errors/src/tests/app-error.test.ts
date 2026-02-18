@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { AppError } from '../app-error';
 
 describe('AppError', () => {
@@ -30,7 +30,10 @@ describe('AppError', () => {
   describe('subclass', () => {
     it('can be extended with custom fields', () => {
       class InsufficientBalanceError extends AppError<'INSUFFICIENT_BALANCE'> {
-        constructor(public readonly required: number, public readonly available: number) {
+        constructor(
+          public readonly required: number,
+          public readonly available: number,
+        ) {
           super('INSUFFICIENT_BALANCE', `Need ${required}, have ${available}`);
         }
 

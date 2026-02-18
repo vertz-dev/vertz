@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createEnumRegistry } from '../enum-registry';
 import { d } from '../../d';
+import { createEnumRegistry } from '../enum-registry';
 
 describe('shared enum registry (Issue #182)', () => {
   it('registers an enum and retrieves it by name', () => {

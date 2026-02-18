@@ -5,13 +5,13 @@ import type { ResolvedCodegenConfig } from './config';
 import { formatWithBiome } from './format';
 import { emitManifestFile } from './generators/typescript/emit-cli';
 import { emitClientFile, emitModuleFile } from './generators/typescript/emit-client';
+import { emitRouteMapType } from './generators/typescript/emit-routes';
 import {
   emitBarrelIndex,
   emitPackageJson,
   emitSchemaReExports,
 } from './generators/typescript/emit-sdk';
 import { emitModuleTypesFile, emitSharedTypesFile } from './generators/typescript/emit-types';
-import { emitRouteMapType } from './generators/typescript/emit-routes';
 import type { IncrementalResult } from './incremental';
 import { writeIncremental } from './incremental';
 import { adaptIR } from './ir-adapter';

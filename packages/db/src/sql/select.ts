@@ -10,7 +10,7 @@
  * - COUNT(*) OVER() for listAndCount
  */
 
-import { camelToSnake } from './casing';
+import { camelToSnake, type CasingOverrides } from './casing';
 import { buildWhere, type WhereResult } from './where';
 
 export interface SelectOptions {
@@ -25,6 +25,8 @@ export interface SelectOptions {
   readonly cursor?: Record<string, unknown>;
   /** Number of rows to take (used with cursor). Aliases `limit` when cursor is present. */
   readonly take?: number;
+  /** Custom casing overrides for camelCase -> snake_case conversion. */
+  readonly casingOverrides?: CasingOverrides;
 }
 
 export interface SelectResult {
@@ -38,8 +40,8 @@ export interface SelectResult {
  * If the camelCase name differs from its snake_case equivalent,
  * generates `"snake_name" AS "camelName"` for automatic casing.
  */
-function buildColumnRef(name: string): string {
-  const snakeName = camelToSnake(name);
+function buildColumnRef(name: string, casingOverrides?: CasingOverrides): string {
+  const snakeName = camelToSnake(name, casingOverrides);
   if (snakeName === name) {
     return `"${name}"`;
   }
@@ -52,11 +54,12 @@ function buildColumnRef(name: string): string {
 export function buildSelect(options: SelectOptions): SelectResult {
   const parts: string[] = [];
   const allParams: unknown[] = [];
+  const { casingOverrides } = options;
 
   // SELECT columns
   let columnList: string;
   if (options.columns && options.columns.length > 0) {
-    columnList = options.columns.map(buildColumnRef).join(', ');
+    columnList = options.columns.map((col) => buildColumnRef(col, casingOverrides)).join(', ');
   } else {
     columnList = '*';
   }
@@ -71,7 +74,7 @@ export function buildSelect(options: SelectOptions): SelectResult {
   const whereClauses: string[] = [];
 
   if (options.where) {
-    const whereResult: WhereResult = buildWhere(options.where);
+    const whereResult: WhereResult = buildWhere(options.where, 0, casingOverrides);
     if (whereResult.sql.length > 0) {
       whereClauses.push(whereResult.sql);
       allParams.push(...whereResult.params);
@@ -84,7 +87,7 @@ export function buildSelect(options: SelectOptions): SelectResult {
     if (cursorEntries.length === 1) {
       // Single-column cursor: simple comparison
       const [col, value] = cursorEntries[0] as [string, unknown];
-      const snakeCol = camelToSnake(col);
+      const snakeCol = camelToSnake(col, casingOverrides);
       // Determine direction from orderBy or default to 'asc'
       const dir = options.orderBy?.[col] ?? 'asc';
       const op = dir === 'desc' ? '<' : '>';
@@ -99,7 +102,7 @@ export function buildSelect(options: SelectOptions): SelectResult {
       const dir = options.orderBy?.[firstCol] ?? 'asc';
       const op = dir === 'desc' ? '<' : '>';
       for (const [col, value] of cursorEntries) {
-        cols.push(`"${camelToSnake(col)}"`);
+        cols.push(`"${camelToSnake(col, casingOverrides)}"`);
         allParams.push(value);
         placeholders.push(`$${allParams.length}`);
       }
@@ -114,14 +117,14 @@ export function buildSelect(options: SelectOptions): SelectResult {
   // ORDER BY — explicit orderBy takes precedence; cursor columns used as fallback
   if (options.orderBy) {
     const orderClauses = Object.entries(options.orderBy).map(
-      ([col, dir]) => `"${camelToSnake(col)}" ${dir.toUpperCase()}`,
+      ([col, dir]) => `"${camelToSnake(col, casingOverrides)}" ${dir.toUpperCase()}`,
     );
     if (orderClauses.length > 0) {
       parts.push(`ORDER BY ${orderClauses.join(', ')}`);
     }
   } else if (options.cursor) {
     // Derive ORDER BY from cursor columns (default ASC)
-    const orderClauses = Object.keys(options.cursor).map((col) => `"${camelToSnake(col)}" ASC`);
+    const orderClauses = Object.keys(options.cursor).map((col) => `"${camelToSnake(col, casingOverrides)}" ASC`);
     if (orderClauses.length > 0) {
       parts.push(`ORDER BY ${orderClauses.join(', ')}`);
     }

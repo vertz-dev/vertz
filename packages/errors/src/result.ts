@@ -169,17 +169,17 @@ export function map<T, E, U>(result: Result<T, E>, fn: (data: T) => U): Result<U
  */
 export function flatMap<T, E, U, F>(
   result: Result<T, E>,
-  fn: (data: T) => Result<U, F>
+  fn: (data: T) => Result<U, F>,
 ): Result<U, E | F>;
 
 export function flatMap<T, E, U, F>(
   result: Result<T, E>,
-  fn: (data: T) => Promise<Result<U, F>>
+  fn: (data: T) => Promise<Result<U, F>>,
 ): Promise<Result<U, E | F>>;
 
 export function flatMap<T, E, U, F>(
   result: Result<T, E>,
-  fn: (data: T) => Result<U, F> | Promise<Result<U, F>>
+  fn: (data: T) => Result<U, F> | Promise<Result<U, F>>,
 ): Result<U, E | F> | Promise<Result<U, E | F>> {
   if (result.ok) {
     return fn(result.data);
@@ -198,7 +198,7 @@ export function flatMap<T, E, U, F>(
  */
 export function match<T, E, OkR, ErrR>(
   result: Result<T, E>,
-  handlers: { ok: (data: T) => OkR; err: (error: E) => ErrR }
+  handlers: { ok: (data: T) => OkR; err: (error: E) => ErrR },
 ): OkR | ErrR {
   return result.ok ? handlers.ok(result.data) : handlers.err(result.error);
 }
@@ -208,9 +208,7 @@ export function match<T, E, OkR, ErrR>(
  * Extracts error codes from an error union and creates a handler map.
  */
 type ErrorHandlers<E, R> = {
-  [K in E as K extends { readonly code: infer C extends string } ? C : never]: (
-    error: K
-  ) => R;
+  [K in E as K extends { readonly code: infer C extends string } ? C : never]: (error: K) => R;
 };
 
 /**
@@ -235,7 +233,7 @@ type ErrorHandlers<E, R> = {
  */
 export function matchErr<T, E extends { readonly code: string }, R>(
   result: Result<T, E>,
-  handlers: { ok: (data: T) => R } & ErrorHandlers<E, R>
+  handlers: { ok: (data: T) => R } & ErrorHandlers<E, R>,
 ): R {
   if (result.ok) {
     return handlers.ok(result.data);

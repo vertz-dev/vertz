@@ -14,7 +14,7 @@
  * Column names are converted from camelCase to snake_case.
  */
 
-import { camelToSnake } from './casing';
+import { camelToSnake, type CasingOverrides } from './casing';
 
 export interface WhereResult {
   readonly sql: string;
@@ -97,11 +97,11 @@ function escapeLikeValue(str: string): string {
  * Regular columns are just quoted with double quotes.
  * Single quotes in JSONB path segments are escaped to prevent SQL injection.
  */
-function resolveColumnRef(key: string): string {
+function resolveColumnRef(key: string, overrides?: CasingOverrides): string {
   if (key.includes('->')) {
     const parts = key.split('->');
     const baseCol = parts[0] ?? key;
-    const column = `"${camelToSnake(baseCol)}"`;
+    const column = `"${camelToSnake(baseCol, overrides)}"`;
     const jsonPath = parts.slice(1);
     if (jsonPath.length === 1) {
       return `${column}->>'${escapeSingleQuotes(jsonPath[0] ?? '')}'`;
@@ -115,7 +115,7 @@ function resolveColumnRef(key: string): string {
     const final = `->>'${escapeSingleQuotes(lastKey)}'`;
     return `${column}${intermediate}${final}`;
   }
-  return `"${camelToSnake(key)}"`;
+  return `"${camelToSnake(key, overrides)}"`;
 }
 
 function buildOperatorCondition(
@@ -219,6 +219,7 @@ function buildOperatorCondition(
 function buildFilterClauses(
   filter: WhereFilter,
   paramOffset: number,
+  overrides?: CasingOverrides,
 ): { clauses: string[]; params: unknown[]; nextIndex: number } {
   const clauses: string[] = [];
   const allParams: unknown[] = [];
@@ -229,7 +230,7 @@ function buildFilterClauses(
       continue;
     }
 
-    const columnRef = resolveColumnRef(key);
+    const columnRef = resolveColumnRef(key, overrides);
 
     if (isOperatorObject(value)) {
       const result = buildOperatorCondition(columnRef, value, idx);
@@ -252,7 +253,7 @@ function buildFilterClauses(
     } else {
       const orClauses: string[] = [];
       for (const subFilter of filter.OR) {
-        const sub = buildFilterClauses(subFilter, idx);
+        const sub = buildFilterClauses(subFilter, idx, overrides);
         const joined = sub.clauses.join(' AND ');
         orClauses.push(sub.clauses.length > 1 ? `(${joined})` : joined);
         allParams.push(...sub.params);
@@ -270,7 +271,7 @@ function buildFilterClauses(
     } else {
       const andClauses: string[] = [];
       for (const subFilter of filter.AND) {
-        const sub = buildFilterClauses(subFilter, idx);
+        const sub = buildFilterClauses(subFilter, idx, overrides);
         const joined = sub.clauses.join(' AND ');
         andClauses.push(sub.clauses.length > 1 ? `(${joined})` : joined);
         allParams.push(...sub.params);
@@ -282,7 +283,7 @@ function buildFilterClauses(
 
   // Handle NOT
   if (filter.NOT !== undefined) {
-    const sub = buildFilterClauses(filter.NOT, idx);
+    const sub = buildFilterClauses(filter.NOT, idx, overrides);
     clauses.push(`NOT (${sub.clauses.join(' AND ')})`);
     allParams.push(...sub.params);
     idx = sub.nextIndex;
@@ -296,14 +297,19 @@ function buildFilterClauses(
  *
  * @param filter - The filter object with column conditions
  * @param paramOffset - Starting parameter offset (0-based, params start at $offset+1)
+ * @param overrides - Optional casing overrides for camelCase -> snake_case conversion
  * @returns WhereResult with the SQL string (without WHERE keyword) and parameter values
  */
-export function buildWhere(filter: WhereFilter | undefined, paramOffset = 0): WhereResult {
+export function buildWhere(
+  filter: WhereFilter | undefined,
+  paramOffset = 0,
+  overrides?: CasingOverrides,
+): WhereResult {
   if (!filter || Object.keys(filter).length === 0) {
     return { sql: '', params: [] };
   }
 
-  const { clauses, params } = buildFilterClauses(filter, paramOffset);
+  const { clauses, params } = buildFilterClauses(filter, paramOffset, overrides);
   return {
     sql: clauses.join(' AND '),
     params,

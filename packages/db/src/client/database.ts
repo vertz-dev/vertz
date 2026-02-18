@@ -1,3 +1,5 @@
+import { err, ok, type Result } from '@vertz/schema';
+import { type ReadError, toReadError, toWriteError, type WriteError } from '../errors';
 import * as agg from '../query/aggregate';
 import * as crud from '../query/crud';
 import { executeQuery, type QueryFn } from '../query/executor';
@@ -16,13 +18,6 @@ import type { RelationDef } from '../schema/relation';
 import type { SqlFragment } from '../sql/tagged';
 import { createPostgresDriver, type PostgresDriver } from './postgres-driver';
 import { computeTenantGraph, type TenantGraph } from './tenant-graph';
-import { ok, err, type Result } from '@vertz/schema';
-import {
-  type ReadError,
-  type WriteError,
-  toReadError,
-  toWriteError,
-} from '../errors';
 
 // ---------------------------------------------------------------------------
 // Query routing
@@ -147,6 +142,13 @@ export interface CreateDbOptions<TTables extends Record<string, TableEntry>> {
   readonly pool?: PoolConfig;
   /** Column name casing strategy. */
   readonly casing?: 'snake_case' | 'camelCase';
+  /**
+   * Custom casing overrides for edge cases (e.g., OAuth, ID).
+   * Maps camelCase keys to snake_case column names.
+   * These overrides run BEFORE auto-casing logic.
+   * Example: { 'oAuthToken': 'oauth_token', 'userID': 'user_id' }
+   */
+  readonly casingOverrides?: Record<string, string>;
   /** Log function for notices (e.g., unscoped table warnings). */
   readonly log?: (message: string) => void;
   /**
@@ -272,7 +274,9 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Execute a raw SQL query via the sql tagged template.
    */
-  query<T = Record<string, unknown>>(fragment: SqlFragment): Promise<Result<QueryResult<T>, ReadError>>;
+  query<T = Record<string, unknown>>(
+    fragment: SqlFragment,
+  ): Promise<Result<QueryResult<T>, ReadError>>;
 
   /**
    * Close all pool connections.
@@ -295,34 +299,46 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   get<TName extends keyof TTables & string, TOptions extends TypedGetOptions<TTables[TName]>>(
     table: TName,
     options?: TOptions,
-  ): Promise<Result<
-    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>> | null,
-    ReadError
-  >>;
+  ): Promise<
+    Result<
+      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>> | null,
+      ReadError
+    >
+  >;
 
   /**
    * Get a single row or return NotFoundError.
    * Use when absence of a record is an error condition.
    */
-  getRequired<TName extends keyof TTables & string, TOptions extends TypedGetOptions<TTables[TName]>>(
+  getRequired<
+    TName extends keyof TTables & string,
+    TOptions extends TypedGetOptions<TTables[TName]>,
+  >(
     table: TName,
     options?: TOptions,
-  ): Promise<Result<
-    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
-    ReadError
-  >>;
+  ): Promise<
+    Result<
+      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+      ReadError
+    >
+  >;
 
   /**
    * Get a single row or throw NotFoundError.
    * Alias for getRequired.
    */
-  getOrThrow<TName extends keyof TTables & string, TOptions extends TypedGetOptions<TTables[TName]>>(
+  getOrThrow<
+    TName extends keyof TTables & string,
+    TOptions extends TypedGetOptions<TTables[TName]>,
+  >(
     table: TName,
     options?: TOptions,
-  ): Promise<Result<
-    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
-    ReadError
-  >>;
+  ): Promise<
+    Result<
+      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+      ReadError
+    >
+  >;
 
   /**
    * List multiple rows.
@@ -330,10 +346,12 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   list<TName extends keyof TTables & string, TOptions extends TypedListOptions<TTables[TName]>>(
     table: TName,
     options?: TOptions,
-  ): Promise<Result<
-    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[],
-    ReadError
-  >>;
+  ): Promise<
+    Result<
+      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[],
+      ReadError
+    >
+  >;
 
   /**
    * List multiple rows with total count.
@@ -344,13 +362,15 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   >(
     table: TName,
     options?: TOptions,
-  ): Promise<Result<
-    {
-      data: FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[];
-      total: number;
-    },
-    ReadError
-  >>;
+  ): Promise<
+    Result<
+      {
+        data: FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[];
+        total: number;
+      },
+      ReadError
+    >
+  >;
 
   /** @deprecated Use `get` instead */
   findOne: DatabaseInstance<TTables>['get'];
@@ -373,10 +393,12 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   create<TName extends keyof TTables & string, TOptions extends TypedCreateOptions<TTables[TName]>>(
     table: TName,
     options: TOptions,
-  ): Promise<Result<
-    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
-    WriteError
-  >>;
+  ): Promise<
+    Result<
+      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+      WriteError
+    >
+  >;
 
   /**
    * Insert multiple rows and return the count.
@@ -395,10 +417,12 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   >(
     table: TName,
     options: TOptions,
-  ): Promise<Result<
-    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[],
-    WriteError
-  >>;
+  ): Promise<
+    Result<
+      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[],
+      WriteError
+    >
+  >;
 
   // -------------------------------------------------------------------------
   // Update queries (DB-010)
@@ -411,10 +435,12 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   update<TName extends keyof TTables & string, TOptions extends TypedUpdateOptions<TTables[TName]>>(
     table: TName,
     options: TOptions,
-  ): Promise<Result<
-    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
-    WriteError
-  >>;
+  ): Promise<
+    Result<
+      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+      WriteError
+    >
+  >;
 
   /**
    * Update matching rows and return the count.
@@ -434,10 +460,12 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   upsert<TName extends keyof TTables & string, TOptions extends TypedUpsertOptions<TTables[TName]>>(
     table: TName,
     options: TOptions,
-  ): Promise<Result<
-    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
-    WriteError
-  >>;
+  ): Promise<
+    Result<
+      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+      WriteError
+    >
+  >;
 
   // -------------------------------------------------------------------------
   // Delete queries (DB-010)
@@ -450,10 +478,12 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   delete<TName extends keyof TTables & string, TOptions extends TypedDeleteOptions<TTables[TName]>>(
     table: TName,
     options: TOptions,
-  ): Promise<Result<
-    FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
-    WriteError
-  >>;
+  ): Promise<
+    Result<
+      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+      WriteError
+    >
+  >;
 
   /**
    * Delete matching rows and return the count.
@@ -581,14 +611,19 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       // Create replica drivers if configured
       const replicas = options.pool?.replicas;
       if (replicas && replicas.length > 0) {
-        replicaDrivers = replicas.map((replicaUrl) => createPostgresDriver(replicaUrl, options.pool));
+        replicaDrivers = replicas.map((replicaUrl) =>
+          createPostgresDriver(replicaUrl, options.pool),
+        );
       }
 
       // Return a routing-aware query function
       return async <T>(sqlStr: string, params: readonly unknown[]) => {
         // If no replicas configured, always use primary
         if (replicaDrivers.length === 0) {
-          return driver!.queryFn<T>(sqlStr, params);
+          if (!driver) {
+            throw new Error('Database driver not initialized');
+          }
+          return driver.queryFn<T>(sqlStr, params);
         }
 
         // Route read queries to replicas with round-robin and fallback on failure
@@ -599,12 +634,18 @@ export function createDb<TTables extends Record<string, TableEntry>>(
             return await targetReplica.queryFn<T>(sqlStr, params);
           } catch (err) {
             // Replica failed, fall back to primary
-            console.warn('[vertz/db] replica query failed, falling back to primary:', (err as Error).message);
+            console.warn(
+              '[vertz/db] replica query failed, falling back to primary:',
+              (err as Error).message,
+            );
           }
         }
 
         // Write queries always go to primary
-        return driver!.queryFn<T>(sqlStr, params);
+        if (!driver) {
+          throw new Error('Database driver not initialized');
+        }
+        return driver.queryFn<T>(sqlStr, params);
       };
     }
 
@@ -631,7 +672,9 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     _tables: tables,
     $tenantGraph: tenantGraph,
 
-    async query<T = Record<string, unknown>>(fragment: SqlFragment): Promise<Result<QueryResult<T>, ReadError>> {
+    async query<T = Record<string, unknown>>(
+      fragment: SqlFragment,
+    ): Promise<Result<QueryResult<T>, ReadError>> {
       try {
         const result = await executeQuery<T>(queryFn, fragment.sql, fragment.params);
         return ok(result);
@@ -741,7 +784,11 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async listAndCount(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
-        const { data, total } = await crud.listAndCount(queryFn, entry.table, opts as crud.ListArgs);
+        const { data, total } = await crud.listAndCount(
+          queryFn,
+          entry.table,
+          opts as crud.ListArgs,
+        );
         if (opts?.include && data.length > 0) {
           const withRelations = await loadRelations(
             queryFn,
@@ -804,7 +851,11 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async createManyAndReturn(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
-        const result = await crud.createManyAndReturn(queryFn, entry.table, opts as crud.CreateManyAndReturnArgs);
+        const result = await crud.createManyAndReturn(
+          queryFn,
+          entry.table,
+          opts as crud.CreateManyAndReturnArgs,
+        );
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
@@ -880,7 +931,11 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async count(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
-        const result = await agg.count(queryFn, entry.table, opts as { where?: Record<string, unknown> });
+        const result = await agg.count(
+          queryFn,
+          entry.table,
+          opts as { where?: Record<string, unknown> },
+        );
         return ok(result);
       } catch (e) {
         return err(toReadError(e));

@@ -22,7 +22,7 @@ export interface InvalidCredentialsError {
  * Creates an InvalidCredentialsError.
  */
 export function createInvalidCredentialsError(
-  message = 'Invalid email or password'
+  message = 'Invalid email or password',
 ): InvalidCredentialsError {
   return {
     code: 'INVALID_CREDENTIALS',
@@ -33,9 +33,9 @@ export function createInvalidCredentialsError(
 /**
  * Type guard for InvalidCredentialsError.
  */
-export function isInvalidCredentialsError(
-  error: { readonly code: string }
-): error is InvalidCredentialsError {
+export function isInvalidCredentialsError(error: {
+  readonly code: string;
+}): error is InvalidCredentialsError {
   return error.code === 'INVALID_CREDENTIALS';
 }
 
@@ -53,7 +53,10 @@ export interface UserExistsError {
 /**
  * Creates a UserExistsError.
  */
-export function createUserExistsError(message = 'User already exists', email?: string): UserExistsError {
+export function createUserExistsError(
+  message = 'User already exists',
+  email?: string,
+): UserExistsError {
   return {
     code: 'USER_EXISTS',
     message,
@@ -91,9 +94,9 @@ export function createSessionExpiredError(message = 'Session has expired'): Sess
 /**
  * Type guard for SessionExpiredError.
  */
-export function isSessionExpiredError(
-  error: { readonly code: string }
-): error is SessionExpiredError {
+export function isSessionExpiredError(error: {
+  readonly code: string;
+}): error is SessionExpiredError {
   return error.code === 'SESSION_EXPIRED';
 }
 
@@ -114,7 +117,7 @@ export interface PermissionDeniedError {
  */
 export function createPermissionDeniedError(
   message = 'Permission denied',
-  options?: { resource?: string; action?: string }
+  options?: { resource?: string; action?: string },
 ): PermissionDeniedError {
   return {
     code: 'PERMISSION_DENIED',
@@ -126,9 +129,9 @@ export function createPermissionDeniedError(
 /**
  * Type guard for PermissionDeniedError.
  */
-export function isPermissionDeniedError(
-  error: { readonly code: string }
-): error is PermissionDeniedError {
+export function isPermissionDeniedError(error: {
+  readonly code: string;
+}): error is PermissionDeniedError {
   return error.code === 'PERMISSION_DENIED';
 }
 
@@ -148,7 +151,7 @@ export interface RateLimitedError {
  */
 export function createRateLimitedError(
   message = 'Too many attempts, please try again later',
-  retryAfter?: number
+  retryAfter?: number,
 ): RateLimitedError {
   return {
     code: 'RATE_LIMITED',

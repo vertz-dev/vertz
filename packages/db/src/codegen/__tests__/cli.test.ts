@@ -1,9 +1,9 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { generateTypes } from '../type-gen';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { generateClient } from '../client-gen';
+import { generateTypes } from '../type-gen';
 
 /**
  * CLI integration tests (DB-CG-013 to DB-CG-015).
@@ -37,7 +37,9 @@ describe('CLI Integration Tests (DB-CG-013 to DB-CG-015)', () => {
   it('DB-CG-013: generate command discovers domain files', async () => {
     // Write a domain file
     const domainFile = join(testDir, 'domains', 'user.domain.ts');
-    writeFileSync(domainFile, `
+    writeFileSync(
+      domainFile,
+      `
 import { defineDomain } from '@vertz/db';
 
 export const userDomain = defineDomain('user', {
@@ -47,7 +49,8 @@ export const userDomain = defineDomain('user', {
     email: { type: 'string', required: true },
   },
 });
-`);
+`,
+    );
 
     // Run generate command
     const result = await runGenerateCommand(testDir);
@@ -61,7 +64,9 @@ export const userDomain = defineDomain('user', {
   it('DB-CG-014: generate command writes to .vertz/generated/', async () => {
     // Write a domain file
     const domainFile = join(testDir, 'domains', 'user.domain.ts');
-    writeFileSync(domainFile, `
+    writeFileSync(
+      domainFile,
+      `
 import { defineDomain } from '@vertz/db';
 
 export const userDomain = defineDomain('user', {
@@ -70,7 +75,8 @@ export const userDomain = defineDomain('user', {
     name: { type: 'string', required: true },
   },
 });
-`);
+`,
+    );
 
     // Run generate command
     await runGenerateCommand(testDir);
@@ -89,7 +95,9 @@ export const userDomain = defineDomain('user', {
   it('DB-CG-015: generate command skips generation when unchanged', async () => {
     // Write a domain file
     const domainFile = join(testDir, 'domains', 'user.domain.ts');
-    writeFileSync(domainFile, `
+    writeFileSync(
+      domainFile,
+      `
 import { defineDomain } from '@vertz/db';
 
 export const userDomain = defineDomain('user', {
@@ -98,7 +106,8 @@ export const userDomain = defineDomain('user', {
     name: { type: 'string', required: true },
   },
 });
-`);
+`,
+    );
 
     // First run - should generate
     const firstRun = await runGenerateCommand(testDir);
@@ -106,7 +115,7 @@ export const userDomain = defineDomain('user', {
 
     const outputFile = join(testDir, '.vertz', 'generated', 'db-client.ts');
     const firstContent = readFileSync(outputFile, 'utf-8');
-    const firstMtime = (await import('node:fs')).statSync(outputFile).mtimeMs;
+    const _firstMtime = (await import('node:fs')).statSync(outputFile).mtimeMs;
 
     // Wait a bit to ensure timestamp would differ
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -121,7 +130,9 @@ export const userDomain = defineDomain('user', {
     expect(firstContent).toBe(secondContent);
 
     // Modify domain file
-    writeFileSync(domainFile, `
+    writeFileSync(
+      domainFile,
+      `
 import { defineDomain } from '@vertz/db';
 
 export const userDomain = defineDomain('user', {
@@ -131,7 +142,8 @@ export const userDomain = defineDomain('user', {
     email: { type: 'string', required: false },
   },
 });
-`);
+`,
+    );
 
     // Third run - should regenerate
     const thirdRun = await runGenerateCommand(testDir);
@@ -158,10 +170,10 @@ async function runGenerateCommand(
 
     // Simple regex-based parser to find domain definitions
     const { readdirSync, readFileSync: fsReadFileSync } = await import('node:fs');
-    const files = readdirSync(domainsDir).filter(f => f.endsWith('.domain.ts'));
-    
+    const files = readdirSync(domainsDir).filter((f) => f.endsWith('.domain.ts'));
+
     const domains: any[] = [];
-    
+
     for (const file of files) {
       const content = fsReadFileSync(join(domainsDir, file), 'utf-8');
       // Match defineDomain('name', { ... })
@@ -170,14 +182,14 @@ async function runGenerateCommand(
         // Extract fields - look for the entire fields block with balanced braces
         const fieldsStart = content.indexOf('fields:');
         const fields: any = {};
-        
+
         if (fieldsStart !== -1) {
           // Find the fields block - starts at 'fields:' and ends at the closing }
           // that matches the one after 'fields: {'
           let braceCount = 0;
           let inFields = false;
           let fieldsStartIdx = 0;
-          
+
           for (let i = fieldsStart; i < content.length; i++) {
             if (content[i] === '{') {
               if (!inFields) {
@@ -199,7 +211,7 @@ async function runGenerateCommand(
                   const requiredMatch = fieldDef.match(/required:\s*(true|false)/);
                   const primaryMatch = fieldDef.match(/primary:\s*(true|false)/);
                   const referencesMatch = fieldDef.match(/references:\s*['"](\w+)['"]/);
-                  
+
                   fields[fieldName] = {
                     type: typeMatch ? typeMatch[1] : 'string',
                     required: requiredMatch ? requiredMatch[1] === 'true' : false,
@@ -212,7 +224,7 @@ async function runGenerateCommand(
             }
           }
         }
-        
+
         domains.push({
           name: match[1],
           fields,
@@ -221,22 +233,22 @@ async function runGenerateCommand(
     }
 
     const domainCount = domains.length;
-    
+
     // Generate types and client code
     let allTypes = '';
     for (const domain of domains) {
-      allTypes += generateTypes(domain) + '\n';
+      allTypes += `${generateTypes(domain)}\n`;
     }
     const clientCode = generateClient(domains);
-    
+
     // Combine output
     const output = `${allTypes}\n${clientCode}\n`;
-    
+
     // Write to output file
     const outputDir = join(cwd, '.vertz', 'generated');
     mkdirSync(outputDir, { recursive: true });
     const outputFile = join(outputDir, 'db-client.ts');
-    
+
     // Check for changes (for DB-CG-015)
     let existingContent = '';
     let hasExistingFile = false;
@@ -244,14 +256,22 @@ async function runGenerateCommand(
       hasExistingFile = true;
       existingContent = readFileSync(outputFile, 'utf-8');
     }
-    
+
     if (hasExistingFile && existingContent === output) {
-      return { success: true, stdout: `Found ${domainCount} domain file(s)\nSkipping - no changes detected`, stderr: '' };
+      return {
+        success: true,
+        stdout: `Found ${domainCount} domain file(s)\nSkipping - no changes detected`,
+        stderr: '',
+      };
     }
-    
+
     writeFileSync(outputFile, output);
-    
-    return { success: true, stdout: `Found ${domainCount} domain file(s)\nGenerating...`, stderr: '' };
+
+    return {
+      success: true,
+      stdout: `Found ${domainCount} domain file(s)\nGenerating...`,
+      stderr: '',
+    };
   } catch (error: any) {
     return {
       success: false,

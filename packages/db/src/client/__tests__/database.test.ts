@@ -225,7 +225,11 @@ describe('db.query()', () => {
     });
 
     // db.query() should map the PG error to a UniqueConstraintError
-    const result = await db.query({ _tag: 'SqlFragment', sql: 'INSERT INTO users ...', params: [] });
+    const result = await db.query({
+      _tag: 'SqlFragment',
+      sql: 'INSERT INTO users ...',
+      params: [],
+    });
     expect(result.ok).toBe(false);
     expect(result.error.code).toBe('QUERY_ERROR');
   });

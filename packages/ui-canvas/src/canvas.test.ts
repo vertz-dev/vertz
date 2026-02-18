@@ -99,10 +99,7 @@ describe('Feature: Canvas Reactivity', () => {
           rotation: 0,
         };
 
-        const { displayObject, dispose } = createReactiveSprite(
-          { x, y, scaleX },
-          sprite
-        );
+        const { displayObject, dispose } = createReactiveSprite({ x, y, scaleX }, sprite);
 
         // Initial values set
         expect(displayObject.x).toBe(10);

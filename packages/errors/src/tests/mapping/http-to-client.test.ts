@@ -1,6 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import type {
+  createConflictError,
+  createNotFoundError,
+  createRateLimitedError,
+  createValidationError,
+} from '../../domain/client';
 import { httpToClientError, isUnknownError } from '../../mapping/http-to-client';
-import { createValidationError, createNotFoundError, createConflictError, createUnauthorizedError, createForbiddenError, createRateLimitedError } from '../../domain/client';
 
 describe('mapping/http-to-client', () => {
   describe('httpToClientError()', () => {

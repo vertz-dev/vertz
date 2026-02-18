@@ -1,14 +1,15 @@
 // Domain CRUD Tests
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+
 import { d } from '@vertz/db';
-import { domain, createServer } from '@vertz/server';
-import { usersTable, postsTable } from './fixtures';
+import { createServer, domain } from '@vertz/server';
+import { describe, expect, it, vi } from 'vitest';
+import { postsTable, usersTable } from './fixtures';
 
 // ---------------------------------------------------------------------------
 // Mock Context Factory
 // ---------------------------------------------------------------------------
 
-function createMockContext(overrides = {}) {
+function _createMockContext(overrides = {}) {
   return {
     user: { id: 'user-1', role: 'admin' },
     tenant: { id: 'org-1' },
@@ -47,7 +48,7 @@ describe('GET /api/{domainName} - List', () => {
     });
 
     const app = createServer({ domains: [User] });
-    
+
     // Should have registered GET /api/users
     const routes = app.router?.routes || [];
     const listRoute = routes.find((r: any) => r.method === 'GET' && r.path === '/api/users');
@@ -62,20 +63,20 @@ describe('GET /api/{domainName} - List', () => {
     });
 
     const app = createServer({ domains: [User] });
-    
+
     // The route should accept query params
     expect(app).toBeDefined();
   });
 
   it('should return paginated response with data and pagination', () => {
-    const User = domain('users', {
+    const _User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
       access: { read: () => true },
     });
 
     // Mock db response
-    const mockUsers = [
+    const _mockUsers = [
       { id: '1', name: 'Alice', email: 'alice@example.com' },
       { id: '2', name: 'Bob', email: 'bob@example.com' },
     ];
@@ -154,7 +155,7 @@ describe('GET /api/{domainName}/:id - Get by ID', () => {
     });
 
     const app = createServer({ domains: [User] });
-    
+
     const routes = app.router?.routes || [];
     const getRoute = routes.find((r: any) => r.method === 'GET' && r.path === '/api/users/:id');
     expect(getRoute).toBeDefined();
@@ -186,7 +187,7 @@ describe('GET /api/{domainName}/:id - Get by ID', () => {
     const User = domain('users', {
       type: 'persisted',
       table: d.entry(usersTable),
-      access: { read: (row, ctx) => ctx.user !== null },
+      access: { read: (_row, ctx) => ctx.user !== null },
     });
 
     const app = createServer({ domains: [User] });
@@ -241,7 +242,7 @@ describe('POST /api/{domainName} - Create', () => {
     });
 
     const app = createServer({ domains: [User] });
-    
+
     const routes = app.router?.routes || [];
     const createRoute = routes.find((r: any) => r.method === 'POST' && r.path === '/api/users');
     expect(createRoute).toBeDefined();
@@ -303,7 +304,7 @@ describe('POST /api/{domainName} - Create', () => {
   });
 
   it('should call custom create handler when provided', () => {
-    const customCreate = vi.fn(async (data: any, ctx: any) => ({
+    const customCreate = vi.fn(async (data: any, _ctx: any) => ({
       id: 'new-id',
       ...data,
     }));
@@ -335,7 +336,7 @@ describe('PUT /api/{domainName}/:id - Update', () => {
     });
 
     const app = createServer({ domains: [User] });
-    
+
     const routes = app.router?.routes || [];
     const updateRoute = routes.find((r: any) => r.method === 'PUT' && r.path === '/api/users/:id');
     expect(updateRoute).toBeDefined();
@@ -408,7 +409,7 @@ describe('PUT /api/{domainName}/:id - Update', () => {
   });
 
   it('should call custom update handler when provided', () => {
-    const customUpdate = vi.fn(async (id: string, data: any, ctx: any) => ({
+    const customUpdate = vi.fn(async (id: string, data: any, _ctx: any) => ({
       id,
       ...data,
     }));
@@ -440,9 +441,11 @@ describe('DELETE /api/{domainName}/:id - Delete', () => {
     });
 
     const app = createServer({ domains: [User] });
-    
+
     const routes = app.router?.routes || [];
-    const deleteRoute = routes.find((r: any) => r.method === 'DELETE' && r.path === '/api/users/:id');
+    const deleteRoute = routes.find(
+      (r: any) => r.method === 'DELETE' && r.path === '/api/users/:id',
+    );
     expect(deleteRoute).toBeDefined();
   });
 
@@ -491,7 +494,7 @@ describe('DELETE /api/{domainName}/:id - Delete', () => {
   });
 
   it('should call custom delete handler when provided', () => {
-    const customDelete = vi.fn(async (id: string, ctx: any) => ({
+    const customDelete = vi.fn(async (id: string, _ctx: any) => ({
       id,
       deleted: true,
     }));
@@ -526,10 +529,10 @@ describe('POST /api/{domainName}/:id/{actionName} - Custom Actions', () => {
     });
 
     const app = createServer({ domains: [User] });
-    
+
     const routes = app.router?.routes || [];
     const actionRoute = routes.find(
-      (r: any) => r.method === 'POST' && r.path === '/api/users/:id/resetPassword'
+      (r: any) => r.method === 'POST' && r.path === '/api/users/:id/resetPassword',
     );
     expect(actionRoute).toBeDefined();
   });
@@ -592,7 +595,7 @@ describe('API Prefix Configuration', () => {
     });
 
     const app = createServer({ domains: [User] });
-    
+
     const routes = app.router?.routes || [];
     const listRoute = routes.find((r: any) => r.path === '/api/users');
     expect(listRoute).toBeDefined();
@@ -606,7 +609,7 @@ describe('API Prefix Configuration', () => {
     });
 
     const app = createServer({ domains: [User], apiPrefix: '/v1/' });
-    
+
     const routes = app.router?.routes || [];
     const listRoute = routes.find((r: any) => r.path === '/v1/users');
     expect(listRoute).toBeDefined();
@@ -620,7 +623,7 @@ describe('API Prefix Configuration', () => {
     });
 
     const app = createServer({ domains: [User], apiPrefix: '' });
-    
+
     const routes = app.router?.routes || [];
     const listRoute = routes.find((r: any) => r.path === '/users');
     expect(listRoute).toBeDefined();
@@ -640,7 +643,7 @@ describe('Domain Name as Route', () => {
     });
 
     const app = createServer({ domains: [User] });
-    
+
     const routes = app.router?.routes || [];
     const listRoute = routes.find((r: any) => r.path === '/api/user');
     expect(listRoute).toBeDefined();
@@ -654,7 +657,7 @@ describe('Domain Name as Route', () => {
     });
 
     const app = createServer({ domains: [User] });
-    
+
     const routes = app.router?.routes || [];
     const listRoute = routes.find((r: any) => r.path === '/api/users');
     expect(listRoute).toBeDefined();
@@ -680,11 +683,11 @@ describe('Multiple Domains', () => {
     });
 
     const app = createServer({ domains: [User, Post] });
-    
+
     const routes = app.router?.routes || [];
     const userRoute = routes.find((r: any) => r.path === '/api/users');
     const postRoute = routes.find((r: any) => r.path === '/api/posts');
-    
+
     expect(userRoute).toBeDefined();
     expect(postRoute).toBeDefined();
   });

@@ -39,7 +39,8 @@ export interface TestResponse<TResponse = unknown> {
   ok: boolean;
 }
 
-export interface TestRequestBuilder<TResponse = unknown> extends PromiseLike<TestResponse<TResponse>> {
+export interface TestRequestBuilder<TResponse = unknown>
+  extends PromiseLike<TestResponse<TResponse>> {
   mock<TDeps, TState, TMethods>(
     service: NamedServiceDef<TDeps, TState, TMethods>,
     impl: DeepPartial<TMethods>,
@@ -98,27 +99,39 @@ export interface TestAppWithRoutes<TRouteMap extends RouteMapEntry> {
   get<TKey extends `GET ${string}` & keyof TRouteMap>(
     path: string,
     options?: RequestOptions<TRouteMap[TKey] extends { body: infer TBody } ? TBody : never>,
-  ): TestRequestBuilder<TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown>;
+  ): TestRequestBuilder<
+    TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown
+  >;
   post<TKey extends `POST ${string}` & keyof TRouteMap>(
     path: string,
     options?: RequestOptions<TRouteMap[TKey] extends { body: infer TBody } ? TBody : never>,
-  ): TestRequestBuilder<TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown>;
+  ): TestRequestBuilder<
+    TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown
+  >;
   put<TKey extends `PUT ${string}` & keyof TRouteMap>(
     path: string,
     options?: RequestOptions<TRouteMap[TKey] extends { body: infer TBody } ? TBody : never>,
-  ): TestRequestBuilder<TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown>;
+  ): TestRequestBuilder<
+    TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown
+  >;
   patch<TKey extends `PATCH ${string}` & keyof TRouteMap>(
     path: string,
     options?: RequestOptions<TRouteMap[TKey] extends { body: infer TBody } ? TBody : never>,
-  ): TestRequestBuilder<TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown>;
+  ): TestRequestBuilder<
+    TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown
+  >;
   delete<TKey extends `DELETE ${string}` & keyof TRouteMap>(
     path: string,
     options?: RequestOptions<TRouteMap[TKey] extends { body: infer TBody } ? TBody : never>,
-  ): TestRequestBuilder<TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown>;
+  ): TestRequestBuilder<
+    TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown
+  >;
   head<TKey extends `HEAD ${string}` & keyof TRouteMap>(
     path: string,
     options?: RequestOptions<TRouteMap[TKey] extends { body: infer TBody } ? TBody : never>,
-  ): TestRequestBuilder<TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown>;
+  ): TestRequestBuilder<
+    TRouteMap[TKey] extends { response: infer TResponse } ? TResponse : unknown
+  >;
 }
 
 // Type for untyped HTTP methods (backwards compatibility)

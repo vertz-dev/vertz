@@ -1,8 +1,8 @@
 import type { Diagnostic } from '@vertz/compiler';
+import { symbols } from '@vertz/tui';
 import { render } from 'ink-testing-library';
 import { describe, expect, it } from 'vitest';
 import { DiagnosticDisplay } from '../../components/DiagnosticDisplay';
-import { symbols } from '@vertz/tui';
 
 function makeDiagnostic(overrides: Partial<Diagnostic> = {}): Diagnostic {
   return {
