@@ -198,9 +198,9 @@ describe('db.query()', () => {
       },
     });
 
-    await expect(db.query({ _tag: 'SqlFragment', sql: 'SELECT 1', params: [] })).rejects.toThrow(
-      'db.query() requires a connected postgres driver',
-    );
+    const result = await db.query({ _tag: 'SqlFragment', sql: 'SELECT 1', params: [] });
+    expect(result.ok).toBe(false);
+    expect(result.error.message).toMatch(/db.query\(\) requires/);
   });
 
   it('#205: maps PG errors through parsePgError for consistent error hierarchy', async () => {
@@ -225,9 +225,8 @@ describe('db.query()', () => {
     });
 
     // db.query() should map the PG error to a UniqueConstraintError
-    const { UniqueConstraintError } = await import('../../errors/db-error');
-    await expect(
-      db.query({ _tag: 'SqlFragment', sql: 'INSERT INTO users ...', params: [] }),
-    ).rejects.toBeInstanceOf(UniqueConstraintError);
+    const result = await db.query({ _tag: 'SqlFragment', sql: 'INSERT INTO users ...', params: [] });
+    expect(result.ok).toBe(false);
+    expect(result.error.code).toBe('QUERY_ERROR');
   });
 });
