@@ -36,10 +36,5 @@
     "@vertz/ui-server": {
       "optional": true
     }
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/vertz-dev/vertz.git",
-    "directory": "cloudflare"
   }
 }
