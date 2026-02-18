@@ -100,19 +100,21 @@ export function createReactiveSprite(
 /**
  * Renders a PixiJS canvas to the specified container element.
  * Returns the canvas element and a dispose function for cleanup.
+ * Async because PixiJS v8 requires `app.init()` for initialization.
  */
-export function render(
+export async function render(
   container: HTMLElement,
   options: CanvasOptions,
-): { canvas: HTMLCanvasElement; dispose: DisposeFn } {
-  const app = new Application({
+): Promise<{ canvas: HTMLCanvasElement; dispose: DisposeFn }> {
+  const app = new Application();
+  await app.init({
     width: options.width,
     height: options.height,
-    backgroundColor: options.backgroundColor ?? 0x000000,
+    background: options.backgroundColor ?? 0x000000,
   });
 
   // Mount the canvas to the container
-  container.appendChild(app.view as HTMLCanvasElement);
+  container.appendChild(app.canvas as HTMLCanvasElement);
 
   // Create dispose function for cleanup
   const dispose = () => {
@@ -120,7 +122,7 @@ export function render(
   };
 
   return {
-    canvas: app.view as HTMLCanvasElement,
+    canvas: app.canvas as HTMLCanvasElement,
     dispose,
   };
 }
@@ -130,15 +132,15 @@ export function render(
  * Internal only — callers use the dispose() function returned by render().
  */
 function destroy(app: Application, container: HTMLElement): void {
-  const view = app.view as unknown as Node | null;
+  const canvas = app.canvas as unknown as Node | null;
 
   // Remove canvas from DOM
-  if (view && container.contains(view)) {
-    container.removeChild(view);
+  if (canvas && container.contains(canvas)) {
+    container.removeChild(canvas);
   }
 
   // Destroy the PixiJS application to release all resources
-  app.destroy(true, { children: true, texture: true });
+  app.destroy(true, { children: true });
 }
 
 /**

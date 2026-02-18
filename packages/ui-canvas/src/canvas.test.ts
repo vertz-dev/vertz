@@ -198,6 +198,21 @@ describe('Feature: Canvas Reactivity', () => {
     });
   });
 
+  describe('Issue #441: PixiJS v8 API migration', () => {
+    describe('Given the render function', () => {
+      it('Then render() returns a Promise (is async)', async () => {
+        const { render } = await import('./canvas');
+        const container = document.createElement('div');
+        const result = render(container, { width: 100, height: 100 });
+        // In v8, render must be async because app.init() is async
+        expect(result).toBeInstanceOf(Promise);
+        // PixiJS cannot fully init in happy-dom (no real canvas context),
+        // so the promise rejects. We catch it to avoid unhandled rejection.
+        await result.catch(() => {});
+      });
+    });
+  });
+
   describe('Feature: Signal Cleanup', () => {
     describe('Given bound signals', () => {
       describe('When dispose is called', () => {
