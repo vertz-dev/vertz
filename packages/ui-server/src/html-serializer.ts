@@ -32,7 +32,12 @@ export function escapeHtml(text: string): string {
 
 /** Escape special HTML characters in attribute values. */
 export function escapeAttr(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
 }
 
 /** Serialize attributes to an HTML string fragment. */

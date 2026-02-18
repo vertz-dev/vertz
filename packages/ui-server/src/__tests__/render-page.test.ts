@@ -137,4 +137,92 @@ describe('renderPage', () => {
     const html = await response.text();
     expect(html).toContain('og:description" content="My description"');
   });
+
+  describe('XSS protection', () => {
+    it('escapes HTML in title', async () => {
+      const vnode = createVNode(['Hello']);
+      const response = renderPage(vnode, { title: '<script>alert("XSS")</script>' });
+      const html = await response.text();
+      expect(html).toContain('<title>&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;</title>');
+      expect(html).not.toContain('<title><script>alert("XSS")</script></title>');
+    });
+
+    it('escapes HTML in description', async () => {
+      const vnode = createVNode(['Hello']);
+      const response = renderPage(vnode, { description: '<script>alert("XSS")</script>' });
+      const html = await response.text();
+      expect(html).toContain('content="&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;"');
+      expect(html).not.toContain('content="<script>alert("XSS")</script>"');
+    });
+
+    it('escapes quotes in meta tag attributes', async () => {
+      const vnode = createVNode(['Hello']);
+      const response = renderPage(vnode, {
+        title: 'Test "quotes" & ampersands',
+        description: 'Has "quotes" too',
+      });
+      const html = await response.text();
+      expect(html).toContain('<title>Test &quot;quotes&quot; &amp; ampersands</title>');
+      expect(html).toContain('content="Has &quot;quotes&quot; too"');
+    });
+
+    it('escapes HTML in lang attribute', async () => {
+      const vnode = createVNode(['Hello']);
+      const response = renderPage(vnode, { lang: 'en" onclick="alert(\'XSS\')"' });
+      const html = await response.text();
+      expect(html).toContain('<html lang="en&quot; onclick=&quot;alert(&#x27;XSS&#x27;)&quot;">');
+      expect(html).not.toContain('<html lang="en" onclick="alert(\'XSS\')"">');
+    });
+
+    it('escapes HTML in script src attributes', async () => {
+      const vnode = createVNode(['Hello']);
+      const response = renderPage(vnode, {
+        scripts: ['/app.js" onload="alert(\'XSS\')'],
+      });
+      const html = await response.text();
+      expect(html).toContain('src="/app.js&quot; onload=&quot;alert(&#x27;XSS&#x27;)');
+      expect(html).not.toContain('src="/app.js" onload="alert(\'XSS\')"');
+    });
+
+    it('escapes ampersands in all contexts', async () => {
+      const vnode = createVNode(['Hello']);
+      const response = renderPage(vnode, {
+        title: 'Q&A Section',
+        description: 'Questions & Answers',
+        lang: 'en&test',
+      });
+      const html = await response.text();
+      expect(html).toContain('<title>Q&amp;A Section</title>');
+      expect(html).toContain('content="Questions &amp; Answers"');
+      expect(html).toContain('lang="en&amp;test"');
+    });
+
+    it('escapes OG tags with XSS attempts', async () => {
+      const vnode = createVNode(['Hello']);
+      const response = renderPage(vnode, {
+        og: {
+          title: '<script>alert("XSS")</script>',
+          description: 'Test" onclick="alert(\'XSS\')"',
+          image: '/img.png" onerror="alert(\'XSS\')"',
+          url: 'https://example.com" onclick="alert(\'XSS\')"',
+        },
+      });
+      const html = await response.text();
+      expect(html).not.toContain('<script>alert("XSS")</script>');
+      expect(html).not.toContain('onclick="alert(\'XSS\')"');
+      expect(html).not.toContain('onerror="alert(\'XSS\')"');
+    });
+
+    it('escapes Twitter card meta tags', async () => {
+      const vnode = createVNode(['Hello']);
+      const response = renderPage(vnode, {
+        twitter: {
+          card: 'summary" onclick="alert(\'XSS\')"',
+          site: '@test" onclick="alert(\'XSS\')"',
+        },
+      });
+      const html = await response.text();
+      expect(html).not.toContain('onclick="alert(\'XSS\')"');
+    });
+  });
 });
