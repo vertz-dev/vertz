@@ -15,6 +15,7 @@
  * Unique identifiers per test group prevent cross-test collisions.
  */
 
+import { unwrap } from '@vertz/schema';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createDb } from '../client/database';
 import { createPostgresDriver } from '../client/postgres-driver';
@@ -22,7 +23,6 @@ import { d } from '../d';
 import { ForeignKeyError, NotFoundError, UniqueConstraintError } from '../errors/db-error';
 import { createRegistry } from '../schema/registry';
 import { sql } from '../sql/tagged';
-import { unwrap } from '@vertz/schema';
 
 // ---------------------------------------------------------------------------
 // Connection URL
