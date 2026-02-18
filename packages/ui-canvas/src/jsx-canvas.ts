@@ -18,8 +18,30 @@ export function jsxCanvas(tag: string, props: Record<string, unknown>): Containe
   const displayObject = createDisplayObject(tag);
   let hasEventProps = false;
 
+  // Text-specific prop handling: 'text' and 'style' need special treatment
+  // because they have dedicated semantics on PIXI.Text (reactive text, TextStyle).
+  if (displayObject instanceof Text) {
+    if ('text' in props) {
+      const textValue = props.text;
+      if (typeof textValue === 'function') {
+        effect(() => {
+          (displayObject as Text).text = (textValue as () => string)();
+        });
+      } else if (textValue !== undefined) {
+        (displayObject as Text).text = textValue as string;
+      }
+    }
+
+    if ('style' in props && props.style !== undefined) {
+      (displayObject as Text).style = props.style as import('pixi.js').TextStyleOptions;
+    }
+  }
+
   for (const [key, value] of Object.entries(props)) {
     if (key === 'children' || key === 'ref' || key === 'interactive') continue;
+
+    // Skip Text-specific props — handled above
+    if (displayObject instanceof Text && (key === 'text' || key === 'style')) continue;
 
     if (key === 'draw' && displayObject instanceof Graphics) {
       // Draw callback runs inside effect for reactive redraws.

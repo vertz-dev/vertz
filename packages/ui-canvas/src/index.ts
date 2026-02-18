@@ -20,5 +20,6 @@ export type {
   SpriteProps,
   TextProps,
 } from './types';
+export { createDebugOverlay } from './debug-overlay';
 export type { MaybeAccessor } from './unwrap';
 export { unwrap } from './unwrap';
