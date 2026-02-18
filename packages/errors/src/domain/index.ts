@@ -66,6 +66,19 @@ export {
   type UniqueViolation,
   type WriteError,
 } from './db.js';
+// Migration errors
+export {
+  createMigrationChecksumMismatch,
+  createMigrationHistoryNotFound,
+  createMigrationQueryError,
+  isMigrationChecksumMismatch,
+  isMigrationHistoryNotFound,
+  isMigrationQueryError,
+  type MigrationChecksumMismatch,
+  type MigrationError,
+  type MigrationHistoryNotFound,
+  type MigrationQueryError,
+} from './migration.js';
 // Schema errors - using prefixed names to avoid conflicts
 export {
   createValidationError as createSchemaValidationError,
