@@ -276,3 +276,120 @@ describe('Feature: Canvas Reactivity', () => {
     });
   });
 });
+
+describe('Issue #445: Integration tests with real PixiJS objects', () => {
+  describe('Given a real PixiJS Container', () => {
+    it('Then bindSignal updates Container properties reactively', async () => {
+      const { Container } = await import('pixi.js');
+      const container = new Container();
+      const x = signal(42);
+      const y = signal(84);
+
+      const disposeX = bindSignal(x, container, 'x');
+      const disposeY = bindSignal(y, container, 'y');
+
+      expect(container.x).toBe(42);
+      expect(container.y).toBe(84);
+
+      x.value = 100;
+      y.value = 200;
+
+      expect(container.x).toBe(100);
+      expect(container.y).toBe(200);
+
+      disposeX();
+      disposeY();
+    });
+  });
+
+  describe('Given a real PixiJS Container with alpha and rotation', () => {
+    it('Then bindSignal with transform works on real PixiJS objects', async () => {
+      const { Container } = await import('pixi.js');
+      const container = new Container();
+      const degrees = signal(90);
+
+      // Transform degrees to radians
+      const dispose = bindSignal(degrees, container, 'rotation', (deg: number) => (deg * Math.PI) / 180);
+
+      expect(container.rotation).toBeCloseTo(Math.PI / 2);
+
+      degrees.value = 180;
+      expect(container.rotation).toBeCloseTo(Math.PI);
+
+      dispose();
+    });
+  });
+
+  describe('Given a real PixiJS Container used with createReactiveSprite', () => {
+    it('Then position signals drive Container position reactively', async () => {
+      const { Container } = await import('pixi.js');
+      const container = new Container();
+
+      const x = signal(10);
+      const y = signal(20);
+      const alpha = signal(0.5);
+
+      const { displayObject, dispose } = createReactiveSprite(
+        { x, y, alpha },
+        container as unknown as Parameters<typeof createReactiveSprite>[1],
+      );
+
+      expect(displayObject.x).toBe(10);
+      expect(displayObject.y).toBe(20);
+      expect(displayObject.alpha).toBe(0.5);
+
+      x.value = 50;
+      y.value = 60;
+      alpha.value = 1;
+
+      expect(displayObject.x).toBe(50);
+      expect(displayObject.y).toBe(60);
+      expect(displayObject.alpha).toBe(1);
+
+      dispose();
+
+      // After dispose, updates should not propagate
+      x.value = 999;
+      expect(displayObject.x).toBe(50);
+    });
+  });
+
+  describe('Given a mocked PixiJS Application for render lifecycle', () => {
+    it('Then render mounts canvas, and dispose removes it and destroys app', async () => {
+      const mockCanvas = document.createElement('canvas');
+      const mockStage = { label: 'stage' };
+      const destroySpy = vi.fn();
+
+      vi.resetModules();
+      vi.doMock('pixi.js', () => {
+        return {
+          Application: class MockApplication {
+            canvas = mockCanvas;
+            stage = mockStage;
+            async init() {}
+            destroy = destroySpy;
+          },
+          Container: class MockContainer {},
+        };
+      });
+
+      const { render } = await import('./canvas');
+      const domContainer = document.createElement('div');
+      document.body.appendChild(domContainer);
+
+      // Render: canvas should be added to container
+      const result = await render(domContainer, { width: 800, height: 600 });
+      expect(domContainer.contains(mockCanvas)).toBe(true);
+      expect(result.canvas).toBe(mockCanvas);
+
+      // Dispose: canvas should be removed and app destroyed
+      result.dispose();
+      expect(domContainer.contains(mockCanvas)).toBe(false);
+      expect(destroySpy).toHaveBeenCalledOnce();
+
+      document.body.removeChild(domContainer);
+      vi.doUnmock('pixi.js');
+      vi.resetModules();
+    });
+  });
+});
