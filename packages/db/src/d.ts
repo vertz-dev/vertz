@@ -10,17 +10,23 @@ import type {
   VarcharMeta,
 } from './schema/column';
 import { createColumn, createSerialColumn, createTenantColumn } from './schema/column';
+import type { TableEntry } from './schema/inference';
+import type { ManyRelationDef, RelationDef } from './schema/relation';
+import { createManyRelation, createOneRelation } from './schema/relation';
+import type { ColumnRecord, IndexDef, TableDef, TableOptions } from './schema/table';
+import { createIndex, createTable } from './schema/table';
 
 // Duck-typing interface so @vertz/db can accept EnumSchema from @vertz/schema
 // without a hard runtime import (keeps the dependency boundary clean).
 interface EnumSchemaLike<T extends readonly string[]> {
   readonly values: T;
 }
-import type { TableEntry } from './schema/inference';
-import type { ManyRelationDef, RelationDef } from './schema/relation';
-import { createManyRelation, createOneRelation } from './schema/relation';
-import type { ColumnRecord, IndexDef, TableDef, TableOptions } from './schema/table';
-import { createIndex, createTable } from './schema/table';
+
+// Duck-typing interface so @vertz/db can accept Schema from @vertz/schema
+// without a hard runtime import (keeps the dependency boundary clean).
+interface SchemaLike<T> {
+  parse(value: unknown): T;
+}
 
 export const d: {
   uuid(): ColumnBuilder<string, DefaultMeta<'uuid'>>;
@@ -40,9 +46,9 @@ export const d: {
   timestamp(): ColumnBuilder<Date, DefaultMeta<'timestamp with time zone'>>;
   date(): ColumnBuilder<string, DefaultMeta<'date'>>;
   time(): ColumnBuilder<string, DefaultMeta<'time'>>;
-  jsonb<T = unknown>(opts?: {
-    validator: JsonbValidator<T>;
-  }): ColumnBuilder<T, DefaultMeta<'jsonb'>>;
+  jsonb<T = unknown>(
+    schemaOrOpts?: SchemaLike<T> | { validator: JsonbValidator<T> },
+  ): ColumnBuilder<T, DefaultMeta<'jsonb'>>;
   textArray(): ColumnBuilder<string[], DefaultMeta<'text[]'>>;
   integerArray(): ColumnBuilder<number[], DefaultMeta<'integer[]'>>;
   enum<TName extends string, const TValues extends readonly string[]>(
@@ -97,11 +103,18 @@ export const d: {
     createColumn<Date, DefaultMeta<'timestamp with time zone'>>('timestamp with time zone'),
   date: () => createColumn<string, DefaultMeta<'date'>>('date'),
   time: () => createColumn<string, DefaultMeta<'time'>>('time'),
-  jsonb: <T = unknown>(opts?: { validator: JsonbValidator<T> }) =>
-    createColumn<T, DefaultMeta<'jsonb'>>(
+  jsonb: <T = unknown>(schemaOrOpts?: SchemaLike<T> | { validator: JsonbValidator<T> }) => {
+    // If it's a schema (has parse method but NOT validator property), use it directly
+    if (schemaOrOpts && 'parse' in schemaOrOpts && !('validator' in schemaOrOpts)) {
+      return createColumn<T, DefaultMeta<'jsonb'>>('jsonb', { validator: schemaOrOpts });
+    }
+    // Otherwise, it's a config object (or undefined)
+    const opts = schemaOrOpts as { validator: JsonbValidator<T> } | undefined;
+    return createColumn<T, DefaultMeta<'jsonb'>>(
       'jsonb',
       opts?.validator ? { validator: opts.validator } : {},
-    ),
+    );
+  },
   textArray: () => createColumn<string[], DefaultMeta<'text[]'>>('text[]'),
   integerArray: () => createColumn<number[], DefaultMeta<'integer[]'>>('integer[]'),
   enum: <TName extends string, const TValues extends readonly string[]>(
