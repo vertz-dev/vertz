@@ -15,6 +15,7 @@
  * Unique identifiers per test group prevent cross-test collisions.
  */
 
+import { unwrap } from '@vertz/schema';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createDb } from '../client/database';
 import { createPostgresDriver } from '../client/postgres-driver';
@@ -139,10 +140,10 @@ async function seedTestData(
   ids: ReturnType<typeof testIds>,
   suffix: string,
 ) {
-  await db.create('organizations', {
+  await unwrap(db.create('organizations', {
     data: { id: ids.ORG_ID, name: 'Acme Corp', slug: `acme-${suffix}` },
-  });
-  await db.create('users', {
+  }));
+  await unwrap(db.create('users', {
     data: {
       id: ids.USER_ID,
       organizationId: ids.ORG_ID,
@@ -150,8 +151,8 @@ async function seedTestData(
       email: `alice-${suffix}@acme.com`,
       passwordHash: 'hash123',
     },
-  });
-  await db.create('users', {
+  }));
+  await unwrap(db.create('users', {
     data: {
       id: ids.USER2_ID,
       organizationId: ids.ORG_ID,
@@ -159,8 +160,8 @@ async function seedTestData(
       email: `bob-${suffix}@acme.com`,
       passwordHash: 'hash456',
     },
-  });
-  await db.create('posts', {
+  }));
+  await unwrap(db.create('posts', {
     data: {
       id: ids.POST_ID,
       authorId: ids.USER_ID,
@@ -169,8 +170,8 @@ async function seedTestData(
       status: 'published',
       views: 100,
     },
-  });
-  await db.create('posts', {
+  }));
+  await unwrap(db.create('posts', {
     data: {
       id: ids.POST2_ID,
       authorId: ids.USER_ID,
@@ -179,15 +180,15 @@ async function seedTestData(
       status: 'draft',
       views: 5,
     },
-  });
-  await db.create('comments', {
+  }));
+  await unwrap(db.create('comments', {
     data: {
       id: ids.COMMENT_ID,
       postId: ids.POST_ID,
       authorId: ids.USER2_ID,
       body: 'Great post!',
     },
-  });
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -195,9 +196,9 @@ async function seedTestData(
 // ---------------------------------------------------------------------------
 
 async function truncateAll(db: ReturnType<typeof createDb<typeof tables>>) {
-  await db.query(
+  await unwrap(db.query(
     sql`TRUNCATE "comments", "posts", "users", "organizations", "feature_flags" CASCADE`,
-  );
+  ));
 }
 
 // ---------------------------------------------------------------------------
@@ -220,28 +221,28 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     // Drop existing tables (clean slate)
-    await db.query(sql`DROP TABLE IF EXISTS "comments" CASCADE`);
-    await db.query(sql`DROP TABLE IF EXISTS "posts" CASCADE`);
-    await db.query(sql`DROP TABLE IF EXISTS "users" CASCADE`);
-    await db.query(sql`DROP TABLE IF EXISTS "organizations" CASCADE`);
-    await db.query(sql`DROP TABLE IF EXISTS "feature_flags" CASCADE`);
-    await db.query(sql`DROP TYPE IF EXISTS user_role_pg CASCADE`);
-    await db.query(sql`DROP TYPE IF EXISTS post_status_pg CASCADE`);
+    await unwrap(db.query(sql`DROP TABLE IF EXISTS "comments" CASCADE`));
+    await unwrap(db.query(sql`DROP TABLE IF EXISTS "posts" CASCADE`));
+    await unwrap(db.query(sql`DROP TABLE IF EXISTS "users" CASCADE`));
+    await unwrap(db.query(sql`DROP TABLE IF EXISTS "organizations" CASCADE`));
+    await unwrap(db.query(sql`DROP TABLE IF EXISTS "feature_flags" CASCADE`));
+    await unwrap(db.query(sql`DROP TYPE IF EXISTS user_role_pg CASCADE`));
+    await unwrap(db.query(sql`DROP TYPE IF EXISTS post_status_pg CASCADE`));
 
     // Create the DDL tables
-    await db.query(sql`CREATE TYPE user_role_pg AS ENUM ('admin', 'editor', 'viewer')`);
-    await db.query(sql`CREATE TYPE post_status_pg AS ENUM ('draft', 'published', 'archived')`);
+    await unwrap(db.query(sql`CREATE TYPE user_role_pg AS ENUM ('admin', 'editor', 'viewer')`));
+    await unwrap(db.query(sql`CREATE TYPE post_status_pg AS ENUM ('draft', 'published', 'archived')`));
 
-    await db.query(sql`
+    await unwrap(db.query(sql`
       CREATE TABLE "organizations" (
         "id" uuid PRIMARY KEY,
         "name" text NOT NULL,
         "slug" text NOT NULL UNIQUE,
         "created_at" timestamp with time zone NOT NULL DEFAULT now()
       )
-    `);
+    `));
 
-    await db.query(sql`
+    await unwrap(db.query(sql`
       CREATE TABLE "users" (
         "id" uuid PRIMARY KEY,
         "organization_id" uuid NOT NULL REFERENCES "organizations"("id"),
@@ -252,9 +253,9 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
         "active" boolean NOT NULL DEFAULT true,
         "created_at" timestamp with time zone NOT NULL DEFAULT now()
       )
-    `);
+    `));
 
-    await db.query(sql`
+    await unwrap(db.query(sql`
       CREATE TABLE "posts" (
         "id" uuid PRIMARY KEY,
         "author_id" uuid NOT NULL REFERENCES "users"("id"),
@@ -265,9 +266,9 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
         "created_at" timestamp with time zone NOT NULL DEFAULT now(),
         "updated_at" timestamp with time zone NOT NULL DEFAULT now()
       )
-    `);
+    `));
 
-    await db.query(sql`
+    await unwrap(db.query(sql`
       CREATE TABLE "comments" (
         "id" uuid PRIMARY KEY,
         "post_id" uuid NOT NULL REFERENCES "posts"("id"),
@@ -275,26 +276,26 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
         "body" text NOT NULL,
         "created_at" timestamp with time zone NOT NULL DEFAULT now()
       )
-    `);
+    `));
 
-    await db.query(sql`
+    await unwrap(db.query(sql`
       CREATE TABLE "feature_flags" (
         "id" uuid PRIMARY KEY,
         "name" text NOT NULL UNIQUE,
         "enabled" boolean NOT NULL DEFAULT false
       )
-    `);
+    `));
   });
 
   afterAll(async () => {
     // Drop test tables
-    await db.query(sql`DROP TABLE IF EXISTS "comments" CASCADE`);
-    await db.query(sql`DROP TABLE IF EXISTS "posts" CASCADE`);
-    await db.query(sql`DROP TABLE IF EXISTS "users" CASCADE`);
-    await db.query(sql`DROP TABLE IF EXISTS "organizations" CASCADE`);
-    await db.query(sql`DROP TABLE IF EXISTS "feature_flags" CASCADE`);
-    await db.query(sql`DROP TYPE IF EXISTS user_role_pg CASCADE`);
-    await db.query(sql`DROP TYPE IF EXISTS post_status_pg CASCADE`);
+    await unwrap(db.query(sql`DROP TABLE IF EXISTS "comments" CASCADE`));
+    await unwrap(db.query(sql`DROP TABLE IF EXISTS "posts" CASCADE`));
+    await unwrap(db.query(sql`DROP TABLE IF EXISTS "users" CASCADE`));
+    await unwrap(db.query(sql`DROP TABLE IF EXISTS "organizations" CASCADE`));
+    await unwrap(db.query(sql`DROP TABLE IF EXISTS "feature_flags" CASCADE`));
+    await unwrap(db.query(sql`DROP TYPE IF EXISTS user_role_pg CASCADE`));
+    await unwrap(db.query(sql`DROP TYPE IF EXISTS post_status_pg CASCADE`));
 
     // Close the connection pool
     await db.close();
@@ -311,7 +312,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('raw SQL query works via sql tagged template', async () => {
-      const result = await db.query<{ one: number }>(sql`SELECT 1 AS one`);
+      const result = unwrap(await db.query<{ one: number }>(sql`SELECT 1 AS one`));
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0]?.one).toBe(1);
     });
@@ -329,9 +330,9 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('creates an organization and finds it back', async () => {
-      const org = await db.create('organizations', {
+      const org = unwrap(await db.create('organizations', {
         data: { id: ids.ORG_ID, name: 'Acme Corp', slug: 'acme-create-test' },
-      });
+      }));
 
       expect(org).toBeDefined();
       expect(org.id).toBe(ids.ORG_ID);
@@ -339,7 +340,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
       expect(org.slug).toBe('acme-create-test');
       expect(org.createdAt).toBeInstanceOf(Date);
 
-      const found = await db.get('organizations', { where: { id: ids.ORG_ID } });
+      const found = unwrap(await db.get('organizations', { where: { id: ids.ORG_ID } }));
       expect(found).not.toBeNull();
       expect(found?.id).toBe(ids.ORG_ID);
       expect(found?.name).toBe('Acme Corp');
@@ -351,7 +352,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
         data: { id: ids.ORG_ID, name: 'Acme Corp', slug: 'acme-users-test' },
       });
 
-      const user1 = await db.create('users', {
+      const user1 = unwrap(await db.create('users', {
         data: {
           id: ids.USER_ID,
           organizationId: ids.ORG_ID,
@@ -359,12 +360,12 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
           email: 'alice-users-test@acme.com',
           passwordHash: 'hash123',
         },
-      });
+      }));
       expect(user1).toBeDefined();
       expect(user1.id).toBe(ids.USER_ID);
       expect(user1.name).toBe('Alice');
 
-      const user2 = await db.create('users', {
+      const user2 = unwrap(await db.create('users', {
         data: {
           id: ids.USER2_ID,
           organizationId: ids.ORG_ID,
@@ -372,7 +373,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
           email: 'bob-users-test@acme.com',
           passwordHash: 'hash456',
         },
-      });
+      }));
       expect(user2).toBeDefined();
       expect(user2.name).toBe('Bob');
     });
@@ -391,7 +392,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
         },
       });
 
-      const post1 = await db.create('posts', {
+      const post1 = unwrap(await db.create('posts', {
         data: {
           id: ids.POST_ID,
           authorId: ids.USER_ID,
@@ -400,11 +401,11 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
           status: 'published',
           views: 100,
         },
-      });
+      }));
       expect(post1).toBeDefined();
       expect(post1.title).toBe('First Post');
 
-      const post2 = await db.create('posts', {
+      const post2 = unwrap(await db.create('posts', {
         data: {
           id: ids.POST2_ID,
           authorId: ids.USER_ID,
@@ -413,7 +414,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
           status: 'draft',
           views: 5,
         },
-      });
+      }));
       expect(post2).toBeDefined();
       expect(post2.title).toBe('Second Post');
     });
@@ -424,22 +425,22 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
       // Remove the seeded comment to test creation fresh
       await db.delete('comments', { where: { id: ids.COMMENT_ID } });
 
-      const comment = await db.create('comments', {
+      const comment = unwrap(await db.create('comments', {
         data: {
           id: ids.COMMENT_ID,
           postId: ids.POST_ID,
           authorId: ids.USER2_ID,
           body: 'Great post!',
         },
-      });
+      }));
       expect(comment).toBeDefined();
       expect(comment.body).toBe('Great post!');
     });
 
     it('creates a feature flag', async () => {
-      const flag = await db.create('featureFlags', {
+      const flag = unwrap(await db.create('featureFlags', {
         data: { id: ids.FLAG_ID, name: 'dark_mode_create', enabled: true },
-      });
+      }));
       expect(flag).toBeDefined();
       expect(flag.name).toBe('dark_mode_create');
       expect(flag.enabled).toBe(true);
@@ -459,42 +460,42 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('finds all posts', async () => {
-      const result = await db.list('posts');
+      const result = unwrap(await db.list('posts'));
       expect(result).toHaveLength(2);
     });
 
     it('filters by status', async () => {
-      const result = await db.list('posts', { where: { status: 'published' } });
+      const result = unwrap(await db.list('posts', { where: { status: 'published' } }));
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('First Post');
     });
 
     it('filters by views with gte', async () => {
-      const result = await db.list('posts', { where: { views: { gte: 50 } } });
+      const result = unwrap(await db.list('posts', { where: { views: { gte: 50 } } }));
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('First Post');
     });
 
     it('filters with in operator', async () => {
-      const result = await db.list('posts', {
+      const result = unwrap(await db.list('posts', {
         where: { status: { in: ['published', 'draft'] } },
-      });
+      }));
       expect(result).toHaveLength(2);
     });
 
     it('filters with contains operator', async () => {
-      const result = await db.list('posts', { where: { title: { contains: 'First' } } });
+      const result = unwrap(await db.list('posts', { where: { title: { contains: 'First' } } }));
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('First Post');
     });
 
     it('filters with gt operator', async () => {
-      const result = await db.list('posts', { where: { views: { gt: 50 } } });
+      const result = unwrap(await db.list('posts', { where: { views: { gt: 50 } } }));
       expect(result).toHaveLength(1);
     });
 
     it('returns empty array when no match', async () => {
-      const result = await db.list('posts', { where: { title: 'nonexistent' } });
+      const result = unwrap(await db.list('posts', { where: { title: 'nonexistent' } }));
       expect(result).toHaveLength(0);
     });
   });
@@ -512,31 +513,34 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('returns paginated results with total count', async () => {
-      const { data, total } = await db.listAndCount('posts', {
+      const result = unwrap(await db.listAndCount('posts', {
         limit: 1,
         offset: 0,
         orderBy: { views: 'desc' },
-      });
+      }));
+      const { data, total } = result;
       expect(data).toHaveLength(1);
       expect(total).toBe(2);
       expect(data[0].title).toBe('First Post');
     });
 
     it('returns second page correctly', async () => {
-      const { data, total } = await db.listAndCount('posts', {
+      const result = unwrap(await db.listAndCount('posts', {
         limit: 1,
         offset: 1,
         orderBy: { views: 'desc' },
-      });
+      }));
+      const { data, total } = result;
       expect(data).toHaveLength(1);
       expect(total).toBe(2);
       expect(data[0].title).toBe('Second Post');
     });
 
     it('count returns 0 for no matches', async () => {
-      const { data, total } = await db.listAndCount('posts', {
+      const result = unwrap(await db.listAndCount('posts', {
         where: { title: 'nonexistent' },
-      });
+      }));
+      const { data, total } = result;
       expect(data).toHaveLength(0);
       expect(total).toBe(0);
     });
@@ -555,28 +559,28 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('updates a post', async () => {
-      const updated = await db.update('posts', {
+      const updated = unwrap(await db.update('posts', {
         where: { id: ids.POST_ID },
         data: { views: 200 },
-      });
+      }));
       expect(updated).toBeDefined();
       expect(updated.views).toBe(200);
     });
 
     it('updateMany returns correct count', async () => {
-      const result = await db.updateMany('posts', {
+      const result = unwrap(await db.updateMany('posts', {
         where: { status: 'draft' },
         data: { views: 10 },
-      });
+      }));
       expect(result.count).toBe(1);
     });
 
     it('deletes a comment and verifies it is gone', async () => {
-      const deleted = await db.delete('comments', { where: { id: ids.COMMENT_ID } });
+      const deleted = unwrap(await db.delete('comments', { where: { id: ids.COMMENT_ID } }));
       expect(deleted).toBeDefined();
       expect(deleted.id).toBe(ids.COMMENT_ID);
 
-      const found = await db.get('comments', { where: { id: ids.COMMENT_ID } });
+      const found = unwrap(await db.get('comments', { where: { id: ids.COMMENT_ID } }));
       expect(found).toBeNull();
     });
 
@@ -592,7 +596,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
         },
       });
 
-      const result = await db.deleteMany('posts', { where: { id: tempId } });
+      const result = unwrap(await db.deleteMany('posts', { where: { id: tempId } }));
       expect(result.count).toBe(1);
     });
   });
@@ -610,7 +614,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('list posts with include author', async () => {
-      const postsResult = await db.list('posts', { include: { author: true } });
+      const postsResult = unwrap(await db.list('posts', { include: { author: true } }));
       expect(postsResult.length).toBeGreaterThan(0);
       for (const post of postsResult) {
         expect(post.author).toBeDefined();
@@ -620,10 +624,10 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('list posts with include comments', async () => {
-      const postsResult = await db.list('posts', {
+      const postsResult = unwrap(await db.list('posts', {
         where: { id: ids.POST_ID },
         include: { comments: true },
-      });
+      }));
       expect(postsResult).toHaveLength(1);
       const post = postsResult[0];
       expect(post.comments).toHaveLength(1);
@@ -631,20 +635,20 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('get with single include works', async () => {
-      const post = await db.get('posts', {
+      const post = unwrap(await db.get('posts', {
         where: { id: ids.POST_ID },
         include: { author: true },
-      });
+      }));
       expect(post).not.toBeNull();
       expect(post?.author).toBeDefined();
       expect(post?.author.name).toBe('Alice');
     });
 
     it('getOrThrow with multiple includes works', async () => {
-      const post = await db.getOrThrow('posts', {
+      const post = unwrap(await db.getOrThrow('posts', {
         where: { id: ids.POST_ID },
         include: { author: true, comments: true },
-      });
+      }));
       expect(post.author).toBeDefined();
       expect(post.author.name).toBe('Alice');
       expect(post.comments).toHaveLength(1);
@@ -652,10 +656,11 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('listAndCount with include works', async () => {
-      const { data } = await db.listAndCount('posts', {
+      const result = unwrap(await db.listAndCount('posts', {
         where: { id: ids.POST_ID },
         include: { author: true, comments: true },
-      });
+      }));
+      const { data } = result;
       expect(data).toHaveLength(1);
       expect(data[0].author).toBeDefined();
       expect(data[0].author.name).toBe('Alice');
@@ -778,13 +783,13 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('count returns correct number', async () => {
-      const count = await db.count('posts');
-      expect(count).toBe(2);
+      const result = unwrap(await db.count('posts'));
+      expect(result).toBe(2);
     });
 
     it('count with where filter', async () => {
-      const count = await db.count('posts', { where: { status: 'published' } });
-      expect(count).toBe(1);
+      const result = unwrap(await db.count('posts', { where: { status: 'published' } }));
+      expect(result).toBe(1);
     });
   });
 
@@ -798,7 +803,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('upsert creates a new row', async () => {
-      const result = await db.upsert('featureFlags', {
+      const result = unwrap(await db.upsert('featureFlags', {
         where: { name: 'new_feature_upsert' },
         create: {
           id: 'a6666666-6666-6666-6666-666666666666',
@@ -806,7 +811,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
           enabled: false,
         },
         update: { enabled: true },
-      });
+      }));
       expect(result).toBeDefined();
       expect(result.name).toBe('new_feature_upsert');
       expect(result.enabled).toBe(false);
@@ -822,7 +827,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
         },
       });
 
-      const result = await db.upsert('featureFlags', {
+      const result = unwrap(await db.upsert('featureFlags', {
         where: { name: 'existing_feature_upsert' },
         create: {
           id: 'a7777777-7777-7777-7777-777777777777',
@@ -830,7 +835,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
           enabled: false,
         },
         update: { enabled: true },
-      });
+      }));
       expect(result).toBeDefined();
       expect(result.enabled).toBe(true);
     });
@@ -848,25 +853,25 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('createMany inserts multiple rows', async () => {
-      const result = await db.createMany('featureFlags', {
+      const result = unwrap(await db.createMany('featureFlags', {
         data: [
           { id: 'aabbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', name: 'feature_a_batch', enabled: true },
           { id: 'aacccccc-cccc-cccc-cccc-cccccccccccc', name: 'feature_b_batch', enabled: false },
         ],
-      });
+      }));
       expect(result.count).toBe(2);
     });
 
     it('get returns null when not found', async () => {
-      const result = await db.get('posts', {
+      const result = unwrap(await db.get('posts', {
         where: { id: '00000000-0000-0000-0000-000000000000' },
-      });
+      }));
       expect(result).toBeNull();
     });
 
     it('getOrThrow returns the row when found', async () => {
       await seedTestData(db, ids, 'batch-find');
-      const result = await db.getOrThrow('posts', { where: { id: ids.POST_ID } });
+      const result = unwrap(await db.getOrThrow('posts', { where: { id: ids.POST_ID } }));
       expect(result).toBeDefined();
       expect(result.id).toBe(ids.POST_ID);
     });
@@ -885,7 +890,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('timestamps are returned as Date objects', async () => {
-      const org = await db.getOrThrow('organizations', { where: { id: ids.ORG_ID } });
+      const org = unwrap(await db.getOrThrow('organizations', { where: { id: ids.ORG_ID } }));
       expect(org.createdAt).toBeInstanceOf(Date);
       const now = new Date();
       const diff = now.getTime() - (org.createdAt as Date).getTime();
@@ -893,7 +898,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('post timestamps are Date objects', async () => {
-      const post = await db.getOrThrow('posts', { where: { id: ids.POST_ID } });
+      const post = unwrap(await db.getOrThrow('posts', { where: { id: ids.POST_ID } }));
       expect(post.createdAt).toBeInstanceOf(Date);
       expect(post.updatedAt).toBeInstanceOf(Date);
     });
@@ -912,7 +917,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('select narrows returned fields', async () => {
-      const result = await db.list('posts', { select: { title: true, status: true } });
+      const result = unwrap(await db.list('posts', { select: { title: true, status: true } }));
       expect(result.length).toBeGreaterThan(0);
       const first = result[0];
       expect(first.title).toBeDefined();
@@ -921,7 +926,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     });
 
     it('select with not sensitive excludes email', async () => {
-      const result = await db.list('users', { select: { not: 'sensitive' } });
+      const result = unwrap(await db.list('users', { select: { not: 'sensitive' } }));
       expect(result.length).toBeGreaterThan(0);
       const first = result[0];
       expect(first.name).toBeDefined();
@@ -950,7 +955,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     it('executes parameterized raw SQL', async () => {
       const minViews = 50;
       const fragment = sql`SELECT "title", "views" FROM "posts" WHERE "views" > ${minViews} ORDER BY "views" DESC`;
-      const result = await db.query<{ title: string; views: number }>(fragment);
+      const result = unwrap(await db.query<{ title: string; views: number }>(fragment));
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0]?.title).toBe('First Post');
       expect(result.rows[0]?.views).toBe(200);
@@ -959,7 +964,7 @@ describe.skipIf(!pgAvailable)('PostgreSQL Integration Tests', () => {
     it('composes nested SQL fragments', async () => {
       const whereClause = sql`WHERE "status" = ${'published'}`;
       const fragment = sql`SELECT "id", "title" FROM "posts" ${whereClause}`;
-      const result = await db.query<{ id: string; title: string }>(fragment);
+      const result = unwrap(await db.query<{ id: string; title: string }>(fragment));
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0]?.title).toBe('First Post');
     });
