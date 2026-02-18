@@ -43,6 +43,8 @@ export {
   BadRequestException,
   ConflictException,
   createEnv,
+  // Result helpers
+  err,
   // Immutability
   createImmutableProxy,
   createMiddleware,
@@ -52,8 +54,11 @@ export {
   deepFreeze,
   ForbiddenException,
   InternalServerErrorException,
+  isErr,
+  isOk,
   makeImmutable,
   NotFoundException,
+  ok,
   ServiceUnavailableException,
   UnauthorizedException,
   ValidationException,
