@@ -8,8 +8,10 @@ export interface CanvasOptions {
 }
 
 export interface CanvasState {
+  canvas: HTMLCanvasElement;
   app: Application;
-  root: Container;
+  stage: Container;
+  dispose: DisposeFn;
 }
 
 /**
@@ -30,10 +32,10 @@ export function bindSignal<T>(
   // Run immediately to set initial value
   update();
 
-  // Create an effect to update when signal changes
-  // We read sig.value inside the effect to track the signal dependency
+  // Create an effect to update when signal changes.
+  // The update() function reads sig.value internally, which
+  // automatically tracks the signal dependency in vertz's effect system.
   const disposeEffect = effect(() => {
-    sig.value; // Track this signal
     update();
   });
 
@@ -100,19 +102,21 @@ export function createReactiveSprite(
 /**
  * Renders a PixiJS canvas to the specified container element.
  * Returns the canvas element and a dispose function for cleanup.
+ * Async because PixiJS v8 requires `app.init()` for initialization.
  */
-export function render(
+export async function render(
   container: HTMLElement,
   options: CanvasOptions,
-): { canvas: HTMLCanvasElement; dispose: DisposeFn } {
-  const app = new Application({
+): Promise<CanvasState> {
+  const app = new Application();
+  await app.init({
     width: options.width,
     height: options.height,
-    backgroundColor: options.backgroundColor ?? 0x000000,
+    background: options.backgroundColor ?? 0x000000,
   });
 
   // Mount the canvas to the container
-  container.appendChild(app.view as HTMLCanvasElement);
+  container.appendChild(app.canvas as HTMLCanvasElement);
 
   // Create dispose function for cleanup
   const dispose = () => {
@@ -120,24 +124,27 @@ export function render(
   };
 
   return {
-    canvas: app.view as HTMLCanvasElement,
+    canvas: app.canvas as HTMLCanvasElement,
+    app,
+    stage: app.stage,
     dispose,
   };
 }
 
 /**
  * Destroy a PixiJS application and remove its canvas from the DOM.
+ * Internal only — callers use the dispose() function returned by render().
  */
-export function destroy(app: Application, container: HTMLElement): void {
-  const view = app.view as unknown as Node | null;
+function destroy(app: Application, container: HTMLElement): void {
+  const canvas = app.canvas as unknown as Node | null;
 
   // Remove canvas from DOM
-  if (view && container.contains(view)) {
-    container.removeChild(view);
+  if (canvas && container.contains(canvas)) {
+    container.removeChild(canvas);
   }
 
   // Destroy the PixiJS application to release all resources
-  app.destroy(true, { children: true, texture: true });
+  app.destroy(true, { children: true });
 }
 
 /**
@@ -148,7 +155,6 @@ export const Canvas: {
   render: typeof render;
   bindSignal: typeof bindSignal;
   createReactiveSprite: typeof createReactiveSprite;
-  destroy: typeof destroy;
 } = {
   /**
    * Render a PixiJS canvas to the DOM.
@@ -164,9 +170,4 @@ export const Canvas: {
    * Create a reactive sprite with bound position/transform signals.
    */
   createReactiveSprite: createReactiveSprite,
-
-  /**
-   * Destroy a PixiJS application and clean up resources.
-   */
-  destroy: destroy,
 };
