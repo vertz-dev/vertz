@@ -19,6 +19,7 @@ export default defineConfig({
       tsconfig: resolve(__dirname, './tsconfig.typecheck.json'),
     },
     coverage: {
+      reporter: ['text', 'json-summary', 'json'],
       provider: 'v8',
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/index.ts'],
