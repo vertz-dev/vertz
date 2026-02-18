@@ -282,4 +282,13 @@ describe('metadata type-level tracking', () => {
     const col = d.jsonb<Settings>({ validator });
     expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<Settings>();
   });
+
+  it('d.jsonb() with schema passed directly preserves type parameter', () => {
+    interface Settings {
+      theme: string;
+    }
+    const schema = { parse: (v: unknown): Settings => v as Settings };
+    const col = d.jsonb<Settings>(schema);
+    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<Settings>();
+  });
 });

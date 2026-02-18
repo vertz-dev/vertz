@@ -185,6 +185,31 @@ describe('d.jsonb<T>({ validator })', () => {
     expect(col._meta.sqlType).toBe('jsonb');
     expect(col._meta.validator).toBeUndefined();
   });
+
+  it('accepts schema directly (new API)', () => {
+    interface Settings {
+      theme: string;
+    }
+    const schema = { parse: (v: unknown): Settings => v as Settings };
+    const col = d.jsonb<Settings>(schema);
+    expect(col._meta.sqlType).toBe('jsonb');
+    expect(col._meta.validator).toBe(schema);
+  });
+
+  it('distinguishes schema from config object', () => {
+    interface Settings {
+      theme: string;
+    }
+    // Schema (has parse, no validator key)
+    const schema = { parse: (v: unknown): Settings => v as Settings };
+    const colWithSchema = d.jsonb<Settings>(schema);
+    expect(colWithSchema._meta.validator).toBe(schema);
+
+    // Config object (has validator key)
+    const validator = { parse: (v: unknown): Settings => v as Settings };
+    const colWithConfig = d.jsonb<Settings>({ validator });
+    expect(colWithConfig._meta.validator).toBe(validator);
+  });
 });
 
 describe('d.tenant()', () => {

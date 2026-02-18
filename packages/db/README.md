@@ -74,9 +74,10 @@ d.time()                   // TIME
 // Other
 d.boolean()                // BOOLEAN
 d.jsonb()                  // JSONB
-d.jsonb<MyType>({          // JSONB with validator
+d.jsonb<MyType>({          // JSONB with validator (legacy API)
   validator: (v) => MyTypeSchema.parse(v)
 })
+d.jsonb(MyTypeSchema)      // JSONB with schema directly (new API)
 d.textArray()              // TEXT[]
 d.integerArray()          // INTEGER[]
 ```
