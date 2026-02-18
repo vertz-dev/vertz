@@ -51,6 +51,16 @@
         }
       },
       "includes": ["**/package.json"]
+    },
+    {
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          }
+        }
+      },
+      "includes": ["**/__tests__/**/*.{ts,tsx}", "**/*.test.{ts,tsx}", "**/*.test-d.{ts,tsx}"]
     }
   ],
   "plugins": [

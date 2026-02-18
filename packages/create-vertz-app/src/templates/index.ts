@@ -14,7 +14,7 @@ export function packageJsonTemplate({
   const deps: Record<string, string> = {
     '@vertz/core': '^0.1.0',
     '@vertz/schema': '^0.1.0',
-    'envsafe': '^2.0.3',
+    envsafe: '^2.0.3',
   };
 
   const devDeps: Record<string, string> = {

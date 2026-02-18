@@ -10,7 +10,7 @@
  * - COUNT(*) OVER() for listAndCount
  */
 
-import { camelToSnake, type CasingOverrides } from './casing';
+import { type CasingOverrides, camelToSnake } from './casing';
 import { buildWhere, type WhereResult } from './where';
 
 export interface SelectOptions {
@@ -124,7 +124,9 @@ export function buildSelect(options: SelectOptions): SelectResult {
     }
   } else if (options.cursor) {
     // Derive ORDER BY from cursor columns (default ASC)
-    const orderClauses = Object.keys(options.cursor).map((col) => `"${camelToSnake(col, casingOverrides)}" ASC`);
+    const orderClauses = Object.keys(options.cursor).map(
+      (col) => `"${camelToSnake(col, casingOverrides)}" ASC`,
+    );
     if (orderClauses.length > 0) {
       parts.push(`ORDER BY ${orderClauses.join(', ')}`);
     }

@@ -14,7 +14,7 @@
  * Column names are converted from camelCase to snake_case.
  */
 
-import { camelToSnake, type CasingOverrides } from './casing';
+import { type CasingOverrides, camelToSnake } from './casing';
 
 export interface WhereResult {
   readonly sql: string;
