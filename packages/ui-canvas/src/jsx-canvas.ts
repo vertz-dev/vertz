@@ -1,0 +1,78 @@
+import { effect } from '@vertz/ui';
+import { Container, Graphics, Sprite, Text } from 'pixi.js';
+import type { DrawFn } from './types';
+
+const CANVAS_INTRINSICS = new Set(['Graphics', 'Container', 'Sprite', 'Text']);
+
+/** Check if a tag name is a known canvas intrinsic element. */
+export function isCanvasIntrinsic(tag: string): boolean {
+  return CANVAS_INTRINSICS.has(tag);
+}
+
+/**
+ * Create a PixiJS display object from a canvas intrinsic tag and props.
+ * Handles static props, reactive (accessor) props, event binding,
+ * Graphics draw callbacks, and ref escape hatch.
+ */
+export function jsxCanvas(tag: string, props: Record<string, unknown>): Container {
+  const displayObject = createDisplayObject(tag);
+  let hasEventProps = false;
+
+  for (const [key, value] of Object.entries(props)) {
+    if (key === 'children' || key === 'ref' || key === 'interactive') continue;
+
+    if (key === 'draw' && displayObject instanceof Graphics) {
+      // Draw callback runs inside effect for reactive redraws.
+      // When signals read inside draw() change, the effect re-runs,
+      // clearing the graphics before calling draw again.
+      effect(() => {
+        displayObject.clear();
+        (value as DrawFn)(displayObject);
+      });
+    } else if (key === 'eventMode') {
+      // Set eventMode directly as a static string
+      displayObject.eventMode = value as Container['eventMode'];
+    } else if (key.startsWith('on') && typeof value === 'function') {
+      // Event binding: onClick -> click, onPointerDown -> pointerdown
+      const event = key.slice(2).toLowerCase();
+      displayObject.on(event, value as (...args: unknown[]) => void);
+      hasEventProps = true;
+    } else if (typeof value === 'function') {
+      // Reactive prop: bind via effect so display object updates when signal changes
+      effect(() => {
+        (displayObject as unknown as Record<string, unknown>)[key] = (value as () => unknown)();
+      });
+    } else if (value !== undefined) {
+      // Static prop: set once
+      (displayObject as unknown as Record<string, unknown>)[key] = value;
+    }
+  }
+
+  // Auto-set eventMode to 'static' when event handlers are present
+  // unless interactive is explicitly false or eventMode was explicitly set
+  if (hasEventProps && props.interactive !== false && !('eventMode' in props)) {
+    displayObject.eventMode = 'static';
+  }
+
+  // ref escape hatch: call ref with the created display object
+  if (props.ref && typeof props.ref === 'function') {
+    (props.ref as (obj: Container) => void)(displayObject);
+  }
+
+  return displayObject;
+}
+
+function createDisplayObject(tag: string): Container {
+  switch (tag) {
+    case 'Graphics':
+      return new Graphics();
+    case 'Container':
+      return new Container();
+    case 'Sprite':
+      return new Sprite();
+    case 'Text':
+      return new Text();
+    default:
+      throw new Error(`Unknown canvas element: <${tag}>`);
+  }
+}
