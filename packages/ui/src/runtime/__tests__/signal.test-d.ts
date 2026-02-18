@@ -48,7 +48,7 @@ name.value = 123;
 explicit.value = undefined;
 
 // notify() returns void
-const _notifyResult: undefined = count.notify();
+const _notifyResult: void = count.notify();
 void _notifyResult;
 
 // ─── Signal<T> — complex types ────────────────────────────────────
@@ -146,7 +146,7 @@ const _disposeFn: DisposeFn = dispose;
 void _disposeFn;
 
 // DisposeFn returns void
-const _disposeResult: undefined = dispose();
+const _disposeResult: void = dispose();
 void _disposeResult;
 
 // Note: effect(() => 42) is valid TypeScript — () => number is assignable to () => void.
