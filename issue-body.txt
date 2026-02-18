@@ -1,0 +1,43 @@
+## Summary
+
+This issue implements the new `@vertz/errors` package as specified in the design doc at `plans/error-taxonomy.md`.
+
+## Overview
+
+- **New `@vertz/errors` package** with Result utilities, AppError base class, domain error types, infra error types, and mapping utilities
+- **Three-layer model:** infrastructure (throw), domain (Result for vertz APIs, throw AppError for app code), developer (compile-time)
+- **Migration:** move Result from @vertz/schema, consolidate error types across packages
+
+## Key Components
+
+### Result Type
+- Move from `@vertz/schema` to `@vertz/errors` (canonical home)
+- Provides `Ok<T>`, `Err<E>`, `Result<T, E>` discriminated union
+- Utilities: `ok()`, `err()`, `unwrap()`, `map()`, `flatMap()`, `match()`, `matchErr()`
+
+### AppError Base Class
+- Base class for custom domain errors thrown by app developers
+- Supports typed error codes and custom fields
+- `toJSON()` method for HTTP response serialization
+
+### Domain Error Types
+- **Schema:** `ValidationError` (VALIDATION_FAILED)
+- **DB:** `NotFoundError`, `UniqueViolation`, `FKViolation`, `NotNullViolation`, `CheckViolation`, `ReadError`, `WriteError`
+- **Auth:** `InvalidCredentials`, `UserExists`, `SessionExpired`, `PermissionDenied`, `RateLimited`, `AuthError`
+- **Client:** `ValidationError`, `NotFound`, `Conflict`, `Unauthorized`, `Forbidden`, `RateLimited`, `ApiError`
+
+### Infrastructure Errors (thrown)
+- `ConnectionError`, `PoolExhaustedError`, `QueryError`, `TimeoutError`, `NetworkError`, `SerializationError`
+
+### Mapping Functions
+- `dbErrorToHttpStatus()` - maps DB domain errors to HTTP status codes
+- `httpToClientError()` - maps HTTP responses to client domain errors
+
+For full specification, see: plans/error-taxonomy.md
+
+## Labels
+- enhancement
+- P0
+
+## Assignees
+- vertz-tech-lead (mike)

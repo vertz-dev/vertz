@@ -1,13 +1,13 @@
 {
-  "name": "@vertz/ui-canvas",
+  "name": "@vertz/errors",
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
-  "description": "Vertz Canvas renderer with PixiJS and signals",
+  "description": "Unified error taxonomy for Vertz - Result types, domain errors, and mapping utilities",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
-    "directory": "packages/ui-canvas"
+    "directory": "packages/errors"
   },
   "publishConfig": {
     "access": "public",
@@ -17,8 +17,8 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     }
   },
   "files": [
@@ -30,14 +30,9 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "@vertz/ui": "workspace:*",
-    "pixi.js": "^8.0.0"
-  },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",
     "bunup": "latest",
-    "happy-dom": "^18.0.1",
     "typescript": "^5.7.0",
     "vitest": "^4.0.18"
   },

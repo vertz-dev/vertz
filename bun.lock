@@ -159,6 +159,16 @@
         "vitest": "^4.0.18",
       },
     },
+    "packages/errors": {
+      "name": "@vertz/errors",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@vitest/coverage-v8": "^4.0.18",
+        "bunup": "latest",
+        "typescript": "^5.7.0",
+        "vitest": "^4.0.18",
+      },
+    },
     "packages/fetch": {
       "name": "@vertz/fetch",
       "version": "0.1.0",
@@ -257,10 +267,10 @@
       "name": "@vertz/ui-canvas",
       "version": "0.1.0",
       "dependencies": {
+        "@vertz/ui": "workspace:*",
         "pixi.js": "^8.0.0",
       },
       "devDependencies": {
-        "@vertz/ui": "workspace:*",
         "@vitest/coverage-v8": "^4.0.18",
         "bunup": "latest",
         "happy-dom": "^18.0.1",
@@ -772,6 +782,8 @@
     "@vertz/create-vertz-app": ["@vertz/create-vertz-app@workspace:packages/create-vertz-app"],
 
     "@vertz/db": ["@vertz/db@workspace:packages/db"],
+
+    "@vertz/errors": ["@vertz/errors@workspace:packages/errors"],
 
     "@vertz/fetch": ["@vertz/fetch@workspace:packages/fetch"],
 
@@ -1301,13 +1313,19 @@
 
     "@vertz/core/@types/node": ["@types/node@22.19.11", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-BH7YwL6rA93ReqeQS1c4bsPpcfOmJasG+Fkr6Y59q83f9M1WcBRHR2vM+P9eOisYRcN3ujQoiZY8uk5W+1WL8w=="],
 
+    "@vertz/errors/bunup": ["bunup@0.16.28", "", { "dependencies": { "@bunup/dts": "^0.14.52", "@bunup/shared": "0.16.23", "chokidar": "^5.0.0", "coffi": "^0.1.37", "lightningcss": "^1.30.2", "picocolors": "^1.1.1", "tinyexec": "^1.0.2", "tree-kill": "^1.2.2", "zlye": "^0.4.4" }, "peerDependencies": { "typescript": ">=4.5.0" }, "optionalPeers": ["typescript"], "bin": { "bunup": "dist/cli/index.js" } }, "sha512-aIVg3G0e9Jh4PvUS7kG9b/+sW4OJdfHRRQ6klBmh2H+gvVMsajKI/JtrpWB52tqqf2l8H3vzE6E2eAq4mszjnA=="],
+
     "@vertz/fetch/@types/node": ["@types/node@22.19.11", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-BH7YwL6rA93ReqeQS1c4bsPpcfOmJasG+Fkr6Y59q83f9M1WcBRHR2vM+P9eOisYRcN3ujQoiZY8uk5W+1WL8w=="],
 
     "@vertz/integration-tests/@types/node": ["@types/node@22.19.11", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-BH7YwL6rA93ReqeQS1c4bsPpcfOmJasG+Fkr6Y59q83f9M1WcBRHR2vM+P9eOisYRcN3ujQoiZY8uk5W+1WL8w=="],
 
     "@vertz/server/@types/node": ["@types/node@22.19.11", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-BH7YwL6rA93ReqeQS1c4bsPpcfOmJasG+Fkr6Y59q83f9M1WcBRHR2vM+P9eOisYRcN3ujQoiZY8uk5W+1WL8w=="],
 
+    "@vertz/ui/bunup": ["bunup@0.16.28", "", { "dependencies": { "@bunup/dts": "^0.14.52", "@bunup/shared": "0.16.23", "chokidar": "^5.0.0", "coffi": "^0.1.37", "lightningcss": "^1.30.2", "picocolors": "^1.1.1", "tinyexec": "^1.0.2", "tree-kill": "^1.2.2", "zlye": "^0.4.4" }, "peerDependencies": { "typescript": ">=4.5.0" }, "optionalPeers": ["typescript"], "bin": { "bunup": "dist/cli/index.js" } }, "sha512-aIVg3G0e9Jh4PvUS7kG9b/+sW4OJdfHRRQ6klBmh2H+gvVMsajKI/JtrpWB52tqqf2l8H3vzE6E2eAq4mszjnA=="],
+
     "@vertz/ui/happy-dom": ["happy-dom@18.0.1", "", { "dependencies": { "@types/node": "^20.0.0", "@types/whatwg-mimetype": "^3.0.2", "whatwg-mimetype": "^3.0.0" } }, "sha512-qn+rKOW7KWpVTtgIUi6RVmTBZJSe2k0Db0vh1f7CWrWclkkc7/Q+FrOfkZIb2eiErLyqu5AXEzE7XthO9JVxRA=="],
+
+    "@vertz/ui-canvas/bunup": ["bunup@0.16.28", "", { "dependencies": { "@bunup/dts": "^0.14.52", "@bunup/shared": "0.16.23", "chokidar": "^5.0.0", "coffi": "^0.1.37", "lightningcss": "^1.30.2", "picocolors": "^1.1.1", "tinyexec": "^1.0.2", "tree-kill": "^1.2.2", "zlye": "^0.4.4" }, "peerDependencies": { "typescript": ">=4.5.0" }, "optionalPeers": ["typescript"], "bin": { "bunup": "dist/cli/index.js" } }, "sha512-aIVg3G0e9Jh4PvUS7kG9b/+sW4OJdfHRRQ6klBmh2H+gvVMsajKI/JtrpWB52tqqf2l8H3vzE6E2eAq4mszjnA=="],
 
     "@vertz/ui-canvas/happy-dom": ["happy-dom@18.0.1", "", { "dependencies": { "@types/node": "^20.0.0", "@types/whatwg-mimetype": "^3.0.2", "whatwg-mimetype": "^3.0.0" } }, "sha512-qn+rKOW7KWpVTtgIUi6RVmTBZJSe2k0Db0vh1f7CWrWclkkc7/Q+FrOfkZIb2eiErLyqu5AXEzE7XthO9JVxRA=="],
 
