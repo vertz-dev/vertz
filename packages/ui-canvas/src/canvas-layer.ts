@@ -1,12 +1,13 @@
-import { createContext, onCleanup, onMount, useContext } from '@vertz/ui';
-import { Application, type Container } from 'pixi.js';
+import { type Context, createContext, onCleanup, onMount, useContext } from '@vertz/ui';
+import { Application, Container } from 'pixi.js';
+import { createDebugOverlay } from './debug-overlay';
 
 /**
  * Context that provides the current PixiJS Container (typically the stage)
  * to canvas children. Canvas intrinsic elements use this to know which
  * container they should add themselves to.
  */
-export const CanvasRenderContext = createContext<Container | null>(null);
+export const CanvasRenderContext: Context<Container | null> = createContext<Container | null>(null);
 
 export interface CanvasLayerProps {
   width: number;
@@ -43,14 +44,23 @@ export function CanvasLayer(props: CanvasLayerProps): HTMLDivElement {
     });
     div.appendChild(app.canvas as HTMLCanvasElement);
 
-    // Process children — add canvas display objects to the stage
-    if (props.children != null) {
-      const children = Array.isArray(props.children) ? props.children : [props.children];
-      for (const child of children) {
-        if (child instanceof (await import('pixi.js')).Container) {
-          app.stage.addChild(child);
+    // Process children via context — child components can useContext(CanvasRenderContext)
+    CanvasRenderContext.Provider(app.stage, () => {
+      if (props.children != null) {
+        const children = Array.isArray(props.children) ? props.children : [props.children];
+        for (const child of children) {
+          if (child instanceof Container) {
+            app.stage.addChild(child);
+          }
         }
       }
+    });
+
+    // Wire up debug overlay when debug prop is enabled
+    if (props.debug) {
+      const debug = createDebugOverlay(app.stage);
+      app.stage.addChild(debug.overlay);
+      debug.update();
     }
   });
 

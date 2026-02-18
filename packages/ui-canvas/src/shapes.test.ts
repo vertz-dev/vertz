@@ -50,6 +50,31 @@ describe('Feature: Rect shape', () => {
     });
   });
 
+  describe('Given Rect with stroke and strokeWidth', () => {
+    describe('When called', () => {
+      it('then calls g.stroke with the given color and width', () => {
+        const rect = Rect({
+          width: 100,
+          height: 50,
+          fill: 0x00ff00,
+          stroke: 0xffffff,
+          strokeWidth: 2,
+        });
+        expect(rect).toBeInstanceOf(Graphics);
+      });
+
+      it('then defaults strokeWidth to 1 when only stroke is provided', () => {
+        const rect = Rect({
+          width: 100,
+          height: 50,
+          fill: 0x00ff00,
+          stroke: 0xffffff,
+        });
+        expect(rect).toBeInstanceOf(Graphics);
+      });
+    });
+  });
+
   describe('Given Rect with position', () => {
     describe('When called', () => {
       it('then has position set', () => {
@@ -80,7 +105,7 @@ describe('Feature: Ellipse shape', () => {
   describe('Given Ellipse with radii', () => {
     describe('When called', () => {
       it('then returns a Graphics instance', () => {
-        const ellipse = Ellipse({ radiusX: 50, radiusY: 30, fill: 0x0000ff });
+        const ellipse = Ellipse({ halfWidth: 50, halfHeight: 30, fill: 0x0000ff });
         expect(ellipse).toBeInstanceOf(Graphics);
       });
     });
@@ -89,7 +114,7 @@ describe('Feature: Ellipse shape', () => {
   describe('Given Ellipse with position', () => {
     describe('When called', () => {
       it('then has position set', () => {
-        const ellipse = Ellipse({ x: 50, y: 75, radiusX: 50, radiusY: 30, fill: 0x0000ff });
+        const ellipse = Ellipse({ x: 50, y: 75, halfWidth: 50, halfHeight: 30, fill: 0x0000ff });
         expect(ellipse.x).toBe(50);
         expect(ellipse.y).toBe(75);
       });

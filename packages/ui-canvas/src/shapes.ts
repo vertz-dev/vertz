@@ -16,6 +16,8 @@ export interface RectProps {
   width: MaybeAccessor<number>;
   height: MaybeAccessor<number>;
   fill: MaybeAccessor<number>;
+  stroke?: MaybeAccessor<number>;
+  strokeWidth?: MaybeAccessor<number>;
 }
 
 export interface LineProps {
@@ -30,8 +32,8 @@ export interface LineProps {
 export interface EllipseProps {
   x?: MaybeAccessor<number>;
   y?: MaybeAccessor<number>;
-  radiusX: MaybeAccessor<number>;
-  radiusY: MaybeAccessor<number>;
+  halfWidth: MaybeAccessor<number>;
+  halfHeight: MaybeAccessor<number>;
   fill: MaybeAccessor<number>;
 }
 
@@ -60,6 +62,12 @@ export function Rect(props: RectProps): Container {
       const color = unwrap(props.fill);
       g.rect(0, 0, w, h);
       g.fill(color);
+      if (props.stroke !== undefined) {
+        g.stroke({
+          color: unwrap(props.stroke),
+          width: unwrap(props.strokeWidth ?? 1),
+        });
+      }
     },
   });
 }
@@ -85,8 +93,8 @@ export function Ellipse(props: EllipseProps): Container {
     x: props.x,
     y: props.y,
     draw: (g: import('pixi.js').Graphics) => {
-      const rx = unwrap(props.radiusX);
-      const ry = unwrap(props.radiusY);
+      const rx = unwrap(props.halfWidth);
+      const ry = unwrap(props.halfHeight);
       const color = unwrap(props.fill);
       g.ellipse(0, 0, rx, ry);
       g.fill(color);
