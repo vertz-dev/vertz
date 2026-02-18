@@ -54,7 +54,10 @@ describe('emitRouteMapType', () => {
                 operationId: 'listUsers',
                 method: 'GET',
                 path: '/users',
-                response: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' } } } },
+                response: {
+                  type: 'array',
+                  items: { type: 'object', properties: { id: { type: 'string' } } },
+                },
                 schemaRefs: { response: 'User[]' },
               }),
             ],
@@ -82,7 +85,11 @@ describe('emitRouteMapType', () => {
                 operationId: 'getUser',
                 method: 'GET',
                 path: '/users/:id',
-                params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+                params: {
+                  type: 'object',
+                  properties: { id: { type: 'string' } },
+                  required: ['id'],
+                },
                 response: { type: 'object', properties: { id: { type: 'string' } } },
                 schemaRefs: { response: 'User' },
               }),
@@ -107,8 +114,15 @@ describe('emitRouteMapType', () => {
                 operationId: 'createUser',
                 method: 'POST',
                 path: '/users',
-                body: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
-                response: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' } } },
+                body: {
+                  type: 'object',
+                  properties: { name: { type: 'string' } },
+                  required: ['name'],
+                },
+                response: {
+                  type: 'object',
+                  properties: { id: { type: 'string' }, name: { type: 'string' } },
+                },
                 schemaRefs: { body: 'CreateUserInput', response: 'User' },
               }),
             ],
@@ -132,7 +146,10 @@ describe('emitRouteMapType', () => {
                 operationId: 'listUsers',
                 method: 'GET',
                 path: '/users',
-                query: { type: 'object', properties: { page: { type: 'number' }, limit: { type: 'number' } } },
+                query: {
+                  type: 'object',
+                  properties: { page: { type: 'number' }, limit: { type: 'number' } },
+                },
                 response: { type: 'array', items: { type: 'object' } },
               }),
             ],
@@ -156,7 +173,11 @@ describe('emitRouteMapType', () => {
                 operationId: 'createUser',
                 method: 'POST',
                 path: '/users',
-                headers: { type: 'object', properties: { 'x-tenant': { type: 'string' } }, required: ['x-tenant'] },
+                headers: {
+                  type: 'object',
+                  properties: { 'x-tenant': { type: 'string' } },
+                  required: ['x-tenant'],
+                },
                 body: { type: 'object', properties: { name: { type: 'string' } } },
                 response: { type: 'object', properties: { id: { type: 'string' } } },
               }),
@@ -167,7 +188,7 @@ describe('emitRouteMapType', () => {
     );
 
     expect(result.content).toContain("'POST /users':");
-    expect(result.content).toContain("headers: { x-tenant: string }");
+    expect(result.content).toContain('headers: { x-tenant: string }');
   });
 
   it('handles multiple routes in same module', () => {
@@ -187,7 +208,11 @@ describe('emitRouteMapType', () => {
                 operationId: 'getUser',
                 method: 'GET',
                 path: '/users/:id',
-                params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+                params: {
+                  type: 'object',
+                  properties: { id: { type: 'string' } },
+                  required: ['id'],
+                },
                 response: { type: 'object', properties: { id: { type: 'string' } } },
               }),
               makeOp({
@@ -219,14 +244,22 @@ describe('emitRouteMapType', () => {
                 operationId: 'getUser',
                 method: 'GET',
                 path: '/users/:id',
-                params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+                params: {
+                  type: 'object',
+                  properties: { id: { type: 'string' } },
+                  required: ['id'],
+                },
                 response: { type: 'object', properties: { id: { type: 'string' } } },
               }),
               makeOp({
                 operationId: 'updateUser',
                 method: 'PUT',
                 path: '/users/:id',
-                params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+                params: {
+                  type: 'object',
+                  properties: { id: { type: 'string' } },
+                  required: ['id'],
+                },
                 body: { type: 'object', properties: { name: { type: 'string' } } },
                 response: { type: 'object', properties: { id: { type: 'string' } } },
               }),
@@ -234,7 +267,11 @@ describe('emitRouteMapType', () => {
                 operationId: 'deleteUser',
                 method: 'DELETE',
                 path: '/users/:id',
-                params: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+                params: {
+                  type: 'object',
+                  properties: { id: { type: 'string' } },
+                  required: ['id'],
+                },
                 response: { type: 'object', properties: { success: { type: 'boolean' } } },
               }),
             ],
@@ -266,7 +303,10 @@ describe('emitRouteMapType', () => {
                 method: 'GET',
                 path: '/users',
                 query: { type: 'object', properties: { page: { type: 'number' } } },
-                response: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' } } } },
+                response: {
+                  type: 'array',
+                  items: { type: 'object', properties: { id: { type: 'string' } } },
+                },
               }),
             ],
           }),

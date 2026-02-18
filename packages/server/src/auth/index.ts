@@ -3,22 +3,22 @@
  * JWT sessions, email/password authentication
  */
 
-import * as jose from 'jose';
 import bcrypt from 'bcryptjs';
+import * as jose from 'jose';
 import type {
-  AuthConfig,
-  AuthInstance,
   AuthApi,
+  AuthConfig,
+  AuthError,
+  AuthInstance,
   AuthResult,
   AuthUser,
-  AuthError,
   CookieConfig,
   PasswordRequirements,
+  RateLimitResult,
   Session,
   SessionPayload,
   SignInInput,
   SignUpInput,
-  RateLimitResult,
 } from './types';
 
 // ============================================================================
@@ -98,9 +98,12 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash);
 }
 
-export function validatePassword(password: string, requirements?: PasswordRequirements): AuthError | null {
+export function validatePassword(
+  password: string,
+  requirements?: PasswordRequirements,
+): AuthError | null {
   const req = { ...DEFAULT_PASSWORD_REQUIREMENTS, ...requirements };
-  
+
   if (password.length < (req.minLength ?? 8)) {
     return {
       code: 'PASSWORD_TOO_SHORT',
@@ -151,7 +154,7 @@ const DEFAULT_COOKIE_CONFIG: CookieConfig = {
 
 function parseDuration(duration: string | number): number {
   if (typeof duration === 'number') return duration;
-  
+
   const match = duration.match(/^(\d+)([smhd])$/);
   if (!match) throw new Error(`Invalid duration: ${duration}`);
   const value = parseInt(match[1], 10);
@@ -165,10 +168,10 @@ async function createJWT(
   secret: string,
   ttl: number,
   algorithm: string,
-  customClaims?: (user: AuthUser) => Record<string, unknown>
+  customClaims?: (user: AuthUser) => Record<string, unknown>,
 ): Promise<string> {
   const claims = customClaims ? customClaims(user) : {};
-  
+
   const jwt = await new jose.SignJWT({
     sub: user.id,
     email: user.email,
@@ -186,14 +189,12 @@ async function createJWT(
 async function verifyJWT(
   token: string,
   secret: string,
-  algorithm: string
+  algorithm: string,
 ): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jose.jwtVerify(
-      token,
-      new TextEncoder().encode(secret),
-      { algorithms: [algorithm] }
-    );
+    const { payload } = await jose.jwtVerify(token, new TextEncoder().encode(secret), {
+      algorithms: [algorithm],
+    });
     return payload as unknown as SessionPayload;
   } catch {
     return null;
@@ -230,7 +231,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
   } else {
     if (process.env.NODE_ENV === 'production') {
       throw new Error(
-        'AUTH_JWT_SECRET is required in production. Provide a secret via createAuth({ session: { secret: "..." } }) or set the AUTH_JWT_SECRET environment variable.'
+        'AUTH_JWT_SECRET is required in production. Provide a secret via createAuth({ session: { secret: "..." } }) or set the AUTH_JWT_SECRET environment variable.',
       );
     } else {
       // eslint-disable-next-line no-console
@@ -271,7 +272,10 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
     // Check email format
     if (!email || !email.includes('@')) {
-      return { ok: false, error: { code: 'INVALID_EMAIL', message: 'Invalid email format', status: 400 } };
+      return {
+        ok: false,
+        error: { code: 'INVALID_EMAIL', message: 'Invalid email format', status: 400 },
+      };
     }
 
     // Check password requirements
@@ -282,13 +286,22 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
     // Check if user exists
     if (users.has(email.toLowerCase())) {
-      return { ok: false, error: { code: 'USER_EXISTS', message: 'User already exists', status: 409 } };
+      return {
+        ok: false,
+        error: { code: 'USER_EXISTS', message: 'User already exists', status: 409 },
+      };
     }
 
     // Rate limit on sign up
-    const signUpRateLimit = signUpLimiter.check(`signup:${email.toLowerCase()}`, emailPassword?.rateLimit?.maxAttempts || 3);
+    const signUpRateLimit = signUpLimiter.check(
+      `signup:${email.toLowerCase()}`,
+      emailPassword?.rateLimit?.maxAttempts || 3,
+    );
     if (!signUpRateLimit.allowed) {
-      return { ok: false, error: { code: 'RATE_LIMITED', message: 'Too many sign up attempts', status: 429 } };
+      return {
+        ok: false,
+        error: { code: 'RATE_LIMITED', message: 'Too many sign up attempts', status: 429 },
+      };
     }
 
     // Hash password
@@ -310,7 +323,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     // Create session
     const token = await createJWT(user, jwtSecret, ttlMs, jwtAlgorithm, claims);
     const expiresAt = new Date(Date.now() + ttlMs);
-    
+
     const payload: SessionPayload = {
       sub: user.id,
       email: user.email,
@@ -338,19 +351,31 @@ export function createAuth(config: AuthConfig): AuthInstance {
     // Check if user exists
     const stored = users.get(email.toLowerCase());
     if (!stored) {
-      return { ok: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password', status: 401 } };
+      return {
+        ok: false,
+        error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password', status: 401 },
+      };
     }
 
     // Rate limit on sign in
-    const signInRateLimit = signInLimiter.check(`signin:${email.toLowerCase()}`, emailPassword?.rateLimit?.maxAttempts || 5);
+    const signInRateLimit = signInLimiter.check(
+      `signin:${email.toLowerCase()}`,
+      emailPassword?.rateLimit?.maxAttempts || 5,
+    );
     if (!signInRateLimit.allowed) {
-      return { ok: false, error: { code: 'RATE_LIMITED', message: 'Too many sign in attempts', status: 429 } };
+      return {
+        ok: false,
+        error: { code: 'RATE_LIMITED', message: 'Too many sign in attempts', status: 429 },
+      };
     }
 
     // Verify password
     const valid = await verifyPassword(password, stored.passwordHash);
     if (!valid) {
-      return { ok: false, error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password', status: 401 } };
+      return {
+        ok: false,
+        error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password', status: 401 },
+      };
     }
 
     const user = buildAuthUser(stored);
@@ -358,7 +383,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     // Create session
     const token = await createJWT(user, jwtSecret, ttlMs, jwtAlgorithm, claims);
     const expiresAt = new Date(Date.now() + ttlMs);
-    
+
     const payload: SessionPayload = {
       sub: user.id,
       email: user.email,
@@ -382,8 +407,12 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
   async function signOut(ctx: { headers: Headers }): Promise<AuthResult<void>> {
     const cookieName = cookieConfig.name || 'vertz.sid';
-    const token = ctx.headers.get('cookie')?.split(';').find(c => c.trim().startsWith(`${cookieName}=`))?.split('=')[1];
-    
+    const token = ctx.headers
+      .get('cookie')
+      ?.split(';')
+      .find((c) => c.trim().startsWith(`${cookieName}=`))
+      ?.split('=')[1];
+
     if (token) {
       sessions.delete(token);
     }
@@ -397,7 +426,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
   async function getSession(headers: Headers): Promise<AuthResult<Session | null>> {
     const cookieName = cookieConfig.name || 'vertz.sid';
-    const token = headers.get('cookie')?.split(';').find(c => c.trim().startsWith(`${cookieName}=`))?.split('=')[1];
+    const token = headers
+      .get('cookie')
+      ?.split(';')
+      .find((c) => c.trim().startsWith(`${cookieName}=`))
+      ?.split('=')[1];
 
     if (!token) {
       return { ok: true, data: null };
@@ -443,9 +476,15 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
   async function refreshSession(ctx: { headers: Headers }): Promise<AuthResult<Session>> {
     // Rate limit
-    const refreshRateLimit = refreshLimiter.check(`refresh:${ctx.headers.get('x-forwarded-ip') || 'default'}`, 10);
+    const refreshRateLimit = refreshLimiter.check(
+      `refresh:${ctx.headers.get('x-forwarded-ip') || 'default'}`,
+      10,
+    );
     if (!refreshRateLimit.allowed) {
-      return { ok: false, error: { code: 'RATE_LIMITED', message: 'Too many refresh attempts', status: 429 } };
+      return {
+        ok: false,
+        error: { code: 'RATE_LIMITED', message: 'Too many refresh attempts', status: 429 },
+      };
     }
 
     const sessionResult = await getSession(ctx.headers);
@@ -454,7 +493,10 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
 
     if (!sessionResult.data) {
-      return { ok: false, error: { code: 'NO_SESSION', message: 'No active session', status: 401 } };
+      return {
+        ok: false,
+        error: { code: 'NO_SESSION', message: 'No active session', status: 401 },
+      };
     }
 
     const user = sessionResult.data.user;
@@ -462,7 +504,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     // Create new token
     const token = await createJWT(user, jwtSecret, ttlMs, jwtAlgorithm, claims);
     const expiresAt = new Date(Date.now() + ttlMs);
-    
+
     const payload: SessionPayload = {
       sub: user.id,
       email: user.email,
@@ -493,7 +535,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
       const origin = request.headers.get('origin');
       const referer = request.headers.get('referer');
-      
+
       // In production, you'd validate these properly
       // For Phase 1, we do a basic check
       if (!origin && !referer) {
@@ -510,9 +552,9 @@ export function createAuth(config: AuthConfig): AuthInstance {
     try {
       // Route: POST /api/auth/signup
       if (method === 'POST' && path === '/signup') {
-        const body = await request.json() as SignUpInput;
+        const body = (await request.json()) as SignUpInput;
         const result = await signUp(body);
-        
+
         if (!result.ok) {
           return new Response(JSON.stringify({ error: result.error }), {
             status: result.error.status,
@@ -520,7 +562,13 @@ export function createAuth(config: AuthConfig): AuthInstance {
           });
         }
 
-        const cookieValue = await createJWT(result.data.user, jwtSecret, ttlMs, jwtAlgorithm, claims);
+        const cookieValue = await createJWT(
+          result.data.user,
+          jwtSecret,
+          ttlMs,
+          jwtAlgorithm,
+          claims,
+        );
         return new Response(JSON.stringify({ user: result.data.user }), {
           status: 201,
           headers: {
@@ -532,9 +580,9 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
       // Route: POST /api/auth/signin
       if (method === 'POST' && path === '/signin') {
-        const body = await request.json() as SignInInput;
+        const body = (await request.json()) as SignInInput;
         const result = await signIn(body);
-        
+
         if (!result.ok) {
           return new Response(JSON.stringify({ error: result.error }), {
             status: result.error.status,
@@ -542,7 +590,13 @@ export function createAuth(config: AuthConfig): AuthInstance {
           });
         }
 
-        const cookieValue = await createJWT(result.data.user, jwtSecret, ttlMs, jwtAlgorithm, claims);
+        const cookieValue = await createJWT(
+          result.data.user,
+          jwtSecret,
+          ttlMs,
+          jwtAlgorithm,
+          claims,
+        );
         return new Response(JSON.stringify({ user: result.data.user }), {
           status: 200,
           headers: {
@@ -555,7 +609,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       // Route: POST /api/auth/signout
       if (method === 'POST' && path === '/signout') {
         await signOut({ headers: request.headers });
-        
+
         return new Response(JSON.stringify({ ok: true }), {
           status: 200,
           headers: {
@@ -568,7 +622,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       // Route: GET /api/auth/session
       if (method === 'GET' && path === '/session') {
         const result = await getSession(request.headers);
-        
+
         if (!result.ok) {
           return new Response(JSON.stringify({ error: result.error }), {
             status: 500,
@@ -585,7 +639,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       // Route: POST /api/auth/refresh
       if (method === 'POST' && path === '/refresh') {
         const result = await refreshSession({ headers: request.headers });
-        
+
         if (!result.ok) {
           return new Response(JSON.stringify({ error: result.error }), {
             status: result.error.status,
@@ -593,7 +647,13 @@ export function createAuth(config: AuthConfig): AuthInstance {
           });
         }
 
-        const cookieValue = await createJWT(result.data.user, jwtSecret, ttlMs, jwtAlgorithm, claims);
+        const cookieValue = await createJWT(
+          result.data.user,
+          jwtSecret,
+          ttlMs,
+          jwtAlgorithm,
+          claims,
+        );
         return new Response(JSON.stringify({ user: result.data.user }), {
           status: 200,
           headers: {
@@ -607,7 +667,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
-    } catch (error) {
+    } catch (_error) {
       return new Response(JSON.stringify({ error: 'Internal server error' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
@@ -636,7 +696,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
   function createMiddleware() {
     return async (ctx: any, next: () => Promise<void>) => {
       const sessionResult = await getSession(ctx.headers);
-      
+
       if (sessionResult.ok && sessionResult.data) {
         ctx.user = sessionResult.data.user;
         ctx.session = sessionResult.data;
@@ -676,30 +736,36 @@ export function createAuth(config: AuthConfig): AuthInstance {
   };
 }
 
+export type {
+  AccessConfig,
+  AccessInstance,
+  Entitlement,
+  EntitlementDefinition,
+  Resource,
+} from './access';
 // Re-export access control from auth/access.ts
-export { createAccess, defaultAccess, AuthorizationError } from './access';
-export type { AccessConfig, AccessInstance, Entitlement, EntitlementDefinition, Resource } from './access';
+export { AuthorizationError, createAccess, defaultAccess } from './access';
 
 // Re-export types from types.ts
 export type {
-  AuthConfig,
-  AuthInstance,
   AuthApi,
-  AuthResult,
-  AuthError,
-  AuthUser,
+  AuthConfig,
   AuthContext,
-  Session,
-  SessionPayload,
-  SessionStrategy,
-  SessionConfig,
+  AuthError,
+  AuthInstance,
+  AuthResult,
+  AuthUser,
   CookieConfig,
   EmailPasswordConfig,
   PasswordRequirements,
   RateLimitConfig,
   RateLimitResult,
-  SignUpInput,
-  SignInInput,
-  UserTableEntry,
   RoleAssignmentTableEntry,
+  Session,
+  SessionConfig,
+  SessionPayload,
+  SessionStrategy,
+  SignInInput,
+  SignUpInput,
+  UserTableEntry,
 } from './types';

@@ -12,7 +12,7 @@ import type { DomainDefinition, DomainOptions } from './types';
  */
 export function domain<TEntry extends TableEntry<any, any>>(
   name?: string,
-  options?: DomainOptions<TEntry>
+  options?: DomainOptions<TEntry>,
 ): DomainDefinition<TEntry> {
   // Handle missing parameters gracefully for tests with @ts-expect-error
   // TypeScript will catch these at compile time, but tests may execute at runtime
@@ -28,7 +28,7 @@ export function domain<TEntry extends TableEntry<any, any>>(
       actions: {},
     });
   }
-  
+
   // STUB: Build definition object
   const def: DomainDefinition<TEntry> = {
     name,
@@ -39,7 +39,7 @@ export function domain<TEntry extends TableEntry<any, any>>(
     handlers: options.handlers || {},
     actions: options.actions || {},
   };
-  
+
   // Freeze to make immutable (satisfy immutability tests)
   return Object.freeze(def);
 }

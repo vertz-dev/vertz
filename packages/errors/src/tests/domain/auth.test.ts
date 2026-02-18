@@ -1,16 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  createInvalidCredentialsError,
-  isInvalidCredentialsError,
-  createUserExistsError,
-  isUserExistsError,
-  createSessionExpiredError,
-  isSessionExpiredError,
-  createPermissionDeniedError,
-  isPermissionDeniedError,
-  createRateLimitedError,
-  isRateLimitedError,
   type AuthError,
+  createInvalidCredentialsError,
+  createPermissionDeniedError,
+  createRateLimitedError,
+  createSessionExpiredError,
+  createUserExistsError,
+  isInvalidCredentialsError,
+  isPermissionDeniedError,
+  isRateLimitedError,
+  isSessionExpiredError,
+  isUserExistsError,
 } from '../../domain/auth';
 
 describe('domain/auth', () => {

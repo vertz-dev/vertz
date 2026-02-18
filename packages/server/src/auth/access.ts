@@ -30,13 +30,24 @@ export interface AccessInstance {
   /** Check if user has a specific entitlement */
   can(entitlement: Entitlement, user: AuthUser | null): Promise<boolean>;
   /** Check with resource context */
-  canWithResource(entitlement: Entitlement, resource: Resource, user: AuthUser | null): Promise<boolean>;
+  canWithResource(
+    entitlement: Entitlement,
+    resource: Resource,
+    user: AuthUser | null,
+  ): Promise<boolean>;
   /** Throws if not authorized */
   authorize(entitlement: Entitlement, user: AuthUser | null): Promise<void>;
   /** Authorize with resource context */
-  authorizeWithResource(entitlement: Entitlement, resource: Resource, user: AuthUser | null): Promise<void>;
+  authorizeWithResource(
+    entitlement: Entitlement,
+    resource: Resource,
+    user: AuthUser | null,
+  ): Promise<void>;
   /** Check multiple entitlements at once */
-  canAll(checks: Array<{ entitlement: Entitlement; resource?: Resource }>, user: AuthUser | null): Promise<Map<string, boolean>>;
+  canAll(
+    checks: Array<{ entitlement: Entitlement; resource?: Resource }>,
+    user: AuthUser | null,
+  ): Promise<Map<string, boolean>>;
   /** Get all entitlements for a role */
   getEntitlementsForRole(role: string): Entitlement[];
   /** Middleware that adds ctx.can() and ctx.authorize() to context */
@@ -58,7 +69,7 @@ export class AuthorizationError extends Error {
   constructor(
     message: string,
     public readonly entitlement: Entitlement,
-    public readonly userId?: string
+    public readonly userId?: string,
   ) {
     super(message);
     this.name = 'AuthorizationError';
@@ -74,14 +85,14 @@ export function createAccess(config: AccessConfig): AccessInstance {
 
   // Build role -> entitlements lookup
   const roleEntitlements = new Map<string, Set<Entitlement>>();
-  
+
   for (const [roleName, roleDef] of Object.entries(roles)) {
     roleEntitlements.set(roleName, new Set(roleDef.entitlements));
   }
 
   // Build entitlement -> roles lookup
   const entitlementRoles = new Map<Entitlement, Set<string>>();
-  
+
   for (const [entName, entDef] of Object.entries(entitlements)) {
     entitlementRoles.set(entName, new Set(entDef.roles));
   }
@@ -93,7 +104,7 @@ export function createAccess(config: AccessConfig): AccessInstance {
   function roleHasEntitlement(role: string, entitlement: Entitlement): boolean {
     const roleEnts = roleEntitlements.get(role);
     if (!roleEnts) return false;
-    
+
     // Direct match
     if (roleEnts.has(entitlement)) return true;
 
@@ -111,7 +122,10 @@ export function createAccess(config: AccessConfig): AccessInstance {
   // Check if a user has a specific entitlement (via their role)
   // ==========================================================================
 
-  async function checkEntitlement(entitlement: Entitlement, user: AuthUser | null): Promise<boolean> {
+  async function checkEntitlement(
+    entitlement: Entitlement,
+    user: AuthUser | null,
+  ): Promise<boolean> {
     if (!user) return false;
 
     // Phase 1: Check role -> entitlement mapping
@@ -139,11 +153,11 @@ export function createAccess(config: AccessConfig): AccessInstance {
   async function canWithResource(
     entitlement: Entitlement,
     _resource: Resource,
-    user: AuthUser | null
+    user: AuthUser | null,
   ): Promise<boolean> {
     // Phase 1: Basic RBAC only
     // No resource hierarchy, no ownership checks
-    
+
     // Check if user has the entitlement
     const hasEntitlement = await checkEntitlement(entitlement, user);
     if (!hasEntitlement) return false;
@@ -160,12 +174,12 @@ export function createAccess(config: AccessConfig): AccessInstance {
 
   async function authorize(entitlement: Entitlement, user: AuthUser | null): Promise<void> {
     const allowed = await can(entitlement, user);
-    
+
     if (!allowed) {
       throw new AuthorizationError(
         `Not authorized to perform this action: ${entitlement}`,
         entitlement,
-        user?.id
+        user?.id,
       );
     }
   }
@@ -177,15 +191,15 @@ export function createAccess(config: AccessConfig): AccessInstance {
   async function authorizeWithResource(
     entitlement: Entitlement,
     resource: Resource,
-    user: AuthUser | null
+    user: AuthUser | null,
   ): Promise<void> {
     const allowed = await canWithResource(entitlement, resource, user);
-    
+
     if (!allowed) {
       throw new AuthorizationError(
         `Not authorized to perform this action on this resource: ${entitlement}`,
         entitlement,
-        user?.id
+        user?.id,
       );
     }
   }
@@ -196,13 +210,13 @@ export function createAccess(config: AccessConfig): AccessInstance {
 
   async function canAll(
     checks: Array<{ entitlement: Entitlement; resource?: Resource }>,
-    user: AuthUser | null
+    user: AuthUser | null,
   ): Promise<Map<string, boolean>> {
     const results = new Map<string, boolean>();
 
     for (const { entitlement, resource } of checks) {
       const key = resource ? `${entitlement}:${resource.id}` : entitlement;
-      const allowed = resource 
+      const allowed = resource
         ? await canWithResource(entitlement, resource, user)
         : await can(entitlement, user);
       results.set(key, allowed);
@@ -271,9 +285,9 @@ export const defaultAccess: AccessInstance = createAccess({
     'user:create': { roles: ['user', 'editor', 'admin'] },
     'user:update': { roles: ['editor', 'admin'] },
     'user:delete': { roles: ['admin'] },
-    'read': { roles: ['user', 'editor', 'admin'] },
-    'create': { roles: ['user', 'editor', 'admin'] },
-    'update': { roles: ['editor', 'admin'] },
-    'delete': { roles: ['admin'] },
+    read: { roles: ['user', 'editor', 'admin'] },
+    create: { roles: ['user', 'editor', 'admin'] },
+    update: { roles: ['editor', 'admin'] },
+    delete: { roles: ['admin'] },
   },
 });

@@ -1,15 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  ok,
+  type Err,
   err,
-  unwrap,
-  map,
   flatMap,
+  map,
   match,
   matchErr,
-  Result,
-  Ok,
-  Err,
+  type Ok,
+  ok,
+  type Result,
+  unwrap,
 } from './result';
 
 describe('Result', () => {
@@ -152,7 +152,7 @@ describe('Result', () => {
     it('combines error types', async () => {
       const result = ok(5);
       // Inner function returns different error type
-      const chained = await flatMap(result, (x) => {
+      const chained = await flatMap(result, (_x) => {
         const innerErr: Result<number, string> = err('string error');
         return innerErr;
       });
@@ -207,7 +207,10 @@ describe('Result', () => {
 
     class NotFoundError {
       readonly code = 'NOT_FOUND' as const;
-      constructor(public resource: string, public id: string) {}
+      constructor(
+        public resource: string,
+        public id: string,
+      ) {}
     }
 
     class ConnectionError {
@@ -221,9 +224,15 @@ describe('Result', () => {
       const result: Result<{ id: string }, TestError> = ok({ id: '123' });
       const response = matchErr(result, {
         ok: (data) => ({ status: 201 as const, body: data }),
-        VALIDATION_ERROR: (e) => ({ status: 400 as const, body: { error: 'invalid', fields: e.fields } }),
-        NOT_FOUND: (e) => ({ status: 404 as const, body: { error: 'not_found', resource: e.resource } }),
-        CONNECTION_ERROR: (e) => ({ status: 500 as const, body: { error: 'server_error' } }),
+        VALIDATION_ERROR: (e) => ({
+          status: 400 as const,
+          body: { error: 'invalid', fields: e.fields },
+        }),
+        NOT_FOUND: (e) => ({
+          status: 404 as const,
+          body: { error: 'not_found', resource: e.resource },
+        }),
+        CONNECTION_ERROR: (_e) => ({ status: 500 as const, body: { error: 'server_error' } }),
       });
       expect(response.status).toBe(201);
       expect(response.body).toEqual({ id: '123' });
@@ -235,9 +244,12 @@ describe('Result', () => {
 
       const response = matchErr(result, {
         ok: (data) => ({ status: 201 as const, body: data }),
-        VALIDATION_ERROR: (e) => ({ status: 400 as const, body: { error: 'invalid' } }),
-        NOT_FOUND: (e) => ({ status: 404 as const, body: { error: 'not_found', resource: e.resource } }),
-        CONNECTION_ERROR: (e) => ({ status: 500 as const, body: { error: 'server_error' } }),
+        VALIDATION_ERROR: (_e) => ({ status: 400 as const, body: { error: 'invalid' } }),
+        NOT_FOUND: (e) => ({
+          status: 404 as const,
+          body: { error: 'not_found', resource: e.resource },
+        }),
+        CONNECTION_ERROR: (_e) => ({ status: 500 as const, body: { error: 'server_error' } }),
       });
 
       expect(response.status).toBe(404);
@@ -252,9 +264,9 @@ describe('Result', () => {
       expect(() =>
         matchErr(result, {
           ok: (data) => data,
-          NOT_FOUND: (e) => ({ status: 404, body: { error: 'not_found' } }),
+          NOT_FOUND: (_e) => ({ status: 404, body: { error: 'not_found' } }),
           // Missing VALIDATION_ERROR and CONNECTION_ERROR handlers
-        })
+        }),
       ).toThrow('Unhandled error code: VALIDATION_ERROR');
     });
 

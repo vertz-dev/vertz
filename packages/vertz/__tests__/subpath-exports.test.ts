@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 /**
  * Tests that each subpath export from the `vertz` meta-package
@@ -46,8 +46,8 @@ describe('vertz meta-package subpath exports', () => {
 
   it('vertz has no default/root export', async () => {
     // Verify package.json has no "." export
-    const fs = await import('fs');
-    const path = await import('path');
+    const fs = await import('node:fs');
+    const path = await import('node:path');
     const pkgPath = path.resolve(import.meta.dirname, '..', 'package.json');
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
     expect(pkg.exports['.']).toBeUndefined();
@@ -70,8 +70,8 @@ describe('vertz meta-package subpath exports', () => {
 describe('tree-shaking: subpaths are independent modules', () => {
   it('each subpath points to a separate source file', async () => {
     // Verify the package.json exports field has separate entry points
-    const fs = await import('fs');
-    const path = await import('path');
+    const fs = await import('node:fs');
+    const path = await import('node:path');
     const pkgPath = path.resolve(import.meta.dirname, '..', 'package.json');
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
 

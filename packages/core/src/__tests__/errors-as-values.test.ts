@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createApp } from '../app/app-builder';
 import { createModule } from '../module/module';
 import { createModuleDef } from '../module/module-def';
-import { ok, err } from '../result';
+import { err, ok } from '../result';
 import type { HandlerCtx } from '../types/context';
 
 interface TestRoute {
@@ -12,11 +12,7 @@ interface TestRoute {
   errors?: Record<number, unknown>;
 }
 
-function createTestModule(
-  name: string,
-  prefix: string,
-  routes: TestRoute[],
-) {
+function createTestModule(name: string, prefix: string, routes: TestRoute[]) {
   const moduleDef = createModuleDef({ name });
   const router = moduleDef.router({ prefix });
   for (const route of routes) {

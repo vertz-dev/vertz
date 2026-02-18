@@ -60,52 +60,50 @@ export {
   VertzException,
   vertz,
 } from '@vertz/core';
-
-// Domain API - re-exported from internal domain module
-export { domain } from './domain';
 export type {
-  DomainDefinition,
-  DomainOptions,
-  DomainType,
-  DomainContext,
-  AccessRule,
-  AccessRules,
-  Result,
-  DomainError,
-} from './domain';
-
-// Auth Module - Phase 1
-export { 
-  createAuth, 
-  createAccess, 
-  defaultAccess, 
-  hashPassword, 
-  verifyPassword, 
-  validatePassword,
-  AuthorizationError,
-} from './auth';
-export type {
-  AuthConfig,
-  AuthInstance,
+  AccessConfig,
+  AccessInstance,
   AuthApi,
-  AuthResult,
-  AuthError,
-  AuthUser,
+  AuthConfig,
   AuthContext,
-  Session,
-  SessionPayload,
-  SessionStrategy,
-  SessionConfig,
+  AuthError,
+  AuthInstance,
+  AuthResult,
+  AuthUser,
   CookieConfig,
   EmailPasswordConfig,
+  Entitlement,
+  EntitlementDefinition,
   PasswordRequirements,
   RateLimitConfig,
   RateLimitResult,
-  SignUpInput,
-  SignInInput,
-  AccessConfig,
-  AccessInstance,
-  Entitlement,
-  EntitlementDefinition,
   Resource,
+  Session,
+  SessionConfig,
+  SessionPayload,
+  SessionStrategy,
+  SignInInput,
+  SignUpInput,
 } from './auth';
+// Auth Module - Phase 1
+export {
+  AuthorizationError,
+  createAccess,
+  createAuth,
+  defaultAccess,
+  hashPassword,
+  validatePassword,
+  verifyPassword,
+} from './auth';
+export type {
+  AccessRule,
+  AccessRules,
+  DomainContext,
+  DomainDefinition,
+  DomainError,
+  DomainOptions,
+  DomainType,
+  Result,
+} from './domain';
+// Domain API - re-exported from internal domain module
+export { domain } from './domain';

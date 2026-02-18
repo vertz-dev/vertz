@@ -1,9 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
-import { unwrap } from '@vertz/schema';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createDb } from '../../client/database';
 import { d } from '../../d';
-import { ForeignKeyError, NotFoundError, UniqueConstraintError } from '../../errors/db-error';
 import type { TableEntry } from '../../schema/inference';
 
 /**
@@ -282,7 +280,9 @@ describe('CRUD queries (DB-010)', () => {
 
     it('returns error Result on duplicate key', async () => {
       await db.create('users', { data: { name: 'Alice', email: 'alice@test.com' } });
-      const result = await db.create('users', { data: { name: 'Alice2', email: 'alice@test.com' } });
+      const result = await db.create('users', {
+        data: { name: 'Alice2', email: 'alice@test.com' },
+      });
       // Result now returns { ok: false, error: {...} }
       expect(result.ok).toBe(false);
       expect(result.error.code).toBe('CONSTRAINT_ERROR');
@@ -342,7 +342,10 @@ describe('CRUD queries (DB-010)', () => {
     });
 
     it('returns error Result when no rows match', async () => {
-      const result = await db.update('users', { where: { email: 'nobody@test.com' }, data: { age: 99 } });
+      const result = await db.update('users', {
+        where: { email: 'nobody@test.com' },
+        data: { age: 99 },
+      });
       expect(result.ok).toBe(false);
       expect(result.error.code).toBe('QUERY_ERROR');
     });

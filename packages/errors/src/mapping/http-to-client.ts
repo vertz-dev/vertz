@@ -2,7 +2,15 @@
  * Maps HTTP responses to client domain errors.
  */
 
-import type { ApiError, ValidationError, NotFoundError, ConflictError, UnauthorizedError, ForbiddenError, RateLimitedError } from '../domain/client.js';
+import type {
+  ApiError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  RateLimitedError,
+  UnauthorizedError,
+  ValidationError,
+} from '../domain/client.js';
 
 /**
  * Unknown error response from server.
@@ -17,9 +25,10 @@ export interface UnknownError {
  * Parses an unknown error response.
  */
 function parseUnknownError(status: number, body: unknown): UnknownError {
-  const message = typeof body === 'object' && body !== null && 'message' in body
-    ? String((body as { message: unknown }).message)
-    : 'Request failed';
+  const message =
+    typeof body === 'object' && body !== null && 'message' in body
+      ? String((body as { message: unknown }).message)
+      : 'Request failed';
 
   return {
     code: 'UNKNOWN',
@@ -60,7 +69,9 @@ export function httpToClientError(status: number, body: unknown): ApiError | Unk
         const error: ValidationError = {
           code: 'VALIDATION_ERROR',
           message,
-          issues: Array.isArray(bodyObj.issues) ? bodyObj.issues as ValidationError['issues'] : undefined,
+          issues: Array.isArray(bodyObj.issues)
+            ? (bodyObj.issues as ValidationError['issues'])
+            : undefined,
         };
         return error;
       }
@@ -99,11 +110,13 @@ export function httpToClientError(status: number, body: unknown): ApiError | Unk
         const error: ValidationError = {
           code: 'VALIDATION_ERROR',
           message,
-          issues: Array.isArray(bodyObj.issues) ? bodyObj.issues as ValidationError['issues'] : undefined,
+          issues: Array.isArray(bodyObj.issues)
+            ? (bodyObj.issues as ValidationError['issues'])
+            : undefined,
         };
         return error;
       }
-      // Fall through to unknown for other 422s
+    // Fall through to unknown for other 422s
 
     case 429:
       return {

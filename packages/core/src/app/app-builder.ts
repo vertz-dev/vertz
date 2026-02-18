@@ -82,13 +82,14 @@ export function createApp(config: AppConfig): AppBuilder {
     const rawPrefix = config.apiPrefix === undefined ? '/api/' : config.apiPrefix;
     for (const domain of config.domains) {
       // Build the domain path - ensure leading slash but don't double up
-      const domainPath = rawPrefix === '' 
-        ? '/' + domain.name 
-        : (rawPrefix.endsWith('/') ? rawPrefix : rawPrefix + '/') + domain.name;
+      const domainPath =
+        rawPrefix === ''
+          ? `/${domain.name}`
+          : (rawPrefix.endsWith('/') ? rawPrefix : `${rawPrefix}/`) + domain.name;
       // Register CRUD routes for the domain
-      registeredRoutes.push({ method: 'GET', path: domainPath });       // list
+      registeredRoutes.push({ method: 'GET', path: domainPath }); // list
       registeredRoutes.push({ method: 'GET', path: `${domainPath}/:id` }); // get
-      registeredRoutes.push({ method: 'POST', path: domainPath });      // create
+      registeredRoutes.push({ method: 'POST', path: domainPath }); // create
       registeredRoutes.push({ method: 'PUT', path: `${domainPath}/:id` }); // update
       registeredRoutes.push({ method: 'DELETE', path: `${domainPath}/:id` }); // delete
 

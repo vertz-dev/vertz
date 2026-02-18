@@ -1,11 +1,11 @@
 import { PGlite } from '@electric-sql/pglite';
+import { unwrap } from '@vertz/schema';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb } from '../client/database';
 import { createDbProvider } from '../core/db-provider';
 import { d } from '../d';
 import type { QueryFn } from '../query/executor';
 import { tableToSchemas } from '../schema-derive/table-to-schemas';
-import { unwrap } from '@vertz/schema';
 
 // ---------------------------------------------------------------------------
 // Schema: a realistic table with various column types and metadata

@@ -13,12 +13,8 @@ export interface TestServiceBuilder<
     service: NamedServiceDef<TDep, TDepState, TMock>,
     impl: DeepPartial<TMock>,
   ): TestServiceBuilder<TDeps, TState, TMethods, TOptions, TEnv>;
-  options(
-    opts: Partial<TOptions>,
-  ): TestServiceBuilder<TDeps, TState, TMethods, TOptions, TEnv>;
-  env(
-    env: Partial<TEnv>,
-  ): TestServiceBuilder<TDeps, TState, TMethods, TOptions, TEnv>;
+  options(opts: Partial<TOptions>): TestServiceBuilder<TDeps, TState, TMethods, TOptions, TEnv>;
+  env(env: Partial<TEnv>): TestServiceBuilder<TDeps, TState, TMethods, TOptions, TEnv>;
 }
 
 export function createTestService<
@@ -56,9 +52,7 @@ export function createTestService<
       if (parsed.success) {
         options = parsed.data as TOptions;
       } else {
-        throw new Error(
-          `Invalid options: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
-        );
+        throw new Error(`Invalid options: ${parsed.error.issues.map((i) => i.message).join(', ')}`);
       }
     }
 
@@ -69,9 +63,7 @@ export function createTestService<
       if (parsed.success) {
         env = parsed.data as TEnv;
       } else {
-        throw new Error(
-          `Invalid env: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
-        );
+        throw new Error(`Invalid env: ${parsed.error.issues.map((i) => i.message).join(', ')}`);
       }
     }
 

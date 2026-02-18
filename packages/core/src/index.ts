@@ -50,6 +50,9 @@ export type {
 } from './module';
 // Module
 export { createModule, createModuleDef } from './module';
+export type { Err, Ok, Result } from './result';
+// Result type for errors-as-values pattern
+export { err, isErr, isOk, ok } from './result';
 // Types
 export type {
   AppConfig,
@@ -80,6 +83,3 @@ export type {
 } from './types';
 // Namespace
 export { vertz } from './vertz';
-// Result type for errors-as-values pattern
-export { ok, err, isOk, isErr } from './result';
-export type { Ok, Err, Result } from './result';

@@ -7,29 +7,24 @@
  * 3. Helper functions to convert raw errors to typed errors
  */
 
+// Type-only re-exports from db-error.ts
+export type { DbErrorJson } from './errors/db-error';
 // Re-export everything from the errors folder for backward compatibility
 export * from './errors/index';
 
-// Type-only re-exports from db-error.ts
-export type {
-  DbErrorJson,
-} from './errors/db-error';
-
 // Re-export from pg-parser
-export type {
-  PgErrorInput,
-} from './errors/pg-parser';
+export type { PgErrorInput } from './errors/pg-parser';
 
 // ---------------------------------------------------------------------------
 // New Result error types
 // ---------------------------------------------------------------------------
 
 import {
+  CheckConstraintError,
   ConnectionError,
-  UniqueConstraintError,
   ForeignKeyError,
   NotNullError,
-  CheckConstraintError,
+  UniqueConstraintError,
 } from './errors/db-error';
 
 /**
@@ -95,7 +90,12 @@ export type WriteError = DbConnectionError | DbQueryError | DbConstraintError;
 export function toReadError(error: unknown, query?: string): ReadError {
   // Check for error with code property first (includes DbError subclasses)
   if (typeof error === 'object' && error !== null && 'code' in error) {
-    const errWithCode = error as { code: string; message: string; table?: string; constraint?: string };
+    const errWithCode = error as {
+      code: string;
+      message: string;
+      table?: string;
+      constraint?: string;
+    };
 
     // Check for NOT_FOUND code (from NotFoundError)
     if (errWithCode.code === 'NOT_FOUND') {
@@ -128,7 +128,11 @@ export function toReadError(error: unknown, query?: string): ReadError {
   // Connection error - try to detect from message
   if (error instanceof Error) {
     const message = error.message.toLowerCase();
-    if (message.includes('connection') || message.includes('ECONNREFUSED') || message.includes('timeout')) {
+    if (
+      message.includes('connection') ||
+      message.includes('ECONNREFUSED') ||
+      message.includes('timeout')
+    ) {
       return {
         code: 'CONNECTION_ERROR',
         message: error.message,
@@ -153,9 +157,7 @@ export function toReadError(error: unknown, query?: string): ReadError {
  */
 export function toWriteError(error: unknown, query?: string): WriteError {
   // Already a DbError subclass - constraint errors
-  if (
-    error instanceof UniqueConstraintError
-  ) {
+  if (error instanceof UniqueConstraintError) {
     return {
       code: 'CONSTRAINT_ERROR',
       message: error.message,
@@ -205,7 +207,13 @@ export function toWriteError(error: unknown, query?: string): WriteError {
 
   // PostgreSQL error
   if (typeof error === 'object' && error !== null && 'code' in error) {
-    const pgError = error as { code: string; message: string; table?: string; constraint?: string; column?: string };
+    const pgError = error as {
+      code: string;
+      message: string;
+      table?: string;
+      constraint?: string;
+      column?: string;
+    };
 
     // Connection error codes start with 08
     if (pgError.code.startsWith('08')) {
@@ -221,7 +229,7 @@ export function toWriteError(error: unknown, query?: string): WriteError {
       pgError.code === '23505' || // unique_violation
       pgError.code === '23503' || // foreign_key_violation
       pgError.code === '23502' || // not_null_violation
-      pgError.code === '23514'    // check_violation
+      pgError.code === '23514' // check_violation
     ) {
       // 23505 (unique) and 23502 (not null) use column field
       // 23503 (FK) and 23514 (check) use constraint field

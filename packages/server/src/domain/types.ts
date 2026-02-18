@@ -29,9 +29,7 @@ export interface AccessRules<TRow> {
   delete?: AccessRule<TRow>;
 }
 
-export type Result<T, E = any> =
-  | { ok: true; data: T }
-  | { ok: false; error: E };
+export type Result<T, E = any> = { ok: true; data: T } | { ok: false; error: E };
 
 export interface DomainError {
   type: string;

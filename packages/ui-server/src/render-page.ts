@@ -158,11 +158,12 @@ export function renderPage(vnode: VNode, options?: PageOptions): Response {
   const headHtml = buildHeadHtml(options ?? {});
 
   // Add raw head escape hatch if provided
-  const fullHeadHtml = options?.head ? headHtml + '\n' + options.head : headHtml;
+  const fullHeadHtml = options?.head ? `${headHtml}\n${options.head}` : headHtml;
 
   // Build scripts HTML
   const scriptsHtml = options?.scripts
-    ? '\n' + options.scripts.map((src) => `  <script type="module" src="${src}"></script>`).join('\n')
+    ? '\n' +
+      options.scripts.map((src) => `  <script type="module" src="${src}"></script>`).join('\n')
     : '';
 
   // Create a stream that emits the full HTML document
