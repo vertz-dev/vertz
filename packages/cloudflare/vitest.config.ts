@@ -12,6 +12,7 @@ export default defineConfig({
       '@': resolve(__dirname, './src'),
     },
     coverage: {
+      reporter: ['text', 'json-summary', 'json'],
       provider: 'v8',
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/index.ts'],
