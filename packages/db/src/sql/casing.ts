@@ -8,7 +8,7 @@
 /**
  * Override map for custom casing conversions.
  * Keys are camelCase, values are snake_case.
- * Example: { 'oAuth': 'oauth', 'userID': 'user_id' }
+ * Example: { 'oAuth': 'oauth', 'userId': 'user_id' }
  */
 export type CasingOverrides = Record<string, string>;
 
@@ -51,8 +51,8 @@ export function snakeToCamel(str: string, overrides?: CasingOverrides): string {
 
   // Check reverse overrides first (find camelCase key where value matches str)
   if (overrides) {
-    for (const [camelKey, snakeVal] of Object.entries(overrides)) {
-      if (snakeVal === str) {
+    for (const [camelKey, snakeValue] of Object.entries(overrides)) {
+      if (snakeValue === str) {
         return camelKey;
       }
     }
