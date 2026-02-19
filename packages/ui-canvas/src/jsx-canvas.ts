@@ -21,6 +21,13 @@ export function jsxCanvas(tag: string, props: Record<string, unknown>): Containe
   const displayObject = createDisplayObject(tag);
   let hasEventProps = false;
 
+  // Register destroy FIRST so it runs LAST in LIFO cleanup order.
+  // Event listener .off() cleanups registered later will run before destroy,
+  // ensuring we never call .off() on a destroyed object.
+  _tryOnCleanup(() => {
+    displayObject.destroy({ children: true });
+  });
+
   // Text-specific prop handling: 'text' and 'style' need special treatment
   // because they have dedicated semantics on PIXI.Text (reactive text, TextStyle).
   if (displayObject instanceof Text) {
@@ -106,11 +113,6 @@ export function jsxCanvas(tag: string, props: Record<string, unknown>): Containe
 
   // Process children — add child display objects to parent
   applyCanvasChildren(displayObject, props.children);
-
-  // Register cleanup: destroy display object when scope disposes
-  _tryOnCleanup(() => {
-    displayObject.destroy({ children: true });
-  });
 
   return displayObject;
 }

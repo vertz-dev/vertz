@@ -74,6 +74,10 @@ export function CanvasLayer(props: CanvasLayerProps): HTMLDivElement {
         app.stage.addChild(debug.overlay);
         debug.update();
       }
+    })
+    .catch((error) => {
+      if (destroyed) return;
+      console.error('[ui-canvas] CanvasLayer failed to initialize:', error);
     });
 
   return div;
