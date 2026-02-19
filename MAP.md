@@ -30,19 +30,60 @@
 
 The end-to-end story: schema → database → API → UI. One type system, zero seams.
 
-| Package | What | Status | Design Docs |
-|---|---|---|---|
-| `@vertz/schema` | Schema definition & validation | 🟡 In progress | [Design](plans/vertz-schema-design.md), [Implementation](plans/vertz-schema-implementation.md) |
-| `@vertz/db` | ORM — tables, queries, migrations | 🟡 In progress | [Design](plans/db-design.md), [Implementation](plans/db-implementation.md), [Integration](plans/db-integration-design.md), [Post-review](plans/post-implementation-reviews/vertz-db-v1.md) |
-| `@vertz/server` | REST framework — routes, middleware, context | 🟡 In progress | [Core API](plans/vertz-core-api-design.md), [Entity API](plans/entity-aware-api.md), [Cloud Arch](plans/cloud-architecture.md) |
-| `@vertz/ui` | UI components, JSX rendering | 🟡 In progress | [Design](plans/ui-design.md), [Implementation](plans/ui-implementation.md), [Post-review](plans/post-implementation-reviews/vertz-ui-v1.md) |
-| `@vertz/ui` (SSR) | Server rendering, streaming | 🟡 In progress | [renderPage](plans/render-page.md), [Implementation](plans/render-page-implementation.md), [Zero-config SSR](plans/ssr-zero-config.md) |
-| `@vertz/core` | Runtime, app-runner, request handling | 🟡 In progress | [Design](plans/vertz-core-api-design.md), [Implementation](plans/vertz-core-implementation.md), [Features](plans/vertz-features.md) |
-| `@vertz/errors` | Result type, AppError, domain errors | ✅ Shipped | [Error Taxonomy](plans/error-taxonomy.md), [Result Boundaries](plans/result-boundaries.md), [Errors-as-Values RFC](plans/errors-as-values.md) |
-| `@vertz/cli` | Project scaffolding, dev server, migrations | 🟡 In progress | [Design](plans/cli/cli-design.md), [Phases 1-11](plans/cli/) |
-| `@vertz/compiler` | Build-time codegen & transforms | 🟡 In progress | [Design](plans/vertz-compiler-design.md), [Codegen](plans/codegen-design.md) |
-| `@vertz/testing` | Test utilities & patterns | 🟡 In progress | [Design](plans/vertz-testing-design.md), [Implementation](plans/vertz-testing-implementation.md) |
-| `@vertz/cloudflare` | Cloudflare Workers adapter | ✅ Shipped | [Adapter](plans/cloudflare-adapter.md) |
+> **Detailed audits:** [plans/audits/](plans/audits/) — per-package feature checklists with ✅/🟡/❌
+
+| Package | What | Status | Design Docs | Audit |
+|---|---|---|---|---|
+| `@vertz/schema` | Schema definition & validation | 🟡 In progress | [Design](plans/vertz-schema-design.md), [Implementation](plans/vertz-schema-implementation.md) | — |
+| `@vertz/db` | ORM — tables, queries, migrations | 🟡 In progress | [Design](plans/db-design.md), [Implementation](plans/db-implementation.md), [Integration](plans/db-integration-design.md), [Post-review](plans/post-implementation-reviews/vertz-db-v1.md) | — |
+| `@vertz/server` | REST framework — routes, middleware, context | 🟡 In progress | [Core API](plans/vertz-core-api-design.md), [Entity API](plans/entity-aware-api.md), [Cloud Arch](plans/cloud-architecture.md) | [Audit](plans/audits/server-core-audit.md) |
+| `@vertz/ui` | UI components, JSX rendering | ✅ **Production-ready** | [Design](plans/ui-design.md), [Implementation](plans/ui-implementation.md), [Post-review](plans/post-implementation-reviews/vertz-ui-v1.md) | [Audit](plans/audits/ui-package-audit.md) |
+| `@vertz/ui-server` | SSR — streaming, hydration | 🟡 Streaming done, gaps remain | [renderPage](plans/render-page.md), [Implementation](plans/render-page-implementation.md), [Zero-config SSR](plans/ssr-zero-config.md) | [SSR Audit](plans/audits/ssr-audit.md), [Query Keys & Streaming](plans/audits/query-keys-and-streaming-updates.md) — `✅ Done`, [SSR-Query Bridge](plans/audits/ssr-query-bridge-analysis.md) — `🔄 In Progress` |
+| `@vertz/core` | Runtime, app-runner, request handling | 🟡 In progress | [Design](plans/vertz-core-api-design.md), [Implementation](plans/vertz-core-implementation.md), [Features](plans/vertz-features.md) | [Audit](plans/audits/server-core-audit.md), [Schema Gap Review](plans/post-implementation-reviews/core-schema-validation-gap.md) — `✅ Done` |
+| `@vertz/errors` | Result type, AppError, domain errors | ✅ Shipped | [Error Taxonomy](plans/error-taxonomy.md), [Result Boundaries](plans/result-boundaries.md), [Errors-as-Values RFC](plans/errors-as-values.md) | — |
+| `@vertz/cli` | Project scaffolding, dev server, migrations | 🟡 In progress | [Design](plans/cli/cli-design.md), [Phases 1-11](plans/cli/) | — |
+| `@vertz/compiler` | Build-time codegen & transforms | 🟡 In progress | [Design](plans/vertz-compiler-design.md), [Codegen](plans/codegen-design.md) | — |
+| `@vertz/testing` | Test utilities & patterns | 🟡 In progress | [Design](plans/vertz-testing-design.md), [Implementation](plans/vertz-testing-implementation.md) | — |
+| `@vertz/cloudflare` | Cloudflare Workers adapter | ✅ Shipped | [Adapter](plans/cloudflare-adapter.md) | — |
+
+### Package Status Summary
+
+**`@vertz/ui`** — ✅ Production-ready (130 files, 62 tests)
+- JSX runtime, signals, computed, effects, batch ✅
+- Routing with loaders, nested routes, search params ✅
+- Forms with schema validation ✅
+- CSS-in-JS with theming and variants ✅
+- Query with caching, dedup, debounce ✅
+- Hydration with 6 strategies ✅
+- Error boundaries, Suspense, Context ✅
+- ❌ Portal support (not in scope)
+
+**`@vertz/ui-server`** — 🟡 Streaming SSR done, data integration missing
+- ✅ renderToStream with Suspense (out-of-order)
+- ✅ renderPage() with full HTML shell, meta, assets
+- ✅ Hydration markers (data-v-id, data-v-key)
+- ✅ Critical CSS inlining
+- ✅ Vite dev server with HMR
+- ❌ **State serialization (dehydrate/replay)** — critical gap
+- ❌ **query() SSR integration** — no prefetch, no serialize
+- ❌ **Skeleton/placeholder system** — not built
+- ❌ renderToString (sync) — only stream-based
+- ❌ Error/404 page rendering at SSR layer
+- ❌ Layout system at SSR layer
+
+**`@vertz/server` + `@vertz/core`** — 🟡 Routing solid, CRUD stubs
+- ✅ Full routing (params, wildcards, prefixes, methods)
+- ✅ Middleware pipeline, CORS, body parsing
+- ✅ Context system (immutable, service injection)
+- ✅ Auth module (JWT, email/password, rate limiting) — *deprioritized*
+- ✅ RBAC (ctx.can, ctx.authorize) — *deprioritized*
+- ✅ Domain route registration
+- 🟡 Domain CRUD handlers — **STUBS, not implemented**
+- 🟡 Cookie handling (auth only)
+- ❌ Dev server with HMR (ui-server has this, core doesn't)
+- ❌ Graceful shutdown
+- ❌ SSR page serving integration
+- ❌ Static file serving
 
 ### Designed Features (ships later — v0.2+)
 
