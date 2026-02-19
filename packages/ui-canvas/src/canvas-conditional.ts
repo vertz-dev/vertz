@@ -32,12 +32,11 @@ export function canvasConditional(
   let disposed = false;
 
   function removeCurrent() {
-    runCleanups(branchCleanups);
     if (current) {
       parent.removeChild(current);
-      current.destroy({ children: true });
       current = null;
     }
+    runCleanups(branchCleanups); // jsxCanvas cleanup handles destroy
   }
 
   const disposeEffect = effect(() => {

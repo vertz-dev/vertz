@@ -1,4 +1,9 @@
-import type { FederatedPointerEvent, Container as PIXIContainer, TextStyleOptions } from 'pixi.js';
+import type {
+  FederatedPointerEvent,
+  FederatedWheelEvent,
+  Container as PIXIContainer,
+  TextStyleOptions,
+} from 'pixi.js';
 import type { MaybeAccessor } from './unwrap';
 
 /** Common transform props shared by all canvas elements. */
@@ -23,7 +28,7 @@ export interface CanvasEventProps {
   onPointerLeave?: (e: FederatedPointerEvent) => void;
   onClick?: (e: FederatedPointerEvent) => void;
   onRightClick?: (e: FederatedPointerEvent) => void;
-  onWheel?: (e: FederatedPointerEvent) => void;
+  onWheel?: (e: FederatedWheelEvent) => void;
   interactive?: boolean;
   eventMode?: 'static' | 'passive' | 'dynamic' | 'auto' | 'none';
 }

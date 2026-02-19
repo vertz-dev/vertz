@@ -1,4 +1,4 @@
-import { type Context, createContext, onCleanup, onMount, useContext } from '@vertz/ui';
+import { type Context, createContext, onCleanup, useContext } from '@vertz/ui';
 import { Application, Container } from 'pixi.js';
 import { createDebugOverlay } from './debug-overlay';
 
@@ -35,38 +35,46 @@ export function CanvasLayer(props: CanvasLayerProps): HTMLDivElement {
 
   const div = document.createElement('div');
   const app = new Application();
+  let destroyed = false;
 
-  onMount(async () => {
-    await app.init({
+  // Register cleanup synchronously so it's always tracked in the disposal scope
+  onCleanup(() => {
+    destroyed = true;
+    app.destroy(true, { children: true });
+  });
+
+  // Async init runs outside onMount to avoid scope issues after await.
+  // The destroyed guard prevents operations on an already-disposed app.
+  app
+    .init({
       width: props.width,
       height: props.height,
       background: props.background ?? 0x000000,
-    });
-    div.appendChild(app.canvas as HTMLCanvasElement);
+    })
+    .then(() => {
+      if (destroyed) return;
 
-    // Process children via context — child components can useContext(CanvasRenderContext)
-    CanvasRenderContext.Provider(app.stage, () => {
-      if (props.children != null) {
-        const children = Array.isArray(props.children) ? props.children : [props.children];
-        for (const child of children) {
-          if (child instanceof Container) {
-            app.stage.addChild(child);
+      div.appendChild(app.canvas as HTMLCanvasElement);
+
+      // Process children via context — child components can useContext(CanvasRenderContext)
+      CanvasRenderContext.Provider(app.stage, () => {
+        if (props.children != null) {
+          const children = Array.isArray(props.children) ? props.children : [props.children];
+          for (const child of children) {
+            if (child instanceof Container) {
+              app.stage.addChild(child);
+            }
           }
         }
+      });
+
+      // Wire up debug overlay when debug prop is enabled
+      if (props.debug) {
+        const debug = createDebugOverlay(app.stage);
+        app.stage.addChild(debug.overlay);
+        debug.update();
       }
     });
-
-    // Wire up debug overlay when debug prop is enabled
-    if (props.debug) {
-      const debug = createDebugOverlay(app.stage);
-      app.stage.addChild(debug.overlay);
-      debug.update();
-    }
-  });
-
-  onCleanup(() => {
-    app.destroy(true, { children: true });
-  });
 
   return div;
 }

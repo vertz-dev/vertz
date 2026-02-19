@@ -35,9 +35,8 @@ export function canvasList<T>(
     // Remove items whose keys are no longer present
     for (const [key, entry] of itemMap) {
       if (!currentKeys.has(key)) {
-        runCleanups(entry.scope);
         parent.removeChild(entry.displayObject);
-        entry.displayObject.destroy({ children: true });
+        runCleanups(entry.scope); // jsxCanvas cleanup handles destroy
         itemMap.delete(key);
       }
     }
@@ -70,9 +69,8 @@ export function canvasList<T>(
     disposeEffect();
     // Clean up all managed children
     for (const [, entry] of itemMap) {
-      runCleanups(entry.scope);
       parent.removeChild(entry.displayObject);
-      entry.displayObject.destroy({ children: true });
+      runCleanups(entry.scope); // jsxCanvas cleanup handles destroy
     }
     itemMap.clear();
   };
