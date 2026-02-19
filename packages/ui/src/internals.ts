@@ -47,4 +47,4 @@ export { executeLoaders } from './router/loader';
 export type { MatchResult } from './router/matcher';
 export { matchPath } from './router/matcher';
 // Runtime scope management (used by component lifecycle internals)
-export { popScope, pushScope, runCleanups } from './runtime/disposal';
+export { _tryOnCleanup, popScope, pushScope, runCleanups } from './runtime/disposal';
