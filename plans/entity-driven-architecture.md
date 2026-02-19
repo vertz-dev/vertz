@@ -409,7 +409,7 @@ const tasks = entity('tasks', {
 Two concepts, each with a clear, non-overlapping purpose:
 
 - **Action override** (`actions`) — **transform** data or change behavior. The "before" use case. You override a CRUD action and call `ctx.self.create()` / `ctx.self.update()` for the raw operation.
-- **Event reaction** (`on`) — **side effects** after something happened. Notifications, audit, cache invalidation. Cannot change the result. Works uniformly for CRUD AND custom actions.
+- **Event reaction** (`after`) — **side effects** after something happened. Notifications, audit, cache invalidation. Cannot change the result. Works uniformly for CRUD AND custom actions.
 
 ```typescript
 const users = entity('users', {
@@ -437,7 +437,7 @@ const users = entity('users', {
   },
 
   // REACTIONS — side effects after operations complete
-  on: {
+  after: {
     create: async (user, ctx) => {
       await sendWelcomeEmail(user)
     },
@@ -452,14 +452,14 @@ const users = entity('users', {
 ```
 
 **Key behaviors:**
-- `on.create` fires after any create — whether auto-generated or overridden via `actions.create`
-- `on.resetPassword` fires after the custom action handler completes
+- `after.create` fires after any create — whether auto-generated or overridden via `actions.create`
+- `after.resetPassword` fires after the custom action handler completes
 - Event reactions receive the result but cannot modify it
 - Same pattern for CRUD operations and custom actions — no special casing
 
 **DDD parallel:** Event reactions are Domain Events — "something that happened in the domain that other parts of the system care about." They're decoupled from the operation itself, enabling clean separation of core logic from side effects.
 
-**Shipping:** `on` is designed and decided but deferred to v0.2. v0.1 ships without event reactions — developers handle side effects inline in action overrides for now.
+**Shipping:** `after` is designed and decided but deferred to v0.2. v0.1 ships without event reactions — developers handle side effects inline in action overrides for now.
 
 ### 3.5c Public vs Internal Operations
 
@@ -772,7 +772,7 @@ const app = createServer({
 ### v0.2 — Production Ready
 
 - Action entities (`action()`)
-- Event reactions (`on`) — side effects after CRUD and custom actions, DDD Domain Events pattern (designed, see Section 3.6)
+- Event reactions (`after`) — side effects after CRUD and custom actions, DDD Domain Events pattern (designed, see Section 3.6)
 - `methods` (public/internal split)
 - `domain()` with `exports` and `inject`
 - `service()` for cross-entity logic
@@ -842,7 +842,45 @@ Clients can override `orderBy` and `limit` per request, but can never exceed the
 
 ---
 
-## 10. Open Questions
+## 10. Design Decisions from Review (v2)
+
+### Decided
+1. **Entity injection respects access rules.** Internal calls bypass HTTP but still execute the target entity's access rules. This prevents privilege escalation through injection.
+2. **N+1 is an ORM concern, not an entity concern.** The entity layer passes include requests through to the ORM (after narrowing). The ORM handles batched queries (DataLoader pattern: separate batched query per relation, in-memory resolution). Not JOINs.
+3. **Separate files are the convention.** No co-located schema + model + entity in one file. Deterministic file structure: `schemas/`, `models/`, `entities/`. LLMs generate the boilerplate. Convention scales better than convenience.
+4. **Entity definitions don't specify route params or query params.** The framework derives `:id` from the primary key. VertzQL handles list query params (where, orderBy, limit, cursor). Custom actions only define `input` (request body). Response type is inferred from the handler return.
+5. **`on` renamed to `after`** — clearer temporal semantics for event reactions.
+
+### VertzQL Wire Format
+6. **VertzQL uses a hybrid wire format: readable params for filtering/pagination, encoded param for structural queries.**
+
+**Readable in URL** (filtering, sorting, pagination — changes with user interaction, visible in devtools/logs):
+- `where[status]=todo` — filtering
+- `orderBy=createdAt:desc` — sorting
+- `limit=20` — pagination size
+- `cursor=abc123` — cursor pagination
+
+**Encoded in `q=`** (field selection, relation includes — structural, varies per component, cached):
+- Base64url-encoded canonical JSON (keys sorted recursively, URL-safe, no padding)
+- Same structural query from any client → identical `q=` → HTTP/CDN cache hit
+- SDK generates this automatically — developers never write it by hand
+
+```
+GET /api/tasks?where[status]=todo&orderBy=createdAt:desc&limit=20&q=eyJzZWxlY3QiOnsidGl0bGUiOnRydWV9LCJpbmNsdWRlIjp7ImFzc2lnbmVlIjp0cnVlfX0
+// q= decodes to: {"include":{"assignee":true},"select":{"title":true}}
+```
+
+POST fallback for queries exceeding URL length limits (~2KB).
+
+### Notes (to be designed)
+- **Headers and permissions context** — How do HTTP headers flow into `ctx`? How does the auth middleware populate `ctx.userId`, `ctx.role()`, `ctx.tenant()`? Need to define the ctx shape and how middleware populates it. Related to the middleware design (v0.2 for domain-level, v0.1 for global).
+- **Error response format** — What does a denied access check return? Schema validation failure? Action handler error? Need a consistent error response shape across all entity operations.
+- **Testing story** — How to unit test entity access rules and action handlers. Define ctx mocking utilities.
+- **Escape hatch for raw SQL** — `ctx.db.raw()` or equivalent for queries VertzQL can't express.
+
+---
+
+## 11. Open Questions
 
 1. **Default relation exposure:** Should all schema relations be exposed by default (`'all'`), or should developers explicitly opt-in (`'none'`)? `'all'` is less boilerplate; `'none'` is more secure. Recommendation: `'all'` with `.hidden()` fields stripped — the developer already declared those relations intentionally.
 
