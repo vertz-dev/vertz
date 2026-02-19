@@ -751,6 +751,9 @@ const app = createServer({
 - `relations` narrowing (which relations exposed, which fields)
 - VertzQL: `select`, `where`, `orderBy`, `limit`, cursor pagination
 - Codegen: TypeScript SDK from entity definitions
+- HATEOAS: auto-generated `_links` in responses (actions, relations, pagination)
+- OpenAPI spec: auto-generated from entity definitions (port existing generator)
+- HTTP status codes: mapped from `@vertz/errors` taxonomy
 
 **Don't ship:**
 - Action entities (process/workflow)
@@ -871,6 +874,60 @@ GET /api/tasks?where[status]=todo&orderBy=createdAt:desc&limit=20&q=eyJzZWxlY3Qi
 ```
 
 POST fallback for queries exceeding URL length limits (~2KB).
+
+### REST Alignment
+7. **HATEOAS — auto-generated hypermedia links in every response.** The entity definition contains every action, relation, and CRUD operation. The framework auto-generates `_links` in responses with zero developer effort. This makes the API self-discoverable — LLMs and API consumers can navigate by following links without documentation.
+
+```json
+{
+  "id": "task_123",
+  "title": "Buy groceries",
+  "status": "todo",
+  "_links": {
+    "self": { "href": "/api/tasks/task_123", "method": "GET" },
+    "update": { "href": "/api/tasks/task_123", "method": "PATCH" },
+    "complete": { "href": "/api/tasks/task_123/complete", "method": "POST" },
+    "assignee": { "href": "/api/users/user_456", "method": "GET" },
+    "collection": { "href": "/api/tasks", "method": "GET" }
+  }
+}
+```
+
+For list responses, pagination links are included:
+```json
+{
+  "data": [...],
+  "_links": {
+    "self": { "href": "/api/tasks?where[status]=todo&limit=20" },
+    "next": { "href": "/api/tasks?where[status]=todo&limit=20&cursor=abc123" },
+    "prev": { "href": "/api/tasks?where[status]=todo&limit=20&cursor=xyz789" }
+  }
+}
+```
+
+Key behaviors:
+- Links are generated from the entity's `access` rules — if the current user can't `delete`, the delete link is omitted
+- Relation links are generated from the entity's `relations` config — only exposed relations appear
+- Disabled actions (`delete: false`) never appear in links
+- **LLM-native:** An agent receiving a response can discover all available operations without any API documentation
+
+8. **OpenAPI spec auto-generated from entity definitions.** An OpenAPI generator already exists in the codebase (for the prior API design). It will be ported to generate from EDA entity definitions. The entity definition contains everything needed: paths, methods, request/response schemas, access rules (mapped to security schemes), relations. `vertz build` produces the OpenAPI spec alongside the SDK. From OpenAPI, third-party tooling can generate clients in any language, interactive docs (Swagger UI), and API testing suites.
+
+9. **HTTP status codes mapped to entity operations.**
+
+| Operation | Success | Common Errors |
+|---|---|---|
+| `list` | 200 OK | 401 Unauthorized, 403 Forbidden |
+| `get` | 200 OK | 401, 403, 404 Not Found |
+| `create` | 201 Created | 400 Bad Request (validation), 401, 403, 409 Conflict (unique constraint) |
+| `update` | 200 OK | 400, 401, 403, 404 |
+| `delete` | 204 No Content | 401, 403, 404 |
+| Custom action | 200 OK | 400, 401, 403, 404 |
+| Disabled operation | 405 Method Not Allowed | — |
+
+These map from the existing `@vertz/errors` taxonomy via `httpStatusForError()`.
+
+10. **Link Relations (RFC 8288)** — Standard relation types used in `_links`: `self`, `collection`, `next`, `prev`, `first`, `last`. Custom action links use the action name as the relation type.
 
 ### Notes (to be designed)
 - **Headers and permissions context** — How do HTTP headers flow into `ctx`? How does the auth middleware populate `ctx.userId`, `ctx.role()`, `ctx.tenant()`? Need to define the ctx shape and how middleware populates it. Related to the middleware design (v0.2 for domain-level, v0.1 for global).
