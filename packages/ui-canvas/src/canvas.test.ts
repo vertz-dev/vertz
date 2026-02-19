@@ -309,7 +309,12 @@ describe('Issue #445: Integration tests with real PixiJS objects', () => {
       const degrees = signal(90);
 
       // Transform degrees to radians
-      const dispose = bindSignal(degrees, container, 'rotation', (deg: number) => (deg * Math.PI) / 180);
+      const dispose = bindSignal(
+        degrees,
+        container,
+        'rotation',
+        (deg: number) => (deg * Math.PI) / 180,
+      );
 
       expect(container.rotation).toBeCloseTo(Math.PI / 2);
 
