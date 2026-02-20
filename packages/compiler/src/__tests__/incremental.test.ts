@@ -15,24 +15,28 @@ function stubDependencies(calls: string[]): CompilerDependencies {
           calls.push('analyze:env');
           return { env: undefined };
         },
+        getDiagnostics: () => [],
       },
       schema: {
         analyze: async () => {
           calls.push('analyze:schema');
           return { schemas: [] };
         },
+        getDiagnostics: () => [],
       },
       middleware: {
         analyze: async () => {
           calls.push('analyze:middleware');
           return { middleware: [] };
         },
+        getDiagnostics: () => [],
       },
       module: {
         analyze: async () => {
           calls.push('analyze:module');
           return { modules: [] };
         },
+        getDiagnostics: () => [],
       },
       app: {
         analyze: async () => {
@@ -48,12 +52,21 @@ function stubDependencies(calls: string[]): CompilerDependencies {
             },
           };
         },
+        getDiagnostics: () => [],
+      },
+      entity: {
+        analyze: async () => {
+          calls.push('analyze:entity');
+          return { entities: [] };
+        },
+        getDiagnostics: () => [],
       },
       dependencyGraph: {
         analyze: async () => {
           calls.push('analyze:dependencyGraph');
           return { graph: createEmptyDependencyGraph() };
         },
+        getDiagnostics: () => [],
       },
     },
     validators: [],
@@ -464,6 +477,7 @@ describe('IncrementalCompiler', () => {
           },
         ],
       }),
+      getDiagnostics: () => [],
     };
     const compiler = new Compiler(resolveConfig(), deps);
     const incremental = new IncrementalCompiler(compiler);

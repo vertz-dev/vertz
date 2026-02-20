@@ -24,6 +24,9 @@ export { extractIdentifierNames, ModuleAnalyzer, parseImports } from './analyzer
 // Route analyzer
 export type { RouteAnalyzerResult } from './analyzers/route-analyzer';
 export { RouteAnalyzer } from './analyzers/route-analyzer';
+// Entity analyzer
+export type { EntityAnalyzerResult } from './analyzers/entity-analyzer';
+export { EntityAnalyzer } from './analyzers/entity-analyzer';
 // Schema analyzer
 export type { SchemaAnalyzerResult } from './analyzers/schema-analyzer';
 export {
@@ -143,6 +146,8 @@ export {
   createEmptyAppIR,
   createEmptyDependencyGraph,
 } from './ir/builder';
+// Entity route injector
+export { detectRouteCollisions, injectEntityRoutes } from './ir/entity-route-injector';
 // IR merge
 export { mergeIR } from './ir/merge';
 export type {
@@ -153,6 +158,14 @@ export type {
   DependencyGraphIR,
   DependencyNode,
   DependencyNodeKind,
+  EntityAccessIR,
+  EntityAccessRuleKind,
+  EntityActionIR,
+  EntityHooksIR,
+  EntityIR,
+  EntityModelRef,
+  EntityModelSchemaRefs,
+  EntityRelationIR,
   EnvIR,
   EnvVariableIR,
   HttpMethod,

@@ -16,6 +16,7 @@ export interface AppIR {
   modules: ModuleIR[];
   middleware: MiddlewareIR[];
   schemas: SchemaIR[];
+  entities: EntityIR[];
   dependencyGraph: DependencyGraphIR;
   diagnostics: Diagnostic[];
 }
@@ -167,6 +168,58 @@ export interface InlineSchemaRef {
   kind: 'inline';
   sourceFile: string;
   jsonSchema?: Record<string, unknown>;
+}
+
+// ── Entity ─────────────────────────────────────────────────────────
+
+export interface EntityIR extends SourceLocation {
+  name: string;
+  modelRef: EntityModelRef;
+  access: EntityAccessIR;
+  hooks: EntityHooksIR;
+  actions: EntityActionIR[];
+  relations: EntityRelationIR[];
+}
+
+export interface EntityModelRef {
+  variableName: string;
+  importSource?: string;
+  tableName?: string;
+  schemaRefs: EntityModelSchemaRefs;
+}
+
+export interface EntityModelSchemaRefs {
+  response?: SchemaRef;
+  createInput?: SchemaRef;
+  updateInput?: SchemaRef;
+  resolved: boolean;
+}
+
+export interface EntityAccessIR {
+  list: EntityAccessRuleKind;
+  get: EntityAccessRuleKind;
+  create: EntityAccessRuleKind;
+  update: EntityAccessRuleKind;
+  delete: EntityAccessRuleKind;
+  custom: Record<string, EntityAccessRuleKind>;
+}
+
+export type EntityAccessRuleKind = 'none' | 'false' | 'function';
+
+export interface EntityHooksIR {
+  before: ('create' | 'update')[];
+  after: ('create' | 'update' | 'delete')[];
+}
+
+export interface EntityActionIR extends SourceLocation {
+  name: string;
+  inputSchemaRef: SchemaRef;
+  outputSchemaRef: SchemaRef;
+}
+
+export interface EntityRelationIR {
+  name: string;
+  selection: 'all' | string[];
 }
 
 // ── Shared context types ──────────────────────────────────────────
