@@ -104,6 +104,8 @@ export type {
   TableEntry,
   UpdateInput,
 } from './schema/inference';
+export type { ModelDef } from './schema/model';
+export type { ModelSchemas, SchemaLike } from './schema/model-schemas';
 export { createRegistry } from './schema/registry';
 export type { RelationDef } from './schema/relation';
 export type { IndexDef, TableDef } from './schema/table';
