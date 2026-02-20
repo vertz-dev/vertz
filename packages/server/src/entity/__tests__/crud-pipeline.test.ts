@@ -560,6 +560,35 @@ describe('Feature: CRUD pipeline', () => {
         expect(result.body.total).toBe(2);
       });
     });
+
+    describe('When calling list() with an after value exceeding 512 chars', () => {
+      it('Then ignores the invalid cursor and returns all rows', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const longCursor = 'x'.repeat(513);
+        const result = await handlers.list(ctx, { after: longCursor });
+
+        // Invalid cursor ignored — returns all rows as if no cursor
+        expect(result.body.data).toHaveLength(2);
+        expect(result.body.total).toBe(2);
+      });
+    });
+
+    describe('When calling list() with an empty string after', () => {
+      it('Then ignores the empty cursor and returns all rows', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, { after: '' });
+
+        // Empty string is falsy — treated as no cursor
+        expect(result.body.data).toHaveLength(2);
+        expect(result.body.total).toBe(2);
+      });
+    });
   });
 
   // --- Cursor-based pagination ---

@@ -29,6 +29,14 @@ export interface ListOptions {
   after?: string;
 }
 
+export interface ListResult<T = Record<string, unknown>> {
+  data: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  nextCursor: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // DB adapter interface — abstracts the actual database operations
 // ---------------------------------------------------------------------------
@@ -51,18 +59,7 @@ export interface CrudResult<T = unknown> {
 }
 
 export interface CrudHandlers {
-  list(
-    ctx: EntityContext,
-    options?: ListOptions,
-  ): Promise<
-    CrudResult<{
-      data: Record<string, unknown>[];
-      total: number;
-      limit: number;
-      offset: number;
-      nextCursor: string | null;
-    }>
-  >;
+  list(ctx: EntityContext, options?: ListOptions): Promise<CrudResult<ListResult>>;
   get(ctx: EntityContext, id: string): Promise<CrudResult<Record<string, unknown>>>;
   create(
     ctx: EntityContext,
@@ -94,7 +91,7 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
 
       const limit = Math.max(0, options?.limit ?? 20);
       const offset = Math.max(0, options?.offset ?? 0);
-      const after = options?.after;
+      const after = options?.after && options.after.length <= 512 ? options.after : undefined;
 
       // Cursor-based pagination takes precedence over offset
       const { data: rows, total } = await db.list({ where, limit, offset, after });

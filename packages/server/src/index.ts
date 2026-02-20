@@ -113,6 +113,8 @@ export type {
   EntityOperations,
   EntityRelationsConfig,
   EntityRouteOptions,
+  ListOptions,
+  ListResult,
   RequestInfo,
 } from './entity';
 export {

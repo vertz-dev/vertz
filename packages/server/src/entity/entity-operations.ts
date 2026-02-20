@@ -1,4 +1,5 @@
 import type { ModelDef } from '@vertz/db';
+import type { ListOptions, ListResult } from './crud-pipeline';
 
 /**
  * EntityOperations — typed CRUD facade for a single entity.
@@ -8,13 +9,7 @@ import type { ModelDef } from '@vertz/db';
  */
 export interface EntityOperations<TModel extends ModelDef = ModelDef> {
   get(id: string): Promise<TModel['table']['$response']>;
-  list(options?: {
-    where?: Record<string, unknown>;
-    limit?: number;
-    offset?: number;
-    /** Cursor-based pagination: fetch records after this ID. Takes precedence over offset. */
-    after?: string;
-  }): Promise<TModel['table']['$response'][]>;
+  list(options?: ListOptions): Promise<ListResult<TModel['table']['$response']>>;
   create(data: TModel['table']['$create_input']): Promise<TModel['table']['$response']>;
   update(id: string, data: TModel['table']['$update_input']): Promise<TModel['table']['$response']>;
   delete(id: string): Promise<void>;
