@@ -1,7 +1,33 @@
 import { NotFoundException } from '@vertz/core';
+import type { ColumnBuilder, ColumnMetadata, TableDef } from '@vertz/db';
 import { enforceAccess } from './access-enforcer';
 import { stripHiddenFields, stripReadOnlyFields } from './field-filter';
 import type { EntityContext, EntityDefinition } from './types';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Resolves the primary key column name from a table definition. */
+function resolvePrimaryKeyColumn(table: TableDef): string {
+  for (const key of Object.keys(table._columns)) {
+    const col = table._columns[key] as ColumnBuilder<unknown, ColumnMetadata> | undefined;
+    if (col?._meta.primary) return key;
+  }
+  return 'id';
+}
+
+// ---------------------------------------------------------------------------
+// List options — pagination & filtering
+// ---------------------------------------------------------------------------
+
+export interface ListOptions {
+  where?: Record<string, unknown>;
+  limit?: number;
+  offset?: number;
+  /** Cursor-based pagination: fetch records after this ID. Takes precedence over offset. */
+  after?: string;
+}
 
 // ---------------------------------------------------------------------------
 // DB adapter interface — abstracts the actual database operations
@@ -9,7 +35,7 @@ import type { EntityContext, EntityDefinition } from './types';
 
 export interface EntityDbAdapter {
   get(id: string): Promise<Record<string, unknown> | null>;
-  list(): Promise<Record<string, unknown>[]>;
+  list(options?: ListOptions): Promise<{ data: Record<string, unknown>[]; total: number }>;
   create(data: Record<string, unknown>): Promise<Record<string, unknown>>;
   update(id: string, data: Record<string, unknown>): Promise<Record<string, unknown>>;
   delete(id: string): Promise<Record<string, unknown> | null>;
@@ -25,7 +51,18 @@ export interface CrudResult<T = unknown> {
 }
 
 export interface CrudHandlers {
-  list(ctx: EntityContext): Promise<CrudResult<{ data: Record<string, unknown>[] }>>;
+  list(
+    ctx: EntityContext,
+    options?: ListOptions,
+  ): Promise<
+    CrudResult<{
+      data: Record<string, unknown>[];
+      total: number;
+      limit: number;
+      offset: number;
+      nextCursor: string | null;
+    }>
+  >;
   get(ctx: EntityContext, id: string): Promise<CrudResult<Record<string, unknown>>>;
   create(
     ctx: EntityContext,
@@ -47,13 +84,31 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
   const table = def.model.table;
 
   return {
-    async list(ctx) {
+    async list(ctx, options) {
       await enforceAccess('list', def.access, ctx);
 
-      const rows = await db.list();
+      // Strip hidden fields from where filter to prevent enumeration attacks
+      const rawWhere = options?.where;
+      const safeWhere = rawWhere ? stripHiddenFields(table, rawWhere) : undefined;
+      const where = safeWhere && Object.keys(safeWhere).length > 0 ? safeWhere : undefined;
+
+      const limit = Math.max(0, options?.limit ?? 20);
+      const offset = Math.max(0, options?.offset ?? 0);
+      const after = options?.after;
+
+      // Cursor-based pagination takes precedence over offset
+      const { data: rows, total } = await db.list({ where, limit, offset, after });
       const data = rows.map((row) => stripHiddenFields(table, row));
 
-      return { status: 200, body: { data } };
+      // Compute nextCursor: if we got a full page, there may be more rows
+      const pkColumn = resolvePrimaryKeyColumn(table);
+      const lastRow = rows[rows.length - 1];
+      const nextCursor =
+        limit > 0 && rows.length === limit && lastRow
+          ? String(lastRow[pkColumn] as string | number)
+          : null;
+
+      return { status: 200, body: { data, total, limit, offset, nextCursor } };
     },
 
     async get(ctx, id) {

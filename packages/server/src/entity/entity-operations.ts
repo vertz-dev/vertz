@@ -11,7 +11,9 @@ export interface EntityOperations<TModel extends ModelDef = ModelDef> {
   list(options?: {
     where?: Record<string, unknown>;
     limit?: number;
-    cursor?: string;
+    offset?: number;
+    /** Cursor-based pagination: fetch records after this ID. Takes precedence over offset. */
+    after?: string;
   }): Promise<TModel['table']['$response'][]>;
   create(data: TModel['table']['$create_input']): Promise<TModel['table']['$response']>;
   update(id: string, data: TModel['table']['$update_input']): Promise<TModel['table']['$response']>;

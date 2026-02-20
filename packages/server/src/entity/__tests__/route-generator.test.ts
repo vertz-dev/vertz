@@ -26,8 +26,30 @@ function createMockDb(data: Record<string, unknown>[] = []): EntityDbAdapter {
     async get(id) {
       return store.find((r) => r.id === id) ?? null;
     },
-    async list() {
-      return store;
+    async list(options?: {
+      where?: Record<string, unknown>;
+      limit?: number;
+      offset?: number;
+      after?: string;
+    }) {
+      let result = [...store];
+      const where = options?.where;
+      if (where) {
+        result = result.filter((row) =>
+          Object.entries(where).every(([key, value]) => row[key] === value),
+        );
+      }
+      const total = result.length;
+      if (options?.after) {
+        const afterIdx = result.findIndex((r) => r.id === options.after);
+        result = afterIdx >= 0 ? result.slice(afterIdx + 1) : [];
+      } else if (options?.offset !== undefined) {
+        result = result.slice(options.offset);
+      }
+      if (options?.limit !== undefined) {
+        result = result.slice(0, options.limit);
+      }
+      return { data: result, total };
     },
     async create(input) {
       const record = { id: 'generated-id', ...input };
@@ -181,7 +203,7 @@ describe('generateEntityRoutes', () => {
   });
 
   describe('handler execution', () => {
-    it('list handler returns 200 with data array', async () => {
+    it('list handler returns 200 with data array and pagination metadata', async () => {
       const def = buildEntityDef();
       const db = createMockDb([
         { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret', role: 'admin' },
@@ -202,6 +224,133 @@ describe('generateEntityRoutes', () => {
       expect(body.data).toHaveLength(1);
       // Hidden field should be stripped
       expect(body.data[0].passwordHash).toBeUndefined();
+      // Pagination metadata
+      expect(body.total).toBe(1);
+      expect(body.limit).toBe(20);
+      expect(body.offset).toBe(0);
+    });
+
+    it('list handler passes limit/offset from query params', async () => {
+      const def = buildEntityDef();
+      const db = createMockDb([
+        { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret' },
+        { id: '2', email: 'b@b.com', name: 'Bob', passwordHash: 'secret' },
+        { id: '3', email: 'c@b.com', name: 'Charlie', passwordHash: 'secret' },
+      ]);
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+      const response = await listRoute!.handler({
+        params: {},
+        body: undefined,
+        query: { limit: '1', offset: '1' },
+        headers: {},
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].name).toBe('Bob');
+      expect(body.total).toBe(3);
+      expect(body.limit).toBe(1);
+      expect(body.offset).toBe(1);
+    });
+
+    it('list handler passes non-reserved query params as where filter', async () => {
+      const def = buildEntityDef();
+      const db = createMockDb([
+        { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret', role: 'admin' },
+        { id: '2', email: 'b@b.com', name: 'Bob', passwordHash: 'secret', role: 'viewer' },
+      ]);
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+      const response = await listRoute!.handler({
+        params: {},
+        body: undefined,
+        query: { role: 'admin' },
+        headers: {},
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].name).toBe('Alice');
+      expect(body.total).toBe(1);
+    });
+
+    it('list handler ignores non-numeric limit/offset (falls back to defaults)', async () => {
+      const def = buildEntityDef();
+      const db = createMockDb([
+        { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret' },
+        { id: '2', email: 'b@b.com', name: 'Bob', passwordHash: 'secret' },
+      ]);
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+      const response = await listRoute!.handler({
+        params: {},
+        body: undefined,
+        query: { limit: 'abc', offset: 'xyz' },
+        headers: {},
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      // NaN values ignored — defaults applied (limit=20, offset=0)
+      expect(body.data).toHaveLength(2);
+      expect(body.limit).toBe(20);
+      expect(body.offset).toBe(0);
+    });
+
+    it('list handler passes after from query params for cursor pagination', async () => {
+      const def = buildEntityDef();
+      const db = createMockDb([
+        { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret' },
+        { id: '2', email: 'b@b.com', name: 'Bob', passwordHash: 'secret' },
+        { id: '3', email: 'c@b.com', name: 'Charlie', passwordHash: 'secret' },
+      ]);
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+      const response = await listRoute!.handler({
+        params: {},
+        body: undefined,
+        query: { after: '1', limit: '1' },
+        headers: {},
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].name).toBe('Bob');
+      expect(body.nextCursor).toBe('2');
+    });
+
+    it('list handler returns nextCursor in response', async () => {
+      const def = buildEntityDef();
+      const db = createMockDb([
+        { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret' },
+        { id: '2', email: 'b@b.com', name: 'Bob', passwordHash: 'secret' },
+      ]);
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+      const response = await listRoute!.handler({
+        params: {},
+        body: undefined,
+        query: { limit: '1' },
+        headers: {},
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.nextCursor).toBe('1');
     });
 
     it('get handler returns 200 with single record', async () => {

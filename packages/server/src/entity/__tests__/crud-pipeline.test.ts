@@ -50,7 +50,33 @@ function createStubDb() {
 
   return {
     get: vi.fn(async (id: string) => rows[id] ?? null),
-    list: vi.fn(async () => Object.values(rows)),
+    list: vi.fn(
+      async (options?: {
+        where?: Record<string, unknown>;
+        limit?: number;
+        offset?: number;
+        after?: string;
+      }) => {
+        let result = Object.values(rows);
+        const where = options?.where;
+        if (where) {
+          result = result.filter((row) =>
+            Object.entries(where).every(([key, value]) => row[key] === value),
+          );
+        }
+        const total = result.length;
+        if (options?.after) {
+          const afterIdx = result.findIndex((r) => r.id === options.after);
+          result = afterIdx >= 0 ? result.slice(afterIdx + 1) : [];
+        } else if (options?.offset !== undefined) {
+          result = result.slice(options.offset);
+        }
+        if (options?.limit !== undefined) {
+          result = result.slice(0, options.limit);
+        }
+        return { data: result, total };
+      },
+    ),
     create: vi.fn(async (data: Record<string, unknown>) => ({
       id: 'new-id',
       ...data,
@@ -388,6 +414,393 @@ describe('Feature: CRUD pipeline', () => {
         expect(afterDeleteSpy.mock.calls[0]![0]).toHaveProperty('id', 'user-1');
         // Hidden fields must be stripped to prevent data leakage
         expect(afterDeleteSpy.mock.calls[0]![0]).not.toHaveProperty('passwordHash');
+      });
+    });
+  });
+
+  // --- Pagination ---
+
+  describe('Given an entity with open list access and 2 rows', () => {
+    const def = entity('users', {
+      model: usersModel,
+      access: { list: () => true },
+    });
+
+    describe('When calling list() with no options', () => {
+      it('Then returns all rows with default pagination metadata', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx);
+
+        expect(result.status).toBe(200);
+        expect(result.body.data).toHaveLength(2);
+        expect(result.body.total).toBe(2);
+        expect(result.body.limit).toBe(20);
+        expect(result.body.offset).toBe(0);
+        // All rows fit in one page → no next page
+        expect(result.body.nextCursor).toBeNull();
+      });
+    });
+
+    describe('When calling list() with limit=1', () => {
+      it('Then returns at most 1 row with nextCursor', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, { limit: 1 });
+
+        expect(result.body.data).toHaveLength(1);
+        expect(result.body.total).toBe(2);
+        expect(result.body.limit).toBe(1);
+        expect(result.body.offset).toBe(0);
+        // Full page returned → nextCursor points to last row
+        expect(result.body.nextCursor).toBe('user-1');
+      });
+    });
+
+    describe('When calling list() with offset=1', () => {
+      it('Then skips the first row', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, { offset: 1 });
+
+        expect(result.body.data).toHaveLength(1);
+        expect(result.body.total).toBe(2);
+        expect(result.body.limit).toBe(20);
+        expect(result.body.offset).toBe(1);
+        // 1 row returned but limit is 20 → not a full page → no more data
+        expect(result.body.nextCursor).toBeNull();
+      });
+    });
+
+    describe('When calling list() with limit=1 and offset=1', () => {
+      it('Then returns the correct page with nextCursor', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, { limit: 1, offset: 1 });
+
+        expect(result.body.data).toHaveLength(1);
+        expect(result.body.data[0]).toHaveProperty('email', 'bob@example.com');
+        expect(result.body.total).toBe(2);
+        expect(result.body.limit).toBe(1);
+        expect(result.body.offset).toBe(1);
+        // Full page returned → nextCursor set
+        expect(result.body.nextCursor).toBe('user-2');
+      });
+    });
+
+    describe('When calling list() with offset beyond the dataset', () => {
+      it('Then returns empty data with correct total and null nextCursor', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, { offset: 100 });
+
+        expect(result.body.data).toHaveLength(0);
+        expect(result.body.total).toBe(2);
+        expect(result.body.nextCursor).toBeNull();
+      });
+    });
+  });
+
+  // --- Pagination edge cases ---
+
+  describe('Given an entity with open list access (pagination edge cases)', () => {
+    const def = entity('users', {
+      model: usersModel,
+      access: { list: () => true },
+    });
+
+    describe('When calling list() with negative limit', () => {
+      it('Then clamps limit to 0', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, { limit: -5 });
+
+        expect(result.body.data).toHaveLength(0);
+        expect(result.body.limit).toBe(0);
+        expect(result.body.total).toBe(2);
+      });
+    });
+
+    describe('When calling list() with negative offset', () => {
+      it('Then clamps offset to 0', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, { offset: -10 });
+
+        expect(result.body.data).toHaveLength(2);
+        expect(result.body.offset).toBe(0);
+        expect(result.body.total).toBe(2);
+      });
+    });
+
+    describe('When calling list() with limit=0', () => {
+      it('Then returns empty data with correct total', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, { limit: 0 });
+
+        expect(result.body.data).toHaveLength(0);
+        expect(result.body.limit).toBe(0);
+        expect(result.body.total).toBe(2);
+      });
+    });
+  });
+
+  // --- Cursor-based pagination ---
+
+  describe('Given an entity with open list access (cursor pagination)', () => {
+    const def = entity('users', {
+      model: usersModel,
+      access: { list: () => true },
+    });
+
+    describe('When calling list() with limit=1 (first page)', () => {
+      it('Then returns nextCursor pointing to the last row id', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, { limit: 1 });
+
+        expect(result.body.data).toHaveLength(1);
+        expect(result.body.nextCursor).toBe('user-1');
+      });
+    });
+
+    describe('When calling list() with after=user-1 and limit=1', () => {
+      it('Then returns the next row after the cursor', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, { after: 'user-1', limit: 1 });
+
+        expect(result.body.data).toHaveLength(1);
+        expect(result.body.data[0]).toHaveProperty('email', 'bob@example.com');
+        expect(result.body.nextCursor).toBe('user-2');
+      });
+    });
+
+    describe('When calling list() with after=user-2 (last item)', () => {
+      it('Then returns empty data with null nextCursor', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, { after: 'user-2' });
+
+        expect(result.body.data).toHaveLength(0);
+        expect(result.body.nextCursor).toBeNull();
+      });
+    });
+
+    describe('When calling list() that returns all rows (no more pages)', () => {
+      it('Then nextCursor is null', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx);
+
+        // Default limit=20 > 2 rows, so all rows returned
+        expect(result.body.data).toHaveLength(2);
+        expect(result.body.nextCursor).toBeNull();
+      });
+    });
+
+    describe('When calling list() with after + where filter (M2)', () => {
+      it('Then filters first, then applies cursor within filtered set', async () => {
+        // Custom DB with 3 viewers to test cursor within filtered results
+        const rows: Record<string, Record<string, unknown>> = {
+          'user-1': {
+            id: 'user-1',
+            email: 'alice@example.com',
+            name: 'Alice',
+            passwordHash: 'h1',
+            role: 'viewer',
+          },
+          'user-2': {
+            id: 'user-2',
+            email: 'bob@example.com',
+            name: 'Bob',
+            passwordHash: 'h2',
+            role: 'admin',
+          },
+          'user-3': {
+            id: 'user-3',
+            email: 'charlie@example.com',
+            name: 'Charlie',
+            passwordHash: 'h3',
+            role: 'viewer',
+          },
+        };
+        const db = {
+          get: vi.fn(async (id: string) => rows[id] ?? null),
+          list: vi.fn(
+            async (options?: {
+              where?: Record<string, unknown>;
+              limit?: number;
+              offset?: number;
+              after?: string;
+            }) => {
+              let result = Object.values(rows);
+              const where = options?.where;
+              if (where) {
+                result = result.filter((row) =>
+                  Object.entries(where).every(([key, value]) => row[key] === value),
+                );
+              }
+              const total = result.length;
+              if (options?.after) {
+                const afterIdx = result.findIndex((r) => r.id === options.after);
+                result = afterIdx >= 0 ? result.slice(afterIdx + 1) : [];
+              } else if (options?.offset !== undefined) {
+                result = result.slice(options.offset);
+              }
+              if (options?.limit !== undefined) {
+                result = result.slice(0, options.limit);
+              }
+              return { data: result, total };
+            },
+          ),
+          create: vi.fn(async (data: Record<string, unknown>) => data),
+          update: vi.fn(async (_id: string, data: Record<string, unknown>) => data),
+          delete: vi.fn(async () => null),
+        };
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        // Filter to viewers (user-1, user-3), cursor after user-1
+        const result = await handlers.list(ctx, {
+          where: { role: 'viewer' },
+          after: 'user-1',
+          limit: 10,
+        });
+
+        // user-2 filtered out (admin), user-1 is before cursor → only user-3
+        expect(result.body.data).toHaveLength(1);
+        expect(result.body.data[0]).toHaveProperty('name', 'Charlie');
+        expect(result.body.total).toBe(2); // 2 viewers total
+        expect(result.body.nextCursor).toBeNull(); // only 1 row, limit=10
+      });
+    });
+
+    describe('When calling list() with both after and offset (M3)', () => {
+      it('Then after takes precedence over offset', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        // after=user-1 should return user-2, ignoring offset=100
+        const result = await handlers.list(ctx, {
+          after: 'user-1',
+          offset: 100,
+          limit: 10,
+        });
+
+        expect(result.body.data).toHaveLength(1);
+        expect(result.body.data[0]).toHaveProperty('email', 'bob@example.com');
+      });
+    });
+
+    describe('Full cursor walkthrough (M4): page through all rows', () => {
+      it('Then iterates page 1 → nextCursor → page 2 → null cursor', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        // Page 1
+        const page1 = await handlers.list(ctx, { limit: 1 });
+        expect(page1.body.data).toHaveLength(1);
+        expect(page1.body.data[0]).toHaveProperty('email', 'alice@example.com');
+        expect(page1.body.nextCursor).toBe('user-1');
+
+        // Page 2 — use nextCursor from page 1
+        const page2 = await handlers.list(ctx, {
+          after: page1.body.nextCursor!,
+          limit: 1,
+        });
+        expect(page2.body.data).toHaveLength(1);
+        expect(page2.body.data[0]).toHaveProperty('email', 'bob@example.com');
+        expect(page2.body.nextCursor).toBe('user-2');
+
+        // Page 3 — use nextCursor from page 2 (should be empty)
+        const page3 = await handlers.list(ctx, {
+          after: page2.body.nextCursor!,
+          limit: 1,
+        });
+        expect(page3.body.data).toHaveLength(0);
+        expect(page3.body.nextCursor).toBeNull();
+      });
+    });
+  });
+
+  // --- Filtering ---
+
+  describe('Given an entity with open list access and rows with different roles', () => {
+    const def = entity('users', {
+      model: usersModel,
+      access: { list: () => true },
+    });
+
+    describe('When calling list() with where: { role: "admin" }', () => {
+      it('Then returns only matching rows', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, { where: { role: 'admin' } });
+
+        expect(result.body.data).toHaveLength(1);
+        expect(result.body.data[0]).toHaveProperty('role', 'admin');
+        expect(result.body.total).toBe(1);
+      });
+    });
+
+    describe('When calling list() with where on a hidden field (passwordHash)', () => {
+      it('Then strips the hidden field from where and returns all rows', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, { where: { passwordHash: 'hash123' } });
+
+        // Hidden field is stripped from where — no filtering occurs
+        expect(result.body.data).toHaveLength(2);
+        expect(result.body.total).toBe(2);
+      });
+    });
+
+    describe('When calling list() with mixed where (valid + hidden field)', () => {
+      it('Then filters only by the non-hidden field', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = await handlers.list(ctx, {
+          where: { role: 'admin', passwordHash: 'hash123' },
+        });
+
+        // passwordHash stripped, only role filter applied
+        expect(result.body.data).toHaveLength(1);
+        expect(result.body.data[0]).toHaveProperty('role', 'admin');
+        expect(result.body.total).toBe(1);
       });
     });
   });

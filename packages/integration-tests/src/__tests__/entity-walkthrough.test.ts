@@ -46,8 +46,30 @@ function createInMemoryDb(initial: Record<string, unknown>[] = []): EntityDbAdap
     async get(id) {
       return store.find((r) => r.id === id) ?? null;
     },
-    async list() {
-      return [...store];
+    async list(options?: {
+      where?: Record<string, unknown>;
+      limit?: number;
+      offset?: number;
+      after?: string;
+    }) {
+      let result = [...store];
+      const where = options?.where;
+      if (where) {
+        result = result.filter((row) =>
+          Object.entries(where).every(([key, value]) => row[key] === value),
+        );
+      }
+      const total = result.length;
+      if (options?.after) {
+        const afterIdx = result.findIndex((r) => r.id === options.after);
+        result = afterIdx >= 0 ? result.slice(afterIdx + 1) : [];
+      } else if (options?.offset !== undefined) {
+        result = result.slice(options.offset);
+      }
+      if (options?.limit !== undefined) {
+        result = result.slice(0, options.limit);
+      }
+      return { data: result, total };
     },
     async create(data) {
       const record = { id: `id-${store.length + 1}`, ...data, passwordHash: 'hashed' };
@@ -152,7 +174,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       expect(body.passwordHash).toBeUndefined();
     });
 
-    it('GET list returns records with hidden fields stripped', async () => {
+    it('GET list returns records with hidden fields stripped and pagination metadata', async () => {
       const db = createInMemoryDb([
         { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
         { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
@@ -171,6 +193,9 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       for (const record of body.data) {
         expect(record.passwordHash).toBeUndefined();
       }
+      expect(body.total).toBe(2);
+      expect(body.limit).toBe(20);
+      expect(body.offset).toBe(0);
     });
 
     it('GET by ID returns record with hidden fields stripped', async () => {
@@ -237,6 +262,120 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       expect(res.status).toBe(201);
       const body = await res.json();
       expect(body.role).toBe('user');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Pagination & Filtering
+  // -------------------------------------------------------------------------
+
+  describe('Pagination & Filtering', () => {
+    const paginatedEntity = entity('users', {
+      model: usersModel,
+      access: { list: () => true, get: () => true, create: () => true },
+    });
+
+    it('GET /api/users?limit=1&offset=1 returns paginated results', async () => {
+      const db = createInMemoryDb([
+        { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
+        { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
+        { id: 'u3', email: 'c@b.com', name: 'Charlie', passwordHash: 'h3', role: 'user' },
+      ]);
+      const app = createServer({
+        entities: [paginatedEntity],
+        _entityDbFactory: () => db,
+      });
+
+      const res = await request(app, 'GET', '/api/users?limit=1&offset=1');
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].name).toBe('Bob');
+      expect(body.total).toBe(3);
+      expect(body.limit).toBe(1);
+      expect(body.offset).toBe(1);
+    });
+
+    it('GET /api/users?role=admin filters by query params', async () => {
+      const db = createInMemoryDb([
+        { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
+        { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
+      ]);
+      const app = createServer({
+        entities: [paginatedEntity],
+        _entityDbFactory: () => db,
+      });
+
+      const res = await request(app, 'GET', '/api/users?role=admin');
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].name).toBe('Bob');
+      expect(body.total).toBe(1);
+    });
+
+    it('GET /api/users?limit=1 returns nextCursor for cursor-based pagination', async () => {
+      const db = createInMemoryDb([
+        { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
+        { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
+        { id: 'u3', email: 'c@b.com', name: 'Charlie', passwordHash: 'h3', role: 'user' },
+      ]);
+      const app = createServer({
+        entities: [paginatedEntity],
+        _entityDbFactory: () => db,
+      });
+
+      const res = await request(app, 'GET', '/api/users?limit=1');
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].name).toBe('Alice');
+      expect(body.nextCursor).toBe('u1');
+    });
+
+    it('GET /api/users?after=u1&limit=1 fetches next page via cursor', async () => {
+      const db = createInMemoryDb([
+        { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
+        { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
+        { id: 'u3', email: 'c@b.com', name: 'Charlie', passwordHash: 'h3', role: 'user' },
+      ]);
+      const app = createServer({
+        entities: [paginatedEntity],
+        _entityDbFactory: () => db,
+      });
+
+      const res = await request(app, 'GET', '/api/users?after=u1&limit=1');
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].name).toBe('Bob');
+      expect(body.nextCursor).toBe('u2');
+    });
+
+    it('GET /api/users?role=user&limit=1 combines filtering with pagination', async () => {
+      const db = createInMemoryDb([
+        { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
+        { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
+        { id: 'u3', email: 'c@b.com', name: 'Charlie', passwordHash: 'h3', role: 'user' },
+      ]);
+      const app = createServer({
+        entities: [paginatedEntity],
+        _entityDbFactory: () => db,
+      });
+
+      const res = await request(app, 'GET', '/api/users?role=user&limit=1');
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].name).toBe('Alice');
+      expect(body.total).toBe(2);
+      expect(body.limit).toBe(1);
+      expect(body.offset).toBe(0);
     });
   });
 

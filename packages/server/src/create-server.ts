@@ -26,7 +26,7 @@ function createNoopDbAdapter(): EntityDbAdapter {
       return null;
     },
     async list() {
-      return [];
+      return { data: [], total: 0 };
     },
     async create(data) {
       return data;
