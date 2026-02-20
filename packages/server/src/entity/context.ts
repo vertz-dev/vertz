@@ -18,7 +18,7 @@ export function createEntityContext<TModel extends ModelDef = ModelDef>(
   request: RequestInfo,
   entityOps: EntityOperations<TModel>,
   registryProxy: Record<string, EntityOperations>,
-): EntityContext {
+): EntityContext<TModel> {
   const userId = request.userId ?? null;
   const roles = request.roles ?? [];
   const tenantId = request.tenantId ?? null;

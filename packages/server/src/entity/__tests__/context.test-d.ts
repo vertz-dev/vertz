@@ -1,5 +1,7 @@
 import { d } from '@vertz/db';
 import { describe, expectTypeOf, it } from 'vitest';
+import { createEntityContext } from '../context';
+import type { EntityOperations } from '../entity-operations';
 import type { EntityContext } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -87,5 +89,23 @@ describe('EntityContext type flow', () => {
     // EntityContext without generic arg should compile
     type Ctx = EntityContext;
     expectTypeOf<Ctx['userId']>().toEqualTypeOf<string | null>();
+  });
+
+  it('createEntityContext() return type preserves TModel generic', () => {
+    // Verify the factory function threads TModel through to the return type
+    const ctx = createEntityContext(
+      { userId: 'user-1' },
+      {} as EntityOperations<UsersModel>,
+      {},
+    );
+
+    // ctx.entity should be typed with UsersModel
+    type CreateParam = Parameters<typeof ctx.entity.create>[0];
+
+    // email should be present
+    expectTypeOf<CreateParam>().toHaveProperty('email');
+
+    // @ts-expect-error — createdAt is readOnly, excluded from $create_input
+    type _Test = CreateParam['createdAt'];
   });
 });

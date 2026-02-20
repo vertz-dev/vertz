@@ -4,6 +4,9 @@ export class EntityRegistry {
   private readonly entries = new Map<string, EntityOperations>();
 
   register(name: string, ops: EntityOperations): void {
+    if (this.entries.has(name)) {
+      throw new Error(`Entity "${name}" is already registered. Each entity name must be unique.`);
+    }
     this.entries.set(name, ops);
   }
 
@@ -23,7 +26,11 @@ export class EntityRegistry {
   /** Create a Proxy for dot-access: proxy.users.get(id) */
   createProxy(): Record<string, EntityOperations> {
     return new Proxy({} as Record<string, EntityOperations>, {
-      get: (_target, prop: string) => this.get(prop),
+      get: (_target, prop) => {
+        // Ignore symbol access (e.g., Symbol.toPrimitive, Symbol.toStringTag)
+        if (typeof prop === 'symbol') return undefined;
+        return this.get(prop);
+      },
     });
   }
 }

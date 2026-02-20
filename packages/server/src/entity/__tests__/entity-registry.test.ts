@@ -62,6 +62,19 @@ describe('Feature: EntityRegistry', () => {
     });
   });
 
+  describe('Given an EntityRegistry with "users" already registered', () => {
+    describe('When registering "users" again', () => {
+      it('Then throws with duplicate error', () => {
+        const registry = new EntityRegistry();
+        registry.register('users', stubOps());
+
+        expect(() => registry.register('users', stubOps())).toThrow(
+          /Entity "users" is already registered/,
+        );
+      });
+    });
+  });
+
   describe('Given an EntityRegistry with users and posts', () => {
     describe('When creating a proxy', () => {
       it('Then proxy.users returns the users operations', () => {
