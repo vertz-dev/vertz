@@ -56,6 +56,7 @@ export { err, isErr, isOk, ok } from './result';
 // Types
 export type {
   AppConfig,
+  EntityRouteEntry,
   BootInstruction,
   BootSequence,
   CorsConfig,

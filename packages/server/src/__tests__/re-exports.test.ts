@@ -7,8 +7,10 @@ describe('@vertz/server re-exports', () => {
     expect(server.createServer).toBeTypeOf('function');
   });
 
-  it('createServer is the same function as core createServer', () => {
-    expect(server.createServer).toBe(core.createServer);
+  it('createServer is a wrapper (not the same function as core createServer)', () => {
+    // @vertz/server wraps core's createServer to inject entity route generation
+    expect(server.createServer).not.toBe(core.createServer);
+    expect(server.createServer).toBeTypeOf('function');
   });
 
   it('re-exports all public API from @vertz/core', () => {

@@ -166,6 +166,19 @@ export function buildHandler(
 
   registerRoutes(trie, basePath, registrations, serviceMap);
 
+  // Register entity routes (injected by @vertz/server)
+  if (config._entityRoutes) {
+    for (const route of config._entityRoutes) {
+      const entry: RouteEntry = {
+        handler: route.handler as (ctx: HandlerCtx) => unknown,
+        options: {},
+        services: {},
+        middlewares: [],
+      };
+      trie.add(route.method, route.path, entry);
+    }
+  }
+
   return async (request: Request): Promise<Response> => {
     try {
       if (config.cors) {

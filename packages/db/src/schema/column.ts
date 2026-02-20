@@ -10,6 +10,8 @@ export interface ColumnMetadata {
   readonly hasDefault: boolean;
   readonly sensitive: boolean;
   readonly hidden: boolean;
+  readonly isReadOnly: boolean;
+  readonly isAutoUpdate: boolean;
   readonly isTenant: boolean;
   readonly references: { readonly table: string; readonly column: string } | null;
   readonly check: string | null;
@@ -45,6 +47,14 @@ export interface ColumnBuilder<TType, TMeta extends ColumnMetadata = ColumnMetad
   >;
   sensitive(): ColumnBuilder<TType, Omit<TMeta, 'sensitive'> & { readonly sensitive: true }>;
   hidden(): ColumnBuilder<TType, Omit<TMeta, 'hidden'> & { readonly hidden: true }>;
+  readOnly(): ColumnBuilder<TType, Omit<TMeta, 'isReadOnly'> & { readonly isReadOnly: true }>;
+  autoUpdate(): ColumnBuilder<
+    TType,
+    Omit<TMeta, 'isAutoUpdate' | 'isReadOnly'> & {
+      readonly isAutoUpdate: true;
+      readonly isReadOnly: true;
+    }
+  >;
   check(sql: string): ColumnBuilder<TType, Omit<TMeta, 'check'> & { readonly check: string }>;
   references(
     table: string,
@@ -67,6 +77,8 @@ export type DefaultMeta<TSqlType extends string> = {
   readonly hasDefault: false;
   readonly sensitive: false;
   readonly hidden: false;
+  readonly isReadOnly: false;
+  readonly isAutoUpdate: false;
   readonly isTenant: false;
   readonly references: null;
   readonly check: null;
@@ -144,6 +156,16 @@ function createColumnWithMeta(meta: ColumnMetadata): ColumnBuilder<unknown, Colu
         ColumnBuilder<unknown, ColumnMetadata>['hidden']
       >;
     },
+    readOnly() {
+      return cloneWith(this, { isReadOnly: true }) as ReturnType<
+        ColumnBuilder<unknown, ColumnMetadata>['readOnly']
+      >;
+    },
+    autoUpdate() {
+      return cloneWith(this, { isAutoUpdate: true, isReadOnly: true }) as ReturnType<
+        ColumnBuilder<unknown, ColumnMetadata>['autoUpdate']
+      >;
+    },
     check(sql: string) {
       return cloneWith(this, { check: sql }) as ReturnType<
         ColumnBuilder<unknown, ColumnMetadata>['check']
@@ -167,6 +189,8 @@ function defaultMeta<TSqlType extends string>(sqlType: TSqlType): DefaultMeta<TS
     hasDefault: false,
     sensitive: false,
     hidden: false,
+    isReadOnly: false,
+    isAutoUpdate: false,
     isTenant: false,
     references: null,
     check: null,
@@ -191,6 +215,8 @@ export type SerialMeta = {
   readonly hasDefault: true;
   readonly sensitive: false;
   readonly hidden: false;
+  readonly isReadOnly: false;
+  readonly isAutoUpdate: false;
   readonly isTenant: false;
   readonly references: null;
   readonly check: null;
@@ -205,6 +231,8 @@ export function createSerialColumn(): ColumnBuilder<number, SerialMeta> {
     hasDefault: true,
     sensitive: false,
     hidden: false,
+    isReadOnly: false,
+    isAutoUpdate: false,
     isTenant: false,
     references: null,
     check: null,
@@ -219,6 +247,8 @@ export type TenantMeta = {
   readonly hasDefault: false;
   readonly sensitive: false;
   readonly hidden: false;
+  readonly isReadOnly: false;
+  readonly isAutoUpdate: false;
   readonly isTenant: true;
   readonly references: { readonly table: string; readonly column: string };
   readonly check: null;
@@ -233,6 +263,8 @@ export function createTenantColumn(targetTableName: string): ColumnBuilder<strin
     hasDefault: false,
     sensitive: false,
     hidden: false,
+    isReadOnly: false,
+    isAutoUpdate: false,
     isTenant: true,
     references: { table: targetTableName, column: 'id' },
     check: null,
