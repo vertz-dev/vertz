@@ -78,17 +78,19 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
       }
 
       const result = await db.create(input);
+      const strippedResult = stripHiddenFields(table, result);
 
       // Fire after.create (fire-and-forget, errors swallowed)
+      // Pass stripped result to prevent hidden field leakage
       if (def.after.create) {
         try {
-          await def.after.create(result, ctx);
+          await def.after.create(strippedResult, ctx);
         } catch {
           // After hooks are fire-and-forget
         }
       }
 
-      return { status: 201, body: stripHiddenFields(table, result) };
+      return { status: 201, body: strippedResult };
     },
 
     async update(ctx, id, data) {
@@ -107,17 +109,20 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
       }
 
       const result = await db.update(id, input);
+      const strippedExisting = stripHiddenFields(table, existing);
+      const strippedResult = stripHiddenFields(table, result);
 
       // Fire after.update (fire-and-forget)
+      // Pass stripped data to prevent hidden field leakage
       if (def.after.update) {
         try {
-          await def.after.update(existing, result, ctx);
+          await def.after.update(strippedExisting, strippedResult, ctx);
         } catch {
           // After hooks are fire-and-forget
         }
       }
 
-      return { status: 200, body: stripHiddenFields(table, result) };
+      return { status: 200, body: strippedResult };
     },
 
     async delete(ctx, id) {
@@ -131,9 +136,10 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
       await db.delete(id);
 
       // Fire after.delete (fire-and-forget)
+      // Pass stripped data to prevent hidden field leakage
       if (def.after.delete) {
         try {
-          await def.after.delete(existing, ctx);
+          await def.after.delete(stripHiddenFields(table, existing), ctx);
         } catch {
           // After hooks are fire-and-forget
         }

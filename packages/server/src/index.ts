@@ -48,7 +48,6 @@ export {
   createMiddleware,
   createModule,
   createModuleDef,
-  createServer,
   deepFreeze,
   ForbiddenException,
   InternalServerErrorException,
@@ -60,6 +59,9 @@ export {
   VertzException,
   vertz,
 } from '@vertz/core';
+// Server — wraps core's createServer with entity route generation
+export type { ServerConfig } from './create-server';
+export { createServer } from './create-server';
 export type {
   AccessConfig,
   AccessInstance,
@@ -98,14 +100,29 @@ export {
 // Entity API
 export type {
   AccessRule,
+  CrudHandlers,
+  CrudResult,
   EntityActionDef,
   EntityAfterHooks,
   EntityBeforeHooks,
   EntityConfig,
   EntityContext,
+  EntityDbAdapter,
   EntityDefinition,
+  EntityErrorResult,
   EntityOperations,
   EntityRelationsConfig,
+  EntityRouteOptions,
   RequestInfo,
 } from './entity';
-export { createEntityContext, EntityRegistry, entity } from './entity';
+export {
+  createCrudHandlers,
+  createEntityContext,
+  enforceAccess,
+  entity,
+  entityErrorHandler,
+  EntityRegistry,
+  generateEntityRoutes,
+  stripHiddenFields,
+  stripReadOnlyFields,
+} from './entity';

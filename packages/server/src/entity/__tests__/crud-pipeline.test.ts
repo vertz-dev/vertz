@@ -248,6 +248,8 @@ describe('Feature: CRUD pipeline', () => {
         expect(afterSpy).toHaveBeenCalledOnce();
         // First arg is the result, second is ctx
         expect(afterSpy.mock.calls[0]![0]).toHaveProperty('id');
+        // Hidden fields must be stripped to prevent data leakage
+        expect(afterSpy.mock.calls[0]![0]).not.toHaveProperty('passwordHash');
       });
     });
   });
@@ -315,6 +317,34 @@ describe('Feature: CRUD pipeline', () => {
     });
   });
 
+  describe('Given an entity with after.update hook', () => {
+    const afterUpdateSpy = vi.fn();
+    const def = entity('users', {
+      model: usersModel,
+      access: { update: () => true },
+      after: { update: afterUpdateSpy },
+    });
+
+    describe('When updating a record', () => {
+      it('Then after.update fires with stripped previous and updated records', async () => {
+        const db = createStubDb();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        await handlers.update!(ctx, 'user-1', { name: 'Updated' });
+
+        expect(afterUpdateSpy).toHaveBeenCalledOnce();
+        // First arg is previous record, second is updated record
+        const [prev, next] = afterUpdateSpy.mock.calls[0]!;
+        expect(prev).toHaveProperty('id', 'user-1');
+        expect(next).toHaveProperty('name', 'Updated');
+        // Hidden fields must be stripped to prevent data leakage
+        expect(prev).not.toHaveProperty('passwordHash');
+        expect(next).not.toHaveProperty('passwordHash');
+      });
+    });
+  });
+
   // --- Delete ---
 
   describe('Given an entity with access: { delete: (ctx) => ctx.role("admin") }', () => {
@@ -356,6 +386,8 @@ describe('Feature: CRUD pipeline', () => {
 
         expect(afterDeleteSpy).toHaveBeenCalledOnce();
         expect(afterDeleteSpy.mock.calls[0]![0]).toHaveProperty('id', 'user-1');
+        // Hidden fields must be stripped to prevent data leakage
+        expect(afterDeleteSpy.mock.calls[0]![0]).not.toHaveProperty('passwordHash');
       });
     });
   });
