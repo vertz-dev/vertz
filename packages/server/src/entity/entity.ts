@@ -19,13 +19,17 @@ export function entity<
     throw new Error('entity() requires a model in the config.');
   }
 
-  return deepFreeze({
+  // Type erasure: EntityConfig<TModel> validates hooks at the call site.
+  // EntityDefinition stores hooks as EntityBeforeHooks/EntityAfterHooks (unknown)
+  // so that definitions with different models can coexist in a single array.
+  const def: EntityDefinition<TModel> = {
     name,
     model: config.model,
     access: config.access ?? {},
-    before: config.before ?? {},
-    after: config.after ?? {},
+    before: (config.before ?? {}) as EntityDefinition<TModel>['before'],
+    after: (config.after ?? {}) as EntityDefinition<TModel>['after'],
     actions: config.actions ?? {},
     relations: config.relations ?? {},
-  });
+  };
+  return deepFreeze(def);
 }

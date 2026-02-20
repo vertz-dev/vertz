@@ -9,7 +9,9 @@ import type { EntityDefinition } from './entity/types';
 // Extended config for @vertz/server's createServer
 // ---------------------------------------------------------------------------
 
-export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory'> {
+export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'entities'> {
+  /** Entity definitions created via entity() from @vertz/server */
+  entities?: EntityDefinition[];
   /** Factory to create a DB adapter for each entity. If not provided, a no-op adapter is used. */
   _entityDbFactory?: (entityDef: EntityDefinition) => EntityDbAdapter;
 }

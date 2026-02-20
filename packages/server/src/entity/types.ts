@@ -104,11 +104,8 @@ export interface EntityDefinition<TModel extends ModelDef = ModelDef> {
   readonly name: string;
   readonly model: TModel;
   readonly access: Partial<Record<string, AccessRule>>;
-  readonly before: EntityBeforeHooks<
-    TModel['table']['$create_input'],
-    TModel['table']['$update_input']
-  >;
-  readonly after: EntityAfterHooks<TModel['table']['$response']>;
+  readonly before: EntityBeforeHooks;
+  readonly after: EntityAfterHooks;
   readonly actions: Record<string, EntityActionDef>;
   readonly relations: EntityRelationsConfig<TModel['relations']>;
 }

@@ -32,13 +32,13 @@
   },
   "dependencies": {
     "@vertz/core": "workspace:*",
+    "@vertz/db": "workspace:*",
     "bcryptjs": "^2.4.3",
     "jose": "^6.0.11"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.0.0",
-    "@vertz/db": "workspace:*",
     "bunup": "latest",
     "typescript": "^5.7.0",
     "vitest": "^4.0.18"

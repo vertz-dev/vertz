@@ -19,7 +19,8 @@ A feature (all phases of a design) is done when:
 
 - [ ] All phase PRs merged to the feature branch
 - [ ] E2E acceptance test passing — the test defined in the design doc at design time
-- [ ] **Developer Walkthrough passing** — a fresh-start walkthrough confirms a developer can use the feature with only the public API and docs. No undocumented steps, no copying from examples, no reading source code.
+- [ ] **Developer Walkthrough passing** — a fresh-start walkthrough confirms a developer can use the feature with only the public API and docs. No undocumented steps, no copying from examples, no reading source code. **This test must use only public package imports** (`@vertz/server`, `@vertz/db`) — never relative imports. See `public-api-validation.md`.
+- [ ] **Cross-package typecheck passing** — `bun run typecheck --filter @vertz/integration-tests` must pass. This catches type issues across package boundaries that per-package typechecks miss (bundler-inlined symbols, variance problems, mismatched generics).
 - [ ] CI green — all tests, lint, typecheck across the monorepo
 - [ ] Design doc updated — if any deviations occurred during implementation, the design doc reflects the final state
 - [ ] Changeset added — with appropriate semver bump
@@ -38,9 +39,13 @@ Every feature ticket MUST include a Developer Walkthrough section. The feature i
 4. Verify the expected user-visible outcome
 5. No undocumented steps. No workarounds. No "just read the source."
 
+**Write the walkthrough test in Phase 1, not after implementation.** Create it as a failing test in `packages/integration-tests/` at the start of the feature. It will fail to compile or fail at runtime — that's the RED state. Implementation phases make it pass incrementally. A walkthrough written after the fact is a checkbox exercise; a walkthrough written first is a specification. See `public-api-validation.md`.
+
 **The "5-minute rule":** Can a developer go from zero to working in 5 minutes with just the docs? If not, the feature isn't done.
 
-**Review gate question:** When reviewing any feature PR, explicitly ask: *"Can a developer use this without reading the source code?"* If no, the PR is not ready.
+**Review gate questions:** When reviewing any feature PR, explicitly ask:
+- *"Can a developer use this without reading the source code?"* If no, the PR is not ready.
+- *"Do all integration tests use public package imports (`@vertz/server`, `@vertz/db`) — never relative imports?"* If no, the public API surface is untested.
 
 ## Bug Fix Done
 
