@@ -16,7 +16,12 @@ import { buildSelect } from '../sql/select';
 import { buildUpdate } from '../sql/update';
 import type { QueryFn } from './executor';
 import { executeQuery } from './executor';
-import { getTimestampColumns, resolveSelectColumns } from './helpers';
+import {
+  getAutoUpdateColumns,
+  getReadOnlyColumns,
+  getTimestampColumns,
+  resolveSelectColumns,
+} from './helpers';
 import { mapRow, mapRows } from './row-mapper';
 
 // ---------------------------------------------------------------------------
@@ -181,10 +186,15 @@ export async function create<T>(
 ): Promise<T> {
   const returningColumns = resolveSelectColumns(table, options.select);
   const nowColumns = getTimestampColumns(table);
+  const readOnlyCols = getReadOnlyColumns(table);
+
+  const filteredData = Object.fromEntries(
+    Object.entries(options.data).filter(([key]) => !readOnlyCols.includes(key)),
+  );
 
   const result = buildInsert({
     table: table._name,
-    data: options.data,
+    data: filteredData,
     returning: returningColumns,
     nowColumns,
   });
@@ -210,10 +220,15 @@ export async function createMany(
   }
 
   const nowColumns = getTimestampColumns(table);
+  const readOnlyCols = getReadOnlyColumns(table);
+
+  const filteredData = (options.data as Record<string, unknown>[]).map((row) =>
+    Object.fromEntries(Object.entries(row).filter(([key]) => !readOnlyCols.includes(key))),
+  );
 
   const result = buildInsert({
     table: table._name,
-    data: options.data as Record<string, unknown>[],
+    data: filteredData,
     nowColumns,
   });
 
@@ -240,10 +255,15 @@ export async function createManyAndReturn<T>(
 
   const returningColumns = resolveSelectColumns(table, options.select);
   const nowColumns = getTimestampColumns(table);
+  const readOnlyCols = getReadOnlyColumns(table);
+
+  const filteredData = (options.data as Record<string, unknown>[]).map((row) =>
+    Object.fromEntries(Object.entries(row).filter(([key]) => !readOnlyCols.includes(key))),
+  );
 
   const result = buildInsert({
     table: table._name,
-    data: options.data as Record<string, unknown>[],
+    data: filteredData,
     returning: returningColumns,
     nowColumns,
   });
@@ -273,13 +293,29 @@ export async function update<T>(
 ): Promise<T> {
   const returningColumns = resolveSelectColumns(table, options.select);
   const nowColumns = getTimestampColumns(table);
+  const readOnlyCols = getReadOnlyColumns(table);
+  const autoUpdateCols = getAutoUpdateColumns(table);
+
+  const filteredData = Object.fromEntries(
+    Object.entries(options.data).filter(([key]) => !readOnlyCols.includes(key)),
+  );
+
+  // Auto-set autoUpdate columns to NOW(). The 'now' sentinel value is consumed
+  // by buildUpdate: when a key appears in both `data` (with value 'now') and
+  // `nowColumns`, the SQL generator emits `SET col = NOW()` instead of a
+  // parameterized value. This matches the existing timestamp default convention.
+  for (const col of autoUpdateCols) {
+    filteredData[col] = 'now';
+  }
+
+  const allNowColumns = [...new Set([...nowColumns, ...autoUpdateCols])];
 
   const result = buildUpdate({
     table: table._name,
-    data: options.data,
+    data: filteredData,
     where: options.where,
     returning: returningColumns,
-    nowColumns,
+    nowColumns: allNowColumns,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -307,12 +343,25 @@ export async function updateMany(
   assertNonEmptyWhere(options.where, 'updateMany');
 
   const nowColumns = getTimestampColumns(table);
+  const readOnlyCols = getReadOnlyColumns(table);
+  const autoUpdateCols = getAutoUpdateColumns(table);
+
+  const filteredData = Object.fromEntries(
+    Object.entries(options.data).filter(([key]) => !readOnlyCols.includes(key)),
+  );
+
+  // Auto-set autoUpdate columns to NOW() (sentinel value consumed by buildUpdate)
+  for (const col of autoUpdateCols) {
+    filteredData[col] = 'now';
+  }
+
+  const allNowColumns = [...new Set([...nowColumns, ...autoUpdateCols])];
 
   const result = buildUpdate({
     table: table._name,
-    data: options.data,
+    data: filteredData,
     where: options.where,
-    nowColumns,
+    nowColumns: allNowColumns,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -344,19 +393,36 @@ export async function upsert<T>(
 ): Promise<T> {
   const returningColumns = resolveSelectColumns(table, options.select);
   const nowColumns = getTimestampColumns(table);
+  const readOnlyCols = getReadOnlyColumns(table);
+  const autoUpdateCols = getAutoUpdateColumns(table);
   const conflictColumns = Object.keys(options.where);
-  const updateColumns = Object.keys(options.update);
+
+  // Strip readOnly fields from the create path
+  const filteredCreate = Object.fromEntries(
+    Object.entries(options.create).filter(([key]) => !readOnlyCols.includes(key)),
+  );
+
+  // Strip readOnly fields from the update path, inject autoUpdate columns
+  const filteredUpdate = Object.fromEntries(
+    Object.entries(options.update).filter(([key]) => !readOnlyCols.includes(key)),
+  );
+  for (const col of autoUpdateCols) {
+    filteredUpdate[col] = 'now';
+  }
+
+  const allNowColumns = [...new Set([...nowColumns, ...autoUpdateCols])];
+  const updateColumns = Object.keys(filteredUpdate);
 
   const result = buildInsert({
     table: table._name,
-    data: options.create,
+    data: filteredCreate,
     returning: returningColumns,
-    nowColumns,
+    nowColumns: allNowColumns,
     onConflict: {
       columns: conflictColumns,
       action: 'update',
       updateColumns,
-      updateValues: options.update,
+      updateValues: filteredUpdate,
     },
   });
 

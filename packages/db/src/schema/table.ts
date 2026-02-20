@@ -98,6 +98,40 @@ type NotHidden<T extends ColumnRecord> = {
   [K in ColumnKeysWhereNot<T, 'hidden'>]: InferColumnType<T[K]>;
 };
 
+/**
+ * $response -- API response shape. Excludes hidden columns.
+ */
+type Response<T extends ColumnRecord> = {
+  [K in ColumnKeysWhereNot<T, 'hidden'>]: InferColumnType<T[K]>;
+};
+
+/**
+ * $create_input -- API create input shape.
+ * Excludes readOnly and primary key columns.
+ * Columns with defaults are optional.
+ */
+type ApiCreateInput<T extends ColumnRecord> = {
+  [K in ColumnKeysWhereNot<T, 'isReadOnly'> &
+    ColumnKeysWhereNot<T, 'primary'> &
+    ColumnKeysWhereNot<T, 'hasDefault'> &
+    string]: InferColumnType<T[K]>;
+} & {
+  [K in ColumnKeysWhereNot<T, 'isReadOnly'> &
+    ColumnKeysWhereNot<T, 'primary'> &
+    ColumnKeysWhere<T, 'hasDefault'> &
+    string]?: InferColumnType<T[K]>;
+};
+
+/**
+ * $update_input -- API update input shape.
+ * Excludes readOnly and primary key columns. All fields optional (partial update).
+ */
+type ApiUpdateInput<T extends ColumnRecord> = {
+  [K in ColumnKeysWhereNot<T, 'isReadOnly'> &
+    ColumnKeysWhereNot<T, 'primary'> &
+    string]?: InferColumnType<T[K]>;
+};
+
 // ---------------------------------------------------------------------------
 // TableDef interface
 // ---------------------------------------------------------------------------
@@ -120,6 +154,13 @@ export interface TableDef<TColumns extends ColumnRecord = ColumnRecord> {
   readonly $not_sensitive: NotSensitive<TColumns>;
   /** Excludes hidden columns. */
   readonly $not_hidden: NotHidden<TColumns>;
+
+  /** API response shape — excludes hidden columns. */
+  readonly $response: Response<TColumns>;
+  /** API create input — excludes readOnly + PK; defaulted columns optional. */
+  readonly $create_input: ApiCreateInput<TColumns>;
+  /** API update input — excludes readOnly + PK; all fields optional. */
+  readonly $update_input: ApiUpdateInput<TColumns>;
 
   /** Mark this table as shared / cross-tenant. */
   shared(): TableDef<TColumns>;
@@ -177,6 +218,15 @@ function createTableInternal<TColumns extends ColumnRecord>(
       return undefined as never;
     },
     get $not_hidden(): NotHidden<TColumns> {
+      return undefined as never;
+    },
+    get $response(): Response<TColumns> {
+      return undefined as never;
+    },
+    get $create_input(): ApiCreateInput<TColumns> {
+      return undefined as never;
+    },
+    get $update_input(): ApiUpdateInput<TColumns> {
       return undefined as never;
     },
 

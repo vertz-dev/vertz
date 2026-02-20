@@ -91,3 +91,23 @@ export function getPrimaryKeyColumns(table: TableDef<ColumnRecord>): string[] {
     return col ? col._meta.primary : false;
   });
 }
+
+/**
+ * Get column names where isReadOnly is true.
+ */
+export function getReadOnlyColumns(table: TableDef<ColumnRecord>): string[] {
+  return Object.keys(table._columns).filter((key) => {
+    const col = table._columns[key] as ColumnBuilder<unknown, ColumnMetadata> | undefined;
+    return col ? col._meta.isReadOnly : false;
+  });
+}
+
+/**
+ * Get column names where isAutoUpdate is true.
+ */
+export function getAutoUpdateColumns(table: TableDef<ColumnRecord>): string[] {
+  return Object.keys(table._columns).filter((key) => {
+    const col = table._columns[key] as ColumnBuilder<unknown, ColumnMetadata> | undefined;
+    return col ? col._meta.isAutoUpdate : false;
+  });
+}
