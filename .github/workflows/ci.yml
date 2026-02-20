@@ -253,7 +253,7 @@ jobs:
                 --file "packages/$pkg/coverage/coverage-final.json" \
                 --flag "$pkg" \
                 --disable-search \
-                --disable-file-fixes
+                --network-root-folder "$GITHUB_WORKSPACE"
             else
               echo "Skipping $pkg (no coverage file)"
             fi
