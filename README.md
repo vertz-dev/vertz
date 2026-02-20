@@ -13,6 +13,8 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/vertz-dev/vertz/actions/workflows/ci.yml"><img src="https://github.com/vertz-dev/vertz/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
+  <a href="https://codecov.io/gh/vertz-dev/vertz"><img src="https://codecov.io/gh/vertz-dev/vertz/branch/main/graph/badge.svg" alt="Coverage" /></a>
   <a href="https://github.com/vertz-dev/vertz/blob/main/LICENSE"><img src="https://img.shields.io/github/license/vertz-dev/vertz" alt="License" /></a>
   <a href="https://github.com/vertz-dev/vertz"><img src="https://img.shields.io/github/stars/vertz-dev/vertz?style=social" alt="Stars" /></a>
 </p>
