@@ -95,15 +95,15 @@ export {
   validatePassword,
   verifyPassword,
 } from './auth';
+// Entity API
 export type {
   AccessRule,
-  AccessRules,
-  DomainContext,
-  DomainDefinition,
-  DomainError,
-  DomainOptions,
-  DomainType,
-  Result,
-} from './domain';
-// Domain API - re-exported from internal domain module
-export { domain } from './domain';
+  EntityActionDef,
+  EntityAfterHooks,
+  EntityBeforeHooks,
+  EntityConfig,
+  EntityContext,
+  EntityDefinition,
+  EntityRelationsConfig,
+} from './entity';
+export { entity } from './entity';

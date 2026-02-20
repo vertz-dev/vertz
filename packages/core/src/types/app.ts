@@ -7,24 +7,24 @@ export interface CorsConfig {
   exposedHeaders?: string[];
 }
 
-// Forward declare DomainDefinition - actual type is in @vertz/server
-export interface DomainDefinition {
+// Forward declare EntityDefinition - actual type is in @vertz/server
+export interface EntityDefinition {
   readonly name: string;
-  readonly type: string;
-  readonly table: unknown;
-  readonly exposedRelations: Record<string, unknown>;
+  readonly model: unknown;
   readonly access: Record<string, unknown>;
-  readonly handlers: Record<string, unknown>;
+  readonly before: Record<string, unknown>;
+  readonly after: Record<string, unknown>;
   readonly actions: Record<string, unknown>;
+  readonly relations: Record<string, unknown>;
 }
 
 export interface AppConfig {
   basePath?: string;
   version?: string;
   cors?: CorsConfig;
-  /** Domain definitions for auto-CRUD route generation */
-  domains?: DomainDefinition[];
-  /** API prefix for domain routes (default: '/api/') */
+  /** Entity definitions for auto-CRUD route generation */
+  entities?: EntityDefinition[];
+  /** API prefix for entity routes (default: '/api/') */
   apiPrefix?: string;
   /** Enable response schema validation in dev mode (logs warnings but doesn't break response) */
   validateResponses?: boolean;
