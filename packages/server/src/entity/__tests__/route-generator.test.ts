@@ -26,12 +26,7 @@ function createMockDb(data: Record<string, unknown>[] = []): EntityDbAdapter {
     async get(id) {
       return store.find((r) => r.id === id) ?? null;
     },
-    async list(options?: {
-      where?: Record<string, unknown>;
-      limit?: number;
-      offset?: number;
-      after?: string;
-    }) {
+    async list(options?: { where?: Record<string, unknown>; limit?: number; after?: string }) {
       let result = [...store];
       const where = options?.where;
       if (where) {
@@ -43,8 +38,6 @@ function createMockDb(data: Record<string, unknown>[] = []): EntityDbAdapter {
       if (options?.after) {
         const afterIdx = result.findIndex((r) => r.id === options.after);
         result = afterIdx >= 0 ? result.slice(afterIdx + 1) : [];
-      } else if (options?.offset !== undefined) {
-        result = result.slice(options.offset);
       }
       if (options?.limit !== undefined) {
         result = result.slice(0, options.limit);
@@ -227,10 +220,10 @@ describe('generateEntityRoutes', () => {
       // Pagination metadata
       expect(body.total).toBe(1);
       expect(body.limit).toBe(20);
-      expect(body.offset).toBe(0);
+      expect(body.hasNextPage).toBe(false);
     });
 
-    it('list handler passes limit/offset from query params', async () => {
+    it('list handler passes limit from query params', async () => {
       const def = buildEntityDef();
       const db = createMockDb([
         { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret' },
@@ -244,17 +237,17 @@ describe('generateEntityRoutes', () => {
       const response = await listRoute!.handler({
         params: {},
         body: undefined,
-        query: { limit: '1', offset: '1' },
+        query: { limit: '2' },
         headers: {},
       });
 
       expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe('Bob');
+      expect(body.data).toHaveLength(2);
+      expect(body.data[0].name).toBe('Alice');
       expect(body.total).toBe(3);
-      expect(body.limit).toBe(1);
-      expect(body.offset).toBe(1);
+      expect(body.limit).toBe(2);
+      expect(body.hasNextPage).toBe(true);
     });
 
     it('list handler passes non-reserved query params as where filter', async () => {
@@ -281,7 +274,7 @@ describe('generateEntityRoutes', () => {
       expect(body.total).toBe(1);
     });
 
-    it('list handler ignores non-numeric limit/offset (falls back to defaults)', async () => {
+    it('list handler ignores non-numeric limit (falls back to defaults)', async () => {
       const def = buildEntityDef();
       const db = createMockDb([
         { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret' },
@@ -294,16 +287,16 @@ describe('generateEntityRoutes', () => {
       const response = await listRoute!.handler({
         params: {},
         body: undefined,
-        query: { limit: 'abc', offset: 'xyz' },
+        query: { limit: 'abc' },
         headers: {},
       });
 
       expect(response.status).toBe(200);
       const body = await response.json();
-      // NaN values ignored — defaults applied (limit=20, offset=0)
+      // NaN value ignored — default limit=20 applied
       expect(body.data).toHaveLength(2);
       expect(body.limit).toBe(20);
-      expect(body.offset).toBe(0);
+      expect(body.hasNextPage).toBe(false);
     });
 
     it('list handler passes after from query params for cursor pagination', async () => {

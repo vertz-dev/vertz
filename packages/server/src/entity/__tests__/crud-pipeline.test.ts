@@ -51,12 +51,7 @@ function createStubDb() {
   return {
     get: vi.fn(async (id: string) => rows[id] ?? null),
     list: vi.fn(
-      async (options?: {
-        where?: Record<string, unknown>;
-        limit?: number;
-        offset?: number;
-        after?: string;
-      }) => {
+      async (options?: { where?: Record<string, unknown>; limit?: number; after?: string }) => {
         let result = Object.values(rows);
         const where = options?.where;
         if (where) {
@@ -68,8 +63,6 @@ function createStubDb() {
         if (options?.after) {
           const afterIdx = result.findIndex((r) => r.id === options.after);
           result = afterIdx >= 0 ? result.slice(afterIdx + 1) : [];
-        } else if (options?.offset !== undefined) {
-          result = result.slice(options.offset);
         }
         if (options?.limit !== undefined) {
           result = result.slice(0, options.limit);
@@ -438,9 +431,9 @@ describe('Feature: CRUD pipeline', () => {
         expect(result.body.data).toHaveLength(2);
         expect(result.body.total).toBe(2);
         expect(result.body.limit).toBe(20);
-        expect(result.body.offset).toBe(0);
         // All rows fit in one page → no next page
         expect(result.body.nextCursor).toBeNull();
+        expect(result.body.hasNextPage).toBe(false);
       });
     });
 
@@ -455,58 +448,9 @@ describe('Feature: CRUD pipeline', () => {
         expect(result.body.data).toHaveLength(1);
         expect(result.body.total).toBe(2);
         expect(result.body.limit).toBe(1);
-        expect(result.body.offset).toBe(0);
         // Full page returned → nextCursor points to last row
         expect(result.body.nextCursor).toBe('user-1');
-      });
-    });
-
-    describe('When calling list() with offset=1', () => {
-      it('Then skips the first row', async () => {
-        const db = createStubDb();
-        const handlers = createCrudHandlers(def, db);
-        const ctx = makeCtx();
-
-        const result = await handlers.list(ctx, { offset: 1 });
-
-        expect(result.body.data).toHaveLength(1);
-        expect(result.body.total).toBe(2);
-        expect(result.body.limit).toBe(20);
-        expect(result.body.offset).toBe(1);
-        // 1 row returned but limit is 20 → not a full page → no more data
-        expect(result.body.nextCursor).toBeNull();
-      });
-    });
-
-    describe('When calling list() with limit=1 and offset=1', () => {
-      it('Then returns the correct page with nextCursor', async () => {
-        const db = createStubDb();
-        const handlers = createCrudHandlers(def, db);
-        const ctx = makeCtx();
-
-        const result = await handlers.list(ctx, { limit: 1, offset: 1 });
-
-        expect(result.body.data).toHaveLength(1);
-        expect(result.body.data[0]).toHaveProperty('email', 'bob@example.com');
-        expect(result.body.total).toBe(2);
-        expect(result.body.limit).toBe(1);
-        expect(result.body.offset).toBe(1);
-        // Full page returned → nextCursor set
-        expect(result.body.nextCursor).toBe('user-2');
-      });
-    });
-
-    describe('When calling list() with offset beyond the dataset', () => {
-      it('Then returns empty data with correct total and null nextCursor', async () => {
-        const db = createStubDb();
-        const handlers = createCrudHandlers(def, db);
-        const ctx = makeCtx();
-
-        const result = await handlers.list(ctx, { offset: 100 });
-
-        expect(result.body.data).toHaveLength(0);
-        expect(result.body.total).toBe(2);
-        expect(result.body.nextCursor).toBeNull();
+        expect(result.body.hasNextPage).toBe(true);
       });
     });
   });
@@ -529,20 +473,6 @@ describe('Feature: CRUD pipeline', () => {
 
         expect(result.body.data).toHaveLength(0);
         expect(result.body.limit).toBe(0);
-        expect(result.body.total).toBe(2);
-      });
-    });
-
-    describe('When calling list() with negative offset', () => {
-      it('Then clamps offset to 0', async () => {
-        const db = createStubDb();
-        const handlers = createCrudHandlers(def, db);
-        const ctx = makeCtx();
-
-        const result = await handlers.list(ctx, { offset: -10 });
-
-        expect(result.body.data).toHaveLength(2);
-        expect(result.body.offset).toBe(0);
         expect(result.body.total).toBe(2);
       });
     });
@@ -623,6 +553,7 @@ describe('Feature: CRUD pipeline', () => {
         expect(result.body.data).toHaveLength(1);
         expect(result.body.data[0]).toHaveProperty('email', 'bob@example.com');
         expect(result.body.nextCursor).toBe('user-2');
+        expect(result.body.hasNextPage).toBe(true);
       });
     });
 
@@ -636,6 +567,7 @@ describe('Feature: CRUD pipeline', () => {
 
         expect(result.body.data).toHaveLength(0);
         expect(result.body.nextCursor).toBeNull();
+        expect(result.body.hasNextPage).toBe(false);
       });
     });
 
@@ -650,6 +582,7 @@ describe('Feature: CRUD pipeline', () => {
         // Default limit=20 > 2 rows, so all rows returned
         expect(result.body.data).toHaveLength(2);
         expect(result.body.nextCursor).toBeNull();
+        expect(result.body.hasNextPage).toBe(false);
       });
     });
 
@@ -685,7 +618,6 @@ describe('Feature: CRUD pipeline', () => {
             async (options?: {
               where?: Record<string, unknown>;
               limit?: number;
-              offset?: number;
               after?: string;
             }) => {
               let result = Object.values(rows);
@@ -699,8 +631,6 @@ describe('Feature: CRUD pipeline', () => {
               if (options?.after) {
                 const afterIdx = result.findIndex((r) => r.id === options.after);
                 result = afterIdx >= 0 ? result.slice(afterIdx + 1) : [];
-              } else if (options?.offset !== undefined) {
-                result = result.slice(options.offset);
               }
               if (options?.limit !== undefined) {
                 result = result.slice(0, options.limit);
@@ -727,24 +657,7 @@ describe('Feature: CRUD pipeline', () => {
         expect(result.body.data[0]).toHaveProperty('name', 'Charlie');
         expect(result.body.total).toBe(2); // 2 viewers total
         expect(result.body.nextCursor).toBeNull(); // only 1 row, limit=10
-      });
-    });
-
-    describe('When calling list() with both after and offset (M3)', () => {
-      it('Then after takes precedence over offset', async () => {
-        const db = createStubDb();
-        const handlers = createCrudHandlers(def, db);
-        const ctx = makeCtx();
-
-        // after=user-1 should return user-2, ignoring offset=100
-        const result = await handlers.list(ctx, {
-          after: 'user-1',
-          offset: 100,
-          limit: 10,
-        });
-
-        expect(result.body.data).toHaveLength(1);
-        expect(result.body.data[0]).toHaveProperty('email', 'bob@example.com');
+        expect(result.body.hasNextPage).toBe(false);
       });
     });
 
@@ -759,6 +672,7 @@ describe('Feature: CRUD pipeline', () => {
         expect(page1.body.data).toHaveLength(1);
         expect(page1.body.data[0]).toHaveProperty('email', 'alice@example.com');
         expect(page1.body.nextCursor).toBe('user-1');
+        expect(page1.body.hasNextPage).toBe(true);
 
         // Page 2 — use nextCursor from page 1
         const page2 = await handlers.list(ctx, {
@@ -768,6 +682,7 @@ describe('Feature: CRUD pipeline', () => {
         expect(page2.body.data).toHaveLength(1);
         expect(page2.body.data[0]).toHaveProperty('email', 'bob@example.com');
         expect(page2.body.nextCursor).toBe('user-2');
+        expect(page2.body.hasNextPage).toBe(true);
 
         // Page 3 — use nextCursor from page 2 (should be empty)
         const page3 = await handlers.list(ctx, {
@@ -776,6 +691,7 @@ describe('Feature: CRUD pipeline', () => {
         });
         expect(page3.body.data).toHaveLength(0);
         expect(page3.body.nextCursor).toBeNull();
+        expect(page3.body.hasNextPage).toBe(false);
       });
     });
   });

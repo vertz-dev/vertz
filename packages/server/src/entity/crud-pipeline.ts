@@ -24,8 +24,7 @@ function resolvePrimaryKeyColumn(table: TableDef): string {
 export interface ListOptions {
   where?: Record<string, unknown>;
   limit?: number;
-  offset?: number;
-  /** Cursor-based pagination: fetch records after this ID. Takes precedence over offset. */
+  /** Cursor-based pagination: fetch records after this ID. */
   after?: string;
 }
 
@@ -33,8 +32,8 @@ export interface ListResult<T = Record<string, unknown>> {
   data: T[];
   total: number;
   limit: number;
-  offset: number;
   nextCursor: string | null;
+  hasNextPage: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -90,11 +89,9 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
       const where = safeWhere && Object.keys(safeWhere).length > 0 ? safeWhere : undefined;
 
       const limit = Math.max(0, options?.limit ?? 20);
-      const offset = Math.max(0, options?.offset ?? 0);
       const after = options?.after && options.after.length <= 512 ? options.after : undefined;
 
-      // Cursor-based pagination takes precedence over offset
-      const { data: rows, total } = await db.list({ where, limit, offset, after });
+      const { data: rows, total } = await db.list({ where, limit, after });
       const data = rows.map((row) => stripHiddenFields(table, row));
 
       // Compute nextCursor: if we got a full page, there may be more rows
@@ -104,8 +101,9 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
         limit > 0 && rows.length === limit && lastRow
           ? String(lastRow[pkColumn] as string | number)
           : null;
+      const hasNextPage = nextCursor !== null;
 
-      return { status: 200, body: { data, total, limit, offset, nextCursor } };
+      return { status: 200, body: { data, total, limit, nextCursor, hasNextPage } };
     },
 
     async get(ctx, id) {

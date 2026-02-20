@@ -46,12 +46,7 @@ function createInMemoryDb(initial: Record<string, unknown>[] = []): EntityDbAdap
     async get(id) {
       return store.find((r) => r.id === id) ?? null;
     },
-    async list(options?: {
-      where?: Record<string, unknown>;
-      limit?: number;
-      offset?: number;
-      after?: string;
-    }) {
+    async list(options?: { where?: Record<string, unknown>; limit?: number; after?: string }) {
       let result = [...store];
       const where = options?.where;
       if (where) {
@@ -63,8 +58,6 @@ function createInMemoryDb(initial: Record<string, unknown>[] = []): EntityDbAdap
       if (options?.after) {
         const afterIdx = result.findIndex((r) => r.id === options.after);
         result = afterIdx >= 0 ? result.slice(afterIdx + 1) : [];
-      } else if (options?.offset !== undefined) {
-        result = result.slice(options.offset);
       }
       if (options?.limit !== undefined) {
         result = result.slice(0, options.limit);
@@ -195,7 +188,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       }
       expect(body.total).toBe(2);
       expect(body.limit).toBe(20);
-      expect(body.offset).toBe(0);
+      expect(body.hasNextPage).toBe(false);
     });
 
     it('GET by ID returns record with hidden fields stripped', async () => {
@@ -275,7 +268,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       access: { list: () => true, get: () => true, create: () => true },
     });
 
-    it('GET /api/users?limit=1&offset=1 returns paginated results', async () => {
+    it('GET /api/users?limit=2 returns paginated results with hasNextPage', async () => {
       const db = createInMemoryDb([
         { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
         { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
@@ -286,15 +279,17 @@ describe('Entity Developer Walkthrough (public API only)', () => {
         _entityDbFactory: () => db,
       });
 
-      const res = await request(app, 'GET', '/api/users?limit=1&offset=1');
+      const res = await request(app, 'GET', '/api/users?limit=2');
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe('Bob');
+      expect(body.data).toHaveLength(2);
+      expect(body.data[0].name).toBe('Alice');
+      expect(body.data[1].name).toBe('Bob');
       expect(body.total).toBe(3);
-      expect(body.limit).toBe(1);
-      expect(body.offset).toBe(1);
+      expect(body.limit).toBe(2);
+      expect(body.hasNextPage).toBe(true);
+      expect(body.nextCursor).toBe('u2');
     });
 
     it('GET /api/users?role=admin filters by query params', async () => {
@@ -375,7 +370,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       expect(body.data[0].name).toBe('Alice');
       expect(body.total).toBe(2);
       expect(body.limit).toBe(1);
-      expect(body.offset).toBe(0);
+      expect(body.hasNextPage).toBe(true);
     });
   });
 

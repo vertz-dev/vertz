@@ -1092,6 +1092,8 @@ Key behaviors:
 - Disabled actions (`delete: false`) never appear in links
 - **LLM-native:** An agent receiving a response can discover all available operations without any API documentation
 
+> **v0.1.0 Decision — HATEOAS deferred.** The v0.1.0 implementation follows the Stripe/GitHub model: list responses include `nextCursor` and `hasNextPage` for pagination, but no `_links` object with full URLs. Rationale: (1) HATEOAS adds response bloat that most API consumers don't use — Stripe, GitHub, and most modern REST APIs ship without it; (2) the entity definition already contains all the information needed to generate links, so it can be added later without breaking changes; (3) keeping v0.1.0 responses lean aligns with "one way to do things" — consumers use `nextCursor` for pagination, not URL parsing. HATEOAS links may be added in a future version as an opt-in feature.
+
 8. **OpenAPI spec auto-generated from entity definitions.** An OpenAPI generator already exists in the codebase (for the prior API design). It will be ported to generate from EDA entity definitions. The entity definition contains everything needed: paths, methods, request/response schemas, access rules (mapped to security schemes), relations. `vertz build` produces the OpenAPI spec alongside the SDK. From OpenAPI, third-party tooling can generate clients in any language, interactive docs (Swagger UI), and API testing suites.
 
 9. **HTTP status codes mapped to entity operations.**

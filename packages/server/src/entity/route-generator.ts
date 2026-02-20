@@ -109,17 +109,12 @@ export function generateEntityRoutes(
           try {
             const entityCtx = makeEntityCtx(ctx);
             const query = (ctx.query ?? {}) as Record<string, string>;
-            const { limit: limitStr, offset: offsetStr, after, ...whereParams } = query;
+            const { limit: limitStr, after, ...whereParams } = query;
             const parsedLimit = limitStr ? Number.parseInt(limitStr, 10) : undefined;
-            const parsedOffset = offsetStr ? Number.parseInt(offsetStr, 10) : undefined;
             const options: ListOptions = {
               where: Object.keys(whereParams).length > 0 ? whereParams : undefined,
               limit:
                 parsedLimit !== undefined && !Number.isNaN(parsedLimit) ? parsedLimit : undefined,
-              offset:
-                parsedOffset !== undefined && !Number.isNaN(parsedOffset)
-                  ? parsedOffset
-                  : undefined,
               after: after || undefined,
             };
             const result = await crudHandlers.list(entityCtx, options);
