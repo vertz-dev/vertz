@@ -149,8 +149,8 @@ jobs:
       - name: Detect changed packages
         id: changes
         run: |
-          # On push to main, mark all packages as changed so we get full coverage
-          if [ "${{ github.event_name }}" = "push" ]; then
+          # On push to main or workflow_dispatch, mark all packages as changed so we get full coverage
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors; do
               echo "${pkg//-/_}=true" >> "$GITHUB_OUTPUT"
             done
@@ -183,8 +183,8 @@ jobs:
         env:
           DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/vertz_test
         run: |
-          # On push to main, run coverage for all packages
-          if [ "${{ github.event_name }}" = "push" ]; then
+          # On push to main or workflow_dispatch, run coverage for all packages
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors; do
               echo "::group::Coverage — $pkg"
               cd packages/$pkg
