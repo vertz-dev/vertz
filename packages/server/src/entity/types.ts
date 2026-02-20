@@ -1,14 +1,21 @@
 import type { ModelDef, RelationDef, SchemaLike } from '@vertz/db';
+import type { EntityOperations } from './entity-operations';
 
 // ---------------------------------------------------------------------------
-// EntityContext — interface shape for Phase 3 (runtime in Phase 4)
+// EntityContext — the runtime context for access rules, hooks, and actions
 // ---------------------------------------------------------------------------
 
-export interface EntityContext {
+export interface EntityContext<TModel extends ModelDef = ModelDef> {
   readonly userId: string | null;
   authenticated(): boolean;
   tenant(): boolean;
   role(...roles: string[]): boolean;
+
+  /** Typed CRUD on the current entity */
+  readonly entity: EntityOperations<TModel>;
+
+  /** Loosely-typed access to all registered entities */
+  readonly entities: Record<string, EntityOperations>;
 }
 
 // ---------------------------------------------------------------------------

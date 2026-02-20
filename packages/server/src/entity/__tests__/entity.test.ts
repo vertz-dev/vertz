@@ -54,6 +54,21 @@ describe('Feature: entity() definition', () => {
         expect(Object.isFrozen(def)).toBe(true);
       });
 
+      it('Then nested objects are also frozen (deep freeze)', () => {
+        const def = entity('users', {
+          model: usersModel,
+          access: { list: () => true },
+          before: { create: (data) => data },
+          after: { create: () => {} },
+          relations: { posts: true },
+        });
+
+        expect(Object.isFrozen(def.access)).toBe(true);
+        expect(Object.isFrozen(def.before)).toBe(true);
+        expect(Object.isFrozen(def.after)).toBe(true);
+        expect(Object.isFrozen(def.relations)).toBe(true);
+      });
+
       it('Then .model is the passed model', () => {
         const def = entity('users', {
           model: usersModel,
@@ -142,6 +157,53 @@ describe('Feature: entity() definition', () => {
         });
 
         expect(def.relations).toEqual({ posts: true });
+      });
+    });
+  });
+
+  describe('Given an invalid entity name', () => {
+    describe('When calling entity() with an empty name', () => {
+      it('Then throws with a descriptive error', () => {
+        expect(() => entity('', { model: usersModel })).toThrow(
+          /entity\(\) name must be a non-empty lowercase string/,
+        );
+      });
+    });
+
+    describe('When calling entity() with special characters', () => {
+      it('Then rejects names with slashes', () => {
+        expect(() => entity('users/admin', { model: usersModel })).toThrow(/entity\(\) name/);
+      });
+
+      it('Then rejects names starting with numbers', () => {
+        expect(() => entity('1users', { model: usersModel })).toThrow(/entity\(\) name/);
+      });
+
+      it('Then rejects names with uppercase', () => {
+        expect(() => entity('Users', { model: usersModel })).toThrow(/entity\(\) name/);
+      });
+    });
+
+    describe('When calling entity() with valid names', () => {
+      it('Then accepts simple lowercase names', () => {
+        expect(() => entity('users', { model: usersModel })).not.toThrow();
+      });
+
+      it('Then accepts names with hyphens', () => {
+        expect(() => entity('user-profiles', { model: usersModel })).not.toThrow();
+      });
+
+      it('Then accepts names with numbers', () => {
+        expect(() => entity('users2', { model: usersModel })).not.toThrow();
+      });
+    });
+  });
+
+  describe('Given an entity config without model', () => {
+    describe('When calling entity() without model', () => {
+      it('Then throws with a descriptive error', () => {
+        // biome-ignore lint/suspicious/noExplicitAny: testing runtime guard for JS consumers
+        expect(() => entity('users', {} as any)).toThrow(/entity\(\) requires a model/);
       });
     });
   });

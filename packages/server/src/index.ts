@@ -104,6 +104,8 @@ export type {
   EntityConfig,
   EntityContext,
   EntityDefinition,
+  EntityOperations,
   EntityRelationsConfig,
+  RequestInfo,
 } from './entity';
-export { entity } from './entity';
+export { createEntityContext, EntityRegistry, entity } from './entity';

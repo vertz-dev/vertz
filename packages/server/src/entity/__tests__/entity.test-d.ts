@@ -52,6 +52,16 @@ describe('entity() access rule types', () => {
     });
   });
 
+  it('rejects true as an access rule value', () => {
+    entity('users', {
+      model: usersModel,
+      access: {
+        // @ts-expect-error — true is not a valid AccessRule, use a function
+        list: true,
+      },
+    });
+  });
+
   it('rejects unknown operation names without matching action', () => {
     entity('users', {
       model: usersModel,
@@ -154,6 +164,18 @@ describe('entity() after hook types', () => {
         create: (result, _ctx) => {
           // @ts-expect-error — passwordHash is hidden, excluded from $response
           void result.passwordHash;
+        },
+      },
+    });
+  });
+
+  it('after.update receives prev and next $response typed results', () => {
+    entity('users', {
+      model: usersModel,
+      after: {
+        update: (prev, next, _ctx) => {
+          prev.email satisfies string;
+          next.email satisfies string;
         },
       },
     });
