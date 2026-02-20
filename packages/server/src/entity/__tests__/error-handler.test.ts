@@ -70,11 +70,14 @@ describe('entityErrorHandler', () => {
     });
   });
 
-  it('includes details when VertzException has details', () => {
-    const result = entityErrorHandler(new BadRequestException('Bad field', { field: 'email' }));
+  it('does NOT include details from generic VertzException (prevents data leakage)', () => {
+    const result = entityErrorHandler(
+      new BadRequestException('Bad field', { field: 'email', passwordHash: 'secret' }),
+    );
 
     expect(result.status).toBe(400);
-    expect(result.body.error.details).toEqual({ field: 'email' });
+    // Details are stripped to prevent leaking hidden fields or internal state
+    expect(result.body.error.details).toBeUndefined();
   });
 
   it('maps unknown errors to 500 INTERNAL_ERROR without leaking details', () => {

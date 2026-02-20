@@ -76,24 +76,27 @@ export function createApp(config: AppConfig): AppBuilder {
     },
   };
 
-  // Process entities from config and register routes
-  if (config.entities && config.entities.length > 0) {
-    // Handle empty string vs undefined - empty string means no prefix, undefined means use default
+  // Register entity route info for inspection (router.routes).
+  // When _entityRoutes is provided (by @vertz/server), use those as the source of truth
+  // since they only include routes with access rules defined.
+  // Otherwise, fall back to registering all CRUD routes from entity config.
+  if (config._entityRoutes) {
+    for (const route of config._entityRoutes) {
+      registeredRoutes.push({ method: route.method, path: route.path });
+    }
+  } else if (config.entities && config.entities.length > 0) {
     const rawPrefix = config.apiPrefix === undefined ? '/api/' : config.apiPrefix;
     for (const entity of config.entities) {
-      // Build the entity path - ensure leading slash but don't double up
       const entityPath =
         rawPrefix === ''
           ? `/${entity.name}`
           : (rawPrefix.endsWith('/') ? rawPrefix : `${rawPrefix}/`) + entity.name;
-      // Register CRUD routes for the entity
-      registeredRoutes.push({ method: 'GET', path: entityPath }); // list
-      registeredRoutes.push({ method: 'GET', path: `${entityPath}/:id` }); // get
-      registeredRoutes.push({ method: 'POST', path: entityPath }); // create
-      registeredRoutes.push({ method: 'PATCH', path: `${entityPath}/:id` }); // update (PATCH per EDA design)
-      registeredRoutes.push({ method: 'DELETE', path: `${entityPath}/:id` }); // delete
+      registeredRoutes.push({ method: 'GET', path: entityPath });
+      registeredRoutes.push({ method: 'GET', path: `${entityPath}/:id` });
+      registeredRoutes.push({ method: 'POST', path: entityPath });
+      registeredRoutes.push({ method: 'PATCH', path: `${entityPath}/:id` });
+      registeredRoutes.push({ method: 'DELETE', path: `${entityPath}/:id` });
 
-      // Register custom action routes
       if (entity.actions) {
         for (const actionName of Object.keys(entity.actions)) {
           registeredRoutes.push({ method: 'POST', path: `${entityPath}/:id/${actionName}` });

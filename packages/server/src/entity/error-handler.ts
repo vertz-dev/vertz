@@ -44,8 +44,10 @@ export function entityErrorHandler(error: unknown): EntityErrorResult {
   if (error instanceof VertzException) {
     const code = STATUS_TO_CODE[error.statusCode] ?? 'INTERNAL_ERROR';
 
-    // ValidationException stores structured errors
-    const details = error instanceof ValidationException ? error.errors : error.details;
+    // Only include structured details for ValidationException (safe, structured errors).
+    // Generic VertzException.details is NOT included to prevent leaking hidden fields
+    // or internal state through error responses (SEC-1).
+    const details = error instanceof ValidationException ? error.errors : undefined;
 
     return {
       status: error.statusCode,
