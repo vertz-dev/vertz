@@ -76,27 +76,30 @@ export function createApp(config: AppConfig): AppBuilder {
     },
   };
 
-  // Process domains from config and register routes
-  if (config.domains && config.domains.length > 0) {
-    // Handle empty string vs undefined - empty string means no prefix, undefined means use default
+  // Register entity route info for inspection (router.routes).
+  // When _entityRoutes is provided (by @vertz/server), use those as the source of truth
+  // since they only include routes with access rules defined.
+  // Otherwise, fall back to registering all CRUD routes from entity config.
+  if (config._entityRoutes) {
+    for (const route of config._entityRoutes) {
+      registeredRoutes.push({ method: route.method, path: route.path });
+    }
+  } else if (config.entities && config.entities.length > 0) {
     const rawPrefix = config.apiPrefix === undefined ? '/api/' : config.apiPrefix;
-    for (const domain of config.domains) {
-      // Build the domain path - ensure leading slash but don't double up
-      const domainPath =
+    for (const entity of config.entities) {
+      const entityPath =
         rawPrefix === ''
-          ? `/${domain.name}`
-          : (rawPrefix.endsWith('/') ? rawPrefix : `${rawPrefix}/`) + domain.name;
-      // Register CRUD routes for the domain
-      registeredRoutes.push({ method: 'GET', path: domainPath }); // list
-      registeredRoutes.push({ method: 'GET', path: `${domainPath}/:id` }); // get
-      registeredRoutes.push({ method: 'POST', path: domainPath }); // create
-      registeredRoutes.push({ method: 'PUT', path: `${domainPath}/:id` }); // update
-      registeredRoutes.push({ method: 'DELETE', path: `${domainPath}/:id` }); // delete
+          ? `/${entity.name}`
+          : (rawPrefix.endsWith('/') ? rawPrefix : `${rawPrefix}/`) + entity.name;
+      registeredRoutes.push({ method: 'GET', path: entityPath });
+      registeredRoutes.push({ method: 'GET', path: `${entityPath}/:id` });
+      registeredRoutes.push({ method: 'POST', path: entityPath });
+      registeredRoutes.push({ method: 'PATCH', path: `${entityPath}/:id` });
+      registeredRoutes.push({ method: 'DELETE', path: `${entityPath}/:id` });
 
-      // Register custom action routes
-      if (domain.actions) {
-        for (const actionName of Object.keys(domain.actions)) {
-          registeredRoutes.push({ method: 'POST', path: `${domainPath}/:id/${actionName}` });
+      if (entity.actions) {
+        for (const actionName of Object.keys(entity.actions)) {
+          registeredRoutes.push({ method: 'POST', path: `${entityPath}/:id/${actionName}` });
         }
       }
     }

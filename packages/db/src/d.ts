@@ -11,6 +11,9 @@ import type {
 } from './schema/column';
 import { createColumn, createSerialColumn, createTenantColumn } from './schema/column';
 import type { TableEntry } from './schema/inference';
+import type { ModelDef } from './schema/model';
+import { createModel } from './schema/model';
+import type { SchemaLike } from './schema/model-schemas';
 import type { ManyRelationDef, RelationDef } from './schema/relation';
 import { createManyRelation, createOneRelation } from './schema/relation';
 import type { ColumnRecord, IndexDef, TableDef, TableOptions } from './schema/table';
@@ -20,12 +23,6 @@ import { createIndex, createTable } from './schema/table';
 // without a hard runtime import (keeps the dependency boundary clean).
 interface EnumSchemaLike<T extends readonly string[]> {
   readonly values: T;
-}
-
-// Duck-typing interface so @vertz/db can accept Schema from @vertz/schema
-// without a hard runtime import (keeps the dependency boundary clean).
-interface SchemaLike<T> {
-  parse(value: unknown): T;
 }
 
 export const d: {
@@ -83,6 +80,12 @@ export const d: {
     table: TTable,
     relations: TRelations,
   ): TableEntry<TTable, TRelations>;
+  // biome-ignore lint/complexity/noBannedTypes: {} represents an empty relations record — the correct default for models without relations
+  model<TTable extends TableDef<ColumnRecord>>(table: TTable): ModelDef<TTable, {}>;
+  model<TTable extends TableDef<ColumnRecord>, TRelations extends Record<string, RelationDef>>(
+    table: TTable,
+    relations: TRelations,
+  ): ModelDef<TTable, TRelations>;
 } = {
   uuid: () => createColumn<string, DefaultMeta<'uuid'>>('uuid'),
   text: () => createColumn<string, DefaultMeta<'text'>>('text'),
@@ -145,4 +148,6 @@ export const d: {
     table,
     relations,
   }),
+  model: (table: TableDef<ColumnRecord>, relations: Record<string, RelationDef> = {}) =>
+    createModel(table, relations),
 };

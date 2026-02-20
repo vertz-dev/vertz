@@ -1,4 +1,4 @@
-export type { AppConfig, CorsConfig } from './app';
+export type { AppConfig, CorsConfig, EntityRouteEntry } from './app';
 export type {
   BootInstruction,
   BootSequence,

@@ -48,7 +48,6 @@ export {
   createMiddleware,
   createModule,
   createModuleDef,
-  createServer,
   deepFreeze,
   ForbiddenException,
   InternalServerErrorException,
@@ -60,6 +59,9 @@ export {
   VertzException,
   vertz,
 } from '@vertz/core';
+// Server — wraps core's createServer with entity route generation
+export type { ServerConfig } from './create-server';
+export { createServer } from './create-server';
 export type {
   AccessConfig,
   AccessInstance,
@@ -95,15 +97,34 @@ export {
   validatePassword,
   verifyPassword,
 } from './auth';
+// Entity API
 export type {
   AccessRule,
-  AccessRules,
-  DomainContext,
-  DomainDefinition,
-  DomainError,
-  DomainOptions,
-  DomainType,
-  Result,
-} from './domain';
-// Domain API - re-exported from internal domain module
-export { domain } from './domain';
+  CrudHandlers,
+  CrudResult,
+  EntityActionDef,
+  EntityAfterHooks,
+  EntityBeforeHooks,
+  EntityConfig,
+  EntityContext,
+  EntityDbAdapter,
+  EntityDefinition,
+  EntityErrorResult,
+  EntityOperations,
+  EntityRelationsConfig,
+  EntityRouteOptions,
+  ListOptions,
+  ListResult,
+  RequestInfo,
+} from './entity';
+export {
+  createCrudHandlers,
+  createEntityContext,
+  enforceAccess,
+  entity,
+  entityErrorHandler,
+  EntityRegistry,
+  generateEntityRoutes,
+  stripHiddenFields,
+  stripReadOnlyFields,
+} from './entity';
