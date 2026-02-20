@@ -9,6 +9,7 @@ export interface CodegenIR {
   version?: string;
   modules: CodegenModule[];
   schemas: CodegenSchema[];
+  entities: CodegenEntityModule[];
   auth: CodegenAuth;
 }
 
@@ -105,6 +106,31 @@ export interface SchemaNamingParts {
   operation?: string;
   entity?: string;
   part?: string;
+}
+
+// ── Entity ──────────────────────────────────────────────────────
+
+export interface CodegenEntityModule {
+  entityName: string;
+  operations: CodegenEntityOperation[];
+  actions: CodegenEntityAction[];
+}
+
+export interface CodegenEntityOperation {
+  kind: 'list' | 'get' | 'create' | 'update' | 'delete';
+  method: string;
+  path: string;
+  operationId: string;
+  inputSchema?: string;
+  outputSchema?: string;
+}
+
+export interface CodegenEntityAction {
+  name: string;
+  operationId: string;
+  path: string;
+  inputSchema?: string;
+  outputSchema?: string;
 }
 
 // ── Generator ───────────────────────────────────────────────────

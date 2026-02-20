@@ -29,36 +29,49 @@ function stubDependencies(calls: string[]): CompilerDependencies {
           calls.push('analyze:env');
           return { env: undefined };
         },
+        getDiagnostics: () => [],
       },
       schema: {
         analyze: async () => {
           calls.push('analyze:schema');
           return { schemas: [] };
         },
+        getDiagnostics: () => [],
       },
       middleware: {
         analyze: async () => {
           calls.push('analyze:middleware');
           return { middleware: [] };
         },
+        getDiagnostics: () => [],
       },
       module: {
         analyze: async () => {
           calls.push('analyze:module');
           return { modules: [] };
         },
+        getDiagnostics: () => [],
       },
       app: {
         analyze: async () => {
           calls.push('analyze:app');
           return { app: emptyApp };
         },
+        getDiagnostics: () => [],
+      },
+      entity: {
+        analyze: async () => {
+          calls.push('analyze:entity');
+          return { entities: [] };
+        },
+        getDiagnostics: () => [],
       },
       dependencyGraph: {
         analyze: async () => {
           calls.push('analyze:dependencyGraph');
           return { graph: createEmptyDependencyGraph() };
         },
+        getDiagnostics: () => [],
       },
     },
     validators: [],
@@ -122,12 +135,13 @@ function typedDependencies(): CompilerDependencies {
 
   return {
     analyzers: {
-      env: { analyze: async () => ({ env }) },
-      schema: { analyze: async () => ({ schemas }) },
-      middleware: { analyze: async () => ({ middleware }) },
-      module: { analyze: async () => ({ modules }) },
-      app: { analyze: async () => ({ app }) },
-      dependencyGraph: { analyze: async () => ({ graph }) },
+      env: { analyze: async () => ({ env }), getDiagnostics: () => [] },
+      schema: { analyze: async () => ({ schemas }), getDiagnostics: () => [] },
+      middleware: { analyze: async () => ({ middleware }), getDiagnostics: () => [] },
+      module: { analyze: async () => ({ modules }), getDiagnostics: () => [] },
+      app: { analyze: async () => ({ app }), getDiagnostics: () => [] },
+      entity: { analyze: async () => ({ entities: [] }), getDiagnostics: () => [] },
+      dependencyGraph: { analyze: async () => ({ graph }), getDiagnostics: () => [] },
     },
     validators: [],
     generators: [],
@@ -403,12 +417,13 @@ describe('Compiler', () => {
     ];
     const deps: CompilerDependencies = {
       analyzers: {
-        env: { analyze: async () => ({ env: undefined }) },
-        schema: { analyze: async () => ({ schemas }) },
-        middleware: { analyze: async () => ({ middleware: [] }) },
-        module: { analyze: async () => ({ modules }) },
-        app: { analyze: async () => ({ app }) },
-        dependencyGraph: { analyze: async () => ({ graph: createEmptyDependencyGraph() }) },
+        env: { analyze: async () => ({ env: undefined }), getDiagnostics: () => [] },
+        schema: { analyze: async () => ({ schemas }), getDiagnostics: () => [] },
+        middleware: { analyze: async () => ({ middleware: [] }), getDiagnostics: () => [] },
+        module: { analyze: async () => ({ modules }), getDiagnostics: () => [] },
+        app: { analyze: async () => ({ app }), getDiagnostics: () => [] },
+        entity: { analyze: async () => ({ entities: [] }), getDiagnostics: () => [] },
+        dependencyGraph: { analyze: async () => ({ graph: createEmptyDependencyGraph() }), getDiagnostics: () => [] },
       },
       validators: [],
       generators: [],

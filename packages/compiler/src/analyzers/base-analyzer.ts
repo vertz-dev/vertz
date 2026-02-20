@@ -4,6 +4,7 @@ import type { Diagnostic } from '../errors';
 
 export interface Analyzer<T> {
   analyze(): Promise<T>;
+  getDiagnostics(): Diagnostic[];
 }
 
 export abstract class BaseAnalyzer<T> implements Analyzer<T> {

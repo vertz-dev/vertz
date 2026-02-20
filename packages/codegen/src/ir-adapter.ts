@@ -1,5 +1,11 @@
 import type { AppIR, SchemaRef } from '@vertz/compiler';
-import type { CodegenIR, CodegenModule, CodegenSchema, OperationSchemaRefs } from './types';
+import type {
+  CodegenEntityOperation,
+  CodegenIR,
+  CodegenModule,
+  CodegenSchema,
+  OperationSchemaRefs,
+} from './types';
 import { toPascalCase } from './utils/naming';
 
 export function adaptIR(appIR: AppIR): CodegenIR {
@@ -113,11 +119,53 @@ export function adaptIR(appIR: AppIR): CodegenIR {
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
+  // Process entities into entity-specific codegen modules
+  const entities = (appIR.entities ?? []).map((entity) => {
+    const entityPascal = toPascalCase(entity.name);
+
+    const operations: CodegenEntityOperation[] = [];
+    const crudOps = [
+      { kind: 'list', method: 'GET', path: `/${entity.name}`, schema: 'response' },
+      { kind: 'get', method: 'GET', path: `/${entity.name}/:id`, schema: 'response' },
+      { kind: 'create', method: 'POST', path: `/${entity.name}`, schema: 'createInput' },
+      { kind: 'update', method: 'PATCH', path: `/${entity.name}/:id`, schema: 'updateInput' },
+      { kind: 'delete', method: 'DELETE', path: `/${entity.name}/:id`, schema: 'response' },
+    ] as const;
+
+    for (const op of crudOps) {
+      const accessKind = entity.access[op.kind as keyof typeof entity.access];
+      if (accessKind === 'false') continue;
+      operations.push({
+        kind: op.kind,
+        method: op.method,
+        path: op.path,
+        operationId: `${op.kind}${entityPascal}`,
+        outputSchema:
+          entity.modelRef.schemaRefs.resolved ? `${entityPascal}Response` : undefined,
+        inputSchema:
+          (op.kind === 'create' || op.kind === 'update') && entity.modelRef.schemaRefs.resolved
+            ? `${op.kind === 'create' ? 'Create' : 'Update'}${entityPascal}Input`
+            : undefined,
+      });
+    }
+
+    const actions = entity.actions
+      .filter((a) => entity.access.custom[a.name] !== 'false')
+      .map((a) => ({
+        name: a.name,
+        operationId: `${a.name}${entityPascal}`,
+        path: `/${entity.name}/:id/${a.name}`,
+      }));
+
+    return { entityName: entity.name, operations, actions };
+  });
+
   return {
     basePath: appIR.app.basePath,
     version: appIR.app.version,
     modules: sortedModules,
     schemas: allSchemas,
+    entities,
     auth: { schemes: [] },
   };
 }

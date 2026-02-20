@@ -4,6 +4,8 @@ import { AppAnalyzer } from './analyzers/app-analyzer';
 import type { Analyzer } from './analyzers/base-analyzer';
 import type { DependencyGraphResult } from './analyzers/dependency-graph-analyzer';
 import { DependencyGraphAnalyzer } from './analyzers/dependency-graph-analyzer';
+import type { EntityAnalyzerResult } from './analyzers/entity-analyzer';
+import { EntityAnalyzer } from './analyzers/entity-analyzer';
 import type { EnvAnalyzerResult } from './analyzers/env-analyzer';
 import { EnvAnalyzer } from './analyzers/env-analyzer';
 import type { MiddlewareAnalyzerResult } from './analyzers/middleware-analyzer';
@@ -23,6 +25,7 @@ import { OpenAPIGenerator } from './generators/openapi-generator';
 import { RouteTableGenerator } from './generators/route-table-generator';
 import { SchemaRegistryGenerator } from './generators/schema-registry-generator';
 import { createEmptyAppIR, enrichSchemasWithModuleNames } from './ir/builder';
+import { detectRouteCollisions, injectEntityRoutes } from './ir/entity-route-injector';
 import type { AppIR } from './ir/types';
 import { CompletenessValidator } from './validators/completeness-validator';
 import { ModuleValidator } from './validators/module-validator';
@@ -46,6 +49,7 @@ export interface CompilerDependencies {
     middleware: Analyzer<MiddlewareAnalyzerResult>;
     module: Analyzer<ModuleAnalyzerResult>;
     app: Analyzer<AppAnalyzerResult>;
+    entity: Analyzer<EntityAnalyzerResult>;
     dependencyGraph: Analyzer<DependencyGraphResult>;
   };
   validators: Validator[];
@@ -74,6 +78,7 @@ export class Compiler {
     const moduleResult = await analyzers.module.analyze();
     const middlewareResult = await analyzers.middleware.analyze();
     const appResult = await analyzers.app.analyze();
+    const entityResult = await analyzers.entity.analyze();
     const depGraphResult = await analyzers.dependencyGraph.analyze();
 
     ir.env = envResult.env;
@@ -81,7 +86,26 @@ export class Compiler {
     ir.modules = moduleResult.modules;
     ir.middleware = middlewareResult.middleware;
     ir.app = appResult.app;
+    ir.entities = entityResult.entities;
     ir.dependencyGraph = depGraphResult.graph;
+
+    // Collect diagnostics from all analyzers
+    ir.diagnostics.push(
+      ...analyzers.env.getDiagnostics(),
+      ...analyzers.schema.getDiagnostics(),
+      ...analyzers.middleware.getDiagnostics(),
+      ...analyzers.module.getDiagnostics(),
+      ...analyzers.app.getDiagnostics(),
+      ...analyzers.entity.getDiagnostics(),
+      ...analyzers.dependencyGraph.getDiagnostics(),
+    );
+
+    // Inject entity routes into synthetic module for OpenAPI/route-table
+    injectEntityRoutes(ir);
+
+    // Check for collisions
+    const collisionDiags = detectRouteCollisions(ir);
+    ir.diagnostics.push(...collisionDiags);
 
     return enrichSchemasWithModuleNames(ir);
   }
@@ -128,6 +152,7 @@ export function createCompiler(config?: VertzConfig): Compiler {
       middleware: new MiddlewareAnalyzer(project, resolved),
       module: new ModuleAnalyzer(project, resolved),
       app: new AppAnalyzer(project, resolved),
+      entity: new EntityAnalyzer(project, resolved),
       dependencyGraph: new DependencyGraphAnalyzer(project, resolved),
     },
     validators: [
