@@ -247,6 +247,7 @@ jobs:
         with:
           files: packages/core/coverage/coverage-final.json
           flags: core
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -256,6 +257,7 @@ jobs:
         with:
           files: packages/schema/coverage/coverage-final.json
           flags: schema
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -265,6 +267,7 @@ jobs:
         with:
           files: packages/compiler/coverage/coverage-final.json
           flags: compiler
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -274,6 +277,7 @@ jobs:
         with:
           files: packages/codegen/coverage/coverage-final.json
           flags: codegen
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -283,6 +287,7 @@ jobs:
         with:
           files: packages/cli/coverage/coverage-final.json
           flags: cli
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -292,6 +297,7 @@ jobs:
         with:
           files: packages/cli-runtime/coverage/coverage-final.json
           flags: cli-runtime
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -301,6 +307,7 @@ jobs:
         with:
           files: packages/fetch/coverage/coverage-final.json
           flags: fetch
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -310,6 +317,7 @@ jobs:
         with:
           files: packages/testing/coverage/coverage-final.json
           flags: testing
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -319,6 +327,7 @@ jobs:
         with:
           files: packages/db/coverage/coverage-final.json
           flags: db
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -328,6 +337,7 @@ jobs:
         with:
           files: packages/cloudflare/coverage/coverage-final.json
           flags: cloudflare
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -337,6 +347,7 @@ jobs:
         with:
           files: packages/errors/coverage/coverage-final.json
           flags: errors
+          disable_search: true
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
