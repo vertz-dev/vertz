@@ -232,10 +232,111 @@ jobs:
           done
 
       - name: Upload coverage to Codecov
+        run: |
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors; do
+            if [ -f "packages/$pkg/coverage/coverage-final.json" ]; then
+              echo "Uploading coverage for $pkg"
+            else
+              echo "Skipping $pkg (no coverage file)"
+            fi
+          done
+
+      - name: Upload coverage — Core
+        if: always() && hashFiles('packages/core/coverage/coverage-final.json') != ''
         uses: codecov/codecov-action@v5
         with:
-          files: packages/*/coverage/coverage-final.json
-          flags: cli,cli-runtime,cloudflare,codegen,compiler,core,db,errors,fetch,schema,testing
+          files: packages/core/coverage/coverage-final.json
+          flags: core
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage — Schema
+        if: always() && hashFiles('packages/schema/coverage/coverage-final.json') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: packages/schema/coverage/coverage-final.json
+          flags: schema
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage — Compiler
+        if: always() && hashFiles('packages/compiler/coverage/coverage-final.json') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: packages/compiler/coverage/coverage-final.json
+          flags: compiler
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage — Codegen
+        if: always() && hashFiles('packages/codegen/coverage/coverage-final.json') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: packages/codegen/coverage/coverage-final.json
+          flags: codegen
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage — CLI
+        if: always() && hashFiles('packages/cli/coverage/coverage-final.json') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: packages/cli/coverage/coverage-final.json
+          flags: cli
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage — CLI Runtime
+        if: always() && hashFiles('packages/cli-runtime/coverage/coverage-final.json') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: packages/cli-runtime/coverage/coverage-final.json
+          flags: cli-runtime
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage — Fetch
+        if: always() && hashFiles('packages/fetch/coverage/coverage-final.json') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: packages/fetch/coverage/coverage-final.json
+          flags: fetch
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage — Testing
+        if: always() && hashFiles('packages/testing/coverage/coverage-final.json') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: packages/testing/coverage/coverage-final.json
+          flags: testing
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage — DB
+        if: always() && hashFiles('packages/db/coverage/coverage-final.json') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: packages/db/coverage/coverage-final.json
+          flags: db
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage — Cloudflare
+        if: always() && hashFiles('packages/cloudflare/coverage/coverage-final.json') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: packages/cloudflare/coverage/coverage-final.json
+          flags: cloudflare
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage — Errors
+        if: always() && hashFiles('packages/errors/coverage/coverage-final.json') != ''
+        uses: codecov/codecov-action@v5
+        with:
+          files: packages/errors/coverage/coverage-final.json
+          flags: errors
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 

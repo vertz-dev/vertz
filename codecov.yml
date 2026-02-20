@@ -41,6 +41,14 @@ flags:
     paths:
       - packages/cli/src/
     carryforward: true
+  cli-runtime:
+    paths:
+      - packages/cli-runtime/src/
+    carryforward: true
+  cloudflare:
+    paths:
+      - packages/cloudflare/src/
+    carryforward: true
   codegen:
     paths:
       - packages/codegen/src/
@@ -56,6 +64,10 @@ flags:
   db:
     paths:
       - packages/db/src/
+    carryforward: true
+  errors:
+    paths:
+      - packages/errors/src/
     carryforward: true
   fetch:
     paths:
