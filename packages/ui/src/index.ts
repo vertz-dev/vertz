@@ -52,6 +52,10 @@ export {
 export type { CacheStore, QueryOptions, QueryResult } from './query';
 export { query } from './query';
 
+// Entity store
+export type { EntityStoreOptions, SerializedStore } from './store';
+export { createTestStore, EntityStore } from './store';
+
 // Router
 export type {
   CompiledRoute,
