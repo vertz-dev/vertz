@@ -3,18 +3,19 @@
  *
  * Demonstrates:
  * - JSX for page layout and component composition
- * - query() for reactive data fetching
+ * - query() for reactive data fetching with auto-unwrapped signal properties
+ * - Reactive JSX conditionals: {todosQuery.loading && <el/>}
  * - Compiler `let` → signal transform for local state
  * - Compiler conditional transform: {show && <el/>} → __conditional()
  * - Compiler list transform: {items.map(...)} → __list()
  */
 
 import { effect, onCleanup, onMount, query } from '@vertz/ui';
-import { fetchTodos } from '../api/mock-data';
 import type { Todo } from '../api/mock-data';
+import { fetchTodos } from '../api/mock-data';
 import { TodoForm } from '../components/todo-form';
 import { TodoItem } from '../components/todo-item';
-import { button, emptyStateStyles, layoutStyles } from '../styles/components';
+import { emptyStateStyles, layoutStyles } from '../styles/components';
 
 export function TodoListPage(): HTMLElement {
   // query() returns external signals
@@ -22,16 +23,13 @@ export function TodoListPage(): HTMLElement {
     key: 'todo-list',
   });
 
-  // Bridge external signals into local signals
-  let isLoading = true;
-  let hasError = false;
+  // Computed values still need effect() bridges with explicit .value access.
+  // In JSX, signal properties (loading, error) are used directly.
   let errorMsg = '';
   let todoList: Todo[] = [];
 
   effect(() => {
-    isLoading = todosQuery.loading.value;
     const err = todosQuery.error.value;
-    hasError = !!err;
     errorMsg = err
       ? `Failed to load todos: ${err instanceof Error ? err.message : String(err)}`
       : '';
@@ -70,13 +68,13 @@ export function TodoListPage(): HTMLElement {
       <TodoForm onSuccess={handleCreate} />
 
       <div style="margin-top: 1.5rem">
-        {isLoading && <div data-testid="loading">Loading todos...</div>}
-        {hasError && (
+        {todosQuery.loading && <div data-testid="loading">Loading todos...</div>}
+        {todosQuery.error && (
           <div style="color: var(--color-danger-500)" data-testid="error">
             {errorMsg}
           </div>
         )}
-        {!isLoading && !hasError && todoList.length === 0 && (
+        {!todosQuery.loading && !todosQuery.error && todoList.length === 0 && (
           <div class={emptyStateStyles.classNames.container}>
             <h3 class={emptyStateStyles.classNames.title}>No todos yet</h3>
             <p class={emptyStateStyles.classNames.description}>

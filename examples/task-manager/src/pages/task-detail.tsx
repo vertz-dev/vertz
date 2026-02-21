@@ -4,14 +4,14 @@
  * Demonstrates:
  * - JSX for page layout and dynamic content
  * - query() with reactive params (task ID from route)
+ * - Auto-unwrapped signal properties: taskQuery.loading, taskQuery.error
  * - Dialog primitive for delete confirmation (<ConfirmDialog /> in JSX)
  * - Tabs primitive for content sections
  * - Compiler conditional transform for loading/error/content visibility
- * - Local `let` signals bridging external query signals for compiler reactivity
  */
 
-import { Tabs } from '@vertz/ui-primitives';
 import { css, effect, onCleanup, onMount, query } from '@vertz/ui';
+import { Tabs } from '@vertz/ui-primitives';
 import { deleteTask, fetchTask, updateTask } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import type { Task, TaskStatus } from '../lib/types';
@@ -49,9 +49,9 @@ export interface TaskDetailPageProps {
  * Render the task detail page.
  *
  * Fetches a single task by ID using query() and displays it with
- * tabs for Details and Activity. Local `let` signals bridge the external
- * query signals into the compiler's reactive system for declarative
- * conditional rendering.
+ * tabs for Details and Activity. Signal properties (loading, error)
+ * are used directly in JSX — the compiler auto-unwraps them.
+ * Computed values (errorMsg, task) still use effect() bridges.
  */
 export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
   const { taskId, navigate } = props;
@@ -62,20 +62,13 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
     key: `task-${taskId}`,
   });
 
-  // ── Bridge external signals into local signals ─────
-  // The compiler tracks local `let` variables as signals. By syncing
-  // external query signals into local signals via effect(), the compiler
-  // can generate __conditional() transforms for JSX conditionals.
-
-  let isLoading = true;
-  let hasError = false;
+  // Computed values still need effect() bridges with explicit .value access.
+  // In JSX, signal properties (loading, error) are used directly.
   let errorMsg = '';
   let task: Task | null = null;
 
   effect(() => {
-    isLoading = taskQuery.loading.value;
     const err = taskQuery.error.value;
-    hasError = !!err;
     errorMsg = err
       ? `Failed to load task: ${err instanceof Error ? err.message : String(err)}`
       : '';
@@ -84,14 +77,10 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
 
   // ── Elements populated by the content effect ───────
 
-  const titleEl = (
-    <h1 class={detailStyles.classNames.title} data-testid="task-title" />
-  );
-  const metaEl = (<div class={detailStyles.classNames.meta} />);
-  const actionsEl = (<div class={detailStyles.classNames.actions} />);
-  const statusBar = (
-    <div class={detailStyles.classNames.statusBar} data-testid="status-bar" />
-  );
+  const titleEl = <h1 class={detailStyles.classNames.title} data-testid="task-title" />;
+  const metaEl = <div class={detailStyles.classNames.meta} />;
+  const actionsEl = <div class={detailStyles.classNames.actions} />;
+  const statusBar = <div class={detailStyles.classNames.statusBar} data-testid="status-bar" />;
   const descBody = (
     <div class={detailStyles.classNames.description} data-testid="task-description" />
   );
@@ -104,21 +93,17 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
 
   // Details panel content — uses JSX for the section layout
   detailsTab.panel.appendChild(
-    (
-      <div class={detailStyles.classNames.section}>
-        <h3 class={detailStyles.classNames.sectionTitle}>Description</h3>
-        {descBody}
-      </div>
-    ),
+    <div class={detailStyles.classNames.section}>
+      <h3 class={detailStyles.classNames.sectionTitle}>Description</h3>
+      {descBody}
+    </div>,
   );
 
   // Activity panel content
   activityTab.panel.appendChild(
-    (
-      <div class={detailStyles.classNames.timeline}>
-        No activity yet. Status changes and comments will appear here.
-      </div>
-    ),
+    <div class={detailStyles.classNames.timeline}>
+      No activity yet. Status changes and comments will appear here.
+    </div>,
   );
 
   tabs.root.style.marginTop = '1.5rem';
@@ -140,15 +125,13 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
     // Build status bar with JSX
     statusBar.innerHTML = '';
     statusBar.appendChild(
-      (
-        <span
-          class={badge({
-            color: t.status === 'done' ? 'green' : t.status === 'in-progress' ? 'blue' : 'gray',
-          })}
-        >
-          {t.status === 'in-progress' ? 'In Progress' : t.status === 'done' ? 'Done' : 'To Do'}
-        </span>
-      ),
+      <span
+        class={badge({
+          color: t.status === 'done' ? 'green' : t.status === 'in-progress' ? 'blue' : 'gray',
+        })}
+      >
+        {t.status === 'in-progress' ? 'In Progress' : t.status === 'done' ? 'Done' : 'To Do'}
+      </span>,
     );
 
     // Status transition buttons
@@ -166,35 +149,31 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
 
     for (const transition of transitions) {
       statusBar.appendChild(
-        (
-          <button
-            class={button({ intent: 'secondary', size: 'sm' })}
-            onClick={async () => {
-              await updateTask(taskId, { status: transition.status });
-              taskQuery.revalidate();
-            }}
-          >
-            {transition.label}
-          </button>
-        ),
+        <button
+          class={button({ intent: 'secondary', size: 'sm' })}
+          onClick={async () => {
+            await updateTask(taskId, { status: transition.status });
+            taskQuery.revalidate();
+          }}
+        >
+          {transition.label}
+        </button>,
       );
     }
 
     // Actions (delete) — uses <ConfirmDialog /> JSX component
     actionsEl.innerHTML = '';
     actionsEl.appendChild(
-      (
-        <ConfirmDialog
-          triggerLabel="Delete"
-          title="Delete Task"
-          description={`Are you sure you want to delete "${t.title}"? This action cannot be undone.`}
-          confirmLabel="Delete Task"
-          onConfirm={async () => {
-            await deleteTask(taskId);
-            navigate('/');
-          }}
-        />
-      ),
+      <ConfirmDialog
+        triggerLabel="Delete"
+        title="Delete Task"
+        description={`Are you sure you want to delete "${t.title}"? This action cannot be undone.`}
+        confirmLabel="Delete Task"
+        onConfirm={async () => {
+          await deleteTask(taskId);
+          navigate('/');
+        }}
+      />,
     );
   });
 
@@ -210,13 +189,13 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
 
   return (
     <div class={detailStyles.classNames.page} data-testid="task-detail-page">
-      {isLoading && <div data-testid="loading">Loading task...</div>}
-      {hasError && (
+      {taskQuery.loading && <div data-testid="loading">Loading task...</div>}
+      {taskQuery.error && (
         <div style="color: var(--color-danger-500)" data-testid="error">
           {errorMsg}
         </div>
       )}
-      {!isLoading && !hasError && task && (
+      {!taskQuery.loading && !taskQuery.error && task && (
         <div data-testid="task-content">
           <button
             class={button({ intent: 'ghost', size: 'sm' })}

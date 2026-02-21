@@ -119,6 +119,63 @@ function App() {
     expect(diag?.severity).toBe('warning');
   });
 
+  it('IT-1B-8: Signal API auto-unwrap — reactive JSX attribute', () => {
+    const result = compile(
+      `
+import { form } from '@vertz/ui';
+
+function TaskForm() {
+  const taskForm = form(someMethod, { schema: someSchema });
+  return <button disabled={taskForm.submitting}>Submit</button>;
+}
+    `.trim(),
+    );
+
+    // Signal API property in JSX attribute: .value inserted AND reactive
+    expect(result.code).toContain('taskForm.submitting.value');
+    expect(result.code).toContain('__attr(');
+    expect(result.code).not.toContain('setAttribute("disabled"');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('IT-1B-9: Signal API auto-unwrap — direct JSX child expression', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query('/api/tasks');
+  return <div>{tasks.loading && <span>Loading...</span>}</div>;
+}
+    `.trim(),
+    );
+
+    // Signal API property in JSX expression: .value inserted
+    expect(result.code).toContain('tasks.loading.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('IT-1B-10: Signal API auto-unwrap — mixed direct and indirect usage', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query('/api/tasks');
+  const data = tasks.data;
+  return <div class={tasks.loading ? 'loading' : ''}>{data}</div>;
+}
+    `.trim(),
+    );
+
+    // Direct usage in JSX attribute: .value inserted AND reactive
+    expect(result.code).toContain('tasks.loading.value');
+    expect(result.code).toContain('__attr(');
+    // Indirect usage via variable assignment
+    expect(result.code).toContain('tasks.data.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
   it('IT-1B-7: Vite plugin — .tsx → transformed code + source map', () => {
     const plugin = vertzPlugin();
 

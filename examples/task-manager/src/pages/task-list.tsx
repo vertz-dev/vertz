@@ -3,7 +3,8 @@
  *
  * Demonstrates:
  * - JSX for page layout and component composition
- * - query() for reactive data fetching (external signals — still use .value)
+ * - query() for reactive data fetching with auto-unwrapped signal properties
+ * - Reactive JSX conditionals: {tasksQuery.loading && <el/>}
  * - Compiler `let` → signal transform for local filter state
  * - Compiler conditional transform: {show && <el/>} → __conditional()
  * - Compiler list transform: {items.map(...)} → __list()
@@ -23,9 +24,11 @@ export interface TaskListPageProps {
 /**
  * Render the task list page.
  *
- * Uses query() to fetch tasks reactively. Local `let` signals bridge external
- * query signals into the compiler's reactive system, enabling declarative
- * conditional rendering and list transforms in JSX.
+ * Uses query() to fetch tasks reactively. Signal properties like
+ * tasksQuery.loading and tasksQuery.error are used directly in JSX —
+ * the compiler auto-unwraps them and generates reactive subscriptions.
+ * Computed values (errorMsg, filteredTasks) still use effect() bridges
+ * since they derive from multiple signals.
  */
 export function TaskListPage(props: TaskListPageProps): HTMLElement {
   const { navigate } = props;
@@ -35,24 +38,19 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
   // Local state: compiler transforms `let` to signal()
   let statusFilter: TaskStatus | 'all' = 'all';
 
-  // query() returns external signals — .data, .loading, .error still need .value
+  // query() returns auto-unwrapped signal properties (.data, .loading, .error)
   const tasksQuery = query(() => fetchTasks(), {
     key: 'task-list',
   });
 
-  // Bridge external signals into local signals so the compiler can track them.
-  // The sync effect reads external .value and writes to local `let` signals.
-  // JSX conditionals and list transforms reference these local signals,
-  // which the compiler transforms to __conditional() and __list().
-  let isLoading = true;
-  let hasError = false;
+  // Computed values still need effect() bridges with explicit .value access.
+  // In JSX, signal properties (loading, error) are used directly —
+  // the compiler auto-unwraps them and generates reactive subscriptions.
   let errorMsg = '';
   let filteredTasks: Task[] = [];
 
   effect(() => {
-    isLoading = tasksQuery.loading.value;
     const err = tasksQuery.error.value;
-    hasError = !!err;
     errorMsg = err
       ? `Failed to load tasks: ${err instanceof Error ? err.message : String(err)}`
       : '';
@@ -71,9 +69,7 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
 
   // ── Filter bar with reactive active state ───────────
 
-  const filterBar = (
-    <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem" />
-  );
+  const filterBar = <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem" />;
 
   const filters: Array<{ label: string; value: TaskStatus | 'all' }> = [
     { label: 'All', value: 'all' },
@@ -133,13 +129,13 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
         </button>
       </div>
       {filterBar}
-      {isLoading && <div data-testid="loading">Loading tasks...</div>}
-      {hasError && (
+      {tasksQuery.loading && <div data-testid="loading">Loading tasks...</div>}
+      {tasksQuery.error && (
         <div style="color: var(--color-danger-500)" data-testid="error">
           {errorMsg}
         </div>
       )}
-      {!isLoading && !hasError && filteredTasks.length === 0 && (
+      {!tasksQuery.loading && !tasksQuery.error && filteredTasks.length === 0 && (
         <div class={emptyStateStyles.classNames.container}>
           <h3 class={emptyStateStyles.classNames.title}>No tasks found</h3>
           <p class={emptyStateStyles.classNames.description}>
