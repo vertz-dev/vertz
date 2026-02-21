@@ -69,7 +69,7 @@ export function ConfirmDialog(props: ConfirmDialogProps): HTMLElement {
   // Build dialog body with JSX — compose primitive elements with new ones
   dialog.content.append(
     dialog.title,
-    (<p class={dialogStyles.classNames.description}>{description}</p>) as Node,
+    (<p class={dialogStyles.classNames.description}>{description}</p>),
     (
       <div class={dialogStyles.classNames.actions}>
         {dialog.close}
@@ -85,7 +85,7 @@ export function ConfirmDialog(props: ConfirmDialogProps): HTMLElement {
           {confirmLabel}
         </button>
       </div>
-    ) as Node,
+    ),
   );
 
   // Wrap trigger, overlay, and content in a container using JSX
@@ -95,5 +95,5 @@ export function ConfirmDialog(props: ConfirmDialogProps): HTMLElement {
       {dialog.overlay}
       {dialog.content}
     </div>
-  ) as HTMLElement;
+  );
 }

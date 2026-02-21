@@ -73,7 +73,7 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
 
   const filterBar = (
     <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem" />
-  ) as HTMLElement;
+  );
 
   const filters: Array<{ label: string; value: TaskStatus | 'all' }> = [
     { label: 'All', value: 'all' },
@@ -92,7 +92,7 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
       >
         {filter.label}
       </button>
-    ) as HTMLElement;
+    );
 
     // Reactive className — statusFilter is a local signal (compiler adds .value).
     // Keep effect() for imperative className assignment on loop-created elements.
@@ -159,5 +159,5 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
         ))}
       </div>
     </div>
-  ) as HTMLElement;
+  );
 }
