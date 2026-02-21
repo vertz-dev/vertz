@@ -8,6 +8,7 @@
  */
 
 import { camelToSnake } from './casing';
+import { type Dialect, defaultPostgresDialect } from '../dialect';
 import { buildWhere } from './where';
 
 export interface DeleteOptions {
@@ -35,13 +36,16 @@ function buildReturningColumnRef(name: string): string {
 /**
  * Build a DELETE statement from the given options.
  */
-export function buildDelete(options: DeleteOptions): DeleteResult {
+export function buildDelete(
+  options: DeleteOptions,
+  dialect: Dialect = defaultPostgresDialect,
+): DeleteResult {
   const allParams: unknown[] = [];
   let sql = `DELETE FROM "${options.table}"`;
 
   // WHERE
   if (options.where) {
-    const whereResult = buildWhere(options.where);
+    const whereResult = buildWhere(options.where, 0, undefined, dialect);
     if (whereResult.sql.length > 0) {
       sql += ` WHERE ${whereResult.sql}`;
       allParams.push(...whereResult.params);
