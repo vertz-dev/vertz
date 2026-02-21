@@ -7,7 +7,7 @@
  * during server rendering.
  */
 
-import { globalCss } from '@vertz/ui';
+import { mount, globalCss } from '@vertz/ui';
 import { App } from './app';
 import { taskManagerTheme } from './styles/theme';
 
@@ -15,74 +15,30 @@ import { taskManagerTheme } from './styles/theme';
 export { App };
 export default App;
 
-// ── Client-side initialization (skipped during SSR) ──
+// ── Global reset styles ────────────────────────────────────────
 
-const isSSR = typeof (globalThis as any).__SSR_URL__ !== 'undefined';
+const globalStyles = globalCss({
+  '*, *::before, *::after': {
+    boxSizing: 'border-box',
+    margin: '0',
+    padding: '0',
+  },
+  body: {
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    backgroundColor: 'var(--color-background)',
+    color: 'var(--color-foreground)',
+    minHeight: '100vh',
+    lineHeight: '1.5',
+  },
+  a: {
+    textDecoration: 'none',
+    color: 'inherit',
+  },
+});
 
-if (!isSSR) {
-  // ── Theme CSS injection ──────────────────────────────
+// ── View Transitions CSS ───────────────────────────────────────
 
-  function buildThemeCss(theme: typeof taskManagerTheme): string {
-    const rootVars: string[] = [];
-    const darkVars: string[] = [];
-
-    for (const [name, values] of Object.entries(theme.colors)) {
-      for (const [key, value] of Object.entries(values)) {
-        if (key === 'DEFAULT') {
-          rootVars.push(`  --color-${name}: ${value};`);
-        } else if (key === '_dark') {
-          darkVars.push(`  --color-${name}: ${value};`);
-        } else {
-          rootVars.push(`  --color-${name}-${key}: ${value};`);
-        }
-      }
-    }
-
-    if (theme.spacing) {
-      for (const [name, value] of Object.entries(theme.spacing)) {
-        rootVars.push(`  --spacing-${name}: ${value};`);
-      }
-    }
-
-    const blocks: string[] = [];
-    if (rootVars.length > 0) blocks.push(`:root {\n${rootVars.join('\n')}\n}`);
-    if (darkVars.length > 0) blocks.push(`[data-theme="dark"] {\n${darkVars.join('\n')}\n}`);
-    return blocks.join('\n');
-  }
-
-  const themeStyleEl = document.createElement('style');
-  themeStyleEl.textContent = buildThemeCss(taskManagerTheme);
-  document.head.appendChild(themeStyleEl);
-
-  // ── Global reset styles ──────────────────────────────
-
-  const globalStyles = globalCss({
-    '*, *::before, *::after': {
-      boxSizing: 'border-box',
-      margin: '0',
-      padding: '0',
-    },
-    body: {
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      backgroundColor: 'var(--color-background)',
-      color: 'var(--color-foreground)',
-      minHeight: '100vh',
-      lineHeight: '1.5',
-    },
-    a: {
-      textDecoration: 'none',
-      color: 'inherit',
-    },
-  });
-
-  const globalStyleEl = document.createElement('style');
-  globalStyleEl.textContent = globalStyles.css;
-  document.head.appendChild(globalStyleEl);
-
-  // ── View Transitions CSS ─────────────────────────────
-
-  const viewTransitionEl = document.createElement('style');
-  viewTransitionEl.textContent = `
+const viewTransitionsCss = `
 ::view-transition-old(root) {
   animation: fade-out 120ms ease-in;
 }
@@ -98,20 +54,12 @@ if (!isSSR) {
   to { opacity: 1; }
 }
 `;
-  document.head.appendChild(viewTransitionEl);
 
-  // ── Mount ────────────────────────────────────────────
+// ── Mount ──────────────────────────────────────────────────────
 
-  const app = App();
-  const root = document.getElementById('app');
+mount(App, '#app', {
+  theme: taskManagerTheme,
+  styles: [globalStyles.css, viewTransitionsCss],
+});
 
-  if (root) {
-    // If SSR HTML is present, clear and remount (true hydration is Phase 2)
-    if (root.hasChildNodes()) {
-      root.innerHTML = '';
-    }
-    root.appendChild(app);
-  }
-
-  console.log('Task Manager app mounted');
-}
+console.log('Task Manager app mounted');
