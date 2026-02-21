@@ -8,7 +8,7 @@
  * - Feature flags (RETURNING, array ops, JSONB path)
  */
 
-export type IdStrategy = 'cuid' | 'uuid' | 'nanoid';
+export type { IdStrategy } from '../id/generators';
 
 export interface Dialect {
   /** Dialect name. */

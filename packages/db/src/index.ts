@@ -129,4 +129,4 @@ export type {
   ValidateKeys,
 } from './types/branded-errors';
 
-export { generateId, type IdStrategy } from './id';
+export { generateId } from './id';
