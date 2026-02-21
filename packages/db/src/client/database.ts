@@ -18,7 +18,7 @@ import type {
 import type { RelationDef } from '../schema/relation';
 import type { SqlFragment } from '../sql/tagged';
 import { createPostgresDriver, type PostgresDriver } from './postgres-driver';
-import { createSqliteDriver, type D1Database, type SqliteDriver } from './sqlite-driver';
+import { createSqliteDriver, buildTableSchema, type D1Database, type SqliteDriver } from './sqlite-driver';
 import { computeTenantGraph, type TenantGraph } from './tenant-graph';
 
 // ---------------------------------------------------------------------------
@@ -628,7 +628,9 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     // Handle SQLite dialect
     if (dialect === 'sqlite' && options.d1) {
-      sqliteDriver = createSqliteDriver(options.d1);
+      // Build table schema registry for value conversion
+      const tableSchema = buildTableSchema(tables);
+      sqliteDriver = createSqliteDriver(options.d1, tableSchema);
 
       // Return a query function that wraps the SQLite driver
       // SQLite driver returns rows[], but QueryFn expects { rows, rowCount }
