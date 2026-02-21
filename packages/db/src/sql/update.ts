@@ -45,7 +45,7 @@ function buildReturningColumnRef(name: string): string {
  */
 export function buildUpdate(
   options: UpdateOptions,
-  dialect: Dialect = defaultPostgresDialect,
+  dialect: Dialect = options.dialect ?? defaultPostgresDialect,
 ): UpdateResult {
   const keys = Object.keys(options.data);
   const nowSet = new Set(options.nowColumns ?? []);

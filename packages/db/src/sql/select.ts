@@ -56,7 +56,7 @@ function buildColumnRef(name: string, casingOverrides?: CasingOverrides): string
  */
 export function buildSelect(
   options: SelectOptions,
-  dialect: Dialect = defaultPostgresDialect,
+  dialect: Dialect = options.dialect ?? defaultPostgresDialect,
 ): SelectResult {
   const parts: string[] = [];
   const allParams: unknown[] = [];

@@ -52,7 +52,7 @@ function buildReturningColumnRef(name: string): string {
  */
 export function buildInsert(
   options: InsertOptions,
-  dialect: Dialect = defaultPostgresDialect,
+  dialect: Dialect = options.dialect ?? defaultPostgresDialect,
 ): InsertResult {
   const rows = Array.isArray(options.data) ? options.data : [options.data];
   const firstRow = rows[0];
