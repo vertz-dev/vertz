@@ -6,7 +6,7 @@
     "dev": "concurrently \"bun run dev:api\" \"bun run dev:ui\"",
     "dev:api": "tsx src/server.ts",
     "dev:ui": "vite",
-    "codegen": "vertz codegen",
+    "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
     "test": "bun run codegen && vitest run && bun test"
   },
   "dependencies": {
