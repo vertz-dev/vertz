@@ -15,10 +15,10 @@ bun add @vertz/db
 ## Quick Start
 
 ```typescript
-import { d, createDb, createRegistry } from '@vertz/db';
+import { d, createDb } from '@vertz/db';
 
-// 1. Define schema
-const todos = d.table('todos', {
+// 1. Define table
+const todosTable = d.table('todos', {
   id: d.uuid().primary(),
   title: d.text(),
   completed: d.boolean().default(false),
@@ -26,13 +26,13 @@ const todos = d.table('todos', {
   updatedAt: d.timestamp().autoUpdate(),
 });
 
-// 2. Create registry (even with no relations)
-const tables = createRegistry({ todos }, () => ({}));
+// 2. Create model (table + relations + derived schemas)
+const todosModel = d.model(todosTable);
 
 // 3. Create database client
 const db = createDb({
   url: process.env.DATABASE_URL!,
-  tables,
+  models: { todos: todosModel },
 });
 
 // 4. Query with full type inference and Result-based errors
@@ -184,68 +184,87 @@ type Insert = typeof users.$insert;
 
 ### Models
 
-`d.model()` wraps a table with derived runtime schemas for validation:
+`d.model()` combines a table with its relations and derived runtime schemas:
 
 ```typescript
-const usersModel = d.model(users);
+// Without relations
+const todosModel = d.model(todosTable);
 
-// usersModel.table      → the table definition
-// usersModel.relations   → {} (empty, no relations passed)
-// usersModel.schemas.response     → SchemaLike<$response>
-// usersModel.schemas.createInput  → SchemaLike<$create_input>
-// usersModel.schemas.updateInput  → SchemaLike<$update_input>
+// With relations
+const usersModel = d.model(usersTable, {
+  posts: d.ref.many(() => postsTable, 'authorId'),
+});
+
+const postsModel = d.model(postsTable, {
+  author: d.ref.one(() => usersTable, 'authorId'),
+  comments: d.ref.many(() => commentsTable, 'postId'),
+});
+```
+
+Every model exposes:
+
+```typescript
+postsModel.table       // the table definition
+postsModel.relations   // { author, comments }
+postsModel.schemas.response     // SchemaLike<$response>
+postsModel.schemas.createInput  // SchemaLike<$create_input>
+postsModel.schemas.updateInput  // SchemaLike<$update_input>
 ```
 
 Models are used by `@vertz/server`'s `entity()` to derive validation and type-safe CRUD.
 
 ## Relations
 
-### Registry
+Define relations as the second argument to `d.model()`:
 
 ```typescript
-import { d, createRegistry } from '@vertz/db';
+import { d } from '@vertz/db';
 
-const users = d.table('users', {
+const usersTable = d.table('users', {
   id: d.uuid().primary(),
   name: d.text(),
 });
 
-const posts = d.table('posts', {
+const postsTable = d.table('posts', {
   id: d.uuid().primary(),
   title: d.text(),
   authorId: d.uuid(),
 });
 
-const comments = d.table('comments', {
+const commentsTable = d.table('comments', {
   id: d.uuid().primary(),
   body: d.text(),
   postId: d.uuid(),
   authorId: d.uuid(),
 });
 
-const tables = createRegistry({ users, posts, comments }, (ref) => ({
-  posts: {
-    author: ref.posts.one('users', 'authorId'),
-    comments: ref.posts.many('comments', 'postId'),
-  },
-  comments: {
-    post: ref.comments.one('posts', 'postId'),
-    author: ref.comments.one('users', 'authorId'),
-  },
-}));
+// Models with relations
+const usersModel = d.model(usersTable, {
+  posts: d.ref.many(() => postsTable, 'authorId'),
+});
+
+const postsModel = d.model(postsTable, {
+  author: d.ref.one(() => usersTable, 'authorId'),
+  comments: d.ref.many(() => commentsTable, 'postId'),
+});
+
+const commentsModel = d.model(commentsTable, {
+  post: d.ref.one(() => postsTable, 'postId'),
+  author: d.ref.one(() => usersTable, 'authorId'),
+});
 ```
 
 ### Relation Types
 
 ```typescript
 // belongsTo — FK lives on source table
-ref.posts.one('users', 'authorId');
+d.ref.one(() => usersTable, 'authorId')
 
 // hasMany — FK lives on target table
-ref.users.many('posts', 'authorId');
+d.ref.many(() => postsTable, 'authorId')
 
 // Many-to-many — via join table
-ref.students.many('courses').through('enrollments', 'studentId', 'courseId');
+d.ref.many(() => coursesTable).through(() => enrollmentsTable, 'studentId', 'courseId')
 ```
 
 ## Database Client
@@ -255,7 +274,7 @@ ref.students.many('courses').through('enrollments', 'studentId', 'courseId');
 ```typescript
 const db = createDb({
   url: 'postgresql://user:pass@localhost:5432/mydb',
-  tables,
+  models: { users: usersModel, posts: postsModel },
   dialect: 'postgres',           // 'postgres' (default) or 'sqlite'
   pool: {
     max: 20,
@@ -452,21 +471,23 @@ console.log(explainError(error.message));
 ## Multi-Tenancy
 
 ```typescript
-import { d, createRegistry, computeTenantGraph } from '@vertz/db';
+import { d, computeTenantGraph } from '@vertz/db';
 
-const organizations = d.table('organizations', {
+const orgsTable = d.table('organizations', {
   id: d.uuid().primary(),
   name: d.text(),
 });
 
-const users = d.table('users', {
+const usersTable = d.table('users', {
   id: d.uuid().primary(),
   email: d.email(),
-  orgId: d.tenant(organizations),  // scopes this table to a tenant
+  orgId: d.tenant(orgsTable),  // scopes this table to a tenant
 });
 
-const tables = createRegistry({ organizations, users }, () => ({}));
-const tenantGraph = computeTenantGraph(tables);
+const orgsModel = d.model(orgsTable);
+const usersModel = d.model(usersTable);
+
+const tenantGraph = computeTenantGraph({ orgs: orgsModel, users: usersModel });
 
 tenantGraph.root;            // 'organizations'
 tenantGraph.directlyScoped;  // ['users']
@@ -484,11 +505,11 @@ const settings = d.table('settings', { /* ... */ }).shared();
 import { createDb, defaultPostgresDialect, defaultSqliteDialect } from '@vertz/db';
 
 // PostgreSQL (default)
-const pgDb = createDb({ url: 'postgresql://...', tables });
+const pgDb = createDb({ url: 'postgresql://...', models });
 
 // SQLite
 const sqliteDb = createDb({
-  tables,
+  models,
   dialect: 'sqlite',
   d1: d1Database,  // Cloudflare D1 or compatible
 });
