@@ -137,7 +137,7 @@ describe('TaskForm', () => {
     // Note: This is a race condition test — depends on timing
     await waitFor(() => {
       // After submission completes, button should re-enable
-      expect((submitBtn as HTMLButtonElement).disabled).toBe(false);
+      expect(submitBtn.hasAttribute('disabled')).toBe(false);
     });
 
     unmount();

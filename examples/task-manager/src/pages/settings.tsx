@@ -119,24 +119,10 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
 
   // ── Priority select ─────────────────────────────────
 
-  const prioritySelect = (
-    <select class={formStyles.classNames.select} data-testid="default-priority-select">
-      <option value="low">Low</option>
-      <option value="medium">Medium</option>
-      <option value="high">High</option>
-      <option value="urgent">Urgent</option>
-    </select>
-  ) as HTMLSelectElement;
-
-  // Sync select with current external signal
+  // Bridge external signal to local let — compiler transforms to signal()
+  let defaultPriority = settings.defaultPriority.value;
   effect(() => {
-    prioritySelect.value = settings.defaultPriority.value;
-  });
-
-  prioritySelect.addEventListener('change', () => {
-    const value = prioritySelect.value as 'low' | 'medium' | 'high' | 'urgent';
-    settings.setDefaultPriority(value);
-    flashSaved();
+    defaultPriority = settings.defaultPriority.value;
   });
 
   // Watch for theme changes and log (demonstrates watch())
@@ -168,7 +154,26 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
 
       <section class={settingsStyles.classNames.section}>
         <h2 class={settingsStyles.classNames.sectionTitle}>Default Priority</h2>
-        <div class={formStyles.classNames.formGroup}>{prioritySelect}</div>
+        <div class={formStyles.classNames.formGroup}>
+          <select
+            class={formStyles.classNames.select}
+            data-testid="default-priority-select"
+            onChange={(e: Event) => {
+              const value = (e.target as HTMLSelectElement).value as
+                | 'low'
+                | 'medium'
+                | 'high'
+                | 'urgent';
+              settings.setDefaultPriority(value);
+              flashSaved();
+            }}
+          >
+            <option value="low" selected={defaultPriority === 'low'}>Low</option>
+            <option value="medium" selected={defaultPriority === 'medium'}>Medium</option>
+            <option value="high" selected={defaultPriority === 'high'}>High</option>
+            <option value="urgent" selected={defaultPriority === 'urgent'}>Urgent</option>
+          </select>
+        </div>
       </section>
     </div>
   );
