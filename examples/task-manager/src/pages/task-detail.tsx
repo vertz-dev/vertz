@@ -86,15 +86,15 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
 
   const titleEl = (
     <h1 class={detailStyles.classNames.title} data-testid="task-title" />
-  ) as HTMLElement;
-  const metaEl = (<div class={detailStyles.classNames.meta} />) as HTMLElement;
-  const actionsEl = (<div class={detailStyles.classNames.actions} />) as HTMLElement;
+  );
+  const metaEl = (<div class={detailStyles.classNames.meta} />);
+  const actionsEl = (<div class={detailStyles.classNames.actions} />);
   const statusBar = (
     <div class={detailStyles.classNames.statusBar} data-testid="status-bar" />
-  ) as HTMLElement;
+  );
   const descBody = (
     <div class={detailStyles.classNames.description} data-testid="task-description" />
-  ) as HTMLElement;
+  );
 
   // ── Tabs (Details / Activity) — primitive stays imperative ──
 
@@ -109,7 +109,7 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
         <h3 class={detailStyles.classNames.sectionTitle}>Description</h3>
         {descBody}
       </div>
-    ) as Node,
+    ),
   );
 
   // Activity panel content
@@ -118,7 +118,7 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
       <div class={detailStyles.classNames.timeline}>
         No activity yet. Status changes and comments will appear here.
       </div>
-    ) as Node,
+    ),
   );
 
   tabs.root.style.marginTop = '1.5rem';
@@ -148,7 +148,7 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
         >
           {t.status === 'in-progress' ? 'In Progress' : t.status === 'done' ? 'Done' : 'To Do'}
         </span>
-      ) as Node,
+      ),
     );
 
     // Status transition buttons
@@ -176,7 +176,7 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
           >
             {transition.label}
           </button>
-        ) as Node,
+        ),
       );
     }
 
@@ -194,7 +194,7 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
             navigate('/');
           }}
         />
-      ) as Node,
+      ),
     );
   });
 
@@ -237,5 +237,5 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
         </div>
       )}
     </div>
-  ) as HTMLElement;
+  );
 }

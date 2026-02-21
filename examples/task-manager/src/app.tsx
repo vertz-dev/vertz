@@ -41,7 +41,7 @@ export function App(): HTMLElement {
     // Main content area — referenced by the route rendering effect
     const main = (
       <main class={layoutStyles.classNames.main} data-testid="main-content" />
-    ) as HTMLElement;
+    );
 
     // Shell layout: sidebar + main, composed with JSX
     const shell = (
@@ -93,7 +93,7 @@ export function App(): HTMLElement {
       const match = appRouter.current.value;
 
       if (!match) {
-        updateContent((<div data-testid="not-found">Page not found</div>) as Node);
+        updateContent((<div data-testid="not-found">Page not found</div>));
         return;
       }
 

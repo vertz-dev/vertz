@@ -82,5 +82,5 @@ export function TaskCard(props: TaskCardProps): HTMLElement {
         </span>
       </div>
     </article>
-  ) as HTMLElement;
+  );
 }

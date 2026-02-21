@@ -85,7 +85,7 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
       {lightPreview}
       <div style="font-weight: 500">Light</div>
     </div>
-  ) as HTMLElement;
+  );
 
   const darkCard = (
     <div
@@ -100,7 +100,7 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
       {darkPreview}
       <div style="font-weight: 500">Dark</div>
     </div>
-  ) as HTMLElement;
+  );
 
   // Reactive active state — settings.theme is an external signal, keep effect()
   effect(() => {
@@ -126,7 +126,7 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
       <option value="high">High</option>
       <option value="urgent">Urgent</option>
     </select>
-  ) as HTMLSelectElement;
+  );
 
   // Sync select with current external signal
   effect(() => {
@@ -171,5 +171,5 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
         <div class={formStyles.classNames.formGroup}>{prioritySelect}</div>
       </section>
     </div>
-  ) as HTMLElement;
+  );
 }
