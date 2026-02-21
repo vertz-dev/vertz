@@ -16,6 +16,7 @@ import type {
   EntityModelRef,
   EntityModelSchemaRefs,
   EntityRelationIR,
+  ResolvedField,
   SchemaRef,
   SourceLocation,
 } from '../ir/types';
@@ -77,7 +78,9 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
         this.debug(
           `Detected entity: "${entity.name}" at ${entity.sourceFile}:${entity.sourceLine}`,
         );
-        this.debug(`  model: ${entity.modelRef.variableName} (resolved: ${entity.modelRef.schemaRefs.resolved ? '✅' : '❌'})`);
+        this.debug(
+          `  model: ${entity.modelRef.variableName} (resolved: ${entity.modelRef.schemaRefs.resolved ? '✅' : '❌'})`,
+        );
 
         const accessStatus = (CRUD_OPS as readonly string[])
           .map((op) => {
@@ -307,8 +310,7 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
         response,
         createInput,
         updateInput,
-        resolved:
-          response !== undefined || createInput !== undefined || updateInput !== undefined,
+        resolved: response !== undefined || createInput !== undefined || updateInput !== undefined,
       };
     } catch {
       return { resolved: false };
@@ -326,12 +328,73 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
     const propType = prop.getTypeAtLocation(location);
     const typeText = propType.getText();
 
+    // Try to resolve field-level info for downstream codegen
+    const resolvedFields = this.resolveFieldsFromSchemaType(propType, location);
+
     // Return as inline schema ref with the type text for codegen
     return {
       kind: 'inline' as const,
       sourceFile: location.getSourceFile().getFilePath(),
       jsonSchema: { __typeText: typeText },
+      resolvedFields,
     };
+  }
+
+  /**
+   * Navigate through SchemaLike<T> to extract T's field info.
+   * SchemaLike<T> has parse(data: unknown): T — we get T from parse's return type.
+   */
+  private resolveFieldsFromSchemaType(
+    schemaType: Type,
+    location: Expression,
+  ): ResolvedField[] | undefined {
+    try {
+      // Navigate: SchemaLike<T> → parse property → call signature → return type → T
+      const parseProp = schemaType.getProperty('parse');
+      if (!parseProp) return undefined;
+
+      const parseType = parseProp.getTypeAtLocation(location);
+      const callSignatures = parseType.getCallSignatures();
+      if (callSignatures.length === 0) return undefined;
+
+      const returnType = callSignatures[0]?.getReturnType();
+      if (!returnType) return undefined;
+
+      const properties = returnType.getProperties();
+      if (properties.length === 0) return undefined;
+
+      const fields: ResolvedField[] = [];
+      for (const fieldProp of properties) {
+        const name = fieldProp.getName();
+        const fieldType = fieldProp.getTypeAtLocation(location);
+        const optional = fieldProp.isOptional();
+        const tsType = this.mapTsType(fieldType);
+        fields.push({ name, tsType, optional });
+      }
+
+      return fields;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private mapTsType(type: Type): ResolvedField['tsType'] {
+    const typeText = type.getText();
+
+    // Handle optional types (unwrap undefined union)
+    if (type.isUnion()) {
+      const nonUndefined = type.getUnionTypes().filter((t) => !t.isUndefined());
+      if (nonUndefined.length === 1 && nonUndefined[0]) {
+        return this.mapTsType(nonUndefined[0]);
+      }
+    }
+
+    if (type.isString() || type.isStringLiteral()) return 'string';
+    if (type.isNumber() || type.isNumberLiteral()) return 'number';
+    if (type.isBoolean() || type.isBooleanLiteral()) return 'boolean';
+    if (typeText === 'Date') return 'date';
+
+    return 'unknown';
   }
 
   private extractAccess(configObj: ObjectLiteralExpression): EntityAccessIR {

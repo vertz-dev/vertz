@@ -3,6 +3,8 @@ import { dirname, join } from 'node:path';
 import type { AppIR } from '@vertz/compiler';
 import type { ResolvedCodegenConfig } from './config';
 import { formatWithBiome } from './format';
+import { EntitySchemaGenerator } from './generators/entity-schema-generator';
+import { EntitySdkGenerator } from './generators/entity-sdk-generator';
 import { emitManifestFile } from './generators/typescript/emit-cli';
 import { emitClientFile, emitModuleFile } from './generators/typescript/emit-client';
 import { emitRouteMapType } from './generators/typescript/emit-routes';
@@ -97,6 +99,15 @@ function runTypescriptGenerator(ir: CodegenIR, config: ResolvedCodegenConfig): G
       }),
     );
   }
+
+  // Entity schema files (schemas/todos.ts, schemas/index.ts)
+  const generatorConfig = { outputDir: config.outputDir, options: {} };
+  const entitySchemaGen = new EntitySchemaGenerator();
+  files.push(...entitySchemaGen.generate(ir, generatorConfig));
+
+  // Entity SDK files (entities/todos.ts, entities/index.ts)
+  const entitySdkGen = new EntitySdkGenerator();
+  files.push(...entitySdkGen.generate(ir, generatorConfig));
 
   return files;
 }

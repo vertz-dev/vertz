@@ -7,7 +7,13 @@
  */
 
 import type { Signal } from '../../runtime/signal-types';
-import type { FormInstance, FormOptions, SdkMethod, SubmitCallbacks } from '../form';
+import type {
+  FormInstance,
+  FormOptions,
+  SdkMethod,
+  SdkMethodWithMeta,
+  SubmitCallbacks,
+} from '../form';
 import { form } from '../form';
 import type { FormSchema } from '../validation';
 
@@ -210,3 +216,46 @@ orderForm.handleSubmit({
     void _total;
   },
 });
+
+// ─── SdkMethodWithMeta — SDK method with .meta.bodySchema ───────
+
+const metaSchema: FormSchema<UserBody> = {
+  parse(data: unknown): UserBody {
+    return data as UserBody;
+  },
+};
+
+const sdkWithMeta: SdkMethodWithMeta<UserBody, UserResult> = Object.assign(
+  async (_body: UserBody): Promise<UserResult> => ({ id: 1 }),
+  { url: '/api/users', method: 'POST', meta: { bodySchema: metaSchema } },
+);
+
+// SdkMethodWithMeta is a subtype of SdkMethod
+const _sdkAsBase: SdkMethod<UserBody, UserResult> = sdkWithMeta;
+void _sdkAsBase;
+
+// form() with SdkMethodWithMeta — options are OPTIONAL
+const metaForm1 = form(sdkWithMeta);
+void metaForm1;
+
+// form() with SdkMethodWithMeta — explicit schema override is allowed
+const metaForm2 = form(sdkWithMeta, { schema: mockSchema });
+void metaForm2;
+
+// form() with SdkMethodWithMeta — infers TBody correctly
+const _metaFieldErr: string | undefined = metaForm1.error('name');
+void _metaFieldErr;
+
+// @ts-expect-error - 'invalid' is not a field of UserBody
+metaForm1.error('invalid');
+
+// form() with plain SdkMethod (no meta) — options with schema REQUIRED
+// @ts-expect-error - SDK without .meta requires explicit schema
+form(mockSdk);
+
+// form() with plain SdkMethod + schema — works
+const plainWithSchema = form(mockSdk, { schema: mockSchema });
+void plainWithSchema;
+
+// @ts-expect-error - wrong schema type for form() with SdkMethodWithMeta
+form(sdkWithMeta, { schema: wrongSchema });

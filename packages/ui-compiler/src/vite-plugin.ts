@@ -221,6 +221,11 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
 
     load(id) {
       if (id.startsWith(VIRTUAL_CSS_PREFIX)) {
+        if (isProduction) {
+          // In production, generateBundle() collects and emits CSS as assets.
+          // Return an empty JS module so Rollup doesn't try to parse raw CSS.
+          return '';
+        }
         const sourceFile = id.slice(VIRTUAL_CSS_PREFIX.length);
         const extraction = fileExtractions.get(sourceFile);
         if (extraction) {

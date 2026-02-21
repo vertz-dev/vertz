@@ -29,6 +29,22 @@ export function validate<T>(schema: FormSchema<T>, data: unknown): ValidationRes
       if (fieldErrors && Object.keys(fieldErrors).length > 0) {
         return { success: false, data: undefined, errors: fieldErrors };
       }
+
+      // Check for @vertz/schema ParseError (duck-typed: .issues array)
+      const issues = (err as Error & { issues?: { path: (string | number)[]; message: string }[] })
+        .issues;
+      if (Array.isArray(issues) && issues.length > 0) {
+        const errors: Record<string, string> = {};
+        for (const issue of issues) {
+          const key =
+            Array.isArray(issue.path) && issue.path.length > 0 ? issue.path.join('.') : '_form';
+          if (!(key in errors)) {
+            errors[key] = issue.message ?? 'Validation failed';
+          }
+        }
+        return { success: false, data: undefined, errors };
+      }
+
       return { success: false, data: undefined, errors: { _form: err.message } };
     }
     return { success: false, data: undefined, errors: { _form: 'Validation failed' } };

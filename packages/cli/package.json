@@ -28,7 +28,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "bunup",
+    "build": "bunup && chmod +x dist/vertz.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"

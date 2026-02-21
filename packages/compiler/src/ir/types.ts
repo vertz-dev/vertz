@@ -168,6 +168,14 @@ export interface InlineSchemaRef {
   kind: 'inline';
   sourceFile: string;
   jsonSchema?: Record<string, unknown>;
+  resolvedFields?: ResolvedField[];
+}
+
+/** Structured field info extracted from resolved TypeScript types. */
+export interface ResolvedField {
+  name: string;
+  tsType: 'string' | 'number' | 'boolean' | 'date' | 'unknown';
+  optional: boolean;
 }
 
 // ── Entity ─────────────────────────────────────────────────────────

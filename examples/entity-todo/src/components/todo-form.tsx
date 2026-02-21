@@ -2,7 +2,9 @@
  * TodoForm component — create-todo form with validation.
  *
  * Demonstrates:
- * - form() with schema validation and attrs() destructuring
+ * - form() with explicit schema override for client-side constraint validation
+ * - Generated SDK carries type-only schema via .meta.bodySchema automatically
+ * - Override with { schema } when you need constraints (min length, format, etc.)
  * - Reactive error display and submitting state via effect() bridge
  * - SdkMethod metadata for progressive enhancement
  * - No addEventListener — onSubmit in JSX, compiled to __on()
@@ -12,32 +14,17 @@
  * reactivity system. This is the same pattern as query() in todo-list.tsx.
  */
 
-import type { FormSchema } from '@vertz/ui';
+import { s } from '@vertz/schema';
 import { effect, form } from '@vertz/ui';
+import type { Todo } from '../api/mock-data';
 import { todoApi } from '../api/mock-data';
-import type { CreateTodoInput, Todo } from '../api/mock-data';
 import { button, formStyles } from '../styles/components';
 
-const createTodoSchema: FormSchema<CreateTodoInput> = {
-  parse(data: unknown): CreateTodoInput {
-    const obj = data as Record<string, unknown>;
-    const errors: Record<string, string> = {};
-
-    if (!obj.title || typeof obj.title !== 'string' || obj.title.trim().length === 0) {
-      errors.title = 'Title is required';
-    }
-
-    if (Object.keys(errors).length > 0) {
-      const err = new Error('Validation failed');
-      (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = errors;
-      throw err;
-    }
-
-    return {
-      title: (obj.title as string).trim(),
-    };
-  },
-};
+// The generated SDK auto-carries a type-only schema (s.string(), s.boolean()).
+// Override with a stricter schema to add client-side constraints like min length.
+const createTodoSchema = s.object({
+  title: s.string().min(1),
+});
 
 export interface TodoFormProps {
   onSuccess: (todo: Todo) => void;
@@ -46,9 +33,7 @@ export interface TodoFormProps {
 export function TodoForm(props: TodoFormProps): HTMLFormElement {
   const { onSuccess } = props;
 
-  const todoForm = form(todoApi.create, {
-    schema: createTodoSchema,
-  });
+  const todoForm = form(todoApi.create, { schema: createTodoSchema });
 
   const { action, method, onSubmit } = todoForm.attrs({
     onSuccess,
@@ -67,12 +52,7 @@ export function TodoForm(props: TodoFormProps): HTMLFormElement {
   });
 
   return (
-    <form
-      action={action}
-      method={method}
-      onSubmit={onSubmit}
-      data-testid="create-todo-form"
-    >
+    <form action={action} method={method} onSubmit={onSubmit} data-testid="create-todo-form">
       <div style="display: flex; gap: 0.5rem; align-items: flex-start">
         <div style="flex: 1">
           <input
