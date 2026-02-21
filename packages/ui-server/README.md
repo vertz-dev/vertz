@@ -2,129 +2,241 @@
 
 Server-side rendering (SSR) for `@vertz/ui`.
 
-## Features
-
-- **Streaming HTML** — `renderToStream()` returns a `ReadableStream<Uint8Array>`
-- **Out-of-order streaming** — Suspense boundaries emit placeholders immediately, resolved content later
-- **Atomic hydration markers** — Interactive components get `data-v-id` attributes; static components ship zero JS
-- **Head management** — Collect `<title>`, `<meta>`, and `<link>` tags during render
-- **Asset injection** — Script and stylesheet helpers for the HTML head
-- **Critical CSS inlining** — Inline above-the-fold CSS with injection prevention
-- **CSP nonce support** — All inline scripts support Content Security Policy nonces
-
 ## Installation
 
 ```bash
 bun add @vertz/ui-server
 ```
 
-## Usage
+`vite` is a peer dependency (required for the dev server):
 
-### Basic SSR
+```bash
+bun add -d vite
+```
+
+## Quick Start
+
+### Render to HTML
+
+The simplest way to server-render a Vertz app:
+
+```typescript
+import { renderToHTML } from '@vertz/ui-server';
+
+function App() {
+  return <h1>Hello, SSR!</h1>;
+}
+
+const html = await renderToHTML(App, {
+  url: '/',
+  head: { title: 'My App' },
+});
+
+return new Response(html, {
+  headers: { 'content-type': 'text/html; charset=utf-8' },
+});
+```
+
+`renderToHTML` handles the DOM shim, theme compilation, styles, and head management automatically.
+
+### Dev Server
+
+For local development with Vite HMR:
+
+```typescript
+import { createDevServer } from '@vertz/ui-server';
+
+const server = createDevServer({
+  entry: './src/entry-server.ts',
+  port: 5173,
+});
+
+await server.listen();
+```
+
+---
+
+## Rendering APIs
+
+### `renderToHTML(app, options)`
+
+Renders a component to a complete HTML document string. Handles DOM shim setup/teardown, theme compilation, style injection, and head management automatically.
+
+```typescript
+import { renderToHTML } from '@vertz/ui-server';
+import { defineTheme } from '@vertz/ui';
+
+const theme = defineTheme({
+  colors: { primary: { DEFAULT: '#3b82f6' } },
+});
+
+const html = await renderToHTML(App, {
+  url: '/dashboard',
+  theme,
+  styles: ['body { margin: 0; }'],
+  head: {
+    title: 'Dashboard',
+    meta: [{ name: 'description', content: 'App dashboard' }],
+    links: [{ rel: 'stylesheet', href: '/styles.css' }],
+  },
+  container: '#app',
+});
+```
+
+**Options:**
+
+| Option | Type | Description |
+|---|---|---|
+| `app` | `() => VNode` | App component function |
+| `url` | `string` | Request URL for SSR routing |
+| `theme` | `Theme` | Theme definition for CSS vars |
+| `styles` | `string[]` | Global CSS strings to inject |
+| `head` | `object` | Head config: `title`, `meta[]`, `links[]` |
+| `container` | `string` | Container selector (default `'#app'`) |
+
+### `renderPage(vnode, options?)`
+
+Renders a VNode to a full HTML `Response` with doctype, head (meta, OG, Twitter, favicon, styles), body, and scripts.
+
+```typescript
+import { renderPage } from '@vertz/ui-server';
+
+return renderPage(<App />, {
+  title: 'My App',
+  description: 'Built with Vertz',
+  og: { image: '/og.png', url: 'https://example.com' },
+  twitter: { card: 'summary_large_image' },
+  scripts: ['/app.js'],
+  styles: ['/app.css'],
+});
+```
+
+**Options:**
+
+| Option | Type | Description |
+|---|---|---|
+| `status` | `number` | HTTP status code (default `200`) |
+| `title` | `string` | Page title |
+| `description` | `string` | Meta description |
+| `lang` | `string` | HTML lang attribute (default `'en'`) |
+| `favicon` | `string` | Favicon URL |
+| `og` | `object` | Open Graph: `title`, `description`, `image`, `url`, `type` |
+| `twitter` | `object` | Twitter card: `card`, `site` |
+| `scripts` | `string[]` | Script URLs for end of body |
+| `styles` | `string[]` | Stylesheet URLs for head |
+| `head` | `string` | Raw HTML escape hatch for head |
+
+### `renderToStream(tree, options?)`
+
+Low-level streaming renderer. Returns a `ReadableStream<Uint8Array>` that emits HTML as it's generated, including out-of-order Suspense resolution.
 
 ```typescript
 import { renderToStream } from '@vertz/ui-server';
 import type { VNode } from '@vertz/ui-server';
 
 const tree: VNode = {
-  tag: 'html',
-  attrs: { lang: 'en' },
-  children: [
-    {
-      tag: 'head',
-      attrs: {},
-      children: [{ tag: 'title', attrs: {}, children: ['My App'] }],
-    },
-    {
-      tag: 'body',
-      attrs: {},
-      children: [
-        {
-          tag: 'div',
-          attrs: { id: 'app' },
-          children: ['Hello, SSR!'],
-        },
-      ],
-    },
-  ],
+  tag: 'div',
+  attrs: { id: 'app' },
+  children: ['Hello, SSR!'],
 };
 
 const stream = renderToStream(tree);
 
-// Return as HTTP response
 return new Response(stream, {
   headers: { 'content-type': 'text/html; charset=utf-8' },
 });
 ```
 
-### Streaming with Suspense
+**Options:**
+- `nonce?: string` — CSP nonce for inline scripts
+
+### `serializeToHtml(node)`
+
+Synchronously serialize a VNode tree to an HTML string:
 
 ```typescript
-import { renderToStream } from '@vertz/ui-server';
-import type { VNode } from '@vertz/ui-server';
+import { serializeToHtml } from '@vertz/ui-server';
 
-// Create a Suspense boundary
-const suspenseNode = {
-  tag: '__suspense',
-  attrs: {},
-  children: [],
-  _fallback: { tag: 'div', attrs: { class: 'skeleton' }, children: ['Loading...'] },
-  _resolve: fetchUserData().then((user) => ({
-    tag: 'div',
-    attrs: { class: 'user-profile' },
-    children: [user.name],
-  })),
-};
-
-const tree: VNode = {
+const html = serializeToHtml({
   tag: 'div',
-  attrs: { id: 'app' },
-  children: [
-    { tag: 'h1', attrs: {}, children: ['User Profile'] },
-    suspenseNode as VNode,
-  ],
-};
-
-const stream = renderToStream(tree);
+  attrs: { class: 'card' },
+  children: ['Hello'],
+});
+// '<div class="card">Hello</div>'
 ```
 
-**How out-of-order streaming works:**
+### `rawHtml(html)`
 
-1. The initial stream contains the placeholder: `<div id="v-slot-0"><div class="skeleton">Loading...</div></div>`
-2. When `_resolve` completes, a replacement chunk is streamed:
-   ```html
-   <template id="v-tmpl-0"><div class="user-profile">Alice</div></template>
-   <script>
-     (function(){
-       var s=document.getElementById("v-slot-0");
-       var t=document.getElementById("v-tmpl-0");
-       if(s&&t){s.replaceWith(t.content.cloneNode(true));t.remove()}
-     })()
-   </script>
-   ```
-
-### CSP Nonce Support
-
-For sites with strict Content Security Policies:
+Create a raw HTML string that bypasses escaping:
 
 ```typescript
-import { renderToStream } from '@vertz/ui-server';
+import { rawHtml } from '@vertz/ui-server';
 
-const nonce = crypto.randomUUID();
-
-const stream = renderToStream(tree, { nonce });
-
-return new Response(stream, {
-  headers: {
-    'content-type': 'text/html; charset=utf-8',
-    'content-security-policy': `script-src 'nonce-${nonce}'`,
-  },
-});
+const node = rawHtml('<p>This HTML is <strong>not</strong> escaped.</p>');
 ```
 
-All inline `<script>` tags (Suspense replacement scripts) will include `nonce="..."`.
+**Warning:** Only use `rawHtml()` with trusted content.
 
-### Hydration Markers
+---
+
+## DOM Shim
+
+Import from `@vertz/ui-server/dom-shim`:
+
+The DOM shim provides `document.createElement`, `createTextNode`, etc. for SSR — allowing `@vertz/ui` components to work on the server without modification.
+
+```typescript
+import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
+
+// Install before rendering
+installDomShim();
+
+// Your component code can use document.createElement, etc.
+const element = App();
+
+// Convert SSR elements to VNodes for serialization
+const vnode = toVNode(element);
+
+// Clean up after rendering
+removeDomShim();
+```
+
+**Note:** `renderToHTML` handles DOM shim setup and teardown automatically. You only need these when using lower-level rendering APIs.
+
+| Export | Description |
+|---|---|
+| `installDomShim()` | Install the minimal DOM shim on `globalThis` |
+| `removeDomShim()` | Remove the DOM shim from `globalThis` |
+| `toVNode(element)` | Convert an SSR element to a VNode |
+
+---
+
+## Head Management
+
+Collect `<title>`, `<meta>`, and `<link>` tags during render:
+
+```typescript
+import { HeadCollector, renderHeadToHtml, rawHtml } from '@vertz/ui-server';
+
+const headCollector = new HeadCollector();
+headCollector.addTitle('My SSR App');
+headCollector.addMeta({ charset: 'utf-8' });
+headCollector.addMeta({ name: 'viewport', content: 'width=device-width, initial-scale=1' });
+headCollector.addLink({ rel: 'stylesheet', href: '/styles.css' });
+
+const headHtml = renderHeadToHtml(headCollector.getEntries());
+```
+
+**`HeadCollector` methods:**
+- `addTitle(text)` — Add a `<title>` tag
+- `addMeta(attrs)` — Add a `<meta>` tag
+- `addLink(attrs)` — Add a `<link>` tag
+- `getEntries()` — Get all collected `HeadEntry[]`
+- `clear()` — Clear all entries
+
+---
+
+## Hydration Markers
 
 Interactive components get hydration markers so the client knows where to attach event handlers:
 
@@ -146,8 +258,6 @@ const hydratedNode = wrapWithHydrationMarkers(counterNode, {
   key: 'counter-0',
   props: { initial: 0 },
 });
-
-const stream = renderToStream(hydratedNode);
 ```
 
 **Output:**
@@ -160,46 +270,13 @@ const stream = renderToStream(hydratedNode);
 </div>
 ```
 
-The hydration runtime on the client reads `data-v-id` and `data-v-key` to restore interactivity.
+---
 
-### Head Management
+## Assets
 
-Collect `<title>`, `<meta>`, and `<link>` tags during render:
+### `renderAssetTags(assets)`
 
-```typescript
-import { HeadCollector, renderHeadToHtml, rawHtml } from '@vertz/ui-server';
-
-const headCollector = new HeadCollector();
-headCollector.addTitle('My SSR App');
-headCollector.addMeta({ charset: 'utf-8' });
-headCollector.addMeta({ name: 'viewport', content: 'width=device-width, initial-scale=1' });
-headCollector.addLink({ rel: 'stylesheet', href: '/styles.css' });
-
-const headHtml = renderHeadToHtml(headCollector.getEntries());
-
-const tree: VNode = {
-  tag: 'html',
-  attrs: { lang: 'en' },
-  children: [
-    {
-      tag: 'head',
-      attrs: {},
-      children: [rawHtml(headHtml)],
-    },
-    {
-      tag: 'body',
-      attrs: {},
-      children: [{ tag: 'div', attrs: { id: 'app' }, children: ['Content'] }],
-    },
-  ],
-};
-
-const stream = renderToStream(tree);
-```
-
-### Asset Injection
-
-Inject scripts and stylesheets into the HTML head:
+Render asset descriptors to HTML tags:
 
 ```typescript
 import { renderAssetTags } from '@vertz/ui-server';
@@ -211,244 +288,155 @@ const assets: AssetDescriptor[] = [
   { type: 'script', src: '/js/app.js', defer: true },
 ];
 
-const assetHtml = renderAssetTags(assets);
-// <link rel="stylesheet" href="/styles/main.css">
-// <script src="/js/runtime.js" defer></script>
-// <script src="/js/app.js" defer></script>
+const html = renderAssetTags(assets);
 ```
-
-### Critical CSS Inlining
-
-Inline above-the-fold CSS for faster First Contentful Paint:
-
-```typescript
-import { inlineCriticalCss, rawHtml } from '@vertz/ui-server';
-
-const criticalCss = `
-  body { margin: 0; font-family: system-ui, sans-serif; }
-  .hero { padding: 2rem; background: linear-gradient(to right, #667eea, #764ba2); }
-`;
-
-const styleTag = inlineCriticalCss(criticalCss);
-// <style>body { margin: 0; font-family: system-ui, sans-serif; } ...</style>
-
-const tree: VNode = {
-  tag: 'html',
-  attrs: {},
-  children: [
-    {
-      tag: 'head',
-      attrs: {},
-      children: [rawHtml(styleTag)],
-    },
-    {
-      tag: 'body',
-      attrs: {},
-      children: [{ tag: 'div', attrs: { class: 'hero' }, children: ['Hero Section'] }],
-    },
-  ],
-};
-
-const stream = renderToStream(tree);
-```
-
-The `inlineCriticalCss()` function escapes any `</style>` sequences in the CSS to prevent injection attacks.
-
-### Raw HTML
-
-Embed pre-rendered HTML without escaping:
-
-```typescript
-import { rawHtml } from '@vertz/ui-server';
-import type { VNode } from '@vertz/ui-server';
-
-const tree: VNode = {
-  tag: 'div',
-  attrs: {},
-  children: [
-    rawHtml('<p>This HTML is <strong>not</strong> escaped.</p>'),
-    'This text is escaped.',
-  ],
-};
-
-const stream = renderToStream(tree);
-// <div><p>This HTML is <strong>not</strong> escaped.</p>This text is escaped.</div>
-```
-
-**Warning:** Only use `rawHtml()` with trusted content. Embedding user-generated content without escaping is a security risk.
-
-## API Reference
-
-### `renderToStream(tree, options?)`
-
-Render a VNode tree to a `ReadableStream<Uint8Array>`.
-
-- **Parameters:**
-  - `tree: VNode | string | RawHtml` — The virtual tree to render
-  - `options?: RenderToStreamOptions` — Optional configuration
-    - `nonce?: string` — CSP nonce for inline scripts
-- **Returns:** `ReadableStream<Uint8Array>`
-
-### `wrapWithHydrationMarkers(node, options)`
-
-Wrap a VNode with hydration markers for interactive components.
-
-- **Parameters:**
-  - `node: VNode` — The component's root VNode
-  - `options: HydrationOptions`
-    - `componentName: string` — Component name for `data-v-id`
-    - `key: string` — Unique key for `data-v-key`
-    - `props?: Record<string, unknown>` — Serialized props
-- **Returns:** `VNode` — A new VNode with hydration attributes
-
-### `HeadCollector`
-
-Collects `<head>` metadata during SSR.
-
-- **Methods:**
-  - `addTitle(text: string)` — Add a `<title>` tag
-  - `addMeta(attrs: Record<string, string>)` — Add a `<meta>` tag
-  - `addLink(attrs: Record<string, string>)` — Add a `<link>` tag
-  - `getEntries(): HeadEntry[]` — Get all collected entries
-  - `clear()` — Clear all entries
-
-### `renderHeadToHtml(entries)`
-
-Render head entries to an HTML string.
-
-- **Parameters:**
-  - `entries: HeadEntry[]` — Collected head entries
-- **Returns:** `string` — HTML string
-
-### `renderAssetTags(assets)`
-
-Render asset descriptors to HTML tags.
-
-- **Parameters:**
-  - `assets: AssetDescriptor[]` — Script/stylesheet descriptors
-- **Returns:** `string` — HTML string
 
 ### `inlineCriticalCss(css)`
 
-Inline critical CSS as a `<style>` tag.
+Inline above-the-fold CSS as a `<style>` tag with injection prevention:
 
-- **Parameters:**
-  - `css: string` — CSS content
-- **Returns:** `string` — `<style>...</style>` or empty string
+```typescript
+import { inlineCriticalCss } from '@vertz/ui-server';
 
-### `rawHtml(html)`
+const styleTag = inlineCriticalCss('body { margin: 0; font-family: system-ui; }');
+// '<style>body { margin: 0; font-family: system-ui; }</style>'
+```
 
-Create a raw HTML string that bypasses escaping.
+---
 
-- **Parameters:**
-  - `html: string` — Pre-rendered HTML
-- **Returns:** `RawHtml` — Raw HTML object
+## Streaming & Suspense
 
-### `serializeToHtml(node)`
+### Out-of-Order Streaming
 
-Serialize a VNode tree to an HTML string (synchronous).
+Suspense boundaries emit placeholders immediately. When the async content resolves, a replacement chunk is streamed:
 
-- **Parameters:**
-  - `node: VNode | string | RawHtml` — The virtual tree to serialize
-- **Returns:** `string` — HTML string
+```typescript
+const suspenseNode = {
+  tag: '__suspense',
+  attrs: {},
+  children: [],
+  _fallback: { tag: 'div', attrs: { class: 'skeleton' }, children: ['Loading...'] },
+  _resolve: fetchUserData().then((user) => ({
+    tag: 'div',
+    attrs: { class: 'user-profile' },
+    children: [user.name],
+  })),
+};
 
-### Utilities
+const stream = renderToStream(suspenseNode as VNode);
+```
 
-- `streamToString(stream: ReadableStream<Uint8Array>): Promise<string>` — Convert stream to string (for testing)
-- `collectStreamChunks(stream: ReadableStream<Uint8Array>): Promise<string[]>` — Collect stream chunks as array (for testing)
-- `encodeChunk(html: string): Uint8Array` — Encode string to UTF-8 chunk
+The stream first emits the fallback, then streams a `<template>` + `<script>` that swaps in the resolved content.
+
+### CSP Nonce Support
+
+All inline scripts support Content Security Policy nonces:
+
+```typescript
+const nonce = crypto.randomUUID();
+const stream = renderToStream(tree, { nonce });
+
+return new Response(stream, {
+  headers: {
+    'content-type': 'text/html; charset=utf-8',
+    'content-security-policy': `script-src 'nonce-${nonce}'`,
+  },
+});
+```
+
+---
+
+## Dev Server
+
+`createDevServer` provides a turnkey Vite SSR development server with HMR, module invalidation, and error stack fixing.
+
+```typescript
+import { createDevServer } from '@vertz/ui-server';
+
+const server = createDevServer({
+  entry: './src/entry-server.ts',
+  port: 5173,
+});
+
+await server.listen();
+```
+
+**Options:**
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `entry` | `string` | (required) | Path to the SSR entry module |
+| `port` | `number` | `5173` | Port to listen on |
+| `host` | `string` | `'0.0.0.0'` | Host to bind to |
+| `viteConfig` | `InlineConfig` | `{}` | Custom Vite configuration |
+| `middleware` | `function` | — | Custom middleware before SSR handler |
+| `skipModuleInvalidation` | `boolean` | `false` | Skip invalidating modules on each request |
+| `logRequests` | `boolean` | `true` | Log requests to console |
+
+**`DevServer` interface:**
+
+| Property/Method | Description |
+|---|---|
+| `listen()` | Start the server |
+| `close()` | Stop the server |
+| `vite` | The underlying `ViteDevServer` |
+| `httpServer` | The underlying `http.Server` |
+
+The entry module should export a `renderToString(url: string)` function that returns HTML.
+
+---
+
+## JSX Runtime
+
+The `@vertz/ui-server/jsx-runtime` subpath provides a server-side JSX factory that produces VNode trees compatible with `renderToStream`. During SSR, Vite's `ssrLoadModule` swaps this in automatically.
+
+| Export | Description |
+|---|---|
+| `jsx` | JSX factory for single-child elements |
+| `jsxs` | JSX factory for multi-child elements |
+| `Fragment` | Fragment component |
+
+---
 
 ## Types
 
-### `VNode`
-
-Virtual node representing an HTML element.
-
 ```typescript
-interface VNode {
-  tag: string;
-  attrs: Record<string, string>;
-  children: (VNode | string | RawHtml)[];
-}
+import type {
+  // Core
+  VNode,
+  RawHtml,
+
+  // Rendering
+  RenderToHTMLOptions,
+  RenderToStreamOptions,
+  PageOptions,
+
+  // Dev Server
+  DevServerOptions,
+  DevServer,
+
+  // Head
+  HeadEntry,
+
+  // Hydration
+  HydrationOptions,
+
+  // Assets
+  AssetDescriptor,
+} from '@vertz/ui-server';
 ```
 
-### `RawHtml`
+---
 
-Raw HTML that bypasses escaping.
+## Utilities
 
-```typescript
-interface RawHtml {
-  __raw: true;
-  html: string;
-}
-```
+| Export | Description |
+|---|---|
+| `streamToString(stream)` | Convert a `ReadableStream<Uint8Array>` to a string |
+| `collectStreamChunks(stream)` | Collect stream chunks as a `string[]` |
+| `encodeChunk(html)` | Encode a string to a `Uint8Array` chunk |
 
-### `HydrationOptions`
-
-Options for hydration marker generation.
-
-```typescript
-interface HydrationOptions {
-  componentName: string;
-  key: string;
-  props?: Record<string, unknown>;
-}
-```
-
-### `HeadEntry`
-
-Metadata entry for the HTML head.
-
-```typescript
-interface HeadEntry {
-  tag: 'title' | 'meta' | 'link';
-  attrs?: Record<string, string>;
-  textContent?: string;
-}
-```
-
-### `AssetDescriptor`
-
-Asset descriptor for script/stylesheet injection.
-
-```typescript
-interface AssetDescriptor {
-  type: 'script' | 'stylesheet';
-  src: string;
-  async?: boolean; // scripts only
-  defer?: boolean; // scripts only
-}
-```
-
-### `RenderToStreamOptions`
-
-Options for `renderToStream()`.
-
-```typescript
-interface RenderToStreamOptions {
-  nonce?: string; // CSP nonce for inline scripts
-}
-```
-
-## Testing
-
-Run the test suite:
-
-```bash
-bun run test
-```
-
-Run tests in watch mode:
-
-```bash
-bun run test:watch
-```
-
-Type check:
-
-```bash
-bun run typecheck
-```
+---
 
 ## License
 
