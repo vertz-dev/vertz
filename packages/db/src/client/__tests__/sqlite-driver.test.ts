@@ -182,6 +182,78 @@ describe('sqlite-driver', () => {
       expect(mockD1.prepare).toHaveBeenCalledWith('SELECT 1');
       expect(result).toEqual([{ 1: 1 }]);
     });
+
+    it('isHealthy returns true when query succeeds', async () => {
+      // Arrange
+      vi.mocked(mockPrepared.all).mockResolvedValue({ results: [] });
+
+      const driver = createSqliteDriver(mockD1);
+
+      // Act
+      const result = await driver.isHealthy();
+
+      // Assert
+      expect(result).toBe(true);
+    });
+
+    it('isHealthy returns false when query fails', async () => {
+      // Arrange
+      vi.mocked(mockPrepared.all).mockRejectedValue(new Error('Database unavailable'));
+
+      const driver = createSqliteDriver(mockD1);
+
+      // Act
+      const result = await driver.isHealthy();
+
+      // Assert
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('execute with different SQL types', () => {
+    it('extracts table name from INSERT statement', async () => {
+      // Arrange
+      vi.mocked(mockPrepared.run).mockResolvedValue({ meta: { changes: 1 } });
+
+      const tableSchema: TableSchemaRegistry = new Map([
+        ['users', { id: 'integer', name: 'text' }],
+      ]);
+
+      const driver = createSqliteDriver(mockD1, tableSchema);
+
+      // Act - INSERT should use schema for value conversion
+      await driver.execute('INSERT INTO users (id, name) VALUES (?, ?)', [1, 'test']);
+
+      // Assert
+      expect(mockD1.prepare).toHaveBeenCalledWith('INSERT INTO users (id, name) VALUES (?, ?)');
+      expect(mockPrepared.bind).toHaveBeenCalledWith(1, 'test');
+    });
+
+    it('extracts table name from UPDATE statement', async () => {
+      // Arrange
+      vi.mocked(mockPrepared.run).mockResolvedValue({ meta: { changes: 1 } });
+
+      const driver = createSqliteDriver(mockD1);
+
+      // Act
+      await driver.execute('UPDATE users SET name = ? WHERE id = ?', ['updated', 1]);
+
+      // Assert
+      expect(mockD1.prepare).toHaveBeenCalledWith('UPDATE users SET name = ? WHERE id = ?');
+    });
+
+    it('extracts table name from DELETE statement', async () => {
+      // Arrange
+      vi.mocked(mockPrepared.run).mockResolvedValue({ meta: { changes: 1 } });
+
+      const driver = createSqliteDriver(mockD1);
+
+      // Act
+      await driver.execute('DELETE FROM users WHERE id = ?', [1]);
+
+      // Assert
+      expect(mockD1.prepare).toHaveBeenCalledWith('DELETE FROM users WHERE id = ?');
+    });
   });
 });
 
