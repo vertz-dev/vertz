@@ -27,7 +27,7 @@ export type { JSONSchemaObject } from './introspection/json-schema';
 export { RefTracker, toJSONSchema } from './introspection/json-schema';
 // Result type and utilities
 export type { Err, Ok, Result } from './result';
-export { err, flatMap, map, match, matchErr, ok, unwrap } from './result';
+export { err, flatMap, isErr, isOk, map, match, matchErr, ok, unwrap } from './result';
 export { ArraySchema } from './schemas/array';
 export { BigIntSchema } from './schemas/bigint';
 export { BooleanSchema } from './schemas/boolean';
