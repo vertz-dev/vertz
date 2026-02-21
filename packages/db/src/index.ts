@@ -29,6 +29,16 @@ export type {
   TenantGraph,
 } from './client';
 export { computeTenantGraph, createDb } from './client';
+// Dialect
+export type {
+  ColumnTypeMeta,
+  Dialect,
+  IdStrategy,
+} from './dialect';
+export {
+  defaultPostgresDialect,
+  PostgresDialect,
+} from './dialect';
 // Schema builder
 export { d } from './d';
 // Diagnostic

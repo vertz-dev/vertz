@@ -10,6 +10,7 @@
  */
 
 import { camelToSnake } from './casing';
+import { type Dialect, defaultPostgresDialect } from '../dialect';
 import { buildWhere } from './where';
 
 export interface UpdateOptions {
@@ -40,7 +41,10 @@ function buildReturningColumnRef(name: string): string {
 /**
  * Build an UPDATE statement from the given options.
  */
-export function buildUpdate(options: UpdateOptions): UpdateResult {
+export function buildUpdate(
+  options: UpdateOptions,
+  dialect: Dialect = defaultPostgresDialect,
+): UpdateResult {
   const keys = Object.keys(options.data);
   const nowSet = new Set(options.nowColumns ?? []);
   const allParams: unknown[] = [];
@@ -51,10 +55,10 @@ export function buildUpdate(options: UpdateOptions): UpdateResult {
     const snakeCol = camelToSnake(key);
     const value = options.data[key];
     if (nowSet.has(key) && value === 'now') {
-      setClauses.push(`"${snakeCol}" = NOW()`);
+      setClauses.push(`"${snakeCol}" = ${dialect.now()}`);
     } else {
       allParams.push(value);
-      setClauses.push(`"${snakeCol}" = $${allParams.length}`);
+      setClauses.push(`"${snakeCol}" = ${dialect.param(allParams.length)}`);
     }
   }
 
@@ -62,7 +66,7 @@ export function buildUpdate(options: UpdateOptions): UpdateResult {
 
   // WHERE
   if (options.where) {
-    const whereResult = buildWhere(options.where, allParams.length);
+    const whereResult = buildWhere(options.where, allParams.length, undefined, dialect);
     if (whereResult.sql.length > 0) {
       sql += ` WHERE ${whereResult.sql}`;
       allParams.push(...whereResult.params);

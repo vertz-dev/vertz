@@ -10,6 +10,7 @@
  */
 
 import { camelToSnake } from './casing';
+import { type Dialect, defaultPostgresDialect } from '../dialect';
 
 export interface OnConflictOptions {
   readonly columns: readonly string[];
@@ -47,7 +48,10 @@ function buildReturningColumnRef(name: string): string {
 /**
  * Build an INSERT statement from the given options.
  */
-export function buildInsert(options: InsertOptions): InsertResult {
+export function buildInsert(
+  options: InsertOptions,
+  dialect: Dialect = defaultPostgresDialect,
+): InsertResult {
   const rows = Array.isArray(options.data) ? options.data : [options.data];
   const firstRow = rows[0];
   if (!firstRow) {
@@ -68,10 +72,10 @@ export function buildInsert(options: InsertOptions): InsertResult {
     for (const key of keys) {
       const value = row[key];
       if (nowSet.has(key) && value === 'now') {
-        placeholders.push('NOW()');
+        placeholders.push(dialect.now());
       } else {
         allParams.push(value);
-        placeholders.push(`$${allParams.length}`);
+        placeholders.push(dialect.param(allParams.length));
       }
     }
     valuesClauses.push(`(${placeholders.join(', ')})`);
@@ -93,7 +97,7 @@ export function buildInsert(options: InsertOptions): InsertResult {
           .map((c) => {
             const snakeCol = camelToSnake(c);
             allParams.push(updateVals[c]);
-            return `"${snakeCol}" = $${allParams.length}`;
+            return `"${snakeCol}" = ${dialect.param(allParams.length)}`;
           })
           .join(', ');
         sql += ` ON CONFLICT (${conflictCols}) DO UPDATE SET ${setClauses}`;
