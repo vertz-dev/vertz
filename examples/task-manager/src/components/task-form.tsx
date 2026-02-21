@@ -98,7 +98,7 @@ export function TaskForm(props: TaskFormProps): HTMLFormElement {
     >
       Create Task
     </button>
-  );
+  ) as HTMLButtonElement;
 
   // Reactive error display — re-runs whenever form error signals change
   effect(() => {
@@ -170,7 +170,7 @@ export function TaskForm(props: TaskFormProps): HTMLFormElement {
         {submitBtn}
       </div>
     </form>
-  );
+  ) as HTMLFormElement;
 
   // Submit handler
   formEl.addEventListener(

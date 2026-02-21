@@ -126,7 +126,7 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
       <option value="high">High</option>
       <option value="urgent">Urgent</option>
     </select>
-  );
+  ) as HTMLSelectElement;
 
   // Sync select with current external signal
   effect(() => {
