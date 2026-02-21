@@ -1,5 +1,5 @@
 import { compileTheme, type Theme } from '@vertz/ui';
-import { installDomShim } from './dom-shim';
+import { installDomShim, removeDomShim } from './dom-shim';
 import { renderPage } from './render-page';
 import type { VNode } from './types';
 
@@ -77,8 +77,13 @@ export async function renderToHTML<AppFn extends () => VNode>(
       )
       .join('\n') ?? '';
 
-    // Combine head content: meta + styles
-    const headContent = [metaHtml, styleTags].filter(Boolean).join('\n');
+    // Build link tags
+    const linkHtml = options.head?.links
+      ?.map((link) => `<link rel="${link.rel}" href="${link.href}">`)
+      .join('\n') ?? '';
+
+    // Combine head content: meta + links + styles
+    const headContent = [metaHtml, linkHtml, styleTags].filter(Boolean).join('\n');
 
     // Call renderPage
     const response = renderPage(app(), {
@@ -89,7 +94,8 @@ export async function renderToHTML<AppFn extends () => VNode>(
     // Extract and return HTML string
     return await response.text();
   } finally {
-    // Cleanup global
+    // Cleanup global and dom shim
     delete (globalThis as any).__SSR_URL__;
+    removeDomShim();
   }
 }

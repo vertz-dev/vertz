@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { defineTheme } from '@vertz/ui';
 import { renderToHTML, type RenderToHTMLOptions } from '../render-to-html';
 import type { VNode } from '../types';
@@ -89,5 +89,37 @@ describe('renderToHTML', () => {
 
     expect(html).toContain('--color-primary');
     expect(html).toContain('font-family: system-ui');
+  });
+
+  it('includes link tags in head', async () => {
+    const html = await renderToHTML(createApp, {
+      url: '/',
+      head: {
+        links: [
+          { rel: 'stylesheet', href: '/styles/main.css' },
+          { rel: 'icon', href: '/favicon.ico' },
+        ],
+      },
+    });
+
+    expect(html).toContain('<link rel="stylesheet" href="/styles/main.css">');
+    expect(html).toContain('<link rel="icon" href="/favicon.ico">');
+  });
+
+  it('cleans up even if render throws', async () => {
+    const failingApp = () => {
+      throw new Error('Render failed');
+    };
+
+    // Expect the render to throw
+    await expect(renderToHTML(failingApp, { url: '/' })).rejects.toThrow(
+      'Render failed'
+    );
+
+    // Verify cleanup happened - __SSR_URL__ should be undefined
+    expect((globalThis as any).__SSR_URL__).toBeUndefined();
+
+    // Verify globals are cleaned up (document should be undefined)
+    expect((globalThis as any).document).toBeUndefined();
   });
 });
