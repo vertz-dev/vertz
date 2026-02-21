@@ -17,6 +17,7 @@ import type {
 import type { RelationDef } from '../schema/relation';
 import type { SqlFragment } from '../sql/tagged';
 import { createPostgresDriver, type PostgresDriver } from './postgres-driver';
+import { createSqliteDriver, type SqliteDriver, type D1Database } from './sqlite-driver';
 import { computeTenantGraph, type TenantGraph } from './tenant-graph';
 
 // ---------------------------------------------------------------------------
@@ -134,10 +135,14 @@ export interface PoolConfig {
 // ---------------------------------------------------------------------------
 
 export interface CreateDbOptions<TTables extends Record<string, TableEntry>> {
-  /** PostgreSQL connection URL. */
-  readonly url: string;
   /** Table registry mapping logical names to table definitions + relations. */
   readonly tables: TTables;
+  /** Database dialect to use. Defaults to 'postgres' if not specified. */
+  readonly dialect?: 'postgres' | 'sqlite';
+  /** D1 database binding (required when dialect is 'sqlite'). */
+  readonly d1?: D1Database;
+  /** PostgreSQL connection URL. */
+  readonly url?: string;
   /** Connection pool configuration. */
   readonly pool?: PoolConfig;
   /** Column name casing strategy. */
@@ -565,7 +570,17 @@ function resolveTable<TTables extends Record<string, TableEntry>>(
 export function createDb<TTables extends Record<string, TableEntry>>(
   options: CreateDbOptions<TTables>,
 ): DatabaseInstance<TTables> {
-  const { tables, log } = options;
+  const { tables, log, dialect } = options;
+
+  // Validate dialect-specific options
+  if (dialect === 'sqlite') {
+    if (!options.d1) {
+      throw new Error('SQLite dialect requires a D1 binding');
+    }
+    if (options.url) {
+      throw new Error('SQLite dialect uses D1, not a connection URL');
+    }
+  }
 
   // Compute tenant graph from table registry metadata
   const tenantGraph = computeTenantGraph(tables);
@@ -595,6 +610,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
   // Create the postgres driver if _queryFn is not provided
   let driver: PostgresDriver | null = null;
+  let sqliteDriver: SqliteDriver | null = null;
   let replicaDrivers: PostgresDriver[] = [];
   let replicaIndex = 0;
 
@@ -602,6 +618,21 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     // If _queryFn is explicitly provided (e.g., PGlite for testing), use it
     if (options._queryFn) {
       return options._queryFn;
+    }
+
+    // Handle SQLite dialect
+    if (dialect === 'sqlite' && options.d1) {
+      sqliteDriver = createSqliteDriver(options.d1);
+
+      // Return a query function that wraps the SQLite driver
+      // SQLite driver returns rows[], but QueryFn expects { rows, rowCount }
+      return async <T>(sqlStr: string, params: readonly unknown[]) => {
+        if (!sqliteDriver) {
+          throw new Error('SQLite driver not initialized');
+        }
+        const rows = await sqliteDriver.query<T>(sqlStr, params as unknown[]);
+        return { rows, rowCount: rows.length };
+      };
     }
 
     // Otherwise, create a real postgres driver from the URL
@@ -652,8 +683,8 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     // Fallback: no driver, no _queryFn — throw on query
     return (async () => {
       throw new Error(
-        'db.query() requires a connected postgres driver. ' +
-          'Provide a `url` to connect to PostgreSQL, or `_queryFn` for testing.',
+        'db.query() requires a connected database driver. ' +
+          'Provide a `url` to connect to PostgreSQL, a `dialect` with D1 binding for SQLite, or `_queryFn` for testing.',
       );
     }) as QueryFn;
   })();
@@ -688,6 +719,10 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       if (driver) {
         await driver.close();
       }
+      // Close SQLite driver
+      if (sqliteDriver) {
+        await sqliteDriver.close();
+      }
       // Close all replica drivers
       await Promise.all(replicaDrivers.map((r) => r.close()));
     },
@@ -695,6 +730,9 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async isHealthy(): Promise<boolean> {
       if (driver) {
         return driver.isHealthy();
+      }
+      if (sqliteDriver) {
+        return sqliteDriver.isHealthy();
       }
       // When using _queryFn (PGlite), assume healthy
       return true;
