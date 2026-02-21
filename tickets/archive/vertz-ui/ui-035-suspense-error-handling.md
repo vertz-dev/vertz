@@ -1,4 +1,4 @@
-# ui-017: Fix Suspense error handling and hydrate promise catch
+# ui-035: Fix Suspense error handling and hydrate promise catch
 
 - **Status:** 🟢 Done
 - **Assigned:** nora

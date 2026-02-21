@@ -9,7 +9,7 @@ The following follow-ups were promoted to v0.1.x tickets:
 - Follow-up #4 (type-level tests) → **ui-024**
 - Follow-up #5 (AbortSignal in loader context) → **ui-026**
 - Follow-up #6 (CSS lookup table duplication) → **ui-025**
-- Follow-up #7 (hydrate .catch()) → **ui-017** (combined with Suspense error handling)
+- Follow-up #7 (hydrate .catch()) → **ui-035** (combined with Suspense error handling)
 - Follow-up #8 (lazyStrategy fallback test) → **ui-021** (combined with missing hydration strategies)
 - Follow-up #9 (double hydration guard) → **ui-021** (combined with missing hydration strategies)
 - Follow-up #10 (Tooltip destroy) → still open (see below)

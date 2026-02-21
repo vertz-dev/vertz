@@ -1,6 +1,6 @@
 # @vertz/ui
 
-- **Status:** 🔴 Not Started
+- **Status:** 🟡 In Progress
 - **Owner:** nora
 - **Design doc:** plans/ui-design.md
 - **Implementation plan:** plans/ui-implementation.md
@@ -10,27 +10,27 @@
 
 ### Phase 1: Reactivity & Compiler Foundation
 - **Target:** TBD
-- **Status:** 🔴 Not Started
+- **Status:** 🟢 Done
 - **Estimate:** 128 hours
 - Tickets: ui-001 (Reactivity Runtime, 40h), ui-002 (Compiler Core, 56h), ui-003 (Component Model, 32h)
 
 ### Phase 2: CSS Framework
 - **Target:** TBD
-- **Status:** 🔴 Not Started
+- **Status:** 🟢 Done
 - **Estimate:** 128 hours
 - **Blocked by:** Phase 1
 - Tickets: ui-004 (css() Styles, 48h), ui-005 (variants(), 24h), ui-006 (defineTheme(), 24h), ui-007 (Zero-Runtime Extraction, 32h)
 
 ### Phase 3: Forms
 - **Target:** TBD
-- **Status:** 🔴 Not Started
+- **Status:** 🟢 Done
 - **Estimate:** 32 hours
 - **Blocked by:** Phase 1
 - Tickets: ui-008 (Forms, 32h)
 
 ### Phase 4: Data Fetching
 - **Target:** TBD
-- **Status:** 🔴 Not Started
+- **Status:** 🟢 Done
 - **Estimate:** 32 hours
 - **Blocked by:** Phase 1
 - Tickets: ui-009 (Data Fetching, 32h)
@@ -44,7 +44,7 @@
 
 ### Phase 6: Router
 - **Target:** TBD
-- **Status:** 🔴 Not Started
+- **Status:** 🟢 Done
 - **Estimate:** 40 hours
 - **Blocked by:** Phase 1
 - Tickets: ui-012 (Router, 40h)
@@ -72,8 +72,20 @@ Post-merge bug fixes discovered during josh's task-manager demo (PR #210).
 | ui-016 | onCleanup() silently no-ops without disposal scope | P1 | nora | 3h | 🟢 Done |
 | ui-017 | globalCss() does not auto-inject like css() does | P1 | nora | 1h | 🟢 Done |
 | ui-018 | compileTheme() not exported from public API | P1 | nora | 30m | 🟢 Done |
-| ui-019 | Compiler conditional & list transforms with disposal scopes | P1 | ben+nora | 12h | 🔴 Todo |
+| ui-019 | Compiler conditional & list transforms with disposal scopes | P1 | ben+nora | 12h | 🟡 In Progress |
 | ui-020 | E2E testing infrastructure with Playwright | P2 | ava+edson | 6h | 🟡 In Progress |
+
+## v0.1.x Patch — Bug Fixes from DX Review (PR #199)
+
+Post-merge bug fixes discovered during ben's code review (PR #199).
+
+| ID | Title | Priority | Assigned | Estimate | Status |
+|----|-------|----------|----------|----------|--------|
+| ui-034 | Fix query() cache key reactivity | P1 | nora | 4h | 🟢 Done |
+| ui-035 | Fix Suspense error handling | P1 | nora | 4h | 🟢 Done |
+| ui-036 | Fix context for async reads | P1 | nora | 6h | 🟢 Done |
+| ui-037 | Fix __list effect leak | P1 | nora | 3h | 🟢 Done |
+| ui-038 | Fix compiler bugs | P1 | ben | 4h | 🟢 Done |
 
 ## Ticket Index (v1.0 Roadmap)
 
