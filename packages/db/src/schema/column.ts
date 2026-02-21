@@ -23,6 +23,7 @@ export interface ColumnMetadata {
   readonly enumName?: string;
   readonly enumValues?: readonly string[];
   readonly validator?: JsonbValidator<unknown>;
+  readonly generate?: 'cuid' | 'uuid' | 'nanoid';
 }
 
 /** Phantom symbol to carry the TypeScript type without a runtime value. */
@@ -33,9 +34,13 @@ export interface ColumnBuilder<TType, TMeta extends ColumnMetadata = ColumnMetad
   readonly [PhantomType]: TType;
   readonly _meta: TMeta;
 
-  primary(): ColumnBuilder<
+  primary(options?: { generate?: 'cuid' | 'uuid' | 'nanoid' }): ColumnBuilder<
     TType,
-    Omit<TMeta, 'primary' | 'hasDefault'> & { readonly primary: true; readonly hasDefault: true }
+    Omit<TMeta, 'primary' | 'hasDefault' | 'generate'> & {
+      readonly primary: true;
+      readonly hasDefault: true;
+      readonly generate?: 'cuid' | 'uuid' | 'nanoid';
+    }
   >;
   unique(): ColumnBuilder<TType, Omit<TMeta, 'unique'> & { readonly unique: true }>;
   nullable(): ColumnBuilder<TType | null, Omit<TMeta, 'nullable'> & { readonly nullable: true }>;
@@ -126,8 +131,12 @@ function cloneWith(
 function createColumnWithMeta(meta: ColumnMetadata): ColumnBuilder<unknown, ColumnMetadata> {
   const col: ColumnBuilder<unknown, ColumnMetadata> = {
     _meta: meta,
-    primary() {
-      return cloneWith(this, { primary: true, hasDefault: true }) as ReturnType<
+    primary(options?: { generate?: 'cuid' | 'uuid' | 'nanoid' }) {
+      const meta: Record<string, unknown> = { primary: true, hasDefault: true };
+      if (options?.generate) {
+        meta.generate = options.generate;
+      }
+      return cloneWith(this, meta) as ReturnType<
         ColumnBuilder<unknown, ColumnMetadata>['primary']
       >;
     },
