@@ -123,6 +123,14 @@ export interface CodegenEntityOperation {
   operationId: string;
   inputSchema?: string;
   outputSchema?: string;
+  resolvedFields?: CodegenResolvedField[];
+}
+
+/** Structured field info for schema generation. */
+export interface CodegenResolvedField {
+  name: string;
+  tsType: 'string' | 'number' | 'boolean' | 'date' | 'unknown';
+  optional: boolean;
 }
 
 export interface CodegenEntityAction {

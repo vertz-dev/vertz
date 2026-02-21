@@ -7,6 +7,7 @@
  */
 
 import type { CreateTodoInput, Todo, UpdateTodoInput } from '../generated';
+import { createTodosInputSchema } from '../generated/schemas/todos';
 
 let nextId = 4;
 
@@ -102,6 +103,7 @@ export const todoApi = {
   create: Object.assign((body: CreateTodoInput) => createTodo(body), {
     url: '/api/todos',
     method: 'POST',
+    meta: { bodySchema: createTodosInputSchema },
   }),
 
   update: (id: string) =>
@@ -136,4 +138,4 @@ export function resetMockData(): void {
   nextId = 3;
 }
 
-export type { Todo, CreateTodoInput, UpdateTodoInput } from '../generated';
+export type { CreateTodoInput, Todo, UpdateTodoInput } from '../generated';

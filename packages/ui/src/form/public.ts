@@ -5,7 +5,13 @@
  * the public surface. This file exists for consistency with other subpaths.
  */
 
-export type { FormInstance, FormOptions, SdkMethod, SubmitCallbacks } from './form';
+export type {
+  FormInstance,
+  FormOptions,
+  SdkMethod,
+  SdkMethodWithMeta,
+  SubmitCallbacks,
+} from './form';
 export { form } from './form';
 export type { FormDataOptions } from './form-data';
 export { formDataToObject } from './form-data';

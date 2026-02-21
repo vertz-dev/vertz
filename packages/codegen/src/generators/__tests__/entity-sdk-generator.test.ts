@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { CodegenEntityModule, CodegenIR } from '../../types';
 import { EntitySdkGenerator } from '../entity-sdk-generator';
 
@@ -220,5 +220,151 @@ describe('EntitySdkGenerator', () => {
     const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
 
     expect(files).toEqual([]);
+  });
+
+  describe('.meta embedding', () => {
+    it('uses Object.assign with .meta for create method when resolvedFields exist', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todos',
+          operations: [
+            {
+              kind: 'create',
+              method: 'POST',
+              path: '/todos',
+              operationId: 'createTodos',
+              inputSchema: 'CreateTodosInput',
+              outputSchema: 'TodosResponse',
+              resolvedFields: [{ name: 'title', tsType: 'string', optional: false }],
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const todosFile = files.find((f) => f.path === 'entities/todos.ts');
+
+      expect(todosFile?.content).toContain('Object.assign');
+      expect(todosFile?.content).toContain("method: 'POST' as const");
+      expect(todosFile?.content).toContain('meta: { bodySchema: createTodosInputSchema }');
+    });
+
+    it('imports schema from ../schemas/ when meta is embedded', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todos',
+          operations: [
+            {
+              kind: 'create',
+              method: 'POST',
+              path: '/todos',
+              operationId: 'createTodos',
+              inputSchema: 'CreateTodosInput',
+              outputSchema: 'TodosResponse',
+              resolvedFields: [{ name: 'title', tsType: 'string', optional: false }],
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const todosFile = files.find((f) => f.path === 'entities/todos.ts');
+
+      expect(todosFile?.content).toContain(
+        "import { createTodosInputSchema } from '../schemas/todos'",
+      );
+    });
+
+    it('does not embed .meta on list, get, delete methods', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todos',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/todos',
+              operationId: 'listTodos',
+              outputSchema: 'TodosResponse',
+            },
+            {
+              kind: 'get',
+              method: 'GET',
+              path: '/todos/:id',
+              operationId: 'getTodos',
+              outputSchema: 'TodosResponse',
+            },
+            {
+              kind: 'delete',
+              method: 'DELETE',
+              path: '/todos/:id',
+              operationId: 'deleteTodos',
+              outputSchema: 'TodosResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const todosFile = files.find((f) => f.path === 'entities/todos.ts');
+
+      expect(todosFile?.content).not.toContain('Object.assign');
+      expect(todosFile?.content).not.toContain('meta:');
+    });
+
+    it('does not embed .meta on update method', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todos',
+          operations: [
+            {
+              kind: 'update',
+              method: 'PATCH',
+              path: '/todos/:id',
+              operationId: 'updateTodos',
+              inputSchema: 'UpdateTodosInput',
+              outputSchema: 'TodosResponse',
+              resolvedFields: [{ name: 'title', tsType: 'string', optional: true }],
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const todosFile = files.find((f) => f.path === 'entities/todos.ts');
+
+      // Update is multi-arg, doesn't fit SdkMethod
+      expect(todosFile?.content).not.toContain('Object.assign');
+    });
+
+    it('keeps plain arrow function when no resolvedFields', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'user',
+          operations: [
+            {
+              kind: 'create',
+              method: 'POST',
+              path: '/user',
+              operationId: 'createUser',
+              inputSchema: 'CreateUserInput',
+              outputSchema: 'UserResponse',
+              // No resolvedFields
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const userFile = files.find((f) => f.path === 'entities/user.ts');
+
+      expect(userFile?.content).not.toContain('Object.assign');
+      expect(userFile?.content).toContain('create:');
+    });
   });
 });

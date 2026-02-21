@@ -38,6 +38,22 @@ export class EntitySdkGenerator implements Generator {
     const pascal = toPascalCase(entity.entityName);
     const lines: string[] = [FILE_HEADER];
 
+    // Check if any create operation has resolved schemas (needs schema import)
+    const createOpsWithMeta = entity.operations.filter(
+      (op) => op.kind === 'create' && op.resolvedFields && op.resolvedFields.length > 0,
+    );
+    const hasSchemaImports = createOpsWithMeta.length > 0;
+
+    // Import schemas (when create methods have resolved fields)
+    if (hasSchemaImports) {
+      const schemaImports: string[] = [];
+      for (const op of createOpsWithMeta) {
+        const schemaVarName = `${(op.inputSchema ?? 'createInput').charAt(0).toLowerCase()}${(op.inputSchema ?? 'createInput').slice(1)}Schema`;
+        schemaImports.push(schemaVarName);
+      }
+      lines.push(`import { ${schemaImports.join(', ')} } from '../schemas/${entity.entityName}';`);
+    }
+
     // Import types (when schema is resolved)
     const hasTypes = entity.operations.some((op) => op.outputSchema || op.inputSchema);
     if (hasTypes) {
@@ -76,9 +92,24 @@ export class EntitySdkGenerator implements Generator {
           );
           break;
         case 'create':
-          lines.push(
-            `    create: (body: ${inputType}) => client.post<${outputType}>('${op.path}', body),`,
-          );
+          if (op.resolvedFields && op.resolvedFields.length > 0) {
+            // Use Object.assign pattern with .meta for SdkMethodWithMeta
+            const schemaVarName = `${(op.inputSchema ?? 'createInput').charAt(0).toLowerCase()}${(op.inputSchema ?? 'createInput').slice(1)}Schema`;
+            lines.push(`    create: Object.assign(`);
+            lines.push(
+              `      (body: ${inputType}) => client.post<${outputType}>('${op.path}', body),`,
+            );
+            lines.push(`      {`);
+            lines.push(`        url: '${op.path}',`);
+            lines.push(`        method: 'POST' as const,`);
+            lines.push(`        meta: { bodySchema: ${schemaVarName} },`);
+            lines.push(`      },`);
+            lines.push(`    ),`);
+          } else {
+            lines.push(
+              `    create: (body: ${inputType}) => client.post<${outputType}>('${op.path}', body),`,
+            );
+          }
           break;
         case 'update':
           lines.push(

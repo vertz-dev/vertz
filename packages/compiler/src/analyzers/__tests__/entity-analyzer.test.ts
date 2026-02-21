@@ -1,8 +1,8 @@
 import { Project } from 'ts-morph';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import type { ResolvedConfig } from '../../config';
 import type { EntityIR } from '../../ir/types';
 import { EntityAnalyzer } from '../entity-analyzer';
-import type { ResolvedConfig } from '../../config';
 
 describe('EntityAnalyzer', () => {
   let project: Project;
@@ -672,6 +672,145 @@ describe('EntityAnalyzer', () => {
 
       const result = await analyze();
       expect(result.entities[0]?.relations).toEqual([]);
+    });
+  });
+
+  describe('Resolved Fields', () => {
+    it('extracts resolvedFields from createInput schema type', async () => {
+      createFile(
+        '/models.ts',
+        `
+        export interface SchemaLike<T> { parse(data: unknown): T; }
+        export interface TodoModel {
+          schemas: {
+            response: SchemaLike<{ id: string; title: string; completed: boolean; createdAt: Date; updatedAt: Date }>;
+            createInput: SchemaLike<{ title: string; completed?: boolean }>;
+            updateInput: SchemaLike<{ title?: string; completed?: boolean }>;
+          };
+        }
+        export const todoModel: TodoModel = {} as TodoModel;
+      `,
+      );
+
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { todoModel } from './models';
+
+        export const todoEntity = entity('todos', { model: todoModel });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities).toHaveLength(1);
+
+      const createInput = result.entities[0]?.modelRef.schemaRefs.createInput;
+      expect(createInput).toBeDefined();
+      expect(createInput?.kind).toBe('inline');
+      if (createInput?.kind === 'inline') {
+        expect(createInput.resolvedFields).toBeDefined();
+        expect(createInput.resolvedFields).toEqual(
+          expect.arrayContaining([
+            { name: 'title', tsType: 'string', optional: false },
+            { name: 'completed', tsType: 'boolean', optional: true },
+          ]),
+        );
+      }
+    });
+
+    it('marks all updateInput fields as optional', async () => {
+      createFile(
+        '/models.ts',
+        `
+        export interface SchemaLike<T> { parse(data: unknown): T; }
+        export interface TodoModel {
+          schemas: {
+            response: SchemaLike<{ id: string; title: string }>;
+            createInput: SchemaLike<{ title: string }>;
+            updateInput: SchemaLike<{ title?: string }>;
+          };
+        }
+        export const todoModel: TodoModel = {} as TodoModel;
+      `,
+      );
+
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { todoModel } from './models';
+
+        export const todoEntity = entity('todos', { model: todoModel });
+      `,
+      );
+
+      const result = await analyze();
+      const updateInput = result.entities[0]?.modelRef.schemaRefs.updateInput;
+      expect(updateInput?.kind).toBe('inline');
+      if (updateInput?.kind === 'inline') {
+        expect(updateInput.resolvedFields).toBeDefined();
+        const titleField = updateInput.resolvedFields?.find((f) => f.name === 'title');
+        expect(titleField?.optional).toBe(true);
+      }
+    });
+
+    it('extracts auto-generated fields from response schema', async () => {
+      createFile(
+        '/models.ts',
+        `
+        export interface SchemaLike<T> { parse(data: unknown): T; }
+        export interface TodoModel {
+          schemas: {
+            response: SchemaLike<{ id: string; title: string; createdAt: Date; updatedAt: Date }>;
+            createInput: SchemaLike<{ title: string }>;
+            updateInput: SchemaLike<{ title?: string }>;
+          };
+        }
+        export const todoModel: TodoModel = {} as TodoModel;
+      `,
+      );
+
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { todoModel } from './models';
+
+        export const todoEntity = entity('todos', { model: todoModel });
+      `,
+      );
+
+      const result = await analyze();
+      const response = result.entities[0]?.modelRef.schemaRefs.response;
+      expect(response?.kind).toBe('inline');
+      if (response?.kind === 'inline') {
+        expect(response.resolvedFields).toBeDefined();
+        expect(response.resolvedFields).toEqual(
+          expect.arrayContaining([
+            { name: 'id', tsType: 'string', optional: false },
+            { name: 'createdAt', tsType: 'date', optional: false },
+            { name: 'updatedAt', tsType: 'date', optional: false },
+          ]),
+        );
+      }
+    });
+
+    it('returns resolvedFields undefined when type cannot be resolved', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { unknownModel } from './unknown';
+
+        export const todoEntity = entity('todos', { model: unknownModel });
+      `,
+      );
+
+      const result = await analyze();
+      const entity = result.entities[0];
+      // When schemas can't be resolved, the whole schemaRefs.resolved is false
+      expect(entity?.modelRef.schemaRefs.resolved).toBe(false);
     });
   });
 

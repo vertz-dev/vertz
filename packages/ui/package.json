@@ -63,6 +63,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@vertz/schema": "workspace:*",
     "@vitest/coverage-v8": "^4.0.18",
     "bunup": "latest",
     "happy-dom": "^18.0.1",
