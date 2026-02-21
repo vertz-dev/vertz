@@ -258,6 +258,9 @@
     "packages/schema": {
       "name": "@vertz/schema",
       "version": "0.2.0",
+      "dependencies": {
+        "@vertz/errors": "workspace:*",
+      },
       "devDependencies": {
         "@vitest/coverage-v8": "^4.0.18",
         "bunup": "latest",

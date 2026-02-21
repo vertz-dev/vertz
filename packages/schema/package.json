@@ -30,6 +30,9 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@vertz/errors": "workspace:*"
+  },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",
     "bunup": "latest",
