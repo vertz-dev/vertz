@@ -92,7 +92,7 @@ type RegistryOutput<
  *
  * @example
  * ```typescript
- * const tables = createRegistry(
+ * const models = createRegistry(
  *   { users, posts, comments },
  *   (ref) => ({
  *     posts: {

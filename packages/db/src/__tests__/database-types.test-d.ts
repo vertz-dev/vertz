@@ -69,8 +69,8 @@ const commentRelations = {
   author: d.ref.one(() => users, 'authorId'),
 };
 
-// Table registry
-const tables = {
+// Model registry
+const models = {
   organizations: { table: organizations, relations: {} },
   users: { table: users, relations: {} },
   posts: { table: posts, relations: postRelations },
@@ -79,18 +79,18 @@ const tables = {
 } satisfies Record<string, ModelEntry>;
 
 // Type alias for the typed database instance
-type DB = DatabaseInstance<typeof tables>;
+type DB = DatabaseInstance<typeof models>;
 
 // ---------------------------------------------------------------------------
 // Helper: simulate what a method call would return by testing FindResult
-// directly with the tables from the registry
+// directly with the models from the registry
 // ---------------------------------------------------------------------------
 
-type OrgEntry = (typeof tables)['organizations'];
-type UserEntry = (typeof tables)['users'];
-type PostEntry = (typeof tables)['posts'];
-type CommentEntry = (typeof tables)['comments'];
-type FlagEntry = (typeof tables)['featureFlags'];
+type OrgModel = (typeof models)['organizations'];
+type UserModel = (typeof models)['users'];
+type PostModel = (typeof models)['posts'];
+type CommentModel = (typeof models)['comments'];
+type FlagModel = (typeof models)['featureFlags'];
 
 // ---------------------------------------------------------------------------
 // Cycle 1: get return type
@@ -98,7 +98,7 @@ type FlagEntry = (typeof tables)['featureFlags'];
 
 describe('Cycle 1: get return type', () => {
   it('returns correct field types for organizations (default select)', () => {
-    type Result = FindResult<OrgEntry['table'], Record<string, never>, OrgEntry['relations']>;
+    type Result = FindResult<OrgModel['table'], Record<string, never>, OrgModel['relations']>;
 
     expectTypeOf<Result>().toHaveProperty('id');
     expectTypeOf<Result>().toHaveProperty('name');
@@ -109,7 +109,7 @@ describe('Cycle 1: get return type', () => {
   });
 
   it('excludes hidden fields by default (passwordHash on users)', () => {
-    type Result = FindResult<UserEntry['table'], Record<string, never>, UserEntry['relations']>;
+    type Result = FindResult<UserModel['table'], Record<string, never>, UserModel['relations']>;
 
     expectTypeOf<Result>().toHaveProperty('id');
     expectTypeOf<Result>().toHaveProperty('name');
@@ -132,7 +132,7 @@ describe('Cycle 1: get return type', () => {
 
 describe('Cycle 2: list return type', () => {
   it('array elements have correct types', () => {
-    type Result = FindResult<PostEntry['table'], Record<string, never>, PostEntry['relations']>;
+    type Result = FindResult<PostModel['table'], Record<string, never>, PostModel['relations']>;
 
     expectTypeOf<Result>().toHaveProperty('id');
     expectTypeOf<Result>().toHaveProperty('title');
@@ -142,7 +142,7 @@ describe('Cycle 2: list return type', () => {
   });
 
   it('listAndCount result structure', () => {
-    type Element = FindResult<PostEntry['table'], Record<string, never>, PostEntry['relations']>;
+    type Element = FindResult<PostModel['table'], Record<string, never>, PostModel['relations']>;
     type Result = { data: Element[]; total: number };
 
     expectTypeOf<Result>().toHaveProperty('data');
@@ -217,7 +217,7 @@ describe('Cycle 4: update, upsert, delete return types', () => {
   });
 
   it('featureFlags result has correct fields', () => {
-    type Result = FindResult<FlagEntry['table'], Record<string, never>, FlagEntry['relations']>;
+    type Result = FindResult<FlagModel['table'], Record<string, never>, FlagModel['relations']>;
 
     expectTypeOf<Result>().toHaveProperty('id');
     expectTypeOf<Result>().toHaveProperty('name');
@@ -227,9 +227,9 @@ describe('Cycle 4: update, upsert, delete return types', () => {
 
   it('comment result has correct fields', () => {
     type Result = FindResult<
-      CommentEntry['table'],
+      CommentModel['table'],
       Record<string, never>,
-      CommentEntry['relations']
+      CommentModel['relations']
     >;
 
     expectTypeOf<Result>().toHaveProperty('id');
@@ -246,9 +246,9 @@ describe('Cycle 4: update, upsert, delete return types', () => {
 describe('Cycle 5: select narrowing', () => {
   it('narrows result to selected fields only', () => {
     type Result = FindResult<
-      PostEntry['table'],
+      PostModel['table'],
       { select: { id: true; title: true } },
-      PostEntry['relations']
+      PostModel['relations']
     >;
 
     expectTypeOf<Result>().toHaveProperty('id');
@@ -259,9 +259,9 @@ describe('Cycle 5: select narrowing', () => {
 
   it('select with not:sensitive excludes sensitive+hidden fields', () => {
     type Result = FindResult<
-      UserEntry['table'],
+      UserModel['table'],
       { select: { not: 'sensitive' } },
-      UserEntry['relations']
+      UserModel['relations']
     >;
 
     expectTypeOf<Result>().toHaveProperty('id');
@@ -278,9 +278,9 @@ describe('Cycle 5: select narrowing', () => {
 describe('Cycle 6: include resolution', () => {
   it('includes one relation as object', () => {
     type Result = FindResult<
-      PostEntry['table'],
+      PostModel['table'],
       { include: { author: true } },
-      PostEntry['relations']
+      PostModel['relations']
     >;
 
     expectTypeOf<Result>().toHaveProperty('author');
@@ -290,9 +290,9 @@ describe('Cycle 6: include resolution', () => {
 
   it('includes many relation as array', () => {
     type Result = FindResult<
-      PostEntry['table'],
+      PostModel['table'],
       { include: { comments: true } },
-      PostEntry['relations']
+      PostModel['relations']
     >;
 
     expectTypeOf<Result>().toHaveProperty('comments');
@@ -300,9 +300,9 @@ describe('Cycle 6: include resolution', () => {
 
   it('includes relation with select sub-clause', () => {
     type Result = FindResult<
-      PostEntry['table'],
+      PostModel['table'],
       { include: { author: { select: { name: true } } } },
-      PostEntry['relations']
+      PostModel['relations']
     >;
 
     expectTypeOf<Result>().toHaveProperty('author');

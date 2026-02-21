@@ -3,7 +3,6 @@ import { unwrap } from '@vertz/schema';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb } from '../client';
 import { d } from '../d';
-import { createRegistry } from '../schema/registry';
 
 const usersWithCuid = d.table('users_cuid', {
   id: d.text().primary({ generate: 'cuid' }),
@@ -30,16 +29,13 @@ const usersWithReadOnly = d.table('users_readonly', {
   name: d.text(),
 });
 
-const models = createRegistry(
-  {
-    usersCuid: usersWithCuid,
-    usersUuid: usersWithUuid,
-    usersNanoid: usersWithNanoid,
-    usersNoGen: usersNoGenerate,
-    usersReadonly: usersWithReadOnly,
-  },
-  () => ({}),
-);
+const models = {
+  usersCuid: d.model(usersWithCuid),
+  usersUuid: d.model(usersWithUuid),
+  usersNanoid: d.model(usersWithNanoid),
+  usersNoGen: d.model(usersNoGenerate),
+  usersReadonly: d.model(usersWithReadOnly),
+};
 
 describe('CRUD ID Generation', () => {
   let pg: PGlite;
@@ -189,7 +185,7 @@ describe('CRUD ID Generation', () => {
       name: d.text(),
     });
 
-    const badModels = createRegistry({ bad: badTable }, () => ({}));
+    const badModels = { bad: d.model(badTable) };
 
     const queryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
       const result = await pg.query(sqlStr, params as unknown[]);

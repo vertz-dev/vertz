@@ -10,7 +10,6 @@ import { PGlite } from '@electric-sql/pglite';
 import { describe, expect, it } from 'vitest';
 import { createDb } from '../client/database';
 import { d } from '../d';
-import { createRegistry } from '../schema/registry';
 
 // ---------------------------------------------------------------------------
 // Schema definition
@@ -23,7 +22,7 @@ const users = d.table('users', {
   createdAt: d.timestamp().default('now'),
 });
 
-const models = createRegistry({ users }, () => ({}));
+const models = { users: d.model(users) };
 
 describe('Postgres regression: create and list users via PGlite', () => {
   it('creates and lists users with default dialect (Postgres)', async () => {

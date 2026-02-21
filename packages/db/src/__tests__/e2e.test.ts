@@ -4,7 +4,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb } from '../client/database';
 import { d } from '../d';
 import type { QueryFn } from '../query/executor';
-import { createRegistry } from '../schema/registry';
 import { sql } from '../sql/tagged';
 
 // ---------------------------------------------------------------------------
@@ -57,19 +56,22 @@ const featureFlags = d
   .shared();
 
 // ---------------------------------------------------------------------------
-// Table registry — using createRegistry() for type-safe relations
+// Model registry with relations
 // ---------------------------------------------------------------------------
 
-const models = createRegistry({ organizations, users, posts, comments, featureFlags }, (ref) => ({
-  posts: {
-    author: ref.posts.one('users', 'authorId'),
-    comments: ref.posts.many('comments', 'postId'),
-  },
-  comments: {
-    post: ref.comments.one('posts', 'postId'),
-    author: ref.comments.one('users', 'authorId'),
-  },
-}));
+const models = {
+  organizations: d.model(organizations),
+  users: d.model(users),
+  posts: d.model(posts, {
+    author: d.ref.one(() => users, 'authorId'),
+    comments: d.ref.many(() => comments, 'postId'),
+  }),
+  comments: d.model(comments, {
+    post: d.ref.one(() => posts, 'postId'),
+    author: d.ref.one(() => users, 'authorId'),
+  }),
+  featureFlags: d.model(featureFlags),
+};
 
 // ---------------------------------------------------------------------------
 // Stable UUIDs for tests

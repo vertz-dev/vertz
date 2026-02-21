@@ -61,13 +61,13 @@ describe('d.entry() types', () => {
       author: d.ref.one(() => users, 'authorId'),
     };
 
-    const tables = {
+    const models = {
       users: d.entry(users),
       posts: d.entry(posts, postRelations),
     } satisfies Record<string, ModelEntry>;
 
-    expectTypeOf(tables.users).toMatchTypeOf<ModelEntry>();
-    expectTypeOf(tables.posts).toMatchTypeOf<ModelEntry>();
+    expectTypeOf(models.users).toMatchTypeOf<ModelEntry>();
+    expectTypeOf(models.posts).toMatchTypeOf<ModelEntry>();
   });
 
   it('rejects non-table first argument', () => {
@@ -156,34 +156,34 @@ describe('createRegistry() types', () => {
   });
 
   it('output type matches Record<string, ModelEntry>', () => {
-    const tables = createRegistry({ users, posts, comments }, (ref) => ({
+    const models = createRegistry({ users, posts, comments }, (ref) => ({
       posts: {
         author: ref.posts.one('users', 'authorId'),
         comments: ref.posts.many('comments', 'postId'),
       },
     }));
 
-    expectTypeOf(tables).toMatchTypeOf<Record<string, ModelEntry>>();
+    expectTypeOf(models).toMatchTypeOf<Record<string, ModelEntry>>();
   });
 
   it('preserves specific table and relation types in output', () => {
-    const tables = createRegistry({ users, posts, comments }, (ref) => ({
+    const models = createRegistry({ users, posts, comments }, (ref) => ({
       posts: {
         author: ref.posts.one('users', 'authorId'),
       },
     }));
 
     // Table types are preserved
-    expectTypeOf(tables.users.table).toEqualTypeOf<typeof users>();
-    expectTypeOf(tables.posts.table).toEqualTypeOf<typeof posts>();
-    expectTypeOf(tables.comments.table).toEqualTypeOf<typeof comments>();
+    expectTypeOf(models.users.table).toEqualTypeOf<typeof users>();
+    expectTypeOf(models.posts.table).toEqualTypeOf<typeof posts>();
+    expectTypeOf(models.comments.table).toEqualTypeOf<typeof comments>();
 
     // Relation types are preserved
-    expectTypeOf(tables.posts.relations.author).toMatchTypeOf<RelationDef<typeof users, 'one'>>();
+    expectTypeOf(models.posts.relations.author).toMatchTypeOf<RelationDef<typeof users, 'one'>>();
   });
 
   it('tables without relations get empty relations object', () => {
-    const tables = createRegistry({ users, posts }, (ref) => ({
+    const models = createRegistry({ users, posts }, (ref) => ({
       posts: {
         author: ref.posts.one('users', 'authorId'),
       },
@@ -191,6 +191,6 @@ describe('createRegistry() types', () => {
 
     // Users has no explicit relations — should have empty object type
     // biome-ignore lint/complexity/noBannedTypes: testing that the actual return type is {} (empty relations)
-    expectTypeOf(tables.users.relations).toEqualTypeOf<{}>();
+    expectTypeOf(models.users.relations).toEqualTypeOf<{}>();
   });
 });
