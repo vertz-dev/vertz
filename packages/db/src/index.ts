@@ -128,3 +128,5 @@ export type {
   StrictKeys,
   ValidateKeys,
 } from './types/branded-errors';
+
+export { generateId, type IdStrategy } from './id';

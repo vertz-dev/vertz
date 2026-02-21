@@ -68,6 +68,9 @@
   "dependencies": {
     "@vertz/errors": "workspace:*",
     "@vertz/schema": "workspace:*",
-    "postgres": "^3.4.8"
+    "postgres": "^3.4.8",
+    "@paralleldrive/cuid2": "^2.2.2",
+    "nanoid": "^5.1.5",
+    "uuid": "^11.1.0"
   }
 }
