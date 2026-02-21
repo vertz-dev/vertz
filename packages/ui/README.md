@@ -494,6 +494,48 @@ The `@vertz/ui/jsx-runtime` subpath provides the JSX factory used by the compile
 
 ---
 
+## Gotchas
+
+### `onMount` runs synchronously
+
+`onMount` fires during component initialization, not after DOM insertion. This means the DOM node exists but may not be in the document yet. If you need to measure layout or interact with the painted DOM, use `requestAnimationFrame` inside `onMount`:
+
+```tsx
+onMount(() => {
+  // DOM node exists but may not be painted yet
+  requestAnimationFrame(() => {
+    // Now it's safe to measure layout
+  });
+});
+```
+
+### `onCleanup` requires a disposal scope
+
+Calling `onCleanup` outside of `onMount`, `watch`, or `effect` throws a `DisposalScopeError`. This is intentional — without a scope, the cleanup would be silently discarded:
+
+```tsx
+// Works — inside onMount
+onMount(() => {
+  const id = setInterval(() => seconds++, 1000);
+  onCleanup(() => clearInterval(id));
+});
+
+// Throws DisposalScopeError — no scope
+function setup() {
+  onCleanup(() => {}); // Error!
+}
+```
+
+### Primitives are uncontrolled only
+
+`@vertz/ui-primitives` components (Dialog, Select, Tabs, etc.) currently only support uncontrolled mode with `defaultValue` + callbacks. Controlled mode (where a parent prop overrides internal state) is not yet supported.
+
+### Popover has no focus trap
+
+`Popover` focuses the first element on open but does not trap focus. Tab will move focus outside the popover. This is correct for non-modal popovers (tooltips, menus), but if you need modal behavior with a focus trap, use `Dialog` instead.
+
+---
+
 ## What You Don't Need to Know
 
 - How the compiler transforms your code
