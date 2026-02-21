@@ -292,7 +292,7 @@ Validation errors include details:
 ## Full Example
 
 ```typescript
-import { d, createRegistry } from '@vertz/db';
+import { d } from '@vertz/db';
 import { createServer, entity } from '@vertz/server';
 import { s } from '@vertz/schema';
 
