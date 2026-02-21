@@ -1,6 +1,5 @@
-import type { CodegenConfig } from '@vertz/codegen';
+import type { CodegenConfig, CodegenIR, CodegenPipeline, IncrementalResult } from '@vertz/codegen';
 import { describe, expect, it, vi } from 'vitest';
-import type { CodegenIR, CodegenPipeline, IncrementalStats } from '../codegen';
 import { codegenAction } from '../codegen';
 
 // ── Fixture helpers ──────────────────────────────────────────────
@@ -23,6 +22,7 @@ function makeIR(): CodegenIR {
       },
     ],
     schemas: [],
+    entities: [],
     auth: { schemes: [] },
   };
 }
@@ -40,6 +40,7 @@ function makePipeline(overrides: Partial<CodegenPipeline> = {}): CodegenPipeline
       generators: ['typescript'],
     }),
     resolveOutputDir: vi.fn().mockReturnValue('.vertz/generated'),
+    resolveConfig: vi.fn().mockReturnValue({}),
     ...overrides,
   };
 }
@@ -258,7 +259,7 @@ describe('codegenAction', () => {
   // ── Incremental mode tests ──────────────────────────────────────
 
   describe('incremental mode', () => {
-    function makeIncrementalPipeline(incremental: IncrementalStats) {
+    function makeIncrementalPipeline(incremental: IncrementalResult) {
       return makePipeline({
         generate: vi.fn().mockReturnValue({
           files: [

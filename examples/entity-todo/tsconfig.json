@@ -1,14 +1,17 @@
 {
   "compilerOptions": {
-    "declaration": false,
-    "declarationMap": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "declaration": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "@vertz/ui",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "outDir": "dist",
     "rootDir": "src",
-    "sourceMap": false,
-    "types": ["node"]
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022",
+    "types": ["bun-types"]
   },
-  "extends": "../../tsconfig.json",
   "include": ["src"]
 }

@@ -67,7 +67,7 @@ export class EntitySdkGenerator implements Generator {
       switch (op.kind) {
         case 'list':
           lines.push(
-            `    list: (params?: Record<string, unknown>) => client.get<${arrayOutput}>('${op.path}', { params }),`,
+            `    list: (query?: Record<string, unknown>) => client.get<${arrayOutput}>('${op.path}', { query }),`,
           );
           break;
         case 'get':
