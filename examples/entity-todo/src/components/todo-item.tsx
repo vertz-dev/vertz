@@ -67,5 +67,5 @@ export function TodoItem(props: TodoItemProps): HTMLElement {
         Delete
       </button>
     </div>
-  ) as HTMLElement;
+  );
 }

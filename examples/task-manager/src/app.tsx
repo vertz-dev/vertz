@@ -34,7 +34,7 @@ const navStyles = css({
 export function App(): HTMLElement {
   const settings = createSettingsValue();
 
-  const container = (<div data-testid="app-root" />) as HTMLElement;
+  const container = (<div data-testid="app-root" />);
 
   // We wrap the render in the SettingsContext.Provider scope
   SettingsContext.Provider(settings, () => {
@@ -71,7 +71,7 @@ export function App(): HTMLElement {
         </nav>
         {main}
       </div>
-    ) as HTMLElement;
+    );
 
     // ── Reactive route rendering with page transitions ──
 
@@ -124,5 +124,5 @@ export function App(): HTMLElement {
     });
   });
 
-  return container;
+  return container as HTMLElement;
 }
