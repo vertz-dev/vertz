@@ -1,236 +1,500 @@
 # @vertz/db
 
-Type-safe PostgreSQL ORM with schema-driven migrations and full TypeScript inference.
-
-## Quickstart
-
-```bash
-# Install the CLI globally
-npm install -g @vertz/db
-```
-
-```typescript
-import { d, createDb } from '@vertz/db';
-
-// 1. Define schema
-const users = d.table('users', {
-  id: d.uuid().primaryKey().defaultValue('gen_random_uuid()'),
-  email: d.email().notNull(),
-  name: d.text().notNull(),
-});
-
-// 2. Create database client
-const db = createDb({
-  url: process.env.DATABASE_URL!,
-  tables: { users },
-});
-
-// 3. Run migrations
-// vertz db migrate
-
-// 4. Query with full type inference
-const user = await db.users.create({
-  data: { email: 'alice@example.com', name: 'Alice' },
-});
-// user: { id: string; email: string; name: string; ... }
-```
+Type-safe database layer with schema-driven migrations, phantom types, and Result-based error handling.
 
 ## Installation
 
 ```bash
-npm install @vertz/db
+bun add @vertz/db
 ```
 
 **Prerequisites:**
-- PostgreSQL database
-- Node.js >= 22
+- PostgreSQL or SQLite database
+- Node.js >= 22 or Bun
 
-## API Reference
+## Quick Start
 
-### Schema Builder (`d`)
+```typescript
+import { d, createDb, createRegistry } from '@vertz/db';
 
-#### Column Types
+// 1. Define schema
+const todos = d.table('todos', {
+  id: d.uuid().primary(),
+  title: d.text(),
+  completed: d.boolean().default(false),
+  createdAt: d.timestamp().default('now').readOnly(),
+  updatedAt: d.timestamp().autoUpdate(),
+});
+
+// 2. Create registry (even with no relations)
+const tables = createRegistry({ todos }, () => ({}));
+
+// 3. Create database client
+const db = createDb({
+  url: process.env.DATABASE_URL!,
+  tables,
+});
+
+// 4. Query with full type inference and Result-based errors
+const result = await db.create('todos', {
+  data: { title: 'Buy milk' },
+});
+
+if (result.ok) {
+  console.log(result.data);
+  // { id: string; title: string; completed: boolean; createdAt: Date; updatedAt: Date }
+}
+```
+
+## Schema Builder (`d`)
+
+### Column Types
 
 ```typescript
 import { d } from '@vertz/db';
 
 // Text
-d.text()                    // TEXT
-d.varchar(255)              // VARCHAR(255)
-d.email()                   // TEXT with email constraint
-d.uuid()                    // UUID
+d.text()                    // TEXT → string
+d.varchar(255)              // VARCHAR(255) → string
+d.email()                   // TEXT with email format → string
+
+// Identifiers
+d.uuid()                    // UUID → string
 
 // Numeric
-d.integer()                 // INTEGER
-d.bigint()                  // BIGINT
-d.serial()                  // SERIAL (auto-increment)
-d.decimal(10, 2)           // DECIMAL(10, 2)
+d.integer()                 // INTEGER → number
+d.bigint()                  // BIGINT → bigint
+d.serial()                  // SERIAL (auto-increment) → number
+d.decimal(10, 2)            // NUMERIC(10,2) → string
+d.real()                    // REAL → number
+d.doublePrecision()         // DOUBLE PRECISION → number
 
 // Date/Time
-d.timestamp()               // TIMESTAMP WITH TIME ZONE
-d.date()                   // DATE
-d.time()                   // TIME
+d.timestamp()               // TIMESTAMP WITH TIME ZONE → Date
+d.date()                    // DATE → string
+d.time()                    // TIME → string
 
 // Other
-d.boolean()                // BOOLEAN
-d.jsonb()                  // JSONB
-d.jsonb<MyType>({          // JSONB with validator (legacy API)
-  validator: (v) => MyTypeSchema.parse(v)
-})
-d.jsonb(MyTypeSchema)      // JSONB with schema directly (new API)
-d.textArray()              // TEXT[]
-d.integerArray()          // INTEGER[]
+d.boolean()                 // BOOLEAN → boolean
+d.jsonb<MyType>()           // JSONB → MyType
+d.jsonb<MyType>(schema)     // JSONB with runtime validation
+d.textArray()               // TEXT[] → string[]
+d.integerArray()            // INTEGER[] → number[]
+d.enum('status', ['active', 'inactive'])  // ENUM → 'active' | 'inactive'
+
+// Multi-tenancy
+d.tenant(orgsTable)         // UUID FK to tenant root → string
 ```
 
-#### Column Modifiers
+### Column Modifiers
+
+Columns are **required by default**. Use modifiers to change behavior:
 
 ```typescript
 d.text()
-  .primaryKey()            // PRIMARY KEY
-  .unique()                // UNIQUE constraint
-  .notNull()               // NOT NULL constraint
-  .defaultValue('default') // DEFAULT value
-  .nullable()              // Allows NULL
-  .index()                 // Add index
+  .primary()                // PRIMARY KEY (auto-excludes from inputs)
+  .primary({ generate: 'cuid' })  // PRIMARY KEY with ID generation
+  .unique()                 // UNIQUE constraint
+  .nullable()               // Allows NULL (T | null)
+  .default('hello')         // DEFAULT value (makes field optional in inserts)
+  .default('now')           // DEFAULT NOW() for timestamps
+  .hidden()                 // Excluded from default SELECT queries
+  .readOnly()               // Excluded from INSERT/UPDATE inputs
+  .sensitive()              // Excluded when select: { not: 'sensitive' }
+  .autoUpdate()             // Read-only + auto-updated on every write
+  .check('length(name) > 0')  // SQL CHECK constraint
+  .references('users')      // FK to users.id
+  .references('users', 'email')  // FK to users.email
 ```
 
-#### Tables and Relations
+### ID Generation
+
+```typescript
+d.uuid().primary()                      // No auto-generation
+d.uuid().primary({ generate: 'cuid' }) // CUID2
+d.uuid().primary({ generate: 'uuid' }) // UUID v7
+d.uuid().primary({ generate: 'nanoid' }) // Nano ID
+d.serial().primary()                    // Auto-increment
+```
+
+### Tables
+
+```typescript
+const users = d.table('users', {
+  id: d.uuid().primary({ generate: 'cuid' }),
+  email: d.email().unique(),
+  name: d.text(),
+  bio: d.text().nullable(),
+  isActive: d.boolean().default(true),
+  createdAt: d.timestamp().default('now').readOnly(),
+  updatedAt: d.timestamp().autoUpdate(),
+});
+```
+
+### Annotations
+
+Column annotations control visibility and mutability across the stack:
+
+| Annotation | Effect on queries | Effect on inputs | Use case |
+|---|---|---|---|
+| `.hidden()` | Excluded from default SELECT | N/A | Internal fields (password hashes) |
+| `.readOnly()` | Included in responses | Excluded from create/update | Server-managed fields |
+| `.autoUpdate()` | Included in responses | Excluded from create/update | `updatedAt` timestamps |
+| `.sensitive()` | Excluded with `select: { not: 'sensitive' }` | N/A | Fields to exclude in bulk queries |
+
+### Phantom Types
+
+Every `TableDef` carries phantom type properties for compile-time type inference:
+
+```typescript
+const users = d.table('users', {
+  id: d.uuid().primary(),
+  name: d.text(),
+  passwordHash: d.text().hidden(),
+  createdAt: d.timestamp().default('now').readOnly(),
+});
+
+type Response = typeof users.$response;
+// { id: string; name: string; createdAt: Date }
+// (passwordHash excluded — hidden)
+
+type CreateInput = typeof users.$create_input;
+// { name: string }
+// (id excluded — primary, createdAt excluded — readOnly, passwordHash excluded — hidden)
+
+type UpdateInput = typeof users.$update_input;
+// { name?: string }
+// (same exclusions, all fields optional)
+
+type Insert = typeof users.$insert;
+// { name: string; passwordHash: string; createdAt?: Date }
+// (id excluded — has default, createdAt optional — has default)
+```
+
+| Phantom type | Description |
+|---|---|
+| `$response` | API response shape (excludes hidden) |
+| `$create_input` | API create input (excludes readOnly + primary) |
+| `$update_input` | API update input (same exclusions, all optional) |
+| `$insert` | DB insert shape (columns with defaults are optional) |
+| `$update` | DB update shape (non-PK columns, all optional) |
+| `$infer` | Default SELECT (excludes hidden) |
+| `$infer_all` | All columns including hidden |
+| `$not_sensitive` | Excludes sensitive + hidden |
+
+### Models
+
+`d.model()` wraps a table with derived runtime schemas for validation:
+
+```typescript
+const usersModel = d.model(users);
+
+// usersModel.table      → the table definition
+// usersModel.relations   → {} (empty, no relations passed)
+// usersModel.schemas.response     → SchemaLike<$response>
+// usersModel.schemas.createInput  → SchemaLike<$create_input>
+// usersModel.schemas.updateInput  → SchemaLike<$update_input>
+```
+
+Models are used by `@vertz/server`'s `entity()` to derive validation and type-safe CRUD.
+
+## Relations
+
+### Registry
 
 ```typescript
 import { d, createRegistry } from '@vertz/db';
 
 const users = d.table('users', {
-  id: d.uuid().primaryKey(),
-  email: d.email().notNull(),
-  name: d.text().notNull(),
+  id: d.uuid().primary(),
+  name: d.text(),
 });
 
 const posts = d.table('posts', {
-  id: d.uuid().primaryKey(),
-  title: d.text().notNull(),
-  authorId: d.uuid().notNull(),
+  id: d.uuid().primary(),
+  title: d.text(),
+  authorId: d.uuid(),
 });
 
-// Define tables with relations using createRegistry
-const tables = createRegistry({ users, posts }, (ref) => ({
-  users: {
-    posts: ref.users.many('posts', 'authorId'),
-  },
+const comments = d.table('comments', {
+  id: d.uuid().primary(),
+  body: d.text(),
+  postId: d.uuid(),
+  authorId: d.uuid(),
+});
+
+const tables = createRegistry({ users, posts, comments }, (ref) => ({
   posts: {
     author: ref.posts.one('users', 'authorId'),
+    comments: ref.posts.many('comments', 'postId'),
+  },
+  comments: {
+    post: ref.comments.one('posts', 'postId'),
+    author: ref.comments.one('users', 'authorId'),
   },
 }));
 ```
 
-> **Note:** Relations are defined in the callback using `ref.<sourceTable>.one()` or `ref.<sourceTable>.many()`. The FK column refers to the target table for `many` relations, and to the source table for `one` relations.
-
-### Database Client (`createDb`)
+### Relation Types
 
 ```typescript
-import { d, createDb, createRegistry } from '@vertz/db';
+// belongsTo — FK lives on source table
+ref.posts.one('users', 'authorId');
 
-// Define tables with relations
-const tables = createRegistry({ users, posts }, (ref) => ({
-  users: {
-    posts: ref.users.many('posts', 'authorId'),
-  },
-  posts: {
-    author: ref.posts.one('users', 'authorId'),
-  },
-}));
+// hasMany — FK lives on target table
+ref.users.many('posts', 'authorId');
 
+// Many-to-many — via join table
+ref.students.many('courses').through('enrollments', 'studentId', 'courseId');
+```
+
+## Database Client
+
+### Configuration
+
+```typescript
 const db = createDb({
   url: 'postgresql://user:pass@localhost:5432/mydb',
   tables,
+  dialect: 'postgres',           // 'postgres' (default) or 'sqlite'
   pool: {
     max: 20,
     idleTimeout: 30000,
     connectionTimeout: 5000,
     replicas: ['postgresql://...'],
   },
-  casing: 'snake_case', // or 'camelCase'
+  casing: 'snake_case',          // column name transformation
   log: (msg) => console.log(msg),
 });
 ```
 
-**Returns:** `DatabaseInstance<TTables>`
-
 ### Query Methods
 
-All methods available on `db.<tableName>`:
+All methods return `Promise<Result<T, Error>>` — never throw.
 
 ```typescript
-// Find one
-const user = await db.users.findOne({ where: { id: userId } });
-const user = await db.users.findOneOrThrow({ where: { id: userId } });
-
-// Find many
-const users = await db.users.findMany({
-  where: { email: { like: '%@example.com' } },
+// Read
+const user = await db.get('users', { where: { id: userId } });
+const users = await db.list('users', {
+  where: { isActive: true },
   orderBy: { createdAt: 'desc' },
   limit: 10,
   include: { posts: true },
 });
+const { data, total } = await db.listAndCount('users', { where: { isActive: true } });
 
-// Create
-const newUser = await db.users.create({
-  data: { email: 'bob@example.com', name: 'Bob' },
+// Write
+const created = await db.create('users', {
+  data: { name: 'Alice', email: 'alice@example.com' },
 });
-
-// Update
-const updated = await db.users.update({
+const updated = await db.update('users', {
   where: { id: userId },
-  data: { name: 'Robert' },
+  data: { name: 'Bob' },
 });
-
-// Delete
-await db.users.delete({ where: { id: userId } });
+const deleted = await db.delete('users', { where: { id: userId } });
 
 // Upsert
-await db.users.upsert({
+const upserted = await db.upsert('users', {
   where: { email: 'alice@example.com' },
   create: { email: 'alice@example.com', name: 'Alice' },
   update: { name: 'Alice Updated' },
 });
 
-// Aggregation
-const count = await db.users.count({ where: { active: true } });
+// Bulk
+await db.createMany('users', { data: [{ name: 'A' }, { name: 'B' }] });
+await db.updateMany('users', { where: { isActive: false }, data: { isActive: true } });
+await db.deleteMany('users', { where: { isActive: false } });
+```
+
+### Result-Based Error Handling
+
+Query methods return `Result<T, ReadError | WriteError>` instead of throwing:
+
+```typescript
+import { match, matchErr } from '@vertz/schema';
+
+const result = await db.create('users', {
+  data: { email: 'exists@example.com', name: 'Alice' },
+});
+
+if (result.ok) {
+  console.log('Created:', result.data);
+} else {
+  console.log('Failed:', result.error);
+}
+
+// Pattern matching
+match(result, {
+  ok: (user) => console.log('Created:', user.name),
+  err: (error) => console.log('Error:', error.code),
+});
 ```
 
 ### Filter Operators
 
 ```typescript
-await db.users.findMany({
+await db.list('users', {
   where: {
     // Equality
-    active: true,
-    
+    isActive: true,
+
     // Comparison
-    age: { gt: 18, lte: 65 },
-    createdAt: { gte: startDate },
-    
+    age: { gte: 18, lte: 65 },
+
     // Pattern matching
-    name: { like: '%Smith%' },
-    email: { ilike: '%@EXAMPLE.COM%' },
-    
+    name: { contains: 'Smith' },
+    email: { startsWith: 'admin' },
+
     // Set operations
     role: { in: ['admin', 'moderator'] },
     status: { notIn: ['deleted'] },
-    
+
     // Null checks
     deletedAt: { isNull: true },
-    
+
     // Logical
-    OR: [{ role: 'admin' }, { active: true }],
-    AND: [{ verified: true }, { age: { gt: 18 } }],
+    OR: [{ role: 'admin' }, { isActive: true }],
+    AND: [{ verified: true }, { age: { gte: 18 } }],
     NOT: { status: 'banned' },
   },
 });
 ```
 
-### Migrations
+### Select & Include
 
-Use the CLI for day-to-day migration work:
+```typescript
+// Select specific fields
+await db.get('users', {
+  where: { id: userId },
+  select: { id: true, name: true, email: true },
+});
+
+// Exclude by visibility
+await db.list('users', {
+  select: { not: 'sensitive' },  // excludes sensitive + hidden fields
+});
+
+// Include relations
+await db.list('posts', {
+  include: { author: true, comments: true },
+});
+```
+
+### Aggregation
+
+```typescript
+// Count
+const count = await db.count('users', { where: { isActive: true } });
+
+// Aggregate functions
+await db.aggregate('orders', {
+  where: { status: 'completed' },
+  _count: true,
+  _sum: { price: true },
+  _avg: { amount: true },
+  _min: { discount: true },
+  _max: { total: true },
+});
+
+// Group by
+await db.groupBy('orders', {
+  by: ['customerId', 'status'],
+  _count: true,
+  _sum: { total: true },
+});
+```
+
+## Error Types
+
+```typescript
+import {
+  NotFoundError,
+  UniqueConstraintError,
+  ForeignKeyError,
+  NotNullError,
+  CheckConstraintError,
+  ConnectionError,
+  dbErrorToHttpError,
+} from '@vertz/db';
+```
+
+| Error | HTTP Status | When |
+|---|---|---|
+| `NotFoundError` | 404 | Record not found |
+| `UniqueConstraintError` | 409 | Duplicate unique value |
+| `ForeignKeyError` | 409 | Referenced record doesn't exist |
+| `NotNullError` | 422 | Required field missing |
+| `CheckConstraintError` | 422 | CHECK constraint violated |
+| `ConnectionError` | 503 | Database unreachable |
+
+```typescript
+const httpError = dbErrorToHttpError(error);
+// Converts any db error to the appropriate HTTP status
+```
+
+## Diagnostics
+
+```typescript
+import { diagnoseError, formatDiagnostic, explainError } from '@vertz/db';
+
+const diagnostic = diagnoseError(error.message);
+// {
+//   code: 'NOT_NULL_VIOLATION',
+//   explanation: 'Not null constraint violated on column "email"',
+//   table: 'users',
+//   suggestion: 'Ensure the email field is provided and not null'
+// }
+
+console.log(formatDiagnostic(diagnostic));
+console.log(explainError(error.message));
+```
+
+## Multi-Tenancy
+
+```typescript
+import { d, createRegistry, computeTenantGraph } from '@vertz/db';
+
+const organizations = d.table('organizations', {
+  id: d.uuid().primary(),
+  name: d.text(),
+});
+
+const users = d.table('users', {
+  id: d.uuid().primary(),
+  email: d.email(),
+  orgId: d.tenant(organizations),  // scopes this table to a tenant
+});
+
+const tables = createRegistry({ organizations, users }, () => ({}));
+const tenantGraph = computeTenantGraph(tables);
+
+tenantGraph.root;            // 'organizations'
+tenantGraph.directlyScoped;  // ['users']
+```
+
+Tables can be marked as shared (cross-tenant):
+
+```typescript
+const settings = d.table('settings', { /* ... */ }).shared();
+```
+
+## Dialects
+
+```typescript
+import { createDb, defaultPostgresDialect, defaultSqliteDialect } from '@vertz/db';
+
+// PostgreSQL (default)
+const pgDb = createDb({ url: 'postgresql://...', tables });
+
+// SQLite
+const sqliteDb = createDb({
+  tables,
+  dialect: 'sqlite',
+  d1: d1Database,  // Cloudflare D1 or compatible
+});
+```
+
+## Migrations
 
 ```bash
 # Generate and apply migrations (development)
@@ -246,9 +510,7 @@ vertz db migrate --status
 vertz db push
 ```
 
-#### Programmatic API
-
-For advanced usage (custom scripts, CI pipelines):
+### Programmatic API
 
 ```typescript
 import { migrateDev, migrateDeploy, migrateStatus, push } from '@vertz/db';
@@ -266,144 +528,23 @@ await migrateDeploy({
 });
 ```
 
-### Errors
-
-Vertz uses typed error classes instead of generic exceptions. Each error type maps to a specific database failure, so you can handle them precisely — and `dbErrorToHttpError` converts them to the right HTTP status code automatically.
-
-```typescript
-import {
-  NotFoundError,
-  UniqueConstraintError,
-  ForeignKeyError,
-  NotNullError,
-  CheckConstraintError,
-  ConnectionError,
-  dbErrorToHttpError,
-} from '@vertz/db';
-
-try {
-  await db.users.create({ data: { email: 'exists@example.com' } });
-} catch (error) {
-  if (error instanceof UniqueConstraintError) {
-    console.log(`Duplicate: ${error.constraint}`);
-  } else if (error instanceof NotFoundError) {
-    console.log('Record not found');
-  }
-  throw error;
-}
-
-// Map to HTTP status
-const httpError = dbErrorToHttpError(error);
-// NotFoundError → 404
-// UniqueConstraintError → 409
-// ForeignKeyError → 409
-// NotNullError → 422
-```
-
-### Diagnostic Utilities
-
-When queries fail, raw database errors are cryptic. Diagnostics turn them into actionable messages — identifying the error type, explaining what went wrong, and suggesting a fix. Great for dev-time debugging and for surfacing helpful errors in CLI tools.
-
-```typescript
-import { diagnoseError, formatDiagnostic, explainError } from '@vertz/db';
-
-try {
-  await db.users.create({ data: { email: null, name: 'Test' } });
-} catch (error) {
-  const diagnostic = diagnoseError(error.message);
-  // DiagnosticResult shape:
-  // {
-  //   code: 'NOT_NULL_VIOLATION',
-  //   explanation: 'Not null constraint violated on column "email"',
-  //   table: 'users',
-  //   suggestion: 'Ensure the email field is provided and not null'
-  // }
-
-  if (diagnostic) {
-    console.log(formatDiagnostic(diagnostic));
-    // Output:
-    // ERROR: Not null constraint violated on column "email"
-    // Table: users
-    // Suggestion: Ensure the email field is provided and not null
-  }
-
-  // Or one-liner
-  console.log(explainError(error.message));
-}
-```
-
-### Tenant Graph
-
-Multi-tenant apps need data isolation — each customer (tenant) should only see their own data. Mark a column as tenant-scoped with `d.tenant()`, then `computeTenantGraph` analyzes your schema to determine which tables belong to which tenant automatically.
-
-```typescript
-import { d, createDb, computeTenantGraph } from '@vertz/db';
-
-// 1. Define the tenant root table
-const organizations = d.table('organizations', {
-  id: d.uuid().primaryKey().defaultValue('gen_random_uuid()'),
-  name: d.text().notNull(),
-});
-
-// 2. Mark tables as tenant-scoped with d.tenant()
-const users = d.table('users', {
-  id: d.uuid().primaryKey().defaultValue('gen_random_uuid()'),
-  email: d.email().notNull(),
-  orgId: d.tenant(organizations), // ← scopes this table to a tenant
-});
-
-const posts = d.table('posts', {
-  id: d.uuid().primaryKey().defaultValue('gen_random_uuid()'),
-  title: d.text().notNull(),
-  orgId: d.tenant(organizations),
-});
-
-// 3. Compute the tenant graph
-import { createRegistry } from '@vertz/db';
-
-const tables = createRegistry({ organizations, users, posts }, () => ({}));
-
-const tenantGraph = computeTenantGraph(tables);
-
-console.log(tenantGraph.root);        // 'organizations'
-console.log(tenantGraph.scopedTables); // ['users', 'posts']
-```
-
-### Domain Codegen
-
-Generate type-safe client code from your schema definitions. `defineDomain` produces typed queries, mutations, and client SDKs — keeping your API layer in sync with your database.
-
-```typescript
-import { defineDomain, generateTypes, generateClient } from '@vertz/db';
-
-const userDomain = defineDomain('User', {
-  fields: {
-    id: { type: 'uuid', primary: true },
-    email: { type: 'email' },
-    name: { type: 'text' },
-  },
-  relations: {
-    posts: { type: 'many', target: 'Post', foreignKey: 'authorId' },
-  },
-});
-
-const types = generateTypes(userDomain);
-const client = generateClient([userDomain]);
-```
-
-### Raw SQL
+## Raw SQL
 
 ```typescript
 import { sql } from '@vertz/db/sql';
 
-const results = await db.query(
+const result = await db.query(
   sql`SELECT * FROM users WHERE email = ${email}`
 );
+
+// Composition
+const where = sql`WHERE active = ${true}`;
+const query = sql`SELECT * FROM users ${where}`;
+
+// Raw (unparameterized)
+const col = sql.raw('created_at');
 ```
 
-## Type Safety Features
+## License
 
-- **Schema → Query inference**: Types flow from schema definition to query results
-- **Insert type narrowing**: Required vs optional fields based on `notNull()` and `defaultValue()`
-- **Select type narrowing**: Only selected fields are in the result type
-- **Branded errors**: Compile-time errors for invalid columns, relations, or filters
+MIT
