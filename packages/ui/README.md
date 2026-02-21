@@ -431,32 +431,6 @@ function AutoFocus() {
 
 ---
 
-## Hydration
-
-Server-render and hydrate components on the client:
-
-```tsx
-import { hydrate, visibleStrategy } from '@vertz/ui';
-
-const registry = {
-  Counter: () => import('./Counter'),
-  TodoList: () => import('./TodoList'),
-};
-
-// Hydrate when components become visible
-hydrate(registry, visibleStrategy);
-```
-
-**Strategies:**
-- `eagerStrategy` — Hydrate immediately
-- `idleStrategy` — Hydrate when browser is idle
-- `visibleStrategy` — Hydrate when component is visible
-- `interactionStrategy` — Hydrate on first user interaction
-- `lazyStrategy` — Never auto-hydrate
-- `mediaStrategy` — Hydrate based on media query
-
----
-
 ## Testing
 
 Import from `@vertz/ui/test`:
@@ -594,18 +568,6 @@ The `@vertz/ui/jsx-runtime` subpath provides the JSX factory used by the compile
 | `createOutlet` | Create a route outlet |
 | `parseSearchParams` | Parse URL search parameters |
 | `useSearchParams` | Reactive search parameters |
-
-### Hydration
-
-| Export | Description |
-|---|---|
-| `hydrate` | Hydrate server-rendered components |
-| `eagerStrategy` | Hydrate immediately |
-| `idleStrategy` | Hydrate when browser is idle |
-| `visibleStrategy` | Hydrate when component is visible |
-| `interactionStrategy` | Hydrate on first interaction |
-| `lazyStrategy` | Never auto-hydrate |
-| `mediaStrategy` | Hydrate based on media query |
 
 ### Testing (`@vertz/ui/test`)
 
