@@ -54,6 +54,7 @@
 
 | Doc | Status | Description |
 |-----|--------|-------------|
+| [Errors-as-Values Unification](plans/errors-as-values-unification.md) | ✅ Approved | Consolidate Result type, error classes, matchError() utility across fetch/server/entities/codegen. Tickets #532-537. |
 | [Result Boundaries v3](plans/result-boundaries.md) | ✅ Approved | Where Result stops and throwing begins. |
 | [Errors as Values](plans/errors-as-values.md) | 📋 Draft | Error-as-values philosophy |
 | [Result Types Audit](plans/reviews/result-types-audit.md) | ✅ Done | Result type usage audit |
@@ -79,6 +80,7 @@
 | [UI Design](plans/ui-design.md) | 📋 Draft | UI framework design |
 | [UI Implementation](plans/ui-implementation.md) | 📋 Draft | UI implementation |
 | [UI Competitive Analysis](plans/ui-competitive-analysis.md) | 📋 Draft | Competitor comparison |
+| [Form API — SDK Schema Integration](plans/form-attrs-api-improvement.md) | 📋 Draft | Declarative forms with SDK schema integration, progressive enhancement |
 | [Canvas Phase 1](plans/canvas-phase-1.md) | ✅ Done | Canvas rendering phase 1 |
 | [Canvas Phase 2](plans/canvas-phase-2.md) | 📋 Draft | Canvas phase 2 |
 | [Browser Platform APIs](plans/browser-platform-apis.md) | 📋 Draft | Browser APIs |
