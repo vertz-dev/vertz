@@ -8,8 +8,10 @@
  * All methods use parameterized queries (no SQL interpolation).
  */
 
+import { generateId } from '../id/generators';
 import { NotFoundError } from '../errors/db-error';
 import type { ColumnRecord, TableDef } from '../schema/table';
+import type { ColumnBuilder, ColumnMetadata } from '../schema/column';
 import { buildDelete } from '../sql/delete';
 import { buildInsert } from '../sql/insert';
 import { buildSelect } from '../sql/select';
@@ -23,6 +25,39 @@ import {
   resolveSelectColumns,
 } from './helpers';
 import { mapRow, mapRows } from './row-mapper';
+
+// ---------------------------------------------------------------------------
+// ID Generation Helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Fill in auto-generated IDs for primary key columns that have a `generate` strategy.
+ * Only fills when the value is `undefined` (missing). Explicit values (including `null`) are respected.
+ */
+function fillGeneratedIds(
+  table: TableDef<ColumnRecord>,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  const filled = { ...data };
+  for (const [name, col] of Object.entries(table._columns)) {
+    const meta = (col as ColumnBuilder<unknown, ColumnMetadata>)._meta;
+    if (meta.generate && filled[name] === undefined) {
+      // Runtime guard: reject generate on non-string column types
+      if (
+        meta.sqlType === 'integer' ||
+        meta.sqlType === 'serial' ||
+        meta.sqlType === 'bigint'
+      ) {
+        throw new Error(
+          `Column "${name}" has generate: '${meta.generate}' but is type '${meta.sqlType}'. ` +
+            `ID generation is only supported on string column types (text, uuid, varchar).`,
+        );
+      }
+      filled[name] = generateId(meta.generate);
+    }
+  }
+  return filled;
+}
 
 // ---------------------------------------------------------------------------
 // Safety guard
@@ -188,8 +223,17 @@ export async function create<T>(
   const nowColumns = getTimestampColumns(table);
   const readOnlyCols = getReadOnlyColumns(table);
 
+  // Generate IDs before filtering readOnly columns
+  // Note: don't filter out columns that have a generate strategy, as those IDs need to be inserted
+  const withIds = fillGeneratedIds(table, options.data);
   const filteredData = Object.fromEntries(
-    Object.entries(options.data).filter(([key]) => !readOnlyCols.includes(key)),
+    Object.entries(withIds).filter(([key]) => {
+      // Allow columns with generate strategy to pass through (they need to be inserted)
+      const col = table._columns[key];
+      const meta = col ? (col as ColumnBuilder<unknown, ColumnMetadata>)._meta : undefined;
+      if (meta?.generate) return true;
+      return !readOnlyCols.includes(key);
+    }),
   );
 
   const result = buildInsert({
@@ -222,9 +266,16 @@ export async function createMany(
   const nowColumns = getTimestampColumns(table);
   const readOnlyCols = getReadOnlyColumns(table);
 
-  const filteredData = (options.data as Record<string, unknown>[]).map((row) =>
-    Object.fromEntries(Object.entries(row).filter(([key]) => !readOnlyCols.includes(key))),
-  );
+  const filteredData = (options.data as Record<string, unknown>[]).map((row) => {
+    const withIds = fillGeneratedIds(table, row);
+    return Object.fromEntries(Object.entries(withIds).filter(([key]) => {
+      // Allow columns with generate strategy to pass through (they need to be inserted)
+      const col = table._columns[key];
+      const meta = col ? (col as ColumnBuilder<unknown, ColumnMetadata>)._meta : undefined;
+      if (meta?.generate) return true;
+      return !readOnlyCols.includes(key);
+    }));
+  });
 
   const result = buildInsert({
     table: table._name,
@@ -257,9 +308,16 @@ export async function createManyAndReturn<T>(
   const nowColumns = getTimestampColumns(table);
   const readOnlyCols = getReadOnlyColumns(table);
 
-  const filteredData = (options.data as Record<string, unknown>[]).map((row) =>
-    Object.fromEntries(Object.entries(row).filter(([key]) => !readOnlyCols.includes(key))),
-  );
+  const filteredData = (options.data as Record<string, unknown>[]).map((row) => {
+    const withIds = fillGeneratedIds(table, row);
+    return Object.fromEntries(Object.entries(withIds).filter(([key]) => {
+      // Allow columns with generate strategy to pass through (they need to be inserted)
+      const col = table._columns[key];
+      const meta = col ? (col as ColumnBuilder<unknown, ColumnMetadata>)._meta : undefined;
+      if (meta?.generate) return true;
+      return !readOnlyCols.includes(key);
+    }));
+  });
 
   const result = buildInsert({
     table: table._name,
@@ -397,9 +455,18 @@ export async function upsert<T>(
   const autoUpdateCols = getAutoUpdateColumns(table);
   const conflictColumns = Object.keys(options.where);
 
+  // Generate IDs before filtering readOnly fields from the create path
+  // Note: don't filter out columns that have a generate strategy, as those IDs need to be inserted
+  const createWithIds = fillGeneratedIds(table, options.create);
   // Strip readOnly fields from the create path
   const filteredCreate = Object.fromEntries(
-    Object.entries(options.create).filter(([key]) => !readOnlyCols.includes(key)),
+    Object.entries(createWithIds).filter(([key]) => {
+      // Allow columns with generate strategy to pass through (they need to be inserted)
+      const col = table._columns[key];
+      const meta = col ? (col as ColumnBuilder<unknown, ColumnMetadata>)._meta : undefined;
+      if (meta?.generate) return true;
+      return !readOnlyCols.includes(key);
+    }),
   );
 
   // Strip readOnly fields from the update path, inject autoUpdate columns
