@@ -508,7 +508,7 @@ function AutoFocus() {
 Server-render and hydrate components on the client:
 
 ```tsx
-import { hydrate, visibleStrategy } from '@vertz/ui/hydrate';
+import { hydrate, visibleStrategy } from '@vertz/ui';
 
 const registry = {
   Counter: () => import('./Counter'),
@@ -677,7 +677,7 @@ The `@vertz/ui/jsx-runtime` subpath provides the JSX factory used by the compile
 | `parseSearchParams` | Parse URL search parameters |
 | `useSearchParams` | Reactive search parameters |
 
-### Hydration (`@vertz/ui/hydrate`)
+### Hydration
 
 | Export | Description |
 |---|---|
