@@ -73,13 +73,13 @@ describe('TaskForm', () => {
       '#task-description',
     );
 
-    await type(titleInput, 'New test task');
-    await type(descInput, 'A description for the test task');
+    await type(titleInput!, 'New test task');
+    await type(descInput!, 'A description for the test task');
 
     // Ensure priority select has a value (happy-dom may not honour `selected` attribute)
     const prioritySelect = findByTestId('create-task-form').querySelector(
       '#task-priority',
-    );
+    ) as HTMLSelectElement;
     prioritySelect.value = 'medium';
 
     // Submit — dispatch on the form directly because happy-dom may not
@@ -127,8 +127,8 @@ describe('TaskForm', () => {
       '#task-description',
     );
 
-    await type(titleInput, 'Test task');
-    await type(descInput, 'Description');
+    await type(titleInput!, 'Test task');
+    await type(descInput!, 'Description');
 
     const submitBtn = findByTestId('submit-task');
     await click(submitBtn);
@@ -137,7 +137,7 @@ describe('TaskForm', () => {
     // Note: This is a race condition test — depends on timing
     await waitFor(() => {
       // After submission completes, button should re-enable
-      expect(submitBtn.disabled).toBe(false);
+      expect(submitBtn.hasAttribute('disabled')).toBe(false);
     });
 
     unmount();
