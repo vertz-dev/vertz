@@ -64,6 +64,12 @@ void attrsWithCallbacks;
 const attrsNoCallbacks = userForm.attrs();
 void attrsNoCallbacks;
 
+// @ts-expect-error - onSuccess callback must match result type
+userForm.attrs({ onSuccess: (_r: { wrong: string }) => {} });
+
+// @ts-expect-error - resetOnSuccess must be boolean, not string
+userForm.attrs({ resetOnSuccess: 'yes' });
+
 // ─── FormInstance — submitting signal ─────────────────────────────
 
 const _submitting: Signal<boolean> = userForm.submitting;
