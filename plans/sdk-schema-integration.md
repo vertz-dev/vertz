@@ -161,7 +161,25 @@ Rejected. This defeats the purpose of codegen. If the SDK already carries the sc
 
 ---
 
-## 5. Type Flow Map
+## 5. POC Results
+
+### 5.1 ts-morph type navigation — Resolved (POC succeeded)
+
+**Question:** Can ts-morph reliably extract field-level info from the resolved TypeScript types of `createInput` / `updateInput`?
+
+**What was tried:** In Phase 3 (`packages/compiler/src/analyzers/entity-analyzer.ts`), the `resolveFieldsFromSchemaType()` method navigates the type chain: `SchemaLike<T>` property → get `parse` member → get call signatures → get return type `T` → call `T.getProperties()`. Each property is then mapped via `mapTsType()` which checks `isString()`, `isNumber()`, `isBoolean()`, and `getText() === 'Date'`, with union-type handling for `T | undefined` (optional fields).
+
+**What was learned:**
+- ts-morph resolves `Partial<T>` and other mapped types correctly — `getProperties()` returns the resolved fields with optionality intact.
+- Union types like `string | undefined` are handled by filtering out `undefined` from union members.
+- Array types (`string[]`) and complex object types degrade to `'unknown'` — this is acceptable for the initial implementation since generated schemas only validate primitive types.
+- The `Date` type maps to `'date'` which the schema generator emits as `s.string()` (JSON transport delivers ISO strings).
+
+**How the design changed:** No design changes needed. The ts-morph approach works as proposed. The fallback strategy (generating schemas from JSON Schema) was not needed.
+
+---
+
+## 6. Type Flow Map
 
 ```
 SdkMethod<TBody, TResult>.meta.bodySchema: FormSchema<TBody>
@@ -183,7 +201,7 @@ SdkMethod<TBody, TResult>.meta.bodySchema: FormSchema<TBody>
 
 ---
 
-## 6. E2E Acceptance Test
+## 7. E2E Acceptance Test
 
 Written as a failing test in `packages/integration-tests/` using public package imports:
 
@@ -221,7 +239,7 @@ form(plainSdkWithoutMeta);
 
 ---
 
-## 7. Implementation Plan
+## 8. Implementation Plan
 
 See GitHub issues #487–#492 for detailed implementation phases.
 

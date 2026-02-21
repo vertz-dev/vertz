@@ -36,9 +36,10 @@ export function validate<T>(schema: FormSchema<T>, data: unknown): ValidationRes
       if (Array.isArray(issues) && issues.length > 0) {
         const errors: Record<string, string> = {};
         for (const issue of issues) {
-          const key = issue.path.length > 0 ? issue.path.join('.') : '_form';
+          const key =
+            Array.isArray(issue.path) && issue.path.length > 0 ? issue.path.join('.') : '_form';
           if (!(key in errors)) {
-            errors[key] = issue.message;
+            errors[key] = issue.message ?? 'Validation failed';
           }
         }
         return { success: false, data: undefined, errors };

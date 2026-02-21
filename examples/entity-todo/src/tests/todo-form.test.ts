@@ -50,28 +50,18 @@ describe('TodoForm', () => {
     unmount();
   });
 
-  test('empty submission passes client-side validation (type-only schema)', async () => {
-    // Auto-generated schema uses s.string() which accepts empty strings.
-    // Constraint-level validation (min length) is handled server-side.
-    let created = false;
-    const { findByTestId, unmount } = renderTest(
-      TodoForm({
-        onSuccess: () => {
-          created = true;
-        },
-      }),
-    );
+  test('shows validation error on empty submission', async () => {
+    // TodoForm uses a custom schema override with s.string().min(1),
+    // so empty titles are rejected client-side.
+    const { findByTestId, unmount } = renderTest(TodoForm({ onSuccess: () => {} }));
 
     const form = findByTestId('create-todo-form') as HTMLFormElement;
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
     await waitFor(() => {
-      expect(created).toBe(true);
+      const error = findByTestId('title-error');
+      expect(error.textContent?.length).toBeGreaterThan(0);
     });
-
-    // No client-side validation error for empty string
-    const error = findByTestId('title-error');
-    expect(error.textContent).toBe('');
 
     unmount();
   });
