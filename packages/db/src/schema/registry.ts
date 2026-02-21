@@ -1,4 +1,4 @@
-import type { TableEntry } from './inference';
+import type { ModelEntry } from './inference';
 import type { RelationDef } from './relation';
 import { createManyRelation, createOneRelation } from './relation';
 import type { ColumnRecord, TableDef } from './table';
@@ -25,20 +25,20 @@ type ColumnKeys<T extends TableDef<ColumnRecord>> =
  * - `many()` validates: target name is a registry key, FK is a column of the TARGET table
  */
 interface TypedRef<
-  TTables extends Record<string, TableDef<ColumnRecord>>,
+  TModels extends Record<string, TableDef<ColumnRecord>>,
   TSourceTable extends TableDef<ColumnRecord>,
 > {
   /** belongsTo — FK lives on the source table */
-  one<TTargetName extends Extract<keyof TTables, string>, TFK extends ColumnKeys<TSourceTable>>(
+  one<TTargetName extends Extract<keyof TModels, string>, TFK extends ColumnKeys<TSourceTable>>(
     target: TTargetName,
     foreignKey: TFK,
-  ): RelationDef<TTables[TTargetName], 'one'>;
+  ): RelationDef<TModels[TTargetName], 'one'>;
 
   /** hasMany — FK lives on the target table */
   many<
-    TTargetName extends Extract<keyof TTables, string>,
-    TFK extends ColumnKeys<TTables[TTargetName]>,
-  >(target: TTargetName, foreignKey: TFK): RelationDef<TTables[TTargetName], 'many'>;
+    TTargetName extends Extract<keyof TModels, string>,
+    TFK extends ColumnKeys<TModels[TTargetName]>,
+  >(target: TTargetName, foreignKey: TFK): RelationDef<TModels[TTargetName], 'many'>;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,8 +50,8 @@ interface TypedRef<
  * to that table as the source. This enables `ref.posts.one('users', 'authorId')`
  * where TypeScript knows 'authorId' must be a column of `posts`.
  */
-type PerTableRefFactory<TTables extends Record<string, TableDef<ColumnRecord>>> = {
-  [K in Extract<keyof TTables, string>]: TypedRef<TTables, TTables[K]>;
+type PerTableRefFactory<TModels extends Record<string, TableDef<ColumnRecord>>> = {
+  [K in Extract<keyof TModels, string>]: TypedRef<TModels, TModels[K]>;
 };
 
 // ---------------------------------------------------------------------------
@@ -59,15 +59,15 @@ type PerTableRefFactory<TTables extends Record<string, TableDef<ColumnRecord>>> 
 // ---------------------------------------------------------------------------
 
 /**
- * Maps each table key to a TableEntry, merging the table with its relations
+ * Maps each table key to a ModelEntry, merging the table with its relations
  * from the callback (or empty relations if the table was omitted).
  */
 type RegistryOutput<
-  TTables extends Record<string, TableDef<ColumnRecord>>,
-  TRelMap extends { [K in keyof TTables]?: Record<string, RelationDef> },
+  TModels extends Record<string, TableDef<ColumnRecord>>,
+  TRelMap extends { [K in keyof TModels]?: Record<string, RelationDef> },
 > = {
-  [K in keyof TTables]: TableEntry<
-    TTables[K],
+  [K in keyof TModels]: ModelEntry<
+    TModels[K],
     K extends keyof TRelMap
       ? TRelMap[K] extends Record<string, RelationDef>
         ? TRelMap[K]
@@ -92,7 +92,7 @@ type RegistryOutput<
  *
  * @example
  * ```typescript
- * const tables = createRegistry(
+ * const models = createRegistry(
  *   { users, posts, comments },
  *   (ref) => ({
  *     posts: {
@@ -108,12 +108,12 @@ type RegistryOutput<
  * ```
  */
 export function createRegistry<
-  TTables extends Record<string, TableDef<ColumnRecord>>,
-  TRelMap extends { [K in keyof TTables]?: Record<string, RelationDef> },
+  TModels extends Record<string, TableDef<ColumnRecord>>,
+  TRelMap extends { [K in keyof TModels]?: Record<string, RelationDef> },
 >(
-  tables: TTables,
-  relationsCallback: (ref: PerTableRefFactory<TTables>) => TRelMap,
-): RegistryOutput<TTables, TRelMap> {
+  tables: TModels,
+  relationsCallback: (ref: PerTableRefFactory<TModels>) => TRelMap,
+): RegistryOutput<TModels, TRelMap> {
   // Lookup helper — the type system guarantees only valid keys are passed,
   // so we safely return TableDef without the `undefined` union from index access.
   const lookup = (name: string): TableDef<ColumnRecord> =>
@@ -121,7 +121,7 @@ export function createRegistry<
 
   // Build the per-table ref factory. Each key produces a TypedRef that
   // creates RelationDefs using the table lookup from the registry.
-  const ref = new Proxy({} as PerTableRefFactory<TTables>, {
+  const ref = new Proxy({} as PerTableRefFactory<TModels>, {
     get(_target, _sourceKey: string) {
       return {
         one(targetName: string, foreignKey: string) {
@@ -136,9 +136,9 @@ export function createRegistry<
 
   const relationsMap = relationsCallback(ref);
 
-  // Build the output: wrap every table in a TableEntry
+  // Build the output: wrap every table in a ModelEntry
   const relMap = relationsMap as Record<string, Record<string, RelationDef> | undefined>;
-  const result: Record<string, TableEntry> = {};
+  const result: Record<string, ModelEntry> = {};
   for (const key of Object.keys(tables)) {
     result[key] = {
       table: lookup(key),
@@ -146,5 +146,5 @@ export function createRegistry<
     };
   }
 
-  return result as RegistryOutput<TTables, TRelMap>;
+  return result as RegistryOutput<TModels, TRelMap>;
 }

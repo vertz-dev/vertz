@@ -21,7 +21,7 @@ const users = d.table('users', {
   createdAt: d.timestamp().default('now'),
 });
 
-const tables = {
+const models = {
   users: { table: users, relations: {} },
 };
 
@@ -139,7 +139,7 @@ describe('db-integration e2e', () => {
   it('creates a user, reads it back, validates against derived schema', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables,
+      models,
       casing: 'snake_case',
       _queryFn: queryFn,
     });
@@ -179,7 +179,7 @@ describe('db-integration e2e', () => {
   it('createDbProvider + tableToSchemas share the same table definition', () => {
     const provider = createDbProvider({
       url: 'postgres://localhost:5432/test',
-      tables,
+      models,
       _queryFn: queryFn,
     });
 
@@ -196,7 +196,7 @@ describe('db-integration e2e', () => {
   it('provider lifecycle: init → methods → destroy', async () => {
     const provider = createDbProvider({
       url: 'postgres://localhost:5432/test',
-      tables,
+      models,
       _queryFn: queryFn,
     });
 

@@ -10,7 +10,6 @@ import { PGlite } from '@electric-sql/pglite';
 import { describe, expect, it } from 'vitest';
 import { createDb } from '../client/database';
 import { d } from '../d';
-import { createRegistry } from '../schema/registry';
 
 // ---------------------------------------------------------------------------
 // Schema definition
@@ -23,7 +22,7 @@ const users = d.table('users', {
   createdAt: d.timestamp().default('now'),
 });
 
-const tables = createRegistry({ users }, () => ({}));
+const models = { users: d.model(users) };
 
 describe('Postgres regression: create and list users via PGlite', () => {
   it('creates and lists users with default dialect (Postgres)', async () => {
@@ -49,13 +48,18 @@ describe('Postgres regression: create and list users via PGlite', () => {
     // Create the database with PGlite query function
     const db = createDb({
       url: 'pglite://memory',
-      tables,
+      models,
       _queryFn: queryFn,
     });
 
     // Create a user
     const createResult = await db.create('users', {
-      data: { id: '123e4567-e89b-12d3-a456-426614174000', name: 'Alice', active: true, createdAt: 'now' },
+      data: {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        name: 'Alice',
+        active: true,
+        createdAt: 'now',
+      },
     });
 
     expect(createResult.ok).toBe(true);

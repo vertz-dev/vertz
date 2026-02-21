@@ -1,7 +1,7 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { d } from '../../d';
-import { createDb } from '../database';
 import type { DatabaseInstance } from '../database';
+import { createDb } from '../database';
 
 // ---------------------------------------------------------------------------
 // Test schema
@@ -42,13 +42,13 @@ describe('createDb dialect option', () => {
       // This test verifies existing behavior is unchanged
       const db = createDb({
         url: 'postgres://localhost:5432/test',
-        tables: {
+        models: {
           organizations: { table: organizations, relations: {} },
         },
       });
 
-      expect(db._tables).toBeDefined();
-      expect(db._tables.organizations).toBeDefined();
+      expect(db._models).toBeDefined();
+      expect(db._models.organizations).toBeDefined();
     });
   });
 
@@ -69,15 +69,15 @@ describe('createDb dialect option', () => {
 
     it('createDb with dialect: sqlite and d1 binding creates SQLite driver', async () => {
       const db = createDb({
-        tables: {
+        models: {
           organizations: { table: organizations, relations: {} },
         },
         dialect: 'sqlite',
         d1: mockD1,
       });
 
-      expect(db._tables).toBeDefined();
-      expect(db._tables.organizations).toBeDefined();
+      expect(db._models).toBeDefined();
+      expect(db._models.organizations).toBeDefined();
 
       // Verify it's using SQLite driver by checking query works
       const result = await db.query({ sql: 'SELECT 1', params: [] });
@@ -88,7 +88,7 @@ describe('createDb dialect option', () => {
     it('createDb with dialect: sqlite without d1 throws error', () => {
       expect(() => {
         createDb({
-          tables: {
+          models: {
             organizations: { table: organizations, relations: {} },
           },
           dialect: 'sqlite',
@@ -100,7 +100,7 @@ describe('createDb dialect option', () => {
     it('createDb with dialect: sqlite and url throws error', () => {
       expect(() => {
         createDb({
-          tables: {
+          models: {
             organizations: { table: organizations, relations: {} },
           },
           dialect: 'sqlite',
@@ -115,14 +115,14 @@ describe('createDb dialect option', () => {
     it('createDb with dialect: postgres works like default', () => {
       const db = createDb({
         url: 'postgres://localhost:5432/test',
-        tables: {
+        models: {
           organizations: { table: organizations, relations: {} },
         },
         dialect: 'postgres',
       });
 
-      expect(db._tables).toBeDefined();
-      expect(db._tables.organizations).toBeDefined();
+      expect(db._models).toBeDefined();
+      expect(db._models.organizations).toBeDefined();
     });
   });
 });

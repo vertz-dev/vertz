@@ -48,24 +48,24 @@ const auditLogs = d.table('audit_logs', {
 // ---------------------------------------------------------------------------
 
 describe('createDb', () => {
-  it('returns a Database instance with _tables', () => {
+  it('returns a Database instance with _models', () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
         users: { table: users, relations: {} },
       },
     });
 
-    expect(db._tables).toBeDefined();
-    expect(db._tables.organizations).toBeDefined();
-    expect(db._tables.users).toBeDefined();
+    expect(db._models).toBeDefined();
+    expect(db._models.organizations).toBeDefined();
+    expect(db._models.users).toBeDefined();
   });
 
   it('computes tenant graph and exposes it as $tenantGraph', () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
         users: { table: users, relations: {} },
         projects: { table: projects, relations: {} },
@@ -87,7 +87,7 @@ describe('createDb', () => {
 
     createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
         users: { table: users, relations: {} },
         auditLogs: { table: auditLogs, relations: {} },
@@ -103,7 +103,7 @@ describe('createDb', () => {
 
     createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
         users: { table: users, relations: {} },
         featureFlags: { table: featureFlags, relations: {} },
@@ -119,7 +119,7 @@ describe('db.close()', () => {
   it('exists and returns a promise', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
     });
@@ -135,7 +135,7 @@ describe('db.isHealthy()', () => {
     // Use _queryFn to avoid creating a real connection
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [], rowCount: 0 }),
@@ -152,7 +152,7 @@ describe('createDb pool config', () => {
   it('accepts optional pool configuration', () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       pool: {
@@ -168,7 +168,7 @@ describe('createDb pool config', () => {
   it('accepts optional casing configuration', () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       casing: 'snake_case',
@@ -182,7 +182,7 @@ describe('db.query()', () => {
   it('exists on the database instance', () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
     });
@@ -193,7 +193,7 @@ describe('db.query()', () => {
   it('throws when no url and no _queryFn are provided', async () => {
     const db = createDb({
       url: '',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
     });
@@ -218,7 +218,7 @@ describe('db.query()', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: failingQueryFn as import('../../query/executor').QueryFn,

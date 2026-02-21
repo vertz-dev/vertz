@@ -2,7 +2,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createDb } from '../../client/database';
 import { d } from '../../d';
-import type { TableEntry } from '../../schema/inference';
+import type { ModelEntry } from '../../schema/inference';
 
 /**
  * Aggregation query integration tests — DB-012 acceptance criteria.
@@ -21,11 +21,11 @@ describe('Aggregation queries (DB-012)', () => {
     active: d.boolean().default(true),
   });
 
-  const tables = {
+  const models = {
     products: { table: productsTable, relations: {} },
-  } satisfies Record<string, TableEntry>;
+  } satisfies Record<string, ModelEntry>;
 
-  type Db = ReturnType<typeof createDb<typeof tables>>;
+  type Db = ReturnType<typeof createDb<typeof models>>;
   let db: Db;
 
   beforeAll(async () => {
@@ -43,7 +43,7 @@ describe('Aggregation queries (DB-012)', () => {
 
     db = createDb({
       url: 'pglite://memory',
-      tables,
+      models,
       _queryFn: async <T>(sql: string, params: readonly unknown[]) => {
         const result = await pg.query<T>(sql, params as unknown[]);
         return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };

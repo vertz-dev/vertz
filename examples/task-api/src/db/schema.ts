@@ -37,20 +37,14 @@ export const tasks = d.table('tasks', {
 });
 
 // ---------------------------------------------------------------------------
-// Table registry with relations
+// Model registry with relations
 // ---------------------------------------------------------------------------
 
-export const tables = {
-  users: {
-    table: users,
-    relations: {
-      tasks: d.ref.many(() => tasks, 'assigneeId'),
-    },
-  },
-  tasks: {
-    table: tasks,
-    relations: {
-      assignee: d.ref.one(() => users, 'assigneeId'),
-    },
-  },
+export const models = {
+  users: d.model(users, {
+    tasks: d.ref.many(() => tasks, 'assigneeId'),
+  }),
+  tasks: d.model(tasks, {
+    assignee: d.ref.one(() => users, 'assigneeId'),
+  }),
 } as const;

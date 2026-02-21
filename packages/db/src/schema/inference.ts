@@ -258,11 +258,11 @@ export type InsertInput<TTable extends TableDef<ColumnRecord>> = TTable['$insert
 export type UpdateInput<TTable extends TableDef<ColumnRecord>> = TTable['$update'];
 
 // ---------------------------------------------------------------------------
-// Database — type that carries the full table registry
+// Database — type that carries the full model registry
 // ---------------------------------------------------------------------------
 
-/** A table entry in the database registry, pairing a table with its relations. */
-export interface TableEntry<
+/** A model entry in the database registry, pairing a table with its relations. */
+export interface ModelEntry<
   TTable extends TableDef<ColumnRecord> = TableDef<ColumnRecord>,
   TRelations extends RelationsRecord = RelationsRecord,
 > {
@@ -271,11 +271,11 @@ export interface TableEntry<
 }
 
 /**
- * Database<TTables> — type that carries the full table registry.
+ * Database<TModels> — type that carries the full model registry.
  *
  * Used as the foundation for typed query methods (implemented in later tickets).
  * Provides type-safe access to table definitions and their relations.
  */
-export interface Database<TTables extends Record<string, TableEntry> = Record<string, TableEntry>> {
-  readonly _tables: TTables;
+export interface Database<TModels extends Record<string, ModelEntry> = Record<string, ModelEntry>> {
+  readonly _models: TModels;
 }

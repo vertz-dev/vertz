@@ -3,7 +3,7 @@ import { unwrap } from '@vertz/schema';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createDb } from '../../client/database';
 import { d } from '../../d';
-import type { TableEntry } from '../../schema/inference';
+import type { ModelEntry } from '../../schema/inference';
 
 /**
  * Relation loading integration tests — DB-011 acceptance criteria.
@@ -35,7 +35,7 @@ describe('Relation loading (DB-011)', () => {
     authorId: d.uuid().references('users'),
   });
 
-  const tables = {
+  const models = {
     users: {
       table: usersTable,
       relations: {
@@ -56,9 +56,9 @@ describe('Relation loading (DB-011)', () => {
         author: d.ref.one(() => usersTable, 'authorId'),
       },
     },
-  } satisfies Record<string, TableEntry>;
+  } satisfies Record<string, ModelEntry>;
 
-  type Db = ReturnType<typeof createDb<typeof tables>>;
+  type Db = ReturnType<typeof createDb<typeof models>>;
   let db: Db;
 
   beforeAll(async () => {
@@ -87,7 +87,7 @@ describe('Relation loading (DB-011)', () => {
 
     db = createDb({
       url: 'pglite://memory',
-      tables,
+      models,
       _queryFn: async <T>(sql: string, params: readonly unknown[]) => {
         const result = await pg.query<T>(sql, params as unknown[]);
         return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
@@ -436,7 +436,7 @@ describe('Many-to-many relation loading (B2)', () => {
     authorId: d.uuid().references('users'),
   });
 
-  const tables = {
+  const models = {
     users: {
       table: usersTable,
       relations: {},
@@ -458,9 +458,9 @@ describe('Many-to-many relation loading (B2)', () => {
         tags: d.ref.many(() => tagsTable).through(() => postTagsTable, 'postId', 'tagId'),
       },
     },
-  } satisfies Record<string, TableEntry>;
+  } satisfies Record<string, ModelEntry>;
 
-  type Db = ReturnType<typeof createDb<typeof tables>>;
+  type Db = ReturnType<typeof createDb<typeof models>>;
   let db: Db;
 
   beforeAll(async () => {
@@ -491,7 +491,7 @@ describe('Many-to-many relation loading (B2)', () => {
 
     db = createDb({
       url: 'pglite://memory',
-      tables,
+      models,
       _queryFn: async <T>(sql: string, params: readonly unknown[]) => {
         const result = await pg.query<T>(sql, params as unknown[]);
         return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
@@ -657,7 +657,7 @@ describe('Relation loading with non-standard PK', () => {
     countryCode: d.text().references('countries'),
   });
 
-  const tables = {
+  const models = {
     countries: {
       table: countriesTable,
       relations: {
@@ -670,9 +670,9 @@ describe('Relation loading with non-standard PK', () => {
         country: d.ref.one(() => countriesTable, 'countryCode'),
       },
     },
-  } satisfies Record<string, TableEntry>;
+  } satisfies Record<string, ModelEntry>;
 
-  type Db = ReturnType<typeof createDb<typeof tables>>;
+  type Db = ReturnType<typeof createDb<typeof models>>;
   let db: Db;
 
   beforeAll(async () => {
@@ -692,7 +692,7 @@ describe('Relation loading with non-standard PK', () => {
 
     db = createDb({
       url: 'pglite://memory',
-      tables,
+      models,
       _queryFn: async <T>(sql: string, params: readonly unknown[]) => {
         const result = await pg.query<T>(sql, params as unknown[]);
         return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };
