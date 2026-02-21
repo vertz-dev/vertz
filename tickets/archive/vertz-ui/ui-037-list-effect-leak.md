@@ -1,4 +1,4 @@
-# ui-019: Fix __list effect leak on child removal
+# ui-037: Fix __list effect leak on child removal
 
 - **Status:** 🟢 Done
 - **Assigned:** nora

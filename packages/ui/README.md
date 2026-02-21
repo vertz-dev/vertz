@@ -270,37 +270,37 @@ ThemeProvider({ theme: 'dark', children: [<App />] });
 
 ## Forms
 
-Bind forms to SDK methods:
+Bind forms to server actions with type-safe validation:
 
 ```tsx
 import { form } from '@vertz/ui';
 
-// Assuming you have an SDK method
-declare const createUser: (body: { name: string; email: string }) => Promise<{ id: string }>;
-
-const userForm = form(createUser, {
-  schema: {
-    name: { required: true },
-    email: { required: true, type: 'email' },
+const createUser = Object.assign(
+  async (body: { name: string; email: string }) => {
+    const res = await fetch('/api/users', { method: 'POST', body: JSON.stringify(body) });
+    return res.json() as Promise<{ id: string }>;
   },
-});
+  { url: '/api/users', method: 'POST' }
+);
+
+const userSchema = { /* validation schema */ };
 
 function CreateUser() {
+  const f = form(createUser, {
+    schema: userSchema,
+    onSuccess: (result) => console.log('User created:', result.id),
+  });
+
   return (
-    <form
-      {...userForm.attrs()}
-      onSubmit={userForm.handleSubmit({
-        onSuccess: (result) => console.log('User created:', result.id),
-      })}
-    >
+    <form action={f.action} method={f.method} onSubmit={f.onSubmit}>
       <input name="name" placeholder="Name" />
-      {userForm.error('name') && <span className="error">{userForm.error('name')}</span>}
+      {f.name.error && <span class="error">{f.name.error}</span>}
 
       <input name="email" type="email" placeholder="Email" />
-      {userForm.error('email') && <span className="error">{userForm.error('email')}</span>}
+      {f.email.error && <span class="error">{f.email.error}</span>}
 
-      <button type="submit" disabled={userForm.submitting.value}>
-        {userForm.submitting.value ? 'Creating...' : 'Create User'}
+      <button type="submit" disabled={f.submitting}>
+        {f.submitting.value ? 'Creating...' : 'Create User'}
       </button>
     </form>
   );
