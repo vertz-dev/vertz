@@ -10,8 +10,8 @@
  * - COUNT(*) OVER() for listAndCount
  */
 
-import { type CasingOverrides, camelToSnake } from './casing';
 import { type Dialect, defaultPostgresDialect } from '../dialect';
+import { type CasingOverrides, camelToSnake } from './casing';
 import { buildWhere, type WhereResult } from './where';
 
 export interface SelectOptions {
@@ -28,6 +28,8 @@ export interface SelectOptions {
   readonly take?: number;
   /** Custom casing overrides for camelCase -> snake_case conversion. */
   readonly casingOverrides?: CasingOverrides;
+  /** SQL dialect to use. Defaults to postgres. */
+  readonly dialect?: Dialect;
 }
 
 export interface SelectResult {

@@ -423,4 +423,95 @@ describe('PostgreSQL Driver', () => {
       warnSpy.mockRestore();
     });
   });
+
+  // =========================================================================
+  // query() and execute() methods - DbDriver interface implementation
+  // =========================================================================
+
+  describe('query() method', () => {
+    it('executes SQL and returns rows', async () => {
+      const { createPostgresDriver } = await import('../postgres-driver');
+
+      // postgres.js unsafe() returns an array with count property attached
+      const mockRows = [{ id: 1, name: 'test' }];
+      const mockResult = Object.assign([...mockRows], { count: 1 });
+      mockUnsafe.mockResolvedValue(mockResult);
+
+      const driver = createPostgresDriver('postgres://localhost:5432/test');
+
+      const result = await driver.query<{ id: number; name: string }>('SELECT * FROM users');
+
+      // Result should be just the array of rows (without count)
+      expect(result).toEqual(mockRows);
+      expect(mockUnsafe).toHaveBeenCalledWith('SELECT * FROM users', []);
+    });
+
+    it('passes params to queryFn', async () => {
+      const { createPostgresDriver } = await import('../postgres-driver');
+
+      const mockRows: unknown[] = [];
+      const mockResult = Object.assign(mockRows, { count: 0 });
+      mockUnsafe.mockResolvedValue(mockResult);
+
+      const driver = createPostgresDriver('postgres://localhost:5432/test');
+
+      await driver.query('SELECT * FROM users WHERE id = $1', [1]);
+
+      expect(mockUnsafe).toHaveBeenCalledWith('SELECT * FROM users WHERE id = $1', [1]);
+    });
+
+    it('coerces timestamp strings to Date objects', async () => {
+      const { createPostgresDriver } = await import('../postgres-driver');
+
+      const mockRows = [{ id: 1, created: '2024-01-15T10:30:00.000Z' }];
+      const mockResult = Object.assign(mockRows, { count: 1 });
+      mockUnsafe.mockResolvedValue(mockResult);
+
+      const driver = createPostgresDriver('postgres://localhost:5432/test');
+
+      const result = await driver.query<{ id: number; created: Date }>('SELECT * FROM users');
+
+      expect(result[0]!.created).toBeInstanceOf(Date);
+      expect(result[0]!.created.toISOString()).toBe('2024-01-15T10:30:00.000Z');
+    });
+  });
+
+  describe('execute() method', () => {
+    it('executes SQL and returns rowsAffected', async () => {
+      const { createPostgresDriver } = await import('../postgres-driver');
+
+      const mockRows: unknown[] = [];
+      const mockResult = Object.assign(mockRows, { count: 5 });
+      mockUnsafe.mockResolvedValue(mockResult);
+
+      const driver = createPostgresDriver('postgres://localhost:5432/test');
+
+      const result = await driver.execute('DELETE FROM users WHERE id = $1', [1]);
+
+      expect(result).toEqual({ rowsAffected: 5 });
+      expect(mockUnsafe).toHaveBeenCalledWith('DELETE FROM users WHERE id = $1', [1]);
+    });
+  });
+
+  describe('error handling', () => {
+    it('handles postgres errors and adapts them', async () => {
+      const { createPostgresDriver } = await import('../postgres-driver');
+
+      // Mock a postgres error
+      const pgError = new Error('duplicate key value violates unique constraint');
+      Object.assign(pgError, {
+        code: '23505',
+        message: 'duplicate key value violates unique constraint',
+        table_name: 'users',
+        column_name: 'id',
+        constraint_name: 'users_pkey',
+      });
+
+      mockUnsafe.mockRejectedValue(pgError);
+
+      const driver = createPostgresDriver('postgres://localhost:5432/test');
+
+      await expect(driver.query('INSERT INTO users (id) VALUES ($1)', [1])).rejects.toThrow();
+    });
+  });
 });

@@ -15,6 +15,7 @@
 import postgresLib from 'postgres';
 import type { ExecutorResult, QueryFn } from '../query/executor';
 import type { PoolConfig } from './database';
+import type { DbDriver } from './driver';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,11 +76,9 @@ function adaptPostgresError(error: unknown): never {
 // Driver interface
 // ---------------------------------------------------------------------------
 
-export interface PostgresDriver {
+export interface PostgresDriver extends DbDriver {
   /** The QueryFn adapter for use with createDb. */
   readonly queryFn: QueryFn;
-  /** Close all connections in the pool. */
-  close(): Promise<void>;
   /** Check connection health with SELECT 1. */
   isHealthy(): Promise<boolean>;
 }
@@ -133,6 +132,14 @@ export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDr
 
   return {
     queryFn,
+    query: async <T>(sql: string, params?: unknown[]) => {
+      const result = await queryFn<T>(sql, params ?? []);
+      return result.rows as T[];
+    },
+    execute: async (sql: string, params?: unknown[]) => {
+      const result = await queryFn<Record<string, unknown>>(sql, params ?? []);
+      return { rowsAffected: result.rowCount };
+    },
 
     async close(): Promise<void> {
       await sql.end();

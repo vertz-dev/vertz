@@ -7,14 +7,16 @@
  * - camelCase -> snake_case column conversion
  */
 
-import { camelToSnake } from './casing';
 import { type Dialect, defaultPostgresDialect } from '../dialect';
+import { camelToSnake } from './casing';
 import { buildWhere } from './where';
 
 export interface DeleteOptions {
   readonly table: string;
   readonly where?: Record<string, unknown>;
   readonly returning?: '*' | readonly string[];
+  /** SQL dialect to use. Defaults to postgres. */
+  readonly dialect?: Dialect;
 }
 
 export interface DeleteResult {

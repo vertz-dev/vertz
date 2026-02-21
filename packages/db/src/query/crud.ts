@@ -8,10 +8,12 @@
  * All methods use parameterized queries (no SQL interpolation).
  */
 
-import { generateId } from '../id/generators';
+import type { Dialect } from '../dialect';
+import { defaultPostgresDialect } from '../dialect';
 import { NotFoundError } from '../errors/db-error';
-import type { ColumnRecord, TableDef } from '../schema/table';
+import { generateId } from '../id/generators';
 import type { ColumnBuilder, ColumnMetadata } from '../schema/column';
+import type { ColumnRecord, TableDef } from '../schema/table';
 import { buildDelete } from '../sql/delete';
 import { buildInsert } from '../sql/insert';
 import { buildSelect } from '../sql/select';
@@ -43,11 +45,7 @@ function fillGeneratedIds(
     const meta = (col as ColumnBuilder<unknown, ColumnMetadata>)._meta;
     if (meta.generate && filled[name] === undefined) {
       // Runtime guard: reject generate on non-string column types
-      if (
-        meta.sqlType === 'integer' ||
-        meta.sqlType === 'serial' ||
-        meta.sqlType === 'bigint'
-      ) {
+      if (meta.sqlType === 'integer' || meta.sqlType === 'serial' || meta.sqlType === 'bigint') {
         throw new Error(
           `Column "${name}" has generate: '${meta.generate}' but is type '${meta.sqlType}'. ` +
             `ID generation is only supported on string column types (text, uuid, varchar).`,
@@ -93,6 +91,7 @@ export async function get<T>(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options?: GetArgs,
+  dialect: Dialect = defaultPostgresDialect,
 ): Promise<T | null> {
   const columns = resolveSelectColumns(table, options?.select);
   const result = buildSelect({
@@ -101,6 +100,7 @@ export async function get<T>(
     where: options?.where,
     orderBy: options?.orderBy,
     limit: 1,
+    dialect,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -117,8 +117,9 @@ export async function getOrThrow<T>(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options?: GetArgs,
+  dialect: Dialect = defaultPostgresDialect,
 ): Promise<T> {
-  const row = await get<T>(queryFn, table, options);
+  const row = await get<T>(queryFn, table, options, dialect);
   if (row === null) {
     throw new NotFoundError(table._name);
   }
@@ -144,6 +145,7 @@ export async function list<T>(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options?: ListArgs,
+  dialect: Dialect = defaultPostgresDialect,
 ): Promise<T[]> {
   const columns = resolveSelectColumns(table, options?.select);
   const result = buildSelect({
@@ -155,6 +157,7 @@ export async function list<T>(
     offset: options?.offset,
     cursor: options?.cursor,
     take: options?.take,
+    dialect,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -168,6 +171,7 @@ export async function listAndCount<T>(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options?: ListArgs,
+  dialect: Dialect = defaultPostgresDialect,
 ): Promise<{ data: T[]; total: number }> {
   const columns = resolveSelectColumns(table, options?.select);
   const result = buildSelect({
@@ -180,6 +184,7 @@ export async function listAndCount<T>(
     cursor: options?.cursor,
     take: options?.take,
     withCount: true,
+    dialect,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -218,6 +223,7 @@ export async function create<T>(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options: CreateArgs,
+  dialect: Dialect = defaultPostgresDialect,
 ): Promise<T> {
   const returningColumns = resolveSelectColumns(table, options.select);
   const nowColumns = getTimestampColumns(table);
@@ -241,6 +247,7 @@ export async function create<T>(
     data: filteredData,
     returning: returningColumns,
     nowColumns,
+    dialect,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -258,6 +265,7 @@ export async function createMany(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options: CreateManyArgs,
+  dialect: Dialect = defaultPostgresDialect,
 ): Promise<{ count: number }> {
   if (options.data.length === 0) {
     return { count: 0 };
@@ -268,19 +276,22 @@ export async function createMany(
 
   const filteredData = (options.data as Record<string, unknown>[]).map((row) => {
     const withIds = fillGeneratedIds(table, row);
-    return Object.fromEntries(Object.entries(withIds).filter(([key]) => {
-      // Allow columns with generate strategy to pass through (they need to be inserted)
-      const col = table._columns[key];
-      const meta = col ? (col as ColumnBuilder<unknown, ColumnMetadata>)._meta : undefined;
-      if (meta?.generate) return true;
-      return !readOnlyCols.includes(key);
-    }));
+    return Object.fromEntries(
+      Object.entries(withIds).filter(([key]) => {
+        // Allow columns with generate strategy to pass through (they need to be inserted)
+        const col = table._columns[key];
+        const meta = col ? (col as ColumnBuilder<unknown, ColumnMetadata>)._meta : undefined;
+        if (meta?.generate) return true;
+        return !readOnlyCols.includes(key);
+      }),
+    );
   });
 
   const result = buildInsert({
     table: table._name,
     data: filteredData,
     nowColumns,
+    dialect,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -299,6 +310,7 @@ export async function createManyAndReturn<T>(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options: CreateManyAndReturnArgs,
+  dialect: Dialect = defaultPostgresDialect,
 ): Promise<T[]> {
   if (options.data.length === 0) {
     return [];
@@ -310,13 +322,15 @@ export async function createManyAndReturn<T>(
 
   const filteredData = (options.data as Record<string, unknown>[]).map((row) => {
     const withIds = fillGeneratedIds(table, row);
-    return Object.fromEntries(Object.entries(withIds).filter(([key]) => {
-      // Allow columns with generate strategy to pass through (they need to be inserted)
-      const col = table._columns[key];
-      const meta = col ? (col as ColumnBuilder<unknown, ColumnMetadata>)._meta : undefined;
-      if (meta?.generate) return true;
-      return !readOnlyCols.includes(key);
-    }));
+    return Object.fromEntries(
+      Object.entries(withIds).filter(([key]) => {
+        // Allow columns with generate strategy to pass through (they need to be inserted)
+        const col = table._columns[key];
+        const meta = col ? (col as ColumnBuilder<unknown, ColumnMetadata>)._meta : undefined;
+        if (meta?.generate) return true;
+        return !readOnlyCols.includes(key);
+      }),
+    );
   });
 
   const result = buildInsert({
@@ -324,6 +338,7 @@ export async function createManyAndReturn<T>(
     data: filteredData,
     returning: returningColumns,
     nowColumns,
+    dialect,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -348,6 +363,7 @@ export async function update<T>(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options: UpdateArgs,
+  dialect: Dialect = defaultPostgresDialect,
 ): Promise<T> {
   const returningColumns = resolveSelectColumns(table, options.select);
   const nowColumns = getTimestampColumns(table);
@@ -374,6 +390,7 @@ export async function update<T>(
     where: options.where,
     returning: returningColumns,
     nowColumns: allNowColumns,
+    dialect,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -397,6 +414,7 @@ export async function updateMany(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options: UpdateManyArgs,
+  dialect: Dialect = defaultPostgresDialect,
 ): Promise<{ count: number }> {
   assertNonEmptyWhere(options.where, 'updateMany');
 
@@ -420,6 +438,7 @@ export async function updateMany(
     data: filteredData,
     where: options.where,
     nowColumns: allNowColumns,
+    dialect,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -448,6 +467,7 @@ export async function upsert<T>(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options: UpsertArgs,
+  dialect: Dialect = defaultPostgresDialect,
 ): Promise<T> {
   const returningColumns = resolveSelectColumns(table, options.select);
   const nowColumns = getTimestampColumns(table);
@@ -491,6 +511,7 @@ export async function upsert<T>(
       updateColumns,
       updateValues: filteredUpdate,
     },
+    dialect,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -514,6 +535,7 @@ export async function deleteOne<T>(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options: DeleteArgs,
+  dialect: Dialect = defaultPostgresDialect,
 ): Promise<T> {
   const returningColumns = resolveSelectColumns(table, options.select);
 
@@ -521,6 +543,7 @@ export async function deleteOne<T>(
     table: table._name,
     where: options.where,
     returning: returningColumns,
+    dialect,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
@@ -543,12 +566,14 @@ export async function deleteMany(
   queryFn: QueryFn,
   table: TableDef<ColumnRecord>,
   options: DeleteManyArgs,
+  dialect: Dialect = defaultPostgresDialect,
 ): Promise<{ count: number }> {
   assertNonEmptyWhere(options.where, 'deleteMany');
 
   const result = buildDelete({
     table: table._name,
     where: options.where,
+    dialect,
   });
 
   const res = await executeQuery<Record<string, unknown>>(queryFn, result.sql, result.params);
