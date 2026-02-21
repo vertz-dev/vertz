@@ -30,9 +30,10 @@ export function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Escape special HTML characters in attribute values. */
+/** Escape special HTML characters in attribute values. Coerces non-string values to strings as a safety net. */
 export function escapeAttr(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  const str = typeof value === 'string' ? value : String(value);
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
 /** Serialize attributes to an HTML string fragment. */
