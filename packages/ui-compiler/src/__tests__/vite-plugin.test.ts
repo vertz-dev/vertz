@@ -443,7 +443,7 @@ function Card() {
       expect(resolved).toBeUndefined();
     });
 
-    it('loads extracted CSS for virtual modules', () => {
+    it('returns empty JS module for virtual CSS in production (generateBundle emits CSS)', () => {
       const plugin = vertzPlugin();
       setMode(plugin, 'production');
 
@@ -459,7 +459,27 @@ function Card() {
 
       callTransform(plugin, code, '/src/Card.tsx');
 
-      // Now load the virtual CSS module
+      // In production, load() returns empty string (Rollup-safe JS).
+      // Actual CSS is emitted by generateBundle().
+      const css = callLoad(plugin, '\0vertz-css:/src/Card.tsx');
+      expect(css).toBe('');
+    });
+
+    it('loads extracted CSS for virtual modules in dev mode', () => {
+      const plugin = vertzPlugin();
+      // Dev mode is the default (no setMode call)
+
+      const code = `
+function Card() {
+  const styles = css({
+    card: ['p:4', 'rounded:md'],
+  });
+  return <div class={styles.card}>Hello</div>;
+}
+      `.trim();
+
+      callTransform(plugin, code, '/src/Card.tsx');
+
       const css = callLoad(plugin, '\0vertz-css:/src/Card.tsx');
       expect(css).toBeDefined();
       expect(css).toContain('padding');
