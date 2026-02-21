@@ -56,6 +56,10 @@ export interface VariableInfo {
    * the Set on deserialization.
    */
   signalProperties?: Set<string>;
+  /** Plain (non-signal) properties on this variable. */
+  plainProperties?: Set<string>;
+  /** Per-field signal properties (e.g., form().title.error). */
+  fieldSignalProperties?: Set<string>;
 }
 
 /** Information about a detected component function. */

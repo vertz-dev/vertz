@@ -1,59 +1,28 @@
 /**
- * Type-level tests for FormInstance and form().
+ * Type-level tests for the redesigned FormInstance and form() API.
  *
- * These tests verify that schema types thread correctly through
- * the form API — from SdkMethod to FormInstance to error(field).
+ * These tests verify that types thread correctly through
+ * the form API — from SdkMethod to FormInstance to per-field FieldState.
  * Checked by `tsc --noEmit` (typecheck), not by vitest at runtime.
  */
 
-import type { Signal } from '../../runtime/signal-types';
-import type {
-  FormInstance,
-  FormOptions,
-  SdkMethod,
-  SdkMethodWithMeta,
-  SubmitCallbacks,
-} from '../form';
+import type { ReadonlySignal, Signal } from '../../runtime/signal-types';
+import type { FormInstance, FormOptions, SdkMethod, SdkMethodWithMeta } from '../form';
 import { form } from '../form';
 import type { FormSchema } from '../validation';
 
-// ─── SdkMethod<TBody, TResult> — callable with metadata ──────────
-
-declare const createUser: SdkMethod<{ name: string; email: string }, { id: number }>;
-
-// SdkMethod is callable
-const _callResult: Promise<{ id: number }> = createUser({ name: 'Alice', email: 'a@b.com' });
-void _callResult;
-
-// SdkMethod exposes url and method
-const _url: string = createUser.url;
-const _method: string = createUser.method;
-void _url;
-void _method;
-
-// @ts-expect-error - missing required property 'email'
-createUser({ name: 'Alice' });
-
-// @ts-expect-error - wrong type for 'name' property
-createUser({ name: 123, email: 'a@b.com' });
-
-// ─── FormInstance — attrs() returns action, method, and onSubmit ──
+// ─── Test body/result types ────────────────────────────────────────
 
 type UserBody = { name: string; email: string };
 type UserResult = { id: number };
 
 declare const userForm: FormInstance<UserBody, UserResult>;
 
-const attrs = userForm.attrs();
-const _action: string = attrs.action;
-const _attrMethod: string = attrs.method;
-const _onSubmit: (e: Event) => Promise<void> = attrs.onSubmit;
-void _action;
-void _attrMethod;
-void _onSubmit;
+// ─── 1. FormOptions accepts all five option fields ─────────────────
 
-// attrs() accepts optional callbacks
-const attrsWithCallbacks = userForm.attrs({
+const _opts: FormOptions<UserBody, UserResult> = {
+  schema: { parse: (data: unknown) => data as UserBody },
+  initial: { name: 'Alice' },
   onSuccess: (result) => {
     const _id: number = result.id;
     void _id;
@@ -63,20 +32,22 @@ const attrsWithCallbacks = userForm.attrs({
     void _err;
   },
   resetOnSuccess: true,
-});
-void attrsWithCallbacks;
+};
+void _opts;
 
-// attrs() works without callbacks
-const attrsNoCallbacks = userForm.attrs();
-void attrsNoCallbacks;
+// ─── 2. FormInstance.action is string, .method is string ───────────
 
-// @ts-expect-error - onSuccess callback must match result type
-userForm.attrs({ onSuccess: (_r: { wrong: string }) => {} });
+const _action: string = userForm.action;
+const _method: string = userForm.method;
+void _action;
+void _method;
 
-// @ts-expect-error - resetOnSuccess must be boolean, not string
-userForm.attrs({ resetOnSuccess: 'yes' });
+// ─── 3. FormInstance.onSubmit is (e: Event) => Promise<void> ───────
 
-// ─── FormInstance — submitting signal ─────────────────────────────
+const _onSubmit: (e: Event) => Promise<void> = userForm.onSubmit;
+void _onSubmit;
+
+// ─── 4. FormInstance.submitting is Signal<boolean> ─────────────────
 
 const _submitting: Signal<boolean> = userForm.submitting;
 void _submitting;
@@ -84,140 +55,69 @@ void _submitting;
 const _submittingValue: boolean = userForm.submitting.value;
 void _submittingValue;
 
-// ─── FormInstance — error() is type-safe on field names ───────────
+// ─── 5. FormInstance.dirty is ReadonlySignal<boolean>, .valid is ReadonlySignal<boolean>
 
-// Valid field names from TBody
-const _nameError: string | undefined = userForm.error('name');
-const _emailError: string | undefined = userForm.error('email');
-void _nameError;
-void _emailError;
+const _dirty: ReadonlySignal<boolean> = userForm.dirty;
+const _valid: ReadonlySignal<boolean> = userForm.valid;
+void _dirty;
+void _valid;
+
+// ─── 6. .reset() is () => void ────────────────────────────────────
+
+const _reset: () => void = userForm.reset;
+void _reset;
+
+// ─── 7. .setFieldError(field, msg) only accepts keyof TBody ───────
+
+userForm.setFieldError('name', 'Required');
+userForm.setFieldError('email', 'Invalid');
 
 // @ts-expect-error - 'age' is not a key of UserBody
-userForm.error('age');
+userForm.setFieldError('age', 'Unknown field');
 
-// @ts-expect-error - 'id' is not a key of UserBody (it's on UserResult, not UserBody)
-userForm.error('id');
+// ─── 8. .submit(formData?) is (formData?: FormData) => Promise<void>
 
-// ─── FormInstance — handleSubmit() callbacks ──────────────────────
+const _submit: (formData?: FormData) => Promise<void> = userForm.submit;
+void _submit;
 
-// handleSubmit returns an event handler
-const handler = userForm.handleSubmit();
-const _handlerType: (formDataOrEvent: FormData | Event) => Promise<void> = handler;
-void _handlerType;
+// ─── 9. form.<field>.error is Signal<string | undefined> ──────────
 
-// onSuccess callback receives the result type
-userForm.handleSubmit({
-  onSuccess: (result) => {
-    const _id: number = result.id;
-    void _id;
+const _emailError: Signal<string | undefined> = userForm.email.error;
+void _emailError;
 
-    // @ts-expect-error - 'name' does not exist on result type { id: number }
-    const _bad: string = result.name;
-    void _bad;
-  },
-});
+const _nameError: Signal<string | undefined> = userForm.name.error;
+void _nameError;
 
-// onError callback receives Record<string, string>
-userForm.handleSubmit({
-  onError: (errors) => {
-    const _err: Record<string, string> = errors;
-    void _err;
-  },
-});
+// ─── 10. form.<field>.dirty, .touched, .value ──────────────────────
 
-// Both callbacks are optional
-userForm.handleSubmit({});
-userForm.handleSubmit();
+const _emailDirty: Signal<boolean> = userForm.email.dirty;
+const _emailTouched: Signal<boolean> = userForm.email.touched;
+const _emailValue: Signal<string> = userForm.email.value;
+void _emailDirty;
+void _emailTouched;
+void _emailValue;
 
-// ─── SubmitCallbacks<TResult> — type constraint ──────────────────
+const _nameValue: Signal<string> = userForm.name.value;
+void _nameValue;
 
-// onSuccess result type must match
-const _validCallbacks: SubmitCallbacks<{ id: number }> = {
-  onSuccess: (result) => {
-    const _id: number = result.id;
-    void _id;
-  },
-};
-void _validCallbacks;
+// ─── 11. Reserved name conflict → type error ──────────────────────
 
-// ─── form() — schema type threading ──────────────────────────────
+// When a field name conflicts with a reserved property, the type resolves
+// to an error object with __error instead of FormBaseProperties.
+// Accessing .action (a base property) should fail on the error branch.
+type ConflictForm = FormInstance<{ submit: string }, void>;
 
-// Create a mock SDK method
-const mockSdk: SdkMethod<UserBody, UserResult> = Object.assign(
-  async (_body: UserBody): Promise<UserResult> => ({ id: 1 }),
-  { url: '/api/users', method: 'POST' },
-);
+// @ts-expect-error - 'submit' conflicts: type has __error, not action
+const _conflictAction: string = ({} as ConflictForm).action;
+void _conflictAction;
 
-// Create a mock schema
-const mockSchema: FormSchema<UserBody> = {
-  parse(data: unknown): UserBody {
-    return data as UserBody;
-  },
-};
+type ConflictForm2 = FormInstance<{ action: string }, void>;
 
-// form() produces a FormInstance with correct type params
-const createdForm = form(mockSdk, { schema: mockSchema });
-const _formAttrs = createdForm.attrs();
-const _formAction: string = _formAttrs.action;
-void _formAction;
+// @ts-expect-error - 'action' conflicts: type has __error, not reset
+const _conflictReset: () => void = ({} as ConflictForm2).reset;
+void _conflictReset;
 
-// error() on created form is type-safe
-const _createdError: string | undefined = createdForm.error('name');
-void _createdError;
-
-// @ts-expect-error - 'invalid' is not a field of UserBody
-createdForm.error('invalid');
-
-// ─── FormOptions<TBody> — schema type must match ─────────────────
-
-// Schema must match the TBody type
-const _validOptions: FormOptions<UserBody> = {
-  schema: mockSchema,
-};
-void _validOptions;
-
-// Schema with incompatible return type should error
-const wrongSchema: FormSchema<{ x: number }> = {
-  parse: (_data: unknown): { x: number } => ({ x: 1 }),
-};
-// @ts-expect-error - FormSchema<{ x: number }> is not assignable to FormSchema<UserBody>
-const _badOptions: FormOptions<UserBody> = { schema: wrongSchema };
-void _badOptions;
-
-// ─── FormInstance — complex body type ─────────────────────────────
-
-interface OrderBody {
-  productId: string;
-  quantity: number;
-  notes: string;
-}
-
-interface OrderResult {
-  orderId: string;
-  total: number;
-}
-
-declare const orderForm: FormInstance<OrderBody, OrderResult>;
-
-// All fields are valid
-const _productErr: string | undefined = orderForm.error('productId');
-const _quantityErr: string | undefined = orderForm.error('quantity');
-const _notesErr: string | undefined = orderForm.error('notes');
-void _productErr;
-void _quantityErr;
-void _notesErr;
-
-// handleSubmit onSuccess gets the correct result type
-orderForm.handleSubmit({
-  onSuccess: (result) => {
-    const _orderId: string = result.orderId;
-    const _total: number = result.total;
-    void _orderId;
-    void _total;
-  },
-});
-
-// ─── SdkMethodWithMeta — SDK method with .meta.bodySchema ───────
+// ─── 13. SdkMethodWithMeta makes schema optional ──────────────────
 
 const metaSchema: FormSchema<UserBody> = {
   parse(data: unknown): UserBody {
@@ -230,32 +130,56 @@ const sdkWithMeta: SdkMethodWithMeta<UserBody, UserResult> = Object.assign(
   { url: '/api/users', method: 'POST', meta: { bodySchema: metaSchema } },
 );
 
-// SdkMethodWithMeta is a subtype of SdkMethod
-const _sdkAsBase: SdkMethod<UserBody, UserResult> = sdkWithMeta;
-void _sdkAsBase;
-
 // form() with SdkMethodWithMeta — options are OPTIONAL
 const metaForm1 = form(sdkWithMeta);
 void metaForm1;
 
 // form() with SdkMethodWithMeta — explicit schema override is allowed
-const metaForm2 = form(sdkWithMeta, { schema: mockSchema });
+const metaForm2 = form(sdkWithMeta, { schema: metaSchema });
 void metaForm2;
 
-// form() with SdkMethodWithMeta — infers TBody correctly
-const _metaFieldErr: string | undefined = metaForm1.error('name');
-void _metaFieldErr;
+// form() with plain SdkMethod (no meta) — schema REQUIRED
+const mockSdk: SdkMethod<UserBody, UserResult> = Object.assign(
+  async (_body: UserBody): Promise<UserResult> => ({ id: 1 }),
+  { url: '/api/users', method: 'POST' },
+);
 
-// @ts-expect-error - 'invalid' is not a field of UserBody
-metaForm1.error('invalid');
-
-// form() with plain SdkMethod (no meta) — options with schema REQUIRED
 // @ts-expect-error - SDK without .meta requires explicit schema
 form(mockSdk);
 
 // form() with plain SdkMethod + schema — works
-const plainWithSchema = form(mockSdk, { schema: mockSchema });
+const plainWithSchema = form(mockSdk, { schema: metaSchema });
 void plainWithSchema;
 
-// @ts-expect-error - wrong schema type for form() with SdkMethodWithMeta
-form(sdkWithMeta, { schema: wrongSchema });
+// ─── 14. No attrs() method ────────────────────────────────────────
+
+// @ts-expect-error - attrs() no longer exists on FormInstance
+userForm.attrs;
+
+// ─── 15. No error() method ────────────────────────────────────────
+
+// @ts-expect-error - error() no longer exists on FormInstance
+userForm.error;
+
+// ─── 16. No handleSubmit() method ─────────────────────────────────
+
+// @ts-expect-error - handleSubmit() no longer exists on FormInstance
+userForm.handleSubmit;
+
+// ─── SdkMethod basics (unchanged) ─────────────────────────────────
+
+declare const createUser: SdkMethod<UserBody, UserResult>;
+
+const _callResult: Promise<UserResult> = createUser({ name: 'Alice', email: 'a@b.com' });
+void _callResult;
+
+const _url: string = createUser.url;
+const _methodStr: string = createUser.method;
+void _url;
+void _methodStr;
+
+// @ts-expect-error - missing required property 'email'
+createUser({ name: 'Alice' });
+
+// @ts-expect-error - wrong type for 'name' property
+createUser({ name: 123, email: 'a@b.com' });

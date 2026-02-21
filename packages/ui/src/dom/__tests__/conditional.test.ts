@@ -267,6 +267,55 @@ describe('__conditional', () => {
     expect(container.textContent).toBe('visible');
   });
 
+  it('handles string branch results by converting to text nodes', () => {
+    const loading = signal(true);
+    const container = document.createElement('div');
+    const fragment = __conditional(
+      () => loading.value,
+      () => 'Loading...' as unknown as Node,
+      () => 'Done' as unknown as Node,
+    );
+    container.appendChild(fragment);
+    expect(container.textContent).toContain('Loading...');
+
+    loading.value = false;
+    expect(container.textContent).toContain('Done');
+  });
+
+  it('handles number branch results by converting to text nodes', () => {
+    const show = signal(true);
+    const container = document.createElement('div');
+    const fragment = __conditional(
+      () => show.value,
+      () => 42 as unknown as Node,
+      () => 0 as unknown as Node,
+    );
+    container.appendChild(fragment);
+    expect(container.textContent).toContain('42');
+
+    show.value = false;
+    // 0 is falsy but should still render as text
+    expect(container.textContent).toContain('0');
+  });
+
+  it('handles boolean branch results as empty (not rendered as text)', () => {
+    const show = signal(true);
+    const container = document.createElement('div');
+    const fragment = __conditional(
+      () => show.value,
+      () => false as unknown as Node,
+      () => true as unknown as Node,
+    );
+    container.appendChild(fragment);
+    // false should render as empty, not as "false" text
+    expect(container.textContent).not.toContain('false');
+    expect(container.textContent).not.toContain('true');
+
+    show.value = false;
+    expect(container.textContent).not.toContain('true');
+    expect(container.textContent).not.toContain('false');
+  });
+
   it('handles both branches returning null without crashing', () => {
     const show = signal(true);
     const container = document.createElement('div');

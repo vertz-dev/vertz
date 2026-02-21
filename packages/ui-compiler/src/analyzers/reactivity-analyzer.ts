@@ -1,5 +1,5 @@
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
-import { getSignalApiConfig, isSignalApi } from '../signal-api-registry';
+import { getSignalApiConfig, isSignalApi, type SignalApiConfig } from '../signal-api-registry';
 import type { ComponentInfo, VariableInfo } from '../types';
 import { findBodyNode } from '../utils';
 
@@ -23,7 +23,7 @@ export class ReactivityAnalyzer {
     // Pass 1: Collect declarations
     const lets = new Map<string, { start: number; end: number; deps: string[] }>();
     const consts = new Map<string, { start: number; end: number; deps: string[] }>();
-    const signalApiVars = new Map<string, Set<string>>(); // Track variables assigned from signal APIs
+    const signalApiVars = new Map<string, SignalApiConfig>(); // Track variables assigned from signal APIs
 
     for (const stmt of bodyNode.getChildSyntaxList()?.getChildren() ?? []) {
       if (!stmt.isKind(SyntaxKind.VariableStatement)) continue;
@@ -68,7 +68,7 @@ export class ReactivityAnalyzer {
             if (isSignalApi(originalName)) {
               const config = getSignalApiConfig(originalName);
               if (config) {
-                signalApiVars.set(name, config.signalProperties);
+                signalApiVars.set(name, config);
               }
             }
           }
@@ -145,8 +145,11 @@ export class ReactivityAnalyzer {
         start: info.start,
         end: info.end,
       };
-      if (signalApiVars.has(name)) {
-        varInfo.signalProperties = signalApiVars.get(name);
+      const apiConfig = signalApiVars.get(name);
+      if (apiConfig) {
+        varInfo.signalProperties = apiConfig.signalProperties;
+        varInfo.plainProperties = apiConfig.plainProperties;
+        varInfo.fieldSignalProperties = apiConfig.fieldSignalProperties;
       }
       results.push(varInfo);
     }
@@ -158,8 +161,11 @@ export class ReactivityAnalyzer {
         start: info.start,
         end: info.end,
       };
-      if (signalApiVars.has(name)) {
-        varInfo.signalProperties = signalApiVars.get(name);
+      const apiConfig = signalApiVars.get(name);
+      if (apiConfig) {
+        varInfo.signalProperties = apiConfig.signalProperties;
+        varInfo.plainProperties = apiConfig.plainProperties;
+        varInfo.fieldSignalProperties = apiConfig.fieldSignalProperties;
       }
       results.push(varInfo);
     }

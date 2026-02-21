@@ -70,9 +70,9 @@ describe('Signal Auto-Unwrap', () => {
       function TaskForm() {
         const taskForm = form({ name: '' });
         const submitting = taskForm.submitting;
-        const errors = taskForm.errors;
-        const values = taskForm.values;
-        return <div>{submitting} {errors} {values}</div>;
+        const dirty = taskForm.dirty;
+        const valid = taskForm.valid;
+        return <div>{submitting} {dirty} {valid}</div>;
       }
     `;
 
@@ -80,8 +80,8 @@ describe('Signal Auto-Unwrap', () => {
 
     // Should insert .value for all form signal properties
     expect(result.code).toContain('taskForm.submitting.value');
-    expect(result.code).toContain('taskForm.errors.value');
-    expect(result.code).toContain('taskForm.values.value');
+    expect(result.code).toContain('taskForm.dirty.value');
+    expect(result.code).toContain('taskForm.valid.value');
     expect(result.diagnostics).toHaveLength(0);
   });
 
@@ -194,6 +194,79 @@ describe('Signal Auto-Unwrap', () => {
     expect(result.code).toContain('__attr(');
     expect(result.code).toContain('taskForm.submitting.value');
     expect(result.code).not.toContain('setAttribute("disabled"');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('should mark 3-level field signal property in JSX child as reactive', () => {
+    const source = `
+      import { form } from '@vertz/ui';
+
+      function TaskForm() {
+        const taskForm = form({ title: '' });
+        return <div>{taskForm.title.error}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // 3-level field signal property in JSX child must be reactive (uses __child)
+    expect(result.code).toContain('__child(');
+    expect(result.code).toContain('taskForm.title.error.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('should mark 3-level field signal property in JSX attribute as reactive', () => {
+    const source = `
+      import { form } from '@vertz/ui';
+
+      function TaskForm() {
+        const taskForm = form({ title: '' });
+        return <input disabled={taskForm.title.error} />;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // 3-level field signal property in JSX attribute must be reactive (uses __attr)
+    expect(result.code).toContain('__attr(');
+    expect(result.code).toContain('taskForm.title.error.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('should mark 3-level field signal property in logical AND as reactive', () => {
+    const source = `
+      import { form } from '@vertz/ui';
+
+      function TaskForm() {
+        const taskForm = form({ title: '' });
+        return <div>{taskForm.title.error && <span>Error</span>}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // 3-level field signal in logical AND must be reactive (uses __conditional)
+    expect(result.code).toContain('__conditional(');
+    expect(result.code).toContain('taskForm.title.error.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('should NOT mark field name alone in JSX as reactive', () => {
+    const source = `
+      import { form } from '@vertz/ui';
+
+      function TaskForm() {
+        const taskForm = form({ title: '' });
+        return <div>{taskForm.title}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // Middle accessor alone (field name) is NOT a signal — should not be reactive
+    expect(result.code).not.toContain('__child(');
+    expect(result.code).toContain('__insert(');
+    expect(result.code).not.toContain('taskForm.title.value');
     expect(result.diagnostics).toHaveLength(0);
   });
 

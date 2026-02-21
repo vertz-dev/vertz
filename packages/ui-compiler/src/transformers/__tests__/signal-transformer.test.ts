@@ -22,6 +22,16 @@ function transform(code: string, variables: VariableInfo[]) {
   return s.toString();
 }
 
+const formVar: VariableInfo = {
+  name: 'taskForm',
+  kind: 'static',
+  start: 0,
+  end: 0,
+  signalProperties: new Set(['submitting', 'dirty', 'valid']),
+  plainProperties: new Set(['action', 'method', 'onSubmit', 'reset', 'setFieldError', 'submit']),
+  fieldSignalProperties: new Set(['error', 'dirty', 'touched', 'value']),
+};
+
 describe('SignalTransformer', () => {
   it('transforms let declaration to signal()', () => {
     const result = transform(
@@ -88,5 +98,56 @@ describe('SignalTransformer', () => {
     );
     // Shorthand property should not be transformed
     expect(result).not.toContain('count.value }');
+  });
+
+  it('auto-unwraps 3-level field signal property chain', () => {
+    const result = transform(
+      `function TaskForm() {\n  const taskForm = form({ title: '' });\n  const err = taskForm.title.error;\n  return <div>{err}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).toContain('taskForm.title.error.value');
+  });
+
+  it('does NOT unwrap middle accessor alone (field name is not a signal)', () => {
+    const result = transform(
+      `function TaskForm() {\n  const taskForm = form({ title: '' });\n  const field = taskForm.title;\n  return <div>{field}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).not.toContain('taskForm.title.value');
+    expect(result).toContain('taskForm.title');
+  });
+
+  it('does NOT double-unwrap 3-level chain when .value already present', () => {
+    const result = transform(
+      `function TaskForm() {\n  const taskForm = form({ title: '' });\n  const err = taskForm.title.error.value;\n  return <div>{err}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).toContain('taskForm.title.error.value');
+    expect(result).not.toContain('taskForm.title.error.value.value');
+  });
+
+  it('still auto-unwraps 2-level signal properties alongside 3-level', () => {
+    const result = transform(
+      `function TaskForm() {\n  const taskForm = form({ title: '' });\n  const s = taskForm.submitting;\n  return <div>{s}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).toContain('taskForm.submitting.value');
+  });
+
+  it('does NOT unwrap plain properties', () => {
+    const result = transform(
+      `function TaskForm() {\n  const taskForm = form({ title: '' });\n  const a = taskForm.action;\n  return <div>{a}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).not.toContain('taskForm.action.value');
+    expect(result).toContain('taskForm.action');
+  });
+
+  it('auto-unwraps new form-level signal property dirty', () => {
+    const result = transform(
+      `function TaskForm() {\n  const taskForm = form({ title: '' });\n  const d = taskForm.dirty;\n  return <div>{d}</div>;\n}`,
+      [formVar],
+    );
+    expect(result).toContain('taskForm.dirty.value');
   });
 });

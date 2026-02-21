@@ -38,10 +38,18 @@ export class JsxTransformer {
     );
     const jsxMap = new Map(jsxExpressions.map((e) => [e.start, e]));
 
+    // Collect variable names that have fieldSignalProperties (form variables)
+    const formVarNames = new Set<string>();
+    for (const v of variables) {
+      if (v.fieldSignalProperties && v.fieldSignalProperties.size > 0) {
+        formVarNames.add(v.name);
+      }
+    }
+
     // Find ALL JSX nodes in the function body (not just return statements).
     // This handles JSX in variable assignments, for-loops, function arguments,
     // if-blocks, and any other imperative position.
-    this.transformAllJsx(bodyNode, reactiveNames, jsxMap, source);
+    this.transformAllJsx(bodyNode, reactiveNames, jsxMap, source, formVarNames);
   }
 
   /**
@@ -54,18 +62,19 @@ export class JsxTransformer {
     reactiveNames: Set<string>,
     jsxMap: Map<number, JsxExpressionInfo>,
     source: MagicString,
+    formVarNames: Set<string>,
   ): void {
     // If this node is a JSX element/fragment, transform it and stop recursing
     // (children are handled by transformJsxNode internally).
     if (isJsxTopLevel(node)) {
-      const transformed = transformJsxNode(node, reactiveNames, jsxMap, source);
+      const transformed = transformJsxNode(node, reactiveNames, jsxMap, source, formVarNames);
       source.overwrite(node.getStart(), node.getEnd(), transformed);
       return;
     }
 
     // Otherwise recurse into children
     for (const child of node.getChildren()) {
-      this.transformAllJsx(child, reactiveNames, jsxMap, source);
+      this.transformAllJsx(child, reactiveNames, jsxMap, source, formVarNames);
     }
   }
 }
@@ -88,18 +97,19 @@ function transformJsxNode(
   reactiveNames: Set<string>,
   jsxMap: Map<number, JsxExpressionInfo>,
   source: MagicString,
+  formVarNames: Set<string> = new Set(),
 ): string {
   if (node.isKind(SyntaxKind.ParenthesizedExpression)) {
-    return transformJsxNode(node.getExpression(), reactiveNames, jsxMap, source);
+    return transformJsxNode(node.getExpression(), reactiveNames, jsxMap, source, formVarNames);
   }
   if (node.isKind(SyntaxKind.JsxElement)) {
-    return transformJsxElement(node, reactiveNames, jsxMap, source);
+    return transformJsxElement(node, reactiveNames, jsxMap, source, formVarNames);
   }
   if (node.isKind(SyntaxKind.JsxSelfClosingElement)) {
-    return transformSelfClosingElement(node, reactiveNames, jsxMap, source);
+    return transformSelfClosingElement(node, reactiveNames, jsxMap, source, formVarNames);
   }
   if (node.isKind(SyntaxKind.JsxFragment)) {
-    return transformFragment(node, reactiveNames, jsxMap, source);
+    return transformFragment(node, reactiveNames, jsxMap, source, formVarNames);
   }
   if (node.isKind(SyntaxKind.JsxText)) {
     const text = node.getText().trim();
@@ -114,6 +124,7 @@ function transformJsxElement(
   reactiveNames: Set<string>,
   jsxMap: Map<number, JsxExpressionInfo>,
   source: MagicString,
+  formVarNames: Set<string> = new Set(),
 ): string {
   const openingElement = node.getFirstChildByKind(SyntaxKind.JsxOpeningElement);
   if (!openingElement) return node.getText();
@@ -138,10 +149,14 @@ function transformJsxElement(
     if (attrStmt) statements.push(attrStmt);
   }
 
+  // Check for __bindElement on <form> elements
+  const bindStmt = tryBindElement(tagName, openingElement, elVar, formVarNames);
+  if (bindStmt) statements.push(bindStmt);
+
   // Process children
   const children = getJsxChildren(node);
   for (const child of children) {
-    const childCode = transformChild(child, reactiveNames, jsxMap, elVar, source);
+    const childCode = transformChild(child, reactiveNames, jsxMap, elVar, source, formVarNames);
     if (childCode) statements.push(childCode);
   }
 
@@ -153,6 +168,7 @@ function transformSelfClosingElement(
   _reactiveNames: Set<string>,
   jsxMap: Map<number, JsxExpressionInfo>,
   source: MagicString,
+  formVarNames: Set<string> = new Set(),
 ): string {
   if (!node.isKind(SyntaxKind.JsxSelfClosingElement)) return node.getText();
 
@@ -175,6 +191,10 @@ function transformSelfClosingElement(
     if (attrStmt) statements.push(attrStmt);
   }
 
+  // Check for __bindElement on <form> elements
+  const bindStmt = tryBindElement(tagName, node, elVar, formVarNames);
+  if (bindStmt) statements.push(bindStmt);
+
   return `(() => {\n${statements.map((s) => `  ${s};`).join('\n')}\n  return ${elVar};\n})()`;
 }
 
@@ -183,6 +203,7 @@ function transformFragment(
   reactiveNames: Set<string>,
   jsxMap: Map<number, JsxExpressionInfo>,
   source: MagicString,
+  formVarNames: Set<string> = new Set(),
 ): string {
   const fragVar = genVar();
   const statements: string[] = [];
@@ -190,7 +211,7 @@ function transformFragment(
 
   const children = getJsxChildren(node);
   for (const child of children) {
-    const childCode = transformChild(child, reactiveNames, jsxMap, fragVar, source);
+    const childCode = transformChild(child, reactiveNames, jsxMap, fragVar, source, formVarNames);
     if (childCode) statements.push(childCode);
   }
 
@@ -247,6 +268,7 @@ function transformChild(
   jsxMap: Map<number, JsxExpressionInfo>,
   parentVar: string,
   source: MagicString,
+  formVarNames: Set<string> = new Set(),
 ): string | null {
   if (child.isKind(SyntaxKind.JsxText)) {
     const text = child.getText().trim();
@@ -285,7 +307,7 @@ function transformChild(
   }
 
   if (child.isKind(SyntaxKind.JsxElement) || child.isKind(SyntaxKind.JsxSelfClosingElement)) {
-    const childCode = transformJsxNode(child, reactiveNames, jsxMap, source);
+    const childCode = transformJsxNode(child, reactiveNames, jsxMap, source, formVarNames);
     return `${parentVar}.appendChild(${childCode})`;
   }
 
@@ -583,4 +605,39 @@ function isJsxChild(node: Node): boolean {
     node.isKind(SyntaxKind.JsxElement) ||
     node.isKind(SyntaxKind.JsxSelfClosingElement)
   );
+}
+
+/**
+ * Check if a `<form>` element has `onSubmit={formVar.onSubmit}` where formVar
+ * is a form variable (has fieldSignalProperties). If so, return a statement
+ * that calls `formVar.__bindElement(elVar)`.
+ */
+function tryBindElement(
+  tagName: string,
+  element: Node,
+  elVar: string,
+  formVarNames: Set<string>,
+): string | null {
+  if (tagName !== 'form' || formVarNames.size === 0) return null;
+
+  const attrs = element.getDescendantsOfKind(SyntaxKind.JsxAttribute);
+  for (const attr of attrs) {
+    if (attr.getNameNode().getText() !== 'onSubmit') continue;
+
+    const init = attr.getInitializer();
+    if (!init?.isKind(SyntaxKind.JsxExpression)) continue;
+
+    const exprNode = init.getExpression();
+    if (!exprNode?.isKind(SyntaxKind.PropertyAccessExpression)) continue;
+
+    const obj = exprNode.getExpression();
+    if (!obj.isKind(SyntaxKind.Identifier)) continue;
+
+    const varName = obj.getText();
+    if (formVarNames.has(varName)) {
+      return `${varName}.__bindElement(${elVar})`;
+    }
+  }
+
+  return null;
 }

@@ -106,6 +106,24 @@ describe('ReactivityAnalyzer', () => {
     expect(findVar(result?.variables, 'count')?.kind).toBe('signal');
   });
 
+  it('stores plainProperties and fieldSignalProperties from signal API config', () => {
+    const [result] = analyze(`
+      import { form } from '@vertz/ui';
+
+      function TaskForm() {
+        const taskForm = form({ name: '' });
+        return <div>{taskForm.submitting}</div>;
+      }
+    `);
+    const v = findVar(result?.variables, 'taskForm');
+    expect(v?.kind).toBe('static');
+    expect(v?.signalProperties).toEqual(new Set(['submitting', 'dirty', 'valid']));
+    expect(v?.plainProperties).toEqual(
+      new Set(['action', 'method', 'onSubmit', 'reset', 'setFieldError', 'submit']),
+    );
+    expect(v?.fieldSignalProperties).toEqual(new Set(['error', 'dirty', 'touched', 'value']));
+  });
+
   it('analyzes multiple components independently', () => {
     const results = analyze(`
       function Counter() {

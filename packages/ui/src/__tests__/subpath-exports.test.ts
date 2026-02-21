@@ -53,7 +53,7 @@ describe('Subpath Exports — @vertz/ui/router', () => {
 });
 
 describe('Subpath Exports — @vertz/ui/form', () => {
-  const expectedExports = ['form', 'formDataToObject', 'validate'];
+  const expectedExports = ['createFieldState', 'form', 'formDataToObject', 'validate'];
 
   test('exports exactly the public API (no internal leaks)', async () => {
     const mod = await import('../form/public');
@@ -71,6 +71,7 @@ describe('Subpath Exports — @vertz/ui/form', () => {
   test('same references as main barrel', async () => {
     const main = await import('../index');
     const subpath = await import('../form/public');
+    expect(subpath.createFieldState).toBe(main.createFieldState);
     expect(subpath.form).toBe(main.form);
     expect(subpath.formDataToObject).toBe(main.formDataToObject);
     expect(subpath.validate).toBe(main.validate);

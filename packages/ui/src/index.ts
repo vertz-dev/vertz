@@ -29,12 +29,13 @@ export type {
 export { compileTheme, css, defineTheme, globalCss, s, ThemeProvider, variants } from './css';
 
 // Forms
+export type { FieldState } from './form/field-state';
+export { createFieldState } from './form/field-state';
 export type {
   FormInstance,
   FormOptions,
   SdkMethod,
   SdkMethodWithMeta,
-  SubmitCallbacks,
 } from './form/form';
 export { form } from './form/form';
 export type { FormDataOptions } from './form/form-data';
