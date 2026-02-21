@@ -1,4 +1,6 @@
 import { camelToSnake } from '../sql/casing';
+import type { Dialect } from '../dialect';
+import { defaultPostgresDialect } from '../dialect';
 import type { DiffChange } from './differ';
 import type { ColumnSnapshot, TableSnapshot } from './snapshot';
 
@@ -19,11 +21,82 @@ function escapeSqlString(value: string): string {
 }
 
 /**
+ * Detect if a column type is an enum type (starts with underscore prefix in snapshot or is in enums).
+ */
+function isEnumType(col: ColumnSnapshot, enums?: Record<string, string[]>): boolean {
+  const typeLower = col.type.toLowerCase();
+  // Check if the type name matches any enum name (case-insensitive)
+  if (enums) {
+    for (const enumName of Object.keys(enums)) {
+      if (typeLower === enumName.toLowerCase() || typeLower === enumName) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Get enum values for a column type.
+ */
+function getEnumValues(col: ColumnSnapshot, enums?: Record<string, string[]>): string[] | undefined {
+  if (!enums) return undefined;
+  for (const [enumName, values] of Object.entries(enums)) {
+    if (col.type.toLowerCase() === enumName.toLowerCase() || col.type === enumName) {
+      return values;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Generate the SQL column definition string for a column.
  */
-function columnDef(name: string, col: ColumnSnapshot): string {
+function columnDef(
+  name: string,
+  col: ColumnSnapshot,
+  dialect: Dialect,
+  enums?: Record<string, string[]>,
+): string {
   const snakeName = camelToSnake(name);
-  const parts: string[] = [`"${snakeName}" ${col.type}`];
+  const isEnum = isEnumType(col, enums);
+  
+  // Map the column type using dialect
+  let sqlType: string;
+  let checkConstraint: string | undefined;
+  
+  if (isEnum && dialect.name === 'sqlite') {
+    // SQLite: use TEXT with CHECK constraint for enums
+    sqlType = dialect.mapColumnType('text');
+    const enumValues = getEnumValues(col, enums);
+    if (enumValues && enumValues.length > 0) {
+      const escapedValues = enumValues.map((v) => `'${escapeSqlString(v)}'`).join(', ');
+      checkConstraint = `CHECK("${snakeName}" IN (${escapedValues}))`;
+    }
+  } else {
+    // Use dialect's type mapping
+    // For backward compatibility: 
+    // - PostgresDialect with lowercase types preserves them as-is
+    // - SQLiteDialect always applies mapping (uuid->TEXT, boolean->INTEGER, etc.)
+    // - Uppercase types are normalized and mapped via dialect
+    if (dialect.name === 'postgres' && col.type === col.type.toLowerCase()) {
+      // PostgresDialect with lowercase type - preserve as-is for backward compatibility
+      sqlType = col.type;
+    } else {
+      // Apply dialect mapping:
+      // - For SQLite: maps all types (UUID->TEXT, BOOLEAN->INTEGER, etc.)
+      // - For Postgres with uppercase types: normalize and map
+      const normalizedType = normalizeColumnType(col.type);
+      sqlType = dialect.mapColumnType(normalizedType);
+    }
+  }
+
+  const parts: string[] = [`"${snakeName}" ${sqlType}`];
+
+  // Add CHECK constraint for SQLite enums
+  if (checkConstraint) {
+    parts.push(checkConstraint);
+  }
 
   if (!col.nullable) {
     parts.push('NOT NULL');
@@ -41,15 +114,56 @@ function columnDef(name: string, col: ColumnSnapshot): string {
 }
 
 /**
+ * Normalize column type to generic vertz type for dialect mapping.
+ * E.g., 'UUID' -> 'uuid', 'TIMESTAMPTZ' -> 'timestamp'
+ */
+function normalizeColumnType(type: string): string {
+  const typeUpper = type.toUpperCase();
+  const typeMap: Record<string, string> = {
+    UUID: 'uuid',
+    TEXT: 'text',
+    INTEGER: 'integer',
+    SERIAL: 'serial',
+    BOOLEAN: 'boolean',
+    TIMESTAMPTZ: 'timestamp',
+    TIMESTAMP: 'timestamp',
+    'DOUBLE PRECISION': 'float',
+    JSONB: 'json',
+    JSON: 'json',
+    NUMERIC: 'decimal',
+    REAL: 'float',
+    VARCHAR: 'varchar',
+  };
+  return typeMap[typeUpper] || type.toLowerCase();
+}
+
+/**
  * Generate migration SQL from a set of diff changes.
  */
-export function generateMigrationSql(changes: DiffChange[], ctx?: SqlGeneratorContext): string {
+export function generateMigrationSql(
+  changes: DiffChange[],
+  ctx?: SqlGeneratorContext,
+  dialect: Dialect = defaultPostgresDialect,
+): string {
   const statements: string[] = [];
   const tables = ctx?.tables;
   const enums = ctx?.enums;
 
   for (const change of changes) {
     switch (change.type) {
+      case 'enum_added': {
+        if (!change.enumName) break;
+        // For Postgres: emit CREATE TYPE; SQLite uses CHECK constraints
+        if (dialect.name === 'postgres') {
+          const values = enums?.[change.enumName];
+          if (!values || values.length === 0) break;
+          const enumSnakeName = camelToSnake(change.enumName);
+          const valuesStr = values.map((v) => `'${escapeSqlString(v)}'`).join(', ');
+          statements.push(`CREATE TYPE "${enumSnakeName}" AS ENUM (${valuesStr});`);
+        }
+        break;
+      }
+
       case 'table_added': {
         if (!change.table) break;
         const table = tables?.[change.table];
@@ -58,8 +172,28 @@ export function generateMigrationSql(changes: DiffChange[], ctx?: SqlGeneratorCo
         const cols: string[] = [];
         const primaryKeys: string[] = [];
 
+        // First, emit CREATE TYPE for Postgres enum columns
+        if (dialect.name === 'postgres' && enums) {
+          for (const [, col] of Object.entries(table.columns)) {
+            if (isEnumType(col, enums)) {
+              const enumValues = getEnumValues(col, enums);
+              if (enumValues && enumValues.length > 0) {
+                // Check if we already emitted this enum type
+                const enumSnakeName = camelToSnake(col.type);
+                const alreadyEmitted = statements.some(
+                  (s) => s.includes(`CREATE TYPE "${enumSnakeName}"`),
+                );
+                if (!alreadyEmitted) {
+                  const valuesStr = enumValues.map((v) => `'${escapeSqlString(v)}'`).join(', ');
+                  statements.push(`CREATE TYPE "${enumSnakeName}" AS ENUM (${valuesStr});`);
+                }
+              }
+            }
+          }
+        }
+
         for (const [colName, col] of Object.entries(table.columns)) {
-          cols.push(`  ${columnDef(colName, col)}`);
+          cols.push(`  ${columnDef(colName, col, dialect, enums)}`);
           if (col.primary) {
             primaryKeys.push(`"${camelToSnake(colName)}"`);
           }
@@ -97,7 +231,7 @@ export function generateMigrationSql(changes: DiffChange[], ctx?: SqlGeneratorCo
         const col = tables?.[change.table]?.columns[change.column];
         if (!col) break;
         statements.push(
-          `ALTER TABLE "${camelToSnake(change.table)}" ADD COLUMN ${columnDef(change.column, col)};`,
+          `ALTER TABLE "${camelToSnake(change.table)}" ADD COLUMN ${columnDef(change.column, col, dialect, enums)};`,
         );
         break;
       }
@@ -168,27 +302,23 @@ export function generateMigrationSql(changes: DiffChange[], ctx?: SqlGeneratorCo
         break;
       }
 
-      case 'enum_added': {
-        if (!change.enumName) break;
-        const values = enums?.[change.enumName];
-        if (!values || values.length === 0) break;
-        const enumSnakeName = camelToSnake(change.enumName);
-        const valuesStr = values.map((v) => `'${escapeSqlString(v)}'`).join(', ');
-        statements.push(`CREATE TYPE "${enumSnakeName}" AS ENUM (${valuesStr});`);
-        break;
-      }
-
       case 'enum_removed': {
         if (!change.enumName) break;
-        statements.push(`DROP TYPE "${camelToSnake(change.enumName)}";`);
+        // Postgres: DROP TYPE; SQLite: nothing (type is not created)
+        if (dialect.name === 'postgres') {
+          statements.push(`DROP TYPE "${camelToSnake(change.enumName)}";`);
+        }
         break;
       }
 
       case 'enum_altered': {
         if (!change.enumName || !change.addedValues) break;
-        const enumSnakeName = camelToSnake(change.enumName);
-        for (const val of change.addedValues) {
-          statements.push(`ALTER TYPE "${enumSnakeName}" ADD VALUE '${escapeSqlString(val)}';`);
+        // Postgres: ALTER TYPE ADD VALUE; SQLite: not applicable
+        if (dialect.name === 'postgres') {
+          const enumSnakeName = camelToSnake(change.enumName);
+          for (const val of change.addedValues) {
+            statements.push(`ALTER TYPE "${enumSnakeName}" ADD VALUE '${escapeSqlString(val)}';`);
+          }
         }
         break;
       }
@@ -202,7 +332,11 @@ export function generateMigrationSql(changes: DiffChange[], ctx?: SqlGeneratorCo
  * Generate rollback SQL from a set of diff changes.
  * Reverses the operation of each change.
  */
-export function generateRollbackSql(changes: DiffChange[], ctx?: SqlGeneratorContext): string {
+export function generateRollbackSql(
+  changes: DiffChange[],
+  ctx?: SqlGeneratorContext,
+  dialect: Dialect = defaultPostgresDialect,
+): string {
   const reverseChanges: DiffChange[] = changes
     .slice()
     .reverse()
@@ -251,5 +385,5 @@ export function generateRollbackSql(changes: DiffChange[], ctx?: SqlGeneratorCon
       }
     });
 
-  return generateMigrationSql(reverseChanges, ctx);
+  return generateMigrationSql(reverseChanges, ctx, dialect);
 }
