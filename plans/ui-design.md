@@ -991,33 +991,32 @@ HTML forms already manage state. An `<input name="email">` holds its value in th
 
 ### The `form()` function — SDK-aware
 
-`form()` accepts an SDK method directly. Because the SDK method already knows its endpoint, HTTP method, body schema, and response type, there is no need to separately import the schema or specify the action URL:
+`form()` accepts an SDK method directly. Because the SDK method already knows its endpoint, HTTP method, body schema, and response type, there is no need to separately import the schema or specify the action URL.
+
+All configuration — schema, callbacks, initial values — lives in the `form()` options. Per-field signal states (error, dirty, touched) are accessed directly via property chains. The compiler auto-unwraps signal properties in JSX at both 2-level (`userForm.submitting`) and 3-level (`userForm.name.error`) depths.
+
+> **Full design:** See [form-attrs-api-improvement.md](./form-attrs-api-improvement.md)
+> and [#527](https://github.com/vertz-dev/vertz/issues/527).
 
 ```tsx
-import { form } from '@vertz/ui/form';
+import { form } from '@vertz/ui';
 import { api } from '.vertz/generated/sdk';
 
 function CreateUser() {
-  const userForm = form(api.users.create);
-  // form() extracts from the SDK method:
-  //   - body schema (for client-side validation)
-  //   - endpoint (POST /users — for action attribute and submission)
-  //   - response type (for typed onSuccess callback)
+  const userForm = form(api.users.create, {
+    onSuccess: (user) => router.navigate(`/users/${user.id}`),
+    resetOnSuccess: true,
+  });
 
   return (
-    <form
-      {...userForm.attrs()}
-      onSubmit={userForm.handleSubmit({
-        onSuccess: (user) => router.navigate(`/users/${user.id}`),
-      })}
-    >
+    <form action={userForm.action} method={userForm.method} onSubmit={userForm.onSubmit}>
       <label for="name">Name</label>
       <input name="name" id="name" required />
-      {userForm.error('name') && <span class="error">{userForm.error('name')}</span>}
+      {userForm.name.error && <span class="error">{userForm.name.error}</span>}
 
       <label for="email">Email</label>
       <input name="email" id="email" type="email" required />
-      {userForm.error('email') && <span class="error">{userForm.error('email')}</span>}
+      {userForm.email.error && <span class="error">{userForm.email.error}</span>}
 
       <label for="role">Role</label>
       <select name="role" id="role">
@@ -1033,55 +1032,78 @@ function CreateUser() {
 }
 ```
 
-`userForm.attrs()` returns `{ action: "/api/users", method: "POST" }` — derived from the SDK method's endpoint. This keeps the `<form>` element self-describing for progressive enhancement.
+**Zero `effect()`. Zero `addEventListener`. Zero bridge variables.**
+
+`action` and `method` are direct properties on the form object — derived from the SDK method's endpoint. `onSubmit` handles preventDefault, validation, SDK submission, and form reset automatically.
 
 ### What `form(sdkMethod)` gives you
 
 | Capability | How |
 |-----------|-----|
 | **Body schema** | Extracted from the SDK method. Used for client-side validation via `@vertz/schema` |
-| **Endpoint + method** | Derived from the SDK method's route. Populates `action` and `method` attributes |
+| **Endpoint + method** | Derived from the SDK method's route. Direct `action` and `method` properties |
 | **Response typing** | `onSuccess` callback receives the typed response (e.g., `User`) |
-| **Error typing** | `userForm.error('fieldName')` knows valid field names from the body schema |
+| **Per-field signals** | `userForm.name.error`, `userForm.name.dirty`, `userForm.name.touched` |
+| **Form-level signals** | `userForm.submitting`, `userForm.dirty`, `userForm.valid` |
 | **No imports** | No separate schema import, no endpoint strings to get wrong |
 
-### How `handleSubmit` works
+### How `onSubmit` works
 
 1. `event.preventDefault()` — Stops native submission.
 2. `new FormData(form)` — Reads all values from the DOM.
 3. `formDataToObject(formData)` — Converts to `{ name: "Alice", email: "..." }`.
 4. `schema.safeParse(raw)` — Validates with the schema embedded in the SDK method. Coercion handles string→number/boolean.
-5. On success: calls the SDK method with typed data, then calls `onSuccess` with the response.
-6. On validation failure: populates `userForm.error('fieldName')`.
+5. On success: calls the SDK method with typed data, then calls `onSuccess` with the response. If `resetOnSuccess: true`, calls `formElement.reset()`.
+6. On validation failure: populates per-field error signals (e.g., `userForm.name.error`). Calls `onError` if provided.
 
 ### Explicit schema override
 
-If you need a different schema (e.g., a subset for a partial update form), you can still pass one explicitly:
+Until the SDK embeds `.meta` with `bodySchema`, the schema must still be provided explicitly:
 
 ```tsx
-import { updateUserBody } from '../../schemas/user';
-
-const editForm = form(api.users.update, { schema: updateUserBody });
+const editForm = form(api.users.update, {
+  schema: updateUserBody,
+  onSuccess: (user) => navigate(`/users/${user.id}`),
+});
 ```
+
+This is explicitly temporary. The `schema` option will become optional once SDK methods carry their schemas.
+
+### Data loading and forms — separate concerns
+
+Data loading (`query()`) and form mutation (`form()`) are separate APIs. Each handles one concern:
+
+```tsx
+// Edit form: query loads data, form handles mutation
+const taskQuery = query(() => fetchTask(id));
+const taskForm = form(taskApi.update, {
+  schema,
+  initial: taskQuery.data,  // reactive — form updates baseline when query resolves
+  onSuccess: (task) => navigate(`/tasks/${task.id}`),
+});
+```
+
+This avoids compounding states. `taskQuery.loading` is unambiguous (data fetch). `taskForm.submitting` is unambiguous (submission). `taskForm.title.error` is unambiguous (field validation).
 
 ### Progressive enhancement
 
-Without JavaScript, the form submits normally to the `action` URL (derived from the SDK method). The backend validates with the same schema and redirects on success or re-renders with errors. With JavaScript, `handleSubmit` intercepts for a SPA experience. The form works either way — the SDK method just ensures both paths use identical endpoint and schema information.
+Without JavaScript, the form submits normally to the `action` URL (derived from the SDK method). The backend validates with the same schema and redirects on success or re-renders with errors. With JavaScript, `onSubmit` intercepts for a SPA experience. The form works either way — the SDK method ensures both paths use identical endpoint and schema information.
 
 ### `form()` v1 scope
 
-The `form()` API is intentionally minimal for v1 — it covers the common case of single-step forms with schema validation and SDK submission. Advanced form patterns are scoped as follows:
-
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Single-step form with schema validation | **v1** | Core `form(sdkMethod)` API |
-| Field-level error display | **v1** | `userForm.error('fieldName')` |
-| Form reset | **v1** | `userForm.reset()` — clears all fields and errors |
-| Field-level validation (validate on blur) | **v1** | `userForm.validateField('fieldName')` — validates a single field against the schema |
-| Multi-step / wizard forms | **Deferred to v1.1** | Requires form state persistence across steps |
-| File uploads | **Deferred to v1.1** | Requires multipart handling and progress tracking |
-| Dynamic field arrays (add/remove fields) | **Deferred to v1.1** | Requires array-aware schema validation |
-| Controlled inputs | **Deferred to v1.1** | v1 uses uncontrolled (native DOM state) exclusively |
+| Single-step form with schema validation | **v1** | Core `form(sdkMethod, opts)` API |
+| Per-field signal states (error, dirty, touched, value) | **v1** | `userForm.name.error`, `userForm.name.dirty` |
+| Form-level signals (submitting, dirty, valid) | **v1** | `userForm.submitting`, `userForm.dirty` |
+| Direct property access (no `attrs()`) | **v1** | `userForm.action`, `userForm.method`, `userForm.onSubmit` |
+| Form reset | **v1** | `userForm.reset()` or `resetOnSuccess: true` |
+| Reserved name enforcement | **v1** | Compiler errors on schema fields conflicting with form properties |
+| Initial values (static or reactive signal) | **v1** | `initial: { name: '' }` or `initial: query.data` |
+| Multi-step / wizard forms | **Deferred** | Requires form state persistence across steps |
+| File uploads | **Deferred** | Requires multipart handling and progress tracking |
+| Dynamic field arrays (add/remove fields) | **Deferred** | Requires array-aware schema validation |
+| Controlled inputs | **Deferred** | v1 uses uncontrolled (native DOM state) exclusively |
 
 ---
 
