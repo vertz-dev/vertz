@@ -32,7 +32,7 @@ const todosModel = d.model(todosTable);
 // 3. Create database client
 const db = createDb({
   url: process.env.DATABASE_URL!,
-  tables: { todos: todosModel },
+  models: { todos: todosModel },
 });
 
 // 4. Query with full type inference and Result-based errors
@@ -274,7 +274,7 @@ d.ref.many(() => coursesTable).through(() => enrollmentsTable, 'studentId', 'cou
 ```typescript
 const db = createDb({
   url: 'postgresql://user:pass@localhost:5432/mydb',
-  tables: { users: usersModel, posts: postsModel },
+  models: { users: usersModel, posts: postsModel },
   dialect: 'postgres',           // 'postgres' (default) or 'sqlite'
   pool: {
     max: 20,
@@ -500,11 +500,11 @@ const settings = d.table('settings', { /* ... */ }).shared();
 import { createDb, defaultPostgresDialect, defaultSqliteDialect } from '@vertz/db';
 
 // PostgreSQL (default)
-const pgDb = createDb({ url: 'postgresql://...', tables });
+const pgDb = createDb({ url: 'postgresql://...', models });
 
 // SQLite
 const sqliteDb = createDb({
-  tables,
+  models,
   dialect: 'sqlite',
   d1: d1Database,  // Cloudflare D1 or compatible
 });
