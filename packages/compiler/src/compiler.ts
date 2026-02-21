@@ -1,3 +1,5 @@
+import { mkdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { Project } from 'ts-morph';
 import type { AppAnalyzerResult } from './analyzers/app-analyzer';
 import { AppAnalyzer } from './analyzers/app-analyzer';
@@ -121,6 +123,7 @@ export class Compiler {
 
   async generate(ir: AppIR): Promise<void> {
     const outputDir = this.config.compiler.outputDir;
+    await mkdir(resolve(outputDir), { recursive: true });
     await Promise.all(this.deps.generators.map((g) => g.generate(ir, outputDir)));
   }
 

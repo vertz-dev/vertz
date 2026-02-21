@@ -7,7 +7,7 @@
     "dev:api": "tsx src/server.ts",
     "dev:ui": "vite",
     "codegen": "vertz codegen",
-    "test": "vitest run && bun test"
+    "test": "bun run codegen && vitest run && bun test"
   },
   "dependencies": {
     "@vertz/db": "workspace:*",
@@ -18,6 +18,7 @@
     "@vertz/ui-server": "workspace:*"
   },
   "devDependencies": {
+    "@vertz/cli": "workspace:*",
     "@vertz/ui-compiler": "workspace:*",
     "bun-types": "^1.3.9",
     "concurrently": "^9.0.0",

@@ -1,5 +1,6 @@
 import type { CodegenConfig, CodegenIR } from '@vertz/codegen';
 import { Command } from 'commander';
+import { createJiti } from 'jiti';
 import { buildAction } from './commands/build';
 import { codegenAction } from './commands/codegen';
 import { createAction } from './commands/create';
@@ -124,12 +125,20 @@ export function createCLI(): Command {
       const { resolve, dirname } = await import('node:path');
       const { mkdir, writeFile: fsWriteFile } = await import('node:fs/promises');
 
-      // Try to load vertz.config.ts for codegen config
+      // Try to load vertz.config.ts for codegen + compiler config
       let config: CodegenConfig | undefined;
+      let compilerConfig: import('@vertz/compiler').VertzConfig | undefined;
       try {
         const configPath = resolve(process.cwd(), 'vertz.config.ts');
-        const configModule = await import(configPath);
-        config = configModule.default?.codegen ?? configModule.codegen;
+        const jiti = createJiti(import.meta.url);
+        const configModule = (await jiti.import(configPath)) as Record<string, unknown>;
+        // Named export: export const codegen = { ... }
+        // Or nested in default: export default { codegen: { ... } }
+        config =
+          (configModule.codegen as CodegenConfig) ??
+          ((configModule.default as Record<string, unknown>)?.codegen as CodegenConfig);
+        // Default export is the compiler config (from defineConfig())
+        compilerConfig = configModule.default as import('@vertz/compiler').VertzConfig;
       } catch {
         // Config may not exist — codegenAction handles missing config
       }
@@ -138,7 +147,7 @@ export function createCLI(): Command {
       let ir: CodegenIR;
       try {
         const { createCompiler } = await import('@vertz/compiler');
-        const compiler = createCompiler();
+        const compiler = createCompiler(compilerConfig);
         const result = await compiler.compile();
         if (!result.success) {
           console.error('Compilation failed with errors.');
