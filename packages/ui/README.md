@@ -392,78 +392,6 @@ function App() {
 
 ## Advanced
 
-### Manual Signals
-
-Most of the time, the compiler handles reactivity for you. But you can create signals manually:
-
-```tsx
-import { signal } from '@vertz/ui';
-
-const count = signal(0);
-
-count.value;        // Read (subscribes if in tracking context)
-count.value = 5;    // Write
-count.peek();       // Read without subscribing
-count.notify();     // Manually notify subscribers
-```
-
-### Effects
-
-Run side effects that respond to reactive changes:
-
-```tsx
-import { effect } from '@vertz/ui';
-
-const count = signal(0);
-
-const dispose = effect(() => {
-  console.log('Count is now:', count.value);
-});
-
-count.value = 5; // logs: "Count is now: 5"
-dispose();       // Stop the effect
-```
-
-### Batching Updates
-
-Group multiple signal writes into a single effect run:
-
-```tsx
-import { batch, effect, signal } from '@vertz/ui';
-
-const first = signal('a');
-const last = signal('b');
-
-effect(() => {
-  console.log(first.value, last.value);
-});
-
-batch(() => {
-  first.value = 'x';
-  last.value = 'y';
-}); // logs only once: "x y"
-```
-
-### Untracking Reads
-
-Read signals without creating subscriptions:
-
-```tsx
-import { untrack, signal, effect } from '@vertz/ui';
-
-const count = signal(0);
-const other = signal(1);
-
-effect(() => {
-  const tracked = count.value;                 // subscribes to count
-  const notTracked = untrack(() => other.value); // no subscription
-  console.log(tracked, notTracked);
-});
-
-count.value = 5; // effect re-runs
-other.value = 10; // effect does NOT re-run
-```
-
 ### Watch
 
 Watch a dependency and run a callback when it changes:
@@ -500,32 +428,6 @@ function AutoFocus() {
   return <input ref={inputRef} placeholder="Auto-focused" />;
 }
 ```
-
----
-
-## Hydration
-
-Server-render and hydrate components on the client:
-
-```tsx
-import { hydrate, visibleStrategy } from '@vertz/ui/hydrate';
-
-const registry = {
-  Counter: () => import('./Counter'),
-  TodoList: () => import('./TodoList'),
-};
-
-// Hydrate when components become visible
-hydrate(registry, visibleStrategy);
-```
-
-**Strategies:**
-- `eagerStrategy` — Hydrate immediately
-- `idleStrategy` — Hydrate when browser is idle
-- `visibleStrategy` — Hydrate when component is visible
-- `interactionStrategy` — Hydrate on first user interaction
-- `lazyStrategy` — Never auto-hydrate
-- `mediaStrategy` — Hydrate based on media query
 
 ---
 
@@ -605,22 +507,12 @@ The `@vertz/ui/jsx-runtime` subpath provides the JSX factory used by the compile
 
 ## API Reference
 
-### Reactivity
-
-| Export | Description |
-|---|---|
-| `signal` | Create a reactive signal |
-| `computed` | Create a computed (derived) value |
-| `effect` | Run a side effect when dependencies change |
-| `batch` | Group multiple writes into one update |
-| `untrack` | Read signals without subscribing |
-| `onCleanup` | Register a cleanup callback |
-
 ### Lifecycle
 
 | Export | Description |
 |---|---|
 | `onMount` | Run code once when a component mounts |
+| `onCleanup` | Register a cleanup callback |
 | `watch` | Watch a dependency and run a callback on change |
 
 ### Components
@@ -676,18 +568,6 @@ The `@vertz/ui/jsx-runtime` subpath provides the JSX factory used by the compile
 | `createOutlet` | Create a route outlet |
 | `parseSearchParams` | Parse URL search parameters |
 | `useSearchParams` | Reactive search parameters |
-
-### Hydration (`@vertz/ui/hydrate`)
-
-| Export | Description |
-|---|---|
-| `hydrate` | Hydrate server-rendered components |
-| `eagerStrategy` | Hydrate immediately |
-| `idleStrategy` | Hydrate when browser is idle |
-| `visibleStrategy` | Hydrate when component is visible |
-| `interactionStrategy` | Hydrate on first interaction |
-| `lazyStrategy` | Never auto-hydrate |
-| `mediaStrategy` | Hydrate based on media query |
 
 ### Testing (`@vertz/ui/test`)
 
