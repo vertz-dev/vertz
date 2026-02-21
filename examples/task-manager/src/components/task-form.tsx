@@ -5,10 +5,9 @@
  * - JSX for form layout with multiple fields
  * - form() with schema validation (external signals — still use .value)
  * - SdkMethod metadata for progressive enhancement
- * - effect() for reactive updates driven by external signals (form state)
- *
- * Note: All reactive state here comes from form() (external signals),
- * so effect() is still needed. No local `let` → signal transform applies.
+ * - Compiler `let` → signal transform for bridging external signals
+ * - Reactive JSX attributes: disabled={isSubmitting}, {isSubmitting ? ... : ...}
+ * - effect() for reactive updates driven by external signals (form errors)
  */
 
 import type { FormSchema } from '@vertz/ui';
@@ -67,7 +66,7 @@ export interface TaskFormProps {
  *
  * Uses form() to bind to the taskApi.create SDK method with schema validation.
  */
-export function TaskForm(props: TaskFormProps): HTMLFormElement {
+export function TaskForm(props: TaskFormProps): HTMLElement {
   const { onSuccess, onCancel } = props;
 
   // Create the form instance bound to the SDK method
@@ -77,6 +76,12 @@ export function TaskForm(props: TaskFormProps): HTMLFormElement {
 
   // Get progressive enhancement attributes
   const formAttrs = taskForm.attrs();
+
+  // Bridge external signal to local let — compiler transforms to signal()
+  let isSubmitting = false;
+  effect(() => {
+    isSubmitting = taskForm.submitting.value;
+  });
 
   // Error display elements — referenced by effect() for reactive updates
   const titleError = (
@@ -89,29 +94,17 @@ export function TaskForm(props: TaskFormProps): HTMLFormElement {
     <span class={formStyles.classNames.error} data-testid="priority-error" />
   );
 
-  // Submit button — referenced by effect() for reactive submitting state
-  const submitBtn = (
-    <button
-      type="submit"
-      class={button({ intent: 'primary', size: 'md' })}
-      data-testid="submit-task"
-    >
-      Create Task
-    </button>
-  );
+  // Submit button text — updated reactively when submitting state changes
+  const submitLabel = (<span>Create Task</span>);
+  effect(() => {
+    submitLabel.textContent = isSubmitting ? 'Creating...' : 'Create Task';
+  });
 
   // Reactive error display — re-runs whenever form error signals change
   effect(() => {
     titleError.textContent = taskForm.error('title') ?? '';
     descError.textContent = taskForm.error('description') ?? '';
     priorityError.textContent = taskForm.error('priority') ?? '';
-  });
-
-  // Reactive submitting state — disable button while submitting
-  effect(() => {
-    const isSubmitting = taskForm.submitting.value;
-    submitBtn.disabled = isSubmitting;
-    submitBtn.textContent = isSubmitting ? 'Creating...' : 'Create Task';
   });
 
   // Build the form with JSX
@@ -167,7 +160,14 @@ export function TaskForm(props: TaskFormProps): HTMLFormElement {
         >
           Cancel
         </button>
-        {submitBtn}
+        <button
+          type="submit"
+          class={button({ intent: 'primary', size: 'md' })}
+          data-testid="submit-task"
+          disabled={isSubmitting}
+        >
+          {submitLabel}
+        </button>
       </div>
     </form>
   );

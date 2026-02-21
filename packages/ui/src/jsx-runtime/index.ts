@@ -20,7 +20,7 @@ export namespace JSX {
   /**
    * The return type of JSX expressions
    */
-  export type Element = HTMLElement | DocumentFragment;
+  export type Element = HTMLElement;
 
   /**
    * Component function type
@@ -34,6 +34,14 @@ export namespace JSX {
   export interface HTMLAttributes {
     [key: string]: unknown;
     children?: unknown;
+  }
+
+  /**
+   * Attributes available on ALL JSX elements (intrinsic and components).
+   * `key` is used by the compiler's __list() transform for efficient list rendering.
+   */
+  export interface IntrinsicAttributes {
+    key?: string | number;
   }
 
   /**
@@ -66,7 +74,7 @@ function applyChildren(parent: Node, children: unknown): void {
 }
 
 // Implementation
-function jsxImpl(tag: Tag, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
+function jsxImpl(tag: Tag | typeof Fragment, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
   // Component call — pass props through to the function
   if (typeof tag === 'function') {
     return tag(props || {});
@@ -134,7 +142,7 @@ export function jsx(
 ): DocumentFragment;
 
 // Implementation
-export function jsx(tag: Tag, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
+export function jsx(tag: Tag | typeof Fragment, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
   return jsxImpl(tag, props);
 }
 
@@ -159,7 +167,7 @@ export function jsxs(
   tag: typeof Fragment,
   props: { children?: unknown }
 ): DocumentFragment;
-export function jsxs(tag: Tag, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
+export function jsxs(tag: Tag | typeof Fragment, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
   return jsxImpl(tag, props);
 }
 
@@ -192,6 +200,6 @@ export function jsxDEV(
   tag: typeof Fragment,
   props: { children?: unknown }
 ): DocumentFragment;
-export function jsxDEV(tag: Tag, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
+export function jsxDEV(tag: Tag | typeof Fragment, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
   return jsxImpl(tag, props);
 }
