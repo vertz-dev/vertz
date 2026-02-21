@@ -92,15 +92,15 @@ export class FetchClient {
   }
 
   async get<T>(path: string, options?: RequestOptions): Promise<FetchResponse<T>> {
-    return this.request<T>('GET', path, this.normalizeOptions(options));
+    return this.request<T>('GET', path, options);
   }
 
   async post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<FetchResponse<T>> {
-    return this.request<T>('POST', path, this.normalizeOptions({ ...options, body }));
+    return this.request<T>('POST', path, { ...options, body });
   }
 
   async put<T>(path: string, body?: unknown, options?: RequestOptions): Promise<FetchResponse<T>> {
-    return this.request<T>('PUT', path, this.normalizeOptions({ ...options, body }));
+    return this.request<T>('PUT', path, { ...options, body });
   }
 
   async patch<T>(
@@ -108,11 +108,11 @@ export class FetchClient {
     body?: unknown,
     options?: RequestOptions,
   ): Promise<FetchResponse<T>> {
-    return this.request<T>('PATCH', path, this.normalizeOptions({ ...options, body }));
+    return this.request<T>('PATCH', path, { ...options, body });
   }
 
   async delete<T>(path: string, options?: RequestOptions): Promise<FetchResponse<T>> {
-    return this.request<T>('DELETE', path, this.normalizeOptions(options));
+    return this.request<T>('DELETE', path, options);
   }
 
   async *requestStream<T>(
@@ -341,14 +341,4 @@ export class FetchClient {
     }
   }
 
-  private normalizeOptions(
-    options?: RequestOptions & { params?: Record<string, unknown> },
-  ): RequestOptions | undefined {
-    if (!options) return undefined;
-    const { params, ...rest } = options as RequestOptions & { params?: Record<string, unknown> };
-    if (params) {
-      return { ...rest, query: rest.query ? { ...params, ...rest.query } : params };
-    }
-    return rest;
-  }
 }

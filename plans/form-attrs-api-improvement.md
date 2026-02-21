@@ -123,17 +123,27 @@ interface SubmitCallbacks<TResult> {
 
 When `resetOnSuccess: true`, the framework calls `formElement.reset()` after a successful submission. The developer doesn't manually wire this.
 
-### 3C. Declarative form state — zero `effect()`
+### 3C. Declarative form state — reduced `effect()` (with known limitation)
 
-The compiler's signal tracking makes `todoForm.error('title')` and `todoForm.submitting.value` reactive when used in JSX expressions. No `effect()` blocks needed:
+The compiler's signal tracking makes `todoForm.error('title')` and `todoForm.submitting.value` reactive when used in JSX expressions:
 
 ```tsx
-// Reactive without effect() — compiler wraps signal reads
 <span>{todoForm.error('title')}</span>
 <button disabled={todoForm.submitting.value}>
   {todoForm.submitting.value ? 'Adding...' : 'Add Todo'}
 </button>
 ```
+
+**Current limitation:** The vertz compiler only transforms local `let` variables into reactive signals. External signals from `form()` (like `.submitting` and `.error()`) require an `effect()` bridge to bind their values to local `let` variables for the compiler to track:
+
+```tsx
+let isSubmitting = false;
+let titleError = '';
+effect(() => { isSubmitting = todoForm.submitting.value; });
+effect(() => { titleError = todoForm.error('title') ?? ''; });
+```
+
+This is a known DX gap tracked in [#488](https://github.com/vertz-dev/vertz/issues/488). The planned fix will allow the compiler to detect and track external reactive reads directly in JSX, eliminating the manual bridge. Until then, `effect()` bridges are required for form reactive state.
 
 ### 3D. Schema still passed manually (temporary)
 
@@ -208,7 +218,7 @@ export function TodoForm(props: { onSuccess: (todo: Todo) => void }): HTMLFormEl
 ```
 
 **Properties:**
-- Zero `effect()` — all form state is reactive in JSX
+- Reduced `effect()` — `addEventListener` and manual DOM wiring eliminated. `effect()` bridges still needed for external reactive state (see Section 3C, tracked in #488)
 - Zero `addEventListener` — `onSubmit` in JSX, compiled to `__on()`
 - Progressive enhancement — `action` and `method` are real endpoint/verb
 - SSR safe — `onSubmit` filtered by SSR runtime, `action`/`method` serialized to HTML
@@ -465,9 +475,9 @@ The entity-todo example files (new files for the full-stack demo) are unrelated 
 2. Rewrite `todo-form.tsx`:
    - Destructure `attrs()` with `{ onSuccess, resetOnSuccess }` — no spread
    - Use `onSubmit={onSubmit}` in JSX — compiler transforms to `__on()`
-   - Use `todoForm.error('title')` directly in JSX — no `effect()`
-   - Use `todoForm.submitting.value` directly in JSX — no `effect()`
-   - Zero `addEventListener`, zero `effect()`, zero imperative DOM manipulation
+   - Use `todoForm.error('title')` via `effect()` bridge to local `let` (see Section 3C)
+   - Use `todoForm.submitting.value` via `effect()` bridge to local `let`
+   - Zero `addEventListener`, zero imperative DOM manipulation
 3. Run entity-todo tests — all pass
 4. Run entity-todo SSR tests — verify no serialization errors
 
@@ -482,9 +492,8 @@ The entity-todo example files (new files for the full-stack demo) are unrelated 
 2. Rewrite `task-form.tsx`:
    - Destructure `attrs()` with `{ onSuccess, onError, resetOnSuccess }` — no spread
    - Use `onSubmit={onSubmit}` in JSX — no `addEventListener`
-   - Use `taskForm.error('title')` etc. directly in JSX — no `effect()`
-   - Use `taskForm.submitting.value` directly in JSX — no `effect()`
-   - Remove `effect()` blocks entirely
+   - Use `taskForm.error('title')` via `effect()` bridge to local `let` (see Section 3C)
+   - Use `taskForm.submitting.value` via `effect()` bridge to local `let`
    - Keep `onCancel` button with `onClick={onCancel}` (unchanged)
 3. Run task-manager tests — all 5 `TaskForm` tests pass
 4. Run task-manager SSR tests — verify no regressions

@@ -24,7 +24,11 @@ export interface FormOptions<TBody> {
 export interface SubmitCallbacks<TResult> {
   onSuccess?: (result: TResult) => void;
   onError?: (errors: Record<string, string>) => void;
-  /** When true, the form element is reset after a successful submission. */
+  /**
+   * When true, the form element is reset after a successful submission.
+   * Only takes effect when the handler receives a DOM Event (so `formElement`
+   * can be extracted from `event.target`). Has no effect with raw FormData.
+   */
   resetOnSuccess?: boolean;
 }
 
