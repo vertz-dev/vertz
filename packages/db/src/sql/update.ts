@@ -9,8 +9,8 @@
  * - "now" sentinel handling for timestamp defaults
  */
 
-import { camelToSnake } from './casing';
 import { type Dialect, defaultPostgresDialect } from '../dialect';
+import { camelToSnake } from './casing';
 import { buildWhere } from './where';
 
 export interface UpdateOptions {
@@ -20,6 +20,8 @@ export interface UpdateOptions {
   readonly returning?: '*' | readonly string[];
   /** Column names (camelCase) that should use NOW() instead of a parameterized value when the value is "now". */
   readonly nowColumns?: readonly string[];
+  /** SQL dialect to use. Defaults to postgres. */
+  readonly dialect?: Dialect;
 }
 
 export interface UpdateResult {
