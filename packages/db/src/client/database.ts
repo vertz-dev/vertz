@@ -10,15 +10,20 @@ import type {
   FindResult,
   IncludeOption,
   InsertInput,
+  ModelEntry,
   OrderByType,
   SelectOption,
-  TableEntry,
   UpdateInput,
 } from '../schema/inference';
 import type { RelationDef } from '../schema/relation';
 import type { SqlFragment } from '../sql/tagged';
 import { createPostgresDriver, type PostgresDriver } from './postgres-driver';
-import { createSqliteDriver, buildTableSchema, type D1Database, type SqliteDriver } from './sqlite-driver';
+import {
+  buildTableSchema,
+  createSqliteDriver,
+  type D1Database,
+  type SqliteDriver,
+} from './sqlite-driver';
 import { computeTenantGraph, type TenantGraph } from './tenant-graph';
 
 // ---------------------------------------------------------------------------
@@ -135,9 +140,9 @@ export interface PoolConfig {
 // createDb options
 // ---------------------------------------------------------------------------
 
-export interface CreateDbOptions<TTables extends Record<string, TableEntry>> {
-  /** Table registry mapping logical names to table definitions + relations. */
-  readonly tables: TTables;
+export interface CreateDbOptions<TModels extends Record<string, ModelEntry>> {
+  /** Model registry mapping logical names to table definitions + relations. */
+  readonly models: TModels;
   /** Database dialect to use. Defaults to 'postgres' if not specified. */
   readonly dialect?: 'postgres' | 'sqlite';
   /** D1 database binding (required when dialect is 'sqlite'). */
@@ -175,24 +180,24 @@ export interface QueryResult<T> {
 }
 
 // ---------------------------------------------------------------------------
-// Type helpers — extract table/relations from TTables entry
+// Type helpers — extract table/relations from TModels entry
 // ---------------------------------------------------------------------------
 
-/** Extract the TableDef from a TableEntry. */
-type EntryTable<TEntry extends TableEntry> = TEntry['table'];
+/** Extract the TableDef from a ModelEntry. */
+type EntryTable<TEntry extends ModelEntry> = TEntry['table'];
 
-/** Extract the relations record from a TableEntry. */
-type EntryRelations<TEntry extends TableEntry> = TEntry['relations'];
+/** Extract the relations record from a ModelEntry. */
+type EntryRelations<TEntry extends ModelEntry> = TEntry['relations'];
 
-/** Extract columns from a TableEntry's table. */
-type EntryColumns<TEntry extends TableEntry> = EntryTable<TEntry>['_columns'];
+/** Extract columns from a ModelEntry's table. */
+type EntryColumns<TEntry extends ModelEntry> = EntryTable<TEntry>['_columns'];
 
 // ---------------------------------------------------------------------------
 // Typed query option types
 // ---------------------------------------------------------------------------
 
 /** Options for get / getOrThrow — typed per-table. */
-type TypedGetOptions<TEntry extends TableEntry> = {
+type TypedGetOptions<TEntry extends ModelEntry> = {
   readonly where?: FilterType<EntryColumns<TEntry>>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
   readonly orderBy?: OrderByType<EntryColumns<TEntry>>;
@@ -200,7 +205,7 @@ type TypedGetOptions<TEntry extends TableEntry> = {
 };
 
 /** Options for list / listAndCount — typed per-table. */
-type TypedListOptions<TEntry extends TableEntry> = {
+type TypedListOptions<TEntry extends ModelEntry> = {
   readonly where?: FilterType<EntryColumns<TEntry>>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
   readonly orderBy?: OrderByType<EntryColumns<TEntry>>;
@@ -214,37 +219,37 @@ type TypedListOptions<TEntry extends TableEntry> = {
 };
 
 /** Options for create — typed per-table. */
-type TypedCreateOptions<TEntry extends TableEntry> = {
+type TypedCreateOptions<TEntry extends ModelEntry> = {
   readonly data: InsertInput<EntryTable<TEntry>>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
 };
 
 /** Options for createManyAndReturn — typed per-table. */
-type TypedCreateManyAndReturnOptions<TEntry extends TableEntry> = {
+type TypedCreateManyAndReturnOptions<TEntry extends ModelEntry> = {
   readonly data: readonly InsertInput<EntryTable<TEntry>>[];
   readonly select?: SelectOption<EntryColumns<TEntry>>;
 };
 
 /** Options for createMany — typed per-table. */
-type TypedCreateManyOptions<TEntry extends TableEntry> = {
+type TypedCreateManyOptions<TEntry extends ModelEntry> = {
   readonly data: readonly InsertInput<EntryTable<TEntry>>[];
 };
 
 /** Options for update — typed per-table. */
-type TypedUpdateOptions<TEntry extends TableEntry> = {
+type TypedUpdateOptions<TEntry extends ModelEntry> = {
   readonly where: FilterType<EntryColumns<TEntry>>;
   readonly data: UpdateInput<EntryTable<TEntry>>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
 };
 
 /** Options for updateMany — typed per-table. */
-type TypedUpdateManyOptions<TEntry extends TableEntry> = {
+type TypedUpdateManyOptions<TEntry extends ModelEntry> = {
   readonly where: FilterType<EntryColumns<TEntry>>;
   readonly data: UpdateInput<EntryTable<TEntry>>;
 };
 
 /** Options for upsert — typed per-table. */
-type TypedUpsertOptions<TEntry extends TableEntry> = {
+type TypedUpsertOptions<TEntry extends ModelEntry> = {
   readonly where: FilterType<EntryColumns<TEntry>>;
   readonly create: InsertInput<EntryTable<TEntry>>;
   readonly update: UpdateInput<EntryTable<TEntry>>;
@@ -252,18 +257,18 @@ type TypedUpsertOptions<TEntry extends TableEntry> = {
 };
 
 /** Options for delete — typed per-table. */
-type TypedDeleteOptions<TEntry extends TableEntry> = {
+type TypedDeleteOptions<TEntry extends ModelEntry> = {
   readonly where: FilterType<EntryColumns<TEntry>>;
   readonly select?: SelectOption<EntryColumns<TEntry>>;
 };
 
 /** Options for deleteMany — typed per-table. */
-type TypedDeleteManyOptions<TEntry extends TableEntry> = {
+type TypedDeleteManyOptions<TEntry extends ModelEntry> = {
   readonly where: FilterType<EntryColumns<TEntry>>;
 };
 
 /** Options for count — typed per-table. */
-type TypedCountOptions<TEntry extends TableEntry> = {
+type TypedCountOptions<TEntry extends ModelEntry> = {
   readonly where?: FilterType<EntryColumns<TEntry>>;
 };
 
@@ -271,9 +276,9 @@ type TypedCountOptions<TEntry extends TableEntry> = {
 // Database instance interface — unified type (resolves follow-up #8)
 // ---------------------------------------------------------------------------
 
-export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
-  /** The table registry for type-safe access. */
-  readonly _tables: TTables;
+export interface DatabaseInstance<TModels extends Record<string, ModelEntry>> {
+  /** The model registry for type-safe access. */
+  readonly _models: TModels;
   /** The SQL dialect used by this database instance. */
   readonly _dialect: Dialect;
   /** The computed tenant scoping graph. */
@@ -304,12 +309,12 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
    * Get a single row or null.
    * Returns ok(null) when no record is found - absence is not an error.
    */
-  get<TName extends keyof TTables & string, TOptions extends TypedGetOptions<TTables[TName]>>(
+  get<TName extends keyof TModels & string, TOptions extends TypedGetOptions<TModels[TName]>>(
     table: TName,
     options?: TOptions,
   ): Promise<
     Result<
-      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>> | null,
+      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>> | null,
       ReadError
     >
   >;
@@ -319,14 +324,14 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
    * Use when absence of a record is an error condition.
    */
   getRequired<
-    TName extends keyof TTables & string,
-    TOptions extends TypedGetOptions<TTables[TName]>,
+    TName extends keyof TModels & string,
+    TOptions extends TypedGetOptions<TModels[TName]>,
   >(
     table: TName,
     options?: TOptions,
   ): Promise<
     Result<
-      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>,
       ReadError
     >
   >;
@@ -336,14 +341,14 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
    * Alias for getRequired.
    */
   getOrThrow<
-    TName extends keyof TTables & string,
-    TOptions extends TypedGetOptions<TTables[TName]>,
+    TName extends keyof TModels & string,
+    TOptions extends TypedGetOptions<TModels[TName]>,
   >(
     table: TName,
     options?: TOptions,
   ): Promise<
     Result<
-      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>,
       ReadError
     >
   >;
@@ -351,12 +356,12 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * List multiple rows.
    */
-  list<TName extends keyof TTables & string, TOptions extends TypedListOptions<TTables[TName]>>(
+  list<TName extends keyof TModels & string, TOptions extends TypedListOptions<TModels[TName]>>(
     table: TName,
     options?: TOptions,
   ): Promise<
     Result<
-      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[],
+      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>[],
       ReadError
     >
   >;
@@ -365,15 +370,15 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
    * List multiple rows with total count.
    */
   listAndCount<
-    TName extends keyof TTables & string,
-    TOptions extends TypedListOptions<TTables[TName]>,
+    TName extends keyof TModels & string,
+    TOptions extends TypedListOptions<TModels[TName]>,
   >(
     table: TName,
     options?: TOptions,
   ): Promise<
     Result<
       {
-        data: FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[];
+        data: FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>[];
         total: number;
       },
       ReadError
@@ -381,15 +386,15 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   >;
 
   /** @deprecated Use `get` instead */
-  findOne: DatabaseInstance<TTables>['get'];
+  findOne: DatabaseInstance<TModels>['get'];
   /** @deprecated Use `getRequired` instead */
-  findOneRequired: DatabaseInstance<TTables>['getRequired'];
+  findOneRequired: DatabaseInstance<TModels>['getRequired'];
   /** @deprecated Use `getOrThrow` instead */
-  findOneOrThrow: DatabaseInstance<TTables>['getOrThrow'];
+  findOneOrThrow: DatabaseInstance<TModels>['getOrThrow'];
   /** @deprecated Use `list` instead */
-  findMany: DatabaseInstance<TTables>['list'];
+  findMany: DatabaseInstance<TModels>['list'];
   /** @deprecated Use `listAndCount` instead */
-  findManyAndCount: DatabaseInstance<TTables>['listAndCount'];
+  findManyAndCount: DatabaseInstance<TModels>['listAndCount'];
 
   // -------------------------------------------------------------------------
   // Create queries (DB-010)
@@ -398,12 +403,12 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Insert a single row and return it.
    */
-  create<TName extends keyof TTables & string, TOptions extends TypedCreateOptions<TTables[TName]>>(
+  create<TName extends keyof TModels & string, TOptions extends TypedCreateOptions<TModels[TName]>>(
     table: TName,
     options: TOptions,
   ): Promise<
     Result<
-      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>,
       WriteError
     >
   >;
@@ -411,23 +416,23 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Insert multiple rows and return the count.
    */
-  createMany<TName extends keyof TTables & string>(
+  createMany<TName extends keyof TModels & string>(
     table: TName,
-    options: TypedCreateManyOptions<TTables[TName]>,
+    options: TypedCreateManyOptions<TModels[TName]>,
   ): Promise<Result<{ count: number }, WriteError>>;
 
   /**
    * Insert multiple rows and return them.
    */
   createManyAndReturn<
-    TName extends keyof TTables & string,
-    TOptions extends TypedCreateManyAndReturnOptions<TTables[TName]>,
+    TName extends keyof TModels & string,
+    TOptions extends TypedCreateManyAndReturnOptions<TModels[TName]>,
   >(
     table: TName,
     options: TOptions,
   ): Promise<
     Result<
-      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>[],
+      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>[],
       WriteError
     >
   >;
@@ -440,12 +445,12 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
    * Update matching rows and return the first.
    * Returns NotFoundError if no rows match.
    */
-  update<TName extends keyof TTables & string, TOptions extends TypedUpdateOptions<TTables[TName]>>(
+  update<TName extends keyof TModels & string, TOptions extends TypedUpdateOptions<TModels[TName]>>(
     table: TName,
     options: TOptions,
   ): Promise<
     Result<
-      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>,
       WriteError
     >
   >;
@@ -453,9 +458,9 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Update matching rows and return the count.
    */
-  updateMany<TName extends keyof TTables & string>(
+  updateMany<TName extends keyof TModels & string>(
     table: TName,
-    options: TypedUpdateManyOptions<TTables[TName]>,
+    options: TypedUpdateManyOptions<TModels[TName]>,
   ): Promise<Result<{ count: number }, WriteError>>;
 
   // -------------------------------------------------------------------------
@@ -465,12 +470,12 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Insert or update a row.
    */
-  upsert<TName extends keyof TTables & string, TOptions extends TypedUpsertOptions<TTables[TName]>>(
+  upsert<TName extends keyof TModels & string, TOptions extends TypedUpsertOptions<TModels[TName]>>(
     table: TName,
     options: TOptions,
   ): Promise<
     Result<
-      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>,
       WriteError
     >
   >;
@@ -483,12 +488,12 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
    * Delete a matching row and return it.
    * Returns NotFoundError if no rows match.
    */
-  delete<TName extends keyof TTables & string, TOptions extends TypedDeleteOptions<TTables[TName]>>(
+  delete<TName extends keyof TModels & string, TOptions extends TypedDeleteOptions<TModels[TName]>>(
     table: TName,
     options: TOptions,
   ): Promise<
     Result<
-      FindResult<EntryTable<TTables[TName]>, TOptions, EntryRelations<TTables[TName]>>,
+      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>,
       WriteError
     >
   >;
@@ -496,9 +501,9 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Delete matching rows and return the count.
    */
-  deleteMany<TName extends keyof TTables & string>(
+  deleteMany<TName extends keyof TModels & string>(
     table: TName,
-    options: TypedDeleteManyOptions<TTables[TName]>,
+    options: TypedDeleteManyOptions<TModels[TName]>,
   ): Promise<Result<{ count: number }, WriteError>>;
 
   // -------------------------------------------------------------------------
@@ -508,15 +513,15 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Count rows matching an optional filter.
    */
-  count<TName extends keyof TTables & string>(
+  count<TName extends keyof TModels & string>(
     table: TName,
-    options?: TypedCountOptions<TTables[TName]>,
+    options?: TypedCountOptions<TModels[TName]>,
   ): Promise<Result<number, ReadError>>;
 
   /**
    * Run aggregation functions on a table.
    */
-  aggregate<TName extends keyof TTables & string>(
+  aggregate<TName extends keyof TModels & string>(
     table: TName,
     options: agg.AggregateArgs,
   ): Promise<Result<Record<string, unknown>, ReadError>>;
@@ -524,21 +529,21 @@ export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /**
    * Group rows by columns and apply aggregation functions.
    */
-  groupBy<TName extends keyof TTables & string>(
+  groupBy<TName extends keyof TModels & string>(
     table: TName,
     options: agg.GroupByArgs,
   ): Promise<Result<Record<string, unknown>[], ReadError>>;
 }
 
 // ---------------------------------------------------------------------------
-// Resolve table entry helper
+// Resolve model entry helper
 // ---------------------------------------------------------------------------
 
-function resolveTable<TTables extends Record<string, TableEntry>>(
-  tables: TTables,
+function resolveModel<TModels extends Record<string, ModelEntry>>(
+  models: TModels,
   name: string,
-): TableEntry {
-  const entry = tables[name];
+): ModelEntry {
+  const entry = models[name];
   if (!entry) {
     throw new Error(`Table "${name}" is not registered in the database.`);
   }
@@ -570,10 +575,10 @@ function resolveTable<TTables extends Record<string, TableEntry>>(
  * idle connections are closed after 30 seconds. Set `idleTimeout` explicitly
  * to override (value in milliseconds, e.g., `60000` for 60s).
  */
-export function createDb<TTables extends Record<string, TableEntry>>(
-  options: CreateDbOptions<TTables>,
-): DatabaseInstance<TTables> {
-  const { tables, log, dialect } = options;
+export function createDb<TModels extends Record<string, ModelEntry>>(
+  options: CreateDbOptions<TModels>,
+): DatabaseInstance<TModels> {
+  const { models, log, dialect } = options;
 
   // Validate dialect-specific options
   if (dialect === 'sqlite') {
@@ -588,8 +593,8 @@ export function createDb<TTables extends Record<string, TableEntry>>(
   // Create the dialect object based on the dialect option
   const dialectObj: Dialect = dialect === 'sqlite' ? defaultSqliteDialect : defaultPostgresDialect;
 
-  // Compute tenant graph from table registry metadata
-  const tenantGraph = computeTenantGraph(tables);
+  // Compute tenant graph from model registry metadata
+  const tenantGraph = computeTenantGraph(models);
 
   // Log notices for unscoped tables
   if (log && tenantGraph.root !== null) {
@@ -600,7 +605,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
       ...tenantGraph.shared,
     ]);
 
-    for (const [key, entry] of Object.entries(tables)) {
+    for (const [key, entry] of Object.entries(models)) {
       if (!allScoped.has(key)) {
         log(
           `[vertz/db] Table "${entry.table._name}" has no tenant path and is not marked .shared(). ` +
@@ -610,9 +615,9 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     }
   }
 
-  // Pre-compute the table registry for relation loading
-  // TableEntry is structurally compatible with TableRegistryEntry
-  const tablesRegistry = tables as Record<string, TableRegistryEntry>;
+  // Pre-compute the model registry for relation loading
+  // ModelEntry is structurally compatible with TableRegistryEntry
+  const modelsRegistry = models as Record<string, TableRegistryEntry>;
 
   // Create the postgres driver if _queryFn is not provided
   let driver: PostgresDriver | null = null;
@@ -629,7 +634,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     // Handle SQLite dialect
     if (dialect === 'sqlite' && options.d1) {
       // Build table schema registry for value conversion
-      const tableSchema = buildTableSchema(tables);
+      const tableSchema = buildTableSchema(models);
       sqliteDriver = createSqliteDriver(options.d1, tableSchema);
 
       // Return a query function that wraps the SQLite driver
@@ -701,14 +706,14 @@ export function createDb<TTables extends Record<string, TableEntry>>(
   // Implementation note: The interface provides fully typed signatures.
   // Internally, the CRUD functions use Record<string, unknown> at runtime.
   // We use `as any` on the return type to bridge the gap — the external
-  // contract (DatabaseInstance<TTables>) ensures type safety for callers.
+  // contract (DatabaseInstance<TModels>) ensures type safety for callers.
   // -----------------------------------------------------------------------
 
   // biome-ignore lint/suspicious/noExplicitAny: Internal implementation bridges typed interface to untyped CRUD layer
   type AnyResult = any;
 
   return {
-    _tables: tables,
+    _models: models,
     _dialect: dialectObj,
     $tenantGraph: tenantGraph,
 
@@ -753,7 +758,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async get(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs, dialectObj);
         if (result !== null && opts?.include) {
           const rows = await loadRelations(
@@ -762,7 +767,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
             entry.relations as Record<string, RelationDef>,
             opts.include as IncludeSpec,
             0,
-            tablesRegistry,
+            modelsRegistry,
             entry.table,
           );
           return ok(rows[0] ?? null);
@@ -775,7 +780,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async getRequired(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs, dialectObj);
         if (result === null) {
           return err({
@@ -791,7 +796,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
             entry.relations as Record<string, RelationDef>,
             opts.include as IncludeSpec,
             0,
-            tablesRegistry,
+            modelsRegistry,
             entry.table,
           );
           return ok(rows[0] as Record<string, unknown>);
@@ -808,7 +813,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async list(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const results = await crud.list(queryFn, entry.table, opts as crud.ListArgs, dialectObj);
         if (opts?.include && results.length > 0) {
           const withRelations = await loadRelations(
@@ -817,7 +822,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
             entry.relations as Record<string, RelationDef>,
             opts.include as IncludeSpec,
             0,
-            tablesRegistry,
+            modelsRegistry,
             entry.table,
           );
           return ok(withRelations);
@@ -830,7 +835,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async listAndCount(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const { data, total } = await crud.listAndCount(
           queryFn,
           entry.table,
@@ -844,7 +849,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
             entry.relations as Record<string, RelationDef>,
             opts.include as IncludeSpec,
             0,
-            tablesRegistry,
+            modelsRegistry,
             entry.table,
           );
           return ok({ data: withRelations, total });
@@ -878,7 +883,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async create(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const result = await crud.create(queryFn, entry.table, opts as crud.CreateArgs, dialectObj);
         return ok(result);
       } catch (e) {
@@ -888,7 +893,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async createMany(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const result = await crud.createMany(
           queryFn,
           entry.table,
@@ -903,7 +908,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async createManyAndReturn(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const result = await crud.createManyAndReturn(
           queryFn,
           entry.table,
@@ -922,7 +927,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async update(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const result = await crud.update(queryFn, entry.table, opts as crud.UpdateArgs, dialectObj);
         return ok(result);
       } catch (e) {
@@ -932,7 +937,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async updateMany(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const result = await crud.updateMany(
           queryFn,
           entry.table,
@@ -951,7 +956,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async upsert(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const result = await crud.upsert(queryFn, entry.table, opts as crud.UpsertArgs, dialectObj);
         return ok(result);
       } catch (e) {
@@ -965,7 +970,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async delete(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const result = await crud.deleteOne(
           queryFn,
           entry.table,
@@ -980,7 +985,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async deleteMany(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const result = await crud.deleteMany(
           queryFn,
           entry.table,
@@ -999,7 +1004,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async count(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const result = await agg.count(
           queryFn,
           entry.table,
@@ -1013,7 +1018,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async aggregate(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const result = await agg.aggregate(queryFn, entry.table, opts);
         return ok(result);
       } catch (e) {
@@ -1023,7 +1028,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
     async groupBy(name, opts): Promise<AnyResult> {
       try {
-        const entry = resolveTable(tables, name);
+        const entry = resolveModel(models, name);
         const result = await agg.groupBy(queryFn, entry.table, opts);
         return ok(result);
       } catch (e) {

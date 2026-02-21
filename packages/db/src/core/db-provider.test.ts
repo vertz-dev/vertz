@@ -45,7 +45,7 @@ describe('createDbProvider', () => {
   it('returns an object with onInit, methods, and onDestroy', () => {
     const provider = createDbProvider({
       url: 'postgres://localhost:5432/test',
-      tables: { users: { table: users, relations: {} } },
+      models: { users: { table: users, relations: {} } },
     });
 
     expect(provider).toHaveProperty('onInit');
@@ -59,7 +59,7 @@ describe('createDbProvider', () => {
   it('onInit creates a DatabaseInstance and returns it as state', async () => {
     const provider = createDbProvider({
       url: 'postgres://localhost:5432/test',
-      tables: { users: { table: users, relations: {} } },
+      models: { users: { table: users, relations: {} } },
       _queryFn: queryFn,
     });
 
@@ -76,7 +76,7 @@ describe('createDbProvider', () => {
   it('methods returns the DatabaseInstance directly', async () => {
     const provider = createDbProvider({
       url: 'postgres://localhost:5432/test',
-      tables: { users: { table: users, relations: {} } },
+      models: { users: { table: users, relations: {} } },
       _queryFn: queryFn,
     });
 
@@ -92,7 +92,7 @@ describe('createDbProvider', () => {
   it('onDestroy calls db.close()', async () => {
     const provider = createDbProvider({
       url: 'postgres://localhost:5432/test',
-      tables: { users: { table: users, relations: {} } },
+      models: { users: { table: users, relations: {} } },
       _queryFn: queryFn,
     });
 
@@ -107,7 +107,7 @@ describe('createDbProvider', () => {
   it('works as a full lifecycle: init → use → destroy', async () => {
     const provider = createDbProvider({
       url: 'postgres://localhost:5432/test',
-      tables: { users: { table: users, relations: {} } },
+      models: { users: { table: users, relations: {} } },
       _queryFn: queryFn,
     });
 
@@ -127,7 +127,7 @@ describe('createDbProvider', () => {
     const logFn = vi.fn();
     const provider = createDbProvider({
       url: 'postgres://localhost:5432/test',
-      tables: { users: { table: users, relations: {} } },
+      models: { users: { table: users, relations: {} } },
       pool: { max: 5, idleTimeout: 10_000 },
       casing: 'camelCase',
       log: logFn,

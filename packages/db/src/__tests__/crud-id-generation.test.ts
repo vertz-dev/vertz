@@ -30,7 +30,7 @@ const usersWithReadOnly = d.table('users_readonly', {
   name: d.text(),
 });
 
-const tables = createRegistry(
+const models = createRegistry(
   {
     usersCuid: usersWithCuid,
     usersUuid: usersWithUuid,
@@ -43,11 +43,11 @@ const tables = createRegistry(
 
 describe('CRUD ID Generation', () => {
   let pg: PGlite;
-  let db: ReturnType<typeof createDb<typeof tables>>;
+  let db: ReturnType<typeof createDb<typeof models>>;
 
   beforeAll(async () => {
     pg = new PGlite();
-    
+
     const queryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
       const result = await pg.query(sqlStr, params as unknown[]);
       return {
@@ -58,7 +58,7 @@ describe('CRUD ID Generation', () => {
 
     db = createDb({
       url: 'pglite://memory',
-      tables,
+      models,
       _queryFn: queryFn,
     });
 
@@ -189,7 +189,7 @@ describe('CRUD ID Generation', () => {
       name: d.text(),
     });
 
-    const badTables = createRegistry({ bad: badTable }, () => ({}));
+    const badModels = createRegistry({ bad: badTable }, () => ({}));
 
     const queryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
       const result = await pg.query(sqlStr, params as unknown[]);
@@ -201,14 +201,16 @@ describe('CRUD ID Generation', () => {
 
     const badDb = createDb({
       url: 'pglite://memory',
-      tables: badTables,
+      models: badModels,
       _queryFn: queryFn,
     });
 
     const result = await badDb.create('bad', { data: { name: 'Invalid' } });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.message).toMatch(/ID generation is only supported on string column types/);
+      expect(result.error.message).toMatch(
+        /ID generation is only supported on string column types/,
+      );
     }
   });
 

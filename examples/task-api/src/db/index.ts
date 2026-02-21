@@ -10,7 +10,7 @@ import { tables } from './schema';
 
 export const db = createDb({
   url: process.env.DATABASE_URL ?? 'postgres://localhost:5432/task_api',
-  tables,
+  models: tables,
   casing: 'snake_case',
 });
 

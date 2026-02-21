@@ -6,10 +6,10 @@ import type {
   FindResult,
   IncludeResolve,
   InsertInput,
+  ModelEntry,
   OrderByType,
   SelectNarrow,
   SelectOption,
-  TableEntry,
   UpdateInput,
 } from '../inference';
 
@@ -464,21 +464,21 @@ describe('UpdateInput', () => {
 describe('Database', () => {
   it('carries table registry type information', () => {
     type MyDB = Database<{
-      users: TableEntry<typeof users, typeof postRelations>;
-      posts: TableEntry<typeof posts, typeof commentRelations>;
+      users: ModelEntry<typeof users, typeof postRelations>;
+      posts: ModelEntry<typeof posts, typeof commentRelations>;
     }>;
 
-    type Tables = MyDB['_tables'];
+    type Tables = MyDB['_models'];
     expectTypeOf<Tables>().toHaveProperty('users');
     expectTypeOf<Tables>().toHaveProperty('posts');
   });
 
   it('table entries carry correct types', () => {
     type MyDB = Database<{
-      users: TableEntry<typeof users>;
+      users: ModelEntry<typeof users>;
     }>;
 
-    type UsersEntry = MyDB['_tables']['users'];
+    type UsersEntry = MyDB['_models']['users'];
     expectTypeOf<UsersEntry['table']>().toEqualTypeOf<typeof users>();
   });
 });

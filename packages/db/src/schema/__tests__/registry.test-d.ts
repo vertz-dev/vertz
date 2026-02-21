@@ -1,6 +1,6 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import { d } from '../../d';
-import type { TableEntry } from '../inference';
+import type { ModelEntry } from '../inference';
 import { createRegistry } from '../registry';
 import type { RelationDef } from '../relation';
 
@@ -33,16 +33,16 @@ const comments = d.table('comments', {
 // ---------------------------------------------------------------------------
 
 describe('d.entry() types', () => {
-  it('returns TableEntry with empty relations when called with table only', () => {
+  it('returns ModelEntry with empty relations when called with table only', () => {
     const entry = d.entry(users);
 
-    expectTypeOf(entry).toMatchTypeOf<TableEntry>();
+    expectTypeOf(entry).toMatchTypeOf<ModelEntry>();
     expectTypeOf(entry.table).toEqualTypeOf<typeof users>();
     // biome-ignore lint/complexity/noBannedTypes: testing that the actual return type is {} (empty relations)
     expectTypeOf(entry.relations).toEqualTypeOf<{}>();
   });
 
-  it('returns TableEntry with typed relations when called with table and relations', () => {
+  it('returns ModelEntry with typed relations when called with table and relations', () => {
     const postRelations = {
       author: d.ref.one(() => users, 'authorId'),
       comments: d.ref.many(() => comments, 'postId'),
@@ -50,13 +50,13 @@ describe('d.entry() types', () => {
 
     const entry = d.entry(posts, postRelations);
 
-    expectTypeOf(entry).toMatchTypeOf<TableEntry>();
+    expectTypeOf(entry).toMatchTypeOf<ModelEntry>();
     expectTypeOf(entry.table).toEqualTypeOf<typeof posts>();
     expectTypeOf(entry.relations.author._type).toEqualTypeOf<'one'>();
     expectTypeOf(entry.relations.comments._type).toEqualTypeOf<'many'>();
   });
 
-  it('entry result satisfies Record<string, TableEntry>', () => {
+  it('entry result satisfies Record<string, ModelEntry>', () => {
     const postRelations = {
       author: d.ref.one(() => users, 'authorId'),
     };
@@ -64,10 +64,10 @@ describe('d.entry() types', () => {
     const tables = {
       users: d.entry(users),
       posts: d.entry(posts, postRelations),
-    } satisfies Record<string, TableEntry>;
+    } satisfies Record<string, ModelEntry>;
 
-    expectTypeOf(tables.users).toMatchTypeOf<TableEntry>();
-    expectTypeOf(tables.posts).toMatchTypeOf<TableEntry>();
+    expectTypeOf(tables.users).toMatchTypeOf<ModelEntry>();
+    expectTypeOf(tables.posts).toMatchTypeOf<ModelEntry>();
   });
 
   it('rejects non-table first argument', () => {
@@ -155,7 +155,7 @@ describe('createRegistry() types', () => {
     }));
   });
 
-  it('output type matches Record<string, TableEntry>', () => {
+  it('output type matches Record<string, ModelEntry>', () => {
     const tables = createRegistry({ users, posts, comments }, (ref) => ({
       posts: {
         author: ref.posts.one('users', 'authorId'),
@@ -163,7 +163,7 @@ describe('createRegistry() types', () => {
       },
     }));
 
-    expectTypeOf(tables).toMatchTypeOf<Record<string, TableEntry>>();
+    expectTypeOf(tables).toMatchTypeOf<Record<string, ModelEntry>>();
   });
 
   it('preserves specific table and relation types in output', () => {

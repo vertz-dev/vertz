@@ -2,7 +2,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createDb } from '../../client/database';
 import { d } from '../../d';
-import type { TableEntry } from '../../schema/inference';
+import type { ModelEntry } from '../../schema/inference';
 
 /**
  * CRUD query integration tests — DB-010 acceptance criteria.
@@ -31,12 +31,12 @@ describe('CRUD queries (DB-010)', () => {
     published: d.boolean().default(false),
   });
 
-  const tables = {
+  const models = {
     users: { table: usersTable, relations: {} },
     posts: { table: postsTable, relations: {} },
-  } satisfies Record<string, TableEntry>;
+  } satisfies Record<string, ModelEntry>;
 
-  type Db = ReturnType<typeof createDb<typeof tables>>;
+  type Db = ReturnType<typeof createDb<typeof models>>;
   let db: Db;
 
   beforeAll(async () => {
@@ -62,7 +62,7 @@ describe('CRUD queries (DB-010)', () => {
 
     db = createDb({
       url: 'pglite://memory',
-      tables,
+      models,
       _queryFn: async <T>(sql: string, params: readonly unknown[]) => {
         const result = await pg.query<T>(sql, params as unknown[]);
         return { rows: result.rows as readonly T[], rowCount: result.affectedRows ?? 0 };

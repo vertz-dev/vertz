@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createSqliteDriver, buildTableSchema, type TableSchemaRegistry } from '../sqlite-driver';
-import type { TableEntry } from '../../schema/inference';
-import { createTable } from '../../schema/table';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createColumn } from '../../schema/column';
+import type { ModelEntry } from '../../schema/inference';
+import { createTable } from '../../schema/table';
+import { buildTableSchema, createSqliteDriver, type TableSchemaRegistry } from '../sqlite-driver';
 
 // D1 type definitions (mock)
 interface D1Database {
@@ -267,15 +267,18 @@ describe('buildTableSchema', () => {
       createdAt: createColumn<string, { sqlType: 'timestamp' }>('timestamp'),
     });
 
-    const tables = {
+    const models = {
       users: {
-        table: usersTable as typeof usersTable & { _name: string; _columns: Record<string, unknown> },
+        table: usersTable as typeof usersTable & {
+          _name: string;
+          _columns: Record<string, unknown>;
+        },
         relations: {},
       },
-    } as unknown as Record<string, TableEntry>;
+    } as unknown as Record<string, ModelEntry>;
 
     // Act
-    const schema = buildTableSchema(tables);
+    const schema = buildTableSchema(models);
 
     // Assert
     expect(schema.get('users')).toEqual({

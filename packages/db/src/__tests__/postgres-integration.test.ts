@@ -71,7 +71,7 @@ const featureFlags = d
 // Table registry with relations
 // ---------------------------------------------------------------------------
 
-const tables = createRegistry({ organizations, users, posts, comments, featureFlags }, (ref) => ({
+const models = createRegistry({ organizations, users, posts, comments, featureFlags }, (ref) => ({
   posts: {
     author: ref.posts.one('users', 'authorId'),
     comments: ref.posts.many('comments', 'postId'),
@@ -107,7 +107,7 @@ function testIds() {
 // ---------------------------------------------------------------------------
 
 async function seedTestData(
-  db: ReturnType<typeof createDb<typeof tables>>,
+  db: ReturnType<typeof createDb<typeof models>>,
   ids: ReturnType<typeof testIds>,
   suffix: string,
 ) {
@@ -188,7 +188,7 @@ async function truncateAll(pg: PGlite) {
 
 describe('PostgreSQL Integration Tests (PGlite)', () => {
   let pg: PGlite;
-  let db: ReturnType<typeof createDb<typeof tables>>;
+  let db: ReturnType<typeof createDb<typeof models>>;
 
   beforeAll(async () => {
     pg = new PGlite();
@@ -254,7 +254,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     // Create db instance with PGlite query function
     db = createDb({
       url: 'pglite://memory',
-      tables,
+      models,
       _queryFn: queryFn,
     });
   });

@@ -60,7 +60,7 @@ const featureFlags = d
 // Table registry — using createRegistry() for type-safe relations
 // ---------------------------------------------------------------------------
 
-const tables = createRegistry({ organizations, users, posts, comments, featureFlags }, (ref) => ({
+const models = createRegistry({ organizations, users, posts, comments, featureFlags }, (ref) => ({
   posts: {
     author: ref.posts.one('users', 'authorId'),
     comments: ref.posts.many('comments', 'postId'),
@@ -90,7 +90,7 @@ const FLAG_ID = '55555555-5555-5555-5555-555555555555';
 describe('E2E Acceptance Test (db-018)', () => {
   let pg: PGlite;
   let queryFn: QueryFn;
-  let db: ReturnType<typeof createDb<typeof tables>>;
+  let db: ReturnType<typeof createDb<typeof models>>;
 
   beforeAll(async () => {
     pg = new PGlite();
@@ -157,7 +157,7 @@ describe('E2E Acceptance Test (db-018)', () => {
     // Create db instance with PGlite query function
     db = createDb({
       url: 'pglite://memory',
-      tables,
+      models,
       _queryFn: queryFn,
     });
   });

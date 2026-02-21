@@ -5,7 +5,7 @@ import type {
   FilterType,
   FindResult,
   InsertInput,
-  TableEntry,
+  ModelEntry,
   UpdateInput,
 } from '../schema/inference';
 
@@ -76,7 +76,7 @@ const tables = {
   posts: { table: posts, relations: postRelations },
   comments: { table: comments, relations: commentRelations },
   featureFlags: { table: featureFlags, relations: {} },
-} satisfies Record<string, TableEntry>;
+} satisfies Record<string, ModelEntry>;
 
 // Type alias for the typed database instance
 type DB = DatabaseInstance<typeof tables>;
