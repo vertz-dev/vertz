@@ -6,12 +6,12 @@
  * use a local Postgres or PGlite.
  */
 import { createDb } from '@vertz/db';
-import { tables } from './schema';
+import { models } from './schema';
 
 export const db = createDb({
   url: process.env.DATABASE_URL ?? 'postgres://localhost:5432/task_api',
-  tables,
+  models,
   casing: 'snake_case',
 });
 
-export { tables } from './schema';
+export { models } from './schema';

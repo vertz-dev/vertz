@@ -1,26 +1,26 @@
 import { type CreateDbOptions, createDb, type DatabaseInstance } from '../client/database';
 import { ConnectionError } from '../errors/db-error';
-import type { TableEntry } from '../schema/inference';
+import type { ModelEntry } from '../schema/inference';
 
 // ---------------------------------------------------------------------------
 // DbProviderConfig — same as CreateDbOptions, passed through to createDb
 // ---------------------------------------------------------------------------
 
-export type DbProviderConfig<TTables extends Record<string, TableEntry>> = CreateDbOptions<TTables>;
+export type DbProviderConfig<TModels extends Record<string, ModelEntry>> = CreateDbOptions<TModels>;
 
 // ---------------------------------------------------------------------------
 // ServiceDef-compatible shape (structural typing — no @vertz/core import)
 // ---------------------------------------------------------------------------
 
-export interface DbProviderDef<TTables extends Record<string, TableEntry>> {
-  readonly onInit: (deps: Record<string, never>) => Promise<DatabaseInstance<TTables>>;
+export interface DbProviderDef<TModels extends Record<string, ModelEntry>> {
+  readonly onInit: (deps: Record<string, never>) => Promise<DatabaseInstance<TModels>>;
   readonly methods: (
     deps: Record<string, never>,
-    state: DatabaseInstance<TTables>,
-  ) => DatabaseInstance<TTables>;
+    state: DatabaseInstance<TModels>,
+  ) => DatabaseInstance<TModels>;
   readonly onDestroy: (
     deps: Record<string, never>,
-    state: DatabaseInstance<TTables>,
+    state: DatabaseInstance<TModels>,
   ) => Promise<void>;
 }
 
@@ -43,15 +43,15 @@ export interface DbProviderDef<TTables extends Record<string, TableEntry>> {
  *
  * const dbProvider = createDbProvider({
  *   url: process.env.DATABASE_URL!,
- *   tables: { users: { table: users, relations: {} } },
+ *   models: { users: { table: users, relations: {} } },
  * });
  *
  * const dbService = appDef.service(dbProvider);
  * ```
  */
-export function createDbProvider<TTables extends Record<string, TableEntry>>(
-  config: DbProviderConfig<TTables>,
-): DbProviderDef<TTables> {
+export function createDbProvider<TModels extends Record<string, ModelEntry>>(
+  config: DbProviderConfig<TModels>,
+): DbProviderDef<TModels> {
   return {
     async onInit() {
       const db = createDb(config);

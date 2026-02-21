@@ -3,7 +3,7 @@
  * JWT sessions, email/password authentication, RBAC
  */
 
-import type { TableEntry } from '@vertz/db';
+import type { ModelEntry } from '@vertz/db';
 
 // ============================================================================
 // Session Types
@@ -168,7 +168,7 @@ export interface RateLimitResult {
 // ============================================================================
 
 // Users table entry type (will be provided by user)
-export interface UserTableEntry extends TableEntry<any, any> {
+export interface UserTableEntry extends ModelEntry<any, any> {
   table: {
     id: { type: string };
     email: { type: string };
@@ -181,7 +181,7 @@ export interface UserTableEntry extends TableEntry<any, any> {
 }
 
 // Role assignments table
-export interface RoleAssignmentTableEntry extends TableEntry<any, any> {
+export interface RoleAssignmentTableEntry extends ModelEntry<any, any> {
   table: {
     id: { type: string };
     userId: { type: string };

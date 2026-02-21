@@ -3,7 +3,6 @@ import { unwrap } from '@vertz/schema';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb } from '../client';
 import { d } from '../d';
-import { createRegistry } from '../schema/registry';
 
 const usersWithCuid = d.table('users_cuid', {
   id: d.text().primary({ generate: 'cuid' }),
@@ -30,24 +29,21 @@ const usersWithReadOnly = d.table('users_readonly', {
   name: d.text(),
 });
 
-const tables = createRegistry(
-  {
-    usersCuid: usersWithCuid,
-    usersUuid: usersWithUuid,
-    usersNanoid: usersWithNanoid,
-    usersNoGen: usersNoGenerate,
-    usersReadonly: usersWithReadOnly,
-  },
-  () => ({}),
-);
+const models = {
+  usersCuid: d.model(usersWithCuid),
+  usersUuid: d.model(usersWithUuid),
+  usersNanoid: d.model(usersWithNanoid),
+  usersNoGen: d.model(usersNoGenerate),
+  usersReadonly: d.model(usersWithReadOnly),
+};
 
 describe('CRUD ID Generation', () => {
   let pg: PGlite;
-  let db: ReturnType<typeof createDb<typeof tables>>;
+  let db: ReturnType<typeof createDb<typeof models>>;
 
   beforeAll(async () => {
     pg = new PGlite();
-    
+
     const queryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
       const result = await pg.query(sqlStr, params as unknown[]);
       return {
@@ -58,7 +54,7 @@ describe('CRUD ID Generation', () => {
 
     db = createDb({
       url: 'pglite://memory',
-      tables,
+      models,
       _queryFn: queryFn,
     });
 
@@ -189,7 +185,7 @@ describe('CRUD ID Generation', () => {
       name: d.text(),
     });
 
-    const badTables = createRegistry({ bad: badTable }, () => ({}));
+    const badModels = { bad: d.model(badTable) };
 
     const queryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
       const result = await pg.query(sqlStr, params as unknown[]);
@@ -201,14 +197,16 @@ describe('CRUD ID Generation', () => {
 
     const badDb = createDb({
       url: 'pglite://memory',
-      tables: badTables,
+      models: badModels,
       _queryFn: queryFn,
     });
 
     const result = await badDb.create('bad', { data: { name: 'Invalid' } });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.message).toMatch(/ID generation is only supported on string column types/);
+      expect(result.error.message).toMatch(
+        /ID generation is only supported on string column types/,
+      );
     }
   });
 

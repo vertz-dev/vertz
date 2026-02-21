@@ -32,7 +32,7 @@ describe('db.get() returns Result', () => {
   it('returns ok() with null when record not found', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [], rowCount: 0 }),
@@ -48,7 +48,7 @@ describe('db.get() returns Result', () => {
     const mockOrg = { id: '123', name: 'Test Org' };
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [mockOrg], rowCount: 1 }),
@@ -67,7 +67,7 @@ describe('db.get() returns Result', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: failingQueryFn,
@@ -88,7 +88,7 @@ describe('db.get() returns Result', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: failingQueryFn,
@@ -107,7 +107,7 @@ describe('db.getRequired() returns Result', () => {
     const mockOrg = { id: '123', name: 'Test Org' };
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [mockOrg], rowCount: 1 }),
@@ -122,7 +122,7 @@ describe('db.getRequired() returns Result', () => {
   it('returns err(NOT_FOUND) when record not found', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [], rowCount: 0 }),
@@ -141,7 +141,7 @@ describe('db.getRequired() returns Result', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: failingQueryFn,
@@ -157,7 +157,7 @@ describe('db.list() returns Result', () => {
   it('returns ok() with empty array when no records', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [], rowCount: 0 }),
@@ -176,7 +176,7 @@ describe('db.list() returns Result', () => {
     ];
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: mockOrgs, rowCount: 2 }),
@@ -195,7 +195,7 @@ describe('db.list() returns Result', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: failingQueryFn,
@@ -213,7 +213,7 @@ describe('db.listAndCount() returns Result', () => {
     let callCount = 0;
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async (_sql: string) => {
@@ -243,7 +243,7 @@ describe('db.listAndCount() returns Result', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: failingQueryFn,
@@ -260,7 +260,7 @@ describe('db.create() returns Result', () => {
     const createdOrg = { id: '123', name: 'New Org' };
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [createdOrg], rowCount: 1 }),
@@ -285,7 +285,7 @@ describe('db.create() returns Result', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         users: { table: users, relations: {} },
       },
       _queryFn: failingQueryFn,
@@ -309,7 +309,7 @@ describe('db.create() returns Result', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         users: { table: users, relations: {} },
       },
       _queryFn: failingQueryFn,
@@ -335,7 +335,7 @@ describe('db.create() returns Result', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         users: { table: users, relations: {} },
         organizations: { table: organizations, relations: {} },
       },
@@ -357,7 +357,7 @@ describe('db.create() returns Result', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: failingQueryFn,
@@ -373,7 +373,7 @@ describe('db.createMany() returns Result', () => {
   it('returns ok() with count', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [], rowCount: 2 }),
@@ -395,7 +395,7 @@ describe('db.createMany() returns Result', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         users: { table: users, relations: {} },
       },
       _queryFn: failingQueryFn,
@@ -415,7 +415,7 @@ describe('db.update() returns Result', () => {
     const updatedOrg = { id: '123', name: 'Updated Org' };
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [updatedOrg], rowCount: 1 }),
@@ -433,7 +433,7 @@ describe('db.update() returns Result', () => {
   it('returns err() when no record matches', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [], rowCount: 0 }),
@@ -454,7 +454,7 @@ describe('db.update() returns Result', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: failingQueryFn,
@@ -474,7 +474,7 @@ describe('db.delete() returns Result', () => {
     const deletedOrg = { id: '123', name: 'Deleted Org' };
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [deletedOrg], rowCount: 1 }),
@@ -489,7 +489,7 @@ describe('db.delete() returns Result', () => {
   it('returns err() when no record matches', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [], rowCount: 0 }),
@@ -505,7 +505,7 @@ describe('db.query() returns Result', () => {
   it('returns ok() with query result', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [{ count: 5 }], rowCount: 1 }),
@@ -528,7 +528,7 @@ describe('db.query() returns Result', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: failingQueryFn,
@@ -544,7 +544,7 @@ describe('db.count() returns Result', () => {
   it('returns ok() with count', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: async () => ({ rows: [{ count: '5' }], rowCount: 1 }),
@@ -563,7 +563,7 @@ describe('db.count() returns Result', () => {
 
     const db = createDb({
       url: 'postgres://localhost:5432/test',
-      tables: {
+      models: {
         organizations: { table: organizations, relations: {} },
       },
       _queryFn: failingQueryFn,

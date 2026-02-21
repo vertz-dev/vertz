@@ -37,19 +37,19 @@ export type TableSchemaRegistry = Map<string, Record<string, string>>;
 // Helper: Build table schema from table entries
 // ---------------------------------------------------------------------------
 
-import type { TableEntry } from '../schema/inference';
 import type { ColumnMetadata } from '../schema/column';
+import type { ModelEntry } from '../schema/inference';
 
 /**
  * Builds a table schema registry from table entries.
  * Extracts column names and their SQL types from the table definitions.
  */
-export function buildTableSchema<TTables extends Record<string, TableEntry>>(
-  tables: TTables,
+export function buildTableSchema<TModels extends Record<string, ModelEntry>>(
+  models: TModels,
 ): TableSchemaRegistry {
   const registry = new Map<string, Record<string, string>>();
 
-  for (const [, entry] of Object.entries(tables)) {
+  for (const [, entry] of Object.entries(models)) {
     const tableName = entry.table._name;
     const columnTypes: Record<string, string> = {};
 

@@ -9,9 +9,8 @@
 import { unwrap } from '@vertz/schema';
 import { describe, expect, it, vi } from 'vitest';
 import { createDb } from '../client/database';
-import { d } from '../d';
-import { createRegistry } from '../schema/registry';
 import type { D1Database, D1PreparedStatement } from '../client/sqlite-driver';
+import { d } from '../d';
 
 // ---------------------------------------------------------------------------
 // Schema definition
@@ -24,7 +23,7 @@ const users = d.table('users', {
   createdAt: d.timestamp().default('now'),
 });
 
-const tables = createRegistry({ users }, () => ({}));
+const models = { users: d.model(users) };
 
 describe('SQLite integration (via D1 mock)', () => {
   /**
@@ -75,11 +74,11 @@ describe('SQLite integration (via D1 mock)', () => {
 
   it('SQLite CRUD: create inserts a record via D1 mock', async () => {
     const mockD1 = createMockD1();
-    
+
     const db = createDb({
       dialect: 'sqlite',
       d1: mockD1,
-      tables,
+      models,
     });
 
     const created = unwrap(
@@ -108,7 +107,7 @@ describe('SQLite integration (via D1 mock)', () => {
     const db = createDb({
       dialect: 'sqlite',
       d1: mockD1,
-      tables,
+      models,
     });
 
     const result = unwrap(await db.list('users'));

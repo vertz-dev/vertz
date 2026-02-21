@@ -89,7 +89,7 @@ const ERROR_PATTERNS: ReadonlyArray<{
     pattern: /Table "([^"]+)" is not registered in the database/,
     code: 'UNREGISTERED_TABLE',
     explanation: 'The table name passed to a query method is not in the database registry.',
-    suggestion: 'Register the table in the `tables` record passed to `createDb()`.',
+    suggestion: 'Register the table in the `models` record passed to `createDb()`.',
   },
 ];
 

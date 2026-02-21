@@ -1,75 +1,58 @@
 # @vertz/schema
 
-> Type-safe schema definition and validation for JavaScript/TypeScript
-
-A powerful validation library with end-to-end type inference, inspired by Zod. Define schemas with a fluent API and get full TypeScript types automatically.
-
-## Prerequisites
-
-- **Node.js** 18+ or **Bun** 1.0+
-- **TypeScript** 5.0+
+Type-safe validation with end-to-end type inference. Define schemas with a fluent API, get full TypeScript types automatically.
 
 ## Installation
 
 ```bash
-# npm
-npm install @vertz/schema
-
-# bun
 bun add @vertz/schema
 ```
 
 ## Quick Start
 
 ```typescript
-import { s } from '@vertz/schema';
+import { s, type Infer } from '@vertz/schema';
 
 // Define a schema
 const userSchema = s.object({
   name: s.string().min(1),
-  email: s.string().email(),
+  email: s.email(),
   age: s.number().int().min(18),
 });
 
-// Parse data (throws on invalid)
+// Infer the type
+type User = Infer<typeof userSchema>;
+// { name: string; email: string; age: number }
+
+// Parse (throws on invalid)
 const user = userSchema.parse({
   name: 'Alice',
   email: 'alice@example.com',
   age: 25,
 });
 
-// Safe parse (returns success/error)
-const result = userSchema.safeParse({
-  name: 'Bob',
-  email: 'not-an-email',
-  age: 17,
-});
-
+// Safe parse (never throws)
+const result = userSchema.safeParse(data);
 if (result.success) {
-  console.log('Valid user:', result.value);
+  console.log(result.data);
 } else {
-  console.log('Validation errors:', result.error.issues);
+  console.log(result.error.issues);
 }
-
-// Type inference
-type User = typeof userSchema._output;
-// ✅ { name: string; email: string; age: number }
 ```
 
-## Core Concepts
+## Schema Types
 
 ### Primitives
 
 ```typescript
-import { s } from '@vertz/schema';
-
 s.string()      // string
 s.number()      // number
 s.boolean()     // boolean
 s.bigint()      // bigint
 s.date()        // Date
 s.symbol()      // symbol
-s.int()         // number (integer)
+s.int()         // number (integer-only)
+s.nan()         // NaN
 ```
 
 ### Special Types
@@ -83,74 +66,65 @@ s.void()        // void
 s.never()       // never
 ```
 
-### Composite Types
+### Composites
 
 ```typescript
 // Objects
-const personSchema = s.object({
+s.object({
   name: s.string(),
   age: s.number(),
-});
+})
 
 // Arrays
-const numbersSchema = s.array(s.number());
+s.array(s.number())
 
 // Tuples
-const pairSchema = s.tuple([s.string(), s.number()]);
+s.tuple([s.string(), s.number()])
 
 // Enums
-const roleSchema = s.enum(['admin', 'user', 'guest']);
+s.enum(['admin', 'user', 'guest'])
 
 // Literals
-const yesSchema = s.literal('yes');
+s.literal('active')
 
 // Unions
-const statusSchema = s.union([
-  s.literal('pending'),
-  s.literal('approved'),
-  s.literal('rejected'),
-]);
+s.union([s.string(), s.number()])
+
+// Discriminated unions
+s.discriminatedUnion('type', [
+  s.object({ type: s.literal('text'), content: s.string() }),
+  s.object({ type: s.literal('image'), url: s.url() }),
+])
+
+// Intersections
+s.intersection(
+  s.object({ id: s.string() }),
+  s.object({ name: s.string() }),
+)
 
 // Records (dynamic keys)
-const configSchema = s.record(s.string());
+s.record(s.string())
 
 // Maps
-const mapSchema = s.map(s.string(), s.number());
+s.map(s.string(), s.number())
 
 // Sets
-const setSchema = s.set(s.string());
-```
+s.set(s.string())
 
-### String Validations
+// Files
+s.file()
 
-```typescript
-const schema = s.string()
-  .min(3)                    // Min length
-  .max(20)                   // Max length
-  .length(10)                // Exact length
-  .regex(/^[a-z]+$/)         // Pattern matching
-  .startsWith('hello')       // Prefix check
-  .endsWith('world')         // Suffix check
-  .includes('mid')           // Substring check
-  .uppercase()               // Must be all uppercase
-  .lowercase()               // Must be all lowercase
-  .min(1)                   // Minimum length (use for non-empty strings)
-  .trim();                   // Trim whitespace (transforms)
-```
+// Custom validators
+s.custom<number>(
+  (val) => typeof val === 'number' && val % 2 === 0,
+  'Must be an even number',
+)
 
-### Number Validations
+// Instance checks
+s.instanceof(Date)
 
-```typescript
-const schema = s.number()
-  .int()                     // Must be integer
-  .positive()                // > 0
-  .negative()                // < 0
-  .nonpositive()             // <= 0
-  .nonnegative()             // >= 0
-  .min(0)                    // Minimum value
-  .max(100)                  // Maximum value
-  .multipleOf(5)             // Must be divisible by n
-  .finite();                 // No Infinity or NaN
+// Recursive types
+s.lazy(() => categorySchema)
 ```
 
 ### Format Validators
@@ -159,152 +133,205 @@ Built-in validators for common formats:
 
 ```typescript
 s.email()         // Email address
-s.uuid()          // UUID (v1-v5)
+s.uuid()          // UUID
 s.url()           // HTTP(S) URL
 s.hostname()      // Valid hostname
 s.ipv4()          // IPv4 address
 s.ipv6()          // IPv6 address
 s.base64()        // Base64 string
 s.hex()           // Hexadecimal string
-s.jwt()           // JWT token (format only, not verified)
+s.jwt()           // JWT token (format only)
 s.cuid()          // CUID
 s.ulid()          // ULID
 s.nanoid()        // Nano ID
 
 // ISO formats
-s.iso.date()      // ISO 8601 date (YYYY-MM-DD)
-s.iso.time()      // ISO 8601 time (HH:MM:SS)
+s.iso.date()      // YYYY-MM-DD
+s.iso.time()      // HH:MM:SS
 s.iso.datetime()  // ISO 8601 datetime
 s.iso.duration()  // ISO 8601 duration (P1Y2M3D)
 ```
 
-### Optional and Nullable
+### Database Enum Bridge
 
 ```typescript
-const schema = s.string().optional();
-// string | undefined
+// Convert a @vertz/db enum column to a schema
+s.fromDbEnum(statusColumn)
+```
 
-const schema2 = s.string().nullable();
-// string | null
+## Modifiers
 
-// For nullish (T | null | undefined), chain both:
-// const schema3 = s.string().nullable().optional();
-// string | null | undefined
+### Optional & Nullable
+
+```typescript
+s.string().optional()         // string | undefined
+s.string().nullable()         // string | null
+s.string().nullable().optional()  // string | null | undefined
 ```
 
 ### Default Values
 
 ```typescript
-const schema = s.string().default('hello');
+s.string().default('hello')
+s.number().default(() => Math.random())
 
-schema.parse(undefined); // 'hello'
-schema.parse('world');   // 'world'
+s.string().default('hello').parse(undefined)  // 'hello'
 ```
 
 ### Transformations
 
 ```typescript
-const schema = s.string().transform((val) => val.toUpperCase());
-
-schema.parse('hello'); // 'HELLO'
-
-// Chain transformations
-const trimmed = s.string().trim().transform((s) => s.toUpperCase());
-trimmed.parse('  hello  '); // 'HELLO'
+s.string().transform((val) => val.toUpperCase())
+s.string().trim().transform((s) => s.split(','))
 ```
 
-### Refinements (Custom Validation)
+### Refinements
 
 ```typescript
-const schema = s.string().refine(
+// Simple predicate
+s.string().refine(
   (val) => val.includes('@'),
   { message: 'Must contain @' },
-);
+)
 
 // Multiple refinements
-const passwordSchema = s.string()
+s.string()
   .min(8)
-  .refine((val) => /[A-Z]/.test(val), {
-    message: 'Must contain uppercase letter',
-  })
-  .refine((val) => /[0-9]/.test(val), {
-    message: 'Must contain number',
-  });
+  .refine((val) => /[A-Z]/.test(val), { message: 'Need uppercase' })
+  .refine((val) => /[0-9]/.test(val), { message: 'Need digit' })
 ```
 
-### Super Refine (Access to Context)
+### Super Refine
+
+Access the refinement context for cross-field validation:
 
 ```typescript
-const schema = s.object({
+s.object({
   password: s.string(),
-  confirmPassword: s.string(),
+  confirm: s.string(),
 }).superRefine((data, ctx) => {
-  if (data.password !== data.confirmPassword) {
+  if (data.password !== data.confirm) {
     ctx.addIssue({
       code: 'custom',
-      path: ['confirmPassword'],
+      path: ['confirm'],
       message: 'Passwords must match',
     });
   }
-});
+})
 ```
 
 ### Branded Types
 
-Create nominal types that are structurally identical but semantically distinct:
-
 ```typescript
-const userIdSchema = s.string().uuid().brand('UserId');
-const postIdSchema = s.string().uuid().brand('PostId');
+const UserId = s.string().uuid().brand('UserId');
+const PostId = s.string().uuid().brand('PostId');
 
-type UserId = typeof userIdSchema._output; // string & Brand<'UserId'>
-type PostId = typeof postIdSchema._output; // string & Brand<'PostId'>
+type UserId = Infer<typeof UserId>;  // string & { __brand: 'UserId' }
+type PostId = Infer<typeof PostId>;  // string & { __brand: 'PostId' }
 
-// Type error: UserId and PostId are not assignable to each other
 function getUser(id: UserId) { /* ... */ }
-function getPost(id: PostId) { /* ... */ }
-
-const userId = userIdSchema.parse('...');
-getUser(userId);  // ✅ OK
-getPost(userId);  // ❌ Type error
-```
-
-### Readonly
-
-Mark types as readonly in the type system:
-
-```typescript
-const schema = s.object({
-  name: s.string(),
-  tags: s.array(s.string()),
-}).readonly();
-
-type Result = typeof schema._output;
-// Readonly<{ name: string; tags: readonly string[] }>
+getUser(UserId.parse('...'));  // OK
+getUser(PostId.parse('...'));  // Type error
 ```
 
 ### Catch (Error Recovery)
 
-Provide fallback values on parse errors:
+```typescript
+s.number().catch(0).parse('invalid')  // 0
+```
+
+### Readonly
 
 ```typescript
-const schema = s.number().catch(0);
+s.object({ tags: s.array(s.string()) }).readonly()
+// Readonly<{ tags: readonly string[] }>
+```
 
-schema.parse(42);        // 42
-schema.parse('invalid'); // 0 (caught and replaced)
+### Pipe
+
+Chain schemas sequentially:
+
+```typescript
+s.string().pipe(s.coerce.number())
+```
+
+## String Validations
+
+```typescript
+s.string()
+  .min(3)                  // min length
+  .max(20)                 // max length
+  .length(10)              // exact length
+  .regex(/^[a-z]+$/)       // pattern
+  .startsWith('hello')
+  .endsWith('world')
+  .includes('mid')
+  .uppercase()             // must be uppercase
+  .lowercase()             // must be lowercase
+  .trim()                  // trims whitespace (transform)
+  .toLowerCase()           // converts to lowercase (transform)
+  .toUpperCase()           // converts to uppercase (transform)
+```
+
+## Number Validations
+
+```typescript
+s.number()
+  .int()                   // integer only
+  .positive()              // > 0
+  .negative()              // < 0
+  .nonnegative()           // >= 0
+  .nonpositive()           // <= 0
+  .min(0)                  // >= n
+  .max(100)                // <= n
+  .gt(0)                   // > n
+  .lt(100)                 // < n
+  .multipleOf(5)           // divisible by n
+  .finite()                // no Infinity
+```
+
+## Array Validations
+
+```typescript
+s.array(s.string())
+  .min(1)                  // at least 1 element
+  .max(10)                 // at most 10 elements
+  .length(5)               // exactly 5 elements
+```
+
+## Object Methods
+
+```typescript
+const base = s.object({ id: s.string(), name: s.string(), email: s.email() });
+
+base.pick('id', 'name')           // { id: string; name: string }
+base.omit('email')                // { id: string; name: string }
+base.partial()                    // { id?: string; name?: string; email?: string }
+base.required()                   // all fields required
+base.extend({ age: s.number() }) // add fields
+base.merge(otherSchema)          // merge two object schemas
+base.strict()                    // reject unknown keys
+base.passthrough()               // pass through unknown keys
+base.catchall(s.string())        // validate unknown keys with schema
+base.keyof()                     // ['id', 'name', 'email']
+```
+
+## Tuple Rest Elements
+
+```typescript
+s.tuple([s.string(), s.number()]).rest(s.boolean())
+// [string, number, ...boolean[]]
 ```
 
 ## Parsing
 
 ### `.parse(data)`
 
-Parses and returns the data. Throws `ParseError` on validation failure.
+Returns the parsed value. Throws `ParseError` on failure:
 
 ```typescript
-const schema = s.string();
-
 try {
-  const value = schema.parse('hello'); // 'hello'
+  const value = schema.parse(data);
 } catch (error) {
   if (error instanceof ParseError) {
     console.log(error.issues);
@@ -314,76 +341,136 @@ try {
 
 ### `.safeParse(data)`
 
-Returns a result object with `success` boolean. Never throws.
+Returns a result object. Never throws:
 
 ```typescript
-const schema = s.number();
-
-const result = schema.safeParse('42');
+const result = schema.safeParse(data);
 
 if (result.success) {
-  console.log(result.value); // number
+  result.data   // parsed value
 } else {
-  console.log(result.error.issues); // ValidationIssue[]
+  result.error  // ParseError
+  result.error.issues  // ValidationIssue[]
 }
 ```
 
 ## Type Inference
 
-### Output Types (Parsed Value)
-
 ```typescript
-import type { Infer, Output } from '@vertz/schema';
-
-const schema = s.object({
-  name: s.string(),
-  age: s.number().optional(),
-});
-
-// All equivalent:
-type User1 = typeof schema._output;
-type User2 = Infer<typeof schema>;
-type User3 = Output<typeof schema>;
-
-// Result: { name: string; age?: number }
-```
-
-### Input Types (Before Parsing)
-
-Use `Input<T>` for the type before transformations:
-
-```typescript
-import type { Input } from '@vertz/schema';
+import type { Infer, Input, Output } from '@vertz/schema';
 
 const schema = s.string().transform((s) => s.length);
 
 type In = Input<typeof schema>;   // string
 type Out = Output<typeof schema>; // number
+type Out2 = Infer<typeof schema>; // number (alias for Output)
+
+// Also available as instance properties:
+type In3 = typeof schema._input;
+type Out3 = typeof schema._output;
 ```
 
 ## Coercion
 
-Convert values to the target type:
+Convert values to the target type before validation:
 
 ```typescript
-import { s } from '@vertz/schema';
+s.coerce.string()   // String(value)
+s.coerce.number()   // Number(value)
+s.coerce.boolean()  // Boolean(value)
+s.coerce.bigint()   // BigInt(value)
+s.coerce.date()     // new Date(value)
 
-const schema = s.coerce.number();
-
-schema.parse('42');   // 42 (string → number)
-schema.parse(42);     // 42 (already number)
-
-// Available coercions:
-s.coerce.string()   // → string
-s.coerce.number()   // → number
-s.coerce.boolean()  // → boolean
-s.coerce.bigint()   // → bigint
-s.coerce.date()     // → Date
+s.coerce.number().parse('42')  // 42
+s.coerce.date().parse('2024-01-01')  // Date object
 ```
 
-## JSON Schema Generation
+## Error Handling
 
-Generate JSON Schema for interoperability:
+### ParseError
+
+```typescript
+import { ParseError } from '@vertz/schema';
+
+const result = schema.safeParse(data);
+
+if (!result.success) {
+  for (const issue of result.error.issues) {
+    console.log(issue.code);     // 'invalid_type', 'too_small', etc.
+    console.log(issue.message);  // human-readable message
+    console.log(issue.path);     // ['address', 'street']
+  }
+}
+```
+
+### Error Codes
+
+```typescript
+import { ErrorCode } from '@vertz/schema';
+
+ErrorCode.InvalidType        // 'invalid_type'
+ErrorCode.TooSmall           // 'too_small'
+ErrorCode.TooBig             // 'too_big'
+ErrorCode.InvalidString      // 'invalid_string'
+ErrorCode.InvalidEnumValue   // 'invalid_enum_value'
+ErrorCode.InvalidLiteral     // 'invalid_literal'
+ErrorCode.InvalidUnion       // 'invalid_union'
+ErrorCode.InvalidDate        // 'invalid_date'
+ErrorCode.MissingProperty    // 'missing_property'
+ErrorCode.UnrecognizedKeys   // 'unrecognized_keys'
+ErrorCode.Custom             // 'custom'
+ErrorCode.NotMultipleOf      // 'not_multiple_of'
+ErrorCode.NotFinite          // 'not_finite'
+```
+
+## Result Type
+
+Errors-as-values pattern for explicit error handling without try/catch:
+
+```typescript
+import { ok, err, unwrap, map, flatMap, match, matchErr } from '@vertz/schema';
+import type { Result, Ok, Err } from '@vertz/schema';
+
+// Create results
+const success: Result<number, string> = ok(42);
+const failure: Result<number, string> = err('not found');
+
+// Check and extract
+if (success.ok) {
+  success.data  // 42
+}
+if (failure.ok === false) {
+  failure.error  // 'not found'
+}
+
+// Unwrap (throws if Err)
+const value = unwrap(success);  // 42
+
+// Map success value
+const doubled = map(success, (n) => n * 2);  // Ok(84)
+
+// Chain Result-returning functions
+const chained = flatMap(success, (n) =>
+  n > 0 ? ok(n.toString()) : err('must be positive')
+);
+
+// Pattern matching
+const message = match(result, {
+  ok: (data) => `Got ${data}`,
+  err: (error) => `Failed: ${error}`,
+});
+
+// Exhaustive error matching by code
+const handled = matchErr(result, {
+  ok: (data) => data,
+  NOT_FOUND: (e) => fallback,
+  CONFLICT: (e) => retry(),
+});
+```
+
+The `Result` type is used throughout `@vertz/db` for all query methods.
+
+## JSON Schema Generation
 
 ```typescript
 import { toJSONSchema } from '@vertz/schema';
@@ -394,246 +481,62 @@ const schema = s.object({
 });
 
 const jsonSchema = toJSONSchema(schema);
-/*
-{
-  type: 'object',
-  properties: {
-    name: { type: 'string', minLength: 1 },
-    age: { type: 'integer', minimum: 0 }
-  },
-  required: ['name', 'age']
-}
-*/
+// {
+//   type: 'object',
+//   properties: {
+//     name: { type: 'string', minLength: 1 },
+//     age: { type: 'integer', minimum: 0 }
+//   },
+//   required: ['name', 'age']
+// }
+
+// Also available as instance method:
+schema.toJSONSchema()
 ```
 
 ## Schema Registry
 
-Register and reuse schemas by name:
+Register and retrieve schemas by name:
 
 ```typescript
 import { SchemaRegistry } from '@vertz/schema';
 
-const registry = new SchemaRegistry();
+// Register via .id()
+const userSchema = s.object({ name: s.string() }).id('User');
 
-registry.register('User', s.object({
-  id: s.string().uuid(),
-  name: s.string(),
-}));
-
-registry.register('Post', s.object({
-  id: s.string().uuid(),
-  authorId: registry.ref('User').shape.id, // Reference other schemas
-  title: s.string(),
-}));
-
-const userSchema = registry.get('User');
+// Retrieve
+const schema = SchemaRegistry.get('User');
+SchemaRegistry.has('User');      // true
+SchemaRegistry.getAll();         // Map<string, Schema>
 ```
 
-## Advanced Patterns
-
-### Discriminated Unions
+## Schema Metadata
 
 ```typescript
-const messageSchema = s.discriminatedUnion('type', [
-  s.object({
-    type: s.literal('text'),
-    content: s.string(),
-  }),
-  s.object({
-    type: s.literal('image'),
-    url: s.url(),
-    alt: s.string().optional(),
-  }),
-]);
+const schema = s.string()
+  .id('Username')
+  .describe('The user display name')
+  .meta({ deprecated: true })
+  .example('alice');
 
-type Message = typeof messageSchema._output;
-// { type: 'text'; content: string } | { type: 'image'; url: string; alt?: string }
+schema.metadata.id           // 'Username'
+schema.metadata.description  // 'The user display name'
+schema.metadata.meta         // { deprecated: true }
+schema.metadata.examples     // ['alice']
 ```
 
-### Recursive Types (with `lazy`)
+## Preprocessing
+
+Transform raw input before schema validation:
 
 ```typescript
-interface Category {
-  name: string;
-  subcategories: Category[];
-}
+import { preprocess } from '@vertz/schema';
 
-const categorySchema: s.Schema<Category> = s.object({
-  name: s.string(),
-  subcategories: s.lazy(() => s.array(categorySchema)),
-});
-```
-
-### Intersection
-
-```typescript
-const baseSchema = s.object({ id: s.string() });
-const namedSchema = s.object({ name: s.string() });
-
-const userSchema = s.intersection(baseSchema, namedSchema);
-// { id: string; name: string }
-```
-
-### Custom Validators
-
-```typescript
-const evenSchema = s.custom<number>(
-  (val) => typeof val === 'number' && val % 2 === 0,
-  'Must be an even number',
+const schema = preprocess(
+  (val) => typeof val === 'string' ? val.trim() : val,
+  s.string().min(1),
 );
-
-evenSchema.parse(4);  // ✅ 4
-evenSchema.parse(5);  // ❌ throws
 ```
-
-### File Validation
-
-```typescript
-const imageSchema = s.file()
-  .maxSize(5 * 1024 * 1024)  // 5MB
-  .mimeType(['image/png', 'image/jpeg', 'image/webp']);
-
-imageSchema.parse(file); // File object (browser or Node.js)
-```
-
-## Integration with @vertz/core
-
-Use schemas for request validation in vertz apps:
-
-```typescript
-import { createModuleDef } from '@vertz/core';
-import { s } from '@vertz/schema';
-
-const moduleDef = createModuleDef({ name: 'users' });
-
-const createUserSchema = s.object({
-  name: s.string().min(1),
-  email: s.string().email(),
-  age: s.number().int().min(18),
-});
-
-const router = moduleDef.router({ prefix: '/users' });
-
-router.post('/', {
-  body: createUserSchema,
-  handler: (ctx) => {
-    // ctx.body is fully typed as { name: string; email: string; age: number }
-    const { name, email, age } = ctx.body;
-    return { created: true, user: { name, email, age } };
-  },
-});
-```
-
-If validation fails, a `ValidationException` is automatically thrown with details.
-
-## Error Handling
-
-```typescript
-import { ParseError } from '@vertz/schema';
-
-const result = schema.safeParse(data);
-
-if (!result.success) {
-  const { error } = result;
-  
-  console.log(error.issues);
-  /*
-  [
-    {
-      code: 'invalid_type',
-      expected: 'string',
-      received: 'number',
-      path: ['name'],
-      message: 'Expected string, received number'
-    },
-    ...
-  ]
-  */
-}
-```
-
-## Comparison to Zod
-
-`@vertz/schema` is heavily inspired by Zod with similar API design:
-
-| Feature | @vertz/schema | Zod |
-|---------|--------------|-----|
-| Type inference | ✅ | ✅ |
-| Primitives | ✅ | ✅ |
-| Objects/Arrays | ✅ | ✅ |
-| Transformations | ✅ | ✅ |
-| Refinements | ✅ | ✅ |
-| Branded types | ✅ | ✅ |
-| JSON Schema export | ✅ | ✅ |
-| Schema registry | ✅ | ❌ |
-| Format validators | ✅ (built-in) | ❌ (plugin) |
-| ISO format methods | ✅ (`s.iso.*`) | ❌ |
-
-If you're familiar with Zod, you should feel right at home!
-
-## API Reference
-
-### Factory Functions
-
-All schemas are created via the `s` object:
-
-```typescript
-import { s } from '@vertz/schema';
-```
-
-### Schema Methods
-
-All schemas inherit these methods:
-
-- `.parse(data)` — Parse and return (throws on error)
-- `.safeParse(data)` — Parse and return `{ success, value?, error? }`
-- `.optional()` — Make schema optional (`T | undefined`)
-- `.nullable()` — Make schema nullable (`T | null`)
-- `.default(value)` — Provide default value
-- `.transform(fn)` — Transform the value after validation
-- `.refine(fn, opts)` — Add custom validation
-- `.superRefine(fn)` — Add custom validation with context
-- `.brand<Brand>()` — Create branded type
-- `.readonly()` — Mark as readonly
-- `.catch(value)` — Provide fallback on error
-- `.optional()` — Alias for `.or(s.undefined())`
-
-## TypeScript Tips
-
-### Extracting Types
-
-```typescript
-const schema = s.object({
-  name: s.string(),
-  age: s.number(),
-});
-
-// Extract output type
-type User = typeof schema._output;
-
-// Extract input type (before transforms)
-type UserInput = typeof schema._input;
-```
-
-### Extending Schemas
-
-```typescript
-const baseUserSchema = s.object({
-  id: s.string().uuid(),
-  createdAt: s.date(),
-});
-
-const userWithEmailSchema = baseUserSchema.extend({
-  email: s.string().email(),
-});
-```
-
-## Performance
-
-- Schema definitions are immutable and reusable
-- No code generation — pure runtime validation
-- Optimized for common cases (primitives, objects, arrays)
-- JSON Schema generation is cached
 
 ## License
 

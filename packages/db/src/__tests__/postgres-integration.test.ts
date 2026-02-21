@@ -15,7 +15,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { createDb } from '../client/database';
 import { d } from '../d';
 import type { QueryFn } from '../query/executor';
-import { createRegistry } from '../schema/registry';
 import { sql } from '../sql/tagged';
 
 // ---------------------------------------------------------------------------
@@ -68,19 +67,22 @@ const featureFlags = d
   .shared();
 
 // ---------------------------------------------------------------------------
-// Table registry with relations
+// Model registry with relations
 // ---------------------------------------------------------------------------
 
-const tables = createRegistry({ organizations, users, posts, comments, featureFlags }, (ref) => ({
-  posts: {
-    author: ref.posts.one('users', 'authorId'),
-    comments: ref.posts.many('comments', 'postId'),
-  },
-  comments: {
-    post: ref.comments.one('posts', 'postId'),
-    author: ref.comments.one('users', 'authorId'),
-  },
-}));
+const models = {
+  organizations: d.model(organizations),
+  users: d.model(users),
+  posts: d.model(posts, {
+    author: d.ref.one(() => users, 'authorId'),
+    comments: d.ref.many(() => comments, 'postId'),
+  }),
+  comments: d.model(comments, {
+    post: d.ref.one(() => posts, 'postId'),
+    author: d.ref.one(() => users, 'authorId'),
+  }),
+  featureFlags: d.model(featureFlags),
+};
 
 // ---------------------------------------------------------------------------
 // Helper: generate unique UUIDs per test group to avoid collisions
@@ -107,7 +109,7 @@ function testIds() {
 // ---------------------------------------------------------------------------
 
 async function seedTestData(
-  db: ReturnType<typeof createDb<typeof tables>>,
+  db: ReturnType<typeof createDb<typeof models>>,
   ids: ReturnType<typeof testIds>,
   suffix: string,
 ) {
@@ -188,7 +190,7 @@ async function truncateAll(pg: PGlite) {
 
 describe('PostgreSQL Integration Tests (PGlite)', () => {
   let pg: PGlite;
-  let db: ReturnType<typeof createDb<typeof tables>>;
+  let db: ReturnType<typeof createDb<typeof models>>;
 
   beforeAll(async () => {
     pg = new PGlite();
@@ -254,7 +256,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     // Create db instance with PGlite query function
     db = createDb({
       url: 'pglite://memory',
-      tables,
+      models,
       _queryFn: queryFn,
     });
   });

@@ -334,7 +334,7 @@ describe('PostgreSQL Driver', () => {
 
       const db = createDb({
         url: 'postgres://localhost:5432/test',
-        tables: {},
+        models: {},
         pool: {
           replicas: ['postgres://localhost:5433/test'],
         },
@@ -363,7 +363,7 @@ describe('PostgreSQL Driver', () => {
 
       const db = createDb({
         url: 'postgres://localhost:5432/test',
-        tables: {},
+        models: {},
         pool: {
           replicas: ['postgres://localhost:5433/test'],
         },

@@ -30,6 +30,11 @@ export type {
   TenantGraph,
 } from './client';
 export { computeTenantGraph, createDb } from './client';
+// Schema builder
+export { d } from './d';
+// Diagnostic
+export type { DiagnosticResult } from './diagnostic/index';
+export { diagnoseError, explainError, formatDiagnostic } from './diagnostic/index';
 // Dialect
 export type {
   ColumnTypeMeta,
@@ -42,11 +47,6 @@ export {
   PostgresDialect,
   SqliteDialect,
 } from './dialect';
-// Schema builder
-export { d } from './d';
-// Diagnostic
-export type { DiagnosticResult } from './diagnostic/index';
-export { diagnoseError, explainError, formatDiagnostic } from './diagnostic/index';
 export type {
   DomainDefinition,
   DomainField,
@@ -90,6 +90,7 @@ export {
   toWriteError,
   UniqueConstraintError,
 } from './errors';
+export { generateId } from './id';
 // Schema types
 export type {
   ColumnBuilder,
@@ -112,9 +113,9 @@ export type {
   IncludeOption,
   IncludeResolve,
   InsertInput,
+  ModelEntry,
   SelectNarrow,
   SelectOption,
-  TableEntry,
   UpdateInput,
 } from './schema/inference';
 export type { ModelDef } from './schema/model';
@@ -131,5 +132,3 @@ export type {
   StrictKeys,
   ValidateKeys,
 } from './types/branded-errors';
-
-export { generateId } from './id';

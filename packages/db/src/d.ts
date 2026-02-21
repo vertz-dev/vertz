@@ -10,7 +10,7 @@ import type {
   VarcharMeta,
 } from './schema/column';
 import { createColumn, createSerialColumn, createTenantColumn } from './schema/column';
-import type { TableEntry } from './schema/inference';
+import type { ModelEntry } from './schema/inference';
 import type { ModelDef } from './schema/model';
 import { createModel } from './schema/model';
 import type { SchemaLike } from './schema/model-schemas';
@@ -75,11 +75,11 @@ export const d: {
     many<TTarget extends TableDef<ColumnRecord>>(target: () => TTarget): ManyRelationDef<TTarget>;
   };
   // biome-ignore lint/complexity/noBannedTypes: {} represents an empty relations record — the correct default for tables without relations
-  entry<TTable extends TableDef<ColumnRecord>>(table: TTable): TableEntry<TTable, {}>;
+  entry<TTable extends TableDef<ColumnRecord>>(table: TTable): ModelEntry<TTable, {}>;
   entry<TTable extends TableDef<ColumnRecord>, TRelations extends Record<string, RelationDef>>(
     table: TTable,
     relations: TRelations,
-  ): TableEntry<TTable, TRelations>;
+  ): ModelEntry<TTable, TRelations>;
   // biome-ignore lint/complexity/noBannedTypes: {} represents an empty relations record — the correct default for models without relations
   model<TTable extends TableDef<ColumnRecord>>(table: TTable): ModelDef<TTable, {}>;
   model<TTable extends TableDef<ColumnRecord>, TRelations extends Record<string, RelationDef>>(
