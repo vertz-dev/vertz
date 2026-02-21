@@ -55,6 +55,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260228.0",
     "@electric-sql/pglite": "^0.3.14",
     "@types/node": "^25.2.1",
     "@vitest/coverage-v8": "^4.0.18",

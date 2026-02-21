@@ -40,7 +40,7 @@ function buildReturningColumnRef(name: string): string {
  */
 export function buildDelete(
   options: DeleteOptions,
-  dialect: Dialect = defaultPostgresDialect,
+  dialect: Dialect = options.dialect ?? defaultPostgresDialect,
 ): DeleteResult {
   const allParams: unknown[] = [];
   let sql = `DELETE FROM "${options.table}"`;
