@@ -1,12 +1,16 @@
-# form() API — Declarative Forms with SDK Schema Integration
+# form() API Redesign — Per-Field Signal States and Direct Property Access
+
+> **Supersedes** the previous `attrs()` improvement design. This document reflects decisions
+> from the signal auto-unwrap work (PR #526) and the API redesign discussion captured in
+> [#527](https://github.com/vertz-dev/vertz/issues/527).
 
 ## 1. Problem Statement
 
-The current `form()` API has three fundamental issues:
+The current `form()` API has four fundamental issues:
 
 ### 1.1. Schema duplication
 
-The SDK method already knows its input schema (it's generated from the entity definition). But the developer must re-define the schema manually:
+The SDK method already knows its input schema (generated from the entity definition). The developer must re-define the schema manually:
 
 ```tsx
 // The SDK already knows CreateTodoInput shape — why define it again?
@@ -20,216 +24,351 @@ const createTodoSchema: FormSchema<CreateTodoInput> = {
 const todoForm = form(todoApi.create, { schema: createTodoSchema });
 ```
 
-The entity definition in `schema.ts` already specifies field types and constraints. The generated SDK already has the types. Asking the developer to manually write a `parse()` function defeats the purpose of codegen.
+The entity definition in `schema.ts` already specifies field types and constraints. Asking the developer to manually write a `parse()` function defeats the purpose of codegen.
 
-### 1.2. Imperative form wiring
+### 1.2. `error()` is a method, not a signal
+
+Field errors are accessed via `taskForm.error('title')` — a method call that returns a plain string. This forces developers to use `effect()` bridges to make errors reactive in JSX:
+
+```tsx
+let titleError = '';
+effect(() => {
+  titleError = taskForm.error('title') ?? '';
+});
+```
+
+The same applies to all field states — there's no way to access dirty, touched, or focused state at all.
+
+### 1.3. `attrs()` is unnecessary indirection
+
+The current API splits form properties across an intermediary method:
+
+```tsx
+const { action, method, onSubmit } = taskForm.attrs({ onSuccess, resetOnSuccess: true });
+```
+
+`action`, `method`, and `onSubmit` should be direct properties on the form object. Callbacks should be in the `form()` options (where the schema is), not passed per-invocation to `attrs()`.
+
+### 1.4. Imperative form wiring
 
 The current pattern requires `addEventListener`, `effect()` blocks, and DOM references:
 
 ```tsx
-const formAttrs = taskForm.attrs();           // only { action, method }
-const formEl = <form action={formAttrs.action} method={formAttrs.method}> ... </form>;
-
-// Imperative: addEventListener after JSX
 formEl.addEventListener('submit', taskForm.handleSubmit({ onSuccess, onError }));
-
-// Imperative: effect() blocks for state that should be reactive in JSX
 effect(() => { titleError.textContent = taskForm.error('title') ?? ''; });
 effect(() => { submitBtn.disabled = taskForm.submitting.value; });
 ```
 
-The vertz compiler transforms `onSubmit={fn}` → `__on(el, "submit", fn)` and makes signal reads in JSX reactive. The developer should never write `addEventListener` or `effect()` for form state.
-
-### 1.3. No progressive enhancement without JS
-
-The `action` and `method` attributes are derived from SDK metadata, enabling native HTML form submission. But the current API doesn't make this the default path. The framework should make progressive enhancement automatic — the form works without JavaScript, and JavaScript enhances it with client-side validation, loading states, and SPA navigation.
+The vertz compiler transforms `onSubmit={fn}` to `__on(el, "submit", fn)` and makes signal reads in JSX reactive. The developer should never write `addEventListener` or `effect()` for form state.
 
 ---
 
-## 2. Vision: The End State
+## 2. Proposed API
 
-The ideal `form()` API requires **one line** to create a fully functional form. The SDK method is the single source of truth for endpoint, HTTP method, and validation schema:
-
-```tsx
-// SDK method carries .meta with bodySchema, path, method
-// form() extracts everything automatically
-const todoForm = form(api.todos.create);
-
-return (
-  <form action={todoForm.action} method={todoForm.method} onSubmit={todoForm.submit}>
-    <input name="title" type="text" />
-    <span>{todoForm.fieldError('title')}</span>
-    <button type="submit" disabled={todoForm.submitting.value}>
-      {todoForm.submitting.value ? 'Adding...' : 'Add Todo'}
-    </button>
-  </form>
-);
-```
-
-**What the framework handles automatically:**
-- **Validation** — extracted from SDK method's embedded schema. Runs client-side on submit.
-- **Error state** — `todoForm.fieldError('title')` is reactive. Changes when validation fails, clears when the field is corrected. No `effect()`.
-- **Submitting state** — `todoForm.submitting.value` is reactive. True during submission, false after. No `effect()`.
-- **Form reset** — configurable via options. Automatic after successful submission.
-- **preventDefault** — the `submit` handler prevents default and submits via the SDK. No manual interception.
-- **Progressive enhancement** — `action` and `method` are real URLs/verbs. Without JS, the browser submits the form natively to the API endpoint. With JS, the framework intercepts for a SPA experience.
-
-**What the developer controls:**
-- Form layout (JSX)
-- Where errors appear (JSX placement of `fieldError()`)
-- Success/error callbacks (what happens after submission)
-- Whether the form resets on success
-
----
-
-## 3. Current Scope: What We Implement Now
-
-The full vision requires SDK `.meta` with embedded schemas (not yet implemented in codegen). This design doc covers the **form() API changes** that unblock declarative usage today, and sets the foundation for the full vision.
-
-### 3A. `attrs()` returns `onSubmit` (framework handles submit interception)
-
-**Before:**
-```ts
-attrs(): { action: string; method: string }
-```
-
-**After:**
-```ts
-attrs(callbacks?: SubmitCallbacks<TResult>): {
-  action: string;
-  method: string;
-  onSubmit: (e: Event) => Promise<void>;
-}
-```
-
-The developer no longer calls `handleSubmit()` separately or uses `addEventListener`. The `onSubmit` handler is part of the form attributes — destructured into JSX:
+### 2A. Form creation — everything in one place
 
 ```tsx
-const { action, method, onSubmit } = todoForm.attrs({ onSuccess, resetOnSuccess: true });
-<form action={action} method={method} onSubmit={onSubmit}>
+const taskForm = form(taskApi.create, {
+  schema: createTaskSchema,
+  initial: { title: '', description: '', priority: 'medium' },
+  onSuccess: (task) => navigate(`/tasks/${task.id}`),
+  onError: (errors) => console.warn(errors),
+  resetOnSuccess: true,
+});
 ```
 
-The compiler transforms `onSubmit={onSubmit}` → `__on(el, "submit", onSubmit)`. During SSR, `__on()` is a no-op (SSRElement's `addEventListener` does nothing), and the SSR JSX runtime filters out `on*` function attributes before serialization.
+All configuration lives in `form()` options. No separate `attrs()` call. No separate `handleSubmit()` call. The `schema` option remains explicit until SDK `.meta` embeds schemas (Section 7).
 
-### 3B. `resetOnSuccess` — automatic form reset
-
-```ts
-interface SubmitCallbacks<TResult> {
-  onSuccess?: (result: TResult) => void;
-  onError?: (errors: Record<string, string>) => void;
-  resetOnSuccess?: boolean;
-}
-```
-
-When `resetOnSuccess: true`, the framework calls `formElement.reset()` after a successful submission. The developer doesn't manually wire this.
-
-### 3C. Declarative form state — reduced `effect()` (with known limitation)
-
-The compiler's signal tracking makes `todoForm.error('title')` and `todoForm.submitting.value` reactive when used in JSX expressions:
+### 2B. Form binding — direct properties, no `attrs()`
 
 ```tsx
-<span>{todoForm.error('title')}</span>
-<button disabled={todoForm.submitting.value}>
-  {todoForm.submitting.value ? 'Adding...' : 'Add Todo'}
+<form action={taskForm.action} method={taskForm.method} onSubmit={taskForm.onSubmit}>
+```
+
+`action`, `method`, `onSubmit` are plain properties on the form object. Progressive enhancement attributes without an intermediary method.
+
+**Compiler-assisted DOM binding:** When the compiler sees `onSubmit={taskForm.onSubmit}` on a `<form>` element, it transforms this into a setup call that passes the form element reference to the form instance. This gives the form access to the DOM for per-field state tracking (dirty, touched, value) via event delegation on the form element. See Section 6B for details.
+
+### 2C. Per-field signal states — direct property access
+
+```tsx
+<input name="title" />
+{taskForm.title.error && <span class="error">{taskForm.title.error}</span>}
+<input name="description" class={taskForm.description.dirty ? 'modified' : ''} />
+<button disabled={taskForm.submitting}>
+  {taskForm.submitting ? 'Creating...' : 'Create Task'}
 </button>
 ```
 
-**Current limitation:** The vertz compiler only transforms local `let` variables into reactive signals. External signals from `form()` (like `.submitting` and `.error()`) require an `effect()` bridge to bind their values to local `let` variables for the compiler to track:
+**Zero effects for the common case.** Zero bridge variables. Zero field declarations.
+
+The compiler auto-unwraps all signal properties in JSX:
+- 2-level: `taskForm.submitting` — form-level signal
+- 3-level: `taskForm.title.error` — field-level signal
+
+### When you still need `effect()`
+
+The "zero effects" claim holds for the common case of displaying form state in JSX. Developers will still need `effect()` for:
+
+- **Side effects on field value changes** — e.g., "when country changes, clear the state dropdown." Requires reading `taskForm.country.value` and imperatively modifying another field.
+- **Derived state across multiple fields** — e.g., computing a character count from `taskForm.description.value` for use outside JSX.
+- **Subscriptions and cleanup** — e.g., debouncing field value changes for live search.
+
+These cases are inherent to imperative side effects and are not solvable by the form API. They are the same cases where `effect()` is needed with any other signal.
+
+### 2D. Form-level signal properties
+
+| Property | Type | Description |
+|---|---|---|
+| `submitting` | `Signal<boolean>` | Submission in progress |
+| `dirty` | `Signal<boolean>` | Any field changed from initial |
+| `valid` | `Signal<boolean>` | All fields pass validation |
+
+### 2E. Form-level plain properties
+
+| Property | Type | Description |
+|---|---|---|
+| `action` | `string` | SDK endpoint URL (progressive enhancement) |
+| `method` | `string` | HTTP method (progressive enhancement) |
+| `onSubmit` | `(e: Event) => Promise<void>` | Submit event handler |
+| `reset` | `() => void` | Reset form to initial values |
+| `setFieldError` | `(field: keyof TBody, msg: string) => void` | Programmatically set a field error (e.g., server-side validation) |
+| `submit` | `(formData?: FormData) => Promise<void>` | Programmatic submit using same callbacks as `onSubmit` |
+
+### 2F. Per-field signal properties
+
+Accessed via `taskForm.<fieldName>.<property>`:
+
+| Property | Type | Description |
+|---|---|---|
+| `error` | `Signal<string \| undefined>` | Validation error message |
+| `dirty` | `Signal<boolean>` | Value differs from initial |
+| `touched` | `Signal<boolean>` | Field was focused then blurred |
+| `value` | `Signal<T>` | Current field value |
+
+### 2G. Server-side validation errors
+
+Server responses often return field-level errors (e.g., "email already taken"). The `onError` callback receives these, and `setFieldError()` maps them to per-field signals:
 
 ```tsx
-let isSubmitting = false;
-let titleError = '';
-effect(() => { isSubmitting = todoForm.submitting.value; });
-effect(() => { titleError = todoForm.error('title') ?? ''; });
+const userForm = form(api.users.create, {
+  schema,
+  onSuccess: (user) => navigate(`/users/${user.id}`),
+  onError: (errors) => {
+    // errors is Record<string, string> from server
+    for (const [field, message] of Object.entries(errors)) {
+      userForm.setFieldError(field, message);
+    }
+  },
+});
 ```
 
-This is a known DX gap tracked in [#488](https://github.com/vertz-dev/vertz/issues/488). The planned fix will allow the compiler to detect and track external reactive reads directly in JSX, eliminating the manual bridge. Until then, `effect()` bridges are required for form reactive state.
-
-### 3D. Schema still passed manually (temporary)
-
-Until the SDK embeds `.meta` with `bodySchema`, the schema must still be provided:
-
-```ts
-const todoForm = form(todoApi.create, { schema: createTodoSchema });
-```
-
-This is explicitly temporary. The `schema` option will become optional once SDK methods carry their schemas.
-
-**Immediate follow-up:** The SDK schema integration (Section 5) should be the next design + implementation after this PR lands. The manual schema is the biggest DX pain point in the form API — it forces developers to duplicate logic the framework already knows. Eliminating it is the priority.
-
-### Compiler Constraint: No JSX Spread
-
-The vertz compiler does **not** support JSX spread attributes (`{...obj}`). The JSX transformer at `packages/ui-compiler/src/transformers/jsx-transformer.ts:136` processes only `JsxAttribute` nodes, skipping `JsxSpreadAttribute`.
-
-`<form {...todoForm.attrs()}>` silently drops all attributes. Developers must destructure:
-
-```tsx
-// CORRECT
-const { action, method, onSubmit } = todoForm.attrs({ onSuccess });
-<form action={action} method={method} onSubmit={onSubmit}>
-
-// WRONG — silently ignored by compiler
-<form {...todoForm.attrs({ onSuccess })}>
-```
+After `setFieldError('email', 'Already taken')`, `userForm.email.error` reactively updates and the JSX error display shows the server message. Client-side validation errors and server-side errors use the same signal — the most recent write wins.
 
 ---
 
-## 4. Full Component Example (Current Scope)
+## 3. Reserved Name Enforcement
+
+Form-level property names are reserved. If the schema defines a field with a conflicting name, **TypeScript produces a type error** at `bun run typecheck` time:
+
+```
+Type error: Schema field "submitting" conflicts with reserved form property.
+Reserved names: submitting, dirty, valid, action, method, onSubmit, reset, setFieldError, submit
+```
+
+### Implementation: TypeScript conditional types
+
+Reserved name enforcement uses TypeScript's type system, not the vertz compiler. The `FormInstance` type uses a conditional type that produces a clear error when field names collide:
+
+```ts
+type ReservedFormNames = 'submitting' | 'dirty' | 'valid' | 'action' | 'method' | 'onSubmit' | 'reset' | 'setFieldError' | 'submit';
+
+type FormInstance<TBody, TResult> =
+  keyof TBody & ReservedFormNames extends never
+    ? FormBaseProperties<TResult> & FieldAccessors<TBody>
+    : { __error: `Schema field "${keyof TBody & ReservedFormNames & string}" conflicts with a reserved form property. Rename the field in your schema.` };
+```
+
+This is caught by `bun run typecheck` — no compiler changes needed. Aligns with "compile-time over runtime."
+
+### Forward-compatibility
+
+Adding a new form-level property in a future version adds a new reserved name. This is a breaking change for any schema that happens to use that name. Since vertz is pre-v1 (0.x), this is acceptable per semver policy. Post-v1, new reserved names would require a major version bump. The reserved set should be kept minimal and stable.
+
+### `dirty` at two levels
+
+`taskForm.dirty` (form-level: any field changed) and `taskForm.title.dirty` (field-level: this field changed) use the same name at different depths. This is intentional — the 2-level vs 3-level chain distinction is sufficient for the compiler, and the naming reads naturally:
+- "Is the form dirty?" → `taskForm.dirty`
+- "Is the title dirty?" → `taskForm.title.dirty`
+
+The `dirty` field name is reserved (form-level), so no schema can have a field literally named `dirty`. This prevents the ambiguity case.
+
+---
+
+## 4. Initial Values and Data Loading
+
+### Decision: keep `query()` and `form()` separate
+
+**Combined approach (rejected):** Having `form()` handle both data loading and submission compounds too many states:
+- `taskForm.loading` — loading initial values or submitting?
+- `taskForm.error` — load error, validation error, or submit error?
+- Needs namespaced properties (`initialLoading`, `submitError`, `loadError`) which is MORE confusing
+
+**Separate approach (chosen):** `query()` handles data fetching, `form()` handles mutations:
+- `taskQuery.loading` — unambiguous (data fetch)
+- `taskQuery.error` — unambiguous (fetch failed)
+- `taskForm.submitting` — unambiguous (submission)
+- `taskForm.title.error` — unambiguous (field validation)
+- Each API does one thing, composes cleanly
+
+### Initial values (v1: static only)
+
+The `initial` option accepts a **static object** in v1:
 
 ```tsx
-import type { FormSchema } from '@vertz/ui';
-import { form } from '@vertz/ui';
-import { todoApi } from '../api/mock-data';
-import type { CreateTodoInput, Todo } from '../generated';
+// Create form — static initial values
+const taskForm = form(taskApi.create, {
+  schema,
+  initial: { title: '', description: '', priority: 'medium' },
+  onSuccess,
+});
+```
 
-const createTodoSchema: FormSchema<CreateTodoInput> = {
-  parse(data: unknown): CreateTodoInput {
-    const obj = data as Record<string, unknown>;
-    const errors: Record<string, string> = {};
-    if (!obj.title || typeof obj.title !== 'string' || obj.title.trim().length === 0) {
-      errors.title = 'Title is required';
-    }
-    if (Object.keys(errors).length > 0) {
-      const err = new Error('Validation failed');
-      (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = errors;
-      throw err;
-    }
-    return { title: (obj.title as string).trim() };
-  },
-};
+For edit forms, load data with `query()` and create the form after data is available:
 
-export function TodoForm(props: { onSuccess: (todo: Todo) => void }): HTMLFormElement {
-  const todoForm = form(todoApi.create, { schema: createTodoSchema });
-  const { action, method, onSubmit } = todoForm.attrs({
-    onSuccess: props.onSuccess,
-    resetOnSuccess: true,
+```tsx
+const taskQuery = query(() => fetchTask(id));
+
+// Create form when data is available (inside a conditional or after loading)
+let task = taskQuery.data.value;
+if (task) {
+  const taskForm = form(taskApi.update, {
+    schema,
+    initial: { title: task.title, description: task.description },
+    onSuccess,
   });
-
-  return (
-    <form action={action} method={method} onSubmit={onSubmit}>
-      <input name="title" type="text" placeholder="What needs to be done?" />
-      <span>{todoForm.error('title')}</span>
-      <button type="submit" disabled={todoForm.submitting.value}>
-        {todoForm.submitting.value ? 'Adding...' : 'Add Todo'}
-      </button>
-    </form>
-  ) as HTMLFormElement;
 }
 ```
 
-**Properties:**
-- Reduced `effect()` — `addEventListener` and manual DOM wiring eliminated. `effect()` bridges still needed for external reactive state (see Section 3C, tracked in #488)
-- Zero `addEventListener` — `onSubmit` in JSX, compiled to `__on()`
-- Progressive enhancement — `action` and `method` are real endpoint/verb
-- SSR safe — `onSubmit` filtered by SSR runtime, `action`/`method` serialized to HTML
+**Reactive `initial` (signal from query) is deferred to post-v1.** The edge cases — baseline updates while user has dirty fields, `undefined` initial state with uncontrolled inputs, disposal of internal effects — require additional design. See Section 7B for future scope.
 
 ---
 
-## 5. Future Scope: SDK Schema Integration
+## 5. Runtime Implementation Details
 
-This section documents the planned evolution. **Not implemented in this PR.**
+### 5A. Per-field signal creation — lazy Proxy with caching
 
-### 5A. SDK methods carry `.meta` with `bodySchema`
+Field state objects are created lazily via a `Proxy`. When `taskForm.title` is first accessed, the Proxy creates a `FieldState` object with four signals (`error`, `dirty`, `touched`, `value`) and caches it. Subsequent accesses return the cached object.
+
+```ts
+// Conceptual implementation
+const fieldCache = new Map<string, FieldState>();
+const proxy = new Proxy(formBase, {
+  get(target, prop) {
+    if (prop in target) return target[prop]; // form-level property
+    if (typeof prop === 'string' && !fieldCache.has(prop)) {
+      fieldCache.set(prop, createFieldState(prop, initialValues[prop]));
+    }
+    return fieldCache.get(prop);
+  },
+});
+```
+
+This means:
+- Forms with 50 fields but only 5 displayed in JSX allocate only 20 signals (4 per accessed field), not 200
+- Fields never accessed never allocate
+- Memory overhead scales with usage, not schema size
+
+### 5B. Field state tracking — event delegation on the form element
+
+The form tracks field interactions via event delegation on the `<form>` element. The compiler-assisted setup (Section 6B) gives the form a reference to its DOM element. The form then registers three delegated event listeners:
+
+| Event | Purpose | Updates |
+|---|---|---|
+| `input` / `change` | Value changed | `field.value`, `field.dirty`, `form.dirty` |
+| `focusin` | Field focused | (no immediate update) |
+| `focusout` | Field blurred | `field.touched` |
+
+Events are matched to field state objects by `event.target.name`. Three event listeners on the form element handle all fields — no per-input listener registration needed.
+
+For v1 (uncontrolled inputs), `field.value` reads from the DOM input's `.value` property on each event, not from a managed signal. The signal reflects the DOM state, not the other way around.
+
+### 5C. SSR considerations
+
+During SSR, per-field signals are inert — the server renders the initial state and does not track field interactions. The `onSubmit` handler is a function that SSR skips (filtered by the SSR JSX runtime). `action` and `method` are serialized to HTML for progressive enhancement.
+
+For performance, `form()` on the server should return static field state objects (plain values, not real signals) to avoid unnecessary allocations. The form instance detects the server environment and uses a lightweight path.
+
+---
+
+## 6. Compiler Changes Required
+
+### 6A. Extend signal API registry
+
+```ts
+form: {
+  signalProperties: new Set(['submitting', 'dirty', 'valid']),
+  plainProperties: new Set(['action', 'method', 'onSubmit', 'reset', 'setFieldError', 'submit']),
+  // NEW: any property NOT in the above sets is a field name,
+  // and these are the signal properties on field objects:
+  fieldSignalProperties: new Set(['error', 'dirty', 'touched', 'value']),
+}
+```
+
+The exclusion logic: any property access on a form variable that is NOT in `signalProperties` or `plainProperties` is treated as a field name. The leaf property of a 3-level chain is checked against `fieldSignalProperties`.
+
+> **Note:** The current registry at `signal-api-registry.ts` has `signalProperties: ['submitting', 'errors', 'values']` and `plainProperties: ['submit']`. These must be updated to match the new API surface above. `errors` and `values` are removed from the form-level API (replaced by per-field access).
+
+### 6B. Compiler-assisted DOM binding
+
+When the compiler sees `onSubmit={taskForm.onSubmit}` on a `<form>` element, it transforms the output to also pass the form element reference to the form instance. Conceptually:
+
+```ts
+// Before transform (developer writes):
+<form onSubmit={taskForm.onSubmit}>
+
+// After transform (compiler outputs):
+const __el = document.createElement('form');
+__on(__el, 'submit', taskForm.onSubmit);
+taskForm.__bindElement(__el);  // compiler-inserted setup call
+```
+
+`__bindElement()` is an internal method (not public API) that:
+1. Stores the form element reference
+2. Sets up event delegation listeners (`input`, `change`, `focusin`, `focusout`) on the form element
+3. Initializes field value signals from current DOM input values
+
+This gives the form DOM access without requiring an explicit `ref` or `bind()` call from the developer. The compiler handles it automatically when `onSubmit` is a form instance's property.
+
+The compiler detects this pattern by checking: is the `onSubmit` attribute's value a property access on a form-typed variable, where `onSubmit` is in the form's `plainProperties`?
+
+### 6C. Extend signal transformer for 3-level chains
+
+Currently the transformer only handles 2-level chains (`taskForm.submitting`) because it checks `objExpr.isKind(SyntaxKind.Identifier)`. Needs to trace full property chains:
+
+- `taskForm.submitting` — form-level signal — insert `.value`
+- `taskForm.title.error` — middle property NOT in signalProperties/plainProperties — treat as field name — check leaf against fieldSignalProperties — insert `.value`
+- `taskForm.title` — field accessor object (NOT a signal, no `.value`)
+
+**Top-down processing:** The transformer must process `PropertyAccessExpression` nodes top-down. When it matches a 3-level pattern, it must skip the inner node to avoid double-processing. The inner `PropertyAccessExpression` (`taskForm.title`) must NOT trigger `.value` insertion independently.
+
+**Non-goals for v1:**
+- **Bracket notation:** `taskForm[dynamicField].error` uses `ElementAccessExpression`, which the transformer does not handle. Dynamic field access is not supported by the compiler. Developers needing dynamic field access should use the runtime API directly with explicit `.value`.
+- **Nested schemas:** 4+ level chains (`taskForm.address.street.error`) are not supported. v1 schemas must be flat — each key of `TBody` is a field. Nested object schemas are a non-goal.
+
+### 6D. JSX analyzer for 3-level reactive detection
+
+The JSX analyzer's `containsSignalApiPropertyAccess()` also needs to handle 3-level chains to mark expressions like `{taskForm.title.error && <span>...</span>}` as reactive.
+
+---
+
+## 7. Future Scope
+
+### 7A. SDK Schema Integration
+
+This section documents the planned evolution. **Not in current scope.**
+
+#### SDK methods carry `.meta` with `bodySchema`
 
 The `EntitySdkGenerator` will embed a `.meta` property on each SDK method:
 
@@ -250,257 +389,359 @@ const create = Object.assign(
 );
 ```
 
-### 5B. `form()` extracts schema automatically
+#### `form()` extracts schema automatically
 
 ```ts
 // Future — no schema option needed
 const todoForm = form(api.todos.create);
-
-// Schema extracted from api.todos.create.meta.bodySchema
-// action extracted from api.todos.create.meta.path
-// method extracted from api.todos.create.meta.method
 ```
 
 The `schema` option becomes optional — only needed for custom client-side validation that differs from the server schema.
 
-### 5C. Progressive enhancement without JS
+#### Progressive enhancement without JS
 
-With real `action` and `method` on the `<form>`, browsers submit natively when JS is disabled. The server validates with the same schema (it's the entity definition) and responds with a redirect or re-render with errors.
+With real `action` and `method` on the `<form>`, browsers submit natively when JS is disabled. The server validates with the same schema and responds with a redirect or re-render with errors.
 
-This is the same model Remix and SvelteKit use — the form works without JS, and JS enhances it.
+### 7B. Reactive Initial Values
+
+Accepting a signal as `initial` (e.g., `initial: taskQuery.data`) would enable edit forms to reactively update their baseline when the query resolves. This requires resolving:
+
+- **Baseline update behavior:** What happens to user edits when the query refetches? Options: suppress baseline updates once any field is dirty, or update baseline but preserve user edits (dirty relative to new baseline).
+- **`undefined` initial state:** The signal starts as `undefined` (query loading). The form fields are empty. When the query resolves, the form must populate inputs — but this contradicts "uncontrolled inputs" since it programmatically sets DOM values.
+- **Disposal:** The internal `effect()` watching the signal must be disposed when the form is cleaned up. Requires adding `dispose()` to the form API.
+
+Deferred until these edge cases are fully designed.
+
+### 7C. Nested Schemas and Dynamic Fields
+
+Flat schemas (each key of `TBody` is a leaf field) are the v1 model. Nested objects, arrays, and dynamic field access are deferred:
+
+- **Nested objects** — `{ address: { street, city } }` would produce 4-level chains (`taskForm.address.street.error`). Requires deeper compiler chain traversal.
+- **Dynamic field arrays** — requires array-aware schema validation and indexed field accessors.
+- **Bracket notation** — `taskForm[dynamicField].error` uses `ElementAccessExpression`, unsupported by the compiler.
 
 ---
 
-## 6. Manifesto Alignment
+## 8. Full Component Example — Before and After
+
+### Before (current API)
+
+```tsx
+import { effect, form } from '@vertz/ui';
+
+function TaskForm({ onSuccess, onCancel }) {
+  const taskForm = form(taskApi.create, { schema });
+  const formAttrs = taskForm.attrs();
+
+  let isSubmitting = false;
+  effect(() => { isSubmitting = taskForm.submitting.value; });
+
+  const titleError = <span />;
+  const descError = <span />;
+  const submitLabel = <span>Create Task</span>;
+
+  effect(() => {
+    submitLabel.textContent = isSubmitting ? 'Creating...' : 'Create Task';
+  });
+
+  effect(() => {
+    titleError.textContent = taskForm.error('title') ?? '';
+    descError.textContent = taskForm.error('description') ?? '';
+  });
+
+  const formEl = (
+    <form action={formAttrs.action} method={formAttrs.method}>
+      <input name="title" />{titleError}
+      <textarea name="description" />{descError}
+      <button disabled={isSubmitting}>{submitLabel}</button>
+    </form>
+  );
+
+  formEl.addEventListener('submit', taskForm.handleSubmit({ onSuccess }));
+  return formEl;
+}
+```
+
+### After (proposed API)
+
+```tsx
+import { form } from '@vertz/ui';
+
+function TaskForm({ onSuccess, onCancel }) {
+  const taskForm = form(taskApi.create, {
+    schema,
+    onSuccess,
+    resetOnSuccess: true,
+  });
+
+  return (
+    <form action={taskForm.action} method={taskForm.method} onSubmit={taskForm.onSubmit}>
+      <input name="title" />
+      {taskForm.title.error && <span class="error">{taskForm.title.error}</span>}
+
+      <textarea name="description" />
+      {taskForm.description.error && <span class="error">{taskForm.description.error}</span>}
+
+      <button type="submit" disabled={taskForm.submitting}>
+        {taskForm.submitting ? 'Creating...' : 'Create Task'}
+      </button>
+    </form>
+  );
+}
+```
+
+**3 effects → 0 effects. 7 extra declarations → 0. Same behavior.**
+
+---
+
+## 9. Manifesto Alignment
 
 ### "One Way to Do Things"
 
 After this change, the primary pattern is:
 
 ```tsx
-const { action, method, onSubmit } = todoForm.attrs({ onSuccess });
-<form action={action} method={method} onSubmit={onSubmit}>
+<form action={taskForm.action} method={taskForm.method} onSubmit={taskForm.onSubmit}>
 ```
 
-`handleSubmit()` remains for programmatic use only (raw FormData, non-JSX scenarios). There's one way to wire a form in JSX.
+Direct property access. No `attrs()`. One way to wire a form in JSX.
+
+`submit(formData?)` exists for programmatic submission (testing, non-JSX scenarios) but uses the same callbacks configured in `form()` options — it is not a separate configuration point.
 
 ### "Explicit over implicit"
 
-The developer destructures and assigns each prop explicitly. No magic spreading, no hidden behavior. You can see exactly what attributes go on the form.
+Every signal access is visible in the JSX template. `taskForm.title.error` reads exactly like what it does — no hidden effects, no bridge variables. The developer sees the reactive dependency chain directly in the markup.
 
 ### "Compile-time over runtime"
 
-- Type errors caught at build time (onSubmit signature, error field names)
-- Compiler transforms event handlers — no runtime registration needed
+- Reserved name conflicts caught by TypeScript's type system at `bun run typecheck`
+- Type errors caught at build time (field names, callback signatures)
+- 3-level signal chain detection happens at compile time
 - Signal reactivity resolved by compiler, not by developer writing `effect()`
 
-### "Convention over configuration"
+### "AI-first"
 
-`attrs()` returns the three things every form needs. No configuration required for the common case. `resetOnSuccess` and callbacks are opt-in.
+The pattern is immediately obvious to any LLM: `form.field.state` (3-level) for fields, `form.state` (2-level) for form-level. No need to discover `error()` method behavior or `attrs()` indirection. The property chain reads like English.
+
+### "Native alignment"
+
+Mirrors `HTMLFormElement` direct field access pattern. In native DOM, `form.title` gives you the input element. In vertz, `taskForm.title` gives you the field state object. Same mental model, same discovery pattern.
 
 ---
 
-## 7. Non-Goals (Current Scope)
+## 10. Non-Goals
 
 - **SDK `.meta` embedding** — requires codegen changes, separate design and issue
 - **JSX spread support** — compiler change, separate effort
 - **Server-side error rendering** — progressive enhancement for error responses, future scope
-- **Multi-step forms / wizards** — out of scope
+- **Multi-step forms / wizards** — out of scope for v1
 - **Optimistic updates** — `query()` concern, not `form()`
 - **Auto-generated validation UI** — developer controls error placement in JSX
+- **Controlled inputs** — v1 uses uncontrolled (native DOM state) exclusively
+- **File uploads** — requires multipart handling and progress tracking, deferred
+- **Dynamic field arrays (add/remove)** — requires array-aware schema validation, deferred
+- **Combined loading + submission** — `query()` and `form()` remain separate (see Section 4)
+- **Nested object schemas** — v1 schemas must be flat (each `keyof TBody` is a leaf field)
+- **Bracket notation field access** — `taskForm[dynamicField].error` not supported by compiler
+- **Reactive initial values** — deferred to post-v1 (see Section 7B)
 
 ---
 
-## 8. Unknowns
+## 11. Unknowns
 
-### 8.1 Should `resetOnSuccess` live on `SubmitCallbacks` or `FormOptions`?
+### 11.1 Should callbacks live in `form()` options or in a separate method?
 
-**Resolution: `SubmitCallbacks`** — It's a per-invocation behavior. Different call sites might want different reset behavior (e.g., "save" vs "save and continue editing"). Keeping it in callbacks gives that flexibility.
+**Resolution: `form()` options.** All configuration lives in one place — schema, callbacks, initial values, resetOnSuccess. No separate `attrs()` or per-invocation callback passing. This eliminates the question of "where do I configure X?" — the answer is always `form()`.
 
-### 8.2 Should `attrs()` always return `onSubmit`, even with no callbacks?
+### 11.2 Should reserved name conflicts be warnings or errors?
 
-**Resolution: Yes** — Without callbacks, the `onSubmit` handler still validates and submits via the SDK. It just doesn't call any success/error callback. This is useful for fire-and-forget forms and keeps the API consistent.
+**Resolution: Errors, via TypeScript conditional types.** If a schema field name conflicts with a form-level property name, TypeScript's type system produces an error at `bun run typecheck` time. No compiler diagnostic needed — the type system handles it naturally. This aligns with "compile-time over runtime."
 
-### 8.3 Should we rename `handleSubmit()` or deprecate it?
+### 11.3 Should `initial` accept async functions or signals?
 
-**Resolution: Keep it** — `handleSubmit()` serves a distinct purpose: programmatic submission with raw FormData (testing, non-JSX scenarios). It's not redundant with `attrs()` — `attrs()` is for JSX forms, `handleSubmit()` is for everything else.
+**Resolution: Static objects only for v1.** Use `query()` for async data loading and pass the resolved data as a static `initial` object. Reactive initial values (signals) are deferred to post-v1 due to unresolved edge cases around baseline updates, dirty field handling, and disposal. See Section 7B.
 
----
+### 11.4 How does the compiler detect field names vs reserved names?
 
-## 9. Implementation Scope
+**Resolution: Exclusion.** The signal API registry defines `signalProperties` and `plainProperties` for `form`. Any property access on a form object that is NOT in either set is treated as a field name. The leaf property is then checked against `fieldSignalProperties`. This means the compiler doesn't need to know the schema — it just needs to know what ISN'T a field.
 
-### What changes
+### 11.5 Should `handleSubmit()` be kept or removed?
 
-| File | Change |
-|---|---|
-| `packages/ui/src/form/form.ts` | `attrs()` accepts callbacks, returns `onSubmit`. Add `resetOnSuccess` to `SubmitCallbacks`. Extract shared handler logic. |
-| `packages/ui/src/form/__tests__/form.test.ts` | Update `attrs()` tests for new return shape. Add tests for callbacks via attrs. Add `resetOnSuccess` test. |
-| `packages/ui/src/form/__tests__/form.test-d.ts` | Update type tests for `attrs()` return type and `SubmitCallbacks`. |
-| `examples/entity-todo/src/components/todo-form.tsx` | Rewrite: destructured `attrs()`, zero `effect()`, zero `addEventListener`. |
-| `examples/task-manager/src/components/task-form.tsx` | Rewrite: destructured `attrs()`, zero `effect()`, zero `addEventListener`. |
+**Resolution: Replace with `submit()`.** The old `handleSubmit()` (factory function returning a handler with independent callbacks) is removed. Replaced by `submit(formData?)` — a direct method that uses the same callbacks configured in `form()` options. This maintains the escape hatch for testing and programmatic submission without creating a second configuration point. One set of callbacks, two ways to trigger them (`onSubmit` via JSX, `submit()` via code).
 
-### What does NOT change
+### 11.6 How does `form()` access the DOM for field state tracking?
 
-- `handleSubmit()` — same signature, same behavior
-- `error()` — same signature, same behavior
-- `submitting` — same signal
-- `FormSchema`, `validate()`, `formDataToObject()` — untouched
-- SSR pipeline — already handles function attributes correctly
-- Compiler — no changes needed
-- Codegen — SDK `.meta` is future scope
+**Resolution: Compiler-assisted setup.** The compiler transforms `onSubmit={taskForm.onSubmit}` on `<form>` elements to also call `taskForm.__bindElement(formEl)`, passing the form element reference. This sets up event delegation for dirty/touched/value tracking without requiring an explicit `ref` or `bind()` call. See Section 6B.
+
+### 11.7 How should server-side validation errors be handled?
+
+**Resolution: `setFieldError(field, msg)`.** A plain method on the form instance that programmatically sets a field's error signal. Called from `onError` callback to map server responses to per-field error display. Client-side validation errors and server-side errors use the same signal — the most recent write wins.
 
 ---
 
-## 10. Type Flow Map
+## 12. Type Flow Map
 
 ```
 SdkMethod<TBody, TResult>
-  → form(sdkMethod, { schema: FormSchema<TBody> })
+  → form(sdkMethod, FormOptions<TBody, TResult>)
     → FormInstance<TBody, TResult>
-      → attrs(SubmitCallbacks<TResult>?)
-        → { action: string, method: string, onSubmit: (e: Event) => Promise<void> }
-      → handleSubmit(SubmitCallbacks<TResult>?)
-        → (formDataOrEvent: FormData | Event) => Promise<void>
-      → error(field: keyof TBody & string)
-        → string | undefined
-      → submitting: Signal<boolean>
+      → .action: string
+      → .method: string
+      → .onSubmit: (e: Event) => Promise<void>
+      → .reset: () => void
+      → .setFieldError: (field: keyof TBody, msg: string) => void
+      → .submit: (formData?: FormData) => Promise<void>
+      → .submitting: Signal<boolean>
+      → .dirty: Signal<boolean>
+      → .valid: Signal<boolean>
+      → .[fieldName: keyof TBody]: FieldState
+          → .error: Signal<string | undefined>
+          → .dirty: Signal<boolean>
+          → .touched: Signal<boolean>
+          → .value: Signal<T>
 ```
 
-- `TResult` flows: `SdkMethod` → `SubmitCallbacks.onSuccess(result: TResult)`
-- `TBody` flows: `SdkMethod` → `FormSchema<TBody>` → `error(field: keyof TBody & string)`
+Type flow paths:
+- `TResult` flows: `SdkMethod` → `FormOptions.onSuccess(result: TResult)`
+- `TBody` flows: `SdkMethod` → `FormOptions.schema` → field names → `FieldState` accessor keys
+- `TBody[K]` flows: `SdkMethod` → per-field `.value: Signal<TBody[K]>`
+- `keyof TBody` flows: field accessor names on `FormInstance` → type-safe property access
+- `keyof TBody` flows: `setFieldError(field)` — type-safe field name parameter
+- `keyof TBody & ReservedFormNames` flows: conditional type → compile error if non-empty
 
-Both verified in existing `.test-d.ts` type tests.
+All paths require `.test-d.ts` verification.
 
 ---
 
-## 11. E2E Acceptance Tests
+## 13. E2E Acceptance Tests
 
 ### Unit tests (`packages/ui/src/form/__tests__/form.test.ts`)
 
-1. `attrs()` returns `{ action, method, onSubmit }` from SDK metadata
-2. `attrs()` onSubmit validates, calls SDK, invokes `onSuccess`
-3. `attrs()` onSubmit invokes `onError` on validation failure
-4. `attrs()` with `resetOnSuccess` calls `formElement.reset()` on success
-5. `attrs()` without callbacks runs without error
+1. `form()` accepts `onSuccess`, `onError`, `resetOnSuccess` in options
+2. `form().action` and `form().method` return SDK endpoint metadata
+3. `form().onSubmit` validates, calls SDK, invokes `onSuccess`
+4. `form().onSubmit` invokes `onError` on validation failure
+5. `form().onSubmit` with `resetOnSuccess: true` calls `formElement.reset()` on success
+6. `form().<field>.error` returns reactive validation error signal
+7. `form().<field>.dirty` tracks field modification from initial value
+8. `form().<field>.touched` tracks focus/blur interactions
+9. `form().<field>.value` returns current field value as signal
+10. `form().submitting` reflects submission in progress
+11. `form().dirty` reflects any-field-modified state
+12. `form().valid` reflects all-fields-valid state
+13. `form().reset()` clears all fields, errors, dirty, and touched state
+14. `form().setFieldError('email', 'Already taken')` sets per-field error signal
+15. `form().submit()` triggers submission using same callbacks as `onSubmit`
+16. `form().submit(formData)` submits with provided FormData
 
 ### Type tests (`packages/ui/src/form/__tests__/form.test-d.ts`)
 
-1. `attrs()` return type includes `onSubmit: (e: Event) => Promise<void>`
-2. `attrs()` accepts `SubmitCallbacks<TResult>` with `resetOnSuccess`
-3. `attrs()` works with no arguments
+1. `form()` options accept `onSuccess: (result: TResult) => void`
+2. `form()` options accept `onError: (errors: Record<string, string>) => void`
+3. `form().<field>` returns `FieldState` with `error`, `dirty`, `touched`, `value`
+4. `form().<field>` only allows fields from `keyof TBody` (negative test: unknown field name)
+5. `form().submitting` is `Signal<boolean>`
+6. `form().action` is `string`
+7. `form().onSubmit` is `(e: Event) => Promise<void>`
+8. Reserved name conflict produces type error (negative test: schema with field named `submitting`)
+9. `form().setFieldError` only accepts `keyof TBody` as field name (negative test)
+10. `form().submit` is `(formData?: FormData) => Promise<void>`
 
-### Integration: entity-todo (`examples/entity-todo/src/tests/todo-form.test.ts`)
+### Compiler tests (`packages/ui-compiler/src/__tests__/`)
 
-1. Form has `action` and `method` attributes (progressive enhancement)
-2. Shows validation error on empty submission
-3. Calls `onSuccess` after valid submission
-4. SSR renders form without serialization errors
+1. 3-level chain: `taskForm.title.error` in JSX attribute inserts `.value` on `error`
+2. 3-level chain: `{taskForm.title.error}` in JSX child inserts `.value`
+3. 2-level chain: `taskForm.submitting` still works (no regression)
+4. Middle accessor: `taskForm.title` alone does NOT insert `.value` (it's a field object, not a signal)
+5. JSX analyzer marks `{taskForm.title.error && <el/>}` as reactive
+6. Compiler-assisted DOM binding: `onSubmit={taskForm.onSubmit}` on `<form>` generates `__bindElement` call
 
-### Integration: task-manager (`examples/task-manager/src/tests/task-form.test.ts`)
+### Integration: examples
 
-1. Existing tests continue to pass with the rewritten component
+1. entity-todo `TodoForm`: zero `effect()`, zero `addEventListener`, uses direct field access
+2. task-manager `TaskForm`: zero `effect()`, uses per-field error signals
+3. SSR renders forms without serialization errors
 
 ---
 
-## 12. Implementation Plan
+## 14. Implementation Plan
 
-### Prerequisite: Revert uncommitted form changes
+> **Note:** This plan replaces the previous `attrs()` improvement plan. The implementation
+> is tracked in [#527](https://github.com/vertz-dev/vertz/issues/527).
 
-The current working tree has uncommitted changes to `packages/ui/src/form/form.ts`, its tests, and type tests from the previous attempt that skipped the process. These changes are directionally correct but were not TDD-driven. **Revert all uncommitted changes to `packages/ui/`** and redo them properly with strict TDD.
+### Phase 0: Breaking change documentation
 
-The entity-todo example files (new files for the full-stack demo) are unrelated to this issue and should not be reverted.
-
-### Phase 1: Type tests (RED) — `attrs()` new signature
-
-**Goal:** Define the public API contract via type-level tests before changing any implementation.
+**Goal:** Document the breaking changes from the old API to the new API.
 
 **Steps:**
-1. Write type tests in `packages/ui/src/form/__tests__/form.test-d.ts`:
-   - `attrs()` return type includes `onSubmit: (e: Event) => Promise<void>` (currently fails — attrs returns `{ action, method }` only)
-   - `attrs()` accepts optional `SubmitCallbacks<TResult>` with `onSuccess`, `onError`, `resetOnSuccess`
-   - `attrs()` works with no arguments (already passes, but verify)
-2. Run `bun run typecheck` on `packages/ui` — expect failures on new type assertions
+1. Write changeset describing all breaking changes: `attrs()` removed, `error()` removed, `handleSubmit()` replaced by `submit()`, callbacks moved to `form()` options
+2. Create migration mapping: old API → new API
 
-**Integration test:** `bun run typecheck --filter @vertz/ui` fails on new type tests (RED).
+**Integration test:** Changeset file exists with BREAKING notice.
 
-### Phase 2: Unit tests (RED) — `attrs()` returns `onSubmit`
+### Phase 1: Compiler — 3-level property chain support
 
-**Goal:** Write failing runtime tests for the new `attrs()` behavior.
+**Goal:** Extend the signal transformer and JSX analyzer to handle `taskForm.title.error` style 3-level chains.
 
 **Steps:**
-1. Write/update tests in `packages/ui/src/form/__tests__/form.test.ts`:
-   - `attrs()` returns `{ action, method, onSubmit }` — assert all three properties
-   - `attrs()` `onSubmit` validates, calls SDK method, invokes `onSuccess` callback
-   - `attrs()` `onSubmit` invokes `onError` on validation failure, does not call SDK
-   - `attrs()` without callbacks still works (onSubmit runs without error)
-   - `attrs()` `onSubmit` with `resetOnSuccess: true` calls `formElement.reset()` after success
-2. Run `bun test` — expect failures on new tests (RED)
+1. Add `fieldSignalProperties` to `SignalApiEntry` type in `signal-api-registry.ts`
+2. Update `form` entry: reconcile with new API surface (remove old `errors`/`values`/`submit`, add new properties)
+3. Extend signal transformer to detect 3-level chains: if middle property is NOT in `signalProperties`/`plainProperties`, treat as field name, check leaf against `fieldSignalProperties`. Process top-down, skip inner nodes.
+4. Extend JSX analyzer `containsSignalApiPropertyAccess()` for 3-level chains
 
-**Integration test:** `bun test` in `packages/ui` fails on new attrs tests.
+**Integration test:** Compiler correctly transforms `{taskForm.title.error}` in JSX to insert `.value`. All existing 2-level tests still pass.
 
-### Phase 3: Implementation (GREEN) — `attrs()` + `resetOnSuccess`
+### Phase 2: Compiler — DOM binding transform
 
-**Goal:** Make all Phase 1 + Phase 2 tests pass.
+**Goal:** Implement compiler-assisted DOM binding for form elements.
 
 **Steps:**
-1. Update `SubmitCallbacks<TResult>` interface — add `resetOnSuccess?: boolean`
-2. Update `FormInstance<TBody, TResult>.attrs()` signature — accepts `SubmitCallbacks`, returns `{ action, method, onSubmit }`
-3. Extract `createSubmitHandler()` internal function — shared by `attrs()` and `handleSubmit()`
-4. `createSubmitHandler` handles `resetOnSuccess` — calls `formElement.reset()` after `onSuccess` when `resetOnSuccess: true` and submission came from a DOM event
-5. `attrs()` implementation — returns `{ action, method, onSubmit: createSubmitHandler(callbacks) }`
-6. `handleSubmit` — delegates to `createSubmitHandler` (same behavior, just reuses logic)
-7. Run `bun test` — all tests pass (GREEN)
-8. Run `bun run typecheck` — passes (GREEN)
-9. Run `bunx biome check --write packages/ui/src/form/` — lint/format clean
+1. Detect `onSubmit={formVar.onSubmit}` on `<form>` elements where `formVar` is a form-typed variable
+2. Generate `formVar.__bindElement(el)` call after element creation
+3. Tests: verify the transform output includes `__bindElement` call
 
-**Integration test:** `bun test` and `bun run typecheck` in `packages/ui` both pass.
+**Integration test:** Compiled output of `<form onSubmit={taskForm.onSubmit}>` includes `__bindElement` call.
 
-### Phase 4: Refactor — clean up
+### Phase 3: Runtime — `FormInstance` API redesign
 
-**Goal:** Clean up implementation while keeping all tests green.
+**Goal:** Rewrite `form()` to return the new API surface with direct properties, per-field signal states, and lazy Proxy.
 
 **Steps:**
-1. Review JSDoc on `attrs()`, `handleSubmit()`, `SubmitCallbacks` — update documentation for new behavior
-2. Verify no dead code from the refactor
-3. Run full quality gates: `bun test`, `bun run typecheck`, `bunx biome check`
+1. Type tests (RED): `FormOptions` with callbacks, `FormInstance` with direct properties, field accessors, reserved name conditional type, `setFieldError`, `submit`
+2. Unit tests (RED): direct property access, per-field signals via Proxy, `setFieldError`, `submit`
+3. Implementation (GREEN): rewrite `form.ts` with Proxy-based field access, lazy `FieldState` creation
+4. Remove `attrs()` and `error()` methods, replace `handleSubmit()` with `submit()`
+5. Verify all quality gates
 
-**Integration test:** All quality gates pass.
+**Integration test:** `bun test` and `bun run typecheck` in `packages/ui` pass.
 
-### Phase 5: entity-todo `TodoForm` rewrite
+### Phase 4: Runtime — per-field state tracking
 
-**Goal:** Rewrite `examples/entity-todo/src/components/todo-form.tsx` to use the new declarative pattern.
-
-**Steps:**
-1. Verify existing entity-todo `TodoForm` tests pass first (baseline)
-2. Rewrite `todo-form.tsx`:
-   - Destructure `attrs()` with `{ onSuccess, resetOnSuccess }` — no spread
-   - Use `onSubmit={onSubmit}` in JSX — compiler transforms to `__on()`
-   - Use `todoForm.error('title')` via `effect()` bridge to local `let` (see Section 3C)
-   - Use `todoForm.submitting.value` via `effect()` bridge to local `let`
-   - Zero `addEventListener`, zero imperative DOM manipulation
-3. Run entity-todo tests — all pass
-4. Run entity-todo SSR tests — verify no serialization errors
-
-**Integration test:** `bun test` in `examples/entity-todo` — all tests pass including SSR.
-
-### Phase 6: task-manager `TaskForm` rewrite
-
-**Goal:** Rewrite `examples/task-manager/src/components/task-form.tsx` to use the new declarative pattern.
+**Goal:** Implement `dirty`, `touched`, `value` field-level signals and form-level `dirty`/`valid` via event delegation.
 
 **Steps:**
-1. Verify existing task-manager `TaskForm` tests pass first (baseline)
-2. Rewrite `task-form.tsx`:
-   - Destructure `attrs()` with `{ onSuccess, onError, resetOnSuccess }` — no spread
-   - Use `onSubmit={onSubmit}` in JSX — no `addEventListener`
-   - Use `taskForm.error('title')` via `effect()` bridge to local `let` (see Section 3C)
-   - Use `taskForm.submitting.value` via `effect()` bridge to local `let`
-   - Keep `onCancel` button with `onClick={onCancel}` (unchanged)
-3. Run task-manager tests — all 5 `TaskForm` tests pass
-4. Run task-manager SSR tests — verify no regressions
+1. Unit tests (RED): dirty tracking, touched tracking, value signals, form-level dirty/valid
+2. Implement `__bindElement()` — sets up event delegation on form element
+3. Implement event handlers: `input`/`change` → update value/dirty, `focusout` → update touched
+4. Implement `setFieldError()` — sets per-field error signal programmatically
+5. Static initial values support
+6. `reset()` clears all field states
 
-**Integration test:** `bun test` in `examples/task-manager` — all tests pass including SSR.
+**Integration test:** Field-level signals update reactively when user interacts with form inputs.
 
-### Phase 7: Final verification
+### Phase 5: Example rewrites
+
+**Goal:** Rewrite both example forms to use the new API — zero `effect()`, zero `addEventListener`.
+
+**Steps:**
+1. Rewrite `examples/entity-todo/src/components/todo-form.tsx`
+2. Rewrite `examples/task-manager/src/components/task-form.tsx`
+3. All existing tests pass with the rewritten components
+4. SSR tests pass
+
+**Integration test:** `bun test` in both example packages — all tests pass.
+
+### Phase 6: Final verification
 
 **Goal:** Full monorepo green.
 
@@ -509,5 +750,14 @@ The entity-todo example files (new files for the full-stack demo) are unrelated 
 2. `bun run lint` — all packages
 3. `bun test` — all packages
 4. Verify no remaining `effect()` or `addEventListener` in form components
+5. Verify no remaining `attrs()` or `error()` usage
 
 **Integration test:** `bun run ci` passes.
+
+---
+
+## 15. Compiler Constraint: No JSX Spread
+
+The vertz compiler does **not** support JSX spread attributes (`{...obj}`). The JSX transformer at `packages/ui-compiler/src/transformers/jsx-transformer.ts` processes only `JsxAttribute` nodes, skipping `JsxSpreadAttribute`.
+
+This is no longer a practical issue — the new API uses direct property access (`taskForm.action`, `taskForm.method`, `taskForm.onSubmit`) instead of destructuring from `attrs()`. Each property is assigned explicitly in JSX.
