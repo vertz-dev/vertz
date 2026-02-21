@@ -1,4 +1,5 @@
 import { err, ok, type Result } from '@vertz/schema';
+import { type Dialect, defaultPostgresDialect, defaultSqliteDialect } from '../dialect';
 import { type ReadError, toReadError, toWriteError, type WriteError } from '../errors';
 import * as agg from '../query/aggregate';
 import * as crud from '../query/crud';
@@ -17,7 +18,7 @@ import type {
 import type { RelationDef } from '../schema/relation';
 import type { SqlFragment } from '../sql/tagged';
 import { createPostgresDriver, type PostgresDriver } from './postgres-driver';
-import { createSqliteDriver, type SqliteDriver, type D1Database } from './sqlite-driver';
+import { createSqliteDriver, type D1Database, type SqliteDriver } from './sqlite-driver';
 import { computeTenantGraph, type TenantGraph } from './tenant-graph';
 
 // ---------------------------------------------------------------------------
@@ -273,6 +274,8 @@ type TypedCountOptions<TEntry extends TableEntry> = {
 export interface DatabaseInstance<TTables extends Record<string, TableEntry>> {
   /** The table registry for type-safe access. */
   readonly _tables: TTables;
+  /** The SQL dialect used by this database instance. */
+  readonly _dialect: Dialect;
   /** The computed tenant scoping graph. */
   readonly $tenantGraph: TenantGraph;
 
@@ -582,6 +585,9 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     }
   }
 
+  // Create the dialect object based on the dialect option
+  const dialectObj: Dialect = dialect === 'sqlite' ? defaultSqliteDialect : defaultPostgresDialect;
+
   // Compute tenant graph from table registry metadata
   const tenantGraph = computeTenantGraph(tables);
 
@@ -701,6 +707,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
 
   return {
     _tables: tables,
+    _dialect: dialectObj,
     $tenantGraph: tenantGraph,
 
     async query<T = Record<string, unknown>>(
@@ -745,7 +752,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async get(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
-        const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs);
+        const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs, dialectObj);
         if (result !== null && opts?.include) {
           const rows = await loadRelations(
             queryFn,
@@ -767,7 +774,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async getRequired(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
-        const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs);
+        const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs, dialectObj);
         if (result === null) {
           return err({
             code: 'NOT_FOUND' as const,
@@ -800,7 +807,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async list(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
-        const results = await crud.list(queryFn, entry.table, opts as crud.ListArgs);
+        const results = await crud.list(queryFn, entry.table, opts as crud.ListArgs, dialectObj);
         if (opts?.include && results.length > 0) {
           const withRelations = await loadRelations(
             queryFn,
@@ -826,6 +833,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           queryFn,
           entry.table,
           opts as crud.ListArgs,
+          dialectObj,
         );
         if (opts?.include && data.length > 0) {
           const withRelations = await loadRelations(
@@ -869,7 +877,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async create(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
-        const result = await crud.create(queryFn, entry.table, opts as crud.CreateArgs);
+        const result = await crud.create(queryFn, entry.table, opts as crud.CreateArgs, dialectObj);
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
@@ -879,7 +887,12 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async createMany(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
-        const result = await crud.createMany(queryFn, entry.table, opts as crud.CreateManyArgs);
+        const result = await crud.createMany(
+          queryFn,
+          entry.table,
+          opts as crud.CreateManyArgs,
+          dialectObj,
+        );
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
@@ -893,6 +906,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
           queryFn,
           entry.table,
           opts as crud.CreateManyAndReturnArgs,
+          dialectObj,
         );
         return ok(result);
       } catch (e) {
@@ -907,7 +921,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async update(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
-        const result = await crud.update(queryFn, entry.table, opts as crud.UpdateArgs);
+        const result = await crud.update(queryFn, entry.table, opts as crud.UpdateArgs, dialectObj);
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
@@ -917,7 +931,12 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async updateMany(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
-        const result = await crud.updateMany(queryFn, entry.table, opts as crud.UpdateManyArgs);
+        const result = await crud.updateMany(
+          queryFn,
+          entry.table,
+          opts as crud.UpdateManyArgs,
+          dialectObj,
+        );
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
@@ -931,7 +950,7 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async upsert(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
-        const result = await crud.upsert(queryFn, entry.table, opts as crud.UpsertArgs);
+        const result = await crud.upsert(queryFn, entry.table, opts as crud.UpsertArgs, dialectObj);
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
@@ -945,7 +964,12 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async delete(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
-        const result = await crud.deleteOne(queryFn, entry.table, opts as crud.DeleteArgs);
+        const result = await crud.deleteOne(
+          queryFn,
+          entry.table,
+          opts as crud.DeleteArgs,
+          dialectObj,
+        );
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
@@ -955,7 +979,12 @@ export function createDb<TTables extends Record<string, TableEntry>>(
     async deleteMany(name, opts): Promise<AnyResult> {
       try {
         const entry = resolveTable(tables, name);
-        const result = await crud.deleteMany(queryFn, entry.table, opts as crud.DeleteManyArgs);
+        const result = await crud.deleteMany(
+          queryFn,
+          entry.table,
+          opts as crud.DeleteManyArgs,
+          dialectObj,
+        );
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
