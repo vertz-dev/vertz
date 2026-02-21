@@ -3,14 +3,15 @@
  *
  * Demonstrates:
  * - JSX for form layout with multiple fields
- * - form() with schema validation and auto-unwrapped signal properties
+ * - form() with schema validation, direct properties, and per-field signals
  * - SdkMethod metadata for progressive enhancement
  * - Reactive JSX attributes: disabled={taskForm.submitting}
- * - effect() for reactive updates driven by form error signals
+ * - Per-field error signals: taskForm.title.error for inline error display
+ * - No effect() needed — signals drive reactivity directly in JSX
  */
 
 import type { FormSchema } from '@vertz/ui';
-import { effect, form } from '@vertz/ui';
+import { form } from '@vertz/ui';
 import { taskApi } from '../api/mock-data';
 import type { CreateTaskBody, Task, TaskPriority } from '../lib/types';
 import { button, formStyles } from '../styles/components';
@@ -64,39 +65,27 @@ export interface TaskFormProps {
  * Render the create-task form.
  *
  * Uses form() to bind to the taskApi.create SDK method with schema validation.
+ * Callbacks (onSuccess, onError) are passed as form options.
+ * Per-field error signals drive reactive error display directly in JSX.
  */
 export function TaskForm(props: TaskFormProps): HTMLElement {
   const { onSuccess, onCancel } = props;
 
-  // Create the form instance bound to the SDK method
   const taskForm = form(taskApi.create, {
     schema: createTaskSchema,
+    onSuccess,
+    onError: (errors) => {
+      console.warn('Form validation failed:', errors);
+    },
   });
 
-  // Get progressive enhancement attributes
-  const formAttrs = taskForm.attrs();
-
-  // Error display elements — referenced by effect() for reactive updates
-  const titleError = <span class={formStyles.classNames.error} data-testid="title-error" />;
-  const descError = <span class={formStyles.classNames.error} data-testid="description-error" />;
-  const priorityError = <span class={formStyles.classNames.error} data-testid="priority-error" />;
-
-  // Submit button text — updated reactively when submitting state changes
-  const submitLabel = <span>Create Task</span>;
-  effect(() => {
-    submitLabel.textContent = taskForm.submitting.value ? 'Creating...' : 'Create Task';
-  });
-
-  // Reactive error display — re-runs whenever form error signals change
-  effect(() => {
-    titleError.textContent = taskForm.error('title') ?? '';
-    descError.textContent = taskForm.error('description') ?? '';
-    priorityError.textContent = taskForm.error('priority') ?? '';
-  });
-
-  // Build the form with JSX
-  const formEl = (
-    <form action={formAttrs.action} method={formAttrs.method} data-testid="create-task-form">
+  return (
+    <form
+      action={taskForm.action}
+      method={taskForm.method}
+      onSubmit={taskForm.onSubmit}
+      data-testid="create-task-form"
+    >
       <div class={formStyles.classNames.formGroup}>
         <label class={formStyles.classNames.label} for="task-title">
           Title
@@ -108,7 +97,9 @@ export function TaskForm(props: TaskFormProps): HTMLElement {
           type="text"
           placeholder="What needs to be done?"
         />
-        {titleError}
+        <span class={formStyles.classNames.error} data-testid="title-error">
+          {taskForm.title.error}
+        </span>
       </div>
 
       <div class={formStyles.classNames.formGroup}>
@@ -121,7 +112,9 @@ export function TaskForm(props: TaskFormProps): HTMLElement {
           name="description"
           placeholder="Describe the task in detail..."
         />
-        {descError}
+        <span class={formStyles.classNames.error} data-testid="description-error">
+          {taskForm.description.error}
+        </span>
       </div>
 
       <div class={formStyles.classNames.formGroup}>
@@ -136,7 +129,9 @@ export function TaskForm(props: TaskFormProps): HTMLElement {
           <option value="high">High</option>
           <option value="urgent">Urgent</option>
         </select>
-        {priorityError}
+        <span class={formStyles.classNames.error} data-testid="priority-error">
+          {taskForm.priority.error}
+        </span>
       </div>
 
       <div style="display: flex; gap: 0.5rem; justify-content: flex-end">
@@ -153,26 +148,9 @@ export function TaskForm(props: TaskFormProps): HTMLElement {
           data-testid="submit-task"
           disabled={taskForm.submitting}
         >
-          {submitLabel}
+          {taskForm.submitting.value ? 'Creating...' : 'Create Task'}
         </button>
       </div>
     </form>
   );
-
-  // Submit handler
-  formEl.addEventListener(
-    'submit',
-    taskForm.handleSubmit({
-      onSuccess: (task) => {
-        onSuccess(task);
-      },
-      onError: (errors) => {
-        // Errors are already displayed reactively via effect() above.
-        // This callback is useful for analytics/logging.
-        console.warn('Form validation failed:', errors);
-      },
-    }),
-  );
-
-  return formEl;
 }

@@ -263,11 +263,11 @@ function LoginForm() {
   const f = form(login, { schema: loginSchema });
 
   return (
-    <form {...f.attrs()} onSubmit={f.handleSubmit()}>
+    <form action={f.action} method={f.method} onSubmit={f.onSubmit}>
       <input name="email" />
-      {f.error('email') && <span class="error">{f.error('email')}</span>}
+      {f.email.error && <span class="error">{f.email.error}</span>}
       <input type="password" name="password" />
-      {f.error('password') && <span class="error">{f.error('password')}</span>}
+      {f.password.error && <span class="error">{f.password.error}</span>}
       <button type="submit">{f.submitting.value ? 'Logging in...' : 'Login'}</button>
     </form>
   );
@@ -275,10 +275,10 @@ function LoginForm() {
 ```
 
 The `form()` helper takes an SDK method (with `.url` and `.method` properties) and a validation schema. It provides:
-- `attrs()` for progressive enhancement (returns action/method)
-- `handleSubmit()` extracts FormData, validates, and submits
-- `error(fieldName)` for field-level error messages
-- `submitting.value` for loading state
+- Direct properties: `action`, `method`, `onSubmit` for progressive enhancement
+- Per-field reactive signals: `form.<field>.error`, `.dirty`, `.touched`, `.value`
+- `submitting` signal for loading state
+- `submit(formData?)` for programmatic submission
 
 ---
 

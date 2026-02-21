@@ -77,7 +77,7 @@ const taskForm = form(taskApi.create, {
 });
 ```
 
-All configuration lives in `form()` options. No separate `attrs()` call. No separate `handleSubmit()` call. The `schema` option remains explicit until SDK `.meta` embeds schemas (Section 7).
+All configuration lives in `form()` options. No separate `attrs()` call. No separate `handleSubmit()` call. The `schema` option is auto-extracted from SDK `.meta.bodySchema` when present (see Section 7A — implemented).
 
 ### 2B. Form binding — direct properties, no `attrs()`
 
@@ -364,16 +364,16 @@ The JSX analyzer's `containsSignalApiPropertyAccess()` also needs to handle 3-le
 
 ## 7. Future Scope
 
-### 7A. SDK Schema Integration
+### 7A. SDK Schema Integration — **IMPLEMENTED**
 
-This section documents the planned evolution. **Not in current scope.**
+**Status: Implemented in Issue #527.** The `@vertz/codegen` already embeds `.meta.bodySchema` on generated SDK methods. The `form()` API now has overloads making `schema` optional when `.meta.bodySchema` exists on the SDK method (`SdkMethodWithMeta`).
 
 #### SDK methods carry `.meta` with `bodySchema`
 
-The `EntitySdkGenerator` will embed a `.meta` property on each SDK method:
+Generated SDK methods embed a `.meta` property with the validation schema:
 
 ```ts
-// Generated SDK output (future)
+// Generated SDK output (current)
 import { CreateTodoInputSchema } from '../schemas';
 
 const create = Object.assign(
@@ -392,11 +392,14 @@ const create = Object.assign(
 #### `form()` extracts schema automatically
 
 ```ts
-// Future — no schema option needed
+// SDK with .meta — no schema option needed
 const todoForm = form(api.todos.create);
+
+// SDK without .meta — schema REQUIRED (enforced by TypeScript overloads)
+const todoForm = form(plainSdk, { schema: mySchema });
 ```
 
-The `schema` option becomes optional — only needed for custom client-side validation that differs from the server schema.
+The `schema` option is optional when the SDK method has `.meta.bodySchema`. An explicit `schema` option overrides the embedded schema when both are present.
 
 #### Progressive enhancement without JS
 
@@ -531,7 +534,7 @@ Mirrors `HTMLFormElement` direct field access pattern. In native DOM, `form.titl
 
 ## 10. Non-Goals
 
-- **SDK `.meta` embedding** — requires codegen changes, separate design and issue
+- ~~**SDK `.meta` embedding**~~ — **DONE**: codegen already embeds `.meta.bodySchema`, `form()` auto-extracts it
 - **JSX spread support** — compiler change, separate effort
 - **Server-side error rendering** — progressive enhancement for error responses, future scope
 - **Multi-step forms / wizards** — out of scope for v1

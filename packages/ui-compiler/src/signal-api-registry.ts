@@ -7,6 +7,8 @@ export interface SignalApiConfig {
   signalProperties: Set<string>;
   /** Properties that are plain values (no unwrapping needed). */
   plainProperties: Set<string>;
+  /** Per-field signal properties (e.g., form().title.error → .value). */
+  fieldSignalProperties?: Set<string>;
 }
 
 /**
@@ -18,8 +20,9 @@ export const SIGNAL_API_REGISTRY: Record<string, SignalApiConfig> = {
     plainProperties: new Set(['refetch']),
   },
   form: {
-    signalProperties: new Set(['submitting', 'errors', 'values']),
-    plainProperties: new Set(['reset', 'submit', 'handleSubmit']),
+    signalProperties: new Set(['submitting', 'dirty', 'valid']),
+    plainProperties: new Set(['action', 'method', 'onSubmit', 'reset', 'setFieldError', 'submit']),
+    fieldSignalProperties: new Set(['error', 'dirty', 'touched', 'value']),
   },
   createLoader: {
     signalProperties: new Set(['data', 'loading', 'error']),

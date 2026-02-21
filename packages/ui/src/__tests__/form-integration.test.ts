@@ -33,16 +33,16 @@ describe('Integration Tests — Forms', () => {
       },
     };
 
-    const userForm = form(sdk, { schema });
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+
+    const userForm = form(sdk, { schema, onSuccess, onError });
 
     const fd = new FormData();
     fd.append('name', 'Alice');
     fd.append('role', 'admin');
 
-    const onSuccess = vi.fn();
-    const onError = vi.fn();
-
-    await userForm.handleSubmit({ onSuccess, onError })(fd);
+    await userForm.submit(fd);
 
     // SDK method was called with the extracted data
     expect(handler).toHaveBeenCalledWith({ name: 'Alice', role: 'admin' });
@@ -81,22 +81,22 @@ describe('Integration Tests — Forms', () => {
       },
     };
 
-    const userForm = form(sdk, { schema });
+    const onSuccess = vi.fn();
+    const onError = vi.fn();
+
+    const userForm = form(sdk, { schema, onSuccess, onError });
 
     const fd = new FormData();
     fd.append('name', '');
     fd.append('email', 'invalid');
 
-    const onSuccess = vi.fn();
-    const onError = vi.fn();
-
-    await userForm.handleSubmit({ onSuccess, onError })(fd);
+    await userForm.submit(fd);
 
     // SDK method was NOT called — validation prevented it
     expect(handler).not.toHaveBeenCalled();
-    // Field-level errors are accessible
-    expect(userForm.error('name')).toBe('Name is required');
-    expect(userForm.error('email')).toBe('Valid email is required');
+    // Field-level errors are accessible via per-field signals
+    expect(userForm.name.error.peek()).toBe('Name is required');
+    expect(userForm.email.error.peek()).toBe('Valid email is required');
     // onError was called with the errors
     expect(onError).toHaveBeenCalledWith({
       name: 'Name is required',
@@ -123,8 +123,8 @@ describe('Integration Tests — Forms', () => {
     expect(coerced).not.toHaveProperty('avatar');
   });
 
-  // IT-3-4: attrs() returns correct action and method from SDK metadata
-  test('attrs() returns correct action and method from SDK metadata', () => {
+  // IT-3-4: direct properties return correct action and method from SDK metadata
+  test('direct properties return correct action and method from SDK metadata', () => {
     const postSdk = mockSdkMethod({
       url: '/api/users',
       method: 'POST',
@@ -149,19 +149,16 @@ describe('Integration Tests — Forms', () => {
     const putForm = form(putSdk, { schema });
     const deleteForm = form(deleteSdk, { schema });
 
-    const postAttrs = postForm.attrs();
-    expect(postAttrs.action).toBe('/api/users');
-    expect(postAttrs.method).toBe('POST');
-    expect(typeof postAttrs.onSubmit).toBe('function');
+    expect(postForm.action).toBe('/api/users');
+    expect(postForm.method).toBe('POST');
+    expect(typeof postForm.onSubmit).toBe('function');
 
-    const putAttrs = putForm.attrs();
-    expect(putAttrs.action).toBe('/api/users/123');
-    expect(putAttrs.method).toBe('PUT');
-    expect(typeof putAttrs.onSubmit).toBe('function');
+    expect(putForm.action).toBe('/api/users/123');
+    expect(putForm.method).toBe('PUT');
+    expect(typeof putForm.onSubmit).toBe('function');
 
-    const deleteAttrs = deleteForm.attrs();
-    expect(deleteAttrs.action).toBe('/api/users/123');
-    expect(deleteAttrs.method).toBe('DELETE');
-    expect(typeof deleteAttrs.onSubmit).toBe('function');
+    expect(deleteForm.action).toBe('/api/users/123');
+    expect(deleteForm.method).toBe('DELETE');
+    expect(typeof deleteForm.onSubmit).toBe('function');
   });
 });
