@@ -144,6 +144,59 @@ describe('Signal Auto-Unwrap', () => {
     expect(result.diagnostics).toHaveLength(0);
   });
 
+  it('should auto-unwrap signal property used directly in JSX attribute', () => {
+    const source = `
+      import { form } from '@vertz/ui';
+
+      function TaskForm() {
+        const taskForm = form(someMethod, { schema: someSchema });
+        return <button disabled={taskForm.submitting}>Submit</button>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // Should insert .value when signal property is used inline in JSX attribute
+    expect(result.code).toContain('taskForm.submitting.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('should auto-unwrap signal property used directly in JSX expression', () => {
+    const source = `
+      import { query } from '@vertz/ui';
+
+      function TaskList() {
+        const tasks = query('/api/tasks');
+        return <div>{tasks.loading && <span>Loading...</span>}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // Should insert .value when signal property is used inline in JSX expression
+    expect(result.code).toContain('tasks.loading.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('should generate reactive __attr for signal property in JSX attribute', () => {
+    const source = `
+      import { form } from '@vertz/ui';
+
+      function TaskForm() {
+        const taskForm = form(someMethod, { schema: someSchema });
+        return <button disabled={taskForm.submitting}>Submit</button>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // Signal API property in JSX attribute must be reactive (use __attr, not setAttribute)
+    expect(result.code).toContain('__attr(');
+    expect(result.code).toContain('taskForm.submitting.value');
+    expect(result.code).not.toContain('setAttribute("disabled"');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
   it('should NOT double-unwrap when .value already exists (migration case)', () => {
     const source = `
       import { query } from '@vertz/ui';

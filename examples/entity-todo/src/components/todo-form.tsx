@@ -5,13 +5,10 @@
  * - form() with explicit schema override for client-side constraint validation
  * - Generated SDK carries type-only schema via .meta.bodySchema automatically
  * - Override with { schema } when you need constraints (min length, format, etc.)
- * - Reactive error display and submitting state via effect() bridge
+ * - Reactive JSX attributes: disabled={todoForm.submitting}
  * - SdkMethod metadata for progressive enhancement
  * - No addEventListener — onSubmit in JSX, compiled to __on()
- *
- * Note: form() returns external signals (submitting, errors), so effect()
- * is needed to bridge them into local `let` variables for the compiler's
- * reactivity system. This is the same pattern as query() in todo-list.tsx.
+ * - effect() for computed values (titleError, submitLabel) derived from form signals
  */
 
 import { s } from '@vertz/schema';
@@ -40,15 +37,14 @@ export function TodoForm(props: TodoFormProps): HTMLFormElement {
     resetOnSuccess: true,
   });
 
-  // Bridge external signals into local `let` for compiler reactivity
+  // Computed values still need effect() bridges with explicit .value access.
+  // In JSX, signal properties (submitting) are used directly.
   let titleError = '';
-  let isSubmitting = false;
   let submitLabel = 'Add Todo';
 
   effect(() => {
     titleError = todoForm.error('title') ?? '';
-    isSubmitting = todoForm.submitting.value;
-    submitLabel = isSubmitting ? 'Adding...' : 'Add Todo';
+    submitLabel = todoForm.submitting.value ? 'Adding...' : 'Add Todo';
   });
 
   return (
@@ -70,7 +66,7 @@ export function TodoForm(props: TodoFormProps): HTMLFormElement {
           type="submit"
           class={button({ intent: 'primary', size: 'md' })}
           data-testid="submit-todo"
-          disabled={isSubmitting}
+          disabled={todoForm.submitting}
         >
           {submitLabel}
         </button>
