@@ -98,5 +98,5 @@ export function TodoListPage(): HTMLElement {
         </div>
       </div>
     </div>
-  ) as HTMLElement;
+  );
 }

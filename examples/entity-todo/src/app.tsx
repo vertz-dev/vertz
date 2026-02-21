@@ -17,7 +17,7 @@ export function App(): HTMLElement {
     <div data-testid="app-root">
       {content}
     </div>
-  ) as HTMLElement;
+  );
 
   const themeWrapper = ThemeProvider({
     theme: 'light',

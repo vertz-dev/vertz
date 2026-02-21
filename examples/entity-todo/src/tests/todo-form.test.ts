@@ -28,7 +28,7 @@ describe('TodoForm', () => {
 
   test('renders title input with placeholder', () => {
     const { findByTestId, unmount } = renderTest(TodoForm({ onSuccess: () => {} }));
-    const input = findByTestId('todo-title-input') as HTMLInputElement;
+    const input = findByTestId('todo-title-input');
     expect(input).toBeDefined();
     expect(input.getAttribute('placeholder')).toBe('What needs to be done?');
     unmount();
@@ -36,7 +36,7 @@ describe('TodoForm', () => {
 
   test('renders submit button', () => {
     const { findByTestId, unmount } = renderTest(TodoForm({ onSuccess: () => {} }));
-    const btn = findByTestId('submit-todo') as HTMLButtonElement;
+    const btn = findByTestId('submit-todo');
     expect(btn).toBeDefined();
     expect(btn.textContent).toContain('Add Todo');
     unmount();
@@ -55,7 +55,7 @@ describe('TodoForm', () => {
     // so empty titles are rejected client-side.
     const { findByTestId, unmount } = renderTest(TodoForm({ onSuccess: () => {} }));
 
-    const form = findByTestId('create-todo-form') as HTMLFormElement;
+    const form = findByTestId('create-todo-form');
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
     await waitFor(() => {
@@ -76,10 +76,10 @@ describe('TodoForm', () => {
       }),
     );
 
-    const input = findByTestId('todo-title-input') as HTMLInputElement;
+    const input = findByTestId('todo-title-input');
     await type(input, 'New todo item');
 
-    const form = findByTestId('create-todo-form') as HTMLFormElement;
+    const form = findByTestId('create-todo-form');
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
     await waitFor(() => {

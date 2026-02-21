@@ -84,7 +84,7 @@ describe('TaskForm', () => {
 
     // Submit — dispatch on the form directly because happy-dom may not
     // propagate a button click into a native form submission event.
-    const form = findByTestId('create-task-form') as HTMLFormElement;
+    const form = findByTestId('create-task-form');
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 
     // Wait for async submission to complete

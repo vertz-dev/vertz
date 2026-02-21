@@ -54,7 +54,7 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
   const lightPreview = ThemeProvider({
     theme: 'light',
     children: [
-      (<div class={settingsStyles.classNames.previewText}>Light theme preview</div>) as HTMLElement,
+      (<div class={settingsStyles.classNames.previewText}>Light theme preview</div>),
     ],
   });
   lightPreview.className = settingsStyles.classNames.previewBox;
@@ -63,7 +63,7 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
   const darkPreview = ThemeProvider({
     theme: 'dark',
     children: [
-      (<div class={settingsStyles.classNames.previewText}>Dark theme preview</div>) as HTMLElement,
+      (<div class={settingsStyles.classNames.previewText}>Dark theme preview</div>),
     ],
   });
   darkPreview.className = settingsStyles.classNames.previewBox;
