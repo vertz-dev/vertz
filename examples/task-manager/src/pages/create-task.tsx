@@ -30,5 +30,5 @@ export function CreateTaskPage(props: CreateTaskPageProps): HTMLElement {
       <h1 class={pageStyles.classNames.title}>Create New Task</h1>
       <TaskForm onSuccess={() => navigate('/')} onCancel={() => navigate('/')} />
     </div>
-  ) as HTMLElement;
+  );
 }

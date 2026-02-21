@@ -68,10 +68,10 @@ describe('TaskForm', () => {
     // Fill in the form
     const titleInput = findByTestId('create-task-form').querySelector(
       '#task-title',
-    ) as HTMLInputElement;
+    );
     const descInput = findByTestId('create-task-form').querySelector(
       '#task-description',
-    ) as HTMLTextAreaElement;
+    );
 
     await type(titleInput, 'New test task');
     await type(descInput, 'A description for the test task');
@@ -79,7 +79,7 @@ describe('TaskForm', () => {
     // Ensure priority select has a value (happy-dom may not honour `selected` attribute)
     const prioritySelect = findByTestId('create-task-form').querySelector(
       '#task-priority',
-    ) as HTMLSelectElement;
+    );
     prioritySelect.value = 'medium';
 
     // Submit — dispatch on the form directly because happy-dom may not
@@ -122,15 +122,15 @@ describe('TaskForm', () => {
 
     const titleInput = findByTestId('create-task-form').querySelector(
       '#task-title',
-    ) as HTMLInputElement;
+    );
     const descInput = findByTestId('create-task-form').querySelector(
       '#task-description',
-    ) as HTMLTextAreaElement;
+    );
 
     await type(titleInput, 'Test task');
     await type(descInput, 'Description');
 
-    const submitBtn = findByTestId('submit-task') as HTMLButtonElement;
+    const submitBtn = findByTestId('submit-task');
     await click(submitBtn);
 
     // Button should show "Creating..." while submitting

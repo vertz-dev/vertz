@@ -29,7 +29,13 @@ export type {
 export { compileTheme, css, defineTheme, globalCss, s, ThemeProvider, variants } from './css';
 
 // Forms
-export type { FormInstance, FormOptions, SdkMethod, SdkMethodWithMeta, SubmitCallbacks } from './form/form';
+export type {
+  FormInstance,
+  FormOptions,
+  SdkMethod,
+  SdkMethodWithMeta,
+  SubmitCallbacks,
+} from './form/form';
 export { form } from './form/form';
 export type { FormDataOptions } from './form/form-data';
 export { formDataToObject } from './form/form-data';
@@ -47,14 +53,12 @@ export {
   mediaStrategy,
   visibleStrategy,
 } from './hydrate';
-
+export type { MountHandle, MountOptions } from './mount';
+// Mount API
+export { mount } from './mount';
 // Data fetching
 export type { CacheStore, QueryOptions, QueryResult } from './query';
 export { query } from './query';
-
-// Entity store
-export type { EntityStoreOptions, SerializedStore } from './store';
-export { createTestStore, EntityStore } from './store';
 
 // Router
 export type {
@@ -87,3 +91,6 @@ export type {
   Signal,
 } from './runtime/signal-types';
 export { untrack } from './runtime/tracking';
+// Entity store
+export type { EntityStoreOptions, SerializedStore } from './store';
+export { createTestStore, EntityStore } from './store';
