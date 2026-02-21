@@ -149,7 +149,8 @@ function transformSignalApiProperties(
       }
     }
 
-    // Append .value to this property access
-    source.appendRight(expr.getEnd(), '.value');
+    // Use appendLeft so source.slice(start, end) includes the .value transform
+    // (appendRight at `end` is NOT captured by slice(start, end), but appendLeft IS)
+    source.appendLeft(expr.getEnd(), '.value');
   });
 }
