@@ -37,6 +37,40 @@ function failingSchema<T>(fieldErrors: Record<string, string>): FormSchema<T> {
   };
 }
 
+/**
+ * Helper: creates a submit Event with a mock form element and
+ * patches globalThis.FormData so `new FormData(target)` returns
+ * the provided entries. Returns a cleanup function.
+ */
+function createSubmitEvent(entries: Record<string, string>) {
+  const mockReset = vi.fn();
+  const event = new Event('submit', { cancelable: true });
+  Object.defineProperty(event, 'target', {
+    value: { reset: mockReset },
+  });
+
+  const fd = new FormData();
+  for (const [key, value] of Object.entries(entries)) {
+    fd.append(key, value);
+  }
+
+  const OriginalFormData = globalThis.FormData;
+  globalThis.FormData = class extends OriginalFormData {
+    constructor(_formElement?: HTMLFormElement) {
+      super();
+      for (const [k, v] of fd.entries()) {
+        this.append(k, v);
+      }
+    }
+  };
+
+  const cleanup = () => {
+    globalThis.FormData = OriginalFormData;
+  };
+
+  return { event, mockReset, cleanup };
+}
+
 describe('form', () => {
   describe('attrs()', () => {
     it('returns action, method, and onSubmit from SDK method metadata', () => {
@@ -109,6 +143,32 @@ describe('form', () => {
       expect(onError).toHaveBeenCalledWith({ name: 'Name is required' });
     });
 
+    it('returns independent handlers when called multiple times', async () => {
+      const handler = vi.fn().mockResolvedValue({ id: 1 });
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler,
+      });
+
+      const f = form(sdk, { schema: passingSchema() });
+
+      const onSuccessA = vi.fn();
+      const onSuccessB = vi.fn();
+
+      const attrsA = f.attrs({ onSuccess: onSuccessA });
+      const attrsB = f.attrs({ onSuccess: onSuccessB });
+
+      const fd = new FormData();
+      fd.append('name', 'Alice');
+
+      // Call only attrsA's handler
+      await attrsA.onSubmit(fd as FormData & Event);
+
+      expect(onSuccessA).toHaveBeenCalledWith({ id: 1 });
+      expect(onSuccessB).not.toHaveBeenCalled();
+    });
+
     it('onSubmit works without callbacks', async () => {
       const handler = vi.fn().mockResolvedValue({ id: 1 });
       const sdk = mockSdkMethod({
@@ -128,75 +188,43 @@ describe('form', () => {
 
     it('onSubmit with resetOnSuccess resets the form element on success', async () => {
       const handler = vi.fn().mockResolvedValue({ id: 1 });
-      const sdk = mockSdkMethod({
-        url: '/api/users',
-        method: 'POST',
-        handler,
-      });
-
+      const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
       const f = form(sdk, { schema: passingSchema() });
-
-      // Create a real Event and override target with a mock form element
-      const mockReset = vi.fn();
-      const event = new Event('submit', { cancelable: true });
-      const fd = new FormData();
-      fd.append('name', 'Alice');
-      Object.defineProperty(event, 'target', {
-        value: { reset: mockReset },
-      });
-
-      // Mock FormData constructor so `new FormData(target)` returns our fd
-      const OriginalFormData = globalThis.FormData;
-      globalThis.FormData = class extends OriginalFormData {
-        constructor(_formElement?: HTMLFormElement) {
-          super();
-          for (const [key, value] of fd.entries()) {
-            this.append(key, value);
-          }
-        }
-      };
+      const { event, mockReset, cleanup } = createSubmitEvent({ name: 'Alice' });
 
       try {
         await f.handleSubmit({ resetOnSuccess: true })(event);
         expect(mockReset).toHaveBeenCalled();
       } finally {
-        globalThis.FormData = OriginalFormData;
+        cleanup();
+      }
+    });
+
+    it('onSubmit with resetOnSuccess does NOT reset the form when SDK throws', async () => {
+      const handler = vi.fn().mockRejectedValue(new Error('Server error'));
+      const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
+      const f = form(sdk, { schema: passingSchema() });
+      const { event, mockReset, cleanup } = createSubmitEvent({ name: 'Alice' });
+
+      try {
+        await f.handleSubmit({ resetOnSuccess: true, onError: () => {} })(event);
+        expect(mockReset).not.toHaveBeenCalled();
+      } finally {
+        cleanup();
       }
     });
 
     it('onSubmit without resetOnSuccess does not reset the form', async () => {
       const handler = vi.fn().mockResolvedValue({ id: 1 });
-      const sdk = mockSdkMethod({
-        url: '/api/users',
-        method: 'POST',
-        handler,
-      });
-
+      const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
       const f = form(sdk, { schema: passingSchema() });
-
-      const mockReset = vi.fn();
-      const event = new Event('submit', { cancelable: true });
-      const fd = new FormData();
-      fd.append('name', 'Alice');
-      Object.defineProperty(event, 'target', {
-        value: { reset: mockReset },
-      });
-
-      const OriginalFormData = globalThis.FormData;
-      globalThis.FormData = class extends OriginalFormData {
-        constructor(_formElement?: HTMLFormElement) {
-          super();
-          for (const [key, value] of fd.entries()) {
-            this.append(key, value);
-          }
-        }
-      };
+      const { event, mockReset, cleanup } = createSubmitEvent({ name: 'Alice' });
 
       try {
         await f.handleSubmit()(event);
         expect(mockReset).not.toHaveBeenCalled();
       } finally {
-        globalThis.FormData = OriginalFormData;
+        cleanup();
       }
     });
   });

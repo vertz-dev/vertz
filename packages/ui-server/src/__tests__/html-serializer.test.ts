@@ -83,4 +83,13 @@ describe('serializeToHtml', () => {
   it('serializes a plain string', () => {
     expect(serializeToHtml('just text')).toBe('just text');
   });
+
+  it('coerces non-string attribute values to strings', () => {
+    const node: VNode = {
+      tag: 'div',
+      attrs: { 'data-count': 42 as unknown as string },
+      children: [],
+    };
+    expect(serializeToHtml(node)).toBe('<div data-count="42"></div>');
+  });
 });

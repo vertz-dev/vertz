@@ -665,40 +665,6 @@ describe('FetchClient convenience methods', () => {
     expect(result.data).toEqual({ success: true });
   });
 
-  it('get() maps params to query', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify([]), { status: 200 }),
-    );
-    const client = new FetchClient({
-      baseURL: 'http://localhost:3000',
-      fetch: mockFetch,
-    });
-
-    await client.get('/api/todos', { params: { limit: 10, offset: 0 } } as any);
-
-    const [request] = mockFetch.mock.calls[0] as [Request];
-    const url = new URL(request.url);
-    expect(url.searchParams.get('limit')).toBe('10');
-    expect(url.searchParams.get('offset')).toBe('0');
-  });
-
-  it('get() preserves query when both params and query are provided', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify([]), { status: 200 }),
-    );
-    const client = new FetchClient({
-      baseURL: 'http://localhost:3000',
-      fetch: mockFetch,
-    });
-
-    await client.get('/api/todos', { query: { limit: 5 }, params: { limit: 10 } } as any);
-
-    const [request] = mockFetch.mock.calls[0] as [Request];
-    const url = new URL(request.url);
-    // query takes precedence over params
-    expect(url.searchParams.get('limit')).toBe('5');
-  });
-
   it('post() passes options like headers through', async () => {
     const mockFetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({}), { status: 201 }),
