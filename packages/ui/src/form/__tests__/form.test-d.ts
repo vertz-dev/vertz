@@ -31,7 +31,7 @@ createUser({ name: 'Alice' });
 // @ts-expect-error - wrong type for 'name' property
 createUser({ name: 123, email: 'a@b.com' });
 
-// ─── FormInstance — attrs() returns action and method ─────────────
+// ─── FormInstance — attrs() returns action, method, and onSubmit ──
 
 type UserBody = { name: string; email: string };
 type UserResult = { id: number };
@@ -41,8 +41,28 @@ declare const userForm: FormInstance<UserBody, UserResult>;
 const attrs = userForm.attrs();
 const _action: string = attrs.action;
 const _attrMethod: string = attrs.method;
+const _onSubmit: (e: Event) => Promise<void> = attrs.onSubmit;
 void _action;
 void _attrMethod;
+void _onSubmit;
+
+// attrs() accepts optional callbacks
+const attrsWithCallbacks = userForm.attrs({
+  onSuccess: (result) => {
+    const _id: number = result.id;
+    void _id;
+  },
+  onError: (errors) => {
+    const _err: Record<string, string> = errors;
+    void _err;
+  },
+  resetOnSuccess: true,
+});
+void attrsWithCallbacks;
+
+// attrs() works without callbacks
+const attrsNoCallbacks = userForm.attrs();
+void attrsNoCallbacks;
 
 // ─── FormInstance — submitting signal ─────────────────────────────
 

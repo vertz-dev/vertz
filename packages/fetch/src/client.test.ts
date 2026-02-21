@@ -575,3 +575,143 @@ describe('FetchClient edge cases', () => {
     expect(result.headers.get('X-RateLimit-Remaining')).toBe('99');
   });
 });
+
+describe('FetchClient convenience methods', () => {
+  it('get() delegates to request with GET method', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ users: [] }), { status: 200 }),
+    );
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000',
+      fetch: mockFetch,
+    });
+
+    const result = await client.get('/api/users');
+
+    const [request] = mockFetch.mock.calls[0] as [Request];
+    expect(request.method).toBe('GET');
+    expect(request.url).toBe('http://localhost:3000/api/users');
+    expect(result.data).toEqual({ users: [] });
+  });
+
+  it('post() sends body with POST method', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1 }), { status: 201 }),
+    );
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000',
+      fetch: mockFetch,
+    });
+
+    const result = await client.post('/api/users', { name: 'Alice' });
+
+    const [request] = mockFetch.mock.calls[0] as [Request];
+    expect(request.method).toBe('POST');
+    const sentBody = await request.json();
+    expect(sentBody).toEqual({ name: 'Alice' });
+    expect(result.data).toEqual({ id: 1 });
+  });
+
+  it('patch() sends body with PATCH method', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1, name: 'Bob' }), { status: 200 }),
+    );
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000',
+      fetch: mockFetch,
+    });
+
+    const result = await client.patch('/api/users/1', { name: 'Bob' });
+
+    const [request] = mockFetch.mock.calls[0] as [Request];
+    expect(request.method).toBe('PATCH');
+    const sentBody = await request.json();
+    expect(sentBody).toEqual({ name: 'Bob' });
+    expect(result.data).toEqual({ id: 1, name: 'Bob' });
+  });
+
+  it('put() sends body with PUT method', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1 }), { status: 200 }),
+    );
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000',
+      fetch: mockFetch,
+    });
+
+    const result = await client.put('/api/users/1', { name: 'Charlie' });
+
+    const [request] = mockFetch.mock.calls[0] as [Request];
+    expect(request.method).toBe('PUT');
+    const sentBody = await request.json();
+    expect(sentBody).toEqual({ name: 'Charlie' });
+    expect(result.data).toEqual({ id: 1 });
+  });
+
+  it('delete() delegates to request with DELETE method', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), { status: 200 }),
+    );
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000',
+      fetch: mockFetch,
+    });
+
+    const result = await client.delete('/api/users/1');
+
+    const [request] = mockFetch.mock.calls[0] as [Request];
+    expect(request.method).toBe('DELETE');
+    expect(request.url).toBe('http://localhost:3000/api/users/1');
+    expect(result.data).toEqual({ success: true });
+  });
+
+  it('get() maps params to query', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([]), { status: 200 }),
+    );
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000',
+      fetch: mockFetch,
+    });
+
+    await client.get('/api/todos', { params: { limit: 10, offset: 0 } } as any);
+
+    const [request] = mockFetch.mock.calls[0] as [Request];
+    const url = new URL(request.url);
+    expect(url.searchParams.get('limit')).toBe('10');
+    expect(url.searchParams.get('offset')).toBe('0');
+  });
+
+  it('get() preserves query when both params and query are provided', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([]), { status: 200 }),
+    );
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000',
+      fetch: mockFetch,
+    });
+
+    await client.get('/api/todos', { query: { limit: 5 }, params: { limit: 10 } } as any);
+
+    const [request] = mockFetch.mock.calls[0] as [Request];
+    const url = new URL(request.url);
+    // query takes precedence over params
+    expect(url.searchParams.get('limit')).toBe('5');
+  });
+
+  it('post() passes options like headers through', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({}), { status: 201 }),
+    );
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000',
+      fetch: mockFetch,
+    });
+
+    await client.post('/api/todos', { title: 'Test' }, { headers: { 'X-Custom': 'value' } });
+
+    const [request] = mockFetch.mock.calls[0] as [Request];
+    expect(request.headers.get('X-Custom')).toBe('value');
+    expect(request.method).toBe('POST');
+  });
+});
