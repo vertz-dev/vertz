@@ -99,6 +99,49 @@ function App() {
 }
 ```
 
+### Mounting
+
+Mount your app to the DOM with `mount()`:
+
+```tsx
+import { mount } from '@vertz/ui';
+
+function App() {
+  let count = 0;
+  return <button onClick={() => count++}>Count: {count}</button>;
+}
+
+const { unmount, root } = mount(App, '#app');
+```
+
+**With options:**
+
+```tsx
+import { mount } from '@vertz/ui';
+import { defineTheme } from '@vertz/ui/css';
+
+const theme = defineTheme({
+  colors: { primary: { 500: '#3b82f6' } },
+});
+
+mount(App, '#app', {
+  theme,
+  styles: ['body { margin: 0; }'],
+  onMount: (root) => console.log('Mounted to', root),
+});
+```
+
+`mount(app, selector, options?)` accepts:
+
+- `selector` — CSS selector string or `HTMLElement`
+- `options.theme` — theme definition for CSS vars
+- `options.styles` — global CSS strings to inject
+- `options.hydration` — `'replace'` (default) or `false`
+- `options.registry` — component registry for per-component hydration
+- `options.onMount` — callback after mount completes
+
+Returns a `MountHandle` with `unmount()` and `root`.
+
 ### Lifecycle: `onMount`
 
 Run code once when the component is created:
@@ -440,6 +483,24 @@ function Logger() {
 }
 ```
 
+### Refs
+
+Access DOM elements after mount:
+
+```tsx
+import { ref, onMount } from '@vertz/ui';
+
+function AutoFocus() {
+  const inputRef = ref<HTMLInputElement>();
+
+  onMount(() => {
+    inputRef.current?.focus();
+  });
+
+  return <input ref={inputRef} placeholder="Auto-focused" />;
+}
+```
+
 ---
 
 ## Hydration
@@ -468,6 +529,69 @@ hydrate(registry, visibleStrategy);
 
 ---
 
+## Testing
+
+Import from `@vertz/ui/test`:
+
+```tsx
+import { renderTest, findByText, click, waitFor } from '@vertz/ui/test';
+
+// Mount a component for testing
+const { container, findByText, click, unmount } = renderTest(<Counter />);
+
+// Query the DOM
+const button = findByText('Increment');
+await click(button);
+const label = findByText('Count: 1');
+
+// Clean up
+unmount();
+```
+
+### Query Helpers
+
+| Export | Description |
+|---|---|
+| `findByTestId(id)` | Find element by `data-testid` — throws if not found |
+| `findByText(text)` | Find element by text content — throws if not found |
+| `queryByTestId(id)` | Find element by `data-testid` — returns `null` if not found |
+| `queryByText(text)` | Find element by text content — returns `null` if not found |
+| `waitFor(fn, options?)` | Retry an assertion until it passes |
+
+### Interaction Helpers
+
+| Export | Description |
+|---|---|
+| `click(el)` | Simulate a click event |
+| `type(el, text)` | Simulate typing into an input |
+| `press(key)` | Simulate a key press |
+| `fillForm(form, values)` | Fill multiple form fields |
+| `submitForm(form)` | Submit a form |
+
+### Route Testing
+
+```tsx
+import { createTestRouter } from '@vertz/ui/test';
+
+const { component, router, navigate } = await createTestRouter(
+  {
+    '/': { component: () => <Home /> },
+    '/about': { component: () => <About /> },
+  },
+  { initialPath: '/' }
+);
+
+await navigate('/about');
+```
+
+---
+
+## JSX Runtime
+
+The `@vertz/ui/jsx-runtime` subpath provides the JSX factory used by the compiler. This is configured automatically by the `@vertz/ui-compiler` Vite plugin — you don't need to set it up manually.
+
+---
+
 ## What You Don't Need to Know
 
 - How the compiler transforms your code
@@ -481,21 +605,109 @@ hydrate(registry, visibleStrategy);
 
 ## API Reference
 
-For complete API details, see the TypeScript definitions in `src/index.ts`.
+### Reactivity
 
-Key exports:
+| Export | Description |
+|---|---|
+| `signal` | Create a reactive signal |
+| `computed` | Create a computed (derived) value |
+| `effect` | Run a side effect when dependencies change |
+| `batch` | Group multiple writes into one update |
+| `untrack` | Read signals without subscribing |
+| `onCleanup` | Register a cleanup callback |
 
-**Reactivity:** `signal`, `computed`, `effect`, `batch`, `untrack`, `onCleanup`  
-**Lifecycle:** `onMount`, `watch`  
-**Components:** `createContext`, `useContext`, `children`, `ref`, `ErrorBoundary`, `Suspense`  
-**CSS:** `css`, `variants`, `defineTheme`, `compileTheme`, `ThemeProvider`, `globalCss`, `s`  
-**Forms:** `form`, `formDataToObject`, `validate`  
-**Data:** `query`  
-**Routing:** `defineRoutes`, `createRouter`, `createLink`, `createOutlet`, `parseSearchParams`, `useSearchParams`  
-**Hydration:** `hydrate`, `eagerStrategy`, `idleStrategy`, `visibleStrategy`, `interactionStrategy`, `lazyStrategy`, `mediaStrategy`
+### Lifecycle
+
+| Export | Description |
+|---|---|
+| `onMount` | Run code once when a component mounts |
+| `watch` | Watch a dependency and run a callback on change |
+
+### Components
+
+| Export | Description |
+|---|---|
+| `createContext` | Create a context for dependency injection |
+| `useContext` | Read a context value |
+| `children` | Access resolved children |
+| `ref` | Create a ref for DOM element access |
+| `ErrorBoundary` | Catch errors in a component tree |
+| `Suspense` | Show fallback while async content loads |
+
+### Mounting
+
+| Export | Description |
+|---|---|
+| `mount` | Mount an app to a DOM element |
+
+### CSS (`@vertz/ui/css`)
+
+| Export | Description |
+|---|---|
+| `css` | Create scoped styles |
+| `variants` | Create typed variant styles |
+| `s` | Inline dynamic styles |
+| `defineTheme` | Define a theme |
+| `compileTheme` | Compile a theme to CSS |
+| `ThemeProvider` | Provide a theme to descendants |
+| `globalCss` | Inject global CSS |
+
+### Forms
+
+| Export | Description |
+|---|---|
+| `form` | Create a form bound to an SDK method |
+| `formDataToObject` | Convert FormData to a plain object |
+| `validate` | Run schema validation |
+
+### Data
+
+| Export | Description |
+|---|---|
+| `query` | Reactive data fetching |
+
+### Routing (`@vertz/ui/router`)
+
+| Export | Description |
+|---|---|
+| `defineRoutes` | Define route configuration |
+| `createRouter` | Create a router instance |
+| `createLink` | Create a `<Link>` component |
+| `createOutlet` | Create a route outlet |
+| `parseSearchParams` | Parse URL search parameters |
+| `useSearchParams` | Reactive search parameters |
+
+### Hydration (`@vertz/ui/hydrate`)
+
+| Export | Description |
+|---|---|
+| `hydrate` | Hydrate server-rendered components |
+| `eagerStrategy` | Hydrate immediately |
+| `idleStrategy` | Hydrate when browser is idle |
+| `visibleStrategy` | Hydrate when component is visible |
+| `interactionStrategy` | Hydrate on first interaction |
+| `lazyStrategy` | Never auto-hydrate |
+| `mediaStrategy` | Hydrate based on media query |
+
+### Testing (`@vertz/ui/test`)
+
+| Export | Description |
+|---|---|
+| `renderTest` | Mount a component for testing |
+| `findByTestId` | Find element by `data-testid` (throws) |
+| `findByText` | Find element by text content (throws) |
+| `queryByTestId` | Find element by `data-testid` (nullable) |
+| `queryByText` | Find element by text content (nullable) |
+| `waitFor` | Retry an assertion until it passes |
+| `click` | Simulate a click |
+| `type` | Simulate typing |
+| `press` | Simulate a key press |
+| `fillForm` | Fill multiple form fields |
+| `submitForm` | Submit a form |
+| `createTestRouter` | Create a router for testing |
 
 ---
 
-## Contributing
+## License
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for development setup and pull request guidelines.
+MIT
