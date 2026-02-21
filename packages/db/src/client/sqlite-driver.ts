@@ -74,28 +74,26 @@ export function buildTableSchema<TTables extends Record<string, TableEntry>>(
  * Handles SELECT, INSERT, UPDATE, DELETE statements.
  */
 function extractTableName(sql: string): string | null {
-  const normalized = sql.trim().toUpperCase();
-
   // SELECT ... FROM tablename
-  const fromMatch = normalized.match(/\bFROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+  const fromMatch = sql.match(/\bFROM\s+"?([a-zA-Z_][a-zA-Z0-9_]*)"?/i);
   if (fromMatch) {
     return fromMatch[1]!.toLowerCase();
   }
 
   // INSERT INTO tablename
-  const insertMatch = normalized.match(/\bINSERT\s+INTO\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+  const insertMatch = sql.match(/\bINSERT\s+INTO\s+"?([a-zA-Z_][a-zA-Z0-9_]*)"?/i);
   if (insertMatch) {
     return insertMatch[1]!.toLowerCase();
   }
 
   // UPDATE tablename
-  const updateMatch = normalized.match(/\bUPDATE\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+  const updateMatch = sql.match(/\bUPDATE\s+"?([a-zA-Z_][a-zA-Z0-9_]*)"?/i);
   if (updateMatch) {
     return updateMatch[1]!.toLowerCase();
   }
 
   // DELETE FROM tablename
-  const deleteMatch = normalized.match(/\bDELETE\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)/);
+  const deleteMatch = sql.match(/\bDELETE\s+FROM\s+"?([a-zA-Z_][a-zA-Z0-9_]*)"?/i);
   if (deleteMatch) {
     return deleteMatch[1]!.toLowerCase();
   }

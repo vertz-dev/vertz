@@ -28,7 +28,7 @@ export function fromSqliteValue(value: unknown, columnType: string): unknown {
       return false;
     }
   }
-  if (columnType === 'timestamp' && typeof value === 'string') {
+  if ((columnType === 'timestamp' || columnType === 'timestamp with time zone') && typeof value === 'string') {
     return new Date(value);
   }
   return value;

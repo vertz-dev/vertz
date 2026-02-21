@@ -24,6 +24,7 @@ export { migrateDeploy, migrateDev, migrateStatus, push } from './cli/index';
 export type {
   CreateDbOptions,
   DatabaseInstance,
+  DbDriver,
   PoolConfig,
   QueryResult,
   TenantGraph,
@@ -37,7 +38,9 @@ export type {
 } from './dialect';
 export {
   defaultPostgresDialect,
+  defaultSqliteDialect,
   PostgresDialect,
+  SqliteDialect,
 } from './dialect';
 // Schema builder
 export { d } from './d';
