@@ -1,8 +1,9 @@
-import type { AppIR, SchemaRef } from '@vertz/compiler';
+import type { AppIR, InlineSchemaRef, SchemaRef } from '@vertz/compiler';
 import type {
   CodegenEntityOperation,
   CodegenIR,
   CodegenModule,
+  CodegenResolvedField,
   CodegenSchema,
   OperationSchemaRefs,
 } from './types';
@@ -135,17 +136,31 @@ export function adaptIR(appIR: AppIR): CodegenIR {
     for (const op of crudOps) {
       const accessKind = entity.access[op.kind as keyof typeof entity.access];
       if (accessKind === 'false') continue;
+
+      // Extract resolvedFields from the appropriate schema ref
+      let resolvedFields: CodegenResolvedField[] | undefined;
+      if (op.kind === 'create' || op.kind === 'update') {
+        const schemaRef = entity.modelRef.schemaRefs[op.schema as 'createInput' | 'updateInput'];
+        if (schemaRef?.kind === 'inline') {
+          resolvedFields = (schemaRef as InlineSchemaRef).resolvedFields?.map((f) => ({
+            name: f.name,
+            tsType: f.tsType,
+            optional: f.optional,
+          }));
+        }
+      }
+
       operations.push({
         kind: op.kind,
         method: op.method,
         path: op.path,
         operationId: `${op.kind}${entityPascal}`,
-        outputSchema:
-          entity.modelRef.schemaRefs.resolved ? `${entityPascal}Response` : undefined,
+        outputSchema: entity.modelRef.schemaRefs.resolved ? `${entityPascal}Response` : undefined,
         inputSchema:
           (op.kind === 'create' || op.kind === 'update') && entity.modelRef.schemaRefs.resolved
             ? `${op.kind === 'create' ? 'Create' : 'Update'}${entityPascal}Input`
             : undefined,
+        resolvedFields,
       });
     }
 

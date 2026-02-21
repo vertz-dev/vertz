@@ -1,4 +1,6 @@
+import { s } from '@vertz/schema';
 import { describe, expect, it, vi } from 'vitest';
+import type { SdkMethodWithMeta } from '../form';
 import { form } from '../form';
 import type { FormSchema } from '../validation';
 
@@ -511,6 +513,120 @@ describe('form', () => {
       fd2.append('name', 'Alice');
       await f.handleSubmit({ onSuccess: () => {} })(fd2);
       expect(f.error('name')).toBeUndefined();
+    });
+  });
+
+  describe('meta.bodySchema auto-extraction', () => {
+    /** Helper: creates a mock SDK method with .meta.bodySchema. */
+    function mockSdkWithMeta<TBody, TResult>(config: {
+      url: string;
+      method: string;
+      handler: (body: TBody) => Promise<TResult>;
+      bodySchema: FormSchema<TBody>;
+    }): SdkMethodWithMeta<TBody, TResult> {
+      return Object.assign(config.handler, {
+        url: config.url,
+        method: config.method,
+        meta: { bodySchema: config.bodySchema },
+      });
+    }
+
+    it('auto-validates using meta.bodySchema when no explicit schema provided', async () => {
+      const handler = vi.fn().mockResolvedValue({ id: '1', title: 'Buy milk' });
+      const bodySchema = s.object({ title: s.string().min(1) });
+      const sdk = mockSdkWithMeta({
+        url: '/api/todos',
+        method: 'POST',
+        handler,
+        bodySchema,
+      });
+
+      const f = form(sdk);
+
+      // Empty title should fail validation
+      const fd1 = new FormData();
+      fd1.append('title', '');
+      const onError = vi.fn();
+      await f.handleSubmit({ onError })(fd1);
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(f.error('title')).toBeDefined();
+      expect(onError).toHaveBeenCalled();
+
+      // Valid title should pass
+      const fd2 = new FormData();
+      fd2.append('title', 'Buy milk');
+      const onSuccess = vi.fn();
+      await f.handleSubmit({ onSuccess })(fd2);
+
+      expect(handler).toHaveBeenCalledWith({ title: 'Buy milk' });
+      expect(onSuccess).toHaveBeenCalledWith({ id: '1', title: 'Buy milk' });
+    });
+
+    it('explicit schema overrides meta.bodySchema', async () => {
+      const handler = vi.fn().mockResolvedValue({ id: '1' });
+      // Meta schema allows empty strings
+      const metaSchema: FormSchema<{ title: string }> = {
+        parse(data: unknown) {
+          return data as { title: string };
+        },
+      };
+      // Explicit schema rejects empty strings
+      const explicitSchema = s.object({ title: s.string().min(1) });
+
+      const sdk = mockSdkWithMeta({
+        url: '/api/todos',
+        method: 'POST',
+        handler,
+        bodySchema: metaSchema,
+      });
+
+      const f = form(sdk, { schema: explicitSchema });
+
+      const fd = new FormData();
+      fd.append('title', '');
+      const onError = vi.fn();
+      await f.handleSubmit({ onError })(fd);
+
+      // Explicit schema should win — empty title rejected
+      expect(handler).not.toHaveBeenCalled();
+      expect(onError).toHaveBeenCalled();
+    });
+
+    it('works without any callbacks', async () => {
+      const handler = vi.fn().mockResolvedValue({ id: '1' });
+      const bodySchema = s.object({ title: s.string() });
+      const sdk = mockSdkWithMeta({
+        url: '/api/todos',
+        method: 'POST',
+        handler,
+        bodySchema,
+      });
+
+      const f = form(sdk);
+
+      const fd = new FormData();
+      fd.append('title', 'Hello');
+      await f.handleSubmit()(fd);
+
+      expect(handler).toHaveBeenCalled();
+    });
+
+    it('attrs() returns correct action and method from SDK meta', () => {
+      const bodySchema = s.object({ title: s.string() });
+      const sdk = mockSdkWithMeta({
+        url: '/api/todos',
+        method: 'POST',
+        handler: async () => ({ id: '1' }),
+        bodySchema,
+      });
+
+      const f = form(sdk);
+      const attrs = f.attrs();
+
+      expect(attrs.action).toBe('/api/todos');
+      expect(attrs.method).toBe('POST');
+      expect(typeof attrs.onSubmit).toBe('function');
     });
   });
 });

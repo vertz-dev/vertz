@@ -2,7 +2,7 @@
  * TodoForm component — create-todo form with validation.
  *
  * Demonstrates:
- * - form() with schema validation and attrs() destructuring
+ * - form() auto-extracts validation schema from SdkMethod.meta.bodySchema
  * - Reactive error display and submitting state via effect() bridge
  * - SdkMethod metadata for progressive enhancement
  * - No addEventListener — onSubmit in JSX, compiled to __on()
@@ -12,32 +12,10 @@
  * reactivity system. This is the same pattern as query() in todo-list.tsx.
  */
 
-import type { FormSchema } from '@vertz/ui';
 import { effect, form } from '@vertz/ui';
+import type { Todo } from '../api/mock-data';
 import { todoApi } from '../api/mock-data';
-import type { CreateTodoInput, Todo } from '../api/mock-data';
 import { button, formStyles } from '../styles/components';
-
-const createTodoSchema: FormSchema<CreateTodoInput> = {
-  parse(data: unknown): CreateTodoInput {
-    const obj = data as Record<string, unknown>;
-    const errors: Record<string, string> = {};
-
-    if (!obj.title || typeof obj.title !== 'string' || obj.title.trim().length === 0) {
-      errors.title = 'Title is required';
-    }
-
-    if (Object.keys(errors).length > 0) {
-      const err = new Error('Validation failed');
-      (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = errors;
-      throw err;
-    }
-
-    return {
-      title: (obj.title as string).trim(),
-    };
-  },
-};
 
 export interface TodoFormProps {
   onSuccess: (todo: Todo) => void;
@@ -46,9 +24,7 @@ export interface TodoFormProps {
 export function TodoForm(props: TodoFormProps): HTMLFormElement {
   const { onSuccess } = props;
 
-  const todoForm = form(todoApi.create, {
-    schema: createTodoSchema,
-  });
+  const todoForm = form(todoApi.create);
 
   const { action, method, onSubmit } = todoForm.attrs({
     onSuccess,
@@ -67,12 +43,7 @@ export function TodoForm(props: TodoFormProps): HTMLFormElement {
   });
 
   return (
-    <form
-      action={action}
-      method={method}
-      onSubmit={onSubmit}
-      data-testid="create-todo-form"
-    >
+    <form action={action} method={method} onSubmit={onSubmit} data-testid="create-todo-form">
       <div style="display: flex; gap: 0.5rem; align-items: flex-start">
         <div style="flex: 1">
           <input
