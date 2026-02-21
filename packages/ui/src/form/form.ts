@@ -20,25 +20,38 @@ export interface FormOptions<TBody> {
   schema: FormSchema<TBody>;
 }
 
-/** Callbacks for form submission. Both are optional per spec. */
+/** Callbacks for form submission. All properties are optional. */
 export interface SubmitCallbacks<TResult> {
   onSuccess?: (result: TResult) => void;
   onError?: (errors: Record<string, string>) => void;
+  /** When true, the form element is reset after a successful submission. */
+  resetOnSuccess?: boolean;
 }
 
 /** A form instance bound to an SDK method. */
 export interface FormInstance<TBody, TResult> {
-  /** Returns `{ action, method }` for progressive enhancement in HTML forms. */
-  attrs(): { action: string; method: string };
+  /**
+   * Returns HTML form attributes for progressive enhancement.
+   *
+   * Usage (destructure — JSX spread is not supported by the compiler):
+   * ```tsx
+   * const { action, method, onSubmit } = userForm.attrs({ onSuccess });
+   * <form action={action} method={method} onSubmit={onSubmit}>
+   * ```
+   */
+  attrs(callbacks?: SubmitCallbacks<TResult>): {
+    action: string;
+    method: string;
+    onSubmit: (e: Event) => Promise<void>;
+  };
 
   /** Reactive signal indicating whether a submission is in progress. */
   submitting: Signal<boolean>;
 
   /**
-   * Returns an event handler that extracts FormData, validates, and submits.
-   * Assignable to onSubmit: `onSubmit={userForm.handleSubmit({ onSuccess })}`.
+   * Returns an event handler for programmatic submission with raw FormData.
    *
-   * Can also be called directly with FormData for non-DOM usage:
+   * Prefer `attrs()` for JSX forms. Use `handleSubmit()` for non-JSX scenarios:
    * `userForm.handleSubmit({ onSuccess })(formData)`.
    */
   handleSubmit(
@@ -65,59 +78,66 @@ export function form<TBody, TResult>(
   const submitting = signal(false);
   const errors = signal<Record<string, string>>({});
 
+  function createSubmitHandler(callbacks?: SubmitCallbacks<TResult>) {
+    return async (formDataOrEvent: FormData | Event) => {
+      // Extract FormData from event or use directly
+      let formData: FormData;
+      let formElement: HTMLFormElement | undefined;
+      if (formDataOrEvent instanceof Event) {
+        formDataOrEvent.preventDefault();
+        formElement = formDataOrEvent.target as HTMLFormElement;
+        formData = new FormData(formElement);
+      } else {
+        formData = formDataOrEvent;
+      }
+
+      // Extract form data to plain object
+      const data = formDataToObject(formData);
+
+      // Validate against schema
+      const result = validate(options.schema, data);
+
+      if (!result.success) {
+        errors.value = result.errors;
+        callbacks?.onError?.(result.errors);
+        return;
+      }
+
+      // Clear previous errors on valid submission
+      errors.value = {};
+      submitting.value = true;
+
+      let response: TResult;
+      try {
+        response = await sdkMethod(result.data);
+      } catch (err: unknown) {
+        submitting.value = false;
+        const message = err instanceof Error ? err.message : 'Submission failed';
+        const serverErrors = { _form: message };
+        errors.value = serverErrors;
+        callbacks?.onError?.(serverErrors);
+        return;
+      }
+      submitting.value = false;
+      callbacks?.onSuccess?.(response);
+      if (callbacks?.resetOnSuccess && formElement) {
+        formElement.reset();
+      }
+    };
+  }
+
   return {
-    attrs() {
+    attrs(callbacks?: SubmitCallbacks<TResult>) {
       return {
         action: sdkMethod.url,
         method: sdkMethod.method,
+        onSubmit: createSubmitHandler(callbacks),
       };
     },
 
     submitting,
 
-    handleSubmit(callbacks?: SubmitCallbacks<TResult>) {
-      return async (formDataOrEvent: FormData | Event) => {
-        // Extract FormData from event or use directly
-        let formData: FormData;
-        if (formDataOrEvent instanceof Event) {
-          formDataOrEvent.preventDefault();
-          const target = formDataOrEvent.target as HTMLFormElement;
-          formData = new FormData(target);
-        } else {
-          formData = formDataOrEvent;
-        }
-
-        // Extract form data to plain object
-        const data = formDataToObject(formData);
-
-        // Validate against schema
-        const result = validate(options.schema, data);
-
-        if (!result.success) {
-          errors.value = result.errors;
-          callbacks?.onError?.(result.errors);
-          return;
-        }
-
-        // Clear previous errors on valid submission
-        errors.value = {};
-        submitting.value = true;
-
-        let response: TResult;
-        try {
-          response = await sdkMethod(result.data);
-        } catch (err: unknown) {
-          submitting.value = false;
-          const message = err instanceof Error ? err.message : 'Submission failed';
-          const serverErrors = { _form: message };
-          errors.value = serverErrors;
-          callbacks?.onError?.(serverErrors);
-          return;
-        }
-        submitting.value = false;
-        callbacks?.onSuccess?.(response);
-      };
-    },
+    handleSubmit: createSubmitHandler,
 
     error(field: keyof TBody & string) {
       // Use .value for reactive tracking in components

@@ -1,5 +1,7 @@
+import type { CodegenConfig, CodegenIR } from '@vertz/codegen';
 import { Command } from 'commander';
 import { buildAction } from './commands/build';
+import { codegenAction } from './commands/codegen';
 import { createAction } from './commands/create';
 import { devAction } from './commands/dev';
 import { generateDomainAction } from './commands/domain-gen';
@@ -117,7 +119,61 @@ export function createCLI(): Command {
     .command('codegen')
     .description('Generate SDK and CLI clients from the compiled API')
     .option('--dry-run', 'Preview generated files without writing')
-    .option('--output <dir>', 'Output directory');
+    .option('--output <dir>', 'Output directory')
+    .action(async (opts: { dryRun?: boolean; output?: string }) => {
+      const { resolve, dirname } = await import('node:path');
+      const { mkdir, writeFile: fsWriteFile } = await import('node:fs/promises');
+
+      // Try to load vertz.config.ts for codegen config
+      let config: CodegenConfig | undefined;
+      try {
+        const configPath = resolve(process.cwd(), 'vertz.config.ts');
+        const configModule = await import(configPath);
+        config = configModule.default?.codegen ?? configModule.codegen;
+      } catch {
+        // Config may not exist — codegenAction handles missing config
+      }
+
+      // Compile the app to get AppIR, then convert to CodegenIR
+      let ir: CodegenIR;
+      try {
+        const { createCompiler } = await import('@vertz/compiler');
+        const compiler = createCompiler();
+        const result = await compiler.compile();
+        if (!result.success) {
+          console.error('Compilation failed with errors.');
+          process.exit(1);
+        }
+        const { adaptIR } = await import('@vertz/codegen');
+        ir = adaptIR(result.ir);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`Failed to compile app: ${message}`);
+        process.exit(1);
+      }
+
+      // Create pipeline and writeFile helper
+      const { createCodegenPipeline } = await import('@vertz/codegen');
+      const pipeline = createCodegenPipeline();
+
+      const writeFile = async (path: string, content: string) => {
+        await mkdir(dirname(path), { recursive: true });
+        await fsWriteFile(path, content, 'utf-8');
+      };
+
+      const result = await codegenAction({
+        config,
+        ir,
+        writeFile,
+        pipeline,
+        dryRun: opts.dryRun,
+      });
+
+      console.log(result.output);
+      if (!result.success) {
+        process.exit(1);
+      }
+    });
 
   program
     .command('routes')

@@ -12,12 +12,14 @@ import type { DisposeFn } from '../runtime/signal-types';
 export function __attr(
   el: HTMLElement,
   name: string,
-  fn: () => string | null | undefined,
+  fn: () => string | boolean | null | undefined,
 ): DisposeFn {
   return effect(() => {
     const value = fn();
-    if (value == null) {
+    if (value == null || value === false) {
       el.removeAttribute(name);
+    } else if (value === true) {
+      el.setAttribute(name, '');
     } else {
       el.setAttribute(name, value);
     }

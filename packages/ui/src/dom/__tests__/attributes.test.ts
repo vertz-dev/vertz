@@ -12,6 +12,22 @@ describe('__attr', () => {
     expect(el.getAttribute('class')).toBe('secondary');
   });
 
+  it('sets boolean attribute to empty string when fn returns true', () => {
+    const el = document.createElement('button');
+    const isDisabled = signal(true);
+    __attr(el, 'disabled', () => isDisabled.value);
+    expect(el.getAttribute('disabled')).toBe('');
+  });
+
+  it('removes boolean attribute when fn returns false', () => {
+    const el = document.createElement('button');
+    const isDisabled = signal(true);
+    __attr(el, 'disabled', () => isDisabled.value);
+    expect(el.hasAttribute('disabled')).toBe(true);
+    isDisabled.value = false;
+    expect(el.hasAttribute('disabled')).toBe(false);
+  });
+
   it('removes attribute when fn returns null', () => {
     const el = document.createElement('div');
     const disabled = signal<string | null>('true');

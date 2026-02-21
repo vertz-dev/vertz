@@ -149,8 +149,19 @@ describe('Integration Tests — Forms', () => {
     const putForm = form(putSdk, { schema });
     const deleteForm = form(deleteSdk, { schema });
 
-    expect(postForm.attrs()).toEqual({ action: '/api/users', method: 'POST' });
-    expect(putForm.attrs()).toEqual({ action: '/api/users/123', method: 'PUT' });
-    expect(deleteForm.attrs()).toEqual({ action: '/api/users/123', method: 'DELETE' });
+    const postAttrs = postForm.attrs();
+    expect(postAttrs.action).toBe('/api/users');
+    expect(postAttrs.method).toBe('POST');
+    expect(typeof postAttrs.onSubmit).toBe('function');
+
+    const putAttrs = putForm.attrs();
+    expect(putAttrs.action).toBe('/api/users/123');
+    expect(putAttrs.method).toBe('PUT');
+    expect(typeof putAttrs.onSubmit).toBe('function');
+
+    const deleteAttrs = deleteForm.attrs();
+    expect(deleteAttrs.action).toBe('/api/users/123');
+    expect(deleteAttrs.method).toBe('DELETE');
+    expect(typeof deleteAttrs.onSubmit).toBe('function');
   });
 });
