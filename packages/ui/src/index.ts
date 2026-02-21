@@ -29,7 +29,7 @@ export type {
 export { compileTheme, css, defineTheme, globalCss, s, ThemeProvider, variants } from './css';
 
 // Forms
-export type { FormInstance, FormOptions, SdkMethod, SubmitCallbacks } from './form/form';
+export type { FormInstance, FormOptions, SdkMethod, SdkMethodWithMeta, SubmitCallbacks } from './form/form';
 export { form } from './form/form';
 export type { FormDataOptions } from './form/form-data';
 export { formDataToObject } from './form/form-data';
