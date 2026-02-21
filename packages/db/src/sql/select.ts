@@ -11,6 +11,7 @@
  */
 
 import { type CasingOverrides, camelToSnake } from './casing';
+import { type Dialect, defaultPostgresDialect } from '../dialect';
 import { buildWhere, type WhereResult } from './where';
 
 export interface SelectOptions {
@@ -51,7 +52,10 @@ function buildColumnRef(name: string, casingOverrides?: CasingOverrides): string
 /**
  * Build a SELECT statement from the given options.
  */
-export function buildSelect(options: SelectOptions): SelectResult {
+export function buildSelect(
+  options: SelectOptions,
+  dialect: Dialect = defaultPostgresDialect,
+): SelectResult {
   const parts: string[] = [];
   const allParams: unknown[] = [];
   const { casingOverrides } = options;
@@ -74,7 +78,7 @@ export function buildSelect(options: SelectOptions): SelectResult {
   const whereClauses: string[] = [];
 
   if (options.where) {
-    const whereResult: WhereResult = buildWhere(options.where, 0, casingOverrides);
+    const whereResult: WhereResult = buildWhere(options.where, 0, casingOverrides, dialect);
     if (whereResult.sql.length > 0) {
       whereClauses.push(whereResult.sql);
       allParams.push(...whereResult.params);
@@ -92,7 +96,7 @@ export function buildSelect(options: SelectOptions): SelectResult {
       const dir = options.orderBy?.[col] ?? 'asc';
       const op = dir === 'desc' ? '<' : '>';
       allParams.push(value);
-      whereClauses.push(`"${snakeCol}" ${op} $${allParams.length}`);
+      whereClauses.push(`"${snakeCol}" ${op} ${dialect.param(allParams.length)}`);
     } else if (cursorEntries.length > 1) {
       // Composite cursor: row-value comparison (col1, col2, ...) > ($N, $N+1, ...)
       const cols: string[] = [];
@@ -104,7 +108,7 @@ export function buildSelect(options: SelectOptions): SelectResult {
       for (const [col, value] of cursorEntries) {
         cols.push(`"${camelToSnake(col, casingOverrides)}"`);
         allParams.push(value);
-        placeholders.push(`$${allParams.length}`);
+        placeholders.push(dialect.param(allParams.length));
       }
       whereClauses.push(`(${cols.join(', ')}) ${op} (${placeholders.join(', ')})`);
     }
@@ -136,13 +140,13 @@ export function buildSelect(options: SelectOptions): SelectResult {
   const effectiveLimit = options.take ?? options.limit;
   if (effectiveLimit !== undefined) {
     allParams.push(effectiveLimit);
-    parts.push(`LIMIT $${allParams.length}`);
+    parts.push(`LIMIT ${dialect.param(allParams.length)}`);
   }
 
   // OFFSET (parameterized)
   if (options.offset !== undefined) {
     allParams.push(options.offset);
-    parts.push(`OFFSET $${allParams.length}`);
+    parts.push(`OFFSET ${dialect.param(allParams.length)}`);
   }
 
   return {

@@ -15,6 +15,7 @@
  */
 
 import { type CasingOverrides, camelToSnake } from './casing';
+import { type Dialect, defaultPostgresDialect } from '../dialect';
 
 export interface WhereResult {
   readonly sql: string;
@@ -97,8 +98,14 @@ function escapeLikeValue(str: string): string {
  * Regular columns are just quoted with double quotes.
  * Single quotes in JSONB path segments are escaped to prevent SQL injection.
  */
-function resolveColumnRef(key: string, overrides?: CasingOverrides): string {
+function resolveColumnRef(key: string, overrides?: CasingOverrides, dialect?: Dialect): string {
   if (key.includes('->')) {
+    if (dialect && !dialect.supportsJsonbPath) {
+      throw new Error(
+        'JSONB path operators (->>, ->) are not supported on SQLite. ' +
+          'Use json_extract() via raw SQL or switch to Postgres.',
+      );
+    }
     const parts = key.split('->');
     const baseCol = parts[0] ?? key;
     const column = `"${camelToSnake(baseCol, overrides)}"`;
@@ -122,53 +129,54 @@ function buildOperatorCondition(
   columnRef: string,
   operators: FilterOperators,
   paramIndex: number,
+  dialect: Dialect,
 ): { clauses: string[]; params: unknown[]; nextIndex: number } {
   const clauses: string[] = [];
   const params: unknown[] = [];
   let idx = paramIndex;
 
   if (operators.eq !== undefined) {
-    clauses.push(`${columnRef} = $${idx + 1}`);
+    clauses.push(`${columnRef} = ${dialect.param(idx + 1)}`);
     params.push(operators.eq);
     idx++;
   }
   if (operators.ne !== undefined) {
-    clauses.push(`${columnRef} != $${idx + 1}`);
+    clauses.push(`${columnRef} != ${dialect.param(idx + 1)}`);
     params.push(operators.ne);
     idx++;
   }
   if (operators.gt !== undefined) {
-    clauses.push(`${columnRef} > $${idx + 1}`);
+    clauses.push(`${columnRef} > ${dialect.param(idx + 1)}`);
     params.push(operators.gt);
     idx++;
   }
   if (operators.gte !== undefined) {
-    clauses.push(`${columnRef} >= $${idx + 1}`);
+    clauses.push(`${columnRef} >= ${dialect.param(idx + 1)}`);
     params.push(operators.gte);
     idx++;
   }
   if (operators.lt !== undefined) {
-    clauses.push(`${columnRef} < $${idx + 1}`);
+    clauses.push(`${columnRef} < ${dialect.param(idx + 1)}`);
     params.push(operators.lt);
     idx++;
   }
   if (operators.lte !== undefined) {
-    clauses.push(`${columnRef} <= $${idx + 1}`);
+    clauses.push(`${columnRef} <= ${dialect.param(idx + 1)}`);
     params.push(operators.lte);
     idx++;
   }
   if (operators.contains !== undefined) {
-    clauses.push(`${columnRef} LIKE $${idx + 1}`);
+    clauses.push(`${columnRef} LIKE ${dialect.param(idx + 1)}`);
     params.push(`%${escapeLikeValue(operators.contains)}%`);
     idx++;
   }
   if (operators.startsWith !== undefined) {
-    clauses.push(`${columnRef} LIKE $${idx + 1}`);
+    clauses.push(`${columnRef} LIKE ${dialect.param(idx + 1)}`);
     params.push(`${escapeLikeValue(operators.startsWith)}%`);
     idx++;
   }
   if (operators.endsWith !== undefined) {
-    clauses.push(`${columnRef} LIKE $${idx + 1}`);
+    clauses.push(`${columnRef} LIKE ${dialect.param(idx + 1)}`);
     params.push(`%${escapeLikeValue(operators.endsWith)}`);
     idx++;
   }
@@ -177,7 +185,7 @@ function buildOperatorCondition(
       // Empty IN is always false — no row can match an empty set
       clauses.push('FALSE');
     } else {
-      const placeholders = operators.in.map((_, i) => `$${idx + 1 + i}`).join(', ');
+      const placeholders = operators.in.map((_, i) => dialect.param(idx + 1 + i)).join(', ');
       clauses.push(`${columnRef} IN (${placeholders})`);
       params.push(...operators.in);
       idx += operators.in.length;
@@ -188,7 +196,7 @@ function buildOperatorCondition(
       // Empty NOT IN is always true — every row is not in an empty set
       clauses.push('TRUE');
     } else {
-      const placeholders = operators.notIn.map((_, i) => `$${idx + 1 + i}`).join(', ');
+      const placeholders = operators.notIn.map((_, i) => dialect.param(idx + 1 + i)).join(', ');
       clauses.push(`${columnRef} NOT IN (${placeholders})`);
       params.push(...operators.notIn);
       idx += operators.notIn.length;
@@ -198,17 +206,35 @@ function buildOperatorCondition(
     clauses.push(`${columnRef} ${operators.isNull ? 'IS NULL' : 'IS NOT NULL'}`);
   }
   if (operators.arrayContains !== undefined) {
-    clauses.push(`${columnRef} @> $${idx + 1}`);
+    if (!dialect.supportsArrayOps) {
+      throw new Error(
+        'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite. ' +
+          'Use a different filter strategy or switch to Postgres.',
+      );
+    }
+    clauses.push(`${columnRef} @> ${dialect.param(idx + 1)}`);
     params.push(operators.arrayContains);
     idx++;
   }
   if (operators.arrayContainedBy !== undefined) {
-    clauses.push(`${columnRef} <@ $${idx + 1}`);
+    if (!dialect.supportsArrayOps) {
+      throw new Error(
+        'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite. ' +
+          'Use a different filter strategy or switch to Postgres.',
+      );
+    }
+    clauses.push(`${columnRef} <@ ${dialect.param(idx + 1)}`);
     params.push(operators.arrayContainedBy);
     idx++;
   }
   if (operators.arrayOverlaps !== undefined) {
-    clauses.push(`${columnRef} && $${idx + 1}`);
+    if (!dialect.supportsArrayOps) {
+      throw new Error(
+        'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite. ' +
+          'Use a different filter strategy or switch to Postgres.',
+      );
+    }
+    clauses.push(`${columnRef} && ${dialect.param(idx + 1)}`);
     params.push(operators.arrayOverlaps);
     idx++;
   }
@@ -219,7 +245,8 @@ function buildOperatorCondition(
 function buildFilterClauses(
   filter: WhereFilter,
   paramOffset: number,
-  overrides?: CasingOverrides,
+  overrides: CasingOverrides | undefined,
+  dialect: Dialect,
 ): { clauses: string[]; params: unknown[]; nextIndex: number } {
   const clauses: string[] = [];
   const allParams: unknown[] = [];
@@ -230,16 +257,16 @@ function buildFilterClauses(
       continue;
     }
 
-    const columnRef = resolveColumnRef(key, overrides);
+    const columnRef = resolveColumnRef(key, overrides, dialect);
 
     if (isOperatorObject(value)) {
-      const result = buildOperatorCondition(columnRef, value, idx);
+      const result = buildOperatorCondition(columnRef, value, idx, dialect);
       clauses.push(...result.clauses);
       allParams.push(...result.params);
       idx = result.nextIndex;
     } else {
       // Direct value -> shorthand for { eq: value }
-      clauses.push(`${columnRef} = $${idx + 1}`);
+      clauses.push(`${columnRef} = ${dialect.param(idx + 1)}`);
       allParams.push(value);
       idx++;
     }
@@ -253,7 +280,7 @@ function buildFilterClauses(
     } else {
       const orClauses: string[] = [];
       for (const subFilter of filter.OR) {
-        const sub = buildFilterClauses(subFilter, idx, overrides);
+        const sub = buildFilterClauses(subFilter, idx, overrides, dialect);
         const joined = sub.clauses.join(' AND ');
         orClauses.push(sub.clauses.length > 1 ? `(${joined})` : joined);
         allParams.push(...sub.params);
@@ -271,7 +298,7 @@ function buildFilterClauses(
     } else {
       const andClauses: string[] = [];
       for (const subFilter of filter.AND) {
-        const sub = buildFilterClauses(subFilter, idx, overrides);
+        const sub = buildFilterClauses(subFilter, idx, overrides, dialect);
         const joined = sub.clauses.join(' AND ');
         andClauses.push(sub.clauses.length > 1 ? `(${joined})` : joined);
         allParams.push(...sub.params);
@@ -283,7 +310,7 @@ function buildFilterClauses(
 
   // Handle NOT
   if (filter.NOT !== undefined) {
-    const sub = buildFilterClauses(filter.NOT, idx, overrides);
+    const sub = buildFilterClauses(filter.NOT, idx, overrides, dialect);
     clauses.push(`NOT (${sub.clauses.join(' AND ')})`);
     allParams.push(...sub.params);
     idx = sub.nextIndex;
@@ -298,18 +325,20 @@ function buildFilterClauses(
  * @param filter - The filter object with column conditions
  * @param paramOffset - Starting parameter offset (0-based, params start at $offset+1)
  * @param overrides - Optional casing overrides for camelCase -> snake_case conversion
+ * @param dialect - SQL dialect for parameter placeholders and feature checks
  * @returns WhereResult with the SQL string (without WHERE keyword) and parameter values
  */
 export function buildWhere(
   filter: WhereFilter | undefined,
   paramOffset = 0,
   overrides?: CasingOverrides,
+  dialect: Dialect = defaultPostgresDialect,
 ): WhereResult {
   if (!filter || Object.keys(filter).length === 0) {
     return { sql: '', params: [] };
   }
 
-  const { clauses, params } = buildFilterClauses(filter, paramOffset, overrides);
+  const { clauses, params } = buildFilterClauses(filter, paramOffset, overrides, dialect);
   return {
     sql: clauses.join(' AND '),
     params,
