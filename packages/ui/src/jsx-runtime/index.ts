@@ -12,8 +12,42 @@
  * - Fragment          — document fragment
  */
 
-type JSXComponent = (props: Record<string, unknown>) => Node | Node[] | null;
-type Tag = string | JSXComponent;
+/**
+ * JSX namespace - required for TypeScript's react-jsx mode
+ * to understand intrinsic element types and component types.
+ */
+export namespace JSX {
+  /**
+   * The return type of JSX expressions
+   */
+  export type Element = HTMLElement | DocumentFragment;
+
+  /**
+   * Component function type
+   */
+  export type JSXComponent = (props: Record<string, unknown>) => Element;
+
+  /**
+   * Base type for any HTML element attributes.
+   * Allows string, number, boolean, or event handlers.
+   */
+  export interface HTMLAttributes {
+    [key: string]: unknown;
+    children?: unknown;
+  }
+
+  /**
+   * Intrinsic elements - maps tag names to their element types.
+   * For the jsx() function, we use HTMLElementTagNameMap directly in overloads.
+   * This provides a catch-all for any HTML element.
+   */
+  export interface IntrinsicElements {
+    [key: string]: HTMLAttributes | undefined;
+  }
+}
+
+type JSXComponentFn = (props: Record<string, unknown>) => JSX.Element;
+type Tag = string | JSXComponentFn;
 
 /**
  * Apply children to a parent node, recursively handling arrays
@@ -31,16 +65,11 @@ function applyChildren(parent: Node, children: unknown): void {
   }
 }
 
-/**
- * JSX factory function for client-side rendering.
- *
- * When tag is a function (component), calls it with props.
- * When tag is a string (HTML element), creates a DOM element.
- */
-export function jsx(tag: Tag, props: Record<string, unknown>): Node | Node[] | null {
+// Implementation
+function jsxImpl(tag: Tag, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
   // Component call — pass props through to the function
   if (typeof tag === 'function') {
-    return tag(props);
+    return tag(props || {});
   }
 
   // Tag is a string → create a DOM element
@@ -74,11 +103,65 @@ export function jsx(tag: Tag, props: Record<string, unknown>): Node | Node[] | n
 }
 
 /**
+ * JSX factory function for client-side rendering.
+ *
+ * When tag is a function (component), calls it with props.
+ * When tag is a string (HTML element), creates a DOM element.
+ */
+
+// Overload 1: Intrinsic HTML elements - returns specific element type based on tag name
+export function jsx<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  props: Record<string, unknown> | null | undefined
+): HTMLElementTagNameMap[K];
+
+// Overload 2: Custom elements (fallback for unknown string tags)
+export function jsx(
+  tag: string,
+  props: Record<string, unknown> | null | undefined
+): HTMLElement;
+
+// Overload 3: Function components - returns the component's return type
+export function jsx<P extends Record<string, unknown>, R extends JSX.Element>(
+  tag: (props: P) => R,
+  props: P
+): R;
+
+// Overload 4: Fragment
+export function jsx(
+  tag: typeof Fragment,
+  props: { children?: unknown }
+): DocumentFragment;
+
+// Implementation
+export function jsx(tag: Tag, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
+  return jsxImpl(tag, props);
+}
+
+/**
  * JSX factory for elements with multiple children.
  * In the automatic runtime, this is used when there are multiple children.
  * For our implementation, it's the same as jsx().
  */
-export const jsxs: typeof jsx = jsx;
+export function jsxs<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  props: Record<string, unknown> | null | undefined
+): HTMLElementTagNameMap[K];
+export function jsxs(
+  tag: string,
+  props: Record<string, unknown> | null | undefined
+): HTMLElement;
+export function jsxs<P extends Record<string, unknown>, R extends JSX.Element>(
+  tag: (props: P) => R,
+  props: P
+): R;
+export function jsxs(
+  tag: typeof Fragment,
+  props: { children?: unknown }
+): DocumentFragment;
+export function jsxs(tag: Tag, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
+  return jsxImpl(tag, props);
+}
 
 /**
  * Fragment component — a DocumentFragment container for multiple children.
@@ -93,4 +176,22 @@ export function Fragment(props: { children?: unknown }): DocumentFragment {
  * JSX development mode factory (used with @jsxImportSource in tsconfig).
  * Same as jsx() for our implementation.
  */
-export const jsxDEV: typeof jsx = jsx;
+export function jsxDEV<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  props: Record<string, unknown> | null | undefined
+): HTMLElementTagNameMap[K];
+export function jsxDEV(
+  tag: string,
+  props: Record<string, unknown> | null | undefined
+): HTMLElement;
+export function jsxDEV<P extends Record<string, unknown>, R extends JSX.Element>(
+  tag: (props: P) => R,
+  props: P
+): R;
+export function jsxDEV(
+  tag: typeof Fragment,
+  props: { children?: unknown }
+): DocumentFragment;
+export function jsxDEV(tag: Tag, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
+  return jsxImpl(tag, props);
+}
