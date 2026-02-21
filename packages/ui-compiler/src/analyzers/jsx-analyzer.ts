@@ -17,11 +17,19 @@ export class JsxAnalyzer {
       variables.filter((v) => v.kind === 'signal' || v.kind === 'computed').map((v) => v.name),
     );
 
-    // Build map of signal API variables → their signal properties
+    // Build maps of signal API variables
     const signalApiVars = new Map<string, Set<string>>();
+    const plainPropVars = new Map<string, Set<string>>();
+    const fieldSignalPropVars = new Map<string, Set<string>>();
     for (const v of variables) {
       if (v.signalProperties && v.signalProperties.size > 0) {
         signalApiVars.set(v.name, v.signalProperties);
+      }
+      if (v.plainProperties && v.plainProperties.size > 0) {
+        plainPropVars.set(v.name, v.plainProperties);
+      }
+      if (v.fieldSignalProperties && v.fieldSignalProperties.size > 0) {
+        fieldSignalPropVars.set(v.name, v.fieldSignalProperties);
       }
     }
 
@@ -36,7 +44,12 @@ export class JsxAnalyzer {
       const identifiers = collectIdentifiers(expr);
       const deps = identifiers.filter((id) => reactiveNames.has(id));
       const uniqueDeps = [...new Set(deps)];
-      const hasSignalApiAccess = containsSignalApiPropertyAccess(expr, signalApiVars);
+      const hasSignalApiAccess = containsSignalApiPropertyAccess(
+        expr,
+        signalApiVars,
+        plainPropVars,
+        fieldSignalPropVars,
+      );
 
       results.push({
         start: expr.getStart(),
@@ -52,22 +65,55 @@ export class JsxAnalyzer {
 
 /**
  * Check if a node contains a PropertyAccessExpression that accesses
- * a signal property on a signal API variable (e.g., tasks.loading, taskForm.submitting).
+ * a signal property on a signal API variable.
+ *
+ * Handles two patterns:
+ * - 2-level: `tasks.loading` (root.signalProp)
+ * - 3-level: `taskForm.title.error` (root.field.fieldSignalProp)
  */
 function containsSignalApiPropertyAccess(
   node: Node,
   signalApiVars: Map<string, Set<string>>,
+  plainPropVars: Map<string, Set<string>>,
+  fieldSignalPropVars: Map<string, Set<string>>,
 ): boolean {
-  if (signalApiVars.size === 0) return false;
+  if (signalApiVars.size === 0 && fieldSignalPropVars.size === 0) return false;
 
   const propAccesses = node.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression);
   for (const pa of propAccesses) {
     const obj = pa.getExpression();
-    if (!obj.isKind(SyntaxKind.Identifier)) continue;
-    const varName = obj.getText();
-    const signalProps = signalApiVars.get(varName);
-    if (signalProps?.has(pa.getName())) {
-      return true;
+    const propName = pa.getName();
+
+    // 2-level: root.signalProp
+    if (obj.isKind(SyntaxKind.Identifier)) {
+      const varName = obj.getText();
+      const signalProps = signalApiVars.get(varName);
+      if (signalProps?.has(propName)) {
+        return true;
+      }
+    }
+
+    // 3-level: root.field.fieldSignalProp
+    if (obj.isKind(SyntaxKind.PropertyAccessExpression)) {
+      const innerExpr = obj.asKindOrThrow(SyntaxKind.PropertyAccessExpression);
+      const rootExpr = innerExpr.getExpression();
+      const middleProp = innerExpr.getName();
+
+      if (rootExpr.isKind(SyntaxKind.Identifier)) {
+        const rootName = rootExpr.getText();
+        const fieldSignalProps = fieldSignalPropVars.get(rootName);
+        if (!fieldSignalProps) continue;
+
+        // Middle must NOT be a signal property or plain property (it's a field name)
+        const signalProps = signalApiVars.get(rootName);
+        const plainProps = plainPropVars.get(rootName);
+        if (signalProps?.has(middleProp) || plainProps?.has(middleProp)) continue;
+
+        // Leaf must be a field signal property
+        if (fieldSignalProps.has(propName)) {
+          return true;
+        }
+      }
     }
   }
   return false;

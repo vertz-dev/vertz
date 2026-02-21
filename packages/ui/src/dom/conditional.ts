@@ -43,7 +43,16 @@ export function __conditional(
 
     // Branch may return null (e.g. false-branch of {show && <el/>}).
     // Use a comment placeholder so replaceChild always has a valid Node.
-    const newNode = branchResult ?? document.createComment('empty');
+    // Branches may also return primitives (strings, numbers) from ternary
+    // expressions like {loading ? 'Loading...' : 'Done'} — convert to text nodes.
+    let newNode: Node;
+    if (branchResult == null || typeof branchResult === 'boolean') {
+      newNode = document.createComment('empty');
+    } else if (branchResult instanceof Node) {
+      newNode = branchResult;
+    } else {
+      newNode = document.createTextNode(String(branchResult));
+    }
 
     if (currentNode?.parentNode) {
       // Replace old node with new node

@@ -2,17 +2,17 @@
  * TodoForm component — create-todo form with validation.
  *
  * Demonstrates:
- * - form() with explicit schema override for client-side constraint validation
+ * - form() with direct properties: action, method, onSubmit
+ * - Per-field reactive state: todoForm.title.error for inline error display
  * - Generated SDK carries type-only schema via .meta.bodySchema automatically
  * - Override with { schema } when you need constraints (min length, format, etc.)
  * - Reactive JSX attributes: disabled={todoForm.submitting}
  * - SdkMethod metadata for progressive enhancement
- * - No addEventListener — onSubmit in JSX, compiled to __on()
- * - effect() for computed values (titleError, submitLabel) derived from form signals
+ * - No effect() needed — per-field signals replace error() and computed bridges
  */
 
 import { s } from '@vertz/schema';
-import { effect, form } from '@vertz/ui';
+import { form } from '@vertz/ui';
 import type { Todo } from '../api/mock-data';
 import { todoApi } from '../api/mock-data';
 import { button, formStyles } from '../styles/components';
@@ -30,25 +30,19 @@ export interface TodoFormProps {
 export function TodoForm(props: TodoFormProps): HTMLFormElement {
   const { onSuccess } = props;
 
-  const todoForm = form(todoApi.create, { schema: createTodoSchema });
-
-  const { action, method, onSubmit } = todoForm.attrs({
+  const todoForm = form(todoApi.create, {
+    schema: createTodoSchema,
     onSuccess,
     resetOnSuccess: true,
   });
 
-  // Computed values still need effect() bridges with explicit .value access.
-  // In JSX, signal properties (submitting) are used directly.
-  let titleError = '';
-  let submitLabel = 'Add Todo';
-
-  effect(() => {
-    titleError = todoForm.error('title') ?? '';
-    submitLabel = todoForm.submitting.value ? 'Adding...' : 'Add Todo';
-  });
-
   return (
-    <form action={action} method={method} onSubmit={onSubmit} data-testid="create-todo-form">
+    <form
+      action={todoForm.action}
+      method={todoForm.method}
+      onSubmit={todoForm.onSubmit}
+      data-testid="create-todo-form"
+    >
       <div style="display: flex; gap: 0.5rem; align-items: flex-start">
         <div style="flex: 1">
           <input
@@ -59,7 +53,7 @@ export function TodoForm(props: TodoFormProps): HTMLFormElement {
             data-testid="todo-title-input"
           />
           <span class={formStyles.classNames.error} data-testid="title-error">
-            {titleError}
+            {todoForm.title.error}
           </span>
         </div>
         <button
@@ -68,7 +62,7 @@ export function TodoForm(props: TodoFormProps): HTMLFormElement {
           data-testid="submit-todo"
           disabled={todoForm.submitting}
         >
-          {submitLabel}
+          {todoForm.submitting.value ? 'Adding...' : 'Add Todo'}
         </button>
       </div>
     </form>

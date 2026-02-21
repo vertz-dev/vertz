@@ -1,5 +1,6 @@
-import { signal } from '../runtime/signal';
-import type { Signal } from '../runtime/signal-types';
+import { computed, signal } from '../runtime/signal';
+import type { ReadonlySignal, Signal } from '../runtime/signal-types';
+import { createFieldState, type FieldState } from './field-state';
 import { formDataToObject } from './form-data';
 import type { FormSchema } from './validation';
 import { validate } from './validation';
@@ -23,176 +24,254 @@ export interface SdkMethodWithMeta<TBody, TResult> extends SdkMethod<TBody, TRes
   meta: { bodySchema: FormSchema<TBody> };
 }
 
-/** Options for creating a form instance. */
-export interface FormOptions<TBody> {
-  /** Explicit schema for client-side validation before submission. */
-  schema: FormSchema<TBody>;
-}
+/** Reserved property names that cannot be used as field names on FormInstance. */
+export type ReservedFormNames =
+  | 'submitting'
+  | 'dirty'
+  | 'valid'
+  | 'action'
+  | 'method'
+  | 'onSubmit'
+  | 'reset'
+  | 'setFieldError'
+  | 'submit'
+  | '__bindElement';
 
-/** Callbacks for form submission. All properties are optional. */
-export interface SubmitCallbacks<TResult> {
-  onSuccess?: (result: TResult) => void;
-  onError?: (errors: Record<string, string>) => void;
-  /**
-   * When true, the form element is reset after a successful submission.
-   * Only takes effect when the handler receives a DOM Event (so `formElement`
-   * can be extracted from `event.target`). Has no effect with raw FormData.
-   */
-  resetOnSuccess?: boolean;
-}
+export type { FieldState };
 
-/** A form instance bound to an SDK method. */
-export interface FormInstance<TBody, TResult> {
-  /**
-   * Returns HTML form attributes for progressive enhancement.
-   *
-   * Usage (destructure — JSX spread is not supported by the compiler):
-   * ```tsx
-   * const { action, method, onSubmit } = userForm.attrs({ onSuccess });
-   * <form action={action} method={method} onSubmit={onSubmit}>
-   * ```
-   */
-  attrs(callbacks?: SubmitCallbacks<TResult>): {
-    action: string;
-    method: string;
-    onSubmit: (e: Event) => Promise<void>;
-  };
+/** Mapped type providing FieldState for each field in TBody. */
+export type FieldAccessors<TBody> = { [K in keyof TBody]: FieldState<TBody[K]> };
 
-  /** Reactive signal indicating whether a submission is in progress. */
+/** Base properties available on every form instance. */
+export interface FormBaseProperties<TBody> {
+  action: string;
+  method: string;
+  onSubmit: (e: Event) => Promise<void>;
+  reset: () => void;
+  setFieldError: (field: keyof TBody & string, message: string) => void;
+  submit: (formData?: FormData) => Promise<void>;
   submitting: Signal<boolean>;
-
-  /**
-   * Returns an event handler for programmatic submission with raw FormData.
-   *
-   * Prefer `attrs()` for JSX forms. Use `handleSubmit()` for non-JSX scenarios:
-   * `userForm.handleSubmit({ onSuccess })(formData)`.
-   */
-  handleSubmit(
-    callbacks?: SubmitCallbacks<TResult>,
-  ): (formDataOrEvent: FormData | Event) => Promise<void>;
-
-  /** Returns the error message for a field reactively, or undefined if no error. Type-safe field names. */
-  error(field: keyof TBody & string): string | undefined;
+  dirty: ReadonlySignal<boolean>;
+  valid: ReadonlySignal<boolean>;
+  __bindElement: (el: HTMLFormElement) => void;
 }
 
 /**
- * Create a form instance bound to an SDK method with schema validation.
+ * A form instance bound to an SDK method.
+ * Combines base properties with per-field reactive state via Proxy.
+ * If TBody has any key that conflicts with ReservedFormNames, it produces a type error.
+ * TResult is used by form() overloads for return type inference.
+ */
+export type FormInstance<TBody, _TResult> = keyof TBody & ReservedFormNames extends never
+  ? FormBaseProperties<TBody> & FieldAccessors<TBody>
+  : {
+      __error: `Field name conflicts with reserved form property: ${keyof TBody & ReservedFormNames & string}`;
+    };
+
+/** Options for creating a form instance. */
+export interface FormOptions<TBody, TResult> {
+  /** Explicit schema for client-side validation before submission. */
+  schema?: FormSchema<TBody>;
+  /** Initial values for form fields. */
+  initial?: Partial<TBody>;
+  /** Callback invoked after a successful submission. */
+  onSuccess?: (result: TResult) => void;
+  /** Callback invoked when validation or submission fails. */
+  onError?: (errors: Record<string, string>) => void;
+  /** When true, reset the form after a successful submission. */
+  resetOnSuccess?: boolean;
+}
+
+/**
+ * Create a form instance bound to an SDK method.
  *
- * The form provides:
- * - `attrs()` for progressive enhancement (returns action/method from SDK metadata)
- * - `handleSubmit()` returns an event handler for FormData extraction, validation, and SDK submission
- * - `error()` for reactive field-level error access
- * - `submitting` signal for loading state
+ * The form provides direct properties for progressive enhancement (action, method, onSubmit),
+ * per-field reactive state via Proxy, and submission handling with validation.
  *
  * When the SDK method has `.meta.bodySchema` (generated by `@vertz/codegen`),
- * the schema option is optional — validation uses the embedded schema automatically.
- * When the SDK method lacks `.meta`, the schema option is required.
+ * the schema option is optional. When the SDK method lacks `.meta`, the schema option is required.
  */
 export function form<TBody, TResult>(
   sdkMethod: SdkMethodWithMeta<TBody, TResult>,
-  options?: FormOptions<TBody>,
+  options?: FormOptions<TBody, TResult>,
 ): FormInstance<TBody, TResult>;
 export function form<TBody, TResult>(
   sdkMethod: SdkMethod<TBody, TResult>,
-  options: Required<Pick<FormOptions<TBody>, 'schema'>> & FormOptions<TBody>,
+  options: Required<Pick<FormOptions<TBody, TResult>, 'schema'>> & FormOptions<TBody, TResult>,
 ): FormInstance<TBody, TResult>;
 export function form<TBody, TResult>(
   sdkMethod: SdkMethod<TBody, TResult>,
-  options?: FormOptions<TBody>,
+  options?: FormOptions<TBody, TResult>,
 ): FormInstance<TBody, TResult> {
+  const fieldCache = new Map<string, FieldState>();
   const submitting = signal(false);
-  const errors = signal<Record<string, string>>({});
+  // Generation counter — incremented when new fields are added to the cache.
+  // Computed signals read this to re-evaluate when the field set changes.
+  const fieldGeneration = signal(0);
 
-  function createSubmitHandler(callbacks?: SubmitCallbacks<TResult>) {
-    return async (formDataOrEvent: FormData | Event) => {
-      // Extract FormData from event or use directly
-      let formData: FormData;
-      let formElement: HTMLFormElement | undefined;
-      if (formDataOrEvent instanceof Event) {
-        formDataOrEvent.preventDefault();
-        formElement = formDataOrEvent.target as HTMLFormElement;
-        formData = new FormData(formElement);
-      } else {
-        formData = formDataOrEvent;
-      }
+  const dirty = computed(() => {
+    fieldGeneration.value; // subscribe to field additions
+    for (const field of fieldCache.values()) {
+      if (field.dirty.value) return true;
+    }
+    return false;
+  });
 
-      // Extract form data to plain object
-      const data = formDataToObject(formData);
+  const valid = computed(() => {
+    fieldGeneration.value; // subscribe to field additions
+    for (const field of fieldCache.values()) {
+      if (field.error.value !== undefined) return false;
+    }
+    return true;
+  });
 
-      // Resolve schema: explicit option takes precedence over SDK meta
-      const resolvedSchema = options?.schema ?? sdkMethod.meta?.bodySchema;
-
-      // Validate against schema (skip if none — unreachable via overloads)
-      if (!resolvedSchema) {
-        errors.value = {};
-        submitting.value = true;
-        let response: TResult;
-        try {
-          response = await sdkMethod(data as TBody);
-        } catch (sdkErr: unknown) {
-          submitting.value = false;
-          const message = sdkErr instanceof Error ? sdkErr.message : 'Submission failed';
-          const serverErrors = { _form: message };
-          errors.value = serverErrors;
-          callbacks?.onError?.(serverErrors);
-          return;
-        }
-        submitting.value = false;
-        callbacks?.onSuccess?.(response);
-        if (callbacks?.resetOnSuccess && formElement) {
-          formElement.reset();
-        }
-        return;
-      }
-
-      const result = validate(resolvedSchema, data);
-
-      if (!result.success) {
-        errors.value = result.errors;
-        callbacks?.onError?.(result.errors);
-        return;
-      }
-
-      // Clear previous errors on valid submission
-      errors.value = {};
-      submitting.value = true;
-
-      let response: TResult;
-      try {
-        response = await sdkMethod(result.data);
-      } catch (err: unknown) {
-        submitting.value = false;
-        const message = err instanceof Error ? err.message : 'Submission failed';
-        const serverErrors = { _form: message };
-        errors.value = serverErrors;
-        callbacks?.onError?.(serverErrors);
-        return;
-      }
-      submitting.value = false;
-      callbacks?.onSuccess?.(response);
-      if (callbacks?.resetOnSuccess && formElement) {
-        formElement.reset();
-      }
-    };
+  function getOrCreateField(name: string): FieldState {
+    let field = fieldCache.get(name);
+    if (!field) {
+      const initialValue = (options?.initial as Record<string, unknown> | undefined)?.[name];
+      field = createFieldState(name, initialValue);
+      fieldCache.set(name, field);
+      fieldGeneration.value++;
+    }
+    return field;
   }
 
-  return {
-    attrs(callbacks?: SubmitCallbacks<TResult>) {
-      return {
-        action: sdkMethod.url,
-        method: sdkMethod.method,
-        onSubmit: createSubmitHandler(callbacks),
-      };
+  const resolvedSchema = options?.schema ?? sdkMethod.meta?.bodySchema;
+
+  async function submitPipeline(formData: FormData): Promise<void> {
+    const data = formDataToObject(formData);
+
+    if (resolvedSchema) {
+      const result = validate(resolvedSchema, data);
+      if (!result.success) {
+        for (const [fieldName, message] of Object.entries(result.errors)) {
+          getOrCreateField(fieldName).error.value = message;
+        }
+        options?.onError?.(result.errors);
+        return;
+      }
+    }
+
+    // Clear previous errors
+    for (const field of fieldCache.values()) {
+      field.error.value = undefined;
+    }
+
+    submitting.value = true;
+    let response: TResult;
+    try {
+      response = await sdkMethod(data as TBody);
+    } catch (err: unknown) {
+      submitting.value = false;
+      const message = err instanceof Error ? err.message : 'Submission failed';
+      const serverErrors = { _form: message };
+      getOrCreateField('_form').error.value = message;
+      options?.onError?.(serverErrors);
+      return;
+    }
+    submitting.value = false;
+    options?.onSuccess?.(response);
+
+    if (options?.resetOnSuccess) {
+      resetForm();
+    }
+  }
+
+  let boundElement: HTMLFormElement | undefined;
+
+  function resetForm(): void {
+    for (const [name, field] of fieldCache) {
+      field.error.value = undefined;
+      field.dirty.value = false;
+      field.touched.value = false;
+      const initialValue = (options?.initial as Record<string, unknown> | undefined)?.[name];
+      field.value.value = initialValue;
+    }
+  }
+
+  async function submitPipelineWithReset(formData: FormData): Promise<void> {
+    await submitPipeline(formData);
+    if (options?.resetOnSuccess && !submitting.peek() && boundElement) {
+      // Only call reset on the element if submission succeeded (submitting is already false
+      // and no error was set). Check that there are no errors as a proxy for success.
+      const hasErrors = [...fieldCache.values()].some((f) => f.error.peek() !== undefined);
+      if (!hasErrors) {
+        boundElement.reset();
+      }
+    }
+  }
+
+  function handleInputOrChange(e: Event): void {
+    const target = e.target as HTMLInputElement | null;
+    if (!target?.name) return;
+    const field = getOrCreateField(target.name);
+    field.value.value = target.value;
+    const initialValue = (options?.initial as Record<string, unknown> | undefined)?.[target.name];
+    field.dirty.value = target.value !== initialValue;
+  }
+
+  function handleFocusout(e: Event): void {
+    const target = e.target as HTMLInputElement | null;
+    if (!target?.name) return;
+    const field = getOrCreateField(target.name);
+    field.touched.value = true;
+  }
+
+  const baseProperties: Record<string, unknown> = {
+    action: sdkMethod.url,
+    method: sdkMethod.method,
+    onSubmit: async (e: Event) => {
+      e.preventDefault();
+      const formElement = e.target as HTMLFormElement;
+      const formData = new FormData(formElement);
+      await submitPipeline(formData);
+      if (options?.resetOnSuccess && !submitting.peek()) {
+        const hasErrors = [...fieldCache.values()].some((f) => f.error.peek() !== undefined);
+        if (!hasErrors) {
+          formElement.reset();
+        }
+      }
     },
-
+    reset: resetForm,
+    setFieldError: (field: string, message: string) => {
+      getOrCreateField(field).error.value = message;
+    },
+    submit: async (formData?: FormData) => {
+      if (formData) {
+        await submitPipeline(formData);
+      } else if (boundElement) {
+        await submitPipelineWithReset(new FormData(boundElement));
+        return;
+      }
+      if (options?.resetOnSuccess && formData && !submitting.peek()) {
+        const hasErrors = [...fieldCache.values()].some((f) => f.error.peek() !== undefined);
+        if (!hasErrors && boundElement) {
+          boundElement.reset();
+        }
+      }
+    },
     submitting,
-
-    handleSubmit: createSubmitHandler,
-
-    error(field: keyof TBody & string) {
-      // Use .value for reactive tracking in components
-      const currentErrors = errors.value;
-      return currentErrors[field];
+    dirty,
+    valid,
+    __bindElement: (el: HTMLFormElement) => {
+      boundElement = el;
+      el.addEventListener('input', handleInputOrChange);
+      el.addEventListener('change', handleInputOrChange);
+      el.addEventListener('focusout', handleFocusout);
     },
   };
+
+  const knownProperties = new Set(Object.keys(baseProperties));
+
+  return new Proxy(baseProperties, {
+    get(target, prop, receiver) {
+      if (typeof prop === 'string') {
+        if (knownProperties.has(prop)) {
+          return target[prop];
+        }
+        return getOrCreateField(prop);
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as FormInstance<TBody, TResult>;
 }
