@@ -54,6 +54,16 @@ Positive type tests ("correct shape compiles") are NOT valid RED tests — loose
 
 **Important:** `@ts-expect-error` tests only verify **interface signatures** (the public API). They do NOT catch type errors in the **implementation body**. After GREEN, run `bun run typecheck` to ensure the implementation types are also correct. Type tests + typecheck together cover the full picture.
 
+## Compiler Transform Testing
+
+**Context:** Added after a signal auto-unwrap bug where MagicString's `appendRight` vs `appendLeft` caused `.value` insertion to be silently dropped in JSX attributes. All existing tests used transforms in standalone-statement contexts (assign to variable, then use variable in JSX), hiding the MagicString interaction between the signal and JSX transformers. The e2e example tests caught the runtime symptom; these rules ensure compiler-level tests catch the root cause earlier.
+
+When testing compiler transforms that modify expressions:
+
+- **Always test transforms in direct JSX contexts** — every transform test must include at least one case where the transformed expression appears directly in a JSX attribute (`disabled={expr}`) and directly in a JSX child expression (`{expr}`). These are the two contexts where the JSX transformer reads transformed text via `source.slice()`, and transform interaction bugs only surface here.
+- **Don't rely solely on intermediate variables** — a test like `const data = tasks.data; return <div>{data}</div>` validates the transform at the assignment but NOT in the JSX context. The JSX transformer reads the variable name, not the original expression — so it never exercises the MagicString interaction. Add a companion test: `return <div>{tasks.data}</div>`.
+- **Test multi-transform interactions** — when two transforms operate on the same source range (e.g., signal `.value` insertion + JSX attribute transformation), test them together. Isolated transform tests don't catch interaction bugs.
+
 ## Never Skip Quality Gates
 
 - **Never skip or disable linting rules.** Fix the code to comply, don't suppress or weaken the rule. If a rule flags your code, your code is wrong — not the rule. This includes `biome`, `eslint`, or any other configured linter.
