@@ -81,13 +81,13 @@ export function TaskForm(props: TaskFormProps): HTMLFormElement {
   // Error display elements — referenced by effect() for reactive updates
   const titleError = (
     <span class={formStyles.classNames.error} data-testid="title-error" />
-  ) as HTMLElement;
+  );
   const descError = (
     <span class={formStyles.classNames.error} data-testid="description-error" />
-  ) as HTMLElement;
+  );
   const priorityError = (
     <span class={formStyles.classNames.error} data-testid="priority-error" />
-  ) as HTMLElement;
+  );
 
   // Submit button — referenced by effect() for reactive submitting state
   const submitBtn = (

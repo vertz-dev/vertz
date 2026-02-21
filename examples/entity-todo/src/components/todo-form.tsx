@@ -76,5 +76,5 @@ export function TodoForm(props: TodoFormProps): HTMLFormElement {
         </button>
       </div>
     </form>
-  ) as HTMLFormElement;
+  );
 }
