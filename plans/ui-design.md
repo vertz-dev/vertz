@@ -1004,6 +1004,7 @@ import { api } from '.vertz/generated/sdk';
 
 function CreateUser() {
   const userForm = form(api.users.create, {
+    schema: createUserSchema, // required until SDK .meta lands
     onSuccess: (user) => router.navigate(`/users/${user.id}`),
     resetOnSuccess: true,
   });
@@ -1076,11 +1077,16 @@ Data loading (`query()`) and form mutation (`form()`) are separate APIs. Each ha
 ```tsx
 // Edit form: query loads data, form handles mutation
 const taskQuery = query(() => fetchTask(id));
-const taskForm = form(taskApi.update, {
-  schema,
-  initial: taskQuery.data,  // reactive — form updates baseline when query resolves
-  onSuccess: (task) => navigate(`/tasks/${task.id}`),
-});
+const task = taskQuery.data.value;
+
+// Create form when data is available
+if (task) {
+  const taskForm = form(taskApi.update, {
+    schema,
+    initial: { title: task.title, description: task.description }, // static object
+    onSuccess: (task) => navigate(`/tasks/${task.id}`),
+  });
+}
 ```
 
 This avoids compounding states. `taskQuery.loading` is unambiguous (data fetch). `taskForm.submitting` is unambiguous (submission). `taskForm.title.error` is unambiguous (field validation).
@@ -1098,11 +1104,15 @@ Without JavaScript, the form submits normally to the `action` URL (derived from 
 | Form-level signals (submitting, dirty, valid) | **v1** | `userForm.submitting`, `userForm.dirty` |
 | Direct property access (no `attrs()`) | **v1** | `userForm.action`, `userForm.method`, `userForm.onSubmit` |
 | Form reset | **v1** | `userForm.reset()` or `resetOnSuccess: true` |
-| Reserved name enforcement | **v1** | Compiler errors on schema fields conflicting with form properties |
-| Initial values (static or reactive signal) | **v1** | `initial: { name: '' }` or `initial: query.data` |
+| Reserved name enforcement | **v1** | TypeScript type error on schema fields conflicting with form properties |
+| Server-side error mapping | **v1** | `userForm.setFieldError('email', 'Already taken')` |
+| Programmatic submit | **v1** | `userForm.submit(formData?)` — same callbacks as `onSubmit` |
+| Initial values (static) | **v1** | `initial: { name: '' }` — static objects only |
+| Reactive initial values | **Deferred** | `initial: query.data` — deferred due to edge cases |
 | Multi-step / wizard forms | **Deferred** | Requires form state persistence across steps |
 | File uploads | **Deferred** | Requires multipart handling and progress tracking |
 | Dynamic field arrays (add/remove fields) | **Deferred** | Requires array-aware schema validation |
+| Nested object schemas | **Deferred** | v1 schemas must be flat (each key is a leaf field) |
 | Controlled inputs | **Deferred** | v1 uses uncontrolled (native DOM state) exclusively |
 
 ---

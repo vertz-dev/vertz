@@ -77,7 +77,7 @@ const taskForm = form(taskApi.create, {
 });
 ```
 
-All configuration lives in `form()` options. No separate `attrs()` call. No separate `handleSubmit()` call. The `schema` option remains explicit until SDK `.meta` embeds schemas (Section 6).
+All configuration lives in `form()` options. No separate `attrs()` call. No separate `handleSubmit()` call. The `schema` option remains explicit until SDK `.meta` embeds schemas (Section 7).
 
 ### 2B. Form binding — direct properties, no `attrs()`
 
@@ -87,7 +87,7 @@ All configuration lives in `form()` options. No separate `attrs()` call. No sepa
 
 `action`, `method`, `onSubmit` are plain properties on the form object. Progressive enhancement attributes without an intermediary method.
 
-The compiler transforms `onSubmit={taskForm.onSubmit}` to `__on(el, "submit", taskForm.onSubmit)`. During SSR, `__on()` is a no-op and the SSR JSX runtime filters out `on*` function attributes before serialization.
+**Compiler-assisted DOM binding:** When the compiler sees `onSubmit={taskForm.onSubmit}` on a `<form>` element, it transforms this into a setup call that passes the form element reference to the form instance. This gives the form access to the DOM for per-field state tracking (dirty, touched, value) via event delegation on the form element. See Section 6B for details.
 
 ### 2C. Per-field signal states — direct property access
 
@@ -100,11 +100,21 @@ The compiler transforms `onSubmit={taskForm.onSubmit}` to `__on(el, "submit", ta
 </button>
 ```
 
-**Zero effects. Zero bridge variables. Zero field declarations.**
+**Zero effects for the common case.** Zero bridge variables. Zero field declarations.
 
 The compiler auto-unwraps all signal properties in JSX:
 - 2-level: `taskForm.submitting` — form-level signal
 - 3-level: `taskForm.title.error` — field-level signal
+
+### When you still need `effect()`
+
+The "zero effects" claim holds for the common case of displaying form state in JSX. Developers will still need `effect()` for:
+
+- **Side effects on field value changes** — e.g., "when country changes, clear the state dropdown." Requires reading `taskForm.country.value` and imperatively modifying another field.
+- **Derived state across multiple fields** — e.g., computing a character count from `taskForm.description.value` for use outside JSX.
+- **Subscriptions and cleanup** — e.g., debouncing field value changes for live search.
+
+These cases are inherent to imperative side effects and are not solvable by the form API. They are the same cases where `effect()` is needed with any other signal.
 
 ### 2D. Form-level signal properties
 
@@ -122,6 +132,8 @@ The compiler auto-unwraps all signal properties in JSX:
 | `method` | `string` | HTTP method (progressive enhancement) |
 | `onSubmit` | `(e: Event) => Promise<void>` | Submit event handler |
 | `reset` | `() => void` | Reset form to initial values |
+| `setFieldError` | `(field: keyof TBody, msg: string) => void` | Programmatically set a field error (e.g., server-side validation) |
+| `submit` | `(formData?: FormData) => Promise<void>` | Programmatic submit using same callbacks as `onSubmit` |
 
 ### 2F. Per-field signal properties
 
@@ -134,21 +146,62 @@ Accessed via `taskForm.<fieldName>.<property>`:
 | `touched` | `Signal<boolean>` | Field was focused then blurred |
 | `value` | `Signal<T>` | Current field value |
 
+### 2G. Server-side validation errors
+
+Server responses often return field-level errors (e.g., "email already taken"). The `onError` callback receives these, and `setFieldError()` maps them to per-field signals:
+
+```tsx
+const userForm = form(api.users.create, {
+  schema,
+  onSuccess: (user) => navigate(`/users/${user.id}`),
+  onError: (errors) => {
+    // errors is Record<string, string> from server
+    for (const [field, message] of Object.entries(errors)) {
+      userForm.setFieldError(field, message);
+    }
+  },
+});
+```
+
+After `setFieldError('email', 'Already taken')`, `userForm.email.error` reactively updates and the JSX error display shows the server message. Client-side validation errors and server-side errors use the same signal — the most recent write wins.
+
 ---
 
 ## 3. Reserved Name Enforcement
 
-Form-level property names are reserved. If the schema defines a field with a conflicting name, **the compiler must error** (not warn):
+Form-level property names are reserved. If the schema defines a field with a conflicting name, **TypeScript produces a type error** at `bun run typecheck` time:
 
 ```
-Error: Form field "submitting" conflicts with reserved form property "submitting".
-Rename the field in your schema to avoid this conflict.
-Reserved names: submitting, dirty, valid, action, method, onSubmit, reset
+Type error: Schema field "submitting" conflicts with reserved form property.
+Reserved names: submitting, dirty, valid, action, method, onSubmit, reset, setFieldError, submit
 ```
 
-This mirrors how native `HTMLFormElement` handles the same conflict (e.g., `form.submit` is both a method and potentially a field named "submit"). We catch it at compile-time instead of letting it be a runtime surprise.
+### Implementation: TypeScript conditional types
 
-The compiler validates this by checking form schema field names against the union of `signalProperties` and `plainProperties` in the signal API registry.
+Reserved name enforcement uses TypeScript's type system, not the vertz compiler. The `FormInstance` type uses a conditional type that produces a clear error when field names collide:
+
+```ts
+type ReservedFormNames = 'submitting' | 'dirty' | 'valid' | 'action' | 'method' | 'onSubmit' | 'reset' | 'setFieldError' | 'submit';
+
+type FormInstance<TBody, TResult> =
+  keyof TBody & ReservedFormNames extends never
+    ? FormBaseProperties<TResult> & FieldAccessors<TBody>
+    : { __error: `Schema field "${keyof TBody & ReservedFormNames & string}" conflicts with a reserved form property. Rename the field in your schema.` };
+```
+
+This is caught by `bun run typecheck` — no compiler changes needed. Aligns with "compile-time over runtime."
+
+### Forward-compatibility
+
+Adding a new form-level property in a future version adds a new reserved name. This is a breaking change for any schema that happens to use that name. Since vertz is pre-v1 (0.x), this is acceptable per semver policy. Post-v1, new reserved names would require a major version bump. The reserved set should be kept minimal and stable.
+
+### `dirty` at two levels
+
+`taskForm.dirty` (form-level: any field changed) and `taskForm.title.dirty` (field-level: this field changed) use the same name at different depths. This is intentional — the 2-level vs 3-level chain distinction is sufficient for the compiler, and the naming reads naturally:
+- "Is the form dirty?" → `taskForm.dirty`
+- "Is the title dirty?" → `taskForm.title.dirty`
+
+The `dirty` field name is reserved (form-level), so no schema can have a field literally named `dirty`. This prevents the ambiguity case.
 
 ---
 
@@ -168,9 +221,9 @@ The compiler validates this by checking form schema field names against the unio
 - `taskForm.title.error` — unambiguous (field validation)
 - Each API does one thing, composes cleanly
 
-### Initial values
+### Initial values (v1: static only)
 
-The `initial` option accepts a static object or a reactive signal (from `query()`):
+The `initial` option accepts a **static object** in v1:
 
 ```tsx
 // Create form — static initial values
@@ -179,35 +232,117 @@ const taskForm = form(taskApi.create, {
   initial: { title: '', description: '', priority: 'medium' },
   onSuccess,
 });
-
-// Edit form — reactive initial values from query
-const taskQuery = query(() => fetchTask(id));
-const taskForm = form(taskApi.update, {
-  schema,
-  initial: taskQuery.data,  // form updates baseline when query resolves
-  onSuccess,
-});
 ```
 
-When `initial` is a signal, the form reactively updates its baseline for dirty tracking. SSR hydration works because `query()` already handles that path.
+For edit forms, load data with `query()` and create the form after data is available:
+
+```tsx
+const taskQuery = query(() => fetchTask(id));
+
+// Create form when data is available (inside a conditional or after loading)
+let task = taskQuery.data.value;
+if (task) {
+  const taskForm = form(taskApi.update, {
+    schema,
+    initial: { title: task.title, description: task.description },
+    onSuccess,
+  });
+}
+```
+
+**Reactive `initial` (signal from query) is deferred to post-v1.** The edge cases — baseline updates while user has dirty fields, `undefined` initial state with uncontrolled inputs, disposal of internal effects — require additional design. See Section 7B for future scope.
 
 ---
 
-## 5. Compiler Changes Required
+## 5. Runtime Implementation Details
 
-### 5A. Extend signal API registry
+### 5A. Per-field signal creation — lazy Proxy with caching
+
+Field state objects are created lazily via a `Proxy`. When `taskForm.title` is first accessed, the Proxy creates a `FieldState` object with four signals (`error`, `dirty`, `touched`, `value`) and caches it. Subsequent accesses return the cached object.
+
+```ts
+// Conceptual implementation
+const fieldCache = new Map<string, FieldState>();
+const proxy = new Proxy(formBase, {
+  get(target, prop) {
+    if (prop in target) return target[prop]; // form-level property
+    if (typeof prop === 'string' && !fieldCache.has(prop)) {
+      fieldCache.set(prop, createFieldState(prop, initialValues[prop]));
+    }
+    return fieldCache.get(prop);
+  },
+});
+```
+
+This means:
+- Forms with 50 fields but only 5 displayed in JSX allocate only 20 signals (4 per accessed field), not 200
+- Fields never accessed never allocate
+- Memory overhead scales with usage, not schema size
+
+### 5B. Field state tracking — event delegation on the form element
+
+The form tracks field interactions via event delegation on the `<form>` element. The compiler-assisted setup (Section 6B) gives the form a reference to its DOM element. The form then registers three delegated event listeners:
+
+| Event | Purpose | Updates |
+|---|---|---|
+| `input` / `change` | Value changed | `field.value`, `field.dirty`, `form.dirty` |
+| `focusin` | Field focused | (no immediate update) |
+| `focusout` | Field blurred | `field.touched` |
+
+Events are matched to field state objects by `event.target.name`. Three event listeners on the form element handle all fields — no per-input listener registration needed.
+
+For v1 (uncontrolled inputs), `field.value` reads from the DOM input's `.value` property on each event, not from a managed signal. The signal reflects the DOM state, not the other way around.
+
+### 5C. SSR considerations
+
+During SSR, per-field signals are inert — the server renders the initial state and does not track field interactions. The `onSubmit` handler is a function that SSR skips (filtered by the SSR JSX runtime). `action` and `method` are serialized to HTML for progressive enhancement.
+
+For performance, `form()` on the server should return static field state objects (plain values, not real signals) to avoid unnecessary allocations. The form instance detects the server environment and uses a lightweight path.
+
+---
+
+## 6. Compiler Changes Required
+
+### 6A. Extend signal API registry
 
 ```ts
 form: {
   signalProperties: new Set(['submitting', 'dirty', 'valid']),
-  plainProperties: new Set(['action', 'method', 'onSubmit', 'reset']),
+  plainProperties: new Set(['action', 'method', 'onSubmit', 'reset', 'setFieldError', 'submit']),
   // NEW: any property NOT in the above sets is a field name,
   // and these are the signal properties on field objects:
   fieldSignalProperties: new Set(['error', 'dirty', 'touched', 'value']),
 }
 ```
 
-### 5B. Extend signal transformer for 3-level chains
+The exclusion logic: any property access on a form variable that is NOT in `signalProperties` or `plainProperties` is treated as a field name. The leaf property of a 3-level chain is checked against `fieldSignalProperties`.
+
+> **Note:** The current registry at `signal-api-registry.ts` has `signalProperties: ['submitting', 'errors', 'values']` and `plainProperties: ['submit']`. These must be updated to match the new API surface above. `errors` and `values` are removed from the form-level API (replaced by per-field access).
+
+### 6B. Compiler-assisted DOM binding
+
+When the compiler sees `onSubmit={taskForm.onSubmit}` on a `<form>` element, it transforms the output to also pass the form element reference to the form instance. Conceptually:
+
+```ts
+// Before transform (developer writes):
+<form onSubmit={taskForm.onSubmit}>
+
+// After transform (compiler outputs):
+const __el = document.createElement('form');
+__on(__el, 'submit', taskForm.onSubmit);
+taskForm.__bindElement(__el);  // compiler-inserted setup call
+```
+
+`__bindElement()` is an internal method (not public API) that:
+1. Stores the form element reference
+2. Sets up event delegation listeners (`input`, `change`, `focusin`, `focusout`) on the form element
+3. Initializes field value signals from current DOM input values
+
+This gives the form DOM access without requiring an explicit `ref` or `bind()` call from the developer. The compiler handles it automatically when `onSubmit` is a form instance's property.
+
+The compiler detects this pattern by checking: is the `onSubmit` attribute's value a property access on a form-typed variable, where `onSubmit` is in the form's `plainProperties`?
+
+### 6C. Extend signal transformer for 3-level chains
 
 Currently the transformer only handles 2-level chains (`taskForm.submitting`) because it checks `objExpr.isKind(SyntaxKind.Identifier)`. Needs to trace full property chains:
 
@@ -215,21 +350,25 @@ Currently the transformer only handles 2-level chains (`taskForm.submitting`) be
 - `taskForm.title.error` — middle property NOT in signalProperties/plainProperties — treat as field name — check leaf against fieldSignalProperties — insert `.value`
 - `taskForm.title` — field accessor object (NOT a signal, no `.value`)
 
-### 5C. JSX analyzer for 3-level reactive detection
+**Top-down processing:** The transformer must process `PropertyAccessExpression` nodes top-down. When it matches a 3-level pattern, it must skip the inner node to avoid double-processing. The inner `PropertyAccessExpression` (`taskForm.title`) must NOT trigger `.value` insertion independently.
+
+**Non-goals for v1:**
+- **Bracket notation:** `taskForm[dynamicField].error` uses `ElementAccessExpression`, which the transformer does not handle. Dynamic field access is not supported by the compiler. Developers needing dynamic field access should use the runtime API directly with explicit `.value`.
+- **Nested schemas:** 4+ level chains (`taskForm.address.street.error`) are not supported. v1 schemas must be flat — each key of `TBody` is a field. Nested object schemas are a non-goal.
+
+### 6D. JSX analyzer for 3-level reactive detection
 
 The JSX analyzer's `containsSignalApiPropertyAccess()` also needs to handle 3-level chains to mark expressions like `{taskForm.title.error && <span>...</span>}` as reactive.
 
-### 5D. Reserved name validation
-
-Add a compiler diagnostic that checks form schema field names against reserved form property names. Must emit an **error**, not a warning. This requires the compiler to understand the schema shape — either from inline schema definitions or from the signal API registry's reserved names list.
-
 ---
 
-## 6. Future Scope: SDK Schema Integration
+## 7. Future Scope
+
+### 7A. SDK Schema Integration
 
 This section documents the planned evolution. **Not in current scope.**
 
-### 6A. SDK methods carry `.meta` with `bodySchema`
+#### SDK methods carry `.meta` with `bodySchema`
 
 The `EntitySdkGenerator` will embed a `.meta` property on each SDK method:
 
@@ -250,26 +389,40 @@ const create = Object.assign(
 );
 ```
 
-### 6B. `form()` extracts schema automatically
+#### `form()` extracts schema automatically
 
 ```ts
 // Future — no schema option needed
 const todoForm = form(api.todos.create);
-
-// Schema extracted from api.todos.create.meta.bodySchema
-// action extracted from api.todos.create.meta.path
-// method extracted from api.todos.create.meta.method
 ```
 
 The `schema` option becomes optional — only needed for custom client-side validation that differs from the server schema.
 
-### 6C. Progressive enhancement without JS
+#### Progressive enhancement without JS
 
-With real `action` and `method` on the `<form>`, browsers submit natively when JS is disabled. The server validates with the same schema (it's the entity definition) and responds with a redirect or re-render with errors.
+With real `action` and `method` on the `<form>`, browsers submit natively when JS is disabled. The server validates with the same schema and responds with a redirect or re-render with errors.
+
+### 7B. Reactive Initial Values
+
+Accepting a signal as `initial` (e.g., `initial: taskQuery.data`) would enable edit forms to reactively update their baseline when the query resolves. This requires resolving:
+
+- **Baseline update behavior:** What happens to user edits when the query refetches? Options: suppress baseline updates once any field is dirty, or update baseline but preserve user edits (dirty relative to new baseline).
+- **`undefined` initial state:** The signal starts as `undefined` (query loading). The form fields are empty. When the query resolves, the form must populate inputs — but this contradicts "uncontrolled inputs" since it programmatically sets DOM values.
+- **Disposal:** The internal `effect()` watching the signal must be disposed when the form is cleaned up. Requires adding `dispose()` to the form API.
+
+Deferred until these edge cases are fully designed.
+
+### 7C. Nested Schemas and Dynamic Fields
+
+Flat schemas (each key of `TBody` is a leaf field) are the v1 model. Nested objects, arrays, and dynamic field access are deferred:
+
+- **Nested objects** — `{ address: { street, city } }` would produce 4-level chains (`taskForm.address.street.error`). Requires deeper compiler chain traversal.
+- **Dynamic field arrays** — requires array-aware schema validation and indexed field accessors.
+- **Bracket notation** — `taskForm[dynamicField].error` uses `ElementAccessExpression`, unsupported by the compiler.
 
 ---
 
-## 7. Full Component Example — Before and After
+## 8. Full Component Example — Before and After
 
 ### Before (current API)
 
@@ -341,7 +494,7 @@ function TaskForm({ onSuccess, onCancel }) {
 
 ---
 
-## 8. Manifesto Alignment
+## 9. Manifesto Alignment
 
 ### "One Way to Do Things"
 
@@ -351,9 +504,9 @@ After this change, the primary pattern is:
 <form action={taskForm.action} method={taskForm.method} onSubmit={taskForm.onSubmit}>
 ```
 
-Direct property access. No `attrs()`, no `handleSubmit()`. One way to wire a form in JSX.
+Direct property access. No `attrs()`. One way to wire a form in JSX.
 
-`handleSubmit()` may remain for programmatic-only use (testing, non-JSX scenarios) but is not the primary API.
+`submit(formData?)` exists for programmatic submission (testing, non-JSX scenarios) but uses the same callbacks configured in `form()` options — it is not a separate configuration point.
 
 ### "Explicit over implicit"
 
@@ -361,7 +514,7 @@ Every signal access is visible in the JSX template. `taskForm.title.error` reads
 
 ### "Compile-time over runtime"
 
-- Reserved name conflicts are compile errors, not runtime surprises
+- Reserved name conflicts caught by TypeScript's type system at `bun run typecheck`
 - Type errors caught at build time (field names, callback signatures)
 - 3-level signal chain detection happens at compile time
 - Signal reactivity resolved by compiler, not by developer writing `effect()`
@@ -376,7 +529,7 @@ Mirrors `HTMLFormElement` direct field access pattern. In native DOM, `form.titl
 
 ---
 
-## 9. Non-Goals
+## 10. Non-Goals
 
 - **SDK `.meta` embedding** — requires codegen changes, separate design and issue
 - **JSX spread support** — compiler change, separate effort
@@ -388,34 +541,45 @@ Mirrors `HTMLFormElement` direct field access pattern. In native DOM, `form.titl
 - **File uploads** — requires multipart handling and progress tracking, deferred
 - **Dynamic field arrays (add/remove)** — requires array-aware schema validation, deferred
 - **Combined loading + submission** — `query()` and `form()` remain separate (see Section 4)
+- **Nested object schemas** — v1 schemas must be flat (each `keyof TBody` is a leaf field)
+- **Bracket notation field access** — `taskForm[dynamicField].error` not supported by compiler
+- **Reactive initial values** — deferred to post-v1 (see Section 7B)
 
 ---
 
-## 10. Unknowns
+## 11. Unknowns
 
-### 10.1 Should callbacks live in `form()` options or in a separate method?
+### 11.1 Should callbacks live in `form()` options or in a separate method?
 
 **Resolution: `form()` options.** All configuration lives in one place — schema, callbacks, initial values, resetOnSuccess. No separate `attrs()` or per-invocation callback passing. This eliminates the question of "where do I configure X?" — the answer is always `form()`.
 
-### 10.2 Should reserved name conflicts be warnings or errors?
+### 11.2 Should reserved name conflicts be warnings or errors?
 
-**Resolution: Errors.** If a schema field name conflicts with a form-level property name (`submitting`, `action`, etc.), the compiler must error. A warning would let broken code through. The developer must rename the field in their schema.
+**Resolution: Errors, via TypeScript conditional types.** If a schema field name conflicts with a form-level property name, TypeScript's type system produces an error at `bun run typecheck` time. No compiler diagnostic needed — the type system handles it naturally. This aligns with "compile-time over runtime."
 
-### 10.3 Should `initial` accept async functions?
+### 11.3 Should `initial` accept async functions or signals?
 
-**Resolution: No.** Use `query()` for async data loading and pass `query.data` (a signal) as `initial`. This keeps responsibilities separate — `query()` handles loading states and errors, `form()` handles form state. An async `initial` would compound loading and submission states on the form object (see Section 4).
+**Resolution: Static objects only for v1.** Use `query()` for async data loading and pass the resolved data as a static `initial` object. Reactive initial values (signals) are deferred to post-v1 due to unresolved edge cases around baseline updates, dirty field handling, and disposal. See Section 7B.
 
-### 10.4 How does the compiler detect field names vs reserved names?
+### 11.4 How does the compiler detect field names vs reserved names?
 
 **Resolution: Exclusion.** The signal API registry defines `signalProperties` and `plainProperties` for `form`. Any property access on a form object that is NOT in either set is treated as a field name. The leaf property is then checked against `fieldSignalProperties`. This means the compiler doesn't need to know the schema — it just needs to know what ISN'T a field.
 
-### 10.5 Should `handleSubmit()` be kept or removed?
+### 11.5 Should `handleSubmit()` be kept or removed?
 
-**Resolution: Keep for now.** `handleSubmit()` serves testing and non-JSX scenarios (programmatic form submission with raw FormData). It's not the primary API, but removing it would break existing tests and narrow the escape hatch. May deprecate later if `onSubmit` covers all use cases.
+**Resolution: Replace with `submit()`.** The old `handleSubmit()` (factory function returning a handler with independent callbacks) is removed. Replaced by `submit(formData?)` — a direct method that uses the same callbacks configured in `form()` options. This maintains the escape hatch for testing and programmatic submission without creating a second configuration point. One set of callbacks, two ways to trigger them (`onSubmit` via JSX, `submit()` via code).
+
+### 11.6 How does `form()` access the DOM for field state tracking?
+
+**Resolution: Compiler-assisted setup.** The compiler transforms `onSubmit={taskForm.onSubmit}` on `<form>` elements to also call `taskForm.__bindElement(formEl)`, passing the form element reference. This sets up event delegation for dirty/touched/value tracking without requiring an explicit `ref` or `bind()` call. See Section 6B.
+
+### 11.7 How should server-side validation errors be handled?
+
+**Resolution: `setFieldError(field, msg)`.** A plain method on the form instance that programmatically sets a field's error signal. Called from `onError` callback to map server responses to per-field error display. Client-side validation errors and server-side errors use the same signal — the most recent write wins.
 
 ---
 
-## 11. Type Flow Map
+## 12. Type Flow Map
 
 ```
 SdkMethod<TBody, TResult>
@@ -425,6 +589,8 @@ SdkMethod<TBody, TResult>
       → .method: string
       → .onSubmit: (e: Event) => Promise<void>
       → .reset: () => void
+      → .setFieldError: (field: keyof TBody, msg: string) => void
+      → .submit: (formData?: FormData) => Promise<void>
       → .submitting: Signal<boolean>
       → .dirty: Signal<boolean>
       → .valid: Signal<boolean>
@@ -440,12 +606,14 @@ Type flow paths:
 - `TBody` flows: `SdkMethod` → `FormOptions.schema` → field names → `FieldState` accessor keys
 - `TBody[K]` flows: `SdkMethod` → per-field `.value: Signal<TBody[K]>`
 - `keyof TBody` flows: field accessor names on `FormInstance` → type-safe property access
+- `keyof TBody` flows: `setFieldError(field)` — type-safe field name parameter
+- `keyof TBody & ReservedFormNames` flows: conditional type → compile error if non-empty
 
 All paths require `.test-d.ts` verification.
 
 ---
 
-## 12. E2E Acceptance Tests
+## 13. E2E Acceptance Tests
 
 ### Unit tests (`packages/ui/src/form/__tests__/form.test.ts`)
 
@@ -462,6 +630,9 @@ All paths require `.test-d.ts` verification.
 11. `form().dirty` reflects any-field-modified state
 12. `form().valid` reflects all-fields-valid state
 13. `form().reset()` clears all fields, errors, dirty, and touched state
+14. `form().setFieldError('email', 'Already taken')` sets per-field error signal
+15. `form().submit()` triggers submission using same callbacks as `onSubmit`
+16. `form().submit(formData)` submits with provided FormData
 
 ### Type tests (`packages/ui/src/form/__tests__/form.test-d.ts`)
 
@@ -472,7 +643,9 @@ All paths require `.test-d.ts` verification.
 5. `form().submitting` is `Signal<boolean>`
 6. `form().action` is `string`
 7. `form().onSubmit` is `(e: Event) => Promise<void>`
-8. Reserved name conflict produces type error (negative test)
+8. Reserved name conflict produces type error (negative test: schema with field named `submitting`)
+9. `form().setFieldError` only accepts `keyof TBody` as field name (negative test)
+10. `form().submit` is `(formData?: FormData) => Promise<void>`
 
 ### Compiler tests (`packages/ui-compiler/src/__tests__/`)
 
@@ -481,7 +654,7 @@ All paths require `.test-d.ts` verification.
 3. 2-level chain: `taskForm.submitting` still works (no regression)
 4. Middle accessor: `taskForm.title` alone does NOT insert `.value` (it's a field object, not a signal)
 5. JSX analyzer marks `{taskForm.title.error && <el/>}` as reactive
-6. Reserved name validation errors on conflicting field names
+6. Compiler-assisted DOM binding: `onSubmit={taskForm.onSubmit}` on `<form>` generates `__bindElement` call
 
 ### Integration: examples
 
@@ -491,10 +664,20 @@ All paths require `.test-d.ts` verification.
 
 ---
 
-## 13. Implementation Plan
+## 14. Implementation Plan
 
 > **Note:** This plan replaces the previous `attrs()` improvement plan. The implementation
 > is tracked in [#527](https://github.com/vertz-dev/vertz/issues/527).
+
+### Phase 0: Breaking change documentation
+
+**Goal:** Document the breaking changes from the old API to the new API.
+
+**Steps:**
+1. Write changeset describing all breaking changes: `attrs()` removed, `error()` removed, `handleSubmit()` replaced by `submit()`, callbacks moved to `form()` options
+2. Create migration mapping: old API → new API
+
+**Integration test:** Changeset file exists with BREAKING notice.
 
 ### Phase 1: Compiler — 3-level property chain support
 
@@ -502,39 +685,51 @@ All paths require `.test-d.ts` verification.
 
 **Steps:**
 1. Add `fieldSignalProperties` to `SignalApiEntry` type in `signal-api-registry.ts`
-2. Update `form` entry with `fieldSignalProperties: ['error', 'dirty', 'touched', 'value']`
-3. Extend signal transformer to detect 3-level chains: if middle property is NOT in `signalProperties`/`plainProperties`, treat as field name, check leaf against `fieldSignalProperties`
+2. Update `form` entry: reconcile with new API surface (remove old `errors`/`values`/`submit`, add new properties)
+3. Extend signal transformer to detect 3-level chains: if middle property is NOT in `signalProperties`/`plainProperties`, treat as field name, check leaf against `fieldSignalProperties`. Process top-down, skip inner nodes.
 4. Extend JSX analyzer `containsSignalApiPropertyAccess()` for 3-level chains
-5. Add reserved name validation diagnostic
 
-**Integration test:** Compiler correctly transforms `{taskForm.title.error}` in JSX to insert `.value`. Compiler errors on reserved name conflicts. All existing 2-level tests still pass.
+**Integration test:** Compiler correctly transforms `{taskForm.title.error}` in JSX to insert `.value`. All existing 2-level tests still pass.
 
-### Phase 2: Runtime — `FormInstance` API redesign
+### Phase 2: Compiler — DOM binding transform
 
-**Goal:** Rewrite `form()` to return the new API surface with direct properties and per-field signal states.
+**Goal:** Implement compiler-assisted DOM binding for form elements.
 
 **Steps:**
-1. Type tests (RED): `FormOptions` with `onSuccess`/`onError`/`resetOnSuccess`, `FormInstance` with direct `.action`, `.method`, `.onSubmit`, field accessors
-2. Unit tests (RED): direct property access, per-field signals, form-level signals
-3. Implementation (GREEN): rewrite `form.ts` with new API
-4. Remove `attrs()` method (or deprecate — see Unknown 10.5)
+1. Detect `onSubmit={formVar.onSubmit}` on `<form>` elements where `formVar` is a form-typed variable
+2. Generate `formVar.__bindElement(el)` call after element creation
+3. Tests: verify the transform output includes `__bindElement` call
+
+**Integration test:** Compiled output of `<form onSubmit={taskForm.onSubmit}>` includes `__bindElement` call.
+
+### Phase 3: Runtime — `FormInstance` API redesign
+
+**Goal:** Rewrite `form()` to return the new API surface with direct properties, per-field signal states, and lazy Proxy.
+
+**Steps:**
+1. Type tests (RED): `FormOptions` with callbacks, `FormInstance` with direct properties, field accessors, reserved name conditional type, `setFieldError`, `submit`
+2. Unit tests (RED): direct property access, per-field signals via Proxy, `setFieldError`, `submit`
+3. Implementation (GREEN): rewrite `form.ts` with Proxy-based field access, lazy `FieldState` creation
+4. Remove `attrs()` and `error()` methods, replace `handleSubmit()` with `submit()`
 5. Verify all quality gates
 
 **Integration test:** `bun test` and `bun run typecheck` in `packages/ui` pass.
 
-### Phase 3: Runtime — per-field state tracking
+### Phase 4: Runtime — per-field state tracking
 
-**Goal:** Implement `dirty`, `touched`, `value` field-level signals and form-level `dirty`/`valid`.
+**Goal:** Implement `dirty`, `touched`, `value` field-level signals and form-level `dirty`/`valid` via event delegation.
 
 **Steps:**
 1. Unit tests (RED): dirty tracking, touched tracking, value signals, form-level dirty/valid
-2. Implementation (GREEN): MutationObserver or input/change/focus/blur event delegation for field state tracking
-3. Initial values support (static and signal-based)
-4. `reset()` clears all field states
+2. Implement `__bindElement()` — sets up event delegation on form element
+3. Implement event handlers: `input`/`change` → update value/dirty, `focusout` → update touched
+4. Implement `setFieldError()` — sets per-field error signal programmatically
+5. Static initial values support
+6. `reset()` clears all field states
 
 **Integration test:** Field-level signals update reactively when user interacts with form inputs.
 
-### Phase 4: Example rewrites
+### Phase 5: Example rewrites
 
 **Goal:** Rewrite both example forms to use the new API — zero `effect()`, zero `addEventListener`.
 
@@ -546,7 +741,7 @@ All paths require `.test-d.ts` verification.
 
 **Integration test:** `bun test` in both example packages — all tests pass.
 
-### Phase 5: Final verification
+### Phase 6: Final verification
 
 **Goal:** Full monorepo green.
 
@@ -555,13 +750,13 @@ All paths require `.test-d.ts` verification.
 2. `bun run lint` — all packages
 3. `bun test` — all packages
 4. Verify no remaining `effect()` or `addEventListener` in form components
-5. Verify no remaining `attrs()` usage
+5. Verify no remaining `attrs()` or `error()` usage
 
 **Integration test:** `bun run ci` passes.
 
 ---
 
-## 14. Compiler Constraint: No JSX Spread
+## 15. Compiler Constraint: No JSX Spread
 
 The vertz compiler does **not** support JSX spread attributes (`{...obj}`). The JSX transformer at `packages/ui-compiler/src/transformers/jsx-transformer.ts` processes only `JsxAttribute` nodes, skipping `JsxSpreadAttribute`.
 
