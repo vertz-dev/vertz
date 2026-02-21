@@ -208,7 +208,7 @@ const users = d.table('users', {
 ```typescript
 const app = createServer({
   entities: [users, posts, comments],
-  basePath: '/api',           // API prefix (default: '/api')
+  apiPrefix: '/api',          // API prefix (default: '/api')
 });
 ```
 

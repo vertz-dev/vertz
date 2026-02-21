@@ -32,7 +32,7 @@ const todosModel = d.model(todosTable);
 // 3. Create database client
 const db = createDb({
   url: process.env.DATABASE_URL!,
-  models: { todos: todosModel },
+  tables: { todos: todosModel },
 });
 
 // 4. Query with full type inference and Result-based errors
@@ -274,7 +274,7 @@ d.ref.many(() => coursesTable).through(() => enrollmentsTable, 'studentId', 'cou
 ```typescript
 const db = createDb({
   url: 'postgresql://user:pass@localhost:5432/mydb',
-  models: { users: usersModel, posts: postsModel },
+  tables: { users: usersModel, posts: postsModel },
   dialect: 'postgres',           // 'postgres' (default) or 'sqlite'
   pool: {
     max: 20,
@@ -370,11 +370,6 @@ await db.list('users', {
 
     // Null checks
     deletedAt: { isNull: true },
-
-    // Logical
-    OR: [{ role: 'admin' }, { isActive: true }],
-    AND: [{ verified: true }, { age: { gte: 18 } }],
-    NOT: { status: 'banned' },
   },
 });
 ```
@@ -487,7 +482,7 @@ const usersTable = d.table('users', {
 const orgsModel = d.model(orgsTable);
 const usersModel = d.model(usersTable);
 
-const tenantGraph = computeTenantGraph({ orgs: orgsModel, users: usersModel });
+const tenantGraph = computeTenantGraph({ organizations: orgsModel, users: usersModel });
 
 tenantGraph.root;            // 'organizations'
 tenantGraph.directlyScoped;  // ['users']
@@ -505,11 +500,11 @@ const settings = d.table('settings', { /* ... */ }).shared();
 import { createDb, defaultPostgresDialect, defaultSqliteDialect } from '@vertz/db';
 
 // PostgreSQL (default)
-const pgDb = createDb({ url: 'postgresql://...', models });
+const pgDb = createDb({ url: 'postgresql://...', tables });
 
 // SQLite
 const sqliteDb = createDb({
-  models,
+  tables,
   dialect: 'sqlite',
   d1: d1Database,  // Cloudflare D1 or compatible
 });
