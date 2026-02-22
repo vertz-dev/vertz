@@ -12,10 +12,12 @@
 // Phase 2: TypedRoutes now exists
 import type { CompiledRoute, TypedRoutes } from '../define-routes';
 import { defineRoutes } from '../define-routes';
+// Phase 3: TypedRouter now exists
+import type { Router, TypedRouter } from '../navigate';
+import { createRouter } from '../navigate';
 // Phase 1: these imports exist
 import type { PathWithParams, RoutePaths } from '../params';
 
-// TODO(phase-3): import type { TypedRouter } from '../navigate';
 // TODO(phase-4): import type { InferRouteMap } from '../define-routes';
 
 // Phase 1: PathWithParams and RoutePaths work
@@ -80,12 +82,38 @@ void _e2eAsArray;
 const _e2eTyped: TypedRoutes<(typeof _e2eRoutes)['__routes']> = _e2eRoutes;
 void _e2eTyped;
 
-// ─── Phase 3+ tests (commented out until types exist) ───────────────────────
+// ─── Phase 3: createRouter<T>() → Router<T> with typed navigate ─────────────
 
-// The following tests will be uncommented as each phase is implemented.
-// They are left here as the specification of what must compile when done.
-// Phase 3: createRouter returns TypedRouter, navigate validates paths
-// Phase 3: TypedRouter assignable to Router, backward compat
+const _e2eRouter = createRouter(_e2eRoutes);
+
+// Typed navigate: valid paths compile
+_e2eRouter.navigate('/');
+_e2eRouter.navigate('/tasks/42');
+_e2eRouter.navigate('/users/1/posts/99');
+_e2eRouter.navigate('/settings');
+_e2eRouter.navigate('/files/docs/readme.md');
+
+// @ts-expect-error - invalid path
+_e2eRouter.navigate('/nonexistent');
+
+// @ts-expect-error - partial param path
+_e2eRouter.navigate('/tasks');
+
+// Router<T> assignable to Router (context boundary via bivariant method syntax)
+const _e2eAsRouter: Router = _e2eRouter;
+void _e2eAsRouter;
+
+// TypedRouter<T> is identical to Router<T>
+type E2ERouteMapFromRoutes = (typeof _e2eRoutes)['__routes'];
+const _e2eAsTypedRouter: TypedRouter<E2ERouteMapFromRoutes> = _e2eRouter;
+void _e2eAsTypedRouter;
+
+// Plain Router backward compat — accepts any string
+declare const _e2ePlainRouter: Router;
+_e2ePlainRouter.navigate('/anything-goes');
+
+// ─── Phase 4+ tests (commented out until types exist) ───────────────────────
+
 // Phase 4: useParams<TPath> returns ExtractParams<TPath>
 // Phase 4: useRouter<InferRouteMap<typeof routes>> typed navigate
 //

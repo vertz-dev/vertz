@@ -7,9 +7,10 @@
 
 import { signal } from '../runtime/signal';
 import type { Signal } from '../runtime/signal-types';
-import type { CompiledRoute, RouteMatch } from './define-routes';
+import type { RouteConfigLike, RouteDefinitionMap, RouteMatch, TypedRoutes } from './define-routes';
 import { matchRoute } from './define-routes';
 import { executeLoaders } from './loader';
+import type { RoutePaths } from './params';
 
 /** Options for router.navigate(). */
 export interface NavigateOptions {
@@ -17,8 +18,20 @@ export interface NavigateOptions {
   replace?: boolean;
 }
 
-/** The router instance returned by createRouter. */
-export interface Router {
+/**
+ * The router instance returned by createRouter.
+ *
+ * Generic over the route map `T`. Defaults to `RouteDefinitionMap` (string
+ * index signature) for backward compatibility — unparameterized `Router`
+ * accepts any string in `navigate()`.
+ *
+ * Method syntax on `navigate`, `revalidate`, and `dispose` enables bivariant
+ * parameter checking under `strictFunctionTypes`. This means `Router<T>` is
+ * assignable to `Router` (the unparameterized default), which is required for
+ * storing typed routers in the `RouterContext` without contravariance errors.
+ * At call sites, TypeScript still enforces the `RoutePaths<T>` constraint.
+ */
+export interface Router<T extends Record<string, RouteConfigLike> = RouteDefinitionMap> {
   /** Current matched route (reactive signal). */
   current: Signal<RouteMatch | null>;
   /** Loader data from the current route's loaders (reactive signal). */
@@ -28,12 +41,19 @@ export interface Router {
   /** Parsed search params from the current route (reactive signal). */
   searchParams: Signal<Record<string, unknown>>;
   /** Navigate to a new URL path. */
-  navigate: (url: string, options?: NavigateOptions) => Promise<void>;
+  navigate(url: RoutePaths<T>, options?: NavigateOptions): Promise<void>;
   /** Re-run all loaders for the current route. */
-  revalidate: () => Promise<void>;
+  revalidate(): Promise<void>;
   /** Remove popstate listener and clean up the router. */
-  dispose: () => void;
+  dispose(): void;
 }
+
+/**
+ * Convenience alias for a typed router.
+ * `TypedRouter<T>` is identical to `Router<T>` — it exists for readability
+ * when the generic parameter makes the intent clearer.
+ */
+export type TypedRouter<T extends Record<string, RouteConfigLike> = RouteDefinitionMap> = Router<T>;
 
 /**
  * Create a router instance.
@@ -42,7 +62,10 @@ export interface Router {
  * @param initialUrl - The initial URL to match (optional; auto-detects from window.location or __SSR_URL__)
  * @returns Router instance with reactive state and navigation methods
  */
-export function createRouter(routes: CompiledRoute[], initialUrl?: string): Router {
+export function createRouter<T extends Record<string, RouteConfigLike> = RouteDefinitionMap>(
+  routes: TypedRoutes<T>,
+  initialUrl?: string,
+): Router<T> {
   // Auto-detect SSR context
   const isSSR = typeof window === 'undefined' || typeof globalThis.__SSR_URL__ !== 'undefined';
 
@@ -173,6 +196,8 @@ export function createRouter(routes: CompiledRoute[], initialUrl?: string): Rout
     }
   }
 
+  // Cast is safe: RoutePaths<T> narrows `string` at the type level only.
+  // At runtime, navigate always receives a string regardless of T.
   return {
     current,
     dispose,
@@ -181,5 +206,5 @@ export function createRouter(routes: CompiledRoute[], initialUrl?: string): Rout
     navigate,
     revalidate,
     searchParams,
-  };
+  } as Router<T>;
 }
