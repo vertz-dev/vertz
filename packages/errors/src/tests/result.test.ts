@@ -129,16 +129,16 @@ describe('Result', () => {
       const result = ok({ name: 'Alice' });
       const message = matchErr(result, {
         ok: (data) => `Hello, ${data.name}!`,
-        NOT_FOUND: (e) => `Not found: ${e.table}`,
+        NotFound: (e) => `Not found: ${e.table}`,
       });
       expect(message).toBe('Hello, Alice!');
     });
 
     it('calls error-specific handler on failure', () => {
-      const result = err({ code: 'NOT_FOUND' as const, message: 'Not found', table: 'users' });
+      const result = err({ code: 'NotFound' as const, message: 'Not found', table: 'users' });
       const message = matchErr(result, {
         ok: (data) => `Hello, ${data.name}!`,
-        NOT_FOUND: (e) => `Not found in ${e.table}`,
+        NotFound: (e) => `Not found in ${e.table}`,
       });
       expect(message).toBe('Not found in users');
     });
@@ -148,7 +148,7 @@ describe('Result', () => {
       expect(() =>
         matchErr(result, {
           ok: (data) => data,
-          NOT_FOUND: (e) => e.table,
+          NotFound: (e) => e.table,
         }),
       ).toThrow('Unhandled error code: UNKNOWN');
     });
@@ -161,14 +161,14 @@ describe('Result', () => {
     });
 
     it('returns false for Err results', () => {
-      const result = err({ code: 'NOT_FOUND', message: 'Not found' });
+      const result = err({ code: 'NotFound', message: 'Not found' });
       expect(isOk(result)).toBe(false);
     });
   });
 
   describe('isErr()', () => {
     it('returns true for Err results', () => {
-      const result = err({ code: 'NOT_FOUND', message: 'Not found' });
+      const result = err({ code: 'NotFound', message: 'Not found' });
       expect(isErr(result)).toBe(true);
     });
 

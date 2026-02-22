@@ -41,10 +41,10 @@ export abstract class EntityError extends Error {
  * Bad request error - 400.
  */
 export class BadRequestError extends EntityError {
-  readonly code = 'BAD_REQUEST' as const;
+  readonly code = 'BadRequest' as const;
 
   constructor(message = 'Bad Request') {
-    super('BAD_REQUEST', message);
+    super('BadRequest', message);
     this.name = 'BadRequestError';
   }
 }
@@ -64,10 +64,10 @@ export function isBadRequestError(error: unknown): error is BadRequestError {
  * Unauthorized error - 401.
  */
 export class EntityUnauthorizedError extends EntityError {
-  readonly code = 'UNAUTHORIZED' as const;
+  readonly code = 'Unauthorized' as const;
 
   constructor(message = 'Unauthorized') {
-    super('UNAUTHORIZED', message);
+    super('Unauthorized', message);
     this.name = 'UnauthorizedError';
   }
 }
@@ -87,10 +87,10 @@ export function isEntityUnauthorizedError(error: unknown): error is EntityUnauth
  * Forbidden error - 403.
  */
 export class EntityForbiddenError extends EntityError {
-  readonly code = 'FORBIDDEN' as const;
+  readonly code = 'Forbidden' as const;
 
   constructor(message = 'Forbidden') {
-    super('FORBIDDEN', message);
+    super('Forbidden', message);
     this.name = 'ForbiddenError';
   }
 }
@@ -127,7 +127,7 @@ export function isEntityForbiddenError(error: unknown): error is EntityForbidden
  * throw new EntityNotFoundError('User not found', 'User', userId);
  */
 export class EntityNotFoundError extends EntityError {
-  readonly code = 'NOT_FOUND' as const;
+  readonly code = 'NotFound' as const;
 
   /**
    * The type of resource that wasn't found.
@@ -140,7 +140,7 @@ export class EntityNotFoundError extends EntityError {
   readonly resourceId?: string;
 
   constructor(message = 'Not Found', resource?: string, resourceId?: string) {
-    super('NOT_FOUND', message);
+    super('NotFound', message);
     this.name = 'NotFoundError';
     this.resource = resource;
     this.resourceId = resourceId;
@@ -162,7 +162,7 @@ export function isEntityNotFoundError(error: unknown): error is EntityNotFoundEr
  * Method not allowed error - 405.
  */
 export class MethodNotAllowedError extends EntityError {
-  readonly code = 'METHOD_NOT_ALLOWED' as const;
+  readonly code = 'MethodNotAllowed' as const;
 
   /**
    * Allowed HTTP methods.
@@ -170,7 +170,7 @@ export class MethodNotAllowedError extends EntityError {
   readonly allowedMethods?: string;
 
   constructor(allowedMethods?: string, message = 'Method Not Allowed') {
-    super('METHOD_NOT_ALLOWED', message);
+    super('MethodNotAllowed', message);
     this.name = 'MethodNotAllowedError';
     this.allowedMethods = allowedMethods;
   }
@@ -191,7 +191,7 @@ export function isMethodNotAllowedError(error: unknown): error is MethodNotAllow
  * Conflict error - 409.
  */
 export class EntityConflictError extends EntityError {
-  readonly code = 'CONFLICT' as const;
+  readonly code = 'Conflict' as const;
 
   /**
    * The field that caused the conflict.
@@ -199,7 +199,7 @@ export class EntityConflictError extends EntityError {
   readonly field?: string;
 
   constructor(message = 'Conflict', field?: string) {
-    super('CONFLICT', message);
+    super('Conflict', message);
     this.name = 'ConflictError';
     this.field = field;
   }
@@ -239,7 +239,7 @@ export function isEntityConflictError(error: unknown): error is EntityConflictEr
  * }
  */
 export class EntityValidationError extends EntityError {
-  readonly code = 'ENTITY_VALIDATION_ERROR' as const;
+  readonly code = 'ValidationError' as const;
 
   /**
    * Validation errors.
@@ -257,7 +257,7 @@ export class EntityValidationError extends EntityError {
       readonly code: string;
     }[],
   ) {
-    super('ENTITY_VALIDATION_ERROR', 'Validation failed');
+    super('ValidationError', 'Validation failed');
     this.name = 'EntityValidationError';
     this.errors = errors;
   }
@@ -278,10 +278,10 @@ export function isEntityValidationError(error: unknown): error is EntityValidati
  * Internal server error - 500.
  */
 export class InternalError extends EntityError {
-  readonly code = 'INTERNAL_ERROR' as const;
+  readonly code = 'InternalError' as const;
 
   constructor(message = 'Internal Server Error') {
-    super('INTERNAL_ERROR', message);
+    super('InternalError', message);
     this.name = 'InternalError';
   }
 }
@@ -301,7 +301,7 @@ export function isInternalError(error: unknown): error is InternalError {
  * Service unavailable error - 503.
  */
 export class ServiceUnavailableError extends EntityError {
-  readonly code = 'SERVICE_UNAVAILABLE' as const;
+  readonly code = 'ServiceUnavailable' as const;
 
   /**
    * Seconds until retry.
@@ -309,7 +309,7 @@ export class ServiceUnavailableError extends EntityError {
   readonly retryAfter?: number;
 
   constructor(message = 'Service Unavailable', retryAfter?: number) {
-    super('SERVICE_UNAVAILABLE', message);
+    super('ServiceUnavailable', message);
     this.name = 'ServiceUnavailableError';
     this.retryAfter = retryAfter;
   }

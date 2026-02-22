@@ -84,7 +84,7 @@ describe('diagnoseError', () => {
     const err = new NotFoundError('users');
     const result = diagnoseError(err.message);
     expect(result).not.toBeNull();
-    expect(result?.code).toBe('NOT_FOUND');
+    expect(result?.code).toBe('NotFound');
     expect(result?.suggestion).toContain('get');
   });
 
@@ -224,6 +224,6 @@ describe('Runtime error quality', () => {
     const notFound = new NotFoundError('users');
     const nfJson = notFound.toJSON();
     expect(nfJson.table).toBe('users');
-    expect(nfJson.code).toBe('NOT_FOUND');
+    expect(nfJson.code).toBe('NotFound');
   });
 });

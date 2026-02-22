@@ -41,7 +41,7 @@ export const DbErrorCode = {
   CONNECTION_FAILURE: '08006',
 
   // Application-level codes (not PG SQLSTATE)
-  NOT_FOUND: 'NOT_FOUND',
+  NotFound: 'NotFound',
   CONNECTION_ERROR: 'CONNECTION_ERROR',
   POOL_EXHAUSTED: 'POOL_EXHAUSTED',
 } as const;

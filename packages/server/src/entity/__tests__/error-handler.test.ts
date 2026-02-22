@@ -11,59 +11,59 @@ import { describe, expect, it } from 'vitest';
 import { entityErrorHandler } from '../error-handler';
 
 describe('entityErrorHandler', () => {
-  it('maps ForbiddenException to 403 with FORBIDDEN code', () => {
+  it('maps ForbiddenException to 403 with Forbidden code', () => {
     const result = entityErrorHandler(new ForbiddenException('Access denied'));
 
     expect(result.status).toBe(403);
     expect(result.body).toEqual({
-      error: { code: 'FORBIDDEN', message: 'Access denied' },
+      error: { code: 'Forbidden', message: 'Access denied' },
     });
   });
 
-  it('maps NotFoundException to 404 with NOT_FOUND code', () => {
+  it('maps NotFoundException to 404 with NotFound code', () => {
     const result = entityErrorHandler(new NotFoundException('User not found'));
 
     expect(result.status).toBe(404);
     expect(result.body).toEqual({
-      error: { code: 'NOT_FOUND', message: 'User not found' },
+      error: { code: 'NotFound', message: 'User not found' },
     });
   });
 
-  it('maps BadRequestException to 400 with BAD_REQUEST code', () => {
+  it('maps BadRequestException to 400 with BadRequest code', () => {
     const result = entityErrorHandler(new BadRequestException('Invalid input'));
 
     expect(result.status).toBe(400);
     expect(result.body).toEqual({
-      error: { code: 'BAD_REQUEST', message: 'Invalid input' },
+      error: { code: 'BadRequest', message: 'Invalid input' },
     });
   });
 
-  it('maps UnauthorizedException to 401 with UNAUTHORIZED code', () => {
+  it('maps UnauthorizedException to 401 with Unauthorized code', () => {
     const result = entityErrorHandler(new UnauthorizedException('No token'));
 
     expect(result.status).toBe(401);
     expect(result.body).toEqual({
-      error: { code: 'UNAUTHORIZED', message: 'No token' },
+      error: { code: 'Unauthorized', message: 'No token' },
     });
   });
 
-  it('maps ConflictException to 409 with CONFLICT code', () => {
+  it('maps ConflictException to 409 with Conflict code', () => {
     const result = entityErrorHandler(new ConflictException('Duplicate entry'));
 
     expect(result.status).toBe(409);
     expect(result.body).toEqual({
-      error: { code: 'CONFLICT', message: 'Duplicate entry' },
+      error: { code: 'Conflict', message: 'Duplicate entry' },
     });
   });
 
-  it('maps ValidationException to 422 with VALIDATION_ERROR code and details', () => {
+  it('maps ValidationException to 422 with ValidationError code and details', () => {
     const errors = [{ path: 'email', message: 'Invalid email' }];
     const result = entityErrorHandler(new ValidationException(errors));
 
     expect(result.status).toBe(422);
     expect(result.body).toEqual({
       error: {
-        code: 'VALIDATION_ERROR',
+        code: 'ValidationError',
         message: 'Validation failed',
         details: errors,
       },
@@ -80,12 +80,12 @@ describe('entityErrorHandler', () => {
     expect(result.body.error.details).toBeUndefined();
   });
 
-  it('maps unknown errors to 500 INTERNAL_ERROR without leaking details', () => {
+  it('maps unknown errors to 500 InternalError without leaking details', () => {
     const result = entityErrorHandler(new Error('DB connection failed: password=secret123'));
 
     expect(result.status).toBe(500);
     expect(result.body).toEqual({
-      error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },
+      error: { code: 'InternalError', message: 'An unexpected error occurred' },
     });
   });
 
@@ -93,6 +93,6 @@ describe('entityErrorHandler', () => {
     const result = entityErrorHandler('string error');
 
     expect(result.status).toBe(500);
-    expect(result.body.error.code).toBe('INTERNAL_ERROR');
+    expect(result.body.error.code).toBe('InternalError');
   });
 });

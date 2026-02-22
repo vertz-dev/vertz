@@ -131,7 +131,7 @@ describe('db.getRequired() returns Result', () => {
     const result = await db.getRequired('organizations', { where: { id: 'nonexistent' } });
 
     expect(result.ok).toBe(false);
-    expect(result.error.code).toBe('NOT_FOUND');
+    expect(result.error.code).toBe('NotFound');
   });
 
   it('returns err() on connection failure', async () => {

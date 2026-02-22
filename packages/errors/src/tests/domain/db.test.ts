@@ -18,7 +18,7 @@ describe('domain/db', () => {
   describe('NotFoundError', () => {
     it('creates a NotFoundError', () => {
       const error = createNotFoundError('users', { id: 1 });
-      expect(error.code).toBe('NOT_FOUND');
+      expect(error.code).toBe('NotFound');
       expect(error.table).toBe('users');
       expect(error.key).toEqual({ id: 1 });
       expect(error.message).toContain('users');
@@ -26,7 +26,7 @@ describe('domain/db', () => {
 
     it('works without key', () => {
       const error = createNotFoundError('users');
-      expect(error.code).toBe('NOT_FOUND');
+      expect(error.code).toBe('NotFound');
       expect(error.table).toBe('users');
       expect(error.key).toBeUndefined();
     });
@@ -120,7 +120,7 @@ describe('domain/db', () => {
   describe('type unions', () => {
     it('ReadError accepts NotFoundError', () => {
       const error: ReadError = createNotFoundError('users');
-      expect(error.code).toBe('NOT_FOUND');
+      expect(error.code).toBe('NotFound');
     });
 
     it('WriteError accepts all write error types', () => {

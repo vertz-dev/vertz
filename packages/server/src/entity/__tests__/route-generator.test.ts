@@ -384,7 +384,7 @@ describe('generateEntityRoutes', () => {
 
       expect(response.status).toBe(404);
       const body = await response.json();
-      expect(body.error.code).toBe('NOT_FOUND');
+      expect(body.error.code).toBe('NotFound');
     });
 
     it('create handler returns 201 with created record', async () => {
@@ -493,7 +493,7 @@ describe('generateEntityRoutes', () => {
 
       expect(response.status).toBe(405);
       const body = await response.json();
-      expect(body.error.code).toBe('METHOD_NOT_ALLOWED');
+      expect(body.error.code).toBe('MethodNotAllowed');
     });
 
     it('access denied returns 403', async () => {
@@ -520,7 +520,7 @@ describe('generateEntityRoutes', () => {
 
       expect(response.status).toBe(403);
       const body = await response.json();
-      expect(body.error.code).toBe('FORBIDDEN');
+      expect(body.error.code).toBe('Forbidden');
     });
 
     it('custom action handler executes and returns 200', async () => {

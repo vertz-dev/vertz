@@ -753,7 +753,7 @@ describe('FetchClient parse and validation errors', () => {
 
   it('should return FetchValidationError with errors array', async () => {
     const body = {
-      error: { code: 'VALIDATION_ERROR', errors: [{ path: 'email', message: 'Invalid email' }] },
+      error: { code: 'ValidationError', errors: [{ path: 'email', message: 'Invalid email' }] },
     };
     const mockFetch = vi
       .fn()

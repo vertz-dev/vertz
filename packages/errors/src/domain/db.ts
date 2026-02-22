@@ -16,7 +16,7 @@
  * Note: findOne() returns Result<T | null, never> - null is success.
  */
 export interface NotFoundError {
-  readonly code: 'NOT_FOUND';
+  readonly code: 'NotFound';
   readonly message: string;
   readonly table: string;
   readonly key?: Record<string, unknown>;
@@ -28,7 +28,7 @@ export interface NotFoundError {
 export function createNotFoundError(table: string, key?: Record<string, unknown>): NotFoundError {
   const keyStr = key ? JSON.stringify(key) : '';
   return {
-    code: 'NOT_FOUND',
+    code: 'NotFound',
     message: `Record not found in ${table}${keyStr ? `: ${keyStr}` : ''}`,
     table,
     key,
@@ -39,7 +39,7 @@ export function createNotFoundError(table: string, key?: Record<string, unknown>
  * Type guard for NotFoundError.
  */
 export function isNotFoundError(error: { readonly code: string }): error is NotFoundError {
-  return error.code === 'NOT_FOUND';
+  return error.code === 'NotFound';
 }
 
 /**

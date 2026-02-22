@@ -112,7 +112,7 @@ describe('CRUD queries (DB-010)', () => {
     it('returns error Result when no match', async () => {
       const result = await db.getOrThrow('users', { where: { name: 'Nobody' } });
       expect(result.ok).toBe(false);
-      expect(result.error.code).toBe('NOT_FOUND');
+      expect(result.error.code).toBe('NotFound');
     });
 
     it('returns row when match exists', async () => {
