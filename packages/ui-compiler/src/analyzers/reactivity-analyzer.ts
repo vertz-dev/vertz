@@ -127,7 +127,9 @@ export class ReactivityAnalyzer {
       changed = false;
       for (const [name, info] of consts) {
         if (computeds.has(name)) continue;
-        const dependsOnReactive = info.deps.some((dep) => signals.has(dep) || computeds.has(dep));
+        const dependsOnReactive = info.deps.some(
+          (dep) => signals.has(dep) || computeds.has(dep) || signalApiVars.has(dep),
+        );
         if (dependsOnReactive) {
           computeds.add(name);
           changed = true;

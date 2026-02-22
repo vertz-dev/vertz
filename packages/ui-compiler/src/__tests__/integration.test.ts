@@ -171,8 +171,93 @@ function TaskList() {
     // Direct usage in JSX attribute: .value inserted AND reactive
     expect(result.code).toContain('tasks.loading.value');
     expect(result.code).toContain('__attr(');
-    // Indirect usage via variable assignment
+    // Indirect usage via variable assignment: .value inserted AND computed wrapping
     expect(result.code).toContain('tasks.data.value');
+    expect(result.code).toContain('computed(() =>');
+    // data in JSX child should be reactive (__child), not static (__insert)
+    expect(result.code).toContain('__child(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('IT-1B-11: const derived from query signal property → computed + reactive JSX', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query('/api/tasks');
+  const hasError = tasks.error ? 'yes' : 'no';
+  return <div>{hasError}</div>;
+}
+    `.trim(),
+    );
+
+    // hasError should be wrapped in computed()
+    expect(result.code).toContain('computed(() =>');
+    // Signal auto-unwrap should insert .value
+    expect(result.code).toContain('tasks.error.value');
+    // JSX usage should be reactive (__child), not static (__insert)
+    expect(result.code).toContain('__child(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('IT-1B-12: const from signal API property AND local signal → computed', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  let filter = 'all';
+  const tasks = query('/api/tasks');
+  const filtered = filter === 'all' ? tasks.data : tasks.data?.filter(x => x.status === filter);
+  return <div>{filtered}</div>;
+}
+    `.trim(),
+    );
+
+    // filtered should be computed (depends on both signal + signalApiVar)
+    expect(result.code).toContain('computed(() =>');
+    // Both signal reads should have .value
+    expect(result.code).toContain('tasks.data.value');
+    expect(result.code).toContain('filter.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('IT-1B-13: const from query in JSX attribute and direct signal property in JSX child', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query('/api/tasks');
+  const hasError = tasks.error ? 'error' : '';
+  return <div class={hasError}>{tasks.data}</div>;
+}
+    `.trim(),
+    );
+
+    // hasError in JSX attribute → reactive (__attr)
+    expect(result.code).toContain('__attr(');
+    // tasks.data direct in JSX child → reactive
+    expect(result.code).toContain('tasks.data.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('IT-1B-14: plain property over-classification (documents known trade-off)', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query('/api/tasks');
+  const fn = tasks.refetch;
+  return <button onClick={fn}>Refetch</button>;
+}
+    `.trim(),
+    );
+
+    // fn becomes computed (over-classified but harmless)
+    expect(result.code).toContain('computed(() => tasks.refetch)');
     expect(result.diagnostics).toHaveLength(0);
   });
 

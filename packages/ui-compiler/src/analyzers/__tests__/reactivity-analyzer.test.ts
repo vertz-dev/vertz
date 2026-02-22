@@ -124,6 +124,19 @@ describe('ReactivityAnalyzer', () => {
     expect(v?.fieldSignalProperties).toEqual(new Set(['error', 'dirty', 'touched', 'value']));
   });
 
+  it('classifies const derived from signal API property as computed', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const tasks = query('/api/tasks');
+        const errorMsg = tasks.error ? 'error' : '';
+        return <div>{errorMsg}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'tasks')?.kind).toBe('static');
+    expect(findVar(result?.variables, 'errorMsg')?.kind).toBe('computed');
+  });
+
   it('analyzes multiple components independently', () => {
     const results = analyze(`
       function Counter() {

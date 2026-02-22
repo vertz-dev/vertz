@@ -5,6 +5,7 @@
  * - JSX for page layout and dynamic content
  * - query() with reactive params (task ID from route)
  * - Auto-unwrapped signal properties: taskQuery.loading, taskQuery.error
+ * - Compiler `const` → computed transform for derived values from query()
  * - Dialog primitive for delete confirmation (<ConfirmDialog /> in JSX)
  * - Tabs primitive for content sections
  * - Compiler conditional transform for loading/error/content visibility
@@ -14,7 +15,7 @@ import { css, effect, onCleanup, onMount, query } from '@vertz/ui';
 import { Tabs } from '@vertz/ui-primitives';
 import { deleteTask, fetchTask, updateTask } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
-import type { Task, TaskStatus } from '../lib/types';
+import type { TaskStatus } from '../lib/types';
 import { badge, button } from '../styles/components';
 
 const detailStyles = css({
@@ -51,7 +52,8 @@ export interface TaskDetailPageProps {
  * Fetches a single task by ID using query() and displays it with
  * tabs for Details and Activity. Signal properties (loading, error)
  * are used directly in JSX — the compiler auto-unwraps them.
- * Computed values (errorMsg, task) still use effect() bridges.
+ * Derived values (errorMsg, task) use const declarations —
+ * the compiler classifies them as computed and wraps them automatically.
  */
 export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
   const { taskId, navigate } = props;
@@ -62,18 +64,13 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
     key: `task-${taskId}`,
   });
 
-  // Computed values still need effect() bridges with explicit .value access.
-  // In JSX, signal properties (loading, error) are used directly.
-  let errorMsg = '';
-  let task: Task | null = null;
+  // Derived values — the compiler classifies these as computed (they depend on
+  // signal API properties) and wraps them in computed() automatically.
+  const errorMsg = taskQuery.error
+    ? `Failed to load task: ${taskQuery.error instanceof Error ? taskQuery.error.message : String(taskQuery.error)}`
+    : '';
 
-  effect(() => {
-    const err = taskQuery.error.value;
-    errorMsg = err
-      ? `Failed to load task: ${err instanceof Error ? err.message : String(err)}`
-      : '';
-    task = taskQuery.data.value ?? null;
-  });
+  const task = taskQuery.data ?? null;
 
   // ── Elements populated by the content effect ───────
 
@@ -111,7 +108,7 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
   // ── Reactive content population ─────────────────────
   // The task detail content (title, meta, status bar, actions) changes
   // when the task data updates (e.g., after a status transition).
-  // This effect reads the local `task` signal to populate the content.
+  // This effect reads the `task` computed to populate the content.
 
   effect(() => {
     const t = task;

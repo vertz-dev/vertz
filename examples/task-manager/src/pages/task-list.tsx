@@ -6,6 +6,7 @@
  * - query() for reactive data fetching with auto-unwrapped signal properties
  * - Reactive JSX conditionals: {tasksQuery.loading && <el/>}
  * - Compiler `let` → signal transform for local filter state
+ * - Compiler `const` → computed transform for derived values from query()
  * - Compiler conditional transform: {show && <el/>} → __conditional()
  * - Compiler list transform: {items.map(...)} → __list()
  * - <TaskCard /> JSX component embedding
@@ -27,8 +28,8 @@ export interface TaskListPageProps {
  * Uses query() to fetch tasks reactively. Signal properties like
  * tasksQuery.loading and tasksQuery.error are used directly in JSX —
  * the compiler auto-unwraps them and generates reactive subscriptions.
- * Computed values (errorMsg, filteredTasks) still use effect() bridges
- * since they derive from multiple signals.
+ * Derived values (errorMsg, filteredTasks) use const declarations —
+ * the compiler classifies them as computed and wraps them automatically.
  */
 export function TaskListPage(props: TaskListPageProps): HTMLElement {
   const { navigate } = props;
@@ -43,29 +44,17 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
     key: 'task-list',
   });
 
-  // Computed values still need effect() bridges with explicit .value access.
-  // In JSX, signal properties (loading, error) are used directly —
-  // the compiler auto-unwraps them and generates reactive subscriptions.
-  let errorMsg = '';
-  let filteredTasks: Task[] = [];
+  // Derived values — the compiler classifies these as computed (they depend on
+  // signal API properties) and wraps them in computed() automatically.
+  const errorMsg = tasksQuery.error
+    ? `Failed to load tasks: ${tasksQuery.error instanceof Error ? tasksQuery.error.message : String(tasksQuery.error)}`
+    : '';
 
-  effect(() => {
-    const err = tasksQuery.error.value;
-    errorMsg = err
-      ? `Failed to load tasks: ${err instanceof Error ? err.message : String(err)}`
-      : '';
-
-    const result = tasksQuery.data.value;
-    const filter = statusFilter;
-
-    if (!result) {
-      filteredTasks = [];
-    } else if (filter === 'all') {
-      filteredTasks = result.tasks;
-    } else {
-      filteredTasks = result.tasks.filter((t) => t.status === filter);
-    }
-  });
+  const filteredTasks = !tasksQuery.data
+    ? []
+    : statusFilter === 'all'
+      ? tasksQuery.data.tasks
+      : tasksQuery.data.tasks.filter((t: Task) => t.status === statusFilter);
 
   // ── Filter bar with reactive active state ───────────
 
