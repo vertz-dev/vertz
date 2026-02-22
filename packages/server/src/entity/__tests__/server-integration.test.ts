@@ -202,7 +202,7 @@ describe('createServer with entities', () => {
 
     expect(res.status).toBe(405);
     const body = await res.json();
-    expect(body.error.code).toBe('METHOD_NOT_ALLOWED');
+    expect(body.error.code).toBe('MethodNotAllowed');
   });
 
   it('GET /api/users/:id returns 404 for missing record', async () => {
@@ -227,7 +227,7 @@ describe('createServer with entities', () => {
 
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.error.code).toBe('NOT_FOUND');
+    expect(body.error.code).toBe('NotFound');
   });
 
   it('registers multiple entities without conflict', async () => {

@@ -65,7 +65,7 @@ export interface DbConstraintError extends DbErrorBase {
  * Record not found - for getRequired, update, delete operations.
  */
 export interface DbNotFoundError extends DbErrorBase {
-  readonly code: 'NOT_FOUND';
+  readonly code: 'NotFound';
   readonly table: string;
 }
 
@@ -97,10 +97,10 @@ export function toReadError(error: unknown, query?: string): ReadError {
       constraint?: string;
     };
 
-    // Check for NOT_FOUND code (from NotFoundError)
-    if (errWithCode.code === 'NOT_FOUND') {
+    // Check for NotFound code (from NotFoundError)
+    if (errWithCode.code === 'NotFound') {
       return {
-        code: 'NOT_FOUND',
+        code: 'NotFound',
         message: errWithCode.message,
         table: errWithCode.table ?? 'unknown',
         cause: error,

@@ -35,7 +35,7 @@ describe('DbErrorCode', () => {
   });
 
   it('maps application-level codes', () => {
-    expect(DbErrorCode.NOT_FOUND).toBe('NOT_FOUND');
+    expect(DbErrorCode.NotFound).toBe('NotFound');
     expect(DbErrorCode.CONNECTION_ERROR).toBe('CONNECTION_ERROR');
     expect(DbErrorCode.POOL_EXHAUSTED).toBe('POOL_EXHAUSTED');
   });

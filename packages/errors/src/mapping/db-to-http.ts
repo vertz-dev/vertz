@@ -30,7 +30,7 @@ export function dbErrorToHttpStatus(error: ReadError | WriteError): number {
   const code = error.code;
 
   switch (code) {
-    case 'NOT_FOUND':
+    case 'NotFound':
       return 404;
     case 'UNIQUE_VIOLATION':
       return 409;

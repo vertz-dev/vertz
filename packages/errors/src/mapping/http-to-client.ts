@@ -67,7 +67,7 @@ export function httpToClientError(status: number, body: unknown): ApiError | Unk
       // Check if it's a validation error
       if (bodyObj.code === 'VALIDATION_FAILED' || bodyObj.issues) {
         const error: ValidationError = {
-          code: 'VALIDATION_ERROR',
+          code: 'ValidationError',
           message,
           issues: Array.isArray(bodyObj.issues)
             ? (bodyObj.issues as ValidationError['issues'])
@@ -80,26 +80,26 @@ export function httpToClientError(status: number, body: unknown): ApiError | Unk
 
     case 401:
       return {
-        code: 'UNAUTHORIZED',
+        code: 'Unauthorized',
         message,
       } as UnauthorizedError;
 
     case 403:
       return {
-        code: 'FORBIDDEN',
+        code: 'Forbidden',
         message,
       } as ForbiddenError;
 
     case 404:
       return {
-        code: 'NOT_FOUND',
+        code: 'NotFound',
         message,
         resource: typeof bodyObj.resource === 'string' ? bodyObj.resource : undefined,
       } as NotFoundError;
 
     case 409:
       return {
-        code: 'CONFLICT',
+        code: 'Conflict',
         message,
         field: typeof bodyObj.field === 'string' ? bodyObj.field : undefined,
       } as ConflictError;
@@ -108,7 +108,7 @@ export function httpToClientError(status: number, body: unknown): ApiError | Unk
       // Check if it's a validation error
       if (bodyObj.code === 'VALIDATION_FAILED' || bodyObj.issues) {
         const error: ValidationError = {
-          code: 'VALIDATION_ERROR',
+          code: 'ValidationError',
           message,
           issues: Array.isArray(bodyObj.issues)
             ? (bodyObj.issues as ValidationError['issues'])

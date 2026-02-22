@@ -21,7 +21,7 @@ describe('domain/client', () => {
       const error = createValidationError('Validation failed', [
         { path: ['email'], message: 'Invalid email', code: 'invalid' },
       ]);
-      expect(error.code).toBe('VALIDATION_ERROR');
+      expect(error.code).toBe('ValidationError');
       expect(error.issues).toHaveLength(1);
       expect(error.issues?.[0].path).toEqual(['email']);
     });
@@ -36,7 +36,7 @@ describe('domain/client', () => {
   describe('NotFoundError', () => {
     it('creates with default message', () => {
       const error = createNotFoundError();
-      expect(error.code).toBe('NOT_FOUND');
+      expect(error.code).toBe('NotFound');
       expect(error.message).toBe('Resource not found');
     });
 
@@ -55,7 +55,7 @@ describe('domain/client', () => {
   describe('ConflictError', () => {
     it('creates with default message', () => {
       const error = createConflictError();
-      expect(error.code).toBe('CONFLICT');
+      expect(error.code).toBe('Conflict');
       expect(error.message).toBe('Resource conflict');
     });
 
@@ -74,7 +74,7 @@ describe('domain/client', () => {
   describe('UnauthorizedError', () => {
     it('creates with default message', () => {
       const error = createUnauthorizedError();
-      expect(error.code).toBe('UNAUTHORIZED');
+      expect(error.code).toBe('Unauthorized');
       expect(error.message).toBe('Authentication required');
     });
 
@@ -88,7 +88,7 @@ describe('domain/client', () => {
   describe('ForbiddenError', () => {
     it('creates with default message', () => {
       const error = createForbiddenError();
-      expect(error.code).toBe('FORBIDDEN');
+      expect(error.code).toBe('Forbidden');
       expect(error.message).toBe('Access denied');
     });
 

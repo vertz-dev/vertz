@@ -85,7 +85,7 @@ export class FetchClient {
             }
 
             // Check for validation errors
-            if (errorObj?.code === 'VALIDATION_ERROR' && Array.isArray(errorObj.errors)) {
+            if (errorObj?.code === 'ValidationError' && Array.isArray(errorObj.errors)) {
               return err(new FetchValidationError('Validation failed', errorObj.errors));
             }
           }

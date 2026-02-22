@@ -30,7 +30,7 @@ describe('EntityError classes', () => {
       const error = new BadRequestError();
       expect(error.name).toBe('BadRequestError');
       expect(error.message).toBe('Bad Request');
-      expect(error.code).toBe('BAD_REQUEST');
+      expect(error.code).toBe('BadRequest');
     });
 
     it('should create a BadRequestError with custom message', () => {
@@ -44,7 +44,7 @@ describe('EntityError classes', () => {
       const error = new EntityUnauthorizedError();
       expect(error.name).toBe('UnauthorizedError');
       expect(error.message).toBe('Unauthorized');
-      expect(error.code).toBe('UNAUTHORIZED');
+      expect(error.code).toBe('Unauthorized');
     });
 
     it('should create an EntityUnauthorizedError with custom message', () => {
@@ -58,7 +58,7 @@ describe('EntityError classes', () => {
       const error = new EntityForbiddenError();
       expect(error.name).toBe('ForbiddenError');
       expect(error.message).toBe('Forbidden');
-      expect(error.code).toBe('FORBIDDEN');
+      expect(error.code).toBe('Forbidden');
     });
 
     it('should create an EntityForbiddenError with custom message', () => {
@@ -72,7 +72,7 @@ describe('EntityError classes', () => {
       const error = new EntityNotFoundError();
       expect(error.name).toBe('NotFoundError');
       expect(error.message).toBe('Not Found');
-      expect(error.code).toBe('NOT_FOUND');
+      expect(error.code).toBe('NotFound');
     });
 
     it('should create an EntityNotFoundError with resource info', () => {
@@ -88,7 +88,7 @@ describe('EntityError classes', () => {
       const error = new MethodNotAllowedError();
       expect(error.name).toBe('MethodNotAllowedError');
       expect(error.message).toBe('Method Not Allowed');
-      expect(error.code).toBe('METHOD_NOT_ALLOWED');
+      expect(error.code).toBe('MethodNotAllowed');
     });
 
     it('should create a MethodNotAllowedError with allowed methods', () => {
@@ -102,7 +102,7 @@ describe('EntityError classes', () => {
       const error = new EntityConflictError();
       expect(error.name).toBe('ConflictError');
       expect(error.message).toBe('Conflict');
-      expect(error.code).toBe('CONFLICT');
+      expect(error.code).toBe('Conflict');
     });
 
     it('should create an EntityConflictError with resource info', () => {
@@ -121,7 +121,7 @@ describe('EntityError classes', () => {
       const error = new EntityValidationError(errors);
       expect(error.name).toBe('EntityValidationError');
       expect(error.errors).toEqual(errors);
-      expect(error.code).toBe('ENTITY_VALIDATION_ERROR');
+      expect(error.code).toBe('ValidationError');
     });
   });
 
@@ -130,7 +130,7 @@ describe('EntityError classes', () => {
       const error = new InternalError();
       expect(error.name).toBe('InternalError');
       expect(error.message).toBe('Internal Server Error');
-      expect(error.code).toBe('INTERNAL_ERROR');
+      expect(error.code).toBe('InternalError');
     });
 
     it('should create an InternalError with custom message', () => {
@@ -144,7 +144,7 @@ describe('EntityError classes', () => {
       const error = new ServiceUnavailableError();
       expect(error.name).toBe('ServiceUnavailableError');
       expect(error.message).toBe('Service Unavailable');
-      expect(error.code).toBe('SERVICE_UNAVAILABLE');
+      expect(error.code).toBe('ServiceUnavailable');
     });
 
     it('should create a ServiceUnavailableError with retryAfter', () => {
