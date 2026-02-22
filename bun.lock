@@ -250,6 +250,8 @@
         "@types/node": "^22.15.0",
         "@vertz/core": "workspace:*",
         "@vertz/db": "workspace:*",
+        "@vertz/errors": "workspace:*",
+        "@vertz/fetch": "workspace:*",
         "@vertz/schema": "workspace:*",
         "@vertz/server": "workspace:*",
         "@vertz/ui": "workspace:*",
