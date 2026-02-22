@@ -8,7 +8,7 @@
 
 import { createDb, d } from '@vertz/db';
 import { renderApp } from './entry-server';
-import type { D1Database } from '@vertz/db';
+import type { D1Database } from '@cloudflare/workers-types';
 
 // ---------------------------------------------------------------------------
 // Database schema
