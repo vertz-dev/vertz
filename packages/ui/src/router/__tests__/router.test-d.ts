@@ -120,3 +120,38 @@ const _routeBadCtx: RouteConfig<'/items/:id', { item: string }> = {
   },
 };
 void _routeBadCtx;
+
+// ─── RouterContext + useRouter + RouterView type tests ──────────────────────
+
+import type { Router } from '../navigate';
+import { useRouter } from '../router-context';
+import type { RouterViewProps } from '../router-view';
+import { RouterView } from '../router-view';
+
+// useRouter() returns Router
+const _routerResult: Router = useRouter();
+void _routerResult;
+
+// RouterView returns HTMLElement
+declare const _mockRouter: Router;
+const _viewResult: HTMLElement = RouterView({ router: _mockRouter });
+void _viewResult;
+
+// RouterView accepts optional fallback
+const _viewWithFallback: HTMLElement = RouterView({
+  router: _mockRouter,
+  fallback: () => document.createElement('div'),
+});
+void _viewWithFallback;
+
+// @ts-expect-error - RouterView requires router prop
+const _viewNoRouter = RouterView({});
+void _viewNoRouter;
+
+// @ts-expect-error - RouterView router must be Router type, not string
+const _viewBadRouter = RouterView({ router: 'not-a-router' });
+void _viewBadRouter;
+
+// RouterViewProps type structure
+const _props: RouterViewProps = { router: _mockRouter };
+void _props;

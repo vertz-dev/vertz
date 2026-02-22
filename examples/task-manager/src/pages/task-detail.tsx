@@ -11,7 +11,7 @@
  * - Compiler conditional transform for loading/error/content visibility
  */
 
-import { css, onCleanup, onMount, query } from '@vertz/ui';
+import { css, onCleanup, onMount, query, useRouter } from '@vertz/ui';
 import { deleteTask, fetchTask, updateTask } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import type { TaskStatus } from '../lib/types';
@@ -40,11 +40,6 @@ const detailStyles = css({
   timeline: ['text:sm', 'text:muted'],
 });
 
-export interface TaskDetailPageProps {
-  taskId: string;
-  navigate: (url: string) => void;
-}
-
 /**
  * Render the task detail page.
  *
@@ -54,8 +49,13 @@ export interface TaskDetailPageProps {
  * the compiler auto-unwraps them. Derived values (errorMsg, task,
  * transitions) use const declarations — the compiler classifies them
  * as computed and wraps them automatically. No effect() needed.
+ *
+ * Task ID and navigation are accessed via useRouter() context.
  */
-export function TaskDetailPage({ taskId, navigate }: TaskDetailPageProps) {
+export function TaskDetailPage() {
+  const router = useRouter();
+  const { navigate } = router;
+  const taskId = router.current.value?.params.id ?? '';
   // ── Data fetching ──────────────────────────────────
 
   const taskQuery = query(() => fetchTask(taskId), {

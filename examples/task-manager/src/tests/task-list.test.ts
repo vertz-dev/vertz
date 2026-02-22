@@ -6,13 +6,28 @@
  * - findByText / findByTestId for querying
  * - click() for interaction simulation
  * - waitFor() for async assertions
- * - createTestRouter() for route testing
+ * - RouterContext.Provider for page context
  */
 
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { findByTestId, renderTest, waitFor } from '@vertz/ui/test';
+import { createRouter, defineRoutes, RouterContext } from '@vertz/ui';
+import { renderTest, waitFor } from '@vertz/ui/test';
 import { resetMockData } from '../api/mock-data';
 import { TaskListPage } from '../pages/task-list';
+
+const testRoutes = defineRoutes({
+  '/': { component: () => document.createElement('div') },
+  '/tasks/new': { component: () => document.createElement('div') },
+});
+
+function renderTaskListPage(initialPath = '/') {
+  const router = createRouter(testRoutes, initialPath);
+  let page: Element | undefined;
+  RouterContext.Provider(router, () => {
+    page = TaskListPage() as Element;
+  });
+  return { page: page as Element, router };
+}
 
 describe('TaskListPage', () => {
   beforeEach(() => {
@@ -20,20 +35,19 @@ describe('TaskListPage', () => {
   });
 
   it('shows loading state initially', () => {
-    const navigateCalls: string[] = [];
-    const page = TaskListPage({ navigate: (url) => navigateCalls.push(url) });
+    const { page, router } = renderTaskListPage();
     const { findByTestId, unmount } = renderTest(page);
 
     const loading = findByTestId('loading');
     expect(loading.textContent).toBe('Loading tasks...');
 
     unmount();
+    router.dispose();
   });
 
   it('renders task cards after loading', async () => {
-    const navigateCalls: string[] = [];
-    const page = TaskListPage({ navigate: (url) => navigateCalls.push(url) });
-    const { findByTestId: find, queryByText, unmount } = renderTest(page);
+    const { page, router } = renderTaskListPage();
+    const { queryByText, unmount } = renderTest(page);
 
     // Wait for the mock tasks to load and render
     await waitFor(() => {
@@ -42,24 +56,24 @@ describe('TaskListPage', () => {
     });
 
     unmount();
+    router.dispose();
   });
 
   it('navigates to create task page on button click', async () => {
-    const navigateCalls: string[] = [];
-    const page = TaskListPage({ navigate: (url) => navigateCalls.push(url) });
+    const { page, router } = renderTaskListPage();
     const { findByTestId: find, click, unmount } = renderTest(page);
 
     const createBtn = find('create-task-btn');
     await click(createBtn);
 
-    expect(navigateCalls).toContain('/tasks/new');
+    expect(router.current.value?.route.pattern).toBe('/tasks/new');
 
     unmount();
+    router.dispose();
   });
 
   it.skip('filters tasks by status', async () => {
-    const navigateCalls: string[] = [];
-    const page = TaskListPage({ navigate: (url) => navigateCalls.push(url) });
+    const { page, router } = renderTaskListPage();
     const { findByTestId: find, click, queryByText, unmount } = renderTest(page);
 
     // Wait for tasks to load
@@ -80,5 +94,6 @@ describe('TaskListPage', () => {
     });
 
     unmount();
+    router.dispose();
   });
 });
