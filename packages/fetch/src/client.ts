@@ -1,4 +1,4 @@
-import { ok, err, HttpError, ParseError } from '@vertz/errors';
+import { ok, err, HttpError, ParseError, FetchValidationError } from '@vertz/errors';
 import { FetchNetworkError, FetchTimeoutError } from '@vertz/errors';
 import { createErrorFromStatus, type FetchError } from './errors';
 import type {
@@ -74,6 +74,11 @@ export class FetchClient {
             if (errorObj && typeof errorObj.code === 'string') {
               serverCode = errorObj.code;
             }
+
+            // Check for validation errors
+            if (errorObj?.code === 'VALIDATION_ERROR' && Array.isArray(errorObj.errors)) {
+              return err(new FetchValidationError(errorObj.errors, 'Validation failed'));
+            }
           }
 
           const error = createErrorFromStatus(response.status, response.statusText, body);
@@ -91,7 +96,12 @@ export class FetchClient {
 
         await this.config.hooks?.afterResponse?.(response);
 
-        const data = (await response.json()) as T;
+        let data: T;
+        try {
+          data = (await response.json()) as T;
+        } catch (parseError) {
+          return err(new ParseError('Failed to parse response JSON', parseError));
+        }
 
         return ok({
           data,

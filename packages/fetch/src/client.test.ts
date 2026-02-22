@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { FetchClient } from './client';
 import { FetchError, NotFoundError } from './errors';
-import { FetchNetworkError, HttpError, FetchTimeoutError, FetchError, unwrap } from '@vertz/errors';
+import { FetchNetworkError, HttpError, FetchTimeoutError, FetchError, unwrap, ParseError, FetchValidationError } from '@vertz/errors';
 
 describe('FetchClient', () => {
   it('can be instantiated with minimal config', () => {
@@ -725,6 +725,30 @@ describe('FetchClient network error handling', () => {
     if (!result.ok) {
       expect(result.error).toBeInstanceOf(HttpError);
       expect((result.error as HttpError).serverCode).toBe('USER_NOT_FOUND');
+    }
+  });
+});
+
+describe('FetchClient parse and validation errors', () => {
+  it('should return ParseError for invalid JSON', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(new Response('not json', { status: 200 }));
+    const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
+    const result = await client.get('/test');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(ParseError);
+    }
+  });
+
+  it('should return FetchValidationError with errors array', async () => {
+    const body = { error: { code: 'VALIDATION_ERROR', errors: [{ path: 'email', message: 'Invalid email' }] } };
+    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 422 }));
+    const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
+    const result = await client.get('/test');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(FetchValidationError);
+      expect((result.error as FetchValidationError).errors).toHaveLength(1);
     }
   });
 });
