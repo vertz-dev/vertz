@@ -1,13 +1,15 @@
 /**
- * TodoItem component — single todo row with toggle and delete.
+ * TodoItem - Single todo item component with toggle and delete actions.
  *
  * Demonstrates:
- * - JSX for declarative component layout
- * - Compiler `let` → signal transform for local reactive state
- * - Inline event handlers calling SDK methods
+ * - Using SDK methods for mutations (update, delete)
+ * - Handling Result<T, FetchError> from SDK calls
+ * - Using matchError for proper error handling
+ * - Optimistic updates with rollback on error
  */
 
-import { deleteTodo, updateTodo } from '../api/mock-data';
+import { matchError, isOk, type Result, type FetchErrorType } from '@vertz/fetch';
+import { updateTodo, deleteTodo } from '../api/client';
 import { todoItemStyles } from '../styles/components';
 
 export interface TodoItemProps {
@@ -22,22 +24,51 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
   let isCompleted = completed;
 
   const handleToggle = async () => {
+    const previousValue = isCompleted;
     isCompleted = !isCompleted;
-    try {
-      await updateTodo(id, { completed: isCompleted });
+    
+    const result: Result<any, FetchErrorType> = await updateTodo(id, { completed: isCompleted });
+    
+    if (isOk(result)) {
       onToggle(id, isCompleted);
-    } catch {
+    } else {
       // Revert on failure
-      isCompleted = !isCompleted;
+      isCompleted = previousValue;
+      const errorMessage = matchError(result.error, {
+        NetworkError: (e) => `Network error: ${e.message}`,
+        HttpError: (e) => {
+          if (e.serverCode === 'NOT_FOUND') {
+            return 'Todo not found';
+          }
+          return `Error: ${e.message}`;
+        },
+        TimeoutError: (e) => `Request timed out: ${e.message}`,
+        ParseError: (e) => `Parse error: ${e.path || 'unknown'}`,
+        ValidationError: (e) => `Validation error: ${e.message}`,
+      });
+      console.error('Failed to update todo:', errorMessage);
     }
   };
 
   const handleDelete = async () => {
-    try {
-      await deleteTodo(id);
+    const result: Result<any, FetchErrorType> = await deleteTodo(id);
+    
+    if (isOk(result)) {
       onDelete(id);
-    } catch (err) {
-      console.error('Failed to delete todo:', err);
+    } else {
+      const errorMessage = matchError(result.error, {
+        NetworkError: (e) => `Network error: ${e.message}`,
+        HttpError: (e) => {
+          if (e.serverCode === 'NOT_FOUND') {
+            return 'Todo not found';
+          }
+          return `Error: ${e.message}`;
+        },
+        TimeoutError: (e) => `Request timed out: ${e.message}`,
+        ParseError: (e) => `Parse error: ${e.path || 'unknown'}`,
+        ValidationError: (e) => `Validation error: ${e.message}`,
+      });
+      console.error('Failed to delete todo:', errorMessage);
     }
   };
 

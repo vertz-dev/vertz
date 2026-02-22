@@ -86,6 +86,8 @@ describe('Entity → Server → HTTP Response flow', () => {
 
       expect(res.status).toBe(404);
       const body = await res.json();
+      // Server returns { error: { code: 'NotFound', message: '...' } }
+      // Verify error structure exists
       expect(body.error).toBeDefined();
     });
 
@@ -98,6 +100,7 @@ describe('Entity → Server → HTTP Response flow', () => {
 
       expect(res.status).toBe(400);
       const body = await res.json();
+      // Server returns { error: { code: 'BadRequest', message: '...', details: [...] } }
       expect(body.error).toBeDefined();
     });
 
@@ -151,9 +154,11 @@ describe('Fetch client → Result flow', () => {
   });
 
   describe('404 returns err Result with FetchNotFoundError', () => {
-    it('produces err Result with FetchNotFoundError', async () => {
+    it('produces err Result with FetchNotFoundError and serverCode', async () => {
+      // Server returns { error: { code: 'NotFound', message: '...' } }
+      // Client parses error.code into serverCode on HttpError
       const mockFetch = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ error: 'Not Found' }), {
+        new Response(JSON.stringify({ error: { code: 'NotFound', message: 'Not found' } }), {
           status: 404, statusText: 'Not Found',
           headers: { 'Content-Type': 'application/json' },
         }),
@@ -169,14 +174,17 @@ describe('Fetch client → Result flow', () => {
       expect(isErr(result)).toBe(true);
       if (isErr(result) && result.error instanceof FetchNotFoundError) {
         expect(result.error.status).toBe(404);
+        // Client parses error.code from server response into serverCode
+        expect(result.error.serverCode).toBe('NotFound');
       }
     });
   });
 
   describe('401 returns err Result with FetchUnauthorizedError', () => {
-    it('produces err Result with FetchUnauthorizedError', async () => {
+    it('produces err Result with FetchUnauthorizedError and serverCode', async () => {
+      // Server returns { error: { code: 'Unauthorized', message: '...' } }
       const mockFetch = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        new Response(JSON.stringify({ error: { code: 'Unauthorized', message: 'Unauthorized' } }), {
           status: 401, statusText: 'Unauthorized',
           headers: { 'Content-Type': 'application/json' },
         }),
@@ -192,6 +200,8 @@ describe('Fetch client → Result flow', () => {
       expect(isErr(result)).toBe(true);
       if (isErr(result) && result.error instanceof FetchUnauthorizedError) {
         expect(result.error.status).toBe(401);
+        // Client parses error.code from server response into serverCode
+        expect(result.error.serverCode).toBe('Unauthorized');
       }
     });
   });
@@ -241,7 +251,7 @@ describe('Fetch client → Result flow', () => {
         new Response(
           JSON.stringify({
             error: {
-              code: 'VALIDATION_ERROR',
+              code: 'ValidationError',
               errors: [
                 { path: 'email', message: 'Invalid email format' },
                 { path: 'age', message: 'Must be positive' },
@@ -297,8 +307,9 @@ describe('Fetch client → Result flow', () => {
     });
 
     it('handles error case with match()', async () => {
+      // Server returns { error: { code: 'NotFound', message: '...' } }
       const mockFetch = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ error: 'Not Found' }), {
+        new Response(JSON.stringify({ error: { code: 'NotFound', message: 'Not found' } }), {
           status: 404, statusText: 'Not Found',
           headers: { 'Content-Type': 'application/json' },
         }),
@@ -388,7 +399,7 @@ describe('matchError exhaustive handling', () => {
     });
 
     it('handles HttpError (base class for 4xx/5xx)', () => {
-      const error = new FetchNotFoundError('Not found', 'NOT_FOUND');
+      const error = new FetchNotFoundError('Not found', 'NotFound');
       const result = matchError(error, {
         NetworkError: (e) => `Network: ${e.message}`,
         HttpError: (e) => `HTTP ${e.status}: ${e.message}`,
