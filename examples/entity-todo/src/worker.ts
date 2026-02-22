@@ -35,19 +35,36 @@ interface Env {
 }
 
 // ---------------------------------------------------------------------------
+// Global adapter (created once, reused across requests)
+// ---------------------------------------------------------------------------
+
+let dbAdapter: ReturnType<typeof createD1DbAdapter> | null = null;
+
+/**
+ * Get or create the D1 database adapter.
+ * Created once at module load time, then reused.
+ */
+function getDbAdapter(env: Env): ReturnType<typeof createD1DbAdapter> {
+  if (!dbAdapter) {
+    dbAdapter = createD1DbAdapter(env.DB as D1DatabaseBinding);
+  }
+  return dbAdapter;
+}
+
+// ---------------------------------------------------------------------------
 // Worker Fetch Handler
 // ---------------------------------------------------------------------------
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    // Create the D1 database adapter from the environment binding
-    const dbAdapter = createD1DbAdapter(env.DB as D1DatabaseBinding);
+    // Get the shared D1 adapter (created once, reused)
+    const adapter = getDbAdapter(env);
 
     // Create the server with the D1-backed entity adapter
     const app = createServer({
       apiPrefix: '/api',
       entities: [todos],
-      _entityDbFactory: () => dbAdapter,
+      _entityDbFactory: () => adapter,
     });
 
     // Use the createHandler to convert the AppBuilder to a Worker fetch handler
