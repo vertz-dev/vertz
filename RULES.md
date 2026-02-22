@@ -1,7 +1,7 @@
 # Engineering Rules — Condensed Playbook
 
 > Mandatory reading for all vertz team agents. Full rules live in
-> `/workspace/backstage/.claude/rules/` and `/workspace/vertz/.claude/rules/`.
+> `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/` and `/Users/viniciusdacal/openclaw-workspace/vertz/.claude/rules/`.
 > When in doubt, read the full rule file.
 
 ---
@@ -61,8 +61,8 @@ TDD:       Red → Green (test+typecheck+lint) → Refactor
 Pre-push:  bun run test && bun run typecheck && bun run lint
 PR:        Never to main directly. Bot review + CI green.
 Done:      All acceptance criteria + tests + gates + review.
-Bot git:   /workspace/backstage/bots/git-as.sh $AGENT_BOT <cmd>
-Bot gh:    /workspace/backstage/bots/gh-as.sh $AGENT_BOT <cmd>
+Bot git:   /Users/viniciusdacal/openclaw-workspace/backstage/bots/git-as.sh $AGENT_BOT <cmd>
+Bot gh:    /Users/viniciusdacal/openclaw-workspace/backstage/bots/gh-as.sh $AGENT_BOT <cmd>
 ```
 
 ---
@@ -73,18 +73,25 @@ Bot gh:    /workspace/backstage/bots/gh-as.sh $AGENT_BOT <cmd>
 1. This file (RULES.md)
 2. Your ticket in GitHub Projects board (#2): https://github.com/orgs/vertz-dev/projects/2
 3. The design doc in `plans/`
-4. `/workspace/vertz/.claude/rules/tdd.md`
-5. `/workspace/vertz/.claude/rules/commits.md`
-6. `/workspace/vertz/.claude/rules/definition-of-done.md`
+4. `/Users/viniciusdacal/openclaw-workspace/vertz/.claude/rules/tdd.md`
+5. `/Users/viniciusdacal/openclaw-workspace/vertz/.claude/rules/commits.md`
+6. `/Users/viniciusdacal/openclaw-workspace/vertz/.claude/rules/definition-of-done.md`
 
 **Fixing a bug:**
-1. This file → ticket → `/workspace/backstage/.claude/rules/bug-process.md`
+1. This file → ticket → `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/bug-process.md`
 
 **Writing a design doc:**
-1. This file → PRD → `/workspace/vertz/.claude/rules/design-docs.md`
+1. This file → PRD → `/Users/viniciusdacal/openclaw-workspace/vertz/.claude/rules/design-docs.md`
 
 **Reviewing a PR:**
-1. This file → `/workspace/backstage/.claude/rules/pr-policies.md` → `/workspace/backstage/.claude/rules/review-followups.md`
+1. This file → `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/pr-policies.md` → `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/review-followups.md`
+
+**Delegating work (MANDATORY TEMPLATES):**
+1. **Assigning a phase:** Use `.claude/templates/phase-delegation.md`
+2. **Breaking into subtasks:** Use `.claude/templates/subtask-delegation.md`
+3. **Requesting review:** Use `.claude/templates/review-delegation.md`
+
+**Why templates?** Inconsistent delegation is a root cause of process failures. Templates ensure every delegation includes design references, constraints, success criteria, and architectural approach — not just "do this thing."
 
 ---
 
@@ -117,22 +124,43 @@ Bot gh:    /workspace/backstage/bots/gh-as.sh $AGENT_BOT <cmd>
 4. Run quality gates
 5. Commit tests first, then implementation
 
-Full rules: `/workspace/vertz/.claude/rules/tdd.md`, `/workspace/backstage/.claude/rules/tdd-enforcement.md`
+Full rules: `/Users/viniciusdacal/openclaw-workspace/vertz/.claude/rules/tdd.md`, `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/tdd-enforcement.md`
 
 ---
 
 ## Git & PR Policies
 
-- **Never push to `main`** — all changes go through PRs
-- **Never merge PRs to `main`** — requires human (CTO) approval
-- **Never commit without a ticket**
+### ALL Work Goes Through GitHub PRs — No Exceptions
+
+- **Never push to `main` directly** — all changes go through PRs
+- **Never commit directly to `main`** — except trivial changes (e.g., `.gitignore`, typo fixes in comments)
+- **No local-only workflows** — all work must be visible in GitHub for audit and compliance
+- **PRs are mandatory** — even for hotfixes, small changes, and urgent fixes
+
+### Workflow
+
+1. **Create a feature branch:** `feat/<ticket-id>-<description>`, `fix/<ticket-id>-<description>`, `chore/<ticket-id>-<description>`
+2. **Push the branch:** Use `bots/git-as.sh $AGENT_BOT push origin <branch-name>`
+3. **Open a PR:** Use `bots/gh-as.sh $AGENT_BOT pr create --title "..." --body "..." --base main`
+4. **PR Monitor** assigns reviewers automatically (cross-bot review required)
+5. **Auto-merge:** When CI passes + approved by different bot → auto-merge enabled
+6. **Post-merge audit:** Every merged PR gets graded by the auditor bot
+
+### Bot Scripts (Required)
+
+- **Git:** `bots/git-as.sh $AGENT_BOT <command>` — all git operations
+- **GitHub:** `bots/gh-as.sh $AGENT_BOT <command>` — all GitHub operations (PRs, reviews, merges)
+
+### Rules
+
+- **Never merge PRs to `main`** — auto-merge when CI green + approved by different bot
 - **Never review your own PR** — reviews must come from a different bot
-- **Use bot scripts only:** `bots/git-as.sh $AGENT_BOT` and `bots/gh-as.sh $AGENT_BOT`
+- **Never commit without a ticket**
 - **Branch naming:** `feat/<name>`, `fix/<name>`, `chore/<name>`
 - **One feature branch per design** — phase PRs target the feature branch
 - **Changeset required** for any package change
 
-Full rules: `/workspace/backstage/.claude/rules/pr-policies.md`
+Full rules: `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/pr-policies.md`
 
 ---
 
@@ -143,7 +171,7 @@ Full rules: `/workspace/backstage/.claude/rules/pr-policies.md`
 - Keep commits atomic — one logical change per commit
 - Reference ticket ID when applicable
 
-Full rules: `/workspace/vertz/.claude/rules/commits.md`
+Full rules: `/Users/viniciusdacal/openclaw-workspace/vertz/.claude/rules/commits.md`
 
 ---
 
@@ -177,17 +205,17 @@ All three must pass. A push with failing gates is a process violation.
 
 **After merge:** josh builds demo + DX journal, writes build-in-public content.
 
-Full rules: `/workspace/backstage/.claude/rules/dev-lifecycle.md`
+Full rules: `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/dev-lifecycle.md`
 
 ---
 
 ## Bug Fix Process
 
-- **Tier 1 (Critical):** Fix immediately, no design doc needed. Direct PR to main.
+- **Tier 1 (Critical):** Fix immediately, open PR, request expedited review.
 - **Tier 2 (Important):** Ticket + PR, one reviewer.
 - **Tier 3 (Minor):** Batch into next milestone.
 
-All tiers require tests. Full rules: `/workspace/backstage/.claude/rules/bug-process.md`
+All tiers require tests. Full rules: `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/bug-process.md`
 
 ---
 
@@ -203,7 +231,7 @@ A ticket is done when:
 - [ ] No `TODO`, `FIXME`, or placeholder implementations
 - [ ] **Developer Walkthrough passes** (see below)
 
-Full rules: `/workspace/vertz/.claude/rules/definition-of-done.md`
+Full rules: `/Users/viniciusdacal/openclaw-workspace/vertz/.claude/rules/definition-of-done.md`
 
 ---
 
@@ -279,14 +307,52 @@ Slice 4: Add hydration (still end-to-end)
 
 ---
 
+## Delegation & Coordination
+
+**All work delegation MUST use the templates in `.claude/templates/`:**
+
+- **Phase delegation** → `.claude/templates/phase-delegation.md`
+- **Subtask delegation** → `.claude/templates/subtask-delegation.md`
+- **Review requests** → `.claude/templates/review-delegation.md`
+
+**Why templates are mandatory:**
+
+The Phase 1 failure (errors-as-values unification) happened because delegation was ad-hoc:
+- Design doc said "re-export from @vertz/errors"
+- Implementation duplicated 200+ lines instead of re-exporting
+- Review approved without checking against design doc
+- Caught only when CTO read the code manually
+
+Templates prevent this by forcing:
+1. **Design reference** - Link to specific design doc section
+2. **Architectural constraints** - What approach to use, not just what outcome to achieve
+3. **Expected diff size** - If actual changes differ significantly, stop and coordinate
+4. **Review checklist** - Verify design compliance, not just that tests pass
+
+**Coordination requirements:**
+
+- If touching packages you don't own → coordinate with owner first
+- If deviating from design doc → escalate to CTO before continuing
+- If blocked by another agent's work → communicate the dependency explicitly
+- If scope expands beyond ticket → stop and get new ticket, don't expand organically
+
+**Red flags that mean you should stop and coordinate:**
+
+- Diff is much larger/smaller than expected from design
+- Files changed that weren't in the delegation scope
+- Tests passing but implementation approach doesn't match design
+- Multiple ways to solve it and design doc doesn't specify which
+
+---
+
 ## Bot Identity
 
 - Check `AGENT_BOT` env var to know who you are
-- Read `/workspace/backstage/team.json` for your role and ownership
+- Read `/Users/viniciusdacal/openclaw-workspace/backstage/team.json` for your role and ownership
 - Stay in your lane — don't modify packages you don't own without coordinating
 - All git/GitHub ops through bot scripts — never use personal credentials
 
-Full rules: `/workspace/backstage/.claude/rules/bot-roles.md`
+Full rules: `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/bot-roles.md`
 
 ---
 
@@ -321,7 +387,7 @@ Full rules: `/workspace/backstage/.claude/rules/bot-roles.md`
 - **Never log or print secrets**
 - **Never commit `.env` files**
 
-Full rules: `/workspace/backstage/.claude/rules/secret-management.md`
+Full rules: `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/secret-management.md`
 
 ---
 
@@ -356,16 +422,3 @@ These are failure modes specific to AI coding agents. Read this every session.
 12. **Don't create branches from a dirty worktree.** Always use `git worktree add` for isolated work. If your PR diff contains files from another feature, you've broken isolation. Check `git status` before branching.
 
 13. **Don't ship code that handles external input without spawn().** Any code that shells out with user-controllable input MUST use `spawn()` with argument arrays. This is a Zeroth Law (security) requirement. Violations are automatic F grades.
-
----
-
-## Process Enforcement
-
-**Design Doc → Implementation Plan → Implementation → Verification**
-
-This sequence is mandatory for all non-bugfix work. Skipping steps causes:
-- Agents building wrong things
-- Multiple fix cycles
-- Wasted tokens and time
-
-See `backstage/.claude/rules/design-docs.md` for full process.
