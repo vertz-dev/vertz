@@ -55,9 +55,7 @@ export interface TaskDetailPageProps {
  * transitions) use const declarations — the compiler classifies them
  * as computed and wraps them automatically. No effect() needed.
  */
-export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
-  const { taskId, navigate } = props;
-
+export function TaskDetailPage({ taskId, navigate }: TaskDetailPageProps): HTMLElement {
   // ── Data fetching ──────────────────────────────────
 
   const taskQuery = query(() => fetchTask(taskId), {
@@ -171,7 +169,10 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
           <div style="margin-top: 1.5rem">
             <div style="display: flex; gap: 0.5rem; border-bottom: 1px solid var(--color-border-200); padding-bottom: 0.5rem; margin-bottom: 1rem">
               <button
-                class={button({ intent: activeTab === 'details' ? 'primary' : 'ghost', size: 'sm' })}
+                class={button({
+                  intent: activeTab === 'details' ? 'primary' : 'ghost',
+                  size: 'sm',
+                })}
                 onClick={() => {
                   activeTab = 'details';
                 }}
@@ -179,7 +180,10 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
                 Details
               </button>
               <button
-                class={button({ intent: activeTab === 'activity' ? 'primary' : 'ghost', size: 'sm' })}
+                class={button({
+                  intent: activeTab === 'activity' ? 'primary' : 'ghost',
+                  size: 'sm',
+                })}
                 onClick={() => {
                   activeTab = 'activity';
                 }}

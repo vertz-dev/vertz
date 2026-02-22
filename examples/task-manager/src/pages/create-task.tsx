@@ -22,9 +22,7 @@ export interface CreateTaskPageProps {
 /**
  * Render the create-task page.
  */
-export function CreateTaskPage(props: CreateTaskPageProps): HTMLElement {
-  const { navigate } = props;
-
+export function CreateTaskPage({ navigate }: CreateTaskPageProps): HTMLElement {
   return (
     <div class={pageStyles.classNames.page} data-testid="create-task-page">
       <h1 class={pageStyles.classNames.title}>Create New Task</h1>

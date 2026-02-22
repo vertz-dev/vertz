@@ -34,15 +34,13 @@ export interface ConfirmDialogProps {
  * Uses a `let isOpen` signal for dialog state — the compiler transforms
  * it to a signal and generates reactive attributes for show/hide.
  */
-export function ConfirmDialog(props: ConfirmDialogProps): HTMLElement {
-  const {
-    triggerLabel,
-    title: titleText,
-    description,
-    confirmLabel = 'Confirm',
-    onConfirm,
-  } = props;
-
+export function ConfirmDialog({
+  triggerLabel,
+  title: titleText,
+  description,
+  confirmLabel = 'Confirm',
+  onConfirm,
+}: ConfirmDialogProps): HTMLElement {
   let isOpen = false;
   const titleId = `dialog-title-${Math.random().toString(36).slice(2, 8)}`;
 
