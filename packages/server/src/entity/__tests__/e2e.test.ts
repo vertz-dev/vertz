@@ -294,7 +294,7 @@ describe('EDA v0.1.0 E2E', () => {
 
           expect(res.status).toBe(404);
           const body = await res.json();
-          expect(body.error.code).toBe('NOT_FOUND');
+          expect(body.error.code).toBe('NotFound');
         });
       });
 
@@ -333,7 +333,7 @@ describe('EDA v0.1.0 E2E', () => {
 
           expect(res.status).toBe(404);
           const body = await res.json();
-          expect(body.error.code).toBe('NOT_FOUND');
+          expect(body.error.code).toBe('NotFound');
         });
       });
 
@@ -377,7 +377,7 @@ describe('EDA v0.1.0 E2E', () => {
 
           expect(res.status).toBe(403);
           const body = await res.json();
-          expect(body.error.code).toBe('FORBIDDEN');
+          expect(body.error.code).toBe('Forbidden');
         });
       });
 
@@ -477,7 +477,7 @@ describe('EDA v0.1.0 E2E', () => {
       const body = await res.json();
 
       expect(body).toHaveProperty('error');
-      expect(body.error).toHaveProperty('code', 'NOT_FOUND');
+      expect(body.error).toHaveProperty('code', 'NotFound');
       expect(body.error).toHaveProperty('message');
       expect(typeof body.error.message).toBe('string');
     });
@@ -512,7 +512,7 @@ describe('EDA v0.1.0 E2E', () => {
       const body = await res.json();
 
       expect(body).toHaveProperty('error');
-      expect(body.error).toHaveProperty('code', 'FORBIDDEN');
+      expect(body.error).toHaveProperty('code', 'Forbidden');
       expect(body.error).toHaveProperty('message');
     });
   });

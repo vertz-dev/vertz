@@ -180,7 +180,7 @@ export class CheckConstraintError extends DbError {
 // ---------------------------------------------------------------------------
 
 export class NotFoundError extends DbError {
-  readonly code = 'NOT_FOUND' as const;
+  readonly code = 'NotFound' as const;
   override readonly table: string;
   override readonly query: string | undefined;
 

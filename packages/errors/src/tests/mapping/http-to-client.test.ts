@@ -17,7 +17,7 @@ describe('mapping/http-to-client', () => {
           issues: [{ path: ['email'], message: 'Invalid', code: 'invalid' }],
         };
         const error = httpToClientError(400, body);
-        expect(error.code).toBe('VALIDATION_ERROR');
+        expect(error.code).toBe('ValidationError');
         expect(error.message).toBe('Invalid input');
         expect((error as ReturnType<typeof createValidationError>).issues).toHaveLength(1);
       });
@@ -30,34 +30,34 @@ describe('mapping/http-to-client', () => {
     });
 
     describe('401 Unauthorized', () => {
-      it('maps to UNAUTHORIZED', () => {
+      it('maps to Unauthorized', () => {
         const error = httpToClientError(401, { message: 'Not authenticated' });
-        expect(error.code).toBe('UNAUTHORIZED');
+        expect(error.code).toBe('Unauthorized');
         expect(error.message).toBe('Not authenticated');
       });
     });
 
     describe('403 Forbidden', () => {
-      it('maps to FORBIDDEN', () => {
+      it('maps to Forbidden', () => {
         const error = httpToClientError(403, { message: 'Access denied' });
-        expect(error.code).toBe('FORBIDDEN');
+        expect(error.code).toBe('Forbidden');
         expect(error.message).toBe('Access denied');
       });
     });
 
     describe('404 Not Found', () => {
-      it('maps to NOT_FOUND', () => {
+      it('maps to NotFound', () => {
         const error = httpToClientError(404, { message: 'User not found', resource: 'user' });
-        expect(error.code).toBe('NOT_FOUND');
+        expect(error.code).toBe('NotFound');
         expect(error.message).toBe('User not found');
         expect((error as ReturnType<typeof createNotFoundError>).resource).toBe('user');
       });
     });
 
     describe('409 Conflict', () => {
-      it('maps to CONFLICT', () => {
+      it('maps to Conflict', () => {
         const error = httpToClientError(409, { message: 'Email taken', field: 'email' });
-        expect(error.code).toBe('CONFLICT');
+        expect(error.code).toBe('Conflict');
         expect(error.message).toBe('Email taken');
         expect((error as ReturnType<typeof createConflictError>).field).toBe('email');
       });
@@ -71,7 +71,7 @@ describe('mapping/http-to-client', () => {
           issues: [],
         };
         const error = httpToClientError(422, body);
-        expect(error.code).toBe('VALIDATION_ERROR');
+        expect(error.code).toBe('ValidationError');
       });
     });
 

@@ -6,27 +6,27 @@ import { EntityError, isEntityValidationError } from '@vertz/errors';
 // ---------------------------------------------------------------------------
 
 const ERROR_CODE_TO_STATUS: Record<string, number> = {
-  BAD_REQUEST: 400,
-  UNAUTHORIZED: 401,
-  FORBIDDEN: 403,
-  NOT_FOUND: 404,
-  METHOD_NOT_ALLOWED: 405,
-  CONFLICT: 409,
-  ENTITY_VALIDATION_ERROR: 422,
-  INTERNAL_ERROR: 500,
-  SERVICE_UNAVAILABLE: 503,
+  BadRequest: 400,
+  Unauthorized: 401,
+  Forbidden: 403,
+  NotFound: 404,
+  MethodNotAllowed: 405,
+  Conflict: 409,
+  ValidationError: 422,
+  InternalError: 500,
+  ServiceUnavailable: 503,
 };
 
 const STATUS_TO_ERROR_CODE: Record<number, string> = {
-  400: 'BAD_REQUEST',
-  401: 'UNAUTHORIZED',
-  403: 'FORBIDDEN',
-  404: 'NOT_FOUND',
-  405: 'METHOD_NOT_ALLOWED',
-  409: 'CONFLICT',
-  422: 'VALIDATION_ERROR',
-  500: 'INTERNAL_ERROR',
-  503: 'SERVICE_UNAVAILABLE',
+  400: 'BadRequest',
+  401: 'Unauthorized',
+  403: 'Forbidden',
+  404: 'NotFound',
+  405: 'MethodNotAllowed',
+  409: 'Conflict',
+  422: 'ValidationError',
+  500: 'InternalError',
+  503: 'ServiceUnavailable',
 };
 
 // ---------------------------------------------------------------------------
@@ -76,7 +76,7 @@ export function entityErrorHandler(error: unknown): EntityErrorResult {
 
   // Handle VertzException from @vertz/core (thrown by other code)
   if (error instanceof VertzException) {
-    const code = STATUS_TO_ERROR_CODE[error.statusCode] ?? 'INTERNAL_ERROR';
+    const code = STATUS_TO_ERROR_CODE[error.statusCode] ?? 'InternalError';
 
     // Only include structured details for ValidationException (safe, structured errors).
     // Generic VertzException.details is NOT included to prevent leaking hidden fields
@@ -98,7 +98,7 @@ export function entityErrorHandler(error: unknown): EntityErrorResult {
   return {
     status: 500,
     body: {
-      error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' },
+      error: { code: 'InternalError', message: 'An unexpected error occurred' },
     },
   };
 }

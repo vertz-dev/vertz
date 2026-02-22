@@ -700,7 +700,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
       });
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error.code).toBe('NOT_FOUND');
+        expect(result.error.code).toBe('NotFound');
         expect(result.error.table).toBe('posts');
       }
     });

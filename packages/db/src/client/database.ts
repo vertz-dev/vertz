@@ -784,7 +784,7 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
         const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs, dialectObj);
         if (result === null) {
           return err({
-            code: 'NOT_FOUND' as const,
+            code: 'NotFound' as const,
             message: `Record not found in table ${name}`,
             table: name,
           });

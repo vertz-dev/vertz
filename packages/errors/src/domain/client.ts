@@ -15,7 +15,7 @@
  * Maps from server's VALIDATION_FAILED.
  */
 export interface ValidationError {
-  readonly code: 'VALIDATION_ERROR';
+  readonly code: 'ValidationError';
   readonly message: string;
   readonly issues?: readonly {
     readonly path: readonly (string | number)[];
@@ -36,7 +36,7 @@ export function createValidationError(
   }[],
 ): ValidationError {
   return {
-    code: 'VALIDATION_ERROR',
+    code: 'ValidationError',
     message,
     issues,
   };
@@ -46,7 +46,7 @@ export function createValidationError(
  * Type guard for ValidationError.
  */
 export function isValidationError(error: { readonly code: string }): error is ValidationError {
-  return error.code === 'VALIDATION_ERROR';
+  return error.code === 'ValidationError';
 }
 
 /**
@@ -55,7 +55,7 @@ export function isValidationError(error: { readonly code: string }): error is Va
  * Maps from server's NOT_FOUND.
  */
 export interface NotFoundError {
-  readonly code: 'NOT_FOUND';
+  readonly code: 'NotFound';
   readonly message: string;
   readonly resource?: string;
 }
@@ -68,7 +68,7 @@ export function createNotFoundError(
   resource?: string,
 ): NotFoundError {
   return {
-    code: 'NOT_FOUND',
+    code: 'NotFound',
     message,
     resource,
   };
@@ -78,7 +78,7 @@ export function createNotFoundError(
  * Type guard for NotFoundError.
  */
 export function isNotFoundError(error: { readonly code: string }): error is NotFoundError {
-  return error.code === 'NOT_FOUND';
+  return error.code === 'NotFound';
 }
 
 /**
@@ -87,7 +87,7 @@ export function isNotFoundError(error: { readonly code: string }): error is NotF
  * Maps from server's UNIQUE_VIOLATION.
  */
 export interface ConflictError {
-  readonly code: 'CONFLICT';
+  readonly code: 'Conflict';
   readonly message: string;
   readonly field?: string;
 }
@@ -97,7 +97,7 @@ export interface ConflictError {
  */
 export function createConflictError(message = 'Resource conflict', field?: string): ConflictError {
   return {
-    code: 'CONFLICT',
+    code: 'Conflict',
     message,
     field,
   };
@@ -107,7 +107,7 @@ export function createConflictError(message = 'Resource conflict', field?: strin
  * Type guard for ConflictError.
  */
 export function isConflictError(error: { readonly code: string }): error is ConflictError {
-  return error.code === 'CONFLICT';
+  return error.code === 'Conflict';
 }
 
 /**
@@ -116,7 +116,7 @@ export function isConflictError(error: { readonly code: string }): error is Conf
  * Returned when the user is not authenticated.
  */
 export interface UnauthorizedError {
-  readonly code: 'UNAUTHORIZED';
+  readonly code: 'Unauthorized';
   readonly message: string;
 }
 
@@ -125,7 +125,7 @@ export interface UnauthorizedError {
  */
 export function createUnauthorizedError(message = 'Authentication required'): UnauthorizedError {
   return {
-    code: 'UNAUTHORIZED',
+    code: 'Unauthorized',
     message,
   };
 }
@@ -134,7 +134,7 @@ export function createUnauthorizedError(message = 'Authentication required'): Un
  * Type guard for UnauthorizedError.
  */
 export function isUnauthorizedError(error: { readonly code: string }): error is UnauthorizedError {
-  return error.code === 'UNAUTHORIZED';
+  return error.code === 'Unauthorized';
 }
 
 /**
@@ -143,7 +143,7 @@ export function isUnauthorizedError(error: { readonly code: string }): error is 
  * Returned when the user is authenticated but not authorized.
  */
 export interface ForbiddenError {
-  readonly code: 'FORBIDDEN';
+  readonly code: 'Forbidden';
   readonly message: string;
 }
 
@@ -152,7 +152,7 @@ export interface ForbiddenError {
  */
 export function createForbiddenError(message = 'Access denied'): ForbiddenError {
   return {
-    code: 'FORBIDDEN',
+    code: 'Forbidden',
     message,
   };
 }
@@ -161,7 +161,7 @@ export function createForbiddenError(message = 'Access denied'): ForbiddenError 
  * Type guard for ForbiddenError.
  */
 export function isForbiddenError(error: { readonly code: string }): error is ForbiddenError {
-  return error.code === 'FORBIDDEN';
+  return error.code === 'Forbidden';
 }
 
 /**

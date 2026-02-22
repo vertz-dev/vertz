@@ -163,7 +163,7 @@ describe('CheckConstraintError', () => {
 describe('NotFoundError', () => {
   it('has code NOT_FOUND and correct properties', () => {
     const err = new NotFoundError('users', 'SELECT * FROM users WHERE id = $1');
-    expect(err.code).toBe('NOT_FOUND');
+    expect(err.code).toBe('NotFound');
     expect(err.name).toBe('NotFoundError');
     expect(err.table).toBe('users');
     expect(err.query).toBe('SELECT * FROM users WHERE id = $1');
@@ -175,7 +175,7 @@ describe('NotFoundError', () => {
     const json = err.toJSON();
     expect(json).toEqual({
       error: 'NotFoundError',
-      code: 'NOT_FOUND',
+      code: 'NotFound',
       message: expect.stringContaining('users'),
       table: 'users',
     });

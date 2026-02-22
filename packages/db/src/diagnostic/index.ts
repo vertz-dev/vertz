@@ -80,7 +80,7 @@ const ERROR_PATTERNS: ReadonlyArray<{
   },
   {
     pattern: /Record not found in table ([^\s]+)/,
-    code: 'NOT_FOUND',
+    code: 'NotFound',
     explanation: 'A getOrThrow, update, or delete query did not match any rows.',
     suggestion:
       'Verify the where clause matches existing rows. Use get() if the record may not exist.',

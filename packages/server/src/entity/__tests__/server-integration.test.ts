@@ -227,7 +227,7 @@ describe('createServer with entities', () => {
 
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.error.code).toBe('NOT_FOUND');
+    expect(body.error.code).toBe('NotFound');
   });
 
   it('registers multiple entities without conflict', async () => {
