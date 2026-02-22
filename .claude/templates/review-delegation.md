@@ -1,6 +1,84 @@
 # Code Review Delegation Template
 
-Use this template when requesting a code review for a PR.
+Use this template when **spawning a reviewer agent** for a PR.
+
+**CRITICAL: SPAWN THE REVIEWER - DO NOT ASK OR MENTION**
+
+❌ **NEVER do this:**
+- Add comment: "cc @username please review"
+- Add comment: "Requesting review from @someone"
+- Tag users in PR comments
+
+✅ **ALWAYS do this:**
+- Use `sessions_spawn` to spawn the reviewer agent
+- Pass this template as the task
+- Let the agent do the actual review and post it
+
+**Pattern:**
+```
+sessions_spawn(
+  agentId: "reviewer-name",
+  task: "[Use this template filled in - see example below]",
+  runTimeoutSeconds: 600
+)
+```
+
+**Example:**
+```typescript
+sessions_spawn(
+  agentId: "josh",
+  task: `**ADVERSARIAL Review: PR #560**
+
+You are josh, Developer Relations Lead. Your job is to **find what's wrong**, not approve quickly.
+
+**PR:** https://github.com/vertz-dev/vertz/pull/560
+**Author:** ben
+**Phase:** Phase 5 - Codegen
+
+**CRITICAL: Assume the author made mistakes. Your job is to protect the codebase.**
+
+**What to look for (actively hunt for problems):**
+- Does generated code match design doc approach or just outcome?
+- What edge cases aren't tested?
+- Are there type escapes (any, as, !) hiding unsafe code?
+- What could break in production that tests don't catch?
+
+[... rest of template filled in ...]
+
+**Post review:**
+- ✅ APPROVE only if you genuinely can't find issues
+- 🔄 REQUEST CHANGES if you find problems (even minor ones)
+- List EVERY concern you have
+
+Start now. Find the mistakes.`,
+  runTimeoutSeconds: 600
+)
+```
+
+---
+
+## ADVERSARIAL REVIEW MANDATE
+
+**To the reviewer:** Your job is to **find what's wrong**, not to approve quickly.
+
+**Assume the author made mistakes.** Your review protects the codebase from:
+- Bugs that tests don't catch
+- Design deviations
+- Type safety issues
+- Edge cases not handled
+- Production breakage scenarios
+- Technical debt
+
+**Hunt for problems:**
+- What edge cases weren't tested?
+- Where could this break in production?
+- Does this match the design doc **approach**, or just the outcome?
+- What happens when inputs are null/empty/malformed?
+- Are types actually safe or using `any`/`as`/`!` escapes?
+- What did the author not think about?
+- What assumptions aren't verified by tests?
+
+**Default to REQUEST CHANGES if you find ANY issue - even minor ones.**
 
 ---
 
@@ -56,15 +134,20 @@ Based on the ticket/design, the reviewer should expect:
 
 ---
 
-## Technical Review Checklist
+## Technical Review Checklist (Adversarial Mindset)
 
-- [ ] **Tests:** All new/modified code is tested
-- [ ] **Types:** TypeScript types are correct and inference works
-- [ ] **Naming:** Follows project conventions (see API_CONVENTIONS.md)
-- [ ] **Error handling:** Errors handled per project pattern (Result vs throw)
-- [ ] **Documentation:** Public APIs have TSDoc comments
-- [ ] **Performance:** No obvious performance issues
-- [ ] **Security:** No exposed secrets, SQL injection, XSS, etc.
+**Don't just check if items exist - actively look for what's missing or wrong:**
+
+- [ ] **Tests:** All new/modified code is tested **AND** edge cases covered (null, empty, invalid, boundary values)
+- [ ] **Types:** TypeScript types are correct **AND** no `any`, `as`, `!`, `@ts-ignore` escapes without justification
+- [ ] **Naming:** Follows project conventions **AND** names are clear/unambiguous (no `data`, `temp`, `helper`)
+- [ ] **Error handling:** Errors handled per project pattern **AND** all error paths return Result (no hidden throws)
+- [ ] **Documentation:** Public APIs have TSDoc **AND** examples are correct/tested (not outdated)
+- [ ] **Performance:** No obvious issues **AND** no O(n²) loops, unnecessary re-renders, or blocking operations
+- [ ] **Security:** No secrets **AND** no SQL injection, XSS, command injection, or unsafe deserialization
+- [ ] **Design compliance:** Implementation matches design doc **approach** (not just outcome) **AND** doesn't take shortcuts
+- [ ] **Breaking changes:** Checked for unintended API breakage **AND** semver compliance
+- [ ] **Untested assumptions:** Are there assumptions that aren't verified by tests?
 
 ---
 
@@ -173,11 +256,15 @@ I need input on [specific decision]:
 
 ## Anti-Patterns (DO NOT DO)
 
-❌ **Rubber stamping** - "Tests pass, LGTM" without checking design  
+❌ **Mention comments** - Adding "cc @username" or "requesting review from @someone" instead of spawning the reviewer
+❌ **Rubber stamping** - "Tests pass, LGTM" without checking design, edge cases, or type safety
+❌ **Soft reviews** - Looking for reasons to approve instead of reasons to block
+❌ **Assuming tests are correct** - Tests can pass but miss edge cases or test the wrong thing
 ❌ **Scope creep suggestions** - "While you're here, also add X" (file separate ticket)  
-❌ **Nitpicking without blockers** - Request changes for style preferences  
+❌ **Nitpicking without blockers** - Request changes for style preferences only
 ❌ **Approving with unresolved blockers** - "LGTM but please fix X" (should be Request Changes)  
-❌ **Ignoring design doc** - Approving because it "works" even if approach differs
+❌ **Ignoring design doc** - Approving because it "works" even if approach differs from design
+❌ **Ignoring type escapes** - Approving code with `any`/`as`/`!` without checking if they're justified
 
 ---
 

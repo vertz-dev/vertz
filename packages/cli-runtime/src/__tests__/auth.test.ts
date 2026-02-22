@@ -97,12 +97,17 @@ describe('createAuthManager', () => {
 
       const mockClient = {
         request: vi.fn().mockResolvedValue({
+          ok: true,
           data: {
-            device_code: 'device-123',
-            user_code: 'ABCD-1234',
-            verification_uri: 'https://example.com/verify',
-            expires_in: 300,
-            interval: 5,
+            data: {
+              device_code: 'device-123',
+              user_code: 'ABCD-1234',
+              verification_uri: 'https://example.com/verify',
+              expires_in: 300,
+              interval: 5,
+            },
+            status: 200,
+            headers: new Headers(),
           },
         }),
       };
@@ -141,11 +146,16 @@ describe('createAuthManager', () => {
 
       const mockClient = {
         request: vi.fn().mockResolvedValue({
+          ok: true,
           data: {
-            access_token: 'new-access',
-            refresh_token: 'new-refresh',
-            expires_in: 3600,
-            token_type: 'Bearer',
+            data: {
+              access_token: 'new-access',
+              refresh_token: 'new-refresh',
+              expires_in: 3600,
+              token_type: 'Bearer',
+            },
+            status: 200,
+            headers: new Headers(),
           },
         }),
       };
@@ -192,7 +202,10 @@ describe('createAuthManager', () => {
       });
 
       const mockClient = {
-        request: vi.fn().mockRejectedValue(new Error('Token expired')),
+        request: vi.fn().mockResolvedValue({
+          ok: false,
+          error: new Error('Token expired'),
+        }),
       };
 
       const result = await auth.refreshAccessToken(
@@ -215,14 +228,21 @@ describe('createAuthManager', () => {
         request: vi.fn().mockImplementation(async () => {
           callCount++;
           if (callCount < 3) {
-            const error = { body: { error: 'authorization_pending' } };
-            throw error;
+            return {
+              ok: false,
+              error: { body: { error: 'authorization_pending' } },
+            };
           }
           return {
+            ok: true,
             data: {
-              access_token: 'polled-token',
-              token_type: 'Bearer',
-              expires_in: 3600,
+              data: {
+                access_token: 'polled-token',
+                token_type: 'Bearer',
+                expires_in: 3600,
+              },
+              status: 200,
+              headers: new Headers(),
             },
           };
         }),
@@ -246,8 +266,9 @@ describe('createAuthManager', () => {
       const auth = createAuthManager({ configDir: '/tmp/test' }, store);
 
       const mockClient = {
-        request: vi.fn().mockRejectedValue({
-          body: { error: 'authorization_pending' },
+        request: vi.fn().mockResolvedValue({
+          ok: false,
+          error: { body: { error: 'authorization_pending' } },
         }),
       };
 

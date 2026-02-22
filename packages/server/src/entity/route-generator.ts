@@ -1,5 +1,4 @@
 import type { EntityRouteEntry } from '@vertz/core';
-import { unwrap } from '@vertz/errors';
 import { createActionHandler } from './action-pipeline';
 import { createEntityContext, type RequestInfo as EntityRequestInfo } from './context';
 import { createCrudHandlers, type EntityDbAdapter, type ListOptions } from './crud-pipeline';
@@ -119,8 +118,11 @@ export function generateEntityRoutes(
               after: after || undefined,
             };
             const result = await crudHandlers.list(entityCtx, options);
-            const { body, status } = unwrap(result);
-            return jsonResponse(body, status);
+            if (!result.ok) {
+              const { status, body } = entityErrorHandler(result.error);
+              return jsonResponse(body, status);
+            }
+            return jsonResponse(result.data.body, result.data.status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);
@@ -156,8 +158,11 @@ export function generateEntityRoutes(
             const entityCtx = makeEntityCtx(ctx);
             const id = getParams(ctx).id as string;
             const result = await crudHandlers.get(entityCtx, id);
-            const { body, status } = unwrap(result);
-            return jsonResponse(body, status);
+            if (!result.ok) {
+              const { status, body } = entityErrorHandler(result.error);
+              return jsonResponse(body, status);
+            }
+            return jsonResponse(result.data.body, result.data.status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);
@@ -193,8 +198,11 @@ export function generateEntityRoutes(
             const entityCtx = makeEntityCtx(ctx);
             const data = (ctx.body ?? {}) as Record<string, unknown>;
             const result = await crudHandlers.create(entityCtx, data);
-            const { body, status } = unwrap(result);
-            return jsonResponse(body, status);
+            if (!result.ok) {
+              const { status, body } = entityErrorHandler(result.error);
+              return jsonResponse(body, status);
+            }
+            return jsonResponse(result.data.body, result.data.status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);
@@ -231,8 +239,11 @@ export function generateEntityRoutes(
             const id = getParams(ctx).id as string;
             const data = (ctx.body ?? {}) as Record<string, unknown>;
             const result = await crudHandlers.update(entityCtx, id, data);
-            const { body, status } = unwrap(result);
-            return jsonResponse(body, status);
+            if (!result.ok) {
+              const { status, body } = entityErrorHandler(result.error);
+              return jsonResponse(body, status);
+            }
+            return jsonResponse(result.data.body, result.data.status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);
@@ -268,11 +279,14 @@ export function generateEntityRoutes(
             const entityCtx = makeEntityCtx(ctx);
             const id = getParams(ctx).id as string;
             const result = await crudHandlers.delete(entityCtx, id);
-            const { body, status } = unwrap(result);
-            if (status === 204) {
+            if (!result.ok) {
+              const { status, body } = entityErrorHandler(result.error);
+              return jsonResponse(body, status);
+            }
+            if (result.data.status === 204) {
               return emptyResponse(204);
             }
-            return jsonResponse(body, status);
+            return jsonResponse(result.data.body, result.data.status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);

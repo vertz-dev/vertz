@@ -143,7 +143,10 @@ export function createAuthManager(
     }
 
     const response = await client.request<DeviceCodeResponse>('POST', deviceAuthUrl, { body });
-    return response.data;
+    if (!response.ok) {
+      throw response.error;
+    }
+    return response.data.data;
   }
 
   async function pollForToken(
@@ -159,29 +162,31 @@ export function createAuthManager(
     while (Date.now() < deadline) {
       await sleep(interval * 1000);
 
-      try {
-        const response = await client.request<TokenResponse>('POST', tokenUrl, {
-          body: {
-            grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-            device_code: deviceCode,
-            client_id: clientId,
-          },
-        });
+      const response = await client.request<TokenResponse>('POST', tokenUrl, {
+        body: {
+          grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+          device_code: deviceCode,
+          client_id: clientId,
+        },
+      });
 
-        await storeTokens(response.data);
-        return response.data;
-      } catch (error: unknown) {
-        // Check for "authorization_pending" - keep polling
-        if (isAuthPendingError(error)) {
-          continue;
-        }
-        // Check for "slow_down" - increase interval
-        if (isSlowDownError(error)) {
-          interval += 5;
-          continue;
-        }
-        throw error;
+      if (response.ok) {
+        await storeTokens(response.data.data);
+        return response.data.data;
       }
+
+      // Handle error case
+      const error = response.error;
+      // Check for "authorization_pending" - keep polling
+      if (isAuthPendingError(error)) {
+        continue;
+      }
+      // Check for "slow_down" - increase interval
+      if (isSlowDownError(error)) {
+        interval += 5;
+        continue;
+      }
+      throw error;
     }
 
     throw new AuthError('Device code expired');
@@ -198,21 +203,21 @@ export function createAuthManager(
       return null;
     }
 
-    try {
-      const response = await client.request<TokenResponse>('POST', tokenUrl, {
-        body: {
-          grant_type: 'refresh_token',
-          refresh_token: credentials.refreshToken,
-          client_id: clientId,
-        },
-      });
+    const response = await client.request<TokenResponse>('POST', tokenUrl, {
+      body: {
+        grant_type: 'refresh_token',
+        refresh_token: credentials.refreshToken,
+        client_id: clientId,
+      },
+    });
 
-      await storeTokens(response.data);
-      return response.data;
-    } catch {
+    if (!response.ok) {
       // Refresh token may be invalid/expired
       return null;
     }
+
+    await storeTokens(response.data.data);
+    return response.data.data;
   }
 
   return {
