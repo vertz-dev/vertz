@@ -73,7 +73,7 @@ describe('hydration-context', () => {
       expect(span).not.toBeNull();
       expect(span?.tagName).toBe('SPAN');
       expect(debugSpy).toHaveBeenCalledWith(
-        '[hydrate] Skipping foreign node: <grammarly-extension>',
+        '[hydrate] Skipping non-matching node: <grammarly-extension> (expected <span>)',
       );
       debugSpy.mockRestore();
     });
@@ -214,6 +214,37 @@ describe('hydration-context', () => {
       const footer = claimElement('footer');
       expect(footer).not.toBeNull();
       expect(footer?.tagName).toBe('FOOTER');
+    });
+  });
+
+  describe('empty elements', () => {
+    it('enterChildren/exitChildren works on elements with no children', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<div></div><span>after</span>';
+      startHydration(root);
+
+      const div = claimElement('div')!;
+      expect(div).not.toBeNull();
+
+      // Enter empty div — cursor set to null (no children)
+      enterChildren(div);
+      // Exit — restore to root-level siblings
+      exitChildren();
+
+      // Should be able to claim next sibling
+      const span = claimElement('span');
+      expect(span).not.toBeNull();
+      expect(span?.tagName).toBe('SPAN');
+    });
+  });
+
+  describe('concurrent hydration guard', () => {
+    it('throws if startHydration is called while already hydrating', () => {
+      const root1 = document.createElement('div');
+      const root2 = document.createElement('div');
+      startHydration(root1);
+
+      expect(() => startHydration(root2)).toThrow(/already active/);
     });
   });
 });

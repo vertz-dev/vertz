@@ -2,13 +2,14 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { endHydration, startHydration } from '../../hydrate/hydration-context';
 import { signal } from '../../runtime/signal';
 import { __conditional } from '../conditional';
+import { __append, __element, __enterChildren, __exitChildren, __staticText } from '../element';
 
 describe('__conditional — hydration', () => {
   afterEach(() => {
     endHydration();
   });
 
-  it('claims comment anchor during hydration', () => {
+  it('claims comment anchor during hydration without removing it from SSR DOM', () => {
     const root = document.createElement('div');
     const comment = document.createComment('conditional');
     const span = document.createElement('span');
@@ -18,21 +19,23 @@ describe('__conditional — hydration', () => {
     startHydration(root);
 
     const show = signal(true);
-    const fragment = __conditional(
+    __conditional(
       () => show.value,
       () => {
-        const el = document.createElement('span');
-        el.textContent = 'visible';
+        const el = __element('span');
+        __enterChildren(el);
+        __append(el, __staticText('visible'));
+        __exitChildren();
         return el;
       },
       () => null,
     );
 
-    // Fragment should contain the claimed comment anchor
-    expect(fragment.childNodes.length).toBeGreaterThanOrEqual(1);
+    // The comment anchor must still be in the SSR root — not ripped out
+    expect(root.contains(comment)).toBe(true);
   });
 
-  it('claims active branch content during hydration', () => {
+  it('claims active branch content without removing it from SSR DOM', () => {
     const root = document.createElement('div');
     root.appendChild(document.createComment('conditional'));
     const span = document.createElement('span');
@@ -41,20 +44,47 @@ describe('__conditional — hydration', () => {
     startHydration(root);
 
     const show = signal(true);
-    const container = document.createElement('div');
-    const fragment = __conditional(
+    __conditional(
       () => show.value,
       () => {
-        // During hydration, this doesn't create a new node but reads from SSR
-        const el = document.createElement('span');
-        el.textContent = 'active';
+        const el = __element('span');
+        __enterChildren(el);
+        __append(el, __staticText('active'));
+        __exitChildren();
         return el;
       },
       () => null,
     );
-    container.appendChild(fragment);
 
-    expect(container.textContent).toContain('active');
+    // The SSR span must still be in the root — not moved to a fragment
+    expect(root.contains(span)).toBe(true);
+    expect(root.textContent).toContain('active');
+  });
+
+  it('adopts SSR span reference via __element during hydration', () => {
+    const root = document.createElement('div');
+    root.appendChild(document.createComment('conditional'));
+    const ssrSpan = document.createElement('span');
+    ssrSpan.textContent = 'content';
+    root.appendChild(ssrSpan);
+    startHydration(root);
+
+    const show = signal(true);
+    let claimedEl: HTMLElement | null = null;
+    __conditional(
+      () => show.value,
+      () => {
+        claimedEl = __element('span');
+        __enterChildren(claimedEl);
+        __append(claimedEl, __staticText('content'));
+        __exitChildren();
+        return claimedEl;
+      },
+      () => null,
+    );
+
+    // __element should have adopted the existing SSR span
+    expect(claimedEl).toBe(ssrSpan);
   });
 
   it('attaches reactive effect for future branch switches', () => {
@@ -66,28 +96,30 @@ describe('__conditional — hydration', () => {
     startHydration(root);
 
     const show = signal(true);
-    const container = document.createElement('div');
-    const fragment = __conditional(
+    __conditional(
       () => show.value,
       () => {
-        const el = document.createElement('span');
-        el.textContent = 'yes';
+        const el = __element('span');
+        __enterChildren(el);
+        __append(el, __staticText('yes'));
+        __exitChildren();
         return el;
       },
       () => {
-        const el = document.createElement('span');
-        el.textContent = 'no';
+        const el = __element('span');
+        __enterChildren(el);
+        __append(el, __staticText('no'));
+        __exitChildren();
         return el;
       },
     );
-    container.appendChild(fragment);
 
     // End hydration so future updates create new nodes
     endHydration();
 
     // Branch switch should work normally after hydration
     show.value = false;
-    expect(container.textContent).toContain('no');
+    expect(root.textContent).toContain('no');
   });
 
   it('branch switch after hydration creates new nodes normally', () => {
@@ -99,30 +131,32 @@ describe('__conditional — hydration', () => {
     startHydration(root);
 
     const show = signal(true);
-    const container = document.createElement('div');
-    const fragment = __conditional(
+    __conditional(
       () => show.value,
       () => {
-        const el = document.createElement('span');
-        el.textContent = 'true-branch';
+        const el = __element('span');
+        __enterChildren(el);
+        __append(el, __staticText('true-branch'));
+        __exitChildren();
         return el;
       },
       () => {
-        const el = document.createElement('p');
-        el.textContent = 'false-branch';
+        const el = __element('p');
+        __enterChildren(el);
+        __append(el, __staticText('false-branch'));
+        __exitChildren();
         return el;
       },
     );
-    container.appendChild(fragment);
 
     endHydration();
 
     // Switch to false branch
     show.value = false;
-    expect(container.textContent).toContain('false-branch');
+    expect(root.textContent).toContain('false-branch');
 
     // Switch back to true branch
     show.value = true;
-    expect(container.textContent).toContain('true-branch');
+    expect(root.textContent).toContain('true-branch');
   });
 });

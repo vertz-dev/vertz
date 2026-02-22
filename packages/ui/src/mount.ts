@@ -33,6 +33,10 @@ export interface MountHandle {
 /**
  * Mount an app to a DOM element.
  *
+ * For full-app SSR hydration, use `{ hydration: 'tolerant' }` to walk
+ * existing SSR DOM and attach reactivity without clearing and re-rendering.
+ * For island/per-component hydration, use `hydrate()` instead.
+ *
  * @param app - App function that returns an HTMLElement
  * @param selector - CSS selector string or HTMLElement
  * @param options - Mount options (theme, styles, onMount, etc.)
@@ -71,13 +75,20 @@ export function mount<AppFn extends () => HTMLElement>(
 
   const mode = options?.hydration ?? 'replace';
 
+  if (mode === 'strict') {
+    throw new Error(
+      "mount(): hydration: 'strict' is reserved but not yet implemented. " +
+        "Use 'tolerant' for SSR hydration or 'replace' (default) for CSR.",
+    );
+  }
+
   if (mode === 'tolerant') {
     if (!root.firstChild) {
       // Dev warning: tolerant mode on empty root is likely a mistake
       if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
         console.warn(
-          '[mount] hydration: "tolerant" used on empty root. ' +
-            'Did you mean "replace"? Falling back to replace mode.',
+          '[mount] hydration: "tolerant" has no effect on an empty root ' +
+            '(no SSR content found). Using replace mode.',
         );
       }
       // Fall through to replace mode
@@ -97,7 +108,7 @@ export function mount<AppFn extends () => HTMLElement>(
         // Bail out: hydration failed, fall back to full CSR
         endHydration();
         if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
-          console.warn('[mount] Hydration failed, falling back to replace mode:', e);
+          console.warn('[mount] Hydration failed — re-rendering from scratch (no data loss):', e);
         }
         // Fall through to replace mode
       }

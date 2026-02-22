@@ -135,9 +135,7 @@ describe('mount() — tolerant hydration', () => {
 
     mount(App, root, { hydration: 'tolerant' });
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('hydration: "tolerant" used on empty root'),
-    );
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('no SSR content found'));
     // Falls back to replace mode, so fresh content is rendered
     expect(root.textContent).toBe('fresh');
 
@@ -198,6 +196,14 @@ describe('mount() — tolerant hydration', () => {
 
     expect(root.innerHTML).not.toContain('old');
     expect(root.textContent).toBe('new');
+  });
+
+  it('strict mode throws an explicit error (reserved, not implemented)', () => {
+    const App = () => document.createElement('div');
+
+    expect(() => {
+      mount(App, root, { hydration: 'strict' });
+    }).toThrow(/not yet implemented/);
   });
 
   it('calls onMount after tolerant hydration', () => {

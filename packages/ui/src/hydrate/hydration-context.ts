@@ -16,6 +16,12 @@ const cursorStack: (Node | null)[] = [];
  * Begin hydration mode. Sets the cursor to the first child of `root`.
  */
 export function startHydration(root: Element): void {
+  if (isHydrating) {
+    throw new Error(
+      '[hydrate] startHydration() called while hydration is already active. ' +
+        'Concurrent hydration is not supported.',
+    );
+  }
   isHydrating = true;
   currentNode = root.firstChild;
   cursorStack.length = 0;
@@ -53,9 +59,11 @@ export function claimElement(tag: string): HTMLElement | null {
         currentNode = el.nextSibling;
         return el;
       }
-      // Non-matching element — skip (likely a browser extension node)
+      // Non-matching element — skip (browser extension or SSR mismatch)
       if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
-        console.debug(`[hydrate] Skipping foreign node: <${el.tagName.toLowerCase()}>`);
+        console.debug(
+          `[hydrate] Skipping non-matching node: <${el.tagName.toLowerCase()}> (expected <${tag}>)`,
+        );
       }
     }
 

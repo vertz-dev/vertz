@@ -104,15 +104,12 @@ function hydrateConditional(
 
   _tryOnCleanup(wrapper);
 
-  // During hydration, anchor and content are already in the DOM.
-  // Return a fragment that just references the anchor (for dispose tracking).
-  const fragment = document.createDocumentFragment();
-  fragment.appendChild(anchor);
-  if (currentNode) {
-    fragment.appendChild(currentNode);
-  }
-
-  const result: DisposableNode = Object.assign(fragment, { dispose: wrapper });
+  // During hydration, anchor and content are already in the SSR DOM.
+  // Do NOT move them into a fragment — that would rip them from the live tree.
+  // Return the anchor as the result node (it's already in the DOM).
+  const result: DisposableNode = Object.assign(anchor as Node, {
+    dispose: wrapper,
+  });
   return result;
 }
 

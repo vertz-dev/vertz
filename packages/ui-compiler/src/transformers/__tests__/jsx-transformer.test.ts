@@ -3,6 +3,7 @@ import { Project, ts } from 'ts-morph';
 import { describe, expect, it } from 'vitest';
 import { ComponentAnalyzer } from '../../analyzers/component-analyzer';
 import { JsxAnalyzer } from '../../analyzers/jsx-analyzer';
+import { compile } from '../../compiler';
 import type { VariableInfo } from '../../types';
 import { JsxTransformer } from '../jsx-transformer';
 
@@ -166,5 +167,69 @@ describe('JsxTransformer', () => {
     expect(result).toContain('__element("span")');
     expect(result).not.toContain('<div>');
     expect(result).not.toContain('<span>');
+  });
+
+  it('emits __enterChildren/__exitChildren around child construction with correct nesting', () => {
+    const result = transform(
+      `function App() {\n  return <div><span><p>text</p></span></div>;\n}`,
+      [],
+    );
+    // Each element with children should get __enterChildren before and __exitChildren after
+    // div has span as child, span has p as child, p has text as child
+    expect(result).toContain('__enterChildren(__el0)');
+    expect(result).toContain('__enterChildren(__el1)');
+    expect(result).toContain('__enterChildren(__el2)');
+
+    // Verify correct nesting: each __enterChildren is paired with __exitChildren
+    const enterCount = (result.match(/__enterChildren\(/g) ?? []).length;
+    const exitCount = (result.match(/__exitChildren\(\)/g) ?? []).length;
+    expect(enterCount).toBe(3);
+    expect(exitCount).toBe(3);
+
+    // Verify the nesting order: div's enterChildren comes first, then span's, then p's
+    const enterDiv = result.indexOf('__enterChildren(__el0)');
+    const enterSpan = result.indexOf('__enterChildren(__el1)');
+    const enterP = result.indexOf('__enterChildren(__el2)');
+    expect(enterDiv).toBeLessThan(enterSpan);
+    expect(enterSpan).toBeLessThan(enterP);
+  });
+
+  it('omits __enterChildren/__exitChildren for childless elements', () => {
+    // Self-closing elements and empty elements should not get enter/exit children calls
+    const selfClosing = transform(`function App() {\n  return <br />;\n}`, []);
+    expect(selfClosing).not.toContain('__enterChildren');
+    expect(selfClosing).not.toContain('__exitChildren');
+
+    const selfClosingImg = transform(`function App() {\n  return <img />;\n}`, []);
+    expect(selfClosingImg).not.toContain('__enterChildren');
+    expect(selfClosingImg).not.toContain('__exitChildren');
+
+    const emptyDiv = transform(`function App() {\n  return <div></div>;\n}`, []);
+    expect(emptyDiv).not.toContain('__enterChildren');
+    expect(emptyDiv).not.toContain('__exitChildren');
+  });
+
+  it('omits __enterChildren/__exitChildren for fragments', () => {
+    const result = transform(`function App() {\n  return <><div>a</div><span>b</span></>;\n}`, []);
+    // Fragment itself should NOT get __enterChildren/__exitChildren
+    // It uses document.createDocumentFragment() and __append directly
+    expect(result).toContain('document.createDocumentFragment()');
+    expect(result).not.toContain('__enterChildren(__el0)');
+
+    // But the child elements (div & span) that have text children SHOULD get them
+    expect(result).toContain('__enterChildren(__el1)');
+    expect(result).toContain('__enterChildren(__el2)');
+  });
+
+  it('import list includes __enterChildren, __exitChildren, __append, __staticText', () => {
+    const result = compile(`function App() {\n  return <div><span>hello</span></div>;\n}`);
+    const internalsImport = result.code
+      .split('\n')
+      .find((line) => line.includes("from '@vertz/ui/internals'"));
+    expect(internalsImport).toBeDefined();
+    expect(internalsImport).toContain('__enterChildren');
+    expect(internalsImport).toContain('__exitChildren');
+    expect(internalsImport).toContain('__append');
+    expect(internalsImport).toContain('__staticText');
   });
 });
