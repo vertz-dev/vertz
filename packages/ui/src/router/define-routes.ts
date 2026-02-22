@@ -36,6 +36,30 @@ export interface RouteDefinitionMap {
   [pattern: string]: RouteConfig;
 }
 
+/**
+ * Loose route config used as the generic constraint for `defineRoutes`.
+ * Uses `Record<string, string>` for loader params so any concrete loader
+ * that accesses string params (e.g., `params.id`) satisfies the constraint.
+ */
+export interface RouteConfigLike {
+  component: () => Node | Promise<{ default: () => Node }>;
+  /** Method syntax enables bivariant parameter checking, so RouteConfig<string>
+   *  (whose loader has params: Record<string, never>) satisfies this constraint. */
+  loader?(ctx: { params: Record<string, string>; signal: AbortSignal }): unknown;
+  errorComponent?: (error: Error) => Node;
+  searchParams?: SearchParamSchema<unknown>;
+  children?: Record<string, RouteConfigLike>;
+}
+
+/**
+ * Phantom branded array that carries the route map type `T`.
+ * The `__routes` property never exists at runtime — it is a type-level
+ * marker used to thread the developer's literal route keys through
+ * `createRouter`, `useRouter`, etc.
+ */
+export type TypedRoutes<T extends Record<string, RouteConfigLike> = RouteDefinitionMap> =
+  CompiledRoute[] & { readonly __routes: T };
+
 /** Internal compiled route. */
 export interface CompiledRoute {
   /** The original path pattern. */
@@ -85,7 +109,9 @@ export type LoaderData<T> = T extends { loader: (...args: never[]) => Promise<in
  * Define routes from a configuration map.
  * Returns an array of compiled routes preserving definition order.
  */
-export function defineRoutes(map: RouteDefinitionMap): CompiledRoute[] {
+export function defineRoutes<const T extends Record<string, RouteConfigLike>>(
+  map: T,
+): TypedRoutes<T> {
   const routes: CompiledRoute[] = [];
 
   for (const [pattern, config] of Object.entries(map)) {
@@ -104,7 +130,7 @@ export function defineRoutes(map: RouteDefinitionMap): CompiledRoute[] {
     routes.push(compiled);
   }
 
-  return routes;
+  return routes as TypedRoutes<T>;
 }
 
 /**
