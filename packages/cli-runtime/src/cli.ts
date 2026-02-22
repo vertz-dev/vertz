@@ -128,8 +128,12 @@ export function createCLI(config: CLIConfig, options: CLIOptions = {}): CLIRunti
           body: hasBody ? bodyParams : undefined,
         });
 
+        if (!response.ok) {
+          throw response.error;
+        }
+
         const format: OutputFormat = (parsed.globalFlags.output as OutputFormat) ?? 'json';
-        write(formatOutput(response.data, format));
+        write(formatOutput(response.data.data, format));
       } catch (error: unknown) {
         if (error instanceof Error) {
           writeError(`Error: ${error.message}`);
