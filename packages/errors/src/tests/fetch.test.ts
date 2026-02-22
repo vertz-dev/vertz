@@ -91,18 +91,18 @@ describe('FetchError classes', () => {
   describe('FetchValidationError', () => {
     it('should create a FetchValidationError with errors array', () => {
       const errors = [
-        { path: ['email'], message: 'Invalid email', code: 'INVALID_FORMAT' },
-        { path: ['age'], message: 'Must be positive', code: 'NEGATIVE_VALUE' },
+        { path: 'email', message: 'Invalid email' },
+        { path: 'age', message: 'Must be positive' },
       ];
-      const error = new FetchValidationError(errors);
+      const error = new FetchValidationError('Validation failed', errors);
       expect(error.name).toBe('ValidationError');
       expect(error.errors).toEqual(errors);
       expect(error.code).toBe('VALIDATION_ERROR');
     });
 
     it('should create a FetchValidationError with message', () => {
-      const errors = [{ path: ['email'], message: 'Invalid', code: 'INVALID' }];
-      const error = new FetchValidationError(errors, 'Validation failed');
+      const errors = [{ path: 'email', message: 'Invalid' }];
+      const error = new FetchValidationError('Validation failed', errors);
       expect(error.message).toBe('Validation failed');
     });
   });
@@ -133,7 +133,7 @@ describe('FetchError classes', () => {
     });
 
     it('should correctly identify FetchValidationError', () => {
-      const error = new FetchValidationError([]);
+      const error = new FetchValidationError('Validation failed', []);
       expect(isFetchValidationError(error)).toBe(true);
       expect(isFetchValidationError(new FetchNetworkError())).toBe(false);
     });
