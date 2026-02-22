@@ -251,7 +251,7 @@ describe('Fetch client → Result flow', () => {
         new Response(
           JSON.stringify({
             error: {
-              code: 'VALIDATION_ERROR',
+              code: 'ValidationError',
               errors: [
                 { path: 'email', message: 'Invalid email format' },
                 { path: 'age', message: 'Must be positive' },
@@ -399,7 +399,7 @@ describe('matchError exhaustive handling', () => {
     });
 
     it('handles HttpError (base class for 4xx/5xx)', () => {
-      const error = new FetchNotFoundError('Not found', 'NOT_FOUND');
+      const error = new FetchNotFoundError('Not found', 'NotFound');
       const result = matchError(error, {
         NetworkError: (e) => `Network: ${e.message}`,
         HttpError: (e) => `HTTP ${e.status}: ${e.message}`,
