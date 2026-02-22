@@ -9,23 +9,7 @@
 
 import { renderPage } from '@vertz/ui-server';
 import { App } from './app';
-import { globalCss } from '@vertz/ui';
-
-// Define styles inline for SSR (avoid importing client-side code)
-const globalStyles = globalCss({
-  '*, *::before, *::after': {
-    boxSizing: 'border-box',
-    margin: '0',
-    padding: '0',
-  },
-  body: {
-    fontFamily: 'system-ui, -apple-system, sans-serif',
-    backgroundColor: 'var(--color-background)',
-    color: 'var(--color-foreground)',
-    minHeight: '100vh',
-    lineHeight: '1.5',
-  },
-});
+import { globalStyles } from './index';
 
 /**
  * Render the app to a full HTML Response.
