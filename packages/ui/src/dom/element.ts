@@ -172,7 +172,19 @@ export function __element(tag: string, props?: Record<string, string>): HTMLElem
   if (getIsHydrating()) {
     const claimed = claimElement(tag);
     if (claimed) {
-      // SSR already set attributes — return the existing element
+      // Dev: check for ARIA mismatches
+      if (props && typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+        for (const [key, value] of Object.entries(props)) {
+          if (key === 'role' || key.startsWith('aria-')) {
+            const actual = claimed.getAttribute(key);
+            if (actual !== value) {
+              console.warn(
+                `[hydrate] ARIA mismatch on <${tag}>: ${key}="${actual}" (expected "${value}")`,
+              );
+            }
+          }
+        }
+      }
       return claimed;
     }
   }

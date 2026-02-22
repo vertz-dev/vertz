@@ -15,7 +15,8 @@ export interface DisposableNode extends Node {
  *
  * Compiler output target for ternary expressions and if/else in JSX.
  *
- * Returns a Node (DocumentFragment) with a `dispose` property attached.
+ * Returns a DisposableNode: a DocumentFragment (CSR) or the claimed
+ * comment anchor (hydration), with a `dispose` property attached.
  */
 export function __conditional(
   condFn: () => boolean,
