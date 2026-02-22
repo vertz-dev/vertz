@@ -6,8 +6,12 @@
  * checked by `tsc --noEmit` (typecheck), not by vitest at runtime.
  */
 
-import type { RouteConfig } from '../define-routes';
-import type { ExtractParams } from '../params';
+import type { RouteConfig, RouteDefinitionMap } from '../define-routes';
+import type { Router } from '../navigate';
+import type { ExtractParams, PathWithParams, RoutePaths } from '../params';
+import { useRouter } from '../router-context';
+import type { RouterViewProps } from '../router-view';
+import { RouterView } from '../router-view';
 
 // ─── ExtractParams positive tests ──────────────────────────────────────────
 
@@ -121,12 +125,68 @@ const _routeBadCtx: RouteConfig<'/items/:id', { item: string }> = {
 };
 void _routeBadCtx;
 
-// ─── RouterContext + useRouter + RouterView type tests ──────────────────────
+// ─── PathWithParams type tests ──────────────────────────────────────────────
 
-import type { Router } from '../navigate';
-import { useRouter } from '../router-context';
-import type { RouterViewProps } from '../router-view';
-import { RouterView } from '../router-view';
+// Single param: '/tasks/:id' → `/tasks/${string}`
+const _pwp1: PathWithParams<'/tasks/:id'> = `/tasks/${'42'}`;
+void _pwp1;
+
+// Multi param: '/users/:id/posts/:postId' → `/users/${string}/posts/${string}`
+const _pwp2: PathWithParams<'/users/:id/posts/:postId'> = `/users/${'a'}/posts/${'b'}`;
+void _pwp2;
+
+// Wildcard: '/files/*' → `/files/${string}`
+const _pwp3: PathWithParams<'/files/*'> = '/files/any/path';
+void _pwp3;
+
+// Backward compat: PathWithParams<string> = string
+const _pwp4: PathWithParams<string> = 'anything';
+void _pwp4;
+
+// Trailing slash: '/tasks/:id/' → `/tasks/${string}/`
+const _pwp5: PathWithParams<'/tasks/:id/'> = '/tasks/42/';
+void _pwp5;
+
+// Static path passthrough: '/' → '/'
+const _pwp6: PathWithParams<'/'> = '/';
+void _pwp6;
+
+// ─── RoutePaths type tests ──────────────────────────────────────────────────
+
+type TestRouteMap = {
+  '/': RouteConfig;
+  '/tasks/:id': RouteConfig;
+  '/settings': RouteConfig;
+};
+
+type TestPaths = RoutePaths<TestRouteMap>;
+
+// Valid paths compile
+const _rp1: TestPaths = '/';
+const _rp2: TestPaths = '/tasks/42';
+const _rp3: TestPaths = '/settings';
+void _rp1;
+void _rp2;
+void _rp3;
+
+// @ts-expect-error - '/nonexistent' is not a valid path
+const _rpBad: TestPaths = '/nonexistent';
+void _rpBad;
+
+// Backward compat: RoutePaths<RouteDefinitionMap> = string (string index sig)
+type FallbackPaths = RoutePaths<RouteDefinitionMap>;
+const _rpFallback: FallbackPaths = '/literally-anything';
+void _rpFallback;
+
+// Empty route map (literal object with no keys) produces never
+// biome-ignore lint/complexity/noBannedTypes: testing empty object type behavior
+type EmptyMap = {};
+type EmptyPaths = RoutePaths<EmptyMap>;
+// @ts-expect-error - never accepts nothing
+const _rpEmpty: EmptyPaths = '/anything';
+void _rpEmpty;
+
+// ─── RouterContext + useRouter + RouterView type tests ──────────────────────
 
 // useRouter() returns Router
 const _routerResult: Router = useRouter();

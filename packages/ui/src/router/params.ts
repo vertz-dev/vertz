@@ -27,6 +27,34 @@ type WithoutWildcard<T extends string> = T extends `${infer Before}*` ? Before :
  * `:param` segments become `{ param: string }`.
  * A trailing `*` becomes `{ '*': string }`.
  */
+/**
+ * Convert a route pattern to the union of URL shapes it accepts.
+ * - Static: `'/'` → `'/'`
+ * - Param: `'/tasks/:id'` → `` `/tasks/${string}` ``
+ * - Wildcard: `'/files/*'` → `` `/files/${string}` ``
+ * - Multi: `'/users/:id/posts/:postId'` → `` `/users/${string}/posts/${string}` ``
+ */
+export type PathWithParams<T extends string> = T extends `${infer Before}*`
+  ? `${Before}${string}`
+  : T extends `${infer Before}:${string}/${infer After}`
+    ? `${Before}${string}/${PathWithParams<`${After}`>}`
+    : T extends `${infer Before}:${string}`
+      ? `${Before}${string}`
+      : T;
+
+/**
+ * Union of all valid URL shapes for a route map.
+ * Maps each route pattern key through `PathWithParams` to produce the accepted URL shapes.
+ *
+ * Example:
+ * ```
+ * RoutePaths<{ '/': ..., '/tasks/:id': ... }> = '/' | `/tasks/${string}`
+ * ```
+ */
+export type RoutePaths<T> = {
+  [K in keyof T & string]: PathWithParams<K>;
+}[keyof T & string];
+
 export type ExtractParams<T extends string> = [
   ExtractParamsFromSegments<WithoutWildcard<T>>,
 ] extends [never]
