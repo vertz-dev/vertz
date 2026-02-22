@@ -1,76 +1,250 @@
 /**
- * Cloudflare Worker entry point for entity-todo.
+ * Cloudflare Worker entry point for Entity Todo.
  *
- * Uses D1 database binding for persistent storage.
- * Wires up the entity CRUD operations via createServer.
+ * Route splitting:
+ * - /api/* → JSON API handler (uses D1 database)
+ * - /*       → SSR HTML render
  */
 
-/// <reference types="@cloudflare/workers-types" />
-
-import { createHandler } from '@vertz/cloudflare';
-import { createServer } from '@vertz/server';
-import { todos } from './entities';
-import { createD1DbAdapter, D1DatabaseBinding } from './db-d1';
+import { createDb, d } from '@vertz/db';
+import { renderApp } from './entry-server';
+import type { D1Database } from '@cloudflare/workers-types';
 
 // ---------------------------------------------------------------------------
-// Cloudflare Worker Types (inline for simplicity)
+// Database schema
 // ---------------------------------------------------------------------------
 
-interface D1PreparedStatement {
-  bind(...values: unknown[]): D1PreparedStatement;
-  all(): Promise<{ results: unknown[] }>;
-  run(): Promise<{ meta: { changes: number } }>;
+const todosTable = d.table('todos', {
+  id: d.uuid().primary(),
+  title: d.text(),
+  completed: d.boolean().default(false),
+  createdAt: d.timestamp().default('now').readOnly(),
+  updatedAt: d.timestamp().autoUpdate().readOnly(),
+});
+
+const dbModels = {
+  todos: d.model(todosTable),
+};
+
+// ---------------------------------------------------------------------------
+// Security headers
+// ---------------------------------------------------------------------------
+
+function withSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set('X-Content-Type-Options', 'nosniff');
+  headers.set('X-Frame-Options', 'DENY');
+  headers.set('X-XSS-Protection', '1; mode=block');
+  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }
 
-interface D1Database {
-  prepare(sql: string): D1PreparedStatement;
-}
-
 // ---------------------------------------------------------------------------
-// Worker Environment Type
+// Database instance (initialized lazily)
 // ---------------------------------------------------------------------------
 
 interface Env {
   DB: D1Database;
 }
 
-// ---------------------------------------------------------------------------
-// Global adapter (created once, reused across requests)
-// ---------------------------------------------------------------------------
+let db: ReturnType<typeof createDb<typeof dbModels>> | null = null;
 
-let dbAdapter: ReturnType<typeof createD1DbAdapter> | null = null;
-
-/**
- * Get or create the D1 database adapter.
- * Created once at module load time, then reused.
- */
-function getDbAdapter(env: Env): ReturnType<typeof createD1DbAdapter> {
-  if (!dbAdapter) {
-    dbAdapter = createD1DbAdapter(env.DB as D1DatabaseBinding);
+function getDb(env: Env) {
+  if (!db) {
+    db = createDb({
+      models: dbModels,
+      dialect: 'sqlite',
+      d1: env.DB,
+    });
   }
-  return dbAdapter;
+  return db;
 }
 
 // ---------------------------------------------------------------------------
-// Worker Fetch Handler
+// API Handlers
+// ---------------------------------------------------------------------------
+
+/**
+ * Handle GET /api/todos - List all todos
+ */
+async function handleListTodos(_request: Request, env: Env): Promise<Response> {
+  const database = getDb(env);
+  const todos = await database.todos.findMany();
+  return new Response(JSON.stringify(todos), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Handle GET /api/todos/:id - Get a single todo
+ */
+async function handleGetTodo(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const id = url.pathname.split('/').pop();
+
+  if (!id) {
+    return new Response(JSON.stringify({ error: 'ID required' }), { status: 400 });
+  }
+
+  const database = getDb(env);
+  const todo = await database.todos.findById(id);
+
+  if (!todo) {
+    return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
+  }
+
+  return new Response(JSON.stringify(todo), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Handle POST /api/todos - Create a new todo
+ */
+async function handleCreateTodo(request: Request, env: Env): Promise<Response> {
+  try {
+    const body = await request.json();
+
+    if (!body.title || typeof body.title !== 'string') {
+      return new Response(JSON.stringify({ error: 'Title is required' }), { status: 400 });
+    }
+
+    const database = getDb(env);
+    const todo = await database.todos.create({
+      title: body.title,
+      completed: false,
+    });
+
+    return new Response(JSON.stringify(todo), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 });
+  }
+}
+
+/**
+ * Handle PATCH /api/todos/:id - Update a todo
+ */
+async function handleUpdateTodo(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const id = url.pathname.split('/').pop();
+
+  if (!id) {
+    return new Response(JSON.stringify({ error: 'ID required' }), { status: 400 });
+  }
+
+  const database = getDb(env);
+  const existing = await database.todos.findById(id);
+
+  if (!existing) {
+    return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
+  }
+
+  try {
+    const body = await request.json();
+
+    const updated = await database.todos.update(id, {
+      title: body.title ?? undefined,
+      completed: body.completed ?? undefined,
+    });
+
+    return new Response(JSON.stringify(updated), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), { status: 400 });
+  }
+}
+
+/**
+ * Handle DELETE /api/todos/:id - Delete a todo
+ */
+async function handleDeleteTodo(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const id = url.pathname.split('/').pop();
+
+  if (!id) {
+    return new Response(JSON.stringify({ error: 'ID required' }), { status: 400 });
+  }
+
+  const database = getDb(env);
+  const existing = await database.todos.findById(id);
+
+  if (!existing) {
+    return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
+  }
+
+  await database.todos.delete(id);
+
+  return new Response(null, { status: 204 });
+}
+
+/**
+ * Dispatch API requests to the appropriate handler
+ */
+async function handleApi(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const method = request.method;
+  const path = url.pathname;
+
+  // Route: /api/todos
+  if (path === '/api/todos' || path === '/api/todos/') {
+    if (method === 'GET') return handleListTodos(request, env);
+    if (method === 'POST') return handleCreateTodo(request, env);
+  }
+
+  // Route: /api/todos/:id
+  const idMatch = path.match(/^\/api\/todos\/([^\/]+)$/);
+  if (idMatch) {
+    if (method === 'GET') return handleGetTodo(request, env);
+    if (method === 'PATCH') return handleUpdateTodo(request, env);
+    if (method === 'DELETE') return handleDeleteTodo(request, env);
+  }
+
+  // No matching route
+  return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
+}
+
+// ---------------------------------------------------------------------------
+// SSR Handler
+// ---------------------------------------------------------------------------
+
+/**
+ * Handle SSR requests - render the app to HTML.
+ */
+async function handleSsr(request: Request): Promise<Response> {
+  const response = await renderApp();
+  return withSecurityHeaders(response);
+}
+
+// ---------------------------------------------------------------------------
+// Main worker fetch handler
 // ---------------------------------------------------------------------------
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    // Get the shared D1 adapter (created once, reused)
-    const adapter = getDbAdapter(env);
+  async fetch(request: Request, env: Env, _ctx: unknown): Promise<Response> {
+    // Validate D1 binding
+    if (!env.DB) {
+      const response = new Response('D1 database not bound — check wrangler.toml', { status: 500 });
+      return withSecurityHeaders(response);
+    }
 
-    // Create the server with the D1-backed entity adapter
-    const app = createServer({
-      apiPrefix: '/api',
-      entities: [todos],
-      _entityDbFactory: () => adapter,
-    });
+    const url = new URL(request.url);
 
-    // Use the createHandler to convert the AppBuilder to a Worker fetch handler
-    // Note: Routes are already registered with apiPrefix, so we don't strip basePath
-    const handler = createHandler(app);
+    // Route splitting: /api/* goes to JSON API, everything else goes to SSR
+    if (url.pathname.startsWith('/api/')) {
+      const response = await handleApi(request, env);
+      return withSecurityHeaders(response);
+    }
 
-    return handler.fetch(request, env, ctx);
+    // All other routes go to SSR
+    return handleSsr(request);
   },
 };
