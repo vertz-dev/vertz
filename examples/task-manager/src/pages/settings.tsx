@@ -84,10 +84,7 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
             tabindex="0"
             onClick={() => selectTheme('light')}
           >
-            <div
-              class={settingsStyles.classNames.previewBox}
-              style="background-color: #ffffff"
-            >
+            <div class={settingsStyles.classNames.previewBox} style="background-color: #ffffff">
               <div class={settingsStyles.classNames.previewText}>Light theme preview</div>
             </div>
             <div style="font-weight: 500">Light</div>
@@ -103,10 +100,7 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
             tabindex="0"
             onClick={() => selectTheme('dark')}
           >
-            <div
-              class={settingsStyles.classNames.previewBox}
-              style="background-color: #111827"
-            >
+            <div class={settingsStyles.classNames.previewBox} style="background-color: #111827">
               <div class={settingsStyles.classNames.previewText}>Dark theme preview</div>
             </div>
             <div style="font-weight: 500">Dark</div>
@@ -136,10 +130,18 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
               flashSaved();
             }}
           >
-            <option value="low" selected={defaultPriority === 'low'}>Low</option>
-            <option value="medium" selected={defaultPriority === 'medium'}>Medium</option>
-            <option value="high" selected={defaultPriority === 'high'}>High</option>
-            <option value="urgent" selected={defaultPriority === 'urgent'}>Urgent</option>
+            <option value="low" selected={defaultPriority === 'low'}>
+              Low
+            </option>
+            <option value="medium" selected={defaultPriority === 'medium'}>
+              Medium
+            </option>
+            <option value="high" selected={defaultPriority === 'high'}>
+              High
+            </option>
+            <option value="urgent" selected={defaultPriority === 'urgent'}>
+              Urgent
+            </option>
           </select>
         </div>
       </section>
