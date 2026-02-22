@@ -68,7 +68,7 @@ export function TaskDetailPage() {
     ? `Failed to load task: ${taskQuery.error instanceof Error ? taskQuery.error.message : String(taskQuery.error)}`
     : '';
 
-  const task = taskQuery.data ?? null;
+  const task = taskQuery.data.value ?? null;
 
   // Status transitions — the compiler classifies this as computed since
   // it depends on `task` (which depends on the signal API variable).

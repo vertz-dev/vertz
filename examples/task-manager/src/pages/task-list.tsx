@@ -47,11 +47,11 @@ export function TaskListPage() {
     ? `Failed to load tasks: ${tasksQuery.error instanceof Error ? tasksQuery.error.message : String(tasksQuery.error)}`
     : '';
 
-  const filteredTasks = !tasksQuery.data
+  const filteredTasks = !tasksQuery.data.value
     ? []
     : statusFilter === 'all'
-      ? tasksQuery.data.tasks
-      : tasksQuery.data.tasks.filter((t: Task) => t.status === statusFilter);
+      ? tasksQuery.data.value.tasks
+      : tasksQuery.data.value.tasks.filter((t: Task) => t.status === statusFilter);
 
   // ── Filter options ──────────────────────────────────
 
