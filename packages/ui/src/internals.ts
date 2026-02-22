@@ -32,7 +32,16 @@ export {
 // DOM helpers (used by compiler-generated JSX output)
 export { __attr, __classList, __show } from './dom/attributes';
 export { __conditional } from './dom/conditional';
-export { __child, __element, __insert, __text } from './dom/element';
+export {
+  __append,
+  __child,
+  __element,
+  __enterChildren,
+  __exitChildren,
+  __insert,
+  __staticText,
+  __text,
+} from './dom/element';
 export { __on } from './dom/events';
 export { clearChildren, insertBefore, removeNode } from './dom/insert';
 export { __list } from './dom/list';
