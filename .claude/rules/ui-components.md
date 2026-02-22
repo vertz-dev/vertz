@@ -209,3 +209,60 @@ export function useSettings(): SettingsContextValue {
   return ctx;
 }
 ```
+
+## Router
+
+### `RouterContext` + `useRouter()` for navigation
+
+Pages access the router via `useRouter()` context instead of receiving a `navigate` prop. This eliminates prop threading and keeps page signatures clean.
+
+```tsx
+// App shell — wrap in RouterContext.Provider
+RouterContext.Provider(appRouter, () => {
+  const view = RouterView({ router: appRouter });
+  // ... shell layout uses {view}
+});
+
+// Page component — access router via context
+export function TaskListPage() {
+  const { navigate } = useRouter();
+  // navigate('/tasks/new')
+}
+
+// Page with route params — read from router.current
+export function TaskDetailPage() {
+  const router = useRouter();
+  const taskId = router.current.value?.params.id ?? '';
+  // taskId is read once at construction (untracked), which is correct
+}
+```
+
+### `RouterView` for declarative route rendering
+
+Use `RouterView` instead of manual `watch()` + DOM swapping. It handles sync components, async/lazy components, stale resolution guards, and page cleanup automatically.
+
+```tsx
+// WRONG — manual imperative route rendering
+watch(() => appRouter.current.value, (match) => {
+  main.innerHTML = '';
+  main.appendChild(match.route.component());
+});
+
+// RIGHT — declarative with RouterView
+const view = RouterView({
+  router: appRouter,
+  fallback: () => <div>Page not found</div>,
+});
+```
+
+### Route definitions — no prop threading
+
+Route component factories call page functions without props. Pages get everything they need from `useRouter()`.
+
+```tsx
+// WRONG — threading navigate through every route
+'/': { component: () => TaskListPage({ navigate: (url) => router.navigate(url) }) }
+
+// RIGHT — pages use useRouter() internally
+'/': { component: () => TaskListPage() }
+```

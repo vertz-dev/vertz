@@ -12,11 +12,14 @@ import { describe, expect, test } from 'vitest';
 
 describe('Subpath Exports — @vertz/ui/router', () => {
   const expectedExports = [
+    'RouterContext',
+    'RouterView',
     'createLink',
     'createOutlet',
     'createRouter',
     'defineRoutes',
     'parseSearchParams',
+    'useRouter',
     'useSearchParams',
   ];
 
@@ -26,10 +29,15 @@ describe('Subpath Exports — @vertz/ui/router', () => {
     expect(actualExports).toEqual(expectedExports);
   });
 
-  test('all exports are functions', async () => {
+  test('all exports are functions or objects', async () => {
     const mod = await import('../router/public');
     for (const name of expectedExports) {
-      expect(mod[name as keyof typeof mod], `${name} should be a function`).toBeTypeOf('function');
+      const val = mod[name as keyof typeof mod];
+      const type = typeof val;
+      expect(
+        type === 'function' || type === 'object',
+        `${name} should be a function or object, got ${type}`,
+      ).toBe(true);
     }
   });
 
@@ -43,11 +51,14 @@ describe('Subpath Exports — @vertz/ui/router', () => {
   test('same references as main barrel', async () => {
     const main = await import('../index');
     const subpath = await import('../router/public');
+    expect(subpath.RouterContext).toBe(main.RouterContext);
+    expect(subpath.RouterView).toBe(main.RouterView);
     expect(subpath.defineRoutes).toBe(main.defineRoutes);
     expect(subpath.createRouter).toBe(main.createRouter);
     expect(subpath.createLink).toBe(main.createLink);
     expect(subpath.createOutlet).toBe(main.createOutlet);
     expect(subpath.parseSearchParams).toBe(main.parseSearchParams);
+    expect(subpath.useRouter).toBe(main.useRouter);
     expect(subpath.useSearchParams).toBe(main.useSearchParams);
   });
 });
@@ -192,6 +203,9 @@ describe('Subpath Exports — main barrel backward compat', () => {
     expect(main.createRouter).toBeTypeOf('function');
     expect(main.createLink).toBeTypeOf('function');
     expect(main.createOutlet).toBeTypeOf('function');
+    expect(main.RouterContext).toBeTypeOf('object');
+    expect(main.RouterView).toBeTypeOf('function');
+    expect(main.useRouter).toBeTypeOf('function');
     expect(main.parseSearchParams).toBeTypeOf('function');
     expect(main.useSearchParams).toBeTypeOf('function');
   });
