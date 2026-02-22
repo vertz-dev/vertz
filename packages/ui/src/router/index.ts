@@ -3,9 +3,11 @@ export type {
   LoaderData,
   MatchedRoute,
   RouteConfig,
+  RouteConfigLike,
   RouteDefinitionMap,
   RouteMatch,
   SearchParamSchema,
+  TypedRoutes,
 } from './define-routes';
 export { defineRoutes, matchRoute } from './define-routes';
 export type { LinkProps } from './link';

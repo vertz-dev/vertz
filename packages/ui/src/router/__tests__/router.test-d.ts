@@ -6,7 +6,8 @@
  * checked by `tsc --noEmit` (typecheck), not by vitest at runtime.
  */
 
-import type { RouteConfig, RouteDefinitionMap } from '../define-routes';
+import type { CompiledRoute, RouteConfig, RouteDefinitionMap, TypedRoutes } from '../define-routes';
+import { defineRoutes } from '../define-routes';
 import type { Router } from '../navigate';
 import type { ExtractParams, PathWithParams, RoutePaths } from '../params';
 import { useRouter } from '../router-context';
@@ -193,6 +194,49 @@ type EmptyPaths = RoutePaths<EmptyMap>;
 // @ts-expect-error - never accepts nothing
 const _rpEmpty: EmptyPaths = '/anything';
 void _rpEmpty;
+
+// ─── defineRoutes + TypedRoutes type tests ───────────────────────────────────
+
+// Cycle 1: defineRoutes preserves literal keys via const T
+const _typedRoutes = defineRoutes({
+  '/': { component: () => document.createElement('div') },
+  '/tasks/:id': {
+    component: () => document.createElement('div'),
+    loader: ({ params }) => {
+      // Cycle 3: loader accessing params.id must compile
+      // With noUncheckedIndexedAccess, Record<string, string> index is string | undefined
+      const _id: string | undefined = params.id;
+      void _id;
+      return {};
+    },
+  },
+});
+
+// Literal key '/tasks/:id' is preserved in the phantom type
+type P2RouteMap = (typeof _typedRoutes)['__routes'];
+type P2Keys = keyof P2RouteMap;
+const _p2Key1: P2Keys = '/';
+const _p2Key2: P2Keys = '/tasks/:id';
+void _p2Key1;
+void _p2Key2;
+
+// @ts-expect-error - '/nonexistent' is not a key in the route map
+const _p2BadKey: P2Keys = '/nonexistent';
+void _p2BadKey;
+
+// Cycle 2: TypedRoutes<T> is assignable to CompiledRoute[]
+const _asArray: CompiledRoute[] = _typedRoutes;
+void _asArray;
+
+// Cycle 4: Array spread strips the phantom brand (intentional)
+const _spread = [..._typedRoutes];
+const _spreadCheck: CompiledRoute[] = _spread;
+void _spreadCheck;
+
+// TypedRoutes default (RouteDefinitionMap) is backward-compatible
+declare const _defaultRoutes: TypedRoutes;
+const _defaultAsArray: CompiledRoute[] = _defaultRoutes;
+void _defaultAsArray;
 
 // ─── RouterContext + useRouter + RouterView type tests ──────────────────────
 

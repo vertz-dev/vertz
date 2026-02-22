@@ -9,11 +9,12 @@
  * @see plans/type-safe-router-impl.md (implementation plan)
  */
 
+// Phase 2: TypedRoutes now exists
+import type { CompiledRoute, TypedRoutes } from '../define-routes';
+import { defineRoutes } from '../define-routes';
 // Phase 1: these imports exist
 import type { PathWithParams, RoutePaths } from '../params';
 
-// Phase 2+: these don't exist yet — will cause compile errors
-// TODO(phase-2): import type { TypedRoutes } from '../define-routes';
 // TODO(phase-3): import type { TypedRouter } from '../navigate';
 // TODO(phase-4): import type { InferRouteMap } from '../define-routes';
 
@@ -52,12 +53,37 @@ void _bad1;
 const _bad2: E2EPaths = '/tasks';
 void _bad2;
 
-// ─── Phase 2+ tests (commented out until types exist) ───────────────────────
+// ─── Phase 2: defineRoutes<const T>() preserves literal keys ────────────────
+
+const _e2eRoutes = defineRoutes({
+  '/': { component: () => document.createElement('div') },
+  '/tasks/:id': { component: () => document.createElement('div') },
+  '/users/:userId/posts/:postId': { component: () => document.createElement('div') },
+  '/settings': { component: () => document.createElement('div') },
+  '/files/*': { component: () => document.createElement('div') },
+});
+
+// Literal keys preserved via phantom type
+type E2EKeys = keyof (typeof _e2eRoutes)['__routes'];
+const _e2eKey1: E2EKeys = '/';
+const _e2eKey2: E2EKeys = '/tasks/:id';
+const _e2eKey3: E2EKeys = '/settings';
+void _e2eKey1;
+void _e2eKey2;
+void _e2eKey3;
+
+// TypedRoutes assignable to CompiledRoute[]
+const _e2eAsArray: CompiledRoute[] = _e2eRoutes;
+void _e2eAsArray;
+
+// defineRoutes return type is TypedRoutes
+const _e2eTyped: TypedRoutes<(typeof _e2eRoutes)['__routes']> = _e2eRoutes;
+void _e2eTyped;
+
+// ─── Phase 3+ tests (commented out until types exist) ───────────────────────
 
 // The following tests will be uncommented as each phase is implemented.
 // They are left here as the specification of what must compile when done.
-
-// Phase 2: defineRoutes<const T>() preserves literal keys
 // Phase 3: createRouter returns TypedRouter, navigate validates paths
 // Phase 3: TypedRouter assignable to Router, backward compat
 // Phase 4: useParams<TPath> returns ExtractParams<TPath>
