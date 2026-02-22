@@ -12,15 +12,18 @@ function makeDiagnostic(severity: 'error' | 'warning'): Diagnostic {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const getProps = (el: any) => el.props;
+
 describe('DiagnosticSummary', () => {
   it('renders no errors when empty', () => {
     const el = DiagnosticSummary({ diagnostics: [] }) as ReactElement;
-    expect(el.props.children).toEqual([symbols.success, ' No errors']);
+    expect(getProps(el).children).toEqual([symbols.success, ' No errors']);
   });
 
   it('renders singular error count', () => {
     const el = DiagnosticSummary({ diagnostics: [makeDiagnostic('error')] }) as ReactElement;
-    const parts = el.props.children;
+    const parts = getProps(el).children;
     expect(parts[0].props.children).toEqual([1, ' error', '']);
   });
 
@@ -28,7 +31,7 @@ describe('DiagnosticSummary', () => {
     const el = DiagnosticSummary({
       diagnostics: [makeDiagnostic('error'), makeDiagnostic('error'), makeDiagnostic('error')],
     }) as ReactElement;
-    const parts = el.props.children;
+    const parts = getProps(el).children;
     expect(parts[0].props.children).toEqual([3, ' error', 's']);
   });
 
@@ -36,7 +39,7 @@ describe('DiagnosticSummary', () => {
     const el = DiagnosticSummary({
       diagnostics: [makeDiagnostic('warning'), makeDiagnostic('warning')],
     }) as ReactElement;
-    const parts = el.props.children;
+    const parts = getProps(el).children;
     expect(parts[0].props.children).toEqual([2, ' warning', 's']);
   });
 
@@ -44,7 +47,7 @@ describe('DiagnosticSummary', () => {
     const el = DiagnosticSummary({
       diagnostics: [makeDiagnostic('error'), makeDiagnostic('warning')],
     }) as ReactElement;
-    const parts = el.props.children;
+    const parts = getProps(el).children;
     expect(parts[0].props.children).toEqual([1, ' error', '']);
     expect(parts[1].props.children).toEqual(', ');
     expect(parts[2].props.children).toEqual([1, ' warning', '']);
