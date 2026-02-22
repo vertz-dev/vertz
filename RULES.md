@@ -85,6 +85,9 @@ Bot gh:    /Users/viniciusdacal/openclaw-workspace/backstage/bots/gh-as.sh $AGEN
 
 **Reviewing a PR:**
 1. This file → `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/pr-policies.md` → `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/review-followups.md`
+2. **SPAWN the reviewer agent** - don't just add a comment mentioning them
+3. **Adversarial mindset** - your job is to find mistakes, not to approve quickly. Assume the author missed something.
+4. **Never mention users** - no "cc @username" or "@someone please review" comments. Just spawn the agent to do the actual review.
 
 ---
 

@@ -75,7 +75,8 @@ export function emitBarrelIndex(ir: CodegenIR): GeneratedFile {
 
   // Client re-exports
   lines.push("export { createClient } from './client';");
-  lines.push("export type { SDKConfig, SDKResult } from './client';");
+  lines.push("export type { SDKConfig } from './client';");
+  lines.push("export type { Result, FetchError } from '@vertz/errors';");
 
   // Module type re-exports
   for (const mod of ir.modules) {
@@ -102,6 +103,7 @@ export function emitBarrelIndex(ir: CodegenIR): GeneratedFile {
 
 export function emitPackageJson(ir: CodegenIR, options: PackageOptions): GeneratedFile {
   const dependencies: Record<string, string> = {
+    '@vertz/errors': '*',
     '@vertz/fetch': '*',
   };
 
