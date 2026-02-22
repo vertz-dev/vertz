@@ -18,9 +18,10 @@ import { todoTheme } from './styles/theme';
 import { globalStyles } from './index';
 
 // Mount the app to #app
-// This replaces any SSR content with the client-rendered app
-// The globalStyles is imported from index.ts where it's defined via globalCss()
+// Use 'tolerant' hydration to walk existing SSR DOM nodes instead of replacing them
+// This preserves the server-rendered content while attaching event handlers
 mount(App, '#app', {
   theme: todoTheme,
   styles: [globalStyles.css],
+  hydration: 'tolerant',
 });
