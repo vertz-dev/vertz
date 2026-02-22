@@ -7,12 +7,11 @@
  * - Auto-unwrapped signal properties: taskQuery.loading, taskQuery.error
  * - Compiler `const` → computed transform for derived values from query()
  * - Dialog primitive for delete confirmation (<ConfirmDialog /> in JSX)
- * - Tabs primitive for content sections
+ * - Declarative tab switching with `let` signal state
  * - Compiler conditional transform for loading/error/content visibility
  */
 
 import { css, onCleanup, onMount, query } from '@vertz/ui';
-import { Tabs } from '@vertz/ui-primitives';
 import { deleteTask, fetchTask, updateTask } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import type { TaskStatus } from '../lib/types';
@@ -88,28 +87,8 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
           ? [{ label: 'Reopen', status: 'in-progress' }]
           : [];
 
-  // ── Tabs (Details / Activity) — primitive API is imperative ──
-
-  const tabs = Tabs.Root({ defaultValue: 'details' });
-  const detailsTab = tabs.Tab('details', 'Details');
-  const activityTab = tabs.Tab('activity', 'Activity');
-
-  // Panel content uses reactive JSX — {task?.description} compiles to
-  // __child(() => task.value?.description), updating when data loads.
-  detailsTab.panel.appendChild(
-    <div class={detailStyles.classNames.section}>
-      <h3 class={detailStyles.classNames.sectionTitle}>Description</h3>
-      <div class={detailStyles.classNames.description} data-testid="task-description">
-        {task?.description}
-      </div>
-    </div>,
-  );
-
-  activityTab.panel.appendChild(
-    <div class={detailStyles.classNames.timeline}>
-      No activity yet. Status changes and comments will appear here.
-    </div>,
-  );
+  // Tab state — compiler transforms `let` to signal()
+  let activeTab = 'details';
 
   // ── Cleanup ────────────────────────────────────────
 
@@ -189,7 +168,39 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
               </button>
             ))}
           </div>
-          <div style="margin-top: 1.5rem">{tabs.root}</div>
+          <div style="margin-top: 1.5rem">
+            <div style="display: flex; gap: 0.5rem; border-bottom: 1px solid var(--color-border-200); padding-bottom: 0.5rem; margin-bottom: 1rem">
+              <button
+                class={button({ intent: activeTab === 'details' ? 'primary' : 'ghost', size: 'sm' })}
+                onClick={() => {
+                  activeTab = 'details';
+                }}
+              >
+                Details
+              </button>
+              <button
+                class={button({ intent: activeTab === 'activity' ? 'primary' : 'ghost', size: 'sm' })}
+                onClick={() => {
+                  activeTab = 'activity';
+                }}
+              >
+                Activity
+              </button>
+            </div>
+            {activeTab === 'details' && (
+              <div class={detailStyles.classNames.section}>
+                <h3 class={detailStyles.classNames.sectionTitle}>Description</h3>
+                <div class={detailStyles.classNames.description} data-testid="task-description">
+                  {task.description}
+                </div>
+              </div>
+            )}
+            {activeTab === 'activity' && (
+              <div class={detailStyles.classNames.timeline}>
+                No activity yet. Status changes and comments will appear here.
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
