@@ -661,13 +661,10 @@ describe('emitClientFile', () => {
     expect(result.content).toContain("from './modules/billing'");
   });
 
-  it('includes SDKResult type definition', () => {
+  it('imports Result and FetchError types from @vertz/errors', () => {
     const result = emitClientFile(makeIR({}));
 
-    expect(result.content).toContain('export interface SDKResult<T>');
-    expect(result.content).toContain('data: T');
-    expect(result.content).toContain('status: number');
-    expect(result.content).toContain('headers: Headers');
+    expect(result.content).toContain("import type { FetchError, Result } from '@vertz/errors'");
   });
 
   it('includes SDKConfig interface from emitSDKConfig', () => {

@@ -239,7 +239,8 @@ describe('emitBarrelIndex', () => {
     const result = emitBarrelIndex(makeIR({}));
 
     expect(result.content).toContain("export { createClient } from './client';");
-    expect(result.content).toContain("export type { SDKConfig, SDKResult } from './client';");
+    expect(result.content).toContain("export type { SDKConfig } from './client';");
+    expect(result.content).toContain("export type { Result, FetchError } from '@vertz/errors';");
   });
 
   it('re-exports module types from the types directory for each module', () => {
@@ -308,7 +309,8 @@ describe('emitBarrelIndex', () => {
     const result = emitBarrelIndex(makeIR({ modules: [], schemas: [] }));
 
     expect(result.content).toContain("export { createClient } from './client';");
-    expect(result.content).toContain("export type { SDKConfig, SDKResult } from './client';");
+    expect(result.content).toContain("export type { SDKConfig } from './client';");
+    expect(result.content).toContain("export type { Result, FetchError } from '@vertz/errors';");
     expect(result.content).not.toContain('./types/');
     expect(result.content).not.toContain('./schemas');
   });
@@ -352,6 +354,13 @@ describe('emitPackageJson', () => {
     const pkg = JSON.parse(result.content);
 
     expect(pkg.dependencies).toHaveProperty('@vertz/fetch');
+  });
+
+  it('lists @vertz/errors as a dependency', () => {
+    const result = emitPackageJson(makeIR({}), { packageName: '@acme/sdk' });
+    const pkg = JSON.parse(result.content);
+
+    expect(pkg.dependencies).toHaveProperty('@vertz/errors');
   });
 
   it('lists @vertz/schema as a dependency when schemas exist', () => {
