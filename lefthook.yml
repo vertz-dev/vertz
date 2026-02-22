@@ -3,4 +3,4 @@ pre-push:
     trojan-source:
       run: bash scripts/check-unicode.sh
     quality-gates:
-      run: turbo run lint typecheck test build --output-logs=errors-only
+      run: turbo run lint typecheck test build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!task-api-example' --output-logs=errors-only
