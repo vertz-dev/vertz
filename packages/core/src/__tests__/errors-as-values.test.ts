@@ -139,7 +139,7 @@ describe('errors-as-values in route handlers', () => {
 
       expect(res.status).toBe(404);
       const body = await res.json();
-      expect(body.message).toBe('User not found');
+      expect(body.error.message).toBe('User not found');
     });
   });
 

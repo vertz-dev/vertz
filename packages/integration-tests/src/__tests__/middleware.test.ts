@@ -31,7 +31,7 @@ describe('Auth middleware', () => {
 
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.error).toBe('UnauthorizedException');
+    expect(body.error.code).toBe('Unauthorized');
   });
 
   it('returns 401 when token format is invalid', async () => {

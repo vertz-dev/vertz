@@ -14,13 +14,13 @@ export class VertzException extends Error {
     }
   }
 
-  toJSON(): Record<string, unknown> {
+  toJSON(): { error: { code: string; message: string; details?: unknown } } {
     return {
-      error: this.name,
-      message: this.message,
-      statusCode: this.statusCode,
-      code: this.code,
-      ...(this.details !== undefined && { details: this.details }),
+      error: {
+        code: this.code,
+        message: this.message,
+        ...(this.details !== undefined && { details: this.details }),
+      },
     };
   }
 }

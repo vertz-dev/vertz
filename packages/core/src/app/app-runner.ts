@@ -193,15 +193,12 @@ export function buildHandler(
         const allowed = trie.getAllowedMethods(parsed.path);
         if (allowed.length > 0) {
           return createJsonResponse(
-            { error: 'MethodNotAllowed', message: 'Method Not Allowed', statusCode: 405 },
+            { error: { code: 'MethodNotAllowed', message: 'Method Not Allowed' } },
             405,
             { allow: allowed.join(', ') },
           );
         }
-        return createJsonResponse(
-          { error: 'NotFound', message: 'Not Found', statusCode: 404 },
-          404,
-        );
+        return createJsonResponse({ error: { code: 'NotFound', message: 'Not Found' } }, 404);
       }
 
       const body = await parseBody(request);

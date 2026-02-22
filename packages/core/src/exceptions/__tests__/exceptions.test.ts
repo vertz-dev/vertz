@@ -33,40 +33,55 @@ describe('VertzException', () => {
   it('serializes to JSON with toJSON()', () => {
     const error = new VertzException('not found', 404, 'NOT_FOUND');
     expect(error.toJSON()).toEqual({
-      error: 'VertzException',
-      message: 'not found',
-      statusCode: 404,
-      code: 'NOT_FOUND',
+      error: {
+        code: 'NOT_FOUND',
+        message: 'not found',
+      },
     });
   });
 
   it('includes details in JSON when present', () => {
     const error = new VertzException('bad', 400, 'BAD', { fields: ['email'] });
     const json = error.toJSON();
-    expect(json.details).toEqual({ fields: ['email'] });
+    expect(json.error.details).toEqual({ fields: ['email'] });
   });
 
   it('excludes details from JSON when undefined', () => {
     const error = new VertzException('fail');
     const json = error.toJSON();
-    expect('details' in json).toBe(false);
+    expect('details' in json.error).toBe(false);
   });
 });
 
 describe('HTTP Exceptions', () => {
   it.each([
-    { Cls: BadRequestException, status: 400, name: 'BadRequestException' },
-    { Cls: UnauthorizedException, status: 401, name: 'UnauthorizedException' },
-    { Cls: ForbiddenException, status: 403, name: 'ForbiddenException' },
-    { Cls: NotFoundException, status: 404, name: 'NotFoundException' },
-    { Cls: ConflictException, status: 409, name: 'ConflictException' },
-    { Cls: InternalServerErrorException, status: 500, name: 'InternalServerErrorException' },
-    { Cls: ServiceUnavailableException, status: 503, name: 'ServiceUnavailableException' },
-  ])('$name has status $status and extends VertzException', ({ Cls, status, name }) => {
+    { Cls: BadRequestException, status: 400, name: 'BadRequestException', code: 'BadRequest' },
+    {
+      Cls: UnauthorizedException,
+      status: 401,
+      name: 'UnauthorizedException',
+      code: 'Unauthorized',
+    },
+    { Cls: ForbiddenException, status: 403, name: 'ForbiddenException', code: 'Forbidden' },
+    { Cls: NotFoundException, status: 404, name: 'NotFoundException', code: 'NotFound' },
+    { Cls: ConflictException, status: 409, name: 'ConflictException', code: 'Conflict' },
+    {
+      Cls: InternalServerErrorException,
+      status: 500,
+      name: 'InternalServerErrorException',
+      code: 'InternalError',
+    },
+    {
+      Cls: ServiceUnavailableException,
+      status: 503,
+      name: 'ServiceUnavailableException',
+      code: 'ServiceUnavailable',
+    },
+  ])('$name has status $status and extends VertzException', ({ Cls, status, name, code }) => {
     const error = new Cls('test message');
     expect(error.statusCode).toBe(status);
     expect(error.name).toBe(name);
-    expect(error.code).toBe(name);
+    expect(error.code).toBe(code);
     expect(error.message).toBe('test message');
     expect(error).toBeInstanceOf(VertzException);
     expect(error).toBeInstanceOf(Error);
@@ -77,11 +92,11 @@ describe('HTTP Exceptions', () => {
     expect(error.details).toEqual({ field: 'email' });
     const json = error.toJSON();
     expect(json).toEqual({
-      error: 'BadRequestException',
-      message: 'invalid email',
-      statusCode: 400,
-      code: 'BadRequestException',
-      details: { field: 'email' },
+      error: {
+        code: 'BadRequest',
+        message: 'invalid email',
+        details: { field: 'email' },
+      },
     });
   });
 });
@@ -100,11 +115,11 @@ describe('ValidationException', () => {
     expect(error).toBeInstanceOf(VertzException);
   });
 
-  it('includes errors in toJSON output', () => {
+  it('includes errors as details in toJSON output', () => {
     const errors = [{ path: 'name', message: 'Required' }];
     const error = new ValidationException(errors);
     const json = error.toJSON();
-    expect(json.errors).toEqual(errors);
-    expect(json.statusCode).toBe(422);
+    expect(json.error.details).toEqual(errors);
+    expect(json.error.code).toBe('ValidationError');
   });
 });
