@@ -1,5 +1,7 @@
-import { ForbiddenException, NotFoundException } from '@vertz/core';
+import { ForbiddenException } from '@vertz/core';
+import { EntityNotFoundError } from '@vertz/errors';
 import { d } from '@vertz/db';
+import { unwrap } from '@vertz/errors';
 import { describe, expect, it, vi } from 'vitest';
 import { createEntityContext } from '../context';
 import { createCrudHandlers } from '../crud-pipeline';
@@ -120,7 +122,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.list!(ctx);
+        const result = unwrap(await handlers.list!(ctx));
 
         expect(result.status).toBe(200);
         expect(result.body.data).toHaveLength(2);
@@ -158,7 +160,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.get!(ctx, 'user-1');
+        const result = unwrap(await handlers.get!(ctx, 'user-1'));
 
         expect(result.status).toBe(200);
         expect(result.body).toHaveProperty('email', 'alice@example.com');
@@ -167,12 +169,14 @@ describe('Feature: CRUD pipeline', () => {
     });
 
     describe('When getting a non-existent record', () => {
-      it('Then throws NotFoundException', async () => {
+      it('Then throws EntityNotFoundError', async () => {
         const db = createStubDb();
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        await expect(handlers.get!(ctx, 'nonexistent')).rejects.toThrow(NotFoundException);
+        const result = await handlers.get!(ctx, 'nonexistent');
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error).toBeInstanceOf(EntityNotFoundError);
       });
     });
   });
@@ -191,12 +195,12 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx({ roles: ['admin'] });
 
-        const result = await handlers.create!(ctx, {
+        const result = unwrap(await handlers.create!(ctx, {
           email: 'new@example.com',
           name: 'New',
           createdAt: 'should-be-stripped',
           id: 'should-be-stripped',
-        });
+        }));
 
         expect(result.status).toBe(201);
         expect(result.body).not.toHaveProperty('passwordHash');
@@ -238,7 +242,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        await handlers.create!(ctx, { email: 'a@b.com', name: 'Test' });
+        unwrap(await handlers.create!(ctx, { email: 'a@b.com', name: 'Test' }));
 
         const createCall = db.create.mock.calls[0]![0];
         expect(createCall).toHaveProperty('createdBy', 'user-1');
@@ -262,7 +266,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        await handlers.create!(ctx, { email: 'a@b.com', name: 'Test' });
+        unwrap(await handlers.create!(ctx, { email: 'a@b.com', name: 'Test' }));
 
         expect(afterSpy).toHaveBeenCalledOnce();
         // First arg is the result, second is ctx
@@ -287,10 +291,10 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx({ userId: 'user-1' });
 
-        const result = await handlers.update!(ctx, 'user-1', {
+        const result = unwrap(await handlers.update!(ctx, 'user-1', {
           name: 'Updated',
           createdAt: 'should-be-stripped',
-        });
+        }));
 
         expect(result.status).toBe(200);
         expect(result.body).not.toHaveProperty('passwordHash');
@@ -328,7 +332,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        await handlers.update!(ctx, 'user-1', { name: 'Updated' });
+        unwrap(await handlers.update!(ctx, 'user-1', { name: 'Updated' }));
 
         const updateCall = db.update.mock.calls[0]![1];
         expect(updateCall).toHaveProperty('updatedBy', 'user-1');
@@ -350,7 +354,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        await handlers.update!(ctx, 'user-1', { name: 'Updated' });
+        unwrap(await handlers.update!(ctx, 'user-1', { name: 'Updated' }));
 
         expect(afterUpdateSpy).toHaveBeenCalledOnce();
         // First arg is previous record, second is updated record
@@ -378,7 +382,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx({ roles: ['admin'] });
 
-        const result = await handlers.delete!(ctx, 'user-1');
+        const result = unwrap(await handlers.delete!(ctx, 'user-1'));
 
         expect(result.status).toBe(204);
         expect(result.body).toBeNull();
@@ -401,7 +405,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        await handlers.delete!(ctx, 'user-1');
+        unwrap(await handlers.delete!(ctx, 'user-1'));
 
         expect(afterDeleteSpy).toHaveBeenCalledOnce();
         expect(afterDeleteSpy.mock.calls[0]![0]).toHaveProperty('id', 'user-1');
@@ -425,7 +429,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.list(ctx);
+        const result = unwrap(await handlers.list(ctx));
 
         expect(result.status).toBe(200);
         expect(result.body.data).toHaveLength(2);
@@ -443,7 +447,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.list(ctx, { limit: 1 });
+        const result = unwrap(await handlers.list(ctx, { limit: 1 }));
 
         expect(result.body.data).toHaveLength(1);
         expect(result.body.total).toBe(2);
@@ -469,7 +473,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.list(ctx, { limit: -5 });
+        const result = unwrap(await handlers.list(ctx, { limit: -5 }));
 
         expect(result.body.data).toHaveLength(0);
         expect(result.body.limit).toBe(0);
@@ -483,7 +487,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.list(ctx, { limit: 0 });
+        const result = unwrap(await handlers.list(ctx, { limit: 0 }));
 
         expect(result.body.data).toHaveLength(0);
         expect(result.body.limit).toBe(0);
@@ -498,7 +502,7 @@ describe('Feature: CRUD pipeline', () => {
         const ctx = makeCtx();
 
         const longCursor = 'x'.repeat(513);
-        const result = await handlers.list(ctx, { after: longCursor });
+        const result = unwrap(await handlers.list(ctx, { after: longCursor }));
 
         // Invalid cursor ignored — returns all rows as if no cursor
         expect(result.body.data).toHaveLength(2);
@@ -512,7 +516,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.list(ctx, { after: '' });
+        const result = unwrap(await handlers.list(ctx, { after: '' }));
 
         // Empty string is falsy — treated as no cursor
         expect(result.body.data).toHaveLength(2);
@@ -535,7 +539,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.list(ctx, { limit: 1 });
+        const result = unwrap(await handlers.list(ctx, { limit: 1 }));
 
         expect(result.body.data).toHaveLength(1);
         expect(result.body.nextCursor).toBe('user-1');
@@ -548,7 +552,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.list(ctx, { after: 'user-1', limit: 1 });
+        const result = unwrap(await handlers.list(ctx, { after: 'user-1', limit: 1 }));
 
         expect(result.body.data).toHaveLength(1);
         expect(result.body.data[0]).toHaveProperty('email', 'bob@example.com');
@@ -563,7 +567,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.list(ctx, { after: 'user-2' });
+        const result = unwrap(await handlers.list(ctx, { after: 'user-2' }));
 
         expect(result.body.data).toHaveLength(0);
         expect(result.body.nextCursor).toBeNull();
@@ -577,7 +581,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.list(ctx);
+        const result = unwrap(await handlers.list(ctx));
 
         // Default limit=20 > 2 rows, so all rows returned
         expect(result.body.data).toHaveLength(2);
@@ -646,11 +650,11 @@ describe('Feature: CRUD pipeline', () => {
         const ctx = makeCtx();
 
         // Filter to viewers (user-1, user-3), cursor after user-1
-        const result = await handlers.list(ctx, {
+        const result = unwrap(await handlers.list(ctx, {
           where: { role: 'viewer' },
           after: 'user-1',
           limit: 10,
-        });
+        }));
 
         // user-2 filtered out (admin), user-1 is before cursor → only user-3
         expect(result.body.data).toHaveLength(1);
@@ -668,27 +672,27 @@ describe('Feature: CRUD pipeline', () => {
         const ctx = makeCtx();
 
         // Page 1
-        const page1 = await handlers.list(ctx, { limit: 1 });
+        const page1 = unwrap(await handlers.list(ctx, { limit: 1 }));
         expect(page1.body.data).toHaveLength(1);
         expect(page1.body.data[0]).toHaveProperty('email', 'alice@example.com');
         expect(page1.body.nextCursor).toBe('user-1');
         expect(page1.body.hasNextPage).toBe(true);
 
         // Page 2 — use nextCursor from page 1
-        const page2 = await handlers.list(ctx, {
+        const page2 = unwrap(await handlers.list(ctx, {
           after: page1.body.nextCursor!,
           limit: 1,
-        });
+        }));
         expect(page2.body.data).toHaveLength(1);
         expect(page2.body.data[0]).toHaveProperty('email', 'bob@example.com');
         expect(page2.body.nextCursor).toBe('user-2');
         expect(page2.body.hasNextPage).toBe(true);
 
         // Page 3 — use nextCursor from page 2 (should be empty)
-        const page3 = await handlers.list(ctx, {
+        const page3 = unwrap(await handlers.list(ctx, {
           after: page2.body.nextCursor!,
           limit: 1,
-        });
+        }));
         expect(page3.body.data).toHaveLength(0);
         expect(page3.body.nextCursor).toBeNull();
         expect(page3.body.hasNextPage).toBe(false);
@@ -710,7 +714,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.list(ctx, { where: { role: 'admin' } });
+        const result = unwrap(await handlers.list(ctx, { where: { role: 'admin' } }));
 
         expect(result.body.data).toHaveLength(1);
         expect(result.body.data[0]).toHaveProperty('role', 'admin');
@@ -724,7 +728,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.list(ctx, { where: { passwordHash: 'hash123' } });
+        const result = unwrap(await handlers.list(ctx, { where: { passwordHash: 'hash123' } }));
 
         // Hidden field is stripped from where — no filtering occurs
         expect(result.body.data).toHaveLength(2);
@@ -738,9 +742,9 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.list(ctx, {
+        const result = unwrap(await handlers.list(ctx, {
           where: { role: 'admin', passwordHash: 'hash123' },
-        });
+        }));
 
         // passwordHash stripped, only role filter applied
         expect(result.body.data).toHaveLength(1);
@@ -829,7 +833,7 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = await handlers.create!(ctx, { email: 'a@b.com', name: 'Test' });
+        const result = unwrap(await handlers.create!(ctx, { email: 'a@b.com', name: 'Test' }));
 
         expect(result.status).toBe(201);
       });
