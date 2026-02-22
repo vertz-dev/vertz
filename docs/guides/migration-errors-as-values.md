@@ -43,17 +43,17 @@ if (result.ok) {
   console.log(result.data.name);
 } else {
   matchError(result.error, {
-    NETWORK_ERROR: (e) => console.error('Network failed'),
-    HTTP_ERROR: (e) => {
+    NetworkError: (e) => console.error('Network failed'),
+    HttpError: (e) => {
       if (e.serverCode === 'NOT_FOUND') {
         console.error('User not found');
       } else {
         console.error('HTTP error:', e.status);
       }
     },
-    TIMEOUT_ERROR: (e) => console.error('Timeout'),
-    PARSE_ERROR: (e) => console.error('Parse failed'),
-    VALIDATION_ERROR: (e) => console.error('Validation failed'),
+    TimeoutError: (e) => console.error('Timeout'),
+    ParseError: (e) => console.error('Parse failed'),
+    ValidationError: (e) => console.error('Validation failed'),
   });
 }
 ```
@@ -101,16 +101,16 @@ async function submitForm(data: CreateUserInput): Promise<
   }
   
   return matchError(result.error, {
-    NETWORK_ERROR: () => ({ success: false, error: 'NETWORK_ERROR' }),
-    HTTP_ERROR: (e) => {
+    NetworkError: () => ({ success: false, error: 'NETWORK_ERROR' }),
+    HttpError: (e) => {
       if (e.serverCode === 'EMAIL_EXISTS') {
         return { success: false, error: 'EMAIL_EXISTS', field: 'email' };
       }
       return { success: false, error: 'SERVER_ERROR', status: e.status };
     },
-    TIMEOUT_ERROR: () => ({ success: false, error: 'TIMEOUT' }),
-    PARSE_ERROR: () => ({ success: false, error: 'PARSE_ERROR' }),
-    VALIDATION_ERROR: (e) => ({ success: false, error: 'VALIDATION', errors: e.errors }),
+    TimeoutError: () => ({ success: false, error: 'TIMEOUT' }),
+    ParseError: () => ({ success: false, error: 'PARSE_ERROR' }),
+    ValidationError: (e) => ({ success: false, error: 'VALIDATION', errors: e.errors }),
   });
 }
 ```
@@ -139,11 +139,11 @@ const result = await userSdk.create(data);
 
 if (!result.ok) {
   return matchError(result.error, {
-    NETWORK_ERROR: () => showToast('Network error'),
-    TIMEOUT_ERROR: () => showToast('Request timed out'),
-    PARSE_ERROR: () => showToast('Invalid response'),
-    VALIDATION_ERROR: (e) => setErrors(e.errors),
-    HTTP_ERROR: (e) => showToast(e.message),
+    NetworkError: () => showToast('Network error'),
+    TimeoutError: () => showToast('Request timed out'),
+    ParseError: () => showToast('Invalid response'),
+    ValidationError: (e) => setErrors(e.errors),
+    HttpError: (e) => showToast(e.message),
   });
 }
 
@@ -152,21 +152,19 @@ showSuccess('User created!');
 
 ## Old Error Types → New Error Types
 
-| Old Type | New Type | Notes |
-|----------|----------|-------|
-| `Error` | `FetchNetworkError` | Network failures |
-| `HttpError` | `HttpError` | Generic HTTP errors |
-| `Error 400` | `FetchBadRequestError` | Use specific class |
-| `Error 401` | `FetchUnauthorizedError` | Authentication failed |
-| `Error 403` | `FetchForbiddenError` | Access denied |
-| `Error 404` | `FetchNotFoundError` | Resource not found |
-| `Error 409` | `FetchConflictError` | Conflict |
-| `Error 422` | `FetchUnprocessableEntityError` | Validation failed on server |
-| `Error 429` | `FetchRateLimitError` | Rate limited |
-| `Error 500` | `FetchInternalServerError` | Server error |
-| `Error 503` | `FetchServiceUnavailableError` | Service unavailable |
-| `TimeoutError` | `FetchTimeoutError` | Request timeout |
-| `SyntaxError` | `ParseError` | JSON parse failed |
+- **`Error`** → **`FetchNetworkError`** — Network failures
+- **`HttpError`** → **`HttpError`** — Generic HTTP errors
+- **Error 400** → **`FetchBadRequestError`** — Use specific class
+- **Error 401** → **`FetchUnauthorizedError`** — Authentication failed
+- **Error 403** → **`FetchForbiddenError`** — Access denied
+- **Error 404** → **`FetchNotFoundError`** — Resource not found
+- **Error 409** → **`FetchConflictError`** — Conflict
+- **Error 422** → **`FetchUnprocessableEntityError`** — Validation failed on server
+- **Error 429** → **`FetchRateLimitError`** — Rate limited
+- **Error 500** → **`FetchInternalServerError`** — Server error
+- **Error 503** → **`FetchServiceUnavailableError`** — Service unavailable
+- **`TimeoutError`** → **`FetchTimeoutError`** — Request timeout
+- **`SyntaxError`** → **`ParseError`** — JSON parse failed
 
 ## Step-by-Step Migration Checklist
 
@@ -218,11 +216,11 @@ if (result.ok) {
   renderUser(result.data);
 } else {
   matchError(result.error, {
-    NETWORK_ERROR: (e) => showError('Network error'),
-    HTTP_ERROR: (e) => showError(e.message),
-    TIMEOUT_ERROR: (e) => showError('Timeout'),
-    PARSE_ERROR: (e) => showError('Parse error'),
-    VALIDATION_ERROR: (e) => showValidationErrors(e.errors),
+    NetworkError: (e) => showError('Network error'),
+    HttpError: (e) => showError(e.message),
+    TimeoutError: (e) => showError('Timeout'),
+    ParseError: (e) => showError('Parse error'),
+    ValidationError: (e) => showValidationErrors(e.errors),
   });
 }
 ```
@@ -234,11 +232,11 @@ Ensure every error type has a handler:
 ```typescript
 // This will error at compile time if you add a new error type
 matchError(result.error, {
-  NETWORK_ERROR: (e) => ...,
-  HTTP_ERROR: (e) => ...,
-  TIMEOUT_ERROR: (e) => ...,
-  PARSE_ERROR: (e) => ...,
-  VALIDATION_ERROR: (e) => ...,
+  NetworkError: (e) => ...,
+  HttpError: (e) => ...,
+  TimeoutError: (e) => ...,
+  ParseError: (e) => ...,
+  ValidationError: (e) => ...,
   // All 5 must be handled!
 });
 ```
@@ -247,11 +245,11 @@ matchError(result.error, {
 
 Verify your error handling works:
 
-- Network disconnect → NETWORK_ERROR handler fires
-- 404 response → HTTP_ERROR with serverCode='NOT_FOUND'
-- Invalid JSON → PARSE_ERROR
-- Long request → TIMEOUT_ERROR
-- Invalid input → VALIDATION_ERROR with errors array
+- Network disconnect → NetworkError handler fires
+- 404 response → HttpError with serverCode='NOT_FOUND'
+- Invalid JSON → ParseError
+- Long request → TimeoutError
+- Invalid input → ValidationError with errors array
 
 ## Codegen Migration
 
@@ -274,11 +272,11 @@ if (result.ok) {
   const user = result.data;
 } else {
   matchError(result.error, {
-    NETWORK_ERROR: ...,
-    HTTP_ERROR: ...,
-    TIMEOUT_ERROR: ...,
-    PARSE_ERROR: ...,
-    VALIDATION_ERROR: ...,
+    NetworkError: ...,
+    HttpError: ...,
+    TimeoutError: ...,
+    ParseError: ...,
+    ValidationError: ...,
   });
 }
 ```
@@ -294,15 +292,15 @@ const result = await db.users.create(data);
 
 if (!result.ok) {
   return matchError(result.error, {
-    BAD_REQUEST: (e) => Response.json({ error: e.message }, { status: 400 }),
-    UNAUTHORIZED: () => Response.json({ error: 'Unauthorized' }, { status: 401 }),
-    FORBIDDEN: () => Response.json({ error: 'Forbidden' }, { status: 403 }),
-    NOT_FOUND: (e) => Response.json({ error: e.message }, { status: 404 }),
-    CONFLICT: (e) => Response.json({ error: e.message }, { status: 409 }),
-    ENTITY_VALIDATION_ERROR: (e) => Response.json({ error: e.errors }, { status: 422 }),
-    INTERNAL_ERROR: () => Response.json({ error: 'Internal error' }, { status: 500 }),
-    SERVICE_UNAVAILABLE: () => Response.json({ error: 'Service unavailable' }, { status: 503 }),
-    METHOD_NOT_ALLOWED: () => Response.json({ error: 'Method not allowed' }, { status: 405 }),
+    BadRequest: (e) => Response.json({ error: e.message }, { status: 400 }),
+    Unauthorized: () => Response.json({ error: 'Unauthorized' }, { status: 401 }),
+    Forbidden: () => Response.json({ error: 'Forbidden' }, { status: 403 }),
+    NotFound: (e) => Response.json({ error: e.message }, { status: 404 }),
+    Conflict: (e) => Response.json({ error: e.message }, { status: 409 }),
+    ValidationError: (e) => Response.json({ error: e.errors }, { status: 422 }),
+    InternalError: () => Response.json({ error: 'Internal error' }, { status: 500 }),
+    ServiceUnavailable: () => Response.json({ error: 'Service unavailable' }, { status: 503 }),
+    MethodNotAllowed: () => Response.json({ error: 'Method not allowed' }, { status: 405 }),
   });
 }
 
@@ -326,37 +324,37 @@ if (result.ok) {
 ### Missing Error Handlers
 
 ```typescript
-// ❌ Wrong — won't compile (missing VALIDATION_ERROR)
+// ❌ Wrong — won't compile (missing ValidationError)
 matchError(result.error, {
-  NETWORK_ERROR: (e) => ...,
-  HTTP_ERROR: (e) => ...,
-  TIMEOUT_ERROR: (e) => ...,
-  PARSE_ERROR: (e) => ...,
-  // VALIDATION_ERROR not handled!
+  NetworkError: (e) => ...,
+  HttpError: (e) => ...,
+  TimeoutError: (e) => ...,
+  ParseError: (e) => ...,
+  // ValidationError not handled!
 });
 
 // ✅ Correct — all handlers present
 matchError(result.error, {
-  NETWORK_ERROR: (e) => ...,
-  HTTP_ERROR: (e) => ...,
-  TIMEOUT_ERROR: (e) => ...,
-  PARSE_ERROR: (e) => ...,
-  VALIDATION_ERROR: (e) => ...,
+  NetworkError: (e) => ...,
+  HttpError: (e) => ...,
+  TimeoutError: (e) => ...,
+  ParseError: (e) => ...,
+  ValidationError: (e) => ...,
 });
 ```
 
-### Using serverCode Without HTTP_ERROR
+### Using serverCode Without HttpError
 
 ```typescript
 // ❌ Wrong — serverCode is only on HttpError
 matchError(result.error, {
-  NETWORK_ERROR: (e) => console.log(e.serverCode), // undefined!
+  NetworkError: (e) => console.log(e.serverCode), // undefined!
   ...
 });
 
 // ✅ Correct
 matchError(result.error, {
-  HTTP_ERROR: (e) => console.log(e.serverCode), // Has value!
+  HttpError: (e) => console.log(e.serverCode), // Has value!
   ...
 });
 ```
