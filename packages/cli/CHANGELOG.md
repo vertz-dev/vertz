@@ -1,5 +1,15 @@
 # @vertz/cli
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`6fb830e`](https://github.com/vertz-dev/vertz/commit/6fb830e04c7fd7e3325ad32fc154b90e811b95d4), [`e878b05`](https://github.com/vertz-dev/vertz/commit/e878b05f640e65d4e2c9037de863d5d05026f7a8)]:
+  - @vertz/db@0.2.1
+  - @vertz/compiler@0.2.1
+  - @vertz/codegen@0.2.1
+  - @vertz/tui@0.1.1
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,5 +1,49 @@
 # @vertz/ui
 
+## 0.2.1
+
+### Patch Changes
+
+- [#538](https://github.com/vertz-dev/vertz/pull/538) [`7385806`](https://github.com/vertz-dev/vertz/commit/7385806922a6fe68296d8580c8c89b3033bf8c8b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - **BREAKING:** Redesign `form()` API — direct properties, per-field signals, and compiler-assisted DOM binding.
+
+  ### Removed
+
+  - `form().attrs()` — use direct properties: `form.action`, `form.method`, `form.onSubmit`
+  - `form().error(field)` — use per-field signals: `form.title.error`
+  - `form().handleSubmit(callbacks)` — use `form.submit(formData?)` and pass callbacks via `FormOptions`
+  - `SubmitCallbacks` type — merged into `FormOptions` (`onSuccess`, `onError`, `resetOnSuccess`)
+
+  ### Added
+
+  - Direct properties: `action`, `method`, `onSubmit`, `reset`, `setFieldError`, `submit`
+  - Per-field reactive state via Proxy: `form.<field>.error`, `.dirty`, `.touched`, `.value`
+  - Form-level computed signals: `form.dirty`, `form.valid`
+  - `FieldState<T>` type and `createFieldState()` factory
+  - `__bindElement(el)` for compiler-assisted DOM event delegation
+  - 3-level signal auto-unwrap in compiler: `form.title.error` → `.value`
+  - `__bindElement` transform in JSX compiler for `<form>` elements
+
+  ### Migration
+
+  ```diff
+  - const { action, method, onSubmit } = todoForm.attrs({ onSuccess, resetOnSuccess: true });
+  + const todoForm = form(sdk, { schema, onSuccess, resetOnSuccess: true });
+
+  - effect(() => { titleError = todoForm.error('title') ?? ''; });
+  + {todoForm.title.error}
+
+  - formEl.addEventListener('submit', todoForm.handleSubmit({ onSuccess, onError }));
+  + <form onSubmit={todoForm.onSubmit}>
+  ```
+
+- [#489](https://github.com/vertz-dev/vertz/pull/489) [`215635f`](https://github.com/vertz-dev/vertz/commit/215635f4c8ee92826f66b964a107727ad856d81a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - form() attrs() now returns onSubmit for declarative JSX form wiring.
+
+  - `attrs()` accepts optional `SubmitCallbacks` and returns `{ action, method, onSubmit }`
+  - Added `resetOnSuccess` option to reset form element after successful submission
+  - `__attr()` handles boolean values: `true` sets empty attribute, `false` removes it
+
+- [#500](https://github.com/vertz-dev/vertz/pull/500) [`e878b05`](https://github.com/vertz-dev/vertz/commit/e878b05f640e65d4e2c9037de863d5d05026f7a8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - validate() now handles @vertz/schema ParseError.issues, converting them to field-level errors via duck-typing (no import from @vertz/schema). form() auto-extracts validation schema from SdkMethod.meta.bodySchema — schema option is now optional when the SDK method carries embedded schema metadata.
+
 ## 0.2.0
 
 ### Minor Changes

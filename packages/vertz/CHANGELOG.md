@@ -1,5 +1,17 @@
 # vertz
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [[`6fb830e`](https://github.com/vertz-dev/vertz/commit/6fb830e04c7fd7e3325ad32fc154b90e811b95d4), [`6fb830e`](https://github.com/vertz-dev/vertz/commit/6fb830e04c7fd7e3325ad32fc154b90e811b95d4), [`7385806`](https://github.com/vertz-dev/vertz/commit/7385806922a6fe68296d8580c8c89b3033bf8c8b), [`215635f`](https://github.com/vertz-dev/vertz/commit/215635f4c8ee92826f66b964a107727ad856d81a), [`c2d37e3`](https://github.com/vertz-dev/vertz/commit/c2d37e347b3dd0da982f078a7e87a90541d1437b), [`e878b05`](https://github.com/vertz-dev/vertz/commit/e878b05f640e65d4e2c9037de863d5d05026f7a8), [`e878b05`](https://github.com/vertz-dev/vertz/commit/e878b05f640e65d4e2c9037de863d5d05026f7a8)]:
+  - @vertz/db@0.2.1
+  - @vertz/server@0.2.1
+  - @vertz/ui@0.2.1
+  - @vertz/ui-compiler@1.0.1
+  - @vertz/testing@0.2.1
+  - @vertz/schema@0.2.1
+
 ## 0.1.1
 
 ### Patch Changes

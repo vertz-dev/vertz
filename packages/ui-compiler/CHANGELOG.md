@@ -1,5 +1,48 @@
 # @vertz/ui-compiler
 
+## 1.0.1
+
+### Patch Changes
+
+- [#538](https://github.com/vertz-dev/vertz/pull/538) [`7385806`](https://github.com/vertz-dev/vertz/commit/7385806922a6fe68296d8580c8c89b3033bf8c8b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - **BREAKING:** Redesign `form()` API — direct properties, per-field signals, and compiler-assisted DOM binding.
+
+  ### Removed
+
+  - `form().attrs()` — use direct properties: `form.action`, `form.method`, `form.onSubmit`
+  - `form().error(field)` — use per-field signals: `form.title.error`
+  - `form().handleSubmit(callbacks)` — use `form.submit(formData?)` and pass callbacks via `FormOptions`
+  - `SubmitCallbacks` type — merged into `FormOptions` (`onSuccess`, `onError`, `resetOnSuccess`)
+
+  ### Added
+
+  - Direct properties: `action`, `method`, `onSubmit`, `reset`, `setFieldError`, `submit`
+  - Per-field reactive state via Proxy: `form.<field>.error`, `.dirty`, `.touched`, `.value`
+  - Form-level computed signals: `form.dirty`, `form.valid`
+  - `FieldState<T>` type and `createFieldState()` factory
+  - `__bindElement(el)` for compiler-assisted DOM event delegation
+  - 3-level signal auto-unwrap in compiler: `form.title.error` → `.value`
+  - `__bindElement` transform in JSX compiler for `<form>` elements
+
+  ### Migration
+
+  ```diff
+  - const { action, method, onSubmit } = todoForm.attrs({ onSuccess, resetOnSuccess: true });
+  + const todoForm = form(sdk, { schema, onSuccess, resetOnSuccess: true });
+
+  - effect(() => { titleError = todoForm.error('title') ?? ''; });
+  + {todoForm.title.error}
+
+  - formEl.addEventListener('submit', todoForm.handleSubmit({ onSuccess, onError }));
+  + <form onSubmit={todoForm.onSubmit}>
+  ```
+
+- [#554](https://github.com/vertz-dev/vertz/pull/554) [`c2d37e3`](https://github.com/vertz-dev/vertz/commit/c2d37e347b3dd0da982f078a7e87a90541d1437b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix reactivity analyzer to classify `const` variables derived from signal API properties (query, form, createLoader) as computed instead of static. This eliminates the need for manual `effect()` bridges when deriving state from `query()` results — developers can now use plain `const` declarations and the compiler handles reactivity automatically.
+
+- [#500](https://github.com/vertz-dev/vertz/pull/500) [`e878b05`](https://github.com/vertz-dev/vertz/commit/e878b05f640e65d4e2c9037de863d5d05026f7a8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix virtual CSS module loading in production build. The load() hook now returns an empty JS module in production instead of raw CSS, which Rollup cannot parse. CSS is still emitted correctly via generateBundle().
+
+- Updated dependencies [[`7385806`](https://github.com/vertz-dev/vertz/commit/7385806922a6fe68296d8580c8c89b3033bf8c8b), [`215635f`](https://github.com/vertz-dev/vertz/commit/215635f4c8ee92826f66b964a107727ad856d81a), [`e878b05`](https://github.com/vertz-dev/vertz/commit/e878b05f640e65d4e2c9037de863d5d05026f7a8)]:
+  - @vertz/ui@0.2.1
+
 ## 1.0.0
 
 ### Major Changes

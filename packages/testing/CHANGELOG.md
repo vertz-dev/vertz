@@ -1,5 +1,13 @@
 # @vertz/testing
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`6fb830e`](https://github.com/vertz-dev/vertz/commit/6fb830e04c7fd7e3325ad32fc154b90e811b95d4), [`6fb830e`](https://github.com/vertz-dev/vertz/commit/6fb830e04c7fd7e3325ad32fc154b90e811b95d4)]:
+  - @vertz/core@0.2.1
+  - @vertz/server@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
