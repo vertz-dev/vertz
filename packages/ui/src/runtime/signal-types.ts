@@ -23,6 +23,16 @@ export interface ReadonlySignal<T> {
 }
 
 /**
+ * Unwraps a ReadonlySignal to its value type.
+ * Used by signal APIs (like query()) to expose plain values in TypeScript
+ * while the compiler auto-unwraps them at runtime.
+ *
+ * @example
+ * type UnwrappedData = Unwrapped<ReadonlySignal<Task | undefined>>; // → Task | undefined
+ */
+export type Unwrapped<T> = T extends ReadonlySignal<infer U> ? U : T;
+
+/**
  * A computed signal — lazily evaluated, cached, and automatically re-computed
  * when dependencies change.
  */
