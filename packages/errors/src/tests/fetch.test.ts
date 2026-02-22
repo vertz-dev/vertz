@@ -9,11 +9,15 @@ import {
   FetchTimeoutError,
   ParseError,
   FetchValidationError,
+  FetchGoneError,
+  FetchUnprocessableEntityError,
   isFetchNetworkError,
   isHttpError,
   isFetchTimeoutError,
   isParseError,
   isFetchValidationError,
+  isFetchGoneError,
+  isFetchUnprocessableEntityError,
 } from '../fetch.js';
 
 describe('FetchError classes', () => {
@@ -22,20 +26,20 @@ describe('FetchError classes', () => {
       const error = new FetchNetworkError();
       expect(error.name).toBe('NetworkError');
       expect(error.message).toBe('Network request failed');
-      expect(error.code).toBe('NETWORK_ERROR');
+      expect(error.code).toBe('NetworkError');
     });
 
     it('should create a FetchNetworkError with custom message', () => {
       const error = new FetchNetworkError('Connection refused');
       expect(error.message).toBe('Connection refused');
-      expect(error.code).toBe('NETWORK_ERROR');
+      expect(error.code).toBe('NetworkError');
     });
 
     it('should have code as readonly literal', () => {
       const error = new FetchNetworkError();
-      // TypeScript should enforce this is 'NETWORK_ERROR'
-      const code: 'NETWORK_ERROR' = error.code;
-      expect(code).toBe('NETWORK_ERROR');
+      // TypeScript should enforce this is 'NetworkError'
+      const code: 'NetworkError' = error.code;
+      expect(code).toBe('NetworkError');
     });
   });
 
@@ -45,7 +49,7 @@ describe('FetchError classes', () => {
       expect(error.name).toBe('HttpError');
       expect(error.status).toBe(404);
       expect(error.message).toBe('Not Found');
-      expect(error.code).toBe('HTTP_ERROR');
+      expect(error.code).toBe('HttpError');
     });
 
     it('should create an HttpError with serverCode', () => {
@@ -64,7 +68,7 @@ describe('FetchError classes', () => {
       const error = new FetchTimeoutError();
       expect(error.name).toBe('TimeoutError');
       expect(error.message).toBe('Request timed out');
-      expect(error.code).toBe('TIMEOUT_ERROR');
+      expect(error.code).toBe('TimeoutError');
     });
 
     it('should create a FetchTimeoutError with custom message', () => {
@@ -79,7 +83,7 @@ describe('FetchError classes', () => {
       expect(error.name).toBe('ParseError');
       expect(error.path).toBe('user.name');
       expect(error.message).toBe('Invalid format');
-      expect(error.code).toBe('PARSE_ERROR');
+      expect(error.code).toBe('ParseError');
     });
 
     it('should create a ParseError with optional value', () => {
@@ -97,13 +101,43 @@ describe('FetchError classes', () => {
       const error = new FetchValidationError('Validation failed', errors);
       expect(error.name).toBe('ValidationError');
       expect(error.errors).toEqual(errors);
-      expect(error.code).toBe('VALIDATION_ERROR');
+      expect(error.code).toBe('ValidationError');
     });
 
     it('should create a FetchValidationError with message', () => {
       const errors = [{ path: 'email', message: 'Invalid' }];
       const error = new FetchValidationError('Validation failed', errors);
       expect(error.message).toBe('Validation failed');
+    });
+  });
+
+  describe('FetchGoneError (410)', () => {
+    it('should create a FetchGoneError with message', () => {
+      const error = new FetchGoneError('Resource no longer available');
+      expect(error.name).toBe('FetchGoneError');
+      expect(error.status).toBe(410);
+      expect(error.message).toBe('Resource no longer available');
+      expect(error.code).toBe('HttpError');
+    });
+
+    it('should create a FetchGoneError with serverCode', () => {
+      const error = new FetchGoneError('Gone', 'RESOURCE_DELETED');
+      expect(error.serverCode).toBe('RESOURCE_DELETED');
+    });
+  });
+
+  describe('FetchUnprocessableEntityError (422)', () => {
+    it('should create a FetchUnprocessableEntityError with message', () => {
+      const error = new FetchUnprocessableEntityError('Invalid data');
+      expect(error.name).toBe('FetchUnprocessableEntityError');
+      expect(error.status).toBe(422);
+      expect(error.message).toBe('Invalid data');
+      expect(error.code).toBe('HttpError');
+    });
+
+    it('should create a FetchUnprocessableEntityError with serverCode', () => {
+      const error = new FetchUnprocessableEntityError('Invalid', 'VALIDATION_FAILED');
+      expect(error.serverCode).toBe('VALIDATION_FAILED');
     });
   });
 
@@ -136,6 +170,22 @@ describe('FetchError classes', () => {
       const error = new FetchValidationError('Validation failed', []);
       expect(isFetchValidationError(error)).toBe(true);
       expect(isFetchValidationError(new FetchNetworkError())).toBe(false);
+    });
+
+    it('should correctly identify FetchGoneError (410)', () => {
+      const error = new FetchGoneError('Resource gone');
+      expect(error.status).toBe(410);
+      expect(error.name).toBe('FetchGoneError');
+      expect(isFetchGoneError(error)).toBe(true);
+      expect(isFetchGoneError(new HttpError(404, 'Not Found'))).toBe(false);
+    });
+
+    it('should correctly identify FetchUnprocessableEntityError (422)', () => {
+      const error = new FetchUnprocessableEntityError('Invalid data');
+      expect(error.status).toBe(422);
+      expect(error.name).toBe('FetchUnprocessableEntityError');
+      expect(isFetchUnprocessableEntityError(error)).toBe(true);
+      expect(isFetchUnprocessableEntityError(new HttpError(400, 'Bad Request'))).toBe(false);
     });
   });
 });

@@ -15,11 +15,12 @@ import type { FetchErrorType } from './fetch.js';
  * Each key corresponds to an error code, and the value is a handler function.
  */
 type FetchErrorHandlers<R> = {
-  NetworkError: (error: Extract<FetchErrorType, { code: 'NETWORK_ERROR' }>) => R;
-  HttpError: (error: Extract<FetchErrorType, { code: 'HTTP_ERROR' }>) => R;
-  TimeoutError: (error: Extract<FetchErrorType, { code: 'TIMEOUT_ERROR' }>) => R;
-  ParseError: (error: Extract<FetchErrorType, { code: 'PARSE_ERROR' }>) => R;
-  ValidationError: (error: Extract<FetchErrorType, { code: 'VALIDATION_ERROR' }>) => R;
+  NetworkError: (error: Extract<FetchErrorType, { code: 'NetworkError' }>) => R;
+  HttpError: (error: Extract<FetchErrorType, { code: 'HttpError' }>) => R;
+  TimeoutError: (error: Extract<FetchErrorType, { code: 'TimeoutError' }>) => R;
+  ParseError: (error: Extract<FetchErrorType, { code: 'ParseError' }>) => R;
+  ValidationError: (error: Extract<FetchErrorType, { code: 'ValidationError' }>) => R;
+};
 };
 
 /**
@@ -63,25 +64,25 @@ export function matchError<R>(
   const errorCode = (error as { code: string }).code;
 
   switch (errorCode) {
-    case 'NETWORK_ERROR':
+    case 'NetworkError':
       return (handlers as FetchErrorHandlers<R>).NetworkError(
-        error as Extract<FetchErrorType, { code: 'NETWORK_ERROR' }>,
+        error as Extract<FetchErrorType, { code: 'NetworkError' }>,
       );
-    case 'HTTP_ERROR':
+    case 'HttpError':
       return (handlers as FetchErrorHandlers<R>).HttpError(
-        error as Extract<FetchErrorType, { code: 'HTTP_ERROR' }>,
+        error as Extract<FetchErrorType, { code: 'HttpError' }>,
       );
-    case 'TIMEOUT_ERROR':
+    case 'TimeoutError':
       return (handlers as FetchErrorHandlers<R>).TimeoutError(
-        error as Extract<FetchErrorType, { code: 'TIMEOUT_ERROR' }>,
+        error as Extract<FetchErrorType, { code: 'TimeoutError' }>,
       );
-    case 'PARSE_ERROR':
+    case 'ParseError':
       return (handlers as FetchErrorHandlers<R>).ParseError(
-        error as Extract<FetchErrorType, { code: 'PARSE_ERROR' }>,
+        error as Extract<FetchErrorType, { code: 'ParseError' }>,
       );
-    case 'VALIDATION_ERROR':
+    case 'ValidationError':
       return (handlers as FetchErrorHandlers<R>).ValidationError(
-        error as Extract<FetchErrorType, { code: 'VALIDATION_ERROR' }>,
+        error as Extract<FetchErrorType, { code: 'ValidationError' }>,
       );
     case 'BAD_REQUEST':
       return (handlers as EntityErrorHandlers<R>).BadRequest(

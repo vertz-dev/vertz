@@ -39,10 +39,10 @@ export abstract class FetchError extends Error {
  * }
  */
 export class FetchNetworkError extends FetchError {
-  readonly code = 'NETWORK_ERROR' as const;
+  readonly code = 'NetworkError' as const;
 
   constructor(message = 'Network request failed') {
-    super('NETWORK_ERROR', message);
+    super('NetworkError', message);
     this.name = 'NetworkError';
   }
 }
@@ -72,7 +72,7 @@ export function isFetchNetworkError(error: unknown): error is FetchNetworkError 
  * }
  */
 export class HttpError extends FetchError {
-  readonly code = 'HTTP_ERROR' as const;
+  readonly code = 'HttpError' as const;
 
   /**
    * HTTP status code.
@@ -85,7 +85,7 @@ export class HttpError extends FetchError {
   readonly serverCode?: string;
 
   constructor(status: number, message: string, serverCode?: string) {
-    super('HTTP_ERROR', message);
+    super('HttpError', message);
     this.name = 'HttpError';
     this.status = status;
     this.serverCode = serverCode;
@@ -107,7 +107,7 @@ export function isHttpError(error: unknown): error is HttpError {
  * Bad Request (400) - The request was invalid or cannot be served.
  */
 export class FetchBadRequestError extends HttpError {
-  readonly code = 'HTTP_ERROR' as const;
+  readonly code = 'HttpError' as const;
 
   constructor(message: string, serverCode?: string) {
     super(400, message, serverCode);
@@ -126,7 +126,7 @@ export function isFetchBadRequestError(error: unknown): error is FetchBadRequest
  * Unauthorized (401) - Authentication is required or failed.
  */
 export class FetchUnauthorizedError extends HttpError {
-  readonly code = 'HTTP_ERROR' as const;
+  readonly code = 'HttpError' as const;
 
   constructor(message: string, serverCode?: string) {
     super(401, message, serverCode);
@@ -145,7 +145,7 @@ export function isFetchUnauthorizedError(error: unknown): error is FetchUnauthor
  * Forbidden (403) - The request is understood but refused.
  */
 export class FetchForbiddenError extends HttpError {
-  readonly code = 'HTTP_ERROR' as const;
+  readonly code = 'HttpError' as const;
 
   constructor(message: string, serverCode?: string) {
     super(403, message, serverCode);
@@ -164,7 +164,7 @@ export function isFetchForbiddenError(error: unknown): error is FetchForbiddenEr
  * Not Found (404) - The requested resource was not found.
  */
 export class FetchNotFoundError extends HttpError {
-  readonly code = 'HTTP_ERROR' as const;
+  readonly code = 'HttpError' as const;
 
   constructor(message: string, serverCode?: string) {
     super(404, message, serverCode);
@@ -183,7 +183,7 @@ export function isFetchNotFoundError(error: unknown): error is FetchNotFoundErro
  * Conflict (409) - The request conflicts with current state.
  */
 export class FetchConflictError extends HttpError {
-  readonly code = 'HTTP_ERROR' as const;
+  readonly code = 'HttpError' as const;
 
   constructor(message: string, serverCode?: string) {
     super(409, message, serverCode);
@@ -202,7 +202,7 @@ export function isFetchConflictError(error: unknown): error is FetchConflictErro
  * Gone (410) - The resource is no longer available.
  */
 export class FetchGoneError extends HttpError {
-  readonly code = 'HTTP_ERROR' as const;
+  readonly code = 'HttpError' as const;
 
   constructor(message: string, serverCode?: string) {
     super(410, message, serverCode);
@@ -221,7 +221,7 @@ export function isFetchGoneError(error: unknown): error is FetchGoneError {
  * Unprocessable Entity (422) - The request was well-formed but semantically invalid.
  */
 export class FetchUnprocessableEntityError extends HttpError {
-  readonly code = 'HTTP_ERROR' as const;
+  readonly code = 'HttpError' as const;
 
   constructor(message: string, serverCode?: string) {
     super(422, message, serverCode);
@@ -242,7 +242,7 @@ export function isFetchUnprocessableEntityError(
  * Rate Limited (429) - Too many requests.
  */
 export class FetchRateLimitError extends HttpError {
-  readonly code = 'HTTP_ERROR' as const;
+  readonly code = 'HttpError' as const;
 
   constructor(message: string, serverCode?: string) {
     super(429, message, serverCode);
@@ -265,7 +265,7 @@ export function isFetchRateLimitError(error: unknown): error is FetchRateLimitEr
  * Internal Server Error (500) - The server encountered an error.
  */
 export class FetchInternalServerError extends HttpError {
-  readonly code = 'HTTP_ERROR' as const;
+  readonly code = 'HttpError' as const;
 
   constructor(message: string, serverCode?: string) {
     super(500, message, serverCode);
@@ -284,7 +284,7 @@ export function isFetchInternalServerError(error: unknown): error is FetchIntern
  * Service Unavailable (503) - The server is temporarily unavailable.
  */
 export class FetchServiceUnavailableError extends HttpError {
-  readonly code = 'HTTP_ERROR' as const;
+  readonly code = 'HttpError' as const;
 
   constructor(message: string, serverCode?: string) {
     super(503, message, serverCode);
@@ -319,10 +319,10 @@ export function isFetchServiceUnavailableError(
  * }
  */
 export class FetchTimeoutError extends FetchError {
-  readonly code = 'TIMEOUT_ERROR' as const;
+  readonly code = 'TimeoutError' as const;
 
   constructor(message = 'Request timed out') {
-    super('TIMEOUT_ERROR', message);
+    super('TimeoutError', message);
     this.name = 'TimeoutError';
   }
 }
@@ -350,7 +350,7 @@ export function isFetchTimeoutError(error: unknown): error is FetchTimeoutError 
  * }
  */
 export class ParseError extends FetchError {
-  readonly code = 'PARSE_ERROR' as const;
+  readonly code = 'ParseError' as const;
 
   /**
    * Path where parsing failed.
@@ -363,7 +363,7 @@ export class ParseError extends FetchError {
   readonly value?: unknown;
 
   constructor(path: string, message: string, value?: unknown) {
-    super('PARSE_ERROR', message);
+    super('ParseError', message);
     this.name = 'ParseError';
     this.path = path;
     this.value = value;
@@ -402,7 +402,7 @@ export function isParseError(error: unknown): error is ParseError {
  * });
  */
 export class FetchValidationError extends FetchError {
-  readonly code = 'VALIDATION_ERROR' as const;
+  readonly code = 'ValidationError' as const;
 
   /**
    * Validation errors matching server format.
@@ -419,7 +419,7 @@ export class FetchValidationError extends FetchError {
       readonly message: string;
     }[],
   ) {
-    super('VALIDATION_ERROR', message);
+    super('ValidationError', message);
     this.name = 'ValidationError';
     this.errors = errors;
   }
