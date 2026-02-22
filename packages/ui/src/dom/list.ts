@@ -1,3 +1,4 @@
+import { getIsHydrating } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { effect } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
@@ -32,12 +33,33 @@ export function __list<T>(
   // Map from key to the disposal scope for that item's reactive children
   const scopeMap = new Map<string | number, DisposeFn[]>();
 
+  const isHydrationRun = getIsHydrating();
+
   // Wrap the outer effect in its own scope so that any parent disposal scope
   // (e.g., __conditional) captures the outerScope — not the raw effect dispose.
   // This ensures parent disposal triggers our full cleanup (scopeMap + effect).
   const outerScope = pushScope();
+  let isFirstRun = true;
   effect(() => {
     const newItems = getItems();
+
+    if (isFirstRun && isHydrationRun) {
+      isFirstRun = false;
+      // During hydration: call renderFn for each item to claim SSR nodes
+      // and populate nodeMap/scopeMap. Skip DOM reconciliation — nodes
+      // are already in the correct order.
+      for (const [i, item] of newItems.entries()) {
+        const key = keyFn(item, i);
+        const scope = pushScope();
+        const node = renderFn(item);
+        popScope();
+        nodeMap.set(key, node);
+        scopeMap.set(key, scope);
+      }
+      return;
+    }
+    isFirstRun = false;
+
     const newKeySet = new Set(newItems.map((item, i) => keyFn(item, i)));
 
     // Remove nodes whose keys are no longer present — dispose their scopes first

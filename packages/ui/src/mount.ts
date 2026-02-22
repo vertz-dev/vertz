@@ -1,6 +1,7 @@
 import { injectCSS } from './css/css';
 import type { Theme } from './css/theme';
 import { compileTheme } from './css/theme';
+import { endHydration, startHydration } from './hydrate/hydration-context';
 
 /**
  * Options for mounting an app to the DOM.
@@ -10,8 +11,8 @@ export interface MountOptions {
   theme?: Theme;
   /** Global CSS strings to inject */
   styles?: string[];
-  /** Hydration mode: 'replace' (default) or false */
-  hydration?: 'replace' | false;
+  /** Hydration mode: 'replace' (default), 'tolerant' (walk SSR DOM), or 'strict' (reserved) */
+  hydration?: 'replace' | 'tolerant' | 'strict';
   /** Component registry for per-component hydration */
   // biome-ignore lint/suspicious/noExplicitAny: spec requires generic component functions
   registry?: Record<string, () => any>;
@@ -68,10 +69,43 @@ export function mount<AppFn extends () => HTMLElement>(
     }
   }
 
-  // Clear existing content (replace mode)
-  root.textContent = '';
+  const mode = options?.hydration ?? 'replace';
 
-  // Create and append the app
+  if (mode === 'tolerant') {
+    if (!root.firstChild) {
+      // Dev warning: tolerant mode on empty root is likely a mistake
+      if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+        console.warn(
+          '[mount] hydration: "tolerant" used on empty root. ' +
+            'Did you mean "replace"? Falling back to replace mode.',
+        );
+      }
+      // Fall through to replace mode
+    } else {
+      try {
+        startHydration(root);
+        app();
+        endHydration();
+        options?.onMount?.(root);
+        return {
+          unmount: () => {
+            root.textContent = '';
+          },
+          root,
+        };
+      } catch (e) {
+        // Bail out: hydration failed, fall back to full CSR
+        endHydration();
+        if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+          console.warn('[mount] Hydration failed, falling back to replace mode:', e);
+        }
+        // Fall through to replace mode
+      }
+    }
+  }
+
+  // Replace mode (default, or fallback from failed tolerant)
+  root.textContent = '';
   const appElement = app();
   root.appendChild(appElement);
 

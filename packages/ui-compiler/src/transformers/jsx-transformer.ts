@@ -114,7 +114,7 @@ function transformJsxNode(
   if (node.isKind(SyntaxKind.JsxText)) {
     const text = node.getText().trim();
     if (!text) return '';
-    return `document.createTextNode(${JSON.stringify(text)})`;
+    return `__staticText(${JSON.stringify(text)})`;
   }
   return node.getText();
 }
@@ -155,9 +155,20 @@ function transformJsxElement(
 
   // Process children
   const children = getJsxChildren(node);
+  const hasChildren = children.some((child) => {
+    if (child.isKind(SyntaxKind.JsxText)) return !!child.getText().trim();
+    return true;
+  });
+
+  if (hasChildren) {
+    statements.push(`__enterChildren(${elVar})`);
+  }
   for (const child of children) {
     const childCode = transformChild(child, reactiveNames, jsxMap, elVar, source, formVarNames);
     if (childCode) statements.push(childCode);
+  }
+  if (hasChildren) {
+    statements.push(`__exitChildren()`);
   }
 
   return `(() => {\n${statements.map((s) => `  ${s};`).join('\n')}\n  return ${elVar};\n})()`;
@@ -273,7 +284,7 @@ function transformChild(
   if (child.isKind(SyntaxKind.JsxText)) {
     const text = child.getText().trim();
     if (!text) return null;
-    return `${parentVar}.appendChild(document.createTextNode(${JSON.stringify(text)}))`;
+    return `__append(${parentVar}, __staticText(${JSON.stringify(text)}))`;
   }
 
   if (child.isKind(SyntaxKind.JsxExpression)) {
@@ -286,7 +297,7 @@ function transformChild(
       const conditionalCode = tryTransformConditional(exprNode, reactiveNames, jsxMap, source);
       if (conditionalCode) {
         // __conditional returns a Node (DocumentFragment) directly — no .node property
-        return `${parentVar}.appendChild(${conditionalCode})`;
+        return `__append(${parentVar}, ${conditionalCode})`;
       }
 
       const listCode = tryTransformList(exprNode, reactiveNames, jsxMap, parentVar, source);
@@ -301,14 +312,14 @@ function transformChild(
     // Use __child() for reactive expressions (wraps in effect)
     // Use __insert() for static expressions (direct insertion, no effect overhead)
     if (exprInfo?.reactive) {
-      return `${parentVar}.appendChild(__child(() => ${exprText}))`;
+      return `__append(${parentVar}, __child(() => ${exprText}))`;
     }
     return `__insert(${parentVar}, ${exprText})`;
   }
 
   if (child.isKind(SyntaxKind.JsxElement) || child.isKind(SyntaxKind.JsxSelfClosingElement)) {
     const childCode = transformJsxNode(child, reactiveNames, jsxMap, source, formVarNames);
-    return `${parentVar}.appendChild(${childCode})`;
+    return `__append(${parentVar}, ${childCode})`;
   }
 
   return null;

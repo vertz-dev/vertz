@@ -1,3 +1,10 @@
+import {
+  claimElement,
+  claimText,
+  enterChildren,
+  exitChildren,
+  getIsHydrating,
+} from '../hydrate/hydration-context';
 import { effect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
 
@@ -16,6 +23,16 @@ export interface DisposableText extends Text {
  * Returns a Text node with a `dispose` property for cleanup.
  */
 export function __text(fn: () => string): DisposableText {
+  if (getIsHydrating()) {
+    const claimed = claimText();
+    if (claimed) {
+      const node = claimed as DisposableText;
+      node.dispose = effect(() => {
+        node.data = fn();
+      });
+      return node;
+    }
+  }
   const node = document.createTextNode('') as DisposableText;
   node.dispose = effect(() => {
     node.data = fn();
@@ -38,8 +55,46 @@ export function __child(
 ): HTMLElement & {
   dispose: DisposeFn;
 } {
-  // Use a span with display:contents so it doesn't affect layout
-  const wrapper = document.createElement('span') as HTMLElement & { dispose: DisposeFn };
+  let wrapper: HTMLElement & { dispose: DisposeFn };
+
+  if (getIsHydrating()) {
+    const claimed = claimElement('span');
+    if (claimed) {
+      wrapper = claimed as HTMLElement & { dispose: DisposeFn };
+      // Attach reactive effect to adopted wrapper — first run reads value
+      // without clearing (SSR content is already correct)
+      let isFirstRun = true;
+      wrapper.dispose = effect(() => {
+        const value = fn();
+
+        if (isFirstRun) {
+          isFirstRun = false;
+          return;
+        }
+
+        // Clear previous content
+        while (wrapper.firstChild) {
+          wrapper.removeChild(wrapper.firstChild);
+        }
+
+        if (value == null || typeof value === 'boolean') {
+          return;
+        }
+
+        if (value instanceof Node) {
+          wrapper.appendChild(value);
+          return;
+        }
+
+        const textValue = typeof value === 'string' ? value : String(value);
+        wrapper.appendChild(document.createTextNode(textValue));
+      });
+      return wrapper;
+    }
+  }
+
+  // CSR path: create new span wrapper
+  wrapper = document.createElement('span') as HTMLElement & { dispose: DisposeFn };
   wrapper.style.display = 'contents';
 
   wrapper.dispose = effect(() => {
@@ -86,6 +141,16 @@ export function __insert(
     return;
   }
 
+  if (getIsHydrating()) {
+    // During hydration, nodes are already in place
+    if (value instanceof Node) {
+      return; // No-op — node already in DOM
+    }
+    // For string/number values, claim the existing text node
+    claimText();
+    return;
+  }
+
   // If it's a Node, append it directly
   if (value instanceof Node) {
     parent.appendChild(value);
@@ -104,6 +169,13 @@ export function __insert(
  * to __element for each JSX element.
  */
 export function __element(tag: string, props?: Record<string, string>): HTMLElement {
+  if (getIsHydrating()) {
+    const claimed = claimElement(tag);
+    if (claimed) {
+      // SSR already set attributes — return the existing element
+      return claimed;
+    }
+  }
   const el = document.createElement(tag);
   if (props) {
     for (const [key, value] of Object.entries(props)) {
@@ -111,4 +183,51 @@ export function __element(tag: string, props?: Record<string, string>): HTMLElem
     }
   }
   return el;
+}
+
+/**
+ * Append a child to a parent node.
+ * During hydration, this is a no-op — the child is already in the DOM.
+ * During CSR, delegates to appendChild.
+ *
+ * Compiler output target — replaces direct `parent.appendChild(child)`.
+ */
+export function __append(parent: Node, child: Node): void {
+  if (getIsHydrating()) return;
+  parent.appendChild(child);
+}
+
+/**
+ * Create a static text node.
+ * During hydration, claims an existing text node from the SSR output.
+ * During CSR, creates a new text node.
+ *
+ * Compiler output target — replaces `document.createTextNode(str)`.
+ */
+export function __staticText(text: string): Text {
+  if (getIsHydrating()) {
+    const claimed = claimText();
+    if (claimed) return claimed;
+  }
+  return document.createTextNode(text);
+}
+
+/**
+ * Push the hydration cursor into an element's children.
+ * Compiler output target — emitted around child construction.
+ */
+export function __enterChildren(el: Element): void {
+  if (getIsHydrating()) {
+    enterChildren(el);
+  }
+}
+
+/**
+ * Pop the hydration cursor back to the parent scope.
+ * Compiler output target — emitted after all children are appended.
+ */
+export function __exitChildren(): void {
+  if (getIsHydrating()) {
+    exitChildren();
+  }
 }

@@ -146,12 +146,16 @@ export function compile(source: string, filename = 'input.tsx'): CompileOutput {
 
 /** DOM helpers that the compiler may emit and need importing from @vertz/ui/internals. */
 const DOM_HELPERS = [
+  '__append',
   '__child',
+  '__enterChildren',
+  '__exitChildren',
   '__insert',
   '__conditional',
   '__list',
   '__show',
   '__classList',
+  '__staticText',
 ] as const;
 
 /** Scan transformed output for DOM helper function calls and add them to usedFeatures. */

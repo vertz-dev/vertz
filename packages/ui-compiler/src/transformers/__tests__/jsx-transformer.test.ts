@@ -72,12 +72,14 @@ describe('JsxTransformer', () => {
     const result = transform(`function App() {\n  return <div><span>hello</span></div>;\n}`, []);
     expect(result).toContain('__element("div")');
     expect(result).toContain('__element("span")');
-    expect(result).toContain('appendChild');
+    expect(result).toContain('__append(');
+    expect(result).toContain('__enterChildren(');
+    expect(result).toContain('__exitChildren()');
   });
 
   it('handles string literal children as static text', () => {
     const result = transform(`function App() {\n  return <div>hello world</div>;\n}`, []);
-    expect(result).toContain('createTextNode');
+    expect(result).toContain('__staticText(');
     expect(result).toContain('"hello world"');
   });
 

@@ -1,0 +1,136 @@
+/**
+ * Hydration context — cursor-based DOM walker for tolerant hydration.
+ *
+ * During hydration, the framework walks existing SSR nodes instead of
+ * creating new ones. A global cursor tracks the current position in the
+ * DOM tree. Claim functions advance the cursor and return matching nodes.
+ *
+ * Foreign nodes (browser extensions, ad blockers) are gracefully skipped.
+ */
+
+let isHydrating = false;
+let currentNode: Node | null = null;
+const cursorStack: (Node | null)[] = [];
+
+/**
+ * Begin hydration mode. Sets the cursor to the first child of `root`.
+ */
+export function startHydration(root: Element): void {
+  isHydrating = true;
+  currentNode = root.firstChild;
+  cursorStack.length = 0;
+}
+
+/**
+ * End hydration mode. Resets all state.
+ */
+export function endHydration(): void {
+  isHydrating = false;
+  currentNode = null;
+  cursorStack.length = 0;
+}
+
+/**
+ * Returns whether hydration is currently active.
+ */
+export function getIsHydrating(): boolean {
+  return isHydrating;
+}
+
+/**
+ * Claim an element node matching `tag` at the current cursor position.
+ * Skips non-matching nodes (browser extensions, whitespace text).
+ * Returns null if no matching node is found among remaining siblings.
+ */
+export function claimElement(tag: string): HTMLElement | null {
+  const upperTag = tag.toUpperCase();
+
+  while (currentNode) {
+    // Match: element with the expected tag
+    if (currentNode.nodeType === Node.ELEMENT_NODE) {
+      const el = currentNode as HTMLElement;
+      if (el.tagName === upperTag) {
+        currentNode = el.nextSibling;
+        return el;
+      }
+      // Non-matching element — skip (likely a browser extension node)
+      if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+        console.debug(`[hydrate] Skipping foreign node: <${el.tagName.toLowerCase()}>`);
+      }
+    }
+
+    // Skip text nodes (whitespace between elements)
+    currentNode = currentNode.nextSibling;
+  }
+
+  // No match found
+  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    console.warn(
+      `[hydrate] Expected <${tag}> but no matching SSR node found. Creating new element.`,
+    );
+  }
+  return null;
+}
+
+/**
+ * Claim a text node at the current cursor position.
+ * Skips element nodes to find the next text node.
+ * Returns null if no text node is found among remaining siblings.
+ */
+export function claimText(): Text | null {
+  while (currentNode) {
+    if (currentNode.nodeType === Node.TEXT_NODE) {
+      const text = currentNode as Text;
+      currentNode = text.nextSibling;
+      return text;
+    }
+
+    // Skip non-text nodes
+    currentNode = currentNode.nextSibling;
+  }
+
+  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    console.warn('[hydrate] Expected text node but no matching SSR node found.');
+  }
+  return null;
+}
+
+/**
+ * Claim a comment node at the current cursor position.
+ * Used for `__conditional` anchors (`<!-- conditional -->`).
+ * Returns null if no comment node is found among remaining siblings.
+ */
+export function claimComment(): Comment | null {
+  while (currentNode) {
+    if (currentNode.nodeType === Node.COMMENT_NODE) {
+      const comment = currentNode as Comment;
+      currentNode = comment.nextSibling;
+      return comment;
+    }
+
+    // Skip non-comment nodes
+    currentNode = currentNode.nextSibling;
+  }
+
+  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    console.warn('[hydrate] Expected comment node but no matching SSR node found.');
+  }
+  return null;
+}
+
+/**
+ * Push the current cursor onto the stack and set cursor to the first
+ * child of `el`. Called by compiler-emitted `__enterChildren(el)`.
+ */
+export function enterChildren(el: Element): void {
+  cursorStack.push(currentNode);
+  currentNode = el.firstChild;
+}
+
+/**
+ * Pop the cursor from the stack, restoring the parent's position.
+ * Called by compiler-emitted `__exitChildren()`.
+ */
+export function exitChildren(): void {
+  currentNode = cursorStack.pop() ?? null;
+}

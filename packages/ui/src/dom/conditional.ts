@@ -1,3 +1,4 @@
+import { claimComment, getIsHydrating } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { effect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
@@ -17,6 +18,108 @@ export interface DisposableNode extends Node {
  * Returns a Node (DocumentFragment) with a `dispose` property attached.
  */
 export function __conditional(
+  condFn: () => boolean,
+  trueFn: () => Node | null,
+  falseFn: () => Node | null,
+): DisposableNode {
+  if (getIsHydrating()) {
+    return hydrateConditional(condFn, trueFn, falseFn);
+  }
+  return csrConditional(condFn, trueFn, falseFn);
+}
+
+/**
+ * Hydration path for __conditional.
+ * Claims the existing comment anchor and branch content from SSR,
+ * then attaches reactive effect for future branch switches.
+ */
+function hydrateConditional(
+  condFn: () => boolean,
+  trueFn: () => Node | null,
+  falseFn: () => Node | null,
+): DisposableNode {
+  // Claim the SSR comment anchor
+  const anchor = claimComment() ?? document.createComment('conditional');
+  let currentNode: Node | null = null;
+  let branchCleanups: DisposeFn[] = [];
+
+  const outerScope = pushScope();
+
+  // First run: evaluate condition and call the active branch to claim SSR nodes
+  let isFirstRun = true;
+  effect(() => {
+    const show = condFn();
+
+    if (isFirstRun) {
+      isFirstRun = false;
+      // The branch function claims its SSR nodes via the hydration path
+      const scope = pushScope();
+      const branchResult = show ? trueFn() : falseFn();
+      popScope();
+      branchCleanups = scope;
+
+      // During hydration, the branch content is already in the DOM.
+      // Just track the current node for future branch switches.
+      if (branchResult == null || typeof branchResult === 'boolean') {
+        currentNode = document.createComment('empty');
+      } else if (branchResult instanceof Node) {
+        currentNode = branchResult;
+      } else {
+        currentNode = document.createTextNode(String(branchResult));
+      }
+      return;
+    }
+
+    // Subsequent runs: normal CSR branch switching
+    runCleanups(branchCleanups);
+
+    const scope = pushScope();
+    const branchResult = show ? trueFn() : falseFn();
+    popScope();
+    branchCleanups = scope;
+
+    let newNode: Node;
+    if (branchResult == null || typeof branchResult === 'boolean') {
+      newNode = document.createComment('empty');
+    } else if (branchResult instanceof Node) {
+      newNode = branchResult;
+    } else {
+      newNode = document.createTextNode(String(branchResult));
+    }
+
+    if (currentNode?.parentNode) {
+      currentNode.parentNode.replaceChild(newNode, currentNode);
+    } else if (anchor.parentNode) {
+      anchor.parentNode.insertBefore(newNode, anchor.nextSibling);
+    }
+
+    currentNode = newNode;
+  });
+  popScope();
+
+  const wrapper = () => {
+    runCleanups(branchCleanups);
+    runCleanups(outerScope);
+  };
+
+  _tryOnCleanup(wrapper);
+
+  // During hydration, anchor and content are already in the DOM.
+  // Return a fragment that just references the anchor (for dispose tracking).
+  const fragment = document.createDocumentFragment();
+  fragment.appendChild(anchor);
+  if (currentNode) {
+    fragment.appendChild(currentNode);
+  }
+
+  const result: DisposableNode = Object.assign(fragment, { dispose: wrapper });
+  return result;
+}
+
+/**
+ * CSR path for __conditional (original behavior).
+ */
+function csrConditional(
   condFn: () => boolean,
   trueFn: () => Node | null,
   falseFn: () => Node | null,

@@ -1,0 +1,220 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetInjectedStyles } from '../css/css';
+import {
+  __append,
+  __element,
+  __enterChildren,
+  __exitChildren,
+  __staticText,
+  __text,
+} from '../dom/element';
+import { __on } from '../dom/events';
+import { mount } from '../mount';
+import { signal } from '../runtime/signal';
+
+describe('mount() — tolerant hydration', () => {
+  let root: HTMLElement;
+
+  beforeEach(() => {
+    root = document.createElement('div');
+    document.body.appendChild(root);
+    resetInjectedStyles();
+  });
+
+  afterEach(() => {
+    document.body.removeChild(root);
+    resetInjectedStyles();
+  });
+
+  it('preserves SSR content, attaches reactivity', () => {
+    // Simulate SSR output
+    root.innerHTML = '<div><h1>Hello</h1></div>';
+
+    const App = () => {
+      const el = __element('div');
+      __enterChildren(el);
+      const h1 = __element('h1');
+      __enterChildren(h1);
+      __append(h1, __staticText('Hello'));
+      __exitChildren();
+      __append(el, h1);
+      __exitChildren();
+      return el;
+    };
+
+    const handle = mount(App, root, { hydration: 'tolerant' });
+
+    // Content preserved (no flash)
+    expect(root.innerHTML).toContain('Hello');
+    expect(root.querySelector('h1')).not.toBeNull();
+
+    handle.unmount();
+  });
+
+  it('handles browser extension nodes', () => {
+    root.innerHTML = '<div><p>text</p></div>';
+    // Inject a fake extension node
+    root.firstChild?.appendChild(document.createElement('grammarly-extension'));
+
+    const App = () => {
+      const el = __element('div');
+      __enterChildren(el);
+      const p = __element('p');
+      __enterChildren(p);
+      __append(p, __staticText('text'));
+      __exitChildren();
+      __append(el, p);
+      __exitChildren();
+      return el;
+    };
+
+    const handle = mount(App, root, { hydration: 'tolerant' });
+
+    expect(root.innerHTML).toContain('text');
+    expect(root.querySelector('p')).not.toBeNull();
+
+    handle.unmount();
+  });
+
+  it('event handlers work on adopted elements', () => {
+    root.innerHTML = '<div><button>click</button></div>';
+
+    let clicked = false;
+    const App = () => {
+      const el = __element('div');
+      __enterChildren(el);
+      const btn = __element('button');
+      __on(btn, 'click', () => {
+        clicked = true;
+      });
+      __enterChildren(btn);
+      __append(btn, __staticText('click'));
+      __exitChildren();
+      __append(el, btn);
+      __exitChildren();
+      return el;
+    };
+
+    mount(App, root, { hydration: 'tolerant' });
+
+    const button = root.querySelector('button')!;
+    button.click();
+    expect(clicked).toBe(true);
+  });
+
+  it('reactive updates work after hydration', () => {
+    // SSR output matches what __text would claim: a text node inside the div
+    root.innerHTML = '<div>Count: 0</div>';
+
+    const count = signal(0);
+    const App = () => {
+      const el = __element('div');
+      __enterChildren(el);
+      const textNode = __text(() => `Count: ${count.value}`);
+      __append(el, textNode);
+      __exitChildren();
+      return el;
+    };
+
+    mount(App, root, { hydration: 'tolerant' });
+    expect(root.textContent).toContain('Count: 0');
+
+    count.value = 42;
+    expect(root.textContent).toContain('Count: 42');
+  });
+
+  it('warns and falls back to replace on empty root', () => {
+    // Root has no SSR content
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const App = () => {
+      const el = document.createElement('div');
+      el.textContent = 'fresh';
+      return el;
+    };
+
+    mount(App, root, { hydration: 'tolerant' });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('hydration: "tolerant" used on empty root'),
+    );
+    // Falls back to replace mode, so fresh content is rendered
+    expect(root.textContent).toBe('fresh');
+
+    warnSpy.mockRestore();
+  });
+
+  it('bails out to replace mode on hydration error', () => {
+    root.innerHTML = '<div>SSR content</div>';
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    let callCount = 0;
+    const App = () => {
+      callCount++;
+      if (callCount === 1) {
+        // Throw on first call (hydration attempt)
+        throw new Error('hydration broke');
+      }
+      // Second call (replace fallback) succeeds
+      const el = document.createElement('div');
+      el.textContent = 'fallback';
+      return el;
+    };
+
+    mount(App, root, { hydration: 'tolerant' });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Hydration failed'),
+      expect.any(Error),
+    );
+    // Replace mode rendered successfully
+    expect(root.textContent).toBe('fallback');
+    warnSpy.mockRestore();
+  });
+
+  it('default mode clears and renders (existing behavior unchanged)', () => {
+    root.innerHTML = '<span>old content</span>';
+    const App = () => {
+      const el = document.createElement('div');
+      el.textContent = 'new';
+      return el;
+    };
+
+    mount(App, root);
+
+    expect(root.innerHTML).not.toContain('old content');
+    expect(root.textContent).toBe('new');
+  });
+
+  it('explicit replace mode same as default', () => {
+    root.innerHTML = '<span>old</span>';
+    const App = () => {
+      const el = document.createElement('div');
+      el.textContent = 'new';
+      return el;
+    };
+
+    mount(App, root, { hydration: 'replace' });
+
+    expect(root.innerHTML).not.toContain('old');
+    expect(root.textContent).toBe('new');
+  });
+
+  it('calls onMount after tolerant hydration', () => {
+    root.innerHTML = '<div>content</div>';
+    const onMount = vi.fn();
+
+    const App = () => {
+      const el = __element('div');
+      __enterChildren(el);
+      __append(el, __staticText('content'));
+      __exitChildren();
+      return el;
+    };
+
+    mount(App, root, { hydration: 'tolerant', onMount });
+
+    expect(onMount).toHaveBeenCalledTimes(1);
+    expect(onMount).toHaveBeenCalledWith(root);
+  });
+});
