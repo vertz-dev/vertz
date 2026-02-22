@@ -7,7 +7,7 @@
 <h1 align="center">Vertz</h1>
 
 <p align="center">
-  <strong>The TypeScript full-stack framework for LLMs.</strong><br />
+  <strong>The TypeScript stack for LLMs.</strong><br />
   Built by LLMs, for LLMs. Designed by humans (so far...).
 
 </p>
@@ -23,7 +23,7 @@
 
 We watched LLMs get NestJS wrong for months. Decorators in the wrong order. OpenAPI specs that didn't match the types. DTOs that looked right but broke at runtime. Every mistake meant more tokens, more iterations, more "actually, that's not quite right."
 
-So we built Vertz — a full-stack TypeScript framework designed so that an LLM can nail it on the first try. Server, database, UI, CLI — one stack, one philosophy.
+So we built Vertz — a TypeScript stack designed so that an LLM can nail it on the first try. Server, database, UI, compiler, CLI — everything you need, one philosophy.
 
 **This entire codebase is written with [Claude Code](https://claude.ai/claude-code).** Not scaffolded by AI and finished by hand — written, tested, and iterated by an LLM from first commit to last. Vertz is both the product and the experiment.
 
@@ -190,7 +190,7 @@ Deno.serve(app.handler);                // Deno Deploy
 
 ## The Experiment
 
-Vertz is an experiment in a question: **Can an LLM build a production-ready framework?**
+Vertz is an experiment in a question: **Can an LLM build a production-ready stack?**
 
 Every design decision is evaluated through one lens: "Does this make the LLM more correct on the first try?" Functions over decorators — because type inference flows through functions. One way to do things — because ambiguity causes wrong guesses. Compile-time over runtime — because LLMs can't run your code.
 
@@ -273,5 +273,5 @@ The codebase follows strict TDD — every behavior needs a failing test first. C
 ---
 
 <p align="center">
-  <em>Type-safe. Full-stack. LLM-native. Built for what's next.</em>
+  <em>Type-safe. LLM-native. The whole stack.</em>
 </p>
