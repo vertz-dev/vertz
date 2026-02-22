@@ -1,10 +1,10 @@
 import {
+  createHttpError,
   err,
   type FetchError,
   FetchNetworkError,
   FetchTimeoutError,
   FetchValidationError,
-  HttpError,
   ok,
   ParseError,
 } from '@vertz/errors';
@@ -90,7 +90,7 @@ export class FetchClient {
             }
           }
 
-          const httpError = new HttpError(response.status, response.statusText, serverCode);
+          const httpError = createHttpError(response.status, response.statusText, serverCode);
 
           if (attempt < retryConfig.retries && retryConfig.retryOn.includes(response.status)) {
             lastError = httpError;
@@ -205,7 +205,7 @@ export class FetchClient {
         }
       }
 
-      const httpError = new HttpError(response.status, response.statusText, serverCode);
+      const httpError = createHttpError(response.status, response.statusText, serverCode);
       await this.config.hooks?.onError?.(httpError);
       throw httpError;
     }
