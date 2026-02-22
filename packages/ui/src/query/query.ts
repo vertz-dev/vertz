@@ -1,5 +1,5 @@
 import { computed, effect, signal } from '../runtime/signal';
-import type { ReadonlySignal, Signal } from '../runtime/signal-types';
+import type { ReadonlySignal, Signal, Unwrapped } from '../runtime/signal-types';
 import { setReadValueCallback, untrack } from '../runtime/tracking';
 import { type CacheStore, MemoryCache } from './cache';
 import { deriveKey, hashString } from './key-derivation';
@@ -21,11 +21,11 @@ export interface QueryOptions<T> {
 /** The reactive object returned by query(). */
 export interface QueryResult<T> {
   /** The fetched data, or undefined while loading. */
-  readonly data: ReadonlySignal<T | undefined>;
+  readonly data: Unwrapped<ReadonlySignal<T | undefined>>;
   /** True while a fetch is in progress. */
-  readonly loading: ReadonlySignal<boolean>;
+  readonly loading: Unwrapped<ReadonlySignal<boolean>>;
   /** The error from the latest failed fetch, or undefined. */
-  readonly error: ReadonlySignal<unknown>;
+  readonly error: Unwrapped<ReadonlySignal<unknown>>;
   /** Manually trigger a refetch (clears cache for this key). */
   refetch: () => void;
   /** Alias for refetch — revalidate the cached data. */
@@ -33,6 +33,9 @@ export interface QueryResult<T> {
   /** Dispose the query — stops the reactive effect and cleans up inflight state. */
   dispose: () => void;
 }
+
+// Re-export Unwrapped for public API
+export type { Unwrapped } from '../runtime/signal-types';
 
 /**
  * Global default cache shared across queries that don't supply their own.
@@ -327,10 +330,11 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
     inflightKeys.clear();
   }
 
+  // Return signals with type casts to match the unwrapped return types
   return {
-    data,
-    loading,
-    error,
+    data: data as unknown as Unwrapped<ReadonlySignal<T | undefined>>,
+    loading: loading as unknown as Unwrapped<ReadonlySignal<boolean>>,
+    error: error as unknown as Unwrapped<ReadonlySignal<unknown>>,
     refetch,
     revalidate: refetch,
     dispose,
