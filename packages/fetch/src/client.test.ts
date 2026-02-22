@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { FetchClient } from './client';
 import { FetchError, NotFoundError } from './errors';
+import { FetchNetworkError } from '@vertz/errors';
 
 describe('FetchClient', () => {
   it('can be instantiated with minimal config', () => {
@@ -679,5 +680,17 @@ describe('FetchClient convenience methods', () => {
     const [request] = mockFetch.mock.calls[0] as [Request];
     expect(request.headers.get('X-Custom')).toBe('value');
     expect(request.method).toBe('POST');
+  });
+});
+
+describe('FetchClient network error handling', () => {
+  it('should return FetchNetworkError when network fails', async () => {
+    const mockFetch = vi.fn().mockRejectedValue(new Error('Network failure'));
+    const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
+    const result = await client.get('/test');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(FetchNetworkError);
+    }
   });
 });
