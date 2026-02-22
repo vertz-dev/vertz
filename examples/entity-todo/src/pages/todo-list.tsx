@@ -17,7 +17,7 @@ import { TodoForm } from '../components/todo-form';
 import { TodoItem } from '../components/todo-item';
 import { emptyStateStyles, layoutStyles } from '../styles/components';
 
-export function TodoListPage(): HTMLElement {
+export function TodoListPage() {
   // query() returns external signals
   const todosQuery = query(() => fetchTodos(), {
     key: 'todo-list',

@@ -10,14 +10,10 @@
 import { ThemeProvider } from '@vertz/ui';
 import { TodoListPage } from './pages/todo-list';
 
-export function App(): HTMLElement {
+export function App() {
   const content = TodoListPage();
 
-  const container = (
-    <div data-testid="app-root">
-      {content}
-    </div>
-  );
+  const container = <div data-testid="app-root">{content}</div>;
 
   const themeWrapper = ThemeProvider({
     theme: 'light',
