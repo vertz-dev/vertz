@@ -5,12 +5,8 @@ import { resolve } from 'path';
 export default defineConfig({
   plugins: [vertzPlugin({ ssr: true })],
   server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-      },
-    },
+    // API routes are handled by dev-server.ts middleware, not proxy
+    // Proxy removed to prevent infinite loop
   },
   // Build configuration for SSR + client bundles
   build: {
