@@ -119,8 +119,8 @@ export class ReactivityAnalyzer {
       }
     }
 
-    // Computeds: `const` vars that depend (directly or transitively) on a signal
-    // and are JSX-reachable
+    // Computeds: `const` vars that depend (directly or transitively) on a signal,
+    // a computed, or a signal API variable (query, form, createLoader)
     const computeds = new Set<string>();
     changed = true;
     while (changed) {

@@ -12,7 +12,7 @@
  * - <TaskCard /> JSX component embedding
  */
 
-import { effect, onCleanup, onMount, query } from '@vertz/ui';
+import { onCleanup, onMount, query } from '@vertz/ui';
 import { fetchTasks } from '../api/mock-data';
 import { TaskCard } from '../components/task-card';
 import type { Task, TaskStatus } from '../lib/types';
@@ -68,28 +68,20 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
   ];
 
   for (const filter of filters) {
-    const btn = (
+    filterBar.appendChild(
       <button
+        class={button({
+          intent: statusFilter === filter.value ? 'primary' : 'ghost',
+          size: 'sm',
+        })}
         data-testid={`filter-${filter.value}`}
         onClick={() => {
           statusFilter = filter.value;
         }}
       >
         {filter.label}
-      </button>
+      </button>,
     );
-
-    // Reactive className — statusFilter is a local signal (compiler adds .value).
-    // Keep effect() for imperative className assignment on loop-created elements.
-    effect(() => {
-      const isActive = statusFilter === filter.value;
-      btn.className = button({
-        intent: isActive ? 'primary' : 'ghost',
-        size: 'sm',
-      });
-    });
-
-    filterBar.appendChild(btn);
   }
 
   // ── Lifecycle ──────────────────────────────────────
