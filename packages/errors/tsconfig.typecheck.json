@@ -3,5 +3,5 @@
     "types": ["vitest/globals"]
   },
   "extends": "./tsconfig.json",
-  "include": []
+  "include": ["src"]
 }

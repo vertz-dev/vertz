@@ -41,11 +41,11 @@ describe('matchError', () => {
     it('should handle FetchNetworkError', () => {
       const error = new FetchNetworkError();
       const result = matchError(error, {
-        NETWORK_ERROR: () => 'network',
-        HTTP_ERROR: () => 'http',
-        TIMEOUT_ERROR: () => 'timeout',
-        PARSE_ERROR: () => 'parse',
-        VALIDATION_ERROR: () => 'validation',
+        NetworkError: () => 'network',
+        HttpError: () => 'http',
+        TimeoutError: () => 'timeout',
+        ParseError: () => 'parse',
+        ValidationError: () => 'validation',
       });
       expect(result).toBe('network');
     });
@@ -53,11 +53,11 @@ describe('matchError', () => {
     it('should handle HttpError', () => {
       const error = new HttpError(404, 'Not Found');
       const result = matchError(error, {
-        NETWORK_ERROR: () => 'network',
-        HTTP_ERROR: () => 'http',
-        TIMEOUT_ERROR: () => 'timeout',
-        PARSE_ERROR: () => 'parse',
-        VALIDATION_ERROR: () => 'validation',
+        NetworkError: () => 'network',
+        HttpError: () => 'http',
+        TimeoutError: () => 'timeout',
+        ParseError: () => 'parse',
+        ValidationError: () => 'validation',
       });
       expect(result).toBe('http');
     });
@@ -65,11 +65,11 @@ describe('matchError', () => {
     it('should handle FetchTimeoutError', () => {
       const error = new FetchTimeoutError();
       const result = matchError(error, {
-        NETWORK_ERROR: () => 'network',
-        HTTP_ERROR: () => 'http',
-        TIMEOUT_ERROR: () => 'timeout',
-        PARSE_ERROR: () => 'parse',
-        VALIDATION_ERROR: () => 'validation',
+        NetworkError: () => 'network',
+        HttpError: () => 'http',
+        TimeoutError: () => 'timeout',
+        ParseError: () => 'parse',
+        ValidationError: () => 'validation',
       });
       expect(result).toBe('timeout');
     });
@@ -77,11 +77,11 @@ describe('matchError', () => {
     it('should handle ParseError', () => {
       const error = new ParseError('path', 'msg');
       const result = matchError(error, {
-        NETWORK_ERROR: () => 'network',
-        HTTP_ERROR: () => 'http',
-        TIMEOUT_ERROR: () => 'timeout',
-        PARSE_ERROR: () => 'parse',
-        VALIDATION_ERROR: () => 'validation',
+        NetworkError: () => 'network',
+        HttpError: () => 'http',
+        TimeoutError: () => 'timeout',
+        ParseError: () => 'parse',
+        ValidationError: () => 'validation',
       });
       expect(result).toBe('parse');
     });
@@ -89,11 +89,11 @@ describe('matchError', () => {
     it('should handle FetchValidationError', () => {
       const error = new FetchValidationError([]);
       const result = matchError(error, {
-        NETWORK_ERROR: () => 'network',
-        HTTP_ERROR: () => 'http',
-        TIMEOUT_ERROR: () => 'timeout',
-        PARSE_ERROR: () => 'parse',
-        VALIDATION_ERROR: () => 'validation',
+        NetworkError: () => 'network',
+        HttpError: () => 'http',
+        TimeoutError: () => 'timeout',
+        ParseError: () => 'parse',
+        ValidationError: () => 'validation',
       });
       expect(result).toBe('validation');
     });
@@ -103,15 +103,15 @@ describe('matchError', () => {
     it('should handle BadRequestError', () => {
       const error = new BadRequestError();
       const result = matchError(error, {
-        BAD_REQUEST: () => 'bad-request',
-        UNAUTHORIZED: () => 'unauthorized',
-        FORBIDDEN: () => 'forbidden',
-        NOT_FOUND: () => 'not-found',
-        METHOD_NOT_ALLOWED: () => 'method-not-allowed',
-        CONFLICT: () => 'conflict',
-        ENTITY_VALIDATION_ERROR: () => 'validation',
-        INTERNAL_ERROR: () => 'internal',
-        SERVICE_UNAVAILABLE: () => 'unavailable',
+        BadRequest: () => 'bad-request',
+        Unauthorized: () => 'unauthorized',
+        Forbidden: () => 'forbidden',
+        NotFound: () => 'not-found',
+        MethodNotAllowed: () => 'method-not-allowed',
+        Conflict: () => 'conflict',
+        ValidationError: () => 'validation',
+        InternalError: () => 'internal',
+        ServiceUnavailable: () => 'unavailable',
       });
       expect(result).toBe('bad-request');
     });
@@ -119,15 +119,15 @@ describe('matchError', () => {
     it('should handle EntityUnauthorizedError', () => {
       const error = new EntityUnauthorizedError();
       const result = matchError(error, {
-        BAD_REQUEST: () => 'bad-request',
-        UNAUTHORIZED: () => 'unauthorized',
-        FORBIDDEN: () => 'forbidden',
-        NOT_FOUND: () => 'not-found',
-        METHOD_NOT_ALLOWED: () => 'method-not-allowed',
-        CONFLICT: () => 'conflict',
-        ENTITY_VALIDATION_ERROR: () => 'validation',
-        INTERNAL_ERROR: () => 'internal',
-        SERVICE_UNAVAILABLE: () => 'unavailable',
+        BadRequest: () => 'bad-request',
+        Unauthorized: () => 'unauthorized',
+        Forbidden: () => 'forbidden',
+        NotFound: () => 'not-found',
+        MethodNotAllowed: () => 'method-not-allowed',
+        Conflict: () => 'conflict',
+        ValidationError: () => 'validation',
+        InternalError: () => 'internal',
+        ServiceUnavailable: () => 'unavailable',
       });
       expect(result).toBe('unauthorized');
     });
@@ -135,15 +135,15 @@ describe('matchError', () => {
     it('should handle EntityForbiddenError', () => {
       const error = new EntityForbiddenError();
       const result = matchError(error, {
-        BAD_REQUEST: () => 'bad-request',
-        UNAUTHORIZED: () => 'unauthorized',
-        FORBIDDEN: () => 'forbidden',
-        NOT_FOUND: () => 'not-found',
-        METHOD_NOT_ALLOWED: () => 'method-not-allowed',
-        CONFLICT: () => 'conflict',
-        ENTITY_VALIDATION_ERROR: () => 'validation',
-        INTERNAL_ERROR: () => 'internal',
-        SERVICE_UNAVAILABLE: () => 'unavailable',
+        BadRequest: () => 'bad-request',
+        Unauthorized: () => 'unauthorized',
+        Forbidden: () => 'forbidden',
+        NotFound: () => 'not-found',
+        MethodNotAllowed: () => 'method-not-allowed',
+        Conflict: () => 'conflict',
+        ValidationError: () => 'validation',
+        InternalError: () => 'internal',
+        ServiceUnavailable: () => 'unavailable',
       });
       expect(result).toBe('forbidden');
     });
@@ -151,15 +151,15 @@ describe('matchError', () => {
     it('should handle EntityNotFoundError', () => {
       const error = new EntityNotFoundError();
       const result = matchError(error, {
-        BAD_REQUEST: () => 'bad-request',
-        UNAUTHORIZED: () => 'unauthorized',
-        FORBIDDEN: () => 'forbidden',
-        NOT_FOUND: () => 'not-found',
-        METHOD_NOT_ALLOWED: () => 'method-not-allowed',
-        CONFLICT: () => 'conflict',
-        ENTITY_VALIDATION_ERROR: () => 'validation',
-        INTERNAL_ERROR: () => 'internal',
-        SERVICE_UNAVAILABLE: () => 'unavailable',
+        BadRequest: () => 'bad-request',
+        Unauthorized: () => 'unauthorized',
+        Forbidden: () => 'forbidden',
+        NotFound: () => 'not-found',
+        MethodNotAllowed: () => 'method-not-allowed',
+        Conflict: () => 'conflict',
+        ValidationError: () => 'validation',
+        InternalError: () => 'internal',
+        ServiceUnavailable: () => 'unavailable',
       });
       expect(result).toBe('not-found');
     });
@@ -167,15 +167,15 @@ describe('matchError', () => {
     it('should handle MethodNotAllowedError', () => {
       const error = new MethodNotAllowedError();
       const result = matchError(error, {
-        BAD_REQUEST: () => 'bad-request',
-        UNAUTHORIZED: () => 'unauthorized',
-        FORBIDDEN: () => 'forbidden',
-        NOT_FOUND: () => 'not-found',
-        METHOD_NOT_ALLOWED: () => 'method-not-allowed',
-        CONFLICT: () => 'conflict',
-        ENTITY_VALIDATION_ERROR: () => 'validation',
-        INTERNAL_ERROR: () => 'internal',
-        SERVICE_UNAVAILABLE: () => 'unavailable',
+        BadRequest: () => 'bad-request',
+        Unauthorized: () => 'unauthorized',
+        Forbidden: () => 'forbidden',
+        NotFound: () => 'not-found',
+        MethodNotAllowed: () => 'method-not-allowed',
+        Conflict: () => 'conflict',
+        ValidationError: () => 'validation',
+        InternalError: () => 'internal',
+        ServiceUnavailable: () => 'unavailable',
       });
       expect(result).toBe('method-not-allowed');
     });
@@ -183,15 +183,15 @@ describe('matchError', () => {
     it('should handle EntityConflictError', () => {
       const error = new EntityConflictError();
       const result = matchError(error, {
-        BAD_REQUEST: () => 'bad-request',
-        UNAUTHORIZED: () => 'unauthorized',
-        FORBIDDEN: () => 'forbidden',
-        NOT_FOUND: () => 'not-found',
-        METHOD_NOT_ALLOWED: () => 'method-not-allowed',
-        CONFLICT: () => 'conflict',
-        ENTITY_VALIDATION_ERROR: () => 'validation',
-        INTERNAL_ERROR: () => 'internal',
-        SERVICE_UNAVAILABLE: () => 'unavailable',
+        BadRequest: () => 'bad-request',
+        Unauthorized: () => 'unauthorized',
+        Forbidden: () => 'forbidden',
+        NotFound: () => 'not-found',
+        MethodNotAllowed: () => 'method-not-allowed',
+        Conflict: () => 'conflict',
+        ValidationError: () => 'validation',
+        InternalError: () => 'internal',
+        ServiceUnavailable: () => 'unavailable',
       });
       expect(result).toBe('conflict');
     });
@@ -199,15 +199,15 @@ describe('matchError', () => {
     it('should handle EntityValidationError', () => {
       const error = new EntityValidationError([]);
       const result = matchError(error, {
-        BAD_REQUEST: () => 'bad-request',
-        UNAUTHORIZED: () => 'unauthorized',
-        FORBIDDEN: () => 'forbidden',
-        NOT_FOUND: () => 'not-found',
-        METHOD_NOT_ALLOWED: () => 'method-not-allowed',
-        CONFLICT: () => 'conflict',
-        ENTITY_VALIDATION_ERROR: () => 'validation',
-        INTERNAL_ERROR: () => 'internal',
-        SERVICE_UNAVAILABLE: () => 'unavailable',
+        BadRequest: () => 'bad-request',
+        Unauthorized: () => 'unauthorized',
+        Forbidden: () => 'forbidden',
+        NotFound: () => 'not-found',
+        MethodNotAllowed: () => 'method-not-allowed',
+        Conflict: () => 'conflict',
+        ValidationError: () => 'validation',
+        InternalError: () => 'internal',
+        ServiceUnavailable: () => 'unavailable',
       });
       expect(result).toBe('validation');
     });
@@ -215,15 +215,15 @@ describe('matchError', () => {
     it('should handle InternalError', () => {
       const error = new InternalError();
       const result = matchError(error, {
-        BAD_REQUEST: () => 'bad-request',
-        UNAUTHORIZED: () => 'unauthorized',
-        FORBIDDEN: () => 'forbidden',
-        NOT_FOUND: () => 'not-found',
-        METHOD_NOT_ALLOWED: () => 'method-not-allowed',
-        CONFLICT: () => 'conflict',
-        ENTITY_VALIDATION_ERROR: () => 'validation',
-        INTERNAL_ERROR: () => 'internal',
-        SERVICE_UNAVAILABLE: () => 'unavailable',
+        BadRequest: () => 'bad-request',
+        Unauthorized: () => 'unauthorized',
+        Forbidden: () => 'forbidden',
+        NotFound: () => 'not-found',
+        MethodNotAllowed: () => 'method-not-allowed',
+        Conflict: () => 'conflict',
+        ValidationError: () => 'validation',
+        InternalError: () => 'internal',
+        ServiceUnavailable: () => 'unavailable',
       });
       expect(result).toBe('internal');
     });
@@ -231,15 +231,15 @@ describe('matchError', () => {
     it('should handle ServiceUnavailableError', () => {
       const error = new ServiceUnavailableError();
       const result = matchError(error, {
-        BAD_REQUEST: () => 'bad-request',
-        UNAUTHORIZED: () => 'unauthorized',
-        FORBIDDEN: () => 'forbidden',
-        NOT_FOUND: () => 'not-found',
-        METHOD_NOT_ALLOWED: () => 'method-not-allowed',
-        CONFLICT: () => 'conflict',
-        ENTITY_VALIDATION_ERROR: () => 'validation',
-        INTERNAL_ERROR: () => 'internal',
-        SERVICE_UNAVAILABLE: () => 'unavailable',
+        BadRequest: () => 'bad-request',
+        Unauthorized: () => 'unauthorized',
+        Forbidden: () => 'forbidden',
+        NotFound: () => 'not-found',
+        MethodNotAllowed: () => 'method-not-allowed',
+        Conflict: () => 'conflict',
+        ValidationError: () => 'validation',
+        InternalError: () => 'internal',
+        ServiceUnavailable: () => 'unavailable',
       });
       expect(result).toBe('unavailable');
     });
@@ -252,26 +252,26 @@ describe('matchError', () => {
       // This function ensures all FetchError types are handled
       function assertExhaustiveFetch(error: FetchErrorType): string {
         return matchError(error, {
-          NETWORK_ERROR: () => 'network',
-          HTTP_ERROR: () => 'http',
-          TIMEOUT_ERROR: () => 'timeout',
-          PARSE_ERROR: () => 'parse',
-          VALIDATION_ERROR: () => 'validation',
+          NetworkError: () => 'network',
+          HttpError: () => 'http',
+          TimeoutError: () => 'timeout',
+          ParseError: () => 'parse',
+          ValidationError: () => 'validation',
         });
       }
 
       // This function ensures all EntityError types are handled
       function assertExhaustiveEntity(error: EntityErrorType): string {
         return matchError(error, {
-          BAD_REQUEST: () => 'bad-request',
-          UNAUTHORIZED: () => 'unauthorized',
-          FORBIDDEN: () => 'forbidden',
-          NOT_FOUND: () => 'not-found',
-          METHOD_NOT_ALLOWED: () => 'method-not-allowed',
-          CONFLICT: () => 'conflict',
-          ENTITY_VALIDATION_ERROR: () => 'validation',
-          INTERNAL_ERROR: () => 'internal',
-          SERVICE_UNAVAILABLE: () => 'unavailable',
+          BadRequest: () => 'bad-request',
+          Unauthorized: () => 'unauthorized',
+          Forbidden: () => 'forbidden',
+          NotFound: () => 'not-found',
+          MethodNotAllowed: () => 'method-not-allowed',
+          Conflict: () => 'conflict',
+          ValidationError: () => 'validation',
+          InternalError: () => 'internal',
+          ServiceUnavailable: () => 'unavailable',
         });
       }
 
