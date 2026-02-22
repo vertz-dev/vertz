@@ -2,12 +2,6 @@ name = "entity-todo"
 compatibility_date = "2024-01-01"
 main = "dist/worker.js"
 
-# D1 database for todo storage
-[[d1_databases]]
-binding = "DB"
-database_name = "entity-todo-db"
-database_id = "your-database-id-here"
-
 # Serve static assets from the build output
 # The client JS/CSS bundles will be served from the assets folder
 [site]
