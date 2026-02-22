@@ -1,5 +1,6 @@
 export type {
   CompiledRoute,
+  InferRouteMap,
   LoaderData,
   MatchedRoute,
   RouteConfig,
@@ -20,7 +21,7 @@ export { createRouter } from './navigate';
 export type { OutletContext } from './outlet';
 export { createOutlet } from './outlet';
 export type { ExtractParams } from './params';
-export { RouterContext, useRouter } from './router-context';
+export { RouterContext, useParams, useRouter } from './router-context';
 export type { RouterViewProps } from './router-view';
 export { RouterView } from './router-view';
 export { parseSearchParams, useSearchParams } from './search-params';
