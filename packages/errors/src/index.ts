@@ -33,3 +33,12 @@ export * from './infra/index.js';
 export * from './mapping/index.js';
 // Result type and utilities
 export * from './result.js';
+
+// Fetch error classes
+export * from './fetch.js';
+
+// Entity error classes
+export * from './entity.js';
+
+// matchError utility
+export * from './match-error.js';
