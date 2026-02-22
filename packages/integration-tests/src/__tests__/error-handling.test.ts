@@ -25,9 +25,10 @@ describe('HTTP errors', () => {
     const body = await res.json();
 
     expect(body).toEqual({
-      error: 'NotFound',
-      message: 'Not Found',
-      statusCode: 404,
+      error: {
+        code: 'NotFound',
+        message: 'Not Found',
+      },
     });
   });
 
@@ -39,7 +40,7 @@ describe('HTTP errors', () => {
 
     expect(res.status).toBe(405);
     const body = await res.json();
-    expect(body.error).toBe('MethodNotAllowed');
+    expect(body.error.code).toBe('MethodNotAllowed');
     expect(res.headers.get('allow')).toBeTruthy();
   });
 });
@@ -50,7 +51,7 @@ describe('Exception handling', () => {
 
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.error).toBe('NotFoundException');
+    expect(body.error.code).toBe('NotFoundException');
   });
 
   it('returns 401 for UnauthorizedException', async () => {
@@ -58,7 +59,7 @@ describe('Exception handling', () => {
 
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.error).toBe('UnauthorizedException');
+    expect(body.error.code).toBe('UnauthorizedException');
   });
 
   it('does not leak error details for non-VertzException errors', async () => {
@@ -68,10 +69,10 @@ describe('Exception handling', () => {
     // NotFoundException is a VertzException — has structured error
     // For non-VertzException errors, the framework returns a generic 500
     // We verify VertzException errors have the expected structure
-    expect(body.error).toBe('NotFoundException');
-    expect(body.statusCode).toBe(404);
-    expect(body.message).toBeTypeOf('string');
+    expect(body.error.code).toBe('NotFoundException');
+    expect(body.error.message).toBeTypeOf('string');
     // No stack trace or internal details exposed
+    expect(body.error.stack).toBeUndefined();
     expect(body.stack).toBeUndefined();
   });
 });

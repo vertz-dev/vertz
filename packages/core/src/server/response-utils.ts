@@ -20,7 +20,7 @@ export function createErrorResponse(error: unknown): Response {
   }
 
   return createJsonResponse(
-    { error: 'InternalServerError', message: 'Internal Server Error', statusCode: 500 },
+    { error: { code: 'InternalServerError', message: 'Internal Server Error' } },
     500,
   );
 }

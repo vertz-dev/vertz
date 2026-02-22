@@ -101,7 +101,7 @@ describe('route-level middleware', () => {
 
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.message).toBe('Forbidden');
+    expect(body.error.message).toBe('Forbidden');
   });
 
   it('does not run route-level middlewares for routes without them', async () => {

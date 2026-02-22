@@ -38,10 +38,20 @@ export class ValidationException extends VertzException {
     this.errors = errors;
   }
 
-  override toJSON(): Record<string, unknown> {
+  override toJSON(): {
+    error: {
+      code: string;
+      message: string;
+      details?: unknown;
+      errors?: ReadonlyArray<{ path: string; message: string }>;
+    };
+  } {
+    const base = super.toJSON();
     return {
-      ...super.toJSON(),
-      errors: this.errors,
+      error: {
+        ...base.error,
+        errors: this.errors,
+      },
     };
   }
 }

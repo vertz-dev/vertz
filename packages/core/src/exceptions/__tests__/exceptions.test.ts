@@ -33,23 +33,23 @@ describe('VertzException', () => {
   it('serializes to JSON with toJSON()', () => {
     const error = new VertzException('not found', 404, 'NOT_FOUND');
     expect(error.toJSON()).toEqual({
-      error: 'VertzException',
-      message: 'not found',
-      statusCode: 404,
-      code: 'NOT_FOUND',
+      error: {
+        code: 'NOT_FOUND',
+        message: 'not found',
+      },
     });
   });
 
   it('includes details in JSON when present', () => {
     const error = new VertzException('bad', 400, 'BAD', { fields: ['email'] });
     const json = error.toJSON();
-    expect(json.details).toEqual({ fields: ['email'] });
+    expect(json.error.details).toEqual({ fields: ['email'] });
   });
 
   it('excludes details from JSON when undefined', () => {
     const error = new VertzException('fail');
     const json = error.toJSON();
-    expect('details' in json).toBe(false);
+    expect('details' in json.error).toBe(false);
   });
 });
 
@@ -77,11 +77,11 @@ describe('HTTP Exceptions', () => {
     expect(error.details).toEqual({ field: 'email' });
     const json = error.toJSON();
     expect(json).toEqual({
-      error: 'BadRequestException',
-      message: 'invalid email',
-      statusCode: 400,
-      code: 'BadRequestException',
-      details: { field: 'email' },
+      error: {
+        code: 'BadRequestException',
+        message: 'invalid email',
+        details: { field: 'email' },
+      },
     });
   });
 });
@@ -104,7 +104,7 @@ describe('ValidationException', () => {
     const errors = [{ path: 'name', message: 'Required' }];
     const error = new ValidationException(errors);
     const json = error.toJSON();
-    expect(json.errors).toEqual(errors);
-    expect(json.statusCode).toBe(422);
+    expect(json.error.errors).toEqual(errors);
+    expect(json.error.code).toBe('ValidationException');
   });
 });

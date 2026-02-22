@@ -35,8 +35,8 @@ describe('createErrorResponse', () => {
 
     expect(response.status).toBe(404);
     const body = await response.json();
-    expect(body.error).toBe('NotFoundException');
-    expect(body.message).toBe('User not found');
+    expect(body.error.code).toBe('NotFoundException');
+    expect(body.error.message).toBe('User not found');
   });
 
   it('creates a generic 500 error for unknown errors', async () => {
@@ -44,7 +44,7 @@ describe('createErrorResponse', () => {
 
     expect(response.status).toBe(500);
     const body = await response.json();
-    expect(body.error).toBe('InternalServerError');
-    expect(body.message).toBe('Internal Server Error');
+    expect(body.error.code).toBe('InternalServerError');
+    expect(body.error.message).toBe('Internal Server Error');
   });
 });

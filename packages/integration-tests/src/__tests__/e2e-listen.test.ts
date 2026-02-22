@@ -77,7 +77,7 @@ describe('E2E listen', () => {
 
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.error).toBe('NotFound');
+    expect(body.error.code).toBe('NotFound');
   });
 
   it('returns 401 when authorization header is missing', async () => {
@@ -85,7 +85,7 @@ describe('E2E listen', () => {
 
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.error).toBe('UnauthorizedException');
+    expect(body.error.code).toBe('UnauthorizedException');
   });
 
   it('handles CORS preflight with 204', async () => {

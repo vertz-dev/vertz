@@ -65,7 +65,7 @@ describe('createApp', () => {
 
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.error).toBe('NotFound');
+    expect(body.error.code).toBe('NotFound');
   });
 
   it('passes parsed params to route handler via ctx', async () => {
@@ -118,8 +118,8 @@ describe('createApp', () => {
 
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.message).toBe('User not found');
-    expect(body.error).toBe('NotFoundException');
+    expect(body.error.message).toBe('User not found');
+    expect(body.error.code).toBe('NotFoundException');
   });
 
   it('handles unexpected errors with 500', async () => {
@@ -138,7 +138,7 @@ describe('createApp', () => {
 
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.error).toBe('InternalServerError');
+    expect(body.error.code).toBe('InternalServerError');
   });
 
   it('returns 405 with Allow header for wrong HTTP method', async () => {
@@ -238,7 +238,7 @@ describe('createApp', () => {
 
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.message).toBe('Invalid token');
+    expect(body.error.message).toBe('Invalid token');
   });
 
   it('prepends basePath to all routes', async () => {
