@@ -3,11 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"bun run dev:api\" \"bun run dev:ui\"",
-    "dev:api": "tsx src/server.ts",
-    "dev:ui": "vite",
+    "dev": "bun run src/dev-server.ts",
+    "dev:vite": "vite",
+    "build": "vite build",
+    "build:worker": "vite build --outDir dist-worker",
+    "deploy": "wrangler deploy",
     "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
-    "test": "bun run codegen && vitest run && bun test"
+    "test": "bun run codegen && vitest run && bun test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@vertz/cloudflare": "workspace:*",

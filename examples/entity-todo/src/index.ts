@@ -31,9 +31,12 @@ export const globalStyles = globalCss({
 
 // ── Mount ──────────────────────────────────────────────────────
 
-mount(App, '#app', {
-  theme: todoTheme,
-  styles: [globalStyles.css],
-});
-
-console.log('Entity Todo app mounted');
+// Only mount on the client (not in SSR)
+if (typeof window !== 'undefined') {
+  mount(App, '#app', {
+    theme: todoTheme,
+    styles: [globalStyles.css],
+  });
+  
+  console.log('Entity Todo app mounted');
+}
