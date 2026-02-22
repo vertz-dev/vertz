@@ -13,14 +13,14 @@
     "lint:fix": "biome check --fix packages/",
     "format": "biome format packages/",
     "format:fix": "biome format --fix packages/",
-    "ci": "turbo run lint build typecheck test --filter='!@vertz-examples/*'",
-    "ci:affected": "turbo run lint build typecheck test --filter=...[origin/main] --filter='!@vertz-examples/*'",
+    "ci": "turbo run lint build typecheck test --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!task-api-example'",
+    "ci:affected": "turbo run lint build typecheck test --filter=...[origin/main] --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!task-api-example'",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "bun run build && changeset publish",
     "postinstall": "if [ \"$(git rev-parse --git-dir 2>/dev/null)\" = \"$(git rev-parse --git-common-dir 2>/dev/null)\" ]; then lefthook install || true; fi",
     "test:tree-shaking": "npx vitest run --config tests/tree-shaking/vitest.config.ts --root tests/tree-shaking",
-    "build": "turbo run build --filter='!@vertz-examples/*'"
+    "build": "turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!task-api-example'"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",
