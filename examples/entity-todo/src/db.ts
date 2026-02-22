@@ -15,8 +15,6 @@ import type { DbDriver } from '@vertz/db';
 import type { EntityDbAdapter, ListOptions } from '@vertz/server';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const DB_PATH = path.join(DATA_DIR, 'todos.db');
 
 // ---------------------------------------------------------------------------
 // Local SQLite Driver (implements DbDriver interface)
@@ -71,6 +69,10 @@ export function runMigrations(driver: DbDriver): void {
     )
   `;
   driver.execute(createTableSql);
+
+  // Add index on completed column for better query performance
+  const createIndexSql = `CREATE INDEX IF NOT EXISTS idx_todos_completed ON todos(completed)`;
+  driver.execute(createIndexSql);
 }
 
 // ---------------------------------------------------------------------------
@@ -104,7 +106,7 @@ export class SqliteEntityDbAdapter implements EntityDbAdapter {
         completed: Boolean(rows[0].completed),
       };
     } catch (error) {
-      throw new Error(`Failed to get todo/${id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to retrieve todo: resource may be unavailable`);
     }
   }
 
@@ -166,7 +168,7 @@ export class SqliteEntityDbAdapter implements EntityDbAdapter {
 
       return { data: convertedData, total };
     } catch (error) {
-      throw new Error(`Failed to list todos: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to list todos: please try again later`);
     }
   }
 
@@ -189,7 +191,7 @@ export class SqliteEntityDbAdapter implements EntityDbAdapter {
         updatedAt: now,
       };
     } catch (error) {
-      throw new Error(`Failed to create todo: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to create todo: please check your input`);
     }
   }
 
@@ -220,11 +222,14 @@ export class SqliteEntityDbAdapter implements EntityDbAdapter {
       // Fetch and return the updated record
       const result = await this.get(id);
       if (!result) {
-        throw new Error(`Failed to update todos/${id}`);
+        throw new Error(`Todo not found`);
       }
       return result;
     } catch (error) {
-      throw new Error(`Failed to update todo/${id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      if (error instanceof Error && error.message === 'Todo not found') {
+        throw error;
+      }
+      throw new Error(`Failed to update todo: please try again later`);
     }
   }
 
@@ -238,25 +243,40 @@ export class SqliteEntityDbAdapter implements EntityDbAdapter {
       await this.driver.execute(`DELETE FROM ${this.tableName} WHERE id = ?`, [id]);
       return existing;
     } catch (error) {
-      throw new Error(`Failed to delete todo/${id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to delete todo: please try again later`);
     }
   }
 }
 
 // ---------------------------------------------------------------------------
-// Database initialization
+// Factory function for lazy initialization
 // ---------------------------------------------------------------------------
 
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+/**
+ * Create and initialize the todos database adapter.
+ * This is the lazy initialization pattern - call this function explicitly
+ * rather than relying on module-level side effects.
+ * 
+ * @param dataDir - Directory to store the SQLite database file
+ * @returns The initialized EntityDbAdapter for todos
+ */
+export function createTodosDb(dataDir?: string): EntityDbAdapter {
+  // Default to sibling 'data' directory
+  const dbDir = dataDir || path.join(__dirname, '..', 'data');
+  
+  // Ensure data directory exists
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+
+  const dbPath = path.join(dbDir, 'todos.db');
+  
+  // Create driver and run migrations
+  const dbDriver = createLocalSqliteDriver(dbPath);
+  runMigrations(dbDriver);
+
+  console.log(`📦 SQLite database initialized at: ${dbPath}`);
+
+  // Return the adapter
+  return new SqliteEntityDbAdapter(dbDriver);
 }
-
-// Create the driver and run migrations
-export const dbDriver = createLocalSqliteDriver(DB_PATH);
-runMigrations(dbDriver);
-
-// Create the EntityDbAdapter instance
-export const todosDbAdapter = new SqliteEntityDbAdapter(dbDriver);
-
-console.log(`📦 SQLite database initialized at: ${DB_PATH}`);
