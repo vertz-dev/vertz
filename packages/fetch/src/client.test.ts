@@ -1,5 +1,7 @@
 import {
+  FetchError,
   FetchNetworkError,
+  FetchNotFoundError,
   FetchValidationError,
   HttpError,
   ParseError,
@@ -92,7 +94,7 @@ describe('FetchClient.request', () => {
     expect(url.searchParams.get('search')).toBe('alice');
   });
 
-  it('throws NotFoundError for 404 response', async () => {
+  it('returns FetchNotFoundError for 404 response', async () => {
     const mockFetch = vi.fn().mockImplementation(() =>
       Promise.resolve(
         new Response(JSON.stringify({ error: 'not_found' }), {
@@ -111,8 +113,8 @@ describe('FetchClient.request', () => {
     const result = await client.request('GET', '/api/users/999');
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toBeInstanceOf(HttpError);
-      expect((result.error as HttpError).status).toBe(404);
+      expect(result.error).toBeInstanceOf(FetchNotFoundError);
+      expect(result.error.status).toBe(404);
     }
   });
 
@@ -287,7 +289,7 @@ describe('FetchClient.request', () => {
     const result = await client.request('GET', '/api/health');
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toBeInstanceOf(HttpError);
+      expect(result.error).toBeInstanceOf(FetchError);
     }
     expect(mockFetch).toHaveBeenCalledTimes(3); // 1 initial + 2 retries
   });
@@ -311,7 +313,7 @@ describe('FetchClient.request', () => {
     const result = await client.request('GET', '/api/users');
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toBeInstanceOf(HttpError);
+      expect(result.error).toBeInstanceOf(FetchError);
       expect((result.error as HttpError).status).toBe(400);
     }
     expect(mockFetch).toHaveBeenCalledTimes(1); // no retries
@@ -399,7 +401,7 @@ describe('FetchClient hooks', () => {
 
     expect(onError).toHaveBeenCalledOnce();
     const [error] = onError.mock.calls[0] as [Error];
-    expect(error).toBeInstanceOf(HttpError);
+    expect(error).toBeInstanceOf(FetchError);
   });
 
   it('calls beforeRetry hook before each retry attempt', async () => {
@@ -548,7 +550,7 @@ describe('FetchClient edge cases', () => {
     const result = await client.request('GET', '/api/users');
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toBeInstanceOf(HttpError);
+      expect(result.error).toBeInstanceOf(FetchError);
       expect((result.error as HttpError).status).toBe(500);
     }
   });
@@ -732,7 +734,7 @@ describe('FetchClient network error handling', () => {
     const result = await client.get('/test');
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toBeInstanceOf(HttpError);
+      expect(result.error).toBeInstanceOf(FetchError);
       expect((result.error as HttpError).serverCode).toBe('USER_NOT_FOUND');
     }
   });

@@ -1,4 +1,4 @@
-import { HttpError } from '@vertz/errors';
+import { FetchError, HttpError } from '@vertz/errors';
 import { describe, expect, it, vi } from 'vitest';
 import { FetchClient } from './client';
 
@@ -109,7 +109,7 @@ describe('FetchClient.requestStream (SSE)', () => {
       })) {
         events.push(event);
       }
-    }).rejects.toThrow(HttpError);
+    }).rejects.toThrow(FetchError);
 
     expect(events).toEqual([]);
   });
