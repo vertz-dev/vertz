@@ -5,6 +5,8 @@
  * Wires up the entity CRUD operations via createServer.
  */
 
+/// <reference types="@cloudflare/workers-types" />
+
 import { createHandler } from '@vertz/cloudflare';
 import { createServer } from '@vertz/server';
 import { todos } from './entities';
@@ -43,13 +45,14 @@ export default {
 
     // Create the server with the D1-backed entity adapter
     const app = createServer({
-      basePath: '/api',
+      apiPrefix: '/api',
       entities: [todos],
       _entityDbFactory: () => dbAdapter,
     });
 
     // Use the createHandler to convert the AppBuilder to a Worker fetch handler
-    const handler = createHandler(app, { basePath: '/api' });
+    // Note: Routes are already registered with apiPrefix, so we don't strip basePath
+    const handler = createHandler(app);
 
     return handler.fetch(request, env, ctx);
   },

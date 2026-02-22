@@ -10,6 +10,7 @@
     "test": "bun run codegen && vitest run && bun test"
   },
   "dependencies": {
+    "@vertz/cloudflare": "workspace:*",
     "@vertz/db": "workspace:*",
     "@vertz/fetch": "workspace:*",
     "@vertz/schema": "workspace:*",
