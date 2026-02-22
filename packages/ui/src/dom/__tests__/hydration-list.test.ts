@@ -88,6 +88,53 @@ describe('__list — hydration', () => {
     expect(claimedUl.children[1]).toBe(originalLis[1]);
   });
 
+  it('populates nodeMap from claimed nodes (reorder reuses adopted nodes)', () => {
+    const root = document.createElement('div');
+    const ul = document.createElement('ul');
+    const ssrLis: HTMLElement[] = [];
+    for (const text of ['A', 'B', 'C']) {
+      const li = document.createElement('li');
+      li.textContent = text;
+      ul.appendChild(li);
+      ssrLis.push(li);
+    }
+    root.appendChild(ul);
+
+    startHydration(root);
+    const claimedUl = __element('ul');
+    enterChildren(claimedUl);
+
+    const items = signal([
+      { id: 1, text: 'A' },
+      { id: 2, text: 'B' },
+      { id: 3, text: 'C' },
+    ]);
+
+    __list(
+      claimedUl,
+      items,
+      (item) => item.id,
+      (_item) => {
+        const li = __element('li');
+        return li;
+      },
+    );
+
+    endHydration();
+
+    // Reorder: [C, A, B] — nodeMap must have the adopted nodes to reuse them
+    items.value = [
+      { id: 3, text: 'C' },
+      { id: 1, text: 'A' },
+      { id: 2, text: 'B' },
+    ];
+
+    // The same SSR node references should be reused (not recreated)
+    expect(claimedUl.children[0]).toBe(ssrLis[2]); // C was ssrLis[2]
+    expect(claimedUl.children[1]).toBe(ssrLis[0]); // A was ssrLis[0]
+    expect(claimedUl.children[2]).toBe(ssrLis[1]); // B was ssrLis[1]
+  });
+
   it('list update after hydration works normally (add/remove/reorder)', () => {
     const root = document.createElement('div');
     const ul = document.createElement('ul');

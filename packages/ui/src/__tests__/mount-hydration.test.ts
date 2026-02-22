@@ -10,7 +10,7 @@ import {
 } from '../dom/element';
 import { __on } from '../dom/events';
 import { mount } from '../mount';
-import { signal } from '../runtime/signal';
+import { effect, signal } from '../runtime/signal';
 
 describe('mount() — tolerant hydration', () => {
   let root: HTMLElement;
@@ -168,6 +168,42 @@ describe('mount() — tolerant hydration', () => {
     // Replace mode rendered successfully
     expect(root.textContent).toBe('fallback');
     warnSpy.mockRestore();
+  });
+
+  it('error recovery cleans up effects from failed hydration attempt', () => {
+    root.innerHTML = '<div><span>SSR</span></div>';
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    let effectRunCount = 0;
+    let callCount = 0;
+    const count = signal(0);
+
+    const App = () => {
+      callCount++;
+      if (callCount === 1) {
+        // Register an effect during the failed hydration attempt
+        effect(() => {
+          // Track the signal so we can check if this effect is still alive
+          void count.value;
+          effectRunCount++;
+        });
+        throw new Error('hydration broke');
+      }
+      const el = document.createElement('div');
+      el.textContent = 'fallback';
+      return el;
+    };
+
+    mount(App, root, { hydration: 'tolerant' });
+
+    // The effect from the failed hydration ran once during setup
+    const runCountAfterMount = effectRunCount;
+
+    // Changing the signal should NOT trigger the stale effect
+    count.value = 1;
+    expect(effectRunCount).toBe(runCountAfterMount);
+
+    vi.restoreAllMocks();
   });
 
   it('default mode clears and renders (existing behavior unchanged)', () => {

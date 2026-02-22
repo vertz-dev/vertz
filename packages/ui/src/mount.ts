@@ -2,6 +2,7 @@ import { injectCSS } from './css/css';
 import type { Theme } from './css/theme';
 import { compileTheme } from './css/theme';
 import { endHydration, startHydration } from './hydrate/hydration-context';
+import { popScope, pushScope, runCleanups } from './runtime/disposal';
 
 /**
  * Options for mounting an app to the DOM.
@@ -93,13 +94,16 @@ export function mount<AppFn extends () => HTMLElement>(
       }
       // Fall through to replace mode
     } else {
+      const scope = pushScope();
       try {
         startHydration(root);
         app();
         endHydration();
+        popScope();
         options?.onMount?.(root);
         return {
           unmount: () => {
+            runCleanups(scope);
             root.textContent = '';
           },
           root,
@@ -107,6 +111,8 @@ export function mount<AppFn extends () => HTMLElement>(
       } catch (e) {
         // Bail out: hydration failed, fall back to full CSR
         endHydration();
+        popScope();
+        runCleanups(scope);
         if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
           console.warn('[mount] Hydration failed — re-rendering from scratch (no data loss):', e);
         }
