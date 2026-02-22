@@ -7,11 +7,19 @@
 
 import { effect } from '../runtime/signal';
 import type { ReadonlySignal } from '../runtime/signal-types';
+import type { RouteConfigLike, RouteDefinitionMap } from './define-routes';
+import type { RoutePaths } from './params';
 
-/** Props for the Link component. */
-export interface LinkProps {
+/**
+ * Props for the Link component.
+ *
+ * Generic over the route map `T`. Defaults to `RouteDefinitionMap` (string
+ * index signature) for backward compatibility — unparameterized `LinkProps`
+ * accepts any string href.
+ */
+export interface LinkProps<T extends Record<string, RouteConfigLike> = RouteDefinitionMap> {
   /** The target URL path. */
-  href: string;
+  href: RoutePaths<T>;
   /** Text or content for the link. */
   children: string;
   /** Class applied when the link's href matches the current path. */

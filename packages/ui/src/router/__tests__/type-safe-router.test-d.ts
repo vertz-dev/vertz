@@ -154,8 +154,27 @@ void _e2eInfKey;
 const _e2eBadInfKey: E2EInferredKeys = '/nonexistent';
 void _e2eBadInfKey;
 
-// ─── Phase 5+ tests (commented out until types exist) ───────────────────────
-//
-// Phase 5: Typed Link — createLink<T>() with typed href
-// These tests will be uncommented as each phase is implemented.
-// See plans/type-safe-router-impl.md → E2E Acceptance Test for full spec.
+// ─── Phase 5: Typed Link ─────────────────────────────────────────────────────
+
+import type { LinkProps } from '../link';
+
+// Typed LinkProps validates href against route paths
+type E2ERouteMapForLink = (typeof _e2eRoutes)['__routes'];
+declare const _e2eTypedLink: (props: LinkProps<E2ERouteMapForLink>) => HTMLAnchorElement;
+
+// Valid hrefs compile
+_e2eTypedLink({ href: '/', children: 'Home' });
+_e2eTypedLink({ href: '/tasks/42', children: 'Task' });
+_e2eTypedLink({ href: '/users/1/posts/99', children: 'Post' });
+_e2eTypedLink({ href: '/settings', children: 'Settings' });
+_e2eTypedLink({ href: '/files/docs/readme.md', children: 'File' });
+
+// @ts-expect-error - invalid path
+_e2eTypedLink({ href: '/nonexistent', children: 'Bad' });
+
+// @ts-expect-error - partial param path
+_e2eTypedLink({ href: '/tasks', children: 'Bad' });
+
+// Untyped LinkProps accepts any string href (backward compat)
+declare const _e2eUntypedLink: (props: LinkProps) => HTMLAnchorElement;
+_e2eUntypedLink({ href: '/anything-goes', children: 'OK' });
