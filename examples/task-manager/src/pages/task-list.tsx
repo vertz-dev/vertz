@@ -56,9 +56,7 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
       ? tasksQuery.data.tasks
       : tasksQuery.data.tasks.filter((t: Task) => t.status === statusFilter);
 
-  // ── Filter bar with reactive active state ───────────
-
-  const filterBar = <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem" />;
+  // ── Filter options ──────────────────────────────────
 
   const filters: Array<{ label: string; value: TaskStatus | 'all' }> = [
     { label: 'All', value: 'all' },
@@ -66,23 +64,6 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
     { label: 'In Progress', value: 'in-progress' },
     { label: 'Done', value: 'done' },
   ];
-
-  for (const filter of filters) {
-    filterBar.appendChild(
-      <button
-        class={button({
-          intent: statusFilter === filter.value ? 'primary' : 'ghost',
-          size: 'sm',
-        })}
-        data-testid={`filter-${filter.value}`}
-        onClick={() => {
-          statusFilter = filter.value;
-        }}
-      >
-        {filter.label}
-      </button>,
-    );
-  }
 
   // ── Lifecycle ──────────────────────────────────────
 
@@ -109,7 +90,22 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
           + New Task
         </button>
       </div>
-      {filterBar}
+      <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem">
+        {filters.map((filter) => (
+          <button
+            class={button({
+              intent: statusFilter === filter.value ? 'primary' : 'ghost',
+              size: 'sm',
+            })}
+            data-testid={`filter-${filter.value}`}
+            onClick={() => {
+              statusFilter = filter.value;
+            }}
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
       {tasksQuery.loading && <div data-testid="loading">Loading tasks...</div>}
       {tasksQuery.error && (
         <div style="color: var(--color-danger-500)" data-testid="error">
