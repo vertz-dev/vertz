@@ -43,8 +43,13 @@ export interface RouteDefinitionMap {
  */
 export interface RouteConfigLike {
   component: () => Node | Promise<{ default: () => Node }>;
-  /** Method syntax enables bivariant parameter checking, so RouteConfig<string>
-   *  (whose loader has params: Record<string, never>) satisfies this constraint. */
+  /**
+   * Method syntax (`loader?(ctx): R`) is intentional — it enables **bivariant**
+   * parameter checking under `strictFunctionTypes`. Property syntax
+   * (`loader?: (ctx) => R`) would be contravariant, causing `RouteConfig<string>`
+   * (whose loader has `params: Record<string, never>`) to fail assignability
+   * against this constraint's `params: Record<string, string>`.
+   */
   loader?(ctx: { params: Record<string, string>; signal: AbortSignal }): unknown;
   errorComponent?: (error: Error) => Node;
   searchParams?: SearchParamSchema<unknown>;
