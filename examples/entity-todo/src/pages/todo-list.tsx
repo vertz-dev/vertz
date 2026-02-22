@@ -1,27 +1,36 @@
 /**
- * Todo List page — displays all todos with create form.
+ * TodoListPage - Main page component for displaying and managing todos.
  *
- * Demonstrates:
- * - JSX for page layout and component composition
- * - query() for reactive data fetching with auto-unwrapped signal properties
- * - Reactive JSX conditionals: {todosQuery.loading && <el/>}
- * - Compiler `let` → signal transform for local state
- * - Compiler conditional transform: {show && <el/>} → __conditional()
- * - Compiler list transform: {items.map(...)} → __list()
+ * This component demonstrates:
+ * - Using the generated SDK with Result<T, FetchError> return types
+ * - Handling the Result type with isOk() check
+ * - Using matchError for compile-time exhaustiveness checking on error handling
+ * - Proper error message formatting for different error types (NetworkError, HttpError, TimeoutError, etc.)
  */
 
-import { effect, onCleanup, onMount, query } from '@vertz/ui';
-import type { Todo } from '../api/mock-data';
-import { fetchTodos } from '../api/mock-data';
+import { effect, onCleanup, onMount, query, isOk } from '@vertz/ui';
+import { matchError, type Result, type FetchErrorType } from '@vertz/fetch';
+import type { Todo } from '../api/client';
+import { fetchTodos } from '../api/client';
 import { TodoForm } from '../components/todo-form';
 import { TodoItem } from '../components/todo-item';
 import { emptyStateStyles, layoutStyles } from '../styles/components';
 
-export function TodoListPage() {
-  // query() returns external signals
-  const todosQuery = query(() => fetchTodos(), {
+/**
+ * Custom query that handles Result type from SDK.
+ * Wraps the SDK call to work with the query() pattern.
+ */
+function createTodosQuery() {
+  return query(async (): Promise<Result<{ todos: Todo[]; total: number }, FetchErrorType>> => {
+    return fetchTodos();
+  }, {
     key: 'todo-list',
   });
+}
+
+export function TodoListPage() {
+  // query() returns external signals
+  const todosQuery = createTodosQuery();
 
   // Computed values still need effect() bridges with explicit .value access.
   // In JSX, signal properties (loading, error) are used directly.
@@ -29,13 +38,35 @@ export function TodoListPage() {
   let todoList: Todo[] = [];
 
   effect(() => {
-    const err = todosQuery.error.value;
-    errorMsg = err
-      ? `Failed to load todos: ${err instanceof Error ? err.message : String(err)}`
-      : '';
-
     const result = todosQuery.data.value;
-    todoList = result ? result.todos : [];
+    
+    if (result) {
+      if (isOk(result)) {
+        todoList = result.data.todos;
+        errorMsg = '';
+      } else {
+        // Handle error case using matchError for exhaustiveness
+        // This ensures all error types are handled at compile time
+        todoList = [];
+        errorMsg = matchError(result.error, {
+          NetworkError: (e) => `Network error: ${e.message}. Please check your connection.`,
+          HttpError: (e) => {
+            // Use serverCode for specific HTTP error handling
+            // e.serverCode contains the semantic error code from the server
+            if (e.serverCode === 'NOT_FOUND') {
+              return 'Todos not found (404)';
+            }
+            if (e.status === 500) {
+              return 'Server error. Please try again later.';
+            }
+            return `Error ${e.status}: ${e.message}`;
+          },
+          TimeoutError: (e) => `Request timed out: ${e.message}`,
+          ParseError: (e) => `Failed to parse response: ${e.path || 'unknown'}`,
+          ValidationError: (e) => `Validation error: ${e.errors?.join(', ') || e.message}`,
+        });
+      }
+    }
   });
 
   const handleToggle = (_id: string, _completed: boolean) => {

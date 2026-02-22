@@ -1,24 +1,21 @@
 /**
- * TodoForm component — create-todo form with validation.
+ * TodoForm - Form component for creating new todos.
  *
  * Demonstrates:
- * - form() with direct properties: action, method, onSubmit
- * - Per-field reactive state: todoForm.title.error for inline error display
- * - Generated SDK carries type-only schema via .meta.bodySchema automatically
- * - Override with { schema } when you need constraints (min length, format, etc.)
- * - Reactive JSX attributes: disabled={todoForm.submitting}
- * - SdkMethod metadata for progressive enhancement
- * - No effect() needed — per-field signals replace error() and computed bridges
+ * - Using form() with SDK methods
+ * - Schema-based validation with s.string().min(1)
+ * - Proper error handling with matchError for form submission
+ * - Reactive state for form fields and submission status
  */
 
 import { s } from '@vertz/schema';
 import { form } from '@vertz/ui';
-import type { Todo } from '../api/mock-data';
-import { todoApi } from '../api/mock-data';
+import { matchError, isOk, type Result, type FetchErrorType } from '@vertz/fetch';
+import type { Todo, CreateTodoInput } from '../api/client';
+import { createTodo } from '../api/client';
 import { button, formStyles } from '../styles/components';
 
-// The generated SDK auto-carries a type-only schema (s.string(), s.boolean()).
-// Override with a stricter schema to add client-side constraints like min length.
+// Schema for client-side validation
 const createTodoSchema = s.object({
   title: s.string().min(1),
 });
@@ -27,17 +24,61 @@ export interface TodoFormProps {
   onSuccess: (todo: Todo) => void;
 }
 
+// Create a simple SDK method wrapper that handles the Result
+const createTodoAction = async (body: CreateTodoInput): Promise<{ success: boolean; data?: Todo; error?: string }> => {
+  const result: Result<Todo, FetchErrorType> = await createTodo(body);
+  
+  if (isOk(result)) {
+    return { success: true, data: result.data };
+  }
+
+  // Handle errors with matchError for compile-time exhaustiveness
+  const errorMessage = matchError(result.error, {
+    NetworkError: (e) => `Network error: ${e.message}`,
+    HttpError: (e) => {
+      if (e.serverCode === 'BAD_REQUEST') {
+        return `Invalid input: ${e.message}`;
+      }
+      if (e.serverCode === 'VALIDATION_ERROR') {
+        return `Validation failed: ${e.message}`;
+      }
+      if (e.status === 401) {
+        return 'Unauthorized. Please log in.';
+      }
+      if (e.status === 403) {
+        return 'Forbidden. You do not have permission.';
+      }
+      return `Error ${e.status}: ${e.message}`;
+    },
+    TimeoutError: (e) => `Request timed out. Please try again.`,
+    ParseError: (e) => `Failed to parse response: ${e.path || 'unknown'}`,
+    ValidationError: (e) => `Validation error: ${e.errors?.join(', ') || e.message}`,
+  });
+
+  return { success: false, error: errorMessage };
+};
+
+// Attach metadata for progressive enhancement
+Object.assign(createTodoAction, {
+  url: '/todos',
+  method: 'POST' as const,
+});
+
 export function TodoForm({ onSuccess }: TodoFormProps) {
-  const todoForm = form(todoApi.create, {
+  const todoForm = form(createTodoAction as any, {
     schema: createTodoSchema,
-    onSuccess,
+    onSuccess: (data: any) => {
+      if (data?.success && data?.data) {
+        onSuccess(data.data);
+      }
+    },
     resetOnSuccess: true,
   });
 
   return (
     <form
-      action={todoForm.action}
-      method={todoForm.method}
+      action={(createTodoAction as any).url}
+      method={(createTodoAction as any).method}
       onSubmit={todoForm.onSubmit}
       data-testid="create-todo-form"
     >
