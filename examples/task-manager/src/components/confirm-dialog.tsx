@@ -40,7 +40,7 @@ export function ConfirmDialog({
   description,
   confirmLabel = 'Confirm',
   onConfirm,
-}: ConfirmDialogProps): HTMLElement {
+}: ConfirmDialogProps) {
   let isOpen = false;
   const titleId = `dialog-title-${Math.random().toString(36).slice(2, 8)}`;
 

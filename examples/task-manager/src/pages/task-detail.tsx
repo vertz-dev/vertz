@@ -55,7 +55,7 @@ export interface TaskDetailPageProps {
  * transitions) use const declarations — the compiler classifies them
  * as computed and wraps them automatically. No effect() needed.
  */
-export function TaskDetailPage({ taskId, navigate }: TaskDetailPageProps): HTMLElement {
+export function TaskDetailPage({ taskId, navigate }: TaskDetailPageProps) {
   // ── Data fetching ──────────────────────────────────
 
   const taskQuery = query(() => fetchTask(taskId), {
