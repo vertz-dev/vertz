@@ -36,3 +36,36 @@ export type ExtractParams<T extends string> = [
   : HasWildcard<T> extends true
     ? { [K in ExtractParamsFromSegments<WithoutWildcard<T>>]: string } & { '*': string }
     : { [K in ExtractParamsFromSegments<WithoutWildcard<T>>]: string };
+
+// ─── PathWithParams ─────────────────────────────────────────────────────────
+
+/**
+ * Convert a route pattern to the union of URL shapes it accepts.
+ * - Static: `'/'` → `'/'`
+ * - Param: `'/tasks/:id'` → `` `/tasks/${string}` ``
+ * - Wildcard: `'/files/*'` → `` `/files/${string}` ``
+ * - Multi: `'/users/:id/posts/:postId'` → `` `/users/${string}/posts/${string}` ``
+ * - Fallback: `string` → `string` (backward compat)
+ */
+export type PathWithParams<T extends string> = T extends `${infer Before}*`
+  ? `${PathWithParams<Before>}${string}`
+  : T extends `${infer Before}:${string}/${infer After}`
+    ? `${Before}${string}/${PathWithParams<`${After}`>}`
+    : T extends `${infer Before}:${string}`
+      ? `${Before}${string}`
+      : T;
+
+// ─── RoutePaths ─────────────────────────────────────────────────────────────
+
+/**
+ * Union of all valid URL shapes for a route map.
+ * Maps each route pattern key through `PathWithParams` to produce the accepted URL shapes.
+ *
+ * Example:
+ * ```
+ * RoutePaths<{ '/': ..., '/tasks/:id': ... }> = '/' | `/tasks/${string}`
+ * ```
+ */
+export type RoutePaths<TRouteMap extends Record<string, unknown>> = {
+  [K in keyof TRouteMap & string]: PathWithParams<K>;
+}[keyof TRouteMap & string];
