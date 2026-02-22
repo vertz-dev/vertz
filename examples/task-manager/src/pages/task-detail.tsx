@@ -11,7 +11,7 @@
  * - Compiler conditional transform for loading/error/content visibility
  */
 
-import { css, effect, onCleanup, onMount, query } from '@vertz/ui';
+import { css, onCleanup, onMount, query } from '@vertz/ui';
 import { Tabs } from '@vertz/ui-primitives';
 import { deleteTask, fetchTask, updateTask } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
@@ -49,11 +49,12 @@ export interface TaskDetailPageProps {
 /**
  * Render the task detail page.
  *
- * Fetches a single task by ID using query() and displays it with
- * tabs for Details and Activity. Signal properties (loading, error)
- * are used directly in JSX — the compiler auto-unwraps them.
- * Derived values (errorMsg, task) use const declarations —
- * the compiler classifies them as computed and wraps them automatically.
+ * Fully declarative task detail page. Fetches a single task by ID
+ * using query() and displays it with tabs for Details and Activity.
+ * Signal properties (loading, error) are used directly in JSX —
+ * the compiler auto-unwraps them. Derived values (errorMsg, task,
+ * transitions) use const declarations — the compiler classifies them
+ * as computed and wraps them automatically. No effect() needed.
  */
 export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
   const { taskId, navigate } = props;
@@ -72,107 +73,43 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
 
   const task = taskQuery.data ?? null;
 
-  // ── Elements populated by the content effect ───────
+  // Status transitions — the compiler classifies this as computed since
+  // it depends on `task` (which depends on the signal API variable).
+  const transitions: Array<{ label: string; status: TaskStatus }> = !task
+    ? []
+    : task.status === 'todo'
+      ? [{ label: 'Start', status: 'in-progress' }]
+      : task.status === 'in-progress'
+        ? [
+            { label: 'Complete', status: 'done' },
+            { label: 'Back to Todo', status: 'todo' },
+          ]
+        : task.status === 'done'
+          ? [{ label: 'Reopen', status: 'in-progress' }]
+          : [];
 
-  const titleEl = <h1 class={detailStyles.classNames.title} data-testid="task-title" />;
-  const metaEl = <div class={detailStyles.classNames.meta} />;
-  const actionsEl = <div class={detailStyles.classNames.actions} />;
-  const statusBar = <div class={detailStyles.classNames.statusBar} data-testid="status-bar" />;
-  const descBody = (
-    <div class={detailStyles.classNames.description} data-testid="task-description" />
-  );
-
-  // ── Tabs (Details / Activity) — primitive stays imperative ──
+  // ── Tabs (Details / Activity) — primitive API is imperative ──
 
   const tabs = Tabs.Root({ defaultValue: 'details' });
   const detailsTab = tabs.Tab('details', 'Details');
   const activityTab = tabs.Tab('activity', 'Activity');
 
-  // Details panel content — uses JSX for the section layout
+  // Panel content uses reactive JSX — {task?.description} compiles to
+  // __child(() => task.value?.description), updating when data loads.
   detailsTab.panel.appendChild(
     <div class={detailStyles.classNames.section}>
       <h3 class={detailStyles.classNames.sectionTitle}>Description</h3>
-      {descBody}
+      <div class={detailStyles.classNames.description} data-testid="task-description">
+        {task?.description}
+      </div>
     </div>,
   );
 
-  // Activity panel content
   activityTab.panel.appendChild(
     <div class={detailStyles.classNames.timeline}>
       No activity yet. Status changes and comments will appear here.
     </div>,
   );
-
-  tabs.root.style.marginTop = '1.5rem';
-
-  // ── Reactive content population ─────────────────────
-  // The task detail content (title, meta, status bar, actions) changes
-  // when the task data updates (e.g., after a status transition).
-  // This effect reads the `task` computed to populate the content.
-
-  effect(() => {
-    const t = task;
-    if (!t) return;
-
-    // Populate the detail view
-    titleEl.textContent = t.title;
-    metaEl.textContent = `Created ${new Date(t.createdAt).toLocaleDateString()} · Updated ${new Date(t.updatedAt).toLocaleDateString()}`;
-    descBody.textContent = t.description;
-
-    // Build status bar with JSX
-    statusBar.innerHTML = '';
-    statusBar.appendChild(
-      <span
-        class={badge({
-          color: t.status === 'done' ? 'green' : t.status === 'in-progress' ? 'blue' : 'gray',
-        })}
-      >
-        {t.status === 'in-progress' ? 'In Progress' : t.status === 'done' ? 'Done' : 'To Do'}
-      </span>,
-    );
-
-    // Status transition buttons
-    const transitions: Array<{ label: string; status: TaskStatus }> = [];
-    if (t.status === 'todo') {
-      transitions.push({ label: 'Start', status: 'in-progress' });
-    }
-    if (t.status === 'in-progress') {
-      transitions.push({ label: 'Complete', status: 'done' });
-      transitions.push({ label: 'Back to Todo', status: 'todo' });
-    }
-    if (t.status === 'done') {
-      transitions.push({ label: 'Reopen', status: 'in-progress' });
-    }
-
-    for (const transition of transitions) {
-      statusBar.appendChild(
-        <button
-          class={button({ intent: 'secondary', size: 'sm' })}
-          onClick={async () => {
-            await updateTask(taskId, { status: transition.status });
-            taskQuery.revalidate();
-          }}
-        >
-          {transition.label}
-        </button>,
-      );
-    }
-
-    // Actions (delete) — uses <ConfirmDialog /> JSX component
-    actionsEl.innerHTML = '';
-    actionsEl.appendChild(
-      <ConfirmDialog
-        triggerLabel="Delete"
-        title="Delete Task"
-        description={`Are you sure you want to delete "${t.title}"? This action cannot be undone.`}
-        confirmLabel="Delete Task"
-        onConfirm={async () => {
-          await deleteTask(taskId);
-          navigate('/');
-        }}
-      />,
-    );
-  });
 
   // ── Cleanup ────────────────────────────────────────
 
@@ -203,13 +140,56 @@ export function TaskDetailPage(props: TaskDetailPageProps): HTMLElement {
           </button>
           <div class={detailStyles.classNames.header}>
             <div class={detailStyles.classNames.titleArea}>
-              {titleEl}
-              {metaEl}
+              <h1 class={detailStyles.classNames.title} data-testid="task-title">
+                {task.title}
+              </h1>
+              <div class={detailStyles.classNames.meta}>
+                {`Created ${new Date(task.createdAt).toLocaleDateString()} · Updated ${new Date(task.updatedAt).toLocaleDateString()}`}
+              </div>
             </div>
-            {actionsEl}
+            <div class={detailStyles.classNames.actions}>
+              <ConfirmDialog
+                triggerLabel="Delete"
+                title="Delete Task"
+                description={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
+                confirmLabel="Delete Task"
+                onConfirm={async () => {
+                  await deleteTask(taskId);
+                  navigate('/');
+                }}
+              />
+            </div>
           </div>
-          {statusBar}
-          {tabs.root}
+          <div class={detailStyles.classNames.statusBar} data-testid="status-bar">
+            <span
+              class={badge({
+                color:
+                  task.status === 'done'
+                    ? 'green'
+                    : task.status === 'in-progress'
+                      ? 'blue'
+                      : 'gray',
+              })}
+            >
+              {task.status === 'in-progress'
+                ? 'In Progress'
+                : task.status === 'done'
+                  ? 'Done'
+                  : 'To Do'}
+            </span>
+            {transitions.map((tr) => (
+              <button
+                class={button({ intent: 'secondary', size: 'sm' })}
+                onClick={async () => {
+                  await updateTask(taskId, { status: tr.status });
+                  taskQuery.revalidate();
+                }}
+              >
+                {tr.label}
+              </button>
+            ))}
+          </div>
+          <div style="margin-top: 1.5rem">{tabs.root}</div>
         </div>
       )}
     </div>
