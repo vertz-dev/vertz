@@ -119,15 +119,17 @@ export class ReactivityAnalyzer {
       }
     }
 
-    // Computeds: `const` vars that depend (directly or transitively) on a signal
-    // and are JSX-reachable
+    // Computeds: `const` vars that depend (directly or transitively) on a signal,
+    // a computed, or a signal API variable (query, form, createLoader)
     const computeds = new Set<string>();
     changed = true;
     while (changed) {
       changed = false;
       for (const [name, info] of consts) {
         if (computeds.has(name)) continue;
-        const dependsOnReactive = info.deps.some((dep) => signals.has(dep) || computeds.has(dep));
+        const dependsOnReactive = info.deps.some(
+          (dep) => signals.has(dep) || computeds.has(dep) || signalApiVars.has(dep),
+        );
         if (dependsOnReactive) {
           computeds.add(name);
           changed = true;

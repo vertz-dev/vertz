@@ -3,17 +3,13 @@
  *
  * Demonstrates:
  * - JSX for layout composition
- * - ThemeProvider for theme context
+ * - ThemeProvider for theme context (CSS variable scoping)
  * - createContext / useContext for app-wide settings
- * - effect() for reactive route rendering (driven by external router signal)
+ * - watch() for reacting to external signals (route changes, theme changes)
  * - Full composition of all @vertz/ui features
- *
- * Note: All reactive state here comes from external signals (appRouter.current,
- * settings.theme), so effect() is still needed. No local `let` → signal
- * transform applies in this file.
  */
 
-import { css, effect, ThemeProvider } from '@vertz/ui';
+import { css, ThemeProvider, watch } from '@vertz/ui';
 import { createSettingsValue, SettingsContext } from './lib/settings-context';
 import { appRouter, Link } from './router';
 import { layoutStyles } from './styles/components';
@@ -38,7 +34,7 @@ export function App(): HTMLElement {
 
   // We wrap the render in the SettingsContext.Provider scope
   SettingsContext.Provider(settings, () => {
-    // Main content area — referenced by the route rendering effect
+    // Main content area — updated by the route watch callback
     const main = (
       <main class={layoutStyles.classNames.main} data-testid="main-content" />
     );
@@ -89,26 +85,26 @@ export function App(): HTMLElement {
       }
     }
 
-    effect(() => {
-      const match = appRouter.current.value;
+    watch(
+      () => appRouter.current.value,
+      (match) => {
+        if (!match) {
+          updateContent((<div data-testid="not-found">Page not found</div>));
+          return;
+        }
 
-      if (!match) {
-        updateContent((<div data-testid="not-found">Page not found</div>));
-        return;
-      }
-
-      // Render the matched route's component
-      const component = match.route.component();
-      if (component instanceof Promise) {
-        // Handle async components
-        component.then((mod) => {
-          const node = (mod as { default: () => Node }).default();
-          updateContent(node);
-        });
-      } else {
-        updateContent(component);
-      }
-    });
+        // Render the matched route's component
+        const component = match.route.component();
+        if (component instanceof Promise) {
+          component.then((mod) => {
+            const node = (mod as { default: () => Node }).default();
+            updateContent(node);
+          });
+        } else {
+          updateContent(component);
+        }
+      },
+    );
 
     // Wrap in ThemeProvider with reactive theme
     const themeWrapper = ThemeProvider({
@@ -117,11 +113,13 @@ export function App(): HTMLElement {
     });
     container.appendChild(themeWrapper);
 
-    // Re-wrap when theme changes (ThemeProvider sets data-theme attribute)
-    effect(() => {
-      const theme = settings.theme.value;
-      themeWrapper.setAttribute('data-theme', theme);
-    });
+    // Sync theme changes to the ThemeProvider wrapper (CSS variable scoping)
+    watch(
+      () => settings.theme.value,
+      (theme) => {
+        themeWrapper.setAttribute('data-theme', theme);
+      },
+    );
   });
 
   return container as HTMLElement;
