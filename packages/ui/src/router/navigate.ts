@@ -196,6 +196,8 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     }
   }
 
+  // Cast is safe: RoutePaths<T> narrows `string` at the type level only.
+  // At runtime, navigate always receives a string regardless of T.
   return {
     current,
     dispose,
