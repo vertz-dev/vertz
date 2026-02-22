@@ -7,10 +7,10 @@
  * - SPA fallback for non-API routes (client-side rendering)
  * - SQLite for local persistence (not D1)
  *
- * Usage: bun dev
+ * Usage: pnpm dev
  * 
  * Note: For true SSR in local dev, you need to build the app first:
- *   bun build && bun preview
+ *   pnpm build && pnpm preview
  */
 
 import { createServer as createHttpServer } from 'node:http';
@@ -70,10 +70,7 @@ function toWebRequest(req: IncomingMessage): Request {
     }
   }
 
-  // Use host header from request, fallback to localhost:PORT
-  const host = req.headers.host || `localhost:${PORT}`;
-  const protocol = req.socket.encrypted ? 'https' : 'http';
-  return new Request(`${protocol}://${host}${req.url || '/'}`, {
+  return new Request(`http://localhost:${PORT}${req.url || '/'}`, {
     method: req.method || 'GET',
     headers,
   });
@@ -157,9 +154,7 @@ async function startDevServer() {
             }
           }
           
-          const host = req.headers.host || `localhost:${PORT}`;
-          const protocol = req.socket.encrypted ? 'https' : 'http';
-          const apiReq = new Request(`${protocol}://${host}${req.url || '/'}`, {
+          const apiReq = new Request(`http://localhost:${PORT}${req.url || '/'}`, {
             method: req.method || 'GET',
             headers,
             body: bodyStr,
@@ -223,7 +218,7 @@ async function startDevServer() {
 ║   Notes:                                                 ║
 ║   • API routes served locally with SQLite               ║
 ║   • UI uses Vite HMR for hot-reload                     ║
-║   • For SSR, run: bun build && bun preview           ║
+║   • For SSR, run: pnpm build && pnpm preview           ║
 ║                                                           ║
 ║   Available endpoints:                                   ║
 ║   • GET    /api/todos         List all todos            ║
