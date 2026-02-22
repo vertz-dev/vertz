@@ -94,7 +94,7 @@ export function generateEntityRoutes(
           jsonResponse(
             {
               error: {
-                code: 'METHOD_NOT_ALLOWED',
+                code: 'MethodNotAllowed',
                 message: `Operation "list" is disabled for ${def.name}`,
               },
             },
@@ -142,7 +142,7 @@ export function generateEntityRoutes(
           jsonResponse(
             {
               error: {
-                code: 'METHOD_NOT_ALLOWED',
+                code: 'MethodNotAllowed',
                 message: `Operation "get" is disabled for ${def.name}`,
               },
             },
@@ -182,7 +182,7 @@ export function generateEntityRoutes(
           jsonResponse(
             {
               error: {
-                code: 'METHOD_NOT_ALLOWED',
+                code: 'MethodNotAllowed',
                 message: `Operation "create" is disabled for ${def.name}`,
               },
             },
@@ -222,7 +222,7 @@ export function generateEntityRoutes(
           jsonResponse(
             {
               error: {
-                code: 'METHOD_NOT_ALLOWED',
+                code: 'MethodNotAllowed',
                 message: `Operation "update" is disabled for ${def.name}`,
               },
             },
@@ -263,7 +263,7 @@ export function generateEntityRoutes(
           jsonResponse(
             {
               error: {
-                code: 'METHOD_NOT_ALLOWED',
+                code: 'MethodNotAllowed',
                 message: `Operation "delete" is disabled for ${def.name}`,
               },
             },
@@ -309,7 +309,7 @@ export function generateEntityRoutes(
           jsonResponse(
             {
               error: {
-                code: 'METHOD_NOT_ALLOWED',
+                code: 'MethodNotAllowed',
                 message: `Action "${actionName}" is disabled for ${def.name}`,
               },
             },

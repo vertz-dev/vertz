@@ -236,7 +236,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
 
       expect(res.status).toBe(405);
       const body = await res.json();
-      expect(body.error.code).toBe('METHOD_NOT_ALLOWED');
+      expect(body.error.code).toBe('MethodNotAllowed');
     });
 
     it('before.create hook transforms data', async () => {
@@ -421,7 +421,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
 
       expect(res.status).toBe(405);
       const body = await res.json();
-      expect(body.error.code).toBe('METHOD_NOT_ALLOWED');
+      expect(body.error.code).toBe('MethodNotAllowed');
     });
   });
 

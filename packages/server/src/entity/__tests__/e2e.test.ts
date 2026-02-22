@@ -351,7 +351,7 @@ describe('EDA v0.1.0 E2E', () => {
 
           expect(res.status).toBe(405);
           const body = await res.json();
-          expect(body.error.code).toBe('METHOD_NOT_ALLOWED');
+          expect(body.error.code).toBe('MethodNotAllowed');
         });
       });
     });
@@ -410,7 +410,7 @@ describe('EDA v0.1.0 E2E', () => {
 
           expect(res.status).toBe(405);
           const body = await res.json();
-          expect(body.error.code).toBe('METHOD_NOT_ALLOWED');
+          expect(body.error.code).toBe('MethodNotAllowed');
         });
       });
     });
@@ -493,7 +493,7 @@ describe('EDA v0.1.0 E2E', () => {
       const body = await res.json();
 
       expect(body).toHaveProperty('error');
-      expect(body.error).toHaveProperty('code', 'METHOD_NOT_ALLOWED');
+      expect(body.error).toHaveProperty('code', 'MethodNotAllowed');
       expect(body.error).toHaveProperty('message');
     });
 

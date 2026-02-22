@@ -493,7 +493,7 @@ describe('generateEntityRoutes', () => {
 
       expect(response.status).toBe(405);
       const body = await response.json();
-      expect(body.error.code).toBe('METHOD_NOT_ALLOWED');
+      expect(body.error.code).toBe('MethodNotAllowed');
     });
 
     it('access denied returns 403', async () => {
