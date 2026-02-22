@@ -14,14 +14,5 @@
 
 import { mount } from '@vertz/ui';
 import { App } from './app';
-import { todoTheme } from './styles/theme';
-import { globalStyles } from './index';
 
-// Mount the app to #app
-// Use 'tolerant' hydration to walk existing SSR DOM nodes instead of replacing them
-// This preserves the server-rendered content while attaching event handlers
-mount(App, '#app', {
-  theme: todoTheme,
-  styles: [globalStyles.css],
-  hydration: 'tolerant',
-});
+mount(App, '#app', { hydration: 'tolerant' });

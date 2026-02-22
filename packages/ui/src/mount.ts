@@ -1,6 +1,8 @@
 import { injectCSS } from './css/css';
 import type { Theme } from './css/theme';
 import { compileTheme } from './css/theme';
+import { endHydration, startHydration } from './hydrate/hydration-context';
+import { popScope, pushScope, runCleanups } from './runtime/disposal';
 
 /**
  * Options for mounting an app to the DOM.
@@ -10,8 +12,8 @@ export interface MountOptions {
   theme?: Theme;
   /** Global CSS strings to inject */
   styles?: string[];
-  /** Hydration mode: 'replace' (default), 'tolerant', or false (no hydration) */
-  hydration?: 'replace' | 'tolerant' | false;
+  /** Hydration mode: 'replace' (default), 'tolerant' (walk SSR DOM), or 'strict' (reserved) */
+  hydration?: 'replace' | 'tolerant' | 'strict';
   /** Component registry for per-component hydration */
   // biome-ignore lint/suspicious/noExplicitAny: spec requires generic component functions
   registry?: Record<string, () => any>;
@@ -31,6 +33,10 @@ export interface MountHandle {
 
 /**
  * Mount an app to a DOM element.
+ *
+ * For full-app SSR hydration, use `{ hydration: 'tolerant' }` to walk
+ * existing SSR DOM and attach reactivity without clearing and re-rendering.
+ * For island/per-component hydration, use `hydrate()` instead.
  *
  * @param app - App function that returns an HTMLElement
  * @param selector - CSS selector string or HTMLElement
@@ -68,31 +74,57 @@ export function mount<AppFn extends () => HTMLElement>(
     }
   }
 
-  // Handle hydration mode
-  const hydrationMode = options?.hydration ?? 'replace';
+  const mode = options?.hydration ?? 'replace';
 
-  if (hydrationMode === 'replace') {
-    // Clear existing content (replace mode - default)
-    root.textContent = '';
-  } else if (hydrationMode === 'tolerant') {
-    // Tolerant mode: Walk existing DOM nodes from SSR and try to preserve them.
-    // The app function receives the root element and can choose to reuse
-    // existing DOM nodes instead of creating new ones.
-    // This allows SSR-rendered content to remain while hydration attaches event handlers.
+  if (mode === 'strict') {
+    throw new Error(
+      "mount(): hydration: 'strict' is reserved but not yet implemented. " +
+        "Use 'tolerant' for SSR hydration or 'replace' (default) for CSR.",
+    );
   }
-  // false = no hydration, just leave existing content as-is
 
-  // Create and append the app
-  // In tolerant mode, app receives the root so it can walk existing DOM
-  const appElement = hydrationMode === 'tolerant' ? app() : app();
-
-  // Only append if not using tolerant mode (app handles its own DOM in that case)
-  if (hydrationMode !== 'tolerant') {
-    root.appendChild(appElement);
-  } else if (appElement !== root && root.childNodes.length === 0) {
-    // If app returned a different element and root is empty, append it
-    root.appendChild(appElement);
+  if (mode === 'tolerant') {
+    if (!root.firstChild) {
+      // Dev warning: tolerant mode on empty root is likely a mistake
+      if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+        console.warn(
+          '[mount] hydration: "tolerant" has no effect on an empty root ' +
+            '(no SSR content found). Using replace mode.',
+        );
+      }
+      // Fall through to replace mode
+    } else {
+      const scope = pushScope();
+      try {
+        startHydration(root);
+        app();
+        endHydration();
+        popScope();
+        options?.onMount?.(root);
+        return {
+          unmount: () => {
+            runCleanups(scope);
+            root.textContent = '';
+          },
+          root,
+        };
+      } catch (e) {
+        // Bail out: hydration failed, fall back to full CSR
+        endHydration();
+        popScope();
+        runCleanups(scope);
+        if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+          console.warn('[mount] Hydration failed — re-rendering from scratch (no data loss):', e);
+        }
+        // Fall through to replace mode
+      }
+    }
   }
+
+  // Replace mode (default, or fallback from failed tolerant)
+  root.textContent = '';
+  const appElement = app();
+  root.appendChild(appElement);
 
   // Call onMount callback
   options?.onMount?.(root);
