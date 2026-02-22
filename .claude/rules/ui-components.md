@@ -12,10 +12,22 @@ export function TaskCard(props: TaskCardProps): HTMLElement {
   const { task, onClick } = props;
 
 // RIGHT
-export function TaskCard({ task, onClick }: TaskCardProps): HTMLElement {
+export function TaskCard({ task, onClick }: TaskCardProps) {
 ```
 
 Never destructure props in the function body. The only exception is unused props, where `_props: PropsType` is acceptable to satisfy the type signature.
+
+### Don't annotate return types
+
+Let TypeScript infer component return types. The JSX factory already maps tag names to specific element types via `HTMLElementTagNameMap` (e.g., `<form>` returns `HTMLFormElement`, `<div>` returns `HTMLDivElement`). Explicit `: HTMLElement` annotations are a lossy upcast.
+
+```tsx
+// WRONG — loses type specificity
+export function TaskForm({ onSuccess }: TaskFormProps): HTMLElement {
+
+// RIGHT — TypeScript infers the correct element type
+export function TaskForm({ onSuccess }: TaskFormProps) {
+```
 
 ### Props interface naming
 

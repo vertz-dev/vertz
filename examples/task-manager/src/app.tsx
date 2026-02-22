@@ -27,17 +27,15 @@ const navStyles = css({
  * 1. SettingsContext.Provider — for app-wide settings access
  * 2. ThemeProvider — for CSS custom property switching
  */
-export function App(): HTMLElement {
+export function App() {
   const settings = createSettingsValue();
 
-  const container = (<div data-testid="app-root" />);
+  const container = <div data-testid="app-root" />;
 
   // We wrap the render in the SettingsContext.Provider scope
   SettingsContext.Provider(settings, () => {
     // Main content area — updated by the route watch callback
-    const main = (
-      <main class={layoutStyles.classNames.main} data-testid="main-content" />
-    );
+    const main = <main class={layoutStyles.classNames.main} data-testid="main-content" />;
 
     // Shell layout: sidebar + main, composed with JSX
     const shell = (
@@ -89,7 +87,7 @@ export function App(): HTMLElement {
       () => appRouter.current.value,
       (match) => {
         if (!match) {
-          updateContent((<div data-testid="not-found">Page not found</div>));
+          updateContent(<div data-testid="not-found">Page not found</div>);
           return;
         }
 

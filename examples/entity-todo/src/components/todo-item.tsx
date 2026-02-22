@@ -18,7 +18,7 @@ export interface TodoItemProps {
   onDelete: (id: string) => void;
 }
 
-export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemProps): HTMLElement {
+export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemProps) {
   let isCompleted = completed;
 
   const handleToggle = async () => {

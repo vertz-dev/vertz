@@ -51,7 +51,7 @@ export interface TaskCardProps {
  *
  * Returns an HTMLElement that acts as a clickable card linking to the task detail.
  */
-export function TaskCard({ task, onClick }: TaskCardProps): HTMLElement {
+export function TaskCard({ task, onClick }: TaskCardProps) {
   return (
     <article
       class={cardStyles.classNames.card}

@@ -35,7 +35,7 @@ export interface SettingsPageProps {
 /**
  * Render the settings page with theme switching.
  */
-export function SettingsPage(_props: SettingsPageProps): HTMLElement {
+export function SettingsPage(_props: SettingsPageProps) {
   const settings = useSettings();
 
   // Local state: compiler transforms `let` to signal()
