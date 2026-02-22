@@ -1,5 +1,6 @@
 import {
   err,
+  type FetchError,
   FetchNetworkError,
   FetchTimeoutError,
   FetchValidationError,
@@ -7,7 +8,6 @@ import {
   ok,
   ParseError,
 } from '@vertz/errors';
-import { createErrorFromStatus, type FetchError } from './errors';
 import type {
   AuthStrategy,
   FetchClientConfig,
@@ -90,15 +90,14 @@ export class FetchClient {
             }
           }
 
-          const error = createErrorFromStatus(response.status, response.statusText, body);
+          const httpError = new HttpError(response.status, response.statusText, serverCode);
 
           if (attempt < retryConfig.retries && retryConfig.retryOn.includes(response.status)) {
-            lastError = error;
-            await this.config.hooks?.beforeRetry?.(attempt + 1, error);
+            lastError = httpError;
+            await this.config.hooks?.beforeRetry?.(attempt + 1, httpError);
             continue;
           }
 
-          const httpError = new HttpError(response.status, response.statusText, serverCode);
           await this.config.hooks?.onError?.(httpError);
           return err(httpError);
         }
@@ -119,9 +118,8 @@ export class FetchClient {
         });
       }
 
-      // This is unreachable: the loop always either returns or throws.
-      // If retries are exhausted, the last iteration throws on the non-retryable path.
-      throw lastError;
+      // Unreachable: the loop always returns within the retry logic
+      return err(lastError ?? new FetchNetworkError('All retries exhausted'));
     } catch (error) {
       // Check if this is a timeout error (AbortError from AbortSignal)
       if (error instanceof Error && error.name === 'AbortError') {
@@ -207,9 +205,9 @@ export class FetchClient {
         }
       }
 
-      const error = createErrorFromStatus(response.status, response.statusText, body);
-      await this.config.hooks?.onError?.(error);
-      throw new HttpError(response.status, response.statusText, serverCode);
+      const httpError = new HttpError(response.status, response.statusText, serverCode);
+      await this.config.hooks?.onError?.(httpError);
+      throw httpError;
     }
 
     if (!response.body) {
