@@ -6,11 +6,17 @@
  * checked by `tsc --noEmit` (typecheck), not by vitest at runtime.
  */
 
-import type { CompiledRoute, RouteConfig, RouteDefinitionMap, TypedRoutes } from '../define-routes';
+import type {
+  CompiledRoute,
+  InferRouteMap,
+  RouteConfig,
+  RouteDefinitionMap,
+  TypedRoutes,
+} from '../define-routes';
 import { defineRoutes } from '../define-routes';
 import type { Router } from '../navigate';
 import type { ExtractParams, PathWithParams, RoutePaths } from '../params';
-import { useRouter } from '../router-context';
+import { useParams, useRouter } from '../router-context';
 import type { RouterViewProps } from '../router-view';
 import { RouterView } from '../router-view';
 
@@ -305,3 +311,63 @@ void _viewBadRouter;
 // RouterViewProps type structure
 const _props: RouterViewProps = { router: _mockRouter };
 void _props;
+
+// ─── Phase 4: useParams + useRouter<T> + InferRouteMap type tests ───────────
+
+// Phase 4 Cycle 1: useParams<TPath> returns ExtractParams<TPath>
+const _p4Params = useParams<'/tasks/:id'>();
+const _p4Id: string = _p4Params.id;
+void _p4Id;
+
+// @ts-expect-error - 'name' does not exist on ExtractParams<'/tasks/:id'>
+const _p4Bad = _p4Params.name;
+void _p4Bad;
+
+// Phase 4 Cycle 2: useParams() (no param) returns ExtractParams<string> — backward compat
+const _p4Untyped = useParams();
+void _p4Untyped;
+
+// Phase 4 Cycle 3: useRouter<T>() returns Router<T> with typed navigate
+const _p4Routes = defineRoutes({
+  '/': { component: () => document.createElement('div') },
+  '/tasks/:id': { component: () => document.createElement('div') },
+  '/settings': { component: () => document.createElement('div') },
+});
+
+const _p4TypedRouter = useRouter<InferRouteMap<typeof _p4Routes>>();
+
+// Valid paths compile
+_p4TypedRouter.navigate('/');
+_p4TypedRouter.navigate('/settings');
+_p4TypedRouter.navigate('/tasks/42');
+
+// @ts-expect-error - '/nonexistent' is not a valid path
+_p4TypedRouter.navigate('/nonexistent');
+
+// @ts-expect-error - '/tasks' without param is not valid
+_p4TypedRouter.navigate('/tasks');
+
+// Phase 4 Cycle 4: useRouter() (no param) returns Router — backward compat
+const _p4UntypedRouter = useRouter();
+_p4UntypedRouter.navigate('/anything'); // OK — string accepted
+const _p4AsRouter: Router = _p4UntypedRouter;
+void _p4AsRouter;
+
+// Phase 4 Cycle 5: InferRouteMap extracts route map from TypedRoutes<T>
+type P4RouteMap = InferRouteMap<typeof _p4Routes>;
+type P4Keys = keyof P4RouteMap;
+const _p4Key1: P4Keys = '/';
+const _p4Key2: P4Keys = '/tasks/:id';
+const _p4Key3: P4Keys = '/settings';
+void _p4Key1;
+void _p4Key2;
+void _p4Key3;
+
+// @ts-expect-error - '/nonexistent' is not a key
+const _p4BadKey: P4Keys = '/nonexistent';
+void _p4BadKey;
+
+// InferRouteMap on non-TypedRoutes returns T as-is (passthrough)
+type P4Passthrough = InferRouteMap<{ '/': RouteConfig }>;
+const _p4PassKey: keyof P4Passthrough = '/';
+void _p4PassKey;

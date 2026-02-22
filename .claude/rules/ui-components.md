@@ -229,11 +229,16 @@ export function TaskListPage() {
   // navigate('/tasks/new')
 }
 
-// Page with route params — read from router.current
+// Page with typed route params — use useParams<TPath>()
 export function TaskDetailPage() {
+  const { id: taskId } = useParams<'/tasks/:id'>();
+  // taskId: string — fully typed, throws if no route matched
+}
+
+// Alternative: untyped access via router.current (non-page contexts)
+export function SomeWidget() {
   const router = useRouter();
   const taskId = router.current.value?.params.id ?? '';
-  // taskId is read once at construction (untracked), which is correct
 }
 ```
 

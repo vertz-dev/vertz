@@ -64,22 +64,24 @@ export { query } from './query';
 // Router
 export type {
   CompiledRoute,
+  InferRouteMap,
   LoaderData,
   MatchedRoute,
   RouteConfig,
   RouteDefinitionMap,
   RouteMatch,
   SearchParamSchema,
+  TypedRoutes,
 } from './router/define-routes';
 export { defineRoutes } from './router/define-routes';
 export type { LinkProps } from './router/link';
 export { createLink } from './router/link';
-export type { NavigateOptions, Router } from './router/navigate';
+export type { NavigateOptions, Router, TypedRouter } from './router/navigate';
 export { createRouter } from './router/navigate';
 export type { OutletContext } from './router/outlet';
 export { createOutlet } from './router/outlet';
 export type { ExtractParams } from './router/params';
-export { RouterContext, useRouter } from './router/router-context';
+export { RouterContext, useParams, useRouter } from './router/router-context';
 export type { RouterViewProps } from './router/router-view';
 export { RouterView } from './router/router-view';
 export { parseSearchParams, useSearchParams } from './router/search-params';

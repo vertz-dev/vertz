@@ -19,6 +19,7 @@ describe('Subpath Exports — @vertz/ui/router', () => {
     'createRouter',
     'defineRoutes',
     'parseSearchParams',
+    'useParams',
     'useRouter',
     'useSearchParams',
   ];
@@ -58,6 +59,7 @@ describe('Subpath Exports — @vertz/ui/router', () => {
     expect(subpath.createLink).toBe(main.createLink);
     expect(subpath.createOutlet).toBe(main.createOutlet);
     expect(subpath.parseSearchParams).toBe(main.parseSearchParams);
+    expect(subpath.useParams).toBe(main.useParams);
     expect(subpath.useRouter).toBe(main.useRouter);
     expect(subpath.useSearchParams).toBe(main.useSearchParams);
   });
@@ -205,6 +207,7 @@ describe('Subpath Exports — main barrel backward compat', () => {
     expect(main.createOutlet).toBeTypeOf('function');
     expect(main.RouterContext).toBeTypeOf('object');
     expect(main.RouterView).toBeTypeOf('function');
+    expect(main.useParams).toBeTypeOf('function');
     expect(main.useRouter).toBeTypeOf('function');
     expect(main.parseSearchParams).toBeTypeOf('function');
     expect(main.useSearchParams).toBeTypeOf('function');

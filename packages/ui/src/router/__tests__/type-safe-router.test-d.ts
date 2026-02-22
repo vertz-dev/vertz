@@ -10,15 +10,16 @@
  */
 
 // Phase 2: TypedRoutes now exists
-import type { CompiledRoute, TypedRoutes } from '../define-routes';
+// Phase 4: InferRouteMap now exists
+import type { CompiledRoute, InferRouteMap, TypedRoutes } from '../define-routes';
 import { defineRoutes } from '../define-routes';
 // Phase 3: TypedRouter now exists
 import type { Router, TypedRouter } from '../navigate';
 import { createRouter } from '../navigate';
 // Phase 1: these imports exist
 import type { PathWithParams, RoutePaths } from '../params';
-
-// TODO(phase-4): import type { InferRouteMap } from '../define-routes';
+// Phase 4: useParams and useRouter<T>
+import { useParams, useRouter } from '../router-context';
 
 // Phase 1: PathWithParams and RoutePaths work
 const _pwp: PathWithParams<'/tasks/:id'> = '/tasks/42';
@@ -112,10 +113,49 @@ void _e2eAsTypedRouter;
 declare const _e2ePlainRouter: Router;
 _e2ePlainRouter.navigate('/anything-goes');
 
-// ─── Phase 4+ tests (commented out until types exist) ───────────────────────
+// ─── Phase 4: useParams<TPath> + useRouter<T> + InferRouteMap ────────────────
 
-// Phase 4: useParams<TPath> returns ExtractParams<TPath>
-// Phase 4: useRouter<InferRouteMap<typeof routes>> typed navigate
+// useParams<TPath> returns ExtractParams<TPath>
+const _e2eParams = useParams<'/tasks/:id'>();
+const _e2eTaskId: string = _e2eParams.id;
+void _e2eTaskId;
+
+// @ts-expect-error - 'name' not on ExtractParams<'/tasks/:id'>
+const _e2eBadParam = _e2eParams.name;
+void _e2eBadParam;
+
+// useRouter<InferRouteMap<typeof routes>> typed navigate
+const _e2eTypedRouter = useRouter<InferRouteMap<typeof _e2eRoutes>>();
+
+// Valid paths compile
+_e2eTypedRouter.navigate('/');
+_e2eTypedRouter.navigate('/tasks/42');
+_e2eTypedRouter.navigate('/users/1/posts/99');
+_e2eTypedRouter.navigate('/settings');
+_e2eTypedRouter.navigate('/files/docs/readme.md');
+
+// @ts-expect-error - invalid path
+_e2eTypedRouter.navigate('/nonexistent');
+
+// @ts-expect-error - partial param path
+_e2eTypedRouter.navigate('/tasks');
+
+// useRouter() (no param) backward compat — accepts any string
+const _e2eUntypedRouter = useRouter();
+_e2eUntypedRouter.navigate('/anything-goes');
+
+// InferRouteMap extracts route map correctly
+type E2EInferred = InferRouteMap<typeof _e2eRoutes>;
+type E2EInferredKeys = keyof E2EInferred;
+const _e2eInfKey: E2EInferredKeys = '/tasks/:id';
+void _e2eInfKey;
+
+// @ts-expect-error - '/nonexistent' is not a key in the inferred route map
+const _e2eBadInfKey: E2EInferredKeys = '/nonexistent';
+void _e2eBadInfKey;
+
+// ─── Phase 5+ tests (commented out until types exist) ───────────────────────
 //
+// Phase 5: Typed Link — createLink<T>() with typed href
 // These tests will be uncommented as each phase is implemented.
 // See plans/type-safe-router-impl.md → E2E Acceptance Test for full spec.
