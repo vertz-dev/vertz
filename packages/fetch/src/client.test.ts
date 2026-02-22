@@ -1,7 +1,12 @@
+import {
+  FetchNetworkError,
+  FetchValidationError,
+  HttpError,
+  ParseError,
+  unwrap,
+} from '@vertz/errors';
 import { describe, expect, it, vi } from 'vitest';
 import { FetchClient } from './client';
-import { FetchError, NotFoundError } from './errors';
-import { FetchNetworkError, HttpError, FetchTimeoutError, FetchError, unwrap, ParseError, FetchValidationError } from '@vertz/errors';
 
 describe('FetchClient', () => {
   it('can be instantiated with minimal config', () => {
@@ -446,9 +451,11 @@ describe('FetchClient timeout', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       // Accept either timeout or network error depending on environment
-      expect(result.error).toMatchObject(expect.objectContaining({
-        code: expect.any(String)
-      }));
+      expect(result.error).toMatchObject(
+        expect.objectContaining({
+          code: expect.any(String),
+        }),
+      );
     }
   });
 });
@@ -597,9 +604,9 @@ describe('FetchClient edge cases', () => {
 
 describe('FetchClient convenience methods', () => {
   it('get() delegates to request with GET method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ users: [] }), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ users: [] }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -615,9 +622,9 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('post() sends body with POST method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 1 }), { status: 201 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: 1 }), { status: 201 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -634,9 +641,9 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('patch() sends body with PATCH method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 1, name: 'Bob' }), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: 1, name: 'Bob' }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -653,9 +660,9 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('put() sends body with PUT method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 1 }), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: 1 }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -672,9 +679,9 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('delete() delegates to request with DELETE method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ success: true }), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -690,9 +697,7 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('post() passes options like headers through', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({}), { status: 201 }),
-    );
+    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 201 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -718,7 +723,11 @@ describe('FetchClient network error handling', () => {
   });
 
   it('should parse serverCode from error response', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { code: 'USER_NOT_FOUND' } }), { status: 404 }));
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ error: { code: 'USER_NOT_FOUND' } }), { status: 404 }),
+      );
     const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
     const result = await client.get('/test');
     expect(result.ok).toBe(false);
@@ -741,8 +750,12 @@ describe('FetchClient parse and validation errors', () => {
   });
 
   it('should return FetchValidationError with errors array', async () => {
-    const body = { error: { code: 'VALIDATION_ERROR', errors: [{ path: 'email', message: 'Invalid email' }] } };
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 422 }));
+    const body = {
+      error: { code: 'VALIDATION_ERROR', errors: [{ path: 'email', message: 'Invalid email' }] },
+    };
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(body), { status: 422 }));
     const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
     const result = await client.get('/test');
     expect(result.ok).toBe(false);

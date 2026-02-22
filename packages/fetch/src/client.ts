@@ -1,5 +1,12 @@
-import { ok, err, HttpError, ParseError, FetchValidationError } from '@vertz/errors';
-import { FetchNetworkError, FetchTimeoutError } from '@vertz/errors';
+import {
+  err,
+  FetchNetworkError,
+  FetchTimeoutError,
+  FetchValidationError,
+  HttpError,
+  ok,
+  ParseError,
+} from '@vertz/errors';
 import { createErrorFromStatus, type FetchError } from './errors';
 import type {
   AuthStrategy,
@@ -70,7 +77,9 @@ export class FetchClient {
           // Parse serverCode from response body if available
           let serverCode: string | undefined;
           if (body && typeof body === 'object' && 'error' in body) {
-            const errorObj = (body as any).error;
+            const errorObj = body.error as
+              | { code?: string; errors?: Array<{ path: string; message: string }> }
+              | undefined;
             if (errorObj && typeof errorObj.code === 'string') {
               serverCode = errorObj.code;
             }
@@ -192,7 +201,7 @@ export class FetchClient {
       // Parse serverCode from response body if available
       let serverCode: string | undefined;
       if (body && typeof body === 'object' && 'error' in body) {
-        const errorObj = (body as any).error;
+        const errorObj = body.error as { code?: string } | undefined;
         if (errorObj && typeof errorObj.code === 'string') {
           serverCode = errorObj.code;
         }
@@ -388,5 +397,4 @@ export class FetchClient {
       return undefined;
     }
   }
-
 }
