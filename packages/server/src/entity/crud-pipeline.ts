@@ -1,4 +1,5 @@
-import { NotFoundException } from '@vertz/core';
+import { ok, err, type Result } from '@vertz/errors';
+import { EntityNotFoundError, type EntityError } from '@vertz/errors';
 import type { ColumnBuilder, ColumnMetadata, TableDef } from '@vertz/db';
 import { enforceAccess } from './access-enforcer';
 import { stripHiddenFields, stripReadOnlyFields } from './field-filter';
@@ -58,18 +59,18 @@ export interface CrudResult<T = unknown> {
 }
 
 export interface CrudHandlers {
-  list(ctx: EntityContext, options?: ListOptions): Promise<CrudResult<ListResult>>;
-  get(ctx: EntityContext, id: string): Promise<CrudResult<Record<string, unknown>>>;
+  list(ctx: EntityContext, options?: ListOptions): Promise<Result<CrudResult<ListResult>, EntityError>>;
+  get(ctx: EntityContext, id: string): Promise<Result<CrudResult<Record<string, unknown>>, EntityError>>;
   create(
     ctx: EntityContext,
     data: Record<string, unknown>,
-  ): Promise<CrudResult<Record<string, unknown>>>;
+  ): Promise<Result<CrudResult<Record<string, unknown>>, EntityError>>;
   update(
     ctx: EntityContext,
     id: string,
     data: Record<string, unknown>,
-  ): Promise<CrudResult<Record<string, unknown>>>;
-  delete(ctx: EntityContext, id: string): Promise<CrudResult<null>>;
+  ): Promise<Result<CrudResult<Record<string, unknown>>, EntityError>>;
+  delete(ctx: EntityContext, id: string): Promise<Result<CrudResult<null>, EntityError>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,18 +104,18 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
           : null;
       const hasNextPage = nextCursor !== null;
 
-      return { status: 200, body: { data, total, limit, nextCursor, hasNextPage } };
+      return ok({ status: 200, body: { data, total, limit, nextCursor, hasNextPage } });
     },
 
     async get(ctx, id) {
       const row = await db.get(id);
       if (!row) {
-        throw new NotFoundException(`${def.name} with id "${id}" not found`);
+        return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
       }
 
       await enforceAccess('get', def.access, ctx, row);
 
-      return { status: 200, body: stripHiddenFields(table, row) };
+      return ok({ status: 200, body: stripHiddenFields(table, row) });
     },
 
     async create(ctx, data) {
@@ -140,13 +141,13 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
         }
       }
 
-      return { status: 201, body: strippedResult };
+      return ok({ status: 201, body: strippedResult });
     },
 
     async update(ctx, id, data) {
       const existing = await db.get(id);
       if (!existing) {
-        throw new NotFoundException(`${def.name} with id "${id}" not found`);
+        return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
       }
 
       await enforceAccess('update', def.access, ctx, existing);
@@ -172,13 +173,13 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
         }
       }
 
-      return { status: 200, body: strippedResult };
+      return ok({ status: 200, body: strippedResult });
     },
 
     async delete(ctx, id) {
       const existing = await db.get(id);
       if (!existing) {
-        throw new NotFoundException(`${def.name} with id "${id}" not found`);
+        return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
       }
 
       await enforceAccess('delete', def.access, ctx, existing);
@@ -195,7 +196,7 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
         }
       }
 
-      return { status: 204, body: null };
+      return ok({ status: 204, body: null });
     },
   };
 }

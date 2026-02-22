@@ -33,6 +33,7 @@
   "dependencies": {
     "@vertz/core": "workspace:*",
     "@vertz/db": "workspace:*",
+    "@vertz/errors": "workspace:*",
     "bcryptjs": "^2.4.3",
     "jose": "^6.0.11"
   },
