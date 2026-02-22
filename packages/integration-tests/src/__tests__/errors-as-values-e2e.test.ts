@@ -26,6 +26,7 @@ import {
   FetchInternalServerError,
   ParseError,
   EntityErrorType,
+  FetchErrorType,
   BadRequestError,
   EntityUnauthorizedError,
   EntityForbiddenError,
@@ -385,64 +386,64 @@ describe('Codegen SDK → Result flow', () => {
 
 describe('matchError exhaustive handling', () => {
   describe('matchError covers all FetchError variants', () => {
-    it('handles NETWORK_ERROR', () => {
+    it('handles NetworkError', () => {
       const error = new FetchNetworkError('Network failed');
       const result = matchError(error, {
-        NETWORK_ERROR: (e) => `Network: ${e.message}`,
-        HTTP_ERROR: (e) => `HTTP ${e.status}`,
-        TIMEOUT_ERROR: (e) => `Timeout: ${e.message}`,
-        PARSE_ERROR: (e) => `Parse: ${e.path}`,
-        VALIDATION_ERROR: (e) => `Validation: ${e.errors.length} errors`,
+        NetworkError: (e) => `Network: ${e.message}`,
+        HttpError: (e) => `HTTP ${e.status}`,
+        TimeoutError: (e) => `Timeout: ${e.message}`,
+        ParseError: (e) => `Parse: ${e.path}`,
+        ValidationError: (e) => `Validation: ${e.errors.length} errors`,
       });
       expect(result).toBe('Network: Network failed');
     });
 
-    it('handles HTTP_ERROR (base class for 4xx/5xx)', () => {
+    it('handles HttpError (base class for 4xx/5xx)', () => {
       const error = new FetchNotFoundError('Not found', 'NOT_FOUND');
       const result = matchError(error, {
-        NETWORK_ERROR: (e) => `Network: ${e.message}`,
-        HTTP_ERROR: (e) => `HTTP ${e.status}: ${e.message}`,
-        TIMEOUT_ERROR: (e) => `Timeout: ${e.message}`,
-        PARSE_ERROR: (e) => `Parse: ${e.path}`,
-        VALIDATION_ERROR: (e) => `Validation: ${e.errors.length} errors`,
+        NetworkError: (e) => `Network: ${e.message}`,
+        HttpError: (e) => `HTTP ${e.status}: ${e.message}`,
+        TimeoutError: (e) => `Timeout: ${e.message}`,
+        ParseError: (e) => `Parse: ${e.path}`,
+        ValidationError: (e) => `Validation: ${e.errors.length} errors`,
       });
       expect(result).toBe('HTTP 404: Not found');
     });
 
-    it('handles TIMEOUT_ERROR', () => {
+    it('handles TimeoutError', () => {
       const error = new FetchTimeoutError('Request timed out');
       const result = matchError(error, {
-        NETWORK_ERROR: (e) => `Network: ${e.message}`,
-        HTTP_ERROR: (e) => `HTTP ${e.status}`,
-        TIMEOUT_ERROR: (e) => `Timeout: ${e.message}`,
-        PARSE_ERROR: (e) => `Parse: ${e.path}`,
-        VALIDATION_ERROR: (e) => `Validation: ${e.errors.length} errors`,
+        NetworkError: (e) => `Network: ${e.message}`,
+        HttpError: (e) => `HTTP ${e.status}`,
+        TimeoutError: (e) => `Timeout: ${e.message}`,
+        ParseError: (e) => `Parse: ${e.path}`,
+        ValidationError: (e) => `Validation: ${e.errors.length} errors`,
       });
       expect(result).toBe('Timeout: Request timed out');
     });
 
-    it('handles PARSE_ERROR', () => {
+    it('handles ParseError', () => {
       const error = new ParseError('user.name', 'Invalid JSON');
       const result = matchError(error, {
-        NETWORK_ERROR: (e) => `Network: ${e.message}`,
-        HTTP_ERROR: (e) => `HTTP ${e.status}`,
-        TIMEOUT_ERROR: (e) => `Timeout: ${e.message}`,
-        PARSE_ERROR: (e) => `Parse: ${e.path}`,
-        VALIDATION_ERROR: (e) => `Validation: ${e.errors.length} errors`,
+        NetworkError: (e) => `Network: ${e.message}`,
+        HttpError: (e) => `HTTP ${e.status}`,
+        TimeoutError: (e) => `Timeout: ${e.message}`,
+        ParseError: (e) => `Parse: ${e.path}`,
+        ValidationError: (e) => `Validation: ${e.errors.length} errors`,
       });
       expect(result).toBe('Parse: user.name');
     });
 
-    it('handles VALIDATION_ERROR', () => {
+    it('handles ValidationError', () => {
       const error = new FetchValidationError('Validation failed', [
         { path: 'email', message: 'Invalid email' },
       ]);
       const result = matchError(error, {
-        NETWORK_ERROR: (e) => `Network: ${e.message}`,
-        HTTP_ERROR: (e) => `HTTP ${e.status}`,
-        TIMEOUT_ERROR: (e) => `Timeout: ${e.message}`,
-        PARSE_ERROR: (e) => `Parse: ${e.path}`,
-        VALIDATION_ERROR: (e) => `Validation: ${e.errors.length} errors`,
+        NetworkError: (e) => `Network: ${e.message}`,
+        HttpError: (e) => `HTTP ${e.status}`,
+        TimeoutError: (e) => `Timeout: ${e.message}`,
+        ParseError: (e) => `Parse: ${e.path}`,
+        ValidationError: (e) => `Validation: ${e.errors.length} errors`,
       });
       expect(result).toBe('Validation: 1 errors');
     });
@@ -454,13 +455,13 @@ describe('matchError exhaustive handling', () => {
     it('requires all FetchError variants to be handled', () => {
       // If you add a new error type to FetchErrorType but don't handle it,
       // TypeScript will produce a compile error here
-      function assertExhaustive(error: Parameters<typeof matchError>[0]): string {
+      function assertExhaustive(error: FetchErrorType): string {
         return matchError(error, {
-          NETWORK_ERROR: (e) => e.message,
-          HTTP_ERROR: (e) => e.message,
-          TIMEOUT_ERROR: (e) => e.message,
-          PARSE_ERROR: (e) => e.message,
-          VALIDATION_ERROR: (e) => e.message,
+          NetworkError: (e) => e.message,
+          HttpError: (e) => e.message,
+          TimeoutError: (e) => e.message,
+          ParseError: (e) => e.message,
+          ValidationError: (e) => e.message,
         });
       }
 
@@ -475,17 +476,17 @@ describe('matchError exhaustive handling', () => {
     it('requires all EntityError variants to be handled', () => {
       
 
-      function assertEntityExhaustive(error: Parameters<typeof matchError>[0]): string {
+      function assertEntityExhaustive(error: EntityErrorType): string {
         return matchError(error, {
-          BAD_REQUEST: (e) => e.message,
-          UNAUTHORIZED: (e) => e.message,
-          FORBIDDEN: (e) => e.message,
-          NOT_FOUND: (e) => e.message,
-          METHOD_NOT_ALLOWED: (e) => e.message,
-          CONFLICT: (e) => e.message,
-          ENTITY_VALIDATION_ERROR: (e) => e.message,
-          INTERNAL_ERROR: (e) => e.message,
-          SERVICE_UNAVAILABLE: (e) => e.message,
+          BadRequest: (e) => e.message,
+          Unauthorized: (e) => e.message,
+          Forbidden: (e) => e.message,
+          NotFound: (e) => e.message,
+          MethodNotAllowed: (e) => e.message,
+          Conflict: (e) => e.message,
+          ValidationError: (e) => e.message,
+          InternalError: (e) => e.message,
+          ServiceUnavailable: (e) => e.message,
         });
       }
 

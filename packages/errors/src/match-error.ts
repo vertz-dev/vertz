@@ -15,11 +15,11 @@ import type { FetchErrorType } from './fetch.js';
  * Each key corresponds to an error code, and the value is a handler function.
  */
 type FetchErrorHandlers<R> = {
-  NETWORK_ERROR: (error: Extract<FetchErrorType, { code: 'NETWORK_ERROR' }>) => R;
-  HTTP_ERROR: (error: Extract<FetchErrorType, { code: 'HTTP_ERROR' }>) => R;
-  TIMEOUT_ERROR: (error: Extract<FetchErrorType, { code: 'TIMEOUT_ERROR' }>) => R;
-  PARSE_ERROR: (error: Extract<FetchErrorType, { code: 'PARSE_ERROR' }>) => R;
-  VALIDATION_ERROR: (error: Extract<FetchErrorType, { code: 'VALIDATION_ERROR' }>) => R;
+  NetworkError: (error: Extract<FetchErrorType, { code: 'NETWORK_ERROR' }>) => R;
+  HttpError: (error: Extract<FetchErrorType, { code: 'HTTP_ERROR' }>) => R;
+  TimeoutError: (error: Extract<FetchErrorType, { code: 'TIMEOUT_ERROR' }>) => R;
+  ParseError: (error: Extract<FetchErrorType, { code: 'PARSE_ERROR' }>) => R;
+  ValidationError: (error: Extract<FetchErrorType, { code: 'VALIDATION_ERROR' }>) => R;
 };
 
 /**
@@ -27,17 +27,17 @@ type FetchErrorHandlers<R> = {
  * Each key corresponds to an error code, and the value is a handler function.
  */
 type EntityErrorHandlers<R> = {
-  BAD_REQUEST: (error: Extract<EntityErrorType, { code: 'BAD_REQUEST' }>) => R;
-  UNAUTHORIZED: (error: Extract<EntityErrorType, { code: 'UNAUTHORIZED' }>) => R;
-  FORBIDDEN: (error: Extract<EntityErrorType, { code: 'FORBIDDEN' }>) => R;
-  NOT_FOUND: (error: Extract<EntityErrorType, { code: 'NOT_FOUND' }>) => R;
-  METHOD_NOT_ALLOWED: (error: Extract<EntityErrorType, { code: 'METHOD_NOT_ALLOWED' }>) => R;
-  CONFLICT: (error: Extract<EntityErrorType, { code: 'CONFLICT' }>) => R;
-  ENTITY_VALIDATION_ERROR: (
+  BadRequest: (error: Extract<EntityErrorType, { code: 'BAD_REQUEST' }>) => R;
+  Unauthorized: (error: Extract<EntityErrorType, { code: 'UNAUTHORIZED' }>) => R;
+  Forbidden: (error: Extract<EntityErrorType, { code: 'FORBIDDEN' }>) => R;
+  NotFound: (error: Extract<EntityErrorType, { code: 'NOT_FOUND' }>) => R;
+  MethodNotAllowed: (error: Extract<EntityErrorType, { code: 'METHOD_NOT_ALLOWED' }>) => R;
+  Conflict: (error: Extract<EntityErrorType, { code: 'CONFLICT' }>) => R;
+  ValidationError: (
     error: Extract<EntityErrorType, { code: 'ENTITY_VALIDATION_ERROR' }>,
   ) => R;
-  INTERNAL_ERROR: (error: Extract<EntityErrorType, { code: 'INTERNAL_ERROR' }>) => R;
-  SERVICE_UNAVAILABLE: (error: Extract<EntityErrorType, { code: 'SERVICE_UNAVAILABLE' }>) => R;
+  InternalError: (error: Extract<EntityErrorType, { code: 'INTERNAL_ERROR' }>) => R;
+  ServiceUnavailable: (error: Extract<EntityErrorType, { code: 'SERVICE_UNAVAILABLE' }>) => R;
 };
 
 /**
@@ -47,11 +47,11 @@ type EntityErrorHandlers<R> = {
  *
  * @example
  * const result = matchError(error, {
- *   NETWORK_ERROR: (e) => 'Network failed',
- *   HTTP_ERROR: (e) => `HTTP ${e.status}: ${e.message}`,
- *   TIMEOUT_ERROR: (e) => 'Request timed out',
- *   PARSE_ERROR: (e) => `Parse failed at ${e.path}`,
- *   VALIDATION_ERROR: (e) => `Validation: ${e.errors.length} errors`,
+ *   NetworkError: (e) => 'Network failed',
+ *   HttpError: (e) => `HTTP ${e.status}: ${e.message}`,
+ *   TimeoutError: (e) => 'Request timed out',
+ *   ParseError: (e) => `Parse failed at ${e.path}`,
+ *   ValidationError: (e) => `Validation: ${e.errors.length} errors`,
  * });
  */
 export function matchError<R>(error: FetchErrorType, handlers: FetchErrorHandlers<R>): R;
@@ -64,59 +64,59 @@ export function matchError<R>(
 
   switch (errorCode) {
     case 'NETWORK_ERROR':
-      return (handlers as FetchErrorHandlers<R>).NETWORK_ERROR(
+      return (handlers as FetchErrorHandlers<R>).NetworkError(
         error as Extract<FetchErrorType, { code: 'NETWORK_ERROR' }>,
       );
     case 'HTTP_ERROR':
-      return (handlers as FetchErrorHandlers<R>).HTTP_ERROR(
+      return (handlers as FetchErrorHandlers<R>).HttpError(
         error as Extract<FetchErrorType, { code: 'HTTP_ERROR' }>,
       );
     case 'TIMEOUT_ERROR':
-      return (handlers as FetchErrorHandlers<R>).TIMEOUT_ERROR(
+      return (handlers as FetchErrorHandlers<R>).TimeoutError(
         error as Extract<FetchErrorType, { code: 'TIMEOUT_ERROR' }>,
       );
     case 'PARSE_ERROR':
-      return (handlers as FetchErrorHandlers<R>).PARSE_ERROR(
+      return (handlers as FetchErrorHandlers<R>).ParseError(
         error as Extract<FetchErrorType, { code: 'PARSE_ERROR' }>,
       );
     case 'VALIDATION_ERROR':
-      return (handlers as FetchErrorHandlers<R>).VALIDATION_ERROR(
+      return (handlers as FetchErrorHandlers<R>).ValidationError(
         error as Extract<FetchErrorType, { code: 'VALIDATION_ERROR' }>,
       );
     case 'BAD_REQUEST':
-      return (handlers as EntityErrorHandlers<R>).BAD_REQUEST(
+      return (handlers as EntityErrorHandlers<R>).BadRequest(
         error as Extract<EntityErrorType, { code: 'BAD_REQUEST' }>,
       );
     case 'UNAUTHORIZED':
-      return (handlers as EntityErrorHandlers<R>).UNAUTHORIZED(
+      return (handlers as EntityErrorHandlers<R>).Unauthorized(
         error as Extract<EntityErrorType, { code: 'UNAUTHORIZED' }>,
       );
     case 'FORBIDDEN':
-      return (handlers as EntityErrorHandlers<R>).FORBIDDEN(
+      return (handlers as EntityErrorHandlers<R>).Forbidden(
         error as Extract<EntityErrorType, { code: 'FORBIDDEN' }>,
       );
     case 'NOT_FOUND':
-      return (handlers as EntityErrorHandlers<R>).NOT_FOUND(
+      return (handlers as EntityErrorHandlers<R>).NotFound(
         error as Extract<EntityErrorType, { code: 'NOT_FOUND' }>,
       );
     case 'METHOD_NOT_ALLOWED':
-      return (handlers as EntityErrorHandlers<R>).METHOD_NOT_ALLOWED(
+      return (handlers as EntityErrorHandlers<R>).MethodNotAllowed(
         error as Extract<EntityErrorType, { code: 'METHOD_NOT_ALLOWED' }>,
       );
     case 'CONFLICT':
-      return (handlers as EntityErrorHandlers<R>).CONFLICT(
+      return (handlers as EntityErrorHandlers<R>).Conflict(
         error as Extract<EntityErrorType, { code: 'CONFLICT' }>,
       );
     case 'ENTITY_VALIDATION_ERROR':
-      return (handlers as EntityErrorHandlers<R>).ENTITY_VALIDATION_ERROR(
+      return (handlers as EntityErrorHandlers<R>).ValidationError(
         error as Extract<EntityErrorType, { code: 'ENTITY_VALIDATION_ERROR' }>,
       );
     case 'INTERNAL_ERROR':
-      return (handlers as EntityErrorHandlers<R>).INTERNAL_ERROR(
+      return (handlers as EntityErrorHandlers<R>).InternalError(
         error as Extract<EntityErrorType, { code: 'INTERNAL_ERROR' }>,
       );
     case 'SERVICE_UNAVAILABLE':
-      return (handlers as EntityErrorHandlers<R>).SERVICE_UNAVAILABLE(
+      return (handlers as EntityErrorHandlers<R>).ServiceUnavailable(
         error as Extract<EntityErrorType, { code: 'SERVICE_UNAVAILABLE' }>,
       );
     default: {
