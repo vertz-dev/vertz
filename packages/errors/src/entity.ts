@@ -10,6 +10,15 @@
 
 /**
  * Base class for entity errors.
+ *
+ * @example
+ * import { EntityError } from '@ *
+ * // Checkvertz/errors';
+ error type
+ * if (error instanceof EntityError) {
+ *   console.log(error.code);  // e.g., 'NOT_FOUND'
+ *   console.log(error.message);
+ * }
  */
 export abstract class EntityError extends Error {
   /**
@@ -99,6 +108,23 @@ export function isEntityForbiddenError(error: unknown): error is EntityForbidden
 
 /**
  * Not found error - 404.
+ *
+ * @example
+ * // Using in matchError for server-side error handling
+ * const result = await db.users.get(userId);
+ * if (!result.ok) {
+ *   return matchError(result.error, {
+ *     NOT_FOUND: (e) => Response.json(
+ *       { error: { code: 'NOT_FOUND', message: `User ${userId} not found` } },
+ *       { status: 404 }
+ *     ),
+ *     // ... other handlers
+ *   });
+ * }
+ *
+ * @example
+ * // With resource info
+ * throw new EntityNotFoundError('User not found', 'User', userId);
  */
 export class EntityNotFoundError extends EntityError {
   readonly code = 'NOT_FOUND' as const;
@@ -192,6 +218,25 @@ export function isEntityConflictError(error: unknown): error is EntityConflictEr
 
 /**
  * Entity validation error - 422.
+ *
+ * @example
+ * // Server-side: throwing validation errors
+ * throw new EntityValidationError([
+ *   { path: ['email'], message: 'Invalid email format', code: 'INVALID_FORMAT' },
+ *   { path: ['age'], message: 'Must be positive', code: 'MIN_VALUE' },
+ * ]);
+ *
+ * @example
+ * // Server-side: handling in HTTP response
+ * if (!result.ok) {
+ *   return matchError(result.error, {
+ *     ENTITY_VALIDATION_ERROR: (e) => Response.json(
+ *       { error: { code: 'VALIDATION_ERROR', message: 'Validation failed', errors: e.errors } },
+ *       { status: 422 }
+ *     ),
+ *     // ... other handlers
+ *   });
+ * }
  */
 export class EntityValidationError extends EntityError {
   readonly code = 'ENTITY_VALIDATION_ERROR' as const;
@@ -283,6 +328,25 @@ export function isServiceUnavailableError(error: unknown): error is ServiceUnava
 
 /**
  * Union type for all entity errors.
+ *
+ * @example
+ * import { matchError, EntityErrorType } from '@vertz/errors';
+ *
+ * // Server-side: handling database errors
+ * const result = await db.users.create(data);
+ * if (!result.ok) {
+ *   return matchError(result.error, {
+ *     BAD_REQUEST: (e) => Response.json({ error: e.message }, { status: 400 }),
+ *     UNAUTHORIZED: () => Response.json({ error: 'Unauthorized' }, { status: 401 }),
+ *     FORBIDDEN: () => Response.json({ error: 'Forbidden' }, { status: 403 }),
+ *     NOT_FOUND: (e) => Response.json({ error: e.message }, { status: 404 }),
+ *     METHOD_NOT_ALLOWED: () => Response.json({ error: 'Method not allowed' }, { status: 405 }),
+ *     CONFLICT: (e) => Response.json({ error: e.message }, { status: 409 }),
+ *     ENTITY_VALIDATION_ERROR: (e) => Response.json({ error: e.errors }, { status: 422 }),
+ *     INTERNAL_ERROR: () => Response.json({ error: 'Internal error' }, { status: 500 }),
+ *     SERVICE_UNAVAILABLE: () => Response.json({ error: 'Service unavailable' }, { status: 503 }),
+ *   });
+ * }
  */
 export type EntityErrorType =
   | BadRequestError
