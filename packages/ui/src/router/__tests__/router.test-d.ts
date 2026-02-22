@@ -151,6 +151,14 @@ void _pwp5;
 const _pwp6: PathWithParams<'/'> = '/';
 void _pwp6;
 
+// Param + wildcard: '/users/:id/*' → `/users/${string}/${string}`
+const _pwp7: PathWithParams<'/users/:id/*'> = `/users/${'a'}/${'any/path'}`;
+void _pwp7;
+
+// @ts-expect-error - '/tasks' missing param segment, not assignable to `/tasks/${string}`
+const _pwpNeg: PathWithParams<'/tasks/:id'> = '/tasks';
+void _pwpNeg;
+
 // ─── RoutePaths type tests ──────────────────────────────────────────────────
 
 type TestRouteMap = {

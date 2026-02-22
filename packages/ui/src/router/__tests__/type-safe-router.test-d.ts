@@ -59,9 +59,9 @@ void _bad2;
 
 // Phase 2: defineRoutes<const T>() preserves literal keys
 // Phase 3: createRouter returns TypedRouter, navigate validates paths
+// Phase 3: TypedRouter assignable to Router, backward compat
 // Phase 4: useParams<TPath> returns ExtractParams<TPath>
 // Phase 4: useRouter<InferRouteMap<typeof routes>> typed navigate
-// Phase 3: TypedRouter assignable to Router, backward compat
 //
 // These tests will be uncommented as each phase is implemented.
 // See plans/type-safe-router-impl.md → E2E Acceptance Test for full spec.

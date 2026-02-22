@@ -40,7 +40,7 @@
 // router.navigate('/files/docs/readme.md');
 //
 // // Invalid paths rejected
-// // [ts-expect-error] - invalid path
+// // @ts-expect-error - invalid path
 // // router.navigate('/nonexistent');
 //
 // // useParams typed
