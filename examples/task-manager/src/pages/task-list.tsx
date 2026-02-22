@@ -6,12 +6,13 @@
  * - query() for reactive data fetching with auto-unwrapped signal properties
  * - Reactive JSX conditionals: {tasksQuery.loading && <el/>}
  * - Compiler `let` → signal transform for local filter state
+ * - Compiler `const` → computed transform for derived values from query()
  * - Compiler conditional transform: {show && <el/>} → __conditional()
  * - Compiler list transform: {items.map(...)} → __list()
  * - <TaskCard /> JSX component embedding
  */
 
-import { effect, onCleanup, onMount, query } from '@vertz/ui';
+import { onCleanup, onMount, query } from '@vertz/ui';
 import { fetchTasks } from '../api/mock-data';
 import { TaskCard } from '../components/task-card';
 import type { Task, TaskStatus } from '../lib/types';
@@ -27,8 +28,8 @@ export interface TaskListPageProps {
  * Uses query() to fetch tasks reactively. Signal properties like
  * tasksQuery.loading and tasksQuery.error are used directly in JSX —
  * the compiler auto-unwraps them and generates reactive subscriptions.
- * Computed values (errorMsg, filteredTasks) still use effect() bridges
- * since they derive from multiple signals.
+ * Derived values (errorMsg, filteredTasks) use const declarations —
+ * the compiler classifies them as computed and wraps them automatically.
  */
 export function TaskListPage(props: TaskListPageProps): HTMLElement {
   const { navigate } = props;
@@ -43,33 +44,19 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
     key: 'task-list',
   });
 
-  // Computed values still need effect() bridges with explicit .value access.
-  // In JSX, signal properties (loading, error) are used directly —
-  // the compiler auto-unwraps them and generates reactive subscriptions.
-  let errorMsg = '';
-  let filteredTasks: Task[] = [];
+  // Derived values — the compiler classifies these as computed (they depend on
+  // signal API properties) and wraps them in computed() automatically.
+  const errorMsg = tasksQuery.error
+    ? `Failed to load tasks: ${tasksQuery.error instanceof Error ? tasksQuery.error.message : String(tasksQuery.error)}`
+    : '';
 
-  effect(() => {
-    const err = tasksQuery.error.value;
-    errorMsg = err
-      ? `Failed to load tasks: ${err instanceof Error ? err.message : String(err)}`
-      : '';
+  const filteredTasks = !tasksQuery.data
+    ? []
+    : statusFilter === 'all'
+      ? tasksQuery.data.tasks
+      : tasksQuery.data.tasks.filter((t: Task) => t.status === statusFilter);
 
-    const result = tasksQuery.data.value;
-    const filter = statusFilter;
-
-    if (!result) {
-      filteredTasks = [];
-    } else if (filter === 'all') {
-      filteredTasks = result.tasks;
-    } else {
-      filteredTasks = result.tasks.filter((t) => t.status === filter);
-    }
-  });
-
-  // ── Filter bar with reactive active state ───────────
-
-  const filterBar = <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem" />;
+  // ── Filter options ──────────────────────────────────
 
   const filters: Array<{ label: string; value: TaskStatus | 'all' }> = [
     { label: 'All', value: 'all' },
@@ -77,31 +64,6 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
     { label: 'In Progress', value: 'in-progress' },
     { label: 'Done', value: 'done' },
   ];
-
-  for (const filter of filters) {
-    const btn = (
-      <button
-        data-testid={`filter-${filter.value}`}
-        onClick={() => {
-          statusFilter = filter.value;
-        }}
-      >
-        {filter.label}
-      </button>
-    );
-
-    // Reactive className — statusFilter is a local signal (compiler adds .value).
-    // Keep effect() for imperative className assignment on loop-created elements.
-    effect(() => {
-      const isActive = statusFilter === filter.value;
-      btn.className = button({
-        intent: isActive ? 'primary' : 'ghost',
-        size: 'sm',
-      });
-    });
-
-    filterBar.appendChild(btn);
-  }
 
   // ── Lifecycle ──────────────────────────────────────
 
@@ -128,7 +90,22 @@ export function TaskListPage(props: TaskListPageProps): HTMLElement {
           + New Task
         </button>
       </div>
-      {filterBar}
+      <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem">
+        {filters.map((filter) => (
+          <button
+            class={button({
+              intent: statusFilter === filter.value ? 'primary' : 'ghost',
+              size: 'sm',
+            })}
+            data-testid={`filter-${filter.value}`}
+            onClick={() => {
+              statusFilter = filter.value;
+            }}
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
       {tasksQuery.loading && <div data-testid="loading">Loading tasks...</div>}
       {tasksQuery.error && (
         <div style="color: var(--color-danger-500)" data-testid="error">

@@ -1,16 +1,13 @@
 /**
- * ConfirmDialog component — modal confirmation using Dialog primitive.
+ * ConfirmDialog component — declarative modal confirmation.
  *
  * Demonstrates:
- * - Dialog from @vertz/ui-primitives (WAI-ARIA compliant)
- * - Focus trap and Escape to close
- * - Composing primitives with JSX and @vertz/ui styling
- *
- * Note: The Dialog primitive returns pre-wired elements with ARIA attributes,
- * so its creation stays imperative. JSX is used for new elements and composition.
+ * - Fully declarative dialog with `let` signal for open/close state
+ * - Reactive JSX attributes (aria-hidden, style) driven by signal
+ * - WAI-ARIA dialog pattern (role, aria-modal, aria-labelledby)
+ * - No DOM manipulation — no effect(), no appendChild, no className assignment
  */
 
-import { Dialog } from '@vertz/ui-primitives';
 import { css } from '@vertz/ui';
 import { button } from '../styles/components';
 
@@ -32,10 +29,10 @@ export interface ConfirmDialogProps {
 }
 
 /**
- * Create a confirmation dialog with trigger button.
+ * Declarative confirmation dialog with trigger button.
  *
- * Returns a container element with the trigger button and the dialog panel.
- * The dialog is managed entirely by the Dialog primitive from @vertz/ui-primitives.
+ * Uses a `let isOpen` signal for dialog state — the compiler transforms
+ * it to a signal and generates reactive attributes for show/hide.
  */
 export function ConfirmDialog(props: ConfirmDialogProps): HTMLElement {
   const {
@@ -46,54 +43,66 @@ export function ConfirmDialog(props: ConfirmDialogProps): HTMLElement {
     onConfirm,
   } = props;
 
-  // Create the Dialog primitive — it returns pre-wired elements with ARIA
-  const dialog = Dialog.Root({ modal: true });
+  let isOpen = false;
+  const titleId = `dialog-title-${Math.random().toString(36).slice(2, 8)}`;
 
-  // Style the pre-wired Dialog elements
-  dialog.trigger.className = button({ intent: 'danger', size: 'sm' });
-  dialog.trigger.textContent = triggerLabel;
-  dialog.trigger.setAttribute('data-testid', 'confirm-dialog-trigger');
-
-  // Style the overlay (semi-transparent backdrop)
-  dialog.overlay.className = dialogStyles.classNames.overlay;
-
-  dialog.content.className = dialogStyles.classNames.panel;
-  dialog.content.setAttribute('data-testid', 'confirm-dialog-content');
-
-  dialog.title.className = dialogStyles.classNames.title;
-  dialog.title.textContent = titleText;
-
-  dialog.close.className = button({ intent: 'secondary', size: 'sm' });
-  dialog.close.textContent = 'Cancel';
-
-  // Build dialog body with JSX — compose primitive elements with new ones
-  dialog.content.append(
-    dialog.title,
-    (<p class={dialogStyles.classNames.description}>{description}</p>),
-    (
-      <div class={dialogStyles.classNames.actions}>
-        {dialog.close}
-        <button
-          type="button"
-          class={button({ intent: 'danger', size: 'sm' })}
-          data-testid="confirm-action"
-          onClick={() => {
-            onConfirm();
-            dialog.close.click();
-          }}
-        >
-          {confirmLabel}
-        </button>
-      </div>
-    ),
-  );
-
-  // Wrap trigger, overlay, and content in a container using JSX
   return (
     <div>
-      {dialog.trigger}
-      {dialog.overlay}
-      {dialog.content}
+      <button
+        type="button"
+        class={button({ intent: 'danger', size: 'sm' })}
+        data-testid="confirm-dialog-trigger"
+        onClick={() => {
+          isOpen = true;
+        }}
+      >
+        {triggerLabel}
+      </button>
+      <div
+        class={dialogStyles.classNames.overlay}
+        aria-hidden={isOpen ? 'false' : 'true'}
+        style={isOpen ? '' : 'display: none'}
+        onClick={() => {
+          isOpen = false;
+        }}
+      />
+      <div class={dialogStyles.classNames.wrapper} style={isOpen ? '' : 'display: none'}>
+        <div
+          class={dialogStyles.classNames.panel}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-hidden={isOpen ? 'false' : 'true'}
+          data-testid="confirm-dialog-content"
+        >
+          <h2 id={titleId} class={dialogStyles.classNames.title}>
+            {titleText}
+          </h2>
+          <p class={dialogStyles.classNames.description}>{description}</p>
+          <div class={dialogStyles.classNames.actions}>
+            <button
+              type="button"
+              class={button({ intent: 'secondary', size: 'sm' })}
+              onClick={() => {
+                isOpen = false;
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class={button({ intent: 'danger', size: 'sm' })}
+              data-testid="confirm-action"
+              onClick={() => {
+                onConfirm();
+                isOpen = false;
+              }}
+            >
+              {confirmLabel}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

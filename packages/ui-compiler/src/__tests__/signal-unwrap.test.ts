@@ -270,6 +270,30 @@ describe('Signal Auto-Unwrap', () => {
     expect(result.diagnostics).toHaveLength(0);
   });
 
+  it('should classify const derived from query signal property as computed', () => {
+    const source = `
+      import { query } from '@vertz/ui';
+
+      function TaskList() {
+        const tasks = query('/api/tasks');
+        const errorMsg = tasks.error ? 'Error!' : '';
+        return <div>{errorMsg}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // errorMsg should be wrapped in computed()
+    expect(result.code).toContain('computed(() =>');
+    // Signal auto-unwrap should insert .value
+    expect(result.code).toContain('tasks.error.value');
+    // JSX usage should be reactive
+    expect(result.code).toContain('__child(');
+    // No effect() bridges needed
+    expect(result.code).not.toContain('effect(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
   it('should NOT double-unwrap when .value already exists (migration case)', () => {
     const source = `
       import { query } from '@vertz/ui';
