@@ -1,8 +1,11 @@
 import { createServer } from '@vertz/server';
 import { todos } from './entities';
-import { todosDbAdapter } from './db';
+import { createTodosDb } from './db';
 
 const PORT = Number(process.env.PORT) || 3000;
+
+// Initialize the database adapter using the factory function (lazy initialization)
+const todosDbAdapter = createTodosDb();
 
 const app = createServer({
   basePath: '/api',
