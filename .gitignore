@@ -61,3 +61,4 @@ examples/*/src/**/*.js
 examples/*/src/**/*.d.ts
 examples/**/e2e/**/*.js
 examples/**/e2e/**/*.d.ts
+doppler.json
