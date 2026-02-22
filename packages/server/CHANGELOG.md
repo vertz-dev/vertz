@@ -1,5 +1,27 @@
 # @vertz/server
 
+## 0.2.1
+
+### Patch Changes
+
+- [#463](https://github.com/vertz-dev/vertz/pull/463) [`6fb830e`](https://github.com/vertz-dev/vertz/commit/6fb830e04c7fd7e3325ad32fc154b90e811b95d4) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Entity-Driven Architecture (EDA) v0.1.0 — entity system and server integration.
+
+  - Added `entity(name, config)` function with full type-safe config (access, before, after, actions, relations)
+  - Added `EntityContext` with `authenticated()`, `role()`, `tenant()` guard methods
+  - Added `EntityRegistry` for cross-entity access
+  - Added CRUD pipeline with before/after lifecycle hooks
+  - Added custom action pipeline with input schema validation
+  - Added `enforceAccess()` with deny-by-default semantics
+  - Added `stripHiddenFields()` and `stripReadOnlyFields()` field filters
+  - Added `entityErrorHandler()` mapping exceptions to `{ error: { code, message } }`
+  - Added `generateEntityRoutes()` producing HTTP routes from entity definitions
+  - Added `createServer()` wrapper injecting entity routes into core
+  - Removed `domain()` and all `Domain*` types (full replacement)
+
+- Updated dependencies [[`6fb830e`](https://github.com/vertz-dev/vertz/commit/6fb830e04c7fd7e3325ad32fc154b90e811b95d4), [`6fb830e`](https://github.com/vertz-dev/vertz/commit/6fb830e04c7fd7e3325ad32fc154b90e811b95d4)]:
+  - @vertz/core@0.2.1
+  - @vertz/db@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,5 +1,18 @@
 # @vertz/core
 
+## 0.2.1
+
+### Patch Changes
+
+- [#463](https://github.com/vertz-dev/vertz/pull/463) [`6fb830e`](https://github.com/vertz-dev/vertz/commit/6fb830e04c7fd7e3325ad32fc154b90e811b95d4) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Entity-Driven Architecture (EDA) v0.1.0 — core integration.
+
+  - Added `EntityRouteEntry` interface and `_entityRoutes` hook in `AppConfig`
+  - Entity routes registered in Trie via `buildHandler()` alongside module routes
+  - `router.routes` uses `_entityRoutes` as source of truth when provided by `@vertz/server`
+
+- Updated dependencies []:
+  - @vertz/schema@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes

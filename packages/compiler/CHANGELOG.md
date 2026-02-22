@@ -1,5 +1,11 @@
 # @vertz/compiler
 
+## 0.2.1
+
+### Patch Changes
+
+- [#500](https://github.com/vertz-dev/vertz/pull/500) [`e878b05`](https://github.com/vertz-dev/vertz/commit/e878b05f640e65d4e2c9037de863d5d05026f7a8) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - EntityAnalyzer now extracts structured field info (name, type, optionality) from resolved schema types. EntitySchemaGenerator produces @vertz/schema validation code from resolved entity field info. EntitySdkGenerator embeds .meta with bodySchema on create SDK methods.
+
 ## 0.2.0
 
 ### Patch Changes
