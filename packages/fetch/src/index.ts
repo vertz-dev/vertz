@@ -23,3 +23,7 @@ export type {
   StreamingFormat,
   StreamingRequestOptions,
 } from './types';
+
+// Re-export Result utilities for consumers
+export type { Result } from '@vertz/errors';
+export { ok, err, unwrap, unwrapOr, isOk, isErr } from '@vertz/errors';
