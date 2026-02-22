@@ -86,13 +86,6 @@ Bot gh:    /Users/viniciusdacal/openclaw-workspace/backstage/bots/gh-as.sh $AGEN
 **Reviewing a PR:**
 1. This file → `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/pr-policies.md` → `/Users/viniciusdacal/openclaw-workspace/backstage/.claude/rules/review-followups.md`
 
-**Delegating work (MANDATORY TEMPLATES):**
-1. **Assigning a phase:** Use `.claude/templates/phase-delegation.md`
-2. **Breaking into subtasks:** Use `.claude/templates/subtask-delegation.md`
-3. **Requesting review:** Use `.claude/templates/review-delegation.md`
-
-**Why templates?** Inconsistent delegation is a root cause of process failures. Templates ensure every delegation includes design references, constraints, success criteria, and architectural approach — not just "do this thing."
-
 ---
 
 ## TDD — No Exceptions
@@ -304,44 +297,6 @@ Slice 4: Add hydration (still end-to-end)
 3. **If a PR adds internals with no user-facing integration, it must be explicitly labeled as such** and a follow-up ticket for the integration must exist and be linked. The parent feature stays open until integration ships.
 
 4. **When planning features, start from the developer experience and work backward.** Write the ideal `vite.config.ts` / API call / CLI command first, then figure out what internals are needed. Not the other way around.
-
----
-
-## Delegation & Coordination
-
-**All work delegation MUST use the templates in `.claude/templates/`:**
-
-- **Phase delegation** → `.claude/templates/phase-delegation.md`
-- **Subtask delegation** → `.claude/templates/subtask-delegation.md`
-- **Review requests** → `.claude/templates/review-delegation.md`
-
-**Why templates are mandatory:**
-
-The Phase 1 failure (errors-as-values unification) happened because delegation was ad-hoc:
-- Design doc said "re-export from @vertz/errors"
-- Implementation duplicated 200+ lines instead of re-exporting
-- Review approved without checking against design doc
-- Caught only when CTO read the code manually
-
-Templates prevent this by forcing:
-1. **Design reference** - Link to specific design doc section
-2. **Architectural constraints** - What approach to use, not just what outcome to achieve
-3. **Expected diff size** - If actual changes differ significantly, stop and coordinate
-4. **Review checklist** - Verify design compliance, not just that tests pass
-
-**Coordination requirements:**
-
-- If touching packages you don't own → coordinate with owner first
-- If deviating from design doc → escalate to CTO before continuing
-- If blocked by another agent's work → communicate the dependency explicitly
-- If scope expands beyond ticket → stop and get new ticket, don't expand organically
-
-**Red flags that mean you should stop and coordinate:**
-
-- Diff is much larger/smaller than expected from design
-- Files changed that weren't in the delegation scope
-- Tests passing but implementation approach doesn't match design
-- Multiple ways to solve it and design doc doesn't specify which
 
 ---
 

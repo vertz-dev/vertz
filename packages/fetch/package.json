@@ -24,6 +24,9 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "@vertz/errors": "workspace:*"
+  },
   "scripts": {
     "build": "bunup",
     "test": "vitest run",

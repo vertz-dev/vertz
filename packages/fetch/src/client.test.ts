@@ -1,6 +1,12 @@
+import {
+  FetchNetworkError,
+  FetchValidationError,
+  HttpError,
+  ParseError,
+  unwrap,
+} from '@vertz/errors';
 import { describe, expect, it, vi } from 'vitest';
 import { FetchClient } from './client';
-import { FetchError, NotFoundError } from './errors';
 
 describe('FetchClient', () => {
   it('can be instantiated with minimal config', () => {
@@ -25,13 +31,14 @@ describe('FetchClient.request', () => {
     });
 
     const result = await client.request('GET', '/api/users');
+    const data = unwrap(result);
 
     expect(mockFetch).toHaveBeenCalledOnce();
     const [request] = mockFetch.mock.calls[0] as [Request];
     expect(request.method).toBe('GET');
     expect(request.url).toBe('http://localhost:3000/api/users');
-    expect(result.data).toEqual({ id: 1 });
-    expect(result.status).toBe(200);
+    expect(data.data).toEqual({ id: 1 });
+    expect(data.status).toBe(200);
   });
 
   it('sends JSON body with POST request', async () => {
@@ -50,14 +57,15 @@ describe('FetchClient.request', () => {
     const result = await client.request('POST', '/api/users', {
       body: { name: 'Alice' },
     });
+    const data = unwrap(result);
 
     const [request] = mockFetch.mock.calls[0] as [Request];
     expect(request.method).toBe('POST');
     const sentBody = await request.json();
     expect(sentBody).toEqual({ name: 'Alice' });
     expect(request.headers.get('Content-Type')).toBe('application/json');
-    expect(result.data).toEqual({ id: 1, name: 'Alice' });
-    expect(result.status).toBe(201);
+    expect(data.data).toEqual({ id: 1, name: 'Alice' });
+    expect(data.status).toBe(201);
   });
 
   it('appends query parameters to the URL', async () => {
@@ -100,14 +108,11 @@ describe('FetchClient.request', () => {
       fetch: mockFetch,
     });
 
-    await expect(client.request('GET', '/api/users/999')).rejects.toThrow(NotFoundError);
-
-    try {
-      await client.request('GET', '/api/users/999');
-    } catch (error) {
-      expect(error).toBeInstanceOf(FetchError);
-      expect((error as NotFoundError).status).toBe(404);
-      expect((error as NotFoundError).body).toEqual({ error: 'not_found' });
+    const result = await client.request('GET', '/api/users/999');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(HttpError);
+      expect((result.error as HttpError).status).toBe(404);
     }
   });
 
@@ -258,9 +263,10 @@ describe('FetchClient.request', () => {
     });
 
     const result = await client.request('GET', '/api/health');
+    const data = unwrap(result);
 
     expect(mockFetch).toHaveBeenCalledTimes(3);
-    expect(result.data).toEqual({ ok: true });
+    expect(data.data).toEqual({ ok: true });
   });
 
   it('throws after exhausting all retries', async () => {
@@ -278,7 +284,11 @@ describe('FetchClient.request', () => {
       fetch: mockFetch,
     });
 
-    await expect(client.request('GET', '/api/health')).rejects.toThrow('Service Unavailable');
+    const result = await client.request('GET', '/api/health');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(HttpError);
+    }
     expect(mockFetch).toHaveBeenCalledTimes(3); // 1 initial + 2 retries
   });
 
@@ -298,7 +308,12 @@ describe('FetchClient.request', () => {
       fetch: mockFetch,
     });
 
-    await expect(client.request('GET', '/api/users')).rejects.toThrow('Bad Request');
+    const result = await client.request('GET', '/api/users');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(HttpError);
+      expect((result.error as HttpError).status).toBe(400);
+    }
     expect(mockFetch).toHaveBeenCalledTimes(1); // no retries
   });
 
@@ -379,11 +394,12 @@ describe('FetchClient hooks', () => {
       fetch: mockFetch,
     });
 
-    await expect(client.request('GET', '/api/users/999')).rejects.toThrow();
+    const result = await client.request('GET', '/api/users/999');
+    expect(result.ok).toBe(false);
 
     expect(onError).toHaveBeenCalledOnce();
     const [error] = onError.mock.calls[0] as [Error];
-    expect(error).toBeInstanceOf(NotFoundError);
+    expect(error).toBeInstanceOf(HttpError);
   });
 
   it('calls beforeRetry hook before each retry attempt', async () => {
@@ -431,7 +447,16 @@ describe('FetchClient timeout', () => {
       fetch: mockFetch,
     });
 
-    await expect(client.request('GET', '/api/slow')).rejects.toThrow();
+    const result = await client.request('GET', '/api/slow');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      // Accept either timeout or network error depending on environment
+      expect(result.error).toMatchObject(
+        expect.objectContaining({
+          code: expect.any(String),
+        }),
+      );
+    }
   });
 });
 
@@ -520,12 +545,11 @@ describe('FetchClient edge cases', () => {
       fetch: mockFetch,
     });
 
-    try {
-      await client.request('GET', '/api/users');
-    } catch (error) {
-      expect(error).toBeInstanceOf(FetchError);
-      expect((error as FetchError).status).toBe(500);
-      expect((error as FetchError).body).toBeUndefined();
+    const result = await client.request('GET', '/api/users');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(HttpError);
+      expect((result.error as HttpError).status).toBe(500);
     }
   });
 
@@ -552,7 +576,8 @@ describe('FetchClient edge cases', () => {
       fetch: mockFetch,
     });
 
-    await expect(client.request('GET', '/api/users')).rejects.toThrow();
+    const result = await client.request('GET', '/api/users');
+    expect(result.ok).toBe(false);
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
@@ -570,105 +595,109 @@ describe('FetchClient edge cases', () => {
     });
 
     const result = await client.request('GET', '/api/users');
+    const data = unwrap(result);
 
-    expect(result.headers.get('X-Request-Id')).toBe('req-123');
-    expect(result.headers.get('X-RateLimit-Remaining')).toBe('99');
+    expect(data.headers.get('X-Request-Id')).toBe('req-123');
+    expect(data.headers.get('X-RateLimit-Remaining')).toBe('99');
   });
 });
 
 describe('FetchClient convenience methods', () => {
   it('get() delegates to request with GET method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ users: [] }), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ users: [] }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
     });
 
     const result = await client.get('/api/users');
+    const data = unwrap(result);
 
     const [request] = mockFetch.mock.calls[0] as [Request];
     expect(request.method).toBe('GET');
     expect(request.url).toBe('http://localhost:3000/api/users');
-    expect(result.data).toEqual({ users: [] });
+    expect(data.data).toEqual({ users: [] });
   });
 
   it('post() sends body with POST method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 1 }), { status: 201 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: 1 }), { status: 201 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
     });
 
     const result = await client.post('/api/users', { name: 'Alice' });
+    const data = unwrap(result);
 
     const [request] = mockFetch.mock.calls[0] as [Request];
     expect(request.method).toBe('POST');
     const sentBody = await request.json();
     expect(sentBody).toEqual({ name: 'Alice' });
-    expect(result.data).toEqual({ id: 1 });
+    expect(data.data).toEqual({ id: 1 });
   });
 
   it('patch() sends body with PATCH method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 1, name: 'Bob' }), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: 1, name: 'Bob' }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
     });
 
     const result = await client.patch('/api/users/1', { name: 'Bob' });
+    const data = unwrap(result);
 
     const [request] = mockFetch.mock.calls[0] as [Request];
     expect(request.method).toBe('PATCH');
     const sentBody = await request.json();
     expect(sentBody).toEqual({ name: 'Bob' });
-    expect(result.data).toEqual({ id: 1, name: 'Bob' });
+    expect(data.data).toEqual({ id: 1, name: 'Bob' });
   });
 
   it('put() sends body with PUT method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 1 }), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: 1 }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
     });
 
     const result = await client.put('/api/users/1', { name: 'Charlie' });
+    const data = unwrap(result);
 
     const [request] = mockFetch.mock.calls[0] as [Request];
     expect(request.method).toBe('PUT');
     const sentBody = await request.json();
     expect(sentBody).toEqual({ name: 'Charlie' });
-    expect(result.data).toEqual({ id: 1 });
+    expect(data.data).toEqual({ id: 1 });
   });
 
   it('delete() delegates to request with DELETE method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ success: true }), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
     });
 
     const result = await client.delete('/api/users/1');
+    const data = unwrap(result);
 
     const [request] = mockFetch.mock.calls[0] as [Request];
     expect(request.method).toBe('DELETE');
     expect(request.url).toBe('http://localhost:3000/api/users/1');
-    expect(result.data).toEqual({ success: true });
+    expect(data.data).toEqual({ success: true });
   });
 
   it('post() passes options like headers through', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({}), { status: 201 }),
-    );
+    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 201 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -679,5 +708,60 @@ describe('FetchClient convenience methods', () => {
     const [request] = mockFetch.mock.calls[0] as [Request];
     expect(request.headers.get('X-Custom')).toBe('value');
     expect(request.method).toBe('POST');
+  });
+});
+
+describe('FetchClient network error handling', () => {
+  it('should return FetchNetworkError when network fails', async () => {
+    const mockFetch = vi.fn().mockRejectedValue(new Error('Network failure'));
+    const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
+    const result = await client.get('/test');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(FetchNetworkError);
+    }
+  });
+
+  it('should parse serverCode from error response', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ error: { code: 'USER_NOT_FOUND' } }), { status: 404 }),
+      );
+    const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
+    const result = await client.get('/test');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(HttpError);
+      expect((result.error as HttpError).serverCode).toBe('USER_NOT_FOUND');
+    }
+  });
+});
+
+describe('FetchClient parse and validation errors', () => {
+  it('should return ParseError for invalid JSON', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(new Response('not json', { status: 200 }));
+    const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
+    const result = await client.get('/test');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(ParseError);
+    }
+  });
+
+  it('should return FetchValidationError with errors array', async () => {
+    const body = {
+      error: { code: 'VALIDATION_ERROR', errors: [{ path: 'email', message: 'Invalid email' }] },
+    };
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(body), { status: 422 }));
+    const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
+    const result = await client.get('/test');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(FetchValidationError);
+      expect((result.error as FetchValidationError).errors).toHaveLength(1);
+    }
   });
 });

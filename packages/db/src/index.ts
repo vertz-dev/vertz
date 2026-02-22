@@ -39,7 +39,6 @@ export { diagnoseError, explainError, formatDiagnostic } from './diagnostic/inde
 export type {
   ColumnTypeMeta,
   Dialect,
-  IdStrategy,
 } from './dialect';
 export {
   defaultPostgresDialect,

@@ -1,3 +1,6 @@
+import type { Result } from '@vertz/errors';
+import type { FetchError } from '@vertz/errors';
+
 export type AuthStrategy =
   | { type: 'bearer'; token: string | (() => string | Promise<string>) }
   | { type: 'basic'; username: string; password: string }
@@ -47,11 +50,7 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
-export interface FetchResponse<T> {
-  data: T;
-  status: number;
-  headers: Headers;
-}
+export type FetchResponse<T> = Result<{ data: T; status: number; headers: Headers }, FetchError>;
 
 export interface StreamingRequestOptions extends RequestOptions {
   format: StreamingFormat;

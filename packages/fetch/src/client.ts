@@ -1,3 +1,12 @@
+import {
+  err,
+  FetchNetworkError,
+  FetchTimeoutError,
+  FetchValidationError,
+  HttpError,
+  ok,
+  ParseError,
+} from '@vertz/errors';
 import { createErrorFromStatus, type FetchError } from './errors';
 import type {
   AuthStrategy,
@@ -24,71 +33,109 @@ export class FetchClient {
     path: string,
     options?: RequestOptions,
   ): Promise<FetchResponse<T>> {
-    const retryConfig = this.resolveRetryConfig();
-    let lastError: FetchError | undefined;
+    try {
+      const retryConfig = this.resolveRetryConfig();
+      let lastError: FetchError | undefined;
 
-    for (let attempt = 0; attempt <= retryConfig.retries; attempt++) {
-      if (attempt > 0) {
-        const delay = this.calculateBackoff(attempt, retryConfig);
-        await this.sleep(delay);
-      }
-
-      const url = this.buildURL(path, options?.query);
-      const headers = new Headers(this.config.headers);
-
-      if (options?.headers) {
-        for (const [key, value] of Object.entries(options.headers)) {
-          headers.set(key, value);
-        }
-      }
-
-      const signal = this.buildSignal(options?.signal);
-
-      const request = new Request(url, {
-        method,
-        headers,
-        body: options?.body !== undefined ? JSON.stringify(options.body) : undefined,
-        signal,
-      });
-
-      if (options?.body !== undefined) {
-        request.headers.set('Content-Type', 'application/json');
-      }
-
-      const authedRequest = await this.applyAuth(request);
-
-      await this.config.hooks?.beforeRequest?.(authedRequest);
-
-      const response = await this.fetchFn(authedRequest);
-
-      if (!response.ok) {
-        const body = await this.safeParseJSON(response);
-        const error = createErrorFromStatus(response.status, response.statusText, body);
-
-        if (attempt < retryConfig.retries && retryConfig.retryOn.includes(response.status)) {
-          lastError = error;
-          await this.config.hooks?.beforeRetry?.(attempt + 1, error);
-          continue;
+      for (let attempt = 0; attempt <= retryConfig.retries; attempt++) {
+        if (attempt > 0) {
+          const delay = this.calculateBackoff(attempt, retryConfig);
+          await this.sleep(delay);
         }
 
-        await this.config.hooks?.onError?.(error);
-        throw error;
+        const url = this.buildURL(path, options?.query);
+        const headers = new Headers(this.config.headers);
+
+        if (options?.headers) {
+          for (const [key, value] of Object.entries(options.headers)) {
+            headers.set(key, value);
+          }
+        }
+
+        const signal = this.buildSignal(options?.signal);
+
+        const request = new Request(url, {
+          method,
+          headers,
+          body: options?.body !== undefined ? JSON.stringify(options.body) : undefined,
+          signal,
+        });
+
+        if (options?.body !== undefined) {
+          request.headers.set('Content-Type', 'application/json');
+        }
+
+        const authedRequest = await this.applyAuth(request);
+
+        await this.config.hooks?.beforeRequest?.(authedRequest);
+
+        const response = await this.fetchFn(authedRequest);
+
+        if (!response.ok) {
+          const body = await this.safeParseJSON(response);
+
+          // Parse serverCode from response body if available
+          let serverCode: string | undefined;
+          if (body && typeof body === 'object' && 'error' in body) {
+            const errorObj = body.error as
+              | { code?: string; errors?: Array<{ path: string; message: string }> }
+              | undefined;
+            if (errorObj && typeof errorObj.code === 'string') {
+              serverCode = errorObj.code;
+            }
+
+            // Check for validation errors
+            if (errorObj?.code === 'VALIDATION_ERROR' && Array.isArray(errorObj.errors)) {
+              return err(new FetchValidationError('Validation failed', errorObj.errors));
+            }
+          }
+
+          const error = createErrorFromStatus(response.status, response.statusText, body);
+
+          if (attempt < retryConfig.retries && retryConfig.retryOn.includes(response.status)) {
+            lastError = error;
+            await this.config.hooks?.beforeRetry?.(attempt + 1, error);
+            continue;
+          }
+
+          const httpError = new HttpError(response.status, response.statusText, serverCode);
+          await this.config.hooks?.onError?.(httpError);
+          return err(httpError);
+        }
+
+        await this.config.hooks?.afterResponse?.(response);
+
+        let data: T;
+        try {
+          data = (await response.json()) as T;
+        } catch (parseError) {
+          return err(new ParseError('', 'Failed to parse response JSON', parseError));
+        }
+
+        return ok({
+          data,
+          status: response.status,
+          headers: response.headers,
+        });
       }
 
-      await this.config.hooks?.afterResponse?.(response);
+      // This is unreachable: the loop always either returns or throws.
+      // If retries are exhausted, the last iteration throws on the non-retryable path.
+      throw lastError;
+    } catch (error) {
+      // Check if this is a timeout error (AbortError from AbortSignal)
+      if (error instanceof Error && error.name === 'AbortError') {
+        // Check if it's a timeout (AbortSignal.timeout) vs user abort
+        const abortSignal = error instanceof DOMException ? error.cause : error;
+        if (abortSignal instanceof Error && abortSignal.name === 'TimeoutError') {
+          return err(new FetchTimeoutError());
+        }
+        // User aborted - treat as network error
+        return err(new FetchNetworkError('Request aborted'));
+      }
 
-      const data = (await response.json()) as T;
-
-      return {
-        data,
-        status: response.status,
-        headers: response.headers,
-      };
+      return err(new FetchNetworkError('Network request failed'));
     }
-
-    // This is unreachable: the loop always either returns or throws.
-    // If retries are exhausted, the last iteration throws on the non-retryable path.
-    throw lastError;
   }
 
   async get<T>(path: string, options?: RequestOptions): Promise<FetchResponse<T>> {
@@ -150,9 +197,19 @@ export class FetchClient {
 
     if (!response.ok) {
       const body = await this.safeParseJSON(response);
+
+      // Parse serverCode from response body if available
+      let serverCode: string | undefined;
+      if (body && typeof body === 'object' && 'error' in body) {
+        const errorObj = body.error as { code?: string } | undefined;
+        if (errorObj && typeof errorObj.code === 'string') {
+          serverCode = errorObj.code;
+        }
+      }
+
       const error = createErrorFromStatus(response.status, response.statusText, body);
       await this.config.hooks?.onError?.(error);
-      throw error;
+      throw new HttpError(response.status, response.statusText, serverCode);
     }
 
     if (!response.body) {
@@ -340,5 +397,4 @@ export class FetchClient {
       return undefined;
     }
   }
-
 }
