@@ -1,14 +1,12 @@
 import { describe, expect, test } from 'vitest';
 import { watch } from '../../component/lifecycle';
-import { createRouter } from '../navigate';
 import { defineRoutes } from '../define-routes';
-import { RouterContext, useRouter } from '../router-context';
+import { createRouter } from '../navigate';
+import { RouterContext, useParams, useRouter } from '../router-context';
 
 describe('RouterContext + useRouter', () => {
   test('useRouter throws when called outside RouterContext.Provider', () => {
-    expect(() => useRouter()).toThrow(
-      'useRouter() must be called within RouterContext.Provider',
-    );
+    expect(() => useRouter()).toThrow('useRouter() must be called within RouterContext.Provider');
   });
 
   test('useRouter returns the router inside RouterContext.Provider', () => {
@@ -23,6 +21,25 @@ describe('RouterContext + useRouter', () => {
     });
 
     expect(result).toBe(router);
+    router.dispose();
+  });
+
+  test('useParams throws when called outside RouterContext.Provider', () => {
+    expect(() => useParams()).toThrow('useParams() must be called within RouterContext.Provider');
+  });
+
+  test('useParams returns correct params inside RouterContext.Provider', () => {
+    const routes = defineRoutes({
+      '/tasks/:id': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes, '/tasks/42');
+
+    let params: Record<string, string> | undefined;
+    RouterContext.Provider(router, () => {
+      params = useParams();
+    });
+
+    expect(params).toEqual({ id: '42' });
     router.dispose();
   });
 

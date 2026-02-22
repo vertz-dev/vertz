@@ -65,6 +65,14 @@ export interface RouteConfigLike {
 export type TypedRoutes<T extends Record<string, RouteConfigLike> = RouteDefinitionMap> =
   CompiledRoute[] & { readonly __routes: T };
 
+/**
+ * Extract the route map type from `TypedRoutes<T>`.
+ * If `T` is not a `TypedRoutes`, returns `T` as-is (passthrough).
+ *
+ * Usage: `useRouter<InferRouteMap<typeof routes>>()`
+ */
+export type InferRouteMap<T> = T extends TypedRoutes<infer R> ? R : T;
+
 /** Internal compiled route. */
 export interface CompiledRoute {
   /** The original path pattern. */
