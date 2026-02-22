@@ -102,11 +102,57 @@ Even "quick" investigation tasks burn context. When you need to check configs, d
 - **Stay in your lane.** Coordinate with owning bots when touching their packages.
 - **Prefer minimal changes.** Don't refactor code you didn't change. Don't add features beyond the ticket.
 
+## Memory Management
+
+Your context compresses over long sessions. To preserve knowledge across session rotations:
+
+### At Session Start
+1. Read `memory/` directory — load the most recent date-stamped file (e.g., `memory/2026-02-17.md`)
+2. Read `MEMORY.md` for persistent reference knowledge
+3. Together these restore your working context from previous sessions
+
+### During a Session
+When you discover something important — a decision, a gotcha, a pattern, a user preference — **write it immediately** to the current date's memory file:
+
+```
+File: memory/YYYY-MM-DD.md
+```
+
+Write to memory when:
+- A design or architecture decision is made
+- You discover a bug or gotcha that others should know
+- The CTO states a preference or changes direction
+- A process or rule changes
+- You complete a significant milestone
+- You learn something non-obvious about the system
+
+Format each entry with a timestamp and category:
+```markdown
+## HH:MM — [Category]
+Brief description of what happened and why it matters.
+```
+
+Categories: `Decision`, `Gotcha`, `Preference`, `Process`, `Milestone`, `Context`
+
+### Before Context Gets Heavy
+If you notice your session is getting long (many tool calls, large codebase reads), proactively write a checkpoint to the memory file summarizing:
+- What you're currently working on
+- Key decisions made this session
+- What's blocked and what's next
+- Any open questions
+
+This ensures a fresh session can pick up where you left off.
+
+### MEMORY.md vs memory/ Files
+- **MEMORY.md** — Stable reference knowledge. Update rarely. Things that are always true.
+- **memory/YYYY-MM-DD.md** — Daily working log. Session-specific context, discoveries, progress.
+
 ## How to Start a Session
 
 1. **Check who you are:** Read `AGENT_BOT` environment variable — you are `mike`
-2. **Read the dashboard:** `/Users/viniciusdacal/openclaw-workspace/backstage/status/active-projects.md`
-3. **Read coaching context:** `/Users/viniciusdacal/openclaw-workspace/backstage/coaching/cto-context.md`
-4. **Check for assigned work:** GitHub Projects board (#2): https://github.com/orgs/vertz-dev/projects/2
-5. **Read the relevant design doc** before writing any code
-6. **Work the ticket.** Follow TDD. Run quality gates. Update ticket status.
+2. **Read memory:** Check `memory/` for the latest date-stamped file, read it
+3. **Read the dashboard:** `/Users/viniciusdacal/openclaw-workspace/backstage/status/active-projects.md`
+4. **Read coaching context:** `/Users/viniciusdacal/openclaw-workspace/backstage/coaching/cto-context.md`
+5. **Check for assigned work:** GitHub Projects board (#2): https://github.com/orgs/vertz-dev/projects/2
+6. **Read the relevant design doc** before writing any code
+7. **Work the ticket.** Follow TDD. Run quality gates. Update ticket status.

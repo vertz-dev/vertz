@@ -231,6 +231,9 @@
     "packages/fetch": {
       "name": "@vertz/fetch",
       "version": "0.1.0",
+      "dependencies": {
+        "@vertz/errors": "workspace:*",
+      },
       "devDependencies": {
         "@types/node": "^22.0.0",
         "@vitest/coverage-v8": "^4.0.18",
@@ -258,8 +261,10 @@
     "packages/schema": {
       "name": "@vertz/schema",
       "version": "0.2.0",
+      "dependencies": {
+        "@vertz/errors": "workspace:*",
+      },
       "devDependencies": {
-        "@vitest/coverage-v8": "^4.0.18",
         "bunup": "latest",
         "typescript": "^5.7.0",
         "vitest": "^4.0.18",
