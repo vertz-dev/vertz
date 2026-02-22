@@ -21,23 +21,24 @@ type FetchErrorHandlers<R> = {
   ParseError: (error: Extract<FetchErrorType, { code: 'ParseError' }>) => R;
   ValidationError: (error: Extract<FetchErrorType, { code: 'ValidationError' }>) => R;
 };
+};
 
 /**
  * Handler map type for EntityError.
  * Each key corresponds to an error code, and the value is a handler function.
  */
 type EntityErrorHandlers<R> = {
-  BadRequest: (error: Extract<EntityErrorType, { code: 'BadRequest' }>) => R;
-  Unauthorized: (error: Extract<EntityErrorType, { code: 'Unauthorized' }>) => R;
-  Forbidden: (error: Extract<EntityErrorType, { code: 'Forbidden' }>) => R;
-  NotFound: (error: Extract<EntityErrorType, { code: 'NotFound' }>) => R;
-  MethodNotAllowed: (error: Extract<EntityErrorType, { code: 'MethodNotAllowed' }>) => R;
-  Conflict: (error: Extract<EntityErrorType, { code: 'Conflict' }>) => R;
+  BadRequest: (error: Extract<EntityErrorType, { code: 'BAD_REQUEST' }>) => R;
+  Unauthorized: (error: Extract<EntityErrorType, { code: 'UNAUTHORIZED' }>) => R;
+  Forbidden: (error: Extract<EntityErrorType, { code: 'FORBIDDEN' }>) => R;
+  NotFound: (error: Extract<EntityErrorType, { code: 'NOT_FOUND' }>) => R;
+  MethodNotAllowed: (error: Extract<EntityErrorType, { code: 'METHOD_NOT_ALLOWED' }>) => R;
+  Conflict: (error: Extract<EntityErrorType, { code: 'CONFLICT' }>) => R;
   ValidationError: (
-    error: Extract<EntityErrorType, { code: 'ValidationError' }>,
+    error: Extract<EntityErrorType, { code: 'ENTITY_VALIDATION_ERROR' }>,
   ) => R;
-  InternalError: (error: Extract<EntityErrorType, { code: 'InternalError' }>) => R;
-  ServiceUnavailable: (error: Extract<EntityErrorType, { code: 'ServiceUnavailable' }>) => R;
+  InternalError: (error: Extract<EntityErrorType, { code: 'INTERNAL_ERROR' }>) => R;
+  ServiceUnavailable: (error: Extract<EntityErrorType, { code: 'SERVICE_UNAVAILABLE' }>) => R;
 };
 
 /**
@@ -60,85 +61,74 @@ export function matchError<R>(
   error: FetchErrorType | EntityErrorType,
   handlers: FetchErrorHandlers<R> | EntityErrorHandlers<R>,
 ): R {
-  // Check if it's a FetchError or EntityError by checking for known FetchError codes
-  // Note: ValidationError exists in both FetchError and EntityError, so we check
-  // the error name to disambiguate
-  const isFetchError =
-    error.code === 'NetworkError' ||
-    error.code === 'HttpError' ||
-    error.code === 'TimeoutError' ||
-    error.code === 'ParseError' ||
-    (error.code === 'ValidationError' && error.name !== 'EntityValidationError');
+  const errorCode = (error as { code: string }).code;
 
-  if (isFetchError) {
-    const code = (error as FetchErrorType).code;
-    switch (code) {
-      case 'NetworkError':
-        return (handlers as FetchErrorHandlers<R>).NetworkError(
-          error as Extract<FetchErrorType, { code: 'NetworkError' }>,
-        );
-      case 'HttpError':
-        return (handlers as FetchErrorHandlers<R>).HttpError(
-          error as Extract<FetchErrorType, { code: 'HttpError' }>,
-        );
-      case 'TimeoutError':
-        return (handlers as FetchErrorHandlers<R>).TimeoutError(
-          error as Extract<FetchErrorType, { code: 'TimeoutError' }>,
-        );
-      case 'ParseError':
-        return (handlers as FetchErrorHandlers<R>).ParseError(
-          error as Extract<FetchErrorType, { code: 'ParseError' }>,
-        );
-      case 'ValidationError':
-        return (handlers as FetchErrorHandlers<R>).ValidationError(
-          error as Extract<FetchErrorType, { code: 'ValidationError' }>,
-        );
-    }
-  }
-
-  const code = (error as EntityErrorType).code;
-  switch (code) {
-    case 'BadRequest':
-      return (handlers as EntityErrorHandlers<R>).BadRequest(
-        error as Extract<EntityErrorType, { code: 'BadRequest' }>,
+  switch (errorCode) {
+    case 'NetworkError':
+      return (handlers as FetchErrorHandlers<R>).NetworkError(
+        error as Extract<FetchErrorType, { code: 'NetworkError' }>,
       );
-    case 'Unauthorized':
-      return (handlers as EntityErrorHandlers<R>).Unauthorized(
-        error as Extract<EntityErrorType, { code: 'Unauthorized' }>,
+    case 'HttpError':
+      return (handlers as FetchErrorHandlers<R>).HttpError(
+        error as Extract<FetchErrorType, { code: 'HttpError' }>,
       );
-    case 'Forbidden':
-      return (handlers as EntityErrorHandlers<R>).Forbidden(
-        error as Extract<EntityErrorType, { code: 'Forbidden' }>,
+    case 'TimeoutError':
+      return (handlers as FetchErrorHandlers<R>).TimeoutError(
+        error as Extract<FetchErrorType, { code: 'TimeoutError' }>,
       );
-    case 'NotFound':
-      return (handlers as EntityErrorHandlers<R>).NotFound(
-        error as Extract<EntityErrorType, { code: 'NotFound' }>,
-      );
-    case 'MethodNotAllowed':
-      return (handlers as EntityErrorHandlers<R>).MethodNotAllowed(
-        error as Extract<EntityErrorType, { code: 'MethodNotAllowed' }>,
-      );
-    case 'Conflict':
-      return (handlers as EntityErrorHandlers<R>).Conflict(
-        error as Extract<EntityErrorType, { code: 'Conflict' }>,
+    case 'ParseError':
+      return (handlers as FetchErrorHandlers<R>).ParseError(
+        error as Extract<FetchErrorType, { code: 'ParseError' }>,
       );
     case 'ValidationError':
+      return (handlers as FetchErrorHandlers<R>).ValidationError(
+        error as Extract<FetchErrorType, { code: 'ValidationError' }>,
+      );
+    case 'BAD_REQUEST':
+      return (handlers as EntityErrorHandlers<R>).BadRequest(
+        error as Extract<EntityErrorType, { code: 'BAD_REQUEST' }>,
+      );
+    case 'UNAUTHORIZED':
+      return (handlers as EntityErrorHandlers<R>).Unauthorized(
+        error as Extract<EntityErrorType, { code: 'UNAUTHORIZED' }>,
+      );
+    case 'FORBIDDEN':
+      return (handlers as EntityErrorHandlers<R>).Forbidden(
+        error as Extract<EntityErrorType, { code: 'FORBIDDEN' }>,
+      );
+    case 'NOT_FOUND':
+      return (handlers as EntityErrorHandlers<R>).NotFound(
+        error as Extract<EntityErrorType, { code: 'NOT_FOUND' }>,
+      );
+    case 'METHOD_NOT_ALLOWED':
+      return (handlers as EntityErrorHandlers<R>).MethodNotAllowed(
+        error as Extract<EntityErrorType, { code: 'METHOD_NOT_ALLOWED' }>,
+      );
+    case 'CONFLICT':
+      return (handlers as EntityErrorHandlers<R>).Conflict(
+        error as Extract<EntityErrorType, { code: 'CONFLICT' }>,
+      );
+    case 'ENTITY_VALIDATION_ERROR':
       return (handlers as EntityErrorHandlers<R>).ValidationError(
-        error as Extract<EntityErrorType, { code: 'ValidationError' }>,
+        error as Extract<EntityErrorType, { code: 'ENTITY_VALIDATION_ERROR' }>,
       );
-    case 'InternalError':
+    case 'INTERNAL_ERROR':
       return (handlers as EntityErrorHandlers<R>).InternalError(
-        error as Extract<EntityErrorType, { code: 'InternalError' }>,
+        error as Extract<EntityErrorType, { code: 'INTERNAL_ERROR' }>,
       );
-    case 'ServiceUnavailable':
+    case 'SERVICE_UNAVAILABLE':
       return (handlers as EntityErrorHandlers<R>).ServiceUnavailable(
-        error as Extract<EntityErrorType, { code: 'ServiceUnavailable' }>,
+        error as Extract<EntityErrorType, { code: 'SERVICE_UNAVAILABLE' }>,
       );
+    default: {
+      // This ensures compile-time exhaustiveness checking
+      // If a new error code is added but not handled, TypeScript will error here
+      // Using a closure to create the never type properly
+      const checkExhaustive = (code: never): never => {
+        throw new Error(`Unhandled error code: ${code}`);
+      };
+      // Cast to never to ensure exhaustive checking
+      return checkExhaustive(errorCode as never);
+    }
   }
-
-  // This ensures compile-time exhaustiveness checking
-  const checkExhaustive = (c: never): never => {
-    throw new Error(`Unhandled error code: ${c}`);
-  };
-  return checkExhaustive(code);
 }
