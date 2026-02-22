@@ -2,6 +2,18 @@
 
 Use this template when requesting a code review for a PR.
 
+**CRITICAL: Adversarial Review Mindset**
+
+Your job is to **find what's wrong**, not to approve quickly. Assume the author made mistakes. Your review protects the codebase from bugs, design deviations, and technical debt.
+
+**Ask yourself:**
+- What edge cases weren't tested?
+- Where could this break in production?
+- Does this match the design doc approach, or just the outcome?
+- What happens when inputs are null/empty/malformed?
+- Are types actually safe or using `any`/assertions?
+- What did the author not think about?
+
 ---
 
 ## Review Request: [PR Title]
@@ -56,15 +68,20 @@ Based on the ticket/design, the reviewer should expect:
 
 ---
 
-## Technical Review Checklist
+## Technical Review Checklist (Adversarial Mindset)
 
-- [ ] **Tests:** All new/modified code is tested
-- [ ] **Types:** TypeScript types are correct and inference works
-- [ ] **Naming:** Follows project conventions (see API_CONVENTIONS.md)
-- [ ] **Error handling:** Errors handled per project pattern (Result vs throw)
-- [ ] **Documentation:** Public APIs have TSDoc comments
-- [ ] **Performance:** No obvious performance issues
-- [ ] **Security:** No exposed secrets, SQL injection, XSS, etc.
+**Don't just check if tests pass - actively look for what's missing:**
+
+- [ ] **Tests:** All new/modified code is tested **AND** edge cases covered (null, empty, invalid inputs)
+- [ ] **Types:** TypeScript types are correct **AND** no `any`, `as`, `@ts-ignore` escapes
+- [ ] **Naming:** Follows project conventions **AND** names are clear/unambiguous
+- [ ] **Error handling:** Errors handled per project pattern **AND** all error paths return Result (no hidden throws)
+- [ ] **Documentation:** Public APIs have TSDoc **AND** examples are correct/tested
+- [ ] **Performance:** No obvious issues **AND** no O(n²) loops, unnecessary re-renders, or blocking operations
+- [ ] **Security:** No secrets **AND** no SQL injection, XSS, command injection, or unsafe deserializatio
+- [ ] **Design compliance:** Implementation matches design doc approach **AND** doesn't take shortcuts
+- [ ] **Breaking changes:** Checked for unintended API breakage
+- [ ] **Untested assumptions:** Are there assumptions that aren't verified by tests?
 
 ---
 
@@ -173,11 +190,14 @@ I need input on [specific decision]:
 
 ## Anti-Patterns (DO NOT DO)
 
-❌ **Rubber stamping** - "Tests pass, LGTM" without checking design  
+❌ **Rubber stamping** - "Tests pass, LGTM" without checking design or edge cases
+❌ **Mention comments** - Adding comments like "cc @username" or "requesting review from @someone" - just do the review yourself
+❌ **Soft reviews** - Looking for reasons to approve instead of reasons to block
 ❌ **Scope creep suggestions** - "While you're here, also add X" (file separate ticket)  
 ❌ **Nitpicking without blockers** - Request changes for style preferences  
 ❌ **Approving with unresolved blockers** - "LGTM but please fix X" (should be Request Changes)  
 ❌ **Ignoring design doc** - Approving because it "works" even if approach differs
+❌ **Assuming tests are correct** - Tests can pass but miss edge cases or test the wrong thing
 
 ---
 
