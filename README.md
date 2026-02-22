@@ -27,71 +27,81 @@ So we built Vertz — a TypeScript stack designed so that an LLM can nail it on 
 
 **This entire codebase is written with [Claude Code](https://claude.ai/claude-code).** Not scaffolded by AI and finished by hand — written, tested, and iterated by an LLM from first commit to last. Vertz is both the product and the experiment.
 
-### Server
+**1. Define your model**
 
 ```typescript
-import { vertz, s } from '@vertz/server';
+import { d } from 'vertz/db';
 
-const userDef = vertz.moduleDef({ name: 'users' });
-
-const userService = userDef.service({
-  methods: () => ({
-    list: () => [{ id: '1', name: 'Jane' }],
-    getById: (id: string) => ({ id, name: 'Jane' }),
-  }),
+const todos = d.table('todos', {
+  id: d.uuid().primary(),
+  title: d.text(),
+  completed: d.boolean().default(false),
+  createdAt: d.timestamp().default('now').readOnly(),
 });
-
-const userRouter = userDef.router({ prefix: '/users', inject: { userService } })
-  .get('/', {
-    response: s.array(s.object({ id: s.string(), name: s.string() })),
-    handler: (ctx) => ctx.userService.list(),
-  })
-  .get('/:id', {
-    params: s.object({ id: s.string() }),
-    response: s.object({ id: s.string(), name: s.string() }),
-    handler: (ctx) => ctx.userService.getById(ctx.params.id),
-  });
-
-const userModule = vertz.module(userDef, {
-  services: [userService],
-  routers: [userRouter],
-  exports: [userService],
-});
-
-const app = vertz
-  .app({ basePath: '/api' })
-  .register(userModule);
-
-app.listen(3000);
 ```
 
-No decorators. No runtime magic. Types flow from schema to handler to response — and the compiler catches the rest.
+**2. Create the entity — get a full CRUD API**
 
-### UI
+```typescript
+import { entity, createServer } from 'vertz/server';
+// d and todos from step 1
 
-```tsx
-import { query, form, css } from '@vertz/ui';
-
-const styles = css({
-  card: ['bg:background', 'rounded:lg', 'p:4'],
+const todosEntity = entity('todos', {
+  model: d.model(todos),
+  access: { list: () => true, get: () => true, create: () => true },
 });
 
-export function TaskList() {
-  const tasks = query(() => fetch('/api/tasks').then((r) => r.json()), {
-    key: 'tasks',
+createServer({ entities: [todosEntity] }).listen(3000);
+// POST /api/todos, GET /api/todos, GET /api/todos/:id — done.
+```
+
+**3. Generate a typed SDK**
+
+```bash
+bun vertz codegen
+```
+
+**4. Use it in the UI — fully typed, no glue code**
+
+```tsx
+import { query, form } from 'vertz/ui';
+import { api } from './generated/client';
+
+export function TodoApp() {
+  const todos = query(() => api.todos.list(), { key: 'todos' });
+
+  const todoForm = form(api.todos.create, {
+    onSuccess: () => todos.refetch(),
   });
 
   return (
-    <ul>
-      {tasks.data?.map((task) => (
-        <li class={styles.classNames.card}>{task.title}</li>
-      ))}
-    </ul>
+    <div>
+      <form onSubmit={todoForm.onSubmit}>
+        <input name="title" placeholder="What needs to be done?" />
+        <button type="submit" disabled={todoForm.submitting}>Add</button>
+      </form>
+      <ul>
+        {todos.data?.map((todo) => (
+          <li>{todo.title}</li>
+        ))}
+      </ul>
+    </div>
   );
 }
 ```
 
-Compiler-driven reactivity — `let` becomes a signal, `const` becomes computed. No hooks, no virtual DOM.
+Types flow from the database column definition through the server, SDK, and into the UI component — no manual wiring, no type duplication. The compiler catches the rest.
+
+## Quickstart
+
+```bash
+npx create-vertz-app my-app --example
+cd my-app
+bun install
+bun run dev
+```
+
+Install `vertz` to get all packages via subpath imports (`vertz/server`, `vertz/db`, `vertz/ui`), or install individual `@vertz/*` packages if you prefer.
 
 ## Why Vertz?
 
@@ -107,85 +117,34 @@ Ambiguity is the enemy of LLMs — and of teams. When there are three ways to do
 
 ### Type safety that actually flows
 
-```typescript
-// Types flow naturally — no manual wiring
-const router = userDef.router({ prefix: '/users', inject: { userService } })
-  .post('/', {
-    body: s.object({ name: s.string().min(1) }),
-    response: s.object({ id: s.string(), name: s.string() }),
-    handler: (ctx) => {
-      // ctx.body is { name: string } — inferred from schema
-      // ctx.userService is fully typed — inferred from inject
-      // Return type must match response schema — enforced by compiler
-      return { id: '1', name: ctx.body.name };
-    },
-  });
-```
+Define a column as `d.text()` — it's `string` in your entity, `string` in the generated SDK, `string` in the UI form. Change it to `d.integer()` and `tsc` lights up red everywhere that still expects a string — across server, SDK, and UI in a single typecheck. No manual type duplication, no runtime surprises.
 
 ### Production-ready by default
 
 OpenAPI generation isn't a plugin — it's built in. Environment validation isn't an afterthought — it's required. CORS isn't a middleware you install — it's a config option.
 
-```typescript
-const env = vertz.env({
-  schema: s.object({
-    DATABASE_URL: s.string(),
-    API_PORT: s.number().default(3000),
-    LOG_LEVEL: s.string().default('info'),
-  }),
-});
-// Missing DATABASE_URL? Readable error at startup, not a crash in production.
-
-const app = vertz
-  .app({ basePath: '/api', cors: { origins: true } })
-  .middlewares([authMiddleware])
-  .register(userModule);
-
-app.listen(env.API_PORT);
-```
-
 ## The Architecture
 
-Vertz follows a four-layer module pattern:
-
 ```
-moduleDef()  →  Define the contract (name, shape)
-service()    →  Implement business logic
-router()     →  Define HTTP routes with schemas
-module()     →  Assemble services + routers
-app()        →  Compose modules into an application
+d.table()        →  Define the schema once
+entity()         →  Get a typed CRUD API
+createServer()   →  Serve it
+vertz codegen    →  Generate a typed SDK
+query() / form() →  Use it in the UI
 ```
 
-Everything is explicit. Dependencies are declared, not discovered. The compiler knows the full dependency graph at build time — no runtime resolution, no missing service surprises.
+Everything is explicit. Dependencies are declared, not discovered. The compiler knows the full dependency graph at build time.
 
-### Middleware that makes sense
-
-No `next()` callbacks. Middleware returns what it contributes to the context:
-
-```typescript
-const auth = vertz.middleware({
-  name: 'auth',
-  handler: (ctx) => {
-    const token = ctx.request.headers.get('authorization');
-    if (!token) throw new UnauthorizedException('Missing token');
-    return { user: { id: '1', role: 'admin' } };
-  },
-});
-
-// In your route handler, ctx.user is typed and available
-```
+For custom business logic, Vertz also has a module system with services, routers, middleware, and dependency injection — but the entity path gets you from zero to full-stack CRUD in minutes.
 
 ### Server-agnostic
 
-`app.listen()` auto-detects your runtime. Need more control? The `app.handler` getter gives you a raw `(request: Request) => Promise<Response>` function:
+`app.listen()` auto-detects your runtime. Need more control? `app.handler` gives you a raw `(request: Request) => Promise<Response>` function:
 
 ```typescript
-// Auto-detect (Bun, Node, etc.)
-app.listen(3000);
-
-// Or use the handler directly for edge runtimes
-export default { fetch: app.handler };  // Cloudflare Workers
-Deno.serve(app.handler);                // Deno Deploy
+app.listen(3000);                           // Auto-detect (Bun, Node)
+export default { fetch: app.handler };      // Cloudflare Workers
+Deno.serve(app.handler);                    // Deno Deploy
 ```
 
 ## The Experiment
@@ -194,7 +153,7 @@ Vertz is an experiment in a question: **Can an LLM build a production-ready stac
 
 Every design decision is evaluated through one lens: "Does this make the LLM more correct on the first try?" Functions over decorators — because type inference flows through functions. One way to do things — because ambiguity causes wrong guesses. Compile-time over runtime — because LLMs can't run your code.
 
-The answer so far: with strong conventions, explicit over implicit, and compile-time guarantees — yes. The codebase follows strict TDD (every behavior has a test), every feature goes through design docs before implementation, and the LLM writes the tests first.
+The answer so far: yes — when you have strong conventions, explicit-over-implicit APIs, and compile-time guarantees. The codebase follows strict TDD (every behavior has a test), every feature goes through design docs before implementation, and the LLM writes the tests first.
 
 We're building this in public. Follow the journey:
 
@@ -223,34 +182,7 @@ Vertz is in active development. Here's where things stand:
 | | `@vertz/testing` | `createTestApp()` with service/middleware mocking |
 | **Deploy** | `@vertz/cloudflare` | Cloudflare Workers adapter |
 
-The server handles HTTP requests end-to-end: trie-based routing, schema validation, middleware with typed context, service injection, and structured error responses. The UI uses compiler-driven reactivity — no virtual DOM, no hooks, just signals and JSX. The database layer provides type-safe queries with Result-based error handling.
-
-`app.handler` returns a standard `(Request) => Promise<Response>` function that works with any runtime:
-
-```typescript
-app.listen(3000);                           // Auto-detect (Bun, Node)
-Deno.serve(app.handler);                    // Deno
-export default { fetch: app.handler };      // Cloudflare Workers
-```
-
 This is pre-release software. APIs will change. But the architecture and philosophy are stable — and that's the part that matters most right now.
-
-## Quickstart
-
-**New to Vertz?** Get your first API running in under 5 minutes:
-
-```bash
-npx create-vertz-app my-api --example
-cd my-api
-bun install
-bun run dev
-```
-
-👉 **[Full Quickstart Guide](./QUICKSTART.md)** — step-by-step with examples
-
-## Documentation
-
-Visit **[docs.vertz.dev](https://docs.vertz.dev)** for the full documentation and API reference.
 
 ## Contributing
 
