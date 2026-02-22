@@ -1,33 +1,26 @@
 /**
  * Client-side entry point for Entity Todo.
  *
- * For SSR with hydration:
- * - If the page has data-v-id markers, hydrate() will find and hydrate them
- * - If no markers (full SSR render), the app content is already in the DOM
- * 
- * For SPA mode:
- * - mount() replaces the #app content with the rendered App
+ * For SSR mode:
+ * - The server renders the full HTML page
+ * - On client load, we mount() the app which replaces the SSR content
+ * - This is the simplest approach that works for any SSR content
+ *
+ * For per-component hydration (advanced):
+ * - Would need to register components in a registry
+ * - Use hydrate(registry) to hydrate interactive components
+ * - This requires build-time code generation to populate the registry
  */
 
-import { hydrate, mount } from '@vertz/ui';
+import { mount } from '@vertz/ui';
 import { App } from './app';
 import { todoTheme } from './styles/theme';
 import { globalStyles } from './index';
 
-// Check if we're in SSR mode by looking for hydration markers
-const hasHydrationMarkers = document.querySelector('[data-v-id]') !== null;
-
-if (hasHydrationMarkers) {
-  // SSR mode: hydrate the interactive components
-  // The registry would be auto-generated or provided by the build
-  // For now, we provide an empty registry as the components are statically rendered
-  const registry: Record<string, () => Promise<{ default: (props: Record<string, unknown>, el: Element) => void }>> = {};
-  hydrate(registry);
-} else {
-  // SPA mode: mount the app directly to #app
-  // Note: globalStyles.css is the compiled CSS string from index.ts
-  // We need to import it differently since it's not exported
-  mount(App, '#app', {
-    theme: todoTheme,
-  });
-}
+// Mount the app to #app
+// This replaces any SSR content with the client-rendered app
+// The globalStyles is imported from index.ts where it's defined via globalCss()
+mount(App, '#app', {
+  theme: todoTheme,
+  styles: [globalStyles.css],
+});
