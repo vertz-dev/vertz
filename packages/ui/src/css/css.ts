@@ -148,14 +148,14 @@ export function css<T extends CSSInput>(
   // In production, the compiler handles CSS extraction.
   injectCSS(cssText);
 
-  const result = { ...classNames } as CSSOutput<T>;
+  const result = { ...classNames } as Record<string, string>;
   Object.defineProperty(result, 'css', {
     value: cssText,
     enumerable: false,
     configurable: false,
     writable: false,
   });
-  return result;
+  return result as CSSOutput<T>;
 }
 
 /** Format a CSS rule from selector + declarations. */

@@ -264,7 +264,7 @@ count.value++
 
 // CSS
 const styles = css({ padding: '1rem', background: 'blue' })
-const el = <div class={styles.classNames.card}>Hello</div>
+const el = <div class={styles.card}>Hello</div>
 
 // Routes
 const routes = defineRoutes({
