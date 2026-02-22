@@ -112,13 +112,13 @@ export function emitOperationMethod(op: CodegenOperation): FileFragment {
     const pathExpr = buildPathExpression(op.path);
     const reqOpts = buildRequestOptions(op);
 
-    const content = `${methodName}(${inputParam}): Promise<SDKResult<${responseTypeName}>> {\n  return client.request('${op.method}', ${pathExpr}${reqOpts});\n}`;
+    const content = `${methodName}(${inputParam}): Promise<Result<{ data: ${responseTypeName}; status: number; headers: Headers }, FetchError>> {\n  return client.request('${op.method}', ${pathExpr}${reqOpts});\n}`;
     return { content, imports };
   }
 
   imports.push({ from: '../types', name: responseTypeName, isType: true });
   const pathExpr = buildPathExpression(op.path);
-  const content = `${methodName}(): Promise<SDKResult<${responseTypeName}>> {\n  return client.request('${op.method}', ${pathExpr});\n}`;
+  const content = `${methodName}(): Promise<Result<{ data: ${responseTypeName}; status: number; headers: Headers }, FetchError>> {\n  return client.request('${op.method}', ${pathExpr});\n}`;
   return { content, imports };
 }
 
@@ -203,6 +203,10 @@ export function emitClientFile(ir: CodegenIR): GeneratedFile {
   // Import FetchClient
   imports.push({ from: '@vertz/fetch', name: 'FetchClient', isType: false });
 
+  // Import Result and FetchError types
+  imports.push({ from: '@vertz/errors', name: 'Result', isType: true });
+  imports.push({ from: '@vertz/errors', name: 'FetchError', isType: true });
+
   // SDKConfig fragment
   const configFragment = emitSDKConfig(ir.auth);
   imports.push(...configFragment.imports);
@@ -223,12 +227,6 @@ export function emitClientFile(ir: CodegenIR): GeneratedFile {
     sections.push(importBlock);
     sections.push('');
   }
-
-  // SDKResult type
-  sections.push(
-    'export interface SDKResult<T> {\n  data: T;\n  status: number;\n  headers: Headers;\n}',
-  );
-  sections.push('');
 
   // SDKConfig interface
   sections.push(configFragment.content);
