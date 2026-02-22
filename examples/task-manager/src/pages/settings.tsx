@@ -63,57 +63,57 @@ export function SettingsPage() {
   // ── Page layout with JSX ────────────────────────────
 
   return (
-    <div class={settingsStyles.classNames.page} data-testid="settings-page">
-      <h1 class={settingsStyles.classNames.title}>Settings</h1>
+    <div class={settingsStyles.page} data-testid="settings-page">
+      <h1 class={settingsStyles.title}>Settings</h1>
 
-      <section class={settingsStyles.classNames.section}>
-        <h2 class={settingsStyles.classNames.sectionTitle}>Appearance</h2>
-        <div class={settingsStyles.classNames.themeGrid}>
+      <section class={settingsStyles.section}>
+        <h2 class={settingsStyles.sectionTitle}>Appearance</h2>
+        <div class={settingsStyles.themeGrid}>
           <div
-            class={`${settingsStyles.classNames.themeCard} ${
+            class={`${settingsStyles.themeCard} ${
               currentTheme === 'light'
-                ? settingsStyles.classNames.themeCardActive
-                : settingsStyles.classNames.themeCardInactive
+                ? settingsStyles.themeCardActive
+                : settingsStyles.themeCardInactive
             }`}
             data-testid="theme-light"
             role="button"
             tabindex="0"
             onClick={() => selectTheme('light')}
           >
-            <div class={settingsStyles.classNames.previewBox} style="background-color: #ffffff">
-              <div class={settingsStyles.classNames.previewText}>Light theme preview</div>
+            <div class={settingsStyles.previewBox} style="background-color: #ffffff">
+              <div class={settingsStyles.previewText}>Light theme preview</div>
             </div>
             <div style="font-weight: 500">Light</div>
           </div>
           <div
-            class={`${settingsStyles.classNames.themeCard} ${
+            class={`${settingsStyles.themeCard} ${
               currentTheme === 'dark'
-                ? settingsStyles.classNames.themeCardActive
-                : settingsStyles.classNames.themeCardInactive
+                ? settingsStyles.themeCardActive
+                : settingsStyles.themeCardInactive
             }`}
             data-testid="theme-dark"
             role="button"
             tabindex="0"
             onClick={() => selectTheme('dark')}
           >
-            <div class={settingsStyles.classNames.previewBox} style="background-color: #111827">
-              <div class={settingsStyles.classNames.previewText}>Dark theme preview</div>
+            <div class={settingsStyles.previewBox} style="background-color: #111827">
+              <div class={settingsStyles.previewText}>Dark theme preview</div>
             </div>
             <div style="font-weight: 500">Dark</div>
           </div>
         </div>
         {showSaved && (
-          <div class={settingsStyles.classNames.savedMsg} data-testid="saved-message">
+          <div class={settingsStyles.savedMsg} data-testid="saved-message">
             Settings saved!
           </div>
         )}
       </section>
 
-      <section class={settingsStyles.classNames.section}>
-        <h2 class={settingsStyles.classNames.sectionTitle}>Default Priority</h2>
-        <div class={formStyles.classNames.formGroup}>
+      <section class={settingsStyles.section}>
+        <h2 class={settingsStyles.sectionTitle}>Default Priority</h2>
+        <div class={formStyles.formGroup}>
           <select
-            class={formStyles.classNames.select}
+            class={formStyles.select}
             data-testid="default-priority-select"
             onChange={(e: Event) => {
               const value = (e.target as HTMLSelectElement).value as

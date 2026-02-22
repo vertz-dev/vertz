@@ -144,7 +144,7 @@ const styles = css({
   title: ['font:lg', 'font:semibold', 'text:foreground'],
 });
 
-// Usage: class={styles.classNames.panel}
+// Usage: class={styles.panel}
 ```
 
 ```tsx

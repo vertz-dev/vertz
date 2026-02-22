@@ -38,13 +38,10 @@ export type StyleEntry = string | Record<string, string[]>;
 /** Input to css(): a record of named style blocks. */
 export type CSSInput = Record<string, StyleEntry[]>;
 
-/** Output of css(): a record of block names to class names, plus extracted CSS. */
-export interface CSSOutput {
-  /** Map of block name → generated class name. */
-  classNames: Record<string, string>;
-  /** The extracted CSS string. */
-  css: string;
-}
+/** Output of css(): block names as top-level properties, plus non-enumerable `css`. */
+export type CSSOutput<T extends CSSInput = CSSInput> = {
+  readonly [K in keyof T & string]: string;
+} & { readonly css: string };
 
 /** Default file path used when none is provided (runtime fallback). */
 const DEFAULT_FILE_PATH = '__runtime__';
@@ -83,9 +80,16 @@ export function resetInjectedStyles(): void {
  *
  * @param input - Named style blocks.
  * @param filePath - Source file path for deterministic hashing.
- * @returns Class names map and extracted CSS.
+ * @returns Object with block names as keys (class name strings) and non-enumerable `css` property.
  */
-export function css(input: CSSInput, filePath: string = DEFAULT_FILE_PATH): CSSOutput {
+export function css<T extends CSSInput>(
+  input: T & { [K in keyof T & 'css']?: never },
+  filePath: string = DEFAULT_FILE_PATH,
+): CSSOutput<T> {
+  if ('css' in input) {
+    throw new Error("css(): block name 'css' is reserved. Rename the block.");
+  }
+
   const classNames: Record<string, string> = {};
   const cssRules: string[] = [];
 
@@ -144,10 +148,14 @@ export function css(input: CSSInput, filePath: string = DEFAULT_FILE_PATH): CSSO
   // In production, the compiler handles CSS extraction.
   injectCSS(cssText);
 
-  return {
-    classNames,
-    css: cssText,
-  };
+  const result = { ...classNames } as CSSOutput<T>;
+  Object.defineProperty(result, 'css', {
+    value: cssText,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  return result;
 }
 
 /** Format a CSS rule from selector + declarations. */

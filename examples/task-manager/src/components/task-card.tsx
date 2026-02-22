@@ -54,7 +54,7 @@ export interface TaskCardProps {
 export function TaskCard({ task, onClick }: TaskCardProps) {
   return (
     <article
-      class={cardStyles.classNames.card}
+      class={cardStyles.card}
       data-testid={`task-card-${task.id}`}
       role="button"
       tabindex="0"
@@ -66,14 +66,14 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
         }
       }}
     >
-      <div class={cardStyles.classNames.cardHeader}>
-        <h3 class={cardStyles.classNames.cardTitle}>{task.title}</h3>
+      <div class={cardStyles.cardHeader}>
+        <h3 class={cardStyles.cardTitle}>{task.title}</h3>
         <span class={badge({ color: priorityColor(task.priority) })}>{task.priority}</span>
       </div>
-      <p class={cardStyles.classNames.cardBody}>
+      <p class={cardStyles.cardBody}>
         {task.description.length > 120 ? `${task.description.slice(0, 120)}...` : task.description}
       </p>
-      <div class={cardStyles.classNames.cardFooter}>
+      <div class={cardStyles.cardFooter}>
         <span class={badge({ color: statusColor(task.status) })}>{statusLabel(task.status)}</span>
         <span style="font-size: 0.75rem; color: var(--color-muted)">
           {new Date(task.updatedAt).toLocaleDateString()}

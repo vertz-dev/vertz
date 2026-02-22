@@ -73,17 +73,17 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
   };
 
   return (
-    <div class={todoItemStyles.classNames.item} data-testid={`todo-item-${id}`}>
+    <div class={todoItemStyles.item} data-testid={`todo-item-${id}`}>
       <input
         type="checkbox"
-        class={todoItemStyles.classNames.checkbox}
+        class={todoItemStyles.checkbox}
         checked={isCompleted}
         onChange={handleToggle}
         data-testid={`todo-checkbox-${id}`}
       />
       <span
         class={
-          isCompleted ? todoItemStyles.classNames.titleCompleted : todoItemStyles.classNames.title
+          isCompleted ? todoItemStyles.titleCompleted : todoItemStyles.title
         }
         style={isCompleted ? 'text-decoration: line-through' : ''}
         data-testid={`todo-title-${id}`}
@@ -91,7 +91,7 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
         {title}
       </span>
       <button
-        class={todoItemStyles.classNames.deleteBtn}
+        class={todoItemStyles.deleteBtn}
         onClick={handleDelete}
         data-testid={`todo-delete-${id}`}
       >

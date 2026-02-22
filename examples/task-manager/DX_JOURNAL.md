@@ -86,7 +86,7 @@ The combination of JSX for structure + effect() for updates is the sweet spot. I
 ```tsx
 // Components compose naturally in JSX
 <div data-testid="task-list-page">
-  <div class={layoutStyles.classNames.header}>
+  <div class={layoutStyles.header}>
     <h1>Tasks</h1>
     <button onClick={() => navigate('/tasks/new')}>+ New Task</button>
   </div>
@@ -114,12 +114,12 @@ The compiler transforms JSX into optimized `__element()` / `__on()` / `__text()`
 export function TaskCard(props: TaskCardProps): HTMLElement {
   const { task, onClick } = props;
   return (
-    <article class={cardStyles.classNames.card} onClick={() => onClick(task.id)}>
-      <div class={cardStyles.classNames.cardHeader}>
-        <h3 class={cardStyles.classNames.cardTitle}>{task.title}</h3>
+    <article class={cardStyles.card} onClick={() => onClick(task.id)}>
+      <div class={cardStyles.cardHeader}>
+        <h3 class={cardStyles.cardTitle}>{task.title}</h3>
         <span class={badge({ color: priorityColor(task.priority) })}>{task.priority}</span>
       </div>
-      <p class={cardStyles.classNames.cardBody}>{task.description}</p>
+      <p class={cardStyles.cardBody}>{task.description}</p>
     </article>
   ) as HTMLElement;
 }
@@ -282,9 +282,9 @@ const dialog = Dialog.Root({ modal: true });
 dialog.trigger.className = button({ intent: 'danger', size: 'sm' });
 dialog.trigger.textContent = triggerLabel;
 dialog.trigger.setAttribute('data-testid', 'confirm-dialog-trigger');
-dialog.content.className = dialogStyles.classNames.panel;
+dialog.content.className = dialogStyles.panel;
 dialog.content.setAttribute('data-testid', 'confirm-dialog-content');
-dialog.title.className = dialogStyles.classNames.title;
+dialog.title.className = dialogStyles.title;
 dialog.title.textContent = titleText;
 dialog.close.className = button({ intent: 'secondary', size: 'sm' });
 dialog.close.textContent = 'Cancel';

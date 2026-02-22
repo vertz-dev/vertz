@@ -100,7 +100,7 @@ export function TaskDetailPage() {
   // ── Page layout with declarative conditionals ──────
 
   return (
-    <div class={detailStyles.classNames.page} data-testid="task-detail-page">
+    <div class={detailStyles.page} data-testid="task-detail-page">
       {taskQuery.loading && <div data-testid="loading">Loading task...</div>}
       {taskQuery.error && (
         <div style="color: var(--color-danger-500)" data-testid="error">
@@ -116,16 +116,16 @@ export function TaskDetailPage() {
           >
             Back to Tasks
           </button>
-          <div class={detailStyles.classNames.header}>
-            <div class={detailStyles.classNames.titleArea}>
-              <h1 class={detailStyles.classNames.title} data-testid="task-title">
+          <div class={detailStyles.header}>
+            <div class={detailStyles.titleArea}>
+              <h1 class={detailStyles.title} data-testid="task-title">
                 {task.title}
               </h1>
-              <div class={detailStyles.classNames.meta}>
+              <div class={detailStyles.meta}>
                 {`Created ${new Date(task.createdAt).toLocaleDateString()} · Updated ${new Date(task.updatedAt).toLocaleDateString()}`}
               </div>
             </div>
-            <div class={detailStyles.classNames.actions}>
+            <div class={detailStyles.actions}>
               <ConfirmDialog
                 triggerLabel="Delete"
                 title="Delete Task"
@@ -138,7 +138,7 @@ export function TaskDetailPage() {
               />
             </div>
           </div>
-          <div class={detailStyles.classNames.statusBar} data-testid="status-bar">
+          <div class={detailStyles.statusBar} data-testid="status-bar">
             <span
               class={badge({
                 color:
@@ -193,15 +193,15 @@ export function TaskDetailPage() {
               </button>
             </div>
             {activeTab === 'details' && (
-              <div class={detailStyles.classNames.section}>
-                <h3 class={detailStyles.classNames.sectionTitle}>Description</h3>
-                <div class={detailStyles.classNames.description} data-testid="task-description">
+              <div class={detailStyles.section}>
+                <h3 class={detailStyles.sectionTitle}>Description</h3>
+                <div class={detailStyles.description} data-testid="task-description">
                   {task.description}
                 </div>
               </div>
             )}
             {activeTab === 'activity' && (
-              <div class={detailStyles.classNames.timeline}>
+              <div class={detailStyles.timeline}>
                 No activity yet. Status changes and comments will appear here.
               </div>
             )}

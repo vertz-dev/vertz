@@ -43,34 +43,34 @@ export function App() {
       });
 
       const main = (
-        <main class={layoutStyles.classNames.main} data-testid="main-content">
+        <main class={layoutStyles.main} data-testid="main-content">
           {routerView}
         </main>
       );
 
       // Shell layout: sidebar + main, composed with JSX
       const shell = (
-        <div class={layoutStyles.classNames.shell}>
-          <nav class={layoutStyles.classNames.sidebar} aria-label="Main navigation">
-            <div class={navStyles.classNames.navTitle}>Task Manager</div>
-            <div class={navStyles.classNames.navList}>
+        <div class={layoutStyles.shell}>
+          <nav class={layoutStyles.sidebar} aria-label="Main navigation">
+            <div class={navStyles.navTitle}>Task Manager</div>
+            <div class={navStyles.navList}>
               <Link
                 href="/"
                 children="All Tasks"
                 activeClass="font-bold"
-                className={navStyles.classNames.navItem}
+                className={navStyles.navItem}
               />
               <Link
                 href="/tasks/new"
                 children="Create Task"
                 activeClass="font-bold"
-                className={navStyles.classNames.navItem}
+                className={navStyles.navItem}
               />
               <Link
                 href="/settings"
                 children="Settings"
                 activeClass="font-bold"
-                className={navStyles.classNames.navItem}
+                className={navStyles.navItem}
               />
             </div>
           </nav>
