@@ -27,3 +27,7 @@ export type {
 // Re-export Result utilities for consumers
 export type { Result } from '@vertz/errors';
 export { ok, err, unwrap, unwrapOr, isOk, isErr } from '@vertz/errors';
+
+// Re-export matchError for error handling
+export { matchError } from '@vertz/errors';
+export type { FetchErrorType, EntityErrorType } from '@vertz/errors';
