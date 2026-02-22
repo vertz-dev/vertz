@@ -17,6 +17,12 @@ import type { EntityDbAdapter, ListOptions } from '@vertz/server';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ---------------------------------------------------------------------------
+// Allowed column names for WHERE clauses (whitelist to prevent SQL injection)
+// ---------------------------------------------------------------------------
+
+const ALLOWED_WHERE_COLUMNS = new Set(['id', 'title', 'completed', 'createdAt', 'updatedAt']);
+
+// ---------------------------------------------------------------------------
 // Local SQLite Driver (implements DbDriver interface)
 // ---------------------------------------------------------------------------
 
@@ -112,6 +118,15 @@ export class SqliteEntityDbAdapter implements EntityDbAdapter {
 
   async list(options?: ListOptions): Promise<{ data: Record<string, unknown>[]; total: number }> {
     try {
+      // Validate WHERE columns against whitelist to prevent SQL injection
+      if (options?.where) {
+        for (const key of Object.keys(options.where)) {
+          if (!ALLOWED_WHERE_COLUMNS.has(key)) {
+            throw new Error(`Invalid filter column: ${key}`);
+          }
+        }
+      }
+
       // Get total count first (without WHERE, pagination)
       let countSql = `SELECT COUNT(*) as count FROM ${this.tableName}`;
       const countParams: unknown[] = [];
@@ -168,6 +183,9 @@ export class SqliteEntityDbAdapter implements EntityDbAdapter {
 
       return { data: convertedData, total };
     } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Invalid filter column:')) {
+        throw error;
+      }
       throw new Error(`Failed to list todos: please try again later`);
     }
   }
