@@ -79,6 +79,9 @@ export { createRouter } from './router/navigate';
 export type { OutletContext } from './router/outlet';
 export { createOutlet } from './router/outlet';
 export type { ExtractParams } from './router/params';
+export { RouterContext, useRouter } from './router/router-context';
+export type { RouterViewProps } from './router/router-view';
+export { RouterView } from './router/router-view';
 export { parseSearchParams, useSearchParams } from './router/search-params';
 
 // Reactivity runtime

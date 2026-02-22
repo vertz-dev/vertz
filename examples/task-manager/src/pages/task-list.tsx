@@ -12,15 +12,11 @@
  * - <TaskCard /> JSX component embedding
  */
 
-import { onCleanup, onMount, query } from '@vertz/ui';
+import { onCleanup, onMount, query, useRouter } from '@vertz/ui';
 import { fetchTasks } from '../api/mock-data';
 import { TaskCard } from '../components/task-card';
 import type { Task, TaskStatus } from '../lib/types';
 import { button, emptyStateStyles, layoutStyles } from '../styles/components';
-
-export interface TaskListPageProps {
-  navigate: (url: string) => void;
-}
 
 /**
  * Render the task list page.
@@ -30,8 +26,11 @@ export interface TaskListPageProps {
  * the compiler auto-unwraps them and generates reactive subscriptions.
  * Derived values (errorMsg, filteredTasks) use const declarations —
  * the compiler classifies them as computed and wraps them automatically.
+ *
+ * Navigation is accessed via useRouter() context — no props needed.
  */
-export function TaskListPage({ navigate }: TaskListPageProps) {
+export function TaskListPage() {
+  const { navigate } = useRouter();
   // ── Reactive state ─────────────────────────────────
 
   // Local state: compiler transforms `let` to signal()

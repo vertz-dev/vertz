@@ -28,14 +28,10 @@ const settingsStyles = css({
   savedMsg: ['text:sm', 'text:success.500', 'mt:2'],
 });
 
-export interface SettingsPageProps {
-  navigate: (url: string) => void;
-}
-
 /**
  * Render the settings page with theme switching.
  */
-export function SettingsPage(_props: SettingsPageProps) {
+export function SettingsPage() {
   const settings = useSettings();
 
   // Local state: compiler transforms `let` to signal()

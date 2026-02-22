@@ -4,9 +4,9 @@
  * Demonstrates:
  * - defineRoutes() for route definition with loaders
  * - createRouter() for navigation state
- * - createLink() for client-side navigation
+ * - createLink() for client-side navigation with active state
  * - createOutlet() for nested route rendering
- * - Route params extraction (task ID)
+ * - Pages access navigation via useRouter() context (no prop threading)
  */
 
 import type { OutletContext, Router } from '@vertz/ui';
@@ -17,6 +17,7 @@ import {
   createRouter,
   defineRoutes,
   signal,
+  watch,
 } from '@vertz/ui';
 import { fetchTask, fetchTasks } from './api/mock-data';
 import { CreateTaskPage } from './pages/create-task';
@@ -30,15 +31,13 @@ import { TaskListPage } from './pages/task-list';
  * Each route has:
  * - component: a factory function returning the page element
  * - loader (optional): async data fetching that runs before render
+ *
+ * Pages access navigation and route params via useRouter() context,
+ * so no manual prop threading is needed here.
  */
 export const routes = defineRoutes({
   '/': {
-    component: () => {
-      // Create the page with navigation bound to the router
-      return TaskListPage({
-        navigate: (url: string) => appRouter.navigate(url),
-      });
-    },
+    component: () => TaskListPage(),
     loader: async () => {
       const result = await fetchTasks();
       return result;
@@ -46,23 +45,11 @@ export const routes = defineRoutes({
   },
 
   '/tasks/new': {
-    component: () => {
-      return CreateTaskPage({
-        navigate: (url: string) => appRouter.navigate(url),
-      });
-    },
+    component: () => CreateTaskPage(),
   },
 
   '/tasks/:id': {
-    component: () => {
-      // Extract the task ID from the current route params
-      const match = appRouter.current.value;
-      const taskId = match?.params.id ?? '';
-      return TaskDetailPage({
-        taskId,
-        navigate: (url: string) => appRouter.navigate(url),
-      });
-    },
+    component: () => TaskDetailPage(),
     loader: async (ctx) => {
       const task = await fetchTask(ctx.params.id);
       return task;
@@ -70,11 +57,7 @@ export const routes = defineRoutes({
   },
 
   '/settings': {
-    component: () => {
-      return SettingsPage({
-        navigate: (url: string) => appRouter.navigate(url),
-      });
-    },
+    component: () => SettingsPage(),
   },
 });
 
@@ -83,10 +66,10 @@ export const routes = defineRoutes({
  *
  * The router provides reactive signals for the current route,
  * loader data, and navigation methods.
- * 
+ *
  * SSR-compatible: Falls back to __SSR_URL__ or '/' when window is not available.
  */
-const initialPath = 
+const initialPath =
   typeof window !== 'undefined' && window.location
     ? window.location.pathname
     : (globalThis as any).__SSR_URL__ || '/';
@@ -99,14 +82,22 @@ export const appRouter: Router = createRouter(routes, initialPath);
  * The Link component creates <a> elements that:
  * - Intercept clicks for SPA navigation
  * - Apply an activeClass when the href matches the current path
+ *
+ * currentPath is derived from router.current via watch() to stay in sync.
  */
 const currentPath = signal(initialPath);
 
-// Keep currentPath in sync with the router
-// (In a real app, the router would expose a path signal directly)
+watch(
+  () => appRouter.current.value,
+  (match) => {
+    if (match) {
+      currentPath.value = window.location.pathname;
+    }
+  },
+);
+
 export const Link = createLink(currentPath, (url: string) => {
   appRouter.navigate(url);
-  currentPath.value = url;
 });
 
 /**
