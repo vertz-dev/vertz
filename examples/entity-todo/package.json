@@ -15,9 +15,11 @@
     "@vertz/schema": "workspace:*",
     "@vertz/server": "workspace:*",
     "@vertz/ui": "workspace:*",
-    "@vertz/ui-server": "workspace:*"
+    "@vertz/ui-server": "workspace:*",
+    "better-sqlite3": "^12.6.2"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@vertz/cli": "workspace:*",
     "@vertz/ui-compiler": "workspace:*",
     "bun-types": "^1.3.9",
