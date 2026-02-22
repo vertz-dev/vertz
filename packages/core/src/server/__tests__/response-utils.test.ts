@@ -35,7 +35,7 @@ describe('createErrorResponse', () => {
 
     expect(response.status).toBe(404);
     const body = await response.json();
-    expect(body.error.code).toBe('NotFoundException');
+    expect(body.error.code).toBe('NotFound');
     expect(body.error.message).toBe('User not found');
   });
 
