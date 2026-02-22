@@ -18,9 +18,7 @@ export interface TodoItemProps {
   onDelete: (id: string) => void;
 }
 
-export function TodoItem(props: TodoItemProps): HTMLElement {
-  const { id, title, completed, onToggle, onDelete } = props;
-
+export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemProps): HTMLElement {
   let isCompleted = completed;
 
   const handleToggle = async () => {
@@ -53,7 +51,9 @@ export function TodoItem(props: TodoItemProps): HTMLElement {
         data-testid={`todo-checkbox-${id}`}
       />
       <span
-        class={isCompleted ? todoItemStyles.classNames.titleCompleted : todoItemStyles.classNames.title}
+        class={
+          isCompleted ? todoItemStyles.classNames.titleCompleted : todoItemStyles.classNames.title
+        }
         style={isCompleted ? 'text-decoration: line-through' : ''}
         data-testid={`todo-title-${id}`}
       >
