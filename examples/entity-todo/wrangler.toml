@@ -1,13 +1,16 @@
-name = "vertz-entity-todo"
-main = "src/worker.ts"
-compatibility_date = "2026-02-01"
-compatibility_flags = ["nodejs_compat"]
+name = "entity-todo"
+compatibility_date = "2024-01-01"
+main = "dist/worker.js"
 
-# D1 database configuration
-# For local development, use `wrangler d1 migrations apply entity-todo-db --local`
-# For production, create the database in Cloudflare Dashboard or via CLI
-[[d1_databases]]
-binding = "DB"
-database_name = "entity-todo-db"
-database_id = "local"
-migrations_dir = "migrations"
+# Serve static assets from the build output
+# The client JS/CSS bundles will be served from the assets folder
+[site]
+bucket = "dist"
+
+# Worker binding for future enhancements (KV, Durable Objects, etc.)
+# [[kv_namespaces]]
+# binding = "TODO_CACHE"
+# id = "your-kv-namespace-id"
+
+[observability]
+enabled = true
