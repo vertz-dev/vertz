@@ -6,6 +6,7 @@
  * checked by `tsc --noEmit` (typecheck), not by vitest at runtime.
  */
 
+import type { ReadonlySignal } from '../../runtime/signal-types';
 import type {
   CompiledRoute,
   InferRouteMap,
@@ -371,3 +372,38 @@ void _p4BadKey;
 type P4Passthrough = InferRouteMap<{ '/': RouteConfig }>;
 const _p4PassKey: keyof P4Passthrough = '/';
 void _p4PassKey;
+
+// ─── Phase 5: Typed Link type tests ─────────────────────────────────────────
+
+import type { LinkProps } from '../link';
+import { createLink } from '../link';
+
+// Phase 5 Cycle 1: Typed LinkProps rejects invalid href
+type P5RouteMap = {
+  '/': RouteConfig;
+  '/tasks/:id': RouteConfig;
+  '/settings': RouteConfig;
+};
+
+declare const _p5TypedLink: (props: LinkProps<P5RouteMap>) => HTMLAnchorElement;
+
+// Valid hrefs compile
+_p5TypedLink({ href: '/', children: 'Home' });
+_p5TypedLink({ href: '/settings', children: 'Settings' });
+_p5TypedLink({ href: '/tasks/42', children: 'Task' });
+
+// @ts-expect-error - '/nonexistent' is not a valid path
+_p5TypedLink({ href: '/nonexistent', children: 'Bad' });
+
+// @ts-expect-error - '/tasks' without param is not valid
+_p5TypedLink({ href: '/tasks', children: 'Bad' });
+
+// Phase 5 Cycle 2: Untyped LinkProps accepts any string href (backward compat)
+declare const _p5UntypedLink: (props: LinkProps) => HTMLAnchorElement;
+_p5UntypedLink({ href: '/anything', children: 'OK' });
+
+// Phase 5 Cycle 3: createLink return type uses LinkProps<T>
+declare const _p5CurrentPath: ReadonlySignal<string>;
+declare const _p5Navigate: (url: string) => void;
+const _p5Link = createLink(_p5CurrentPath, _p5Navigate);
+_p5Link({ href: '/anything', children: 'OK' }); // untyped createLink — any string
