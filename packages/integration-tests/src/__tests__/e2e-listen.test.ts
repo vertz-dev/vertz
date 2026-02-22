@@ -85,7 +85,7 @@ describe('E2E listen', () => {
 
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.error.code).toBe('UnauthorizedException');
+    expect(body.error.code).toBe('Unauthorized');
   });
 
   it('handles CORS preflight with 204', async () => {

@@ -119,7 +119,7 @@ describe('createApp', () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error.message).toBe('User not found');
-    expect(body.error.code).toBe('NotFoundException');
+    expect(body.error.code).toBe('NotFound');
   });
 
   it('handles unexpected errors with 500', async () => {

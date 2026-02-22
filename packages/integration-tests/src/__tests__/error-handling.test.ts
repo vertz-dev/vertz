@@ -51,7 +51,7 @@ describe('Exception handling', () => {
 
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.error.code).toBe('NotFoundException');
+    expect(body.error.code).toBe('NotFound');
   });
 
   it('returns 401 for UnauthorizedException', async () => {
@@ -59,7 +59,7 @@ describe('Exception handling', () => {
 
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.error.code).toBe('UnauthorizedException');
+    expect(body.error.code).toBe('Unauthorized');
   });
 
   it('does not leak error details for non-VertzException errors', async () => {
@@ -69,7 +69,7 @@ describe('Exception handling', () => {
     // NotFoundException is a VertzException — has structured error
     // For non-VertzException errors, the framework returns a generic 500
     // We verify VertzException errors have the expected structure
-    expect(body.error.code).toBe('NotFoundException');
+    expect(body.error.code).toBe('NotFound');
     expect(body.error.message).toBeTypeOf('string');
     // No stack trace or internal details exposed
     expect(body.error.stack).toBeUndefined();
