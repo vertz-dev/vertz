@@ -17,13 +17,13 @@ describe('CSS Integration Tests', () => {
     );
 
     // Class names are scoped and deterministic
-    expect(result.classNames.card).toMatch(/^_[0-9a-f]{8}$/);
-    expect(result.classNames.title).toMatch(/^_[0-9a-f]{8}$/);
-    expect(result.classNames.card).not.toBe(result.classNames.title);
+    expect(result.card).toMatch(/^_[0-9a-f]{8}$/);
+    expect(result.title).toMatch(/^_[0-9a-f]{8}$/);
+    expect(result.card).not.toBe(result.title);
 
     // CSS contains valid rules
-    const cardClass = result.classNames.card as string;
-    const titleClass = result.classNames.title as string;
+    const cardClass = result.card as string;
+    const titleClass = result.title as string;
 
     // Card rules
     expect(result.css).toContain(`.${cardClass} {`);
@@ -46,8 +46,8 @@ describe('CSS Integration Tests', () => {
       },
       'src/components/Card.tsx',
     );
-    expect(result2.classNames.card).toBe(result.classNames.card);
-    expect(result2.classNames.title).toBe(result.classNames.title);
+    expect(result2.card).toBe(result.card);
+    expect(result2.title).toBe(result.title);
   });
 
   // IT-2A-2: Pseudo-state prefixes generate correct :hover, :focus-visible selectors
@@ -68,7 +68,7 @@ describe('CSS Integration Tests', () => {
       'src/components/Button.tsx',
     );
 
-    const className = result.classNames.button as string;
+    const className = result.button as string;
 
     // Base rule
     expect(result.css).toContain(`.${className} {`);
@@ -136,7 +136,7 @@ describe('CSS Integration Tests', () => {
       'src/components/FancyCard.tsx',
     );
 
-    const className = result.classNames.card as string;
+    const className = result.card as string;
 
     // Base styles
     expect(result.css).toContain(`.${className} {`);
@@ -168,8 +168,8 @@ describe('CSS Integration Tests', () => {
       'src/components/Card.tsx',
     );
 
-    // classNames is a plain object of strings (no CSS in it)
-    for (const [_name, className] of Object.entries(result.classNames)) {
+    // Block names are top-level string properties (css is non-enumerable)
+    for (const [_name, className] of Object.entries(result)) {
       expect(typeof className).toBe('string');
       expect(className).toMatch(/^_[0-9a-f]{8}$/);
       // Class names don't contain CSS
@@ -184,10 +184,10 @@ describe('CSS Integration Tests', () => {
     expect(result.css).toContain('{');
     expect(result.css).toContain('}');
 
-    // The CSS output and the JS output (classNames) are completely separate
-    // — the classNames object is all you need in JS
+    // The CSS output and the JS output (block names) are completely separate
+    // — the block name properties are all you need in JS
     // — the CSS string goes to a separate .css file
-    const allClassValues = Object.values(result.classNames).join(' ');
+    const allClassValues = Object.values(result).join(' ');
     expect(allClassValues).not.toContain('padding');
     expect(allClassValues).not.toContain('background');
     expect(allClassValues).not.toContain('{');
@@ -240,7 +240,7 @@ describe('CSS Integration Tests', () => {
       },
       'src/Button.tsx',
     );
-    expect(result.css).toContain(`.${result.classNames.root}:hover {`);
+    expect(result.css).toContain(`.${result.root}:hover {`);
     expect(result.css).toContain('background-color: var(--color-primary-700);');
   });
 });

@@ -206,8 +206,8 @@ const styles = css({
 
 function Card({ title, children }) {
   return (
-    <div className={styles.classNames.card}>
-      <h2 className={styles.classNames.title}>{title}</h2>
+    <div className={styles.card}>
+      <h2 className={styles.title}>{title}</h2>
       {children}
     </div>
   );

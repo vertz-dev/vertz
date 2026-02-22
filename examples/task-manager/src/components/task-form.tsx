@@ -84,42 +84,42 @@ export function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
       onSubmit={taskForm.onSubmit}
       data-testid="create-task-form"
     >
-      <div class={formStyles.classNames.formGroup}>
-        <label class={formStyles.classNames.label} for="task-title">
+      <div class={formStyles.formGroup}>
+        <label class={formStyles.label} for="task-title">
           Title
         </label>
         <input
-          class={formStyles.classNames.input}
+          class={formStyles.input}
           id="task-title"
           name="title"
           type="text"
           placeholder="What needs to be done?"
         />
-        <span class={formStyles.classNames.error} data-testid="title-error">
+        <span class={formStyles.error} data-testid="title-error">
           {taskForm.title.error}
         </span>
       </div>
 
-      <div class={formStyles.classNames.formGroup}>
-        <label class={formStyles.classNames.label} for="task-description">
+      <div class={formStyles.formGroup}>
+        <label class={formStyles.label} for="task-description">
           Description
         </label>
         <textarea
-          class={formStyles.classNames.textarea}
+          class={formStyles.textarea}
           id="task-description"
           name="description"
           placeholder="Describe the task in detail..."
         />
-        <span class={formStyles.classNames.error} data-testid="description-error">
+        <span class={formStyles.error} data-testid="description-error">
           {taskForm.description.error}
         </span>
       </div>
 
-      <div class={formStyles.classNames.formGroup}>
-        <label class={formStyles.classNames.label} for="task-priority">
+      <div class={formStyles.formGroup}>
+        <label class={formStyles.label} for="task-priority">
           Priority
         </label>
-        <select class={formStyles.classNames.select} id="task-priority" name="priority">
+        <select class={formStyles.select} id="task-priority" name="priority">
           <option value="low">Low</option>
           <option value="medium" selected>
             Medium
@@ -127,7 +127,7 @@ export function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
           <option value="high">High</option>
           <option value="urgent">Urgent</option>
         </select>
-        <span class={formStyles.classNames.error} data-testid="priority-error">
+        <span class={formStyles.error} data-testid="priority-error">
           {taskForm.priority.error}
         </span>
       </div>

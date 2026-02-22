@@ -161,13 +161,13 @@ export function App() {
     RouterContext.Provider(appRouter, () => {
       const routerView = RouterView({ router: appRouter });
       const main = (
-        <main class={layoutStyles.classNames.main} data-testid="main-content">
+        <main class={layoutStyles.main} data-testid="main-content">
           {routerView}
         </main>
       );
 
       const shell = (
-        <div class={layoutStyles.classNames.shell}>
+        <div class={layoutStyles.shell}>
           <nav>...</nav>
           {main}
         </div>

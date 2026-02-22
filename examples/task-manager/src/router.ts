@@ -108,7 +108,7 @@ watch(
 );
 
 export const Link = createLink(currentPath, (url: string) => {
-  appRouter.navigate(url);
+  appRouter.navigate(url as Parameters<typeof appRouter.navigate>[0]);
 });
 
 /**

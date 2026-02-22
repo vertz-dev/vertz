@@ -24,8 +24,8 @@ const pageStyles = css({
 export function CreateTaskPage() {
   const { navigate } = useAppRouter();
   return (
-    <div class={pageStyles.classNames.page} data-testid="create-task-page">
-      <h1 class={pageStyles.classNames.title}>Create New Task</h1>
+    <div class={pageStyles.page} data-testid="create-task-page">
+      <h1 class={pageStyles.title}>Create New Task</h1>
       <TaskForm onSuccess={() => navigate('/')} onCancel={() => navigate('/')} />
     </div>
   );

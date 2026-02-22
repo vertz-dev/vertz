@@ -57,27 +57,27 @@ export function ConfirmDialog({
         {triggerLabel}
       </button>
       <div
-        class={dialogStyles.classNames.overlay}
+        class={dialogStyles.overlay}
         aria-hidden={isOpen ? 'false' : 'true'}
         style={isOpen ? '' : 'display: none'}
         onClick={() => {
           isOpen = false;
         }}
       />
-      <div class={dialogStyles.classNames.wrapper} style={isOpen ? '' : 'display: none'}>
+      <div class={dialogStyles.wrapper} style={isOpen ? '' : 'display: none'}>
         <div
-          class={dialogStyles.classNames.panel}
+          class={dialogStyles.panel}
           role="dialog"
           aria-modal="true"
           aria-labelledby={titleId}
           aria-hidden={isOpen ? 'false' : 'true'}
           data-testid="confirm-dialog-content"
         >
-          <h2 id={titleId} class={dialogStyles.classNames.title}>
+          <h2 id={titleId} class={dialogStyles.title}>
             {titleText}
           </h2>
-          <p class={dialogStyles.classNames.description}>{description}</p>
-          <div class={dialogStyles.classNames.actions}>
+          <p class={dialogStyles.description}>{description}</p>
+          <div class={dialogStyles.actions}>
             <button
               type="button"
               class={button({ intent: 'secondary', size: 'sm' })}

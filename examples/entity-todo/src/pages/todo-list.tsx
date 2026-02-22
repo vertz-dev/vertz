@@ -88,8 +88,8 @@ export function TodoListPage() {
   });
 
   return (
-    <div class={layoutStyles.classNames.container} data-testid="todo-list-page">
-      <div class={layoutStyles.classNames.header}>
+    <div class={layoutStyles.container} data-testid="todo-list-page">
+      <div class={layoutStyles.header}>
         <h1 style="font-size: 1.5rem; font-weight: 700">Entity Todo</h1>
         <span style="font-size: 0.75rem; color: var(--color-muted)">
           schema → entity → SDK → UI → SSR
@@ -106,9 +106,9 @@ export function TodoListPage() {
           </div>
         )}
         {!todosQuery.loading && !todosQuery.error && todoList.length === 0 && (
-          <div class={emptyStateStyles.classNames.container}>
-            <h3 class={emptyStateStyles.classNames.title}>No todos yet</h3>
-            <p class={emptyStateStyles.classNames.description}>
+          <div class={emptyStateStyles.container}>
+            <h3 class={emptyStateStyles.title}>No todos yet</h3>
+            <p class={emptyStateStyles.description}>
               Add your first todo above to get started.
             </p>
           </div>

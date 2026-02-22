@@ -85,13 +85,13 @@ export function TodoForm({ onSuccess }: TodoFormProps) {
       <div style="display: flex; gap: 0.5rem; align-items: flex-start">
         <div style="flex: 1">
           <input
-            class={formStyles.classNames.input}
+            class={formStyles.input}
             name="title"
             type="text"
             placeholder="What needs to be done?"
             data-testid="todo-title-input"
           />
-          <span class={formStyles.classNames.error} data-testid="title-error">
+          <span class={formStyles.error} data-testid="title-error">
             {todoForm.title.error}
           </span>
         </div>

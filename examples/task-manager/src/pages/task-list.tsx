@@ -78,7 +78,7 @@ export function TaskListPage() {
 
   return (
     <div data-testid="task-list-page">
-      <div class={layoutStyles.classNames.header}>
+      <div class={layoutStyles.header}>
         <h1 style="font-size: 1.5rem; font-weight: 700">Tasks</h1>
         <button
           class={button({ intent: 'primary', size: 'md' })}
@@ -111,9 +111,9 @@ export function TaskListPage() {
         </div>
       )}
       {!tasksQuery.loading && !tasksQuery.error && filteredTasks.length === 0 && (
-        <div class={emptyStateStyles.classNames.container}>
-          <h3 class={emptyStateStyles.classNames.title}>No tasks found</h3>
-          <p class={emptyStateStyles.classNames.description}>
+        <div class={emptyStateStyles.container}>
+          <h3 class={emptyStateStyles.title}>No tasks found</h3>
+          <p class={emptyStateStyles.description}>
             Create your first task to get started.
           </p>
           <button

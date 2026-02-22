@@ -54,38 +54,40 @@ const _badInput: CSSInput = {
 };
 void _badInput;
 
-// ─── CSSOutput — classNames map and css string ───────────────────
+// ─── CSSOutput — flat class names + css ───────────────────────────
 
-// CSSOutput has classNames and css
+// Bare CSSOutput has string index signature (values are string | undefined)
 declare const output: CSSOutput;
 
-const _classNames: Record<string, string> = output.classNames;
-void _classNames;
+const _anyBlock: string | undefined = output.someBlock;
+void _anyBlock;
 
 const _cssStr: string = output.css;
 void _cssStr;
 
-// classNames values are strings
-const _className: string = output.classNames.card as string;
-void _className;
+// ─── css() — return type with literal keys ──────────────────────
 
-// ─── css() — return type ──────────────────────────────────────────
-
-// css() returns CSSOutput
-const result = css({
+const typed = css({
   card: ['p:4', 'bg:background'],
   title: ['font:xl'],
 });
 
-const _resultClassNames: Record<string, string> = result.classNames;
-void _resultClassNames;
+// Block names are top-level string properties
+const _card: string = typed.card;
+void _card;
 
-const _resultCss: string = result.css;
+const _title: string = typed.title;
+void _title;
+
+// css property is accessible
+const _resultCss: string = typed.css;
 void _resultCss;
 
-// Accessing a specific class name
-const _cardClass: string | undefined = result.classNames.card;
-void _cardClass;
+// @ts-expect-error - classNames no longer exists
+void typed.classNames;
+
+// @ts-expect-error - 'css' is a reserved block name
+css({ css: ['p:4'] });
 
 // ─── css() — input validation ─────────────────────────────────────
 
@@ -111,16 +113,16 @@ css('p:4');
 
 // ─── css() — output structure ─────────────────────────────────────
 
-// Output classNames is a Record<string, string>
 const styles = css({
   container: ['p:4'],
   header: ['font:lg'],
   footer: ['mt:4'],
 });
 
-const _containerClass: string | undefined = styles.classNames.container;
-const _headerClass: string | undefined = styles.classNames.header;
-const _footerClass: string | undefined = styles.classNames.footer;
+// Block names are directly on the result
+const _containerClass: string = styles.container;
+const _headerClass: string = styles.header;
+const _footerClass: string = styles.footer;
 void _containerClass;
 void _headerClass;
 void _footerClass;

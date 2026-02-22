@@ -89,12 +89,12 @@ function MyButton() {
   });
 
   root.textContent = 'Submit';
-  root.classList.add(styles.classNames.btn);
+  root.classList.add(styles.btn);
 
   // React to state changes
   effect(() => {
     if (state.disabled.value) {
-      root.classList.add(styles.classNames.disabled);
+      root.classList.add(styles.disabled);
     }
   });
 
@@ -449,7 +449,7 @@ Primitives provide **zero styles**. You can style them with:
 
 - **CSS classes** — `root.classList.add('my-button')`
 - **Inline styles** — `root.style.padding = '8px'`
-- **@vertz/ui/css** — `root.classList.add(css({ btn: [...] }).classNames.btn)`
+- **@vertz/ui/css** — `root.classList.add(css({ btn: [...] }).btn)`
 - **Tailwind/UnoCSS** — `root.className = 'px-4 py-2 bg-blue-500'`
 
 **Data attributes for styling:**

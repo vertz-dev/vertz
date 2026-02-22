@@ -112,10 +112,7 @@ export function variants<V extends VariantDefinitions>(
   const filePath = deriveConfigKey(config as VariantsConfig<VariantDefinitions>);
 
   // Pre-compute: generate a css() block for the base styles
-  const baseResult =
-    base.length > 0
-      ? css({ base: base as StyleEntry[] }, filePath)
-      : { classNames: {} as Record<string, string>, css: '' };
+  const baseResult = css({ base: base as StyleEntry[] }, filePath);
 
   // Pre-compute: generate css() blocks for each variant value
   const variantResults: Record<string, Record<string, { className: string; css: string }>> = {};
@@ -126,7 +123,7 @@ export function variants<V extends VariantDefinitions>(
       if (styles.length > 0) {
         const blockName = `${variantName}_${optionName}`;
         const result = css({ [blockName]: styles }, filePath);
-        const className = result.classNames[blockName];
+        const className = (result as Record<string, string>)[blockName];
         if (className) {
           variantResults[variantName][optionName] = {
             className,
@@ -153,7 +150,7 @@ export function variants<V extends VariantDefinitions>(
       if (styles.length > 0) {
         const blockName = `compound_${i}`;
         const result = css({ [blockName]: styles }, filePath);
-        const className = result.classNames[blockName];
+        const className = (result as Record<string, string>)[blockName];
         if (className) {
           compoundResults.push({
             conditions: conditions as Record<string, string>,
@@ -182,7 +179,7 @@ export function variants<V extends VariantDefinitions>(
     const classNames: string[] = [];
 
     // 1. Add base class
-    const baseClassName = baseResult.classNames.base;
+    const baseClassName = baseResult.base;
     if (baseClassName) {
       classNames.push(baseClassName);
     }

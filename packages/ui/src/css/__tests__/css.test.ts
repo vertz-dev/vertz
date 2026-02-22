@@ -53,9 +53,9 @@ describe('css()', () => {
       'test.tsx',
     );
 
-    expect(result.classNames.card).toBeDefined();
-    expect(result.classNames.title).toBeDefined();
-    expect(result.classNames.card).not.toBe(result.classNames.title);
+    expect(result.card).toBeDefined();
+    expect(result.title).toBeDefined();
+    expect(result.card).not.toBe(result.title);
   });
 
   it('produces valid CSS with class selectors', () => {
@@ -66,7 +66,7 @@ describe('css()', () => {
       'test.tsx',
     );
 
-    expect(result.css).toContain(`.${result.classNames.card}`);
+    expect(result.css).toContain(`.${result.card}`);
     expect(result.css).toContain('padding: 1rem');
     expect(result.css).toContain('background-color: var(--color-background)');
   });
@@ -74,7 +74,7 @@ describe('css()', () => {
   it('produces deterministic class names', () => {
     const a = css({ card: ['p:4'] }, 'test.tsx');
     const b = css({ card: ['p:4'] }, 'test.tsx');
-    expect(a.classNames.card).toBe(b.classNames.card);
+    expect(a.card).toBe(b.card);
   });
 
   it('handles display keywords', () => {
@@ -97,7 +97,7 @@ describe('css()', () => {
       'test.tsx',
     );
 
-    const className = result.classNames.button as string;
+    const className = result.button as string;
     expect(result.css).toContain(`.${className}:hover`);
     expect(result.css).toContain('var(--color-primary-700)');
   });
@@ -110,7 +110,7 @@ describe('css()', () => {
       'test.tsx',
     );
 
-    const className = result.classNames.input as string;
+    const className = result.input as string;
     expect(result.css).toContain(`.${className}:hover`);
     expect(result.css).toContain(`.${className}:focus`);
   });
@@ -123,7 +123,7 @@ describe('css()', () => {
       'test.tsx',
     );
 
-    const className = result.classNames.card as string;
+    const className = result.card as string;
     expect(result.css).toContain(`.${className}::after`);
     expect(result.css).toContain('display: block');
   });
@@ -136,7 +136,7 @@ describe('css()', () => {
       'test.tsx',
     );
 
-    const className = result.classNames.card as string;
+    const className = result.card as string;
     expect(result.css).toContain('padding: 1rem');
     expect(result.css).toContain('var(--color-background)');
     expect(result.css).toContain(`.${className}:hover`);
@@ -163,7 +163,7 @@ describe('css()', () => {
 
   it('uses default file path when none provided', () => {
     const result = css({ root: ['p:4'] });
-    expect(result.classNames.root).toBeDefined();
+    expect(result.root).toBeDefined();
     expect(result.css).toContain('padding: 1rem');
   });
 
@@ -175,7 +175,7 @@ describe('css()', () => {
       'test.tsx',
     );
 
-    const className = result.classNames.card as string;
+    const className = result.card as string;
     expect(result.css).toContain(`.${className}::after`);
     expect(result.css).toContain("content: ''");
     expect(result.css).toContain('display: block');
@@ -189,7 +189,7 @@ describe('css()', () => {
       'test.tsx',
     );
 
-    const className = result.classNames.button as string;
+    const className = result.button as string;
     expect(result.css).toContain(`.${className}:focus-visible`);
     expect(result.css).toContain('outline: 2px solid var(--color-ring)');
   });
@@ -204,5 +204,25 @@ describe('css()', () => {
 
     expect(result.css).toContain('width: 100vw');
     expect(result.css).toContain('height: 100vh');
+  });
+
+  it('css property is non-enumerable (Object.keys excludes it)', () => {
+    const result = css({ card: ['p:4'] }, 'test.tsx');
+    expect(Object.keys(result)).toEqual(['card']);
+    expect(result.css).toContain('padding: 1rem');
+  });
+
+  it('spreading drops the non-enumerable css property', () => {
+    const result = css({ card: ['p:4'] }, 'test.tsx');
+    const spread = { ...result };
+    expect(spread).toHaveProperty('card');
+    expect(spread).not.toHaveProperty('css');
+  });
+
+  it('throws when block name is "css" (reserved)', () => {
+    expect(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (css as any)({ css: ['p:4'] }, 'test.tsx');
+    }).toThrow("css(): block name 'css' is reserved");
   });
 });
