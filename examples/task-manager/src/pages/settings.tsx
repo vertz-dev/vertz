@@ -2,18 +2,17 @@
  * Settings page — theme switching and default preferences.
  *
  * Demonstrates:
- * - JSX for settings layout with theme cards
+ * - Fully declarative settings page — no effect() needed
  * - useContext() to consume the SettingsContext
- * - Compiler `let` → signal transform for local state
- * - Reactive JSX attributes via className={expr}
+ * - Compiler `let` → signal transform for local state (currentTheme, defaultPriority)
+ * - Reactive JSX attributes via class={expr}
  * - Compiler conditional transform: {showSaved && <div>...</div>} → __conditional()
  * - watch() to observe theme changes
- * - ThemeProvider for live theme preview
  */
 
-import { css, effect, ThemeProvider, watch } from '@vertz/ui';
+import { css, watch } from '@vertz/ui';
 import { useSettings } from '../lib/settings-context';
-import { button, formStyles } from '../styles/components';
+import { formStyles } from '../styles/components';
 
 const settingsStyles = css({
   page: ['max-w:lg', 'mx:auto'],
@@ -41,6 +40,8 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
 
   // Local state: compiler transforms `let` to signal()
   let showSaved = false;
+  let currentTheme = settings.theme.peek();
+  let defaultPriority = settings.defaultPriority.peek();
 
   function flashSaved(): void {
     showSaved = true;
@@ -49,81 +50,11 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
     }, 2000);
   }
 
-  // ── Theme preview using ThemeProvider (imperative — sets custom properties) ──
-
-  const lightPreview = ThemeProvider({
-    theme: 'light',
-    children: [
-      (<div class={settingsStyles.classNames.previewText}>Light theme preview</div>),
-    ],
-  });
-  lightPreview.className = settingsStyles.classNames.previewBox;
-  lightPreview.style.backgroundColor = '#ffffff';
-
-  const darkPreview = ThemeProvider({
-    theme: 'dark',
-    children: [
-      (<div class={settingsStyles.classNames.previewText}>Dark theme preview</div>),
-    ],
-  });
-  darkPreview.className = settingsStyles.classNames.previewBox;
-  darkPreview.style.backgroundColor = '#111827';
-
-  // ── Theme cards with reactive className via external signal ──
-  // settings.theme is an external signal, so we use .value and effect() for className
-
-  const lightCard = (
-    <div
-      data-testid="theme-light"
-      role="button"
-      tabindex="0"
-      onClick={() => {
-        settings.setTheme('light');
-        flashSaved();
-      }}
-    >
-      {lightPreview}
-      <div style="font-weight: 500">Light</div>
-    </div>
-  );
-
-  const darkCard = (
-    <div
-      data-testid="theme-dark"
-      role="button"
-      tabindex="0"
-      onClick={() => {
-        settings.setTheme('dark');
-        flashSaved();
-      }}
-    >
-      {darkPreview}
-      <div style="font-weight: 500">Dark</div>
-    </div>
-  );
-
-  // Reactive active state — settings.theme is an external signal, keep effect()
-  effect(() => {
-    const current = settings.theme.value;
-    lightCard.className = `${settingsStyles.classNames.themeCard} ${
-      current === 'light'
-        ? settingsStyles.classNames.themeCardActive
-        : settingsStyles.classNames.themeCardInactive
-    }`;
-    darkCard.className = `${settingsStyles.classNames.themeCard} ${
-      current === 'dark'
-        ? settingsStyles.classNames.themeCardActive
-        : settingsStyles.classNames.themeCardInactive
-    }`;
-  });
-
-  // ── Priority select ─────────────────────────────────
-
-  // Bridge external signal to local let — compiler transforms to signal()
-  let defaultPriority = settings.defaultPriority.value;
-  effect(() => {
-    defaultPriority = settings.defaultPriority.value;
-  });
+  function selectTheme(theme: 'light' | 'dark'): void {
+    currentTheme = theme;
+    settings.setTheme(theme);
+    flashSaved();
+  }
 
   // Watch for theme changes and log (demonstrates watch())
   watch(
@@ -142,8 +73,44 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
       <section class={settingsStyles.classNames.section}>
         <h2 class={settingsStyles.classNames.sectionTitle}>Appearance</h2>
         <div class={settingsStyles.classNames.themeGrid}>
-          {lightCard}
-          {darkCard}
+          <div
+            class={`${settingsStyles.classNames.themeCard} ${
+              currentTheme === 'light'
+                ? settingsStyles.classNames.themeCardActive
+                : settingsStyles.classNames.themeCardInactive
+            }`}
+            data-testid="theme-light"
+            role="button"
+            tabindex="0"
+            onClick={() => selectTheme('light')}
+          >
+            <div
+              class={settingsStyles.classNames.previewBox}
+              style="background-color: #ffffff"
+            >
+              <div class={settingsStyles.classNames.previewText}>Light theme preview</div>
+            </div>
+            <div style="font-weight: 500">Light</div>
+          </div>
+          <div
+            class={`${settingsStyles.classNames.themeCard} ${
+              currentTheme === 'dark'
+                ? settingsStyles.classNames.themeCardActive
+                : settingsStyles.classNames.themeCardInactive
+            }`}
+            data-testid="theme-dark"
+            role="button"
+            tabindex="0"
+            onClick={() => selectTheme('dark')}
+          >
+            <div
+              class={settingsStyles.classNames.previewBox}
+              style="background-color: #111827"
+            >
+              <div class={settingsStyles.classNames.previewText}>Dark theme preview</div>
+            </div>
+            <div style="font-weight: 500">Dark</div>
+          </div>
         </div>
         {showSaved && (
           <div class={settingsStyles.classNames.savedMsg} data-testid="saved-message">
@@ -164,6 +131,7 @@ export function SettingsPage(_props: SettingsPageProps): HTMLElement {
                 | 'medium'
                 | 'high'
                 | 'urgent';
+              defaultPriority = value;
               settings.setDefaultPriority(value);
               flashSaved();
             }}
