@@ -230,6 +230,12 @@ async function handleSsr(request: Request): Promise<Response> {
 
 export default {
   async fetch(request: Request, env: Env, _ctx: unknown): Promise<Response> {
+    // Validate D1 binding
+    if (!env.DB) {
+      const response = new Response('D1 database not bound — check wrangler.toml', { status: 500 });
+      return withSecurityHeaders(response);
+    }
+
     const url = new URL(request.url);
 
     // Route splitting: /api/* goes to JSON API, everything else goes to SSR
