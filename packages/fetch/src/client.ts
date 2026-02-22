@@ -100,7 +100,7 @@ export class FetchClient {
         try {
           data = (await response.json()) as T;
         } catch (parseError) {
-          return err(new ParseError('Failed to parse response JSON', parseError));
+          return err(new ParseError('', 'Failed to parse response JSON', parseError));
         }
 
         return ok({
@@ -122,10 +122,10 @@ export class FetchClient {
           return err(new FetchTimeoutError());
         }
         // User aborted - treat as network error
-        return err(new FetchNetworkError('Request aborted', error));
+        return err(new FetchNetworkError('Request aborted'));
       }
 
-      return err(new FetchNetworkError('Network request failed', error instanceof Error ? error : new Error(String(error))));
+      return err(new FetchNetworkError('Network request failed'));
     }
   }
 
