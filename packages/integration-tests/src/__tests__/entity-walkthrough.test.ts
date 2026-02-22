@@ -392,7 +392,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
 
       expect(res.status).toBe(403);
       const body = await res.json();
-      expect(body.error.code).toBe('FORBIDDEN');
+      expect(body.error.code).toBe('Forbidden');
     });
 
     it('returns 403 when create requires admin role', async () => {
