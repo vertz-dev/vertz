@@ -61,12 +61,14 @@ export function matchError<R>(
   handlers: FetchErrorHandlers<R> | EntityErrorHandlers<R>,
 ): R {
   // Check if it's a FetchError or EntityError by checking for known FetchError codes
+  // Note: ValidationError exists in both FetchError and EntityError, so we check
+  // the error name to disambiguate
   const isFetchError =
     error.code === 'NetworkError' ||
     error.code === 'HttpError' ||
     error.code === 'TimeoutError' ||
     error.code === 'ParseError' ||
-    error.code === 'ValidationError';
+    (error.code === 'ValidationError' && error.name !== 'EntityValidationError');
 
   if (isFetchError) {
     const code = (error as FetchErrorType).code;
