@@ -30,6 +30,13 @@ export abstract class FetchError extends Error {
 
 /**
  * Network error - thrown when the request can't reach the server.
+ *
+ * @example
+ * // When the server is unreachable
+ * const result = await client.get('/users');
+ * if (!result.ok && result.error.code === 'NETWORK_ERROR') {
+ *   console.log('Network failed:', result.error.message);
+ * }
  */
 export class FetchNetworkError extends FetchError {
   readonly code = 'NETWORK_ERROR' as const;
@@ -54,6 +61,15 @@ export function isFetchNetworkError(error: unknown): error is FetchNetworkError 
 /**
  * Base HTTP error - thrown when the server returns an error response.
  * Use specific error classes (BadRequestError, NotFoundError, etc.) when available.
+ *
+ * @example
+ * const result = await client.get('/users/123');
+ * if (!result.ok && result.error.code === 'HTTP_ERROR') {
+ *   const httpError = result.error;
+ *   console.log('Status:', httpError.status);      // e.g., 404
+ *   console.log('Server code:', httpError.serverCode); // e.g., 'NOT_FOUND'
+ *   console.log('Message:', httpError.message);
+ * }
  */
 export class HttpError extends FetchError {
   readonly code = 'HTTP_ERROR' as const;
@@ -291,6 +307,16 @@ export function isFetchServiceUnavailableError(
 
 /**
  * Timeout error - thrown when the request takes too long.
+ *
+ * @example
+ * // Configure timeout in client options
+ * const client = createClient({ baseURL: '...', timeout: 5000 });
+ *
+ * const result = await client.get('/slow-endpoint');
+ * if (!result.ok && result.error.code === 'TIMEOUT_ERROR') {
+ *   console.log('Request timed out:', result.error.message);
+ *   // Retry the request
+ * }
  */
 export class FetchTimeoutError extends FetchError {
   readonly code = 'TIMEOUT_ERROR' as const;
@@ -314,6 +340,14 @@ export function isFetchTimeoutError(error: unknown): error is FetchTimeoutError 
 
 /**
  * Parse error - thrown when response parsing fails.
+ *
+ * @example
+ * // Server returns invalid JSON
+ * const result = await client.get('/malformed');
+ * if (!result.ok && result.error.code === 'PARSE_ERROR') {
+ *   console.log('Parse failed at:', result.error.path);  // e.g., 'users.0.name'
+ *   console.log('Invalid value:', result.error.value);
+ * }
  */
 export class ParseError extends FetchError {
   readonly code = 'PARSE_ERROR' as const;
@@ -349,6 +383,23 @@ export function isParseError(error: unknown): error is ParseError {
 
 /**
  * Validation error - thrown when request validation fails.
+ *
+ * @example
+ * // Server returns validation errors
+ * const result = await client.post('/users', { name: '' });
+ * if (!result.ok && result.error.code === 'VALIDATION_ERROR') {
+ *   result.error.errors.forEach(err => {
+ *     console.log(`Field: ${err.path}, Error: ${err.message}`);
+ *   });
+ * }
+ *
+ * @example
+ * // Using with matchError for exhaustive handling
+ * matchError(result.error, {
+ *   VALIDATION_ERROR: (e) => setFormErrors(e.errors),
+ *   NETWORK_ERROR: () => showNetworkError(),
+ *   // ... other handlers
+ * });
  */
 export class FetchValidationError extends FetchError {
   readonly code = 'VALIDATION_ERROR' as const;
@@ -421,6 +472,25 @@ export function createHttpError(status: number, message: string, serverCode?: st
 
 /**
  * Union type for all fetch errors.
+ *
+ * @example
+ * import { matchError, FetchErrorType } from '@vertz/errors';
+ *
+ * // Using with matchError for exhaustive handling
+ * function handleError(error: FetchErrorType): string {
+ *   return matchError(error, {
+ *     NETWORK_ERROR: (e) => `Network failed: ${e.message}`,
+ *     HTTP_ERROR: (e) => `HTTP ${e.status}: ${e.message}`,
+ *     TIMEOUT_ERROR: (e) => `Timeout: ${e.message}`,
+ *     PARSE_ERROR: (e) => `Parse failed at ${e.path}`,
+ *     VALIDATION_ERROR: (e) => `Validation: ${e.errors.length} errors`,
+ *   });
+ * }
+ *
+ * @example
+ * // Using with Result
+ * const result = await client.get<User>('/users/123');
+ * const errorMessage = result.ok ? '' : handleError(result.error);
  */
 export type FetchErrorType =
   | FetchNetworkError
