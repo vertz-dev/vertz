@@ -13,14 +13,14 @@ import type { DisposeFn, Signal } from '../runtime/signal-types';
  * @param items - A signal or getter function containing the array of items.
  *   The compiler generates `() => signal.value` as a getter; the runtime
  *   also accepts a raw Signal for direct use in tests.
- * @param keyFn - Extracts a unique key from each item
+ * @param keyFn - Extracts a unique key from each item (receives item and index)
  * @param renderFn - Creates a DOM node for an item (called once per key)
  * @returns A dispose function to stop the reactive list reconciliation
  */
 export function __list<T>(
   container: HTMLElement,
   items: Signal<T[]> | (() => T[]),
-  keyFn: (item: T) => string | number,
+  keyFn: (item: T, index: number) => string | number,
   renderFn: (item: T) => Node,
 ): DisposeFn {
   // Normalize items access: compiler passes a getter `() => signal.value`,
@@ -38,7 +38,7 @@ export function __list<T>(
   const outerScope = pushScope();
   effect(() => {
     const newItems = getItems();
-    const newKeySet = new Set(newItems.map(keyFn));
+    const newKeySet = new Set(newItems.map((item, i) => keyFn(item, i)));
 
     // Remove nodes whose keys are no longer present — dispose their scopes first
     for (const [key, node] of nodeMap) {
@@ -55,8 +55,8 @@ export function __list<T>(
 
     // Create nodes for new keys and build the desired order
     const desiredNodes: Node[] = [];
-    for (const item of newItems) {
-      const key = keyFn(item);
+    for (const [i, item] of newItems.entries()) {
+      const key = keyFn(item, i);
       let node = nodeMap.get(key);
       if (!node) {
         // Wrap renderFn in a disposal scope to capture any effects/computeds
