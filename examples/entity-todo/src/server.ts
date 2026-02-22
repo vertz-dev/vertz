@@ -1,11 +1,13 @@
 import { createServer } from '@vertz/server';
 import { todos } from './entities';
+import { todosDbAdapter } from './db';
 
 const PORT = Number(process.env.PORT) || 3000;
 
 const app = createServer({
   basePath: '/api',
   entities: [todos],
+  _entityDbFactory: () => todosDbAdapter,
 });
 
 app.listen(PORT).then((handle) => {
