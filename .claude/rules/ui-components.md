@@ -223,10 +223,18 @@ RouterContext.Provider(appRouter, () => {
   // ... shell layout uses {view}
 });
 
-// Page component — access router via context
+// App-level typed router hook (recommended)
+// Create once in router.ts, use everywhere for typed navigate()
+import type { InferRouteMap } from '@vertz/ui';
+import { useRouter } from '@vertz/ui';
+export function useAppRouter() {
+  return useRouter<InferRouteMap<typeof routes>>();
+}
+
+// Page component — access typed router via useAppRouter()
 export function TaskListPage() {
-  const { navigate } = useRouter();
-  // navigate('/tasks/new')
+  const { navigate } = useAppRouter();
+  navigate('/tasks/new');   // typed — only valid paths accepted
 }
 
 // Page with typed route params — use useParams<TPath>()
@@ -235,9 +243,10 @@ export function TaskDetailPage() {
   // taskId: string — fully typed, throws if no route matched
 }
 
-// Alternative: untyped access via router.current (non-page contexts)
+// Alternative: untyped access via useRouter() (backward compat)
 export function SomeWidget() {
   const router = useRouter();
+  router.navigate('/anything'); // accepts any string
   const taskId = router.current.value?.params.id ?? '';
 }
 ```

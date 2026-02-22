@@ -80,7 +80,7 @@ export type { NavigateOptions, Router, TypedRouter } from './router/navigate';
 export { createRouter } from './router/navigate';
 export type { OutletContext } from './router/outlet';
 export { createOutlet } from './router/outlet';
-export type { ExtractParams } from './router/params';
+export type { ExtractParams, PathWithParams, RoutePaths } from './router/params';
 export { RouterContext, useParams, useRouter } from './router/router-context';
 export type { RouterViewProps } from './router/router-view';
 export { RouterView } from './router/router-view';
