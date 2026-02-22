@@ -177,7 +177,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build packages
-        run: bunx turbo run build --filter='!@vertz-examples/*'
+        run: bunx turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!task-api-example'
 
       - name: Run tests with coverage
         env:

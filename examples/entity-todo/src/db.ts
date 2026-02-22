@@ -31,7 +31,18 @@ const ALLOWED_WHERE_COLUMNS = new Set(['id', 'title', 'completed', 'createdAt', 
  * Implements the DbDriver interface from @vertz/db.
  */
 export function createLocalSqliteDriver(dbPath: string): DbDriver {
-  const db = new Database(dbPath);
+  let db: Database;
+  
+  try {
+    db = new Database(dbPath);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(
+      `Failed to create SQLite database at "${dbPath}". ` +
+      `Please ensure the directory exists and you have write permissions. ` +
+      `Error: ${errorMessage}`
+    );
+  }
 
   // Enable WAL mode for better performance
   db.run('PRAGMA journal_mode = WAL');
