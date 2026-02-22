@@ -11,10 +11,11 @@
  * - Compiler conditional transform for loading/error/content visibility
  */
 
-import { css, onCleanup, onMount, query, useRouter } from '@vertz/ui';
+import { css, onCleanup, onMount, query, useParams } from '@vertz/ui';
 import { deleteTask, fetchTask, updateTask } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import type { TaskStatus } from '../lib/types';
+import { useAppRouter } from '../router';
 import { badge, button } from '../styles/components';
 
 const detailStyles = css({
@@ -50,12 +51,12 @@ const detailStyles = css({
  * transitions) use const declarations — the compiler classifies them
  * as computed and wraps them automatically. No effect() needed.
  *
- * Task ID and navigation are accessed via useRouter() context.
+ * Task ID is accessed via useParams<TPath>() for typed params.
+ * Navigation is accessed via useAppRouter() for typed navigate().
  */
 export function TaskDetailPage() {
-  const router = useRouter();
-  const { navigate } = router;
-  const taskId = router.current.value?.params.id ?? '';
+  const { navigate } = useAppRouter();
+  const { id: taskId } = useParams<'/tasks/:id'>();
   // ── Data fetching ──────────────────────────────────
 
   const taskQuery = query(() => fetchTask(taskId), {

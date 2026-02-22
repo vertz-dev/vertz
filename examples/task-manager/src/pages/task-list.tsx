@@ -12,10 +12,11 @@
  * - <TaskCard /> JSX component embedding
  */
 
-import { onCleanup, onMount, query, useRouter } from '@vertz/ui';
+import { onCleanup, onMount, query } from '@vertz/ui';
 import { fetchTasks } from '../api/mock-data';
 import { TaskCard } from '../components/task-card';
 import type { Task, TaskStatus } from '../lib/types';
+import { useAppRouter } from '../router';
 import { button, emptyStateStyles, layoutStyles } from '../styles/components';
 
 /**
@@ -27,10 +28,10 @@ import { button, emptyStateStyles, layoutStyles } from '../styles/components';
  * Derived values (errorMsg, filteredTasks) use const declarations —
  * the compiler classifies them as computed and wraps them automatically.
  *
- * Navigation is accessed via useRouter() context — no props needed.
+ * Navigation is accessed via useAppRouter() context — no props needed.
  */
 export function TaskListPage() {
-  const { navigate } = useRouter();
+  const { navigate } = useAppRouter();
   // ── Reactive state ─────────────────────────────────
 
   // Local state: compiler transforms `let` to signal()
