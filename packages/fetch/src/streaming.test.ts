@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { FetchClient } from './client';
 import { FetchError } from './errors';
+import { HttpError } from '@vertz/errors';
 
 function createStream(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -109,7 +110,7 @@ describe('FetchClient.requestStream (SSE)', () => {
       })) {
         events.push(event);
       }
-    }).rejects.toThrow(FetchError);
+    }).rejects.toThrow(HttpError);
 
     expect(events).toEqual([]);
   });

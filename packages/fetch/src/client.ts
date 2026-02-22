@@ -1,4 +1,4 @@
-import { ok, err } from '@vertz/errors';
+import { ok, err, HttpError, ParseError } from '@vertz/errors';
 import { FetchNetworkError, FetchTimeoutError } from '@vertz/errors';
 import { createErrorFromStatus, type FetchError } from './errors';
 import type {
@@ -66,6 +66,16 @@ export class FetchClient {
 
         if (!response.ok) {
           const body = await this.safeParseJSON(response);
+
+          // Parse serverCode from response body if available
+          let serverCode: string | undefined;
+          if (body && typeof body === 'object' && 'error' in body) {
+            const errorObj = (body as any).error;
+            if (errorObj && typeof errorObj.code === 'string') {
+              serverCode = errorObj.code;
+            }
+          }
+
           const error = createErrorFromStatus(response.status, response.statusText, body);
 
           if (attempt < retryConfig.retries && retryConfig.retryOn.includes(response.status)) {
@@ -74,8 +84,9 @@ export class FetchClient {
             continue;
           }
 
-          await this.config.hooks?.onError?.(error);
-          throw error;
+          const httpError = new HttpError(response.status, response.statusText, serverCode);
+          await this.config.hooks?.onError?.(httpError);
+          return err(httpError);
         }
 
         await this.config.hooks?.afterResponse?.(response);
@@ -167,9 +178,19 @@ export class FetchClient {
 
     if (!response.ok) {
       const body = await this.safeParseJSON(response);
+
+      // Parse serverCode from response body if available
+      let serverCode: string | undefined;
+      if (body && typeof body === 'object' && 'error' in body) {
+        const errorObj = (body as any).error;
+        if (errorObj && typeof errorObj.code === 'string') {
+          serverCode = errorObj.code;
+        }
+      }
+
       const error = createErrorFromStatus(response.status, response.statusText, body);
       await this.config.hooks?.onError?.(error);
-      throw error;
+      throw new HttpError(response.status, response.statusText, serverCode);
     }
 
     if (!response.body) {
