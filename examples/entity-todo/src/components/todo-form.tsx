@@ -27,9 +27,7 @@ export interface TodoFormProps {
   onSuccess: (todo: Todo) => void;
 }
 
-export function TodoForm(props: TodoFormProps): HTMLFormElement {
-  const { onSuccess } = props;
-
+export function TodoForm({ onSuccess }: TodoFormProps): HTMLFormElement {
   const todoForm = form(todoApi.create, {
     schema: createTodoSchema,
     onSuccess,

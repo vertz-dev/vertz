@@ -31,9 +31,7 @@ export interface TaskListPageProps {
  * Derived values (errorMsg, filteredTasks) use const declarations —
  * the compiler classifies them as computed and wraps them automatically.
  */
-export function TaskListPage(props: TaskListPageProps): HTMLElement {
-  const { navigate } = props;
-
+export function TaskListPage({ navigate }: TaskListPageProps): HTMLElement {
   // ── Reactive state ─────────────────────────────────
 
   // Local state: compiler transforms `let` to signal()

@@ -68,9 +68,7 @@ export interface TaskFormProps {
  * Callbacks (onSuccess, onError) are passed as form options.
  * Per-field error signals drive reactive error display directly in JSX.
  */
-export function TaskForm(props: TaskFormProps): HTMLElement {
-  const { onSuccess, onCancel } = props;
-
+export function TaskForm({ onSuccess, onCancel }: TaskFormProps): HTMLElement {
   const taskForm = form(taskApi.create, {
     schema: createTaskSchema,
     onSuccess,
