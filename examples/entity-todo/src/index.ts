@@ -14,7 +14,7 @@ export default App;
 
 // ── Global reset styles ────────────────────────────────────────
 
-const globalStyles = globalCss({
+export const globalStyles = globalCss({
   '*, *::before, *::after': {
     boxSizing: 'border-box',
     margin: '0',

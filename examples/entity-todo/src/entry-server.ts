@@ -39,7 +39,7 @@ export async function renderApp(): Promise<Response> {
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     
-    return new Response(`<!DOCTYPE html>
+    const response = new Response(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <title>Entity Todo</title>
@@ -64,7 +64,14 @@ export async function renderApp(): Promise<Response> {
       status: 500,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'X-XSS-Protection': '1; mode=block',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';",
       },
     });
+
+    return response;
   }
 }

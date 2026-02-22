@@ -8,8 +8,8 @@
  * - Proper error message formatting for different error types (NetworkError, HttpError, TimeoutError, etc.)
  */
 
-import { effect, onCleanup, onMount, query, isOk } from '@vertz/ui';
-import { matchError, type Result, type FetchErrorType } from '@vertz/fetch';
+import { effect, onCleanup, onMount, query } from '@vertz/ui';
+import { isOk, matchError, type Result, type FetchErrorType } from '@vertz/fetch';
 import type { Todo } from '../api/client';
 import { fetchTodos } from '../api/client';
 import { TodoForm } from '../components/todo-form';
