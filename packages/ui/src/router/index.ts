@@ -15,7 +15,7 @@ export { createLink } from './link';
 export { executeLoaders } from './loader';
 export type { MatchResult } from './matcher';
 export { matchPath } from './matcher';
-export type { NavigateOptions, Router } from './navigate';
+export type { NavigateOptions, Router, TypedRouter } from './navigate';
 export { createRouter } from './navigate';
 export type { OutletContext } from './outlet';
 export { createOutlet } from './outlet';

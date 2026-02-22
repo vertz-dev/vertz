@@ -238,6 +238,44 @@ declare const _defaultRoutes: TypedRoutes;
 const _defaultAsArray: CompiledRoute[] = _defaultRoutes;
 void _defaultAsArray;
 
+// ─── createRouter + TypedRouter type tests ──────────────────────────────────
+
+import type { TypedRouter } from '../navigate';
+// Phase 3 Cycle 1: createRouter returns TypedRouter, navigate rejects invalid paths
+import { createRouter } from '../navigate';
+
+const _p3Routes = defineRoutes({
+  '/': { component: () => document.createElement('div') },
+  '/tasks/:id': { component: () => document.createElement('div') },
+  '/settings': { component: () => document.createElement('div') },
+});
+
+const _p3Router = createRouter(_p3Routes);
+
+// @ts-expect-error - '/nonexistent' is not a valid path for this route map
+_p3Router.navigate('/nonexistent');
+
+// @ts-expect-error - '/tasks' without param is not valid
+_p3Router.navigate('/tasks');
+
+// Phase 3 Cycle 2: valid paths compile
+_p3Router.navigate('/');
+_p3Router.navigate('/settings');
+_p3Router.navigate('/tasks/42');
+
+// Phase 3 Cycle 3: TypedRouter<T> is assignable to Router (context boundary)
+const _p3AsRouter: Router = _p3Router;
+void _p3AsRouter;
+
+// TypedRouter type can be used directly
+type P3RouteMap = (typeof _p3Routes)['__routes'];
+const _p3Typed: TypedRouter<P3RouteMap> = _p3Router;
+void _p3Typed;
+
+// Phase 3 Cycle 4: Plain Router still accepts any string (backward compat)
+declare const _plainRouter: Router;
+_plainRouter.navigate('/anything-goes');
+
 // ─── RouterContext + useRouter + RouterView type tests ──────────────────────
 
 // useRouter() returns Router
