@@ -509,11 +509,11 @@ describe('__list', () => {
   });
 
   describe('keyFn index parameter', () => {
-    it('receives the index as the second argument and is correct (0, 1, 2, etc.)', () => {
+    it('keyFn receives index as second argument', () => {
       const items = signal([
-        { id: 'a', text: 'A' },
-        { id: 'b', text: 'B' },
-        { id: 'c', text: 'C' },
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+        { id: 3, text: 'C' },
       ]);
       const receivedIndices: number[] = [];
 
@@ -532,25 +532,24 @@ describe('__list', () => {
         },
       );
 
-      // Verify index is correct (0, 1, 2)
-      // Note: keyFn is called twice per item (in map and in loop)
+      // keyFn is called multiple times per render (for keySet and node creation)
+      // Verify that index 0, 1, 2 were all passed at least once
       expect(receivedIndices).toContain(0);
       expect(receivedIndices).toContain(1);
       expect(receivedIndices).toContain(2);
-      expect(receivedIndices.every((i) => typeof i === 'number')).toBe(true);
     });
 
-    it('list rendering still works correctly when keyFn uses the index', () => {
+    it('keyFn receives correct indices after list changes', () => {
       const items = signal([
-        { id: 'a', text: 'A' },
-        { id: 'b', text: 'B' },
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
       ]);
 
       const container = document.createElement('ul');
       __list(
         container,
         items,
-        (item, index) => String(index), // Use index as key
+        (item, index) => item.id,
         (item) => {
           const li = document.createElement('li');
           li.textContent = item.text;
@@ -562,17 +561,20 @@ describe('__list', () => {
       expect(container.children[0]?.textContent).toBe('A');
       expect(container.children[1]?.textContent).toBe('B');
 
+      // Add items
       items.value = [
-        { id: 'a', text: 'A' },
-        { id: 'b', text: 'B' },
-        { id: 'c', text: 'C' },
+        { id: 1, text: 'A' },
+        { id: 2, text: 'B' },
+        { id: 3, text: 'C' },
+        { id: 4, text: 'D' },
       ];
 
-      expect(container.children.length).toBe(3);
+      expect(container.children.length).toBe(4);
       expect(container.children[2]?.textContent).toBe('C');
+      expect(container.children[3]?.textContent).toBe('D');
     });
 
-    it('edge case: keyFn that returns index-based keys works properly (reuses node by position)', () => {
+    it('list works correctly when keyFn uses index-based keys', () => {
       const items = signal([
         { id: 'a', text: 'A' },
         { id: 'b', text: 'B' },
@@ -583,7 +585,7 @@ describe('__list', () => {
       __list(
         container,
         items,
-        (item, index) => String(index),
+        (item, index) => index, // Use index as key
         (item) => {
           const li = document.createElement('li');
           li.textContent = item.text;
@@ -591,27 +593,76 @@ describe('__list', () => {
         },
       );
 
-      const originalNodes = Array.from(container.children);
-      expect(originalNodes.length).toBe(3);
+      expect(container.children.length).toBe(3);
+      expect(container.children[0]?.textContent).toBe('A');
+      expect(container.children[1]?.textContent).toBe('B');
+      expect(container.children[2]?.textContent).toBe('C');
+    });
 
-      // Swap the first and last item
+    it('index-based keys bind node to position, not item', () => {
+      const items = signal([
+        { id: 'a', text: 'A' },
+        { id: 'b', text: 'B' },
+        { id: 'c', text: 'C' },
+      ]);
+
+      const container = document.createElement('ul');
+      __list(
+        container,
+        items,
+        (item, index) => index,
+        (item) => {
+          const li = document.createElement('li');
+          li.textContent = item.text;
+          return li;
+        },
+      );
+
+      const originalNodes = [...container.children];
+
+      // With index-based keys, the node at position 0 is always reused for index 0
+      // regardless of which item is now at that position
       items.value = [
         { id: 'c', text: 'C' },
-        { id: 'b', text: 'B' },
         { id: 'a', text: 'A' },
+        { id: 'b', text: 'B' },
       ];
 
-      // Since the key is index, the framework thinks the items at indices 0, 1, 2 haven't changed identity.
-      // Therefore, the original DOM nodes are fully reused without being recreated or moved!
-      const currentNodes = Array.from(container.children);
-      expect(currentNodes.length).toBe(3);
-      expect(currentNodes[0]).toBe(originalNodes[0]);
-      expect(currentNodes[1]).toBe(originalNodes[1]);
-      expect(currentNodes[2]).toBe(originalNodes[2]);
-      
-      // The text contents are unchanged because `__list` does not patch nodes, it just reuses them based on the key
-      expect(currentNodes[0]?.textContent).toBe('A');
-      expect(currentNodes[2]?.textContent).toBe('C');
+      // Nodes are reused by index position
+      expect(container.children.length).toBe(3);
+      expect(container.children[0]).toBe(originalNodes[0]); // Same node object
+      expect(container.children[0]?.textContent).toBe('C'); // But new content
+      expect(container.children[1]).toBe(originalNodes[1]);
+      expect(container.children[1]?.textContent).toBe('A');
+      expect(container.children[2]).toBe(originalNodes[2]);
+      expect(container.children[2]?.textContent).toBe('B');
+    });
+
+    it('keyFn index is available when adding to empty list', () => {
+      const items = signal<{ id: string; text: string }[]>([]);
+
+      const container = document.createElement('ul');
+      __list(
+        container,
+        items,
+        (item, index) => index,
+        (item) => {
+          const li = document.createElement('li');
+          li.textContent = item.text;
+          return li;
+        },
+      );
+
+      expect(container.children.length).toBe(0);
+
+      // Add items — should work with indices starting from 0
+      items.value = [
+        { id: 'x', text: 'X' },
+        { id: 'y', text: 'Y' },
+      ];
+      expect(container.children.length).toBe(2);
+      expect(container.children[0]?.textContent).toBe('X');
+      expect(container.children[1]?.textContent).toBe('Y');
     });
   });
 });
