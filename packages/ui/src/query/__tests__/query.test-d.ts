@@ -6,30 +6,30 @@
  * (typecheck), not by vitest at runtime.
  */
 
-import type { ReadonlySignal } from '../../runtime/signal-types';
 import type { QueryOptions, QueryResult } from '../query';
-import { query } from '../query';
 
-// ─── QueryResult<T> — signal types ────────────────────────────────
+// ─── QueryResult<T> — unwrapped types ────────────────────────────
 
-// data is ReadonlySignal<T | undefined>
+// data is Unwrapped<ReadonlySignal<T | undefined>> which equals T | undefined
 declare const result: QueryResult<string>;
 
-const _data: ReadonlySignal<string | undefined> = result.data;
+const _data: string | undefined = result.data;
 void _data;
 
-const _dataValue: string | undefined = result.data.value;
+// Access the value directly (no .value needed)
+const _dataValue: string | undefined = result.data;
 void _dataValue;
 
-// loading is ReadonlySignal<boolean>
-const _loading: ReadonlySignal<boolean> = result.loading;
+// loading is Unwrapped<ReadonlySignal<boolean>> which equals boolean
+const _loading: boolean = result.loading;
 void _loading;
 
-const _loadingValue: boolean = result.loading.value;
+// Access directly (no .value needed)
+const _loadingValue: boolean = result.loading;
 void _loadingValue;
 
-// error is ReadonlySignal<unknown>
-const _error: ReadonlySignal<unknown> = result.error;
+// error is Unwrapped<ReadonlySignal<unknown>> which equals unknown
+const _error: unknown = result.error;
 void _error;
 
 // refetch returns void
@@ -47,8 +47,9 @@ void _disposeResult;
 // ─── query() — generic inference from thunk ───────────────────────
 
 // query() infers T from the thunk return type
+import { query } from '../query';
 const stringQuery = query(() => Promise.resolve('hello'));
-const _strData: ReadonlySignal<string | undefined> = stringQuery.data;
+const _strData: string | undefined = stringQuery.data;
 void _strData;
 
 interface User {
@@ -57,14 +58,13 @@ interface User {
 }
 
 const userQuery = query(async (): Promise<User> => ({ id: 1, name: 'Alice' }));
-const _userData: ReadonlySignal<User | undefined> = userQuery.data;
+const _userData: User | undefined = userQuery.data;
 void _userData;
 
-// Accessing properties on the data value
-const _userDataVal: User | undefined = userQuery.data.value;
-if (_userDataVal) {
-  const _id: number = _userDataVal.id;
-  const _name: string = _userDataVal.name;
+// Accessing properties on the data value directly (no .value needed)
+if (_userData) {
+  const _id: number = _userData.id;
+  const _name: string = _userData.name;
   void _id;
   void _name;
 }
@@ -102,13 +102,13 @@ void _badOpts;
 declare const readonlyCheck: QueryResult<number>;
 
 // @ts-expect-error - data is readonly, cannot reassign
-readonlyCheck.data = null as unknown as ReadonlySignal<number | undefined>;
+readonlyCheck.data = null as unknown as number | undefined;
 
 // @ts-expect-error - loading is readonly, cannot reassign
-readonlyCheck.loading = null as unknown as ReadonlySignal<boolean>;
+readonlyCheck.loading = null as unknown as boolean;
 
 // @ts-expect-error - error is readonly, cannot reassign
-readonlyCheck.error = null as unknown as ReadonlySignal<unknown>;
+readonlyCheck.error = null as unknown as unknown;
 
 // ─── QueryResult<T> — complex generic types ──────────────────────
 
@@ -124,13 +124,12 @@ const paginatedQuery = query(
   }),
 );
 
-const _paginatedData: ReadonlySignal<ApiResponse<User[]> | undefined> = paginatedQuery.data;
+const _paginatedData: ApiResponse<User[]> | undefined = paginatedQuery.data;
 void _paginatedData;
 
-const _paginatedVal = paginatedQuery.data.value;
-if (_paginatedVal) {
-  const _users: User[] = _paginatedVal.data;
-  const _page: number = _paginatedVal.meta.page;
+if (_paginatedData) {
+  const _users: User[] = _paginatedData.data;
+  const _page: number = _paginatedData.meta.page;
   void _users;
   void _page;
 }
