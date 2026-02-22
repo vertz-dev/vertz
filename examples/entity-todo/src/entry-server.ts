@@ -9,24 +9,62 @@
 
 import { renderPage } from '@vertz/ui-server';
 import { App } from './app';
+import { globalStyles } from './index';
 
 /**
  * Render the app to a full HTML Response.
  * 
- * When built with Vite SSR mode, App() returns VNodes instead of DOM elements.
+ * When built with Vite SSR mode, App() returns VNodes (not DOM elements).
  * The renderPage function wraps the VNode tree in a complete HTML document.
  *
  * @returns Response with text/html content-type
  */
 export async function renderApp(): Promise<Response> {
-  // In SSR mode, App() returns VNodes (not DOM elements)
-  // This works because the @vertz/ui-compiler swaps the JSX runtime
-  // to @vertz/ui-server/jsx-runtime when building for SSR
-  return renderPage(App() as never, {
-    title: 'Entity Todo',
-    description: 'A demo app showcasing vertz SSR on Cloudflare Workers',
-    lang: 'en',
-    scripts: ['/assets/client.js'],
-    styles: ['/assets/client.css'],
-  });
+  try {
+    // In SSR mode, App() returns VNodes (not DOM elements)
+    // This works because the @vertz/ui-compiler swaps the JSX runtime
+    // to @vertz/ui-server/jsx-runtime when building for SSR
+    return renderPage(App() as never, {
+      title: 'Entity Todo',
+      description: 'A demo app showcasing vertz SSR on Cloudflare Workers',
+      lang: 'en',
+      scripts: ['/assets/client.js'],
+      // Include critical CSS inline for faster FCP
+      styles: ['/assets/client.css'],
+      head: `<style data-vertz-css>${globalStyles.css}</style>`,
+    });
+  } catch (error) {
+    // SSR error - return fallback HTML that loads the client bundle (SPA fallback)
+    console.error('[SSR] Failed to render app:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    return new Response(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Entity Todo</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A demo app showcasing vertz SSR on Cloudflare Workers">
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 2rem; max-width: 800px; margin: 0 auto; }
+    .error { background: #fee; border: 1px solid #fcc; padding: 1rem; border-radius: 4px; }
+    .error h1 { color: #c00; margin-top: 0; }
+  </style>
+</head>
+<body>
+  <div class="error">
+    <h1>Server Error</h1>
+    <p>Unable to render the page. Loading client-side version instead.</p>
+    <p><small>Error: ${errorMessage}</small></p>
+  </div>
+  <script type="module" src="/assets/client.js"></script>
+</body>
+</html>`, {
+      status: 500,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+      },
+    });
+  }
 }

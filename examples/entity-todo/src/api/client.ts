@@ -26,7 +26,7 @@ export const sdk = createClient({
 });
 
 /**
- * Todo type derived from the entity schema.
+ * Todo type - matches the API response format.
  */
 export interface Todo {
   id: string;
