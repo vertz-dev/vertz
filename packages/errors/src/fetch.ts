@@ -154,18 +154,16 @@ export class FetchValidationError extends FetchError {
    * Validation errors matching server format.
    */
   readonly errors: readonly {
-    readonly path: readonly (string | number)[];
+    readonly path: string;
     readonly message: string;
-    readonly code: string;
   }[];
 
   constructor(
+    message: string,
     errors: readonly {
-      readonly path: readonly (string | number)[];
+      readonly path: string;
       readonly message: string;
-      readonly code: string;
     }[],
-    message = 'Validation failed',
   ) {
     super('VALIDATION_ERROR', message);
     this.name = 'ValidationError';
