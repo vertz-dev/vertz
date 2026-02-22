@@ -27,6 +27,7 @@
         "better-sqlite3": "^12.6.2",
       },
       "devDependencies": {
+        "@cloudflare/workers-types": "^4.20260228.0",
         "@types/better-sqlite3": "^7.6.13",
         "@vertz/cli": "workspace:*",
         "@vertz/ui-compiler": "workspace:*",
