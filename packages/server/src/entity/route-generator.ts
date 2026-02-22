@@ -1,4 +1,5 @@
 import type { EntityRouteEntry } from '@vertz/core';
+import { unwrap } from '@vertz/errors';
 import { createActionHandler } from './action-pipeline';
 import { createEntityContext, type RequestInfo as EntityRequestInfo } from './context';
 import { createCrudHandlers, type EntityDbAdapter, type ListOptions } from './crud-pipeline';
@@ -118,7 +119,8 @@ export function generateEntityRoutes(
               after: after || undefined,
             };
             const result = await crudHandlers.list(entityCtx, options);
-            return jsonResponse(result.body, result.status);
+            const { body, status } = unwrap(result);
+            return jsonResponse(body, status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);
@@ -154,7 +156,8 @@ export function generateEntityRoutes(
             const entityCtx = makeEntityCtx(ctx);
             const id = getParams(ctx).id as string;
             const result = await crudHandlers.get(entityCtx, id);
-            return jsonResponse(result.body, result.status);
+            const { body, status } = unwrap(result);
+            return jsonResponse(body, status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);
@@ -190,7 +193,8 @@ export function generateEntityRoutes(
             const entityCtx = makeEntityCtx(ctx);
             const data = (ctx.body ?? {}) as Record<string, unknown>;
             const result = await crudHandlers.create(entityCtx, data);
-            return jsonResponse(result.body, result.status);
+            const { body, status } = unwrap(result);
+            return jsonResponse(body, status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);
@@ -227,7 +231,8 @@ export function generateEntityRoutes(
             const id = getParams(ctx).id as string;
             const data = (ctx.body ?? {}) as Record<string, unknown>;
             const result = await crudHandlers.update(entityCtx, id, data);
-            return jsonResponse(result.body, result.status);
+            const { body, status } = unwrap(result);
+            return jsonResponse(body, status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);
@@ -263,10 +268,11 @@ export function generateEntityRoutes(
             const entityCtx = makeEntityCtx(ctx);
             const id = getParams(ctx).id as string;
             const result = await crudHandlers.delete(entityCtx, id);
-            if (result.status === 204) {
+            const { body, status } = unwrap(result);
+            if (status === 204) {
               return emptyResponse(204);
             }
-            return jsonResponse(result.body, result.status);
+            return jsonResponse(body, status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);
