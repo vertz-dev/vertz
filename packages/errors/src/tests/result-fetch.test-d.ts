@@ -92,11 +92,11 @@ void (function testMatchErrorAllVariants() {
   const error: FetchErrorType = new FetchNotFoundError('Not found');
 
   const result = matchError(error, {
-    NETWORK_ERROR: (e) => e.code,
-    HTTP_ERROR: (e) => e.code,
-    TIMEOUT_ERROR: (e) => e.code,
-    PARSE_ERROR: (e) => e.code,
-    VALIDATION_ERROR: (e) => e.code,
+    NetworkError: (e) => e.code,
+    HttpError: (e) => e.code,
+    TimeoutError: (e) => e.code,
+    ParseError: (e) => e.code,
+    ValidationError: (e) => e.code,
   });
 
   const _result: string = result;
@@ -106,12 +106,12 @@ void (function testMatchErrorAllVariants() {
 void (function testMatchErrorMissingVariant() {
   const error: FetchErrorType = new FetchNotFoundError('Not found');
 
-  // @ts-expect-error - Missing TIMEOUT_ERROR handler should cause type error
+  // @ts-expect-error - Missing TimeoutError handler should cause type error
   const result = matchError(error, {
-    NETWORK_ERROR: (e) => e.code,
-    HTTP_ERROR: (e) => e.code,
-    PARSE_ERROR: (e) => e.code,
-    VALIDATION_ERROR: (e) => e.code,
+    NetworkError: (e) => e.code,
+    HttpError: (e) => e.code,
+    ParseError: (e) => e.code,
+    ValidationError: (e) => e.code,
   });
 });
 
@@ -187,21 +187,21 @@ void (function testSpecificErrorsConstruction() {
 void (function testNetworkErrorCode() {
   const error = new FetchNetworkError('Network failed');
 
-  const _code: 'NETWORK_ERROR' = error.code;
+  const _code: 'NetworkError' = error.code;
 });
 
 // FetchTimeoutError has correct code
 void (function testTimeoutErrorCode() {
   const error = new FetchTimeoutError('Timeout');
 
-  const _code: 'TIMEOUT_ERROR' = error.code;
+  const _code: 'TimeoutError' = error.code;
 });
 
 // ParseError has correct code and path
 void (function testParseErrorCode() {
   const error = new ParseError('response', 'Parse failed', { invalid: true });
 
-  const _code: 'PARSE_ERROR' = error.code;
+  const _code: 'ParseError' = error.code;
   const _path: string = error.path;
   const _value: unknown = error.value;
 });
@@ -212,7 +212,7 @@ void (function testValidationErrorCode() {
     { path: 'email', message: 'Invalid email' },
   ]);
 
-  const _code: 'VALIDATION_ERROR' = error.code;
+  const _code: 'ValidationError' = error.code;
   const _errors: readonly { readonly path: string; readonly message: string }[] = error.errors;
 });
 
@@ -406,11 +406,11 @@ void (function testMatchErrorReturnType() {
   const error: FetchErrorType = new FetchNotFoundError('Not found');
 
   const result = matchError(error, {
-    NETWORK_ERROR: () => 'network',
-    HTTP_ERROR: () => 'http',
-    TIMEOUT_ERROR: () => 'timeout',
-    PARSE_ERROR: () => 'parse',
-    VALIDATION_ERROR: () => 'validation',
+    NetworkError: () => 'network',
+    HttpError: () => 'http',
+    TimeoutError: () => 'timeout',
+    ParseError: () => 'parse',
+    ValidationError: () => 'validation',
   });
 
   // Return type should be string
@@ -422,11 +422,11 @@ void (function testMatchErrorDifferentReturnTypes() {
   const error: FetchErrorType = new FetchNotFoundError('Not found');
 
   const result = matchError(error, {
-    NETWORK_ERROR: () => ({ type: 'network' }),
-    HTTP_ERROR: (e) => ({ type: 'http', status: e.status }),
-    TIMEOUT_ERROR: () => ({ type: 'timeout' }),
-    PARSE_ERROR: (e) => ({ type: 'parse', path: e.path }),
-    VALIDATION_ERROR: (e) => ({ type: 'validation', count: e.errors.length }),
+    NetworkError: () => ({ type: 'network' }),
+    HttpError: (e) => ({ type: 'http', status: e.status }),
+    TimeoutError: () => ({ type: 'timeout' }),
+    ParseError: (e) => ({ type: 'parse', path: e.path }),
+    ValidationError: (e) => ({ type: 'validation', count: e.errors.length }),
   });
 
   // Return type should be an object with type property
