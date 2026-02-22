@@ -238,6 +238,21 @@ describe('hydration-context', () => {
     });
   });
 
+  describe('exitChildren bounds checking', () => {
+    it('warns in dev mode when called with empty stack', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<div></div>';
+      startHydration(root);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      exitChildren(); // No matching enterChildren — stack is empty
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('exitChildren() called with empty stack'),
+      );
+      warnSpy.mockRestore();
+    });
+  });
+
   describe('concurrent hydration guard', () => {
     it('throws if startHydration is called while already hydrating', () => {
       const root1 = document.createElement('div');

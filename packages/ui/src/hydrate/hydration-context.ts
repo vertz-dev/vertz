@@ -140,5 +140,15 @@ export function enterChildren(el: Element): void {
  * Called by compiler-emitted `__exitChildren()`.
  */
 export function exitChildren(): void {
+  if (cursorStack.length === 0) {
+    if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+      console.warn(
+        '[hydrate] exitChildren() called with empty stack. ' +
+          'This likely means __exitChildren was called without a matching __enterChildren.',
+      );
+    }
+    currentNode = null;
+    return;
+  }
   currentNode = cursorStack.pop() ?? null;
 }

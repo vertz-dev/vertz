@@ -95,6 +95,19 @@ describe('DOM helpers — hydration branches', () => {
       expect(wrapper).toBe(span);
     });
 
+    it('creates new wrapper when claim fails during hydration', () => {
+      const root = document.createElement('div');
+      // Only a text node, no span to claim
+      root.appendChild(document.createTextNode('just text'));
+      startHydration(root);
+
+      const wrapper = __child(() => 'fallback');
+      // Should have created a new span wrapper since no span was found
+      expect(wrapper.tagName).toBe('SPAN');
+      expect(wrapper.style.display).toBe('contents');
+      expect(wrapper.textContent).toBe('fallback');
+    });
+
     it('attaches reactive effect to adopted wrapper', () => {
       const root = document.createElement('div');
       const span = document.createElement('span');
@@ -170,6 +183,18 @@ describe('DOM helpers — hydration branches', () => {
     it('creates new text node during CSR', () => {
       const text = __staticText('hello');
       expect(text.data).toBe('hello');
+    });
+
+    it('creates new text node when claim fails during hydration', () => {
+      const root = document.createElement('div');
+      // Only an element node, no text nodes to claim
+      root.innerHTML = '<span></span>';
+      startHydration(root);
+
+      const text = __staticText('fallback');
+      // Should have created a new text node since no text node was found
+      expect(text.data).toBe('fallback');
+      expect(text).not.toBe(root.firstChild);
     });
   });
 
