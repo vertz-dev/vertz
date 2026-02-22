@@ -88,11 +88,11 @@ void (function testMatchErrorAllVariants() {
   const error: FetchErrorType = new FetchNotFoundError('Not found');
 
   const result = matchError(error, {
-    NETWORK_ERROR: (e) => e.code,
-    HTTP_ERROR: (e) => e.code,
-    TIMEOUT_ERROR: (e) => e.code,
-    PARSE_ERROR: (e) => e.code,
-    VALIDATION_ERROR: (e) => e.code,
+    NetworkError: (e) => e.code,
+    HttpError: (e) => e.code,
+    TimeoutError: (e) => e.code,
+    ParseError: (e) => e.code,
+    ValidationError: (e) => e.code,
   });
 
   const _result: string = result;
@@ -102,12 +102,12 @@ void (function testMatchErrorAllVariants() {
 void (function testMatchErrorMissingVariant() {
   const error: FetchErrorType = new FetchNotFoundError('Not found');
 
-  // @ts-expect-error - Missing TIMEOUT_ERROR handler should cause type error
+  // @ts-expect-error - Missing TimeoutError handler should cause type error
   const result = matchError(error, {
-    NETWORK_ERROR: (e) => e.code,
-    HTTP_ERROR: (e) => e.code,
-    PARSE_ERROR: (e) => e.code,
-    VALIDATION_ERROR: (e) => e.code,
+    NetworkError: (e) => e.code,
+    HttpError: (e) => e.code,
+    ParseError: (e) => e.code,
+    ValidationError: (e) => e.code,
   });
 });
 
@@ -339,7 +339,7 @@ void (function testFetchErrorTypeUnion() {
 
 // SDK methods return Promise<Result<T, FetchError>>
 // This simulates what the codegen generates
-void (function testSdkMethodReturnType() {
+void (async function testSdkMethodReturnType() {
   // Simulate a generated SDK method return type
   // This is what client.get<T>() returns based on fetch package types
   type FetchResponse<T> = Result<{ data: T; status: number; headers: Headers }, FetchError>;
@@ -395,7 +395,7 @@ void (function testFetchPackageExports() {
 });
 
 // Generated SDK list method returns correct type
-void (function testSdkListMethodReturnType() {
+void (async function testSdkListMethodReturnType() {
   type FetchResponse<T> = Result<{ data: T; status: number; headers: Headers }, FetchError>;
 
   // Simulated list method (returns array)
@@ -415,7 +415,7 @@ void (function testSdkListMethodReturnType() {
 });
 
 // Generated SDK create method returns correct type
-void (function testSdkCreateMethodReturnType() {
+void (async function testSdkCreateMethodReturnType() {
   type FetchResponse<T> = Result<{ data: T; status: number; headers: Headers }, FetchError>;
 
   type CreateUserInput = { name: string; email: string };
@@ -441,7 +441,7 @@ void (function testSdkCreateMethodReturnType() {
 // ============================================================================
 
 // Type guards should narrow types correctly
-void (function testTypeGuards() {
+void (async function testTypeGuards() {
   // Import type guards
   const {
     isFetchNetworkError,
@@ -493,11 +493,11 @@ void (function testMatchErrorReturnType() {
   const error: FetchErrorType = new FetchNotFoundError('Not found');
 
   const result = matchError(error, {
-    NETWORK_ERROR: () => 'network',
-    HTTP_ERROR: () => 'http',
-    TIMEOUT_ERROR: () => 'timeout',
-    PARSE_ERROR: () => 'parse',
-    VALIDATION_ERROR: () => 'validation',
+    NetworkError: () => 'network',
+    HttpError: () => 'http',
+    TimeoutError: () => 'timeout',
+    ParseError: () => 'parse',
+    ValidationError: () => 'validation',
   });
 
   // Return type should be inferred as 'network' | 'http' | 'timeout' | 'parse' | 'validation'
@@ -509,11 +509,11 @@ void (function testMatchErrorDifferentReturnTypes() {
   const error: FetchErrorType = new FetchNotFoundError('Not found');
 
   const result = matchError(error, {
-    NETWORK_ERROR: () => ({ type: 'network' }),
-    HTTP_ERROR: (e) => ({ type: 'http', status: e.status }),
-    TIMEOUT_ERROR: () => ({ type: 'timeout' }),
-    PARSE_ERROR: (e) => ({ type: 'parse', path: e.path }),
-    VALIDATION_ERROR: (e) => ({ type: 'validation', count: e.errors.length }),
+    NetworkError: () => ({ type: 'network' }),
+    HttpError: (e) => ({ type: 'http', status: e.status }),
+    TimeoutError: () => ({ type: 'timeout' }),
+    ParseError: (e) => ({ type: 'parse', path: e.path }),
+    ValidationError: (e) => ({ type: 'validation', count: e.errors.length }),
   });
 
   // Return type should be a union of all handler return types
