@@ -31,6 +31,20 @@ export function startHydration(root: Element): void {
  * End hydration mode. Resets all state.
  */
 export function endHydration(): void {
+  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    if (currentNode) {
+      console.debug(
+        '[hydrate] Hydration ended with unclaimed nodes remaining. ' +
+          'This may indicate SSR/client tree mismatch or browser extension nodes.',
+      );
+    }
+    if (cursorStack.length > 0) {
+      console.debug(
+        `[hydrate] Hydration ended with unbalanced cursor stack (depth: ${cursorStack.length}). ` +
+          'Check that __enterChildren/__exitChildren calls are paired.',
+      );
+    }
+  }
   isHydrating = false;
   currentNode = null;
   cursorStack.length = 0;

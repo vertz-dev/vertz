@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { endHydration, startHydration } from '../../hydrate/hydration-context';
 import { signal } from '../../runtime/signal';
 import {
@@ -26,6 +26,63 @@ describe('DOM helpers — hydration branches', () => {
 
       const el = __element('div');
       expect(el).toBe(existingDiv);
+    });
+
+    it('warns on ARIA attribute mismatch during hydration', () => {
+      const root = document.createElement('div');
+      const div = document.createElement('div');
+      div.setAttribute('aria-hidden', 'true');
+      root.appendChild(div);
+      startHydration(root);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      __element('div', { 'aria-hidden': 'false' });
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[hydrate] ARIA mismatch on <div>: aria-hidden="true" (expected "false")',
+      );
+      warnSpy.mockRestore();
+    });
+
+    it('warns on role mismatch during hydration', () => {
+      const root = document.createElement('div');
+      const div = document.createElement('div');
+      div.setAttribute('role', 'button');
+      root.appendChild(div);
+      startHydration(root);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      __element('div', { role: 'link' });
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[hydrate] ARIA mismatch on <div>: role="button" (expected "link")',
+      );
+      warnSpy.mockRestore();
+    });
+
+    it('does not warn on non-ARIA attribute mismatch during hydration', () => {
+      const root = document.createElement('div');
+      const div = document.createElement('div');
+      div.setAttribute('class', 'old');
+      root.appendChild(div);
+      startHydration(root);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      __element('div', { class: 'new' });
+      expect(warnSpy).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it('does not warn when ARIA attributes match during hydration', () => {
+      const root = document.createElement('div');
+      const div = document.createElement('div');
+      div.setAttribute('aria-hidden', 'true');
+      div.setAttribute('role', 'button');
+      root.appendChild(div);
+      startHydration(root);
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      __element('div', { 'aria-hidden': 'true', role: 'button' });
+      expect(warnSpy).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
     });
 
     it('creates new element when claim fails (fallback)', () => {

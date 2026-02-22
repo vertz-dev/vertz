@@ -253,6 +253,56 @@ describe('hydration-context', () => {
     });
   });
 
+  describe('endHydration dev warnings', () => {
+    it('emits debug when unclaimed nodes remain', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<span></span><p></p>';
+      startHydration(root);
+
+      // Claim only the first node, leaving <p> unclaimed
+      claimElement('span');
+
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      endHydration();
+      expect(debugSpy).toHaveBeenCalledWith(
+        '[hydrate] Hydration ended with unclaimed nodes remaining. ' +
+          'This may indicate SSR/client tree mismatch or browser extension nodes.',
+      );
+      debugSpy.mockRestore();
+    });
+
+    it('emits debug when cursor stack is unbalanced', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<div><span></span></div>';
+      startHydration(root);
+
+      const div = claimElement('div')!;
+      enterChildren(div);
+      // Do NOT call exitChildren — stack is unbalanced
+
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      endHydration();
+      expect(debugSpy).toHaveBeenCalledWith(
+        expect.stringContaining('unbalanced cursor stack (depth: 1)'),
+      );
+      debugSpy.mockRestore();
+    });
+
+    it('no debug output when hydration ends cleanly', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<span></span>';
+      startHydration(root);
+
+      // Claim all nodes
+      claimElement('span');
+
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      endHydration();
+      expect(debugSpy).not.toHaveBeenCalled();
+      debugSpy.mockRestore();
+    });
+  });
+
   describe('concurrent hydration guard', () => {
     it('throws if startHydration is called while already hydrating', () => {
       const root1 = document.createElement('div');
