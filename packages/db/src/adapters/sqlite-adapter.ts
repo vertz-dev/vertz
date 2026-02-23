@@ -309,7 +309,10 @@ export class SqliteAdapter<T extends ColumnRecord> implements EntityDbAdapter {
         const whereClauses: string[] = [];
         for (const [key, value] of Object.entries(options.where)) {
           whereClauses.push(`${key} = ?`);
-          countParams.push(value);
+          // Convert boolean to integer for SQLite comparison
+          const colMeta = this.schema._columns[key]?._meta as ColumnMetadata | undefined;
+          const convertedValue = colMeta?.sqlType === 'boolean' ? (value ? 1 : 0) : value;
+          countParams.push(convertedValue);
         }
         countSql += ` WHERE ${whereClauses.join(' AND ')}`;
       }
@@ -325,7 +328,10 @@ export class SqliteAdapter<T extends ColumnRecord> implements EntityDbAdapter {
         const whereClauses: string[] = [];
         for (const [key, value] of Object.entries(options.where)) {
           whereClauses.push(`${key} = ?`);
-          params.push(value);
+          // Convert boolean to integer for SQLite comparison
+          const colMeta = this.schema._columns[key]?._meta as ColumnMetadata | undefined;
+          const convertedValue = colMeta?.sqlType === 'boolean' ? (value ? 1 : 0) : value;
+          params.push(convertedValue);
         }
         sql += ` WHERE ${whereClauses.join(' AND ')}`;
       }
