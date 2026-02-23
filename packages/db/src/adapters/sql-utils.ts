@@ -3,6 +3,14 @@
  * Used by both D1 and SQLite adapters to avoid code duplication.
  */
 
+/**
+ * SECURITY NOTE: Table names, column names, and index names are interpolated
+ * directly into SQL strings. This is safe because these values come exclusively
+ * from developer-defined schema definitions (e.g. defineTable/defineColumn),
+ * NOT from user input. If schema definitions ever accept untrusted input,
+ * identifier escaping must be added.
+ */
+
 import type { TableDef, ColumnRecord } from '../schema/table';
 import type { ColumnMetadata } from '../schema/column';
 import type { DbDriver } from '../client/driver';
@@ -53,6 +61,8 @@ export function getSqlType(meta: ColumnMetadata): string {
 
 /**
  * Generate CREATE TABLE SQL from a TableDef schema.
+ *
+ * SECURITY: Table/column names come from schema definition, not user input.
  */
 export function generateCreateTableSql<T extends ColumnRecord>(schema: TableDef<T>): string {
   const columns: string[] = [];
@@ -103,6 +113,8 @@ export function generateCreateTableSql<T extends ColumnRecord>(schema: TableDef<
 
 /**
  * Generate CREATE INDEX SQL for table indexes.
+ *
+ * SECURITY: Index/table names come from schema definition, not user input.
  */
 export function generateIndexSql<T extends ColumnRecord>(schema: TableDef<T>): string[] {
   const sqls: string[] = [];
