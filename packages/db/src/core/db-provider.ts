@@ -1,6 +1,96 @@
 import { type CreateDbOptions, createDb, type DatabaseInstance } from '../client/database';
 import { ConnectionError } from '../errors/db-error';
+import { autoMigrate, type SchemaSnapshot } from '../migration';
 import type { ModelEntry } from '../schema/inference';
+import type { TableDef } from '../schema/table';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract the current schema snapshot from the database models.
+ * This uses the table definitions registered via d.table().
+ */
+function extractSchemaSnapshot<TModels extends Record<string, ModelEntry>>(
+  models: TModels,
+): SchemaSnapshot {
+  const tables: SchemaSnapshot['tables'] = {};
+  const enums: SchemaSnapshot['enums'] = {};
+
+  for (const [name, entry] of Object.entries(models)) {
+    const tableDef = entry.table as TableDef | undefined;
+    if (!tableDef) continue;
+
+    tables[name] = {
+      columns: {},
+      indexes: [],
+      foreignKeys: [],
+      _metadata: {},
+    };
+
+    // Extract columns from the table definition
+    if (tableDef._columns) {
+      for (const [colName, col] of Object.entries(tableDef._columns)) {
+        const meta = col._meta;
+        tables[name].columns[colName] = {
+          type: meta.sqlType,
+          nullable: meta.nullable ?? true,
+          primary: meta.primary ?? false,
+          unique: meta.unique ?? false,
+        };
+
+        if (meta.hasDefault && meta.defaultValue !== undefined) {
+          const rawDefault = String(meta.defaultValue);
+          tables[name].columns[colName].default = rawDefault === 'now' ? 'now()' : rawDefault;
+        }
+
+        if (meta.sensitive) {
+          tables[name].columns[colName].sensitive = true;
+        }
+
+        if (meta.hidden) {
+          tables[name].columns[colName].hidden = true;
+        }
+
+        if (meta.enumName && meta.enumValues) {
+          enums[meta.enumName] = [...meta.enumValues];
+        }
+      }
+    }
+
+    // Extract indexes
+    if (tableDef._indexes) {
+      for (const idx of tableDef._indexes) {
+        tables[name].indexes.push({
+          name: idx.name,
+          columns: [...idx.columns],
+          unique: idx.unique ?? false,
+        });
+      }
+    }
+  }
+
+  return {
+    version: 1,
+    tables,
+    enums,
+  };
+}
+
+/**
+ * Check if auto-migration should run based on config and environment.
+ */
+function shouldAutoMigrate(config: DbProviderMigrationsConfig | undefined): boolean {
+  if (config?.autoApply === true) {
+    return true;
+  }
+  // Default: auto-apply in non-production environments
+  if (config?.autoApply === undefined || config?.autoApply === null) {
+    return process.env.NODE_ENV !== 'production';
+  }
+  return false;
+}
 
 // ---------------------------------------------------------------------------
 // Migrations config
@@ -77,6 +167,19 @@ export function createDbProvider<TModels extends Record<string, ModelEntry>>(
         throw new ConnectionError(
           'Failed to connect to database. Verify the connection URL is correct and the database is running.',
         );
+      }
+
+      // Run auto-migration if configured
+      if (shouldAutoMigrate(config.migrations)) {
+        const snapshotPath = config.migrations?.snapshotPath ?? '.vertz/schema-snapshot.json';
+        const currentSchema = extractSchemaSnapshot(config.models);
+
+        await autoMigrate({
+          currentSchema,
+          snapshotPath,
+          dialect: 'sqlite', // TODO: Detect from db driver
+          db: db.query.bind(db),
+        });
       }
 
       return db;

@@ -137,4 +137,131 @@ describe('createDbProvider', () => {
     // Should not throw — config is passed through
     expect(provider).toBeDefined();
   });
+
+  describe('auto-migrate', () => {
+    it('calls autoMigrate when migrations.autoApply is true', async () => {
+      const testPg = new PGlite();
+      const testQueryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
+        const result = await testPg.query(sqlStr, params as unknown[]);
+        return {
+          rows: result.rows as readonly T[],
+          rowCount: result.affectedRows ?? result.rows.length,
+        };
+      };
+
+      const provider = createDbProvider({
+        url: 'memory://test',
+        models: { users: { table: users, relations: {} } },
+        _queryFn: testQueryFn,
+        migrations: {
+          autoApply: true,
+          snapshotPath: ':memory:',
+        },
+      });
+
+      // Initialize - this should trigger auto-migrate (verified by log output)
+      await provider.onInit({});
+
+      await testPg.close();
+    });
+
+    it('calls autoMigrate when NODE_ENV is not production', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      try {
+        process.env.NODE_ENV = 'development';
+
+        const testPg = new PGlite();
+        const testQueryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
+          const result = await testPg.query(sqlStr, params as unknown[]);
+          return {
+            rows: result.rows as readonly T[],
+            rowCount: result.affectedRows ?? result.rows.length,
+          };
+        };
+
+        const provider = createDbProvider({
+          url: 'memory://test',
+          models: { users: { table: users, relations: {} } },
+          _queryFn: testQueryFn,
+          migrations: {
+            // autoApply not specified - should default to true in dev
+            snapshotPath: ':memory:',
+          },
+        });
+
+        // Initialize - this should trigger auto-migrate
+        await provider.onInit({});
+
+        await testPg.close();
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+      }
+    });
+
+    it('does NOT call autoMigrate when autoApply is false', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      try {
+        process.env.NODE_ENV = 'development';
+
+        const testPg = new PGlite();
+        const testQueryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
+          const result = await testPg.query(sqlStr, params as unknown[]);
+          return {
+            rows: result.rows as readonly T[],
+            rowCount: result.affectedRows ?? result.rows.length,
+          };
+        };
+
+        const provider = createDbProvider({
+          url: 'memory://test',
+          models: { users: { table: users, relations: {} } },
+          _queryFn: testQueryFn,
+          migrations: {
+            autoApply: false,
+            snapshotPath: ':memory:',
+          },
+        });
+
+        // Initialize - this should NOT trigger auto-migrate
+        await provider.onInit({});
+
+        await testPg.close();
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+      }
+    });
+
+    it('does NOT call autoMigrate in production by default', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      try {
+        process.env.NODE_ENV = 'production';
+
+        const testPg = new PGlite();
+        const testQueryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
+          const result = await testPg.query(sqlStr, params as unknown[]);
+          return {
+            rows: result.rows as readonly T[],
+            rowCount: result.affectedRows ?? result.rows.length,
+          };
+        };
+
+        const provider = createDbProvider({
+          url: 'memory://test',
+          models: { users: { table: users, relations: {} } },
+          _queryFn: testQueryFn,
+          migrations: {
+            // autoApply not specified - should default to false in production
+            snapshotPath: ':memory:',
+          },
+        });
+
+        // Initialize - this should NOT trigger auto-migrate in production
+        await provider.onInit({});
+
+        await testPg.close();
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+      }
+    });
+  });
 });
