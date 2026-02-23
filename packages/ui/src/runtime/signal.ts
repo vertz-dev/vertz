@@ -4,9 +4,25 @@ import { batch, scheduleNotify } from './scheduler';
 import type { Computed, DisposeFn, Signal, Subscriber, SubscriberSource } from './signal-types';
 import { getReadValueCallback, getSubscriber, setSubscriber } from './tracking';
 
-/** Detect if running in SSR/server-side context. */
+/**
+ * Detect if running in SSR/server-side context.
+ *
+ * Checks multiple indicators because Vite's SSR module runner may provide
+ * different globals than the host Node process:
+ * - `typeof document === 'undefined'` — classic Node.js check
+ * - `import.meta.env?.SSR` — Vite sets this to `true` during SSR module evaluation
+ * - `globalThis.__SSR_URL__` — set by @vertz/ui-server's renderToHTML
+ */
 function isSSR(): boolean {
-  return typeof document === 'undefined';
+  if (typeof document === 'undefined') return true;
+  try {
+    // Vite injects import.meta.env.SSR = true during SSR
+    if ((import.meta as any).env?.SSR) return true;
+  } catch {
+    // import.meta may not be available in all contexts
+  }
+  if (typeof globalThis !== 'undefined' && (globalThis as any).__SSR_URL__ !== undefined) return true;
+  return false;
 }
 
 /** Global ID counter for subscriber deduplication. */

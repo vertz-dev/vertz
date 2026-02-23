@@ -25,11 +25,32 @@ export interface ThemeProviderProps {
 /**
  * Create a wrapper div with `data-theme` attribute for theme switching.
  *
+ * During SSR (when `document` is unavailable), returns a VNode-compatible
+ * plain object so the server renderer can serialize it.
+ *
  * @param props - Theme and children.
- * @returns A div element with `data-theme` set and children appended.
+ * @returns A div element (client) or VNode-compatible object (SSR).
  */
-export function ThemeProvider(props: ThemeProviderProps): HTMLDivElement {
+export function ThemeProvider(props: ThemeProviderProps): HTMLDivElement | unknown {
   const { theme = 'light', children } = props;
+
+  // SSR: return a VNode-compatible structure for the server renderer.
+  // VNode uses `attrs` (not props) — see @vertz/ui-server/types.ts
+  // Check multiple SSR indicators — Vite's module runner may provide different globals.
+  let ssr = typeof document === 'undefined';
+  if (!ssr) {
+    try { ssr = !!(import.meta as any).env?.SSR; } catch { /* ignore */ }
+  }
+  if (!ssr && typeof globalThis !== 'undefined') {
+    ssr = (globalThis as any).__SSR_URL__ !== undefined;
+  }
+  if (ssr) {
+    return {
+      tag: 'div',
+      attrs: { 'data-theme': theme },
+      children,
+    };
+  }
 
   const el = document.createElement('div');
   el.setAttribute('data-theme', theme);
