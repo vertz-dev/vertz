@@ -8,6 +8,11 @@ import { untrack } from '../runtime/tracking';
  * Supports `onCleanup` inside for teardown on unmount.
  */
 export function onMount(callback: () => void): void {
+  // SSR safety: skip onMount execution entirely during server-side rendering
+  if (typeof document === 'undefined') {
+    return;
+  }
+
   // Push a disposal scope so onCleanup() calls inside the callback are captured
   const scope = pushScope();
   try {
