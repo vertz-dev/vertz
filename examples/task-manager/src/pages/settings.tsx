@@ -7,10 +7,10 @@
  * - Compiler `let` → signal transform for local state (currentTheme, defaultPriority)
  * - Reactive JSX attributes via class={expr}
  * - Compiler conditional transform: {showSaved && <div>...</div>} → __conditional()
- * - watch() to observe theme changes
+ * - Reactive class toggling via JSX expressions
  */
 
-import { css, watch } from '@vertz/ui';
+import { css } from '@vertz/ui';
 import { useSettings } from '../lib/settings-context';
 import { formStyles } from '../styles/components';
 
@@ -51,14 +51,6 @@ export function SettingsPage() {
     settings.setTheme(theme);
     flashSaved();
   }
-
-  // Watch for theme changes and log (demonstrates watch())
-  watch(
-    () => settings.theme.value,
-    (newTheme) => {
-      console.log(`Theme changed to: ${newTheme}`);
-    },
-  );
 
   // ── Page layout with JSX ────────────────────────────
 

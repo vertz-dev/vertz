@@ -1,6 +1,6 @@
 export { DisposalScopeError, onCleanup, popScope, pushScope, runCleanups } from './disposal';
 export { batch } from './scheduler';
-export { computed, effect, signal } from './signal';
+export { computed, domEffect, lifecycleEffect, signal } from './signal';
 export type {
   Computed,
   DisposeFn,

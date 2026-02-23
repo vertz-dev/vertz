@@ -19,8 +19,7 @@
  */
 
 import type { DisposeFn } from '@vertz/ui';
-import { effect } from '@vertz/ui';
-import { _tryOnCleanup, popScope, pushScope, runCleanups } from '@vertz/ui/internals';
+import { _tryOnCleanup, domEffect, popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { defaultLayoutProps } from './layout/types';
 import type {
   TuiChild,
@@ -192,7 +191,7 @@ export function __child(fn: () => string | number | null | undefined | boolean):
     box: { x: 0, y: 0, width: 0, height: 0 },
   };
 
-  effect(() => {
+  domEffect(() => {
     const value = fn();
     if (value == null || typeof value === 'boolean') {
       node.text = '';
@@ -255,7 +254,7 @@ export function __exitChildren(): void {
  * updates the prop (and layout/style) when dependencies change.
  */
 export function __attr(el: TuiElement, key: string, fn: () => unknown): void {
-  effect(() => {
+  domEffect(() => {
     const value = fn();
     applyProp(el, key, value);
     el.dirty = true;
@@ -290,7 +289,7 @@ export function __conditional(
 
   let branchCleanups: DisposeFn[] = [];
 
-  effect(() => {
+  domEffect(() => {
     // Clean up previous branch
     runCleanups(branchCleanups);
 
@@ -341,7 +340,7 @@ export function __list<T>(
 
   const itemMap = new Map<string | number, { element: TuiElement; scope: DisposeFn[] }>();
 
-  effect(() => {
+  domEffect(() => {
     const currentItems = items();
     const currentKeys = new Set(currentItems.map(keyFn));
 

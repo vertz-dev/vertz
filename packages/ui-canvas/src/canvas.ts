@@ -1,4 +1,5 @@
-import { type DisposeFn, effect, type Signal } from '@vertz/ui';
+import type { DisposeFn, Signal } from '@vertz/ui';
+import { domEffect } from '@vertz/ui/internals';
 import { Application, type Container } from 'pixi.js';
 
 export interface CanvasOptions {
@@ -35,7 +36,7 @@ export function bindSignal<T>(
   // Create an effect to update when signal changes.
   // The update() function reads sig.value internally, which
   // automatically tracks the signal dependency in vertz's effect system.
-  const disposeEffect = effect(() => {
+  const disposeEffect = domEffect(() => {
     update();
   });
 

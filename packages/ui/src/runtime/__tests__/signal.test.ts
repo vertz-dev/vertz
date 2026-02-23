@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { batch } from '../scheduler';
-import { computed, domEffect, effect, lifecycleEffect, signal } from '../signal';
+import { computed, domEffect, lifecycleEffect, signal } from '../signal';
 import { untrack } from '../tracking';
 
 describe('signal', () => {
@@ -18,7 +18,7 @@ describe('signal', () => {
   it('peek() reads without tracking', () => {
     const s = signal(5);
     let effectRuns = 0;
-    effect(() => {
+    domEffect(() => {
       s.peek();
       effectRuns++;
     });
@@ -30,7 +30,7 @@ describe('signal', () => {
   it('does not notify when value is the same (Object.is)', () => {
     const s = signal(1);
     let effectRuns = 0;
-    effect(() => {
+    domEffect(() => {
       s.value;
       effectRuns++;
     });
@@ -42,7 +42,7 @@ describe('signal', () => {
   it('notify() triggers subscribers even without value change', () => {
     const items = signal([1, 2, 3]);
     let effectRuns = 0;
-    effect(() => {
+    domEffect(() => {
       items.value;
       effectRuns++;
     });
@@ -81,7 +81,7 @@ describe('computed', () => {
     const s = signal(10);
     const c = computed(() => s.value * 2);
     let effectRuns = 0;
-    effect(() => {
+    domEffect(() => {
       c.peek();
       effectRuns++;
     });
@@ -92,10 +92,10 @@ describe('computed', () => {
   });
 });
 
-describe('effect', () => {
+describe('domEffect (general)', () => {
   it('runs immediately on creation', () => {
     let ran = false;
-    effect(() => {
+    domEffect(() => {
       ran = true;
     });
     expect(ran).toBe(true);
@@ -104,7 +104,7 @@ describe('effect', () => {
   it('re-runs when dependency changes', () => {
     const s = signal(0);
     let observed = -1;
-    effect(() => {
+    domEffect(() => {
       observed = s.value;
     });
     expect(observed).toBe(0);
@@ -115,7 +115,7 @@ describe('effect', () => {
   it('returns a dispose function that stops re-running', () => {
     const s = signal(0);
     let effectRuns = 0;
-    const dispose = effect(() => {
+    const dispose = domEffect(() => {
       s.value;
       effectRuns++;
     });
@@ -130,7 +130,7 @@ describe('effect', () => {
   it('dispose removes effect from signal subscriber sets', () => {
     const s = signal(0);
     let effectRuns = 0;
-    const dispose = effect(() => {
+    const dispose = domEffect(() => {
       s.value;
       effectRuns++;
     });
@@ -151,7 +151,7 @@ describe('effect', () => {
     let observed = '';
     let effectRuns = 0;
 
-    effect(() => {
+    domEffect(() => {
       effectRuns++;
       // Conditional: only reads a or b depending on toggle
       observed = toggle.value ? a.value : b.value;
@@ -183,14 +183,14 @@ describe('effect', () => {
     let innerRuns = 0;
     let innerDispose: (() => void) | null = null;
 
-    effect(() => {
+    domEffect(() => {
       outer.value;
       outerRuns++;
       // Create a nested inner effect
       if (innerDispose) {
         innerDispose();
       }
-      innerDispose = effect(() => {
+      innerDispose = domEffect(() => {
         inner.value;
         innerRuns++;
       });
@@ -221,7 +221,7 @@ describe('batch', () => {
     const a = signal(1);
     const b = signal(2);
     let flushCount = 0;
-    effect(() => {
+    domEffect(() => {
       a.value + b.value;
       flushCount++;
     });
@@ -236,7 +236,7 @@ describe('batch', () => {
   it('supports nested batches', () => {
     const s = signal(0);
     let flushCount = 0;
-    effect(() => {
+    domEffect(() => {
       s.value;
       flushCount++;
     });
@@ -255,7 +255,7 @@ describe('batch', () => {
   it('signal set during batch is visible to effect after flush', () => {
     const s = signal(0);
     let observed = -1;
-    effect(() => {
+    domEffect(() => {
       observed = s.value;
     });
     expect(observed).toBe(0);
@@ -272,7 +272,7 @@ describe('batch', () => {
   it('deduplicates multiple writes to same signal in batch', () => {
     const s = signal(0);
     let effectRuns = 0;
-    effect(() => {
+    domEffect(() => {
       s.value;
       effectRuns++;
     });
@@ -294,7 +294,7 @@ describe('untrack', () => {
   it('reads signal without subscribing', () => {
     const s = signal(0);
     let effectRuns = 0;
-    effect(() => {
+    domEffect(() => {
       untrack(() => s.value);
       effectRuns++;
     });
@@ -304,7 +304,7 @@ describe('untrack', () => {
   });
 });
 
-describe('domEffect', () => {
+describe('domEffect (SSR)', () => {
   function withSSR(fn: () => void): void {
     (globalThis as any).__VERTZ_IS_SSR__ = () => true;
     try {
@@ -452,7 +452,7 @@ describe('diamond dependency', () => {
     const c = computed(() => a.value * 3);
     const d = computed(() => b.value + c.value);
     let callCount = 0;
-    effect(() => {
+    domEffect(() => {
       d.value;
       callCount++;
     });

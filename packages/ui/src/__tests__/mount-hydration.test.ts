@@ -10,7 +10,7 @@ import {
 } from '../dom/element';
 import { __on } from '../dom/events';
 import { mount } from '../mount';
-import { effect, signal } from '../runtime/signal';
+import { domEffect, signal } from '../runtime/signal';
 
 describe('mount() — tolerant hydration', () => {
   let root: HTMLElement;
@@ -182,7 +182,7 @@ describe('mount() — tolerant hydration', () => {
       callCount++;
       if (callCount === 1) {
         // Register an effect during the failed hydration attempt
-        effect(() => {
+        domEffect(() => {
           // Track the signal so we can check if this effect is still alive
           void count.value;
           effectRunCount++;

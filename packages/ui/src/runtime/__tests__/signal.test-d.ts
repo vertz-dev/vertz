@@ -6,7 +6,7 @@
  * (typecheck), not by vitest at runtime.
  */
 
-import { computed, effect, signal } from '../signal';
+import { computed, domEffect, signal } from '../signal';
 import type { DisposeFn, ReadonlySignal, Signal } from '../signal-types';
 
 // ─── Signal<T> — basic generic parameter flow ─────────────────────
@@ -137,9 +137,9 @@ doubled.value = 10;
 // @ts-expect-error - 'notify' does not exist on Computed
 doubled.notify();
 
-// ─── effect() return type ─────────────────────────────────────────
+// ─── domEffect() return type ──────────────────────────────────────
 
-const dispose = effect(() => {
+const dispose = domEffect(() => {
   void count.value;
 });
 const _disposeFn: DisposeFn = dispose;

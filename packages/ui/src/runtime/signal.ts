@@ -263,24 +263,3 @@ export function lifecycleEffect(fn: () => void): DisposeFn {
   _tryOnCleanup(dispose);
   return dispose;
 }
-
-/**
- * Create a reactive effect that re-runs whenever its dependencies change.
- * Returns a dispose function to stop the effect.
- * During SSR, effects are no-ops and return a no-op dispose function.
- *
- * @deprecated Use domEffect() for DOM population or lifecycleEffect() for lifecycle concerns.
- * Callers are migrated in Subtask 3 (#666), then this alias is removed in Issue C (#668).
- */
-export function effect(fn: () => void): DisposeFn {
-  // Preserve old no-op SSR behavior until all call sites are migrated to domEffect/lifecycleEffect
-  if (isSSR()) {
-    return () => {};
-  }
-
-  const eff = new EffectImpl(fn);
-  eff._run();
-  const dispose = () => eff._dispose();
-  _tryOnCleanup(dispose);
-  return dispose;
-}

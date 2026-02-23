@@ -6,11 +6,11 @@
  * - ThemeProvider for theme context (CSS variable scoping)
  * - createContext / useContext for app-wide settings
  * - RouterContext + RouterView for declarative route rendering
- * - watch() for reacting to external signals (theme changes)
+ * - ThemeProvider for CSS custom property scoping
  * - Full composition of all @vertz/ui features
  */
 
-import { css, RouterContext, RouterView, ThemeProvider, watch } from '@vertz/ui';
+import { css, RouterContext, RouterView, ThemeProvider } from '@vertz/ui';
 import { createSettingsValue, SettingsContext } from './lib/settings-context';
 import { appRouter, Link } from './router';
 import { layoutStyles } from './styles/components';
@@ -78,20 +78,14 @@ export function App() {
         </div>
       );
 
-      // Wrap in ThemeProvider with reactive theme
+      // Wrap in ThemeProvider with reactive theme.
+      // Note: ThemeProvider will be rewritten as compiled JSX in Issue E (#670).
+      // Until then, we pass the initial theme and let ThemeProvider handle it.
       const themeWrapper = ThemeProvider({
         theme: settings.theme.peek(),
         children: [shell],
-      });
+      }) as HTMLElement;
       container.appendChild(themeWrapper);
-
-      // Sync theme changes to the ThemeProvider wrapper (CSS variable scoping)
-      watch(
-        () => settings.theme.value,
-        (theme) => {
-          themeWrapper.setAttribute('data-theme', theme);
-        },
-      );
     });
   });
 

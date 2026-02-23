@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { __text } from '../dom/element';
 import { __list } from '../dom/list';
 import { batch } from '../runtime/scheduler';
-import { computed, effect, signal } from '../runtime/signal';
+import { computed, domEffect, signal } from '../runtime/signal';
 
 describe('Integration Tests — Reactivity Runtime', () => {
   // IT-1A-1: Signal reactivity propagates to DOM text nodes
@@ -37,7 +37,7 @@ describe('Integration Tests — Reactivity Runtime', () => {
     const c = computed(() => a.value * 3);
     const d = computed(() => b.value + c.value);
     let callCount = 0;
-    effect(() => {
+    domEffect(() => {
       d.value;
       callCount++;
     });
@@ -80,7 +80,7 @@ describe('Integration Tests — Reactivity Runtime', () => {
     const a = signal(1);
     const b = signal(2);
     let flushCount = 0;
-    effect(() => {
+    domEffect(() => {
       a.value + b.value;
       flushCount++;
     });
@@ -96,7 +96,7 @@ describe('Integration Tests — Reactivity Runtime', () => {
   test('disposal cleans up all subscriptions', () => {
     const count = signal(0);
     let effectRuns = 0;
-    const dispose = effect(() => {
+    const dispose = domEffect(() => {
       count.value;
       effectRuns++;
     });

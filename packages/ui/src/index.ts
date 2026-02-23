@@ -5,7 +5,7 @@ export type { Context } from './component/context';
 export { createContext, useContext } from './component/context';
 export type { ErrorBoundaryProps } from './component/error-boundary';
 export { ErrorBoundary } from './component/error-boundary';
-export { onMount, watch } from './component/lifecycle';
+export { onMount } from './component/lifecycle';
 export type { Ref } from './component/refs';
 export { ref } from './component/refs';
 export type { SuspenseProps } from './component/suspense';
@@ -89,7 +89,7 @@ export { parseSearchParams, useSearchParams } from './router/search-params';
 // Reactivity runtime
 export { DisposalScopeError, onCleanup } from './runtime/disposal';
 export { batch } from './runtime/scheduler';
-export { computed, effect, signal } from './runtime/signal';
+export { computed, signal } from './runtime/signal';
 export type {
   Computed,
   DisposeFn,

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { watch } from '../../component/lifecycle';
+import { lifecycleEffect } from '../../runtime/signal';
+import { untrack } from '../../runtime/tracking';
 import { defineRoutes } from '../define-routes';
 import { createRouter } from '../navigate';
 import { RouterContext, useParams, useRouter } from '../router-context';
@@ -43,7 +44,7 @@ describe('RouterContext + useRouter', () => {
     router.dispose();
   });
 
-  test('useRouter works inside watch callback via captured context scope', () => {
+  test('useRouter works inside lifecycleEffect callback via captured context scope', () => {
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
     });
@@ -51,12 +52,12 @@ describe('RouterContext + useRouter', () => {
 
     let capturedRouter: ReturnType<typeof useRouter> | undefined;
     RouterContext.Provider(router, () => {
-      watch(
-        () => router.current.value,
-        () => {
+      lifecycleEffect(() => {
+        router.current.value;
+        untrack(() => {
           capturedRouter = useRouter();
-        },
-      );
+        });
+      });
     });
 
     expect(capturedRouter).toBe(router);
