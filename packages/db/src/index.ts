@@ -131,3 +131,8 @@ export type {
   StrictKeys,
   ValidateKeys,
 } from './types/branded-errors';
+// Database adapters (SQLite & D1)
+export { createDbProvider, createSqliteAdapter, createSqliteDriver, createD1Adapter, createD1Driver } from './adapters';
+export type { CreateDbProviderOptions, DbDialect, SqliteAdapterConfig } from './adapters';
+export type { SqliteAdapterOptions } from './adapters/sqlite-adapter';
+export type { D1AdapterOptions, D1DatabaseBinding, D1PreparedStatement } from './adapters/d1-adapter';

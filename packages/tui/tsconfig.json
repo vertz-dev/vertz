@@ -3,7 +3,7 @@
     "exactOptionalPropertyTypes": false,
     "isolatedDeclarations": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "react",
+    "jsxImportSource": "@vertz/tui",
     "noUncheckedIndexedAccess": true,
     "outDir": "dist",
     "rootDir": "src"
