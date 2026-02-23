@@ -198,6 +198,7 @@ describe('db-integration e2e', () => {
       url: 'postgres://localhost:5432/test',
       models,
       _queryFn: queryFn,
+      migrations: { autoApply: false },
     });
 
     // Init

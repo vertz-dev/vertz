@@ -101,6 +101,8 @@ export interface DbProviderMigrationsConfig {
   autoApply?: boolean;
   /** Path to the schema snapshot file. Default: '.vertz/schema-snapshot.json' */
   snapshotPath?: string;
+  /** Database dialect - 'sqlite' or 'postgres'. Default: 'sqlite' */
+  dialect?: 'sqlite' | 'postgres';
 }
 
 // ---------------------------------------------------------------------------
@@ -172,6 +174,7 @@ export function createDbProvider<TModels extends Record<string, ModelEntry>>(
       // Run auto-migration if configured
       if (shouldAutoMigrate(config.migrations)) {
         const snapshotPath = config.migrations?.snapshotPath ?? '.vertz/schema-snapshot.json';
+        const dialect = config.migrations?.dialect ?? 'sqlite';
         const currentSchema = extractSchemaSnapshot(config.models);
 
         // Wrap db.query to match MigrationQueryFn signature
@@ -193,7 +196,7 @@ export function createDbProvider<TModels extends Record<string, ModelEntry>>(
         await autoMigrate({
           currentSchema,
           snapshotPath,
-          dialect: 'sqlite', // TODO: Detect from db driver
+          dialect,
           db: queryFn,
         });
       }

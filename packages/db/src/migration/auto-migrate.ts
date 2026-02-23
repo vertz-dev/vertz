@@ -87,7 +87,15 @@ export async function autoMigrate(options: AutoMigrateOptions): Promise<void> {
       if (sql.trim()) {
         const result = await runner.apply(db, sql, 'auto-migrate-initial');
         if (isErr(result)) {
-          throw new Error(`Failed to apply initial schema: ${String(result.error)}`);
+          const error = result.error;
+          const errorMessage = typeof error === 'object' && error !== null && 'message' in error
+            ? (error as { message: unknown }).message
+            : String(error);
+          const cause = typeof error === 'object' && error !== null && 'cause' in error
+            ? (error as { cause: unknown }).cause
+            : undefined;
+          const causeStr = cause ? ` (cause: ${String(cause)})` : '';
+          throw new Error(`Failed to apply initial schema: ${errorMessage}${causeStr}`);
         }
         console.log('[auto-migrate] Initial schema applied successfully.');
       }
@@ -125,7 +133,15 @@ export async function autoMigrate(options: AutoMigrateOptions): Promise<void> {
       if (sql.trim()) {
         const result = await runner.apply(db, sql, `auto-migrate-${Date.now()}`);
         if (isErr(result)) {
-          throw new Error(`Failed to apply migration: ${String(result.error)}`);
+          const error = result.error;
+          const errorMessage = typeof error === 'object' && error !== null && 'message' in error
+            ? (error as { message: unknown }).message
+            : String(error);
+          const cause = typeof error === 'object' && error !== null && 'cause' in error
+            ? (error as { cause: unknown }).cause
+            : undefined;
+          const causeStr = cause ? ` (cause: ${String(cause)})` : '';
+          throw new Error(`Failed to apply migration: ${errorMessage}${causeStr}`);
         }
         console.log(`[auto-migrate] Applied ${diff.changes.length} change(s).`);
       }
