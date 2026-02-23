@@ -1,5 +1,4 @@
-import { effect } from '@vertz/ui';
-import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
+import { domEffect, popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import type { Container } from 'pixi.js';
 
 type DisposeFn = () => void;
@@ -26,7 +25,7 @@ export function canvasList<T>(
   const itemMap = new Map<string | number, { displayObject: Container; scope: DisposeFn[] }>();
   let disposed = false;
 
-  const disposeEffect = effect(() => {
+  const disposeEffect = domEffect(() => {
     if (disposed) return;
 
     const currentItems = items();

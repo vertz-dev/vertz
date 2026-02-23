@@ -67,7 +67,8 @@
     "./biome-plugins/no-internals-import.grit",
     "./biome-plugins/no-ts-ignore.grit",
     "./biome-plugins/no-double-cast.grit",
-    "./biome-plugins/no-throw-plain-error.grit"
+    "./biome-plugins/no-throw-plain-error.grit",
+    "./biome-plugins/no-wrong-effect.grit"
   ],
   "vcs": {
     "clientKind": "git",

@@ -1,5 +1,4 @@
-import { effect } from '@vertz/ui';
-import { _tryOnCleanup } from '@vertz/ui/internals';
+import { _tryOnCleanup, domEffect } from '@vertz/ui/internals';
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
 import { loadSpriteTexture } from './sprite-loading';
 import type { CanvasChild, DrawFn } from './types';
@@ -34,7 +33,7 @@ export function jsxCanvas(tag: string, props: Record<string, unknown>): Containe
     if ('text' in props) {
       const textValue = props.text;
       if (typeof textValue === 'function') {
-        effect(() => {
+        domEffect(() => {
           (displayObject as Text).text = (textValue as () => string)();
         });
       } else if (textValue !== undefined) {
@@ -53,7 +52,7 @@ export function jsxCanvas(tag: string, props: Record<string, unknown>): Containe
     if (typeof textureValue === 'string') {
       loadSpriteTexture(displayObject, textureValue);
     } else if (typeof textureValue === 'function') {
-      effect(() => {
+      domEffect(() => {
         const url = (textureValue as () => string)();
         if (typeof url === 'string') {
           loadSpriteTexture(displayObject as Sprite, url);
@@ -75,7 +74,7 @@ export function jsxCanvas(tag: string, props: Record<string, unknown>): Containe
       // Draw callback runs inside effect for reactive redraws.
       // When signals read inside draw() change, the effect re-runs,
       // clearing the graphics before calling draw again.
-      effect(() => {
+      domEffect(() => {
         displayObject.clear();
         (value as DrawFn)(displayObject);
       });
@@ -91,7 +90,7 @@ export function jsxCanvas(tag: string, props: Record<string, unknown>): Containe
       hasEventProps = true;
     } else if (typeof value === 'function') {
       // Reactive prop: bind via effect so display object updates when signal changes
-      effect(() => {
+      domEffect(() => {
         (displayObject as unknown as Record<string, unknown>)[key] = (value as () => unknown)();
       });
     } else if (value !== undefined) {

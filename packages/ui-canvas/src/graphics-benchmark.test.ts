@@ -71,12 +71,13 @@ describe('Graphics Redraw Performance POC', () => {
 
   describe('Given a reactive signal driving Graphics redraw', () => {
     it('then signal update + effect + redraw overhead is negligible', async () => {
-      const { signal, effect } = await import('@vertz/ui');
+      const { signal } = await import('@vertz/ui');
+      const { domEffect } = await import('@vertz/ui/internals');
       const g = new Graphics();
       const offset = signal(0);
       let redraws = 0;
 
-      const dispose = effect(() => {
+      const dispose = domEffect(() => {
         g.clear();
         const o = offset.value;
         for (let i = 0; i < 100; i++) {

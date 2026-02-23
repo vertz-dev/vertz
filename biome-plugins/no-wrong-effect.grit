@@ -1,0 +1,7 @@
+// Prevent calling the removed `effect()` function.
+// effect() was removed in favor of domEffect() and lifecycleEffect().
+// - domEffect: DOM population primitives (dom/, canvas, TUI internals)
+// - lifecycleEffect: component lifecycle, router, data fetching
+`effect($fn)` as $call where {
+  register_diagnostic(span=$call, message="effect() was removed. Use domEffect() for DOM primitives or lifecycleEffect() for lifecycle/data-fetching concerns. Import from @vertz/ui/internals.", severity="warn")
+}

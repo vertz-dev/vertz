@@ -1,4 +1,5 @@
-import { effect, onCleanup, onMount, signal } from '@vertz/ui';
+import { onCleanup, onMount, signal } from '@vertz/ui';
+import { domEffect } from '@vertz/ui/internals';
 import { describe, expect, it } from 'vitest';
 import { tui } from '../app';
 import { useKeyboard } from '../input/hooks';
@@ -94,7 +95,7 @@ describe('persistent tree mount', () => {
 
     function App() {
       const el = __element('Text');
-      effect(() => {
+      domEffect(() => {
         count.value;
         effectRan++;
       });

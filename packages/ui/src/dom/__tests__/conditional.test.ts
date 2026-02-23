@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { onCleanup } from '../../runtime/disposal';
-import { effect, signal } from '../../runtime/signal';
+import { domEffect, signal } from '../../runtime/signal';
 import { __conditional } from '../conditional';
 
 describe('__conditional', () => {
@@ -109,7 +109,7 @@ describe('__conditional', () => {
       () => {
         const span = document.createElement('span');
         span.textContent = 'yes';
-        effect(() => {
+        domEffect(() => {
           counter.value;
           effectRunCount++;
         });
@@ -150,7 +150,7 @@ describe('__conditional', () => {
           () => {
             const span = document.createElement('span');
             span.textContent = 'inner-yes';
-            effect(() => {
+            domEffect(() => {
               counter.value;
               innerEffectRuns++;
             });
@@ -196,7 +196,7 @@ describe('__conditional', () => {
         onCleanup(() => {
           cleanedUp = true;
         });
-        effect(() => {
+        domEffect(() => {
           counter.value;
           effectRunCount++;
         });

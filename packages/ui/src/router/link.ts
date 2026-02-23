@@ -5,7 +5,7 @@
  * and support active state styling.
  */
 
-import { effect } from '../runtime/signal';
+import { domEffect } from '../runtime/signal';
 import type { ReadonlySignal } from '../runtime/signal-types';
 import type { RouteConfigLike, RouteDefinitionMap } from './define-routes';
 import type { RoutePaths } from './params';
@@ -51,7 +51,7 @@ export function createLink(
     // Reactive active state — re-evaluates whenever currentPath changes
     if (props.activeClass) {
       const activeClass = props.activeClass;
-      effect(() => {
+      domEffect(() => {
         if (currentPath.value === props.href) {
           el.classList.add(activeClass);
         } else {

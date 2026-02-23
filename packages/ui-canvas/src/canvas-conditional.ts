@@ -1,5 +1,4 @@
-import { effect } from '@vertz/ui';
-import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
+import { domEffect, popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import type { Container } from 'pixi.js';
 
 type DisposeFn = () => void;
@@ -39,7 +38,7 @@ export function canvasConditional(
     runCleanups(branchCleanups); // jsxCanvas cleanup handles destroy
   }
 
-  const disposeEffect = effect(() => {
+  const disposeEffect = domEffect(() => {
     if (disposed) return;
 
     const shouldShow = condition();
