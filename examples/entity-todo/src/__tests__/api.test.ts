@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { createServer } from '@vertz/server';
 import type { EntityDbAdapter } from '@vertz/server';
+import { createServer } from '@vertz/server';
+import { describe, expect, it } from 'vitest';
 import { todos } from '../entities';
 
 // In-memory DB adapter for testing
@@ -147,5 +147,23 @@ describe('Entity Todo API', () => {
     const app = createTestApp(db);
     const res = await request(app, 'GET', '/api/todos/non-existent-id');
     expect(res.status).toBe(404);
+  });
+
+  it('returns error response when db.create throws (e.g., missing required fields)', async () => {
+    // Simulate what happens with a real DB that enforces constraints
+    const failingDb: EntityDbAdapter = {
+      ...createInMemoryDb(),
+      async create(_data) {
+        throw new Error('NOT NULL constraint failed: todos.title');
+      },
+    };
+    const app = createTestApp(failingDb);
+    const res = await request(app, 'POST', '/api/todos', { completed: false });
+    // Should return an error status, not crash or hang
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBeLessThan(600);
+    // Response should be valid JSON
+    const body = await res.text();
+    expect(() => JSON.parse(body)).not.toThrow();
   });
 });

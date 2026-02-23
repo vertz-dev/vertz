@@ -13,6 +13,21 @@ import type { RawHtml, VNode } from '../types';
 type JSXComponent = (props: Record<string, unknown>) => VNode | VNode[] | string | null;
 type Tag = string | JSXComponent;
 
+/** Unwrap signal-like objects (duck-typed: has .peek method). */
+function unwrapSignal(value: unknown): unknown {
+  if (
+    value != null &&
+    typeof value === 'object' &&
+    'peek' in value &&
+    // biome-ignore lint/suspicious/noExplicitAny: duck-typing check for signal interface
+    typeof (value as any).peek === 'function'
+  ) {
+    // biome-ignore lint/suspicious/noExplicitAny: duck-typing check for signal interface
+    return (value as any).peek();
+  }
+  return value;
+}
+
 /**
  * Normalize children into a flat array of VNodes and strings.
  *
@@ -32,6 +47,14 @@ function normalizeChildren(children: unknown): (VNode | string | RawHtml)[] {
   // VNode or RawHtml object
   if (typeof children === 'object' && ('tag' in children || '__raw' in children)) {
     return [children as VNode | RawHtml];
+  }
+
+  // Signal-like objects — unwrap via peek() and re-normalize
+  if (typeof children === 'object') {
+    const unwrapped = unwrapSignal(children);
+    if (unwrapped !== children) {
+      return normalizeChildren(unwrapped);
+    }
   }
 
   // Convert primitives to strings
@@ -55,11 +78,14 @@ export function jsx(tag: Tag, props: Record<string, unknown>): VNode {
   // Filter props to only include serializable attributes
   const serializableAttrs: Record<string, string> = {};
 
-  for (const [key, value] of Object.entries(attrs)) {
+  for (const [key, rawValue] of Object.entries(attrs)) {
     // Skip event handlers (onXxx functions) — they don't work in SSR
-    if (key.startsWith('on') && typeof value === 'function') {
+    if (key.startsWith('on') && typeof rawValue === 'function') {
       continue;
     }
+
+    // Unwrap signal-like attribute values
+    const value = unwrapSignal(rawValue);
 
     // Handle class attribute
     if (key === 'class' && value != null) {
