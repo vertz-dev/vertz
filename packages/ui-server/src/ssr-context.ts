@@ -1,8 +1,15 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
+export interface SSRQueryEntry {
+  promise: Promise<unknown>;
+  timeout: number;
+  resolve: (data: unknown) => void;
+}
+
 export interface SSRContext {
   url: string;
   errors: unknown[];
+  queries: SSRQueryEntry[];
 }
 
 export const ssrStorage: AsyncLocalStorage<SSRContext> = new AsyncLocalStorage<SSRContext>();
@@ -31,5 +38,26 @@ export function getSSRErrors(): unknown[] {
   return ssrStorage.getStore()?.errors ?? [];
 }
 
+/**
+ * Register an SSR query for awaiting before final render.
+ * No-op when called outside an SSR context.
+ */
+export function registerSSRQuery(entry: SSRQueryEntry): void {
+  ssrStorage.getStore()?.queries.push(entry);
+}
+
+/**
+ * Get all registered SSR queries for the current render.
+ * Returns an empty array when called outside an SSR context.
+ */
+export function getSSRQueries(): SSRQueryEntry[] {
+  return ssrStorage.getStore()?.queries ?? [];
+}
+
 // Install global function hook so @vertz/ui can check SSR without importing ui-server
+// biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
 (globalThis as any).__VERTZ_IS_SSR__ = isInSSR;
+
+// Install global hook for query() to register SSR queries without importing ui-server
+// biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+(globalThis as any).__VERTZ_SSR_REGISTER_QUERY__ = registerSSRQuery;

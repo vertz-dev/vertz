@@ -8,7 +8,7 @@ import type { DisposeFn } from './signal-types';
 export class DisposalScopeError extends Error {
   constructor() {
     super(
-      'onCleanup() must be called within a disposal scope (e.g., inside effect(), watch(), onMount(), or a pushScope()/popScope() block). ' +
+      'onCleanup() must be called within a disposal scope (e.g., inside domEffect(), lifecycleEffect(), onMount(), or a pushScope()/popScope() block). ' +
         'Called outside a scope, the cleanup callback would be silently discarded.',
     );
     this.name = 'DisposalScopeError';
