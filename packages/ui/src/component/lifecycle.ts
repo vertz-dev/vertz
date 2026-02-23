@@ -9,8 +9,11 @@ import { untrack } from '../runtime/tracking';
  */
 export function onMount(callback: () => void): void {
   // SSR safety: skip onMount during server-side rendering.
-  // Only the explicit __VERTZ_SSR__ flag is reliable (set by renderToHTML).
-  if (typeof globalThis !== 'undefined' && (globalThis as any).__VERTZ_SSR__ === true) return;
+  // Uses the global function hook __VERTZ_IS_SSR__ (AsyncLocalStorage-backed).
+  if (typeof globalThis !== 'undefined') {
+    const check = (globalThis as any).__VERTZ_IS_SSR__;
+    if (typeof check === 'function' && check()) return;
+  }
 
   // Push a disposal scope so onCleanup() calls inside the callback are captured
   const scope = pushScope();

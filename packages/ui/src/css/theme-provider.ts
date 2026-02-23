@@ -41,7 +41,9 @@ export function ThemeProvider(props: ThemeProviderProps): HTMLDivElement | unkno
   let ssr = false;
   try { ssr = !!(import.meta as any).env?.SSR; } catch { /* ignore */ }
   if (!ssr && typeof globalThis !== 'undefined') {
-    ssr = (globalThis as any).__SSR_URL__ !== undefined;
+    // Check via global function hook (AsyncLocalStorage-backed)
+    const check = (globalThis as any).__VERTZ_IS_SSR__;
+    ssr = typeof check === 'function' ? check() : false;
   }
   if (!ssr && typeof document === 'undefined') ssr = true;
   if (ssr) {
