@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { onCleanup, popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { signal } from '../../runtime/signal';
-import { onMount, watch } from '../lifecycle';
+import { onMount } from '../lifecycle';
 
 describe('onMount', () => {
   test('runs callback immediately within a disposal scope', () => {
@@ -43,92 +43,6 @@ describe('onMount', () => {
     count.value = 2;
     // Should still be 1 — onMount never re-runs
     expect(mountCount).toBe(1);
-  });
-});
-
-describe('watch', () => {
-  test('runs callback immediately with current value', () => {
-    const values: number[] = [];
-    const count = signal(0);
-    pushScope();
-    watch(
-      () => count.value,
-      (val) => values.push(val),
-    );
-    popScope();
-    expect(values).toEqual([0]);
-  });
-
-  test('re-runs callback when dependency changes', () => {
-    const values: number[] = [];
-    const count = signal(0);
-    pushScope();
-    watch(
-      () => count.value,
-      (val) => values.push(val),
-    );
-    popScope();
-    count.value = 1;
-    expect(values).toEqual([0, 1]);
-  });
-
-  test('disposes when scope is cleaned up', () => {
-    const values: number[] = [];
-    const count = signal(0);
-    const scope = pushScope();
-    watch(
-      () => count.value,
-      (val) => values.push(val),
-    );
-    popScope();
-    count.value = 1;
-    expect(values).toEqual([0, 1]);
-    runCleanups(scope);
-    count.value = 2;
-    // After disposal, watch should not run anymore
-    expect(values).toEqual([0, 1]);
-  });
-
-  test('onCleanup inside watch runs before each re-run', () => {
-    const log: string[] = [];
-    const count = signal(0);
-    pushScope();
-    watch(
-      () => count.value,
-      (val) => {
-        onCleanup(() => {
-          log.push(`cleanup-${val}`);
-        });
-        log.push(`run-${val}`);
-      },
-    );
-    popScope();
-    expect(log).toEqual(['run-0']);
-    count.value = 1;
-    // Previous cleanup runs before new run
-    expect(log).toEqual(['run-0', 'cleanup-0', 'run-1']);
-    count.value = 2;
-    expect(log).toEqual(['run-0', 'cleanup-0', 'run-1', 'cleanup-1', 'run-2']);
-  });
-
-  test('onCleanup inside watch runs on final disposal', () => {
-    const log: string[] = [];
-    const count = signal(0);
-    const scope = pushScope();
-    watch(
-      () => count.value,
-      (val) => {
-        onCleanup(() => {
-          log.push(`cleanup-${val}`);
-        });
-        log.push(`run-${val}`);
-      },
-    );
-    popScope();
-    expect(log).toEqual(['run-0']);
-    // Dispose without any re-runs
-    runCleanups(scope);
-    expect(log).toEqual(['run-0', 'cleanup-0']);
   });
 });
 
@@ -206,6 +120,48 @@ describe('onMount edge cases', () => {
     }).not.toThrow();
     // Cleanup was discarded — no parent scope to attach to
     expect(cleaned).toBe(false);
+  });
+});
+
+describe('onMount return-cleanup', () => {
+  test('returned function is registered as cleanup', () => {
+    let cleaned = false;
+    const scope = pushScope();
+    onMount(() => {
+      return () => {
+        cleaned = true;
+      };
+    });
+    popScope();
+    expect(cleaned).toBe(false);
+    runCleanups(scope);
+    expect(cleaned).toBe(true);
+  });
+
+  test('returning undefined does not register cleanup', () => {
+    const scope = pushScope();
+    // Should not throw when callback returns undefined
+    expect(() => {
+      onMount(() => {
+        // no return
+      });
+    }).not.toThrow();
+    popScope();
+    // Clean disposal should work fine
+    expect(() => runCleanups(scope)).not.toThrow();
+  });
+
+  test('return-cleanup and onCleanup inside both run on disposal', () => {
+    const log: string[] = [];
+    const scope = pushScope();
+    onMount(() => {
+      onCleanup(() => log.push('explicit-cleanup'));
+      return () => log.push('return-cleanup');
+    });
+    popScope();
+    runCleanups(scope);
+    expect(log).toContain('explicit-cleanup');
+    expect(log).toContain('return-cleanup');
   });
 });
 

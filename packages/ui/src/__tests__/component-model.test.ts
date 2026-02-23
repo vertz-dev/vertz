@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import { createContext, useContext } from '../component/context';
 import { ErrorBoundary } from '../component/error-boundary';
-import { onMount, watch } from '../component/lifecycle';
+import { onMount } from '../component/lifecycle';
 import { ref } from '../component/refs';
 import { onCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
-import { signal } from '../runtime/signal';
+import { effect, signal } from '../runtime/signal';
 
 describe('Integration Tests — Component Model', () => {
   // IT-1C-1: onMount runs once, onCleanup runs on unmount
@@ -31,16 +31,15 @@ describe('Integration Tests — Component Model', () => {
     expect(cleaned).toBe(true);
   });
 
-  // IT-1C-2: watch() re-runs callback when dependency changes
-  test('watch re-runs on dependency change', () => {
+  // IT-1C-2: effect re-runs callback when dependency changes
+  test('effect re-runs on dependency change', () => {
     const values: number[] = [];
     const count = signal(0);
 
     pushScope();
-    watch(
-      () => count.value,
-      (val) => values.push(val),
-    );
+    effect(() => {
+      values.push(count.value);
+    });
     popScope();
 
     // Initial run captures value 0
