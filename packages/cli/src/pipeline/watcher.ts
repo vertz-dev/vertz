@@ -48,6 +48,11 @@ export function categorizeFileChange(path: string): FileCategory {
     return 'route';
   }
   
+  // Entity files
+  if (normalizedPath.includes('.entity.ts') || normalizedPath.includes('entities.ts')) {
+    return 'entity';
+  }
+  
   // Component files (.tsx)
   if (normalizedPath.endsWith('.tsx') || normalizedPath.endsWith('.jsx')) {
     return 'component';
@@ -74,12 +79,13 @@ export function getAffectedStages(category: FileCategory): PipelineStage[] {
     case 'module':
     case 'service':
     case 'route':
-      // These affect the AppIR, so we need to re-analyze and re-codegen
-      return ['analyze', 'codegen'];
+    case 'entity':
+      // These affect the AppIR, so we need to re-analyze, generate OpenAPI, and re-codegen
+      return ['analyze', 'openapi', 'codegen'];
     
     case 'schema':
       // Schema changes only affect codegen (types, DB client)
-      return ['codegen'];
+      return ['codegen', 'openapi'];
     
     case 'component':
       // Component changes only affect UI build

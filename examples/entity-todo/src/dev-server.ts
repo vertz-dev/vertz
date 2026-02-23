@@ -129,6 +129,9 @@ const devServer = createDevServer({
   entry: './src/entry-server.ts',
   port: PORT,
   middleware: apiMiddleware,
+  openapi: {
+    specPath: './.vertz/generated/openapi.json',
+  },
   viteConfig: {
     resolve: {
       alias: {
@@ -149,12 +152,14 @@ console.log(`
 ║                                                           ║
 ║   Local:    http://localhost:${PORT}                      ║
 ║   API:      http://localhost:${PORT}/api                   ║
+║   OpenAPI:  http://localhost:${PORT}/api/openapi.json     ║
 ║                                                           ║
 ║   Stack:                                                 ║
 ║   • Vite SSR (vite.ssrLoadModule) ✅                    ║
 ║   • @vertz/server (API routes) ✅                        ║
 ║   • SQLite (local persistence) ✅                       ║
 ║   • HMR (UI hot-reload) ✅                              ║
+║   • OpenAPI spec ✅                                     ║
 ║                                                           ║
 ║   Available API endpoints:                               ║
 ║   • GET    /api/todos         List all todos            ║

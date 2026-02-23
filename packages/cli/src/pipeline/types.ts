@@ -5,12 +5,12 @@
 /**
  * Pipeline stages that can be executed
  */
-export type PipelineStage = 'analyze' | 'codegen' | 'build-ui' | 'db-sync';
+export type PipelineStage = 'analyze' | 'openapi' | 'codegen' | 'build-ui' | 'db-sync';
 
 /**
  * File categories for smart dispatch
  */
-export type FileCategory = 'domain' | 'module' | 'schema' | 'service' | 'route' | 'component' | 'config' | 'other';
+export type FileCategory = 'domain' | 'module' | 'schema' | 'service' | 'route' | 'entity' | 'component' | 'config' | 'other';
 
 /**
  * A file change event from the watcher

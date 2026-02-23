@@ -21,11 +21,23 @@
  * ```
  */
 
+import { readFileSync } from 'node:fs';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { createServer as createHttpServer } from 'node:http';
 import { InternalServerErrorException } from '@vertz/server';
 import type { InlineConfig, ViteDevServer } from 'vite';
 import { createServer as createViteServer } from 'vite';
+
+/**
+ * Options for serving OpenAPI specification
+ */
+export interface OpenAPIOptions {
+  /**
+   * Path to the OpenAPI JSON spec file.
+   * The spec will be served at GET /api/openapi.json
+   */
+  specPath: string;
+}
 
 export interface DevServerOptions {
   /**
@@ -77,6 +89,12 @@ export interface DevServerOptions {
    * @default ['/api/']
    */
   skipSSRPaths?: string[];
+
+  /**
+   * OpenAPI specification options.
+   * When provided, serves the OpenAPI spec at GET /api/openapi.json
+   */
+  openapi?: OpenAPIOptions;
 }
 
 export interface DevServer {
@@ -114,6 +132,7 @@ export function createDevServer(options: DevServerOptions): DevServer {
     skipModuleInvalidation = false,
     logRequests = true,
     skipSSRPaths = ['/api/'],
+    openapi,
   } = options;
 
   let vite: ViteDevServer;
@@ -146,6 +165,31 @@ export function createDevServer(options: DevServerOptions): DevServer {
     // Apply custom middleware if provided
     if (middleware) {
       vite.middlewares.use(middleware);
+    }
+
+    // Apply OpenAPI middleware if configured
+    if (openapi) {
+      vite.middlewares.use(async (req, res, next) => {
+        const url = req.url || '/';
+
+        // Only handle /api/openapi.json
+        if (req.method === 'GET' && url === '/api/openapi.json') {
+          try {
+            const specContent = readFileSync(openapi.specPath, 'utf-8');
+            const spec = JSON.parse(specContent);
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(spec));
+          } catch (err) {
+            console.error('[Server] Error reading OpenAPI spec:', err);
+            res.writeHead(500, { 'Content-Type': 'text/plain' });
+            res.end('Failed to load OpenAPI spec');
+          }
+          return;
+        }
+
+        next();
+      });
     }
 
     // SSR request handler
