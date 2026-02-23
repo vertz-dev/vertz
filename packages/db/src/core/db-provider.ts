@@ -174,11 +174,27 @@ export function createDbProvider<TModels extends Record<string, ModelEntry>>(
         const snapshotPath = config.migrations?.snapshotPath ?? '.vertz/schema-snapshot.json';
         const currentSchema = extractSchemaSnapshot(config.models);
 
+        // Wrap db.query to match MigrationQueryFn signature
+        const queryFn: (sql: string, params: readonly unknown[]) => Promise<{
+          rows: readonly Record<string, unknown>[];
+          rowCount: number;
+        }> = async (sql, params) => {
+          const result = await db.query({
+            _tag: 'SqlFragment' as const,
+            sql,
+            params,
+          });
+          if (result.ok) {
+            return { rows: result.data.rows, rowCount: result.data.rowCount };
+          }
+          throw result.error;
+        };
+
         await autoMigrate({
           currentSchema,
           snapshotPath,
           dialect: 'sqlite', // TODO: Detect from db driver
-          db: db.query.bind(db),
+          db: queryFn,
         });
       }
 
