@@ -4,7 +4,7 @@ import { ErrorBoundary } from '../component/error-boundary';
 import { onMount } from '../component/lifecycle';
 import { ref } from '../component/refs';
 import { onCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
-import { effect, signal } from '../runtime/signal';
+import { domEffect, signal } from '../runtime/signal';
 
 describe('Integration Tests — Component Model', () => {
   // IT-1C-1: onMount runs once, onCleanup runs on unmount
@@ -37,7 +37,7 @@ describe('Integration Tests — Component Model', () => {
     const count = signal(0);
 
     pushScope();
-    effect(() => {
+    domEffect(() => {
       values.push(count.value);
     });
     popScope();

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { query } from '../../query/query';
-import { effect, signal } from '../../runtime/signal';
+import { domEffect, signal } from '../../runtime/signal';
 import { createContext, useContext } from '../context';
 
 describe('createContext / useContext', () => {
@@ -65,7 +65,7 @@ describe('createContext / useContext', () => {
     const observed: (string | undefined)[] = [];
 
     ThemeCtx.Provider('dark', () => {
-      effect(() => {
+      domEffect(() => {
         count.value; // track dependency
         observed.push(useContext(ThemeCtx));
       });
@@ -81,13 +81,13 @@ describe('createContext / useContext', () => {
     expect(observed).toEqual(['dark', 'dark']);
   });
 
-  test('useContext returns correct value inside effect() callback after signal change', () => {
+  test('useContext returns correct value inside domEffect() callback after signal change', () => {
     const ThemeCtx = createContext('light');
     const count = signal(0);
     const observed: (string | undefined)[] = [];
 
     ThemeCtx.Provider('dark', () => {
-      effect(() => {
+      domEffect(() => {
         count.value; // track dependency
         observed.push(useContext(ThemeCtx));
       });
@@ -111,14 +111,14 @@ describe('createContext / useContext', () => {
 
     ThemeCtx.Provider('dark', () => {
       // Outer effect captures 'dark'
-      effect(() => {
+      domEffect(() => {
         count.value; // track dependency
         outerObserved.push(useContext(ThemeCtx));
       });
 
       ThemeCtx.Provider('blue', () => {
         // Inner effect captures 'blue' (the nested/inner value)
-        effect(() => {
+        domEffect(() => {
           count.value; // track dependency
           innerObserved.push(useContext(ThemeCtx));
         });
@@ -176,7 +176,7 @@ describe('createContext / useContext', () => {
 
     let dispose: (() => void) | undefined;
     ThemeCtx.Provider('dark', () => {
-      dispose = effect(() => {
+      dispose = domEffect(() => {
         count.value;
         useContext(ThemeCtx);
       });
@@ -186,7 +186,7 @@ describe('createContext / useContext', () => {
     dispose?.();
     const observed: (string | undefined)[] = [];
     ThemeCtx.Provider('dark', () => {
-      effect(() => {
+      domEffect(() => {
         count.value;
         observed.push(useContext(ThemeCtx));
       });

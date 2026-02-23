@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { onCleanup, popScope, pushScope, runCleanups } from '../../runtime/disposal';
-import { effect, signal } from '../../runtime/signal';
+import { domEffect, signal } from '../../runtime/signal';
 import { __list } from '../list';
 
 describe('__list', () => {
@@ -208,7 +208,7 @@ describe('__list', () => {
         li.textContent = item.text;
         // Each item creates an effect that tracks `counter`
         if (item.id === 2) {
-          effect(() => {
+          domEffect(() => {
             counter.value; // subscribe
             effectRunCount++;
           });
@@ -248,7 +248,7 @@ describe('__list', () => {
       (item) => {
         const li = document.createElement('li');
         li.textContent = item.text;
-        effect(() => {
+        domEffect(() => {
           counter.value; // subscribe
           log.push(`effect-${item.id}`);
         });
@@ -296,7 +296,7 @@ describe('__list', () => {
       (item) => {
         const li = document.createElement('li');
         li.textContent = item.text;
-        effect(() => {
+        domEffect(() => {
           counter.value; // subscribe
           effectRunCount++;
         });
@@ -336,7 +336,7 @@ describe('__list', () => {
       (item) => {
         const li = document.createElement('li');
         li.textContent = item.text;
-        effect(() => {
+        domEffect(() => {
           counter.value; // subscribe
           effectRunCount++;
         });
@@ -377,7 +377,7 @@ describe('__list', () => {
       (item) => {
         const li = document.createElement('li');
         li.textContent = item.text;
-        effect(() => {
+        domEffect(() => {
           counter.value; // subscribe
           effectRunCount++;
         });
@@ -608,7 +608,7 @@ describe('__list', () => {
       expect(currentNodes[0]).toBe(originalNodes[0]);
       expect(currentNodes[1]).toBe(originalNodes[1]);
       expect(currentNodes[2]).toBe(originalNodes[2]);
-      
+
       // The text contents are unchanged because `__list` does not patch nodes, it just reuses them based on the key
       expect(currentNodes[0]?.textContent).toBe('A');
       expect(currentNodes[2]?.textContent).toBe('C');

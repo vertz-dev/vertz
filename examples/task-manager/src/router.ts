@@ -11,14 +11,13 @@
 
 import type { InferRouteMap, OutletContext } from '@vertz/ui';
 import {
+  computed,
   createContext,
   createLink,
   createOutlet,
   createRouter,
   defineRoutes,
-  signal,
   useRouter,
-  watch,
 } from '@vertz/ui';
 import { fetchTask, fetchTasks } from './api/mock-data';
 import { CreateTaskPage } from './pages/create-task';
@@ -94,18 +93,12 @@ export function useAppRouter() {
  * - Intercept clicks for SPA navigation
  * - Apply an activeClass when the href matches the current path
  *
- * currentPath is derived from router.current via watch() to stay in sync.
+ * currentPath is derived reactively from router.current.
  */
-const currentPath = signal(initialPath);
-
-watch(
-  () => appRouter.current.value,
-  (match) => {
-    if (match) {
-      currentPath.value = window.location.pathname;
-    }
-  },
-);
+const currentPath = computed(() => {
+  const match = appRouter.current.value;
+  return match ? window.location.pathname : initialPath;
+});
 
 export const Link = createLink(currentPath, (url: string) => {
   appRouter.navigate(url as Parameters<typeof appRouter.navigate>[0]);

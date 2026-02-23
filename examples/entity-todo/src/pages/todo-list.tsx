@@ -8,7 +8,8 @@
  * - Proper error message formatting for different error types (NetworkError, HttpError, TimeoutError, etc.)
  */
 
-import { effect, onCleanup, onMount, query } from '@vertz/ui';
+import { onCleanup, onMount, query } from '@vertz/ui';
+import { domEffect } from '@vertz/ui/internals';
 import { isOk, matchError, type Result, type FetchErrorType } from '@vertz/fetch';
 import type { Todo } from '../api/client';
 import { fetchTodos } from '../api/client';
@@ -37,7 +38,7 @@ export function TodoListPage() {
   let errorMsg = '';
   let todoList: Todo[] = [];
 
-  effect(() => {
+  domEffect(() => {
     const result = todosQuery.data.value;
     
     if (result) {

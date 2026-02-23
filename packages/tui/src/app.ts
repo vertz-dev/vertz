@@ -1,6 +1,5 @@
 import type { DisposeFn } from '@vertz/ui';
-import { effect } from '@vertz/ui';
-import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
+import { lifecycleEffect, popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { StdinReader } from './input/stdin-reader';
 import { setRenderCallback, setSyncRender } from './internals';
 import type { TuiNode } from './nodes/types';
@@ -166,7 +165,7 @@ function mount(app: () => TuiNode, options: TuiMountOptions = {}): TuiHandle {
   // re-render when signals change. New-style components (using internals)
   // get re-renders via scheduleRender() instead.
   const scope = pushScope();
-  ctx.effectCleanup = effect(doRender);
+  ctx.effectCleanup = lifecycleEffect(doRender);
   popScope();
   ctx.scope = scope;
 
