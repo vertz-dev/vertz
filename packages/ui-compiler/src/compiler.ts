@@ -10,7 +10,7 @@ import { ComputedTransformer } from './transformers/computed-transformer';
 import { JsxTransformer } from './transformers/jsx-transformer';
 import { MutationTransformer } from './transformers/mutation-transformer';
 import { SignalTransformer } from './transformers/signal-transformer';
-import type { CompileOutput, CompilerDiagnostic } from './types';
+import type { CompileOptions, CompileOutput, CompilerDiagnostic } from './types';
 
 /**
  * Main compile pipeline.
@@ -21,7 +21,15 @@ import type { CompileOutput, CompilerDiagnostic } from './types';
  * 8. JSX transform (includes prop transform) →
  * 9. Diagnostics → 10. Add imports → 11. Return { code, map, diagnostics }
  */
-export function compile(source: string, filename = 'input.tsx'): CompileOutput {
+export function compile(
+  source: string,
+  optionsOrFilename?: CompileOptions | string,
+): CompileOutput {
+  const options: CompileOptions =
+    typeof optionsOrFilename === 'string'
+      ? { filename: optionsOrFilename }
+      : (optionsOrFilename ?? {});
+  const filename = options.filename ?? 'input.tsx';
   // 1. Parse
   const project = new Project({
     useInMemoryFileSystem: true,
@@ -126,7 +134,8 @@ export function compile(source: string, filename = 'input.tsx'): CompileOutput {
   detectDomHelpers(s.toString(), usedFeatures);
 
   // 12. Add runtime imports
-  const imports = buildImportStatement(usedFeatures);
+  const target = options.target ?? 'dom';
+  const imports = buildImportStatement(usedFeatures, target);
   if (imports) {
     s.prepend(`${imports}\n`);
   }
@@ -168,7 +177,7 @@ function detectDomHelpers(output: string, usedFeatures: Set<string>): void {
 }
 
 /** Build import statements based on used features. */
-function buildImportStatement(features: Set<string>): string | null {
+function buildImportStatement(features: Set<string>, target: 'dom' | 'tui'): string | null {
   const runtimeImports: string[] = [];
   const domImports: string[] = [];
 
@@ -186,12 +195,14 @@ function buildImportStatement(features: Set<string>): string | null {
     }
   }
 
+  const internalsSource = target === 'tui' ? '@vertz/tui/internals' : '@vertz/ui/internals';
+
   const parts: string[] = [];
   if (runtimeImports.length > 0) {
     parts.push(`import { ${runtimeImports.sort().join(', ')} } from '@vertz/ui';`);
   }
   if (domImports.length > 0) {
-    parts.push(`import { ${domImports.sort().join(', ')} } from '@vertz/ui/internals';`);
+    parts.push(`import { ${domImports.sort().join(', ')} } from '${internalsSource}';`);
   }
 
   return parts.length > 0 ? parts.join('\n') : null;

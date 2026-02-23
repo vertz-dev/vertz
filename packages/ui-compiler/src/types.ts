@@ -1,3 +1,11 @@
+/** Options for the compile() function. */
+export interface CompileOptions {
+  /** Filename for source map generation. Defaults to 'input.tsx'. */
+  filename?: string;
+  /** Compilation target. 'dom' uses @vertz/ui/internals, 'tui' uses @vertz/tui/internals. */
+  target?: 'dom' | 'tui';
+}
+
 /** Severity of a compiler diagnostic. */
 export type DiagnosticSeverity = 'error' | 'warning' | 'info';
 

@@ -36,6 +36,7 @@ export { generateCSSProperties } from './type-generation/css-properties';
 export type { ThemeTypeInput } from './type-generation/theme-types';
 export { generateThemeTypes } from './type-generation/theme-types';
 export type {
+  CompileOptions,
   CompileOutput,
   CompilerDiagnostic,
   ComponentInfo,
