@@ -1,7 +1,7 @@
 import { compileTheme, type Theme } from '@vertz/ui';
 import { installDomShim, removeDomShim, SSRElement } from './dom-shim';
 import { renderPage } from './render-page';
-import { ssrStorage } from './ssr-context';
+import { getSSRQueries, ssrStorage } from './ssr-context';
 import type { VNode } from './types';
 
 export interface RenderToHTMLOptions<AppFn extends () => VNode> {
@@ -57,13 +57,34 @@ export async function renderToHTML<AppFn extends () => VNode>(
   installDomShim();
 
   // Use AsyncLocalStorage for per-request SSR context
-  return ssrStorage.run({ url: options.url, errors: [] }, async () => {
+  return ssrStorage.run({ url: options.url, errors: [], queries: [] }, async () => {
     try {
-      // 1. Render app first — this triggers css()/injectCSS() calls that append
-      //    <style> elements to the fake document.head
+      // Pass 1: Discover queries — call app() to trigger query() registrations.
+      // The server jsx-runtime resolves signals eagerly at VNode creation time,
+      // so we must await query data before the final render pass.
+      app();
+
+      // Await all registered SSR queries with per-query timeout.
+      // Fast queries populate their signals; slow queries keep loading=true.
+      const queries = getSSRQueries();
+      if (queries.length > 0) {
+        await Promise.allSettled(
+          queries.map(({ promise, timeout, resolve }) =>
+            Promise.race([
+              promise.then((data) => resolve(data)),
+              new Promise<void>((r) => setTimeout(r, timeout)),
+            ]),
+          ),
+        );
+        // Clear queries to avoid re-processing in the second pass
+        const store = ssrStorage.getStore();
+        if (store) store.queries = [];
+      }
+
+      // Pass 2: Render with data — signals now have resolved values.
       const vnode = app();
 
-      // 2. Collect CSS injected into fake document.head during render
+      // Collect CSS injected into fake document.head during render
       // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
       const fakeDoc = (globalThis as any).document;
       const collectedCSS: string[] = [];
@@ -76,10 +97,10 @@ export async function renderToHTML<AppFn extends () => VNode>(
         }
       }
 
-      // 3. Compile theme CSS
+      // Compile theme CSS
       const themeCss = options.theme ? compileTheme(options.theme).css : '';
 
-      // 4. Combine: theme + explicit styles + collected component CSS
+      // Combine: theme + explicit styles + collected component CSS
       const allStyles = [themeCss, ...(options.styles ?? []), ...collectedCSS].filter(Boolean);
 
       // Build head entries for styles

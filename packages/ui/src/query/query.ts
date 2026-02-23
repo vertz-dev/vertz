@@ -4,6 +4,13 @@ import { setReadValueCallback, untrack } from '../runtime/tracking';
 import { type CacheStore, MemoryCache } from './cache';
 import { deriveKey, hashString } from './key-derivation';
 
+/** SSR detection — mirrors signal.ts isSSR() via the global hook. */
+function isSSR(): boolean {
+  // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+  const check = typeof globalThis !== 'undefined' && (globalThis as any).__VERTZ_IS_SSR__;
+  return typeof check === 'function' ? check() : false;
+}
+
 /** Options for query(). */
 export interface QueryOptions<T> {
   /** Pre-populated data — skips the initial fetch when provided. */
@@ -16,6 +23,8 @@ export interface QueryOptions<T> {
   key?: string;
   /** Custom cache store. Defaults to a shared in-memory Map. */
   cache?: CacheStore<T>;
+  /** Timeout in ms for SSR data loading. Default: 100. Set to 0 to disable. */
+  ssrTimeout?: number;
 }
 
 /** The reactive object returned by query(). */
@@ -124,6 +133,44 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
   // If initialData was provided, seed the cache.
   if (initialData !== undefined) {
     cache.set(getCacheKey(), initialData);
+  }
+
+  // -- SSR data loading --
+  // During SSR, call the thunk and register the promise for renderToHTML() to await.
+  // Pass 1 (discovery): registers the query promise for renderToHTML() to await.
+  // Pass 2 (render): the cache is already populated — serve from cache.
+  const ssrTimeout = options.ssrTimeout ?? 100;
+  if (isSSR() && enabled && ssrTimeout !== 0 && initialData === undefined) {
+    // Call the thunk to derive cache key from dependency values.
+    const promise = callThunkWithCapture();
+    const key = untrack(() => getCacheKey());
+
+    // Check cache first — pass 2 hits this when data was resolved between passes.
+    const cached = cache.get(key);
+    if (cached !== undefined) {
+      // Cache hit: populate signals immediately and suppress the thunk promise.
+      promise.catch(() => {});
+      data.value = cached;
+      loading.value = false;
+    } else {
+      // Cache miss: register promise for renderToHTML() to await.
+      // Suppress unhandled rejection — SSR queries that reject are expected
+      // (renderToHTML handles them via Promise.allSettled).
+      promise.catch(() => {});
+      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+      const register = (globalThis as any).__VERTZ_SSR_REGISTER_QUERY__;
+      if (typeof register === 'function') {
+        register({
+          promise,
+          timeout: ssrTimeout,
+          resolve: (result: unknown) => {
+            data.value = result as T;
+            loading.value = false;
+            cache.set(key, result as T);
+          },
+        });
+      }
+    }
   }
 
   // Track the latest fetch id to ignore stale responses.

@@ -1,16 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { collectSSRError, getSSRErrors, ssrStorage } from '../ssr-context';
+import {
+  collectSSRError,
+  getSSRErrors,
+  getSSRQueries,
+  registerSSRQuery,
+  ssrStorage,
+} from '../ssr-context';
 
 describe('SSR error collection', () => {
   it('SSRContext.errors is initialized as empty array', () => {
-    ssrStorage.run({ url: '/test', errors: [] }, () => {
+    ssrStorage.run({ url: '/test', errors: [], queries: [] }, () => {
       const errors = getSSRErrors();
       expect(errors).toEqual([]);
     });
   });
 
   it('collectSSRError adds errors to the context', () => {
-    ssrStorage.run({ url: '/test', errors: [] }, () => {
+    ssrStorage.run({ url: '/test', errors: [], queries: [] }, () => {
       const err = new Error('domEffect failed');
       collectSSRError(err);
       const errors = getSSRErrors();
@@ -19,7 +25,7 @@ describe('SSR error collection', () => {
   });
 
   it('collectSSRError accumulates multiple errors', () => {
-    ssrStorage.run({ url: '/test', errors: [] }, () => {
+    ssrStorage.run({ url: '/test', errors: [], queries: [] }, () => {
       collectSSRError(new Error('first'));
       collectSSRError(new Error('second'));
       collectSSRError('string error');
@@ -38,5 +44,40 @@ describe('SSR error collection', () => {
 
   it('getSSRErrors returns empty array outside SSR context', () => {
     expect(getSSRErrors()).toEqual([]);
+  });
+});
+
+describe('SSR query registration', () => {
+  it('registerSSRQuery adds entry to context queries array', () => {
+    ssrStorage.run({ url: '/test', errors: [], queries: [] }, () => {
+      const entry = {
+        promise: Promise.resolve('data'),
+        timeout: 100,
+        resolve: () => {},
+      };
+      registerSSRQuery(entry);
+      const queries = getSSRQueries();
+      expect(queries).toHaveLength(1);
+      expect(queries[0]).toBe(entry);
+    });
+  });
+
+  it('registerSSRQuery accumulates multiple entries', () => {
+    ssrStorage.run({ url: '/test', errors: [], queries: [] }, () => {
+      registerSSRQuery({ promise: Promise.resolve(1), timeout: 50, resolve: () => {} });
+      registerSSRQuery({ promise: Promise.resolve(2), timeout: 100, resolve: () => {} });
+      registerSSRQuery({ promise: Promise.resolve(3), timeout: 200, resolve: () => {} });
+      expect(getSSRQueries()).toHaveLength(3);
+    });
+  });
+
+  it('registerSSRQuery is a no-op outside SSR context', () => {
+    expect(() =>
+      registerSSRQuery({ promise: Promise.resolve(), timeout: 100, resolve: () => {} }),
+    ).not.toThrow();
+  });
+
+  it('getSSRQueries returns empty array outside SSR context', () => {
+    expect(getSSRQueries()).toEqual([]);
   });
 });
