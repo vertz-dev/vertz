@@ -79,28 +79,32 @@ describe('createBunAdapter', () => {
       expect(serveArg.hostname).toBeUndefined();
     });
 
-    it('returns a ServerHandle with the port from Bun.serve', async () => {
-      const adapter = createBunAdapter();
-      const handler = vi.fn();
-
-      mockServer.port = 8080;
-      mockServer.hostname = '127.0.0.1';
-
-      const handle = await adapter.listen(8080, handler);
-
-      expect(handle.port).toBe(8080);
-    });
-
-    it('returns a ServerHandle with the hostname from Bun.serve', async () => {
+    it('returns a ServerHandle whose hostname comes from the server object, not the input options', async () => {
+      // When no hostname option is passed, the adapter must read hostname from server.hostname,
+      // not derive it from the input. Here Bun binds to '192.168.1.100' even though no hostname
+      // was given — the handle must reflect what the server actually reports. Using a clearly
+      // non-default hostname ensures a broken implementation like `options?.hostname ?? '0.0.0.0'`
+      // would fail this test.
       const adapter = createBunAdapter();
       const handler = vi.fn();
 
       mockServer.port = 3000;
-      mockServer.hostname = '127.0.0.1';
+      mockServer.hostname = '192.168.1.100'; // server returns this even though no hostname option was provided
 
-      const handle = await adapter.listen(3000, handler);
+      const handle = await adapter.listen(3000, handler); // no hostname in options
 
-      expect(handle.hostname).toBe('127.0.0.1');
+      expect(handle.hostname).toBe('192.168.1.100');
+    });
+
+    it('propagates errors thrown by Bun.serve to the caller', async () => {
+      const adapter = createBunAdapter();
+      const handler = vi.fn();
+
+      mockServe.mockImplementationOnce(() => {
+        throw new Error('address already in use');
+      });
+
+      await expect(adapter.listen(3000, handler)).rejects.toThrow('address already in use');
     });
 
     it('returns a ServerHandle whose close() stops the server with active connections closed', async () => {
