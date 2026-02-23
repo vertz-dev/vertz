@@ -205,22 +205,66 @@ The returned function runs when the component is disposed. This mirrors the patt
 
 #### `onCleanup()` becomes internal-only
 
-With `onMount` returning the cleanup, standalone `onCleanup()` is no longer needed in user code. It stays internal for `watch()` and framework DOM helpers.
+With `onMount` returning the cleanup, standalone `onCleanup()` is no longer needed in user code. It stays internal for DOM primitives.
 
-#### `watch()` — internal-only, SSR-safe
+#### `watch()` — removed entirely
 
-**Decision (resolved from Unknown #2):** Keep the implementation, make it internal-only, skip during SSR.
+**Decision (resolved from Unknown #2):** Remove `watch()`. It has no legitimate callers.
 
-`watch()` uses `lifecycleEffect()` internally, which means it's a no-op during SSR. This is correct:
-- `RouterView` uses `watch()` to swap pages on navigation → no navigation happens during SSR
-- Theme change listeners → no theme changes during SSR
-- localStorage sync → no localStorage on the server
+The only production caller is `RouterView`, which uses `watch()` for imperative DOM manipulation — `container.innerHTML = ''` + `appendChild()`. This is an anti-pattern: the framework teaches developers to use declarative JSX, but `RouterView` itself builds DOM imperatively. It doesn't eat its own dog food.
 
-`watch()` stays internal for framework code that needs it.
+`RouterView` should be rewritten as a compiled component that uses reactive JSX:
+
+```tsx
+// Before (imperative, uses watch)
+export function RouterView({ router, fallback }: RouterViewProps) {
+  const container = document.createElement('div');
+  watch(
+    () => router.current.value,
+    (match) => {
+      container.innerHTML = '';
+      if (match) container.appendChild(match.route.component());
+    },
+  );
+  return container;
+}
+
+// After (declarative, compiler-driven)
+export function RouterView({ router, fallback }: RouterViewProps) {
+  return (
+    <div>
+      {router.current.value
+        ? RouterContext.Provider(router, () => router.current.value!.route.component())
+        : (fallback ? fallback() : null)
+      }
+    </div>
+  );
+}
+```
+
+The compiler sees `router.current.value` in the JSX ternary, generates `__conditional` + `domEffect()`, and the route page swaps reactively. Disposal scope cleanup happens automatically (old page components get cleaned up by `__conditional`). No `watch()` needed.
+
+**Async/lazy routes:** The current `RouterView` hand-rolls `Promise.then` for lazy components. This should be a framework-level primitive (e.g., an `AsyncComponent` wrapper) that any component can use, not special-cased in `RouterView`.
+
+#### Framework components audit: eat your own dog food
+
+An audit of framework components found three that use imperative DOM patterns instead of the compiler-driven reactive flow:
+
+| Component | Anti-pattern | Fix |
+|-----------|-------------|-----|
+| **`RouterView`** (`router/router-view.ts`) | `watch()` + `innerHTML = ''` + `appendChild()` | Rewrite as compiled JSX component (see above) |
+| **`Link`** (`router/link.ts`) | `document.createElement('a')` + `effect()` + `classList.add/remove` | Rewrite as compiled JSX: `<a class={isActive ? activeClass : className} href={href}>{children}</a>` |
+| **`ThemeProvider`** (`css/theme-provider.ts`) | `document.createElement('div')` + loop of `appendChild()` + SSR VNode branch | Rewrite as compiled JSX: `<div data-theme={theme}>{children}</div>` |
+
+All three components were written before the compiler could handle their patterns. They should be refactored in Phase 2 to use declarative JSX compiled through the framework's own compiler — the same patterns we teach every user.
+
+**Why this matters:** These components are reference implementations. Developers read framework code to learn patterns. When `RouterView` uses `watch()` + `innerHTML`, developers copy that pattern instead of using reactive JSX. When `Link` uses `effect()` + `classList.add/remove`, developers think that's how reactive styling works instead of using class attributes. Framework code must demonstrate the intended usage patterns.
+
+Additionally, `element.ts` contains a leftover `console.log` debug statement in the `unwrapSignal` function that should be removed.
 
 #### No public escape hatch
 
-There is **no** `@vertz/ui/primitives` sub-export. `effect`, `signal`, `watch`, `domEffect`, `lifecycleEffect`, and `onCleanup` are not exported from any public entry point. Period.
+There is **no** `@vertz/ui/primitives` sub-export. `signal`, `domEffect`, `lifecycleEffect`, and `onCleanup` are not exported from any public entry point. `watch()` is removed entirely — zero callers after the RouterView refactor.
 
 Framework companion packages (`@vertz/ui-primitives`, `@vertz/tui`, `@vertz/ui-canvas`) are **first-party internal packages** — they import from relative paths within the monorepo, not from published package exports. They don't need a public sub-export; they have direct access to the source.
 
@@ -233,7 +277,7 @@ If a future ecosystem package outside the monorepo needs signal access, that's a
 | `effect()` | Public | **Internal-only** (no public export) |
 | `signal()` | Public | **Internal-only** (no public export) |
 | `onCleanup()` | Public (standalone) | **Internal-only** (use `onMount` return) |
-| `watch()` | Public | **Internal-only** (no public export) |
+| `watch()` | Public | **Removed** (no callers after RouterView refactor) |
 | `onMount()` | Public, returns `void` | Public, **returns cleanup**, **no-op during SSR** |
 | `computed()` | Public | Public (typically via compiler `const`) |
 | `query()` | Public | Public |
@@ -338,9 +382,10 @@ With the universal rendering model, the same component code runs on both server 
 - `effect` from `@vertz/ui` public exports (internal-only, no public export anywhere)
 - `signal` from `@vertz/ui` public exports (internal-only, no public export anywhere)
 - `onCleanup` from `@vertz/ui` public exports
-- `watch` from `@vertz/ui` public exports
+- `watch` — **removed entirely** (implementation + tests + public export). Only caller (`RouterView`) is rewritten to use reactive JSX.
 - `DisposalScopeError` from public exports (no longer reachable from user code)
 - `ThemeProvider` VNode path — replaced by universal DOM rendering (SSR shim handles `document.createElement` directly)
+- `console.log` debug statement in `element.ts` `unwrapSignal` function
 
 ### What gets refactored (NOT deleted)
 
@@ -624,7 +669,7 @@ Making `signal`, `effect`, and `watch` internal-only in app code isn't just API 
 
 ### Permanent non-goals
 
-- **Public `effect()`, `signal()`, or `watch()`** — None of these are exported from any public entry point. Internal use only.
+- **Public `effect()` or `signal()`** — Neither is exported from any public entry point. `watch()` is removed entirely.
 - **Environment-specific component code** — Components must not check `isSSR()` or branch on environment. If a component needs to, the framework has a gap.
 
 ## Implementation Phases
@@ -642,7 +687,7 @@ Rename `effect()` to `domEffect()`, introduce `lifecycleEffect()`, and change `d
 - `packages/ui/src/component/lifecycle.ts`:
   - `onMount()` uses `lifecycleEffect()` — no-op during SSR
   - `onMount()` returns the cleanup function
-  - `watch()` uses `lifecycleEffect()` — no-op during SSR
+  - Remove `watch()` entirely (implementation + export)
 - `packages/ui/src/dom/*.ts`: Update all `effect()` calls to `domEffect()`
 - `biome-plugins/no-wrong-effect.gql`: Lint rule enforcing `domEffect` in `dom/`, `lifecycleEffect` in `component/`/`router/`
 
@@ -651,31 +696,39 @@ Rename `effect()` to `domEffect()`, introduce `lifecycleEffect()`, and change `d
 - Integration test: Component with `__conditional` renders correct branch in SSR without the SSR-specific code path
 - Integration test: Signal subscriptions are NOT created during SSR (memory test — effect count stays at 0)
 - Integration test: `onMount` callback does NOT run during SSR
-- Integration test: `watch` callback does NOT run during SSR
 - Integration test: DOM effect that throws during SSR logs error, collects on SSR context, does not crash the server
 - Integration test: Nested component rendering during SSR — parent and child DOM effects run in correct order (depth-first, parent before child)
 - Integration test: Effect that reads and writes the same signal during SSR runs exactly once (no infinite loop)
 - Integration test: Signal written in parent's `domEffect()`, read in child's render — child sees the updated value
 - Performance gate: SSR render time for task-manager example must NOT increase by more than 20% (measured before and after)
 
-### Phase 2: Simplify DOM primitives
+### Phase 2: Simplify DOM primitives + refactor framework components
 
-Remove three-way branching from all DOM helpers. Single code path that works because `domEffect()` does the right thing. Hydration claim logic remains as an additive path.
+Remove three-way branching from all DOM helpers. Rewrite framework components that use imperative patterns to use compiled JSX. Single code path that works because `domEffect()` does the right thing. Hydration claim logic remains as an additive path.
 
-**Changes:**
+**Changes — DOM primitives:**
 - `packages/ui/src/dom/conditional.ts`: Delete `ssrConditional()`, merge CSR path as the universal path. `hydrateConditional` stays but only for hydration claim.
-- `packages/ui/src/dom/element.ts`: Remove `unwrapSignal()` from `__insert`, `__child`, `__text`
+- `packages/ui/src/dom/element.ts`: Remove `unwrapSignal()` from `__insert`, `__child`, `__text`. Remove leftover `console.log` debug statement.
 - `packages/ui/src/dom/attributes.ts`: Remove any SSR guards in `__attr`
 - `packages/ui/src/dom/list.ts`: Verify `__list` works with universal effects, remove SSR-specific logic if any
-- `packages/ui/src/css/theme-provider.ts`: Remove VNode SSR path, use `document.createElement` universally (SSR shim provides `document`)
 - Delete `isSSR()` / `isInSSRContext()` imports from DOM primitive files
+
+**Changes — framework components (eat your own dog food):**
+- `packages/ui/src/router/router-view.ts`: Rewrite as compiled JSX component. Replace `watch()` + `innerHTML` + `appendChild()` with reactive JSX ternary (`router.current.value ? ... : fallback`). The compiler generates `__conditional` + `domEffect()` automatically.
+- `packages/ui/src/router/link.ts`: Rewrite as compiled JSX component. Replace `document.createElement('a')` + `effect()` + `classList.add/remove` with `<a class={isActive ? activeClass : className} href={href}>{children}</a>`.
+- `packages/ui/src/css/theme-provider.ts`: Rewrite as compiled JSX component. Replace `document.createElement('div')` + VNode SSR branch with `<div data-theme={theme}>{children}</div>`.
+- Delete `watch()` implementation from `lifecycle.ts` and all associated tests.
 
 **Acceptance criteria:**
 - All existing SSR tests pass (rewritten to test the same behaviors through the universal pipeline)
 - All existing CSR tests pass unchanged
 - All existing hydration tests pass unchanged — hydration `claimComment()` path verified
 - No `isSSR()` / `isInSSRContext()` calls remain in `packages/ui/src/dom/`
-- `ThemeProvider` renders correctly in both CSR and SSR without VNode path
+- `ThemeProvider` renders correctly in both CSR and SSR as compiled JSX (no VNode path, no imperative DOM)
+- `RouterView` renders correct page via compiled JSX conditional (no `watch()`, no `innerHTML`)
+- `Link` renders with reactive `activeClass` via compiled JSX class attribute (no `effect()`, no `classList.add/remove`)
+- `watch()` is deleted — no references remain in production code (grep confirmation)
+- No `console.log` debug statements remain in `dom/element.ts`
 - Integration test: Full task-manager example renders correctly via SSR with simplified primitives
 - Hydration mismatch detection: test that when SSR HTML doesn't match client expectations, a warning is logged (not a crash)
 
@@ -725,11 +778,11 @@ Component identity, interaction detection, incremental builds. Deferred — desi
 
 **Validation:** Integration test — register cleanup during SSR, verify it doesn't fire. Verify no memory leaks from accumulated cleanup references (disposal scopes are discarded with the SSR tree).
 
-### 2. `watch()` behavior during SSR
+### 2. `watch()` — keep or remove?
 
 **Assessment:** Resolved.
 
-**Decision:** `watch()` skips during SSR (uses `lifecycleEffect()`, not `domEffect()`). See "Two-tier effect model" section above for the full rationale.
+**Decision:** Remove entirely. The only production caller (`RouterView`) should be rewritten as a compiled JSX component that uses the framework's own reactive primitives (`__conditional` + `domEffect()`). Once `RouterView` is refactored, `watch()` has zero callers and can be deleted. See "Framework components audit" section above for the full rationale.
 
 ### 3. Threshold default for SSR data loading (Phase 3)
 
