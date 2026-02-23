@@ -1,6 +1,6 @@
 # Plan: Universal Rendering Model — One Pipeline, Every Target
 
-**Status:** Draft (Rev 2 — addressing review feedback)
+**Status:** Draft (Rev 3 — addressing review feedback)
 **Priority:** P1
 **Owner:** TBD
 **GitHub Issues:** [#664](https://github.com/vertz-dev/vertz/issues/664) (universal rendering), [#660](https://github.com/vertz-dev/vertz/issues/660) (effect internal-only)
@@ -54,15 +54,17 @@ The key insight from review feedback: **not all effects should run during SSR**.
 | Effect type | Purpose | SSR behavior | Examples |
 |-------------|---------|-------------|----------|
 | **DOM effects** | Populate node content (text, attributes, conditionals, lists) | **Run once, no tracking** | `__text`, `__child`, `__conditional`, `__attr`, `__list` |
-| **Side effects** | React to signal changes over time (navigation, logging, timers) | **Skip entirely** | `watch()`, `onMount()`, `RouterView` page switching |
+| **Lifecycle effects** | React to signal changes over time (navigation, logging, timers) | **Skip entirely** | `watch()`, `onMount()`, `RouterView` page switching |
 
-This is NOT a new bifurcation — it's making the existing implicit distinction explicit. Today, DOM effects and side effects are already different (DOM effects use `effect()` directly in framework internals; side effects use `watch()`/`onMount()` which wrap `effect()`). The difference is that today both are no-ops during SSR, causing bugs in the DOM path. After this change, only DOM effects run during SSR — which is exactly what's needed to populate content.
+Today, DOM effects and lifecycle effects are already different in practice — DOM effects use `effect()` directly in framework internals (`__text`, `__conditional`, etc.); lifecycle effects use `watch()`/`onMount()` which wrap `effect()`. The difference is that today both are no-ops during SSR, causing bugs in the DOM path. After this change, only DOM effects run during SSR — which is exactly what's needed to populate content.
+
+**Path count, honestly:** This reduces the rendering model from three divergent paths (CSR implementation + SSR implementation + hydration implementation per DOM primitive) to one shared implementation + hydration claim. Hydration claim is additive (it reuses existing DOM nodes instead of creating new ones) and isolated to one branch at the top of each primitive. The SSR-specific `ssrConditional`, `unwrapSignal`, and VNode code paths are eliminated entirely. This is a reduction from 3 to 1+hydration, not a reduction to 1.
 
 #### Implementation mechanism
 
 ```ts
 // Internal: DOM effect — runs during SSR (populates content)
-export function effect(fn: () => void): DisposeFn {
+export function domEffect(fn: () => void): DisposeFn {
   if (isSSR()) {
     fn();             // Run once, populate DOM content
     return () => {};  // No subscriptions, no tracking
@@ -70,26 +72,34 @@ export function effect(fn: () => void): DisposeFn {
   // ... run fn, track dependencies (unchanged for CSR)
 }
 
-// Internal: side effect — skips during SSR
-export function sideEffect(fn: () => void): DisposeFn {
+// Internal: lifecycle effect — skips during SSR
+export function lifecycleEffect(fn: () => void): DisposeFn {
   if (isSSR()) {
-    return () => {};  // Skip entirely — no DOM to populate, no reactivity needed
+    return () => {};  // Skip entirely — no lifecycle on server
   }
-  // ... same as effect() in CSR
+  // ... same reactive tracking as domEffect() in CSR
 }
 ```
 
-`watch()` and `onMount()` use `sideEffect()` internally. DOM primitives (`__text`, `__child`, `__conditional`, etc.) use `effect()`. This is a clean, enforceable separation:
+`watch()` and `onMount()` use `lifecycleEffect()` internally. DOM primitives (`__text`, `__child`, `__conditional`, etc.) use `domEffect()`. The naming makes intent unambiguous:
 
-- **`effect()`** = "this callback populates DOM content" → runs during SSR
-- **`sideEffect()`** = "this callback reacts to changes over time" → skips during SSR
+- **`domEffect()`** = "this callback populates DOM content" → runs during SSR
+- **`lifecycleEffect()`** = "this callback manages component lifecycle" → skips during SSR
 
-Both are internal-only. App developers never see either one.
+Both are internal-only. App developers never see either one. Neither is exported publicly — not from `@vertz/ui`, not from any sub-export.
+
+#### Enforcement: lint rule, not just naming
+
+The `effect()`/`lifecycleEffect()` naming alone is not sufficient enforcement. A Biome GritQL plugin (`biome-plugins/no-wrong-effect.gql`) will flag:
+- `domEffect()` called from `component/` or `router/` (lifecycle code should use `lifecycleEffect()`)
+- `lifecycleEffect()` called from `dom/` (DOM primitives should use `domEffect()`)
+
+This catches misuse at lint time, not code review time.
 
 #### Why this is correct for RouterView
 
 `RouterView` uses `watch()` to react to route changes and swap page content (`container.innerHTML = ''`). During SSR:
-- `watch()` uses `sideEffect()` → skips entirely → no page swapping
+- `watch()` uses `lifecycleEffect()` → skips entirely → no page swapping
 - The component function still runs → returns the container element
 - The SSR rendering pipeline renders the initial route's page component directly (the SSR entry already matches the URL and renders the correct page)
 
@@ -97,21 +107,23 @@ If `watch()` ran during SSR, it would call `container.innerHTML = ''` and destro
 
 ### Error handling during SSR effects
 
-When a DOM effect (`effect()`) throws during SSR:
+When a DOM effect (`domEffect()`) throws during SSR:
 
-1. **The error is caught and logged** — the SSR render continues with partial content
-2. **The failing node gets a placeholder** — empty text or comment node, not a crash
-3. **The error is surfaced in the SSR response metadata** — the caller can decide to retry, fall back, or return a 500
+1. **The error is caught and logged** — the SSR render continues
+2. **The node retains its initial state** — the state it had before the effect ran. For `__text` this is an empty text node (`""`). For `__conditional` this is the comment anchor (`<!--conditional-->`). For `__attr` the attribute is simply not set. These are the concrete "default states" — not a special placeholder mechanism, just the DOM state before the effect populates it.
+3. **The error is collected on the SSR context** — `ssrStorage.getStore().errors.push(err)`. The `renderToStream` / `renderToString` caller receives the errors array in the render result, and can decide to retry, fall back, or return a 500.
 
 ```ts
-export function effect(fn: () => void): DisposeFn {
+export function domEffect(fn: () => void): DisposeFn {
   if (isSSR()) {
     try {
       fn();
     } catch (err) {
-      // Log but don't crash — SSR should be resilient
       console.error('[vertz:ssr] Effect error during render:', err);
-      // The node retains its default/empty state
+      // Collect error on SSR context for caller inspection
+      const store = ssrStorage.getStore();
+      if (store) store.errors.push(err);
+      // Node retains its pre-effect state (empty text, comment anchor, etc.)
     }
     return () => {};
   }
@@ -119,7 +131,29 @@ export function effect(fn: () => void): DisposeFn {
 }
 ```
 
+**Partial failure:** If `fn()` partially succeeds before throwing (e.g., sets `textContent` then throws on the next line), the partial state is kept. This is acceptable — the alternative (transactional rollback of DOM mutations) is disproportionate complexity for SSR error recovery. The error is surfaced to the caller, who can decide whether partial content is acceptable.
+
 This matches the behavior of other SSR frameworks (React, Solid) where component errors during SSR are caught at the boundary level and don't crash the entire response.
+
+#### Effect execution order during SSR
+
+Effects run **synchronously in source order, depth-first**. This is the same order as CSR — the only difference is that SSR effects run once without tracking.
+
+Concretely: when a component function executes, each `domEffect()` call runs `fn()` inline before returning. Parent effects run before child component functions are called (because the parent's JSX expression evaluates child components). This means:
+
+```tsx
+function Parent() {
+  let shared = signal(0);
+  domEffect(() => { shared.value = 42; });  // Runs FIRST (parent body)
+  return <Child shared={shared} />;          // Child runs SECOND
+}
+
+function Child({ shared }) {
+  return <span>{shared.value}</span>;        // Reads 42, not 0
+}
+```
+
+The parent's effect runs before `<Child>` is evaluated, so the child sees `shared.value = 42`. This is deterministic and matches CSR behavior (effects run synchronously during the initial render pass).
 
 #### Signal writes during SSR effects
 
@@ -173,46 +207,33 @@ The returned function runs when the component is disposed. This mirrors the patt
 
 With `onMount` returning the cleanup, standalone `onCleanup()` is no longer needed in user code. It stays internal for `watch()` and framework DOM helpers.
 
-#### Two-tier export strategy
-
-Not all consumers of `signal()` are app developers. Framework companion packages (`@vertz/ui-primitives`, `@vertz/tui`, `@vertz/ui-canvas`) build reusable components that need raw signal access. These are library authors, not app developers.
-
-```ts
-// @vertz/ui — public exports for app developers
-export { onMount } from './component/lifecycle';
-export { computed } from './runtime/signal';
-export { batch } from './runtime/scheduler';
-export { untrack } from './runtime/tracking';
-export { query } from './query/query';
-export { form } from './form/form';
-
-// @vertz/ui/primitives — sub-export for library/component authors
-export { signal, effect, sideEffect, watch, onCleanup } from './runtime/signal';
-```
-
-App developers import from `@vertz/ui`. Library authors who need raw primitives import from `@vertz/ui/primitives`. This is an explicit opt-in — the compiler can warn (or error) when app code imports from the primitives sub-export.
-
-**Why not just export everything?** Because `signal()` and `effect()` in app code break the compiler's ability to do automatic field selection (see VertzQL section). The sub-export exists for the 1% who need it, with clear documentation that it opts out of compiler optimizations.
-
 #### `watch()` — internal-only, SSR-safe
 
 **Decision (resolved from Unknown #2):** Keep the implementation, make it internal-only, skip during SSR.
 
-`watch()` uses `sideEffect()` internally, which means it's a no-op during SSR. This is correct:
+`watch()` uses `lifecycleEffect()` internally, which means it's a no-op during SSR. This is correct:
 - `RouterView` uses `watch()` to swap pages on navigation → no navigation happens during SSR
 - Theme change listeners → no theme changes during SSR
 - localStorage sync → no localStorage on the server
 
-`watch()` stays internal for framework code that needs it. If user demand emerges, it can be promoted to public or added to `@vertz/ui/primitives`.
+`watch()` stays internal for framework code that needs it.
+
+#### No public escape hatch
+
+There is **no** `@vertz/ui/primitives` sub-export. `effect`, `signal`, `watch`, `domEffect`, `lifecycleEffect`, and `onCleanup` are not exported from any public entry point. Period.
+
+Framework companion packages (`@vertz/ui-primitives`, `@vertz/tui`, `@vertz/ui-canvas`) are **first-party internal packages** — they import from relative paths within the monorepo, not from published package exports. They don't need a public sub-export; they have direct access to the source.
+
+If a future ecosystem package outside the monorepo needs signal access, that's a bridge we cross when we get there. Starting constrained and expanding later is always possible; starting permissive and restricting later is not.
 
 #### Summary of public API changes
 
 | API | Before | After |
 |-----|--------|-------|
-| `effect()` | Public | **Internal-only** (`@vertz/ui/primitives` for library authors) |
-| `signal()` | Public | **Internal-only** (`@vertz/ui/primitives` for library authors) |
+| `effect()` | Public | **Internal-only** (no public export) |
+| `signal()` | Public | **Internal-only** (no public export) |
 | `onCleanup()` | Public (standalone) | **Internal-only** (use `onMount` return) |
-| `watch()` | Public | **Internal-only** (for now) |
+| `watch()` | Public | **Internal-only** (no public export) |
 | `onMount()` | Public, returns `void` | Public, **returns cleanup**, **no-op during SSR** |
 | `computed()` | Public | Public (typically via compiler `const`) |
 | `query()` | Public | Public |
@@ -222,7 +243,9 @@ App developers import from `@vertz/ui`. Library authors who need raw primitives 
 
 ### Automatic query field selection (VertzQL integration)
 
-A critical reason for making `signal`, `effect`, and `watch` internal-only in app code: **the compiler needs full control over data flow to enable automatic query field selection.**
+The primary reason for making `signal`, `effect`, and `watch` internal-only is **footgun removal** — raw `effect()` is the same trap as React's `useEffect`, and raw `signal()` bypasses compiler transforms that make reactivity work correctly (see "effect becomes internal-only" above).
+
+A secondary benefit: **with all reactive state flowing through compiler-controlled primitives, the compiler can enable automatic query field selection.**
 
 #### What this enables
 
@@ -272,9 +295,9 @@ Narrowing hierarchy:
           → Compiler (auto-selects only fields the code actually reads)
 ```
 
-#### Why internal-only APIs are required for app code
+#### Why internal-only APIs enable this
 
-If users call `signal()` or `effect()` directly in app code, the compiler loses visibility into data flow:
+If users could call `signal()` or `effect()` directly, the compiler would lose visibility into data flow:
 
 ```tsx
 // BAD: compiler can't track what happens inside a raw effect
@@ -293,7 +316,7 @@ const firstUser = users.data[0];  // compiler tracks: firstUser derives from use
 return <span>{firstUser.name}</span>;  // compiler knows: users needs 'name'
 ```
 
-Library authors who import from `@vertz/ui/primitives` accept this trade-off explicitly — their components opt out of automatic field selection. This is documented and intentional.
+Since `signal` and `effect` are not exported from any public entry point, every reactive data path goes through compiler-analyzed primitives.
 
 #### Current status
 
@@ -312,8 +335,8 @@ With the universal rendering model, the same component code runs on both server 
 - `effect()` no-op guard in `signal.ts` (replaced with run-once)
 - `unwrapSignal` duck-typing in `element.ts` and `conditional.ts`
 - VNode duck-typing (`isVNode`, `vnodeToDOM`) from PR #663
-- `effect` from `@vertz/ui` public exports (available via `@vertz/ui/primitives`)
-- `signal` from `@vertz/ui` public exports (available via `@vertz/ui/primitives`)
+- `effect` from `@vertz/ui` public exports (internal-only, no public export anywhere)
+- `signal` from `@vertz/ui` public exports (internal-only, no public export anywhere)
 - `onCleanup` from `@vertz/ui` public exports
 - `watch` from `@vertz/ui` public exports
 - `DisposalScopeError` from public exports (no longer reachable from user code)
@@ -423,7 +446,7 @@ export function TaskList() {
 ### Complete public API after this change
 
 ```ts
-// @vertz/ui — public exports (app developers)
+// @vertz/ui — complete public exports
 export { onMount } from './component/lifecycle';    // lifecycle: run once, return cleanup
 export { computed } from './runtime/signal';          // derived state (usually via compiler const)
 export { batch } from './runtime/scheduler';          // batch signal updates
@@ -434,33 +457,38 @@ export { form } from './form/form';                   // form handling
 // Types
 export type { Computed, ReadonlySignal, Signal, DisposeFn } from './runtime/signal-types';
 
-// @vertz/ui/primitives — sub-export for library/component authors
-// WARNING: Using these opts out of automatic query field selection.
-export { signal, computed, effect, sideEffect, watch, onCleanup } from './runtime/signal';
+// NOT exported from any public entry point:
+// - signal         — users use `let`, compiler transforms it
+// - effect         — internal: renamed to domEffect(), powers DOM primitives
+// - lifecycleEffect — internal: powers watch(), onMount()
+// - watch          — internal: used by RouterView and framework code
+// - onCleanup      — internal: use onMount return value instead
 ```
 
 ### For framework internals: two effect primitives
 
 ```ts
-// effect() — DOM effect, runs during SSR
-export function effect(fn: () => void): DisposeFn {
+// domEffect() — populates DOM content, runs during SSR
+export function domEffect(fn: () => void): DisposeFn {
   if (isSSR()) {
     try {
-      fn();             // Run once, populate DOM content
+      fn();
     } catch (err) {
       console.error('[vertz:ssr] Effect error during render:', err);
+      const store = ssrStorage.getStore();
+      if (store) store.errors.push(err);
     }
-    return () => {};  // No subscriptions, no tracking
+    return () => {};
   }
   // ... run fn, track dependencies (unchanged for CSR)
 }
 
-// sideEffect() — side effect, skips during SSR
-export function sideEffect(fn: () => void): DisposeFn {
+// lifecycleEffect() — component lifecycle, skips during SSR
+export function lifecycleEffect(fn: () => void): DisposeFn {
   if (isSSR()) {
-    return () => {};  // No-op — side effects don't run on server
+    return () => {};  // No-op — lifecycle doesn't run on server
   }
-  // ... same implementation as effect() for CSR
+  // ... same reactive tracking as domEffect() for CSR
 }
 ```
 
@@ -481,14 +509,14 @@ export function __conditional(
   }
 
   // Universal path: works for both CSR and SSR.
-  // In CSR, effect tracks and re-runs on signal changes.
-  // In SSR, effect runs once to populate, no tracking.
+  // In CSR, domEffect tracks and re-runs on signal changes.
+  // In SSR, domEffect runs once to populate, no tracking.
   const anchor = document.createComment('conditional');
   let currentNode: Node | null = null;
   let branchCleanups: DisposeFn[] = [];
 
   const outerScope = pushScope();
-  effect(() => {
+  domEffect(() => {
     runCleanups(branchCleanups);
 
     const scope = pushScope();
@@ -530,7 +558,9 @@ export function __conditional(
 }
 ```
 
-Note: `ssrConditional` is deleted entirely. `hydrateConditional` stays because hydration claim logic (`claimComment()`) is fundamentally different from fresh rendering — it needs to find and reuse existing DOM nodes rather than create new ones. This is the only remaining "mode" in `__conditional`, and it's additive (hydration augments the DOM) rather than divergent (SSR replaces the logic).
+**Scope lifecycle clarification:** The adversarial review raised a concern about `pushScope()`/`popScope()` creating "destroyed" scopes. This is a misunderstanding of the disposal API — `popScope()` doesn't destroy the scope or its cleanup functions. It removes the scope from the active stack (so new `onCleanup` calls no longer register on it), but the cleanup array (`scope`) remains valid and is referenced by `branchCleanups`. `runCleanups(branchCleanups)` executes those cleanups when the branch switches. This is the same pattern used by the existing `csrConditional` (lines 194–266 of `conditional.ts`) which works correctly today.
+
+Note: `ssrConditional` is deleted entirely. `hydrateConditional` stays because hydration claim logic (`claimComment()`) is fundamentally different from fresh rendering — it needs to find and reuse existing DOM nodes rather than create new ones. This is the only remaining "mode" in `__conditional`, and it's isolated (hydration augments the DOM) rather than divergent (SSR replaces the logic).
 
 ### SSR DOM shim: `remove()` addition
 
@@ -562,7 +592,7 @@ LLMs struggle with environment-dependent behavior. When `effect()` means "run th
 
 ### Performance is not optional (Principle 7)
 
-The universal model replaces per-primitive `isSSR()` guard checks, `unwrapSignal()` calls, and the JSX-to-VNode conversion pipeline with a single `isSSR()` check at the `effect()` boundary. Performance claims will be validated with benchmarks during Phase 1 implementation (see acceptance criteria).
+The universal model replaces per-primitive `isSSR()` guard checks, `unwrapSignal()` calls, and the JSX-to-VNode conversion pipeline with a single `isSSR()` check at the `domEffect()` boundary. Performance will be validated with the 20% threshold gate in Phase 1 acceptance criteria.
 
 ### No ceilings (Principle 8)
 
@@ -574,9 +604,9 @@ Making `signal`, `effect`, and `watch` internal-only in app code isn't just API 
 
 ### Tradeoffs accepted
 
-- **Explicit over implicit**: DOM effects running during SSR is more explicit than silently no-opping. The `effect()`/`sideEffect()` distinction makes intent explicit in framework code.
+- **Explicit over implicit**: DOM effects running during SSR is more explicit than silently no-opping. The `domEffect()`/`lifecycleEffect()` naming makes intent explicit and enforceable via lint rule.
 - **Convention over configuration**: SSR is the default rendering model, not an opt-in mode.
-- **Compile-time over runtime**: The universal model + internal-only reactivity primitives in app code enable the compiler to optimize data fetching at build time (automatic field selection). Library authors who need raw primitives can opt in via `@vertz/ui/primitives`.
+- **Compile-time over runtime**: The universal model + internal-only reactivity primitives enable the compiler to optimize data fetching at build time (automatic field selection). No public escape hatch — all reactive state flows through compiler-controlled primitives.
 
 ## Non-Goals
 
@@ -594,23 +624,27 @@ Making `signal`, `effect`, and `watch` internal-only in app code isn't just API 
 
 ### Permanent non-goals
 
-- **Public `effect()` in `@vertz/ui`** — `effect()` stays out of the main export. Available via `@vertz/ui/primitives` for library authors.
+- **Public `effect()`, `signal()`, or `watch()`** — None of these are exported from any public entry point. Internal use only.
 - **Environment-specific component code** — Components must not check `isSSR()` or branch on environment. If a component needs to, the framework has a gap.
 
 ## Implementation Phases
 
 ### Phase 1: Two-tier effect model
 
-Introduce `sideEffect()` and change `effect()` to run-once during SSR.
+Rename `effect()` to `domEffect()`, introduce `lifecycleEffect()`, and change `domEffect()` to run-once during SSR.
 
 **Changes:**
 - `packages/ui/src/runtime/signal.ts`:
-  - Replace `isSSR() → return () => {}` with `isSSR() → try { fn() } catch { log } return () => {}`
-  - Add `sideEffect()` function (skips during SSR, same as `effect()` in CSR)
+  - Rename `effect()` → `domEffect()` (DOM content population)
+  - Replace SSR guard: `isSSR() → return () => {}` with `isSSR() → try { fn() } catch { log + collect } return () => {}`
+  - Add `lifecycleEffect()` function (skips during SSR, same reactive tracking as `domEffect()` in CSR)
+  - Add SSR error collection to `ssrStorage` context
 - `packages/ui/src/component/lifecycle.ts`:
-  - `onMount()` uses `sideEffect()` instead of `effect()` — no-op during SSR
+  - `onMount()` uses `lifecycleEffect()` — no-op during SSR
   - `onMount()` returns the cleanup function
-  - `watch()` uses `sideEffect()` instead of `effect()` — no-op during SSR
+  - `watch()` uses `lifecycleEffect()` — no-op during SSR
+- `packages/ui/src/dom/*.ts`: Update all `effect()` calls to `domEffect()`
+- `biome-plugins/no-wrong-effect.gql`: Lint rule enforcing `domEffect` in `dom/`, `lifecycleEffect` in `component/`/`router/`
 
 **Acceptance criteria:**
 - Integration test: Component with `let count = 0` and `<span>{count}</span>` renders `<span>0</span>` in SSR (not `<span></span>` or `<span>[object Object]</span>`)
@@ -618,14 +652,15 @@ Introduce `sideEffect()` and change `effect()` to run-once during SSR.
 - Integration test: Signal subscriptions are NOT created during SSR (memory test — effect count stays at 0)
 - Integration test: `onMount` callback does NOT run during SSR
 - Integration test: `watch` callback does NOT run during SSR
-- Integration test: Effect that throws during SSR logs error but does not crash the server
-- Integration test: Nested component rendering during SSR — parent and child DOM effects run in correct order (depth-first)
+- Integration test: DOM effect that throws during SSR logs error, collects on SSR context, does not crash the server
+- Integration test: Nested component rendering during SSR — parent and child DOM effects run in correct order (depth-first, parent before child)
 - Integration test: Effect that reads and writes the same signal during SSR runs exactly once (no infinite loop)
-- Performance baseline: Measure SSR render time for task-manager example before and after the change
+- Integration test: Signal written in parent's `domEffect()`, read in child's render — child sees the updated value
+- Performance gate: SSR render time for task-manager example must NOT increase by more than 20% (measured before and after)
 
 ### Phase 2: Simplify DOM primitives
 
-Remove three-way branching from all DOM helpers. Single code path that works because `effect()` does the right thing. Hydration claim logic remains as an additive path.
+Remove three-way branching from all DOM helpers. Single code path that works because `domEffect()` does the right thing. Hydration claim logic remains as an additive path.
 
 **Changes:**
 - `packages/ui/src/dom/conditional.ts`: Delete `ssrConditional()`, merge CSR path as the universal path. `hydrateConditional` stays but only for hydration claim.
@@ -694,7 +729,7 @@ Component identity, interaction detection, incremental builds. Deferred — desi
 
 **Assessment:** Resolved.
 
-**Decision:** `watch()` skips during SSR (uses `sideEffect()`, not `effect()`). See "Two-tier effect model" section above for the full rationale.
+**Decision:** `watch()` skips during SSR (uses `lifecycleEffect()`, not `domEffect()`). See "Two-tier effect model" section above for the full rationale.
 
 ### 3. Threshold default for SSR data loading (Phase 3)
 
@@ -727,11 +762,11 @@ Component identity, interaction detection, incremental builds. Deferred — desi
 The universal rendering model doesn't introduce new generic type parameters. The type flow is unchanged from the current architecture:
 
 ```
-Component props → JSX transform → __element/__text/__child calls → effect(fn) → DOM/SSR output
-Signal<T>.value → effect callback → Node.textContent / setAttribute
+Component props → JSX transform → __element/__text/__child calls → domEffect(fn) → DOM/SSR output
+Signal<T>.value → domEffect callback → Node.textContent / setAttribute
 ```
 
-The change is behavioral (effect runs vs no-ops), not structural (no new types). The new `sideEffect()` has the same signature as `effect()`: `(fn: () => void) => DisposeFn`.
+The change is behavioral (domEffect runs vs no-ops), not structural (no new types). `domEffect()` and `lifecycleEffect()` have the same signature: `(fn: () => void) => DisposeFn`.
 
 ## E2E Acceptance Test
 
