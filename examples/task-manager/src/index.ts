@@ -7,7 +7,7 @@
  * during server rendering.
  */
 
-import { mount, globalCss } from '@vertz/ui';
+import { globalCss, mount } from '@vertz/ui';
 import { App } from './app';
 import { taskManagerTheme } from './styles/theme';
 
@@ -55,11 +55,14 @@ const viewTransitionsCss = `
 }
 `;
 
-// ── Mount ──────────────────────────────────────────────────────
-
-mount(App, '#app', {
-  theme: taskManagerTheme,
-  styles: [globalStyles.css, viewTransitionsCss],
-});
-
-console.log('Task Manager app mounted');
+// ── Mount (client-only) ─────────────────────────────────────────
+// During SSR, the virtual entry imports this module to call App().
+// Guard mount() so it only runs in a real browser, not under the DOM shim.
+// biome-ignore lint/suspicious/noExplicitAny: SSR global check
+const isSSR = typeof (globalThis as any).__SSR_URL__ !== 'undefined';
+if (!isSSR) {
+  mount(App, '#app', {
+    theme: taskManagerTheme,
+    styles: [globalStyles.css, viewTransitionsCss],
+  });
+}

@@ -71,6 +71,7 @@ export function ConfirmDialog({
           aria-modal="true"
           aria-labelledby={titleId}
           aria-hidden={isOpen ? 'false' : 'true'}
+          data-state={isOpen ? 'open' : 'closed'}
           data-testid="confirm-dialog-content"
         >
           <h2 id={titleId} class={dialogStyles.title}>
@@ -81,6 +82,7 @@ export function ConfirmDialog({
             <button
               type="button"
               class={button({ intent: 'secondary', size: 'sm' })}
+              aria-label="Close"
               onClick={() => {
                 isOpen = false;
               }}

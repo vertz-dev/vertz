@@ -181,7 +181,9 @@ export class SSRElement extends SSRNode {
       attrs: { ...this.attrs },
       children: this.children.map((child) => {
         if (typeof child === 'string') return child;
-        return child.toVNode();
+        if (typeof child.toVNode === 'function') return child.toVNode();
+        // Fallback: stringify non-SSRElement children (e.g. plain objects)
+        return String(child);
       }),
     };
   }
