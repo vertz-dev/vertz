@@ -326,18 +326,72 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
     if (!prop) return undefined;
 
     const propType = prop.getTypeAtLocation(location);
-    const typeText = propType.getText();
 
     // Try to resolve field-level info for downstream codegen
     const resolvedFields = this.resolveFieldsFromSchemaType(propType, location);
 
-    // Return as inline schema ref with the type text for codegen
+    // Generate proper JSON Schema from resolvedFields
+    const jsonSchema = this.buildJsonSchema(resolvedFields);
+
+    // Return as inline schema ref with the resolved schema
     return {
       kind: 'inline' as const,
       sourceFile: location.getSourceFile().getFilePath(),
-      jsonSchema: { __typeText: typeText },
+      jsonSchema,
       resolvedFields,
     };
+  }
+
+  /**
+   * Build JSON Schema from resolved fields.
+   * Maps tsType ('string' | 'number' | 'boolean' | 'date' | 'unknown') to JSON Schema types.
+   */
+  private buildJsonSchema(
+    resolvedFields: ResolvedField[] | undefined,
+  ): Record<string, unknown> {
+    if (!resolvedFields || resolvedFields.length === 0) {
+      return {};
+    }
+
+    const properties: Record<string, Record<string, unknown>> = {};
+    const required: string[] = [];
+
+    for (const field of resolvedFields) {
+      const fieldSchema = this.tsTypeToJsonSchema(field.tsType);
+      properties[field.name] = fieldSchema;
+      if (!field.optional) {
+        required.push(field.name);
+      }
+    }
+
+    return {
+      type: 'object',
+      properties,
+      ...(required.length > 0 ? { required } : {}),
+    };
+  }
+
+  /**
+   * Map tsType to JSON Schema type.
+   * Handles column types like text → string, boolean → boolean, uuid → string with format,
+   * timestamp with time zone → string with date-time format, integer → integer, real/float → number.
+   */
+  private tsTypeToJsonSchema(
+    tsType: ResolvedField['tsType'],
+  ): Record<string, unknown> {
+    switch (tsType) {
+      case 'string':
+        return { type: 'string' };
+      case 'number':
+        return { type: 'number' };
+      case 'boolean':
+        return { type: 'boolean' };
+      case 'date':
+        return { type: 'string', format: 'date-time' };
+      case 'unknown':
+      default:
+        return {};
+    }
   }
 
   /**

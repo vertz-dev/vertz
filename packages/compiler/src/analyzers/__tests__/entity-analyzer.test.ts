@@ -812,6 +812,49 @@ describe('EntityAnalyzer', () => {
       // When schemas can't be resolved, the whole schemaRefs.resolved is false
       expect(entity?.modelRef.schemaRefs.resolved).toBe(false);
     });
+
+    it('generates proper JSON Schema from resolvedFields (not __typeText)', async () => {
+      createFile(
+        '/models.ts',
+        `
+        export interface SchemaLike<T> { parse(data: unknown): T; }
+        export interface TodoModel {
+          schemas: {
+            response: SchemaLike<{ id: string; title: string; completed: boolean; createdAt: Date }>;
+            createInput: SchemaLike<{ title: string; completed?: boolean }>;
+            updateInput: SchemaLike<{ title?: string; completed?: boolean }>;
+          };
+        }
+        export const todoModel: TodoModel = {} as TodoModel;
+      `,
+      );
+
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { todoModel } from './models';
+
+        export const todoEntity = entity('todos', { model: todoModel });
+      `,
+      );
+
+      const result = await analyze();
+      const createInput = result.entities[0]?.modelRef.schemaRefs.createInput;
+
+      // jsonSchema should be proper JSON Schema, not contain __typeText
+      expect(createInput?.kind).toBe('inline');
+      if (createInput?.kind === 'inline' && createInput.jsonSchema) {
+        expect(createInput.jsonSchema).not.toHaveProperty('__typeText');
+        expect(createInput.jsonSchema).toHaveProperty('type', 'object');
+        expect(createInput.jsonSchema).toHaveProperty('properties');
+        expect(createInput.jsonSchema.properties).toEqual({
+          title: { type: 'string' },
+          completed: { type: 'boolean' },
+        });
+        expect(createInput.jsonSchema.required).toEqual(['title']);
+      }
+    });
   });
 
   describe('Config Edge Cases', () => {
