@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { signal } from '@vertz/ui';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { tui } from '../app';
 import { useKeyboard } from '../input/hooks';
 import { jsx } from '../jsx-runtime/index';
@@ -134,5 +134,27 @@ describe('useKeyboard', () => {
     // After unmount, events should not fire
     mockStdin.emit('data', Buffer.from('\x1b[A'));
     expect(count.value).toBe(1);
+  });
+
+  it('exits process on Ctrl+C when using StdinReader', () => {
+    const adapter = new TestAdapter(40, 10);
+    const mockStdin = createMockStdin();
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+
+    const handler = () => {};
+
+    function App(): TuiNode {
+      useKeyboard(handler);
+      return h('Text', {}, 'hello');
+    }
+
+    const handle = tui.mount(App, { adapter, stdin: mockStdin });
+
+    // Emit Ctrl+C (byte 0x03)
+    mockStdin.emit('data', Buffer.from([0x03]));
+    expect(exitSpy).toHaveBeenCalledWith(130);
+
+    exitSpy.mockRestore();
+    handle.unmount();
   });
 });
