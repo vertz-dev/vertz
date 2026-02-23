@@ -46,12 +46,20 @@ describe('domain/schema', () => {
       expect(error.code).toBe('VALIDATION_FAILED');
       expect(error.issues).toHaveLength(0);
     });
+
   });
 
   describe('isValidationError', () => {
     it('returns true for a ValidationError', () => {
       const error = createValidationError('Validation failed', []);
       expect(isValidationError(error)).toBe(true);
+    });
+
+    it('returns true for any object with matching code (discriminant-based guard)', () => {
+      // isValidationError checks only the code discriminant — it does not verify
+      // that message or issues are present. Consumers who need those fields must
+      // access them after the guard narrows the type.
+      expect(isValidationError({ code: 'VALIDATION_FAILED' })).toBe(true);
     });
 
     it('returns false for an error with a different code', () => {
