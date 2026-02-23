@@ -169,13 +169,14 @@ function generateIndexSql<T extends ColumnRecord>(schema: TableDef<T>): string[]
 // ---------------------------------------------------------------------------
 
 /**
- * Minimal SQLite database interface (matches bun:sqlite API surface)
+ * Minimal SQLite database interface (matches bun:sqlite AND better-sqlite3 API surface)
  */
 interface SqliteDatabase {
   prepare(sql: string): {
     all(...params: unknown[]): Record<string, unknown>[];
     run(...params: unknown[]): { changes: number };
   };
+  exec(sql: string): void;
   run(sql: string): void;
   close(): void;
 }
