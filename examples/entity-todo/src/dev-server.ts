@@ -82,8 +82,8 @@ async function toNodeResponse(res: ServerResponse, webResponse: Response): Promi
 async function apiMiddleware(req: IncomingMessage, res: ServerResponse, next: () => void) {
   const url = req.url || '/';
   
-  // Only handle API routes
-  if (!url.startsWith('/api/')) {
+  // Only handle API routes (skip OpenAPI spec - handled by dev server)
+  if (!url.startsWith('/api/') || url === '/api/openapi.json') {
     return next();
   }
 
