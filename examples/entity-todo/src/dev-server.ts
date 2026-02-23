@@ -146,29 +146,29 @@ const devServer = createDevServer({
 });
 
 console.log(`
-╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
-║   🏗️  Vertz Dev Server (SSR)                              ║
-║                                                           ║
-║   Local:    http://localhost:${PORT}                      ║
-║   API:      http://localhost:${PORT}/api                   ║
-║   OpenAPI:  http://localhost:${PORT}/api/openapi.json     ║
-║                                                           ║
-║   Stack:                                                 ║
-║   • Vite SSR (vite.ssrLoadModule) ✅                    ║
-║   • @vertz/server (API routes) ✅                        ║
-║   • SQLite (local persistence) ✅                       ║
-║   • HMR (UI hot-reload) ✅                              ║
-║   • OpenAPI spec ✅                                     ║
-║                                                           ║
-║   Available API endpoints:                               ║
-║   • GET    /api/todos         List all todos            ║
-║   • GET    /api/todos/:id     Get a todo                ║
-║   • POST   /api/todos         Create a todo            ║
-║   • PATCH  /api/todos/:id     Update a todo            ║
-║   • DELETE /api/todos/:id     Delete a todo            ║
-║                                                           ║
-╚═══════════════════════════════════════════════════════════╝
+╔═════════════════════════════════════════════════════════════╗
+║                                                             ║
+║   🏗️  Vertz Dev Server (SSR)                                ║
+║                                                             ║
+║   Local:    http://localhost:${PORT}                        ║
+║   API:      http://localhost:${PORT}/api                    ║
+║   OpenAPI:  http://localhost:${PORT}/api/openapi.json       ║
+║                                                             ║
+║   Stack:                                                   ║
+║   • Vite SSR (vite.ssrLoadModule) ✅                     ║
+║   • @vertz/server (API routes) ✅                          ║
+║   • SQLite (local persistence) ✅                          ║
+║   • HMR (UI hot-reload) ✅                                ║
+║   • OpenAPI spec ✅                                       ║
+║                                                             ║
+║   Available API endpoints:                                 ║
+║   • GET    /api/todos         List all todos              ║
+║   • GET    /api/todos/:id     Get a todo                 ║
+║   • POST   /api/todos         Create a todo              ║
+║   • PATCH  /api/todos/:id     Update a todo              ║
+║   • DELETE /api/todos/:id     Delete a todo              ║
+║                                                             ║
+╚═════════════════════════════════════════════════════════════╝
 `);
 
 devServer.listen();

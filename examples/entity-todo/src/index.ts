@@ -7,27 +7,12 @@
 import { mount, globalCss } from '@vertz/ui';
 import { App } from './app';
 import { todoTheme } from './styles/theme';
+import { globalStyles } from './styles/global';
 
 // Re-export App as default for SSR entry auto-detection
 export { App };
+export { globalStyles } from './styles/global';
 export default App;
-
-// ── Global reset styles ────────────────────────────────────────
-
-export const globalStyles = globalCss({
-  '*, *::before, *::after': {
-    boxSizing: 'border-box',
-    margin: '0',
-    padding: '0',
-  },
-  body: {
-    fontFamily: 'system-ui, -apple-system, sans-serif',
-    backgroundColor: 'var(--color-background)',
-    color: 'var(--color-foreground)',
-    minHeight: '100vh',
-    lineHeight: '1.5',
-  },
-});
 
 // ── Mount ──────────────────────────────────────────────────────
 
