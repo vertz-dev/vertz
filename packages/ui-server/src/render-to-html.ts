@@ -56,6 +56,11 @@ export async function renderToHTML<AppFn extends () => VNode>(
   // Install DOM shim for SSR
   installDomShim();
 
+  // Set SSR flag — __VERTZ_SSR__ is the canonical signal read by @vertz/ui's
+  // isSSR() to skip effects and evaluate DOM primitives synchronously.
+  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  (globalThis as any).__VERTZ_SSR__ = true;
+
   // Use AsyncLocalStorage for per-request SSR context
   return ssrStorage.run({ url: options.url }, async () => {
     try {
@@ -112,7 +117,9 @@ export async function renderToHTML<AppFn extends () => VNode>(
       // Extract and return HTML string
       return await response.text();
     } finally {
-      // Cleanup DOM shim (AsyncLocalStorage context is automatically cleaned up)
+      // Cleanup SSR flag and DOM shim (AsyncLocalStorage context is automatically cleaned up)
+      // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+      delete (globalThis as any).__VERTZ_SSR__;
       removeDomShim();
     }
   });
