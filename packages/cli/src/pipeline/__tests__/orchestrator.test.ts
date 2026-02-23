@@ -2,20 +2,48 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type PipelineConfig, PipelineOrchestrator } from '../orchestrator';
 
 // Mock the compiler and codegen modules
-vi.mock('@vertz/compiler', () => ({
-  createCompiler: vi.fn(() => ({
-    analyze: vi.fn().mockResolvedValue({
-      modules: [{ name: 'test', services: [], routes: [], schemas: [] }],
-      routes: [],
-      schemas: [],
-      env: { variables: [] },
-      middlewares: [],
-    }),
-    validate: vi.fn().mockResolvedValue([]),
-    compile: vi.fn().mockResolvedValue({ success: true, diagnostics: [] }),
-  })),
-  Compiler: vi.fn(),
-}));
+vi.mock('@vertz/compiler', () => {
+  const mockGenerate = vi.fn().mockResolvedValue(undefined);
+  
+  return {
+    createCompiler: vi.fn(() => ({
+      analyze: vi.fn().mockResolvedValue({
+        modules: [{ name: 'test', services: [], routes: [], schemas: [] }],
+        routes: [],
+        schemas: [],
+        env: { variables: [] },
+        middlewares: [],
+      }),
+      validate: vi.fn().mockResolvedValue([]),
+      compile: vi.fn().mockResolvedValue({ success: true, diagnostics: [] }),
+      getConfig: vi.fn().mockReturnValue({
+        strict: false,
+        forceGenerate: false,
+        compiler: {
+          sourceDir: 'src',
+          outputDir: '.vertz/generated',
+          entryFile: 'src/app.ts',
+          schemas: {
+            enforceNaming: true,
+            enforcePlacement: true,
+          },
+          openapi: {
+            output: '.vertz/generated/openapi.json',
+            info: { title: 'Vertz App', version: '1.0.0' },
+          },
+          validation: {
+            requireResponseSchema: false,
+            detectDeadCode: false,
+          },
+        },
+      }),
+    })),
+    Compiler: vi.fn(),
+    OpenAPIGenerator: class {
+      generate = mockGenerate;
+    },
+  };
+});
 
 vi.mock('@vertz/codegen', () => ({
   createCodegenPipeline: vi.fn(() => ({
@@ -77,9 +105,10 @@ describe('PipelineOrchestrator', () => {
       const result = await orchestrator.runFull();
 
       expect(result.success).toBe(true);
-      expect(result.stages).toHaveLength(2); // analyze + codegen
+      expect(result.stages).toHaveLength(3); // analyze + codegen + openapi
       expect(result.stages.map((s) => s.stage)).toContain('analyze');
       expect(result.stages.map((s) => s.stage)).toContain('codegen');
+      expect(result.stages.map((s) => s.stage)).toContain('openapi');
     });
 
     it('should return AppIR after successful analysis', async () => {

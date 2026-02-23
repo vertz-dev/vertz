@@ -10,7 +10,7 @@
 
 import type { AppIR } from '@vertz/compiler';
 import type { GenerateResult, ResolvedCodegenConfig, CodegenConfig } from '@vertz/codegen';
-import { createCompiler, type Compiler, type CompilerDependencies, type CompileResult, type Diagnostic } from '@vertz/compiler';
+import { createCompiler, type Compiler, type CompilerDependencies, type CompileResult, type Diagnostic, OpenAPIGenerator } from '@vertz/compiler';
 import { generate, createCodegenPipeline } from '@vertz/codegen';
 import type { PipelineStage, FileCategory } from './types';
 
@@ -132,20 +132,21 @@ export class PipelineOrchestrator {
         success = false;
       }
 
-      // Stage 2: Generate OpenAPI spec (only if analyze succeeded)
-      if (success && this.appIR) {
-        const openapiResult = await this.runOpenAPIGenerate();
-        stages.push(openapiResult);
-        if (!openapiResult.success) {
-          success = false;
-        }
-      }
-
-      // Stage 3: Generate (only if analyze succeeded)
+      // Stage 2: Generate code (types, route map, DB client)
+      // OpenAPI depends on the IR being ready from codegen
       if (success && this.appIR) {
         const generateResult = await this.runCodegen();
         stages.push(generateResult);
         if (!generateResult.success) {
+          success = false;
+        }
+      }
+
+      // Stage 3: Generate OpenAPI spec (only if codegen succeeded)
+      if (success && this.appIR) {
+        const openapiResult = await this.runOpenAPIGenerate();
+        stages.push(openapiResult);
+        if (!openapiResult.success) {
           success = false;
         }
       }
@@ -264,8 +265,10 @@ export class PipelineOrchestrator {
     }
 
     try {
-      // Generate OpenAPI spec using the compiler's generator
-      await this.compiler!.generate(this.appIR);
+      // Only generate OpenAPI spec, not all generators
+      const config = this.compiler!.getConfig();
+      const openApiGenerator = new OpenAPIGenerator(config);
+      await openApiGenerator.generate(this.appIR, config.compiler.outputDir);
       
       return {
         stage: 'openapi',
