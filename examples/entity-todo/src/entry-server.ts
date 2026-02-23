@@ -7,9 +7,43 @@
  * which swaps the JSX runtime from @vertz/ui (DOM) to @vertz/ui-server (VNodes).
  */
 
-import { renderPage } from '@vertz/ui-server';
+import { renderPage, renderToHTML } from '@vertz/ui-server';
 import { App } from './app';
-import { globalStyles } from './index';
+import { globalCss } from '@vertz/ui';
+import { defineTheme } from '@vertz/ui';
+
+/**
+ * Global styles for SSR - defined here to avoid importing client entry
+ */
+const globalStyles = globalCss({
+  '*, *::before, *::after': {
+    boxSizing: 'border-box',
+    margin: '0',
+    padding: '0',
+  },
+  body: {
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    backgroundColor: 'var(--color-background)',
+    color: 'var(--color-foreground)',
+    minHeight: '100vh',
+    lineHeight: '1.5',
+  },
+});
+
+/**
+ * Theme configuration for SSR
+ */
+const theme = defineTheme({
+  colors: {
+    primary: { DEFAULT: '#3b82f6', hover: '#2563eb' },
+    secondary: { DEFAULT: '#64748b', hover: '#475569' },
+    background: { DEFAULT: '#ffffff', alt: '#f8fafc' },
+    text: { DEFAULT: '#1e293b', muted: '#64748b' },
+    success: { DEFAULT: '#22c55e' },
+    error: { DEFAULT: '#ef4444' },
+    border: { DEFAULT: '#e2e8f0' },
+  },
+});
 
 /**
  * Render the app to a full HTML Response.
@@ -74,4 +108,27 @@ export async function renderApp(): Promise<Response> {
 
     return response;
   }
+}
+
+/**
+ * Render the app to an HTML string.
+ * 
+ * This function is used by createDevServer for SSR in local development.
+ * It renders the App component to a complete HTML document string.
+ *
+ * @param url - The request URL for routing/SSR context
+ * @returns Promise<string> - The rendered HTML string
+ */
+export async function renderToString(url: string): Promise<string> {
+  return renderToHTML(App, {
+    url,
+    theme,
+    styles: [globalStyles.css],
+    head: {
+      title: 'Entity Todo',
+      meta: [
+        { name: 'description', content: 'A demo app showcasing vertz SSR on Cloudflare Workers' },
+      ],
+    },
+  });
 }
