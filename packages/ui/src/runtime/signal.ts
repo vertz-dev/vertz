@@ -7,22 +7,15 @@ import { getReadValueCallback, getSubscriber, setSubscriber } from './tracking';
 /**
  * Detect if running in SSR/server-side context.
  *
- * Checks multiple indicators because Vite's SSR module runner may provide
- * different globals than the host Node process:
- * - `typeof document === 'undefined'` — classic Node.js check
- * - `import.meta.env?.SSR` — Vite sets this to `true` during SSR module evaluation
- * - `globalThis.__SSR_URL__` — set by @vertz/ui-server's renderToHTML
+ * IMPORTANT: "no document" does NOT mean SSR — TUI runs in Node without
+ * document but still needs effects. And `import.meta.env.SSR` is true in
+ * all Vitest tests, so it's also unreliable.
+ *
+ * The only reliable signal is `globalThis.__VERTZ_SSR__`, which is explicitly
+ * set by @vertz/ui-server's renderToHTML before calling app() and cleared after.
  */
 function isSSR(): boolean {
-  if (typeof document === 'undefined') return true;
-  try {
-    // Vite injects import.meta.env.SSR = true during SSR
-    if ((import.meta as any).env?.SSR) return true;
-  } catch {
-    // import.meta may not be available in all contexts
-  }
-  if (typeof globalThis !== 'undefined' && (globalThis as any).__SSR_URL__ !== undefined) return true;
-  return false;
+  return typeof globalThis !== 'undefined' && (globalThis as any).__VERTZ_SSR__ === true;
 }
 
 /** Global ID counter for subscriber deduplication. */

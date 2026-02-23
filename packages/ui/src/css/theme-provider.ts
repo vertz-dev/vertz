@@ -36,14 +36,14 @@ export function ThemeProvider(props: ThemeProviderProps): HTMLDivElement | unkno
 
   // SSR: return a VNode-compatible structure for the server renderer.
   // VNode uses `attrs` (not props) — see @vertz/ui-server/types.ts
-  // Check multiple SSR indicators — Vite's module runner may provide different globals.
-  let ssr = typeof document === 'undefined';
-  if (!ssr) {
-    try { ssr = !!(import.meta as any).env?.SSR; } catch { /* ignore */ }
-  }
+  // NOTE: "no document" alone doesn't mean SSR (TUI has no document).
+  // Check positive SSR indicators + document absence together.
+  let ssr = false;
+  try { ssr = !!(import.meta as any).env?.SSR; } catch { /* ignore */ }
   if (!ssr && typeof globalThis !== 'undefined') {
     ssr = (globalThis as any).__SSR_URL__ !== undefined;
   }
+  if (!ssr && typeof document === 'undefined') ssr = true;
   if (ssr) {
     return {
       tag: 'div',
