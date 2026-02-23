@@ -43,12 +43,24 @@ describe('isVNode', () => {
     expect(isVNode({ tag: 'div', attrs: {}, children: [] })).toBe(true);
   });
 
+  it('detects VNode with only attrs', () => {
+    expect(isVNode({ tag: 'div', attrs: {} })).toBe(true);
+  });
+
+  it('detects VNode with only children', () => {
+    expect(isVNode({ tag: 'div', children: [] })).toBe(true);
+  });
+
   it('rejects non-VNode objects', () => {
     expect(isVNode(null)).toBe(false);
     expect(isVNode('string')).toBe(false);
     expect(isVNode(42)).toBe(false);
     expect(isVNode({ foo: 'bar' })).toBe(false);
     expect(isVNode({ tag: 123 })).toBe(false);
+  });
+
+  it('rejects objects with tag but no attrs or children', () => {
+    expect(isVNode({ tag: 'monster' })).toBe(false);
   });
 });
 
@@ -65,6 +77,19 @@ describe('vnodeToDOM', () => {
     const node = vnodeToDOM('hello');
     expect(node).toBeInstanceOf(Text);
     expect(node.textContent).toBe('hello');
+  });
+
+  it('handles falsy children (0 is rendered, false/null are skipped)', () => {
+    const node = vnodeToDOM({
+      tag: 'div',
+      attrs: {},
+      children: [0, false, null, 'text', true],
+    });
+    // 0 and 'text' should be rendered; false, null, true should be skipped
+    const el = node as HTMLElement;
+    expect(el.childNodes.length).toBe(2);
+    expect(el.childNodes[0]?.textContent).toBe('0');
+    expect(el.childNodes[1]?.textContent).toBe('text');
   });
 
   it('handles nested VNodes', () => {
@@ -92,6 +117,11 @@ describe('unwrapSignal', () => {
     expect(unwrapSignal('hello')).toBe('hello');
     expect(unwrapSignal(42)).toBe(42);
     expect(unwrapSignal(null)).toBe(null);
+  });
+
+  it('does not unwrap objects with peek but no value', () => {
+    const notSignal = { peek: () => 'oops' };
+    expect(unwrapSignal(notSignal)).toBe(notSignal);
   });
 });
 
@@ -150,10 +180,16 @@ describe('__text (SSR)', () => {
     expect(node.data).toBe('hello');
   });
 
-  it('handles null/undefined return by converting to empty string', () => {
-    // @ts-expect-error — testing SSR edge case where fn() returns null
+  it('handles null return by converting to empty string', () => {
     const node = __text(() => null);
     expect(node.data).toBe('');
+  });
+
+  it('unwraps signal-like values', () => {
+    const signalLike = { value: 'from signal', peek: () => 'from signal' };
+    // @ts-expect-error — testing duck-typed signal return from fn()
+    const node = __text(() => signalLike);
+    expect(node.data).toBe('from signal');
   });
 
   it('returns a disposable text node', () => {
@@ -296,6 +332,13 @@ describe('__attr (SSR)', () => {
     const el = document.createElement('div');
     __attr(el, 'role', () => 'alert');
     expect(el.getAttribute('role')).toBe('alert');
+  });
+
+  it('handles numeric attribute values', () => {
+    const el = document.createElement('input');
+    // @ts-expect-error — testing numeric value coercion
+    __attr(el, 'tabindex', () => 0);
+    expect(el.getAttribute('tabindex')).toBe('0');
   });
 
   it('returns a no-op dispose function', () => {

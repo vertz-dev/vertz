@@ -10,16 +10,17 @@ import type { DisposeFn } from '../runtime/signal-types';
 
 // ─── SSR Helpers ────────────────────────────────────────────────────────────
 
-/** Duck-type check for VNode-like objects (produced by Vite's JSX runtime during SSR). */
+/**
+ * Duck-type check for VNode-like objects (produced by Vite's JSX runtime during SSR).
+ * Checks for `tag` (string) AND at least one of `attrs` or `children` to reduce false positives
+ * against user objects that happen to have a `tag` property.
+ */
 function isVNode(
   value: unknown,
 ): value is { tag: string; attrs?: Record<string, string>; children?: unknown[] } {
-  return (
-    value != null &&
-    typeof value === 'object' &&
-    'tag' in value &&
-    typeof (value as Record<string, unknown>).tag === 'string'
-  );
+  if (value == null || typeof value !== 'object' || !('tag' in value)) return false;
+  const obj = value as Record<string, unknown>;
+  return typeof obj.tag === 'string' && ('attrs' in obj || 'children' in obj);
 }
 
 /** Convert a VNode-like object to a DOM node (SSR: produces SSRElements). */
@@ -43,12 +44,17 @@ function vnodeToDOM(vnode: unknown): Node {
   return el;
 }
 
-/** Unwrap signal-like objects using peek() to avoid subscriptions. */
+/**
+ * Unwrap signal-like objects using peek() to avoid subscriptions.
+ * Requires both `peek` (function) and `value` (property) to match Vertz signals
+ * and reduce false positives against arbitrary objects with a `peek()` method.
+ */
 function unwrapSignal(value: unknown): unknown {
   if (
     value != null &&
     typeof value === 'object' &&
     'peek' in value &&
+    'value' in value &&
     typeof (value as Record<string, unknown>).peek === 'function'
   ) {
     return (value as { peek: () => unknown }).peek();
@@ -72,9 +78,11 @@ export interface DisposableText extends Text {
  *
  * Returns a Text node with a `dispose` property for cleanup.
  */
-export function __text(fn: () => string): DisposableText {
+export function __text(fn: () => string | null | undefined): DisposableText {
   if (isSSR()) {
-    const node = document.createTextNode(String(fn() ?? '')) as DisposableText;
+    const raw = fn();
+    const value = unwrapSignal(raw);
+    const node = document.createTextNode(String(value ?? '')) as DisposableText;
     node.dispose = () => {};
     return node;
   }
@@ -83,14 +91,14 @@ export function __text(fn: () => string): DisposableText {
     if (claimed) {
       const node = claimed as DisposableText;
       node.dispose = effect(() => {
-        node.data = fn();
+        node.data = String(fn() ?? '');
       });
       return node;
     }
   }
   const node = document.createTextNode('') as DisposableText;
   node.dispose = effect(() => {
-    node.data = fn();
+    node.data = String(fn() ?? '');
   });
   return node;
 }
@@ -208,8 +216,7 @@ export function __child(
  */
 export function __insert(
   parent: Node,
-  // biome-ignore lint/suspicious/noExplicitAny: SSR receives VNode-like objects from Vite JSX
-  value: any,
+  value: Node | string | number | boolean | null | undefined | Record<string, unknown>,
 ): void {
   // Skip null, undefined, and booleans
   if (value == null || typeof value === 'boolean') {
@@ -229,7 +236,7 @@ export function __insert(
   // Unwrap signal-like objects (SSR: compiler may not have inserted .value)
   const unwrapped = unwrapSignal(value);
   if (unwrapped !== value) {
-    __insert(parent, unwrapped);
+    __insert(parent, unwrapped as Parameters<typeof __insert>[1]);
     return;
   }
 
