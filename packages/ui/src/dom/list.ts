@@ -1,7 +1,8 @@
 import { getIsHydrating } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
-import { effect } from '../runtime/signal';
+import { effect, isSSR } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
+import { isVNode, unwrapSignal, vnodeToDOM } from './element';
 
 /**
  * Keyed list reconciliation.
@@ -27,6 +28,23 @@ export function __list<T>(
   // Normalize items access: compiler passes a getter `() => signal.value`,
   // while tests pass a raw Signal. Both work inside effect() for tracking.
   const getItems = typeof items === 'function' ? items : () => items.value;
+
+  if (isSSR()) {
+    let itemArray: unknown = getItems();
+    itemArray = unwrapSignal(itemArray);
+    if (Array.isArray(itemArray)) {
+      for (const item of itemArray) {
+        const node = renderFn(item);
+        if (node instanceof Node) {
+          container.appendChild(node);
+        } else if (isVNode(node)) {
+          // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim appendChild accepts SSRNode
+          container.appendChild(vnodeToDOM(node) as any);
+        }
+      }
+    }
+    return () => {};
+  }
 
   // Map from key to the rendered DOM node
   const nodeMap = new Map<string | number, Node>();

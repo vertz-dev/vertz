@@ -1,5 +1,6 @@
-import { effect } from '../runtime/signal';
+import { effect, isSSR } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
+import { unwrapSignal } from './element';
 
 /**
  * Create a reactive attribute binding.
@@ -14,6 +15,18 @@ export function __attr(
   name: string,
   fn: () => string | boolean | null | undefined,
 ): DisposeFn {
+  if (isSSR()) {
+    let value: unknown = fn();
+    value = unwrapSignal(value);
+    if (value == null || value === false) {
+      el.removeAttribute(name);
+    } else if (value === true) {
+      el.setAttribute(name, '');
+    } else {
+      el.setAttribute(name, String(value));
+    }
+    return () => {};
+  }
   return effect(() => {
     const value = fn();
     if (value == null || value === false) {

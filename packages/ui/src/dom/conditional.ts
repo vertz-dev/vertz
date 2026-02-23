@@ -1,7 +1,8 @@
 import { claimComment, getIsHydrating } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
-import { effect } from '../runtime/signal';
+import { effect, isSSR } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
+import { isVNode, unwrapSignal, vnodeToDOM } from './element';
 
 /** A Node that also carries a dispose function for cleanup. */
 export interface DisposableNode extends Node {
@@ -23,10 +24,42 @@ export function __conditional(
   trueFn: () => Node | null,
   falseFn: () => Node | null,
 ): DisposableNode {
+  if (isSSR()) {
+    return ssrConditional(condFn, trueFn, falseFn);
+  }
   if (getIsHydrating()) {
     return hydrateConditional(condFn, trueFn, falseFn);
   }
   return csrConditional(condFn, trueFn, falseFn);
+}
+
+/**
+ * SSR path for __conditional.
+ * Evaluates condition and branch synchronously (no effect).
+ */
+function ssrConditional(
+  condFn: () => boolean,
+  trueFn: () => Node | null,
+  falseFn: () => Node | null,
+): DisposableNode {
+  let cond: unknown = condFn();
+  cond = unwrapSignal(cond);
+  const branchResult = cond ? trueFn() : falseFn();
+
+  let node: Node;
+  if (branchResult == null || typeof branchResult === 'boolean') {
+    node = document.createComment('');
+  } else if (isVNode(branchResult)) {
+    node = vnodeToDOM(branchResult);
+  } else if (branchResult instanceof Node) {
+    node = branchResult;
+  } else {
+    node = document.createTextNode(String(branchResult));
+  }
+
+  const fragment = document.createDocumentFragment();
+  fragment.appendChild(node);
+  return Object.assign(fragment, { dispose: () => {} });
 }
 
 /**

@@ -5,8 +5,58 @@ import {
   exitChildren,
   getIsHydrating,
 } from '../hydrate/hydration-context';
-import { effect } from '../runtime/signal';
+import { effect, isSSR } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
+
+// ─── SSR Helpers ────────────────────────────────────────────────────────────
+
+/** Duck-type check for VNode-like objects (produced by Vite's JSX runtime during SSR). */
+function isVNode(
+  value: unknown,
+): value is { tag: string; attrs?: Record<string, string>; children?: unknown[] } {
+  return (
+    value != null &&
+    typeof value === 'object' &&
+    'tag' in value &&
+    typeof (value as Record<string, unknown>).tag === 'string'
+  );
+}
+
+/** Convert a VNode-like object to a DOM node (SSR: produces SSRElements). */
+function vnodeToDOM(vnode: unknown): Node {
+  if (typeof vnode === 'string') return document.createTextNode(vnode);
+  if (!isVNode(vnode)) return document.createTextNode(String(vnode));
+  const el = document.createElement(vnode.tag);
+  if (vnode.attrs) {
+    for (const [key, val] of Object.entries(vnode.attrs)) {
+      if (val != null) el.setAttribute(key, String(val));
+    }
+  }
+  if (vnode.children) {
+    for (const child of vnode.children) {
+      if (child != null && typeof child !== 'boolean') {
+        // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim appendChild accepts SSRNode
+        el.appendChild(vnodeToDOM(child) as any);
+      }
+    }
+  }
+  return el;
+}
+
+/** Unwrap signal-like objects using peek() to avoid subscriptions. */
+function unwrapSignal(value: unknown): unknown {
+  if (
+    value != null &&
+    typeof value === 'object' &&
+    'peek' in value &&
+    typeof (value as Record<string, unknown>).peek === 'function'
+  ) {
+    return (value as { peek: () => unknown }).peek();
+  }
+  return value;
+}
+
+export { isVNode, vnodeToDOM, unwrapSignal };
 
 /** A Text node that also carries a dispose function for cleanup. */
 export interface DisposableText extends Text {
@@ -23,6 +73,11 @@ export interface DisposableText extends Text {
  * Returns a Text node with a `dispose` property for cleanup.
  */
 export function __text(fn: () => string): DisposableText {
+  if (isSSR()) {
+    const node = document.createTextNode(String(fn() ?? '')) as DisposableText;
+    node.dispose = () => {};
+    return node;
+  }
   if (getIsHydrating()) {
     const claimed = claimText();
     if (claimed) {
@@ -56,6 +111,25 @@ export function __child(
   dispose: DisposeFn;
 } {
   let wrapper: HTMLElement & { dispose: DisposeFn };
+
+  if (isSSR()) {
+    wrapper = document.createElement('span') as HTMLElement & { dispose: DisposeFn };
+    wrapper.style.display = 'contents';
+    wrapper.dispose = () => {};
+    const rawValue = fn();
+    const value = unwrapSignal(rawValue);
+    if (value != null && typeof value !== 'boolean') {
+      if (isVNode(value)) {
+        // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim appendChild accepts SSRNode
+        wrapper.appendChild(vnodeToDOM(value) as any);
+      } else if (value instanceof Node) {
+        wrapper.appendChild(value);
+      } else {
+        wrapper.appendChild(document.createTextNode(String(value)));
+      }
+    }
+    return wrapper;
+  }
 
   if (getIsHydrating()) {
     const claimed = claimElement('span');
@@ -134,7 +208,8 @@ export function __child(
  */
 export function __insert(
   parent: Node,
-  value: Node | string | number | boolean | null | undefined,
+  // biome-ignore lint/suspicious/noExplicitAny: SSR receives VNode-like objects from Vite JSX
+  value: any,
 ): void {
   // Skip null, undefined, and booleans
   if (value == null || typeof value === 'boolean') {
@@ -148,6 +223,20 @@ export function __insert(
     }
     // For string/number values, claim the existing text node
     claimText();
+    return;
+  }
+
+  // Unwrap signal-like objects (SSR: compiler may not have inserted .value)
+  const unwrapped = unwrapSignal(value);
+  if (unwrapped !== value) {
+    __insert(parent, unwrapped);
+    return;
+  }
+
+  // Convert VNode-like objects to DOM nodes (SSR: Vite JSX runtime produces VNodes)
+  if (isVNode(value)) {
+    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim appendChild accepts SSRNode
+    parent.appendChild(vnodeToDOM(value) as any);
     return;
   }
 

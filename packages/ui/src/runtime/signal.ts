@@ -15,9 +15,14 @@ import { getReadValueCallback, getSubscriber, setSubscriber } from './tracking';
  * which is installed by @vertz/ui-server's ssr-context.ts (AsyncLocalStorage-backed).
  * This avoids circular deps between ui and ui-server.
  */
-function isSSR(): boolean {
-  const check = typeof globalThis !== 'undefined' && (globalThis as any).__VERTZ_IS_SSR__;
-  return typeof check === 'function' ? check() : false;
+export function isSSR(): boolean {
+  if (typeof globalThis === 'undefined') return false;
+  // Primary: function hook installed by @vertz/ui-server's ssr-context (AsyncLocalStorage-backed)
+  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  const check = (globalThis as any).__VERTZ_IS_SSR__;
+  if (typeof check === 'function') return check();
+  // Fallback: boolean flag (used in tests and direct SSR setups)
+  return (globalThis as Record<string, unknown>).__VERTZ_SSR__ === true;
 }
 
 /** Global ID counter for subscriber deduplication. */
