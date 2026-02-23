@@ -36,9 +36,9 @@ export function installDomShim(): void {
     createTextNode(text: string): SSRTextNode {
       return new SSRTextNode(text);
     },
-    createComment(text: string): SSRTextNode {
-      // Comments are rendered as text nodes in SSR (they're stripped anyway)
-      return new SSRTextNode(`<!-- ${text} -->`);
+    createComment(_text: string): SSRTextNode {
+      // Comments serve as conditional branch placeholders — invisible during SSR
+      return new SSRTextNode('');
     },
     createDocumentFragment(): SSRDocumentFragment {
       return new SSRDocumentFragment();

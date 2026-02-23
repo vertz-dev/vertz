@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { jsx } from '../jsx-runtime';
 import { renderToStream } from '../render-to-stream';
 import { resetSlotCounter } from '../slot-placeholder';
 import { collectStreamChunks, streamToString } from '../streaming';
@@ -81,6 +82,35 @@ describe('renderToStream', () => {
     // Should contain the replacement template
     expect(html).toContain('v-tmpl-');
     expect(html).toContain('loaded');
+  });
+
+  describe('signal-like object unwrapping', () => {
+    it('unwraps signal-like child to its peeked value', async () => {
+      const signal = { value: 'hello', peek: () => 'hello' };
+      // Pass signal-like object as child through the JSX runtime
+      const vnode = jsx('div', { children: signal });
+      const html = await streamToString(renderToStream(vnode));
+      expect(html).toContain('hello');
+      expect(html).not.toContain('[object Object]');
+    });
+
+    it('unwraps signal-like boolean attribute to its peeked value', async () => {
+      const signal = { value: true, peek: () => true };
+      // Pass signal-like object as attribute through the JSX runtime
+      const vnode = jsx('button', { disabled: signal, children: 'Submit' });
+      const html = await streamToString(renderToStream(vnode));
+      // Boolean true → empty string attribute (disabled="")
+      expect(html).toContain('disabled=""');
+      expect(html).not.toContain('[object Object]');
+    });
+
+    it('unwraps signal-like string attribute value', async () => {
+      const signal = { value: 'error-msg', peek: () => 'error-msg' };
+      const vnode = jsx('span', { class: signal, children: 'text' });
+      const html = await streamToString(renderToStream(vnode));
+      expect(html).toContain('class="error-msg"');
+      expect(html).not.toContain('[object Object]');
+    });
   });
 
   describe('CSP nonce support', () => {

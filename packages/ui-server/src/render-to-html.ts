@@ -1,6 +1,7 @@
 import { compileTheme, type Theme } from '@vertz/ui';
-import { installDomShim, removeDomShim } from './dom-shim';
+import { installDomShim, removeDomShim, SSRElement } from './dom-shim';
 import { renderPage } from './render-page';
+import { ssrStorage } from './ssr-context';
 import type { VNode } from './types';
 
 export interface RenderToHTMLOptions<AppFn extends () => VNode> {
@@ -50,55 +51,69 @@ export interface RenderToHTMLOptions<AppFn extends () => VNode> {
  */
 export async function renderToHTML<AppFn extends () => VNode>(
   app: AppFn,
-  options: RenderToHTMLOptions<AppFn>
+  options: RenderToHTMLOptions<AppFn>,
 ): Promise<string> {
   // Install DOM shim for SSR
   installDomShim();
-  // Set SSR flags — __VERTZ_SSR__ is the canonical signal read by @vertz/ui's
-  // isSSR() to skip effects/onMount. __SSR_URL__ is used for routing.
-  (globalThis as any).__VERTZ_SSR__ = true;
-  (globalThis as any).__SSR_URL__ = options.url;
 
-  try {
-    // Compile theme CSS
-    const themeCss = options.theme ? compileTheme(options.theme).css : '';
+  // Use AsyncLocalStorage for per-request SSR context
+  return ssrStorage.run({ url: options.url }, async () => {
+    try {
+      // 1. Render app first — this triggers css()/injectCSS() calls that append
+      //    <style> elements to the fake document.head
+      const vnode = app();
 
-    // Collect all styles (theme + custom)
-    const allStyles = [themeCss, ...options.styles ?? []].filter(Boolean);
+      // 2. Collect CSS injected into fake document.head during render
+      // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+      const fakeDoc = (globalThis as any).document;
+      const collectedCSS: string[] = [];
+      if (fakeDoc?.head?.children) {
+        for (const child of fakeDoc.head.children) {
+          if (child instanceof SSRElement && child.tag === 'style') {
+            const cssText = child.children?.join('') ?? '';
+            if (cssText) collectedCSS.push(cssText);
+          }
+        }
+      }
 
-    // Build head entries for styles
-    const styleTags = allStyles
-      .map((css) => `<style>${css}</style>`)
-      .join('\n');
+      // 3. Compile theme CSS
+      const themeCss = options.theme ? compileTheme(options.theme).css : '';
 
-    // Build meta tags
-    const metaHtml = options.head?.meta
-      ?.map(
-        (m) =>
-          `<meta ${m.name ? `name="${m.name}"` : `property="${m.property}"`} content="${m.content}">`
-      )
-      .join('\n') ?? '';
+      // 4. Combine: theme + explicit styles + collected component CSS
+      const allStyles = [themeCss, ...(options.styles ?? []), ...collectedCSS].filter(Boolean);
 
-    // Build link tags
-    const linkHtml = options.head?.links
-      ?.map((link) => `<link rel="${link.rel}" href="${link.href}">`)
-      .join('\n') ?? '';
+      // Build head entries for styles
+      const styleTags = allStyles.map((css) => `<style>${css}</style>`).join('\n');
 
-    // Combine head content: meta + links + styles
-    const headContent = [metaHtml, linkHtml, styleTags].filter(Boolean).join('\n');
+      // Build meta tags
+      const metaHtml =
+        options.head?.meta
+          ?.map(
+            (m) =>
+              `<meta ${m.name ? `name="${m.name}"` : `property="${m.property}"`} content="${m.content}">`,
+          )
+          .join('\n') ?? '';
 
-    // Call renderPage
-    const response = renderPage(app(), {
-      title: options.head?.title,
-      head: headContent,
-    });
+      // Build link tags
+      const linkHtml =
+        options.head?.links
+          ?.map((link) => `<link rel="${link.rel}" href="${link.href}">`)
+          .join('\n') ?? '';
 
-    // Extract and return HTML string
-    return await response.text();
-  } finally {
-    // Cleanup globals and dom shim
-    delete (globalThis as any).__VERTZ_SSR__;
-    delete (globalThis as any).__SSR_URL__;
-    removeDomShim();
-  }
+      // Combine head content: meta + links + styles
+      const headContent = [metaHtml, linkHtml, styleTags].filter(Boolean).join('\n');
+
+      // Call renderPage with the pre-rendered VNode
+      const response = renderPage(vnode, {
+        title: options.head?.title,
+        head: headContent,
+      });
+
+      // Extract and return HTML string
+      return await response.text();
+    } finally {
+      // Cleanup DOM shim (AsyncLocalStorage context is automatically cleaned up)
+      removeDomShim();
+    }
+  });
 }

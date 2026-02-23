@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { installDomShim, removeDomShim } from '../dom-shim';
 import { renderHeadToHtml } from '../head';
 import { wrapWithHydrationMarkers } from '../hydration-markers';
 import { renderToStream } from '../render-to-stream';
@@ -169,6 +170,22 @@ describe('SSR Integration Tests', () => {
     expect(html).toContain('<footer class="site-footer">');
     expect(html).toContain('Copyright 2026');
     expect(html).toContain('<a href="/privacy">Privacy Policy</a>');
+  });
+
+  /** Fix #661-1: createComment does not produce visible comment text in SSR output */
+  it('createComment produces empty text node — no visible comment markup', () => {
+    installDomShim();
+    try {
+      const doc = (globalThis as any).document;
+      const comment = doc.createComment('conditional');
+
+      // The comment node text should be empty — not a literal HTML comment string
+      expect(comment.text).toBe('');
+      expect(comment.text).not.toContain('<!--');
+      expect(comment.text).not.toContain('-->');
+    } finally {
+      removeDomShim();
+    }
   });
 
   /** IT-5A-5: Head component injects <title> into HTML head */

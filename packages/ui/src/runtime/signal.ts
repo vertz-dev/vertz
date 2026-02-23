@@ -11,11 +11,13 @@ import { getReadValueCallback, getSubscriber, setSubscriber } from './tracking';
  * document but still needs effects. And `import.meta.env.SSR` is true in
  * all Vitest tests, so it's also unreliable.
  *
- * The only reliable signal is `globalThis.__VERTZ_SSR__`, which is explicitly
- * set by @vertz/ui-server's renderToHTML before calling app() and cleared after.
+ * The only reliable signal is the global function hook __VERTZ_IS_SSR__,
+ * which is installed by @vertz/ui-server's ssr-context.ts (AsyncLocalStorage-backed).
+ * This avoids circular deps between ui and ui-server.
  */
 function isSSR(): boolean {
-  return typeof globalThis !== 'undefined' && (globalThis as any).__VERTZ_SSR__ === true;
+  const check = typeof globalThis !== 'undefined' && (globalThis as any).__VERTZ_IS_SSR__;
+  return typeof check === 'function' ? check() : false;
 }
 
 /** Global ID counter for subscriber deduplication. */

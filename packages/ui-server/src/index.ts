@@ -10,6 +10,7 @@ export { renderPage } from './render-page';
 export type { RenderToHTMLOptions } from './render-to-html';
 export { renderToHTML } from './render-to-html';
 export { renderToStream } from './render-to-stream';
+export { ssrStorage, isInSSR, getSSRUrl } from './ssr-context';
 export { createSlotPlaceholder, resetSlotCounter } from './slot-placeholder';
 export { collectStreamChunks, encodeChunk, streamToString } from './streaming';
 export { createTemplateChunk } from './template-chunk';

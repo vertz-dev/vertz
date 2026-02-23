@@ -11,10 +11,10 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createDevServer } from '@vertz/ui-server';
 import { createServer } from '@vertz/server';
-import { todos } from './entities';
+import { createDevServer } from '@vertz/ui-server';
 import { createTodosDb } from './db';
+import { todos } from './entities';
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -69,7 +69,7 @@ async function toNodeResponse(res: ServerResponse, webResponse: Response): Promi
   webResponse.headers.forEach((value, key) => {
     headers[key] = value;
   });
-  
+
   res.writeHead(webResponse.status, headers);
 
   const body = await webResponse.text();
@@ -81,7 +81,7 @@ async function toNodeResponse(res: ServerResponse, webResponse: Response): Promi
  */
 async function apiMiddleware(req: IncomingMessage, res: ServerResponse, next: () => void) {
   const url = req.url || '/';
-  
+
   // Only handle API routes (skip OpenAPI spec - handled by dev server)
   if (!url.startsWith('/api/') || url === '/api/openapi.json') {
     return next();
@@ -92,27 +92,38 @@ async function apiMiddleware(req: IncomingMessage, res: ServerResponse, next: ()
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
     req.on('end', async () => {
-      const bodyStr = Buffer.concat(chunks).toString('utf-8');
-      
-      const headers: Record<string, string> = {};
-      for (const [key, value] of Object.entries(req.headers)) {
-        if (typeof value === 'string') {
-          headers[key] = value;
-        } else if (Array.isArray(value)) {
-          headers[key] = value.join(', ');
+      try {
+        const bodyStr = Buffer.concat(chunks).toString('utf-8');
+
+        const headers: Record<string, string> = {};
+        for (const [key, value] of Object.entries(req.headers)) {
+          if (typeof value === 'string') {
+            headers[key] = value;
+          } else if (Array.isArray(value)) {
+            headers[key] = value.join(', ');
+          }
+        }
+
+        const host = req.headers.host || `localhost:${PORT}`;
+        const protocol = req.socket.encrypted ? 'https' : 'http';
+        const apiReq = new Request(`${protocol}://${host}${req.url || '/'}`, {
+          method: req.method || 'GET',
+          headers,
+          body: bodyStr,
+        });
+
+        const apiRes = await apiHandler(apiReq);
+        await toNodeResponse(res, apiRes);
+      } catch (err) {
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              error: { code: 'InternalError', message: String(err) },
+            }),
+          );
         }
       }
-      
-      const host = req.headers.host || `localhost:${PORT}`;
-      const protocol = req.socket.encrypted ? 'https' : 'http';
-      const apiReq = new Request(`${protocol}://${host}${req.url || '/'}`, {
-        method: req.method || 'GET',
-        headers,
-        body: bodyStr,
-      });
-
-      const apiRes = await apiHandler(apiReq);
-      await toNodeResponse(res, apiRes);
     });
   } else {
     const apiReq = toWebRequest(req);

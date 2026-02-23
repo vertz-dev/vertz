@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
 import { defineTheme } from '@vertz/ui';
-import { renderToHTML, type RenderToHTMLOptions } from '../render-to-html';
+import { describe, expect, it } from 'vitest';
+import { renderToHTML } from '../render-to-html';
 import type { VNode } from '../types';
 
 describe('renderToHTML', () => {
@@ -106,15 +106,36 @@ describe('renderToHTML', () => {
     expect(html).toContain('<link rel="icon" href="/favicon.ico">');
   });
 
+  it('collects component CSS injected into document.head during app()', async () => {
+    const { SSRElement } = await import('../dom-shim/ssr-element');
+
+    const appWithCSS = () => {
+      // Simulate what css()/injectCSS() does: append a <style> element to document.head
+      const doc = (globalThis as any).document;
+      if (doc?.head) {
+        const styleEl = new SSRElement('style');
+        styleEl.children = ['.component-btn { color: red; }'];
+        doc.head.appendChild(styleEl);
+      }
+      return {
+        tag: 'div',
+        attrs: { id: 'app' },
+        children: ['Styled App'],
+      } as VNode;
+    };
+
+    const html = await renderToHTML(appWithCSS, { url: '/' });
+    expect(html).toContain('.component-btn { color: red; }');
+    expect(html).toContain('Styled App');
+  });
+
   it('cleans up even if render throws', async () => {
     const failingApp = () => {
       throw new Error('Render failed');
     };
 
     // Expect the render to throw
-    await expect(renderToHTML(failingApp, { url: '/' })).rejects.toThrow(
-      'Render failed'
-    );
+    await expect(renderToHTML(failingApp, { url: '/' })).rejects.toThrow('Render failed');
 
     // Verify cleanup happened - __SSR_URL__ should be undefined
     expect((globalThis as any).__SSR_URL__).toBeUndefined();
