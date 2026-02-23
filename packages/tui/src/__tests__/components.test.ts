@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { tui } from '../app';
 import { Confirm } from '../components/Confirm';
 import { MultiSelect } from '../components/MultiSelect';
@@ -57,6 +57,28 @@ describe('Select', () => {
     handle.unmount();
   });
 
+  it('does not call onSubmit with empty options', () => {
+    const adapter = new TestAdapter(40, 10);
+    const testStdin = new TestStdin();
+    let called = false;
+
+    function App(): TuiNode {
+      return Select({
+        message: 'Pick:',
+        options: [],
+        onSubmit: () => {
+          called = true;
+        },
+      });
+    }
+
+    const handle = tui.mount(App, { adapter, testStdin });
+    testStdin.pressKey('down');
+    testStdin.pressKey('return');
+    expect(called).toBe(false);
+    handle.unmount();
+  });
+
   it('shows hints', () => {
     const adapter = new TestAdapter(40, 10);
 
@@ -92,6 +114,27 @@ describe('MultiSelect', () => {
     expect(text).toContain('Features:');
     expect(text).toContain('TypeScript');
     expect(text).toContain('Biome');
+    handle.unmount();
+  });
+
+  it('does not call onSubmit with empty options', () => {
+    const adapter = new TestAdapter(40, 10);
+    const testStdin = new TestStdin();
+    let called = false;
+
+    function App(): TuiNode {
+      return MultiSelect({
+        message: 'Features:',
+        options: [],
+        onSubmit: () => {
+          called = true;
+        },
+      });
+    }
+
+    const handle = tui.mount(App, { adapter, testStdin });
+    testStdin.pressKey('return');
+    expect(called).toBe(false);
     handle.unmount();
   });
 
@@ -364,5 +407,40 @@ describe('Spinner', () => {
     // Should render without error
     expect(adapter.text()).toBeTruthy();
     handle.unmount();
+  });
+
+  it('animates through frames over time', () => {
+    vi.useFakeTimers();
+    const adapter = new TestAdapter(40, 10);
+
+    function App(): TuiNode {
+      return Spinner({ label: 'Loading...' });
+    }
+
+    const handle = tui.mount(App, { adapter });
+    const initial = adapter.text();
+
+    vi.advanceTimersByTime(80);
+    const after = adapter.text();
+    expect(after).not.toBe(initial);
+
+    handle.unmount();
+    vi.useRealTimers();
+  });
+
+  it('cleans up interval on unmount', () => {
+    vi.useFakeTimers();
+    const adapter = new TestAdapter(40, 10);
+
+    function App(): TuiNode {
+      return Spinner({ label: 'Loading...' });
+    }
+
+    const handle = tui.mount(App, { adapter });
+    handle.unmount();
+
+    // Advancing timers after unmount should not throw
+    expect(() => vi.advanceTimersByTime(200)).not.toThrow();
+    vi.useRealTimers();
   });
 });

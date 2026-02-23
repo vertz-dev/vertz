@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { prompt } from '../prompt';
+import { TestAdapter } from '../test/test-adapter';
+import { TestStdin } from '../test/test-stdin';
 import { symbols } from '../theme';
 
 describe('prompt.intro', () => {
@@ -66,5 +68,34 @@ describe('prompt.spinner', () => {
     const output = writeSpy.mock.calls.map((c) => c[0]).join('');
     expect(output).toContain('Installed');
     writeSpy.mockRestore();
+  });
+});
+
+describe('prompt.text', () => {
+  it('shows validation error and resolves after valid input', async () => {
+    const adapter = new TestAdapter(60, 10);
+    const testStdin = new TestStdin();
+
+    const result = prompt.text({
+      message: 'Enter name:',
+      validate: (v) => (v.length < 3 ? 'Too short' : undefined),
+      _mountOptions: { adapter, testStdin },
+    });
+
+    // Type invalid input and submit
+    testStdin.type('ab');
+    testStdin.pressKey('return');
+
+    // Error should be visible
+    expect(adapter.text()).toContain('Too short');
+
+    // Clear and type valid input
+    testStdin.pressKey('backspace');
+    testStdin.pressKey('backspace');
+    testStdin.type('alice');
+    testStdin.pressKey('return');
+
+    const value = await result;
+    expect(value).toBe('alice');
   });
 });

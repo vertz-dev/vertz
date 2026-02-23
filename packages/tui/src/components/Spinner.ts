@@ -1,4 +1,6 @@
-import { __append, __element, __staticText } from '../internals';
+import { signal } from '@vertz/ui';
+import { _tryOnCleanup } from '@vertz/ui/internals';
+import { __append, __child, __element, __staticText } from '../internals';
 import type { TuiElement } from '../tui-element';
 
 const SPINNER_FRAMES = [
@@ -19,14 +21,20 @@ export interface SpinnerProps {
 }
 
 export function Spinner(props: SpinnerProps): TuiElement {
-  // Use a simple first frame for static render.
-  // Animation requires the scheduler to be running (tui.mount).
-  const frame = SPINNER_FRAMES[0] ?? '\u280B';
+  const frameIndex = signal(0);
+  const timer = setInterval(() => {
+    frameIndex.value = (frameIndex.value + 1) % SPINNER_FRAMES.length;
+  }, 80);
+
+  _tryOnCleanup(() => clearInterval(timer));
 
   if (props.label) {
     const box = __element('Box', 'direction', 'row', 'gap', 1);
     const spinnerText = __element('Text', 'color', 'cyan');
-    __append(spinnerText, __staticText(frame));
+    __append(
+      spinnerText,
+      __child(() => SPINNER_FRAMES[frameIndex.value]),
+    );
     const labelText = __element('Text');
     __append(labelText, __staticText(props.label));
     __append(box, spinnerText);
@@ -35,6 +43,9 @@ export function Spinner(props: SpinnerProps): TuiElement {
   }
 
   const el = __element('Text', 'color', 'cyan');
-  __append(el, __staticText(frame));
+  __append(
+    el,
+    __child(() => SPINNER_FRAMES[frameIndex.value]),
+  );
   return el;
 }

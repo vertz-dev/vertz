@@ -1,6 +1,7 @@
 import type { DisposeFn } from '@vertz/ui';
 import { effect } from '@vertz/ui';
 import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
+import { StdinReader } from './input/stdin-reader';
 import { setRenderCallback, setSyncRender } from './internals';
 import type { TuiNode } from './nodes/types';
 import {
@@ -119,6 +120,16 @@ function mount(app: () => TuiNode, options: TuiMountOptions = {}): TuiHandle {
 
   // Enable synchronous rendering for test adapters
   const isTestMode = adapter instanceof TestAdapter;
+
+  // Create StdinReader for real keyboard input
+  if (!options.testStdin) {
+    const stdinStream = options.stdin ?? (isTestMode ? undefined : process.stdin);
+    if (stdinStream) {
+      const reader = new StdinReader(stdinStream);
+      reader.start();
+      ctx.stdinReader = reader;
+    }
+  }
   setSyncRender(isTestMode);
 
   // Render function with re-entrancy guard.

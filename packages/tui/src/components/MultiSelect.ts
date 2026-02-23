@@ -13,6 +13,15 @@ export interface MultiSelectProps<T = string> {
 }
 
 export function MultiSelect<T>(props: MultiSelectProps<T>): TuiElement {
+  const box = __element('Box', 'direction', 'column');
+
+  // Message header
+  const header = __element('Text', 'bold', true);
+  __append(header, __staticText(props.message));
+  __append(box, header);
+
+  if (props.options.length === 0) return box;
+
   const initialChecked = new Set(
     props.defaultValue
       ? props.options
@@ -43,13 +52,6 @@ export function MultiSelect<T>(props: MultiSelectProps<T>): TuiElement {
       }
     }
   });
-
-  const box = __element('Box', 'direction', 'column');
-
-  // Message header
-  const header = __element('Text', 'bold', true);
-  __append(header, __staticText(props.message));
-  __append(box, header);
 
   // Options
   for (let i = 0; i < props.options.length; i++) {

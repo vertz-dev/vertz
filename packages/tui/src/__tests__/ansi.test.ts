@@ -49,6 +49,18 @@ describe('ANSI', () => {
       expect(styleToSGR({ bgColor: '#00ff00' })).toBe('\x1b[48;2;0;255;0m');
     });
 
+    it('returns empty string for invalid short hex color', () => {
+      expect(styleToSGR({ color: '#ff' })).toBe('');
+    });
+
+    it('returns empty string for non-hex characters', () => {
+      expect(styleToSGR({ color: '#gggggg' })).toBe('');
+    });
+
+    it('returns empty string for invalid short hex bgColor', () => {
+      expect(styleToSGR({ bgColor: '#f' })).toBe('');
+    });
+
     it('combines multiple attributes', () => {
       const sgr = styleToSGR({ bold: true, color: 'red', underline: true });
       expect(sgr).toBe('\x1b[1;4;31m');

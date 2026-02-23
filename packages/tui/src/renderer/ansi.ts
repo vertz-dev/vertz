@@ -44,6 +44,7 @@ const BG_COLORS: Record<string, string> = {
 /** Convert a hex color string to an ANSI 24-bit color escape code. */
 function hexToAnsi(hex: string, isBg: boolean): string {
   const clean = hex.replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return '';
   const r = Number.parseInt(clean.slice(0, 2), 16);
   const g = Number.parseInt(clean.slice(2, 4), 16);
   const b = Number.parseInt(clean.slice(4, 6), 16);
@@ -62,7 +63,8 @@ export function styleToSGR(style: CellStyle): string {
 
   if (style.color) {
     if (style.color.startsWith('#')) {
-      codes.push(hexToAnsi(style.color, false));
+      const hex = hexToAnsi(style.color, false);
+      if (hex) codes.push(hex);
     } else {
       const code = FG_COLORS[style.color];
       if (code) codes.push(code);
@@ -71,7 +73,8 @@ export function styleToSGR(style: CellStyle): string {
 
   if (style.bgColor) {
     if (style.bgColor.startsWith('#')) {
-      codes.push(hexToAnsi(style.bgColor, true));
+      const hex = hexToAnsi(style.bgColor, true);
+      if (hex) codes.push(hex);
     } else {
       const code = BG_COLORS[style.bgColor];
       if (code) codes.push(code);

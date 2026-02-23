@@ -1,4 +1,5 @@
-import { tui } from './app';
+import { signal } from '@vertz/ui';
+import { type TuiMountOptions, tui } from './app';
 import { Confirm } from './components/Confirm';
 import { MultiSelect } from './components/MultiSelect';
 import { PasswordInput } from './components/PasswordInput';
@@ -6,7 +7,7 @@ import type { SelectOption } from './components/Select';
 import { Select } from './components/Select';
 import { Spinner } from './components/Spinner';
 import { TextInput } from './components/TextInput';
-import { __append, __element, __staticText } from './internals';
+import { __append, __child, __element, __staticText } from './internals';
 import { symbols } from './theme';
 import type { TuiElement } from './tui-element';
 
@@ -14,6 +15,7 @@ interface TextPromptConfig {
   message: string;
   placeholder?: string;
   validate?: (value: string) => string | undefined;
+  _mountOptions?: TuiMountOptions;
 }
 
 interface SelectPromptConfig<T> {
@@ -69,6 +71,7 @@ export const prompt: PromptAPI = {
   text(config: TextPromptConfig): Promise<string> {
     return new Promise((resolve) => {
       let handle: ReturnType<typeof tui.mount> | null = null;
+      const errorMsg = signal('');
       function App(): TuiElement {
         const box = __element('Box', 'direction', 'column');
         const header = __element('Text', 'bold', true);
@@ -81,16 +84,25 @@ export const prompt: PromptAPI = {
             onSubmit: (value: string) => {
               if (config.validate) {
                 const error = config.validate(value);
-                if (error) return;
+                if (error) {
+                  errorMsg.value = error;
+                  return;
+                }
               }
               handle?.unmount();
               resolve(value);
             },
           }),
         );
+        const errorEl = __element('Text', 'color', 'red');
+        __append(
+          errorEl,
+          __child(() => errorMsg.value),
+        );
+        __append(box, errorEl);
         return box;
       }
-      handle = tui.mount(App);
+      handle = tui.mount(App, config._mountOptions);
     });
   },
 

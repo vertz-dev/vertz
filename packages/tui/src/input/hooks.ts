@@ -1,3 +1,4 @@
+import { _tryOnCleanup } from '@vertz/ui/internals';
 import { getCurrentApp } from '../app';
 import type { KeyEvent } from './key-parser';
 
@@ -17,14 +18,18 @@ export function useKeyboard(callback: (key: KeyEvent) => void): void {
   const app = getCurrentApp();
   if (!app) return;
 
+  let removeListener: (() => void) | undefined;
+
   // TestStdin for test key injection
   if (app.testStdin) {
-    app.testStdin.onKey(callback);
-    return;
+    removeListener = app.testStdin.onKey(callback);
+  } else if (app.stdinReader) {
+    // Real stdin reader — if one exists, register with it
+    removeListener = app.stdinReader.onKey(callback);
   }
 
-  // Real stdin reader — if one exists, register with it
-  if (app.stdinReader) {
-    app.stdinReader.onKey(callback);
-  }
+  _tryOnCleanup(() => {
+    registeredCallbacks.delete(callback);
+    removeListener?.();
+  });
 }

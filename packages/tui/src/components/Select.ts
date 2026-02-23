@@ -25,6 +25,15 @@ export interface SelectProps<T = string> {
  * for the full explanation of this dual-usage pattern.
  */
 export function Select<T>(props: SelectProps<T>): TuiElement {
+  const box = __element('Box', 'direction', 'column');
+
+  // Message header
+  const header = __element('Text', 'bold', true);
+  __append(header, __staticText(props.message));
+  __append(box, header);
+
+  if (props.options.length === 0) return box;
+
   const selectedIndex = signal(0);
 
   useKeyboard((key) => {
@@ -41,13 +50,6 @@ export function Select<T>(props: SelectProps<T>): TuiElement {
       }
     }
   });
-
-  const box = __element('Box', 'direction', 'column');
-
-  // Message header
-  const header = __element('Text', 'bold', true);
-  __append(header, __staticText(props.message));
-  __append(box, header);
 
   // Options
   for (let i = 0; i < props.options.length; i++) {
