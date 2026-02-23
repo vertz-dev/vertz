@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest';
 import { query } from '../../query/query';
 import { effect, signal } from '../../runtime/signal';
 import { createContext, useContext } from '../context';
-import { watch } from '../lifecycle';
 
 describe('createContext / useContext', () => {
   test('useContext returns default value when no Provider is set', () => {
@@ -60,24 +59,22 @@ describe('createContext / useContext', () => {
     });
   });
 
-  test('useContext returns correct value inside watch() callback after signal change', () => {
+  test('useContext returns correct value inside effect callback after signal change', () => {
     const ThemeCtx = createContext('light');
     const count = signal(0);
     const observed: (string | undefined)[] = [];
 
     ThemeCtx.Provider('dark', () => {
-      watch(
-        () => count.value,
-        () => {
-          observed.push(useContext(ThemeCtx));
-        },
-      );
+      effect(() => {
+        count.value; // track dependency
+        observed.push(useContext(ThemeCtx));
+      });
     });
 
     // First run (synchronous) should capture 'dark'
     expect(observed).toEqual(['dark']);
 
-    // After Provider has popped, signal change triggers watch callback
+    // After Provider has popped, signal change triggers effect callback
     count.value = 1;
 
     // Should still see 'dark', not undefined
@@ -113,22 +110,18 @@ describe('createContext / useContext', () => {
     const innerObserved: (string | undefined)[] = [];
 
     ThemeCtx.Provider('dark', () => {
-      // Outer watch captures 'dark'
-      watch(
-        () => count.value,
-        () => {
-          outerObserved.push(useContext(ThemeCtx));
-        },
-      );
+      // Outer effect captures 'dark'
+      effect(() => {
+        count.value; // track dependency
+        outerObserved.push(useContext(ThemeCtx));
+      });
 
       ThemeCtx.Provider('blue', () => {
-        // Inner watch captures 'blue' (the nested/inner value)
-        watch(
-          () => count.value,
-          () => {
-            innerObserved.push(useContext(ThemeCtx));
-          },
-        );
+        // Inner effect captures 'blue' (the nested/inner value)
+        effect(() => {
+          count.value; // track dependency
+          innerObserved.push(useContext(ThemeCtx));
+        });
       });
     });
 
@@ -136,10 +129,10 @@ describe('createContext / useContext', () => {
     expect(outerObserved).toEqual(['dark']);
     expect(innerObserved).toEqual(['blue']);
 
-    // After all Providers have popped, signal change triggers both watches
+    // After all Providers have popped, signal change triggers both effects
     count.value = 1;
 
-    // Outer watch should still see 'dark', inner watch should still see 'blue'
+    // Outer effect should still see 'dark', inner effect should still see 'blue'
     expect(outerObserved).toEqual(['dark', 'dark']);
     expect(innerObserved).toEqual(['blue', 'blue']);
   });

@@ -11,7 +11,6 @@ export {
   onMount,
   signal,
   useContext,
-  watch,
 } from '@vertz/ui';
 export type { TuiHandle, TuiMountOptions } from './app';
 export { tui } from './app';
