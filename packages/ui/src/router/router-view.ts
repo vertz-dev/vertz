@@ -1,3 +1,4 @@
+import { jsx } from '../jsx-runtime/index';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { lifecycleEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
@@ -17,7 +18,7 @@ export interface RouterViewProps {
  * page cleanup on navigation, and RouterContext propagation.
  */
 export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
-  const container = (<div />) as HTMLDivElement;
+  const container = jsx('div', {}) as HTMLDivElement;
   let renderGen = 0;
   let pageCleanups: DisposeFn[] = [];
 

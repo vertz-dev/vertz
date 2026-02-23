@@ -11,6 +11,8 @@
  * ```
  */
 
+import { jsx } from '../jsx-runtime/index';
+
 /** A child node: either a DOM Node or a string (text content). */
 export type ThemeChild = Node | string;
 
@@ -25,9 +27,9 @@ export interface ThemeProviderProps {
 /**
  * Create a wrapper div with `data-theme` attribute for theme switching.
  *
- * Uses JSX — the runtime handles CSR (DOM elements) and SSR (VNodes)
- * automatically based on which jsx-runtime is loaded.
+ * Uses the jsx() factory directly to avoid self-referential jsxImportSource
+ * resolution during bunup build.
  */
 export function ThemeProvider({ theme = 'light', children }: ThemeProviderProps): HTMLElement {
-  return <div data-theme={theme}>{...children}</div>;
+  return jsx('div', { 'data-theme': theme, children });
 }

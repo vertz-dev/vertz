@@ -5,6 +5,7 @@
  * and support active state styling.
  */
 
+import { jsx } from '../jsx-runtime/index';
 import { domEffect } from '../runtime/signal';
 import type { ReadonlySignal } from '../runtime/signal-types';
 import type { RouteConfigLike, RouteDefinitionMap } from './define-routes';
@@ -49,14 +50,14 @@ export function createLink(
       navigate(href);
     };
 
-    const el = (
-      <a href={href} class={className} onClick={handleClick}>
-        {children}
-      </a>
-    ) as HTMLAnchorElement;
+    const el = jsx('a', {
+      href,
+      class: className,
+      onClick: handleClick,
+      children,
+    }) as HTMLAnchorElement;
 
     // Reactive active state — re-evaluates whenever currentPath changes.
-    // The JSX runtime is static, so reactive class toggling stays imperative.
     if (activeClass) {
       domEffect(() => {
         if (currentPath.value === href) {
