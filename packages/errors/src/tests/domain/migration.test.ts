@@ -17,7 +17,7 @@ describe('domain/migration', () => {
       expect(error.message).toBe('INSERT INTO failed');
     });
 
-    it('includes sql and cause when options are provided', () => {
+    it('includes sql and cause when both options are provided', () => {
       const cause = new Error('connection lost');
       const error = createMigrationQueryError('Query failed', {
         sql: 'ALTER TABLE users ADD COLUMN age INT',
@@ -25,6 +25,19 @@ describe('domain/migration', () => {
       });
       expect(error.sql).toBe('ALTER TABLE users ADD COLUMN age INT');
       expect(error.cause).toBe(cause);
+    });
+
+    it('includes sql and leaves cause undefined when only sql is provided', () => {
+      const error = createMigrationQueryError('Failed', { sql: 'SELECT 1' });
+      expect(error.sql).toBe('SELECT 1');
+      expect(error.cause).toBeUndefined();
+    });
+
+    it('includes cause and leaves sql undefined when only cause is provided', () => {
+      const rootCause = new Error('root');
+      const error = createMigrationQueryError('Failed', { cause: rootCause });
+      expect(error.cause).toBe(rootCause);
+      expect(error.sql).toBeUndefined();
     });
 
     it('omits sql and cause when options are not provided', () => {
