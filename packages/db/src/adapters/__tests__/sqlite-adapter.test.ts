@@ -38,7 +38,7 @@ describe('SqliteAdapter', () => {
     driver = createSqliteDriver(':memory:');
 
     // Create the adapter with auto-apply migrations
-    adapter = createSqliteAdapter<UsersSchema>({
+    adapter = await createSqliteAdapter<UsersSchema>({
       schema: usersTable,
       dbPath: ':memory:',
       migrations: { autoApply: true },
