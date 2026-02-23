@@ -11,24 +11,7 @@ import { renderPage, renderToHTML } from '@vertz/ui-server';
 import { App } from './app';
 import { globalCss } from '@vertz/ui';
 import { defineTheme } from '@vertz/ui';
-
-/**
- * Global styles for SSR - defined here to avoid importing client entry
- */
-const globalStyles = globalCss({
-  '*, *::before, *::after': {
-    boxSizing: 'border-box',
-    margin: '0',
-    padding: '0',
-  },
-  body: {
-    fontFamily: 'system-ui, -apple-system, sans-serif',
-    backgroundColor: 'var(--color-background)',
-    color: 'var(--color-foreground)',
-    minHeight: '100vh',
-    lineHeight: '1.5',
-  },
-});
+import { globalStyles } from './index';
 
 /**
  * Theme configuration for SSR
@@ -120,15 +103,43 @@ export async function renderApp(): Promise<Response> {
  * @returns Promise<string> - The rendered HTML string
  */
 export async function renderToString(url: string): Promise<string> {
-  return renderToHTML(App, {
-    url,
-    theme,
-    styles: [globalStyles.css],
-    head: {
-      title: 'Entity Todo',
-      meta: [
-        { name: 'description', content: 'A demo app showcasing vertz SSR on Cloudflare Workers' },
-      ],
-    },
-  });
+  try {
+    return await renderToHTML(App, {
+      url,
+      theme,
+      styles: [globalStyles.css],
+      head: {
+        title: 'Entity Todo',
+        meta: [
+          { name: 'description', content: 'A demo app showcasing vertz SSR on Cloudflare Workers' },
+        ],
+      },
+    });
+  } catch (error) {
+    // SSR error - return fallback HTML
+    console.error('[SSR] Failed to render:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Entity Todo</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A demo app showcasing vertz SSR on Cloudflare Workers">
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 2rem; max-width: 800px; margin: 0 auto; }
+    .error { background: #fee; border: 1px solid #fcc; padding: 1rem; border-radius: 4px; }
+    .error h1 { color: #c00; margin-top: 0; }
+  </style>
+</head>
+<body>
+  <div class="error">
+    <h1>Server Error</h1>
+    <p>Unable to render the page. Loading client-side version instead.</p>
+    <p><small>Error: ${errorMessage}</small></p>
+  </div>
+  <script type="module" src="/assets/client.js"></script>
+</body>
+</html>`;
+  }
 }
