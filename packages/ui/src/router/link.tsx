@@ -39,37 +39,33 @@ export function createLink(
   currentPath: ReadonlySignal<string>,
   navigate: (url: string) => void,
 ): (props: LinkProps) => HTMLAnchorElement {
-  return function Link(props: LinkProps): HTMLAnchorElement {
-    const el = document.createElement('a');
-    el.setAttribute('href', props.href);
-    el.textContent = props.children;
+  return function Link({ href, children, activeClass, className }: LinkProps): HTMLAnchorElement {
+    const handleClick = (event: MouseEvent) => {
+      // Allow modifier-key clicks to open in new tab
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      event.preventDefault();
+      navigate(href);
+    };
 
-    if (props.className) {
-      el.classList.add(props.className);
-    }
+    const el = (
+      <a href={href} class={className} onClick={handleClick}>
+        {children}
+      </a>
+    ) as HTMLAnchorElement;
 
-    // Reactive active state — re-evaluates whenever currentPath changes
-    if (props.activeClass) {
-      const activeClass = props.activeClass;
+    // Reactive active state — re-evaluates whenever currentPath changes.
+    // The JSX runtime is static, so reactive class toggling stays imperative.
+    if (activeClass) {
       domEffect(() => {
-        if (currentPath.value === props.href) {
+        if (currentPath.value === href) {
           el.classList.add(activeClass);
         } else {
           el.classList.remove(activeClass);
         }
       });
     }
-
-    // Intercept clicks for SPA navigation
-    el.addEventListener('click', (event: MouseEvent) => {
-      // Allow modifier-key clicks to open in new tab
-      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
-        return;
-      }
-
-      event.preventDefault();
-      navigate(props.href);
-    });
 
     return el;
   };

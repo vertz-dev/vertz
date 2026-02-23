@@ -11,11 +11,13 @@ export interface RouterViewProps {
 }
 
 /**
- * Temporary bridge: uses lifecycleEffect() directly instead of the now-deleted watch().
- * Will be rewritten as compiled JSX in Issue E (#670).
+ * Renders the matched route's component inside a container div.
+ *
+ * Handles sync and async (lazy-loaded) components, stale resolution guards,
+ * page cleanup on navigation, and RouterContext propagation.
  */
 export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
-  const container = document.createElement('div');
+  const container = (<div />) as HTMLDivElement;
   let renderGen = 0;
   let pageCleanups: DisposeFn[] = [];
 
