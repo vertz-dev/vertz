@@ -21,5 +21,7 @@ export { createSnapshot } from './snapshot';
 export type { SqlGeneratorContext } from './sql-generator';
 export { generateMigrationSql, generateRollbackSql } from './sql-generator';
 
+export { autoMigrate, type AutoMigrateOptions } from './auto-migrate';
+
 // Re-export MigrationError from @vertz/errors for convenience
 export type { MigrationError } from '@vertz/errors';
