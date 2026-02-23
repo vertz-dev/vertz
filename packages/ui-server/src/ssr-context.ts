@@ -4,7 +4,7 @@ interface SSRContext {
   url: string;
 }
 
-export const ssrStorage = new AsyncLocalStorage<SSRContext>();
+export const ssrStorage: AsyncLocalStorage<SSRContext> = new AsyncLocalStorage<SSRContext>();
 
 export function isInSSR(): boolean {
   return ssrStorage.getStore() !== undefined;
