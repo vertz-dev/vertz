@@ -57,7 +57,7 @@ export async function renderToHTML<AppFn extends () => VNode>(
   installDomShim();
 
   // Use AsyncLocalStorage for per-request SSR context
-  return ssrStorage.run({ url: options.url }, async () => {
+  return ssrStorage.run({ url: options.url, errors: [] }, async () => {
     try {
       // 1. Render app first — this triggers css()/injectCSS() calls that append
       //    <style> elements to the fake document.head

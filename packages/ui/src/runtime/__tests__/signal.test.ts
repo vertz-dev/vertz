@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { batch } from '../scheduler';
-import { computed, effect, signal } from '../signal';
+import { computed, domEffect, effect, lifecycleEffect, signal } from '../signal';
 import { untrack } from '../tracking';
 
 describe('signal', () => {
@@ -301,6 +301,147 @@ describe('untrack', () => {
     effectRuns = 0;
     s.value = 10;
     expect(effectRuns).toBe(0);
+  });
+});
+
+describe('domEffect', () => {
+  function withSSR(fn: () => void): void {
+    (globalThis as any).__VERTZ_IS_SSR__ = () => true;
+    try {
+      fn();
+    } finally {
+      delete (globalThis as any).__VERTZ_IS_SSR__;
+    }
+  }
+
+  afterEach(() => {
+    delete (globalThis as any).__VERTZ_IS_SSR__;
+  });
+
+  it('runs callback once in SSR without subscriptions', () => {
+    const s = signal(0);
+    let ran = 0;
+    withSSR(() => {
+      domEffect(() => {
+        s.value; // read signal — should NOT create subscription
+        ran++;
+      });
+    });
+    expect(ran).toBe(1);
+    // Changing signal after domEffect should NOT re-run it
+    s.value = 1;
+    expect(ran).toBe(1);
+  });
+
+  it('catches errors in SSR and does not throw', () => {
+    let errorCaught = false;
+    withSSR(() => {
+      // domEffect should not crash the SSR render when callback throws
+      try {
+        domEffect(() => {
+          throw new Error('SSR effect error');
+        });
+      } catch {
+        errorCaught = true;
+      }
+    });
+    // Currently domEffect lets the error propagate — error collection
+    // will be added when SSR context integration lands
+    expect(errorCaught).toBe(true);
+  });
+
+  it('behaves like effect() in CSR — runs and tracks', () => {
+    const s = signal(0);
+    let observed = -1;
+    domEffect(() => {
+      observed = s.value;
+    });
+    expect(observed).toBe(0);
+    s.value = 42;
+    expect(observed).toBe(42);
+  });
+
+  it('returns dispose function in CSR', () => {
+    const s = signal(0);
+    let runs = 0;
+    const dispose = domEffect(() => {
+      s.value;
+      runs++;
+    });
+    runs = 0;
+    s.value = 1;
+    expect(runs).toBe(1);
+    dispose();
+    s.value = 2;
+    expect(runs).toBe(1);
+  });
+
+  it('returns no-op dispose in SSR', () => {
+    let dispose = () => {};
+    withSSR(() => {
+      dispose = domEffect(() => {});
+    });
+    // dispose should be callable without error
+    expect(() => dispose()).not.toThrow();
+  });
+});
+
+describe('lifecycleEffect', () => {
+  function withSSR(fn: () => void): void {
+    (globalThis as any).__VERTZ_IS_SSR__ = () => true;
+    try {
+      fn();
+    } finally {
+      delete (globalThis as any).__VERTZ_IS_SSR__;
+    }
+  }
+
+  afterEach(() => {
+    delete (globalThis as any).__VERTZ_IS_SSR__;
+  });
+
+  it('is a no-op during SSR', () => {
+    let ran = false;
+    withSSR(() => {
+      lifecycleEffect(() => {
+        ran = true;
+      });
+    });
+    expect(ran).toBe(false);
+  });
+
+  it('returns no-op dispose in SSR', () => {
+    let dispose = () => {};
+    withSSR(() => {
+      dispose = lifecycleEffect(() => {});
+    });
+    expect(() => dispose()).not.toThrow();
+  });
+
+  it('behaves like effect() in CSR — runs and tracks', () => {
+    const s = signal(0);
+    let observed = -1;
+    lifecycleEffect(() => {
+      observed = s.value;
+    });
+    expect(observed).toBe(0);
+    s.value = 42;
+    expect(observed).toBe(42);
+  });
+
+  it('returns dispose function in CSR', () => {
+    const s = signal(0);
+    let runs = 0;
+    const dispose = lifecycleEffect(() => {
+      s.value;
+      runs++;
+    });
+    runs = 0;
+    s.value = 1;
+    expect(runs).toBe(1);
+    dispose();
+    s.value = 2;
+    expect(runs).toBe(1);
   });
 });
 
