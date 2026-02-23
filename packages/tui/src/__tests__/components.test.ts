@@ -194,6 +194,11 @@ describe('MultiSelect', () => {
     const handle = tui.mount(App, { adapter, testStdin });
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('nonexistent'));
 
+    // Warning should only fire once, not on every re-render
+    const callCount = warnSpy.mock.calls.length;
+    testStdin.pressKey('down'); // trigger re-render
+    expect(warnSpy.mock.calls.length).toBe(callCount);
+
     // Submit — should only include the valid default
     testStdin.pressKey('return');
     expect(result).toEqual(['ts']);
@@ -343,7 +348,7 @@ describe('TextInput', () => {
     handle.unmount();
   });
 
-  it('preserves user input when external value prop changes', () => {
+  it('updates to external value when value prop changes', () => {
     const adapter = new TestAdapter(40, 10);
     const testStdin = new TestStdin();
     let submitted = '';

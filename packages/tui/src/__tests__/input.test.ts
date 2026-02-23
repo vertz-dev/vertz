@@ -157,4 +157,32 @@ describe('useKeyboard', () => {
     exitSpy.mockRestore();
     handle.unmount();
   });
+
+  it('dispatches Ctrl+C to listeners before exiting', () => {
+    const adapter = new TestAdapter(40, 10);
+    const mockStdin = createMockStdin();
+    const events: string[] = [];
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+      events.push('exit');
+      return undefined as never;
+    });
+
+    const handler = (key: { name: string; ctrl: boolean }) => {
+      if (key.ctrl && key.name === 'c') events.push('listener');
+    };
+
+    function App(): TuiNode {
+      useKeyboard(handler);
+      return h('Text', {}, 'hello');
+    }
+
+    const handle = tui.mount(App, { adapter, stdin: mockStdin });
+    mockStdin.emit('data', Buffer.from([0x03]));
+
+    // Listener must be called BEFORE process.exit
+    expect(events).toEqual(['listener', 'exit']);
+
+    exitSpy.mockRestore();
+    handle.unmount();
+  });
 });
