@@ -1,29 +1,30 @@
 import { batch, signal } from '@vertz/ui';
 import { describe, expect, it } from 'vitest';
-import { Message, SelectList, symbols, Task, TaskList, tui } from '../index';
+import { Message, SelectList, Task, TaskList } from '../legacy';
+import { symbols } from '../theme';
+
+// Legacy render helper — replicates the old tui.render behavior
+function legacyRender(component: { render: () => string }): string {
+  return component.render();
+}
 
 describe('Feature: TUI Reactivity', () => {
   describe('Given a TUI component using signals', () => {
     describe('When the signal value changes', () => {
       it('then the TUI component re-renders with the new value', () => {
-        // Create a reactive counter signal
         const count = signal(0);
 
-        // Create a Message component that reads from the signal
         const message = Message({
           type: 'info',
           children: () => `Count: ${count.value}`,
         });
 
-        // Initial render
-        const output1 = tui.render(message);
+        const output1 = legacyRender(message);
         expect(output1).toContain('Count: 0');
 
-        // Update the signal - this should trigger a re-render
         count.value = 42;
 
-        // Re-render and verify the new value
-        const output2 = tui.reRender();
+        const output2 = legacyRender(message);
         expect(output2).toContain('Count: 42');
       });
     });
@@ -36,7 +37,7 @@ describe('Message', () => {
       type: 'info',
       children: 'Hello',
     });
-    const output = tui.render(message);
+    const output = legacyRender(message);
     expect(output).toContain(symbols.info);
     expect(output).toContain('Hello');
   });
@@ -46,7 +47,7 @@ describe('Message', () => {
       type: 'error',
       children: 'Oops',
     });
-    const output = tui.render(message);
+    const output = legacyRender(message);
     expect(output).toContain(symbols.error);
     expect(output).toContain('Oops');
   });
@@ -56,7 +57,7 @@ describe('Message', () => {
       type: 'warning',
       children: 'Watch out',
     });
-    const output = tui.render(message);
+    const output = legacyRender(message);
     expect(output).toContain(symbols.warning);
     expect(output).toContain('Watch out');
   });
@@ -66,7 +67,7 @@ describe('Message', () => {
       type: 'success',
       children: 'Done',
     });
-    const output = tui.render(message);
+    const output = legacyRender(message);
     expect(output).toContain(symbols.success);
     expect(output).toContain('Done');
   });
@@ -78,11 +79,11 @@ describe('Message', () => {
       children: () => text.value,
     });
 
-    const output1 = tui.render(message);
+    const output1 = legacyRender(message);
     expect(output1).toContain('initial');
 
     text.value = 'updated';
-    const output2 = tui.reRender();
+    const output2 = legacyRender(message);
     expect(output2).toContain('updated');
   });
 });
@@ -101,7 +102,7 @@ describe('SelectList', () => {
       choices: () => choices,
       selectedIndex,
     });
-    const output = tui.render(selectList);
+    const output = legacyRender(selectList);
     expect(output).toContain('Pick a runtime');
   });
 
@@ -112,7 +113,7 @@ describe('SelectList', () => {
       choices: () => choices,
       selectedIndex,
     });
-    const output = tui.render(selectList);
+    const output = legacyRender(selectList);
     expect(output).toContain('Bun');
     expect(output).toContain('Node');
     expect(output).toContain('Deno');
@@ -125,7 +126,7 @@ describe('SelectList', () => {
       choices: () => choices,
       selectedIndex,
     });
-    const output = tui.render(selectList);
+    const output = legacyRender(selectList);
     const lines = output.split('\n');
     const nodeLine = lines.find((l) => l.includes('Node'));
     expect(nodeLine).toContain(symbols.pointer);
@@ -138,7 +139,7 @@ describe('SelectList', () => {
       choices: () => choices,
       selectedIndex,
     });
-    const output = tui.render(selectList);
+    const output = legacyRender(selectList);
     const lines = output.split('\n');
     const bunLine = lines.find((l) => l.includes('Bun'));
     expect(bunLine).not.toContain(symbols.pointer);
@@ -152,12 +153,11 @@ describe('SelectList', () => {
       selectedIndex,
     });
 
-    const output1 = tui.render(selectList);
+    const output1 = legacyRender(selectList);
     expect(output1.split('\n')[1]).toContain(symbols.pointer);
 
-    // Change selection
     selectedIndex.value = 2;
-    const output2 = tui.reRender();
+    const output2 = legacyRender(selectList);
     expect(output2.split('\n')[3]).toContain(symbols.pointer);
   });
 });
@@ -169,7 +169,7 @@ describe('Task', () => {
       name: () => 'Compiling',
       status,
     });
-    const output = tui.render(task);
+    const output = legacyRender(task);
     expect(output).toContain('Compiling');
   });
 
@@ -179,7 +179,7 @@ describe('Task', () => {
       name: () => 'Compiling',
       status,
     });
-    const output = tui.render(task);
+    const output = legacyRender(task);
     expect(output).toContain(symbols.dash);
   });
 
@@ -189,7 +189,7 @@ describe('Task', () => {
       name: () => 'Compiling',
       status,
     });
-    const output = tui.render(task);
+    const output = legacyRender(task);
     expect(output).toContain(symbols.success);
   });
 
@@ -199,7 +199,7 @@ describe('Task', () => {
       name: () => 'Compiling',
       status,
     });
-    const output = tui.render(task);
+    const output = legacyRender(task);
     expect(output).toContain(symbols.pointer);
   });
 
@@ -209,19 +209,19 @@ describe('Task', () => {
       name: () => 'Compiling',
       status,
     });
-    const output = tui.render(task);
+    const output = legacyRender(task);
     expect(output).toContain(symbols.error);
   });
 
   it('displays optional detail message', () => {
     const status = signal('running' as const);
-    const detail = signal('src/app.ts');
+    const detail = signal<string | undefined>('src/app.ts');
     const task = Task({
       name: () => 'Compiling',
       status,
       detail,
     });
-    const output = tui.render(task);
+    const output = legacyRender(task);
     expect(output).toContain('src/app.ts');
   });
 
@@ -232,30 +232,28 @@ describe('Task', () => {
       status,
     });
 
-    const output1 = tui.render(task);
+    const output1 = legacyRender(task);
     expect(output1).toContain(symbols.dash);
 
-    // Change status
     status.value = 'done';
-    const output2 = tui.reRender();
+    const output2 = legacyRender(task);
     expect(output2).toContain(symbols.success);
   });
 
   it('re-renders when detail signal changes', () => {
     const status = signal('running' as const);
-    const detail = signal('file1.ts');
+    const detail = signal<string | undefined>('file1.ts');
     const task = Task({
       name: () => 'Compiling',
       status,
       detail,
     });
 
-    const output1 = tui.render(task);
+    const output1 = legacyRender(task);
     expect(output1).toContain('file1.ts');
 
-    // Change detail
     detail.value = 'file2.ts';
-    const output2 = tui.reRender();
+    const output2 = legacyRender(task);
     expect(output2).toContain('file2.ts');
   });
 });
@@ -273,7 +271,7 @@ describe('TaskList', () => {
       title: () => 'Build',
       tasks,
     });
-    const output = tui.render(taskList);
+    const output = legacyRender(taskList);
     expect(output).toContain('Build');
   });
 
@@ -286,7 +284,7 @@ describe('TaskList', () => {
       title: () => 'Build',
       tasks,
     });
-    const output = tui.render(taskList);
+    const output = legacyRender(taskList);
     expect(output).toContain('Compiling');
     expect(output).toContain('Type checking');
   });
@@ -300,7 +298,7 @@ describe('TaskList', () => {
       title: () => 'Build',
       tasks,
     });
-    const output = tui.render(taskList);
+    const output = legacyRender(taskList);
     expect(output).toContain(symbols.success);
     expect(output).toContain(symbols.error);
   });
@@ -313,7 +311,7 @@ describe('TaskList', () => {
       title: () => 'Empty',
       tasks,
     });
-    const output = tui.render(taskList);
+    const output = legacyRender(taskList);
     expect(output).toContain('Empty');
   });
 
@@ -324,16 +322,15 @@ describe('TaskList', () => {
       tasks,
     });
 
-    const output1 = tui.render(taskList);
+    const output1 = legacyRender(taskList);
     expect(output1).toContain('Task 1');
     expect(output1).not.toContain('Task 2');
 
-    // Add a task
     tasks.value = [
       { name: 'Task 1', status: 'done' as const },
       { name: 'Task 2', status: 'running' as const },
     ];
-    const output2 = tui.reRender();
+    const output2 = legacyRender(taskList);
     expect(output2).toContain('Task 1');
     expect(output2).toContain('Task 2');
   });
@@ -345,14 +342,13 @@ describe('TaskList', () => {
       tasks,
     });
 
-    const output1 = tui.render(taskList);
+    const output1 = legacyRender(taskList);
     expect(output1).toContain(symbols.dash);
 
-    // Change status using batch
     batch(() => {
       tasks.value = [{ name: 'Task 1', status: 'done' as const }];
     });
-    const output2 = tui.reRender();
+    const output2 = legacyRender(taskList);
     expect(output2).toContain(symbols.success);
   });
 });
