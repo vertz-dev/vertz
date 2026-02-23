@@ -168,8 +168,14 @@ export function TaskDetailPage() {
             ))}
           </div>
           <div style="margin-top: 1.5rem">
-            <div style="display: flex; gap: 0.5rem; border-bottom: 1px solid var(--color-border-200); padding-bottom: 0.5rem; margin-bottom: 1rem">
+            <div
+              role="tablist"
+              style="display: flex; gap: 0.5rem; border-bottom: 1px solid var(--color-border-200); padding-bottom: 0.5rem; margin-bottom: 1rem"
+            >
               <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'details' ? 'true' : 'false'}
                 class={button({
                   intent: activeTab === 'details' ? 'primary' : 'ghost',
                   size: 'sm',
@@ -181,6 +187,9 @@ export function TaskDetailPage() {
                 Details
               </button>
               <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'activity' ? 'true' : 'false'}
                 class={button({
                   intent: activeTab === 'activity' ? 'primary' : 'ghost',
                   size: 'sm',
