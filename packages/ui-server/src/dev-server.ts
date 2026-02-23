@@ -25,8 +25,35 @@ import { readFileSync, existsSync, watch } from 'node:fs';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { createServer as createHttpServer } from 'node:http';
 import { InternalServerErrorException } from '@vertz/server';
-import type { InlineConfig, ViteDevServer } from 'vite';
+import type { InlineConfig, Plugin, ViteDevServer } from 'vite';
 import { createServer as createViteServer } from 'vite';
+
+/**
+ * Vite plugin that swaps `@vertz/ui/jsx-runtime` → `@vertz/ui-server/jsx-runtime`
+ * during SSR so that JSX produces VNodes (not DOM elements) on the server.
+ *
+ * This is the mechanism that makes the same component code render to both
+ * DOM (client) and VNodes (server) without any user-facing guards.
+ */
+function vertzSSRJsxPlugin(): Plugin {
+  return {
+    name: 'vertz:ssr-jsx-swap',
+    enforce: 'pre',
+    resolveId(source, importer, options) {
+      if (!options?.ssr) return;
+      if (
+        source === '@vertz/ui/jsx-runtime' ||
+        source === '@vertz/ui/jsx-dev-runtime'
+      ) {
+        // Delegate to normal resolution but with the server package
+        return this.resolve('@vertz/ui-server/jsx-runtime', importer, {
+          ...options,
+          skipSelf: true,
+        });
+      }
+    },
+  };
+}
 
 /**
  * Options for serving OpenAPI specification
@@ -204,6 +231,10 @@ export function createDevServer(options: DevServerOptions): DevServer {
     try {
       vite = await createViteServer({
         ...viteConfig,
+        plugins: [
+          vertzSSRJsxPlugin(),
+          ...(viteConfig.plugins ?? []),
+        ],
         server: {
           ...viteConfig.server,
           middlewareMode: true,

@@ -4,6 +4,20 @@ import { batch, scheduleNotify } from './scheduler';
 import type { Computed, DisposeFn, Signal, Subscriber, SubscriberSource } from './signal-types';
 import { getReadValueCallback, getSubscriber, setSubscriber } from './tracking';
 
+/**
+ * Detect if running in SSR/server-side context.
+ *
+ * IMPORTANT: "no document" does NOT mean SSR — TUI runs in Node without
+ * document but still needs effects. And `import.meta.env.SSR` is true in
+ * all Vitest tests, so it's also unreliable.
+ *
+ * The only reliable signal is `globalThis.__VERTZ_SSR__`, which is explicitly
+ * set by @vertz/ui-server's renderToHTML before calling app() and cleared after.
+ */
+function isSSR(): boolean {
+  return typeof globalThis !== 'undefined' && (globalThis as any).__VERTZ_SSR__ === true;
+}
+
 /** Global ID counter for subscriber deduplication. */
 let nextId = 0;
 
@@ -212,8 +226,14 @@ class EffectImpl implements Subscriber {
 /**
  * Create a reactive effect that re-runs whenever its dependencies change.
  * Returns a dispose function to stop the effect.
+ * During SSR, effects are no-ops and return a no-op dispose function.
  */
 export function effect(fn: () => void): DisposeFn {
+  // SSR safety: skip effect execution entirely during server-side rendering
+  if (isSSR()) {
+    return () => {};
+  }
+
   const eff = new EffectImpl(fn);
   // Run the effect immediately to establish subscriptions
   eff._run();

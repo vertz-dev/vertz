@@ -54,7 +54,9 @@ export async function renderToHTML<AppFn extends () => VNode>(
 ): Promise<string> {
   // Install DOM shim for SSR
   installDomShim();
-  // Set the SSR URL global for routing
+  // Set SSR flags — __VERTZ_SSR__ is the canonical signal read by @vertz/ui's
+  // isSSR() to skip effects/onMount. __SSR_URL__ is used for routing.
+  (globalThis as any).__VERTZ_SSR__ = true;
   (globalThis as any).__SSR_URL__ = options.url;
 
   try {
@@ -94,7 +96,8 @@ export async function renderToHTML<AppFn extends () => VNode>(
     // Extract and return HTML string
     return await response.text();
   } finally {
-    // Cleanup global and dom shim
+    // Cleanup globals and dom shim
+    delete (globalThis as any).__VERTZ_SSR__;
     delete (globalThis as any).__SSR_URL__;
     removeDomShim();
   }

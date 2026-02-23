@@ -9,7 +9,7 @@
 
 import { renderPage, renderToHTML } from '@vertz/ui-server';
 import { App } from './app';
-import { globalStyles } from './index';
+import { globalStyles } from './styles/global';
 import { todoTheme } from './styles/theme';
 
 /**
