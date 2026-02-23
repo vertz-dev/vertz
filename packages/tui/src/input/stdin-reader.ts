@@ -30,8 +30,15 @@ export class StdinReader {
 
     this._onData = (data: Buffer) => {
       const key = parseKey(data);
+
+      // Dispatch to listeners first so components can handle Ctrl+C
       for (const listener of this._listeners) {
         listener(key);
+      }
+
+      // Default Ctrl+C handler — exit gracefully when stdin is in raw mode
+      if (key.ctrl && key.name === 'c') {
+        process.exit(130);
       }
     };
 

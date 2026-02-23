@@ -22,6 +22,16 @@ export function MultiSelect<T>(props: MultiSelectProps<T>): TuiElement {
 
   if (props.options.length === 0) return box;
 
+  // Warn about defaultValue entries not found in options
+  if (props.defaultValue) {
+    const optionValues = new Set(props.options.map((o) => o.value));
+    for (const val of props.defaultValue) {
+      if (!optionValues.has(val)) {
+        console.warn(`MultiSelect: defaultValue "${String(val)}" not found in options`);
+      }
+    }
+  }
+
   const initialChecked = new Set(
     props.defaultValue
       ? props.options

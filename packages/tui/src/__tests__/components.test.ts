@@ -1,3 +1,4 @@
+import { signal } from '@vertz/ui';
 import { describe, expect, it, vi } from 'vitest';
 import { tui } from '../app';
 import { Confirm } from '../components/Confirm';
@@ -170,6 +171,41 @@ describe('MultiSelect', () => {
     handle.unmount();
   });
 
+  it('warns when defaultValue contains values not in options', () => {
+    const adapter = new TestAdapter(40, 10);
+    const testStdin = new TestStdin();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let result: string[] = [];
+
+    function App(): TuiNode {
+      return MultiSelect({
+        message: 'Features:',
+        options: [
+          { label: 'TypeScript', value: 'ts' },
+          { label: 'Biome', value: 'biome' },
+        ],
+        defaultValue: ['ts', 'nonexistent'],
+        onSubmit: (v: string[]) => {
+          result = v;
+        },
+      });
+    }
+
+    const handle = tui.mount(App, { adapter, testStdin });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('nonexistent'));
+
+    // Warning should only fire once, not on every re-render
+    const callCount = warnSpy.mock.calls.length;
+    testStdin.pressKey('down'); // trigger re-render
+    expect(warnSpy.mock.calls.length).toBe(callCount);
+
+    // Submit — should only include the valid default
+    testStdin.pressKey('return');
+    expect(result).toEqual(['ts']);
+    handle.unmount();
+    warnSpy.mockRestore();
+  });
+
   it('supports defaultValue', () => {
     const adapter = new TestAdapter(40, 10);
     const testStdin = new TestStdin();
@@ -312,6 +348,38 @@ describe('TextInput', () => {
     handle.unmount();
   });
 
+  it('updates to external value when value prop changes', () => {
+    const adapter = new TestAdapter(40, 10);
+    const testStdin = new TestStdin();
+    let submitted = '';
+
+    const externalValue = signal('');
+
+    function App(): TuiNode {
+      return TextInput({
+        value: externalValue.value,
+        onSubmit: (v: string) => {
+          submitted = v;
+        },
+      });
+    }
+
+    const handle = tui.mount(App, { adapter, testStdin });
+
+    // User types input
+    testStdin.type('hello');
+    expect(adapter.text()).toContain('hello');
+
+    // External value changes — should update to external value
+    externalValue.value = 'world';
+    expect(adapter.text()).toContain('world');
+
+    // Submit should give the current value
+    testStdin.pressKey('return');
+    expect(submitted).toBe('world');
+    handle.unmount();
+  });
+
   it('fires onChange on each keystroke', () => {
     const adapter = new TestAdapter(40, 10);
     const testStdin = new TestStdin();
@@ -359,6 +427,49 @@ describe('PasswordInput', () => {
     expect(adapter.text()).toContain('\u2022\u2022\u2022');
     // Should NOT contain the actual text
     expect(adapter.text()).not.toContain('abc');
+    handle.unmount();
+  });
+
+  it('accepts initial value prop', () => {
+    const adapter = new TestAdapter(40, 10);
+    const testStdin = new TestStdin();
+    let result = '';
+
+    function App(): TuiNode {
+      return PasswordInput({
+        value: 'pre',
+        onSubmit: (v: string) => {
+          result = v;
+        },
+      });
+    }
+
+    const handle = tui.mount(App, { adapter, testStdin });
+    // Should show 3 bullet characters for 'pre'
+    expect(adapter.text()).toContain('\u2022\u2022\u2022');
+    // Type more and submit
+    testStdin.type('ss');
+    testStdin.pressKey('return');
+    expect(result).toBe('press');
+    handle.unmount();
+  });
+
+  it('fires onChange on each keystroke', () => {
+    const adapter = new TestAdapter(40, 10);
+    const testStdin = new TestStdin();
+    const changes: string[] = [];
+
+    function App(): TuiNode {
+      return PasswordInput({
+        onChange: (v: string) => {
+          changes.push(v);
+        },
+      });
+    }
+
+    const handle = tui.mount(App, { adapter, testStdin });
+    testStdin.type('ab');
+    expect(changes).toEqual(['a', 'ab']);
     handle.unmount();
   });
 
