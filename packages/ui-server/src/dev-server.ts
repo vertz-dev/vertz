@@ -70,6 +70,13 @@ export interface DevServerOptions {
    * @default true
    */
   logRequests?: boolean;
+
+  /**
+   * Paths that should skip SSR and pass through to next middleware.
+   * Useful for API routes, static assets, etc.
+   * @default ['/api/']
+   */
+  skipSSRPaths?: string[];
 }
 
 export interface DevServer {
@@ -106,6 +113,7 @@ export function createDevServer(options: DevServerOptions): DevServer {
     middleware,
     skipModuleInvalidation = false,
     logRequests = true,
+    skipSSRPaths = ['/api/'],
   } = options;
 
   let vite: ViteDevServer;
@@ -147,6 +155,11 @@ export function createDevServer(options: DevServerOptions): DevServer {
       try {
         // Skip Vite's internal routes
         if (url.startsWith('/@') || url.startsWith('/node_modules')) {
+          return next();
+        }
+
+        // Skip configured paths (e.g., API routes)
+        if (skipSSRPaths?.some((path) => url.startsWith(path))) {
           return next();
         }
 

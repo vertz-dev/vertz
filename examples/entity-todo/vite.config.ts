@@ -8,6 +8,15 @@ export default defineConfig({
     // API routes are handled by dev-server.ts middleware, not proxy
     // Proxy removed to prevent infinite loop
   },
+  // SSR-specific configuration (only applies to server builds)
+  ssr: {
+    resolve: {
+      alias: {
+        '@vertz/ui/jsx-runtime': '@vertz/ui-server/jsx-runtime',
+        '@vertz/ui/jsx-dev-runtime': '@vertz/ui-server/jsx-runtime',
+      },
+    },
+  },
   // Build configuration for SSR + client bundles
   build: {
     // Generate SSR build for Cloudflare Worker
