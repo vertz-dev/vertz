@@ -208,7 +208,7 @@ export function createSqliteDriver(dbPath: string): DbDriver {
   }
 
   // Enable WAL mode for better performance
-  db.run('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA journal_mode = WAL');
 
   return {
     async query<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
