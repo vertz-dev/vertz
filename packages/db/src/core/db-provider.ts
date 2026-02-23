@@ -3,10 +3,24 @@ import { ConnectionError } from '../errors/db-error';
 import type { ModelEntry } from '../schema/inference';
 
 // ---------------------------------------------------------------------------
+// Migrations config
+// ---------------------------------------------------------------------------
+
+export interface DbProviderMigrationsConfig {
+  /** Automatically apply schema changes in development. Default: NODE_ENV !== 'production' */
+  autoApply?: boolean;
+  /** Path to the schema snapshot file. Default: '.vertz/schema-snapshot.json' */
+  snapshotPath?: string;
+}
+
+// ---------------------------------------------------------------------------
 // DbProviderConfig — same as CreateDbOptions, passed through to createDb
 // ---------------------------------------------------------------------------
 
-export type DbProviderConfig<TModels extends Record<string, ModelEntry>> = CreateDbOptions<TModels>;
+export type DbProviderConfig<TModels extends Record<string, ModelEntry>> = CreateDbOptions<TModels> & {
+  /** Migration configuration for auto-migrations. */
+  migrations?: DbProviderMigrationsConfig;
+};
 
 // ---------------------------------------------------------------------------
 // ServiceDef-compatible shape (structural typing — no @vertz/core import)
