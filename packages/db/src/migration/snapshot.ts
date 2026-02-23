@@ -12,6 +12,8 @@ export interface ColumnSnapshot {
 
 export interface IndexSnapshot {
   columns: string[];
+  name?: string;
+  unique?: boolean;
 }
 
 export interface ForeignKeySnapshot {

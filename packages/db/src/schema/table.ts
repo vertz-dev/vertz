@@ -7,11 +7,14 @@ import type { RelationDef } from './relation';
 
 export interface IndexDef {
   readonly columns: readonly string[];
+  readonly name?: string;
+  readonly unique?: boolean;
 }
 
-export function createIndex(columns: string | string[]): IndexDef {
+export function createIndex(columns: string | string[], options?: { name?: string; unique?: boolean }): IndexDef {
   return {
     columns: Array.isArray(columns) ? columns : [columns],
+    ...options,
   };
 }
 
