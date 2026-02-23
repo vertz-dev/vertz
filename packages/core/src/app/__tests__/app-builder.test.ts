@@ -335,4 +335,212 @@ describe('createApp', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('access-control-allow-origin')).toBe('*');
   });
+
+  describe('handler caching', () => {
+    it('returns the same handler reference on repeated accesses', () => {
+      const mod = createTestModule('test', '/users', [
+        { method: 'GET', path: '/', handler: () => ({ users: [] }) },
+      ]);
+
+      const app = createApp({}).register(mod);
+      const first = app.handler;
+      const second = app.handler;
+
+      expect(first).toBe(second);
+    });
+
+    it('returns a new handler reference after registering a new module', async () => {
+      const mod1 = createTestModule('mod1', '/users', [
+        { method: 'GET', path: '/', handler: () => ({ type: 'users' }) },
+      ]);
+      const mod2 = createTestModule('mod2', '/orders', [
+        { method: 'GET', path: '/', handler: () => ({ type: 'orders' }) },
+      ]);
+
+      const app = createApp({}).register(mod1);
+      const before = app.handler;
+
+      app.register(mod2);
+      const after = app.handler;
+
+      expect(before).not.toBe(after);
+
+      // Verify the new handler actually routes the second module's routes
+      const res = await after(new Request('http://localhost/orders'));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ type: 'orders' });
+    });
+  });
+
+  describe('router.routes inspection', () => {
+    it('exposes registered routes with correct method and path', () => {
+      const mod = createTestModule('test', '/users', [
+        { method: 'GET', path: '/', handler: () => ({ users: [] }) },
+        { method: 'POST', path: '/', handler: () => ({ created: true }) },
+        { method: 'GET', path: '/:id', handler: () => ({ user: {} }) },
+      ]);
+
+      const app = createApp({}).register(mod);
+      const routes = app.router.routes;
+
+      expect(routes).toContainEqual({ method: 'GET', path: '/users/' });
+      expect(routes).toContainEqual({ method: 'POST', path: '/users/' });
+      expect(routes).toContainEqual({ method: 'GET', path: '/users/:id' });
+    });
+
+    it('does not prepend basePath to router.routes (basePath is applied at request dispatch time)', () => {
+      // Note: basePath affects request routing but router.routes uses the router prefix directly
+      // (basePath is applied at request-dispatch time, not at registration time)
+      // This test verifies the raw prefix + path stored in router.routes
+      const mod = createTestModule('test', '/users', [
+        { method: 'GET', path: '/', handler: () => ({ users: [] }) },
+      ]);
+
+      const app = createApp({ basePath: '/api' }).register(mod);
+      const routes = app.router.routes;
+
+      expect(routes).toContainEqual({ method: 'GET', path: '/users/' });
+    });
+
+    it('accumulates routes from multiple registered modules', () => {
+      const userMod = createTestModule('users', '/users', [
+        { method: 'GET', path: '/', handler: () => ({ type: 'users' }) },
+        { method: 'POST', path: '/', handler: () => ({ created: true }) },
+      ]);
+      const orderMod = createTestModule('orders', '/orders', [
+        { method: 'GET', path: '/', handler: () => ({ type: 'orders' }) },
+        { method: 'DELETE', path: '/:id', handler: () => undefined },
+      ]);
+
+      const app = createApp({}).register(userMod).register(orderMod);
+      const routes = app.router.routes;
+
+      expect(routes).toContainEqual({ method: 'GET', path: '/users/' });
+      expect(routes).toContainEqual({ method: 'POST', path: '/users/' });
+      expect(routes).toContainEqual({ method: 'GET', path: '/orders/' });
+      expect(routes).toContainEqual({ method: 'DELETE', path: '/orders/:id' });
+    });
+
+    it('returns an empty routes array when no modules are registered', () => {
+      const app = createApp({});
+      expect(app.router.routes).toEqual([]);
+    });
+  });
+
+  describe('entity routes', () => {
+    it('exposes entity CRUD routes via _entityRoutes when provided', () => {
+      const entityRoutes = [
+        { method: 'GET', path: '/api/posts', handler: async () => new Response('[]') },
+        { method: 'POST', path: '/api/posts', handler: async () => new Response('{}') },
+        { method: 'GET', path: '/api/posts/:id', handler: async () => new Response('{}') },
+        { method: 'PATCH', path: '/api/posts/:id', handler: async () => new Response('{}') },
+        { method: 'DELETE', path: '/api/posts/:id', handler: async () => new Response() },
+      ];
+
+      const app = createApp({ _entityRoutes: entityRoutes });
+      const routes = app.router.routes;
+
+      expect(routes).toHaveLength(5);
+      expect(routes).toContainEqual({ method: 'GET', path: '/api/posts' });
+      expect(routes).toContainEqual({ method: 'POST', path: '/api/posts' });
+      expect(routes).toContainEqual({ method: 'GET', path: '/api/posts/:id' });
+      expect(routes).toContainEqual({ method: 'PATCH', path: '/api/posts/:id' });
+      expect(routes).toContainEqual({ method: 'DELETE', path: '/api/posts/:id' });
+    });
+
+    it('generates CRUD routes from entities config when _entityRoutes is absent', () => {
+      const postEntity = {
+        name: 'posts',
+        model: {},
+        access: {},
+        before: {},
+        after: {},
+        actions: {},
+        relations: {},
+      };
+
+      const app = createApp({ entities: [postEntity] });
+      const routes = app.router.routes;
+
+      expect(routes).toHaveLength(5);
+      expect(routes).toContainEqual({ method: 'GET', path: '/api/posts' });
+      expect(routes).toContainEqual({ method: 'GET', path: '/api/posts/:id' });
+      expect(routes).toContainEqual({ method: 'POST', path: '/api/posts' });
+      expect(routes).toContainEqual({ method: 'PATCH', path: '/api/posts/:id' });
+      expect(routes).toContainEqual({ method: 'DELETE', path: '/api/posts/:id' });
+    });
+
+    it('generates action routes for entity actions', () => {
+      const postEntity = {
+        name: 'posts',
+        model: {},
+        access: {},
+        before: {},
+        after: {},
+        actions: { publish: {}, archive: {} },
+        relations: {},
+      };
+
+      const app = createApp({ entities: [postEntity] });
+      const routes = app.router.routes;
+
+      expect(routes).toHaveLength(7);
+
+      // Verify action routes are generated
+      expect(routes).toContainEqual({ method: 'POST', path: '/api/posts/:id/publish' });
+      expect(routes).toContainEqual({ method: 'POST', path: '/api/posts/:id/archive' });
+
+      // Verify CRUD routes are still present — a regression that emits actions but drops CRUD would fail here
+      expect(routes).toContainEqual({ method: 'GET', path: '/api/posts' });
+      expect(routes).toContainEqual({ method: 'DELETE', path: '/api/posts/:id' });
+    });
+
+    it('respects custom apiPrefix for entity routes', () => {
+      const postEntity = {
+        name: 'posts',
+        model: {},
+        access: {},
+        before: {},
+        after: {},
+        actions: {},
+        relations: {},
+      };
+
+      const app = createApp({ entities: [postEntity], apiPrefix: '/v1/' });
+      const routes = app.router.routes;
+
+      expect(routes).toHaveLength(5);
+      // Collection routes
+      expect(routes).toContainEqual({ method: 'GET', path: '/v1/posts' });
+      expect(routes).toContainEqual({ method: 'POST', path: '/v1/posts' });
+      // Parameterized routes — /:id path construction is a distinct code path
+      expect(routes).toContainEqual({ method: 'GET', path: '/v1/posts/:id' });
+      expect(routes).toContainEqual({ method: 'PATCH', path: '/v1/posts/:id' });
+      expect(routes).toContainEqual({ method: 'DELETE', path: '/v1/posts/:id' });
+    });
+
+    it('uses root-level entity path when apiPrefix is empty string', () => {
+      const postEntity = {
+        name: 'posts',
+        model: {},
+        access: {},
+        before: {},
+        after: {},
+        actions: {},
+        relations: {},
+      };
+
+      const app = createApp({ entities: [postEntity], apiPrefix: '' });
+      const routes = app.router.routes;
+
+      expect(routes).toHaveLength(5);
+      // Collection routes
+      expect(routes).toContainEqual({ method: 'GET', path: '/posts' });
+      expect(routes).toContainEqual({ method: 'POST', path: '/posts' });
+      // Parameterized routes — /:id path construction is a distinct code path
+      expect(routes).toContainEqual({ method: 'GET', path: '/posts/:id' });
+      expect(routes).toContainEqual({ method: 'PATCH', path: '/posts/:id' });
+      expect(routes).toContainEqual({ method: 'DELETE', path: '/posts/:id' });
+    });
+  });
 });
