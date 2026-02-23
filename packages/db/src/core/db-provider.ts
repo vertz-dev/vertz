@@ -196,7 +196,7 @@ export function createDbProvider<TModels extends Record<string, ModelEntry>>(
         await autoMigrate({
           currentSchema,
           snapshotPath,
-          dialect,
+          dialect: dialect as 'sqlite',
           db: queryFn,
         });
       }
