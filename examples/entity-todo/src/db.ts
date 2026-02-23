@@ -7,7 +7,7 @@
 import { createDbProvider } from '@vertz/db';
 import { todosTable } from './schema';
 
-export const db = createDbProvider({
+export const db = await createDbProvider({
   dialect: 'sqlite',
   schema: todosTable,
   migrations: { autoApply: true },

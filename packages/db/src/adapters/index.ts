@@ -53,7 +53,7 @@ export interface SqliteAdapterConfig {
  * 
  * @example
  * // SQLite (local development)
- * const db = createDbProvider({
+ * const db = await createDbProvider({
  *   dialect: 'sqlite',
  *   schema: todosTable,
  *   migrations: { autoApply: true },
@@ -68,14 +68,14 @@ export interface SqliteAdapterConfig {
  *   migrations: { autoApply: false }, // migrations should run via wrangler
  * });
  */
-export function createDbProvider<T extends ColumnRecord>(
+export async function createDbProvider<T extends ColumnRecord>(
   options: CreateDbProviderOptions<T>
-): EntityDbAdapter {
+): Promise<EntityDbAdapter> {
   const { dialect, schema, migrations } = options;
 
   switch (dialect) {
     case 'sqlite':
-      return createSqliteAdapter({
+      return await createSqliteAdapter({
         schema,
         dbPath: options.sqlite?.dbPath,
         dataDir: options.sqlite?.dataDir,
