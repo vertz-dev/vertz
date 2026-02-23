@@ -181,23 +181,30 @@ interface SqliteDatabase {
 }
 
 /**
- * Create a SQLite driver using bun:sqlite.
+ * Create a SQLite driver using bun:sqlite or better-sqlite3.
  */
 export function createSqliteDriver(dbPath: string): DbDriver {
-  // Dynamic import of bun:sqlite - only available at runtime in Bun
   let db: SqliteDatabase;
 
   try {
+    // Try bun:sqlite first (for Bun runtime)
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { Database } = require('bun:sqlite');
     db = new Database(dbPath) as SqliteDatabase;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    throw new Error(
-      `Failed to create SQLite database at "${dbPath}". ` +
-      `Please ensure the directory exists and you have write permissions. ` +
-      `Error: ${errorMessage}`
-    );
+  } catch {
+    // Fall back to better-sqlite3 (for Node.js runtime)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Database = require('better-sqlite3');
+      db = new Database(dbPath) as SqliteDatabase;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(
+        `Failed to create SQLite database at "${dbPath}". ` +
+        `Please ensure the directory exists and you have write permissions. ` +
+        `Error: ${errorMessage}`
+      );
+    }
   }
 
   // Enable WAL mode for better performance
