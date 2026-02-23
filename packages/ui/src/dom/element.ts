@@ -5,7 +5,7 @@ import {
   exitChildren,
   getIsHydrating,
 } from '../hydrate/hydration-context';
-import { effect } from '../runtime/signal';
+import { domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
 
 /** A Text node that also carries a dispose function for cleanup. */
@@ -27,14 +27,14 @@ export function __text(fn: () => string): DisposableText {
     const claimed = claimText();
     if (claimed) {
       const node = claimed as DisposableText;
-      node.dispose = effect(() => {
+      node.dispose = domEffect(() => {
         node.data = fn();
       });
       return node;
     }
   }
   const node = document.createTextNode('') as DisposableText;
-  node.dispose = effect(() => {
+  node.dispose = domEffect(() => {
     node.data = fn();
   });
   return node;
@@ -64,7 +64,7 @@ export function __child(
       // Attach reactive effect to adopted wrapper — first run reads value
       // without clearing (SSR content is already correct)
       let isFirstRun = true;
-      wrapper.dispose = effect(() => {
+      wrapper.dispose = domEffect(() => {
         const value = fn();
 
         if (isFirstRun) {
@@ -97,7 +97,7 @@ export function __child(
   wrapper = document.createElement('span') as HTMLElement & { dispose: DisposeFn };
   wrapper.style.display = 'contents';
 
-  wrapper.dispose = effect(() => {
+  wrapper.dispose = domEffect(() => {
     const value = fn();
 
     // Clear previous content

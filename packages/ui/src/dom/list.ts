@@ -1,6 +1,6 @@
 import { getIsHydrating } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
-import { effect } from '../runtime/signal';
+import { domEffect } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
 
 /**
@@ -40,7 +40,7 @@ export function __list<T>(
   // This ensures parent disposal triggers our full cleanup (scopeMap + effect).
   const outerScope = pushScope();
   let isFirstRun = true;
-  effect(() => {
+  domEffect(() => {
     const newItems = getItems();
 
     if (isFirstRun && isHydrationRun) {
