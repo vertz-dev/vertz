@@ -8,7 +8,7 @@
 import type { DbDriver } from '../client/driver';
 import type { TableDef, ColumnRecord } from '../schema/table';
 import type { ColumnMetadata } from '../schema/column';
-import type { EntityDbAdapter, ListOptions } from '@vertz/server';
+import type { EntityDbAdapter, ListOptions } from '../types/adapter';
 
 // ---------------------------------------------------------------------------
 // Types

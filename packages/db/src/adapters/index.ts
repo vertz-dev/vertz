@@ -8,10 +8,9 @@
 import type { ColumnRecord } from '../schema/table';
 import type { TableDef } from '../schema/table';
 import { createSqliteAdapter } from './sqlite-adapter';
-import type { SqliteAdapterOptions } from './sqlite-adapter';
 import { createD1Adapter } from './d1-adapter';
-import type { D1AdapterOptions, D1DatabaseBinding } from './d1-adapter';
-import type { EntityDbAdapter } from '@vertz/server';
+import type { D1DatabaseBinding } from './d1-adapter';
+import type { EntityDbAdapter } from '../types/adapter';
 
 // ---------------------------------------------------------------------------
 // Types

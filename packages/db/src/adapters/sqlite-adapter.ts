@@ -5,14 +5,13 @@
  * Implements EntityDbAdapter interface for use with @vertz/server.
  */
 
-import { Database } from 'bun:sqlite';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import type { DbDriver } from '../client/driver';
 import type { TableDef, ColumnRecord } from '../schema/table';
 import type { ColumnMetadata } from '../schema/column';
-import type { EntityDbAdapter, ListOptions } from '@vertz/server';
+import type { EntityDbAdapter, ListOptions } from '../types/adapter';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -170,13 +169,28 @@ function generateIndexSql<T extends ColumnRecord>(schema: TableDef<T>): string[]
 // ---------------------------------------------------------------------------
 
 /**
+ * Minimal SQLite database interface (matches bun:sqlite API surface)
+ */
+interface SqliteDatabase {
+  prepare(sql: string): {
+    all(...params: unknown[]): Record<string, unknown>[];
+    run(...params: unknown[]): { changes: number };
+  };
+  run(sql: string): void;
+  close(): void;
+}
+
+/**
  * Create a SQLite driver using bun:sqlite.
  */
 export function createSqliteDriver(dbPath: string): DbDriver {
-  let db: Database;
+  // Dynamic import of bun:sqlite - only available at runtime in Bun
+  let db: SqliteDatabase;
 
   try {
-    db = new Database(dbPath);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Database } = require('bun:sqlite');
+    db = new Database(dbPath) as SqliteDatabase;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     throw new Error(
