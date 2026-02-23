@@ -1,7 +1,7 @@
 import { compileTheme, type Theme } from '@vertz/ui';
 import { installDomShim, removeDomShim, SSRElement } from './dom-shim';
 import { renderPage } from './render-page';
-import { ssrStorage, getSSRUrl } from './ssr-context';
+import { ssrStorage } from './ssr-context';
 import type { VNode } from './types';
 
 export interface RenderToHTMLOptions<AppFn extends () => VNode> {
