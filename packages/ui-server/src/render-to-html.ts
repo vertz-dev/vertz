@@ -1,5 +1,5 @@
 import { compileTheme, type Theme } from '@vertz/ui';
-import { installDomShim, removeDomShim, SSRElement } from './dom-shim';
+import { installDomShim, removeDomShim } from './dom-shim';
 import { renderPage } from './render-page';
 import { ssrStorage } from './ssr-context';
 import type { VNode } from './types';
@@ -70,8 +70,18 @@ export async function renderToHTML<AppFn extends () => VNode>(
       const collectedCSS: string[] = [];
       if (fakeDoc?.head?.children) {
         for (const child of fakeDoc.head.children) {
-          if (child instanceof SSRElement && child.tag === 'style') {
-            const cssText = child.children?.join('') ?? '';
+          // Use duck typing instead of instanceof — Vite's SSR module system
+          // may load different copies of SSRElement (source vs dist), making
+          // instanceof fail across module boundaries.
+          if (
+            child != null &&
+            typeof child === 'object' &&
+            'tag' in child &&
+            child.tag === 'style' &&
+            'children' in child &&
+            Array.isArray(child.children)
+          ) {
+            const cssText = child.children.join('');
             if (cssText) collectedCSS.push(cssText);
           }
         }

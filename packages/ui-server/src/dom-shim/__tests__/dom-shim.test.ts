@@ -208,13 +208,24 @@ describe('DOM Shim', () => {
   });
 
   describe('removeDomShim', () => {
-    it('should remove all DOM globals', () => {
+    it('should reset document and remove window after cleanup', () => {
       installDomShim();
       expect(globalThis).toHaveProperty('document');
       expect(globalThis).toHaveProperty('window');
 
+      // Get a reference to the original document
+      // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires dynamic typing
+      const originalDoc = (globalThis as any).document;
+
       removeDomShim();
-      expect(globalThis).not.toHaveProperty('document');
+
+      // document is replaced with a fresh empty shim (not deleted)
+      // so async callbacks from query() don't crash with ReferenceError
+      expect(globalThis).toHaveProperty('document');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires dynamic typing
+      expect((globalThis as any).document).not.toBe(originalDoc);
+
+      // window IS removed (only needed during active SSR render)
       expect(globalThis).not.toHaveProperty('window');
     });
   });

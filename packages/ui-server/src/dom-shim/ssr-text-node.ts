@@ -4,6 +4,7 @@ import { SSRNode } from './ssr-node';
  * SSR text node
  */
 export class SSRTextNode extends SSRNode {
+  override readonly nodeType: number = SSRNode.TEXT_NODE;
   text: string;
 
   constructor(text: string) {

@@ -6,6 +6,7 @@ import { SSRTextNode } from './ssr-text-node';
  * SSR document fragment
  */
 export class SSRDocumentFragment extends SSRNode {
+  override readonly nodeType: number = SSRNode.DOCUMENT_FRAGMENT_NODE;
   children: (SSRElement | string)[] = [];
 
   appendChild(child: SSRElement | SSRTextNode | SSRDocumentFragment): void {

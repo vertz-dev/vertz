@@ -313,6 +313,9 @@ export function __append(parent: Node, child: Node): void {
  * Compiler output target — replaces `document.createTextNode(str)`.
  */
 export function __staticText(text: string): Text {
+  if (isSSR()) {
+    return document.createTextNode(text);
+  }
   if (getIsHydrating()) {
     const claimed = claimText();
     if (claimed) return claimed;

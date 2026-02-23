@@ -334,7 +334,18 @@ export class FetchClient {
 
   private buildURL(path: string, query?: Record<string, unknown>): string {
     const base = this.config.baseURL;
-    const url = base ? new URL(path, base) : new URL(path);
+    // When base has a path prefix (e.g. 'http://host/api') and path starts with '/',
+    // new URL('/todos', 'http://host/api') drops the '/api' prefix per URL spec.
+    // Concatenate the base path with the request path to preserve the prefix.
+    let url: URL;
+    if (base) {
+      const baseUrl = new URL(base, typeof location !== 'undefined' ? location.href : undefined);
+      const basePath = baseUrl.pathname.replace(/\/+$/, '');
+      baseUrl.pathname = basePath + path;
+      url = baseUrl;
+    } else {
+      url = new URL(path);
+    }
 
     if (query) {
       for (const [key, value] of Object.entries(query)) {

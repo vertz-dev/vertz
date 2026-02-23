@@ -2,6 +2,15 @@
  * Base Node class for SSR — matches the browser's Node interface minimally
  */
 export class SSRNode {
+  /** Node type constants — match browser's Node interface */
+  static readonly ELEMENT_NODE = 1;
+  static readonly TEXT_NODE = 3;
+  static readonly COMMENT_NODE = 8;
+  static readonly DOCUMENT_FRAGMENT_NODE = 11;
+
+  /** Instance nodeType — subclasses override */
+  readonly nodeType: number = 0;
+
   childNodes: SSRNode[] = [];
   parentNode: SSRNode | null = null;
 

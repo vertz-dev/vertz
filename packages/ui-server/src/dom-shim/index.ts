@@ -17,19 +17,44 @@ import { SSRTextNode } from './ssr-text-node';
 export { SSRNode, SSRElement, SSRTextNode, SSRDocumentFragment };
 
 /**
- * Create and install the DOM shim
+ * Create and install the DOM shim.
+ *
+ * If a vertz SSR document is already installed (from a prior call), it is
+ * reused so that CSS injected by `css()` during module loading is preserved.
+ * Only the `window.location` is refreshed.
  */
 export function installDomShim(): void {
-  // In a real browser, the document will have a proper doctype and won't be Happy-DOM
-  // Check for Happy-DOM or other test environments by looking for __SSR_URL__ global
-  // If __SSR_URL__ is set, we ALWAYS want to install our shim, even if document exists
-  const isSSRContext = typeof globalThis.__SSR_URL__ !== 'undefined';
+  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  const existingDoc = typeof document !== 'undefined' ? (globalThis as any).document : null;
 
-  if (typeof document !== 'undefined' && !isSSRContext) {
-    return; // Already in a real browser, don't override
+  // If the existing document is our own SSR shim, reuse it — CSS may have
+  // been injected into head.children by injectCSS() during module loading.
+  if (existingDoc?.__vertz_ssr__) {
+    // Still need to refresh window.location for the current request URL
+    ensureWindow();
+    ensureDOMConstructors();
+    return;
   }
 
-  const fakeDocument = {
+  // If a real browser document exists, don't override it
+  if (typeof document !== 'undefined') {
+    return;
+  }
+
+  // Install fresh SSR document
+  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  (globalThis as any).document = createSSRDocument();
+
+  ensureWindow();
+  ensureDOMConstructors();
+}
+
+/**
+ * Create a fresh SSR document shim marked with `__vertz_ssr__`.
+ */
+function createSSRDocument() {
+  return {
+    __vertz_ssr__: true,
     createElement(tag: string): SSRElement {
       return new SSRElement(tag);
     },
@@ -38,7 +63,10 @@ export function installDomShim(): void {
     },
     createComment(_text: string): SSRTextNode {
       // Comments serve as conditional branch placeholders — invisible during SSR
-      return new SSRTextNode('');
+      const node = new SSRTextNode('');
+      // Override nodeType to match browser Comment.COMMENT_NODE
+      Object.defineProperty(node, 'nodeType', { value: SSRNode.COMMENT_NODE });
+      return node;
     },
     createDocumentFragment(): SSRDocumentFragment {
       return new SSRDocumentFragment();
@@ -48,11 +76,12 @@ export function installDomShim(): void {
     body: new SSRElement('body'),
     // Note: do NOT include startViewTransition — code checks 'in' operator
   };
+}
 
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
-  (globalThis as any).document = fakeDocument;
-
-  // Provide a minimal window shim if not present
+/**
+ * Ensure `window` is shimmed with the current SSR URL.
+ */
+function ensureWindow(): void {
   if (typeof window === 'undefined') {
     // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
     (globalThis as any).window = {
@@ -65,9 +94,7 @@ export function installDomShim(): void {
       },
     };
   } else {
-    // CRITICAL FIX: Update window.location.pathname even if window already exists
-    // This handles module caching where router.ts was already loaded but we're
-    // rendering a different URL
+    // Update window.location.pathname for the current request URL
     // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
     (globalThis as any).window.location = {
       // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
@@ -75,8 +102,12 @@ export function installDomShim(): void {
       pathname: globalThis.__SSR_URL__ || '/',
     };
   }
+}
 
-  // Provide global DOM constructors for instanceof checks
+/**
+ * Ensure global DOM constructors are available for `instanceof` checks.
+ */
+function ensureDOMConstructors(): void {
   // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
   (globalThis as any).Node = SSRNode;
   // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
@@ -102,27 +133,26 @@ export function installDomShim(): void {
 }
 
 /**
- * Remove the DOM shim
+ * Remove the DOM shim.
+ *
+ * Resets `document` to a fresh empty shim instead of deleting it.
+ * This prevents ReferenceErrors from async callbacks (e.g., query() fetch
+ * Promises) that resolve after SSR render cleanup — those callbacks harmlessly
+ * create orphan SSR nodes on the fresh document that get garbage collected.
+ *
+ * DOM constructors (Node, HTMLElement, etc.) are kept installed permanently.
  */
 export function removeDomShim(): void {
-  const globals = [
-    'document',
-    'window',
-    'Node',
-    'HTMLElement',
-    'HTMLAnchorElement',
-    'HTMLDivElement',
-    'HTMLInputElement',
-    'HTMLButtonElement',
-    'HTMLSelectElement',
-    'HTMLTextAreaElement',
-    'DocumentFragment',
-    'MouseEvent',
-    'Event',
-  ];
-  for (const g of globals) {
-    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
-    delete (globalThis as any)[g];
+  // Reset document to a fresh empty shim — async callbacks that fire after
+  // cleanup will create orphan SSR nodes that go nowhere (no crash).
+  // The __vertz_ssr__ marker ensures installDomShim() recognizes it as our shim.
+  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  (globalThis as any).document = createSSRDocument();
+
+  // Remove window — it's only needed during active SSR render for router/location
+  if (typeof window !== 'undefined') {
+    // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+    delete (globalThis as any).window;
   }
 }
 

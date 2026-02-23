@@ -140,7 +140,9 @@ describe('renderToHTML', () => {
     // Verify cleanup happened - __SSR_URL__ should be undefined
     expect((globalThis as any).__SSR_URL__).toBeUndefined();
 
-    // Verify globals are cleaned up (document should be undefined)
-    expect((globalThis as any).document).toBeUndefined();
+    // Verify document was reset to a fresh empty shim (not deleted).
+    // removeDomShim() replaces document instead of deleting it so async
+    // callbacks from query() don't crash with ReferenceError.
+    expect((globalThis as any).document).toBeDefined();
   });
 });

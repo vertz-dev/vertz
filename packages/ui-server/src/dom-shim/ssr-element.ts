@@ -37,6 +37,8 @@ function createStyleProxy(element: SSRElement): Record<string, any> {
  * A VNode-based element that supports basic DOM-like operations.
  */
 export class SSRElement extends SSRNode {
+  override readonly nodeType: number = SSRNode.ELEMENT_NODE;
+  readonly tagName: string;
   tag: string;
   attrs: Record<string, string> = {};
   children: (SSRElement | string)[] = [];
@@ -49,6 +51,7 @@ export class SSRElement extends SSRNode {
   constructor(tag: string) {
     super();
     this.tag = tag;
+    this.tagName = tag.toUpperCase();
     this.style = createStyleProxy(this);
   }
 

@@ -1,9 +1,9 @@
 import vertzPlugin from '@vertz/ui-compiler';
-import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [vertzPlugin({ ssr: true })],
+  plugins: [vertzPlugin()],
   server: {
     // API routes are handled by dev-server.ts middleware, not proxy
     // Proxy removed to prevent infinite loop

@@ -2,7 +2,7 @@
  * Server-side entry point for Entity Todo SSR on Cloudflare Workers.
  *
  * Renders the App component to HTML using @vertz/ui-server primitives.
- * 
+ *
  * Note: This requires the Vite plugin to be configured for SSR mode,
  * which swaps the JSX runtime from @vertz/ui (DOM) to @vertz/ui-server (VNodes).
  */
@@ -14,7 +14,7 @@ import { todoTheme } from './styles/theme';
 
 /**
  * Render the app to a full HTML Response.
- * 
+ *
  * When built with Vite SSR mode, App() returns VNodes (not DOM elements).
  * The renderPage function wraps the VNode tree in a complete HTML document.
  *
@@ -37,10 +37,11 @@ export async function renderApp(): Promise<Response> {
   } catch (error) {
     // SSR error - return fallback HTML that loads the client bundle (SPA fallback)
     console.error('[SSR] Failed to render app:', error);
-    
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
-    const response = new Response(`<!DOCTYPE html>
+
+    const response = new Response(
+      `<!DOCTYPE html>
 <html lang="en">
 <head>
   <title>Entity Todo</title>
@@ -61,17 +62,20 @@ export async function renderApp(): Promise<Response> {
   </div>
   <script type="module" src="/assets/client.js"></script>
 </body>
-</html>`, {
-      status: 500,
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        'X-Frame-Options': 'DENY',
-        'X-XSS-Protection': '1; mode=block',
-        'Referrer-Policy': 'strict-origin-when-cross-origin',
-        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';",
+</html>`,
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'X-Content-Type-Options': 'nosniff',
+          'X-Frame-Options': 'DENY',
+          'X-XSS-Protection': '1; mode=block',
+          'Referrer-Policy': 'strict-origin-when-cross-origin',
+          'Content-Security-Policy':
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';",
+        },
       },
-    });
+    );
 
     return response;
   }
@@ -79,7 +83,7 @@ export async function renderApp(): Promise<Response> {
 
 /**
  * Render the app to an HTML string.
- * 
+ *
  * This function is used by createDevServer for SSR in local development.
  * It renders the App component to a complete HTML document string.
  *
@@ -88,7 +92,7 @@ export async function renderApp(): Promise<Response> {
  */
 export async function renderToString(url: string): Promise<string> {
   try {
-    return await renderToHTML(App, {
+    let html = await renderToHTML(App, {
       url,
       theme: todoTheme,
       styles: [globalStyles.css],
@@ -99,6 +103,18 @@ export async function renderToString(url: string): Promise<string> {
         ],
       },
     });
+
+    // Wrap SSR content in #app container for client-side mount(App, '#app')
+    html = html.replace('<body>\n', '<body>\n<div id="app">');
+    html = html.replace('\n</body>', '</div>\n</body>');
+
+    // Inject client entry script for hydration (Vite resolves the path in dev mode)
+    html = html.replace(
+      '</body>',
+      '  <script type="module" src="/src/entry-client.ts"></script>\n</body>',
+    );
+
+    return html;
   } catch (error) {
     // SSR error - return fallback HTML
     console.error('[SSR] Failed to render:', error);
