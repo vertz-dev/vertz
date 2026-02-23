@@ -69,3 +69,5 @@ data/
 
 # Cloudflare Wrangler
 .wrangler/
+:memory:
+.vertz/

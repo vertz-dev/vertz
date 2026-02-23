@@ -1,9 +1,12 @@
 import { ok, err, type Result } from '@vertz/errors';
 import { EntityNotFoundError, type EntityError } from '@vertz/errors';
-import type { ColumnBuilder, ColumnMetadata, TableDef } from '@vertz/db';
+import type { ColumnBuilder, ColumnMetadata, TableDef, ListOptions, EntityDbAdapter } from '@vertz/db';
 import { enforceAccess } from './access-enforcer';
 import { stripHiddenFields, stripReadOnlyFields } from './field-filter';
 import type { EntityContext, EntityDefinition } from './types';
+
+// Re-export types from @vertz/db for backward compatibility
+export type { ListOptions, EntityDbAdapter } from '@vertz/db';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -19,15 +22,10 @@ function resolvePrimaryKeyColumn(table: TableDef): string {
 }
 
 // ---------------------------------------------------------------------------
-// List options — pagination & filtering
+// List options — pagination & filtering (imported from @vertz/db)
 // ---------------------------------------------------------------------------
 
-export interface ListOptions {
-  where?: Record<string, unknown>;
-  limit?: number;
-  /** Cursor-based pagination: fetch records after this ID. */
-  after?: string;
-}
+// ListOptions is re-exported from @vertz/db above
 
 export interface ListResult<T = Record<string, unknown>> {
   data: T[];
@@ -38,16 +36,10 @@ export interface ListResult<T = Record<string, unknown>> {
 }
 
 // ---------------------------------------------------------------------------
-// DB adapter interface — abstracts the actual database operations
+// DB adapter interface — abstracts the actual database operations (imported from @vertz/db)
 // ---------------------------------------------------------------------------
 
-export interface EntityDbAdapter {
-  get(id: string): Promise<Record<string, unknown> | null>;
-  list(options?: ListOptions): Promise<{ data: Record<string, unknown>[]; total: number }>;
-  create(data: Record<string, unknown>): Promise<Record<string, unknown>>;
-  update(id: string, data: Record<string, unknown>): Promise<Record<string, unknown>>;
-  delete(id: string): Promise<Record<string, unknown> | null>;
-}
+// EntityDbAdapter is re-exported from @vertz/db above
 
 // ---------------------------------------------------------------------------
 // CRUD handler result types

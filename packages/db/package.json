@@ -57,8 +57,10 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260228.0",
     "@electric-sql/pglite": "^0.3.14",
+    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^25.2.1",
     "@vitest/coverage-v8": "^4.0.18",
+    "better-sqlite3": "^11.7.0",
     "bunup": "latest",
     "typescript": "^5.7.0",
     "vitest": "^4.0.18"
@@ -73,5 +75,17 @@
     "@paralleldrive/cuid2": "^2.2.2",
     "nanoid": "^5.1.5",
     "uuid": "^11.1.0"
+  },
+  "peerDependencies": {
+    "bun:sqlite": "*",
+    "@vertz/server": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "bun:sqlite": {
+      "optional": true
+    },
+    "@vertz/server": {
+      "optional": true
+    }
   }
 }
