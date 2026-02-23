@@ -9,24 +9,8 @@
 
 import { renderPage, renderToHTML } from '@vertz/ui-server';
 import { App } from './app';
-import { globalCss } from '@vertz/ui';
-import { defineTheme } from '@vertz/ui';
 import { globalStyles } from './index';
-
-/**
- * Theme configuration for SSR
- */
-const theme = defineTheme({
-  colors: {
-    primary: { DEFAULT: '#3b82f6', hover: '#2563eb' },
-    secondary: { DEFAULT: '#64748b', hover: '#475569' },
-    background: { DEFAULT: '#ffffff', alt: '#f8fafc' },
-    text: { DEFAULT: '#1e293b', muted: '#64748b' },
-    success: { DEFAULT: '#22c55e' },
-    error: { DEFAULT: '#ef4444' },
-    border: { DEFAULT: '#e2e8f0' },
-  },
-});
+import { todoTheme } from './styles/theme';
 
 /**
  * Render the app to a full HTML Response.
@@ -106,7 +90,7 @@ export async function renderToString(url: string): Promise<string> {
   try {
     return await renderToHTML(App, {
       url,
-      theme,
+      theme: todoTheme,
       styles: [globalStyles.css],
       head: {
         title: 'Entity Todo',
