@@ -10,7 +10,7 @@
 
 import type { AppIR } from '@vertz/compiler';
 import type { GenerateResult, ResolvedCodegenConfig, CodegenConfig } from '@vertz/codegen';
-import { createCompiler, type Compiler, type CompilerDependencies, type CompileResult, type Diagnostic } from '@vertz/compiler';
+import { createCompiler, type Compiler, type CompilerDependencies, type CompileResult, type Diagnostic, OpenAPIGenerator } from '@vertz/compiler';
 import { generate, createCodegenPipeline } from '@vertz/codegen';
 import type { PipelineStage, FileCategory } from './types';
 
@@ -132,7 +132,8 @@ export class PipelineOrchestrator {
         success = false;
       }
 
-      // Stage 2: Generate (only if analyze succeeded)
+      // Stage 2: Generate code (types, route map, DB client)
+      // OpenAPI depends on the IR being ready from codegen
       if (success && this.appIR) {
         const generateResult = await this.runCodegen();
         stages.push(generateResult);
@@ -141,7 +142,16 @@ export class PipelineOrchestrator {
         }
       }
 
-      // Stage 3: Build UI (could run in parallel with other stages)
+      // Stage 3: Generate OpenAPI spec (only if codegen succeeded)
+      if (success && this.appIR) {
+        const openapiResult = await this.runOpenAPIGenerate();
+        stages.push(openapiResult);
+        if (!openapiResult.success) {
+          success = false;
+        }
+      }
+
+      // Stage 4: Build UI (could run in parallel with other stages)
       // For now, we'll defer to the dev server to handle this
 
     } catch (error) {
@@ -175,6 +185,9 @@ export class PipelineOrchestrator {
       switch (stage) {
         case 'analyze':
           result = await this.runAnalyze();
+          break;
+        case 'openapi':
+          result = await this.runOpenAPIGenerate();
           break;
         case 'codegen':
           result = await this.runCodegen();
@@ -229,6 +242,43 @@ export class PipelineOrchestrator {
     } catch (error) {
       return {
         stage: 'analyze',
+        success: false,
+        durationMs: performance.now() - startTime,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
+  }
+
+  /**
+   * Run the OpenAPI generation stage
+   */
+  private async runOpenAPIGenerate(): Promise<StageResult> {
+    const startTime = performance.now();
+    
+    if (!this.appIR) {
+      return {
+        stage: 'openapi',
+        success: false,
+        durationMs: performance.now() - startTime,
+        error: new Error('No AppIR available. Run analyze first.'),
+      };
+    }
+
+    try {
+      // Only generate OpenAPI spec, not all generators
+      const config = this.compiler!.getConfig();
+      const openApiGenerator = new OpenAPIGenerator(config);
+      await openApiGenerator.generate(this.appIR, config.compiler.outputDir);
+      
+      return {
+        stage: 'openapi',
+        success: true,
+        durationMs: performance.now() - startTime,
+        output: 'OpenAPI spec generated',
+      };
+    } catch (error) {
+      return {
+        stage: 'openapi',
         success: false,
         durationMs: performance.now() - startTime,
         error: error instanceof Error ? error : new Error(String(error)),

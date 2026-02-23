@@ -21,11 +21,23 @@
  * ```
  */
 
+import { readFileSync, existsSync, watch } from 'node:fs';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { createServer as createHttpServer } from 'node:http';
 import { InternalServerErrorException } from '@vertz/server';
 import type { InlineConfig, ViteDevServer } from 'vite';
 import { createServer as createViteServer } from 'vite';
+
+/**
+ * Options for serving OpenAPI specification
+ */
+export interface OpenAPIOptions {
+  /**
+   * Path to the OpenAPI JSON spec file.
+   * The spec will be served at GET /api/openapi.json
+   */
+  specPath: string;
+}
 
 export interface DevServerOptions {
   /**
@@ -77,6 +89,12 @@ export interface DevServerOptions {
    * @default ['/api/']
    */
   skipSSRPaths?: string[];
+
+  /**
+   * OpenAPI specification options.
+   * When provided, serves the OpenAPI spec at GET /api/openapi.json
+   */
+  openapi?: OpenAPIOptions;
 }
 
 export interface DevServer {
@@ -114,14 +132,72 @@ export function createDevServer(options: DevServerOptions): DevServer {
     skipModuleInvalidation = false,
     logRequests = true,
     skipSSRPaths = ['/api/'],
+    openapi,
   } = options;
 
   let vite: ViteDevServer;
   let httpServer: Server;
+  
+  // Cached OpenAPI spec - read once at startup and invalidate on file changes
+  let cachedSpec: object | null = null;
+
+  /**
+   * Read and cache the OpenAPI spec file
+   */
+  const loadOpenAPISpec = (): object | null => {
+    if (!openapi) return null;
+    
+    try {
+      const specContent = readFileSync(openapi.specPath, 'utf-8');
+      return JSON.parse(specContent);
+    } catch (err) {
+      console.error('[Server] Error reading OpenAPI spec:', err);
+      return null;
+    }
+  };
+
+  /**
+   * Validate that the specPath file exists at startup
+   * Log a warning if not (don't crash - the file might be generated later by the pipeline)
+   */
+  const validateSpecPath = (): void => {
+    if (!openapi) return;
+    
+    if (!existsSync(openapi.specPath)) {
+      console.warn(`[Server] Warning: OpenAPI spec file not found at ${openapi.specPath}. It will be generated when the pipeline runs.`);
+    }
+  };
 
   const listen = async () => {
     if (logRequests) {
       console.log('[Server] Starting Vite SSR dev server...');
+    }
+
+    // Validate specPath exists at startup
+    validateSpecPath();
+
+    // Initial load of OpenAPI spec
+    if (openapi) {
+      cachedSpec = loadOpenAPISpec();
+      
+      // Watch for changes to the spec file in dev mode
+      if (cachedSpec !== null) {
+        try {
+          const specDir = openapi.specPath.substring(0, openapi.specPath.lastIndexOf('/'));
+          const specFile = openapi.specPath.split('/').pop() || 'openapi.json';
+          
+          watch(specDir, { persistent: false }, (eventType, filename) => {
+            if (filename === specFile && (eventType === 'change' || eventType === 'rename')) {
+              if (logRequests) {
+                console.log('[Server] OpenAPI spec file changed, reloading...');
+              }
+              cachedSpec = loadOpenAPISpec();
+            }
+          });
+        } catch (err) {
+          console.warn('[Server] Could not set up file watcher for OpenAPI spec:', err);
+        }
+      }
     }
 
     // Create Vite dev server in middleware mode
@@ -146,6 +222,38 @@ export function createDevServer(options: DevServerOptions): DevServer {
     // Apply custom middleware if provided
     if (middleware) {
       vite.middlewares.use(middleware);
+    }
+
+    // Apply OpenAPI middleware if configured
+    if (openapi) {
+      vite.middlewares.use(async (req, res, next) => {
+        const url = req.url || '/';
+
+        // Only handle /api/openapi.json
+        if (req.method === 'GET' && url === '/api/openapi.json') {
+          // Use cached spec instead of reading from disk on every request
+          if (cachedSpec) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(cachedSpec));
+          } else if (!existsSync(openapi.specPath)) {
+            res.writeHead(404, { 'Content-Type': 'text/plain' });
+            res.end('OpenAPI spec not found. Run the pipeline to generate it.');
+          } else {
+            // Try to reload if cache is null but file exists
+            cachedSpec = loadOpenAPISpec();
+            if (cachedSpec) {
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify(cachedSpec));
+            } else {
+              res.writeHead(500, { 'Content-Type': 'text/plain' });
+              res.end('Failed to load OpenAPI spec');
+            }
+          }
+          return;
+        }
+
+        next();
+      });
     }
 
     // SSR request handler
