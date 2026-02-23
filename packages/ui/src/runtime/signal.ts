@@ -226,21 +226,61 @@ class EffectImpl implements Subscriber {
 }
 
 /**
- * Create a reactive effect that re-runs whenever its dependencies change.
+ * Create a reactive effect for DOM population.
+ * During CSR: runs immediately and tracks dependencies (full reactivity).
+ * During SSR: runs callback once synchronously WITHOUT signal tracking
+ *             (populates initial DOM state, then discards).
  * Returns a dispose function to stop the effect.
- * During SSR, effects are no-ops and return a no-op dispose function.
  */
-export function effect(fn: () => void): DisposeFn {
-  // SSR safety: skip effect execution entirely during server-side rendering
+export function domEffect(fn: () => void): DisposeFn {
+  if (isSSR()) {
+    // Run once synchronously without tracking — populates DOM content
+    fn();
+    return () => {};
+  }
+
+  const eff = new EffectImpl(fn);
+  eff._run();
+  const dispose = () => eff._dispose();
+  _tryOnCleanup(dispose);
+  return dispose;
+}
+
+/**
+ * Create a reactive effect for lifecycle concerns (data fetching, side effects).
+ * During CSR: runs immediately and tracks dependencies (full reactivity).
+ * During SSR: complete no-op (lifecycle effects are irrelevant for static HTML).
+ * Returns a dispose function to stop the effect.
+ */
+export function lifecycleEffect(fn: () => void): DisposeFn {
   if (isSSR()) {
     return () => {};
   }
 
   const eff = new EffectImpl(fn);
-  // Run the effect immediately to establish subscriptions
   eff._run();
   const dispose = () => eff._dispose();
-  // Auto-register with the current disposal scope if one is active
+  _tryOnCleanup(dispose);
+  return dispose;
+}
+
+/**
+ * Create a reactive effect that re-runs whenever its dependencies change.
+ * Returns a dispose function to stop the effect.
+ * During SSR, effects are no-ops and return a no-op dispose function.
+ *
+ * @deprecated Use domEffect() for DOM population or lifecycleEffect() for lifecycle concerns.
+ * Callers are migrated in Subtask 3 (#666), then this alias is removed in Issue C (#668).
+ */
+export function effect(fn: () => void): DisposeFn {
+  // Preserve old no-op SSR behavior until all call sites are migrated to domEffect/lifecycleEffect
+  if (isSSR()) {
+    return () => {};
+  }
+
+  const eff = new EffectImpl(fn);
+  eff._run();
+  const dispose = () => eff._dispose();
   _tryOnCleanup(dispose);
   return dispose;
 }

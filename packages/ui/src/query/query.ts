@@ -1,4 +1,4 @@
-import { computed, effect, signal } from '../runtime/signal';
+import { computed, lifecycleEffect, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal, Unwrapped } from '../runtime/signal-types';
 import { setReadValueCallback, untrack } from '../runtime/tracking';
 import { type CacheStore, MemoryCache } from './cache';
@@ -215,7 +215,7 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
 
   if (enabled) {
     let isFirst = true;
-    disposeFn = effect(() => {
+    disposeFn = lifecycleEffect(() => {
       // Read the refetch trigger so this effect re-runs on manual refetch().
       refetchTrigger.value;
 

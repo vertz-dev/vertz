@@ -1,4 +1,4 @@
-import { effect } from '../runtime/signal';
+import { domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
 
 /**
@@ -14,7 +14,7 @@ export function __attr(
   name: string,
   fn: () => string | boolean | null | undefined,
 ): DisposeFn {
-  return effect(() => {
+  return domEffect(() => {
     const value = fn();
     if (value == null || value === false) {
       el.removeAttribute(name);
@@ -37,7 +37,7 @@ export function __attr(
 export function __show(el: HTMLElement, fn: () => boolean): DisposeFn {
   // Capture the original display value so we can restore it
   const originalDisplay = el.style.display;
-  return effect(() => {
+  return domEffect(() => {
     el.style.display = fn() ? originalDisplay : 'none';
   });
 }
@@ -54,7 +54,7 @@ export function __classList(el: HTMLElement, classMap: Record<string, () => bool
   const disposers: DisposeFn[] = [];
   for (const [className, fn] of Object.entries(classMap)) {
     disposers.push(
-      effect(() => {
+      domEffect(() => {
         if (fn()) {
           el.classList.add(className);
         } else {

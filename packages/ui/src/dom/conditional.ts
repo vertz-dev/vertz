@@ -1,6 +1,6 @@
 import { claimComment, getIsHydrating } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
-import { effect } from '../runtime/signal';
+import { domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
 
 /** A Node that also carries a dispose function for cleanup. */
@@ -48,7 +48,7 @@ function hydrateConditional(
 
   // First run: evaluate condition and call the active branch to claim SSR nodes
   let isFirstRun = true;
-  effect(() => {
+  domEffect(() => {
     const show = condFn();
 
     if (isFirstRun) {
@@ -130,7 +130,7 @@ function csrConditional(
   // Wrap the outer effect in its own scope so that any parent disposal scope
   // captures the outerScope — not the raw effect dispose.
   const outerScope = pushScope();
-  effect(() => {
+  domEffect(() => {
     const show = condFn();
 
     // Run cleanups for the previous branch before creating the new one
