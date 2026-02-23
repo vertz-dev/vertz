@@ -1,4 +1,7 @@
+import type { DisposeFn } from '@vertz/ui';
 import { effect } from '@vertz/ui';
+import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
+import { setRenderCallback, setSyncRender } from './internals';
 import type { TuiNode } from './nodes/types';
 import {
   ALT_BUFFER_OFF,
@@ -45,23 +48,31 @@ interface AppContext {
   mode: 'inline' | 'fullscreen' | 'alternate';
   disposed: boolean;
   exitResolve: (() => void) | null;
-  effectCleanup: (() => void) | null;
   testStdin: TestStdin | null;
   stdinReader: StdinReaderLike | null;
   stdinOptions?: NodeJS.ReadStream;
-  /** Manual re-render trigger for component-managed state. */
+  /** Disposal scope for the component tree. */
+  scope: DisposeFn[] | null;
+  /** Legacy: effect cleanup for backward compat during transition. */
+  effectCleanup: (() => void) | null;
+  /** Legacy: manual re-render trigger (used by old-style components). */
   rerenderFn: (() => void) | null;
-  /** Call-order indexed component state (like React hooks). */
+  /** Legacy: call-order indexed component state (like React hooks). */
   componentStates: Map<number, unknown>;
-  /** Current state index, reset before each render. */
+  /** Legacy: current state index, reset before each render. */
   stateIndex: number;
 }
 
 /**
  * Mount a TUI application.
- * The component function is called to produce the initial TuiNode tree.
- * An effect wraps the call so signal dependencies are tracked
- * and the UI re-renders when signals change.
+ *
+ * The component function is called ONCE to build the persistent tree.
+ * Reactive updates happen through effects created by the internals
+ * (__child, __attr, __conditional, __list), which call scheduleRender()
+ * to trigger re-renders.
+ *
+ * For backward compatibility, old-style components (using useComponentState
+ * and jsx()) are still supported via an effect wrapper.
  */
 function mount(app: () => TuiNode, options: TuiMountOptions = {}): TuiHandle {
   const mode = options.mode ?? 'inline';
@@ -94,10 +105,11 @@ function mount(app: () => TuiNode, options: TuiMountOptions = {}): TuiHandle {
     mode,
     disposed: false,
     exitResolve,
-    effectCleanup: null,
     testStdin: options.testStdin ?? null,
     stdinReader: null,
     stdinOptions: options.stdin,
+    scope: null,
+    effectCleanup: null,
     rerenderFn: null,
     componentStates: new Map(),
     stateIndex: 0,
@@ -105,11 +117,15 @@ function mount(app: () => TuiNode, options: TuiMountOptions = {}): TuiHandle {
 
   currentApp = ctx;
 
+  // Enable synchronous rendering for test adapters
+  const isTestMode = adapter instanceof TestAdapter;
+  setSyncRender(isTestMode);
+
   // Render function with re-entrancy guard.
-  // When rerenderFn is called during a render (e.g. from a keyboard handler),
-  // we defer via a dirty flag and re-render after the current pass completes.
+  // Handles both old-style (snapshot) and new-style (persistent) trees.
   let rendering = false;
   let dirty = false;
+  let lastTree: TuiNode = null;
   const doRender = () => {
     if (ctx.disposed) return;
     if (rendering) {
@@ -121,10 +137,8 @@ function mount(app: () => TuiNode, options: TuiMountOptions = {}): TuiHandle {
       do {
         dirty = false;
         ctx.stateIndex = 0;
-        const tree = app();
-        renderer.render(tree);
-
-        // Update TestAdapter buffer for test inspection
+        lastTree = app();
+        renderer.render(lastTree);
         if (adapter instanceof TestAdapter) {
           adapter.buffer = renderer.getBuffer();
         }
@@ -136,8 +150,26 @@ function mount(app: () => TuiNode, options: TuiMountOptions = {}): TuiHandle {
 
   ctx.rerenderFn = doRender;
 
-  // Initial render with effect for reactivity
+  // Build tree inside disposal scope and wrap in effect for reactivity.
+  // The effect ensures old-style components (reading signals in jsx())
+  // re-render when signals change. New-style components (using internals)
+  // get re-renders via scheduleRender() instead.
+  const scope = pushScope();
   ctx.effectCleanup = effect(doRender);
+  popScope();
+  ctx.scope = scope;
+
+  // Set up render callback for new-style persistent tree re-renders.
+  // scheduleRender() in internals calls this when element properties change.
+  setRenderCallback(() => {
+    if (ctx.disposed) return;
+    if (lastTree) {
+      renderer.render(lastTree);
+      if (adapter instanceof TestAdapter) {
+        adapter.buffer = renderer.getBuffer();
+      }
+    }
+  });
 
   const handle: TuiHandle = {
     unmount() {
@@ -156,7 +188,16 @@ function cleanup(ctx: AppContext): void {
   if (ctx.disposed) return;
   ctx.disposed = true;
 
-  // Dispose effect
+  // Clear render callback
+  setRenderCallback(null);
+
+  // Dispose component scope (cleans up all effects, keyboard handlers, etc.)
+  if (ctx.scope) {
+    runCleanups(ctx.scope);
+    ctx.scope = null;
+  }
+
+  // Legacy: dispose effect
   if (ctx.effectCleanup) {
     ctx.effectCleanup();
     ctx.effectCleanup = null;
@@ -202,6 +243,8 @@ export function getCurrentApp(): AppContext | null {
  * Get or create component state by call-order index.
  * Works like React's useState — state persists across re-renders
  * as long as components are called in the same order.
+ *
+ * @deprecated Use `signal()` with the compiler instead. This will be removed.
  */
 export function useComponentState<T>(init: () => T): T {
   const app = currentApp;

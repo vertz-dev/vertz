@@ -1,5 +1,5 @@
-import { jsx } from '../jsx-runtime/index';
-import type { TuiNode } from '../nodes/types';
+import { __append, __element, __staticText } from '../internals';
+import type { TuiElement } from '../tui-element';
 
 export interface TableColumn<T> {
   key: keyof T & string;
@@ -24,7 +24,7 @@ function padCell(text: string, width: number, align: 'left' | 'right' | 'center'
   return text + ' '.repeat(padding);
 }
 
-export function Table<T extends Record<string, unknown>>(props: TableProps<T>): TuiNode {
+export function Table<T extends Record<string, unknown>>(props: TableProps<T>): TuiElement {
   const { data, columns } = props;
 
   // Calculate column widths: max of header length, data values, or explicit width
@@ -38,17 +38,21 @@ export function Table<T extends Record<string, unknown>>(props: TableProps<T>): 
     return max;
   });
 
-  const children: TuiNode[] = [];
+  const box = __element('Box', 'direction', 'column');
 
   // Header row
   const headerCells = columns.map((col, i) =>
     padCell(col.header, widths[i] ?? col.header.length, col.align),
   );
-  children.push(jsx('Text', { bold: true, children: headerCells.join('  ') }));
+  const headerEl = __element('Text', 'bold', true);
+  __append(headerEl, __staticText(headerCells.join('  ')));
+  __append(box, headerEl);
 
   // Separator
   const separator = widths.map((w) => '\u2500'.repeat(w)).join('\u2500\u2500');
-  children.push(jsx('Text', { dim: true, children: separator }));
+  const sepEl = __element('Text', 'dim', true);
+  __append(sepEl, __staticText(separator));
+  __append(box, sepEl);
 
   // Data rows
   for (const row of data) {
@@ -56,8 +60,10 @@ export function Table<T extends Record<string, unknown>>(props: TableProps<T>): 
       const val = String(row[col.key] ?? '');
       return padCell(val, widths[i] ?? val.length, col.align);
     });
-    children.push(jsx('Text', { children: cells.join('  ') }));
+    const rowEl = __element('Text');
+    __append(rowEl, __staticText(cells.join('  ')));
+    __append(box, rowEl);
   }
 
-  return jsx('Box', { direction: 'column', children });
+  return box;
 }

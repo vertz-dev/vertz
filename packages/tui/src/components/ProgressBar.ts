@@ -1,5 +1,5 @@
-import { jsx } from '../jsx-runtime/index';
-import type { TuiNode } from '../nodes/types';
+import { __append, __element, __staticText } from '../internals';
+import type { TuiElement } from '../tui-element';
 
 export interface ProgressBarProps {
   value: number;
@@ -11,7 +11,7 @@ export interface ProgressBarProps {
 const FILLED = '\u2588';
 const EMPTY = '\u2591';
 
-export function ProgressBar(props: ProgressBarProps): TuiNode {
+export function ProgressBar(props: ProgressBarProps): TuiElement {
   const { value, max, label, width = 20 } = props;
   const ratio = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
   const filled = Math.round(ratio * width);
@@ -21,5 +21,7 @@ export function ProgressBar(props: ProgressBarProps): TuiNode {
   const bar = FILLED.repeat(filled) + EMPTY.repeat(empty);
   const text = label ? `${label} ${bar} ${percent}%` : `${bar} ${percent}%`;
 
-  return jsx('Text', { children: text });
+  const el = __element('Text');
+  __append(el, __staticText(text));
+  return el;
 }

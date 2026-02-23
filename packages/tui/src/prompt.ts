@@ -6,9 +6,9 @@ import type { SelectOption } from './components/Select';
 import { Select } from './components/Select';
 import { Spinner } from './components/Spinner';
 import { TextInput } from './components/TextInput';
-import { jsx } from './jsx-runtime/index';
-import type { TuiNode } from './nodes/types';
+import { __append, __element, __staticText } from './internals';
 import { symbols } from './theme';
+import type { TuiElement } from './tui-element';
 
 interface TextPromptConfig {
   message: string;
@@ -64,29 +64,31 @@ function write(text: string): void {
   process.stdout.write(`${text}\n`);
 }
 
-/** Imperative prompt API — sugar built on top of JSX components. */
+/** Imperative prompt API — sugar built on top of persistent tree components. */
 export const prompt: PromptAPI = {
   text(config: TextPromptConfig): Promise<string> {
     return new Promise((resolve) => {
       let handle: ReturnType<typeof tui.mount> | null = null;
-      function App(): TuiNode {
-        return jsx('Box', {
-          direction: 'column',
-          children: [
-            jsx('Text', { bold: true, children: config.message }),
-            TextInput({
-              placeholder: config.placeholder,
-              onSubmit: (value: string) => {
-                if (config.validate) {
-                  const error = config.validate(value);
-                  if (error) return;
-                }
-                handle?.unmount();
-                resolve(value);
-              },
-            }),
-          ],
-        });
+      function App(): TuiElement {
+        const box = __element('Box', 'direction', 'column');
+        const header = __element('Text', 'bold', true);
+        __append(header, __staticText(config.message));
+        __append(box, header);
+        __append(
+          box,
+          TextInput({
+            placeholder: config.placeholder,
+            onSubmit: (value: string) => {
+              if (config.validate) {
+                const error = config.validate(value);
+                if (error) return;
+              }
+              handle?.unmount();
+              resolve(value);
+            },
+          }),
+        );
+        return box;
       }
       handle = tui.mount(App);
     });
@@ -95,7 +97,7 @@ export const prompt: PromptAPI = {
   select<T>(config: SelectPromptConfig<T>): Promise<T> {
     return new Promise((resolve) => {
       let handle: ReturnType<typeof tui.mount> | null = null;
-      function App(): TuiNode {
+      function App(): TuiElement {
         return Select({
           message: config.message,
           options: config.options,
@@ -112,7 +114,7 @@ export const prompt: PromptAPI = {
   multiSelect<T>(config: MultiSelectPromptConfig<T>): Promise<T[]> {
     return new Promise((resolve) => {
       let handle: ReturnType<typeof tui.mount> | null = null;
-      function App(): TuiNode {
+      function App(): TuiElement {
         return MultiSelect({
           message: config.message,
           options: config.options,
@@ -130,7 +132,7 @@ export const prompt: PromptAPI = {
   confirm(config: ConfirmPromptConfig): Promise<boolean> {
     return new Promise((resolve) => {
       let handle: ReturnType<typeof tui.mount> | null = null;
-      function App(): TuiNode {
+      function App(): TuiElement {
         return Confirm({
           message: config.message,
           onSubmit: (value: boolean) => {
@@ -146,20 +148,22 @@ export const prompt: PromptAPI = {
   password(config: PasswordPromptConfig): Promise<string> {
     return new Promise((resolve) => {
       let handle: ReturnType<typeof tui.mount> | null = null;
-      function App(): TuiNode {
-        return jsx('Box', {
-          direction: 'column',
-          children: [
-            jsx('Text', { bold: true, children: config.message }),
-            PasswordInput({
-              placeholder: config.placeholder,
-              onSubmit: (value: string) => {
-                handle?.unmount();
-                resolve(value);
-              },
-            }),
-          ],
-        });
+      function App(): TuiElement {
+        const box = __element('Box', 'direction', 'column');
+        const header = __element('Text', 'bold', true);
+        __append(header, __staticText(config.message));
+        __append(box, header);
+        __append(
+          box,
+          PasswordInput({
+            placeholder: config.placeholder,
+            onSubmit: (value: string) => {
+              handle?.unmount();
+              resolve(value);
+            },
+          }),
+        );
+        return box;
       }
       handle = tui.mount(App);
     });
@@ -167,12 +171,10 @@ export const prompt: PromptAPI = {
 
   spinner(): SpinnerHandle {
     let handle: ReturnType<typeof tui.mount> | null = null;
-    let currentMessage = '';
     return {
       start(message: string) {
-        currentMessage = message;
-        function App(): TuiNode {
-          return Spinner({ label: currentMessage });
+        function App(): TuiElement {
+          return Spinner({ label: message });
         }
         handle = tui.mount(App);
       },

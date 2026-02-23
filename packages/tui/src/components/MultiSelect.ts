@@ -1,8 +1,8 @@
-import { getCurrentApp, useComponentState } from '../app';
-import type { KeyEvent } from '../input/key-parser';
-import { jsx } from '../jsx-runtime/index';
-import type { TuiNode } from '../nodes/types';
+import { signal } from '@vertz/ui';
+import { useKeyboard } from '../input/hooks';
+import { __append, __child, __element, __staticText } from '../internals';
 import { symbols } from '../theme';
+import type { TuiElement } from '../tui-element';
 import type { SelectOption } from './Select';
 
 export interface MultiSelectProps<T = string> {
@@ -12,63 +12,63 @@ export interface MultiSelectProps<T = string> {
   onSubmit?: (values: T[]) => void;
 }
 
-export function MultiSelect<T>(props: MultiSelectProps<T>): TuiNode {
-  const app = getCurrentApp();
-  const state = useComponentState(() => {
-    const initialChecked = new Set(
-      props.defaultValue
-        ? props.options
-            .map((o, i) => (props.defaultValue?.includes(o.value) ? i : -1))
-            .filter((i) => i !== -1)
-        : [],
-    );
-    return { selectedIndex: 0, checked: initialChecked, registered: false };
+export function MultiSelect<T>(props: MultiSelectProps<T>): TuiElement {
+  const initialChecked = new Set(
+    props.defaultValue
+      ? props.options
+          .map((o, i) => (props.defaultValue?.includes(o.value) ? i : -1))
+          .filter((i) => i !== -1)
+      : [],
+  );
+  const selectedIndex = signal(0);
+  const checked = signal(initialChecked);
+
+  useKeyboard((key) => {
+    if (key.name === 'up') {
+      selectedIndex.value = Math.max(0, selectedIndex.value - 1);
+    } else if (key.name === 'down') {
+      selectedIndex.value = Math.min(props.options.length - 1, selectedIndex.value + 1);
+    } else if (key.name === 'space') {
+      const newChecked = new Set(checked.value);
+      if (newChecked.has(selectedIndex.value)) {
+        newChecked.delete(selectedIndex.value);
+      } else {
+        newChecked.add(selectedIndex.value);
+      }
+      checked.value = newChecked;
+    } else if (key.name === 'return') {
+      if (props.onSubmit) {
+        const selected = props.options.filter((_, i) => checked.value.has(i)).map((o) => o.value);
+        props.onSubmit(selected);
+      }
+    }
   });
 
-  if (!state.registered && app) {
-    state.registered = true;
-    const s = state;
-    const handler = (key: KeyEvent) => {
-      if (key.name === 'up') {
-        s.selectedIndex = Math.max(0, s.selectedIndex - 1);
-        if (app.rerenderFn) app.rerenderFn();
-      } else if (key.name === 'down') {
-        s.selectedIndex = Math.min(props.options.length - 1, s.selectedIndex + 1);
-        if (app.rerenderFn) app.rerenderFn();
-      } else if (key.name === 'space') {
-        if (s.checked.has(s.selectedIndex)) {
-          s.checked.delete(s.selectedIndex);
-        } else {
-          s.checked.add(s.selectedIndex);
-        }
-        if (app.rerenderFn) app.rerenderFn();
-      } else if (key.name === 'return') {
-        if (props.onSubmit) {
-          const selected = props.options.filter((_, i) => s.checked.has(i)).map((o) => o.value);
-          props.onSubmit(selected);
-        }
-      }
-    };
+  const box = __element('Box', 'direction', 'column');
 
-    if (app.testStdin) app.testStdin.onKey(handler);
-  }
+  // Message header
+  const header = __element('Text', 'bold', true);
+  __append(header, __staticText(props.message));
+  __append(box, header);
 
-  const children: TuiNode[] = [jsx('Text', { bold: true, children: props.message })];
-
+  // Options
   for (let i = 0; i < props.options.length; i++) {
     const option = props.options[i];
     if (!option) continue;
-    const isSelected = i === state.selectedIndex;
-    const isChecked = state.checked.has(i);
-    const checkbox = isChecked ? symbols.success : symbols.bullet;
-    const prefix = isSelected ? symbols.pointer : ' ';
-    children.push(
-      jsx('Text', {
-        color: isSelected ? 'cyan' : undefined,
-        children: `${prefix} ${checkbox} ${option.label}`,
+    const idx = i;
+    const optionEl = __element('Text');
+    __append(
+      optionEl,
+      __child(() => {
+        const isSelected = idx === selectedIndex.value;
+        const isChecked = checked.value.has(idx);
+        const checkbox = isChecked ? symbols.success : symbols.bullet;
+        const prefix = isSelected ? symbols.pointer : ' ';
+        return `${prefix} ${checkbox} ${option.label}`;
       }),
     );
+    __append(box, optionEl);
   }
 
-  return jsx('Box', { direction: 'column', children });
+  return box;
 }

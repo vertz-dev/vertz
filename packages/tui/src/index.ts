@@ -45,6 +45,8 @@ export { FocusContext, useFocus } from './focus/focus-manager';
 export { useKeyboard } from './input/hooks';
 // Input
 export type { KeyEvent } from './input/key-parser';
+export type { KeyMap } from './input/match';
+export { match } from './input/match';
 
 // Types
 export type { Color } from './jsx-runtime/index';

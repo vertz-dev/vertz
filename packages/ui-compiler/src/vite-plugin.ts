@@ -53,6 +53,8 @@ export interface VertzPluginOptions {
    * When an object, provides SSR configuration options.
    */
   ssr?: boolean | SSROptions;
+  /** Compilation target. 'dom' uses @vertz/ui/internals, 'tui' uses @vertz/tui/internals. */
+  target?: 'dom' | 'tui';
 }
 
 /**
@@ -271,7 +273,7 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
       });
 
       // 2. Run the main compile pipeline (reactive + component + JSX transforms)
-      const compileResult = compile(hydratedCode, cleanId);
+      const compileResult = compile(hydratedCode, { filename: cleanId, target: options?.target });
 
       // 3. Chain source maps: compile map (final -> hydrated) + hydration map
       //    (hydrated -> original) = chained map (final -> original).

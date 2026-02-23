@@ -5,12 +5,18 @@ import { splitTextLines } from '../layout/measure';
 import { BORDER_CHARS, defaultLayoutProps, type LayoutNode } from '../layout/types';
 import type { TuiElement, TuiNode, TuiTextNode } from '../nodes/types';
 import { isTuiElement, isTuiTextNode } from '../nodes/types';
+import {
+  isTuiTextNode as isPersistentTextNode,
+  isTuiConditionalNode,
+  isTuiListNode,
+} from '../tui-element';
 import { renderRegions } from './ansi';
 import type { OutputAdapter } from './output-adapter';
 
 /**
  * Core TUI renderer.
  * Converts a TuiNode tree → LayoutNode tree → CellBuffer → diff → ANSI output.
+ * Supports both old-style snapshot trees and new persistent TuiElement trees.
  */
 export class TuiRenderer {
   private _adapter: OutputAdapter;
@@ -76,6 +82,24 @@ export class TuiRenderer {
       return this._textToLayout(node);
     }
 
+    // Handle persistent tree conditional nodes
+    if (isTuiConditionalNode(node)) {
+      if (node.current) {
+        return this._toLayoutTree(node.current as TuiNode);
+      }
+      return this._emptyLayoutNode();
+    }
+
+    // Handle persistent tree list nodes
+    if (isTuiListNode(node)) {
+      return {
+        type: 'box',
+        props: defaultLayoutProps(),
+        children: node.items.map((item) => this._toLayoutTree(item as TuiNode)),
+        box: { x: 0, y: 0, width: 0, height: 0 },
+      };
+    }
+
     if (isTuiElement(node)) {
       return this._elementToLayout(node);
     }
@@ -128,7 +152,7 @@ export class TuiRenderer {
     }
 
     // Box element: recurse children
-    const layoutChildren = node.children.map((child) => this._toLayoutTree(child));
+    const layoutChildren = node.children.map((child) => this._toLayoutTree(child as TuiNode));
     return {
       type: 'box',
       props: { ...defaultLayoutProps(), ...this._extractLayoutProps(node) },
@@ -149,8 +173,14 @@ export class TuiRenderer {
       if (child == null || child === false) continue;
       if (Array.isArray(child)) {
         text += this._collectText(child);
-      } else if (isTuiTextNode(child)) {
+      } else if (isTuiTextNode(child) || isPersistentTextNode(child)) {
         text += child.text;
+      } else if (isTuiConditionalNode(child)) {
+        if (child.current) {
+          text += this._collectText([child.current as TuiNode]);
+        }
+      } else if (isTuiListNode(child)) {
+        text += this._collectText(child.items as TuiNode[]);
       } else if (isTuiElement(child)) {
         // Nested Text element — collect its children recursively
         text += this._collectText(child.children);

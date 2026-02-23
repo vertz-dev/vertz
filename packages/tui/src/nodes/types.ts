@@ -1,8 +1,17 @@
 import type { CellStyle } from '../buffer/cell';
 import type { LayoutBox, LayoutProps } from '../layout/types';
+import type { TuiConditionalNode, TuiListNode } from '../tui-element';
 
 /** Any renderable TUI content. */
-export type TuiNode = TuiElement | TuiTextNode | null | undefined | false | TuiNode[];
+export type TuiNode =
+  | TuiElement
+  | TuiTextNode
+  | TuiConditionalNode
+  | TuiListNode
+  | null
+  | undefined
+  | false
+  | TuiNode[];
 
 /** A TUI element (like <Box> or <Text>). */
 export interface TuiElement {

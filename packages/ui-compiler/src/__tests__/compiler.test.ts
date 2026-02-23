@@ -69,6 +69,81 @@ function Counter() {
     expect(result.diagnostics).toHaveLength(0);
   });
 
+  it('accepts a string as second arg for backward compat (filename)', () => {
+    const result = compile(
+      `
+function Counter() {
+  let count = 0;
+  return <div>{count}</div>;
+}
+      `.trim(),
+      'my-file.tsx',
+    );
+
+    expect(result.map.sources).toEqual(['my-file.tsx']);
+  });
+
+  it('accepts an options object with filename', () => {
+    const result = compile(
+      `
+function Counter() {
+  let count = 0;
+  return <div>{count}</div>;
+}
+      `.trim(),
+      { filename: 'my-file.tsx' },
+    );
+
+    expect(result.map.sources).toEqual(['my-file.tsx']);
+  });
+
+  it('imports DOM helpers from @vertz/ui/internals when target is dom (explicit)', () => {
+    const result = compile(
+      `
+function Counter() {
+  let count = 0;
+  return <div>{count}</div>;
+}
+      `.trim(),
+      { target: 'dom' },
+    );
+
+    expect(result.code).toContain("from '@vertz/ui/internals'");
+    expect(result.code).not.toContain("from '@vertz/tui/internals'");
+  });
+
+  it('imports DOM helpers from @vertz/tui/internals when target is tui', () => {
+    const result = compile(
+      `
+function Counter() {
+  let count = 0;
+  return <div>{count}</div>;
+}
+      `.trim(),
+      { target: 'tui' },
+    );
+
+    expect(result.code).toContain("from '@vertz/tui/internals'");
+    expect(result.code).not.toContain("from '@vertz/ui/internals'");
+  });
+
+  it('keeps signal/runtime import as @vertz/ui regardless of target', () => {
+    const result = compile(
+      `
+function Counter() {
+  let count = 0;
+  return <div>{count}</div>;
+}
+      `.trim(),
+      { target: 'tui' },
+    );
+
+    // Signal import stays @vertz/ui
+    expect(result.code).toContain("from '@vertz/ui'");
+    // DOM helpers import is changed to tui
+    expect(result.code).toContain("from '@vertz/tui/internals'");
+  });
+
   it('generates internals import for DOM helpers when present in output', () => {
     // The compiler should scan its output for DOM helper calls (__conditional,
     // __list, __show, __classList) and include them in the internals import.

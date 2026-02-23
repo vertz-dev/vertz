@@ -1,49 +1,51 @@
-import { getCurrentApp, useComponentState } from '../app';
-import type { KeyEvent } from '../input/key-parser';
-import { jsx } from '../jsx-runtime/index';
-import type { TuiNode } from '../nodes/types';
+import { signal } from '@vertz/ui';
+import { useKeyboard } from '../input/hooks';
+import { __append, __child, __element, __staticText } from '../internals';
+import type { TuiElement } from '../tui-element';
 
 export interface ConfirmProps {
   message: string;
   onSubmit?: (confirmed: boolean) => void;
 }
 
-export function Confirm(props: ConfirmProps): TuiNode {
-  const app = getCurrentApp();
-  const state = useComponentState(() => ({ value: true, registered: false }));
+export function Confirm(props: ConfirmProps): TuiElement {
+  const value = signal(true);
 
-  if (!state.registered && app) {
-    state.registered = true;
-    const s = state;
-    const handler = (key: KeyEvent) => {
-      if (key.name === 'left' || key.name === 'right') {
-        s.value = !s.value;
-        if (app.rerenderFn) app.rerenderFn();
-      } else if (key.name === 'y') {
-        s.value = true;
-        if (app.rerenderFn) app.rerenderFn();
-      } else if (key.name === 'n') {
-        s.value = false;
-        if (app.rerenderFn) app.rerenderFn();
-      } else if (key.name === 'return') {
-        if (props.onSubmit) props.onSubmit(s.value);
-      }
-    };
-
-    if (app.testStdin) app.testStdin.onKey(handler);
-  }
-
-  const yes = state.value ? '[Yes]' : ' Yes ';
-  const no = state.value ? ' No ' : '[No]';
-
-  return jsx('Box', {
-    direction: 'row',
-    gap: 1,
-    children: [
-      jsx('Text', { bold: true, children: props.message }),
-      jsx('Text', { color: state.value ? 'green' : undefined, children: yes }),
-      jsx('Text', { children: '/' }),
-      jsx('Text', { color: state.value ? undefined : 'red', children: no }),
-    ],
+  useKeyboard((key) => {
+    if (key.name === 'left' || key.name === 'right') {
+      value.value = !value.value;
+    } else if (key.name === 'y') {
+      value.value = true;
+    } else if (key.name === 'n') {
+      value.value = false;
+    } else if (key.name === 'return') {
+      if (props.onSubmit) props.onSubmit(value.value);
+    }
   });
+
+  const box = __element('Box', 'direction', 'row', 'gap', 1);
+
+  const msgEl = __element('Text', 'bold', true);
+  __append(msgEl, __staticText(props.message));
+  __append(box, msgEl);
+
+  const yesEl = __element('Text');
+  __append(
+    yesEl,
+    __child(() => (value.value ? '[Yes]' : ' Yes ')),
+  );
+  __append(box, yesEl);
+
+  const slashEl = __element('Text');
+  __append(slashEl, __staticText('/'));
+  __append(box, slashEl);
+
+  const noEl = __element('Text');
+  __append(
+    noEl,
+    __child(() => (value.value ? ' No ' : '[No]')),
+  );
+  __append(box, noEl);
+
+  return box;
 }
