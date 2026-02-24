@@ -347,10 +347,16 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
         }
       }
 
-      // Cache hit: if the cache already has data for this key (e.g. the
-      // user switched back to a previously-fetched dependency combination),
-      // serve it from cache without re-fetching.
-      if (!isFirst && !customKey) {
+      // Cache hit: serve data from cache without re-fetching.
+      // - On first run with a custom key: check cache to support remounting
+      //   a query whose data was previously fetched and is still in the
+      //   shared cache (avoids loading flash on page re-navigation).
+      // - On subsequent runs with derived keys: check cache when deps change
+      //   back to previously-seen values.
+      // - On subsequent runs with custom keys: skip — the key is static, so
+      //   a cache hit would prevent re-fetching when deps change.
+      const shouldCheckCache = isFirst ? !!customKey : !customKey;
+      if (shouldCheckCache) {
         const cached = untrack(() => cache.get(key));
         if (cached !== undefined) {
           promise.catch(() => {});

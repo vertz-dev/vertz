@@ -569,6 +569,46 @@ describe('query()', () => {
     // skipped because the cache already has data for this key
   });
 
+  test('new query instance serves from shared cache on mount (custom key)', async () => {
+    const cache = new MemoryCache<string>();
+    let fetchCount = 0;
+
+    // First query instance — populates the cache
+    const q1 = query(
+      () => {
+        fetchCount++;
+        return Promise.resolve('cached-data');
+      },
+      { key: 'shared-key', cache },
+    );
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(q1.data.value).toBe('cached-data');
+    expect(fetchCount).toBe(1);
+
+    // Dispose first query (simulates page unmount)
+    q1.dispose();
+
+    // Second query instance with the same custom key and shared cache
+    // should serve from cache immediately — no loading flash, no re-fetch
+    const q2 = query(
+      () => {
+        fetchCount++;
+        return Promise.resolve('fresh-data');
+      },
+      { key: 'shared-key', cache },
+    );
+
+    // Should be populated from cache immediately, not loading
+    expect(q2.data.value).toBe('cached-data');
+    expect(q2.loading.value).toBe(false);
+    // Thunk is called for dep tracking, but startFetch is skipped (cache hit).
+    // The data should be the CACHED value, not the fresh thunk result.
+    expect(q2.data.value).not.toBe('fresh-data');
+
+    q2.dispose();
+  });
+
   test('debounce discard does not cause unhandled promise rejection', async () => {
     const filter = signal('a');
 
