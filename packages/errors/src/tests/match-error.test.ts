@@ -2,7 +2,7 @@
  * Tests for matchError() utility.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { matchError } from '../match-error.js';
 import { FetchNetworkError, HttpError, FetchTimeoutError, ParseError, FetchValidationError } from '../fetch.js';
 import {

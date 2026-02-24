@@ -2,7 +2,7 @@
  * Tests for FetchError classes.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import {
   FetchNetworkError,
   HttpError,
