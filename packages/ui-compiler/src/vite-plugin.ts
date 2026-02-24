@@ -216,9 +216,10 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
           // 6. Render the app to HTML
           const result = await ssrEntry.renderToString(url);
 
-          // Handle both string (legacy) and { html, css } return formats
+          // Handle both string (legacy) and { html, css, ssrData } return formats
           const appHtml = typeof result === 'string' ? result : result.html;
           const appCss = typeof result === 'string' ? '' : result.css || '';
+          const ssrData = typeof result === 'string' ? [] : result.ssrData || [];
 
           // 7. Inject into template
           // Try to find <!--ssr-outlet--> first, then fall back to <div id="app">
@@ -236,6 +237,12 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
           // 8. Inject CSS before </head>
           if (appCss) {
             html = html.replace('</head>', `${appCss}\n</head>`);
+          }
+
+          // 9. Inject SSR data for client-side hydration before </body>
+          if (ssrData.length > 0) {
+            const ssrDataScript = `<script>window.__VERTZ_SSR_DATA__=${JSON.stringify(ssrData)};</script>`;
+            html = html.replace('</body>', `${ssrDataScript}\n</body>`);
           }
 
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -521,12 +528,14 @@ export async function renderToString(url) {
 
       // Await registered SSR queries with per-query timeouts
       const queries = getSSRQueries();
+      const resolvedQueries = [];
       if (queries.length > 0) {
         await Promise.allSettled(
-          queries.map(({ promise, timeout, resolve }) =>
+          queries.map(({ promise, timeout, resolve, key }) =>
             Promise.race([
               promise.then((data) => {
                 resolve(data);
+                resolvedQueries.push({ key, data });
                 return 'resolved';
               }),
               new Promise((r) => setTimeout(r, timeout || ${ssrTimeout})).then(() => 'timeout'),
@@ -545,7 +554,12 @@ export async function renderToString(url) {
       const html = await streamToString(stream);
       const css = collectCSS(themeCss);
 
-      return { html, css };
+      // Serialize resolved query data for client-side hydration
+      const ssrData = resolvedQueries.length > 0
+        ? resolvedQueries.map(({ key, data }) => ({ key, data: JSON.parse(JSON.stringify(data)) }))
+        : [];
+
+      return { html, css, ssrData };
     } finally {
       clearGlobalSSRTimeout();
       removeDomShim();

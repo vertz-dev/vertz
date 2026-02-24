@@ -70,7 +70,7 @@ describe('vertzPlugin SSR', () => {
       const plugin = vertzPlugin({ ssr: true }) as Plugin;
       const code = callLoad(plugin, '\0vertz:ssr-entry');
       expect(code).toBeDefined();
-      expect(code).toContain('return { html, css }');
+      expect(code).toContain('return { html, css, ssrData }');
     });
 
     it('should import removeDomShim from dom-shim', () => {
@@ -109,7 +109,7 @@ describe('vertzPlugin SSR', () => {
       const plugin = vertzPlugin({ ssr: true }) as Plugin;
       const code = callLoad(plugin, '\0vertz:ssr-entry');
       expect(code).toBeDefined();
-      expect(code).toContain('return { html, css }');
+      expect(code).toContain('return { html, css, ssrData }');
     });
 
     it('should import compileTheme from @vertz/ui for theme CSS injection', () => {
@@ -247,6 +247,56 @@ describe('vertzPlugin SSR', () => {
       // Clean up
       rmSync(tmpDir, { recursive: true, force: true });
     });
+
+    it('should inject __VERTZ_SSR_DATA__ script when ssrData is returned', async () => {
+      const plugin = vertzPlugin({ ssr: { entry: '/src/index.ts' } }) as Plugin;
+      const configureServer = plugin.configureServer as Function;
+
+      const mockServer = {
+        middlewares: { use: vi.fn() },
+        config: { root: '/tmp' },
+        moduleGraph: {
+          getModuleById: vi.fn(() => undefined),
+          invalidateModule: vi.fn(),
+        },
+        transformIndexHtml: vi.fn((_url: string, html: string) => html),
+        ssrLoadModule: vi.fn(() => ({
+          renderToString: () => ({
+            html: '<div>Task List</div>',
+            css: '<style data-vertz-css>.x{}</style>',
+            ssrData: [
+              { key: 'task-list', data: { items: [{ id: 1, title: 'Test' }] } },
+            ],
+          }),
+        })),
+        ssrFixStacktrace: vi.fn(),
+      } as unknown as ViteDevServer;
+
+      configureServer.call(plugin, mockServer);
+      const middleware = (mockServer.middlewares.use as ReturnType<typeof vi.fn>).mock.calls[0][0];
+
+      const tmpDir = '/tmp/vertz-test-hydration-' + Date.now();
+      const { mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+      mkdirSync(tmpDir, { recursive: true });
+      writeFileSync(
+        `${tmpDir}/index.html`,
+        '<!DOCTYPE html><html><head></head><body><div id="app"><!--ssr-outlet--></div><script type="module" src="/src/index.ts"></script></body></html>',
+      );
+      (mockServer.config as { root: string }).root = tmpDir;
+
+      const req = { url: '/', headers: { accept: 'text/html' } };
+      const res = { writeHead: vi.fn(), end: vi.fn() };
+      const next = vi.fn();
+
+      await middleware(req, res, next);
+
+      const renderedHtml = res.end.mock.calls[0]?.[0] as string;
+      expect(renderedHtml).toContain('__VERTZ_SSR_DATA__');
+      expect(renderedHtml).toContain('task-list');
+      expect(renderedHtml).toContain('<script>');
+
+      rmSync(tmpDir, { recursive: true, force: true });
+    });
   });
 
   describe('two-pass rendering in generated SSR entry', () => {
@@ -304,6 +354,27 @@ describe('vertzPlugin SSR', () => {
       const plugin = vertzPlugin({ ssr: true }) as Plugin;
       const code = callLoad(plugin, '\0vertz:ssr-entry');
       expect(code).toContain('store.queries = []');
+    });
+  });
+
+  describe('SSR data hydration script', () => {
+    it('should collect resolved query data for client hydration', () => {
+      const plugin = vertzPlugin({ ssr: true }) as Plugin;
+      const code = callLoad(plugin, '\0vertz:ssr-entry');
+      expect(code).toBeDefined();
+      // Should collect resolved query entries after Pass 1
+      expect(code).toContain('ssrData');
+      // Should return ssrData alongside html and css
+      expect(code).toContain('return { html, css, ssrData }');
+    });
+
+    it('should serialize resolved queries with key and data', () => {
+      const plugin = vertzPlugin({ ssr: true }) as Plugin;
+      const code = callLoad(plugin, '\0vertz:ssr-entry');
+      expect(code).toBeDefined();
+      // Should map resolved queries to serializable entries
+      expect(code).toContain('resolvedQueries');
+      expect(code).toContain('JSON.stringify');
     });
   });
 
