@@ -1,15 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { smartMigrateAction } from '../commands/migrate-smart';
+import * as paths from '../utils/paths';
 
-const mockProjectRoot = '/mock/project';
+// Use a real temp directory instead of mocking findProjectRoot
+const mockProjectRoot = '/tmp/vertz-test-mock-project';
 
-const findProjectRootMock = vi.fn().mockReturnValue(mockProjectRoot);
+// Create a mock project directory
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 
-// Mock the dependencies
-vi.mock('../utils/paths', () => ({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  findProjectRoot: (...args: any[]) => (findProjectRootMock as any)(...args),
-}));
+// Set up a mock project directory
+const mockProjectDir = '/tmp/vertz-test-mock-project';
+try {
+  mkdirSync(mockProjectDir, { recursive: true });
+  writeFileSync(`${mockProjectDir}/package.json`, '{}');
+} catch {
+  // directory might already exist
+}
 
 const spawnMock = vi.fn(() => ({
   on: vi.fn((event: string, callback: (code: number | null) => void) => {
@@ -28,12 +34,16 @@ vi.mock('node:child_process', () => ({
 }));
 
 describe('Feature: Smart Migrate Command', () => {
+  let findProjectRootSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
-    findProjectRootMock.mockReturnValue(mockProjectRoot);
+    // Spy on findProjectRoot to control its return value
+    findProjectRootSpy = vi.spyOn(paths, 'findProjectRoot').mockReturnValue(mockProjectRoot);
     process.env.NODE_ENV = 'development';
   });
 
   afterEach(() => {
+    findProjectRootSpy?.mockRestore();
     vi.restoreAllMocks();
     delete process.env.NODE_ENV;
   });
@@ -162,7 +172,7 @@ describe('Feature: Smart Migrate Command', () => {
 
   describe('Error handling', () => {
     it('exits with error when project root not found', async () => {
-      findProjectRootMock.mockReturnValue(undefined);
+      findProjectRootSpy?.mockReturnValue(undefined);
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 
