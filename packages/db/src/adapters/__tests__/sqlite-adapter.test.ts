@@ -4,11 +4,14 @@
  * Uses bun:sqlite with :memory: database for fast, isolated tests.
  */
 
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { createSqliteAdapter, createSqliteDriver, type SqliteAdapterOptions } from '../sqlite-adapter';
-import { d } from '../../d';
-import type { ColumnRecord } from '../../schema/table';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { DbDriver } from '../../client/driver';
+import { d } from '../../d';
+import {
+  createSqliteAdapter,
+  createSqliteDriver,
+  type SqliteAdapterOptions,
+} from '../sqlite-adapter';
 
 // ---------------------------------------------------------------------------
 // Test Schema
@@ -133,18 +136,22 @@ describe('SqliteAdapter', () => {
 
     expect(result.data).toHaveLength(2);
     expect(result.total).toBe(2);
-    expect(result.data.every(r => r.active === true)).toBe(true);
+    expect(result.data.every((r) => r.active === true)).toBe(true);
   });
 
   it('should list records with multiple filters', async () => {
     await adapter.create({ name: 'Admin User', email: 'admin@example.com', role: 'admin' });
     await adapter.create({ name: 'Regular User', email: 'user@example.com', role: 'user' });
-    await adapter.create({ name: 'Another Admin', email: 'another-admin@example.com', role: 'admin' });
+    await adapter.create({
+      name: 'Another Admin',
+      email: 'another-admin@example.com',
+      role: 'admin',
+    });
 
     const result = await adapter.list({ where: { role: 'admin' } });
 
     expect(result.data).toHaveLength(2);
-    expect(result.data.every(r => r.role === 'admin')).toBe(true);
+    expect(result.data.every((r) => r.role === 'admin')).toBe(true);
   });
 
   it('should support limit option', async () => {
@@ -212,7 +219,9 @@ describe('SqliteAdapter', () => {
   });
 
   it('should throw error when updating non-existent record', async () => {
-    await expect(adapter.update('non-existent-id', { name: 'Test' })).rejects.toThrow('Record not found');
+    await expect(adapter.update('non-existent-id', { name: 'Test' })).rejects.toThrow(
+      'Record not found',
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -245,9 +254,9 @@ describe('SqliteAdapter', () => {
 
   it('should throw error for invalid filter columns (SQL injection protection)', async () => {
     // Using a column name that doesn't exist in schema
-    await expect(
-      adapter.list({ where: { invalidColumn: 'value' } })
-    ).rejects.toThrow('Invalid filter column');
+    await expect(adapter.list({ where: { invalidColumn: 'value' } })).rejects.toThrow(
+      'Invalid filter column',
+    );
   });
 
   it('should throw error when using SQL injection in filter values', async () => {
@@ -255,7 +264,9 @@ describe('SqliteAdapter', () => {
     await adapter.create({ name: 'Test User', email: 'test@example.com' });
 
     // The adapter uses parameterized queries, so SQL injection in values is prevented
-    const result = await adapter.list({ where: { name: "'; DROP TABLE users; --" } as Record<string, unknown> });
+    const result = await adapter.list({
+      where: { name: "'; DROP TABLE users; --" } as Record<string, unknown>,
+    });
 
     // Should return empty because it looks for exact match
     expect(result.data).toHaveLength(0);
@@ -268,15 +279,15 @@ describe('SqliteAdapter', () => {
   it('should handle missing required fields on create', async () => {
     // The 'name' field is required (not nullable, no default)
     await expect(
-      adapter.create({ email: 'test@example.com' } as Record<string, unknown>)
+      adapter.create({ email: 'test@example.com' } as Record<string, unknown>),
     ).rejects.toThrow();
   });
 
   it('should handle boolean conversion correctly', async () => {
-    const created = await adapter.create({ 
-      name: 'Bool Test', 
+    const created = await adapter.create({
+      name: 'Bool Test',
       email: 'bool@example.com',
-      active: true 
+      active: true,
     });
 
     expect(created.active).toBe(true);
@@ -287,12 +298,90 @@ describe('SqliteAdapter', () => {
   });
 
   it('should handle default values correctly', async () => {
-    const created = await adapter.create({ 
-      name: 'Defaults Test', 
-      email: 'defaults@example.com'
+    const created = await adapter.create({
+      name: 'Defaults Test',
+      email: 'defaults@example.com',
     });
 
     expect(created.active).toBe(true);
     expect(created.role).toBe('user');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// autoUpdate + readOnly columns
+// ---------------------------------------------------------------------------
+
+describe('SqliteAdapter — autoUpdate columns', () => {
+  const postsTable = d.table('posts', {
+    id: d.uuid().primary({ generate: 'uuid' }),
+    title: d.text(),
+    createdAt: d.timestamp().default('now').readOnly(),
+    updatedAt: d.timestamp().default('now').autoUpdate(),
+  });
+
+  type PostsSchema = typeof postsTable;
+
+  let adapter: ReturnType<typeof createSqliteAdapter>;
+
+  beforeEach(async () => {
+    adapter = await createSqliteAdapter<PostsSchema>({
+      schema: postsTable,
+      dbPath: ':memory:',
+      migrations: { autoApply: true },
+    } as SqliteAdapterOptions<PostsSchema>);
+  });
+
+  it('should include autoUpdate column in INSERT with initial value', async () => {
+    const created = await adapter.create({ title: 'Hello' });
+
+    expect(created.updatedAt).toBeDefined();
+    expect(typeof created.updatedAt).toBe('string');
+    // Should be a valid ISO timestamp
+    expect(new Date(created.updatedAt as string).getTime()).not.toBeNaN();
+  });
+
+  it('should not include pure readOnly column in INSERT from user data', async () => {
+    // createdAt is readOnly (not autoUpdate) — it uses DB default, not user input
+    const created = await adapter.create({
+      title: 'Test',
+      createdAt: '2000-01-01T00:00:00.000Z',
+    });
+
+    // The readOnly column should use its DB default, not the user-supplied value
+    expect(created.createdAt).toBeDefined();
+    // createdAt has default('now'), so it should be a recent timestamp, not year 2000
+    const ts = new Date(created.createdAt as string).getTime();
+    expect(ts).toBeGreaterThan(new Date('2020-01-01').getTime());
+  });
+
+  it('should update autoUpdate column automatically on UPDATE', async () => {
+    const created = await adapter.create({ title: 'Original' });
+    const originalUpdatedAt = created.updatedAt as string;
+
+    // Small delay to ensure timestamp differs
+    await new Promise((r) => setTimeout(r, 10));
+
+    const updated = await adapter.update(created.id as string, { title: 'Changed' });
+
+    expect(updated.title).toBe('Changed');
+    expect(updated.updatedAt).toBeDefined();
+    // updatedAt should be newer than the original
+    expect(new Date(updated.updatedAt as string).getTime()).toBeGreaterThanOrEqual(
+      new Date(originalUpdatedAt).getTime(),
+    );
+  });
+
+  it('should not allow updating pure readOnly columns', async () => {
+    const created = await adapter.create({ title: 'Test' });
+    const originalCreatedAt = created.createdAt as string;
+
+    const updated = await adapter.update(created.id as string, {
+      title: 'Updated',
+      createdAt: '2000-01-01T00:00:00.000Z',
+    });
+
+    // createdAt is readOnly — should remain unchanged
+    expect(updated.createdAt).toBe(originalCreatedAt);
   });
 });
