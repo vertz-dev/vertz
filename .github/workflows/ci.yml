@@ -248,10 +248,14 @@ jobs:
           ./codecov create-report -t "$CODECOV_TOKEN" --git-service github
 
           # Upload each package's coverage with its own flag
-          # bun test produces lcov.info, vitest produces coverage-final.json
+          # bun test produces lcov.info (relative paths), vitest produces coverage-final.json (absolute paths)
           for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server tui ui ui-canvas ui-compiler ui-primitives ui-server; do
             if [ -f "packages/$pkg/coverage/lcov.info" ]; then
               echo "Uploading coverage for $pkg (lcov)"
+              # bun test emits relative SF: paths (e.g. "src/foo.ts").
+              # Codecov flags match against repo-root-relative paths (e.g. "packages/pkg/src/foo.ts").
+              # Rewrite SF: lines to include the package prefix so flag matching works.
+              sed -i "s|^SF:src/|SF:packages/$pkg/src/|" "packages/$pkg/coverage/lcov.info"
               ./codecov do-upload \
                 -t "$CODECOV_TOKEN" \
                 --git-service github \
