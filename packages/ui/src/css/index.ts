@@ -25,6 +25,7 @@ export {
   resolveToken,
   TokenResolveError,
 } from './token-resolver';
+export { palettes, type ColorPalette } from './palettes';
 // Shared token tables — single source of truth for all CSS token resolution
 export type { CSSDeclarationEntry, PropertyMapping } from './token-tables';
 export {
