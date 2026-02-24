@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { createEmptyAppIR } from '../../ir/builder';
 import type { AppIR, MiddlewareIR, ModuleIR, RouteIR, RouterIR, ServiceIR } from '../../ir/types';
 import { CompletenessValidator } from '../completeness-validator';

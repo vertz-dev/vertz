@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import type { Validator } from '../../compiler';
 import type { Diagnostic } from '../../errors';
 import { createEmptyAppIR } from '../../ir/builder';

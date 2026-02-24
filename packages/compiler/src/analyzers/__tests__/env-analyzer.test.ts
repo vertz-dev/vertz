@@ -1,5 +1,5 @@
 import { Project } from 'ts-morph';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { resolveConfig } from '../../config';
 import type { EnvIR, EnvVariableIR } from '../../ir/types';
 import { EnvAnalyzer } from '../env-analyzer';

@@ -1,5 +1,5 @@
 import { Project } from 'ts-morph';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { BaseAnalyzer } from '../analyzers/base-analyzer';
 import { resolveConfig } from '../config';
 import { createDiagnostic } from '../errors';

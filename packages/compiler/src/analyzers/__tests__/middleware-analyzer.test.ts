@@ -1,5 +1,5 @@
 import { Project } from 'ts-morph';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { resolveConfig } from '../../config';
 import type { Diagnostic } from '../../errors';
 import type { MiddlewareIR } from '../../ir/types';

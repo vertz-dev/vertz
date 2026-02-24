@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'bun:test';
 import { createEmptyAppIR } from '../builder';
 import { injectEntityRoutes, detectRouteCollisions } from '../entity-route-injector';
 import type { AppIR, EntityIR, EntityAccessIR } from '../types';

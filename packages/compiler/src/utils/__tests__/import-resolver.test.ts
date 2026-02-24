@@ -1,5 +1,5 @@
 import { Project, SyntaxKind } from 'ts-morph';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { isFromImport, resolveExport, resolveIdentifier } from '../import-resolver';
 
 const _sharedProject = new Project({ useInMemoryFileSystem: true });

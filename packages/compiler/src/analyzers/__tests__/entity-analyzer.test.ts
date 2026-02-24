@@ -1,5 +1,5 @@
 import { Project } from 'ts-morph';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import type { ResolvedConfig } from '../../config';
 import type { EntityIR } from '../../ir/types';
 import { EntityAnalyzer } from '../entity-analyzer';
