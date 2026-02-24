@@ -27,7 +27,17 @@ export type {
   VariantProps,
   VariantsConfig,
 } from './css';
-export { compileTheme, css, defineTheme, globalCss, palettes, s, ThemeProvider, variants } from './css';
+export {
+  compileTheme,
+  css,
+  defineTheme,
+  getInjectedCSS,
+  globalCss,
+  palettes,
+  s,
+  ThemeProvider,
+  variants,
+} from './css';
 // Render adapter
 export type { RenderAdapter, RenderElement, RenderNode, RenderText } from './dom/adapter';
 export { getAdapter, isRenderNode, RENDER_NODE_BRAND, setAdapter } from './dom/adapter';
