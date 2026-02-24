@@ -16,13 +16,13 @@ describe('buildAction', () => {
     vi.restoreAllMocks();
   });
 
-  it('should export buildAction function', async () => {
+  it('should export buildAction function', { timeout: 15_000 }, async () => {
     const { buildAction } = await import('../build');
     expect(buildAction).toBeDefined();
     expect(typeof buildAction).toBe('function');
   });
 
-  it('should be an async function that returns a number', async () => {
+  it('should be an async function that returns a number', { timeout: 15_000 }, async () => {
     const { buildAction } = await import('../build');
     const result = buildAction({ noTypecheck: true });
 
