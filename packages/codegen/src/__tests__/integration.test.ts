@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AppIR } from '@vertz/compiler';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { ResolvedCodegenConfig } from '../config';
 import { resolveCodegenConfig } from '../config';
 import { generate } from '../generate';
