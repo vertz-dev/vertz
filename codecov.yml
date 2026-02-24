@@ -77,7 +77,35 @@ flags:
     paths:
       - packages/schema/src/
     carryforward: true
+  server:
+    paths:
+      - packages/server/src/
+    carryforward: true
   testing:
     paths:
       - packages/testing/src/
+    carryforward: true
+  tui:
+    paths:
+      - packages/tui/src/
+    carryforward: true
+  ui:
+    paths:
+      - packages/ui/src/
+    carryforward: true
+  ui-canvas:
+    paths:
+      - packages/ui-canvas/src/
+    carryforward: true
+  ui-compiler:
+    paths:
+      - packages/ui-compiler/src/
+    carryforward: true
+  ui-primitives:
+    paths:
+      - packages/ui-primitives/src/
+    carryforward: true
+  ui-server:
+    paths:
+      - packages/ui-server/src/
     carryforward: true
