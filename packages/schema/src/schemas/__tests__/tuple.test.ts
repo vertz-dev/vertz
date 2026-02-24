@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { ErrorCode } from '../../core/errors';
 import { BooleanSchema } from '../boolean';
 import { NumberSchema } from '../number';

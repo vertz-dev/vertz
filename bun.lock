@@ -279,6 +279,7 @@
         "@vertz/errors": "workspace:*",
       },
       "devDependencies": {
+        "@vitest/coverage-v8": "^4.0.18",
         "bunup": "latest",
         "typescript": "^5.7.0",
         "vitest": "^4.0.18",

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { ParseError, SchemaRegistry, s, schema } from '..';
 import { ArraySchema } from '../schemas/array';
 import { BigIntSchema } from '../schemas/bigint';
