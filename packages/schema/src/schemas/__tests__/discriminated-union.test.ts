@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { ErrorCode } from '../../core/errors';
 import { DiscriminatedUnionSchema } from '../discriminated-union';
 import { LiteralSchema } from '../literal';

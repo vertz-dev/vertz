@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { ErrorCode, ParseError } from '../../core/errors';
 import { SchemaRegistry } from '../../core/registry';
 import { NumberSchema } from '../number';

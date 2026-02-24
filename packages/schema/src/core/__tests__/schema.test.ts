@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import type { RefTracker } from '../../introspection/json-schema';
 import { ErrorCode, ParseError } from '../errors';
 import type { ParseContext } from '../parse-context';

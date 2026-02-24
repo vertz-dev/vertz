@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { s } from '../../../index';
 import type { Infer } from '../../../utils/type-inference';
 import { Base64Schema } from '../base64';

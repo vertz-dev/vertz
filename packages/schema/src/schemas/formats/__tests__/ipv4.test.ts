@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { Ipv4Schema } from '../ipv4';
 
 describe('Ipv4Schema', () => {
