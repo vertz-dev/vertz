@@ -1,3 +1,2 @@
 [test]
-preload = ["./happydom.ts"]
 coveragePathIgnorePatterns = ["**/ui/dist/**"]
