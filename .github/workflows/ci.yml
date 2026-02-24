@@ -123,9 +123,6 @@ jobs:
     needs: [changes, check]
     if: needs.changes.outputs.src == 'true'
 
-    permissions:
-      pull-requests: write
-
     services:
       postgres:
         image: postgres:16-alpine
@@ -151,7 +148,7 @@ jobs:
         run: |
           # On push to main or workflow_dispatch, mark all packages as changed so we get full coverage
           if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors; do
+            for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server; do
               echo "${pkg//-/_}=true" >> "$GITHUB_OUTPUT"
             done
             exit 0
@@ -161,7 +158,7 @@ jobs:
           HEAD_SHA=${{ github.event.pull_request.head.sha }}
           CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
 
-          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors; do
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server; do
             if echo "$CHANGED_FILES" | grep -q "^packages/$pkg/"; then
               echo "${pkg//-/_}=true" >> "$GITHUB_OUTPUT"
             else
@@ -183,19 +180,33 @@ jobs:
         env:
           DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/vertz_test
         run: |
-          # On push to main or workflow_dispatch, run coverage for all packages
-          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors; do
-              echo "::group::Coverage — $pkg"
-              cd packages/$pkg
+          run_coverage() {
+            local pkg=$1
+            echo "::group::Coverage — $pkg"
+            cd packages/$pkg
+
+            # Detect test runner from package.json "test" script
+            TEST_SCRIPT=$(node -e "console.log(require('./package.json').scripts?.test ?? '')")
+
+            if echo "$TEST_SCRIPT" | grep -q "bun test"; then
+              bun test --coverage --coverage-reporter=lcov --coverage-dir=coverage || true
+            else
               bunx vitest run \
                 --coverage \
                 --coverage.reporter=json-summary \
                 --coverage.reporter=json \
                 --coverage.reporter=text \
                 --coverage.reportOnFailure || true
-              cd "$GITHUB_WORKSPACE"
-              echo "::endgroup::"
+            fi
+
+            cd "$GITHUB_WORKSPACE"
+            echo "::endgroup::"
+          }
+
+          # On push to main or workflow_dispatch, run coverage for all packages
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server; do
+              run_coverage "$pkg"
             done
             exit 0
           fi
@@ -204,18 +215,9 @@ jobs:
           HEAD_SHA=${{ github.event.pull_request.head.sha }}
           CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
 
-          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors; do
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server; do
             if echo "$CHANGED_FILES" | grep -q "^packages/$pkg/"; then
-              echo "::group::Coverage — $pkg"
-              cd packages/$pkg
-              bunx vitest run \
-                --coverage \
-                --coverage.reporter=json-summary \
-                --coverage.reporter=json \
-                --coverage.reporter=text \
-                --coverage.reportOnFailure || true
-              cd "$GITHUB_WORKSPACE"
-              echo "::endgroup::"
+              run_coverage "$pkg"
             else
               echo "Skipping coverage for $pkg (no changes)"
             fi
@@ -223,11 +225,13 @@ jobs:
 
       - name: Verify coverage output
         run: |
-          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors; do
-            if [ -f "packages/$pkg/coverage/coverage-summary.json" ]; then
-              echo "OK: packages/$pkg/coverage/coverage-summary.json"
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server; do
+            if [ -f "packages/$pkg/coverage/lcov.info" ]; then
+              echo "OK: packages/$pkg/coverage/lcov.info (bun test)"
+            elif [ -f "packages/$pkg/coverage/coverage-summary.json" ]; then
+              echo "OK: packages/$pkg/coverage/coverage-summary.json (vitest)"
             else
-              echo "MISSING: packages/$pkg/coverage/coverage-summary.json"
+              echo "MISSING: packages/$pkg — no coverage output found"
             fi
           done
 
@@ -244,9 +248,19 @@ jobs:
           ./codecov create-report -t "$CODECOV_TOKEN" --git-service github
 
           # Upload each package's coverage with its own flag
-          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors; do
-            if [ -f "packages/$pkg/coverage/coverage-final.json" ]; then
-              echo "Uploading coverage for $pkg"
+          # bun test produces lcov.info, vitest produces coverage-final.json
+          for pkg in core schema compiler codegen cli cli-runtime fetch testing db cloudflare errors server; do
+            if [ -f "packages/$pkg/coverage/lcov.info" ]; then
+              echo "Uploading coverage for $pkg (lcov)"
+              ./codecov do-upload \
+                -t "$CODECOV_TOKEN" \
+                --git-service github \
+                --file "packages/$pkg/coverage/lcov.info" \
+                --flag "$pkg" \
+                --disable-search \
+                --network-root-folder "$GITHUB_WORKSPACE"
+            elif [ -f "packages/$pkg/coverage/coverage-final.json" ]; then
+              echo "Uploading coverage for $pkg (json)"
               ./codecov do-upload \
                 -t "$CODECOV_TOKEN" \
                 --git-service github \
@@ -261,102 +275,3 @@ jobs:
 
           # Signal that all uploads are complete — triggers report processing
           ./codecov send-notifications -t "$CODECOV_TOKEN" --git-service github
-
-      - name: Coverage report — Core
-        uses: davelosert/vitest-coverage-report-action@v2
-        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.core == 'true'
-        with:
-          working-directory: packages/core
-          vite-config-path: vitest.config.ts
-          name: Core
-          file-coverage-mode: all
-
-      - name: Coverage report — Schema
-        uses: davelosert/vitest-coverage-report-action@v2
-        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.schema == 'true'
-        with:
-          working-directory: packages/schema
-          vite-config-path: vitest.config.ts
-          name: Schema
-          file-coverage-mode: all
-
-      - name: Coverage report — Compiler
-        uses: davelosert/vitest-coverage-report-action@v2
-        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.compiler == 'true'
-        with:
-          working-directory: packages/compiler
-          vite-config-path: vitest.config.ts
-          name: Compiler
-          file-coverage-mode: all
-
-      - name: Coverage report — Codegen
-        uses: davelosert/vitest-coverage-report-action@v2
-        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.codegen == 'true'
-        with:
-          working-directory: packages/codegen
-          vite-config-path: vitest.config.ts
-          name: Codegen
-          file-coverage-mode: all
-
-      - name: Coverage report — CLI
-        uses: davelosert/vitest-coverage-report-action@v2
-        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.cli == 'true'
-        with:
-          working-directory: packages/cli
-          vite-config-path: vitest.config.ts
-          name: CLI
-          file-coverage-mode: all
-
-      - name: Coverage report — CLI Runtime
-        uses: davelosert/vitest-coverage-report-action@v2
-        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.cli_runtime == 'true'
-        with:
-          working-directory: packages/cli-runtime
-          vite-config-path: vitest.config.ts
-          name: CLI Runtime
-          file-coverage-mode: all
-
-      - name: Coverage report — Fetch
-        uses: davelosert/vitest-coverage-report-action@v2
-        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.fetch == 'true'
-        with:
-          working-directory: packages/fetch
-          vite-config-path: vitest.config.ts
-          name: Fetch
-          file-coverage-mode: all
-
-      - name: Coverage report — Testing
-        uses: davelosert/vitest-coverage-report-action@v2
-        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.testing == 'true'
-        with:
-          working-directory: packages/testing
-          vite-config-path: vitest.config.ts
-          name: Testing
-          file-coverage-mode: all
-
-      - name: Coverage report — DB
-        uses: davelosert/vitest-coverage-report-action@v2
-        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.db == 'true'
-        with:
-          working-directory: packages/db
-          vite-config-path: vitest.config.ts
-          name: DB
-          file-coverage-mode: all
-
-      - name: Coverage report — Cloudflare
-        uses: davelosert/vitest-coverage-report-action@v2
-        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.cloudflare == 'true'
-        with:
-          working-directory: packages/cloudflare
-          vite-config-path: vitest.config.ts
-          name: Cloudflare
-          file-coverage-mode: all
-
-      - name: Coverage report — Errors
-        uses: davelosert/vitest-coverage-report-action@v2
-        if: always() && github.event_name == 'pull_request' && steps.changes.outputs.errors == 'true'
-        with:
-          working-directory: packages/errors
-          vite-config-path: vitest.config.ts
-          name: Errors
-          file-coverage-mode: all
