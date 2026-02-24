@@ -2,7 +2,7 @@
  * Tests for EntityError classes.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import {
   BadRequestError,
   EntityUnauthorizedError,

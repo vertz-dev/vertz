@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { err, flatMap, isErr, isOk, map, match, matchErr, ok, unwrap, unwrapOr } from '../result';
 
 describe('Result', () => {
