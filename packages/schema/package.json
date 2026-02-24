@@ -27,6 +27,7 @@
   "scripts": {
     "build": "bunup",
     "test": "bun test",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
@@ -34,6 +35,7 @@
     "@vertz/errors": "workspace:*"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.18",
     "bunup": "latest",
     "typescript": "^5.7.0",
     "vitest": "^4.0.18"
