@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
 import { signal } from '../../runtime/signal';
 import { MemoryCache } from '../cache';
 import { __inflightSize, query } from '../query';
@@ -18,7 +18,8 @@ describe('query()', () => {
     expect(result.data.value).toBeUndefined();
     expect(result.error.value).toBeUndefined();
 
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
 
     expect(result.data.value).toEqual([1, 2, 3]);
     expect(result.loading.value).toBe(false);
@@ -29,7 +30,8 @@ describe('query()', () => {
     const err = new TypeError('network error');
     const result = query(() => Promise.reject(err));
 
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
 
     expect(result.error.value).toBe(err);
     expect(result.data.value).toBeUndefined();
@@ -46,11 +48,13 @@ describe('query()', () => {
       { key: 'refetch-test' },
     );
 
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toBe(1);
 
     result.refetch();
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toBe(2);
     expect(callCount).toBe(2);
   });
@@ -65,11 +69,13 @@ describe('query()', () => {
       { key: 'revalidate-test' },
     );
 
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toBe(1);
 
     result.revalidate();
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toBe(2);
   });
 
@@ -83,7 +89,8 @@ describe('query()', () => {
       { enabled: false },
     );
 
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(callCount).toBe(0);
     expect(result.data.value).toBeUndefined();
     expect(result.loading.value).toBe(false);
@@ -102,7 +109,8 @@ describe('query()', () => {
     expect(result.loading.value).toBe(false);
 
     // The effect runs the thunk for tracking, but we skip executeFetch
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     // Should NOT have triggered a real fetch via executeFetch
     expect(result.data.value).toEqual(['cached']);
   });
@@ -123,7 +131,8 @@ describe('query()', () => {
 
     // Initial run: the effect calls the thunk for tracking, but debounce
     // prevents the immediate fetch. Wait for the debounce timer to fire.
-    await vi.advanceTimersByTimeAsync(100);
+    vi.advanceTimersByTime(100);
+    await Promise.resolve();
     expect(result.data.value).toBe('value-1');
     const countsAfterInit = fetchCount;
 
@@ -132,23 +141,27 @@ describe('query()', () => {
     dep.value = 3;
 
     // After 50ms the debounced fetch should NOT have fired yet.
-    await vi.advanceTimersByTimeAsync(50);
+    vi.advanceTimersByTime(50);
+    await Promise.resolve();
     expect(result.data.value).toBe('value-1');
 
     // After the full debounce window, the fetch fires with the latest dep value.
-    await vi.advanceTimersByTimeAsync(100);
+    vi.advanceTimersByTime(100);
+    await Promise.resolve();
     expect(result.data.value).toBe('value-3');
     expect(fetchCount).toBeGreaterThan(countsAfterInit);
   });
 
   test('custom key overrides derived key', async () => {
     const result1 = query(() => Promise.resolve('a'), { key: 'shared' });
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
 
     // A second query with the same custom key should deduplicate if in-flight
     // (here the first already resolved, so this is just a key test)
     const result2 = query(() => Promise.resolve('b'), { key: 'shared-other' });
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
 
     expect(result1.data.value).toBe('a');
     expect(result2.data.value).toBe('b');
@@ -167,7 +180,8 @@ describe('query()', () => {
       { key: 'dispose-test' },
     );
 
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toBe(1);
     const countAfterInit = fetchCount;
 
@@ -176,7 +190,8 @@ describe('query()', () => {
 
     // Change dep — should NOT trigger a re-fetch
     dep.value = 2;
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
 
     expect(fetchCount).toBe(countAfterInit);
     expect(result.data.value).toBe(1);
@@ -196,7 +211,8 @@ describe('query()', () => {
     );
 
     // Wait for initial debounced fetch
-    await vi.advanceTimersByTimeAsync(100);
+    vi.advanceTimersByTime(100);
+    await Promise.resolve();
     const countAfterInit = fetchCount;
 
     // Change dep to trigger debounce
@@ -206,7 +222,8 @@ describe('query()', () => {
     result.dispose();
 
     // Advance past debounce window — should NOT fetch
-    await vi.advanceTimersByTimeAsync(200);
+    vi.advanceTimersByTime(200);
+    await Promise.resolve();
 
     expect(fetchCount).toBe(countAfterInit + 1); // +1 for the tracking call, but no startFetch
   });
@@ -228,7 +245,8 @@ describe('query()', () => {
 
     // Resolve the pending promise — should be ignored (stale)
     resolvers[0]?.('stale');
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
 
     // Data should remain undefined since the response was invalidated
     expect(result.data.value).toBeUndefined();
@@ -253,7 +271,8 @@ describe('query()', () => {
 
     // After debounce fires, startFetch uses the tracking promise —
     // thunk should NOT be called again
-    await vi.advanceTimersByTimeAsync(100);
+    vi.advanceTimersByTime(100);
+    await Promise.resolve();
     expect(fetchCount).toBe(countAfterInit); // No additional thunk call
   });
 
@@ -318,7 +337,8 @@ describe('query()', () => {
 
     // Now resolve the first (stale) promise
     resolvers[0]?.('stale');
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
 
     // Data should still be undefined because the stale response is ignored
     // (the refetch created a new fetch ID)
@@ -327,7 +347,8 @@ describe('query()', () => {
 
     // Resolve the second (current) promise
     resolvers[1]?.('fresh');
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
 
     expect(result.data.value).toBe('fresh');
     expect(result.loading.value).toBe(false);
@@ -472,7 +493,8 @@ describe('query()', () => {
     );
 
     // First fetch resolves with userId=1
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toBe('user-1');
 
     // The cache should have an entry for the userId=1 key
@@ -481,7 +503,8 @@ describe('query()', () => {
 
     // Change userId to 2 — triggers re-fetch
     userId.value = 2;
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toBe('user-2');
 
     // The OLD cache entry for userId=1 should still be in the cache (not deleted)
@@ -505,13 +528,15 @@ describe('query()', () => {
     );
 
     // First fetch: userId=1
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toBe('user-1-fetch-1');
     const firstKey = setSpy.mock.calls[0]?.[0] as string;
 
     // Change to userId=2
     userId.value = 2;
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toBe('user-2-fetch-2');
     const secondKey = setSpy.mock.calls[1]?.[0] as string;
 
@@ -522,7 +547,8 @@ describe('query()', () => {
     // key since the same signal values are being used. The data should be
     // served from the cache (no re-fetch needed).
     userId.value = 1;
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
 
     // The data should be the ORIGINAL cached value for userId=1
     // (from the first fetch), not a new fetch result
@@ -548,13 +574,15 @@ describe('query()', () => {
     );
 
     // Fetch userId=1
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toBe('user-1');
     expect(fetchCount).toBe(1);
 
     // Fetch userId=2
     userId.value = 2;
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toBe('user-2');
     expect(fetchCount).toBe(2);
 
@@ -563,7 +591,8 @@ describe('query()', () => {
 
     // The thunk will still be called (for tracking), but the cache should be
     // consulted and the data should be served from cache
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toBe('user-1');
     // The thunk was called for tracking but startFetch should have been
     // skipped because the cache already has data for this key
@@ -582,7 +611,8 @@ describe('query()', () => {
       { key: 'shared-key', cache },
     );
 
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(q1.data.value).toBe('cached-data');
     expect(fetchCount).toBe(1);
 

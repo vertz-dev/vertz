@@ -1,7 +1,7 @@
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 import { signal } from '@vertz/ui';
 import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 import { isCanvasIntrinsic, jsxCanvas } from './jsx-canvas';
 
 describe('Feature: isCanvasIntrinsic', () => {

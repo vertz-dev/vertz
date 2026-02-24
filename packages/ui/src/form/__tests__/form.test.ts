@@ -1,5 +1,5 @@
 import { s } from '@vertz/schema';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 import type { SdkMethodWithMeta } from '../form';
 import { form } from '../form';
 import type { FormSchema } from '../validation';

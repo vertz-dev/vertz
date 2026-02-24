@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'bun:test';
 import type { ChildrenAccessor } from '../children';
 import { children, resolveChildren } from '../children';
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { onCleanup, popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { domEffect, signal } from '../../runtime/signal';
 import { __list } from '../list';

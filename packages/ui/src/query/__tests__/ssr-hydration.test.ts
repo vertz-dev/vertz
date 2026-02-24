@@ -1,8 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { cleanupSSRData, hydrateQueryFromSSR } from '../ssr-hydration';
 
 // Minimal browser-like environment for event dispatching
 const listeners = new Map<string, Set<EventListener>>();
+const origDocument = globalThis.document;
 
 beforeEach(() => {
   listeners.clear();
@@ -30,7 +31,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete (globalThis as Record<string, unknown>).document;
+  (globalThis as Record<string, unknown>).document = origDocument;
   delete (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__;
   delete (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__;
 });

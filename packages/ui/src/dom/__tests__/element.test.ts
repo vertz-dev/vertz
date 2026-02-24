@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { signal } from '../../runtime/signal';
 import { __element, __text } from '../element';
 

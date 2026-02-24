@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { css, generateClassName, globalCss, parseShorthand, resolveToken } from '../css';
 
 /**

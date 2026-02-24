@@ -1,5 +1,5 @@
+import { describe, expect, it } from 'bun:test';
 import { Container, Graphics, Text } from 'pixi.js';
-import { describe, expect, it } from 'vitest';
 import { createDebugOverlay } from './debug-overlay';
 
 describe('Feature: Canvas Debug Overlay', () => {

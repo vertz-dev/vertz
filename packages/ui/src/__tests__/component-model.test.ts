@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'bun:test';
 import { createContext, useContext } from '../component/context';
 import { ErrorBoundary } from '../component/error-boundary';
 import { onMount } from '../component/lifecycle';

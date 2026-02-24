@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'bun:test';
 import { deriveKey } from '../key-derivation';
 
 describe('deriveKey', () => {

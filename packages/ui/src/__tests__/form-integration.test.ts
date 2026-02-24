@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi } from 'bun:test';
 import { form } from '../form/form';
 import { formDataToObject } from '../form/form-data';
 import type { FormSchema } from '../form/validation';

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import { onMount } from '../../component/lifecycle';
 import { onCleanup } from '../../runtime/disposal';
 import { defineRoutes } from '../define-routes';

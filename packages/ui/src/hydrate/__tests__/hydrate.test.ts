@@ -1,30 +1,46 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import type { ComponentFunction, ComponentRegistry } from '../component-registry';
 import { hydrate } from '../hydrate';
+
+async function waitFor(fn: () => void, timeout = 1000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    try {
+      fn();
+      return;
+    } catch {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+  }
+  fn();
+}
 
 describe('hydrate()', () => {
   let observeCallback: IntersectionObserverCallback;
   let disconnectSpy: ReturnType<typeof vi.fn>;
+  let origIntersectionObserver: typeof globalThis.IntersectionObserver;
 
   beforeEach(() => {
     disconnectSpy = vi.fn();
+    origIntersectionObserver = globalThis.IntersectionObserver;
 
-    vi.stubGlobal(
-      'IntersectionObserver',
-      class MockIntersectionObserver {
-        constructor(callback: IntersectionObserverCallback) {
-          observeCallback = callback;
-        }
-        observe = vi.fn();
-        disconnect = disconnectSpy;
-        unobserve = vi.fn();
-      },
-    );
+    globalThis.IntersectionObserver = class MockIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        observeCallback = callback;
+      }
+      observe = vi.fn();
+      disconnect = disconnectSpy;
+      unobserve = vi.fn();
+      root = null;
+      rootMargin = '';
+      thresholds = [] as number[];
+      takeRecords = vi.fn(() => [] as IntersectionObserverEntry[]);
+    } as unknown as typeof IntersectionObserver;
   });
 
   afterEach(() => {
     document.body.innerHTML = '';
-    vi.unstubAllGlobals();
+    globalThis.IntersectionObserver = origIntersectionObserver;
   });
 
   // IT-5B-1: Hydration bootstraps interactive components from server HTML
@@ -59,7 +75,7 @@ describe('hydrate()', () => {
     hydrate(registry);
 
     // Wait for async resolution
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(receivedEl).not.toBeNull();
     });
 
@@ -148,7 +164,7 @@ describe('hydrate()', () => {
 
     hydrate(registry);
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
         '[hydrate] Failed to hydrate component "BrokenComponent":',
         chunkError,
@@ -200,7 +216,7 @@ describe('hydrate()', () => {
 
     hydrate(registry);
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(componentFn).toHaveBeenCalledOnce();
     });
 
@@ -226,7 +242,7 @@ describe('hydrate()', () => {
 
     hydrate(registry);
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(componentFn).toHaveBeenCalledOnce();
     });
 
@@ -261,13 +277,11 @@ describe('hydrate()', () => {
   });
 
   it('routes idle strategy to idleStrategy', () => {
-    vi.stubGlobal(
-      'requestIdleCallback',
-      vi.fn((cb: IdleRequestCallback) => {
-        cb({} as IdleDeadline);
-        return 1;
-      }),
-    );
+    const origRequestIdleCallback = globalThis.requestIdleCallback;
+    globalThis.requestIdleCallback = vi.fn((cb: IdleRequestCallback) => {
+      cb({} as IdleDeadline);
+      return 1;
+    }) as typeof globalThis.requestIdleCallback;
 
     document.body.innerHTML = `
       <div data-v-id="IdleComponent" data-v-key="idle1" hydrate="idle">
@@ -286,6 +300,8 @@ describe('hydrate()', () => {
 
     hydrate(registry);
     expect(hydrateSpy).toHaveBeenCalled();
+
+    globalThis.requestIdleCallback = origRequestIdleCallback;
   });
 
   it('routes visible strategy to visibleStrategy', () => {
@@ -311,14 +327,15 @@ describe('hydrate()', () => {
 
   it('routes media strategy with query attribute', () => {
     let mediaChangeHandler: ((event: { matches: boolean }) => void) | undefined;
-    vi.stubGlobal('matchMedia', (query: string) => ({
+    const origMatchMedia = globalThis.matchMedia;
+    globalThis.matchMedia = ((query: string) => ({
       matches: false,
       media: query,
       addEventListener: (_event: string, handler: (event: { matches: boolean }) => void) => {
         mediaChangeHandler = handler;
       },
       removeEventListener: vi.fn(),
-    }));
+    })) as typeof globalThis.matchMedia;
 
     document.body.innerHTML = `
       <div data-v-id="MediaComponent" data-v-key="med1" hydrate="media" hydrate-media="(min-width: 768px)">
@@ -341,5 +358,7 @@ describe('hydrate()', () => {
     // Simulate media query match
     mediaChangeHandler?.({ matches: true });
     expect(hydrateSpy).toHaveBeenCalled();
+
+    globalThis.matchMedia = origMatchMedia;
   });
 });

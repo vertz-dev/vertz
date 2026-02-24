@@ -4,7 +4,7 @@
  * These tests validate that domEffect() runs callbacks once in SSR (no tracking),
  * and that DOM primitives produce correct output during SSR without subscriptions.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { signal } from '../../runtime/signal';
 import { __attr, __classList, __show } from '../attributes';
 import { __conditional } from '../conditional';

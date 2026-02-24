@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import {
   eagerStrategy,
   idleStrategy,
@@ -21,28 +21,31 @@ describe('lazyStrategy', () => {
   let observeCallback: IntersectionObserverCallback;
   let observedElements: Element[];
   let disconnectSpy: ReturnType<typeof vi.fn>;
+  let origIntersectionObserver: typeof globalThis.IntersectionObserver;
 
   beforeEach(() => {
     observedElements = [];
     disconnectSpy = vi.fn();
+    origIntersectionObserver = globalThis.IntersectionObserver;
 
-    vi.stubGlobal(
-      'IntersectionObserver',
-      class MockIntersectionObserver {
-        constructor(callback: IntersectionObserverCallback) {
-          observeCallback = callback;
-        }
-        observe(el: Element): void {
-          observedElements.push(el);
-        }
-        disconnect = disconnectSpy;
-        unobserve = vi.fn();
-      },
-    );
+    globalThis.IntersectionObserver = class MockIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        observeCallback = callback;
+      }
+      observe(el: Element): void {
+        observedElements.push(el);
+      }
+      disconnect = disconnectSpy;
+      unobserve = vi.fn();
+      root = null;
+      rootMargin = '';
+      thresholds = [] as number[];
+      takeRecords = vi.fn(() => [] as IntersectionObserverEntry[]);
+    } as unknown as typeof IntersectionObserver;
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    globalThis.IntersectionObserver = origIntersectionObserver;
   });
 
   it('does not call hydrateFn immediately', () => {
@@ -82,7 +85,7 @@ describe('lazyStrategy', () => {
   });
 
   it('falls back to eager when IntersectionObserver is unavailable', () => {
-    vi.stubGlobal('IntersectionObserver', undefined);
+    (globalThis as Record<string, unknown>).IntersectionObserver = undefined;
     const el = document.createElement('div');
     const hydrateFn = vi.fn();
     lazyStrategy(el, hydrateFn);
@@ -138,16 +141,22 @@ describe('interactionStrategy', () => {
 });
 
 describe('idleStrategy', () => {
+  let origRequestIdleCallback: typeof globalThis.requestIdleCallback;
+
+  beforeEach(() => {
+    origRequestIdleCallback = globalThis.requestIdleCallback;
+  });
+
   afterEach(() => {
-    vi.unstubAllGlobals();
+    globalThis.requestIdleCallback = origRequestIdleCallback;
   });
 
   it('schedules hydration via requestIdleCallback', () => {
     let idleCallback: IdleRequestCallback | undefined;
-    vi.stubGlobal('requestIdleCallback', (cb: IdleRequestCallback) => {
+    globalThis.requestIdleCallback = ((cb: IdleRequestCallback) => {
       idleCallback = cb;
       return 1;
-    });
+    }) as typeof globalThis.requestIdleCallback;
 
     const el = document.createElement('div');
     const hydrateFn = vi.fn();
@@ -162,7 +171,7 @@ describe('idleStrategy', () => {
   });
 
   it('falls back to setTimeout when requestIdleCallback is unavailable', () => {
-    vi.stubGlobal('requestIdleCallback', undefined);
+    (globalThis as Record<string, unknown>).requestIdleCallback = undefined;
     vi.useFakeTimers();
 
     const el = document.createElement('div');
@@ -179,17 +188,23 @@ describe('idleStrategy', () => {
 });
 
 describe('mediaStrategy', () => {
+  let origMatchMedia: typeof globalThis.matchMedia;
+
+  beforeEach(() => {
+    origMatchMedia = globalThis.matchMedia;
+  });
+
   afterEach(() => {
-    vi.unstubAllGlobals();
+    globalThis.matchMedia = origMatchMedia;
   });
 
   it('hydrates immediately when media query already matches', () => {
-    vi.stubGlobal('matchMedia', (query: string) => ({
+    globalThis.matchMedia = ((query: string) => ({
       matches: true,
       media: query,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
-    }));
+    })) as typeof globalThis.matchMedia;
 
     const el = document.createElement('div');
     const hydrateFn = vi.fn();
@@ -200,14 +215,14 @@ describe('mediaStrategy', () => {
 
   it('defers hydration until media query matches', () => {
     let changeHandler: ((event: { matches: boolean }) => void) | undefined;
-    vi.stubGlobal('matchMedia', (query: string) => ({
+    globalThis.matchMedia = ((query: string) => ({
       matches: false,
       media: query,
       addEventListener: (_event: string, handler: (event: { matches: boolean }) => void) => {
         changeHandler = handler;
       },
       removeEventListener: vi.fn(),
-    }));
+    })) as typeof globalThis.matchMedia;
 
     const el = document.createElement('div');
     const hydrateFn = vi.fn();
@@ -223,14 +238,14 @@ describe('mediaStrategy', () => {
 
   it('does not hydrate when media query change does not match', () => {
     let changeHandler: ((event: { matches: boolean }) => void) | undefined;
-    vi.stubGlobal('matchMedia', (query: string) => ({
+    globalThis.matchMedia = ((query: string) => ({
       matches: false,
       media: query,
       addEventListener: (_event: string, handler: (event: { matches: boolean }) => void) => {
         changeHandler = handler;
       },
       removeEventListener: vi.fn(),
-    }));
+    })) as typeof globalThis.matchMedia;
 
     const el = document.createElement('div');
     const hydrateFn = vi.fn();
@@ -243,14 +258,14 @@ describe('mediaStrategy', () => {
   it('removes event listener after hydration', () => {
     let changeHandler: ((event: { matches: boolean }) => void) | undefined;
     const removeEventListenerSpy = vi.fn();
-    vi.stubGlobal('matchMedia', (query: string) => ({
+    globalThis.matchMedia = ((query: string) => ({
       matches: false,
       media: query,
       addEventListener: (_event: string, handler: (event: { matches: boolean }) => void) => {
         changeHandler = handler;
       },
       removeEventListener: removeEventListenerSpy,
-    }));
+    })) as typeof globalThis.matchMedia;
 
     const el = document.createElement('div');
     const hydrateFn = vi.fn();
@@ -265,28 +280,31 @@ describe('visibleStrategy', () => {
   let observeCallback: IntersectionObserverCallback;
   let observedElements: Element[];
   let disconnectSpy: ReturnType<typeof vi.fn>;
+  let origIntersectionObserver: typeof globalThis.IntersectionObserver;
 
   beforeEach(() => {
     observedElements = [];
     disconnectSpy = vi.fn();
+    origIntersectionObserver = globalThis.IntersectionObserver;
 
-    vi.stubGlobal(
-      'IntersectionObserver',
-      class MockIntersectionObserver {
-        constructor(callback: IntersectionObserverCallback) {
-          observeCallback = callback;
-        }
-        observe(el: Element): void {
-          observedElements.push(el);
-        }
-        disconnect = disconnectSpy;
-        unobserve = vi.fn();
-      },
-    );
+    globalThis.IntersectionObserver = class MockIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        observeCallback = callback;
+      }
+      observe(el: Element): void {
+        observedElements.push(el);
+      }
+      disconnect = disconnectSpy;
+      unobserve = vi.fn();
+      root = null;
+      rootMargin = '';
+      thresholds = [] as number[];
+      takeRecords = vi.fn(() => [] as IntersectionObserverEntry[]);
+    } as unknown as typeof IntersectionObserver;
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
+    globalThis.IntersectionObserver = origIntersectionObserver;
   });
 
   it('does not call hydrateFn immediately', () => {
@@ -325,7 +343,7 @@ describe('visibleStrategy', () => {
   });
 
   it('falls back to eager when IntersectionObserver is unavailable', () => {
-    vi.stubGlobal('IntersectionObserver', undefined);
+    (globalThis as Record<string, unknown>).IntersectionObserver = undefined;
     const el = document.createElement('div');
     const hydrateFn = vi.fn();
     visibleStrategy(el, hydrateFn);

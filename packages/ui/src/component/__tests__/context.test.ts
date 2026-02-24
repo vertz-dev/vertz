@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'bun:test';
 import { query } from '../../query/query';
 import { domEffect, signal } from '../../runtime/signal';
 import { createContext, useContext } from '../context';

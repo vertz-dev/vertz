@@ -1,15 +1,17 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { resetInjectedStyles } from '../css';
 import { globalCss } from '../global-css';
 
+function cleanupStyles(): void {
+  for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
+    el.remove();
+  }
+  resetInjectedStyles();
+}
+
 describe('globalCss() runtime style injection', () => {
-  afterEach(() => {
-    // Clean up injected <style> elements and reset tracking
-    for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
-      el.remove();
-    }
-    resetInjectedStyles();
-  });
+  beforeEach(cleanupStyles);
+  afterEach(cleanupStyles);
 
   it('injects a <style data-vertz-css> tag into document.head', () => {
     globalCss({

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { unwrap } from './unwrap';
 
 describe('Feature: unwrap utility', () => {
