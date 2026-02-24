@@ -13,6 +13,7 @@ export { Suspense } from './component/suspense';
 
 // CSS & Theming
 export type {
+  ColorPalette,
   CompiledTheme,
   CSSInput,
   CSSOutput,
@@ -26,7 +27,7 @@ export type {
   VariantProps,
   VariantsConfig,
 } from './css';
-export { compileTheme, css, defineTheme, globalCss, s, ThemeProvider, variants } from './css';
+export { compileTheme, css, defineTheme, globalCss, palettes, s, ThemeProvider, variants } from './css';
 
 // Forms
 export type { FieldState } from './form/field-state';
