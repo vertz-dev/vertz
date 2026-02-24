@@ -1,6 +1,6 @@
+import { describe, expect, it } from 'bun:test';
 import { signal } from '@vertz/ui';
 import { Container } from 'pixi.js';
-import { describe, expect, it } from 'vitest';
 import { canvasList } from './canvas-list';
 import { jsxCanvas } from './jsx-canvas';
 

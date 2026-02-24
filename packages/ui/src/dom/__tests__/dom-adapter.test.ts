@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { createDOMAdapter } from '../dom-adapter';
 
 describe('createDOMAdapter', () => {

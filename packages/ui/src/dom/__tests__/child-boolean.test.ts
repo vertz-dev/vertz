@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'bun:test';
 import { __child } from '../element';
 
 describe('__child boolean handling', () => {

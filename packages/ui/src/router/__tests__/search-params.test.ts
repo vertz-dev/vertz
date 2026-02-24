@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test, vi } from 'bun:test';
 import { signal } from '../../runtime/signal';
 import { defineRoutes } from '../define-routes';
 import { createRouter } from '../navigate';

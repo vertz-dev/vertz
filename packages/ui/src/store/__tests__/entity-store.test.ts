@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 import { domEffect } from '../../runtime/signal';
 import { EntityStore } from '../entity-store';
 

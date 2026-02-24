@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { EntityStore } from '../entity-store';
 import type { SerializedStore } from '../types';
 

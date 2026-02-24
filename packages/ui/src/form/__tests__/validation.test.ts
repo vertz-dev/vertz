@@ -1,5 +1,5 @@
 import { s } from '@vertz/schema';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import type { FormSchema, ValidationResult } from '../validation';
 import { validate } from '../validation';
 

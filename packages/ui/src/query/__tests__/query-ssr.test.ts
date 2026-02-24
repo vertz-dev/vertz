@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { query } from '../query';
 
 describe('query() SSR behavior', () => {
@@ -149,6 +149,7 @@ describe('query() SSR behavior', () => {
 describe('query() client-side SSR hydration', () => {
   // Minimal event listener mock
   const listeners = new Map<string, Set<EventListener>>();
+  const origDocument = globalThis.document;
 
   beforeEach(() => {
     listeners.clear();
@@ -175,7 +176,7 @@ describe('query() client-side SSR hydration', () => {
   afterEach(() => {
     delete (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__;
     delete (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__;
-    delete (globalThis as Record<string, unknown>).document;
+    (globalThis as Record<string, unknown>).document = origDocument;
   });
 
   it('picks up pre-existing SSR data without fetching', async () => {

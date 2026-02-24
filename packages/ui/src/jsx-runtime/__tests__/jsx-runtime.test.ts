@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { Fragment, jsx, jsxDEV, jsxs } from '../index';
 
 describe('JSX Runtime (Client)', () => {

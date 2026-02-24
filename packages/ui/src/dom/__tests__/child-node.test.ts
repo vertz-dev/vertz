@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'bun:test';
 import { __child, __text } from '../element';
 
 describe('Child node rendering', () => {

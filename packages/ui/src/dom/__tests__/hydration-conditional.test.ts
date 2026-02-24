@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { endHydration, startHydration } from '../../hydrate/hydration-context';
 import { signal } from '../../runtime/signal';
 import { __conditional } from '../conditional';

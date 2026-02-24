@@ -1,5 +1,5 @@
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 import { Assets, Sprite, Texture } from 'pixi.js';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadSpriteTexture } from './sprite-loading';
 
 describe('Feature: Sprite async texture loading', () => {
