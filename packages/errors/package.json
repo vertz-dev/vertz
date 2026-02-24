@@ -27,6 +27,7 @@
   "scripts": {
     "build": "bunup",
     "test": "bun test",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
