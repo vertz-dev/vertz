@@ -80,6 +80,22 @@ describe('vertzPlugin SSR', () => {
       expect(code).toContain('removeDomShim');
     });
 
+    it('should import compileTheme from @vertz/ui for theme CSS injection', () => {
+      const plugin = vertzPlugin({ ssr: true }) as Plugin;
+      const code = callLoad(plugin, '\0vertz:ssr-entry');
+      expect(code).toBeDefined();
+      expect(code).toContain('compileTheme');
+    });
+
+    it('should compile and inject theme CSS when user module exports theme', () => {
+      const plugin = vertzPlugin({ ssr: true }) as Plugin;
+      const code = callLoad(plugin, '\0vertz:ssr-entry');
+      expect(code).toBeDefined();
+      // Should check for theme export and compile it
+      expect(code).toContain('userModule.theme');
+      expect(code).toContain('compileTheme');
+    });
+
     it('should use the configured entry in the generated code', () => {
       const plugin = vertzPlugin({ ssr: { entry: '/src/my-app.ts' } }) as Plugin;
       const code = callLoad(plugin, '\0vertz:ssr-entry');

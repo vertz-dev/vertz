@@ -434,22 +434,33 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
 /**
  * Generate the virtual SSR entry module that renders the app.
  * This module installs the DOM shim, imports the user's app, and exports renderToString.
+ *
+ * Features:
+ * - Two-pass rendering: discovery pass (query registration) + render pass (with data)
+ * - Theme CSS injection: compiles user-exported theme into CSS custom properties
+ * - SSR context: uses ssrStorage for per-request query management
  */
 function generateSSREntry(userEntry: string): string {
   return `
 import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
-import { renderToStream, streamToString } from '@vertz/ui-server';
-import { getInjectedCSS } from '@vertz/ui';
+import { renderToStream, streamToString, ssrStorage, getSSRQueries } from '@vertz/ui-server';
+import { getInjectedCSS, compileTheme } from '@vertz/ui';
 
-function collectCSS() {
-  return getInjectedCSS()
+function collectCSS(themeCss) {
+  const componentStyles = getInjectedCSS()
     .map(s => '<style data-vertz-css>' + s + '</style>')
     .join('\\n');
+  // Prepend theme CSS (custom properties) before component styles
+  const themeTag = themeCss ? '<style data-vertz-css>' + themeCss + '</style>' : '';
+  return [themeTag, componentStyles].filter(Boolean).join('\\n');
 }
 
 /**
  * Render the app to an HTML string for the given URL.
  * Returns { html, css } where css is the collected <style> tags.
+ *
+ * Includes theme CSS custom properties (--color-*, --spacing-*) when the
+ * user module exports a \`theme\` object created with defineTheme().
  */
 export async function renderToString(url) {
   // Normalize URL: strip /index.html suffix that Vite's SPA fallback may add
@@ -473,6 +484,12 @@ export async function renderToString(url) {
     throw new Error('App entry must export a default function or named App function');
   }
 
+  // Compile theme CSS if the user module exports a theme
+  let themeCss = '';
+  if (userModule.theme) {
+    themeCss = compileTheme(userModule.theme).css;
+  }
+
   const app = createApp();
 
   // Convert to VNode if needed
@@ -481,7 +498,7 @@ export async function renderToString(url) {
   // Render to stream and convert to string
   const stream = renderToStream(vnode);
   const html = await streamToString(stream);
-  const css = collectCSS();
+  const css = collectCSS(themeCss);
 
   return { html, css };
 }
