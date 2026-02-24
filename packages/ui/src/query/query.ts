@@ -3,6 +3,7 @@ import type { ReadonlySignal, Signal, Unwrapped } from '../runtime/signal-types'
 import { setReadValueCallback, untrack } from '../runtime/tracking';
 import { type CacheStore, MemoryCache } from './cache';
 import { deriveKey, hashString } from './key-derivation';
+import { hydrateQueryFromSSR } from './ssr-hydration';
 
 /** SSR detection — mirrors signal.ts isSSR() via the global hook. */
 function isSSR(): boolean {
@@ -139,7 +140,13 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
   // During SSR, call the thunk and register the promise for renderToHTML() to await.
   // Pass 1 (discovery): registers the query promise for renderToHTML() to await.
   // Pass 2 (render): the cache is already populated — serve from cache.
-  const ssrTimeout = options.ssrTimeout ?? 100;
+  // Read per-request ssrTimeout via function hook (safe for concurrent requests).
+  // Falls back to reading the legacy property for backward compatibility.
+  // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+  const getTimeout = (globalThis as any).__VERTZ_SSR_GET_TIMEOUT__;
+  const globalSSRTimeout = typeof getTimeout === 'function' ? getTimeout() : undefined;
+  const ssrTimeout =
+    options.ssrTimeout ?? (typeof globalSSRTimeout === 'number' ? globalSSRTimeout : 100);
   if (isSSR() && enabled && ssrTimeout !== 0 && initialData === undefined) {
     // Call the thunk to derive cache key from dependency values.
     const promise = callThunkWithCapture();
@@ -168,9 +175,30 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
             loading.value = false;
             cache.set(key, result as T);
           },
+          key,
         });
       }
     }
+  }
+
+  // -- Client-side SSR hydration --
+  // When rendering on the client after SSR, check for streamed data.
+  // If the server streamed data for this query, use it instead of fetching.
+  let ssrHydrationCleanup: (() => void) | null = null;
+  let ssrHydrated = false;
+
+  if (!isSSR() && enabled && initialData === undefined) {
+    // Derive the cache key for hydration matching.
+    // For custom keys this is straightforward; for derived keys we need
+    // to call the thunk once to capture deps and compute the key.
+    const hydrationKey = customKey ?? baseKey;
+
+    ssrHydrationCleanup = hydrateQueryFromSSR(hydrationKey, (result: unknown) => {
+      data.value = result as T;
+      loading.value = false;
+      cache.set(hydrationKey, result as T);
+      ssrHydrated = true;
+    });
   }
 
   // Track the latest fetch id to ignore stale responses.
@@ -265,6 +293,12 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
     disposeFn = lifecycleEffect(() => {
       // Read the refetch trigger so this effect re-runs on manual refetch().
       refetchTrigger.value;
+
+      // Skip initial fetch if SSR hydration already provided data
+      if (isFirst && ssrHydrated) {
+        isFirst = false;
+        return;
+      }
 
       // When a custom key is provided, deduplication can be checked before
       // calling the thunk — the key is static so the check is reliable.
@@ -363,6 +397,8 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
   function dispose(): void {
     // Dispose the reactive effect to stop re-running on dep changes.
     disposeFn?.();
+    // Clean up SSR hydration listener if still active.
+    ssrHydrationCleanup?.();
     // Clear any pending debounce timer.
     clearTimeout(debounceTimer);
     // Invalidate any pending fetch responses by bumping fetchId.

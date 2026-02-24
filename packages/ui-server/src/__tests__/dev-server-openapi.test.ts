@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http';
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createDevServer, type DevServer } from '../dev-server';
 
 describe('createDevServer OpenAPI endpoint', () => {
@@ -128,27 +128,21 @@ describe('createDevServer OpenAPI endpoint', () => {
             operationId: 'todos_get',
             summary: 'Get a todo',
             tags: ['todos'],
-            parameters: [
-              { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
-            ],
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
             responses: { '200': { description: 'OK' } },
           },
           patch: {
             operationId: 'todos_update',
             summary: 'Update a todo',
             tags: ['todos'],
-            parameters: [
-              { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
-            ],
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
             responses: { '200': { description: 'OK' } },
           },
           delete: {
             operationId: 'todos_delete',
             summary: 'Delete a todo',
             tags: ['todos'],
-            parameters: [
-              { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
-            ],
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
             responses: { '204': { description: 'No Content' } },
           },
         },
@@ -188,7 +182,7 @@ describe('createDevServer OpenAPI endpoint', () => {
 
       expect(response.status).toBe(200);
       expect(body.openapi).toBe('3.1.0');
-      
+
       // Verify todo entity paths
       expect(body.paths['/todos']).toBeDefined();
       expect(body.paths['/todos'].get.operationId).toBe('todos_list');
@@ -197,7 +191,7 @@ describe('createDevServer OpenAPI endpoint', () => {
       expect(body.paths['/todos/{id}'].get.operationId).toBe('todos_get');
       expect(body.paths['/todos/{id}'].patch.operationId).toBe('todos_update');
       expect(body.paths['/todos/{id}'].delete.operationId).toBe('todos_delete');
-      
+
       // Verify components/schemas
       expect(body.components.schemas.Todo).toBeDefined();
       expect(body.components.schemas.Todo.properties.id).toEqual({ type: 'string' });

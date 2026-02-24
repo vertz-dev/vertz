@@ -21,7 +21,7 @@
  * ```
  */
 
-import { readFileSync, existsSync, watch } from 'node:fs';
+import { existsSync, readFileSync, watch } from 'node:fs';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { createServer as createHttpServer } from 'node:http';
 import { InternalServerErrorException } from '@vertz/server';
@@ -41,10 +41,7 @@ function vertzSSRJsxPlugin(): Plugin {
     enforce: 'pre',
     resolveId(source, importer, options) {
       if (!options?.ssr) return;
-      if (
-        source === '@vertz/ui/jsx-runtime' ||
-        source === '@vertz/ui/jsx-dev-runtime'
-      ) {
+      if (source === '@vertz/ui/jsx-runtime' || source === '@vertz/ui/jsx-dev-runtime') {
         // Delegate to normal resolution but with the server package
         return this.resolve('@vertz/ui-server/jsx-runtime', importer, {
           ...options,
@@ -164,7 +161,7 @@ export function createDevServer(options: DevServerOptions): DevServer {
 
   let vite: ViteDevServer;
   let httpServer: Server;
-  
+
   // Cached OpenAPI spec - read once at startup and invalidate on file changes
   let cachedSpec: object | null = null;
 
@@ -173,7 +170,7 @@ export function createDevServer(options: DevServerOptions): DevServer {
    */
   const loadOpenAPISpec = (): object | null => {
     if (!openapi) return null;
-    
+
     try {
       const specContent = readFileSync(openapi.specPath, 'utf-8');
       return JSON.parse(specContent);
@@ -189,9 +186,11 @@ export function createDevServer(options: DevServerOptions): DevServer {
    */
   const validateSpecPath = (): void => {
     if (!openapi) return;
-    
+
     if (!existsSync(openapi.specPath)) {
-      console.warn(`[Server] Warning: OpenAPI spec file not found at ${openapi.specPath}. It will be generated when the pipeline runs.`);
+      console.warn(
+        `[Server] Warning: OpenAPI spec file not found at ${openapi.specPath}. It will be generated when the pipeline runs.`,
+      );
     }
   };
 
@@ -206,13 +205,13 @@ export function createDevServer(options: DevServerOptions): DevServer {
     // Initial load of OpenAPI spec
     if (openapi) {
       cachedSpec = loadOpenAPISpec();
-      
+
       // Watch for changes to the spec file in dev mode
       if (cachedSpec !== null) {
         try {
           const specDir = openapi.specPath.substring(0, openapi.specPath.lastIndexOf('/'));
           const specFile = openapi.specPath.split('/').pop() || 'openapi.json';
-          
+
           watch(specDir, { persistent: false }, (eventType, filename) => {
             if (filename === specFile && (eventType === 'change' || eventType === 'rename')) {
               if (logRequests) {
@@ -231,10 +230,7 @@ export function createDevServer(options: DevServerOptions): DevServer {
     try {
       vite = await createViteServer({
         ...viteConfig,
-        plugins: [
-          vertzSSRJsxPlugin(),
-          ...(viteConfig.plugins ?? []),
-        ],
+        plugins: [vertzSSRJsxPlugin(), ...(viteConfig.plugins ?? [])],
         server: {
           ...viteConfig.server,
           middlewareMode: true,
