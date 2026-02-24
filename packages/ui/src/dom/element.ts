@@ -7,7 +7,6 @@ import {
 } from '../hydrate/hydration-context';
 import { domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
-import { getAdapter, isRenderNode } from './adapter';
 
 /** A Text node that also carries a dispose function for cleanup. */
 export interface DisposableText extends Text {
@@ -34,7 +33,7 @@ export function __text(fn: () => string): DisposableText {
       return node;
     }
   }
-  const node = getAdapter().createTextNode('') as DisposableText;
+  const node = document.createTextNode('') as DisposableText;
   node.dispose = domEffect(() => {
     node.data = fn();
   });
@@ -82,20 +81,20 @@ export function __child(
           return;
         }
 
-        if (isRenderNode(value)) {
-          wrapper.appendChild(value as Node);
+        if (value instanceof Node) {
+          wrapper.appendChild(value);
           return;
         }
 
         const textValue = typeof value === 'string' ? value : String(value);
-        wrapper.appendChild(getAdapter().createTextNode(textValue) as unknown as Node);
+        wrapper.appendChild(document.createTextNode(textValue));
       });
       return wrapper;
     }
   }
 
   // CSR path: create new span wrapper
-  wrapper = getAdapter().createElement('span') as unknown as HTMLElement & { dispose: DisposeFn };
+  wrapper = document.createElement('span') as HTMLElement & { dispose: DisposeFn };
   wrapper.style.display = 'contents';
 
   wrapper.dispose = domEffect(() => {
@@ -112,14 +111,14 @@ export function __child(
     }
 
     // If it's a Node, append it directly
-    if (isRenderNode(value)) {
-      wrapper.appendChild(value as Node);
+    if (value instanceof Node) {
+      wrapper.appendChild(value);
       return;
     }
 
     // Otherwise create a text node
     const textValue = typeof value === 'string' ? value : String(value);
-    wrapper.appendChild(getAdapter().createTextNode(textValue) as unknown as Node);
+    wrapper.appendChild(document.createTextNode(textValue));
   });
 
   return wrapper;
@@ -144,7 +143,7 @@ export function __insert(
 
   if (getIsHydrating()) {
     // During hydration, nodes are already in place
-    if (isRenderNode(value)) {
+    if (value instanceof Node) {
       return; // No-op — node already in DOM
     }
     // For string/number values, claim the existing text node
@@ -153,14 +152,14 @@ export function __insert(
   }
 
   // If it's a Node, append it directly
-  if (isRenderNode(value)) {
-    parent.appendChild(value as Node);
+  if (value instanceof Node) {
+    parent.appendChild(value);
     return;
   }
 
   // Otherwise create a text node
   const textValue = typeof value === 'string' ? value : String(value);
-  parent.appendChild(getAdapter().createTextNode(textValue) as unknown as Node);
+  parent.appendChild(document.createTextNode(textValue));
 }
 
 /**
@@ -189,7 +188,7 @@ export function __element(tag: string, props?: Record<string, string>): HTMLElem
       return claimed;
     }
   }
-  const el = getAdapter().createElement(tag) as unknown as HTMLElement;
+  const el = document.createElement(tag);
   if (props) {
     for (const [key, value] of Object.entries(props)) {
       el.setAttribute(key, value);
@@ -222,7 +221,7 @@ export function __staticText(text: string): Text {
     const claimed = claimText();
     if (claimed) return claimed;
   }
-  return getAdapter().createTextNode(text) as unknown as Text;
+  return document.createTextNode(text);
 }
 
 /**

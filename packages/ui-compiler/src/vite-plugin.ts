@@ -186,11 +186,7 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
           const ssrEntry = await server.ssrLoadModule('\0vertz:ssr-entry');
 
           // 6. Render the app to HTML
-          const result = await ssrEntry.renderToString(url);
-
-          // Handle both string (legacy) and { html, css } return formats
-          const appHtml = typeof result === 'string' ? result : result.html;
-          const appCss = typeof result === 'string' ? '' : result.css || '';
+          const appHtml = await ssrEntry.renderToString(url);
 
           // 7. Inject into template
           // Try to find <!--ssr-outlet--> first, then fall back to <div id="app">
@@ -203,11 +199,6 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
               /(<div[^>]*id="app"[^>]*>)([\s\S]*?)(<\/div>)/,
               `$1${appHtml}$3`,
             );
-          }
-
-          // 8. Inject CSS before </head>
-          if (appCss) {
-            html = html.replace('</head>', `${appCss}\n</head>`);
           }
 
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -437,53 +428,44 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
  */
 function generateSSREntry(userEntry: string): string {
   return `
-import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
+import { installDomShim, toVNode } from '@vertz/ui-server/dom-shim';
 import { renderToStream, streamToString } from '@vertz/ui-server';
-import { getInjectedCSS } from '@vertz/ui';
-
-function collectCSS() {
-  return getInjectedCSS()
-    .map(s => '<style data-vertz-css>' + s + '</style>')
-    .join('\\n');
-}
 
 /**
  * Render the app to an HTML string for the given URL.
- * Returns { html, css } where css is the collected <style> tags.
  */
 export async function renderToString(url) {
   // Normalize URL: strip /index.html suffix that Vite's SPA fallback may add
   const normalizedUrl = url.endsWith('/index.html')
     ? url.slice(0, -'/index.html'.length) || '/'
     : url;
-
+  
   // Set SSR context flag — invalidate and re-set on every call so
   // module-scope code (e.g. createRouter) picks up the current URL.
   globalThis.__SSR_URL__ = normalizedUrl;
-
+  
   // Install DOM shim so @vertz/ui components work
   installDomShim();
-
+  
   // Import the user's app entry (dynamic import for fresh module state)
   const userModule = await import('${userEntry}');
-
+  
   // Call the default export or named App export
   const createApp = userModule.default || userModule.App;
   if (typeof createApp !== 'function') {
     throw new Error('App entry must export a default function or named App function');
   }
-
+  
   const app = createApp();
-
+  
   // Convert to VNode if needed
   const vnode = toVNode(app);
-
+  
   // Render to stream and convert to string
   const stream = renderToStream(vnode);
   const html = await streamToString(stream);
-  const css = collectCSS();
-
-  return { html, css };
+  
+  return html;
 }
 `;
 }

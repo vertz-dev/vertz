@@ -54,24 +54,10 @@ const injectedCSS = new Set<string>();
 /**
  * Inject CSS text into the document head via a <style> tag.
  * Only runs in browser environments. Deduplicates by CSS content.
- *
- * In SSR, document.head is freshly created per request by installDomShim().
- * The module-level dedup Set would incorrectly block injection on request 2+
- * since the Set persists across requests while document.head is replaced.
- * We bypass dedup when __SSR_URL__ is set (SSR context).
  */
 export function injectCSS(cssText: string): void {
-  if (!cssText || typeof document === 'undefined') return;
-
-  const isSSR = typeof globalThis.__SSR_URL__ === 'string';
-
-  // Always track CSS for SSR collection via getInjectedCSS().
-  // In browser mode, also use it for dedup (skip if already injected).
-  // In SSR, skip the dedup check — document.head is freshly created per
-  // request by installDomShim(), but the Set persists across requests.
-  if (!isSSR && injectedCSS.has(cssText)) return;
+  if (!cssText || typeof document === 'undefined' || injectedCSS.has(cssText)) return;
   injectedCSS.add(cssText);
-
   const style = document.createElement('style');
   style.setAttribute('data-vertz-css', '');
   style.textContent = cssText;
@@ -81,11 +67,6 @@ export function injectCSS(cssText: string): void {
 /** Reset injected styles tracking. Used in tests. */
 export function resetInjectedStyles(): void {
   injectedCSS.clear();
-}
-
-/** Get all CSS strings that have been injected. Used by SSR to collect styles. */
-export function getInjectedCSS(): string[] {
-  return Array.from(injectedCSS);
 }
 
 /**

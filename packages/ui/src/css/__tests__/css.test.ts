@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { css, getInjectedCSS, injectCSS, resetInjectedStyles } from '../css';
+import { css, resetInjectedStyles } from '../css';
 
 describe('css() runtime style injection', () => {
   afterEach(() => {
@@ -40,64 +40,6 @@ describe('css() runtime style injection', () => {
 
     const styles = document.head.querySelectorAll('style[data-vertz-css]');
     expect(styles.length).toBe(0);
-  });
-});
-
-describe('injectCSS SSR behavior', () => {
-  afterEach(() => {
-    for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
-      el.remove();
-    }
-    resetInjectedStyles();
-    delete globalThis.__SSR_URL__;
-  });
-
-  it('bypasses dedup Set when __SSR_URL__ is set', () => {
-    const cssText = '.test-ssr { color: red; }';
-
-    // First injection (browser mode) — populates dedup Set
-    injectCSS(cssText);
-    expect(document.head.querySelectorAll('style[data-vertz-css]').length).toBe(1);
-
-    // Clear document.head to simulate fresh SSR request
-    for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
-      el.remove();
-    }
-
-    // Set SSR flag and inject same CSS — should bypass dedup
-    globalThis.__SSR_URL__ = '/';
-    injectCSS(cssText);
-    expect(document.head.querySelectorAll('style[data-vertz-css]').length).toBe(1);
-  });
-
-  it('adds to dedup Set during SSR for collection via getInjectedCSS', () => {
-    const cssText = '.test-set-tracking { color: blue; }';
-
-    // Inject during SSR — should populate the Set for collection
-    globalThis.__SSR_URL__ = '/';
-    injectCSS(cssText);
-    delete globalThis.__SSR_URL__;
-
-    // getInjectedCSS should include the SSR-injected CSS
-    const collected = getInjectedCSS();
-    expect(collected).toContain(cssText);
-  });
-
-  it('produces styles on consecutive SSR requests with fresh document.head', () => {
-    // Simulate two SSR "requests" using css() (which calls injectCSS internally)
-    for (let req = 1; req <= 2; req++) {
-      // Fresh head per request (simulating installDomShim)
-      for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
-        el.remove();
-      }
-      globalThis.__SSR_URL__ = `/page-${req}`;
-
-      css({ card: ['p:4', 'bg:background'] }, 'ssr-multi.tsx');
-
-      const styles = document.head.querySelectorAll('style[data-vertz-css]');
-      expect(styles.length).toBe(1);
-      expect(styles[0]?.textContent).toContain('padding: 1rem');
-    }
   });
 });
 
