@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { createModule } from '../../module/module';
 import { createModuleDef } from '../../module/module-def';
 import type { ServerHandle } from '../../types/server-adapter';
@@ -81,10 +81,10 @@ describe.skipIf(!hasBun)('app.listen', () => {
   });
 
   describe('startup route log', () => {
-    let logSpy: ReturnType<typeof vi.spyOn>;
+    let logSpy: ReturnType<typeof spyOn>;
 
     beforeEach(() => {
-      logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      logSpy = spyOn(console, 'log').mockImplementation(() => {});
     });
 
     afterEach(async () => {

@@ -30,7 +30,7 @@
   ],
   "scripts": {
     "build": "bunup",
-    "test": "vitest run",
+    "test": "bun test",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },

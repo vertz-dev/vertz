@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { UnauthorizedException } from '../../exceptions';
 import { type ResolvedMiddleware, runMiddlewareChain } from '../middleware-runner';
 

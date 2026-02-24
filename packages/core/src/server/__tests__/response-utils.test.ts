@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { NotFoundException } from '../../exceptions';
 import { createErrorResponse, createJsonResponse } from '../response-utils';
 

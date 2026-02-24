@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { detectAdapter } from '../detect-adapter';
 
 const hasBun = 'Bun' in globalThis;
