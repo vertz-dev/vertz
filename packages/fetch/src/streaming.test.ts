@@ -1,4 +1,4 @@
-import { FetchError, HttpError } from '@vertz/errors';
+import { FetchError } from '@vertz/errors';
 import { describe, expect, it, vi } from 'vitest';
 import { FetchClient } from './client';
 
@@ -91,17 +91,21 @@ describe('FetchClient.requestStream (SSE)', () => {
   });
 
   it('throws on non-OK response', async () => {
-    const mockFetch = vi
-      .fn()
-      .mockResolvedValue(new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' }));
+    const mockFetch = vi.fn(
+      () =>
+        Promise.resolve(
+          new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' }),
+        ),
+    );
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
-      fetch: mockFetch,
+      fetch: mockFetch as typeof fetch,
     });
 
     const events: unknown[] = [];
-    await expect(async () => {
+    let caughtError: unknown;
+    try {
       for await (const event of client.requestStream({
         method: 'GET',
         path: '/api/events',
@@ -109,8 +113,11 @@ describe('FetchClient.requestStream (SSE)', () => {
       })) {
         events.push(event);
       }
-    }).rejects.toThrow(FetchError);
+    } catch (err) {
+      caughtError = err;
+    }
 
+    expect(caughtError).toBeInstanceOf(FetchError);
     expect(events).toEqual([]);
   });
 

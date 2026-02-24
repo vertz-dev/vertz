@@ -1,5 +1,5 @@
-import { d } from '@vertz/db';
 import { describe, expect, it, mock } from 'bun:test';
+import { d } from '@vertz/db';
 import type { EntityDbAdapter } from '../crud-pipeline';
 import { EntityRegistry } from '../entity-registry';
 import { generateEntityRoutes } from '../route-generator';
@@ -469,7 +469,7 @@ describe('generateEntityRoutes', () => {
       expect(response.status).toBe(204);
     });
 
-    it('disabled operation handler returns 405', async () => {
+    it('disabled delete handler returns 405', async () => {
       const def = buildEntityDef({
         access: {
           list: () => true,
@@ -494,6 +494,303 @@ describe('generateEntityRoutes', () => {
       expect(response.status).toBe(405);
       const body = await response.json();
       expect(body.error.code).toBe('MethodNotAllowed');
+    });
+
+    it('disabled list handler returns 405', async () => {
+      const def = buildEntityDef({
+        access: {
+          list: false,
+          get: () => true,
+          create: () => true,
+          update: () => true,
+          delete: () => true,
+        },
+      });
+      const db = createMockDb();
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+      const response = await listRoute!.handler({
+        params: {},
+        body: undefined,
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(405);
+      const body = await response.json();
+      expect(body.error.code).toBe('MethodNotAllowed');
+      expect(body.error.message).toContain('list');
+    });
+
+    it('disabled get handler returns 405', async () => {
+      const def = buildEntityDef({
+        access: {
+          list: () => true,
+          get: false,
+          create: () => true,
+          update: () => true,
+          delete: () => true,
+        },
+      });
+      const db = createMockDb();
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const getRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users/:id');
+      const response = await getRoute!.handler({
+        params: { id: '1' },
+        body: undefined,
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(405);
+      const body = await response.json();
+      expect(body.error.code).toBe('MethodNotAllowed');
+      expect(body.error.message).toContain('get');
+    });
+
+    it('disabled create handler returns 405', async () => {
+      const def = buildEntityDef({
+        access: {
+          list: () => true,
+          get: () => true,
+          create: false,
+          update: () => true,
+          delete: () => true,
+        },
+      });
+      const db = createMockDb();
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const createRoute = routes.find((r) => r.method === 'POST');
+      const response = await createRoute!.handler({
+        params: {},
+        body: { email: 'test@test.com' },
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(405);
+      const body = await response.json();
+      expect(body.error.code).toBe('MethodNotAllowed');
+      expect(body.error.message).toContain('create');
+    });
+
+    it('disabled update handler returns 405', async () => {
+      const def = buildEntityDef({
+        access: {
+          list: () => true,
+          get: () => true,
+          create: () => true,
+          update: false,
+          delete: () => true,
+        },
+      });
+      const db = createMockDb();
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const updateRoute = routes.find((r) => r.method === 'PATCH');
+      const response = await updateRoute!.handler({
+        params: { id: '1' },
+        body: { name: 'Updated' },
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(405);
+      const body = await response.json();
+      expect(body.error.code).toBe('MethodNotAllowed');
+      expect(body.error.message).toContain('update');
+    });
+
+    it('disabled custom action handler returns 405', async () => {
+      const def = buildEntityDef({
+        access: {
+          list: () => true,
+          get: () => true,
+          create: () => true,
+          update: () => true,
+          delete: () => true,
+          resetPassword: false,
+        },
+        actions: {
+          resetPassword: {
+            input: { parse: (v: unknown) => v },
+            output: { parse: (v: unknown) => v },
+            handler: async () => ({ success: true }),
+          },
+        },
+      } as unknown as Partial<EntityDefinition>);
+
+      const db = createMockDb();
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const actionRoute = routes.find((r) => r.path.includes('resetPassword'));
+      const response = await actionRoute!.handler({
+        params: { id: '1' },
+        body: {},
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(405);
+      const body = await response.json();
+      expect(body.error.code).toBe('MethodNotAllowed');
+      expect(body.error.message).toContain('resetPassword');
+    });
+
+    it('list handler returns error response when DB throws', async () => {
+      const def = buildEntityDef();
+      const db = createMockDb();
+      db.list = async () => {
+        throw new Error('DB connection lost');
+      };
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const listRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users');
+      const response = await listRoute!.handler({
+        params: {},
+        body: undefined,
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(500);
+      const body = await response.json();
+      expect(body.error).toBeDefined();
+    });
+
+    it('get handler returns error response when DB throws', async () => {
+      const def = buildEntityDef();
+      const db = createMockDb();
+      db.get = async () => {
+        throw new Error('DB connection lost');
+      };
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const getRoute = routes.find((r) => r.method === 'GET' && r.path === '/api/users/:id');
+      const response = await getRoute!.handler({
+        params: { id: '1' },
+        body: undefined,
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(500);
+      const body = await response.json();
+      expect(body.error).toBeDefined();
+    });
+
+    it('create handler returns error response when DB throws', async () => {
+      const def = buildEntityDef();
+      const db = createMockDb();
+      db.create = async () => {
+        throw new Error('DB connection lost');
+      };
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const createRoute = routes.find((r) => r.method === 'POST');
+      const response = await createRoute!.handler({
+        params: {},
+        body: { email: 'a@b.com', name: 'Alice' },
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(500);
+      const body = await response.json();
+      expect(body.error).toBeDefined();
+    });
+
+    it('update handler returns error response when DB throws', async () => {
+      const def = buildEntityDef();
+      const db = createMockDb([{ id: '1', email: 'a@b.com', name: 'Alice' }]);
+      db.update = async () => {
+        throw new Error('DB connection lost');
+      };
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const updateRoute = routes.find((r) => r.method === 'PATCH');
+      const response = await updateRoute!.handler({
+        params: { id: '1' },
+        body: { name: 'Bob' },
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(500);
+      const body = await response.json();
+      expect(body.error).toBeDefined();
+    });
+
+    it('delete handler returns error response when DB throws', async () => {
+      const def = buildEntityDef();
+      const db = createMockDb([{ id: '1', email: 'a@b.com', name: 'Alice' }]);
+      db.delete = async () => {
+        throw new Error('DB connection lost');
+      };
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const deleteRoute = routes.find((r) => r.method === 'DELETE');
+      const response = await deleteRoute!.handler({
+        params: { id: '1' },
+        body: undefined,
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(500);
+      const body = await response.json();
+      expect(body.error).toBeDefined();
+    });
+
+    it('custom action handler returns error response when action throws', async () => {
+      const def = buildEntityDef({
+        access: {
+          list: () => true,
+          get: () => true,
+          create: () => true,
+          update: () => true,
+          delete: () => true,
+          resetPassword: () => true,
+        },
+        actions: {
+          resetPassword: {
+            input: { parse: (v: unknown) => v },
+            output: { parse: (v: unknown) => v },
+            handler: async () => {
+              throw new Error('Action failed');
+            },
+          },
+        },
+      } as unknown as Partial<EntityDefinition>);
+
+      const db = createMockDb([{ id: '1', email: 'a@b.com', name: 'Alice' }]);
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const actionRoute = routes.find((r) => r.path.includes('resetPassword'));
+      const response = await actionRoute!.handler({
+        params: { id: '1' },
+        body: {},
+        query: {},
+        headers: {},
+      });
+
+      expect(response.status).toBe(500);
+      const body = await response.json();
+      expect(body.error).toBeDefined();
     });
 
     it('access denied returns 403', async () => {
