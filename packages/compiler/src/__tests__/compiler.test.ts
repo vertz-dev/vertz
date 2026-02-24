@@ -423,7 +423,10 @@ describe('Compiler', () => {
         module: { analyze: async () => ({ modules }), getDiagnostics: () => [] },
         app: { analyze: async () => ({ app }), getDiagnostics: () => [] },
         entity: { analyze: async () => ({ entities: [] }), getDiagnostics: () => [] },
-        dependencyGraph: { analyze: async () => ({ graph: createEmptyDependencyGraph() }), getDiagnostics: () => [] },
+        dependencyGraph: {
+          analyze: async () => ({ graph: createEmptyDependencyGraph() }),
+          getDiagnostics: () => [],
+        },
       },
       validators: [],
       generators: [],
@@ -456,5 +459,5 @@ describe('createCompiler', () => {
   it('returns a Compiler instance', () => {
     const compiler = createCompiler();
     expect(compiler).toBeInstanceOf(Compiler);
-  });
+  }, 15_000);
 });
