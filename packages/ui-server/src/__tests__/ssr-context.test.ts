@@ -114,7 +114,7 @@ describe('global ssrTimeout — per-request isolation', () => {
       await new Promise((r) => setTimeout(r, 10));
       // Read the timeout — should still be 500, not clobbered by request2
       // biome-ignore lint/suspicious/noExplicitAny: testing SSR global hook
-      const getTimeout = (globalThis as any).__VERTZ_SSR_GET_TIMEOUT__;
+      const getTimeout = (globalThis as any).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__;
       results.push(typeof getTimeout === 'function' ? getTimeout() : -1);
       clearGlobalSSRTimeout();
     });
@@ -123,7 +123,7 @@ describe('global ssrTimeout — per-request isolation', () => {
       setGlobalSSRTimeout(50);
       await new Promise((r) => setTimeout(r, 5));
       // biome-ignore lint/suspicious/noExplicitAny: testing SSR global hook
-      const getTimeout = (globalThis as any).__VERTZ_SSR_GET_TIMEOUT__;
+      const getTimeout = (globalThis as any).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__;
       results.push(typeof getTimeout === 'function' ? getTimeout() : -1);
       clearGlobalSSRTimeout();
     });

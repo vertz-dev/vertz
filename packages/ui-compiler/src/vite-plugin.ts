@@ -35,6 +35,14 @@ export interface SSROptions {
    * Port override for the dev server (uses Vite's default if unset).
    */
   port?: number;
+
+  /**
+   * Per-query timeout for SSR data pre-loading (ms).
+   * Queries that resolve within this threshold are included in the SSR HTML.
+   * Queries that exceed it render their loading state.
+   * @default 300
+   */
+  ssrTimeout?: number;
 }
 
 /** Options for the Vertz Vite plugin. */
@@ -174,19 +182,44 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
             }
           }
 
-          // 4. Invalidate only the SSR entry module so each request gets fresh state.
-          // This is surgical: we only invalidate the virtual SSR entry (which re-imports
-          // the user's app), not the entire SSR module graph.
+          // 4. Invalidate the SSR entry and its entire SSR module graph.
+          // Module-level state (e.g. router singletons) is cached by Vite's SSR
+          // module system. We must invalidate the full dependency tree so each
+          // request re-executes module-scope code with the correct __SSR_URL__.
           const ssrEntryMod = server.moduleGraph.getModuleById('\0vertz:ssr-entry');
           if (ssrEntryMod) {
-            server.moduleGraph.invalidateModule(ssrEntryMod);
+            const visited = new Set<string>();
+            const invalidateTree = (mod: {
+              id?: string | null;
+              ssrImportedModules?: Set<unknown>;
+            }) => {
+              const modId = mod.id;
+              if (!modId || visited.has(modId)) return;
+              visited.add(modId);
+              server.moduleGraph.invalidateModule(
+                mod as Parameters<typeof server.moduleGraph.invalidateModule>[0],
+              );
+              if (mod.ssrImportedModules?.size) {
+                for (const child of mod.ssrImportedModules) {
+                  invalidateTree(
+                    child as { id?: string | null; ssrImportedModules?: Set<unknown> },
+                  );
+                }
+              }
+            };
+            invalidateTree(ssrEntryMod);
           }
 
           // 5. Load the virtual SSR entry via Vite's SSR module system
           const ssrEntry = await server.ssrLoadModule('\0vertz:ssr-entry');
 
           // 6. Render the app to HTML
-          const appHtml = await ssrEntry.renderToString(url);
+          const result = await ssrEntry.renderToString(url);
+
+          // Handle both string (legacy) and { html, css, ssrData } return formats
+          const appHtml = typeof result === 'string' ? result : result.html;
+          const appCss = typeof result === 'string' ? '' : result.css || '';
+          const ssrData = typeof result === 'string' ? [] : result.ssrData || [];
 
           // 7. Inject into template
           // Try to find <!--ssr-outlet--> first, then fall back to <div id="app">
@@ -199,6 +232,17 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
               /(<div[^>]*id="app"[^>]*>)([\s\S]*?)(<\/div>)/,
               `$1${appHtml}$3`,
             );
+          }
+
+          // 8. Inject CSS before </head>
+          if (appCss) {
+            html = html.replace('</head>', `${appCss}\n</head>`);
+          }
+
+          // 9. Inject SSR data for client-side hydration before </body>
+          if (ssrData.length > 0) {
+            const ssrDataScript = `<script>window.__VERTZ_SSR_DATA__=${JSON.stringify(ssrData)};</script>`;
+            html = html.replace('</body>', `${ssrDataScript}\n</body>`);
           }
 
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -239,7 +283,7 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
         const ssrOptions = typeof options?.ssr === 'object' ? options.ssr : {};
         // The entry will be set during configureServer, but we need a default
         const entry = ssrOptions.entry || '/src/index.ts';
-        return generateSSREntry(entry);
+        return generateSSREntry(entry, ssrOptions.ssrTimeout ?? 300);
       }
       return undefined;
     },
@@ -425,47 +469,110 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
 /**
  * Generate the virtual SSR entry module that renders the app.
  * This module installs the DOM shim, imports the user's app, and exports renderToString.
+ *
+ * Features:
+ * - Two-pass rendering: discovery pass (query registration) + render pass (with data)
+ * - Theme CSS injection: compiles user-exported theme into CSS custom properties
+ * - SSR context: uses ssrStorage for per-request query management
  */
-function generateSSREntry(userEntry: string): string {
+function generateSSREntry(userEntry: string, ssrTimeout: number): string {
   return `
-import { installDomShim, toVNode } from '@vertz/ui-server/dom-shim';
-import { renderToStream, streamToString } from '@vertz/ui-server';
+import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
+import { ssrStorage, getSSRQueries, setGlobalSSRTimeout, clearGlobalSSRTimeout, renderToStream, streamToString } from '@vertz/ui-server';
+import { getInjectedCSS, resetInjectedStyles, compileTheme } from '@vertz/ui';
+
+function collectCSS(themeCss) {
+  const componentStyles = getInjectedCSS()
+    .map(s => '<style data-vertz-css>' + s + '</style>')
+    .join('\\n');
+  // Prepend theme CSS (custom properties) before component styles
+  const themeTag = themeCss ? '<style data-vertz-css>' + themeCss + '</style>' : '';
+  return [themeTag, componentStyles].filter(Boolean).join('\\n');
+}
 
 /**
  * Render the app to an HTML string for the given URL.
+ * Returns { html, css } where css is the collected <style> tags.
+ *
+ * Includes theme CSS custom properties (--color-*, --spacing-*) when the
+ * user module exports a \`theme\` object created with defineTheme().
  */
 export async function renderToString(url) {
   // Normalize URL: strip /index.html suffix that Vite's SPA fallback may add
   const normalizedUrl = url.endsWith('/index.html')
     ? url.slice(0, -'/index.html'.length) || '/'
     : url;
-  
-  // Set SSR context flag — invalidate and re-set on every call so
-  // module-scope code (e.g. createRouter) picks up the current URL.
-  globalThis.__SSR_URL__ = normalizedUrl;
-  
-  // Install DOM shim so @vertz/ui components work
-  installDomShim();
-  
-  // Import the user's app entry (dynamic import for fresh module state)
-  const userModule = await import('${userEntry}');
-  
-  // Call the default export or named App export
-  const createApp = userModule.default || userModule.App;
-  if (typeof createApp !== 'function') {
-    throw new Error('App entry must export a default function or named App function');
-  }
-  
-  const app = createApp();
-  
-  // Convert to VNode if needed
-  const vnode = toVNode(app);
-  
-  // Render to stream and convert to string
-  const stream = renderToStream(vnode);
-  const html = await streamToString(stream);
-  
-  return html;
+
+  return ssrStorage.run({ url: normalizedUrl, errors: [], queries: [] }, async () => {
+    globalThis.__SSR_URL__ = normalizedUrl;
+    installDomShim();
+    try {
+      setGlobalSSRTimeout(${ssrTimeout});
+
+      const userModule = await import('${userEntry}');
+
+      const createApp = userModule.default || userModule.App;
+      if (typeof createApp !== 'function') {
+        throw new Error('App entry must export a default function or named App function');
+      }
+
+      // Compile theme CSS if the user module exports a theme
+      let themeCss = '';
+      if (userModule.theme) {
+        try {
+          themeCss = compileTheme(userModule.theme).css;
+        } catch (e) {
+          console.error(
+            '[vertz] Failed to compile theme export. Ensure your theme is created with defineTheme().',
+            e,
+          );
+        }
+      }
+
+      // Pass 1: Discovery — triggers query() registrations
+      createApp();
+
+      // Await registered SSR queries with per-query timeouts
+      const queries = getSSRQueries();
+      const resolvedQueries = [];
+      if (queries.length > 0) {
+        await Promise.allSettled(
+          queries.map(({ promise, timeout, resolve, key }) =>
+            Promise.race([
+              promise.then((data) => {
+                resolve(data);
+                resolvedQueries.push({ key, data });
+                return 'resolved';
+              }),
+              new Promise((r) => setTimeout(r, timeout || ${ssrTimeout})).then(() => 'timeout'),
+            ]),
+          ),
+        );
+        // Clear queries before Pass 2 to avoid double-registration
+        const store = ssrStorage.getStore();
+        if (store) store.queries = [];
+      }
+
+      // Pass 2: Render with pre-fetched data
+      const app = createApp();
+      const vnode = toVNode(app);
+      const stream = renderToStream(vnode);
+      const html = await streamToString(stream);
+      const css = collectCSS(themeCss);
+
+      // Serialize resolved query data for client-side hydration
+      const ssrData = resolvedQueries.length > 0
+        ? resolvedQueries.map(({ key, data }) => ({ key, data: JSON.parse(JSON.stringify(data)) }))
+        : [];
+
+      return { html, css, ssrData };
+    } finally {
+      clearGlobalSSRTimeout();
+      resetInjectedStyles();
+      removeDomShim();
+      delete globalThis.__SSR_URL__;
+    }
+  });
 }
 `;
 }

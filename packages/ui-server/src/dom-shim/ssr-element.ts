@@ -7,9 +7,12 @@ import { SSRTextNode } from './ssr-text-node';
  * Proxy-based CSSStyleDeclaration shim
  */
 // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
-function createStyleProxy(element: SSRElement): Record<string, any> {
+function createStyleProxy(element: SSRElement): { display: string; [key: string]: any } {
   const styles: Record<string, string> = {};
 
+  // The Proxy's get handler returns '' for any missing property, so `display`
+  // always exists at runtime. The cast is safe — it just tells TS about the
+  // Proxy's dynamic behavior.
   return new Proxy(styles, {
     set(_target, prop, value) {
       if (typeof prop === 'string') {
@@ -30,7 +33,7 @@ function createStyleProxy(element: SSRElement): Record<string, any> {
       }
       return undefined;
     },
-  });
+  }) as { display: string; [key: string]: string };
 }
 
 /**
@@ -44,7 +47,7 @@ export class SSRElement extends SSRNode {
   _textContent: string | null = null;
   _innerHTML: string | null = null;
   // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
-  style: Record<string, any>;
+  style: { display: string; [key: string]: any };
 
   constructor(tag: string) {
     super();
@@ -93,20 +96,79 @@ export class SSRElement extends SSRNode {
     }
   }
 
+  // Override insertBefore to sync children array (used by __list and __conditional during SSR)
+  insertBefore(newNode: SSRNode, referenceNode: SSRNode | null): SSRNode {
+    // Capture reference index BEFORE super modifies childNodes
+    const refIdx = referenceNode ? this._findChildIndex(referenceNode) : -1;
+    const result = super.insertBefore(newNode, referenceNode);
+
+    if (newNode instanceof SSRDocumentFragment) {
+      const fragmentChildren: (SSRElement | string)[] = [];
+      for (const fc of newNode.childNodes) {
+        if (fc instanceof SSRTextNode) fragmentChildren.push(fc.text);
+        else if (fc instanceof SSRElement) fragmentChildren.push(fc);
+      }
+      if (!referenceNode || refIdx === -1) {
+        this.children.push(...fragmentChildren);
+      } else {
+        this.children.splice(refIdx, 0, ...fragmentChildren);
+      }
+    } else {
+      const child =
+        newNode instanceof SSRTextNode
+          ? newNode.text
+          : newNode instanceof SSRElement
+            ? newNode
+            : null;
+      if (child != null) {
+        if (!referenceNode || refIdx === -1) {
+          this.children.push(child);
+        } else {
+          this.children.splice(refIdx, 0, child);
+        }
+      }
+    }
+    return result;
+  }
+
+  // Override replaceChild to sync children array
+  replaceChild(newNode: SSRNode, oldNode: SSRNode): SSRNode {
+    // Capture old index BEFORE super modifies childNodes
+    const oldIdx = this._findChildIndex(oldNode);
+    const result = super.replaceChild(newNode, oldNode);
+    if (oldIdx !== -1) {
+      const newChild =
+        newNode instanceof SSRTextNode
+          ? newNode.text
+          : newNode instanceof SSRElement
+            ? newNode
+            : null;
+      if (newChild != null) {
+        this.children[oldIdx] = newChild;
+      } else {
+        this.children.splice(oldIdx, 1);
+      }
+    }
+    return result;
+  }
+
+  /** Find a node's index in the children array via childNodes identity lookup. */
+  private _findChildIndex(node: SSRNode): number {
+    // Use childNodes (which stores actual node references) for identity-based
+    // lookup. The children and childNodes arrays are maintained in parallel,
+    // so the index is the same. This avoids the bug where indexOf(node.text)
+    // returns the wrong index when multiple text nodes have identical content.
+    return this.childNodes.indexOf(node);
+  }
+
   // Override to sync children array
   removeChild(child: SSRNode): SSRNode {
+    // Find the index BEFORE super.removeChild() modifies childNodes,
+    // since _findChildIndex uses childNodes for identity lookup.
+    const idx = this._findChildIndex(child);
     const result = super.removeChild(child);
-    // Also remove from children array
-    if (child instanceof SSRTextNode) {
-      const textIndex = this.children.indexOf(child.text);
-      if (textIndex !== -1) {
-        this.children.splice(textIndex, 1);
-      }
-    } else if (child instanceof SSRElement) {
-      const index = this.children.indexOf(child);
-      if (index !== -1) {
-        this.children.splice(index, 1);
-      }
+    if (idx !== -1) {
+      this.children.splice(idx, 1);
     }
     return result;
   }

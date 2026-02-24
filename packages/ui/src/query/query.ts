@@ -12,6 +12,14 @@ function isSSR(): boolean {
   return typeof check === 'function' ? check() : false;
 }
 
+/** Read the global SSR timeout set by the dev server / renderToHTML. */
+function getGlobalSSRTimeout(): number | undefined {
+  // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+  const g = globalThis as any;
+  const getter = typeof globalThis !== 'undefined' && g.__VERTZ_GET_GLOBAL_SSR_TIMEOUT__;
+  return typeof getter === 'function' ? getter() : undefined;
+}
+
 /** Options for query(). */
 export interface QueryOptions<T> {
   /** Pre-populated data — skips the initial fetch when provided. */
@@ -24,7 +32,7 @@ export interface QueryOptions<T> {
   key?: string;
   /** Custom cache store. Defaults to a shared in-memory Map. */
   cache?: CacheStore<T>;
-  /** Timeout in ms for SSR data loading. Default: 100. Set to 0 to disable. */
+  /** Timeout in ms for SSR data loading. Default: 300. Set to 0 to disable. */
   ssrTimeout?: number;
 }
 
@@ -140,13 +148,7 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
   // During SSR, call the thunk and register the promise for renderToHTML() to await.
   // Pass 1 (discovery): registers the query promise for renderToHTML() to await.
   // Pass 2 (render): the cache is already populated — serve from cache.
-  // Read per-request ssrTimeout via function hook (safe for concurrent requests).
-  // Falls back to reading the legacy property for backward compatibility.
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-  const getTimeout = (globalThis as any).__VERTZ_SSR_GET_TIMEOUT__;
-  const globalSSRTimeout = typeof getTimeout === 'function' ? getTimeout() : undefined;
-  const ssrTimeout =
-    options.ssrTimeout ?? (typeof globalSSRTimeout === 'number' ? globalSSRTimeout : 100);
+  const ssrTimeout = options.ssrTimeout ?? getGlobalSSRTimeout() ?? 300;
   if (isSSR() && enabled && ssrTimeout !== 0 && initialData === undefined) {
     // Call the thunk to derive cache key from dependency values.
     const promise = callThunkWithCapture();
@@ -345,10 +347,16 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
         }
       }
 
-      // Cache hit: if the cache already has data for this key (e.g. the
-      // user switched back to a previously-fetched dependency combination),
-      // serve it from cache without re-fetching.
-      if (!isFirst && !customKey) {
+      // Cache hit: serve data from cache without re-fetching.
+      // - On first run with a custom key: check cache to support remounting
+      //   a query whose data was previously fetched and is still in the
+      //   shared cache (avoids loading flash on page re-navigation).
+      // - On subsequent runs with derived keys: check cache when deps change
+      //   back to previously-seen values.
+      // - On subsequent runs with custom keys: skip — the key is static, so
+      //   a cache hit would prevent re-fetching when deps change.
+      const shouldCheckCache = isFirst ? !!customKey : !customKey;
+      if (shouldCheckCache) {
         const cached = untrack(() => cache.get(key));
         if (cached !== undefined) {
           promise.catch(() => {});

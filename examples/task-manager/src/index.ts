@@ -15,6 +15,10 @@ import { taskManagerTheme } from './styles/theme';
 export { App };
 export default App;
 
+// Export theme for SSR — the virtual SSR entry compiles this into CSS
+// custom properties (--color-*, --spacing-*) and injects them during rendering.
+export { taskManagerTheme as theme };
+
 // ── Global reset styles ────────────────────────────────────────
 
 const globalStyles = globalCss({
