@@ -2,7 +2,7 @@ import { d } from '@vertz/db';
 
 // Tables
 export const todosTable = d.table('todos', {
-  id: d.uuid().primary(),
+  id: d.uuid().primary({ generate: 'uuid' }),
   title: d.text(),
   completed: d.boolean().default(false),
   createdAt: d.timestamp().default('now').readOnly(),

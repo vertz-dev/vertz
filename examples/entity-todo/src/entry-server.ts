@@ -1,128 +1,100 @@
 /**
- * Server-side entry point for Entity Todo SSR on Cloudflare Workers.
+ * Server-side entry point for Entity Todo.
  *
- * Renders the App component to HTML using @vertz/ui-server primitives.
- * 
- * Note: This requires the Vite plugin to be configured for SSR mode,
- * which swaps the JSX runtime from @vertz/ui (DOM) to @vertz/ui-server (VNodes).
+ * Uses the DOM-shim approach for SSR: the compiled JSX creates SSRElement
+ * instances (fake DOM), which are then converted to VNodes for serialization.
+ * This matches how the Vertz compiler's built-in SSR works.
  */
 
-import { renderPage, renderToHTML } from '@vertz/ui-server';
+import { compileTheme } from '@vertz/ui';
+import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
+import { renderToStream, streamToString } from '@vertz/ui-server';
 import { App } from './app';
 import { globalStyles } from './styles/global';
 import { todoTheme } from './styles/theme';
 
 /**
- * Render the app to a full HTML Response.
- * 
- * When built with Vite SSR mode, App() returns VNodes (not DOM elements).
- * The renderPage function wraps the VNode tree in a complete HTML document.
- *
- * @returns Response with text/html content-type
- */
-export async function renderApp(): Promise<Response> {
-  try {
-    // In SSR mode, App() returns VNodes (not DOM elements)
-    // This works because the @vertz/ui-compiler swaps the JSX runtime
-    // to @vertz/ui-server/jsx-runtime when building for SSR
-    return renderPage(App() as never, {
-      title: 'Entity Todo',
-      description: 'A demo app showcasing vertz SSR on Cloudflare Workers',
-      lang: 'en',
-      scripts: ['/assets/client.js'],
-      // Include critical CSS inline for faster FCP
-      styles: ['/assets/client.css'],
-      head: `<style data-vertz-css>${globalStyles.css}</style>`,
-    });
-  } catch (error) {
-    // SSR error - return fallback HTML that loads the client bundle (SPA fallback)
-    console.error('[SSR] Failed to render app:', error);
-    
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
-    const response = new Response(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <title>Entity Todo</title>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="A demo app showcasing vertz SSR on Cloudflare Workers">
-  <style>
-    body { font-family: system-ui, sans-serif; padding: 2rem; max-width: 800px; margin: 0 auto; }
-    .error { background: #fee; border: 1px solid #fcc; padding: 1rem; border-radius: 4px; }
-    .error h1 { color: #c00; margin-top: 0; }
-  </style>
-</head>
-<body>
-  <div class="error">
-    <h1>Server Error</h1>
-    <p>Unable to render the page. Loading client-side version instead.</p>
-    <p><small>Error: ${errorMessage}</small></p>
-  </div>
-  <script type="module" src="/assets/client.js"></script>
-</body>
-</html>`, {
-      status: 500,
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        'X-Frame-Options': 'DENY',
-        'X-XSS-Protection': '1; mode=block',
-        'Referrer-Policy': 'strict-origin-when-cross-origin',
-        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';",
-      },
-    });
-
-    return response;
-  }
-}
-
-/**
  * Render the app to an HTML string.
- * 
- * This function is used by createDevServer for SSR in local development.
- * It renders the App component to a complete HTML document string.
+ *
+ * Used by createDevServer for SSR in local development.
+ * The compiler transforms JSX into __element() calls that create SSRElement
+ * instances when the DOM shim is installed. We convert them to VNodes and
+ * serialize to HTML.
  *
  * @param url - The request URL for routing/SSR context
  * @returns Promise<string> - The rendered HTML string
  */
 export async function renderToString(url: string): Promise<string> {
   try {
-    return await renderToHTML(App, {
-      url,
-      theme: todoTheme,
-      styles: [globalStyles.css],
-      head: {
-        title: 'Entity Todo',
-        meta: [
-          { name: 'description', content: 'A demo app showcasing vertz SSR on Cloudflare Workers' },
-        ],
-      },
-    });
+    // Normalize URL
+    const normalizedUrl = url.endsWith('/index.html')
+      ? url.slice(0, -'/index.html'.length) || '/'
+      : url;
+
+    // Set SSR context flags so framework code detects SSR mode.
+    // __SSR_URL__ tells the router which URL to render.
+    // __VERTZ_IS_SSR__ tells domEffect/lifecycleEffect to use SSR behavior
+    // (run once without tracking instead of creating reactive subscriptions).
+    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook
+    (globalThis as any).__SSR_URL__ = normalizedUrl;
+    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook
+    (globalThis as any).__VERTZ_IS_SSR__ = () => true;
+
+    // Install DOM shim so __element() calls produce SSRElements
+    installDomShim();
+
+    try {
+      // Call the app — produces SSRElement tree (fake DOM)
+      const appElement = App();
+
+      // Convert SSRElement → VNode tree
+      const vnode = toVNode(appElement);
+
+      // Serialize VNode to HTML string
+      const stream = renderToStream(vnode);
+      const appHtml = await streamToString(stream);
+
+      // Compile theme CSS
+      const themeCss = compileTheme(todoTheme).css;
+
+      // Build full HTML document
+      return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Entity Todo — vertz full-stack demo</title>
+    <meta name="description" content="A demo app showcasing vertz SSR" />
+    <style>${themeCss}</style>
+    <style>${globalStyles.css}</style>
+  </head>
+  <body>
+    <div id="app">${appHtml}</div>
+    <script type="module" src="/src/entry-client.ts"></script>
+  </body>
+</html>`;
+    } finally {
+      removeDomShim();
+      // biome-ignore lint/suspicious/noExplicitAny: SSR global cleanup
+      delete (globalThis as any).__SSR_URL__;
+      // biome-ignore lint/suspicious/noExplicitAny: SSR global cleanup
+      delete (globalThis as any).__VERTZ_IS_SSR__;
+    }
   } catch (error) {
-    // SSR error - return fallback HTML
     console.error('[SSR] Failed to render:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return `<!DOCTYPE html>
+    return `<!doctype html>
 <html lang="en">
 <head>
   <title>Entity Todo</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="A demo app showcasing vertz SSR on Cloudflare Workers">
-  <style>
-    body { font-family: system-ui, sans-serif; padding: 2rem; max-width: 800px; margin: 0 auto; }
-    .error { background: #fee; border: 1px solid #fcc; padding: 1rem; border-radius: 4px; }
-    .error h1 { color: #c00; margin-top: 0; }
-  </style>
 </head>
 <body>
-  <div class="error">
-    <h1>Server Error</h1>
-    <p>Unable to render the page. Loading client-side version instead.</p>
-    <p><small>Error: ${errorMessage}</small></p>
+  <div id="app">
+    <p>Server render error: ${errorMessage}</p>
   </div>
-  <script type="module" src="/assets/client.js"></script>
+  <script type="module" src="/src/entry-client.ts"></script>
 </body>
 </html>`;
   }

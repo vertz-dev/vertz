@@ -1,15 +1,14 @@
 /**
  * TodoListPage - Main page component for displaying and managing todos.
  *
- * This component demonstrates:
- * - Using the generated SDK with Result<T, FetchError> return types
- * - Handling the Result type with isOk() check
- * - Using matchError for compile-time exhaustiveness checking on error handling
- * - Proper error message formatting for different error types (NetworkError, HttpError, TimeoutError, etc.)
+ * Demonstrates:
+ * - query() with Result<T, FetchError> return types
+ * - Compiler `const` → computed transform for derived values from query()
+ * - matchError for compile-time exhaustiveness on error handling
+ * - Declarative JSX conditionals for loading/error/content visibility
  */
 
 import { onCleanup, onMount, query } from '@vertz/ui';
-import { domEffect } from '@vertz/ui/internals';
 import { isOk, matchError, type Result, type FetchErrorType } from '@vertz/fetch';
 import type { Todo } from '../api/client';
 import { fetchTodos } from '../api/client';
@@ -17,58 +16,40 @@ import { TodoForm } from '../components/todo-form';
 import { TodoItem } from '../components/todo-item';
 import { emptyStateStyles, layoutStyles } from '../styles/components';
 
-/**
- * Custom query that handles Result type from SDK.
- * Wraps the SDK call to work with the query() pattern.
- */
-function createTodosQuery() {
-  return query(async (): Promise<Result<{ todos: Todo[]; total: number }, FetchErrorType>> => {
-    return fetchTodos();
-  }, {
-    key: 'todo-list',
-  });
-}
-
 export function TodoListPage() {
-  // query() returns external signals
-  const todosQuery = createTodosQuery();
+  // query() must be called directly (not wrapped) so the compiler recognizes
+  // the return value as a signal API and properly transforms property accesses
+  // like todosQuery.loading → todosQuery.loading.value
+  const todosQuery = query(
+    async (): Promise<Result<{ todos: Todo[]; total: number }, FetchErrorType>> => {
+      return fetchTodos();
+    },
+    { key: 'todo-list' },
+  );
 
-  // Computed values still need effect() bridges with explicit .value access.
-  // In JSX, signal properties (loading, error) are used directly.
-  let errorMsg = '';
-  let todoList: Todo[] = [];
+  // Derived values — the compiler classifies these as computed (they depend on
+  // signal API properties) and wraps them in computed() automatically.
+  const result = todosQuery.data ?? null;
 
-  domEffect(() => {
-    const result = todosQuery.data.value;
-    
-    if (result) {
-      if (isOk(result)) {
-        todoList = result.data.todos;
-        errorMsg = '';
-      } else {
-        // Handle error case using matchError for exhaustiveness
-        // This ensures all error types are handled at compile time
-        todoList = [];
-        errorMsg = matchError(result.error, {
-          NetworkError: (e) => `Network error: ${e.message}. Please check your connection.`,
-          HttpError: (e) => {
-            // Use serverCode for specific HTTP error handling
-            // e.serverCode contains the semantic error code from the server
-            if (e.serverCode === 'NOT_FOUND') {
-              return 'Todos not found (404)';
-            }
-            if (e.status === 500) {
-              return 'Server error. Please try again later.';
-            }
-            return `Error ${e.status}: ${e.message}`;
-          },
-          TimeoutError: (e) => `Request timed out: ${e.message}`,
-          ParseError: (e) => `Failed to parse response: ${e.path || 'unknown'}`,
-          ValidationError: (e) => `Validation error: ${e.errors?.join(', ') || e.message}`,
-        });
-      }
-    }
-  });
+  const todoList: Todo[] = result && isOk(result) ? result.data.todos : [];
+
+  const errorMsg: string = result && !isOk(result) && result.error
+    ? matchError(result.error, {
+        NetworkError: (e) => `Network error: ${e.message}. Please check your connection.`,
+        HttpError: (e) => {
+          if (e.serverCode === 'NOT_FOUND') {
+            return 'Todos not found (404)';
+          }
+          if (e.status === 500) {
+            return 'Server error. Please try again later.';
+          }
+          return `Error ${e.status}: ${e.message}`;
+        },
+        TimeoutError: (e) => `Request timed out: ${e.message}`,
+        ParseError: (e) => `Failed to parse response: ${e.path || 'unknown'}`,
+        ValidationError: (e) => `Validation error: ${e.errors?.join(', ') || e.message}`,
+      })
+    : '';
 
   const handleToggle = (_id: string, _completed: boolean) => {
     todosQuery.refetch();
@@ -101,12 +82,12 @@ export function TodoListPage() {
 
       <div style="margin-top: 1.5rem">
         {todosQuery.loading && <div data-testid="loading">Loading todos...</div>}
-        {todosQuery.error && (
+        {errorMsg && (
           <div style="color: var(--color-danger-500)" data-testid="error">
             {errorMsg}
           </div>
         )}
-        {!todosQuery.loading && !todosQuery.error && todoList.length === 0 && (
+        {!todosQuery.loading && !errorMsg && todoList.length === 0 && (
           <div class={emptyStateStyles.container}>
             <h3 class={emptyStateStyles.title}>No todos yet</h3>
             <p class={emptyStateStyles.description}>
