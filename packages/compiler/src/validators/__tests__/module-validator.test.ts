@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { createEmptyAppIR, createEmptyDependencyGraph } from '../../ir/builder';
 import type { AppIR, DependencyGraphIR, ModuleIR, ServiceIR } from '../../ir/types';
 import { ModuleValidator } from '../module-validator';

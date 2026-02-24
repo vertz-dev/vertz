@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { parseTscOutput, parseWatchBlock, typecheck, typecheckWatch } from '../typecheck';
 
 describe('typecheck', () => {

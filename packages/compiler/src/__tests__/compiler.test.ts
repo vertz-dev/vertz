@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import type { CompilerDependencies, Validator } from '../compiler';
 import { Compiler, createCompiler } from '../compiler';
 import { resolveConfig } from '../config';

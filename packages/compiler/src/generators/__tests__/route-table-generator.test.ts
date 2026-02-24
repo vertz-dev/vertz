@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { resolveConfig } from '../../config';
 import { createEmptyAppIR } from '../../ir/builder';
 import type { AppIR, ModuleIR, RouteIR, RouterIR } from '../../ir/types';
