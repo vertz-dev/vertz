@@ -54,6 +54,30 @@ describe('vertzPlugin SSR', () => {
       expect(code).toContain('streamToString');
       expect(code).toContain('toVNode');
       expect(code).toContain('renderToString');
+      expect(code).toContain('getInjectedCSS');
+    });
+
+    it('should include collectCSS helper using getInjectedCSS', () => {
+      const plugin = vertzPlugin({ ssr: true }) as Plugin;
+      const code = callLoad(plugin, '\0vertz:ssr-entry');
+      expect(code).toBeDefined();
+      expect(code).toContain('collectCSS');
+      expect(code).toContain('getInjectedCSS');
+      expect(code).toContain('data-vertz-css');
+    });
+
+    it('should return { html, css } from renderToString', () => {
+      const plugin = vertzPlugin({ ssr: true }) as Plugin;
+      const code = callLoad(plugin, '\0vertz:ssr-entry');
+      expect(code).toBeDefined();
+      expect(code).toContain('return { html, css }');
+    });
+
+    it('should import removeDomShim from dom-shim', () => {
+      const plugin = vertzPlugin({ ssr: true }) as Plugin;
+      const code = callLoad(plugin, '\0vertz:ssr-entry');
+      expect(code).toBeDefined();
+      expect(code).toContain('removeDomShim');
     });
 
     it('should use the configured entry in the generated code', () => {
