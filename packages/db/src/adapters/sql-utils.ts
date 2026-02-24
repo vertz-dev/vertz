@@ -316,8 +316,9 @@ export abstract class BaseSqlAdapter<T extends ColumnRecord> implements EntityDb
       for (const [colName, colBuilder] of Object.entries(this.schema._columns)) {
         const meta = colBuilder._meta as ColumnMetadata;
 
-        // Skip read-only columns (they're auto-generated)
-        if (meta.isReadOnly) continue;
+        // Skip read-only columns (they're auto-generated) — except autoUpdate
+        // columns which need an initial value in the INSERT
+        if (meta.isReadOnly && !meta.isAutoUpdate) continue;
 
         // Generate ID if primary key and not provided
         if (meta.primary && !data[colName]) {
@@ -375,8 +376,8 @@ export abstract class BaseSqlAdapter<T extends ColumnRecord> implements EntityDb
       for (const [colName, colBuilder] of Object.entries(this.schema._columns)) {
         const meta = colBuilder._meta as ColumnMetadata;
 
-        // Skip read-only and primary columns
-        if (meta.isReadOnly || meta.primary) continue;
+        // Skip read-only columns (except autoUpdate) and primary columns
+        if ((meta.isReadOnly && !meta.isAutoUpdate) || meta.primary) continue;
 
         // Handle auto-update columns
         if (meta.isAutoUpdate) {
