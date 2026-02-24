@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { query } from '../query';
 
 describe('query() SSR behavior', () => {
@@ -6,6 +6,7 @@ describe('query() SSR behavior', () => {
     promise: Promise<unknown>;
     timeout: number;
     resolve: (data: unknown) => void;
+    key?: string;
   }> = [];
 
   beforeEach(() => {
@@ -105,5 +106,106 @@ describe('query() SSR behavior', () => {
     query(() => rejectedPromise, { key: 'ssr-error-test' });
 
     expect(registeredQueries).toHaveLength(1);
+  });
+
+  it('registered entry includes the query cache key for streaming', () => {
+    query(() => Promise.resolve('data'), { key: 'streaming-key-test' });
+
+    expect(registeredQueries).toHaveLength(1);
+    expect(registeredQueries[0]?.key).toBe('streaming-key-test');
+  });
+
+  it('uses global ssrTimeout default when set and no per-query override', () => {
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_TIMEOUT__ = 250;
+    try {
+      query(() => Promise.resolve('data'), { key: 'global-timeout-test' });
+      expect(registeredQueries).toHaveLength(1);
+      expect(registeredQueries[0]?.timeout).toBe(250);
+    } finally {
+      delete (globalThis as Record<string, unknown>).__VERTZ_SSR_TIMEOUT__;
+    }
+  });
+
+  it('falls back to 100 when global ssrTimeout is not set', () => {
+    // Ensure no global is set
+    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_TIMEOUT__;
+    query(() => Promise.resolve('data'), { key: 'fallback-timeout-test' });
+    expect(registeredQueries).toHaveLength(1);
+    expect(registeredQueries[0]?.timeout).toBe(100);
+  });
+
+  it('per-query ssrTimeout overrides global default', () => {
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_TIMEOUT__ = 250;
+    try {
+      query(() => Promise.resolve('data'), { key: 'override-timeout-test', ssrTimeout: 500 });
+      expect(registeredQueries).toHaveLength(1);
+      expect(registeredQueries[0]?.timeout).toBe(500);
+    } finally {
+      delete (globalThis as Record<string, unknown>).__VERTZ_SSR_TIMEOUT__;
+    }
+  });
+});
+
+describe('query() client-side SSR hydration', () => {
+  // Minimal event listener mock
+  const listeners = new Map<string, Set<EventListener>>();
+
+  beforeEach(() => {
+    listeners.clear();
+    // NOT in SSR mode (client-side)
+    delete (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__;
+    // Mock document for event listeners
+    (globalThis as Record<string, unknown>).document = {
+      addEventListener: (type: string, fn: EventListener) => {
+        if (!listeners.has(type)) listeners.set(type, new Set());
+        listeners.get(type)?.add(fn);
+      },
+      removeEventListener: (type: string, fn: EventListener) => {
+        listeners.get(type)?.delete(fn);
+      },
+      dispatchEvent: (event: { type: string; detail: unknown }) => {
+        const fns = listeners.get(event.type);
+        if (fns) {
+          for (const fn of fns) fn(event as unknown as Event);
+        }
+      },
+    };
+  });
+
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__;
+    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__;
+    delete (globalThis as Record<string, unknown>).document;
+  });
+
+  it('picks up pre-existing SSR data without fetching', async () => {
+    const fetchFn = vi.fn(() => Promise.resolve('fetched-from-server'));
+
+    // Simulate SSR data already buffered
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [
+      { key: 'hydrate-test', data: 'ssr-streamed-data' },
+    ];
+
+    const result = query<string>(fetchFn, { key: 'hydrate-test' });
+
+    // Wait a tick for any async effects to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Data should come from SSR, not from the fetch
+    expect(result.data.value).toBe('ssr-streamed-data');
+    expect(result.loading.value).toBe(false);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it('query without SSR data falls back to normal fetch', async () => {
+    // No __VERTZ_SSR_DATA__ — not an SSR-rendered page
+    const result = query<string>(() => Promise.resolve('client-fetched'), {
+      key: 'no-ssr-data',
+    });
+
+    // Wait for the fetch to complete
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(result.data.value).toBe('client-fetched');
   });
 });

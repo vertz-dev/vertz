@@ -54,6 +54,7 @@ describe('SSR query registration', () => {
         promise: Promise.resolve('data'),
         timeout: 100,
         resolve: () => {},
+        key: 'test-key',
       };
       registerSSRQuery(entry);
       const queries = getSSRQueries();
@@ -62,18 +63,36 @@ describe('SSR query registration', () => {
     });
   });
 
+  it('registered entry preserves key for streaming identification', () => {
+    ssrStorage.run({ url: '/test', errors: [], queries: [] }, () => {
+      registerSSRQuery({
+        promise: Promise.resolve('data'),
+        timeout: 100,
+        resolve: () => {},
+        key: 'my-query-key',
+      });
+      const queries = getSSRQueries();
+      expect(queries[0]?.key).toBe('my-query-key');
+    });
+  });
+
   it('registerSSRQuery accumulates multiple entries', () => {
     ssrStorage.run({ url: '/test', errors: [], queries: [] }, () => {
-      registerSSRQuery({ promise: Promise.resolve(1), timeout: 50, resolve: () => {} });
-      registerSSRQuery({ promise: Promise.resolve(2), timeout: 100, resolve: () => {} });
-      registerSSRQuery({ promise: Promise.resolve(3), timeout: 200, resolve: () => {} });
+      registerSSRQuery({ promise: Promise.resolve(1), timeout: 50, resolve: () => {}, key: 'q1' });
+      registerSSRQuery({ promise: Promise.resolve(2), timeout: 100, resolve: () => {}, key: 'q2' });
+      registerSSRQuery({ promise: Promise.resolve(3), timeout: 200, resolve: () => {}, key: 'q3' });
       expect(getSSRQueries()).toHaveLength(3);
     });
   });
 
   it('registerSSRQuery is a no-op outside SSR context', () => {
     expect(() =>
-      registerSSRQuery({ promise: Promise.resolve(), timeout: 100, resolve: () => {} }),
+      registerSSRQuery({
+        promise: Promise.resolve(),
+        timeout: 100,
+        resolve: () => {},
+        key: 'noop',
+      }),
     ).not.toThrow();
   });
 

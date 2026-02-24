@@ -48,6 +48,7 @@ void _disposeResult;
 
 // query() infers T from the thunk return type
 import { query } from '../query';
+
 const stringQuery = query(() => Promise.resolve('hello'));
 const _strData: string | undefined = stringQuery.data;
 void _strData;
