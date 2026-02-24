@@ -7,7 +7,7 @@
  */
 
 import { PGlite } from '@electric-sql/pglite';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { createDb } from '../client/database';
 import { d } from '../d';
 

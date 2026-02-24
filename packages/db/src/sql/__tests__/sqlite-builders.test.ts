@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { defaultPostgresDialect, SqliteDialect } from '../../dialect';
 import { buildDelete } from '../delete';
 import { buildInsert } from '../insert';

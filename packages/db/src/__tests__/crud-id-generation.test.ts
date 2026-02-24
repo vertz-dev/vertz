@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/schema';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { createDb } from '../client';
 import { d } from '../d';
 

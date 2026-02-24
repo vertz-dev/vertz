@@ -1,5 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, mock } from 'bun:test';
 import { d } from '../../d';
 import type { MigrationQueryFn } from '../../migration';
 import { createSnapshot } from '../../migration';
@@ -47,7 +47,7 @@ describe('CLI Integration Tests', () => {
       migrationName: 'create_cli_users',
       existingFiles: [],
       migrationsDir: '/tmp/test-migrations',
-      writeFile: vi.fn().mockImplementation(async (path: string, content: string) => {
+      writeFile: mock().mockImplementation(async (path: string, content: string) => {
         writtenFiles.push({ path, content });
       }),
       dryRun: false,

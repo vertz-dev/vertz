@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { defaultPostgresDialect, defaultSqliteDialect } from '../../dialect';
 import { generateMigrationSql, generateRollbackSql } from '../sql-generator';
 import type { DiffChange } from '../differ';

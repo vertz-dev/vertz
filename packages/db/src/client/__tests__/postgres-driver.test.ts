@@ -9,14 +9,14 @@
  * - #207: Connection cleanup
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 
 // Mock postgres module
-const mockEnd = vi.fn().mockResolvedValue(undefined);
-const mockUnsafe = vi.fn().mockResolvedValue({ count: 0, rows: [] });
+const mockEnd = mock().mockResolvedValue(undefined);
+const mockUnsafe = mock().mockResolvedValue({ count: 0, rows: [] });
 
-vi.mock('postgres', () => ({
-  default: vi.fn(() => ({
+mock.module('postgres', () => ({
+  default: mock(() => ({
     end: mockEnd,
     unsafe: mockUnsafe,
   })),
@@ -24,12 +24,12 @@ vi.mock('postgres', () => ({
 
 describe('PostgreSQL Driver', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mock.restore();
   });
 
   afterEach(() => {
     // Reset module cache between tests
-    vi.clearAllMocks();
+    mock.restore();
   });
 
   // =========================================================================
@@ -404,7 +404,7 @@ describe('PostgreSQL Driver', () => {
     it('logs warning when replica fallback occurs (postgres-driver)', async () => {
       // Test that error logging exists in the fallback path
       // We verify by checking that console.warn is called during fallback
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
 
       const { createPostgresDriver } = await import('../postgres-driver');
 

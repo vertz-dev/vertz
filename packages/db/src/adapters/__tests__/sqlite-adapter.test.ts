@@ -4,7 +4,7 @@
  * Uses bun:sqlite with :memory: database for fast, isolated tests.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { DbDriver } from '../../client/driver';
 import { d } from '../../d';
 import {

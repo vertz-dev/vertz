@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { EnumSchema } from '../../../../schema/src/schemas/enum';
 import { d } from '../../d';
 

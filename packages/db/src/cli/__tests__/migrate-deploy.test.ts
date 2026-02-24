@@ -1,5 +1,5 @@
 import { unwrap } from '@vertz/errors';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import type { MigrationFile, MigrationQueryFn } from '../../migration';
 import { migrateDeploy } from '../migrate-deploy';
 
@@ -11,7 +11,7 @@ describe('migrateDeploy', () => {
     ];
 
     const executedSql: string[] = [];
-    const queryFn: MigrationQueryFn = vi.fn().mockImplementation(async (sql: string) => {
+    const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
       executedSql.push(sql);
       // getApplied returns empty (no migrations applied yet)
       if (sql.includes('SELECT')) {
@@ -34,7 +34,7 @@ describe('migrateDeploy', () => {
       { name: '0002_add_users.sql', sql: 'CREATE TABLE b (id int);', timestamp: 2 },
     ];
 
-    const queryFn: MigrationQueryFn = vi.fn().mockImplementation(async (sql: string) => {
+    const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
       if (sql.includes('SELECT')) {
         return {
           rows: [{ name: '0001_init.sql', checksum: 'abc', applied_at: '2024-01-01T00:00:00Z' }],
@@ -55,7 +55,7 @@ describe('migrateDeploy', () => {
       { name: '0001_init.sql', sql: 'CREATE TABLE a (id int);', timestamp: 1 },
     ];
 
-    const queryFn: MigrationQueryFn = vi.fn().mockImplementation(async (sql: string) => {
+    const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
       if (sql.includes('SELECT')) {
         return {
           rows: [{ name: '0001_init.sql', checksum: 'abc', applied_at: '2024-01-01T00:00:00Z' }],
@@ -78,7 +78,7 @@ describe('migrateDeploy', () => {
         { name: '0002_add_users.sql', sql: 'CREATE TABLE b (id int);', timestamp: 2 },
       ];
 
-      const queryFn: MigrationQueryFn = vi.fn().mockImplementation(async () => {
+      const queryFn: MigrationQueryFn = mock().mockImplementation(async () => {
         // If called, throw to prove no history table exists — simulates fresh DB
         throw new Error('relation "_vertz_migrations" does not exist');
       });
@@ -117,7 +117,7 @@ describe('migrateDeploy', () => {
         { name: '0002_add_users.sql', sql: 'CREATE TABLE b (id int);', timestamp: 2 },
       ];
 
-      const queryFn: MigrationQueryFn = vi.fn().mockImplementation(async (sql: string) => {
+      const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
         if (sql.includes('SELECT')) {
           return {
             rows: [{ name: '0001_init.sql', checksum: 'abc', applied_at: '2024-01-01T00:00:00Z' }],
@@ -146,7 +146,7 @@ describe('migrateDeploy', () => {
         { name: '0001_init.sql', sql: 'CREATE TABLE a (id int);', timestamp: 1 },
       ];
 
-      const queryFn: MigrationQueryFn = vi.fn().mockImplementation(async (sql: string) => {
+      const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
         if (sql.includes('SELECT')) {
           return { rows: [], rowCount: 0 };
         }
@@ -165,7 +165,7 @@ describe('migrateDeploy', () => {
         { name: '0001_init.sql', sql: 'CREATE TABLE a (id int);', timestamp: 1 },
       ];
 
-      const queryFn: MigrationQueryFn = vi.fn().mockImplementation(async (sql: string) => {
+      const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
         if (sql.includes('SELECT')) {
           return {
             rows: [{ name: '0001_init.sql', checksum: 'abc', applied_at: '2024-01-01T00:00:00Z' }],

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { createEventBus } from '../event-bus';
 import { fingerprint } from '../fingerprint';
 import { createPluginRunner } from '../plugin-runner';
@@ -90,8 +90,8 @@ describe('Plugin Integration Tests', () => {
 
     const logPlugin: DbPlugin = {
       name: 'log-plugin',
-      beforeQuery: vi.fn(),
-      afterQuery: vi.fn().mockImplementation((_ctx, result) => result),
+      beforeQuery: mock(),
+      afterQuery: mock().mockImplementation((_ctx, result) => result),
     };
 
     const runner = createPluginRunner([cachePlugin, logPlugin]);

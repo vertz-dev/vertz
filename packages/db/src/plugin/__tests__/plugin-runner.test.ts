@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { createPluginRunner } from '../plugin-runner';
 import type { DbPlugin, QueryContext } from '../plugin-types';
 
@@ -12,7 +12,7 @@ describe('createPluginRunner', () => {
 
   describe('runBeforeQuery', () => {
     it('calls beforeQuery hooks on plugins', () => {
-      const beforeQuery = vi.fn();
+      const beforeQuery = mock();
       const plugin: DbPlugin = { name: 'test-plugin', beforeQuery };
       const runner = createPluginRunner([plugin]);
 
@@ -29,7 +29,7 @@ describe('createPluginRunner', () => {
       };
       const plugin2: DbPlugin = {
         name: 'plugin-2',
-        beforeQuery: vi.fn(),
+        beforeQuery: mock(),
       };
       const runner = createPluginRunner([plugin1, plugin2]);
 
@@ -56,7 +56,7 @@ describe('createPluginRunner', () => {
       const plugin1: DbPlugin = { name: 'no-hooks' };
       const plugin2: DbPlugin = {
         name: 'has-hook',
-        beforeQuery: vi.fn(),
+        beforeQuery: mock(),
       };
       const runner = createPluginRunner([plugin1, plugin2]);
 
@@ -76,7 +76,7 @@ describe('createPluginRunner', () => {
 
   describe('runAfterQuery', () => {
     it('calls afterQuery hooks on plugins', () => {
-      const afterQuery = vi.fn().mockReturnValue('transformed');
+      const afterQuery = mock().mockReturnValue('transformed');
       const plugin: DbPlugin = { name: 'test-plugin', afterQuery };
       const runner = createPluginRunner([plugin]);
 
@@ -104,7 +104,7 @@ describe('createPluginRunner', () => {
 
     it('skips plugins without afterQuery hook', () => {
       const plugin1: DbPlugin = { name: 'no-hooks' };
-      const afterQuery = vi.fn().mockReturnValue('ok');
+      const afterQuery = mock().mockReturnValue('ok');
       const plugin2: DbPlugin = { name: 'has-hook', afterQuery };
       const runner = createPluginRunner([plugin1, plugin2]);
 

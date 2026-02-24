@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 /**
  * inference.ts is entirely type-level — there is no runtime code to test.

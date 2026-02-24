@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { computeDiff } from '../differ';
 import type { SchemaSnapshot } from '../snapshot';
 

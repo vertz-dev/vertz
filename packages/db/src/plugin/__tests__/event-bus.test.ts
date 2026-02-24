@@ -1,10 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { createEventBus } from '../event-bus';
 
 describe('createEventBus', () => {
   it('emits create events to subscribers', () => {
     const bus = createEventBus();
-    const handler = vi.fn();
+    const handler = mock();
 
     bus.on(handler);
     bus.emit({ type: 'create', table: 'users', data: { id: '1', name: 'Alice' } });
@@ -18,7 +18,7 @@ describe('createEventBus', () => {
 
   it('emits update events to subscribers', () => {
     const bus = createEventBus();
-    const handler = vi.fn();
+    const handler = mock();
 
     bus.on(handler);
     bus.emit({ type: 'update', table: 'users', data: { id: '1', name: 'Bob' } });
@@ -32,7 +32,7 @@ describe('createEventBus', () => {
 
   it('emits delete events to subscribers', () => {
     const bus = createEventBus();
-    const handler = vi.fn();
+    const handler = mock();
 
     bus.on(handler);
     bus.emit({ type: 'delete', table: 'users', data: { id: '1' } });
@@ -46,8 +46,8 @@ describe('createEventBus', () => {
 
   it('supports multiple subscribers', () => {
     const bus = createEventBus();
-    const handler1 = vi.fn();
-    const handler2 = vi.fn();
+    const handler1 = mock();
+    const handler2 = mock();
 
     bus.on(handler1);
     bus.on(handler2);
@@ -59,7 +59,7 @@ describe('createEventBus', () => {
 
   it('unsubscribes handlers with off()', () => {
     const bus = createEventBus();
-    const handler = vi.fn();
+    const handler = mock();
 
     bus.on(handler);
     bus.off(handler);
@@ -70,8 +70,8 @@ describe('createEventBus', () => {
 
   it('does not call removed handler but still calls remaining handlers', () => {
     const bus = createEventBus();
-    const handler1 = vi.fn();
-    const handler2 = vi.fn();
+    const handler1 = mock();
+    const handler2 = mock();
 
     bus.on(handler1);
     bus.on(handler2);

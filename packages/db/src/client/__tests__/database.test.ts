@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { d } from '../../d';
 import { createDb } from '../database';
 
@@ -83,7 +83,7 @@ describe('createDb', () => {
   });
 
   it('logs a notice for tables without tenant path and not shared', () => {
-    const logFn = vi.fn();
+    const logFn = mock();
 
     createDb({
       url: 'postgres://localhost:5432/test',
@@ -99,7 +99,7 @@ describe('createDb', () => {
   });
 
   it('does not log for tables that are scoped or shared', () => {
-    const logFn = vi.fn();
+    const logFn = mock();
 
     createDb({
       url: 'postgres://localhost:5432/test',

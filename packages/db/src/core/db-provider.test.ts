@@ -1,5 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, mock, spyOn } from 'bun:test';
 import { d } from '../d';
 import type { QueryFn } from '../query/executor';
 import { createDbProvider } from './db-provider';
@@ -97,7 +97,7 @@ describe('createDbProvider', () => {
     });
 
     const db = await provider.onInit({});
-    const closeSpy = vi.spyOn(db, 'close');
+    const closeSpy = spyOn(db, 'close');
 
     await provider.onDestroy({}, db);
 
@@ -124,7 +124,7 @@ describe('createDbProvider', () => {
   });
 
   it('passes through all createDb config options', () => {
-    const logFn = vi.fn();
+    const logFn = mock();
     const provider = createDbProvider({
       url: 'postgres://localhost:5432/test',
       models: { users: { table: users, relations: {} } },

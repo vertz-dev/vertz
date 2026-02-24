@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { ConnectionError, UniqueConstraintError } from '../../errors/db-error';
 import { executeQuery } from '../executor';
 

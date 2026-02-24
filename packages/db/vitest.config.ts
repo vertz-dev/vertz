@@ -13,7 +13,7 @@ export default defineConfig({
   test: {
     fileParallelism: false,
     retry: 2,
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test-d.ts'],
     environment: 'node',
     testTimeout: 30_000,
     hookTimeout: 30_000,

@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/errors';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { d } from '../../d';
 import { computeDiff } from '../differ';
 import type { MigrationQueryFn } from '../runner';
