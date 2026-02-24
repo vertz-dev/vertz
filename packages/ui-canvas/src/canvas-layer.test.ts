@@ -1,6 +1,6 @@
+import { describe, expect, it } from 'bun:test';
 import { useContext } from '@vertz/ui';
 import { Container } from 'pixi.js';
-import { describe, expect, it } from 'vitest';
 import { CanvasLayer, type CanvasLayerProps, CanvasRenderContext } from './canvas-layer';
 
 describe('Feature: CanvasRenderContext', () => {

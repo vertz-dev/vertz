@@ -37,6 +37,7 @@
     "@vertz/ui": "workspace:*"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^20.7.0",
     "@vertz/ui": "workspace:*",
     "bunup": "latest",
     "happy-dom": "^18.0.1",
