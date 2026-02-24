@@ -224,11 +224,25 @@ The `hydrate()` function with a component registry is for **island/per-component
 ```ts
 // ❌ Wrong — hydrate() with empty registry does nothing useful
 import { hydrate } from '@vertz/ui';
-hydrate(root, { registry: {} });
+hydrate({});
 
 // ✅ Right — mount() with tolerant mode for full-app hydration
 import { mount } from '@vertz/ui';
 mount(App, '#root', { hydration: 'tolerant' });
+```
+
+### ❌ DON'T manually pick a hydration strategy
+
+`hydrate()` uses an automatic strategy based on viewport proximity (IntersectionObserver with 200px rootMargin). Above-fold components hydrate immediately; below-fold components hydrate when scrolled near. No `hydrate` attribute needed on elements.
+
+```html
+<!-- ❌ Wrong — manual strategy selection (no longer supported) -->
+<div data-v-id="Counter" hydrate="eager">...</div>
+<div data-v-id="Chart" hydrate="lazy">...</div>
+
+<!-- ✅ Right — zero-config, framework picks the right timing -->
+<div data-v-id="Counter">...</div>
+<div data-v-id="Chart">...</div>
 ```
 
 ---
@@ -241,4 +255,4 @@ mount(App, '#root', { hydration: 'tolerant' });
 | Stream raw HTML | `renderToStream(vnode)` from `@vertz/ui-server` |
 | Client hydration | `mount(App, '#root', { hydration: 'tolerant' })` from `@vertz/ui` |
 | Error recovery | Automatic — falls back to CSR on mismatch |
-| Island hydration | Use `hydrate()` with a component registry (separate pattern) |
+| Island hydration | Use `hydrate(registry)` — auto strategy via IntersectionObserver |

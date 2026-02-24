@@ -14,9 +14,6 @@ export interface MountOptions {
   styles?: string[];
   /** Hydration mode: 'replace' (default), 'tolerant' (walk SSR DOM), or 'strict' (reserved) */
   hydration?: 'replace' | 'tolerant' | 'strict';
-  /** Component registry for per-component hydration */
-  // biome-ignore lint/suspicious/noExplicitAny: spec requires generic component functions
-  registry?: Record<string, () => any>;
   /** Callback after mount completes */
   onMount?: (root: HTMLElement) => void;
 }
