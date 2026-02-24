@@ -1,5 +1,5 @@
 import { ForbiddenException } from '@vertz/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { enforceAccess } from '../access-enforcer';
 import type { EntityContext } from '../types';
 

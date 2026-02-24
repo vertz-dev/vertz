@@ -1,5 +1,5 @@
 import { d } from '@vertz/db';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 import { createServer } from '../../create-server';
 import type { EntityDbAdapter } from '../crud-pipeline';
 import { entity } from '../entity';

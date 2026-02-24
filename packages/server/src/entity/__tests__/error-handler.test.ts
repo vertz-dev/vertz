@@ -7,7 +7,7 @@ import {
   ValidationException,
   VertzException,
 } from '@vertz/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { entityErrorHandler } from '../error-handler';
 
 describe('entityErrorHandler', () => {

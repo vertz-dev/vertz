@@ -1,6 +1,6 @@
 import { ForbiddenException, NotFoundException } from '@vertz/core';
 import { d } from '@vertz/db';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { createActionHandler } from '../action-pipeline';
 import { createEntityContext } from '../context';
 import { entity } from '../entity';
@@ -30,11 +30,11 @@ function createStubDb() {
   };
 
   return {
-    get: vi.fn(async (id: string) => rows[id] ?? null),
-    list: vi.fn(async () => Object.values(rows)),
-    create: vi.fn(async (data: Record<string, unknown>) => ({ id: 'new-id', ...data })),
-    update: vi.fn(async (id: string, data: Record<string, unknown>) => ({ ...rows[id], ...data })),
-    delete: vi.fn(async (id: string) => rows[id] ?? null),
+    get: mock(async (id: string) => rows[id] ?? null),
+    list: mock(async () => Object.values(rows)),
+    create: mock(async (data: Record<string, unknown>) => ({ id: 'new-id', ...data })),
+    update: mock(async (id: string, data: Record<string, unknown>) => ({ ...rows[id], ...data })),
+    delete: mock(async (id: string) => rows[id] ?? null),
   };
 }
 
@@ -59,7 +59,7 @@ function makeCtx(overrides: { userId?: string | null; roles?: string[] } = {}) {
 
 describe('Feature: action pipeline', () => {
   describe('Given an entity with action "complete" and access rule', () => {
-    const completeSpy = vi.fn(async () => ({ completedAt: '2024-01-01' }));
+    const completeSpy = mock(async () => ({ completedAt: '2024-01-01' }));
     const def = entity('tasks', {
       model: tasksModel,
       access: {
@@ -118,7 +118,7 @@ describe('Feature: action pipeline', () => {
   });
 
   describe('Given a custom action with after hook', () => {
-    const afterCompleteSpy = vi.fn();
+    const afterCompleteSpy = mock();
     const def = entity('tasks', {
       model: tasksModel,
       access: {

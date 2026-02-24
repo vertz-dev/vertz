@@ -2,7 +2,7 @@ import { ForbiddenException } from '@vertz/core';
 import { EntityNotFoundError } from '@vertz/errors';
 import { d } from '@vertz/db';
 import { unwrap } from '@vertz/errors';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { createEntityContext } from '../context';
 import { createCrudHandlers } from '../crud-pipeline';
 import { entity } from '../entity';
@@ -51,8 +51,8 @@ function createStubDb() {
   };
 
   return {
-    get: vi.fn(async (id: string) => rows[id] ?? null),
-    list: vi.fn(
+    get: mock(async (id: string) => rows[id] ?? null),
+    list: mock(
       async (options?: { where?: Record<string, unknown>; limit?: number; after?: string }) => {
         let result = Object.values(rows);
         const where = options?.where;
@@ -72,19 +72,19 @@ function createStubDb() {
         return { data: result, total };
       },
     ),
-    create: vi.fn(async (data: Record<string, unknown>) => ({
+    create: mock(async (data: Record<string, unknown>) => ({
       id: 'new-id',
       ...data,
       passwordHash: 'generated-hash',
       createdAt: '2024-01-01',
       updatedAt: '2024-01-01',
     })),
-    update: vi.fn(async (id: string, data: Record<string, unknown>) => ({
+    update: mock(async (id: string, data: Record<string, unknown>) => ({
       ...rows[id],
       ...data,
       updatedAt: '2024-01-02',
     })),
-    delete: vi.fn(async (id: string) => rows[id] ?? null),
+    delete: mock(async (id: string) => rows[id] ?? null),
   };
 }
 
@@ -253,7 +253,7 @@ describe('Feature: CRUD pipeline', () => {
   // --- After hooks ---
 
   describe('Given an entity with after.create hook', () => {
-    const afterSpy = vi.fn();
+    const afterSpy = mock();
     const def = entity('users', {
       model: usersModel,
       access: { create: () => true },
@@ -341,7 +341,7 @@ describe('Feature: CRUD pipeline', () => {
   });
 
   describe('Given an entity with after.update hook', () => {
-    const afterUpdateSpy = vi.fn();
+    const afterUpdateSpy = mock();
     const def = entity('users', {
       model: usersModel,
       access: { update: () => true },
@@ -392,7 +392,7 @@ describe('Feature: CRUD pipeline', () => {
   });
 
   describe('Given an entity with after.delete hook', () => {
-    const afterDeleteSpy = vi.fn();
+    const afterDeleteSpy = mock();
     const def = entity('users', {
       model: usersModel,
       access: { delete: () => true },
@@ -617,8 +617,8 @@ describe('Feature: CRUD pipeline', () => {
           },
         };
         const db = {
-          get: vi.fn(async (id: string) => rows[id] ?? null),
-          list: vi.fn(
+          get: mock(async (id: string) => rows[id] ?? null),
+          list: mock(
             async (options?: {
               where?: Record<string, unknown>;
               limit?: number;
@@ -642,9 +642,9 @@ describe('Feature: CRUD pipeline', () => {
               return { data: result, total };
             },
           ),
-          create: vi.fn(async (data: Record<string, unknown>) => data),
-          update: vi.fn(async (_id: string, data: Record<string, unknown>) => data),
-          delete: vi.fn(async () => null),
+          create: mock(async (data: Record<string, unknown>) => data),
+          update: mock(async (_id: string, data: Record<string, unknown>) => data),
+          delete: mock(async () => null),
         };
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();

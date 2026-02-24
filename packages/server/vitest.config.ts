@@ -14,7 +14,8 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['src/**/*.test.ts'],
+    // Type tests (.test-d.ts) only - Bun doesn't support type-level testing
+    include: ['src/**/*.test-d.ts'],
     environment: 'node',
     testTimeout: 15_000,
     typecheck: {

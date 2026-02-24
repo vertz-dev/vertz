@@ -1,5 +1,5 @@
 import { d } from '@vertz/db';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { entity } from '../index';
 
 // ---------------------------------------------------------------------------

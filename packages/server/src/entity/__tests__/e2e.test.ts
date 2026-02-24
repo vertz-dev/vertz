@@ -1,5 +1,5 @@
 import { d } from '@vertz/db';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { createServer } from '../../create-server';
 import type { EntityDbAdapter } from '../crud-pipeline';
 import { entity } from '../entity';
@@ -106,7 +106,7 @@ describe('EDA v0.1.0 E2E', () => {
   // -------------------------------------------------------------------------
 
   describe('Given a "users" entity with full access rules and hooks', () => {
-    const afterCreateSpy = vi.fn();
+    const afterCreateSpy = mock();
 
     const usersEntity = entity('users', {
       model: usersModel,

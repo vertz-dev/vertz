@@ -1,5 +1,5 @@
 import { d } from '@vertz/db';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import type { EntityDbAdapter } from '../crud-pipeline';
 import { EntityRegistry } from '../entity-registry';
 import { generateEntityRoutes } from '../route-generator';
@@ -408,7 +408,7 @@ describe('generateEntityRoutes', () => {
 
     it('create handler strips readOnly fields from input', async () => {
       const def = buildEntityDef();
-      const createSpy = vi.fn(async (data: Record<string, unknown>) => ({
+      const createSpy = mock(async (data: Record<string, unknown>) => ({
         id: '1',
         ...data,
       }));
@@ -524,7 +524,7 @@ describe('generateEntityRoutes', () => {
     });
 
     it('custom action handler executes and returns 200', async () => {
-      const handler = vi.fn(async () => ({ success: true }));
+      const handler = mock(async () => ({ success: true }));
       const def = buildEntityDef({
         access: {
           list: () => true,

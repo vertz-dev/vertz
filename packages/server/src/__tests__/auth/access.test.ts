@@ -3,7 +3,7 @@
  * Tests for createAccess(), ctx.can(), ctx.authorize()
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { AuthorizationError, createAccess } from '../../auth/access';
 import type { AuthUser } from '../../auth/types';
 

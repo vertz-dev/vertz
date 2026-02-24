@@ -3,7 +3,7 @@
  * Tests for createAuth(), JWT, password hashing, sign-up/sign-in flows
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { createAuth, hashPassword, validatePassword, verifyPassword } from '../../auth/index';
 import type { AuthConfig } from '../auth/types';
 
