@@ -28,7 +28,7 @@ describe('query() SSR behavior', () => {
     query(() => Promise.resolve('data'), { key: 'ssr-test' });
 
     expect(registeredQueries).toHaveLength(1);
-    expect(registeredQueries[0]?.timeout).toBe(100); // default timeout
+    expect(registeredQueries[0]?.timeout).toBe(300); // default timeout matches plugin default
     expect(registeredQueries[0]?.promise).toBeInstanceOf(Promise);
   });
 
@@ -74,7 +74,7 @@ describe('query() SSR behavior', () => {
     query(() => Promise.resolve('c'), { key: 'ssr-multi-c', ssrTimeout: 50 });
 
     expect(registeredQueries).toHaveLength(3);
-    expect(registeredQueries[0]?.timeout).toBe(100);
+    expect(registeredQueries[0]?.timeout).toBe(300);
     expect(registeredQueries[1]?.timeout).toBe(200);
     expect(registeredQueries[2]?.timeout).toBe(50);
   });
@@ -126,12 +126,12 @@ describe('query() SSR behavior', () => {
     }
   });
 
-  it('falls back to 100 when global ssrTimeout hook is not set', () => {
+  it('falls back to 300 when global ssrTimeout hook is not set', () => {
     // Ensure no global is set
     delete (globalThis as Record<string, unknown>).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__;
     query(() => Promise.resolve('data'), { key: 'fallback-timeout-test' });
     expect(registeredQueries).toHaveLength(1);
-    expect(registeredQueries[0]?.timeout).toBe(100);
+    expect(registeredQueries[0]?.timeout).toBe(300);
   });
 
   it('per-query ssrTimeout overrides global default', () => {

@@ -254,6 +254,51 @@ describe('DOM Shim', () => {
     });
   });
 
+  describe('_findChildIndex with duplicate text content', () => {
+    beforeEach(() => {
+      installDomShim();
+    });
+
+    it('should replace the correct text node when multiple have identical content', () => {
+      const parent = document.createElement('div');
+      const text1 = document.createTextNode('same');
+      const text2 = document.createTextNode('same');
+      parent.appendChild(text1);
+      parent.appendChild(text2);
+
+      // Replace the SECOND "same" text node with a new element
+      const replacement = document.createElement('span');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      (parent as any).replaceChild(replacement, text2);
+
+      const vnode = toVNode(parent);
+      // Should have: "same" (text1 kept), <span> (replaced text2)
+      expect(vnode.children).toHaveLength(2);
+      expect(vnode.children[0]).toBe('same');
+      expect((vnode.children[1] as { tag: string }).tag).toBe('span');
+    });
+
+    it('should remove the correct text node when multiple have identical content', () => {
+      const parent = document.createElement('div');
+      const text1 = document.createTextNode('dup');
+      const middle = document.createElement('em');
+      const text2 = document.createTextNode('dup');
+      parent.appendChild(text1);
+      parent.appendChild(middle);
+      parent.appendChild(text2);
+
+      // Remove the FIRST "dup" text node
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      (parent as any).removeChild(text1);
+
+      const vnode = toVNode(parent);
+      // Should have: <em>, "dup" (text2 kept)
+      expect(vnode.children).toHaveLength(2);
+      expect((vnode.children[0] as { tag: string }).tag).toBe('em');
+      expect(vnode.children[1]).toBe('dup');
+    });
+  });
+
   describe('replaceChild syncs children for toVNode serialization', () => {
     beforeEach(() => {
       installDomShim();

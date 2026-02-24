@@ -98,6 +98,8 @@ export class SSRElement extends SSRNode {
 
   // Override insertBefore to sync children array (used by __list and __conditional during SSR)
   insertBefore(newNode: SSRNode, referenceNode: SSRNode | null): SSRNode {
+    // Capture reference index BEFORE super modifies childNodes
+    const refIdx = referenceNode ? this._findChildIndex(referenceNode) : -1;
     const result = super.insertBefore(newNode, referenceNode);
 
     if (newNode instanceof SSRDocumentFragment) {
@@ -106,15 +108,10 @@ export class SSRElement extends SSRNode {
         if (fc instanceof SSRTextNode) fragmentChildren.push(fc.text);
         else if (fc instanceof SSRElement) fragmentChildren.push(fc);
       }
-      if (!referenceNode) {
+      if (!referenceNode || refIdx === -1) {
         this.children.push(...fragmentChildren);
       } else {
-        const refIdx = this._findChildIndex(referenceNode);
-        if (refIdx !== -1) {
-          this.children.splice(refIdx, 0, ...fragmentChildren);
-        } else {
-          this.children.push(...fragmentChildren);
-        }
+        this.children.splice(refIdx, 0, ...fragmentChildren);
       }
     } else {
       const child =
@@ -124,15 +121,10 @@ export class SSRElement extends SSRNode {
             ? newNode
             : null;
       if (child != null) {
-        if (!referenceNode) {
+        if (!referenceNode || refIdx === -1) {
           this.children.push(child);
         } else {
-          const refIdx = this._findChildIndex(referenceNode);
-          if (refIdx !== -1) {
-            this.children.splice(refIdx, 0, child);
-          } else {
-            this.children.push(child);
-          }
+          this.children.splice(refIdx, 0, child);
         }
       }
     }
@@ -141,8 +133,9 @@ export class SSRElement extends SSRNode {
 
   // Override replaceChild to sync children array
   replaceChild(newNode: SSRNode, oldNode: SSRNode): SSRNode {
-    const result = super.replaceChild(newNode, oldNode);
+    // Capture old index BEFORE super modifies childNodes
     const oldIdx = this._findChildIndex(oldNode);
+    const result = super.replaceChild(newNode, oldNode);
     if (oldIdx !== -1) {
       const newChild =
         newNode instanceof SSRTextNode
@@ -159,31 +152,23 @@ export class SSRElement extends SSRNode {
     return result;
   }
 
-  /** Find a node's index in the children array (handles text/element types). */
+  /** Find a node's index in the children array via childNodes identity lookup. */
   private _findChildIndex(node: SSRNode): number {
-    if (node instanceof SSRTextNode) {
-      return this.children.indexOf(node.text);
-    }
-    if (node instanceof SSRElement) {
-      return this.children.indexOf(node);
-    }
-    return -1;
+    // Use childNodes (which stores actual node references) for identity-based
+    // lookup. The children and childNodes arrays are maintained in parallel,
+    // so the index is the same. This avoids the bug where indexOf(node.text)
+    // returns the wrong index when multiple text nodes have identical content.
+    return this.childNodes.indexOf(node);
   }
 
   // Override to sync children array
   removeChild(child: SSRNode): SSRNode {
+    // Find the index BEFORE super.removeChild() modifies childNodes,
+    // since _findChildIndex uses childNodes for identity lookup.
+    const idx = this._findChildIndex(child);
     const result = super.removeChild(child);
-    // Also remove from children array
-    if (child instanceof SSRTextNode) {
-      const textIndex = this.children.indexOf(child.text);
-      if (textIndex !== -1) {
-        this.children.splice(textIndex, 1);
-      }
-    } else if (child instanceof SSRElement) {
-      const index = this.children.indexOf(child);
-      if (index !== -1) {
-        this.children.splice(index, 1);
-      }
+    if (idx !== -1) {
+      this.children.splice(idx, 1);
     }
     return result;
   }

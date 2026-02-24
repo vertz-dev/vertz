@@ -32,7 +32,7 @@ export interface QueryOptions<T> {
   key?: string;
   /** Custom cache store. Defaults to a shared in-memory Map. */
   cache?: CacheStore<T>;
-  /** Timeout in ms for SSR data loading. Default: 100. Set to 0 to disable. */
+  /** Timeout in ms for SSR data loading. Default: 300. Set to 0 to disable. */
   ssrTimeout?: number;
 }
 
@@ -148,7 +148,7 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
   // During SSR, call the thunk and register the promise for renderToHTML() to await.
   // Pass 1 (discovery): registers the query promise for renderToHTML() to await.
   // Pass 2 (render): the cache is already populated — serve from cache.
-  const ssrTimeout = options.ssrTimeout ?? getGlobalSSRTimeout() ?? 100;
+  const ssrTimeout = options.ssrTimeout ?? getGlobalSSRTimeout() ?? 300;
   if (isSSR() && enabled && ssrTimeout !== 0 && initialData === undefined) {
     // Call the thunk to derive cache key from dependency values.
     const promise = callThunkWithCapture();

@@ -32,6 +32,7 @@ export {
   css,
   defineTheme,
   getInjectedCSS,
+  resetInjectedStyles,
   globalCss,
   palettes,
   s,

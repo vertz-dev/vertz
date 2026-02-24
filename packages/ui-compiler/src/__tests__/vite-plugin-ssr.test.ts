@@ -96,35 +96,14 @@ describe('vertzPlugin SSR', () => {
       expect(code).toContain('compileTheme');
     });
 
-    it('should include collectCSS helper using getInjectedCSS', () => {
+    it('should wrap compileTheme in try-catch with descriptive error', () => {
       const plugin = vertzPlugin({ ssr: true }) as Plugin;
-      const code = callLoad(plugin, '\0vertz:ssr-entry');
-      expect(code).toBeDefined();
-      expect(code).toContain('collectCSS');
-      expect(code).toContain('getInjectedCSS');
-      expect(code).toContain('data-vertz-css');
-    });
-
-    it('should return { html, css } from renderToString', () => {
-      const plugin = vertzPlugin({ ssr: true }) as Plugin;
-      const code = callLoad(plugin, '\0vertz:ssr-entry');
-      expect(code).toBeDefined();
-      expect(code).toContain('return { html, css, ssrData }');
-    });
-
-    it('should import compileTheme from @vertz/ui for theme CSS injection', () => {
-      const plugin = vertzPlugin({ ssr: true }) as Plugin;
-      const code = callLoad(plugin, '\0vertz:ssr-entry');
-      expect(code).toBeDefined();
-      expect(code).toContain('compileTheme');
-    });
-
-    it('should compile and inject theme CSS when user module exports theme', () => {
-      const plugin = vertzPlugin({ ssr: true }) as Plugin;
-      const code = callLoad(plugin, '\0vertz:ssr-entry');
-      expect(code).toBeDefined();
-      expect(code).toContain('userModule.theme');
-      expect(code).toContain('compileTheme');
+      const code = callLoad(plugin, '\0vertz:ssr-entry') ?? '';
+      // compileTheme call should be wrapped in try-catch
+      const themeSection = code.slice(code.indexOf('userModule.theme'));
+      expect(themeSection).toContain('try');
+      expect(themeSection).toContain('catch');
+      expect(themeSection).toMatch(/theme.*export/i);
     });
 
     it('should use the configured entry in the generated code', () => {
@@ -264,9 +243,7 @@ describe('vertzPlugin SSR', () => {
           renderToString: () => ({
             html: '<div>Task List</div>',
             css: '<style data-vertz-css>.x{}</style>',
-            ssrData: [
-              { key: 'task-list', data: { items: [{ id: 1, title: 'Test' }] } },
-            ],
+            ssrData: [{ key: 'task-list', data: { items: [{ id: 1, title: 'Test' }] } }],
           }),
         })),
         ssrFixStacktrace: vi.fn(),
@@ -332,12 +309,30 @@ describe('vertzPlugin SSR', () => {
       expect(code).toContain('setGlobalSSRTimeout(300)');
     });
 
+    it('should set __SSR_URL__ and installDomShim inside ssrStorage.run callback', () => {
+      const plugin = vertzPlugin({ ssr: true }) as Plugin;
+      const code = callLoad(plugin, '\0vertz:ssr-entry') ?? '';
+      // __SSR_URL__ and installDomShim should appear AFTER ssrStorage.run(
+      const runIdx = code.indexOf('ssrStorage.run(');
+      const urlIdx = code.indexOf('globalThis.__SSR_URL__');
+      const shimIdx = code.indexOf('installDomShim()');
+      expect(runIdx).toBeGreaterThan(-1);
+      expect(urlIdx).toBeGreaterThan(runIdx);
+      expect(shimIdx).toBeGreaterThan(runIdx);
+    });
+
     it('should clean up in finally block', () => {
       const plugin = vertzPlugin({ ssr: true }) as Plugin;
       const code = callLoad(plugin, '\0vertz:ssr-entry');
       expect(code).toContain('finally');
       expect(code).toContain('clearGlobalSSRTimeout');
       expect(code).toContain('removeDomShim');
+    });
+
+    it('should reset injected CSS in finally block to prevent memory leak', () => {
+      const plugin = vertzPlugin({ ssr: true }) as Plugin;
+      const code = callLoad(plugin, '\0vertz:ssr-entry');
+      expect(code).toContain('resetInjectedStyles');
     });
 
     it('should import ssrStorage, getSSRQueries, and timeout helpers from @vertz/ui-server', () => {

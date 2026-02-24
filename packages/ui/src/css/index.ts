@@ -1,7 +1,7 @@
 // Internal utilities — exported for compiler use
 export { generateClassName } from './class-generator';
 export type { CSSInput, CSSOutput, StyleEntry } from './css';
-export { css, getInjectedCSS } from './css';
+export { css, getInjectedCSS, resetInjectedStyles } from './css';
 export type { GlobalCSSInput, GlobalCSSOutput } from './global-css';
 export { globalCss } from './global-css';
 export { InlineStyleError, s } from './s';

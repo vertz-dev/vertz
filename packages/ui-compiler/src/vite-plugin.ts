@@ -479,7 +479,7 @@ function generateSSREntry(userEntry: string, ssrTimeout: number): string {
   return `
 import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
 import { ssrStorage, getSSRQueries, setGlobalSSRTimeout, clearGlobalSSRTimeout, renderToStream, streamToString } from '@vertz/ui-server';
-import { getInjectedCSS, compileTheme } from '@vertz/ui';
+import { getInjectedCSS, resetInjectedStyles, compileTheme } from '@vertz/ui';
 
 function collectCSS(themeCss) {
   const componentStyles = getInjectedCSS()
@@ -503,10 +503,9 @@ export async function renderToString(url) {
     ? url.slice(0, -'/index.html'.length) || '/'
     : url;
 
-  globalThis.__SSR_URL__ = normalizedUrl;
-  installDomShim();
-
   return ssrStorage.run({ url: normalizedUrl, errors: [], queries: [] }, async () => {
+    globalThis.__SSR_URL__ = normalizedUrl;
+    installDomShim();
     try {
       setGlobalSSRTimeout(${ssrTimeout});
 
@@ -520,7 +519,14 @@ export async function renderToString(url) {
       // Compile theme CSS if the user module exports a theme
       let themeCss = '';
       if (userModule.theme) {
-        themeCss = compileTheme(userModule.theme).css;
+        try {
+          themeCss = compileTheme(userModule.theme).css;
+        } catch (e) {
+          console.error(
+            '[vertz] Failed to compile theme export. Ensure your theme is created with defineTheme().',
+            e,
+          );
+        }
       }
 
       // Pass 1: Discovery — triggers query() registrations
@@ -562,6 +568,7 @@ export async function renderToString(url) {
       return { html, css, ssrData };
     } finally {
       clearGlobalSSRTimeout();
+      resetInjectedStyles();
       removeDomShim();
       delete globalThis.__SSR_URL__;
     }
