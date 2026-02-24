@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { InlineStyleError, s } from '../s';
 
 describe('s()', () => {

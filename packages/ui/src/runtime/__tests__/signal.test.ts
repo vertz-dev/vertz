@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { batch } from '../scheduler';
 import { computed, domEffect, lifecycleEffect, signal } from '../signal';
 import { untrack } from '../tracking';

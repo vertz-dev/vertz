@@ -30,19 +30,18 @@
   ],
   "scripts": {
     "build": "bunup",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@vertz/ui": "workspace:*"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.0.18",
+    "@happy-dom/global-registrator": "^20.7.0",
     "bunup": "latest",
     "happy-dom": "^18.0.1",
-    "typescript": "^5.7.0",
-    "vitest": "^4.0.18"
+    "typescript": "^5.7.0"
   },
   "engines": {
     "node": ">=22"

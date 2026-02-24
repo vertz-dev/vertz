@@ -1,14 +1,16 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { css, getInjectedCSS, injectCSS, resetInjectedStyles } from '../css';
 
+function cleanupStyles(): void {
+  for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
+    el.remove();
+  }
+  resetInjectedStyles();
+}
+
 describe('css() runtime style injection', () => {
-  afterEach(() => {
-    // Clean up injected <style> elements and reset tracking
-    for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
-      el.remove();
-    }
-    resetInjectedStyles();
-  });
+  beforeEach(cleanupStyles);
+  afterEach(cleanupStyles);
 
   it('injects generated CSS into document.head as a <style> tag', () => {
     css({ card: ['p:4', 'bg:background'] }, 'inject-test.tsx');

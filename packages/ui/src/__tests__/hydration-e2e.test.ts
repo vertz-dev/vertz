@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { resetInjectedStyles } from '../css/css';
 import { __conditional } from '../dom/conditional';
 import {

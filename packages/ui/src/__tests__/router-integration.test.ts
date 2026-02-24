@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import { createContext } from '../component/context';
 import { defineRoutes, matchRoute } from '../router/define-routes';
 import { executeLoaders } from '../router/loader';

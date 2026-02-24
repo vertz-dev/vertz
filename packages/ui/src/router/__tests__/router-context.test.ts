@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'bun:test';
 import { lifecycleEffect } from '../../runtime/signal';
 import { untrack } from '../../runtime/tracking';
 import { defineRoutes } from '../define-routes';

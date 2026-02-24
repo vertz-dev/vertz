@@ -1,14 +1,5 @@
-import { defineConfig } from 'vitest/config';
-
-export default defineConfig({
+export default {
   test: {
     environment: 'happy-dom',
-    globals: true,
-    include: ['src/**/*.test.ts', 'src/**/*.test-d.ts'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      exclude: ['src/**/*.test.ts', 'src/**/*.test-d.ts'],
-    },
   },
-});
+};

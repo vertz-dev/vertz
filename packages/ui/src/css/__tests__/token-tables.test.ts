@@ -10,7 +10,7 @@
  * 6. All CSS color keywords are present
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   ALIGNMENT_MAP,
   COLOR_NAMESPACES,

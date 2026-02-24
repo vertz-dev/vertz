@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
 import { query } from '../query/query';
 import { signal } from '../runtime/signal';
 
@@ -21,7 +21,8 @@ describe('Integration Tests — Query Data Fetching', () => {
     expect(users.data.value).toBeUndefined();
 
     // After promise settles
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
 
     expect(users.loading.value).toBe(false);
     expect(users.data.value).toEqual([{ id: 1, name: 'Alice' }]);
@@ -42,14 +43,16 @@ describe('Integration Tests — Query Data Fetching', () => {
       { key: 'it-4-2' },
     );
 
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toEqual({ page: 1, items: ['item-1'] });
     const countAfterFirst = fetchCount;
 
     // Change the reactive dependency
     page.value = 2;
 
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
     expect(result.data.value).toEqual({ page: 2, items: ['item-2'] });
     expect(fetchCount).toBeGreaterThan(countAfterFirst);
   });
@@ -78,7 +81,8 @@ describe('Integration Tests — Query Data Fetching', () => {
     expect(fetchCount).toBe(1);
 
     // Advance past the setTimeout in the fetcher
-    await vi.advanceTimersByTimeAsync(100);
+    vi.advanceTimersByTime(100);
+    await Promise.resolve();
 
     expect(q1.data.value).toBe('result');
     expect(q2.data.value).toBe('result');
@@ -96,7 +100,8 @@ describe('Integration Tests — Query Data Fetching', () => {
     expect(result.loading.value).toBe(false);
 
     // Wait for any async effects to settle
-    await vi.advanceTimersByTimeAsync(0);
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
 
     // The thunk may have been called by the effect for tracking purposes,
     // but the data should remain the initialData (executeFetch was skipped)
