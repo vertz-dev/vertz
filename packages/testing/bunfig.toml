@@ -1,0 +1,7 @@
+[test]
+coveragePathIgnorePatterns = [
+  "**/core/dist/**",
+  "**/errors/dist/**",
+  "**/schema/dist/**",
+  "**/server/dist/**",
+]
