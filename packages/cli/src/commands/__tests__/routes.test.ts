@@ -1,5 +1,5 @@
 import type { AppIR, Compiler, ModuleIR, RouteIR, RouterIR } from '@vertz/compiler';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 import { routesAction } from '../routes';
 
 function makeRoute(overrides: Partial<RouteIR> = {}): RouteIR {

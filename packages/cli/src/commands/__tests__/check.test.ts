@@ -1,5 +1,5 @@
 import type { AppIR, CompileResult, Compiler, Diagnostic } from '@vertz/compiler';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 import { checkAction } from '../check';
 
 function makeDiagnostic(overrides: Partial<Diagnostic> = {}): Diagnostic {

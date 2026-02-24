@@ -5,7 +5,7 @@
  * Verifies that buildAction returns proper exit codes instead of calling process.exit
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 
 describe('buildAction', () => {
   beforeEach(() => {

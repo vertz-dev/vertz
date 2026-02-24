@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { toKebabCase, toPascalCase } from '../naming';
 
 describe('toKebabCase', () => {

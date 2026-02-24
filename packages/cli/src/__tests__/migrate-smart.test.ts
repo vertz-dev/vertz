@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { smartMigrateAction } from '../commands/migrate-smart';
 
 const mockProjectRoot = '/mock/project';
@@ -30,16 +30,17 @@ vi.mock('node:child_process', () => ({
 describe('Feature: Smart Migrate Command', () => {
   beforeEach(() => {
     findProjectRootMock.mockReturnValue(mockProjectRoot);
-    vi.stubEnv('NODE_ENV', 'development');
+    process.env.NODE_ENV = 'development';
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    delete process.env.NODE_ENV;
   });
 
   describe('Given NODE_ENV=development', () => {
     beforeEach(() => {
-      vi.stubEnv('NODE_ENV', 'development');
+      process.env.NODE_ENV = 'development';
     });
 
     describe('When `vertz db migrate` runs', () => {
@@ -106,7 +107,7 @@ describe('Feature: Smart Migrate Command', () => {
 
   describe('Given NODE_ENV=production', () => {
     beforeEach(() => {
-      vi.stubEnv('NODE_ENV', 'production');
+      process.env.NODE_ENV = 'production';
     });
 
     describe('When `vertz db migrate` runs', () => {
@@ -143,7 +144,7 @@ describe('Feature: Smart Migrate Command', () => {
 
   describe('Given NODE_ENV=ci', () => {
     beforeEach(() => {
-      vi.stubEnv('NODE_ENV', 'ci');
+      process.env.NODE_ENV = 'ci';
     });
 
     describe('When `vertz db migrate` runs', () => {

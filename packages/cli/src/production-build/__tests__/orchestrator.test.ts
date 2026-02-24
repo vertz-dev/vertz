@@ -8,7 +8,7 @@
  * - Manifest generation
  */
 
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
 import { BuildOrchestrator, createBuildOrchestrator } from '../orchestrator';
 import type { BuildConfig, BuildManifest } from '../types';
 

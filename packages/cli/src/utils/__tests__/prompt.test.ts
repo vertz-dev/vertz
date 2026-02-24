@@ -1,16 +1,16 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 import { isCI, requireParam } from '../prompt';
 
 describe('isCI', () => {
   function clearCIEnv(): void {
-    vi.stubEnv('CI', '');
-    vi.stubEnv('CONTINUOUS_INTEGRATION', '');
-    vi.stubEnv('GITHUB_ACTIONS', '');
-    vi.stubEnv('GITLAB_CI', '');
+    delete process.env.CI;
+    delete process.env.CONTINUOUS_INTEGRATION;
+    delete process.env.GITHUB_ACTIONS;
+    delete process.env.GITLAB_CI;
   }
 
   afterEach(() => {
-    vi.unstubAllEnvs();
+    clearCIEnv();
   });
 
   it('returns false when no CI env vars are set', () => {
@@ -20,25 +20,25 @@ describe('isCI', () => {
 
   it('returns true when CI=true', () => {
     clearCIEnv();
-    vi.stubEnv('CI', 'true');
+    process.env.CI = 'true';
     expect(isCI()).toBe(true);
   });
 
   it('returns true when CI=1', () => {
     clearCIEnv();
-    vi.stubEnv('CI', '1');
+    process.env.CI = '1';
     expect(isCI()).toBe(true);
   });
 
   it('returns true when GITHUB_ACTIONS=true', () => {
     clearCIEnv();
-    vi.stubEnv('GITHUB_ACTIONS', 'true');
+    process.env.GITHUB_ACTIONS = 'true';
     expect(isCI()).toBe(true);
   });
 
   it('returns true when GITLAB_CI=true', () => {
     clearCIEnv();
-    vi.stubEnv('GITLAB_CI', 'true');
+    process.env.GITLAB_CI = 'true';
     expect(isCI()).toBe(true);
   });
 });
