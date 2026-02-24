@@ -32,9 +32,9 @@ export {
   css,
   defineTheme,
   getInjectedCSS,
-  resetInjectedStyles,
   globalCss,
   palettes,
+  resetInjectedStyles,
   s,
   ThemeProvider,
   variants,
@@ -59,15 +59,7 @@ export type { FormSchema, ValidationResult } from './form/validation';
 export { validate } from './form/validation';
 // Hydration (public API only)
 export type { ComponentFunction, ComponentLoader, ComponentRegistry } from './hydrate';
-export {
-  eagerStrategy,
-  hydrate,
-  idleStrategy,
-  interactionStrategy,
-  lazyStrategy,
-  mediaStrategy,
-  visibleStrategy,
-} from './hydrate';
+export { hydrate } from './hydrate';
 export type { MountHandle, MountOptions } from './mount';
 // Mount API
 export { mount } from './mount';

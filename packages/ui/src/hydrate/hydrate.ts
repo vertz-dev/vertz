@@ -1,22 +1,14 @@
 import type { ComponentRegistry } from './component-registry';
 import { resolveComponent } from './component-registry';
 import { deserializeProps } from './props-deserializer';
-import {
-  eagerStrategy,
-  idleStrategy,
-  interactionStrategy,
-  lazyStrategy,
-  mediaStrategy,
-  visibleStrategy,
-} from './strategies';
-
-type HydrationStrategy = 'eager' | 'interaction' | 'lazy' | 'idle' | 'media' | 'visible';
+import { autoStrategy } from './strategies';
 
 /**
  * Client entry point for atomic per-component hydration.
  *
  * Scans the DOM for elements with `data-v-id` markers placed by the SSR pass,
- * deserializes their props, and applies the appropriate hydration strategy.
+ * deserializes their props, and applies automatic hydration based on viewport
+ * proximity (IntersectionObserver with 200px rootMargin).
  *
  * Components without `data-v-id` markers are static and ship zero JS.
  *
@@ -34,7 +26,6 @@ export function hydrate(registry: ComponentRegistry): void {
     const componentId = el.getAttribute('data-v-id');
     if (!componentId) continue;
 
-    const strategy = (el.getAttribute('hydrate') as HydrationStrategy | null) ?? 'lazy';
     const props = deserializeProps(el);
 
     const doHydrate = (): void => {
@@ -48,29 +39,6 @@ export function hydrate(registry: ComponentRegistry): void {
         });
     };
 
-    switch (strategy) {
-      case 'eager':
-        eagerStrategy(el, doHydrate);
-        break;
-      case 'lazy':
-        lazyStrategy(el, doHydrate);
-        break;
-      case 'interaction':
-        interactionStrategy(el, doHydrate);
-        break;
-      case 'idle':
-        idleStrategy(el, doHydrate);
-        break;
-      case 'media': {
-        const query = el.getAttribute('hydrate-media') ?? '';
-        mediaStrategy(query)(el, doHydrate);
-        break;
-      }
-      case 'visible':
-        visibleStrategy(el, doHydrate);
-        break;
-      default:
-        lazyStrategy(el, doHydrate);
-    }
+    autoStrategy(el, doHydrate);
   }
 }
