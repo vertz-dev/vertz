@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { defaultCLIConfig } from '../defaults';
 
 describe('defaultCLIConfig', () => {

@@ -1,5 +1,5 @@
 import type { CodegenConfig, CodegenIR, CodegenPipeline, IncrementalResult } from '@vertz/codegen';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'bun:test';
 import { codegenAction } from '../codegen';
 
 // ── Fixture helpers ──────────────────────────────────────────────

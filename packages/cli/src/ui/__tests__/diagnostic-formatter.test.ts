@@ -1,6 +1,6 @@
 import type { Diagnostic } from '@vertz/compiler';
 import { symbols } from '@vertz/tui';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   formatDiagnostic,
   formatDiagnosticSummary,
