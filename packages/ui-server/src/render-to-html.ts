@@ -156,28 +156,41 @@ export async function renderToHTMLStream<AppFn extends () => VNode>(
 
       // No pending queries — return a simple non-streaming response
       if (pendingQueries.length === 0) {
+        clearGlobalSSRTimeout();
+        removeDomShim();
         return new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html; charset=utf-8' },
         });
       }
 
+      // Cleanup is safe now — the two-pass render is done and the streaming
+      // phase only serializes data (no DOM shim or SSR context needed).
+      clearGlobalSSRTimeout();
+      removeDomShim();
+
+      // Unique sentinel for timeout detection (not a string that could collide with data)
+      const TIMEOUT_SENTINEL = Symbol('stream-timeout');
+
       // Stream: initial HTML + data chunks for pending queries
+      let closed = false;
+      let hardTimeoutId: ReturnType<typeof setTimeout> | undefined;
+
       const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
           // Enqueue initial HTML
           controller.enqueue(encodeChunk(html));
 
           // Race all pending queries against the hard timeout
-          const hardTimeout = new Promise<'timeout'>((r) =>
-            setTimeout(() => r('timeout'), streamTimeout),
-          );
+          const hardTimeout = new Promise<typeof TIMEOUT_SENTINEL>((r) => {
+            hardTimeoutId = setTimeout(() => r(TIMEOUT_SENTINEL), streamTimeout);
+          });
 
           // Stream each pending query as it resolves
           const streamPromises = pendingQueries.map(async (entry) => {
             try {
               const result = await Promise.race([entry.promise, hardTimeout]);
-              if (result === 'timeout') return;
+              if (result === TIMEOUT_SENTINEL || closed) return;
               const chunk = createSSRDataChunk(entry.key, result, options.nonce);
               controller.enqueue(encodeChunk(chunk));
             } catch {
@@ -188,6 +201,8 @@ export async function renderToHTMLStream<AppFn extends () => VNode>(
           // Wait for all queries to either resolve, reject, or timeout
           await Promise.race([Promise.allSettled(streamPromises), hardTimeout]);
 
+          if (hardTimeoutId !== undefined) clearTimeout(hardTimeoutId);
+          closed = true;
           controller.close();
         },
       });
@@ -196,9 +211,10 @@ export async function renderToHTMLStream<AppFn extends () => VNode>(
         status: 200,
         headers: { 'content-type': 'text/html; charset=utf-8' },
       });
-    } finally {
+    } catch (err) {
       clearGlobalSSRTimeout();
       removeDomShim();
+      throw err;
     }
   });
 }
@@ -249,6 +265,16 @@ export async function renderToHTML<AppFn extends () => VNode>(
       ? { ...(maybeOptions as RenderToHTMLOptions<AppFn>), app: appOrOptions }
       : appOrOptions;
 
-  const response = await renderToHTMLStream(options);
-  return await response.text();
+  // Direct path: uses twoPassRender without streaming overhead.
+  // This avoids creating a ReadableStream, encoding to Uint8Array, then decoding back.
+  installDomShim();
+  return ssrStorage.run({ url: options.url, errors: [], queries: [] }, async () => {
+    try {
+      const { html } = await twoPassRender(options);
+      return html;
+    } finally {
+      clearGlobalSSRTimeout();
+      removeDomShim();
+    }
+  });
 }

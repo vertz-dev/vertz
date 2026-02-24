@@ -12,6 +12,8 @@ export interface SSRContext {
   url: string;
   errors: unknown[];
   queries: SSRQueryEntry[];
+  /** Per-request global ssrTimeout override (ms). */
+  ssrTimeout?: number;
 }
 
 export const ssrStorage: AsyncLocalStorage<SSRContext> = new AsyncLocalStorage<SSRContext>();
@@ -59,19 +61,31 @@ export function getSSRQueries(): SSRQueryEntry[] {
 /**
  * Set a global default ssrTimeout for all queries in the current render.
  * Per-query ssrTimeout overrides this value.
- * Should be called inside ssrStorage.run() for per-request isolation.
+ * Stored in the per-request SSR context (AsyncLocalStorage), not on globalThis.
  */
 export function setGlobalSSRTimeout(timeout: number): void {
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-  (globalThis as any).__VERTZ_SSR_TIMEOUT__ = timeout;
+  const store = ssrStorage.getStore();
+  if (store) {
+    store.ssrTimeout = timeout;
+  }
 }
 
 /**
  * Clear the global ssrTimeout after render completes.
  */
 export function clearGlobalSSRTimeout(): void {
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-  delete (globalThis as any).__VERTZ_SSR_TIMEOUT__;
+  const store = ssrStorage.getStore();
+  if (store) {
+    store.ssrTimeout = undefined;
+  }
+}
+
+/**
+ * Get the global ssrTimeout for the current SSR context.
+ * Returns undefined if not set or outside SSR context.
+ */
+function getGlobalSSRTimeout(): number | undefined {
+  return ssrStorage.getStore()?.ssrTimeout;
 }
 
 // Install global function hook so @vertz/ui can check SSR without importing ui-server
@@ -81,3 +95,9 @@ export function clearGlobalSSRTimeout(): void {
 // Install global hook for query() to register SSR queries without importing ui-server
 // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
 (globalThis as any).__VERTZ_SSR_REGISTER_QUERY__ = registerSSRQuery;
+
+// Install global hook for query() to read per-request ssrTimeout without importing ui-server
+// This is a FUNCTION (not a property) so it reads from the current AsyncLocalStorage context,
+// making it safe for concurrent requests.
+// biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+(globalThis as any).__VERTZ_SSR_GET_TIMEOUT__ = getGlobalSSRTimeout;

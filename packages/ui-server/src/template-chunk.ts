@@ -1,3 +1,5 @@
+import { escapeAttr } from './html-serializer';
+
 /**
  * Create a replacement template chunk for out-of-order streaming.
  *
@@ -14,7 +16,7 @@ export function createTemplateChunk(slotId: number, resolvedHtml: string, nonce?
   const tmplId = `v-tmpl-${slotId}`;
   const slotRef = `v-slot-${slotId}`;
 
-  const nonceAttr = nonce != null ? ` nonce="${escapeNonce(nonce)}"` : '';
+  const nonceAttr = nonce != null ? ` nonce="${escapeAttr(nonce)}"` : '';
 
   return (
     `<template id="${tmplId}">${resolvedHtml}</template>` +
@@ -26,12 +28,4 @@ export function createTemplateChunk(slotId: number, resolvedHtml: string, nonce?
     `})()` +
     '</script>'
   );
-}
-
-/**
- * Escape a nonce value for safe embedding in an HTML attribute.
- * Prevents attribute breakout via double-quote injection.
- */
-function escapeNonce(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }

@@ -61,6 +61,13 @@ describe('createSSRDataChunk', () => {
     expect(chunk).toContain('nonce="nonce123"');
   });
 
+  it('escapes dangerous content in key', () => {
+    const chunk = createSSRDataChunk('key</script><script>alert(1)', 'data');
+    // The key should be escaped — no raw </script> breakout from key
+    const scriptContent = chunk.slice(chunk.indexOf('>') + 1, chunk.lastIndexOf('</script>'));
+    expect(scriptContent).not.toContain('</script>');
+  });
+
   it('escapes dangerous content in data', () => {
     const chunk = createSSRDataChunk('key', { xss: '</script>' });
     expect(chunk).not.toContain('</script></script>');

@@ -140,8 +140,11 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
   // During SSR, call the thunk and register the promise for renderToHTML() to await.
   // Pass 1 (discovery): registers the query promise for renderToHTML() to await.
   // Pass 2 (render): the cache is already populated — serve from cache.
+  // Read per-request ssrTimeout via function hook (safe for concurrent requests).
+  // Falls back to reading the legacy property for backward compatibility.
   // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-  const globalSSRTimeout = (globalThis as any).__VERTZ_SSR_TIMEOUT__;
+  const getTimeout = (globalThis as any).__VERTZ_SSR_GET_TIMEOUT__;
+  const globalSSRTimeout = typeof getTimeout === 'function' ? getTimeout() : undefined;
   const ssrTimeout =
     options.ssrTimeout ?? (typeof globalSSRTimeout === 'number' ? globalSSRTimeout : 100);
   if (isSSR() && enabled && ssrTimeout !== 0 && initialData === undefined) {

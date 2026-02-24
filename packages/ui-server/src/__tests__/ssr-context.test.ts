@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  clearGlobalSSRTimeout,
   collectSSRError,
   getSSRErrors,
   getSSRQueries,
   registerSSRQuery,
+  setGlobalSSRTimeout,
   ssrStorage,
 } from '../ssr-context';
 
@@ -98,5 +100,38 @@ describe('SSR query registration', () => {
 
   it('getSSRQueries returns empty array outside SSR context', () => {
     expect(getSSRQueries()).toEqual([]);
+  });
+});
+
+describe('global ssrTimeout — per-request isolation', () => {
+  it('ssrTimeout is scoped to the current SSR context, not globalThis', async () => {
+    // Simulate two concurrent requests with different ssrTimeouts
+    const results: number[] = [];
+
+    const request1 = ssrStorage.run({ url: '/r1', errors: [], queries: [] }, async () => {
+      setGlobalSSRTimeout(500);
+      // Yield to let request2 run
+      await new Promise((r) => setTimeout(r, 10));
+      // Read the timeout — should still be 500, not clobbered by request2
+      // biome-ignore lint/suspicious/noExplicitAny: testing SSR global hook
+      const getTimeout = (globalThis as any).__VERTZ_SSR_GET_TIMEOUT__;
+      results.push(typeof getTimeout === 'function' ? getTimeout() : -1);
+      clearGlobalSSRTimeout();
+    });
+
+    const request2 = ssrStorage.run({ url: '/r2', errors: [], queries: [] }, async () => {
+      setGlobalSSRTimeout(50);
+      await new Promise((r) => setTimeout(r, 5));
+      // biome-ignore lint/suspicious/noExplicitAny: testing SSR global hook
+      const getTimeout = (globalThis as any).__VERTZ_SSR_GET_TIMEOUT__;
+      results.push(typeof getTimeout === 'function' ? getTimeout() : -1);
+      clearGlobalSSRTimeout();
+    });
+
+    await Promise.all([request1, request2]);
+
+    // Each request should see its own timeout, not the other's
+    expect(results).toContain(500);
+    expect(results).toContain(50);
   });
 });

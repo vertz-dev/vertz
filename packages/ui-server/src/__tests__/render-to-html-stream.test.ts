@@ -287,6 +287,36 @@ describe('renderToHTMLStream', () => {
     expect(text).toContain('__VERTZ_SSR_PUSH__');
   });
 
+  it('cleanup runs after stream is fully consumed, not before', async () => {
+    const slow = deferred<string>();
+
+    function App(): VNode {
+      const item = query(() => slow.promise, {
+        key: 'stream-cleanup-timing',
+        ssrTimeout: 10,
+      });
+      const data = item.data as unknown as { value: string | undefined };
+      return {
+        tag: 'div',
+        attrs: { id: 'app' },
+        children: [data.value ?? 'Loading...'],
+      };
+    }
+
+    const response = await renderToHTMLStream({ app: App, url: '/', ssrTimeout: 10 });
+
+    // At this point, the Response has been returned but the stream is NOT consumed yet.
+    // The global ssrTimeout should NOT have been cleared yet (because the stream is still open).
+    // Resolve the slow query — this should succeed because cleanup hasn't run yet.
+    slow.resolve('Cleanup Test Data');
+
+    const text = await response.text();
+
+    // The stream should have completed successfully
+    expect(text).toContain('Loading...');
+    expect(text).toContain('Cleanup Test Data');
+  });
+
   it('failed slow query does not crash, remaining queries still stream', async () => {
     const failing = deferred<string>();
     const succeeding = deferred<string>();

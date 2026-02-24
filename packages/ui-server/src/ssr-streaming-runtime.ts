@@ -3,14 +3,7 @@
  * for streaming resolved query data to the client.
  */
 
-/**
- * Escape a nonce value for safe embedding in an HTML attribute.
- * Prevents attribute breakout via double-quote injection.
- * Same logic as template-chunk.ts escapeNonce().
- */
-function escapeNonce(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-}
+import { escapeAttr } from './html-serializer';
 
 /**
  * Serialize data to JSON with `<` escaped as `\u003c`.
@@ -29,7 +22,7 @@ export function safeSerialize(data: unknown): string {
  * - `window.__VERTZ_SSR_PUSH__` — function to push data + dispatch event
  */
 export function getStreamingRuntimeScript(nonce?: string): string {
-  const nonceAttr = nonce != null ? ` nonce="${escapeNonce(nonce)}"` : '';
+  const nonceAttr = nonce != null ? ` nonce="${escapeAttr(nonce)}"` : '';
 
   return (
     `<script${nonceAttr}>` +
@@ -51,8 +44,8 @@ export function getStreamingRuntimeScript(nonce?: string): string {
  * @param nonce - Optional CSP nonce for the script tag
  */
 export function createSSRDataChunk(key: string, data: unknown, nonce?: string): string {
-  const nonceAttr = nonce != null ? ` nonce="${escapeNonce(nonce)}"` : '';
+  const nonceAttr = nonce != null ? ` nonce="${escapeAttr(nonce)}"` : '';
   const serialized = safeSerialize(data);
 
-  return `<script${nonceAttr}>window.__VERTZ_SSR_PUSH__(${JSON.stringify(key)},${serialized})</script>`;
+  return `<script${nonceAttr}>window.__VERTZ_SSR_PUSH__(${safeSerialize(key)},${serialized})</script>`;
 }
