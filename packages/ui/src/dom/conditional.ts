@@ -2,7 +2,6 @@ import { claimComment, getIsHydrating } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
-import { getAdapter, isRenderNode } from './adapter';
 
 /** A Node that also carries a dispose function for cleanup. */
 export interface DisposableNode extends Node {
@@ -41,8 +40,7 @@ function hydrateConditional(
   falseFn: () => Node | null,
 ): DisposableNode {
   // Claim the SSR comment anchor
-  const anchor =
-    claimComment() ?? (getAdapter().createComment('conditional') as unknown as Comment);
+  const anchor = claimComment() ?? document.createComment('conditional');
   let currentNode: Node | null = null;
   let branchCleanups: DisposeFn[] = [];
 
@@ -64,11 +62,11 @@ function hydrateConditional(
       // During hydration, the branch content is already in the DOM.
       // Just track the current node for future branch switches.
       if (branchResult == null || typeof branchResult === 'boolean') {
-        currentNode = getAdapter().createComment('empty') as unknown as Node;
-      } else if (isRenderNode(branchResult)) {
+        currentNode = document.createComment('empty');
+      } else if (branchResult instanceof Node) {
         currentNode = branchResult;
       } else {
-        currentNode = getAdapter().createTextNode(String(branchResult)) as unknown as Node;
+        currentNode = document.createTextNode(String(branchResult));
       }
       return;
     }
@@ -83,11 +81,11 @@ function hydrateConditional(
 
     let newNode: Node;
     if (branchResult == null || typeof branchResult === 'boolean') {
-      newNode = getAdapter().createComment('empty') as unknown as Node;
-    } else if (isRenderNode(branchResult)) {
+      newNode = document.createComment('empty');
+    } else if (branchResult instanceof Node) {
       newNode = branchResult;
     } else {
-      newNode = getAdapter().createTextNode(String(branchResult)) as unknown as Node;
+      newNode = document.createTextNode(String(branchResult));
     }
 
     if (currentNode?.parentNode) {
@@ -125,7 +123,7 @@ function csrConditional(
   falseFn: () => Node | null,
 ): DisposableNode {
   // Use a comment node as a stable anchor/placeholder
-  const anchor = getAdapter().createComment('conditional') as unknown as Comment;
+  const anchor = document.createComment('conditional');
   let currentNode: Node | null = null;
   let branchCleanups: DisposeFn[] = [];
 
@@ -150,11 +148,11 @@ function csrConditional(
     // expressions like {loading ? 'Loading...' : 'Done'} — convert to text nodes.
     let newNode: Node;
     if (branchResult == null || typeof branchResult === 'boolean') {
-      newNode = getAdapter().createComment('empty') as unknown as Node;
-    } else if (isRenderNode(branchResult)) {
+      newNode = document.createComment('empty');
+    } else if (branchResult instanceof Node) {
       newNode = branchResult;
     } else {
-      newNode = getAdapter().createTextNode(String(branchResult)) as unknown as Node;
+      newNode = document.createTextNode(String(branchResult));
     }
 
     if (currentNode?.parentNode) {
@@ -182,7 +180,7 @@ function csrConditional(
   _tryOnCleanup(wrapper);
 
   // Return a fragment containing both anchor and initial rendered content
-  const fragment = getAdapter().createDocumentFragment() as unknown as DocumentFragment;
+  const fragment = document.createDocumentFragment();
   fragment.appendChild(anchor);
   if (currentNode) {
     fragment.appendChild(currentNode);
