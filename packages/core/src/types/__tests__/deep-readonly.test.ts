@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, expectTypeOf, it } from 'bun:test';
 import type { DeepReadonly } from '../deep-readonly';
 
 describe('DeepReadonly', () => {

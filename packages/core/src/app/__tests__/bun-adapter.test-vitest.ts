@@ -1,14 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBunAdapter } from '../bun-adapter';
 
+// Types for Bun.serve
+type BunServeOptions = {
+  port: number;
+  hostname?: string;
+  fetch: (request: Request) => Promise<Response>;
+};
+
+type BunServer = {
+  port: number;
+  hostname: string;
+  stop: (closeActiveConnections?: boolean) => void;
+};
+
 // Mock the global Bun.serve that the adapter depends on
-const mockStop = vi.fn();
-const mockServer = {
+const mockStop = vi.fn<(closeActiveConnections?: boolean) => void>();
+const mockServer: BunServer = {
   port: 0,
   hostname: '',
   stop: mockStop,
 };
-const mockServe = vi.fn(() => mockServer);
+const mockServe = vi.fn<(options: BunServeOptions) => BunServer>(() => mockServer);
 
 beforeEach(() => {
   // Install the global Bun mock before each test
@@ -35,9 +48,9 @@ describe('createBunAdapter', () => {
       await adapter.listen(4000, handler);
 
       expect(mockServe).toHaveBeenCalledOnce();
-      const serveArg = mockServe.mock.calls[0][0];
-      expect(serveArg.port).toBe(4000);
-      expect(serveArg.fetch).toBe(handler);
+      const serveArg = mockServe.mock.calls[0]?.[0];
+      expect(serveArg?.port).toBe(4000);
+      expect(serveArg?.fetch).toBe(handler);
     });
 
     it('passes hostname from options to Bun.serve', async () => {
@@ -49,8 +62,8 @@ describe('createBunAdapter', () => {
 
       await adapter.listen(3000, handler, { hostname: '0.0.0.0' });
 
-      const serveArg = mockServe.mock.calls[0][0];
-      expect(serveArg.hostname).toBe('0.0.0.0');
+      const serveArg = mockServe.mock.calls[0]?.[0];
+      expect(serveArg?.hostname).toBe('0.0.0.0');
     });
 
     it('passes undefined hostname when no options are provided', async () => {
@@ -62,8 +75,8 @@ describe('createBunAdapter', () => {
 
       await adapter.listen(3000, handler);
 
-      const serveArg = mockServe.mock.calls[0][0];
-      expect(serveArg.hostname).toBeUndefined();
+      const serveArg = mockServe.mock.calls[0]?.[0];
+      expect(serveArg?.hostname).toBeUndefined();
     });
 
     it('passes undefined hostname when options exist but hostname is omitted', async () => {
@@ -75,8 +88,8 @@ describe('createBunAdapter', () => {
 
       await adapter.listen(3000, handler, {});
 
-      const serveArg = mockServe.mock.calls[0][0];
-      expect(serveArg.hostname).toBeUndefined();
+      const serveArg = mockServe.mock.calls[0]?.[0];
+      expect(serveArg?.hostname).toBeUndefined();
     });
 
     it('returns a ServerHandle whose hostname comes from the server object, not the input options', async () => {

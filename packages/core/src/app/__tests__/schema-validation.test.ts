@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { BadRequestException } from '../../exceptions';
 import { createModule } from '../../module/module';
 import { createModuleDef } from '../../module/module-def';

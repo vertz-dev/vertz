@@ -1,5 +1,5 @@
 import type { Schema } from '@vertz/schema';
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, expectTypeOf, it } from 'bun:test';
 import type { InferSchema } from '../schema-infer';
 
 describe('InferSchema', () => {

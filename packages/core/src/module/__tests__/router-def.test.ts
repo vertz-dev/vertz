@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import type { HandlerCtx } from '../../types/context';
 import { createModuleDef } from '../module-def';
 import { createRouterDef } from '../router-def';

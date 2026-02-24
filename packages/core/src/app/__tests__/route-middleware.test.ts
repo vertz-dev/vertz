@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { UnauthorizedException } from '../../exceptions';
 import { createMiddleware } from '../../middleware/middleware-def';
 import { createModule } from '../../module/module';

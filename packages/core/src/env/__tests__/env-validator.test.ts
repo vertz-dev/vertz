@@ -1,5 +1,5 @@
 import { s } from '@vertz/schema';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { createEnv } from '../env-validator';
 
 describe('createEnv', () => {

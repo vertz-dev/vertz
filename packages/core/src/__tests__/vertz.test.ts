@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 import {
   createApp,
   createEnv,
@@ -48,7 +48,7 @@ describe('vertz namespace', () => {
 
 describe('deprecation warnings', () => {
   it('createApp logs a deprecation warning', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
     try {
       // createApp is the deprecated wrapper — calling it should warn
       // We need to import the actual deprecated version

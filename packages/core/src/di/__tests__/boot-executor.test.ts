@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 import type { BootSequence } from '../../types/boot-sequence';
 import { BootExecutor } from '../boot-executor';
 

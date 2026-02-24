@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { createModule } from '../../module/module';
 import { createModuleDef } from '../../module/module-def';
 import { createApp } from '../app-builder';

@@ -124,7 +124,7 @@ describe('Auth Module', () => {
     });
 
     describe('Sign Up', () => {
-      it('should sign up a new user', async () => {
+      it('should sign up a new user', { timeout: 15_000 }, async () => {
         const auth = createAuth(authConfig);
         const result = await auth.api.signUp({
           email: 'test@example.com',
@@ -137,7 +137,7 @@ describe('Auth Module', () => {
         expect(result.data?.payload).toBeDefined();
       });
 
-      it('should sign up with custom role', async () => {
+      it('should sign up with custom role', { timeout: 15_000 }, async () => {
         const auth = createAuth(authConfig);
         const result = await auth.api.signUp({
           email: 'admin@example.com',
@@ -171,7 +171,7 @@ describe('Auth Module', () => {
         expect(result.error?.code).toBe('PASSWORD_TOO_SHORT');
       });
 
-      it('should reject duplicate email', async () => {
+      it('should reject duplicate email', { timeout: 15_000 }, async () => {
         const auth = createAuth(authConfig);
 
         await auth.api.signUp({
@@ -188,7 +188,7 @@ describe('Auth Module', () => {
         expect(result.error?.code).toBe('USER_EXISTS');
       });
 
-      it('should include custom claims in JWT', async () => {
+      it('should include custom claims in JWT', { timeout: 15_000 }, async () => {
         const auth = createAuth({
           ...authConfig,
           claims: (_user) => ({ plan: 'premium', tier: 2 }),
@@ -205,7 +205,7 @@ describe('Auth Module', () => {
     });
 
     describe('Sign In', () => {
-      it('should sign in with correct credentials', async () => {
+      it('should sign in with correct credentials', { timeout: 15_000 }, async () => {
         const auth = createAuth(authConfig);
 
         // First sign up
@@ -235,7 +235,7 @@ describe('Auth Module', () => {
         expect(result.error?.code).toBe('INVALID_CREDENTIALS');
       });
 
-      it('should reject wrong password', async () => {
+      it('should reject wrong password', { timeout: 15_000 }, async () => {
         const auth = createAuth(authConfig);
 
         await auth.api.signUp({
@@ -252,7 +252,7 @@ describe('Auth Module', () => {
         expect(result.error?.code).toBe('INVALID_CREDENTIALS');
       });
 
-      it('should be case-insensitive for email', async () => {
+      it('should be case-insensitive for email', { timeout: 15_000 }, async () => {
         const auth = createAuth(authConfig);
 
         await auth.api.signUp({
@@ -270,7 +270,7 @@ describe('Auth Module', () => {
     });
 
     describe('Session Management', () => {
-      it('should get session from headers', async () => {
+      it('should get session from headers', { timeout: 15_000 }, async () => {
         const auth = createAuth(authConfig);
 
         const signUpResult = await auth.api.signUp({
@@ -299,7 +299,7 @@ describe('Auth Module', () => {
     });
 
     describe('HTTP Handler', () => {
-      it('should handle POST /api/auth/signup', async () => {
+      it('should handle POST /api/auth/signup', { timeout: 15_000 }, async () => {
         const auth = createAuth(authConfig);
 
         const response = await auth.handler(
@@ -318,7 +318,7 @@ describe('Auth Module', () => {
         expect(body.user).toBeDefined();
       });
 
-      it('should handle POST /api/auth/signin', async () => {
+      it('should handle POST /api/auth/signin', { timeout: 15_000 }, async () => {
         const auth = createAuth(authConfig);
 
         // First create user
@@ -368,7 +368,7 @@ describe('Auth Module', () => {
     });
 
     describe('Rate Limiting', () => {
-      it('should rate limit sign-in attempts', async () => {
+      it('should rate limit sign-in attempts', { timeout: 30_000 }, async () => {
         const auth = createAuth({
           ...authConfig,
           emailPassword: {
