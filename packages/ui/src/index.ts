@@ -28,7 +28,10 @@ export type {
   VariantsConfig,
 } from './css';
 export { compileTheme, css, defineTheme, globalCss, palettes, s, ThemeProvider, variants } from './css';
-
+// Render adapter
+export type { RenderAdapter, RenderElement, RenderNode, RenderText } from './dom/adapter';
+export { getAdapter, isRenderNode, RENDER_NODE_BRAND, setAdapter } from './dom/adapter';
+export { createDOMAdapter } from './dom/dom-adapter';
 // Forms
 export type { FieldState } from './form/field-state';
 export { createFieldState } from './form/field-state';
@@ -43,7 +46,6 @@ export type { FormDataOptions } from './form/form-data';
 export { formDataToObject } from './form/form-data';
 export type { FormSchema, ValidationResult } from './form/validation';
 export { validate } from './form/validation';
-
 // Hydration (public API only)
 export type { ComponentFunction, ComponentLoader, ComponentRegistry } from './hydrate';
 export {
@@ -61,7 +63,6 @@ export { mount } from './mount';
 // Data fetching
 export type { CacheStore, QueryOptions, QueryResult } from './query';
 export { query } from './query';
-
 // Router
 export type {
   CompiledRoute,

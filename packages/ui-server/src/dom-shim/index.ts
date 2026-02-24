@@ -8,6 +8,8 @@
  * IMPORTANT: This must be imported before any component code.
  */
 
+import { setAdapter } from '@vertz/ui/internals';
+import { createSSRAdapter } from '../ssr-adapter';
 import type { VNode } from '../types';
 import { SSRElement } from './ssr-element';
 import { SSRDocumentFragment } from './ssr-fragment';
@@ -17,9 +19,17 @@ import { SSRTextNode } from './ssr-text-node';
 export { SSRNode, SSRElement, SSRTextNode, SSRDocumentFragment };
 
 /**
- * Create and install the DOM shim
+ * Create and install the DOM shim.
+ *
+ * @deprecated Use `setAdapter(createSSRAdapter())` instead.
+ * This function is kept for backward compatibility — it installs the
+ * SSR adapter and the global DOM shim. New code should use the adapter
+ * directly via `setAdapter()`.
  */
 export function installDomShim(): void {
+  // Also install the SSR adapter for backward compat
+  setAdapter(createSSRAdapter());
+
   // In a real browser, the document will have a proper doctype and won't be Happy-DOM
   // Check for Happy-DOM or other test environments by looking for __SSR_URL__ global
   // If __SSR_URL__ is set, we ALWAYS want to install our shim, even if document exists
@@ -102,9 +112,14 @@ export function installDomShim(): void {
 }
 
 /**
- * Remove the DOM shim
+ * Remove the DOM shim.
+ *
+ * @deprecated Use `setAdapter(null)` instead.
+ * This function is kept for backward compatibility.
  */
 export function removeDomShim(): void {
+  // Reset the adapter to auto-detect (DOMAdapter)
+  setAdapter(null);
   const globals = [
     'document',
     'window',

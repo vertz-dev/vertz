@@ -7,9 +7,12 @@ import { SSRTextNode } from './ssr-text-node';
  * Proxy-based CSSStyleDeclaration shim
  */
 // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
-function createStyleProxy(element: SSRElement): Record<string, any> {
+function createStyleProxy(element: SSRElement): { display: string; [key: string]: any } {
   const styles: Record<string, string> = {};
 
+  // The Proxy's get handler returns '' for any missing property, so `display`
+  // always exists at runtime. The cast is safe — it just tells TS about the
+  // Proxy's dynamic behavior.
   return new Proxy(styles, {
     set(_target, prop, value) {
       if (typeof prop === 'string') {
@@ -30,7 +33,7 @@ function createStyleProxy(element: SSRElement): Record<string, any> {
       }
       return undefined;
     },
-  });
+  }) as { display: string; [key: string]: string };
 }
 
 /**
@@ -44,7 +47,7 @@ export class SSRElement extends SSRNode {
   _textContent: string | null = null;
   _innerHTML: string | null = null;
   // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
-  style: Record<string, any>;
+  style: { display: string; [key: string]: any };
 
   constructor(tag: string) {
     super();
