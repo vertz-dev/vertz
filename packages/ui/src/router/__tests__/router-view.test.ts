@@ -271,4 +271,30 @@ describe('RouterView', () => {
     expect(cleanedUp).toBe(true);
     router.dispose();
   });
+
+  test('renders matched route content during SSR (domEffect runs once)', () => {
+    // Install SSR context so isSSR() returns true
+    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook for testing
+    (globalThis as any).__VERTZ_IS_SSR__ = () => true;
+    try {
+      const routes = defineRoutes({
+        '/': {
+          component: () => {
+            const el = document.createElement('div');
+            el.textContent = 'SSR Home';
+            return el;
+          },
+        },
+      });
+      const router = createRouter(routes, '/');
+      let view: HTMLElement;
+      RouterContext.Provider(router, () => {
+        view = RouterView({ router });
+      });
+      expect(view!.textContent).toBe('SSR Home');
+      router.dispose();
+    } finally {
+      delete (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__;
+    }
+  });
 });

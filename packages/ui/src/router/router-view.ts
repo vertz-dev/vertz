@@ -1,6 +1,6 @@
 import { jsx } from '../jsx-runtime/index';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
-import { lifecycleEffect } from '../runtime/signal';
+import { domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
 import { untrack } from '../runtime/tracking';
 import type { Router } from './navigate';
@@ -22,7 +22,7 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
   let renderGen = 0;
   let pageCleanups: DisposeFn[] = [];
 
-  const dispose = lifecycleEffect(() => {
+  const dispose = domEffect(() => {
     const match = router.current.value;
 
     untrack(() => {

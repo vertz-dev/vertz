@@ -207,6 +207,73 @@ describe('DOM Shim', () => {
     });
   });
 
+  describe('insertBefore syncs children for toVNode serialization', () => {
+    beforeEach(() => {
+      installDomShim();
+    });
+
+    it('should include insertBefore-ed element in toVNode output', () => {
+      const parent = document.createElement('div');
+      const child = document.createElement('span');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      (parent as any).insertBefore(child, null);
+
+      const vnode = toVNode(parent);
+      expect(vnode.children).toHaveLength(1);
+      expect(vnode.children[0]).toEqual({
+        tag: 'span',
+        attrs: {},
+        children: [],
+      });
+    });
+
+    it('should include insertBefore-ed text node in toVNode output', () => {
+      const parent = document.createElement('div');
+      const text = document.createTextNode('hello');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      (parent as any).insertBefore(text, null);
+
+      const vnode = toVNode(parent);
+      expect(vnode.children).toHaveLength(1);
+      expect(vnode.children[0]).toBe('hello');
+    });
+
+    it('should insert before a reference node in children', () => {
+      const parent = document.createElement('div');
+      const first = document.createElement('span');
+      parent.appendChild(first);
+
+      const inserted = document.createElement('em');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      (parent as any).insertBefore(inserted, first);
+
+      const vnode = toVNode(parent);
+      expect(vnode.children).toHaveLength(2);
+      expect((vnode.children[0] as { tag: string }).tag).toBe('em');
+      expect((vnode.children[1] as { tag: string }).tag).toBe('span');
+    });
+  });
+
+  describe('replaceChild syncs children for toVNode serialization', () => {
+    beforeEach(() => {
+      installDomShim();
+    });
+
+    it('should reflect replaceChild in toVNode output', () => {
+      const parent = document.createElement('div');
+      const original = document.createElement('span');
+      parent.appendChild(original);
+
+      const replacement = document.createElement('em');
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      (parent as any).replaceChild(replacement, original);
+
+      const vnode = toVNode(parent);
+      expect(vnode.children).toHaveLength(1);
+      expect((vnode.children[0] as { tag: string }).tag).toBe('em');
+    });
+  });
+
   describe('removeDomShim', () => {
     it('should remove all DOM globals', () => {
       installDomShim();

@@ -116,32 +116,32 @@ describe('query() SSR behavior', () => {
   });
 
   it('uses global ssrTimeout default when set via function hook and no per-query override', () => {
-    (globalThis as Record<string, unknown>).__VERTZ_SSR_GET_TIMEOUT__ = () => 250;
+    (globalThis as Record<string, unknown>).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__ = () => 250;
     try {
       query(() => Promise.resolve('data'), { key: 'global-timeout-test' });
       expect(registeredQueries).toHaveLength(1);
       expect(registeredQueries[0]?.timeout).toBe(250);
     } finally {
-      delete (globalThis as Record<string, unknown>).__VERTZ_SSR_GET_TIMEOUT__;
+      delete (globalThis as Record<string, unknown>).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__;
     }
   });
 
   it('falls back to 100 when global ssrTimeout hook is not set', () => {
     // Ensure no global is set
-    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_GET_TIMEOUT__;
+    delete (globalThis as Record<string, unknown>).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__;
     query(() => Promise.resolve('data'), { key: 'fallback-timeout-test' });
     expect(registeredQueries).toHaveLength(1);
     expect(registeredQueries[0]?.timeout).toBe(100);
   });
 
   it('per-query ssrTimeout overrides global default', () => {
-    (globalThis as Record<string, unknown>).__VERTZ_SSR_GET_TIMEOUT__ = () => 250;
+    (globalThis as Record<string, unknown>).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__ = () => 250;
     try {
       query(() => Promise.resolve('data'), { key: 'override-timeout-test', ssrTimeout: 500 });
       expect(registeredQueries).toHaveLength(1);
       expect(registeredQueries[0]?.timeout).toBe(500);
     } finally {
-      delete (globalThis as Record<string, unknown>).__VERTZ_SSR_GET_TIMEOUT__;
+      delete (globalThis as Record<string, unknown>).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__;
     }
   });
 });

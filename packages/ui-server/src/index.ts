@@ -15,6 +15,7 @@ export { createSSRAdapter } from './ssr-adapter';
 export type { SSRQueryEntry } from './ssr-context';
 export {
   clearGlobalSSRTimeout,
+  getGlobalSSRTimeout,
   getSSRQueries,
   getSSRUrl,
   isInSSR,

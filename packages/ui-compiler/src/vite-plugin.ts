@@ -35,6 +35,14 @@ export interface SSROptions {
    * Port override for the dev server (uses Vite's default if unset).
    */
   port?: number;
+
+  /**
+   * Per-query timeout for SSR data pre-loading (ms).
+   * Queries that resolve within this threshold are included in the SSR HTML.
+   * Queries that exceed it render their loading state.
+   * @default 300
+   */
+  ssrTimeout?: number;
 }
 
 /** Options for the Vertz Vite plugin. */
@@ -174,12 +182,32 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
             }
           }
 
-          // 4. Invalidate only the SSR entry module so each request gets fresh state.
-          // This is surgical: we only invalidate the virtual SSR entry (which re-imports
-          // the user's app), not the entire SSR module graph.
+          // 4. Invalidate the SSR entry and its entire SSR module graph.
+          // Module-level state (e.g. router singletons) is cached by Vite's SSR
+          // module system. We must invalidate the full dependency tree so each
+          // request re-executes module-scope code with the correct __SSR_URL__.
           const ssrEntryMod = server.moduleGraph.getModuleById('\0vertz:ssr-entry');
           if (ssrEntryMod) {
-            server.moduleGraph.invalidateModule(ssrEntryMod);
+            const visited = new Set<string>();
+            const invalidateTree = (mod: {
+              id?: string | null;
+              ssrImportedModules?: Set<unknown>;
+            }) => {
+              const modId = mod.id;
+              if (!modId || visited.has(modId)) return;
+              visited.add(modId);
+              server.moduleGraph.invalidateModule(
+                mod as Parameters<typeof server.moduleGraph.invalidateModule>[0],
+              );
+              if (mod.ssrImportedModules?.size) {
+                for (const child of mod.ssrImportedModules) {
+                  invalidateTree(
+                    child as { id?: string | null; ssrImportedModules?: Set<unknown> },
+                  );
+                }
+              }
+            };
+            invalidateTree(ssrEntryMod);
           }
 
           // 5. Load the virtual SSR entry via Vite's SSR module system
@@ -248,7 +276,7 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
         const ssrOptions = typeof options?.ssr === 'object' ? options.ssr : {};
         // The entry will be set during configureServer, but we need a default
         const entry = ssrOptions.entry || '/src/index.ts';
-        return generateSSREntry(entry);
+        return generateSSREntry(entry, ssrOptions.ssrTimeout ?? 300);
       }
       return undefined;
     },
@@ -440,10 +468,10 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
  * - Theme CSS injection: compiles user-exported theme into CSS custom properties
  * - SSR context: uses ssrStorage for per-request query management
  */
-function generateSSREntry(userEntry: string): string {
+function generateSSREntry(userEntry: string, ssrTimeout: number): string {
   return `
 import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
-import { renderToStream, streamToString, ssrStorage, getSSRQueries } from '@vertz/ui-server';
+import { ssrStorage, getSSRQueries, setGlobalSSRTimeout, clearGlobalSSRTimeout, renderToStream, streamToString } from '@vertz/ui-server';
 import { getInjectedCSS, compileTheme } from '@vertz/ui';
 
 function collectCSS(themeCss) {
@@ -468,39 +496,62 @@ export async function renderToString(url) {
     ? url.slice(0, -'/index.html'.length) || '/'
     : url;
 
-  // Set SSR context flag — invalidate and re-set on every call so
-  // module-scope code (e.g. createRouter) picks up the current URL.
   globalThis.__SSR_URL__ = normalizedUrl;
-
-  // Install DOM shim so @vertz/ui components work
   installDomShim();
 
-  // Import the user's app entry (dynamic import for fresh module state)
-  const userModule = await import('${userEntry}');
+  return ssrStorage.run({ url: normalizedUrl, errors: [], queries: [] }, async () => {
+    try {
+      setGlobalSSRTimeout(${ssrTimeout});
 
-  // Call the default export or named App export
-  const createApp = userModule.default || userModule.App;
-  if (typeof createApp !== 'function') {
-    throw new Error('App entry must export a default function or named App function');
-  }
+      const userModule = await import('${userEntry}');
 
-  // Compile theme CSS if the user module exports a theme
-  let themeCss = '';
-  if (userModule.theme) {
-    themeCss = compileTheme(userModule.theme).css;
-  }
+      const createApp = userModule.default || userModule.App;
+      if (typeof createApp !== 'function') {
+        throw new Error('App entry must export a default function or named App function');
+      }
 
-  const app = createApp();
+      // Compile theme CSS if the user module exports a theme
+      let themeCss = '';
+      if (userModule.theme) {
+        themeCss = compileTheme(userModule.theme).css;
+      }
 
-  // Convert to VNode if needed
-  const vnode = toVNode(app);
+      // Pass 1: Discovery — triggers query() registrations
+      createApp();
 
-  // Render to stream and convert to string
-  const stream = renderToStream(vnode);
-  const html = await streamToString(stream);
-  const css = collectCSS(themeCss);
+      // Await registered SSR queries with per-query timeouts
+      const queries = getSSRQueries();
+      if (queries.length > 0) {
+        await Promise.allSettled(
+          queries.map(({ promise, timeout, resolve }) =>
+            Promise.race([
+              promise.then((data) => {
+                resolve(data);
+                return 'resolved';
+              }),
+              new Promise((r) => setTimeout(r, timeout || ${ssrTimeout})).then(() => 'timeout'),
+            ]),
+          ),
+        );
+        // Clear queries before Pass 2 to avoid double-registration
+        const store = ssrStorage.getStore();
+        if (store) store.queries = [];
+      }
 
-  return { html, css };
+      // Pass 2: Render with pre-fetched data
+      const app = createApp();
+      const vnode = toVNode(app);
+      const stream = renderToStream(vnode);
+      const html = await streamToString(stream);
+      const css = collectCSS(themeCss);
+
+      return { html, css };
+    } finally {
+      clearGlobalSSRTimeout();
+      removeDomShim();
+      delete globalThis.__SSR_URL__;
+    }
+  });
 }
 `;
 }

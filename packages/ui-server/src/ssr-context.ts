@@ -12,8 +12,8 @@ export interface SSRContext {
   url: string;
   errors: unknown[];
   queries: SSRQueryEntry[];
-  /** Per-request global ssrTimeout override (ms). */
-  ssrTimeout?: number;
+  /** Global per-query timeout override (ms). Set by the dev server entry. */
+  globalSSRTimeout?: number;
 }
 
 export const ssrStorage: AsyncLocalStorage<SSRContext> = new AsyncLocalStorage<SSRContext>();
@@ -59,33 +59,29 @@ export function getSSRQueries(): SSRQueryEntry[] {
 }
 
 /**
- * Set a global default ssrTimeout for all queries in the current render.
- * Per-query ssrTimeout overrides this value.
+ * Set the global SSR timeout for queries that don't specify their own.
+ * Called by the virtual SSR entry to propagate the plugin-level ssrTimeout.
  * Stored in the per-request SSR context (AsyncLocalStorage), not on globalThis.
  */
 export function setGlobalSSRTimeout(timeout: number): void {
   const store = ssrStorage.getStore();
-  if (store) {
-    store.ssrTimeout = timeout;
-  }
+  if (store) store.globalSSRTimeout = timeout;
 }
 
 /**
- * Clear the global ssrTimeout after render completes.
+ * Clear the global SSR timeout (cleanup after render).
  */
 export function clearGlobalSSRTimeout(): void {
   const store = ssrStorage.getStore();
-  if (store) {
-    store.ssrTimeout = undefined;
-  }
+  if (store) store.globalSSRTimeout = undefined;
 }
 
 /**
- * Get the global ssrTimeout for the current SSR context.
+ * Get the global SSR timeout for the current SSR context.
  * Returns undefined if not set or outside SSR context.
  */
-function getGlobalSSRTimeout(): number | undefined {
-  return ssrStorage.getStore()?.ssrTimeout;
+export function getGlobalSSRTimeout(): number | undefined {
+  return ssrStorage.getStore()?.globalSSRTimeout;
 }
 
 // Install global function hook so @vertz/ui can check SSR without importing ui-server
@@ -96,8 +92,8 @@ function getGlobalSSRTimeout(): number | undefined {
 // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
 (globalThis as any).__VERTZ_SSR_REGISTER_QUERY__ = registerSSRQuery;
 
-// Install global hook for query() to read per-request ssrTimeout without importing ui-server
+// Install global hook for query() to read per-request SSR timeout without importing ui-server.
 // This is a FUNCTION (not a property) so it reads from the current AsyncLocalStorage context,
 // making it safe for concurrent requests.
 // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-(globalThis as any).__VERTZ_SSR_GET_TIMEOUT__ = getGlobalSSRTimeout;
+(globalThis as any).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__ = getGlobalSSRTimeout;

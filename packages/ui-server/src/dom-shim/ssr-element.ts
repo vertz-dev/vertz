@@ -96,6 +96,80 @@ export class SSRElement extends SSRNode {
     }
   }
 
+  // Override insertBefore to sync children array (used by __list and __conditional during SSR)
+  insertBefore(newNode: SSRNode, referenceNode: SSRNode | null): SSRNode {
+    const result = super.insertBefore(newNode, referenceNode);
+
+    if (newNode instanceof SSRDocumentFragment) {
+      const fragmentChildren: (SSRElement | string)[] = [];
+      for (const fc of newNode.childNodes) {
+        if (fc instanceof SSRTextNode) fragmentChildren.push(fc.text);
+        else if (fc instanceof SSRElement) fragmentChildren.push(fc);
+      }
+      if (!referenceNode) {
+        this.children.push(...fragmentChildren);
+      } else {
+        const refIdx = this._findChildIndex(referenceNode);
+        if (refIdx !== -1) {
+          this.children.splice(refIdx, 0, ...fragmentChildren);
+        } else {
+          this.children.push(...fragmentChildren);
+        }
+      }
+    } else {
+      const child =
+        newNode instanceof SSRTextNode
+          ? newNode.text
+          : newNode instanceof SSRElement
+            ? newNode
+            : null;
+      if (child != null) {
+        if (!referenceNode) {
+          this.children.push(child);
+        } else {
+          const refIdx = this._findChildIndex(referenceNode);
+          if (refIdx !== -1) {
+            this.children.splice(refIdx, 0, child);
+          } else {
+            this.children.push(child);
+          }
+        }
+      }
+    }
+    return result;
+  }
+
+  // Override replaceChild to sync children array
+  replaceChild(newNode: SSRNode, oldNode: SSRNode): SSRNode {
+    const result = super.replaceChild(newNode, oldNode);
+    const oldIdx = this._findChildIndex(oldNode);
+    if (oldIdx !== -1) {
+      const newChild =
+        newNode instanceof SSRTextNode
+          ? newNode.text
+          : newNode instanceof SSRElement
+            ? newNode
+            : null;
+      if (newChild != null) {
+        this.children[oldIdx] = newChild;
+      } else {
+        this.children.splice(oldIdx, 1);
+      }
+    }
+    return result;
+  }
+
+  /** Find a node's index in the children array (handles text/element types). */
+  private _findChildIndex(node: SSRNode): number {
+    if (node instanceof SSRTextNode) {
+      return this.children.indexOf(node.text);
+    }
+    if (node instanceof SSRElement) {
+      return this.children.indexOf(node);
+    }
+    return -1;
+  }
+
   // Override to sync children array
   removeChild(child: SSRNode): SSRNode {
     const result = super.removeChild(child);
