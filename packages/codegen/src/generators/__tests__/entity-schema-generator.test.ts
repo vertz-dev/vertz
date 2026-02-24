@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import type { CodegenEntityModule, CodegenIR } from '../../types';
 import { EntitySchemaGenerator } from '../entity-schema-generator';
 

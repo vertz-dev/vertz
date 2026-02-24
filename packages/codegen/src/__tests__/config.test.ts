@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { defineCodegenConfig, resolveCodegenConfig, validateCodegenConfig } from '../config';
 
 describe('defineCodegenConfig', () => {

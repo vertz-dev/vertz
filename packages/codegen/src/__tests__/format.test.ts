@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { formatWithBiome } from '../format';
 import type { GeneratedFile } from '../types';
 

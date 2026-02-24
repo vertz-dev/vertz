@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import type { AppIR, EntityIR, EntityAccessIR } from '@vertz/compiler';
 import { createEmptyAppIR } from '@vertz/compiler';
 import { adaptIR } from '../ir-adapter';

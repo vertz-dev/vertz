@@ -1,5 +1,5 @@
 import type { AppIR, ModuleIR, RouteIR, RouterIR, SchemaIR } from '@vertz/compiler';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { adaptIR } from '../ir-adapter';
 
 // ── Fixture helpers ──────────────────────────────────────────────

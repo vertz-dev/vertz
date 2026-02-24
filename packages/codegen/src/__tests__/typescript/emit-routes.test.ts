@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { emitRouteMapType } from '../../generators/typescript/emit-routes';
 import type { CodegenIR, CodegenModule, CodegenOperation } from '../../types';
 
