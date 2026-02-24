@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, mock, spyOn } from 'bun:test';
 import { autoMigrate } from '../auto-migrate';
 import type { SchemaSnapshot } from '../snapshot';
 import type { MigrationQueryFn } from '../runner';
@@ -192,7 +192,8 @@ describe('auto-migrate', () => {
 
   describe('destructive change', () => {
     it('logs warning for column removal', async () => {
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const originalWarn = console.warn;
+      const consoleWarnSpy = spyOn(console, 'warn');
 
       const usersWithName = d.table('users', {
         id: d.uuid().primary(),
@@ -236,11 +237,12 @@ describe('auto-migrate', () => {
         call[0]?.includes('column_removed')
       )).toBe(true);
 
-      consoleWarnSpy.mockRestore();
+      console.warn = originalWarn;
     });
 
     it('logs warning for table removal', async () => {
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const originalWarn = console.warn;
+      const consoleWarnSpy = spyOn(console, 'warn');
 
       const users = d.table('users', {
         id: d.uuid().primary(),
@@ -278,13 +280,14 @@ describe('auto-migrate', () => {
         call[0]?.includes('table_removed')
       )).toBe(true);
 
-      consoleWarnSpy.mockRestore();
+      console.warn = originalWarn;
     });
   });
 
   describe('error handling', () => {
     it('handles corrupted snapshot file gracefully', async () => {
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const originalWarn = console.warn;
+      const consoleWarnSpy = spyOn(console, 'warn');
 
       const snapshotPath = join(tmpDir, 'snapshot.json');
 
@@ -309,7 +312,7 @@ describe('auto-migrate', () => {
         }),
       ).rejects.toThrow();
 
-      consoleWarnSpy.mockRestore();
+      console.warn = originalWarn;
     });
 
     it('handles failed migration gracefully', async () => {

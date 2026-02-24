@@ -1,5 +1,5 @@
+import { afterAll, beforeAll, describe, expect, it, mock, spyOn } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { d } from '../d';
 import type { QueryFn } from '../query/executor';
 import { createDbProvider } from './db-provider';
@@ -22,6 +22,7 @@ const users = d.table('users', {
 let pg: PGlite;
 let queryFn: QueryFn;
 
+// PGlite WASM init can be slow under parallel CI load — allow 30 s.
 beforeAll(async () => {
   pg = new PGlite();
   queryFn = async <T>(sqlStr: string, params: readonly unknown[]) => {
@@ -31,7 +32,7 @@ beforeAll(async () => {
       rowCount: result.affectedRows ?? result.rows.length,
     };
   };
-});
+}, 30_000);
 
 afterAll(async () => {
   await pg.close();
@@ -71,7 +72,7 @@ describe('createDbProvider', () => {
     expect(typeof db.isHealthy).toBe('function');
 
     await db.close();
-  });
+  }, 30_000);
 
   it('methods returns the DatabaseInstance directly', async () => {
     const provider = createDbProvider({
@@ -97,7 +98,7 @@ describe('createDbProvider', () => {
     });
 
     const db = await provider.onInit({});
-    const closeSpy = vi.spyOn(db, 'close');
+    const closeSpy = spyOn(db, 'close');
 
     await provider.onDestroy({}, db);
 
@@ -124,7 +125,7 @@ describe('createDbProvider', () => {
   });
 
   it('passes through all createDb config options', () => {
-    const logFn = vi.fn();
+    const logFn = mock();
     const provider = createDbProvider({
       url: 'postgres://localhost:5432/test',
       models: { users: { table: users, relations: {} } },
@@ -163,7 +164,7 @@ describe('createDbProvider', () => {
       await provider.onInit({});
 
       await testPg.close();
-    });
+    }, 30_000);
 
     it('calls autoMigrate when NODE_ENV is not production', async () => {
       const originalEnv = process.env.NODE_ENV;
@@ -196,7 +197,7 @@ describe('createDbProvider', () => {
       } finally {
         process.env.NODE_ENV = originalEnv;
       }
-    });
+    }, 30_000);
 
     it('does NOT call autoMigrate when autoApply is false', async () => {
       const originalEnv = process.env.NODE_ENV;
@@ -229,7 +230,7 @@ describe('createDbProvider', () => {
       } finally {
         process.env.NODE_ENV = originalEnv;
       }
-    });
+    }, 30_000);
 
     it('does NOT call autoMigrate in production by default', async () => {
       const originalEnv = process.env.NODE_ENV;
@@ -262,6 +263,6 @@ describe('createDbProvider', () => {
       } finally {
         process.env.NODE_ENV = originalEnv;
       }
-    });
+    }, 30_000);
   });
 });

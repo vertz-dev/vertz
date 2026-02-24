@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/errors';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import type { MigrationQueryFn } from '../../migration';
 import { migrateStatus } from '../status';
 

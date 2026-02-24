@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/errors';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import type { MigrationFile } from '../runner';
 import { computeChecksum, createMigrationRunner, parseMigrationName } from '../runner';
 

@@ -7,7 +7,7 @@
  */
 
 import { unwrap } from '@vertz/schema';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { createDb } from '../client/database';
 import type { D1Database, D1PreparedStatement } from '../client/sqlite-driver';
 import { d } from '../d';
@@ -31,12 +31,12 @@ describe('SQLite integration (via D1 mock)', () => {
    */
   function createMockD1(): D1Database {
     return {
-      prepare: vi.fn((sql: string) => {
+      prepare: mock((sql: string) => {
         const stmt: D1PreparedStatement = {
-          bind: vi.fn(function (this: D1PreparedStatement, ..._values: unknown[]) {
+          bind: mock(function (this: D1PreparedStatement, ..._values: unknown[]) {
             return this;
           }),
-          all: vi.fn(async () => {
+          all: mock(async () => {
             // Return mock results for SELECT
             return {
               results: [
@@ -50,7 +50,7 @@ describe('SQLite integration (via D1 mock)', () => {
               success: true,
             };
           }),
-          run: vi.fn(async () => {
+          run: mock(async () => {
             // Return mock results for INSERT with RETURNING
             return {
               results: [
@@ -65,7 +65,7 @@ describe('SQLite integration (via D1 mock)', () => {
               meta: { changes: 1 },
             };
           }),
-          first: vi.fn(async () => null),
+          first: mock(async () => null),
         };
         return stmt;
       }),
@@ -95,7 +95,7 @@ describe('SQLite integration (via D1 mock)', () => {
     expect(created.createdAt).toBeInstanceOf(Date);
 
     // Verify mock D1 was called with ? params (SQLite)
-    const prepareMock = mockD1.prepare as ReturnType<typeof vi.fn>;
+    const prepareMock = mockD1.prepare as ReturnType<typeof mock>;
     expect(prepareMock).toHaveBeenCalled();
     const callArg = prepareMock.mock.calls[0][0] as string;
     expect(callArg).toContain('?');

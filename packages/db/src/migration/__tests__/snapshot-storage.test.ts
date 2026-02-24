@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, mock } from 'bun:test';
 import { loadSnapshot, saveSnapshot } from '../snapshot-storage';
 import { writeFile, rm, access } from 'node:fs/promises';
 import { join } from 'node:path';

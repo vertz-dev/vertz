@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { d } from '../../d';
 import type { DatabaseInstance } from '../database';
 import { createDb } from '../database';
@@ -58,12 +58,12 @@ describe('createDb dialect option', () => {
 
     beforeEach(() => {
       mockPrepared = {
-        bind: vi.fn().mockReturnThis(),
-        all: vi.fn().mockResolvedValue({ results: [] }),
-        run: vi.fn().mockResolvedValue({ meta: { changes: 0 } }),
+        bind: mock().mockReturnThis(),
+        all: mock().mockResolvedValue({ results: [] }),
+        run: mock().mockResolvedValue({ meta: { changes: 0 } }),
       };
       mockD1 = {
-        prepare: vi.fn().mockReturnValue(mockPrepared),
+        prepare: mock().mockReturnValue(mockPrepared),
       };
     });
 

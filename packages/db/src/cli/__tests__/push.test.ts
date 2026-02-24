@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import type { MigrationQueryFn, SchemaSnapshot } from '../../migration';
 import { push } from '../push';
 
@@ -27,7 +27,7 @@ describe('push', () => {
     };
 
     const executedSql: string[] = [];
-    const queryFn: MigrationQueryFn = vi.fn().mockImplementation(async (sql: string) => {
+    const queryFn: MigrationQueryFn = mock().mockImplementation(async (sql: string) => {
       executedSql.push(sql);
       return { rows: [], rowCount: 0 };
     });
@@ -60,7 +60,7 @@ describe('push', () => {
       enums: {},
     };
 
-    const queryFn: MigrationQueryFn = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+    const queryFn: MigrationQueryFn = mock().mockResolvedValue({ rows: [], rowCount: 0 });
 
     const result = await push({
       queryFn,
@@ -106,7 +106,7 @@ describe('push', () => {
       enums: {},
     };
 
-    const queryFn: MigrationQueryFn = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+    const queryFn: MigrationQueryFn = mock().mockResolvedValue({ rows: [], rowCount: 0 });
 
     const result = await push({
       queryFn,

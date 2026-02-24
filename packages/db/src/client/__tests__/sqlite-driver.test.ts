@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { createColumn } from '../../schema/column';
 import type { ModelEntry } from '../../schema/inference';
 import { createTable } from '../../schema/table';
@@ -21,12 +21,12 @@ describe('sqlite-driver', () => {
 
   beforeEach(() => {
     mockPrepared = {
-      bind: vi.fn().mockReturnThis(),
-      all: vi.fn(),
-      run: vi.fn(),
+      bind: mock().mockReturnThis(),
+      all: mock(),
+      run: mock(),
     };
     mockD1 = {
-      prepare: vi.fn().mockReturnValue(mockPrepared),
+      prepare: mock().mockReturnValue(mockPrepared),
     };
   });
 
@@ -34,7 +34,7 @@ describe('sqlite-driver', () => {
     it('calls D1 binding .all() and returns results', async () => {
       // Arrange
       const mockResults = [{ id: 1, name: 'test' }];
-      vi.mocked(mockPrepared.all).mockResolvedValue({ results: mockResults });
+      mockPrepared.all.mockResolvedValue({ results: mockResults });
 
       const driver = createSqliteDriver(mockD1);
 
@@ -49,7 +49,7 @@ describe('sqlite-driver', () => {
 
     it('passes params to prepared statement', async () => {
       // Arrange
-      vi.mocked(mockPrepared.all).mockResolvedValue({ results: [] });
+      mockPrepared.all.mockResolvedValue({ results: [] });
 
       const driver = createSqliteDriver(mockD1);
 
@@ -64,7 +64,7 @@ describe('sqlite-driver', () => {
   describe('execute', () => {
     it('calls D1 binding .run() and returns rowsAffected', async () => {
       // Arrange
-      vi.mocked(mockPrepared.run).mockResolvedValue({ meta: { changes: 5 } });
+      mockPrepared.run.mockResolvedValue({ meta: { changes: 5 } });
 
       const driver = createSqliteDriver(mockD1);
 
@@ -82,7 +82,7 @@ describe('sqlite-driver', () => {
     it('converts boolean 1 to true using table schema', async () => {
       // Arrange
       const mockResults = [{ id: 1, active: 1 }];
-      vi.mocked(mockPrepared.all).mockResolvedValue({ results: mockResults });
+      mockPrepared.all.mockResolvedValue({ results: mockResults });
 
       // Build table schema with boolean column
       const tableSchema: TableSchemaRegistry = new Map([
@@ -101,7 +101,7 @@ describe('sqlite-driver', () => {
     it('converts boolean 0 to false using table schema', async () => {
       // Arrange
       const mockResults = [{ id: 1, active: 0 }];
-      vi.mocked(mockPrepared.all).mockResolvedValue({ results: mockResults });
+      mockPrepared.all.mockResolvedValue({ results: mockResults });
 
       const tableSchema: TableSchemaRegistry = new Map([
         ['users', { id: 'integer', active: 'boolean' }],
@@ -119,7 +119,7 @@ describe('sqlite-driver', () => {
     it('converts ISO string to Date for timestamp columns', async () => {
       // Arrange
       const mockResults = [{ id: 1, created: '2024-01-15T10:30:00.000Z' }];
-      vi.mocked(mockPrepared.all).mockResolvedValue({ results: mockResults });
+      mockPrepared.all.mockResolvedValue({ results: mockResults });
 
       const tableSchema: TableSchemaRegistry = new Map([
         ['users', { id: 'integer', created: 'timestamp' }],
@@ -137,7 +137,7 @@ describe('sqlite-driver', () => {
     it('passes through values for unknown columns', async () => {
       // Arrange
       const mockResults = [{ id: 1, name: 'test', unknown_field: 'value' }];
-      vi.mocked(mockPrepared.all).mockResolvedValue({ results: mockResults });
+      mockPrepared.all.mockResolvedValue({ results: mockResults });
 
       const tableSchema: TableSchemaRegistry = new Map([
         ['users', { id: 'integer', name: 'text' }],
@@ -155,7 +155,7 @@ describe('sqlite-driver', () => {
     it('works without table schema (backward compatible)', async () => {
       // Arrange
       const mockResults = [{ id: 1, active: 1, created: '2024-01-15T10:30:00.000Z' }];
-      vi.mocked(mockPrepared.all).mockResolvedValue({ results: mockResults });
+      mockPrepared.all.mockResolvedValue({ results: mockResults });
 
       // Driver without schema
       const driver = createSqliteDriver(mockD1);
@@ -171,7 +171,7 @@ describe('sqlite-driver', () => {
   describe('health check', () => {
     it('runs SELECT 1', async () => {
       // Arrange
-      vi.mocked(mockPrepared.all).mockResolvedValue({ results: [{ 1: 1 }] });
+      mockPrepared.all.mockResolvedValue({ results: [{ 1: 1 }] });
 
       const driver = createSqliteDriver(mockD1);
 
@@ -185,7 +185,7 @@ describe('sqlite-driver', () => {
 
     it('isHealthy returns true when query succeeds', async () => {
       // Arrange
-      vi.mocked(mockPrepared.all).mockResolvedValue({ results: [] });
+      mockPrepared.all.mockResolvedValue({ results: [] });
 
       const driver = createSqliteDriver(mockD1);
 
@@ -198,7 +198,7 @@ describe('sqlite-driver', () => {
 
     it('isHealthy returns false when query fails', async () => {
       // Arrange
-      vi.mocked(mockPrepared.all).mockRejectedValue(new Error('Database unavailable'));
+      mockPrepared.all.mockRejectedValue(new Error('Database unavailable'));
 
       const driver = createSqliteDriver(mockD1);
 
@@ -213,7 +213,7 @@ describe('sqlite-driver', () => {
   describe('execute with different SQL types', () => {
     it('extracts table name from INSERT statement', async () => {
       // Arrange
-      vi.mocked(mockPrepared.run).mockResolvedValue({ meta: { changes: 1 } });
+      mockPrepared.run.mockResolvedValue({ meta: { changes: 1 } });
 
       const tableSchema: TableSchemaRegistry = new Map([
         ['users', { id: 'integer', name: 'text' }],
@@ -231,7 +231,7 @@ describe('sqlite-driver', () => {
 
     it('extracts table name from UPDATE statement', async () => {
       // Arrange
-      vi.mocked(mockPrepared.run).mockResolvedValue({ meta: { changes: 1 } });
+      mockPrepared.run.mockResolvedValue({ meta: { changes: 1 } });
 
       const driver = createSqliteDriver(mockD1);
 
@@ -244,7 +244,7 @@ describe('sqlite-driver', () => {
 
     it('extracts table name from DELETE statement', async () => {
       // Arrange
-      vi.mocked(mockPrepared.run).mockResolvedValue({ meta: { changes: 1 } });
+      mockPrepared.run.mockResolvedValue({ meta: { changes: 1 } });
 
       const driver = createSqliteDriver(mockD1);
 

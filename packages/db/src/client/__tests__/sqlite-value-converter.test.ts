@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { toSqliteValue, fromSqliteValue } from '../sqlite-value-converter';
 
 describe('toSqliteValue', () => {

@@ -11,7 +11,7 @@
 
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/schema';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { createDb } from '../client/database';
 import { d } from '../d';
 import type { QueryFn } from '../query/executor';
