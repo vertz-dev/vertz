@@ -35,6 +35,8 @@ export function createApp(config: AppConfig): AppBuilder {
 
   // Collect routes for router property
   const registeredRoutes: RouteInfo[] = [];
+  // Entity routes tracked separately for log output (they already include full paths)
+  const entityRoutes: RouteInfo[] = [];
 
   const builder: AppBuilder = {
     register(module, options) {
@@ -67,7 +69,8 @@ export function createApp(config: AppConfig): AppBuilder {
       const serverHandle = await adapter.listen(port ?? DEFAULT_PORT, builder.handler, options);
 
       if (options?.logRoutes !== false) {
-        const routes = collectRoutes(config.basePath ?? '', registrations);
+        const moduleRoutes = collectRoutes(config.basePath ?? '', registrations);
+        const routes = [...moduleRoutes, ...entityRoutes];
         const url = `http://${serverHandle.hostname}:${serverHandle.port}`;
         console.log(formatRouteLog(url, routes));
       }
@@ -82,7 +85,9 @@ export function createApp(config: AppConfig): AppBuilder {
   // Otherwise, fall back to registering all CRUD routes from entity config.
   if (config._entityRoutes) {
     for (const route of config._entityRoutes) {
-      registeredRoutes.push({ method: route.method, path: route.path });
+      const info = { method: route.method, path: route.path };
+      registeredRoutes.push(info);
+      entityRoutes.push(info);
     }
   } else if (config.entities && config.entities.length > 0) {
     const rawPrefix = config.apiPrefix === undefined ? '/api/' : config.apiPrefix;
@@ -91,17 +96,22 @@ export function createApp(config: AppConfig): AppBuilder {
         rawPrefix === ''
           ? `/${entity.name}`
           : (rawPrefix.endsWith('/') ? rawPrefix : `${rawPrefix}/`) + entity.name;
-      registeredRoutes.push({ method: 'GET', path: entityPath });
-      registeredRoutes.push({ method: 'GET', path: `${entityPath}/:id` });
-      registeredRoutes.push({ method: 'POST', path: entityPath });
-      registeredRoutes.push({ method: 'PATCH', path: `${entityPath}/:id` });
-      registeredRoutes.push({ method: 'DELETE', path: `${entityPath}/:id` });
+      const routes: RouteInfo[] = [
+        { method: 'GET', path: entityPath },
+        { method: 'GET', path: `${entityPath}/:id` },
+        { method: 'POST', path: entityPath },
+        { method: 'PATCH', path: `${entityPath}/:id` },
+        { method: 'DELETE', path: `${entityPath}/:id` },
+      ];
 
       if (entity.actions) {
         for (const actionName of Object.keys(entity.actions)) {
-          registeredRoutes.push({ method: 'POST', path: `${entityPath}/:id/${actionName}` });
+          routes.push({ method: 'POST', path: `${entityPath}/:id/${actionName}` });
         }
       }
+
+      registeredRoutes.push(...routes);
+      entityRoutes.push(...routes);
     }
   }
 

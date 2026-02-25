@@ -180,6 +180,27 @@ describe.skipIf(!hasBun)('app.listen', () => {
       expect(output).toContain('GET    /items');
     });
 
+    it('includes entity routes in the startup log', async () => {
+      const entityRoutes = [
+        { method: 'GET', path: '/api/contacts', handler: async () => new Response('[]') },
+        { method: 'POST', path: '/api/contacts', handler: async () => new Response('{}') },
+        { method: 'GET', path: '/api/contacts/:id', handler: async () => new Response('{}') },
+        { method: 'PATCH', path: '/api/contacts/:id', handler: async () => new Response('{}') },
+        { method: 'DELETE', path: '/api/contacts/:id', handler: async () => new Response() },
+      ];
+
+      const app = createApp({ _entityRoutes: entityRoutes });
+      handle = await app.listen(0);
+
+      const output = logSpy.mock.calls.map((args) => args[0]).join('\n');
+
+      expect(output).toContain('DELETE /api/contacts/:id');
+      expect(output).toContain('GET    /api/contacts');
+      expect(output).toContain('GET    /api/contacts/:id');
+      expect(output).toContain('PATCH  /api/contacts/:id');
+      expect(output).toContain('POST   /api/contacts');
+    });
+
     it('prints only the listening URL when no routes are registered', async () => {
       const app = createApp({});
       handle = await app.listen(0);
