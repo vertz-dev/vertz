@@ -1,6 +1,11 @@
 import type { AppBuilder, AppConfig, EntityRouteEntry } from '@vertz/core';
 import { createServer as coreCreateServer } from '@vertz/core';
-import { createDatabaseBridgeAdapter, type EntityDbAdapter } from '@vertz/db';
+import {
+  createDatabaseBridgeAdapter,
+  type DatabaseInstance,
+  type EntityDbAdapter,
+  type ModelEntry,
+} from '@vertz/db';
 import { EntityRegistry } from './entity/entity-registry';
 import { generateEntityRoutes } from './entity/route-generator';
 import type { EntityDefinition } from './entity/types';
@@ -17,8 +22,8 @@ import type { EntityDefinition } from './entity/types';
  * EntityDbAdapter does not.
  */
 function isDatabaseInstance(
-  db: unknown,
-): db is { _models: Record<string, { table: { _name: string } }> } {
+  db: DatabaseInstance<Record<string, ModelEntry>> | EntityDbAdapter,
+): db is DatabaseInstance<Record<string, ModelEntry>> {
   return db !== null && typeof db === 'object' && '_models' in db && '_dialect' in db;
 }
 
@@ -32,10 +37,10 @@ export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'enti
   /**
    * Database for entity CRUD operations.
    * Accepts either:
-   * - An EntityDbAdapter (simple adapter with get/list/create/update/delete)
-   * - A DatabaseInstance from createDb() (query builder — auto-bridged per entity)
+   * - A DatabaseInstance from createDb() (recommended — auto-bridged per entity)
+   * - An EntityDbAdapter (deprecated — simple adapter with get/list/create/update/delete)
    */
-  db?: EntityDbAdapter | Record<string, unknown>;
+  db?: DatabaseInstance<Record<string, ModelEntry>> | EntityDbAdapter;
   /** @internal Factory to create a DB adapter for each entity. Prefer `db` instead. */
   _entityDbFactory?: (entityDef: EntityDefinition) => EntityDbAdapter;
 }
@@ -82,7 +87,11 @@ export function createServer(config: ServerConfig): AppBuilder {
 
     if (db && isDatabaseInstance(db)) {
       // DatabaseInstance detected — create bridge adapters per entity
-      dbFactory = (entityDef) => createDatabaseBridgeAdapter(db as never, entityDef.name);
+      dbFactory = (entityDef) =>
+        createDatabaseBridgeAdapter(
+          db as DatabaseInstance<Record<string, ModelEntry>>,
+          entityDef.name,
+        );
     } else if (db) {
       // Plain EntityDbAdapter — use directly
       dbFactory = () => db as EntityDbAdapter;
