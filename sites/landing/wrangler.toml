@@ -1,0 +1,8 @@
+name = "vertz-landing"
+main = "src/worker.ts"
+compatibility_date = "2025-02-17"
+compatibility_flags = ["nodejs_compat"]
+
+routes = [
+  { pattern = "vertz.dev", zone_name = "vertz.dev" }
+]
