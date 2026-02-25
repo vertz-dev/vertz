@@ -9,6 +9,7 @@ import type { CSSExtractionResult } from './css-extraction/extractor';
 import { CSSExtractor } from './css-extraction/extractor';
 import { CSSHMRHandler } from './css-extraction/hmr';
 import { RouteCSSManifest } from './css-extraction/route-css-manifest';
+import { handleNavRequest, invalidateSSRModuleTree } from './nav-handler';
 import { HydrationTransformer } from './transformers/hydration-transformer';
 
 /** Virtual module prefix for extracted CSS. */
@@ -140,6 +141,14 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '/';
 
+        // Handle nav pre-fetch requests (X-Vertz-Nav: 1 header)
+        // These return SSE with query data, not HTML.
+        const headers = req.headers as Record<string, string | undefined>;
+        if (headers['x-vertz-nav'] === '1') {
+          await handleNavRequest(req, res, next, server);
+          return;
+        }
+
         // Skip non-HTML requests
         if (
           !req.headers.accept?.includes('text/html') &&
@@ -186,29 +195,7 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
           // Module-level state (e.g. router singletons) is cached by Vite's SSR
           // module system. We must invalidate the full dependency tree so each
           // request re-executes module-scope code with the correct __SSR_URL__.
-          const ssrEntryMod = server.moduleGraph.getModuleById('\0vertz:ssr-entry');
-          if (ssrEntryMod) {
-            const visited = new Set<string>();
-            const invalidateTree = (mod: {
-              id?: string | null;
-              ssrImportedModules?: Set<unknown>;
-            }) => {
-              const modId = mod.id;
-              if (!modId || visited.has(modId)) return;
-              visited.add(modId);
-              server.moduleGraph.invalidateModule(
-                mod as Parameters<typeof server.moduleGraph.invalidateModule>[0],
-              );
-              if (mod.ssrImportedModules?.size) {
-                for (const child of mod.ssrImportedModules) {
-                  invalidateTree(
-                    child as { id?: string | null; ssrImportedModules?: Set<unknown> },
-                  );
-                }
-              }
-            };
-            invalidateTree(ssrEntryMod);
-          }
+          invalidateSSRModuleTree(server);
 
           // 5. Load the virtual SSR entry via Vite's SSR module system
           const ssrEntry = await server.ssrLoadModule('\0vertz:ssr-entry');
@@ -566,6 +553,67 @@ export async function renderToString(url) {
         : [];
 
       return { html, css, ssrData };
+    } finally {
+      clearGlobalSSRTimeout();
+      resetInjectedStyles();
+      removeDomShim();
+      delete globalThis.__SSR_URL__;
+    }
+  });
+}
+
+/**
+ * Discover queries for a given URL without rendering.
+ * Runs only Pass 1 (query registration + resolution), no Pass 2 render.
+ * Used by the nav handler to pre-fetch query data for client-side navigations.
+ *
+ * Returns { resolved: [{ key, data }] }
+ */
+export async function discoverQueries(url) {
+  const normalizedUrl = url.endsWith('/index.html')
+    ? url.slice(0, -'/index.html'.length) || '/'
+    : url;
+
+  return ssrStorage.run({ url: normalizedUrl, errors: [], queries: [] }, async () => {
+    globalThis.__SSR_URL__ = normalizedUrl;
+    installDomShim();
+    try {
+      setGlobalSSRTimeout(${ssrTimeout});
+
+      const userModule = await import('${userEntry}');
+
+      const createApp = userModule.default || userModule.App;
+      if (typeof createApp !== 'function') {
+        throw new Error('App entry must export a default function or named App function');
+      }
+
+      // Pass 1 only: Discovery — triggers query() registrations
+      createApp();
+
+      // Await registered SSR queries with per-query timeouts
+      const queries = getSSRQueries();
+      const resolvedQueries = [];
+      if (queries.length > 0) {
+        await Promise.allSettled(
+          queries.map(({ promise, timeout, resolve, key }) =>
+            Promise.race([
+              promise.then((data) => {
+                resolve(data);
+                resolvedQueries.push({ key, data });
+                return 'resolved';
+              }),
+              new Promise((r) => setTimeout(r, timeout || ${ssrTimeout})).then(() => 'timeout'),
+            ]),
+          ),
+        );
+      }
+
+      return {
+        resolved: resolvedQueries.map(({ key, data }) => ({
+          key,
+          data: JSON.parse(JSON.stringify(data)),
+        })),
+      };
     } finally {
       clearGlobalSSRTimeout();
       resetInjectedStyles();

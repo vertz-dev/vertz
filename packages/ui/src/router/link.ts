@@ -27,6 +27,14 @@ export interface LinkProps<T extends Record<string, RouteConfigLike> = RouteDefi
   activeClass?: string;
   /** Static class name for the anchor element. */
   className?: string;
+  /** Prefetch strategy. 'hover' triggers server pre-fetch on mouseenter/focus. */
+  prefetch?: 'hover';
+}
+
+/** Options for createLink(). */
+export interface LinkFactoryOptions {
+  /** Callback fired when a link wants to prefetch its target URL. */
+  onPrefetch?: (url: string) => void;
 }
 
 /**
@@ -39,8 +47,15 @@ export interface LinkProps<T extends Record<string, RouteConfigLike> = RouteDefi
 export function createLink(
   currentPath: ReadonlySignal<string>,
   navigate: (url: string) => void,
+  factoryOptions?: LinkFactoryOptions,
 ): (props: LinkProps) => HTMLAnchorElement {
-  return function Link({ href, children, activeClass, className }: LinkProps): HTMLAnchorElement {
+  return function Link({
+    href,
+    children,
+    activeClass,
+    className,
+    prefetch,
+  }: LinkProps): HTMLAnchorElement {
     const handleClick = (event: MouseEvent) => {
       // Allow modifier-key clicks to open in new tab
       if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
@@ -66,6 +81,18 @@ export function createLink(
           el.classList.remove(activeClass);
         }
       });
+    }
+
+    // Hover/focus prefetch — fires once per link instance.
+    if (prefetch === 'hover' && factoryOptions?.onPrefetch) {
+      let prefetched = false;
+      const triggerPrefetch = () => {
+        if (prefetched) return;
+        prefetched = true;
+        factoryOptions.onPrefetch?.(href);
+      };
+      el.addEventListener('mouseenter', triggerPrefetch);
+      el.addEventListener('focus', triggerPrefetch);
     }
 
     return el;

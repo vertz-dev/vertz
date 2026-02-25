@@ -11,11 +11,37 @@ import type { RouteConfigLike, RouteDefinitionMap, RouteMatch, TypedRoutes } fro
 import { matchRoute } from './define-routes';
 import { executeLoaders } from './loader';
 import type { RoutePaths } from './params';
+import { prefetchNavData as realPrefetchNavData } from './server-nav';
 
 /** Options for router.navigate(). */
 export interface NavigateOptions {
   /** Use history.replaceState instead of pushState. */
   replace?: boolean;
+}
+
+/** Handle returned by prefetchNavData for cancellation. */
+interface PrefetchHandle {
+  abort: () => void;
+  /** Resolves when SSE stream completes (data or done event). */
+  done?: Promise<void>;
+}
+
+/**
+ * Default threshold (ms) to wait for SSE data before rendering the page.
+ *
+ * In dev, the Vite server needs ~200-500ms for module invalidation + SSR
+ * compilation. In production with pre-built modules, responses are much
+ * faster. 500ms covers the dev case without making navigation feel sluggish
+ * (the URL updates immediately via pushState, giving instant feedback).
+ */
+const DEFAULT_NAV_THRESHOLD_MS = 500;
+
+/** Options for createRouter(). */
+export interface RouterOptions {
+  /** Enable server-side navigation pre-fetch. When true, uses default timeout. */
+  serverNav?: boolean | { timeout?: number };
+  /** @internal — injected for testing. Production uses the real module. */
+  _prefetchNavData?: (url: string, options?: { timeout?: number }) => PrefetchHandle;
 }
 
 /**
@@ -65,6 +91,7 @@ export type TypedRouter<T extends Record<string, RouteConfigLike> = RouteDefinit
 export function createRouter<T extends Record<string, RouteConfigLike> = RouteDefinitionMap>(
   routes: TypedRoutes<T>,
   initialUrl?: string,
+  options?: RouterOptions,
 ): Router<T> {
   // Auto-detect SSR context
   const isSSR = typeof window === 'undefined' || typeof globalThis.__SSR_URL__ !== 'undefined';
@@ -92,6 +119,36 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   let navigationGen = 0;
   /** AbortController for the current in-flight navigation. */
   let currentAbort: AbortController | null = null;
+
+  // -- Server nav prefetch setup --
+  const serverNavEnabled = !!options?.serverNav;
+  const serverNavTimeout =
+    typeof options?.serverNav === 'object' ? options.serverNav.timeout : undefined;
+  const prefetchFn = options?._prefetchNavData ?? (serverNavEnabled ? realPrefetchNavData : null);
+  let activePrefetch: PrefetchHandle | null = null;
+
+  function startPrefetch(navUrl: string): PrefetchHandle | null {
+    if (!serverNavEnabled || !prefetchFn) return null;
+    // Abort previous prefetch
+    if (activePrefetch) {
+      activePrefetch.abort();
+    }
+    const prefetchOpts: { timeout?: number } = {};
+    if (serverNavTimeout !== undefined) {
+      prefetchOpts.timeout = serverNavTimeout;
+    }
+    activePrefetch = prefetchFn(navUrl, prefetchOpts);
+    return activePrefetch;
+  }
+
+  /** Wait for prefetch to complete, with a threshold timeout. */
+  async function awaitPrefetch(handle: PrefetchHandle | null): Promise<void> {
+    if (!handle?.done) return;
+    await Promise.race([
+      handle.done,
+      new Promise<void>((r) => setTimeout(r, DEFAULT_NAV_THRESHOLD_MS)),
+    ]);
+  }
 
   // Run initial loaders
   if (initialMatch) {
@@ -147,17 +204,31 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     }
   }
 
-  async function navigate(url: string, options?: NavigateOptions): Promise<void> {
+  async function navigate(navUrl: string, navOptions?: NavigateOptions): Promise<void> {
+    // Start server nav prefetch before navigation
+    const handle = startPrefetch(navUrl);
+
     // Update browser history (skip in SSR)
     if (!isSSR) {
-      if (options?.replace) {
-        window.history.replaceState(null, '', url);
+      if (navOptions?.replace) {
+        window.history.replaceState(null, '', navUrl);
       } else {
-        window.history.pushState(null, '', url);
+        window.history.pushState(null, '', navUrl);
       }
     }
 
-    await applyNavigation(url);
+    // Wait briefly for SSE data to arrive before rendering the page.
+    // If data resolves within the threshold, the page renders with data
+    // immediately (no loading flash). Otherwise, render proceeds and
+    // data arrives later via the hydration bus.
+    // Note: only await when there's a done promise — avoid yielding to
+    // the microtask queue unnecessarily (changes execution order of
+    // concurrent navigations).
+    if (handle?.done) {
+      await awaitPrefetch(handle);
+    }
+
+    await applyNavigation(navUrl);
   }
 
   async function revalidate(): Promise<void> {
@@ -179,8 +250,9 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
 
   if (!isSSR) {
     onPopState = () => {
-      const url = window.location.pathname + window.location.search;
-      applyNavigation(url).catch(() => {
+      const popUrl = window.location.pathname + window.location.search;
+      startPrefetch(popUrl);
+      applyNavigation(popUrl).catch(() => {
         // Error is stored in loaderError signal
       });
     };
@@ -193,6 +265,10 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     }
     if (currentAbort) {
       currentAbort.abort();
+    }
+    if (activePrefetch) {
+      activePrefetch.abort();
+      activePrefetch = null;
     }
   }
 

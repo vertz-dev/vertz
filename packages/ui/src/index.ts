@@ -79,9 +79,9 @@ export type {
   TypedRoutes,
 } from './router/define-routes';
 export { defineRoutes } from './router/define-routes';
-export type { LinkProps } from './router/link';
+export type { LinkFactoryOptions, LinkProps } from './router/link';
 export { createLink } from './router/link';
-export type { NavigateOptions, Router, TypedRouter } from './router/navigate';
+export type { NavigateOptions, Router, RouterOptions, TypedRouter } from './router/navigate';
 export { createRouter } from './router/navigate';
 export type { OutletContext } from './router/outlet';
 export { createOutlet } from './router/outlet';

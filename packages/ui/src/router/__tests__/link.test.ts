@@ -109,3 +109,68 @@ describe('Link component', () => {
     expect(el.classList.contains('active')).toBe(false);
   });
 });
+
+// ─── Hover Prefetch ──────────────────────────────────────────
+
+describe('Link hover prefetch', () => {
+  test('createLink accepts onPrefetch callback option', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const onPrefetch = vi.fn();
+    const Link = createLink(currentPath, navigate, { onPrefetch });
+
+    const el = Link({ children: 'About', href: '/about' });
+    expect(el.tagName).toBe('A');
+  });
+
+  test('mouseenter fires onPrefetch when prefetch: hover', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const onPrefetch = vi.fn();
+    const Link = createLink(currentPath, navigate, { onPrefetch });
+
+    const el = Link({ children: 'About', href: '/about', prefetch: 'hover' });
+    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+
+    expect(onPrefetch).toHaveBeenCalledWith('/about');
+  });
+
+  test('focus fires onPrefetch when prefetch: hover', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const onPrefetch = vi.fn();
+    const Link = createLink(currentPath, navigate, { onPrefetch });
+
+    const el = Link({ children: 'About', href: '/about', prefetch: 'hover' });
+    el.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+
+    expect(onPrefetch).toHaveBeenCalledWith('/about');
+  });
+
+  test('no prefetch without prefetch prop', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const onPrefetch = vi.fn();
+    const Link = createLink(currentPath, navigate, { onPrefetch });
+
+    const el = Link({ children: 'About', href: '/about' });
+    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    el.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+
+    expect(onPrefetch).not.toHaveBeenCalled();
+  });
+
+  test('only fires once per link (dedup)', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const onPrefetch = vi.fn();
+    const Link = createLink(currentPath, navigate, { onPrefetch });
+
+    const el = Link({ children: 'About', href: '/about', prefetch: 'hover' });
+    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    el.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    el.dispatchEvent(new FocusEvent('focus', { bubbles: true }));
+
+    expect(onPrefetch).toHaveBeenCalledTimes(1);
+  });
+});

@@ -74,7 +74,7 @@ const initialPath =
     ? window.location.pathname
     : (globalThis as any).__SSR_URL__ || '/';
 
-export const appRouter = createRouter(routes, initialPath);
+export const appRouter = createRouter(routes, initialPath, { serverNav: true });
 
 /**
  * Typed useRouter hook for the app's route map.

@@ -283,10 +283,14 @@ describe('vertzPlugin SSR', () => {
       expect(code).toContain('ssrStorage.run');
     });
 
-    it('should call createApp twice (discovery + render)', () => {
+    it('should call createApp twice in renderToString (discovery + render)', () => {
       const plugin = vertzPlugin({ ssr: true }) as Plugin;
-      const code = callLoad(plugin, '\0vertz:ssr-entry');
-      const matches = code?.match(/createApp\(\)/g);
+      const code = callLoad(plugin, '\0vertz:ssr-entry') ?? '';
+      // Scope to renderToString only (discoverQueries has its own createApp call)
+      const renderStart = code.indexOf('export async function renderToString');
+      const renderEnd = code.indexOf('export async function discoverQueries');
+      const renderSection = code.slice(renderStart, renderEnd > -1 ? renderEnd : undefined);
+      const matches = renderSection.match(/createApp\(\)/g);
       expect(matches).toHaveLength(2);
     });
 

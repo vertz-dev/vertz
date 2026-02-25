@@ -23,6 +23,10 @@ export {
   setGlobalSSRTimeout,
   ssrStorage,
 } from './ssr-context';
+export type { SSRHandlerOptions } from './ssr-handler';
+export { createSSRHandler } from './ssr-handler';
+export type { SSRDiscoverResult, SSRModule, SSRRenderResult } from './ssr-render';
+export { ssrDiscoverQueries, ssrRenderToString } from './ssr-render';
 export {
   createSSRDataChunk,
   getStreamingRuntimeScript,

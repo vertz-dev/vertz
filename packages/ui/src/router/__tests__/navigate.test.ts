@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from 'bun:test';
 import { defineRoutes } from '../define-routes';
+import type { RouterOptions } from '../navigate';
 import { createRouter } from '../navigate';
 
 describe('createRouter', () => {
@@ -241,5 +242,204 @@ describe('createRouter', () => {
 
     expect(capturedSignal).toBeDefined();
     expect(capturedSignal?.aborted).toBe(true);
+  });
+});
+
+// ─── Server Nav Integration ──────────────────────────────────
+
+describe('createRouter serverNav', () => {
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/');
+  });
+
+  test('accepts RouterOptions as third parameter', () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const options: RouterOptions = {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    };
+    const router = createRouter(routes, '/', options);
+    expect(router.current.value).not.toBeNull();
+    router.dispose();
+  });
+
+  test('navigate calls prefetchNavData when serverNav enabled', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    await router.navigate('/about');
+
+    expect(mockPrefetch).toHaveBeenCalledWith('/about', {});
+    router.dispose();
+  });
+
+  test('navigate skips prefetch when serverNav disabled', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/', {
+      serverNav: false,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    await router.navigate('/about');
+
+    expect(mockPrefetch).not.toHaveBeenCalled();
+    router.dispose();
+  });
+
+  test('rapid navigation aborts previous prefetch', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/a': { component: () => document.createElement('div') },
+      '/b': { component: () => document.createElement('div') },
+    });
+    const abortFn = vi.fn();
+    const mockPrefetch = vi.fn(() => ({ abort: abortFn }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    await router.navigate('/a');
+    await router.navigate('/b');
+
+    // First prefetch should have been aborted when second nav started
+    expect(abortFn).toHaveBeenCalledTimes(1);
+    expect(mockPrefetch).toHaveBeenCalledTimes(2);
+    router.dispose();
+  });
+
+  test('dispose aborts active prefetch', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const abortFn = vi.fn();
+    const mockPrefetch = vi.fn(() => ({ abort: abortFn }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    await router.navigate('/about');
+    router.dispose();
+
+    expect(abortFn).toHaveBeenCalled();
+  });
+
+  test('serverNav timeout is forwarded to prefetchNavData', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/', {
+      serverNav: { timeout: 3000 },
+      _prefetchNavData: mockPrefetch,
+    });
+
+    await router.navigate('/about');
+
+    expect(mockPrefetch).toHaveBeenCalledWith('/about', { timeout: 3000 });
+    router.dispose();
+  });
+
+  test('navigate waits for prefetch done before applying navigation', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+
+    let resolveDone!: () => void;
+    const done = new Promise<void>((r) => {
+      resolveDone = r;
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {}, done }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Start navigation — should wait for prefetch done
+    let navigated = false;
+    const navPromise = router.navigate('/about').then(() => {
+      navigated = true;
+    });
+
+    // Give a tick — navigate should NOT have resolved yet (prefetch pending)
+    await new Promise((r) => setTimeout(r, 5));
+    expect(navigated).toBe(false);
+    // Route should NOT be updated yet
+    expect(router.current.value?.route.pattern).toBe('/');
+
+    // Now resolve the prefetch
+    resolveDone();
+    await navPromise;
+
+    // NOW the route should be updated
+    expect(navigated).toBe(true);
+    expect(router.current.value?.route.pattern).toBe('/about');
+    router.dispose();
+  });
+
+  test('navigate proceeds after threshold even if prefetch not done', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+
+    // Prefetch that never resolves
+    const mockPrefetch = vi.fn(() => ({
+      abort: () => {},
+      done: new Promise<void>(() => {}),
+    }));
+    const router = createRouter(routes, '/', {
+      serverNav: { timeout: 5000 },
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Navigate — should proceed after threshold (~500ms) even though prefetch never completes
+    await router.navigate('/about');
+
+    expect(router.current.value?.route.pattern).toBe('/about');
+    router.dispose();
+  });
+
+  test('popstate triggers prefetch', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const mockPrefetch = vi.fn(() => ({ abort: () => {} }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Navigate to /about first
+    await router.navigate('/about');
+    mockPrefetch.mockClear();
+
+    // Simulate popstate (back button)
+    window.history.replaceState(null, '', '/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockPrefetch).toHaveBeenCalledWith('/', {});
+    router.dispose();
   });
 });

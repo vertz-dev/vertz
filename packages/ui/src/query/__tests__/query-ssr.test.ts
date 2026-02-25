@@ -210,3 +210,102 @@ describe('query() client-side SSR hydration', () => {
     expect(result.data.value).toBe('client-fetched');
   });
 });
+
+// ─── Nav prefetch integration ─────────────────────────────────
+
+describe('query() nav prefetch integration', () => {
+  beforeEach(() => {
+    // Ensure we're NOT in SSR mode (client-side)
+    delete (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__;
+    // Clean up nav prefetch state
+    delete (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__;
+    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__;
+    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__;
+  });
+
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__;
+    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__;
+    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__;
+  });
+
+  it('defers client fetch when nav prefetch is active', async () => {
+    // Set up SSR data bus (as prefetchNavData would)
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
+    (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = true;
+
+    const fetchFn = vi.fn(() => Promise.resolve('fetched'));
+    const result = query(fetchFn, { key: 'nav-defer-test' });
+
+    // Wait for potential async operations
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Thunk should NOT have been called — query is deferring
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(result.loading.value).toBe(true);
+
+    result.dispose();
+  });
+
+  it('receives data from buffer when data arrives before mount', () => {
+    // Data already in buffer when query mounts
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [
+      { key: 'nav-buf-test', data: 'prefetched' },
+    ];
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
+    (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = true;
+
+    const fetchFn = vi.fn(() => Promise.resolve('fetched'));
+    const result = query(fetchFn, { key: 'nav-buf-test' });
+
+    expect(result.data.value).toBe('prefetched');
+    expect(result.loading.value).toBe(false);
+    expect(fetchFn).not.toHaveBeenCalled();
+
+    result.dispose();
+  });
+
+  it('receives data via vertz:ssr-data event during nav prefetch', async () => {
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
+    (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = true;
+
+    const fetchFn = vi.fn(() => Promise.resolve('fetched'));
+    const result = query(fetchFn, { key: 'nav-event-test' });
+
+    // Data arrives via SSE after query mounted
+    document.dispatchEvent(
+      new CustomEvent('vertz:ssr-data', {
+        detail: { key: 'nav-event-test', data: 'streamed' },
+      }),
+    );
+
+    expect(result.data.value).toBe('streamed');
+    expect(result.loading.value).toBe(false);
+    expect(fetchFn).not.toHaveBeenCalled();
+
+    result.dispose();
+  });
+
+  it('falls back to client fetch after prefetch done with no data', async () => {
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
+    (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = true;
+
+    const fetchFn = vi.fn(() => Promise.resolve('client-data'));
+    const result = query(fetchFn, { key: 'nav-fallback-test' });
+
+    // Simulate prefetch completing without data for this key
+    (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = false;
+    document.dispatchEvent(new CustomEvent('vertz:nav-prefetch-done'));
+
+    // Wait for the fallback client fetch
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(fetchFn).toHaveBeenCalled();
+    expect(result.data.value).toBe('client-data');
+
+    result.dispose();
+  });
+});

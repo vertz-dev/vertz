@@ -61,9 +61,11 @@ const viewTransitionsCss = `
 
 // ── Mount (client-only) ─────────────────────────────────────────
 // During SSR, the virtual entry imports this module to call App().
-// Guard mount() so it only runs in a real browser, not under the DOM shim.
+// Guard mount() so it only runs in a real browser, not under the DOM shim
+// or production SSR (where document doesn't exist at import time).
 // biome-ignore lint/suspicious/noExplicitAny: SSR global check
-const isSSR = typeof (globalThis as any).__SSR_URL__ !== 'undefined';
+const hasSSRUrl = typeof (globalThis as any).__SSR_URL__ !== 'undefined';
+const isSSR = hasSSRUrl || typeof document === 'undefined';
 if (!isSSR) {
   mount(App, '#app', {
     theme: taskManagerTheme,
