@@ -230,6 +230,10 @@
         "bun:sqlite",
       ],
     },
+    "packages/docs": {
+      "name": "@vertz/docs",
+      "version": "0.0.0",
+    },
     "packages/errors": {
       "name": "@vertz/errors",
       "version": "0.1.0",
@@ -879,6 +883,8 @@
     "@vertz/create-vertz-app": ["@vertz/create-vertz-app@workspace:packages/create-vertz-app"],
 
     "@vertz/db": ["@vertz/db@workspace:packages/db"],
+
+    "@vertz/docs": ["@vertz/docs@workspace:packages/docs"],
 
     "@vertz/errors": ["@vertz/errors@workspace:packages/errors"],
 

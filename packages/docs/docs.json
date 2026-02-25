@@ -1,0 +1,106 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "colors": {
+    "background": {
+      "dark": "#0F0F12",
+      "light": "#FFFFFF"
+    },
+    "dark": "#2563eb",
+    "light": "#60a5fa",
+    "primary": "#3b82f6"
+  },
+  "favicon": "/favicon.svg",
+  "footer": {
+    "socials": {
+      "github": "https://github.com/vertz-dev/vertz",
+      "x": "https://x.com/veraborgesv"
+    }
+  },
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "name": "Vertz",
+  "navbar": {
+    "primary": {
+      "href": "/quickstart",
+      "label": "Get Started",
+      "type": "button"
+    }
+  },
+  "navigation": {
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/vertz-dev/vertz",
+          "icon": "github"
+        }
+      ]
+    },
+    "tabs": [
+      {
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": ["index", "quickstart", "installation"]
+          },
+          {
+            "group": "@vertz/ui",
+            "pages": [
+              "guides/ui/overview",
+              "guides/ui/components",
+              "guides/ui/reactivity",
+              "guides/ui/styling",
+              "guides/ui/routing",
+              "guides/ui/data-fetching",
+              "guides/ui/forms",
+              "guides/ui/ssr"
+            ]
+          },
+          {
+            "group": "@vertz/ui-compiler",
+            "pages": ["guides/ui/compiler"]
+          }
+        ],
+        "tab": "Guides"
+      },
+      {
+        "groups": [
+          {
+            "group": "@vertz/ui",
+            "pages": [
+              "api-reference/ui/jsx-runtime",
+              "api-reference/ui/signals",
+              "api-reference/ui/css",
+              "api-reference/ui/router",
+              "api-reference/ui/query",
+              "api-reference/ui/form",
+              "api-reference/ui/context",
+              "api-reference/ui/mount"
+            ]
+          },
+          {
+            "group": "@vertz/ui-server",
+            "pages": ["api-reference/ui/ssr-handler"]
+          },
+          {
+            "group": "@vertz/ui-compiler",
+            "pages": ["api-reference/ui/compiler-plugin"]
+          }
+        ],
+        "tab": "API Reference"
+      },
+      {
+        "groups": [
+          {
+            "group": "Examples",
+            "pages": ["examples/task-manager"]
+          }
+        ],
+        "tab": "Examples"
+      }
+    ]
+  },
+  "theme": "mint"
+}
