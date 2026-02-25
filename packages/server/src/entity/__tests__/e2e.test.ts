@@ -1,5 +1,5 @@
-import { d } from '@vertz/db';
 import { describe, expect, it, mock } from 'bun:test';
+import { d } from '@vertz/db';
 import { createServer } from '../../create-server';
 import type { EntityDbAdapter } from '../crud-pipeline';
 import { entity } from '../entity';
@@ -149,7 +149,7 @@ describe('EDA v0.1.0 E2E', () => {
           const db = createInMemoryDb();
           const app = createServer({
             entities: [openEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'POST', '/api/users', {
@@ -167,7 +167,7 @@ describe('EDA v0.1.0 E2E', () => {
           const db = createInMemoryDb();
           const app = createServer({
             entities: [openEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'POST', '/api/users', {
@@ -183,7 +183,7 @@ describe('EDA v0.1.0 E2E', () => {
           const db = createInMemoryDb();
           const app = createServer({
             entities: [openEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'POST', '/api/users', {
@@ -201,7 +201,7 @@ describe('EDA v0.1.0 E2E', () => {
           const db = createInMemoryDb();
           const app = createServer({
             entities: [openEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'POST', '/api/users', {
@@ -226,7 +226,7 @@ describe('EDA v0.1.0 E2E', () => {
           ]);
           const app = createServer({
             entities: [openEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'GET', '/api/users');
@@ -247,7 +247,7 @@ describe('EDA v0.1.0 E2E', () => {
           ]);
           const app = createServer({
             entities: [openEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'GET', '/api/users');
@@ -268,7 +268,7 @@ describe('EDA v0.1.0 E2E', () => {
           ]);
           const app = createServer({
             entities: [openEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'GET', '/api/users/u1');
@@ -287,7 +287,7 @@ describe('EDA v0.1.0 E2E', () => {
           const db = createInMemoryDb([]);
           const app = createServer({
             entities: [openEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'GET', '/api/users/nonexistent');
@@ -307,7 +307,7 @@ describe('EDA v0.1.0 E2E', () => {
           ]);
           const app = createServer({
             entities: [openEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'PATCH', '/api/users/u1', { name: 'Alicia' });
@@ -326,7 +326,7 @@ describe('EDA v0.1.0 E2E', () => {
           const db = createInMemoryDb([]);
           const app = createServer({
             entities: [openEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'PATCH', '/api/users/ghost', { name: 'X' });
@@ -344,7 +344,7 @@ describe('EDA v0.1.0 E2E', () => {
           const db = createInMemoryDb([{ id: 'u1' }]);
           const app = createServer({
             entities: [openEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'DELETE', '/api/users/u1');
@@ -370,7 +370,7 @@ describe('EDA v0.1.0 E2E', () => {
           ]);
           const app = createServer({
             entities: [usersEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'GET', '/api/users');
@@ -386,7 +386,7 @@ describe('EDA v0.1.0 E2E', () => {
           const db = createInMemoryDb();
           const app = createServer({
             entities: [usersEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'POST', '/api/users', {
@@ -403,7 +403,7 @@ describe('EDA v0.1.0 E2E', () => {
           const db = createInMemoryDb([{ id: 'u1' }]);
           const app = createServer({
             entities: [usersEntity],
-            _entityDbFactory: () => db,
+            db,
           });
 
           const res = await request(app, 'DELETE', '/api/users/u1');
@@ -432,7 +432,7 @@ describe('EDA v0.1.0 E2E', () => {
           const db = createInMemoryDb();
           const app = createServer({
             entities: [openEntityWithAfterHook],
-            _entityDbFactory: () => db,
+            db,
           });
 
           await request(app, 'POST', '/api/users', {
@@ -470,7 +470,7 @@ describe('EDA v0.1.0 E2E', () => {
       const db = createInMemoryDb([]);
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users/missing');
@@ -486,7 +486,7 @@ describe('EDA v0.1.0 E2E', () => {
       const db = createInMemoryDb([{ id: 'u1' }]);
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'DELETE', '/api/users/u1');
@@ -505,7 +505,7 @@ describe('EDA v0.1.0 E2E', () => {
       const db = createInMemoryDb([]);
       const app = createServer({
         entities: [authEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users');
@@ -542,7 +542,7 @@ describe('EDA v0.1.0 E2E', () => {
     it('registers routes for both entities', async () => {
       const app = createServer({
         entities: [usersE, tasksE],
-        _entityDbFactory: () => createInMemoryDb(),
+        db: createInMemoryDb(),
       });
 
       const routes = app.router.routes;
@@ -611,7 +611,7 @@ describe('EDA v0.1.0 E2E', () => {
       ]);
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users?limit=2');
@@ -635,7 +635,7 @@ describe('EDA v0.1.0 E2E', () => {
       ]);
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users?role=admin');
@@ -655,7 +655,7 @@ describe('EDA v0.1.0 E2E', () => {
       ]);
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users?limit=1');
@@ -675,7 +675,7 @@ describe('EDA v0.1.0 E2E', () => {
       ]);
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users?after=u1&limit=1');
@@ -695,7 +695,7 @@ describe('EDA v0.1.0 E2E', () => {
       ]);
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users?after=u3');
@@ -714,7 +714,7 @@ describe('EDA v0.1.0 E2E', () => {
       ]);
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users?role=user&limit=1');
@@ -744,7 +744,7 @@ describe('EDA v0.1.0 E2E', () => {
       const app = createServer({
         entities: [simpleEntity],
         apiPrefix: '/v2',
-        _entityDbFactory: () => db,
+        db,
       });
 
       // Request with custom prefix works
@@ -775,7 +775,7 @@ describe('EDA v0.1.0 E2E', () => {
       const db = createInMemoryDb();
       const app = createServer({
         entities: [lifecycleEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       // 1. Create

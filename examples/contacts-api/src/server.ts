@@ -13,7 +13,7 @@ const db = await createDbProvider({
 
 const app = createServer({
   entities: [contacts],
-  _entityDbFactory: () => db,
+  db,
 });
 
 app.listen(PORT);

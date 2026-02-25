@@ -17,7 +17,7 @@ beforeEach(async () => {
 
   app = createServer({
     entities: [contacts],
-    _entityDbFactory: () => db,
+    db,
   });
 });
 

@@ -112,6 +112,54 @@ describe('createServer', () => {
     expect(app).toBeDefined();
   });
 
+  it('accepts db property as public API for entity DB adapter', async () => {
+    const mockDb = {
+      async get() {
+        return { id: '1', name: 'Alice' };
+      },
+      async list() {
+        return { data: [{ id: '1', name: 'Alice' }], total: 1 };
+      },
+      async create(data: Record<string, unknown>) {
+        return { id: '1', ...data };
+      },
+      async update(_id: string, data: Record<string, unknown>) {
+        return { id: '1', ...data };
+      },
+      async delete() {
+        return { id: '1', name: 'Alice' };
+      },
+    };
+
+    const app = createServer({
+      basePath: '/',
+      db: mockDb,
+      entities: [
+        {
+          name: 'users',
+          model: usersModel,
+          access: {
+            list: () => true,
+            get: () => true,
+            create: () => true,
+            update: () => true,
+            delete: () => true,
+          },
+          before: {},
+          after: {},
+          actions: {},
+          relations: {},
+        },
+      ] as never[],
+    });
+
+    const listResponse = await app.handler(new Request('http://localhost/api/users'));
+    expect(listResponse.status).toBe(200);
+    const listBody = await listResponse.json();
+    expect(listBody.data).toHaveLength(1);
+    expect(listBody.data[0].name).toBe('Alice');
+  });
+
   it('uses default /api prefix when apiPrefix is not specified', () => {
     const app = createServer({
       basePath: '/',

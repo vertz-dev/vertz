@@ -12,7 +12,9 @@ import type { EntityDefinition } from './entity/types';
 export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'entities'> {
   /** Entity definitions created via entity() from @vertz/server */
   entities?: EntityDefinition[];
-  /** Factory to create a DB adapter for each entity. If not provided, a no-op adapter is used. */
+  /** Database adapter for entity CRUD operations. */
+  db?: EntityDbAdapter;
+  /** @internal Factory to create a DB adapter for each entity. Prefer `db` instead. */
   _entityDbFactory?: (entityDef: EntityDefinition) => EntityDbAdapter;
 }
 
@@ -53,7 +55,8 @@ export function createServer(config: ServerConfig): AppBuilder {
 
   if (config.entities && config.entities.length > 0) {
     const registry = new EntityRegistry();
-    const dbFactory = config._entityDbFactory ?? createNoopDbAdapter;
+    const { db } = config;
+    const dbFactory = db ? () => db : (config._entityDbFactory ?? createNoopDbAdapter);
     const apiPrefix = config.apiPrefix === undefined ? '/api' : config.apiPrefix;
 
     // Generate routes for each entity

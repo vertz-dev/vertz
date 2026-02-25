@@ -57,7 +57,7 @@ function createInMemoryDb(): EntityDbAdapter {
 function createTestApp(db: EntityDbAdapter) {
   return createServer({
     entities: [todos],
-    _entityDbFactory: () => db,
+    db,
   });
 }
 

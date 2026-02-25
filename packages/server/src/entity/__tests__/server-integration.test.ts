@@ -1,5 +1,5 @@
-import { d } from '@vertz/db';
 import { describe, expect, it, vi } from 'bun:test';
+import { d } from '@vertz/db';
 import { createServer } from '../../create-server';
 import type { EntityDbAdapter } from '../crud-pipeline';
 import { entity } from '../entity';
@@ -67,7 +67,7 @@ describe('createServer with entities', () => {
     const db = createInMemoryDb();
     const app = createServer({
       entities: [usersEntity],
-      _entityDbFactory: () => db,
+      db,
     });
 
     const routes = app.router.routes;
@@ -86,7 +86,7 @@ describe('createServer with entities', () => {
     ]);
     const app = createServer({
       entities: [usersEntity],
-      _entityDbFactory: () => db,
+      db,
     });
 
     const res = await app.handler(new Request('http://localhost/api/users'));
@@ -111,7 +111,7 @@ describe('createServer with entities', () => {
 
     const app = createServer({
       entities: [simpleEntity],
-      _entityDbFactory: () => db,
+      db,
     });
 
     const res = await app.handler(
@@ -147,7 +147,7 @@ describe('createServer with entities', () => {
 
     const app = createServer({
       entities: [simpleEntity],
-      _entityDbFactory: () => db,
+      db,
     });
 
     const res = await app.handler(new Request('http://localhost/api/users/1'));
@@ -173,7 +173,7 @@ describe('createServer with entities', () => {
 
     const app = createServer({
       entities: [simpleEntity],
-      _entityDbFactory: () => db,
+      db,
     });
 
     const res = await app.handler(
@@ -193,7 +193,7 @@ describe('createServer with entities', () => {
     const db = createInMemoryDb([{ id: '1' }]);
     const app = createServer({
       entities: [usersEntity],
-      _entityDbFactory: () => db,
+      db,
     });
 
     const res = await app.handler(
@@ -220,7 +220,7 @@ describe('createServer with entities', () => {
 
     const app = createServer({
       entities: [simpleEntity],
-      _entityDbFactory: () => db,
+      db,
     });
 
     const res = await app.handler(new Request('http://localhost/api/users/nonexistent'));
@@ -260,7 +260,7 @@ describe('createServer with entities', () => {
 
     const app = createServer({
       entities: [simpleUsersEntity, tasksEntity],
-      _entityDbFactory: () => createInMemoryDb(),
+      db: createInMemoryDb(),
     });
 
     const routes = app.router.routes;
@@ -287,7 +287,7 @@ describe('createServer with entities', () => {
     const app = createServer({
       entities: [simpleEntity],
       apiPrefix: '/v2',
-      _entityDbFactory: () => createInMemoryDb(),
+      db: createInMemoryDb(),
     });
 
     const routes = app.router.routes;
@@ -314,7 +314,7 @@ describe('createServer with entities', () => {
 
     const app = createServer({
       entities: [entityWithHook],
-      _entityDbFactory: () => db,
+      db,
     });
 
     const res = await app.handler(
