@@ -6,6 +6,7 @@ import type { EntityOperations } from './entity-operations';
 import type { EntityRegistry } from './entity-registry';
 import { entityErrorHandler } from './error-handler';
 import type { EntityDefinition } from './types';
+import { parseVertzQL, validateVertzQL } from './vertzql-parser';
 
 // ---------------------------------------------------------------------------
 // Options
@@ -109,13 +110,21 @@ export function generateEntityRoutes(
           try {
             const entityCtx = makeEntityCtx(ctx);
             const query = (ctx.query ?? {}) as Record<string, string>;
-            const { limit: limitStr, after, ...whereParams } = query;
-            const parsedLimit = limitStr ? Number.parseInt(limitStr, 10) : undefined;
+            const parsed = parseVertzQL(query);
+
+            // Validate against entity schema (reject hidden fields)
+            const validation = validateVertzQL(parsed, def.model.table);
+            if (!validation.ok) {
+              return jsonResponse(
+                { error: { code: 'BadRequest', message: validation.error } },
+                400,
+              );
+            }
+
             const options: ListOptions = {
-              where: Object.keys(whereParams).length > 0 ? whereParams : undefined,
-              limit:
-                parsedLimit !== undefined && !Number.isNaN(parsedLimit) ? parsedLimit : undefined,
-              after: after || undefined,
+              where: parsed.where ? (parsed.where as Record<string, unknown>) : undefined,
+              limit: parsed.limit,
+              after: parsed.after,
             };
             const result = await crudHandlers.list(entityCtx, options);
             if (!result.ok) {

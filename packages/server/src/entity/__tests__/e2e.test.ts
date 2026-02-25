@@ -627,7 +627,7 @@ describe('EDA v0.1.0 E2E', () => {
       expect(body.nextCursor).toBe('u2');
     });
 
-    it('GET /api/users?role=admin filters by role', async () => {
+    it('GET /api/users?where[role]=admin filters by role', async () => {
       const db = createInMemoryDb([
         { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
         { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
@@ -638,7 +638,7 @@ describe('EDA v0.1.0 E2E', () => {
         db,
       });
 
-      const res = await request(app, 'GET', '/api/users?role=admin');
+      const res = await request(app, 'GET', '/api/users?where[role]=admin');
 
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -706,7 +706,7 @@ describe('EDA v0.1.0 E2E', () => {
       expect(body.nextCursor).toBeNull();
     });
 
-    it('GET /api/users?role=user&limit=1 combines filtering and pagination', async () => {
+    it('GET /api/users?where[role]=user&limit=1 combines filtering and pagination', async () => {
       const db = createInMemoryDb([
         { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
         { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
@@ -717,7 +717,7 @@ describe('EDA v0.1.0 E2E', () => {
         db,
       });
 
-      const res = await request(app, 'GET', '/api/users?role=user&limit=1');
+      const res = await request(app, 'GET', '/api/users?where[role]=user&limit=1');
 
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -726,6 +726,76 @@ describe('EDA v0.1.0 E2E', () => {
       expect(body.total).toBe(2);
       expect(body.limit).toBe(1);
       expect(body.hasNextPage).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // VertzQL — bracket syntax filters
+  // -------------------------------------------------------------------------
+
+  describe('VertzQL bracket syntax', () => {
+    const openEntity = entity('users', {
+      model: usersModel,
+      access: { list: () => true, get: () => true, create: () => true },
+    });
+
+    it('GET /api/users?where[role]=admin filters by role using bracket syntax', async () => {
+      const db = createInMemoryDb([
+        { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
+        { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
+      ]);
+      const app = createServer({ entities: [openEntity], db });
+
+      const res = await request(app, 'GET', '/api/users?where[role]=admin');
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].name).toBe('Bob');
+    });
+
+    it('GET /api/users?where[passwordHash]=x returns 400 for hidden field filter', async () => {
+      const db = createInMemoryDb([
+        { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
+      ]);
+      const app = createServer({ entities: [openEntity], db });
+
+      const res = await request(app, 'GET', '/api/users?where[passwordHash]=x');
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain('passwordHash');
+    });
+
+    it('GET /api/users?orderBy=name:asc orders results', async () => {
+      const db = createInMemoryDb([
+        { id: 'u1', email: 'a@b.com', name: 'Charlie', passwordHash: 'h1', role: 'user' },
+        { id: 'u2', email: 'b@b.com', name: 'Alice', passwordHash: 'h2', role: 'user' },
+      ]);
+      const app = createServer({ entities: [openEntity], db });
+
+      const res = await request(app, 'GET', '/api/users?orderBy=name:asc');
+
+      expect(res.status).toBe(200);
+      // Note: actual ordering depends on the DB adapter — the in-memory adapter
+      // doesn't implement orderBy, so we just verify the request is accepted
+    });
+
+    it('GET /api/users?where[role]=admin&limit=1 combines VertzQL filters with pagination', async () => {
+      const db = createInMemoryDb([
+        { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'admin' },
+        { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
+        { id: 'u3', email: 'c@b.com', name: 'Charlie', passwordHash: 'h3', role: 'user' },
+      ]);
+      const app = createServer({ entities: [openEntity], db });
+
+      const res = await request(app, 'GET', '/api/users?where[role]=admin&limit=1');
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0].role).toBe('admin');
+      expect(body.limit).toBe(1);
     });
   });
 

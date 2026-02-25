@@ -250,7 +250,7 @@ describe('generateEntityRoutes', () => {
       expect(body.hasNextPage).toBe(true);
     });
 
-    it('list handler passes non-reserved query params as where filter', async () => {
+    it('list handler passes where[field]=value as where filter (VertzQL bracket syntax)', async () => {
       const def = buildEntityDef();
       const db = createMockDb([
         { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret', role: 'admin' },
@@ -263,7 +263,7 @@ describe('generateEntityRoutes', () => {
       const response = await listRoute!.handler({
         params: {},
         body: undefined,
-        query: { role: 'admin' },
+        query: { 'where[role]': 'admin' },
         headers: {},
       });
 
