@@ -8,6 +8,14 @@ With #673, the initial page load SSR works well — queries that resolve within 
 
 **Approach:** Data-only pre-fetch via SSE. Server returns only query data (not HTML), client injects into the existing `__VERTZ_SSR_DATA__` hydration bus. Design doc: `plans/server-rendered-client-navigations.md`.
 
+### Scope: Dev-Server Only
+
+This feature targets the **Vite dev server** exclusively. The nav handler lives in `@vertz/ui-compiler` (Vite plugin middleware) and is not part of the production build. In production, SSR is handled by deployment-specific packages (e.g., `@vertz/cloudflare`) which have their own server infrastructure. Porting nav pre-fetch to production SSR servers is a separate future effort — the client-side code (`server-nav.ts`, `query.ts` changes) is runtime-agnostic and will work with any server that implements the `X-Vertz-Nav` SSE protocol.
+
+### Cache Invalidation After Mutations
+
+The prefetch mechanism only handles **reads** (GET navigations). After mutations (POST/PUT/DELETE), the existing query cache invalidation handles staleness — `refetchTrigger` and cache eviction on mutations are separate concerns. The prefetch seeds the cache; mutations invalidate it through the existing `refetch()` / `revalidate()` paths. No additional work needed here.
+
 ---
 
 ## Phase 1: Server-Side Nav Handler
@@ -93,7 +101,8 @@ Nav handler responds to `X-Vertz-Nav: 1` requests with SSE events containing que
 11. **Clears active flag and dispatches `vertz:nav-prefetch-done` on completion** — after `done` event, flag is `false` and done event fired.
 12. **`abort()` cancels the fetch** — returned handle's `abort()` triggers `AbortController.abort()`.
 13. **Graceful degradation on fetch error** — rejected fetch → flag cleared, no uncaught error.
-14. **Timeout aborts the fetch** — configurable timeout triggers abort after elapsed time.
+14. **Timeout aborts the fetch** — configurable timeout triggers abort after elapsed time. Default timeout: **5000ms**.
+15. **`prefetchNavData` when already active ignores second call** — call `prefetchNavData` twice without abort → second call is a no-op (the first prefetch's bus and flag are already set). Prevents duplicate SSE connections.
 
 ### TDD Cycles — `query.ts` No-Double-Fetch
 
@@ -101,6 +110,7 @@ Nav handler responds to `X-Vertz-Nav: 1` requests with SSE events containing que
 16. **Query receives data from buffer (pre-mount)** — data in buffer before query mounts → `data.value` populated, no fetch.
 17. **Query receives data via `vertz:ssr-data` event (post-mount)** — data streamed after mount → resolved via existing hydration listener.
 18. **Query falls back to client fetch after done with no data** — dispatch `vertz:nav-prefetch-done` without providing data → query fetches client-side.
+19. **Late SSE data after `done` is ignored** — query starts client fetch after `done`, then a stale SSE `vertz:ssr-data` event arrives → query ignores it (the `ssrHydrationCleanup` listener was already removed, and `ssrHydrated` prevents double-resolution).
 
 ### `query.ts` Change Detail
 
@@ -117,11 +127,20 @@ if (!ssrHydrated && ssrHydrationCleanup !== null && isNavPrefetchActive()) {
     }
   };
   document.addEventListener('vertz:nav-prefetch-done', doneHandler);
-  // Update cleanup to include this listener
+
+  // Chain cleanup: both the SSR hydration listener AND the done listener
+  // must be removed on dispose/abort. Wrap the existing ssrHydrationCleanup.
+  const prevCleanup = ssrHydrationCleanup;
+  ssrHydrationCleanup = () => {
+    prevCleanup?.();
+    document.removeEventListener('vertz:nav-prefetch-done', doneHandler);
+  };
 }
 ```
 
 The key insight: `ssrHydrationCleanup !== null` means `__VERTZ_SSR_DATA__` exists (bus was re-created by `ensureSSRDataBus`), but the query's key wasn't found in the buffer yet. If prefetch is active, defer rather than immediately falling through to the client fetch.
+
+**Cleanup guarantee:** The `ssrHydrationCleanup` chain ensures that on `dispose()`, abort, or when data arrives via the hydration bus, **both** the `vertz:ssr-data` listener (from `hydrateQueryFromSSR`) and the `vertz:nav-prefetch-done` listener are removed. No listeners accumulate across navigations.
 
 ### Acceptance
 
@@ -147,13 +166,14 @@ Rather than module-mocking `prefetchNavData` in tests, pass it via `RouterOption
 
 ```typescript
 export interface RouterOptions {
+  /** Enable server-assisted navigation pre-fetching. Default timeout: 5000ms. */
   serverNav?: boolean | { timeout?: number };
   /** @internal — injected for testing. Production uses the real module. */
   _prefetchNavData?: typeof prefetchNavData;
 }
 ```
 
-This makes testing clean without `vi.mock()` brittleness. The router dynamically imports `server-nav.ts` when `serverNav` is enabled (lazy import avoids bundling the module when unused).
+When `serverNav: true`, the default timeout is **5000ms** (generous to avoid aborting slow-but-valid responses). When `serverNav: { timeout: 2000 }`, the timeout is explicit. This makes testing clean without `vi.mock()` brittleness. The router dynamically imports `server-nav.ts` when `serverNav` is enabled (lazy import avoids bundling the module when unused).
 
 ### TDD Cycles
 
@@ -165,6 +185,8 @@ This makes testing clean without `vi.mock()` brittleness. The router dynamically
 6. **`dispose()` aborts active prefetch** — cleanup on router teardown.
 7. **`serverNav: { timeout: N }` passes timeout** — verify timeout forwarded.
 8. **`popstate` triggers prefetch** — back/forward button also pre-fetches.
+9. **Re-navigation to same URL after abort triggers new prefetch** — navigate to `/a` → abort → navigate to `/a` again → prefetch fires again (no stale dedup).
+10. **`popstate` during active prefetch aborts previous** — prefetch in-flight → browser back → previous prefetch aborted, new one starts.
 
 ### Acceptance
 
@@ -201,6 +223,10 @@ const Link = createLink(currentPath, navigate, {
   onPrefetch: serverNav ? (url) => prefetchNavData(url, serverNavConfig) : undefined,
 });
 ```
+
+### Known Limitation: Touch Devices
+
+`mouseenter` and `focus` don't fire on tap on mobile devices, so hover prefetch won't trigger on touch. This is acceptable for MVP — the `serverNav` option in Phase 3 still pre-fetches on navigation (click/tap), which is the primary path. Touch-specific triggers (e.g., `touchstart`) can be added in a follow-up if needed.
 
 ### Acceptance
 
