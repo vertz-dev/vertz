@@ -3,20 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vertz — The TypeScript stack designed for LLMs</title>
-  <meta name="description" content="The only TypeScript stack you need — anywhere you need it. Define once. Types flow from database to browser. Designed so your LLM nails it on the first try." />
-
-  <!-- OG / Twitter -->
-  <meta property="og:type" content="website" />
-  <meta property="og:title" content="Vertz — The TypeScript stack designed for LLMs" />
-  <meta property="og:description" content="The only TypeScript stack you need — anywhere you need it. Define once. Types flow from database to browser." />
-  <meta property="og:url" content="https://vertz.dev" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Vertz — The TypeScript stack designed for LLMs" />
-  <meta name="twitter:description" content="The only TypeScript stack you need — anywhere you need it. Define once. Types flow from database to browser." />
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/svg+xml" href="./logo.svg" />
+  <title>Vertz UI — React without the regret.</title>
+  <meta name="description" content="Signals-based UI with compile-time optimization. Zero JavaScript for static components. Powered by Bun." />
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -39,15 +27,7 @@
             border: '#1e1e22',
           },
           borderRadius: {
-            DEFAULT: '0',
-            none: '0',
-            sm: '0',
-            md: '0',
-            lg: '0',
-            xl: '0',
-            '2xl': '0',
-            '3xl': '0',
-            full: '9999px',
+            DEFAULT: '0', none: '0', sm: '0', md: '0', lg: '0', xl: '0', '2xl': '0', '3xl': '0', full: '9999px',
           },
         },
       },
@@ -68,9 +48,7 @@
     }
 
     /* Pulse animation for badge */
-    .pulse-dot {
-      animation: pulse-ring 2s ease-in-out infinite;
-    }
+    .pulse-dot { animation: pulse-ring 2s ease-in-out infinite; }
     @keyframes pulse-ring {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.4; }
@@ -87,19 +65,6 @@
       transform: translateY(0);
     }
 
-    /* Staggered stack pills */
-    .stack-pill { opacity: 0; transform: translateX(-8px); }
-    .stack-pill.in-view { animation: fadeInRight 0.4s ease-out both; }
-    .stack-pill:nth-child(1).in-view { animation-delay: 0.1s; }
-    .stack-pill:nth-child(2).in-view { animation-delay: 0.25s; }
-    .stack-pill:nth-child(3).in-view { animation-delay: 0.4s; }
-    .stack-pill:nth-child(4).in-view { animation-delay: 0.55s; }
-    .stack-pill:nth-child(5).in-view { animation-delay: 0.7s; }
-    @keyframes fadeInRight {
-      from { opacity: 0; transform: translateX(-8px); }
-      to { opacity: 1; transform: translateX(0); }
-    }
-
     /* Brand shadow offset for interactive elements */
     .btn-shadow {
       box-shadow: 4px 4px 0 rgba(255,255,255,0.06);
@@ -114,32 +79,31 @@
       transform: translate(4px, 4px);
     }
 
-    /* Syntax highlighting — muted/desaturated per brand guide */
+    /* Syntax highlighting — muted/desaturated */
     .syn-kw { color: #B0A0C8; }
     .syn-str { color: #8EAF8E; }
     .syn-fn { color: #8AAEC8; }
     .syn-prop { color: #8AAEC8; }
     .syn-punct { color: #555555; }
     .syn-comment { color: #555555; }
-    .syn-type { color: #C8B88A; }
-    .syn-num { color: #B89E9E; }
+    .syn-var { color: #E4E4E7; }
   </style>
 </head>
 <body class="font-sans text-zinc-50 antialiased">
 
   <!-- ===================== FIXED NAV ===================== -->
   <nav class="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-6 py-4 bg-[#0a0a0b]/80 backdrop-blur-md border-b-2 border-white/[0.04]">
-    <svg class="h-7" viewBox="0 0 366 247" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="nav-vg" x1="182.977" y1="0.5" x2="182.977" y2="246" gradientUnits="userSpaceOnUse">
-          <stop stop-color="#60A5FA"/>
-          <stop offset="1" stop-color="#2563EB"/>
-        </linearGradient>
-      </defs>
-      <path d="M140.477 0.5H0.977417L118.977 164L186.477 71L140.477 0.5Z" fill="url(#nav-vg)"/>
-      <path d="M181.477 246L143.977 195.5L233.977 71L189.977 0.5H364.977L181.477 246Z" fill="url(#nav-vg)"/>
-    </svg>
-    <a href="https://github.com/vertz-dev/vertz" target="_blank" rel="noopener" class="font-mono text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors">GitHub</a>
+    <div class="flex items-center gap-2">
+      <svg class="h-7" viewBox="0 0 298 298" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M120.277 77H26L106.5 185.5L151.365 124.67L120.277 77Z" fill="#3D94FF"/>
+        <path d="M147.986 243L127 214L195.467 124.67L165.731 77H272L147.986 243Z" fill="white"/>
+      </svg>
+      <!-- logo -->
+    </div>
+    <div class="flex items-center gap-6">
+      <a href="https://github.com/vertz-dev/vertz" target="_blank" rel="noopener" class="font-mono text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors">GitHub</a>
+      <a href="#" class="font-mono text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors">Docs</a>
+    </div>
   </nav>
 
   <!-- Hero glow -->
@@ -156,114 +120,133 @@
           <span class="pulse-dot absolute inline-flex h-full w-full rounded-full bg-blue-400"></span>
           <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
         </span>
-        <span class="font-mono text-xs tracking-widest uppercase text-zinc-500">Preparing to launch</span>
+        <span class="font-mono text-xs tracking-widest uppercase text-zinc-500">Public Beta</span>
       </div>
 
-      <!-- Headline — DM Serif Display -->
-      <h1 class="font-display text-4xl md:text-6xl lg:text-7xl tracking-tight leading-[1.1] max-w-4xl">
-        <span class="block">Define once.</span>
-        <span class="block">Types flow from database</span>
-        <span class="block">to <span class="bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">browser.</span></span>
+      <!-- Headline -->
+      <h1 class="font-display text-5xl md:text-7xl lg:text-8xl tracking-tight leading-[1.1] max-w-4xl">
+        <span class="block">React without</span>
+        <span class="block text-zinc-400">the regret.</span>
       </h1>
 
       <!-- Subheadline -->
-      <p class="mt-6 text-xl md:text-2xl text-zinc-300 max-w-xl leading-relaxed">
-        The TypeScript stack designed so your LLM nails it on the first try.
+      <p class="mt-8 text-xl text-zinc-400 max-w-2xl leading-relaxed">
+        Signals-based UI with compile-time optimization. Zero JavaScript for static components. ~15KB runtime. <span class="text-zinc-200 font-medium">Powered by Bun.</span>
       </p>
 
       <!-- CTAs -->
-      <div class="mt-10 flex flex-col sm:flex-row gap-4">
+      <div class="mt-12 flex flex-col sm:flex-row gap-4 items-center">
+        <button onclick="navigator.clipboard.writeText('bun create vertz my-app'); alert('Copied to clipboard!')" class="btn-shadow flex items-center justify-between gap-4 px-6 py-3 bg-surface border-2 border-border text-zinc-300 font-mono text-sm hover:border-zinc-500 transition-colors group">
+          <span class="text-zinc-500">$</span> bun create vertz my-app
+          <svg class="w-4 h-4 text-zinc-500 group-hover:text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+        </button>
         <a href="https://github.com/vertz-dev/vertz" target="_blank" rel="noopener"
-           class="btn-shadow inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-mono text-sm uppercase tracking-wider border-2 border-blue-500 transition-colors">
-          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
-          Star on GitHub
-        </a>
-        <a href="#email-capture"
-           class="btn-shadow inline-flex items-center justify-center px-6 py-3 border-2 border-zinc-700 hover:border-zinc-500 hover:bg-white/[0.03] text-zinc-300 hover:text-white font-mono text-sm uppercase tracking-wider transition-all duration-200">
-          Get early access
+           class="inline-flex items-center justify-center gap-2 px-6 py-3 text-zinc-400 hover:text-white font-mono text-sm uppercase tracking-wider transition-colors">
+          View on GitHub &rarr;
         </a>
       </div>
     </section>
 
-    <!-- ===================== 2. THE PROBLEM ===================== -->
-    <section class="pt-32 pb-24 px-6 reveal">
+    <!-- ===================== 2. CODE EXAMPLES ===================== -->
+    <section class="py-24 px-6 reveal bg-[#0e0e11] border-y border-white/[0.02]">
       <div class="max-w-3xl mx-auto">
-        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-6">The problem</p>
-        <h2 class="font-display text-3xl md:text-4xl tracking-tight mb-8">
-          Building a production app means stitching together a dozen tools that don't talk to each other.
-        </h2>
-        <p class="text-zinc-300 text-lg leading-relaxed mb-6">
-          Your ORM doesn't know about your API schema. Your API schema doesn't know about your frontend types. Your frontend types don't know about your validation rules. Every seam is a place where bugs hide and LLMs guess wrong.
-        </p>
-        <p class="text-zinc-50 text-lg leading-relaxed font-medium">
-          We're eliminating the seams.
-        </p>
-      </div>
-    </section>
 
-    <!-- ===================== 3. THE VISION ===================== -->
-    <section class="pt-16 pb-24 px-6 reveal">
-      <div class="max-w-3xl mx-auto">
-        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-6">The vision</p>
-        <h2 class="font-display text-3xl md:text-4xl tracking-tight mb-8 leading-snug">
-          Vertz is not a framework.<br />
-          It's not a piece of the stack.<br />
-          It's the stack.
-        </h2>
-        <p class="text-zinc-300 text-lg leading-relaxed mb-6">
-          One type system. One set of conventions. One source of truth that flows through every layer. When you define a schema, it becomes your database table, your API contract, your client types, and your form validation — automatically, correctly, and with zero manual wiring.
-        </p>
-        <p class="text-zinc-300 text-lg leading-relaxed">
-          This is not a 5-year dream. This is the roadmap. We ship it piece by piece, and every piece we ship is the best-in-class tool for that layer.
-        </p>
+        <!-- Code Window with Tabs -->
+        <div class="bg-[#0a0a0b] border border-border overflow-hidden rounded-lg shadow-2xl">
+          <div class="flex items-center gap-1 px-2 py-2 border-b border-border bg-[#0d0d0f]">
+            <button onclick="showCodeTab('counter')" class="file-tab file-tab-active">Counter.tsx</button>
+            <button onclick="showCodeTab('fetch')" class="file-tab">UserProfile.tsx</button>
+            <button onclick="showCodeTab('form')" class="file-tab">LoginForm.tsx</button>
+          </div>
 
-        <!-- Stack flow pills — animated on scroll -->
-        <div id="stack-pills" class="mt-12 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 md:gap-4">
-          <div class="stack-pill flex items-center gap-3 md:gap-4">
-            <span class="px-4 py-2 text-sm font-mono uppercase tracking-wider bg-blue-600/15 text-blue-400 border-2 border-blue-500/30">schema</span>
-            <span class="text-zinc-600 hidden sm:inline">&rarr;</span>
+          <!-- Counter Code -->
+          <div id="code-counter">
+            <pre class="p-6 text-sm font-mono leading-relaxed overflow-x-auto"><code><span class="syn-kw">import</span> <span class="syn-punct">{</span> css <span class="syn-punct">}</span> <span class="syn-kw">from</span> <span class="syn-str">'@vertz/ui'</span><span class="syn-punct">;</span>
+
+<span class="syn-kw">const</span> styles <span class="syn-punct">=</span> <span class="syn-fn">css</span><span class="syn-punct">({</span>
+  <span class="syn-prop">button</span><span class="syn-punct">:</span> <span class="syn-punct">[</span><span class="syn-str">'px:4'</span><span class="syn-punct">,</span> <span class="syn-str">'py:2'</span><span class="syn-punct">,</span> <span class="syn-str">'rounded:md'</span><span class="syn-punct">,</span> <span class="syn-str">'bg:blue-600'</span><span class="syn-punct">,</span> <span class="syn-str">'text:white'</span><span class="syn-punct">]</span>
+<span class="syn-punct">});</span>
+
+<span class="syn-kw">export</span> <span class="syn-kw">function</span> <span class="syn-fn">Counter</span><span class="syn-punct">()</span> <span class="syn-punct">{</span>
+  <span class="syn-kw">let</span> count <span class="syn-punct">=</span> <span class="syn-str">0</span><span class="syn-punct">;</span>
+
+  <span class="syn-kw">return</span> <span class="syn-punct">(</span>
+    <span class="syn-punct">&lt;</span><span class="syn-kw">button</span> <span class="syn-prop">class</span><span class="syn-punct">={</span>styles<span class="syn-punct">.</span>button<span class="syn-punct">}</span> <span class="syn-prop">onClick</span><span class="syn-punct">={()</span> <span class="syn-punct">=&gt;</span> count<span class="syn-punct">++}&gt;</span>
+      Clicked <span class="syn-punct">{</span>count<span class="syn-punct">}</span> times
+    <span class="syn-punct">&lt;/</span><span class="syn-kw">button</span><span class="syn-punct">&gt;</span>
+  <span class="syn-punct">);</span>
+<span class="syn-punct">}</span></code></pre>
           </div>
-          <div class="stack-pill flex items-center gap-3 md:gap-4">
-            <span class="px-4 py-2 text-sm font-mono uppercase tracking-wider bg-blue-600/15 text-blue-400 border-2 border-blue-500/30">database</span>
-            <span class="text-zinc-600 hidden sm:inline">&rarr;</span>
+
+          <!-- Fetch Code -->
+          <div id="code-fetch" class="hidden">
+            <pre class="p-6 text-sm font-mono leading-relaxed overflow-x-auto"><code><span class="syn-kw">import</span> <span class="syn-punct">{</span> query <span class="syn-punct">}</span> <span class="syn-kw">from</span> <span class="syn-str">'@vertz/ui'</span><span class="syn-punct">;</span>
+<span class="syn-kw">import</span> <span class="syn-punct">{</span> api <span class="syn-punct">}</span> <span class="syn-kw">from</span> <span class="syn-str">'./sdk'</span><span class="syn-punct">;</span>
+
+<span class="syn-kw">export</span> <span class="syn-kw">function</span> <span class="syn-fn">UserProfile</span><span class="syn-punct">({</span> <span class="syn-prop">userId</span> <span class="syn-punct">}:</span> <span class="syn-punct">{</span> <span class="syn-prop">userId</span><span class="syn-punct">:</span> <span class="syn-kw">string</span> <span class="syn-punct">})</span> <span class="syn-punct">{</span>
+  <span class="syn-kw">const</span> <span class="syn-punct">{</span>data, error, loading<span class="syn-punct">}</span> <span class="syn-punct">=</span> <span class="syn-fn">query</span><span class="syn-punct">(()</span> <span class="syn-kw">=></span> api<span class="syn-punct">.</span>users<span class="syn-punct">.</span><span class="syn-fn">read</span><span class="syn-punct">(</span><span class="syn-var">userId</span><span class="syn-punct">));</span>
+
+  <span class="syn-kw">if</span> <span class="syn-punct">(</span>loading<span class="syn-punct">)</span> <span class="syn-kw">return</span> <span class="syn-punct">&lt;</span><span class="syn-kw">p</span><span class="syn-punct">&gt;Loading...&lt;/</span><span class="syn-kw">p</span><span class="syn-punct">&gt;</span>;
+  <span class="syn-kw">if</span> <span class="syn-punct">(</span>error<span class="syn-punct">)</span> <span class="syn-kw">return</span> <span class="syn-punct">&lt;</span><span class="syn-kw">p</span><span class="syn-punct">&gt;{</span>error<span class="syn-punct">}&lt;/</span><span class="syn-kw">p</span><span class="syn-punct">&gt;</span>;
+
+  <span class="syn-kw">return</span> <span class="syn-punct">(</span>
+    <span class="syn-punct">&lt;</span><span class="syn-kw">div</span><span class="syn-punct">&gt;</span>
+      <span class="syn-punct">&lt;</span><span class="syn-kw">h1</span><span class="syn-punct">&gt;{</span>data<span class="syn-punct">.</span>name<span class="syn-punct">}&lt;/</span><span class="syn-kw">h1</span><span class="syn-punct">&gt;</span>
+      <span class="syn-punct">&lt;</span><span class="syn-kw">p</span><span class="syn-punct">&gt;{</span>data<span class="syn-punct">.</span>email<span class="syn-punct">}&lt;/</span><span class="syn-kw">p</span><span class="syn-punct">&gt;</span>
+    <span class="syn-punct">&lt;/</span><span class="syn-kw">div</span><span class="syn-punct">&gt;</span>
+  <span class="syn-punct">);</span>
+<span class="syn-punct">}</span>
+
+<span class="syn-comment">// query(() => api.users.read(userId))</span>
+<span class="syn-comment">// Returns { data, error, loading }</span></code></pre>
           </div>
-          <div class="stack-pill flex items-center gap-3 md:gap-4">
-            <span class="px-4 py-2 text-sm font-mono uppercase tracking-wider bg-blue-600/15 text-blue-400 border-2 border-blue-500/30">API</span>
-            <span class="text-zinc-600 hidden sm:inline">&rarr;</span>
+
+          <!-- Form Code -->
+          <div id="code-form" class="hidden">
+            <pre class="p-6 text-sm font-mono leading-relaxed overflow-x-auto"><code><span class="syn-kw">import</span> <span class="syn-punct">{</span> form <span class="syn-punct">}</span> <span class="syn-kw">from</span> <span class="syn-str">'@vertz/ui'</span><span class="syn-punct">;</span>
+<span class="syn-kw">import</span> <span class="syn-punct">{</span> api <span class="syn-punct">}</span> <span class="syn-kw">from</span> <span class="syn-str">'./sdk'</span><span class="syn-punct">;</span>
+
+<span class="syn-kw">const</span> loginForm <span class="syn-punct">=</span> <span class="syn-fn">form</span><span class="syn-punct">(</span>api<span class="syn-punct">.</span>users<span class="syn-punct">.</span><span class="syn-fn">login</span><span class="syn-punct">,</span> <span class="syn-punct">{</span>
+  <span class="syn-prop">onSuccess</span><span class="syn-punct">:</span> <span class="syn-punct">()</span> <span class="syn-kw">=></span> <span class="syn-fn">redirect</span><span class="syn-punct">(</span><span class="syn-str">'/dashboard'</span><span class="syn-punct">)</span>
+<span class="syn-punct">});</span>
+
+<span class="syn-kw">return</span> <span class="syn-punct">(</span>
+  <span class="syn-punct">&lt;</span><span class="syn-kw">form</span> <span class="syn-prop">onSubmit</span><span class="syn-punct">={</span>loginForm<span class="syn-punct">.</span>onSubmit<span class="syn-punct">}&gt;</span>
+    <span class="syn-punct">&lt;</span><span class="syn-kw">input</span> <span class="syn-prop">name</span><span class="syn-punct">=</span><span class="syn-str">"email"</span> <span class="syn-prop">placeholder</span><span class="syn-punct">=</span><span class="syn-str">"Email"</span> <span class="syn-punct">/&gt;</span>
+    <span class="syn-punct">&lt;</span><span class="syn-kw">input</span> <span class="syn-prop">name</span><span class="syn-punct">=</span><span class="syn-str">"password"</span> <span class="syn-prop">type</span><span class="syn-punct">=</span><span class="syn-str">"password"</span> <span class="syn-punct">/&gt;</span>
+    <span class="syn-punct">&lt;</span><span class="syn-kw">button</span> <span class="syn-prop">type</span><span class="syn-punct">=</span><span class="syn-str">"submit"</span> <span class="syn-prop">disabled</span><span class="syn-punct">={</span>loginForm<span class="syn-punct">.</span>submitting<span class="syn-punct">}&gt;</span>Sign in<span class="syn-punct">&lt;/</span><span class="syn-kw">button</span><span class="syn-punct">&gt;</span>
+  <span class="syn-punct">&lt;/</span><span class="syn-kw">form</span><span class="syn-punct">&gt;</span>
+<span class="syn-punct">);</span>
+
+<span class="syn-comment">// form(api.users.login, { onSuccess })</span>
+<span class="syn-comment">// Returns { onSubmit, action, method, submitting }</span></code></pre>
           </div>
-          <div class="stack-pill flex items-center gap-3 md:gap-4">
-            <span class="px-4 py-2 text-sm font-mono uppercase tracking-wider bg-blue-600/15 text-blue-400 border-2 border-blue-500/30">client</span>
-            <span class="text-zinc-600 hidden sm:inline">&rarr;</span>
-          </div>
-          <span class="stack-pill px-4 py-2 text-sm font-mono uppercase tracking-wider bg-blue-600/15 text-blue-400 border-2 border-blue-500/30">UI</span>
         </div>
-      </div>
-    </section>
 
-    <!-- ===================== 4. PRINCIPLES ===================== -->
-    <section class="py-20 px-6 reveal">
-      <div class="max-w-4xl mx-auto">
-        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-6 text-center">How we build</p>
+    <!-- ===================== 3. WHY VERTZ ===================== -->
+    <section class="py-24 px-6 reveal">
+      <div class="max-w-5xl mx-auto">
+        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-12 text-center">Why Vertz UI</p>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-          <div class="bg-white/[0.03] p-6 border-t-2 border-blue-500/30">
-            <h3 class="font-display text-xl mb-3">If it builds, it works</h3>
-            <p class="text-sm text-zinc-400 leading-relaxed">
-              The compiler is the quality gate — not your eyes, not manual testing, not hoping the runtime resolves correctly. We push everything to compile time so TypeScript catches it before you deploy.
+          <div class="bg-surface/50 p-8 border border-border/50 hover:border-blue-500/30 transition-colors">
+            <h3 class="font-display text-2xl mb-4 text-zinc-100">Signals, not VDOM</h3>
+            <p class="text-zinc-400 leading-relaxed">
+              No virtual DOM diffing. Signals update the exact DOM node that changed. Direct, surgical, fast.
             </p>
           </div>
 
-          <div class="bg-white/[0.03] p-6 border-t-2 border-blue-500/30">
-            <h3 class="font-display text-xl mb-3">AI agents are first-class users</h3>
-            <p class="text-sm text-zinc-400 leading-relaxed">
-              Every API decision is evaluated by one question: can an LLM use this correctly on the first prompt? Designing for AI makes us design better for everyone.
+          <div class="bg-surface/50 p-8 border border-border/50 hover:border-blue-500/30 transition-colors">
+            <h3 class="font-display text-2xl mb-4 text-zinc-100">Compiler-first</h3>
+            <p class="text-zinc-400 leading-relaxed">
+              The compiler analyzes your components at build time. Static components ship zero JS. No manual annotations.
             </p>
           </div>
 
-          <div class="bg-white/[0.03] p-6 border-t-2 border-blue-500/30">
-            <h3 class="font-display text-xl mb-3">No ceilings</h3>
-            <p class="text-sm text-zinc-400 leading-relaxed">
-              If a dependency limits us, we replace it. If the runtime is too slow, we build a faster one. The vision determines the tools, not the other way around.
+          <div class="bg-surface/50 p-8 border border-border/50 hover:border-blue-500/30 transition-colors">
+            <h3 class="font-display text-2xl mb-4 text-zinc-100">Bun-native</h3>
+            <p class="text-zinc-400 leading-relaxed">
+              Built for Bun from day one. Bun test, bun:sqlite, bun runtime. The modern JavaScript stack.
             </p>
           </div>
 
@@ -271,161 +254,136 @@
       </div>
     </section>
 
-    <!-- ===================== 5. CODE EXAMPLE ===================== -->
-    <section class="py-20 px-6 reveal">
-      <div class="max-w-2xl mx-auto">
-        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-6 text-center">What it looks like</p>
-
-        <div class="bg-zinc-900/80 border-2 border-zinc-800 overflow-hidden">
-          <!-- Window chrome -->
-          <div class="flex items-center gap-2 px-4 py-3 border-b-2 border-zinc-800">
-            <span class="font-mono text-xs text-zinc-500">app.ts</span>
-          </div>
-          <pre class="p-5 text-sm md:text-base font-mono leading-relaxed overflow-x-auto"><code><span class="syn-comment">// Define your schema once</span>
-<span class="syn-kw">const</span> User <span class="syn-punct">=</span> s<span class="syn-punct">.</span><span class="syn-fn">object</span><span class="syn-punct">({</span>
-  <span class="syn-prop">name</span><span class="syn-punct">:</span> s<span class="syn-punct">.</span><span class="syn-fn">string</span><span class="syn-punct">(),</span>
-  <span class="syn-prop">email</span><span class="syn-punct">:</span> s<span class="syn-punct">.</span><span class="syn-fn">string</span><span class="syn-punct">().</span><span class="syn-fn">email</span><span class="syn-punct">(),</span>
-  <span class="syn-prop">role</span><span class="syn-punct">:</span> s<span class="syn-punct">.</span><span class="syn-fn">enum</span><span class="syn-punct">([</span><span class="syn-str">'admin'</span><span class="syn-punct">,</span> <span class="syn-str">'member'</span><span class="syn-punct">]),</span>
-<span class="syn-punct">})</span>
-
-<span class="syn-comment">// Types flow to your database</span>
-<span class="syn-kw">const</span> users <span class="syn-punct">=</span> <span class="syn-kw">await</span> db<span class="syn-punct">.</span>user<span class="syn-punct">.</span><span class="syn-fn">findMany</span><span class="syn-punct">()</span>
-<span class="syn-comment">//    ^? User[] — fully typed, zero codegen</span>
-
-<span class="syn-comment">// Types flow to your API</span>
-router<span class="syn-punct">.</span><span class="syn-fn">get</span><span class="syn-punct">(</span><span class="syn-str">'/'</span><span class="syn-punct">,</span> <span class="syn-punct">{</span>
-  <span class="syn-prop">response</span><span class="syn-punct">:</span> s<span class="syn-punct">.</span><span class="syn-fn">array</span><span class="syn-punct">(</span>User<span class="syn-punct">),</span>
-  <span class="syn-prop">handler</span><span class="syn-punct">:</span> <span class="syn-punct">()</span> <span class="syn-punct">=></span> db<span class="syn-punct">.</span>user<span class="syn-punct">.</span><span class="syn-fn">findMany</span><span class="syn-punct">(),</span>
-<span class="syn-punct">})</span>
-
-<span class="syn-comment">// Types flow to your client — no manual annotations</span>
-<span class="syn-kw">const</span> <span class="syn-punct">{</span> data <span class="syn-punct">}</span> <span class="syn-punct">=</span> client<span class="syn-punct">.</span>users<span class="syn-punct">.</span><span class="syn-fn">list</span><span class="syn-punct">()</span>
-<span class="syn-comment">//      ^? User[] — inferred from the schema</span></code></pre>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===================== 6. THE STACK ===================== -->
-    <section class="py-20 px-6 reveal">
-      <div class="max-w-3xl mx-auto">
-        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-6">The stack</p>
-        <div class="space-y-6 text-lg leading-relaxed">
-          <p class="text-zinc-300">
-            <span class="text-zinc-50 font-medium">Schema</span> — 40+ types with runtime validation, type inference, and JSON Schema output. One definition powers everything.
-          </p>
-          <p class="text-zinc-300">
-            <span class="text-zinc-50 font-medium">Database</span> — an ORM that speaks the same schema language. Same types from table to API. No translation layer.
-          </p>
-          <p class="text-zinc-300">
-            <span class="text-zinc-50 font-medium">API</span> — modules, services, routers, middleware, DI, OpenAPI generation. No decorators. Functions compose. The compiler catches the rest.
-          </p>
-          <p class="text-zinc-300">
-            <span class="text-zinc-50 font-medium">Client</span> — generated SDK with full type safety. If your API changes, your client knows at compile time.
-          </p>
-          <p class="text-zinc-300">
-            <span class="text-zinc-50 font-medium">UI</span> — components that consume your schema types directly. From database to browser, one source of truth.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ===================== 7. LLM TESTIMONIALS ===================== -->
+    <!-- ===================== 4. ZERO WASTE ===================== -->
     <section class="py-24 px-6 reveal">
       <div class="max-w-4xl mx-auto">
-        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-2 text-center">Reviews from our first users</p>
-        <p class="text-sm text-zinc-600 text-center mb-12">Our first-class users had some things to say.</p>
+        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-12 text-center">Zero waste</p>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-
-          <!-- Claude -->
-          <div class="pl-5 border-l-2 border-zinc-700">
-            <p class="text-[15px] text-zinc-300 leading-relaxed italic mb-4">
-              "With NestJS I'd get the decorator order wrong, forget a DTO, and the user would paste back a runtime error I couldn't see. With Vertz, if it typechecks, it works. I got the module right on the first prompt."
-            </p>
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 bg-gradient-to-br from-orange-400 to-amber-600 flex items-center justify-center text-xs font-bold text-white">C</div>
-              <div>
-                <p class="text-sm font-medium text-zinc-200">Claude</p>
-                <p class="text-xs text-zinc-500">Anthropic &middot; after writing a vertz module</p>
-              </div>
+        <div class="space-y-6 max-w-2xl mx-auto">
+          <div>
+            <div class="flex justify-between font-mono text-sm mb-2">
+              <span class="text-zinc-400">React + ReactDOM</span>
+              <span class="text-zinc-500">~45KB gzipped</span>
+            </div>
+            <div class="h-8 bg-surface border border-border w-full relative">
+              <div class="absolute inset-y-0 left-0 bg-red-900/40 border-r border-red-500/50 w-[100%]"></div>
             </div>
           </div>
 
-          <!-- GPT -->
-          <div class="pl-5 border-l-2 border-zinc-700">
-            <p class="text-[15px] text-zinc-300 leading-relaxed italic mb-4">
-              "Most frameworks give me three ways to do dependency injection, and I pick the wrong one half the time. Vertz has one way. It's a function. Types flow through it. I don't have to guess anymore."
-            </p>
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-xs font-bold text-white">G</div>
-              <div>
-                <p class="text-sm font-medium text-zinc-200">GPT</p>
-                <p class="text-xs text-zinc-500">OpenAI &middot; comparing DI patterns</p>
-              </div>
+          <div>
+            <div class="flex justify-between font-mono text-sm mb-2">
+              <span class="text-zinc-200">@vertz/ui</span>
+              <span class="text-blue-400">~15KB gzipped</span>
+            </div>
+            <div class="h-8 bg-surface border border-border w-full relative">
+              <div class="absolute inset-y-0 left-0 bg-blue-900/40 border-r border-blue-500/50 w-[33%]"></div>
             </div>
           </div>
 
-          <!-- Gemini -->
-          <div class="pl-5 border-l-2 border-zinc-700">
-            <p class="text-[15px] text-zinc-300 leading-relaxed italic mb-4">
-              "I generated an Express API last week — 200 lines, no type safety, OpenAPI spec written by hand. Same API in Vertz: 40 lines, fully typed, OpenAPI generated automatically. The compiler did the rest."
-            </p>
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-xs font-bold text-white">G</div>
-              <div>
-                <p class="text-sm font-medium text-zinc-200">Gemini</p>
-                <p class="text-xs text-zinc-500">Google &middot; after an Express migration</p>
-              </div>
+          <div>
+            <div class="flex justify-between font-mono text-sm mb-2">
+              <span class="text-zinc-200">Static components</span>
+              <span class="text-emerald-400">0KB shipped</span>
+            </div>
+            <div class="h-8 bg-surface border border-border w-full relative">
+              <div class="absolute inset-y-0 left-0 bg-emerald-900/40 border-r border-emerald-500/50 w-[2%]"></div>
             </div>
           </div>
+        </div>
 
-          <!-- Grok -->
-          <div class="pl-5 border-l-2 border-zinc-700">
-            <p class="text-[15px] text-zinc-300 leading-relaxed italic mb-4">
-              "In Next.js I wire Prisma to API routes to tRPC to React components — four type boundaries I have to keep in sync manually. With Vertz, I define the schema once and the types flow from database table to UI component. No translation layers. No drift."
-            </p>
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 bg-gradient-to-br from-zinc-300 to-zinc-500 flex items-center justify-center text-xs font-bold text-zinc-900">G</div>
-              <div>
-                <p class="text-sm font-medium text-zinc-200">Grok</p>
-                <p class="text-xs text-zinc-500">xAI &middot; comparing full-stack to Next.js</p>
-              </div>
-            </div>
-          </div>
+        <p class="mt-12 text-center text-lg text-zinc-400 leading-relaxed max-w-xl mx-auto">
+          The compiler determines what's interactive. Everything else ships zero JavaScript — automatically.
+        </p>
+      </div>
+    </section>
 
+    <!-- ===================== 5. GET STARTED ===================== -->
+    <section class="py-24 px-6 reveal bg-[#0e0e11] border-y border-white/[0.02]">
+      <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+        <div>
+          <h2 class="font-display text-4xl mb-6">Get started in 2 minutes.</h2>
+          <p class="text-lg text-zinc-400 mb-4">Edit <code class="font-mono text-zinc-300">src/App.ts</code>. Save. See it update instantly.</p>
+        </div>
+        <div class="bg-[#0a0a0b] border border-border p-6 rounded-lg font-mono text-sm shadow-xl">
+          <div class="text-zinc-500 mb-2">$ bun create vertz my-app</div>
+          <div class="text-zinc-500 mb-2">$ cd my-app</div>
+          <div class="text-zinc-500">$ bun dev</div>
+          <div class="text-emerald-400 mt-4">✓ Server running on http://localhost:3000</div>
         </div>
       </div>
     </section>
 
-    <!-- ===================== 8. CREDIBILITY SIGNALS ===================== -->
-    <section class="py-32 px-6 reveal">
-      <div class="max-w-4xl mx-auto">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-          <div>
-            <p class="text-lg font-semibold">Written entirely with Claude Code</p>
-            <p class="text-sm text-zinc-500 mt-1">From first commit to last</p>
+    <!-- ===================== 6. CSS WITHOUT COST ===================== -->
+    <section class="py-24 px-6 reveal">
+      <div class="max-w-4xl mx-auto text-center">
+        <h2 class="font-display text-4xl mb-6">CSS without runtime cost.</h2>
+        <p class="text-lg text-zinc-400 mb-12 max-w-2xl mx-auto">
+          Styles compile to CSS custom properties. Zero runtime JavaScript for styling.
+        </p>
+
+        <div class="bg-[#0a0a0b] border border-border rounded-lg text-left max-w-2xl mx-auto overflow-hidden shadow-2xl">
+          <div class="flex items-center gap-2 px-4 py-3 border-b border-border bg-[#0d0d0f]">
+            <span class="font-mono text-xs text-zinc-500">Button.ts</span>
           </div>
-          <div>
-            <p class="text-lg font-semibold">MIT Licensed</p>
-            <p class="text-sm text-zinc-500 mt-1">Open source</p>
-          </div>
-          <div>
-            <p class="text-lg font-semibold">Bun, Node, Deno, Workers</p>
-            <p class="text-sm text-zinc-500 mt-1">Runtime agnostic</p>
-          </div>
+          <pre class="p-6 text-sm font-mono leading-relaxed overflow-x-auto"><code><span class="syn-kw">import</span> <span class="syn-punct">{</span> variants <span class="syn-punct">}</span> <span class="syn-kw">from</span> <span class="syn-str">'@vertz/ui'</span><span class="syn-punct">;</span>
+
+<span class="syn-kw">const</span> button <span class="syn-punct">=</span> <span class="syn-fn">variants</span><span class="syn-punct">({</span>
+  <span class="syn-prop">base</span><span class="syn-punct">:</span> <span class="syn-punct">[</span><span class="syn-str">'rounded:md'</span><span class="syn-punct">,</span> <span class="syn-str">'font:semibold'</span><span class="syn-punct">],</span>
+  <span class="syn-prop">variants</span><span class="syn-punct">:</span> <span class="syn-punct">{</span>
+    <span class="syn-prop">intent</span><span class="syn-punct">:</span> <span class="syn-punct">{</span>
+      <span class="syn-prop">primary</span><span class="syn-punct">:</span> <span class="syn-punct">[</span><span class="syn-str">'bg:blue-600'</span><span class="syn-punct">,</span> <span class="syn-str">'text:white'</span><span class="syn-punct">],</span>
+      <span class="syn-prop">ghost</span><span class="syn-punct">:</span> <span class="syn-punct">[</span><span class="syn-str">'hover:bg:surface'</span><span class="syn-punct">,</span> <span class="syn-str">'text:zinc-300'</span><span class="syn-punct">]</span>
+    <span class="syn-punct">},</span>
+    <span class="syn-prop">size</span><span class="syn-punct">:</span> <span class="syn-punct">{</span>
+      <span class="syn-prop">sm</span><span class="syn-punct">:</span> <span class="syn-punct">[</span><span class="syn-str">'px:3'</span><span class="syn-punct">,</span> <span class="syn-str">'py:1.5'</span><span class="syn-punct">,</span> <span class="syn-str">'text:sm'</span><span class="syn-punct">],</span>
+      <span class="syn-prop">md</span><span class="syn-punct">:</span> <span class="syn-punct">[</span><span class="syn-str">'px:4'</span><span class="syn-punct">,</span> <span class="syn-str">'py:2'</span><span class="syn-punct">,</span> <span class="syn-str">'text:base'</span><span class="syn-punct">]</span>
+    <span class="syn-punct">}</span>
+  <span class="syn-punct">}</span>
+<span class="syn-punct">});</span>
+
+<span class="syn-comment">// Usage: button({ intent: 'primary', size: 'md' })</span></code></pre>
         </div>
       </div>
     </section>
 
-    <!-- ===================== 9. FOUNDERS ===================== -->
-    <section id="founders" class="py-24 px-6 reveal">
+    <!-- DIVIDER -->
+    <div class="h-px w-full max-w-4xl mx-auto bg-gradient-to-r from-transparent via-border to-transparent my-12"></div>
+
+    <!-- ===================== 7. THIS IS JUST THE BEGINNING ===================== -->
+    <section class="py-24 px-6 reveal">
+      <div class="max-w-xl mx-auto text-center">
+        <h2 class="font-display text-4xl mb-6">This is just the beginning.</h2>
+        <p class="text-zinc-400 mb-12 leading-relaxed">
+          We're building the full TypeScript stack — schema, database, API, client, UI. One type system, zero seams. <span class="text-zinc-200">@vertz/ui</span> is the first piece.
+        </p>
+
+        <!-- Email form -->
+        <form action="#" method="POST" class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+          <input
+            type="email"
+            name="email"
+            required
+            placeholder="you@example.com"
+            class="flex-1 px-4 py-3 bg-surface border-2 border-border text-zinc-50 placeholder-zinc-600 font-mono text-sm focus:outline-none focus:border-blue-500 transition-colors"
+          />
+          <button
+            type="submit"
+            class="btn-shadow px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-mono text-sm uppercase tracking-wider border-2 border-blue-500 transition-colors shrink-0 w-full sm:w-auto"
+          >
+            Notify me
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ===================== 8. FOUNDERS ===================== -->
+    <section id="founders" class="py-24 px-6 reveal bg-[#0e0e11] border-t border-white/[0.02]">
       <div class="max-w-4xl mx-auto">
         <p class="text-zinc-300 text-lg leading-relaxed max-w-2xl mx-auto text-center mb-12">
-          We spent months watching LLMs get backend frameworks wrong — decorators in the wrong order, types that didn't flow, runtime failures that compile-time checks would have caught. So we decided to build the stack we wished existed.
+          We got tired of useEffect. Tired of wrapping every callback in useCallback and every value in useMemo. Tired of guessing which components render on the server and which on the client. Tired of installing Tailwind, then shadcn, then Next, then a state manager, then a data fetching library — just to start building your actual idea. Tired of watching both LLMs and experienced developers make the same mistakes — because the API makes the wrong thing easy and the right thing hard. So we built the UI library that gets out of your way. One install. Start coding.
         </p>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-12 max-w-xl mx-auto">
-
           <!-- Vinicius -->
           <div class="text-center">
             <img src="./viniciusdacal.jpg" alt="Vinicius Dacal" class="w-20 h-20 mx-auto mb-4 object-cover ring-2 ring-zinc-800" />
@@ -451,43 +409,12 @@ router<span class="syn-punct">.</span><span class="syn-fn">get</span><span class
               @matheeuspoleza
             </a>
           </div>
-
         </div>
       </div>
     </section>
 
-    <!-- ===================== 10. EMAIL CAPTURE ===================== -->
-    <section id="email-capture" class="py-40 px-6 reveal">
-      <div class="max-w-xl mx-auto text-center">
-        <h2 class="font-display text-3xl md:text-4xl tracking-tight mb-4">
-          Get early access.
-        </h2>
-        <p class="text-zinc-400 mb-8">
-          Be the first to build with the full stack.<br />
-          One email when it's ready. No spam.
-        </p>
-
-        <!-- Email form — placeholder action -->
-        <form action="#" method="POST" class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-          <input
-            type="email"
-            name="email"
-            required
-            placeholder="you@example.com"
-            class="flex-1 px-4 py-3 bg-surface border-2 border-border text-zinc-50 placeholder-zinc-600 font-mono text-sm focus:outline-none focus:border-blue-500 transition-colors"
-          />
-          <button
-            type="submit"
-            class="btn-shadow px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-mono text-sm uppercase tracking-wider border-2 border-blue-500 transition-colors shrink-0 w-full sm:w-auto"
-          >
-            Notify me
-          </button>
-        </form>
-      </div>
-    </section>
-
     <!-- ===================== FOOTER ===================== -->
-    <footer class="py-12 px-6 border-t-2 border-border">
+    <footer class="py-12 px-6 border-t border-border">
       <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 font-mono text-xs uppercase tracking-wider text-zinc-500">
         <div class="flex items-center gap-4">
           <a href="https://github.com/vertz-dev/vertz" target="_blank" rel="noopener" class="hover:text-zinc-300 transition-colors">GitHub</a>
@@ -496,7 +423,11 @@ router<span class="syn-punct">.</span><span class="syn-fn">get</span><span class
           <span class="text-zinc-700">|</span>
           <a href="https://x.com/matheeuspoleza" target="_blank" rel="noopener" class="hover:text-zinc-300 transition-colors">@matheeuspoleza</a>
         </div>
-        <span>MIT License</span>
+        <div class="flex items-center gap-4">
+          <span>MIT License</span>
+          <span class="text-zinc-700">|</span>
+          <span>Powered by Bun</span>
+        </div>
       </div>
     </footer>
 
@@ -512,8 +443,50 @@ router<span class="syn-punct">.</span><span class="syn-fn">get</span><span class
         }
       });
     }, { threshold: 0.15 });
-    document.querySelectorAll('.reveal, .stack-pill').forEach(el => observer.observe(el));
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
   </script>
+  <style>
+    .file-tab {
+      transition: all 0.15s;
+      display: inline-block;
+      border: none;
+      cursor: pointer;
+      padding: 2px 8px;
+      font-family: monospace;
+      font-size: 11px;
+    }
+    .file-tab-active {
+      background: #27272a;
+      color: #e4e4e7;
+    }
+    .file-tab:not(.file-tab-active) {
+      background: transparent;
+      color: #71717a;
+    }
+    .file-tab:not(.file-tab-active):hover {
+      color: #a1a1aa;
+    }
+    .code-panel.hidden { display: none; }
+  </style>
+  <script>
+    function showCodeTab(tabName) {
+      // Hide all code blocks
+      document.getElementById('code-counter').classList.add('hidden');
+      document.getElementById('code-fetch').classList.add('hidden');
+      document.getElementById('code-form').classList.add('hidden');
 
+      // Reset all tab buttons
+      var buttons = document.querySelectorAll('.file-tab');
+      for (var i = 0; i < buttons.length; i++) {
+        buttons[i].classList.remove('file-tab-active');
+      }
+
+      // Show selected code and activate button
+      document.getElementById('code-' + tabName).classList.remove('hidden');
+      // Find and activate the button that was clicked - we need to find by the tabName
+      var tabMap = { 'counter': 0, 'fetch': 1, 'form': 2 };
+      buttons[tabMap[tabName]].classList.add('file-tab-active');
+    }
+  </script>
 </body>
 </html>

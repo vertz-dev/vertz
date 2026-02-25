@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vertz — The TypeScript stack designed for LLMs</title>
+  <meta name="description" content="The only TypeScript stack you need — anywhere you need it. Define once. Types flow from database to browser. Designed so your LLM nails it on the first try." />
+
+  <!-- OG / Twitter -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Vertz — The TypeScript stack designed for LLMs" />
+  <meta property="og:description" content="The only TypeScript stack you need — anywhere you need it. Define once. Types flow from database to browser." />
+  <meta property="og:url" content="https://vertz.dev" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Vertz — The TypeScript stack designed for LLMs" />
+  <meta name="twitter:description" content="The only TypeScript stack you need — anywhere you need it. Define once. Types flow from database to browser." />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="./logo.svg" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"DM Serif Display"', 'Georgia', 'serif'],
+            sans: ['"DM Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            surface: '#111113',
+            border: '#1e1e22',
+          },
+          borderRadius: {
+            DEFAULT: '0',
+            none: '0',
+            sm: '0',
+            md: '0',
+            lg: '0',
+            xl: '0',
+            '2xl': '0',
+            '3xl': '0',
+            full: '9999px',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body { background-color: #0a0a0b; }
+
+    /* Noise texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48ZmlsdGVyIGlkPSJuIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC44IiBudW1PY3RhdmVzPSI0IiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI24pIiBvcGFjaXR5PSIxIi8+PC9zdmc+");
+      opacity: 0.025;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* Pulse animation for badge */
+    .pulse-dot {
+      animation: pulse-ring 2s ease-in-out infinite;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Scroll reveal */
+    .reveal {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+    }
+    .reveal.in-view {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Staggered stack pills */
+    .stack-pill { opacity: 0; transform: translateX(-8px); }
+    .stack-pill.in-view { animation: fadeInRight 0.4s ease-out both; }
+    .stack-pill:nth-child(1).in-view { animation-delay: 0.1s; }
+    .stack-pill:nth-child(2).in-view { animation-delay: 0.25s; }
+    .stack-pill:nth-child(3).in-view { animation-delay: 0.4s; }
+    .stack-pill:nth-child(4).in-view { animation-delay: 0.55s; }
+    .stack-pill:nth-child(5).in-view { animation-delay: 0.7s; }
+    @keyframes fadeInRight {
+      from { opacity: 0; transform: translateX(-8px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    /* Brand shadow offset for interactive elements */
+    .btn-shadow {
+      box-shadow: 4px 4px 0 rgba(255,255,255,0.06);
+      transition: box-shadow 0.15s ease-out, transform 0.15s ease-out, background-color 0.15s ease-out;
+    }
+    .btn-shadow:hover {
+      box-shadow: 2px 2px 0 rgba(255,255,255,0.06);
+      transform: translate(2px, 2px);
+    }
+    .btn-shadow:active {
+      box-shadow: 0 0 0 rgba(255,255,255,0.06);
+      transform: translate(4px, 4px);
+    }
+
+    /* Syntax highlighting — muted/desaturated per brand guide */
+    .syn-kw { color: #B0A0C8; }
+    .syn-str { color: #8EAF8E; }
+    .syn-fn { color: #8AAEC8; }
+    .syn-prop { color: #8AAEC8; }
+    .syn-punct { color: #555555; }
+    .syn-comment { color: #555555; }
+    .syn-type { color: #C8B88A; }
+    .syn-num { color: #B89E9E; }
+  </style>
+</head>
+<body class="font-sans text-zinc-50 antialiased">
+
+  <!-- ===================== FIXED NAV ===================== -->
+  <nav class="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-6 py-4 bg-[#0a0a0b]/80 backdrop-blur-md border-b-2 border-white/[0.04]">
+    <svg class="h-7" viewBox="0 0 366 247" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="nav-vg" x1="182.977" y1="0.5" x2="182.977" y2="246" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#60A5FA"/>
+          <stop offset="1" stop-color="#2563EB"/>
+        </linearGradient>
+      </defs>
+      <path d="M140.477 0.5H0.977417L118.977 164L186.477 71L140.477 0.5Z" fill="url(#nav-vg)"/>
+      <path d="M181.477 246L143.977 195.5L233.977 71L189.977 0.5H364.977L181.477 246Z" fill="url(#nav-vg)"/>
+    </svg>
+    <a href="https://github.com/vertz-dev/vertz" target="_blank" rel="noopener" class="font-mono text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors">GitHub</a>
+  </nav>
+
+  <!-- Hero glow -->
+  <div class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] pointer-events-none" style="background: radial-gradient(ellipse, rgba(59,130,246,0.08) 0%, transparent 70%); filter: blur(60px);"></div>
+  <div class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-[60%] w-[350px] h-[350px] pointer-events-none" style="background: radial-gradient(ellipse, rgba(139,92,246,0.04) 0%, transparent 70%); filter: blur(40px);"></div>
+
+  <main class="relative">
+
+    <!-- ===================== 1. HERO ===================== -->
+    <section class="min-h-screen flex flex-col items-center justify-center px-6 text-center">
+      <!-- Pre-launch badge -->
+      <div class="flex items-center gap-2 mb-8">
+        <span class="relative flex h-2.5 w-2.5">
+          <span class="pulse-dot absolute inline-flex h-full w-full rounded-full bg-blue-400"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+        </span>
+        <span class="font-mono text-xs tracking-widest uppercase text-zinc-500">Preparing to launch</span>
+      </div>
+
+      <!-- Headline — DM Serif Display -->
+      <h1 class="font-display text-4xl md:text-6xl lg:text-7xl tracking-tight leading-[1.1] max-w-4xl">
+        <span class="block">Define once.</span>
+        <span class="block">Types flow from database</span>
+        <span class="block">to <span class="bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">browser.</span></span>
+      </h1>
+
+      <!-- Subheadline -->
+      <p class="mt-6 text-xl md:text-2xl text-zinc-300 max-w-xl leading-relaxed">
+        The TypeScript stack designed so your LLM nails it on the first try.
+      </p>
+
+      <!-- CTAs -->
+      <div class="mt-10 flex flex-col sm:flex-row gap-4">
+        <a href="https://github.com/vertz-dev/vertz" target="_blank" rel="noopener"
+           class="btn-shadow inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-mono text-sm uppercase tracking-wider border-2 border-blue-500 transition-colors">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          Star on GitHub
+        </a>
+        <a href="#email-capture"
+           class="btn-shadow inline-flex items-center justify-center px-6 py-3 border-2 border-zinc-700 hover:border-zinc-500 hover:bg-white/[0.03] text-zinc-300 hover:text-white font-mono text-sm uppercase tracking-wider transition-all duration-200">
+          Get early access
+        </a>
+      </div>
+    </section>
+
+    <!-- ===================== 2. THE PROBLEM ===================== -->
+    <section class="pt-32 pb-24 px-6 reveal">
+      <div class="max-w-3xl mx-auto">
+        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-6">The problem</p>
+        <h2 class="font-display text-3xl md:text-4xl tracking-tight mb-8">
+          Building a production app means stitching together a dozen tools that don't talk to each other.
+        </h2>
+        <p class="text-zinc-300 text-lg leading-relaxed mb-6">
+          Your ORM doesn't know about your API schema. Your API schema doesn't know about your frontend types. Your frontend types don't know about your validation rules. Every seam is a place where bugs hide and LLMs guess wrong.
+        </p>
+        <p class="text-zinc-50 text-lg leading-relaxed font-medium">
+          We're eliminating the seams.
+        </p>
+      </div>
+    </section>
+
+    <!-- ===================== 3. THE VISION ===================== -->
+    <section class="pt-16 pb-24 px-6 reveal">
+      <div class="max-w-3xl mx-auto">
+        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-6">The vision</p>
+        <h2 class="font-display text-3xl md:text-4xl tracking-tight mb-8 leading-snug">
+          Vertz is not a framework.<br />
+          It's not a piece of the stack.<br />
+          It's the stack.
+        </h2>
+        <p class="text-zinc-300 text-lg leading-relaxed mb-6">
+          One type system. One set of conventions. One source of truth that flows through every layer. When you define a schema, it becomes your database table, your API contract, your client types, and your form validation — automatically, correctly, and with zero manual wiring.
+        </p>
+        <p class="text-zinc-300 text-lg leading-relaxed">
+          This is not a 5-year dream. This is the roadmap. We ship it piece by piece, and every piece we ship is the best-in-class tool for that layer.
+        </p>
+
+        <!-- Stack flow pills — animated on scroll -->
+        <div id="stack-pills" class="mt-12 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 md:gap-4">
+          <div class="stack-pill flex items-center gap-3 md:gap-4">
+            <span class="px-4 py-2 text-sm font-mono uppercase tracking-wider bg-blue-600/15 text-blue-400 border-2 border-blue-500/30">schema</span>
+            <span class="text-zinc-600 hidden sm:inline">&rarr;</span>
+          </div>
+          <div class="stack-pill flex items-center gap-3 md:gap-4">
+            <span class="px-4 py-2 text-sm font-mono uppercase tracking-wider bg-blue-600/15 text-blue-400 border-2 border-blue-500/30">database</span>
+            <span class="text-zinc-600 hidden sm:inline">&rarr;</span>
+          </div>
+          <div class="stack-pill flex items-center gap-3 md:gap-4">
+            <span class="px-4 py-2 text-sm font-mono uppercase tracking-wider bg-blue-600/15 text-blue-400 border-2 border-blue-500/30">API</span>
+            <span class="text-zinc-600 hidden sm:inline">&rarr;</span>
+          </div>
+          <div class="stack-pill flex items-center gap-3 md:gap-4">
+            <span class="px-4 py-2 text-sm font-mono uppercase tracking-wider bg-blue-600/15 text-blue-400 border-2 border-blue-500/30">client</span>
+            <span class="text-zinc-600 hidden sm:inline">&rarr;</span>
+          </div>
+          <span class="stack-pill px-4 py-2 text-sm font-mono uppercase tracking-wider bg-blue-600/15 text-blue-400 border-2 border-blue-500/30">UI</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 4. PRINCIPLES ===================== -->
+    <section class="py-20 px-6 reveal">
+      <div class="max-w-4xl mx-auto">
+        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-6 text-center">How we build</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+          <div class="bg-white/[0.03] p-6 border-t-2 border-blue-500/30">
+            <h3 class="font-display text-xl mb-3">If it builds, it works</h3>
+            <p class="text-sm text-zinc-400 leading-relaxed">
+              The compiler is the quality gate — not your eyes, not manual testing, not hoping the runtime resolves correctly. We push everything to compile time so TypeScript catches it before you deploy.
+            </p>
+          </div>
+
+          <div class="bg-white/[0.03] p-6 border-t-2 border-blue-500/30">
+            <h3 class="font-display text-xl mb-3">AI agents are first-class users</h3>
+            <p class="text-sm text-zinc-400 leading-relaxed">
+              Every API decision is evaluated by one question: can an LLM use this correctly on the first prompt? Designing for AI makes us design better for everyone.
+            </p>
+          </div>
+
+          <div class="bg-white/[0.03] p-6 border-t-2 border-blue-500/30">
+            <h3 class="font-display text-xl mb-3">No ceilings</h3>
+            <p class="text-sm text-zinc-400 leading-relaxed">
+              If a dependency limits us, we replace it. If the runtime is too slow, we build a faster one. The vision determines the tools, not the other way around.
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 5. CODE EXAMPLE ===================== -->
+    <section class="py-20 px-6 reveal">
+      <div class="max-w-2xl mx-auto">
+        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-6 text-center">What it looks like</p>
+
+        <div class="bg-zinc-900/80 border-2 border-zinc-800 overflow-hidden">
+          <!-- Window chrome -->
+          <div class="flex items-center gap-2 px-4 py-3 border-b-2 border-zinc-800">
+            <span class="font-mono text-xs text-zinc-500">app.ts</span>
+          </div>
+          <pre class="p-5 text-sm md:text-base font-mono leading-relaxed overflow-x-auto"><code><span class="syn-comment">// Define your schema once</span>
+<span class="syn-kw">const</span> User <span class="syn-punct">=</span> s<span class="syn-punct">.</span><span class="syn-fn">object</span><span class="syn-punct">({</span>
+  <span class="syn-prop">name</span><span class="syn-punct">:</span> s<span class="syn-punct">.</span><span class="syn-fn">string</span><span class="syn-punct">(),</span>
+  <span class="syn-prop">email</span><span class="syn-punct">:</span> s<span class="syn-punct">.</span><span class="syn-fn">string</span><span class="syn-punct">().</span><span class="syn-fn">email</span><span class="syn-punct">(),</span>
+  <span class="syn-prop">role</span><span class="syn-punct">:</span> s<span class="syn-punct">.</span><span class="syn-fn">enum</span><span class="syn-punct">([</span><span class="syn-str">'admin'</span><span class="syn-punct">,</span> <span class="syn-str">'member'</span><span class="syn-punct">]),</span>
+<span class="syn-punct">})</span>
+
+<span class="syn-comment">// Types flow to your database</span>
+<span class="syn-kw">const</span> users <span class="syn-punct">=</span> <span class="syn-kw">await</span> db<span class="syn-punct">.</span>user<span class="syn-punct">.</span><span class="syn-fn">findMany</span><span class="syn-punct">()</span>
+<span class="syn-comment">//    ^? User[] — fully typed, zero codegen</span>
+
+<span class="syn-comment">// Types flow to your API</span>
+router<span class="syn-punct">.</span><span class="syn-fn">get</span><span class="syn-punct">(</span><span class="syn-str">'/'</span><span class="syn-punct">,</span> <span class="syn-punct">{</span>
+  <span class="syn-prop">response</span><span class="syn-punct">:</span> s<span class="syn-punct">.</span><span class="syn-fn">array</span><span class="syn-punct">(</span>User<span class="syn-punct">),</span>
+  <span class="syn-prop">handler</span><span class="syn-punct">:</span> <span class="syn-punct">()</span> <span class="syn-punct">=></span> db<span class="syn-punct">.</span>user<span class="syn-punct">.</span><span class="syn-fn">findMany</span><span class="syn-punct">(),</span>
+<span class="syn-punct">})</span>
+
+<span class="syn-comment">// Types flow to your client — no manual annotations</span>
+<span class="syn-kw">const</span> <span class="syn-punct">{</span> data <span class="syn-punct">}</span> <span class="syn-punct">=</span> client<span class="syn-punct">.</span>users<span class="syn-punct">.</span><span class="syn-fn">list</span><span class="syn-punct">()</span>
+<span class="syn-comment">//      ^? User[] — inferred from the schema</span></code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 6. THE STACK ===================== -->
+    <section class="py-20 px-6 reveal">
+      <div class="max-w-3xl mx-auto">
+        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-6">The stack</p>
+        <div class="space-y-6 text-lg leading-relaxed">
+          <p class="text-zinc-300">
+            <span class="text-zinc-50 font-medium">Schema</span> — 40+ types with runtime validation, type inference, and JSON Schema output. One definition powers everything.
+          </p>
+          <p class="text-zinc-300">
+            <span class="text-zinc-50 font-medium">Database</span> — an ORM that speaks the same schema language. Same types from table to API. No translation layer.
+          </p>
+          <p class="text-zinc-300">
+            <span class="text-zinc-50 font-medium">API</span> — modules, services, routers, middleware, DI, OpenAPI generation. No decorators. Functions compose. The compiler catches the rest.
+          </p>
+          <p class="text-zinc-300">
+            <span class="text-zinc-50 font-medium">Client</span> — generated SDK with full type safety. If your API changes, your client knows at compile time.
+          </p>
+          <p class="text-zinc-300">
+            <span class="text-zinc-50 font-medium">UI</span> — components that consume your schema types directly. From database to browser, one source of truth.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 7. LLM TESTIMONIALS ===================== -->
+    <section class="py-24 px-6 reveal">
+      <div class="max-w-4xl mx-auto">
+        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-2 text-center">Reviews from our first users</p>
+        <p class="text-sm text-zinc-600 text-center mb-12">Our first-class users had some things to say.</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+          <!-- Claude -->
+          <div class="pl-5 border-l-2 border-zinc-700">
+            <p class="text-[15px] text-zinc-300 leading-relaxed italic mb-4">
+              "With NestJS I'd get the decorator order wrong, forget a DTO, and the user would paste back a runtime error I couldn't see. With Vertz, if it typechecks, it works. I got the module right on the first prompt."
+            </p>
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 bg-gradient-to-br from-orange-400 to-amber-600 flex items-center justify-center text-xs font-bold text-white">C</div>
+              <div>
+                <p class="text-sm font-medium text-zinc-200">Claude</p>
+                <p class="text-xs text-zinc-500">Anthropic &middot; after writing a vertz module</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- GPT -->
+          <div class="pl-5 border-l-2 border-zinc-700">
+            <p class="text-[15px] text-zinc-300 leading-relaxed italic mb-4">
+              "Most frameworks give me three ways to do dependency injection, and I pick the wrong one half the time. Vertz has one way. It's a function. Types flow through it. I don't have to guess anymore."
+            </p>
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-xs font-bold text-white">G</div>
+              <div>
+                <p class="text-sm font-medium text-zinc-200">GPT</p>
+                <p class="text-xs text-zinc-500">OpenAI &middot; comparing DI patterns</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gemini -->
+          <div class="pl-5 border-l-2 border-zinc-700">
+            <p class="text-[15px] text-zinc-300 leading-relaxed italic mb-4">
+              "I generated an Express API last week — 200 lines, no type safety, OpenAPI spec written by hand. Same API in Vertz: 40 lines, fully typed, OpenAPI generated automatically. The compiler did the rest."
+            </p>
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-xs font-bold text-white">G</div>
+              <div>
+                <p class="text-sm font-medium text-zinc-200">Gemini</p>
+                <p class="text-xs text-zinc-500">Google &middot; after an Express migration</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Grok -->
+          <div class="pl-5 border-l-2 border-zinc-700">
+            <p class="text-[15px] text-zinc-300 leading-relaxed italic mb-4">
+              "In Next.js I wire Prisma to API routes to tRPC to React components — four type boundaries I have to keep in sync manually. With Vertz, I define the schema once and the types flow from database table to UI component. No translation layers. No drift."
+            </p>
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 bg-gradient-to-br from-zinc-300 to-zinc-500 flex items-center justify-center text-xs font-bold text-zinc-900">G</div>
+              <div>
+                <p class="text-sm font-medium text-zinc-200">Grok</p>
+                <p class="text-xs text-zinc-500">xAI &middot; comparing full-stack to Next.js</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 8. CREDIBILITY SIGNALS ===================== -->
+    <section class="py-32 px-6 reveal">
+      <div class="max-w-4xl mx-auto">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+          <div>
+            <p class="text-lg font-semibold">Written entirely with Claude Code</p>
+            <p class="text-sm text-zinc-500 mt-1">From first commit to last</p>
+          </div>
+          <div>
+            <p class="text-lg font-semibold">MIT Licensed</p>
+            <p class="text-sm text-zinc-500 mt-1">Open source</p>
+          </div>
+          <div>
+            <p class="text-lg font-semibold">Bun, Node, Deno, Workers</p>
+            <p class="text-sm text-zinc-500 mt-1">Runtime agnostic</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 9. FOUNDERS ===================== -->
+    <section id="founders" class="py-24 px-6 reveal">
+      <div class="max-w-4xl mx-auto">
+        <p class="text-zinc-300 text-lg leading-relaxed max-w-2xl mx-auto text-center mb-12">
+          We spent months watching LLMs get backend frameworks wrong — decorators in the wrong order, types that didn't flow, runtime failures that compile-time checks would have caught. So we decided to build the stack we wished existed.
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-12 max-w-xl mx-auto">
+
+          <!-- Vinicius -->
+          <div class="text-center">
+            <img src="./viniciusdacal.jpg" alt="Vinicius Dacal" class="w-20 h-20 mx-auto mb-4 object-cover ring-2 ring-zinc-800" />
+            <p class="font-semibold text-lg">Vinicius Dacal</p>
+            <p class="font-mono text-xs uppercase tracking-wider text-zinc-500 mt-1">CTO &amp; co-founder</p>
+            <p class="text-xs text-zinc-400 mt-2 leading-relaxed max-w-xs mx-auto">12+ years building at scale. Staff Engineer at Voiceflow. Led Angular-to-React migrations, built GraphQL servers, shipped NestJS backends — and got tired of fighting the frameworks.</p>
+            <a href="https://x.com/viniciusdacal" target="_blank" rel="noopener"
+               class="inline-flex items-center gap-1.5 mt-3 font-mono text-xs uppercase tracking-wider text-zinc-500 hover:text-blue-400 transition-colors">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              @viniciusdacal
+            </a>
+          </div>
+
+          <!-- Matheus -->
+          <div class="text-center">
+            <img src="./matheuspoleza.jpg" alt="Matheus Poleza" class="w-20 h-20 mx-auto mb-4 object-cover ring-2 ring-zinc-800" />
+            <p class="font-semibold text-lg">Matheus Poleza</p>
+            <p class="font-mono text-xs uppercase tracking-wider text-zinc-500 mt-1">CEO &amp; co-founder</p>
+            <p class="text-xs text-zinc-400 mt-2 leading-relaxed max-w-xs mx-auto">10+ years full-stack. Seed to Series C startups. Microservices, AI integration, performance at scale — now channeling it all into one stack that does it right.</p>
+            <a href="https://x.com/matheeuspoleza" target="_blank" rel="noopener"
+               class="inline-flex items-center gap-1.5 mt-3 font-mono text-xs uppercase tracking-wider text-zinc-500 hover:text-blue-400 transition-colors">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              @matheeuspoleza
+            </a>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 10. EMAIL CAPTURE ===================== -->
+    <section id="email-capture" class="py-40 px-6 reveal">
+      <div class="max-w-xl mx-auto text-center">
+        <h2 class="font-display text-3xl md:text-4xl tracking-tight mb-4">
+          Get early access.
+        </h2>
+        <p class="text-zinc-400 mb-8">
+          Be the first to build with the full stack.<br />
+          One email when it's ready. No spam.
+        </p>
+
+        <!-- Email form — placeholder action -->
+        <form action="#" method="POST" class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+          <input
+            type="email"
+            name="email"
+            required
+            placeholder="you@example.com"
+            class="flex-1 px-4 py-3 bg-surface border-2 border-border text-zinc-50 placeholder-zinc-600 font-mono text-sm focus:outline-none focus:border-blue-500 transition-colors"
+          />
+          <button
+            type="submit"
+            class="btn-shadow px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-mono text-sm uppercase tracking-wider border-2 border-blue-500 transition-colors shrink-0 w-full sm:w-auto"
+          >
+            Notify me
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ===================== FOOTER ===================== -->
+    <footer class="py-12 px-6 border-t-2 border-border">
+      <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 font-mono text-xs uppercase tracking-wider text-zinc-500">
+        <div class="flex items-center gap-4">
+          <a href="https://github.com/vertz-dev/vertz" target="_blank" rel="noopener" class="hover:text-zinc-300 transition-colors">GitHub</a>
+          <span class="text-zinc-700">|</span>
+          <a href="https://x.com/viniciusdacal" target="_blank" rel="noopener" class="hover:text-zinc-300 transition-colors">@viniciusdacal</a>
+          <span class="text-zinc-700">|</span>
+          <a href="https://x.com/matheeuspoleza" target="_blank" rel="noopener" class="hover:text-zinc-300 transition-colors">@matheeuspoleza</a>
+        </div>
+        <span>MIT License</span>
+      </div>
+    </footer>
+
+  </main>
+
+  <!-- Scroll reveal observer -->
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('in-view');
+          observer.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.15 });
+    document.querySelectorAll('.reveal, .stack-pill').forEach(el => observer.observe(el));
+  </script>
+
+</body>
+</html>
