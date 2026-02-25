@@ -36,8 +36,8 @@ export function injectContextStableIds(
         source.appendLeft(closeParenPos, `undefined, '${stableId}'`);
       } else {
         // createContext<T>(defaultValue) → createContext<T>(defaultValue, 'id')
-        const lastArg = argsArr[argsArr.length - 1]!;
-        source.appendLeft(lastArg.end, `, '${stableId}'`);
+        const lastArg = argsArr[argsArr.length - 1];
+        if (lastArg) source.appendLeft(lastArg.end, `, '${stableId}'`);
       }
     }
   }
