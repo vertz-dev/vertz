@@ -53,5 +53,8 @@ export type { TaskGroup, TaskHandle, TaskRunner } from './legacy';
 export { createTaskRunner, Message, SelectList, Task, TaskList } from './legacy';
 // Prompt API
 export { prompt } from './prompt';
+// Render to string
+export type { RenderToStringOptions } from './render-to-string';
+export { renderToString } from './render-to-string';
 // Theme
 export { colors, symbols } from './theme';

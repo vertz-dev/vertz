@@ -53,6 +53,8 @@ export interface LayoutNode {
   props: LayoutProps;
   /** Text content for text nodes. */
   text?: string;
+  /** Style for text rendering (color, bold, etc.). */
+  style?: import('../buffer/cell').CellStyle;
   children: LayoutNode[];
   /** Computed layout box, set during layout pass. */
   box: LayoutBox;
