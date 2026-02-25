@@ -150,6 +150,23 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     ]);
   }
 
+  // In SSR, register a sync hook so the SSR pipeline can navigate
+  // module-level routers to the current request URL before each render.
+  // Without this, routers created at module import time (before __SSR_URL__
+  // is set) remain stuck on their initial URL for all subsequent renders.
+  if (isSSR) {
+    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+    const g = globalThis as any;
+    const prev = g.__VERTZ_SSR_SYNC_ROUTER__;
+    g.__VERTZ_SSR_SYNC_ROUTER__ = (ssrUrl: string) => {
+      // Chain: call previously registered routers first
+      if (typeof prev === 'function') prev(ssrUrl);
+      const match = matchRoute(routes, ssrUrl);
+      current.value = match;
+      searchParams.value = match?.search ?? {};
+    };
+  }
+
   // Run initial loaders
   if (initialMatch) {
     const gen = ++navigationGen;

@@ -183,6 +183,12 @@ async function ssrRenderToStringUnsafe(
         }
       }
 
+      // Sync any module-level routers to the current request URL.
+      // Routers created at module import time (before __SSR_URL__ is set)
+      // remain stuck on their initial URL without this call.
+      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+      (globalThis as any).__VERTZ_SSR_SYNC_ROUTER__?.(normalizedUrl);
+
       // Pass 1: Discovery — triggers query() registrations
       createApp();
 
@@ -271,6 +277,10 @@ async function ssrDiscoverQueriesUnsafe(
       setGlobalSSRTimeout(ssrTimeout);
 
       const createApp = resolveAppFactory(module);
+
+      // Sync module-level routers (same reason as ssrRenderToString)
+      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+      (globalThis as any).__VERTZ_SSR_SYNC_ROUTER__?.(normalizedUrl);
 
       // Pass 1 only: Discovery — triggers query() registrations
       createApp();

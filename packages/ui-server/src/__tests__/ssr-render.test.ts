@@ -1,4 +1,4 @@
-import { defineTheme } from '@vertz/ui';
+import { createRouter, defineRoutes, defineTheme, RouterContext, RouterView } from '@vertz/ui';
 import { describe, expect, it } from 'vitest';
 import { registerSSRQuery } from '../ssr-context';
 import { ssrDiscoverQueries, ssrRenderToString } from '../ssr-render';
@@ -216,6 +216,68 @@ describe('per-request isolation', () => {
     // CSS injected via document.head should be collected
     expect(result.css).toContain('.my-component { color: red; }');
     expect(result.css).toContain('data-vertz-css');
+  });
+
+  it('renders correct page for each URL when router is module-level singleton', async () => {
+    // Simulate the real-world pattern: router is created at module level
+    // (before SSR runs), then SSR renders with different URLs.
+    // The router must sync to the current __SSR_URL__ for each render.
+    const routes = defineRoutes({
+      '/': {
+        component: () => {
+          const el = document.createElement('div');
+          el.setAttribute('data-testid', 'home-page');
+          el.textContent = 'Home';
+          return el;
+        },
+      },
+      '/about': {
+        component: () => {
+          const el = document.createElement('div');
+          el.setAttribute('data-testid', 'about-page');
+          el.textContent = 'About';
+          return el;
+        },
+      },
+      '/tasks/:id': {
+        component: () => {
+          const el = document.createElement('div');
+          el.setAttribute('data-testid', 'task-detail-page');
+          el.textContent = 'Task Detail';
+          return el;
+        },
+      },
+    });
+
+    // Module-level router created with '/' — simulates what happens
+    // when the module is imported at server startup
+    const router = createRouter(routes, '/');
+
+    const module = {
+      default: () => {
+        const container = document.createElement('div');
+        RouterContext.Provider(router, () => {
+          const view = RouterView({ router });
+          container.appendChild(view);
+        });
+        return container;
+      },
+    };
+
+    // Render for '/' — should show home page
+    const homeResult = await ssrRenderToString(module, '/');
+    expect(homeResult.html).toContain('data-testid="home-page"');
+    expect(homeResult.html).toContain('Home');
+
+    // Render for '/about' — should show about page, NOT home
+    const aboutResult = await ssrRenderToString(module, '/about');
+    expect(aboutResult.html).toContain('data-testid="about-page"');
+    expect(aboutResult.html).toContain('About');
+
+    // Render for '/tasks/123' — should show task detail, NOT home
+    const taskResult = await ssrRenderToString(module, '/tasks/123');
+    expect(taskResult.html).toContain('data-testid="task-detail-page"');
+    expect(taskResult.html).toContain('Task Detail');
   });
 
   it('includes module.styles in CSS output for every render', async () => {
