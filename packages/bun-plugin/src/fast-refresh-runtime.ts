@@ -8,7 +8,8 @@
  *
  * This is the JS HMR equivalent of CSS sidecar HMR. Instead of hot-swapping
  * stylesheets, it unmounts old components, re-executes the factory, and
- * replaces the DOM node. Local state resets (MVP — signal preservation deferred).
+ * replaces the DOM node. Signal state is preserved across HMR cycles using
+ * position-based collection (same strategy as React Fast Refresh for hooks).
  *
  * ARCHITECTURE: This module exposes its API via globalThis so that component
  * modules don't need to import it. This is critical because Bun's HMR system
@@ -33,6 +34,8 @@ import {
   pushScope,
   runCleanups,
   setContextScope,
+  startSignalCollection,
+  stopSignalCollection,
 } from '@vertz/ui/internals';
 
 /** Disposal cleanup function. */
@@ -43,6 +46,12 @@ type ContextScope = NonNullable<ReturnType<typeof getContextScope>>;
 
 // ── Types ────────────────────────────────────────────────────────
 
+/** Signal ref used for state preservation. Has peek() and settable value. */
+interface SignalRef {
+  peek(): unknown;
+  value: unknown;
+}
+
 interface ComponentInstance {
   /** The live DOM node returned by the component factory. */
   element: HTMLElement;
@@ -52,6 +61,8 @@ interface ComponentInstance {
   cleanups: DisposeFn[];
   /** Context scope snapshot for context replay on re-mount. */
   contextScope: ContextScope | null;
+  /** Signal refs captured during factory execution (for state preservation). */
+  signals: SignalRef[];
 }
 
 interface ComponentRecord {
@@ -76,14 +87,11 @@ type Registry = Map<string, Map<string, ComponentRecord>>;
 const REGISTRY_KEY = Symbol.for('vertz:fast-refresh:registry');
 const DIRTY_KEY = Symbol.for('vertz:fast-refresh:dirty');
 
-const registry: Registry =
-  (globalThis as Record<symbol, Registry>)[REGISTRY_KEY] ??=
-    new Map();
+const registry: Registry = ((globalThis as Record<symbol, Registry>)[REGISTRY_KEY] ??= new Map());
 
 /** Modules whose factories were updated in the current re-evaluation cycle. */
-const dirtyModules: Set<string> =
-  (globalThis as Record<symbol, Set<string>>)[DIRTY_KEY] ??=
-    new Set();
+const dirtyModules: Set<string> = ((globalThis as Record<symbol, Set<string>>)[DIRTY_KEY] ??=
+  new Set());
 
 /** Flag to suppress instance tracking during __$refreshPerform re-mount. */
 let performingRefresh = false;
@@ -143,6 +151,7 @@ export function __$refreshTrack(
   args: unknown[],
   cleanups: DisposeFn[],
   contextScope: ContextScope | null,
+  signals: SignalRef[] = [],
 ): HTMLElement {
   // During __$refreshPerform, the factory wrapper calls __$refreshTrack.
   // Skip tracking here — __$refreshPerform manages instances itself.
@@ -158,7 +167,7 @@ export function __$refreshTrack(
   record.instances = record.instances.filter((inst) => inst.element.isConnected);
 
   // Track this instance
-  record.instances.push({ element, args, cleanups, contextScope });
+  record.instances.push({ element, args, cleanups, contextScope, signals });
 
   return element;
 }
@@ -190,22 +199,29 @@ export function __$refreshPerform(moduleId: string): void {
     const updatedInstances: ComponentInstance[] = [];
 
     for (const instance of instances) {
-      const { element, args, cleanups, contextScope } = instance;
+      const { element, args, cleanups, contextScope, signals: oldSignals } = instance;
       const parent = element.parentNode;
 
       // Skip instances no longer in the DOM
       if (!parent) continue;
 
-      // 1. Create new disposal scope and restore context BEFORE cleanups.
+      // 1. Snapshot old signal values before re-mount
+      const savedValues = oldSignals.map((s) => s.peek());
+
+      // 2. Create new disposal scope and restore context BEFORE cleanups.
       const newCleanups = pushScope();
       const prevScope = setContextScope(contextScope);
 
       let newElement: HTMLElement;
+      let newSignals: SignalRef[];
       try {
-        // 2. Re-execute factory with the original args (props replay)
+        // 3. Collect signals during factory re-execution
+        startSignalCollection();
         newElement = factory(...args);
+        newSignals = stopSignalCollection() as SignalRef[];
       } catch (err) {
-        // Factory failed — keep old instance intact.
+        // Factory failed — clean up signal collection and keep old instance.
+        stopSignalCollection();
         popScope();
         setContextScope(prevScope);
         console.error(`[vertz-hmr] Error re-mounting ${name}:`, err);
@@ -213,9 +229,21 @@ export function __$refreshPerform(moduleId: string): void {
         continue;
       }
 
+      // 4. Restore signal values by position (same strategy as React hooks)
+      if (savedValues.length > 0 && newSignals.length === savedValues.length) {
+        for (let i = 0; i < newSignals.length; i++) {
+          newSignals[i].value = savedValues[i];
+        }
+      } else if (savedValues.length > 0 && newSignals.length !== savedValues.length) {
+        console.warn(
+          `[vertz-hmr] Signal count changed in ${name} ` +
+            `(${savedValues.length} → ${newSignals.length}). State reset.`,
+        );
+      }
+
       popScope();
 
-      // 3. Now that we have a successful new element, run old cleanups
+      // 5. Now that we have a successful new element, run old cleanups
       runCleanups(cleanups);
 
       // Forward inner cleanups to parent scope (like RouterView does)
@@ -225,15 +253,16 @@ export function __$refreshPerform(moduleId: string): void {
 
       setContextScope(prevScope);
 
-      // 4. Replace DOM node
+      // 6. Replace DOM node
       parent.replaceChild(newElement, element);
 
-      // 5. Track new instance
+      // 7. Track new instance with new signals
       updatedInstances.push({
         element: newElement,
         args,
         cleanups: newCleanups,
         contextScope,
+        signals: newSignals,
       });
     }
 
@@ -263,4 +292,6 @@ const FR_KEY = Symbol.for('vertz:fast-refresh');
   runCleanups,
   getContextScope,
   setContextScope,
+  startSignalCollection,
+  stopSignalCollection,
 };

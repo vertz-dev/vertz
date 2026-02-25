@@ -14,7 +14,8 @@ export function generateRefreshPreamble(moduleId: string): string {
     `const { __$refreshReg, __$refreshTrack, __$refreshPerform, ` +
     `pushScope: __$pushScope, popScope: __$popScope, ` +
     `_tryOnCleanup: __$tryCleanup, runCleanups: __$runCleanups, ` +
-    `getContextScope: __$getCtx, setContextScope: __$setCtx } = __$fr;\n` +
+    `getContextScope: __$getCtx, setContextScope: __$setCtx, ` +
+    `startSignalCollection: __$startSigCol, stopSignalCollection: __$stopSigCol } = __$fr;\n` +
     `const __$moduleId = '${moduleId}';\n`
   );
 }
@@ -32,12 +33,14 @@ export function generateRefreshWrapper(componentName: string): string {
     `${componentName} = function(...__$args) {\n` +
     `  const __$scope = __$pushScope();\n` +
     `  const __$ctx = __$getCtx();\n` +
+    `  __$startSigCol();\n` +
     `  const __$ret = __$orig_${componentName}.apply(this, __$args);\n` +
+    `  const __$sigs = __$stopSigCol();\n` +
     `  __$popScope();\n` +
     `  if (__$scope.length > 0) {\n` +
     `    __$tryCleanup(() => __$runCleanups(__$scope));\n` +
     `  }\n` +
-    `  return __$refreshTrack(__$moduleId, '${componentName}', __$ret, __$args, __$scope, __$ctx);\n` +
+    `  return __$refreshTrack(__$moduleId, '${componentName}', __$ret, __$args, __$scope, __$ctx, __$sigs);\n` +
     `};\n` +
     `__$refreshReg(__$moduleId, '${componentName}', ${componentName});\n`
   );
