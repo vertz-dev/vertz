@@ -13,11 +13,40 @@ export {
 } from '@vertz/ui';
 export type { TuiHandle, TuiMountOptions } from './app';
 export { tui } from './app';
+// Auth — Device Code Flow
+export type {
+  AuthConfig,
+  AuthStatus,
+  AuthTokens,
+  DeviceCodeAuthOptions,
+  DeviceCodeResponse,
+  TokenResponse,
+} from './auth/index';
+export {
+  AuthCancelledError,
+  AuthDeniedError,
+  AuthExpiredError,
+  DeviceCodeAuth,
+  pollTokenUntilComplete,
+  requestDeviceCode,
+} from './auth/index';
+export type { BannerProps } from './components/Banner';
+export { Banner } from './components/Banner';
 export type { BoxProps } from './components/Box';
 // Layout components
 export { Box } from './components/Box';
 export type { ConfirmProps } from './components/Confirm';
 export { Confirm } from './components/Confirm';
+export type {
+  DiagnosticItem,
+  DiagnosticViewProps,
+  SourceLine,
+} from './components/DiagnosticView';
+export { DiagnosticView } from './components/DiagnosticView';
+export type { DividerProps } from './components/Divider';
+export { Divider } from './components/Divider';
+export type { KeyValueEntry, KeyValueProps } from './components/KeyValue';
+export { KeyValue } from './components/KeyValue';
 export type { LogProps } from './components/Log';
 export { Log } from './components/Log';
 export type { MultiSelectProps } from './components/MultiSelect';
@@ -76,3 +105,6 @@ export type { RenderToStringOptions } from './render-to-string';
 export { renderToString } from './render-to-string';
 // Theme
 export { colors, symbols } from './theme';
+// Wizard
+export type { WizardConfig, WizardContext, WizardResult, WizardStep } from './wizard';
+export { wizard } from './wizard';
