@@ -9,6 +9,7 @@ import type { ComponentInfo } from '@vertz/ui-compiler';
  * HMR updates, triggering full page reloads.
  */
 export function generateRefreshPreamble(moduleId: string): string {
+  const escapedId = moduleId.replace(/['\\]/g, '\\$&');
   return (
     `const __$fr = globalThis[Symbol.for('vertz:fast-refresh')];\n` +
     `const { __$refreshReg, __$refreshTrack, __$refreshPerform, ` +
@@ -16,7 +17,7 @@ export function generateRefreshPreamble(moduleId: string): string {
     `_tryOnCleanup: __$tryCleanup, runCleanups: __$runCleanups, ` +
     `getContextScope: __$getCtx, setContextScope: __$setCtx, ` +
     `startSignalCollection: __$startSigCol, stopSignalCollection: __$stopSigCol } = __$fr;\n` +
-    `const __$moduleId = '${moduleId}';\n`
+    `const __$moduleId = '${escapedId}';\n`
   );
 }
 

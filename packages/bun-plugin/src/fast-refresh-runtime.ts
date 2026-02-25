@@ -214,14 +214,19 @@ export function __$refreshPerform(moduleId: string): void {
 
       let newElement: HTMLElement;
       let newSignals: SignalRef[];
+      let newContextScope: ContextScope | null;
       try {
         // 3. Collect signals during factory re-execution
         startSignalCollection();
         newElement = factory(...args);
         newSignals = stopSignalCollection() as SignalRef[];
+        // Capture the context scope established during factory execution
+        newContextScope = getContextScope();
       } catch (err) {
-        // Factory failed — clean up signal collection and keep old instance.
+        // Factory failed — clean up signal collection, run any partial
+        // cleanups registered during the failed execution, and keep old instance.
         stopSignalCollection();
+        runCleanups(newCleanups);
         popScope();
         setContextScope(prevScope);
         console.error(`[vertz-hmr] Error re-mounting ${name}:`, err);
@@ -256,12 +261,12 @@ export function __$refreshPerform(moduleId: string): void {
       // 6. Replace DOM node
       parent.replaceChild(newElement, element);
 
-      // 7. Track new instance with new signals
+      // 7. Track new instance with new context and signals
       updatedInstances.push({
         element: newElement,
         args,
         cleanups: newCleanups,
-        contextScope,
+        contextScope: newContextScope,
         signals: newSignals,
       });
     }

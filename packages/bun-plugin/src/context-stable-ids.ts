@@ -1,6 +1,6 @@
 import type MagicString from 'magic-string';
-import { ts } from 'ts-morph';
 import type { SourceFile } from 'ts-morph';
+import { ts } from 'ts-morph';
 
 /**
  * Inject stable IDs into createContext() calls for HMR support.
@@ -24,7 +24,8 @@ export function injectContextStableIds(
       if (!ts.isIdentifier(decl.name)) continue;
 
       const varName = decl.name.text;
-      const stableId = `${relFilePath}::${varName}`;
+      const escapedPath = relFilePath.replace(/['\\]/g, '\\$&');
+      const stableId = `${escapedPath}::${varName}`;
       const callExpr = decl.initializer;
 
       // Insert the stable ID as the last argument
