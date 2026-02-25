@@ -30,9 +30,8 @@ export interface MountHandle {
  * Mount an app to a DOM element.
  *
  * Uses tolerant hydration automatically: if the root element has SSR content,
- * it walks the existing DOM and attaches reactivity without clearing.
+ * it walks the existing DOM and attaches reactivity without re-creating nodes.
  * If the root is empty (CSR), it renders from scratch.
- * For island/per-component hydration, use `hydrate()` instead.
  *
  * @param app - App function that returns an HTMLElement
  * @param selector - CSS selector string or HTMLElement
@@ -99,15 +98,17 @@ export function mount<AppFn extends () => HTMLElement>(
   }
 
   // CSR render (empty root, or fallback from failed hydration)
+  const scope = pushScope();
   root.textContent = '';
   const appElement = app();
   root.appendChild(appElement);
+  popScope();
 
-  // Call onMount callback
   options?.onMount?.(root);
 
   return {
     unmount: () => {
+      runCleanups(scope);
       root.textContent = '';
     },
     root,

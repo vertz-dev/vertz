@@ -5,8 +5,8 @@
  * real TypeScript functions that can be imported directly.
  */
 
-import { compileTheme, getInjectedCSS, resetInjectedStyles, type Theme } from '@vertz/ui';
-import { installDomShim, removeDomShim, toVNode } from './dom-shim';
+import { compileTheme, resetInjectedStyles, type Theme } from '@vertz/ui';
+import { installDomShim, removeDomShim, SSRElement, toVNode } from './dom-shim';
 import { renderToStream } from './render-to-stream';
 import {
   clearGlobalSSRTimeout,
@@ -39,6 +39,16 @@ export interface SSRModule {
   default?: () => unknown;
   App?: () => unknown;
   theme?: Theme;
+  /** Global CSS strings to include in every SSR response (e.g. resets, body styles). */
+  styles?: string[];
+  /**
+   * Return all CSS tracked by the bundled @vertz/ui instance.
+   * The Vite SSR build inlines @vertz/ui into the server bundle, creating
+   * a separate module instance from @vertz/ui-server's dependency. Without
+   * this, component CSS from module-level css() calls is invisible to the
+   * SSR renderer. Export `getInjectedCSS` from @vertz/ui in the app entry.
+   */
+  getInjectedCSS?: () => string[];
 }
 
 export interface SSRRenderResult {
@@ -64,15 +74,58 @@ function resolveAppFactory(module: SSRModule): () => unknown {
 }
 
 /**
- * Collect CSS from the fake document.head + component styles + theme.
+ * Collect CSS from the module's bundled @vertz/ui instance + theme + global styles.
  * Returns a single string with <style> tags.
+ *
+ * The Vite SSR build inlines @vertz/ui into the server bundle, creating
+ * a separate module instance from the one @vertz/ui-server depends on.
+ * This means our own getInjectedCSS() reads a DIFFERENT Set than what
+ * the bundled injectCSS() writes to.
+ *
+ * To bridge the gap, the SSR module can export `getInjectedCSS` from
+ * @vertz/ui, giving us access to the bundled instance's tracked CSS.
+ * Falls back to reading from the DOM shim's document.head.
  */
-function collectCSS(themeCss: string): string {
-  const componentStyles = getInjectedCSS()
-    .map((s) => `<style data-vertz-css>${s}</style>`)
-    .join('\n');
+function collectCSS(themeCss: string, module: SSRModule): string {
   const themeTag = themeCss ? `<style data-vertz-css>${themeCss}</style>` : '';
-  return [themeTag, componentStyles].filter(Boolean).join('\n');
+  const globalTags = module.styles
+    ? module.styles.map((s) => `<style data-vertz-css>${s}</style>`).join('\n')
+    : '';
+
+  // Build a set of CSS strings already included via theme and module.styles
+  // to avoid duplicating them in the component CSS section.
+  const alreadyIncluded = new Set<string>();
+  if (themeCss) alreadyIncluded.add(themeCss);
+  if (module.styles) {
+    for (const s of module.styles) alreadyIncluded.add(s);
+  }
+
+  // Prefer the module's getInjectedCSS (bundled @vertz/ui instance)
+  let componentCss: string[];
+  if (module.getInjectedCSS) {
+    componentCss = module.getInjectedCSS().filter((s) => !alreadyIncluded.has(s));
+  } else {
+    // Fallback: read CSS from DOM shim's document.head
+    componentCss = [];
+    // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+    const head = (globalThis as any).document?.head;
+    if (head instanceof SSRElement) {
+      for (const child of head.children) {
+        if (
+          child instanceof SSRElement &&
+          child.tag === 'style' &&
+          'data-vertz-css' in child.attrs &&
+          child.textContent &&
+          !alreadyIncluded.has(child.textContent)
+        ) {
+          componentCss.push(child.textContent);
+        }
+      }
+    }
+  }
+
+  const componentStyles = componentCss.map((s) => `<style data-vertz-css>${s}</style>`).join('\n');
+  return [themeTag, globalTags, componentStyles].filter(Boolean).join('\n');
 }
 
 /**
@@ -159,7 +212,7 @@ async function ssrRenderToStringUnsafe(
       const vnode = toVNode(app);
       const stream = renderToStream(vnode);
       const html = await streamToString(stream);
-      const css = collectCSS(themeCss);
+      const css = collectCSS(themeCss, module);
 
       // Serialize resolved query data for client-side hydration
       const ssrData =

@@ -11,12 +11,13 @@
 import { setAdapter } from '@vertz/ui/internals';
 import { createSSRAdapter } from '../ssr-adapter';
 import type { VNode } from '../types';
+import { SSRComment } from './ssr-comment';
 import { SSRElement } from './ssr-element';
 import { SSRDocumentFragment } from './ssr-fragment';
 import { SSRNode } from './ssr-node';
 import { SSRTextNode } from './ssr-text-node';
 
-export { SSRNode, SSRElement, SSRTextNode, SSRDocumentFragment };
+export { SSRNode, SSRElement, SSRTextNode, SSRComment, SSRDocumentFragment };
 
 /**
  * Create and install the DOM shim.
@@ -46,9 +47,8 @@ export function installDomShim(): void {
     createTextNode(text: string): SSRTextNode {
       return new SSRTextNode(text);
     },
-    createComment(_text: string): SSRTextNode {
-      // Comments serve as conditional branch placeholders — invisible during SSR
-      return new SSRTextNode('');
+    createComment(text: string): SSRComment {
+      return new SSRComment(text);
     },
     createDocumentFragment(): SSRDocumentFragment {
       return new SSRDocumentFragment();

@@ -193,4 +193,52 @@ describe('per-request isolation', () => {
       expect(results[i].ssrData[0].data).toEqual({ label: `req-${i}` });
     }
   });
+
+  it('collects CSS from component injectCSS calls via document.head', async () => {
+    const module = {
+      default: () => {
+        // Simulate what compiled css() output does:
+        // injectCSS appends <style data-vertz-css> to document.head
+        const style = document.createElement('style');
+        style.setAttribute('data-vertz-css', '');
+        style.textContent = '.my-component { color: red; }';
+        document.head.appendChild(style);
+
+        const el = document.createElement('div');
+        el.setAttribute('class', 'my-component');
+        el.textContent = 'Styled';
+        return el;
+      },
+    };
+
+    const result = await ssrRenderToString(module, '/');
+
+    // CSS injected via document.head should be collected
+    expect(result.css).toContain('.my-component { color: red; }');
+    expect(result.css).toContain('data-vertz-css');
+  });
+
+  it('includes module.styles in CSS output for every render', async () => {
+    const globalResetCSS = '*, *::before, *::after { box-sizing: border-box; margin: 0; }';
+    const bodyCSS = 'body { font-family: system-ui; background: var(--color-background); }';
+
+    const module = {
+      default: () => {
+        const el = document.createElement('div');
+        el.textContent = 'App';
+        return el;
+      },
+      styles: [globalResetCSS, bodyCSS],
+    };
+
+    // First render
+    const result1 = await ssrRenderToString(module, '/');
+    expect(result1.css).toContain('box-sizing: border-box');
+    expect(result1.css).toContain('font-family: system-ui');
+
+    // Second render — styles must still be present (not cleared by resetInjectedStyles)
+    const result2 = await ssrRenderToString(module, '/page2');
+    expect(result2.css).toContain('box-sizing: border-box');
+    expect(result2.css).toContain('font-family: system-ui');
+  });
 });

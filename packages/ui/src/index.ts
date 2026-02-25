@@ -43,6 +43,8 @@ export {
 export type { RenderAdapter, RenderElement, RenderNode, RenderText } from './dom/adapter';
 export { getAdapter, isRenderNode, RENDER_NODE_BRAND, setAdapter } from './dom/adapter';
 export { createDOMAdapter } from './dom/dom-adapter';
+// DOM primitives (compiler output targets, also used by app shells for hydration)
+export { __append, __element, __enterChildren, __exitChildren, __staticText } from './dom/element';
 // Forms
 export type { FieldState } from './form/field-state';
 export { createFieldState } from './form/field-state';

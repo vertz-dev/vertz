@@ -1,4 +1,5 @@
 import type { RenderAdapter, RenderNode } from '@vertz/ui/internals';
+import { SSRComment } from './dom-shim/ssr-comment';
 import { SSRElement } from './dom-shim/ssr-element';
 import { SSRDocumentFragment } from './dom-shim/ssr-fragment';
 import { SSRNode } from './dom-shim/ssr-node';
@@ -24,7 +25,7 @@ export function createSSRAdapter(): RenderAdapter {
   return {
     createElement: (tag) => new SSRElement(tag),
     createTextNode: (text) => new SSRTextNode(text),
-    createComment: (_text) => new SSRTextNode(''),
+    createComment: (text) => new SSRComment(text),
     createDocumentFragment: () => new SSRDocumentFragment(),
     isNode: (value): value is RenderNode =>
       value != null && typeof value === 'object' && BRAND in value,

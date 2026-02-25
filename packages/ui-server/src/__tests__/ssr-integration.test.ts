@@ -172,17 +172,24 @@ describe('SSR Integration Tests', () => {
     expect(html).toContain('<a href="/privacy">Privacy Policy</a>');
   });
 
-  /** Fix #661-1: createComment does not produce visible comment text in SSR output */
-  it('createComment produces empty text node — no visible comment markup', () => {
+  /** Comments must serialize as HTML comments for hydration cursor tracking */
+  it('createComment produces SSRComment that serializes as HTML comment', () => {
     installDomShim();
     try {
       const doc = (globalThis as any).document;
       const comment = doc.createComment('conditional');
 
-      // The comment node text should be empty — not a literal HTML comment string
-      expect(comment.text).toBe('');
-      expect(comment.text).not.toContain('<!--');
-      expect(comment.text).not.toContain('-->');
+      // SSRComment preserves the text for HTML serialization
+      expect(comment.text).toBe('conditional');
+
+      // When appended to an SSRElement, it appears in the VNode as a RawHtml comment
+      const parent = doc.createElement('div');
+      parent.appendChild(comment);
+      const vnode = parent.toVNode();
+      expect(vnode.children).toHaveLength(1);
+      const child = vnode.children[0];
+      expect(child).toHaveProperty('__raw', true);
+      expect(child).toHaveProperty('html', '<!--conditional-->');
     } finally {
       removeDomShim();
     }

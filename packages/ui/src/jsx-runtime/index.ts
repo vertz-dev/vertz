@@ -74,7 +74,10 @@ function applyChildren(parent: Node, children: unknown): void {
 }
 
 // Implementation
-function jsxImpl(tag: Tag | typeof Fragment, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
+function jsxImpl(
+  tag: Tag | typeof Fragment,
+  props: Record<string, unknown> | null | undefined,
+): Node | Node[] | null {
   // Component call — pass props through to the function
   if (typeof tag === 'function') {
     return tag(props || {});
@@ -82,7 +85,6 @@ function jsxImpl(tag: Tag | typeof Fragment, props: Record<string, unknown> | nu
 
   // Tag is a string → create a DOM element
   const { children, ...attrs } = props || {};
-
   const element = document.createElement(tag);
 
   // Apply attributes
@@ -104,7 +106,6 @@ function jsxImpl(tag: Tag | typeof Fragment, props: Record<string, unknown> | nu
     }
   }
 
-  // Apply children
   applyChildren(element, children);
 
   return element;
@@ -120,29 +121,26 @@ function jsxImpl(tag: Tag | typeof Fragment, props: Record<string, unknown> | nu
 // Overload 1: Intrinsic HTML elements - returns specific element type based on tag name
 export function jsx<K extends keyof HTMLElementTagNameMap>(
   tag: K,
-  props: Record<string, unknown> | null | undefined
+  props: Record<string, unknown> | null | undefined,
 ): HTMLElementTagNameMap[K];
 
 // Overload 2: Custom elements (fallback for unknown string tags)
-export function jsx(
-  tag: string,
-  props: Record<string, unknown> | null | undefined
-): HTMLElement;
+export function jsx(tag: string, props: Record<string, unknown> | null | undefined): HTMLElement;
 
 // Overload 3: Function components - returns the component's return type
 export function jsx<P extends Record<string, unknown>, R extends JSX.Element>(
   tag: (props: P) => R,
-  props: P
+  props: P,
 ): R;
 
 // Overload 4: Fragment
-export function jsx(
-  tag: typeof Fragment,
-  props: { children?: unknown }
-): DocumentFragment;
+export function jsx(tag: typeof Fragment, props: { children?: unknown }): DocumentFragment;
 
 // Implementation
-export function jsx(tag: Tag | typeof Fragment, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
+export function jsx(
+  tag: Tag | typeof Fragment,
+  props: Record<string, unknown> | null | undefined,
+): Node | Node[] | null {
   return jsxImpl(tag, props);
 }
 
@@ -153,21 +151,18 @@ export function jsx(tag: Tag | typeof Fragment, props: Record<string, unknown> |
  */
 export function jsxs<K extends keyof HTMLElementTagNameMap>(
   tag: K,
-  props: Record<string, unknown> | null | undefined
+  props: Record<string, unknown> | null | undefined,
 ): HTMLElementTagNameMap[K];
-export function jsxs(
-  tag: string,
-  props: Record<string, unknown> | null | undefined
-): HTMLElement;
+export function jsxs(tag: string, props: Record<string, unknown> | null | undefined): HTMLElement;
 export function jsxs<P extends Record<string, unknown>, R extends JSX.Element>(
   tag: (props: P) => R,
-  props: P
+  props: P,
 ): R;
+export function jsxs(tag: typeof Fragment, props: { children?: unknown }): DocumentFragment;
 export function jsxs(
-  tag: typeof Fragment,
-  props: { children?: unknown }
-): DocumentFragment;
-export function jsxs(tag: Tag | typeof Fragment, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
+  tag: Tag | typeof Fragment,
+  props: Record<string, unknown> | null | undefined,
+): Node | Node[] | null {
   return jsxImpl(tag, props);
 }
 
@@ -186,20 +181,17 @@ export function Fragment(props: { children?: unknown }): DocumentFragment {
  */
 export function jsxDEV<K extends keyof HTMLElementTagNameMap>(
   tag: K,
-  props: Record<string, unknown> | null | undefined
+  props: Record<string, unknown> | null | undefined,
 ): HTMLElementTagNameMap[K];
-export function jsxDEV(
-  tag: string,
-  props: Record<string, unknown> | null | undefined
-): HTMLElement;
+export function jsxDEV(tag: string, props: Record<string, unknown> | null | undefined): HTMLElement;
 export function jsxDEV<P extends Record<string, unknown>, R extends JSX.Element>(
   tag: (props: P) => R,
-  props: P
+  props: P,
 ): R;
+export function jsxDEV(tag: typeof Fragment, props: { children?: unknown }): DocumentFragment;
 export function jsxDEV(
-  tag: typeof Fragment,
-  props: { children?: unknown }
-): DocumentFragment;
-export function jsxDEV(tag: Tag | typeof Fragment, props: Record<string, unknown> | null | undefined): Node | Node[] | null {
+  tag: Tag | typeof Fragment,
+  props: Record<string, unknown> | null | undefined,
+): Node | Node[] | null {
   return jsxImpl(tag, props);
 }

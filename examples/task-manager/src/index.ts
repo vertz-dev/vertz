@@ -7,7 +7,7 @@
  * during server rendering.
  */
 
-import { globalCss, mount } from '@vertz/ui';
+import { getInjectedCSS, globalCss, mount } from '@vertz/ui';
 import { App } from './app';
 import { taskManagerTheme } from './styles/theme';
 
@@ -58,6 +58,18 @@ const viewTransitionsCss = `
   to { opacity: 1; }
 }
 `;
+
+// Export global styles for SSR — included in every SSR response
+// so the page renders with correct typography, spacing, and colors
+// before JS loads. Without this, the SSR HTML lacks body/reset styles.
+export const styles = [globalStyles.css, viewTransitionsCss];
+
+// Export CSS collection for SSR.
+// The Vite SSR build bundles @vertz/ui into the server bundle, creating
+// a separate module instance from the one @vertz/ui-server depends on.
+// Exporting getInjectedCSS lets @vertz/ui-server collect CSS from the
+// same Set that component-level css() calls write to.
+export { getInjectedCSS };
 
 // ── Mount (client-only) ─────────────────────────────────────────
 // During SSR, the virtual entry imports this module to call App().

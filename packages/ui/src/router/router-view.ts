@@ -1,4 +1,5 @@
-import { jsx } from '../jsx-runtime/index';
+import { __append, __element, __enterChildren, __exitChildren } from '../dom/element';
+import { getIsHydrating } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
@@ -16,11 +17,24 @@ export interface RouterViewProps {
  *
  * Handles sync and async (lazy-loaded) components, stale resolution guards,
  * page cleanup on navigation, and RouterContext propagation.
+ *
+ * Uses __element() so the container is claimed from SSR during hydration.
+ * On the first hydration render, children are already in the DOM — the
+ * domEffect runs the component factory (to attach reactivity/event handlers)
+ * but skips clearing the container.
  */
 export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
-  const container = jsx('div', {}) as HTMLDivElement;
+  const container = __element('div');
+  // Track whether the first render is during hydration — if so, don't
+  // clear the container (SSR children are already in the DOM).
+  let isFirstHydrationRender = getIsHydrating();
   let renderGen = 0;
   let pageCleanups: DisposeFn[] = [];
+
+  // Enter children scope for the container — during hydration this sets
+  // the cursor to container.firstChild so the page component's own
+  // __element() calls can claim SSR nodes inside.
+  __enterChildren(container);
 
   const dispose = domEffect(() => {
     const match = router.current.value;
@@ -30,7 +44,18 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
       runCleanups(pageCleanups);
 
       const gen = ++renderGen;
-      container.innerHTML = '';
+
+      if (isFirstHydrationRender) {
+        // During hydration, SSR content is already in the container.
+        // Don't clear it — just run the component factory to attach
+        // reactivity and event handlers to the adopted SSR nodes.
+        isFirstHydrationRender = false;
+      } else {
+        // Subsequent navigations: clear previous page content
+        while (container.firstChild) {
+          container.removeChild(container.firstChild);
+        }
+      }
 
       // Push a new scope to capture page-level cleanups (onMount → onCleanup)
       pageCleanups = pushScope();
@@ -55,13 +80,15 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
             });
           });
         } else {
-          container.appendChild(result);
+          __append(container, result);
         }
       });
 
       popScope();
     });
   });
+
+  __exitChildren();
 
   _tryOnCleanup(() => {
     runCleanups(pageCleanups);

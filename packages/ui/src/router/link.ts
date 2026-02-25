@@ -3,10 +3,15 @@
  *
  * Creates `<a>` elements that intercept clicks for SPA navigation
  * and support active state styling.
+ *
+ * Uses __element/__on/__enterChildren/__exitChildren/__append/__staticText
+ * so that during hydration it claims existing SSR anchor nodes instead
+ * of creating new elements.
  */
 
-import { jsx } from '../jsx-runtime/index';
-import { domEffect } from '../runtime/signal';
+import { __classList } from '../dom/attributes';
+import { __append, __element, __enterChildren, __exitChildren, __staticText } from '../dom/element';
+import { __on } from '../dom/events';
 import type { ReadonlySignal } from '../runtime/signal-types';
 import type { RouteConfigLike, RouteDefinitionMap } from './define-routes';
 import type { RoutePaths } from './params';
@@ -56,30 +61,33 @@ export function createLink(
     className,
     prefetch,
   }: LinkProps): HTMLAnchorElement {
-    const handleClick = (event: MouseEvent) => {
+    const handleClick = (event: Event) => {
+      const mouseEvent = event as MouseEvent;
       // Allow modifier-key clicks to open in new tab
-      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+      if (mouseEvent.ctrlKey || mouseEvent.metaKey || mouseEvent.shiftKey || mouseEvent.altKey) {
         return;
       }
-      event.preventDefault();
+      mouseEvent.preventDefault();
       navigate(href);
     };
 
-    const el = jsx('a', {
-      href,
-      class: className,
-      onClick: handleClick,
-      children,
-    }) as HTMLAnchorElement;
+    // Build static props for the anchor element
+    const props: Record<string, string> = { href };
+    if (className) {
+      props.class = className;
+    }
+
+    const el = __element('a', props) as HTMLAnchorElement;
+    __on(el, 'click', handleClick as EventListener);
+
+    __enterChildren(el);
+    __append(el, __staticText(children));
+    __exitChildren();
 
     // Reactive active state — re-evaluates whenever currentPath changes.
     if (activeClass) {
-      domEffect(() => {
-        if (currentPath.value === href) {
-          el.classList.add(activeClass);
-        } else {
-          el.classList.remove(activeClass);
-        }
+      __classList(el, {
+        [activeClass]: () => currentPath.value === href,
       });
     }
 
@@ -91,8 +99,8 @@ export function createLink(
         prefetched = true;
         factoryOptions.onPrefetch?.(href);
       };
-      el.addEventListener('mouseenter', triggerPrefetch);
-      el.addEventListener('focus', triggerPrefetch);
+      __on(el, 'mouseenter', triggerPrefetch);
+      __on(el, 'focus', triggerPrefetch);
     }
 
     return el;

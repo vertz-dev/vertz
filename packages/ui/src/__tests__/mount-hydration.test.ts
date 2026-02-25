@@ -217,4 +217,45 @@ describe('mount() — tolerant hydration', () => {
     expect(onMount).toHaveBeenCalledTimes(1);
     expect(onMount).toHaveBeenCalledWith(root);
   });
+
+  it('SSR nodes are adopted (same DOM references)', () => {
+    root.innerHTML = '<div><h1>Hello</h1><button>Click</button></div>';
+
+    const ssrDiv = root.firstChild as HTMLElement;
+    const ssrH1 = ssrDiv.querySelector('h1')!;
+    const ssrButton = ssrDiv.querySelector('button')!;
+
+    let clicked = false;
+    const App = () => {
+      const el = __element('div');
+      __enterChildren(el);
+      const h1 = __element('h1');
+      __enterChildren(h1);
+      __append(h1, __staticText('Hello'));
+      __exitChildren();
+      __append(el, h1);
+      const btn = __element('button');
+      __on(btn, 'click', () => {
+        clicked = true;
+      });
+      __enterChildren(btn);
+      __append(btn, __staticText('Click'));
+      __exitChildren();
+      __append(el, btn);
+      __exitChildren();
+      return el;
+    };
+
+    mount(App, root);
+
+    // SSR nodes were adopted — same DOM references
+    const currentDiv = root.firstChild as HTMLElement;
+    expect(currentDiv).toBe(ssrDiv);
+    expect(currentDiv.querySelector('h1')).toBe(ssrH1);
+    expect(currentDiv.querySelector('button')).toBe(ssrButton);
+
+    // Event handlers are attached to adopted nodes
+    ssrButton.click();
+    expect(clicked).toBe(true);
+  });
 });
