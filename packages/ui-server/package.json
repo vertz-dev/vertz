@@ -42,6 +42,11 @@
   "peerDependencies": {
     "vite": "^6.0.0"
   },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",
     "bunup": "latest",

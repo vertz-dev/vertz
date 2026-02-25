@@ -2,9 +2,8 @@
  * Entry point for the Task Manager demo app.
  *
  * Exports App for SSR and mounts it on the client.
- * With zero-config SSR (`ssr: true` in vite.config.ts), the framework
- * auto-detects this entry from index.html and calls the default export
- * during server rendering.
+ * The SSR dev server imports this module server-side and calls the
+ * default export during server rendering.
  */
 
 import { getInjectedCSS, globalCss, mount } from '@vertz/ui';
@@ -70,7 +69,7 @@ const viewTransitionsCss = `
 export const styles = [globalStyles.css, viewTransitionsCss];
 
 // Export CSS collection for SSR.
-// The Vite SSR build bundles @vertz/ui into the server bundle, creating
+// The SSR build bundles @vertz/ui into the server bundle, creating
 // a separate module instance from the one @vertz/ui-server depends on.
 // Exporting getInjectedCSS lets @vertz/ui-server collect CSS from the
 // same Set that component-level css() calls write to.

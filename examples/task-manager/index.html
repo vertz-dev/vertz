@@ -3,11 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="./public/favicon.svg" />
     <title>Task Manager — @vertz/ui demo</title>
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="/src/index.ts"></script>
+    <!-- Fast Refresh runtime MUST load before app to populate globalThis -->
+    <script type="module" src="./node_modules/@vertz/bun-plugin/dist/fast-refresh-runtime.js"></script>
+    <script type="module" src="./src/index.ts"></script>
   </body>
 </html>

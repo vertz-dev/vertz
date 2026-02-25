@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
  *
  * These tests verify the production build works end-to-end.
  * They require the production server to be running on port 3000:
- *   bun run build:all && bun run start
+ *   bun run build && bun run start
  *
  * Run with: PROD_SSR=1 npx playwright test e2e/prod-ssr.spec.ts
  */

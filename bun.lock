@@ -91,12 +91,12 @@
       },
       "devDependencies": {
         "@playwright/test": "^1.58.2",
+        "@vertz/bun-plugin": "workspace:*",
         "@vertz/ui-compiler": "workspace:*",
         "bun-types": "^1.3.9",
         "esbuild": "^0.27.3",
         "happy-dom": "^20.6.1",
         "typescript": "^5.8.0",
-        "vite": "^6.0.0",
         "wrangler": "^4.65.0",
       },
     },
