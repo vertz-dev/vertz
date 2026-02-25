@@ -28,6 +28,7 @@ comment:
 # Exclude integration tests and test files from coverage
 ignore:
   - "packages/integration-tests/**"
+  - "packages/ui-canvas/**"
   - "**/*.test.ts"
   - "**/*.test.tsx"
   - "**/*.test-d.ts"
@@ -92,10 +93,6 @@ flags:
   ui:
     paths:
       - packages/ui/src/
-    carryforward: true
-  ui-canvas:
-    paths:
-      - packages/ui-canvas/src/
     carryforward: true
   ui-compiler:
     paths:
