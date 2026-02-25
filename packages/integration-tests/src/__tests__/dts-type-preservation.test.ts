@@ -94,35 +94,37 @@ describe('@vertz/db dist type preservation', () => {
     expect(dts).toMatch(/type FindResult<\s*\n?\s*TTable\s+extends\s+TableDef/);
   });
 
-  // ---- DatabaseInstance generic preservation ----
+  // ---- DatabaseClient generic preservation ----
 
-  it('DatabaseInstance has a TModels generic parameter', () => {
+  it('DatabaseClient has a TModels generic parameter', () => {
     expect(dts).toMatch(
-      /interface DatabaseInstance<\s*TModels\s+extends\s+Record<string,\s*ModelEntry>/,
+      /type DatabaseClient<\s*TModels\s+extends\s+Record<string,\s*ModelEntry>/,
     );
   });
 
-  it('DatabaseInstance.list has TName and TOptions generic parameters', () => {
+  // ---- ModelDelegate generic preservation ----
+
+  it('ModelDelegate has a TEntry generic parameter', () => {
     expect(dts).toMatch(
-      /list<\s*\n?\s*TName\s+extends\s+keyof\s+TModels\s*&\s*string[\s\S]*?TOptions\s+extends\s+TypedListOptions/,
+      /interface ModelDelegate<\s*TEntry\s+extends\s+ModelEntry/,
     );
   });
 
-  it('DatabaseInstance.listAndCount has TName and TOptions generic parameters', () => {
+  it('ModelDelegate.get has TOptions generic parameter', () => {
     expect(dts).toMatch(
-      /listAndCount<\s*\n?\s*TName\s+extends\s+keyof\s+TModels\s*&\s*string[\s\S]*?TOptions\s+extends\s+TypedListOptions/,
+      /get<\s*\n?\s*TOptions\s+extends\s+TypedGetOptions/,
     );
   });
 
-  it('DatabaseInstance.get has TName and TOptions generic parameters', () => {
+  it('ModelDelegate.list has TOptions generic parameter', () => {
     expect(dts).toMatch(
-      /get<\s*\n?\s*TName\s+extends\s+keyof\s+TModels\s*&\s*string[\s\S]*?TOptions\s+extends\s+TypedGetOptions/,
+      /list<\s*\n?\s*TOptions\s+extends\s+TypedListOptions/,
     );
   });
 
-  it('DatabaseInstance.create has TName and TOptions generic parameters', () => {
+  it('ModelDelegate.create has TOptions generic parameter', () => {
     expect(dts).toMatch(
-      /create<\s*\n?\s*TName\s+extends\s+keyof\s+TModels\s*&\s*string[\s\S]*?TOptions\s+extends\s+TypedCreateOptions/,
+      /create<\s*\n?\s*TOptions\s+extends\s+TypedCreateOptions/,
     );
   });
 
@@ -150,7 +152,7 @@ describe('@vertz/db dist type preservation', () => {
 
   it('createDb preserves TModels generic in return type', () => {
     expect(dts).toMatch(
-      /declare function createDb<\s*TModels\s+extends\s+Record<string,\s*ModelEntry>[\s\S]*?>\s*\([\s\S]*?\):\s*DatabaseInstance<TModels>/,
+      /declare function createDb<\s*TModels\s+extends\s+Record<string,\s*ModelEntry>[\s\S]*?>\s*\([\s\S]*?\):\s*DatabaseClient<TModels>/,
     );
   });
 

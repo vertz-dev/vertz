@@ -74,22 +74,22 @@ describe('Aggregation queries (DB-012)', () => {
 
   describe('count', () => {
     it('returns correct count as number', async () => {
-      const result = await db.count('products');
+      const result = await db.products.count();
       expect(result.data).toBe(5);
     });
 
     it('respects where filter', async () => {
-      const result = await db.count('products', { where: { category: 'widgets' } });
+      const result = await db.products.count({ where: { category: 'widgets' } });
       expect(result.data).toBe(3);
     });
 
     it('returns 0 when no rows match', async () => {
-      const result = await db.count('products', { where: { category: 'nonexistent' } });
+      const result = await db.products.count({ where: { category: 'nonexistent' } });
       expect(result.data).toBe(0);
     });
 
     it('counts active products correctly', async () => {
-      const result = await db.count('products', { where: { active: true } });
+      const result = await db.products.count({ where: { active: true } });
       expect(result.data).toBe(4);
     });
   });
@@ -100,7 +100,7 @@ describe('Aggregation queries (DB-012)', () => {
 
   describe('aggregate', () => {
     it('computes _avg correctly', async () => {
-      const result = await db.aggregate('products', {
+      const result = await db.products.aggregate({
         _avg: { price: true },
       });
       // (100 + 150 + 200 + 300 + 250) / 5 = 200
@@ -108,7 +108,7 @@ describe('Aggregation queries (DB-012)', () => {
     });
 
     it('computes _sum correctly', async () => {
-      const result = await db.aggregate('products', {
+      const result = await db.products.aggregate({
         _sum: { quantity: true },
       });
       // 10 + 5 + 3 + 8 + 12 = 38
@@ -116,7 +116,7 @@ describe('Aggregation queries (DB-012)', () => {
     });
 
     it('computes _min and _max correctly', async () => {
-      const result = await db.aggregate('products', {
+      const result = await db.products.aggregate({
         _min: { price: true },
         _max: { price: true },
       });
@@ -125,14 +125,14 @@ describe('Aggregation queries (DB-012)', () => {
     });
 
     it('computes _count correctly', async () => {
-      const result = await db.aggregate('products', {
+      const result = await db.products.aggregate({
         _count: true,
       });
       expect(result.data._count).toBe(5);
     });
 
     it('combines multiple aggregations in one call', async () => {
-      const result = await db.aggregate('products', {
+      const result = await db.products.aggregate({
         _avg: { price: true },
         _sum: { quantity: true },
         _min: { price: true },
@@ -147,7 +147,7 @@ describe('Aggregation queries (DB-012)', () => {
     });
 
     it('respects where filter on aggregate', async () => {
-      const result = await db.aggregate('products', {
+      const result = await db.products.aggregate({
         where: { category: 'widgets' },
         _avg: { price: true },
         _count: true,
@@ -158,7 +158,7 @@ describe('Aggregation queries (DB-012)', () => {
     });
 
     it('returns empty object when no aggregation fields requested', async () => {
-      const result = await db.aggregate('products', {});
+      const result = await db.products.aggregate({});
       expect(result.data).toEqual({});
     });
   });
@@ -169,7 +169,7 @@ describe('Aggregation queries (DB-012)', () => {
 
   describe('groupBy', () => {
     it('groups by specified columns', async () => {
-      const result = await db.groupBy('products', {
+      const result = await db.products.groupBy({
         by: ['category'],
         _count: true,
       });
@@ -185,7 +185,7 @@ describe('Aggregation queries (DB-012)', () => {
     });
 
     it('includes aggregation results per group', async () => {
-      const result = await db.groupBy('products', {
+      const result = await db.products.groupBy({
         by: ['category'],
         _avg: { price: true },
         _sum: { quantity: true },
@@ -200,7 +200,7 @@ describe('Aggregation queries (DB-012)', () => {
     });
 
     it('respects orderBy on aggregation results', async () => {
-      const result = await db.groupBy('products', {
+      const result = await db.products.groupBy({
         by: ['category'],
         _count: true,
         orderBy: { _count: 'desc' },
@@ -215,7 +215,7 @@ describe('Aggregation queries (DB-012)', () => {
     });
 
     it('groups by multiple columns', async () => {
-      const result = await db.groupBy('products', {
+      const result = await db.products.groupBy({
         by: ['category', 'active'],
         _count: true,
         orderBy: { _count: 'desc' },
@@ -226,7 +226,7 @@ describe('Aggregation queries (DB-012)', () => {
     });
 
     it('respects where filter on groupBy', async () => {
-      const result = await db.groupBy('products', {
+      const result = await db.products.groupBy({
         by: ['category'],
         where: { active: true },
         _count: true,
@@ -248,7 +248,7 @@ describe('Aggregation queries (DB-012)', () => {
 
   describe('groupBy orderBy safety (B1)', () => {
     it('rejects underscore-prefixed orderBy columns that are not valid aggregation aliases', async () => {
-      const result = await db.groupBy('products', {
+      const result = await db.products.groupBy({
         by: ['category'],
         _count: true,
         orderBy: { '_; DROP TABLE products; --': 'asc' } as Record<string, 'asc' | 'desc'>,
@@ -258,7 +258,7 @@ describe('Aggregation queries (DB-012)', () => {
     });
 
     it('rejects orderBy with an invalid direction value', async () => {
-      const result = await db.groupBy('products', {
+      const result = await db.products.groupBy({
         by: ['category'],
         _count: true,
         orderBy: { _count: 'INVALID; DROP TABLE products;' as 'asc' },
@@ -268,7 +268,7 @@ describe('Aggregation queries (DB-012)', () => {
     });
 
     it('allows valid aggregation alias in orderBy (e.g., _avg_price)', async () => {
-      const result = await db.groupBy('products', {
+      const result = await db.products.groupBy({
         by: ['category'],
         _avg: { price: true },
         orderBy: { _avg_price: 'desc' } as Record<string, 'asc' | 'desc'>,
@@ -282,7 +282,7 @@ describe('Aggregation queries (DB-012)', () => {
 
     it('quotes valid aggregation aliases in ORDER BY', async () => {
       // This should work without SQL injection — just verifying the query succeeds
-      const result = await db.groupBy('products', {
+      const result = await db.products.groupBy({
         by: ['category'],
         _sum: { quantity: true },
         _count: true,

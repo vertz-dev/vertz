@@ -1,17 +1,17 @@
 /**
- * Bridge adapter that wraps a DatabaseInstance (query builder) and exposes
+ * Bridge adapter that wraps a DatabaseClient (query builder) and exposes
  * the EntityDbAdapter interface. This lets entity CRUD routes use the query
  * builder under the hood without changing any entity pipeline code.
  *
  * Part of the entity-query-builder unification (Phase 1).
  */
 
-import type { DatabaseInstance } from '../client/database';
+import type { DatabaseClient } from '../client/database';
 import type { ModelEntry } from '../schema/inference';
 import type { EntityDbAdapter, ListOptions } from '../types/adapter';
 
 /**
- * Creates an EntityDbAdapter backed by a DatabaseInstance for a specific table.
+ * Creates an EntityDbAdapter backed by a DatabaseClient for a specific table.
  *
  * Bridges the gap between the entity layer's simple adapter interface and the
  * query builder's rich, typed API. Unwraps Result<T, E> from the query builder
@@ -20,10 +20,12 @@ import type { EntityDbAdapter, ListOptions } from '../types/adapter';
 export function createDatabaseBridgeAdapter<
   TModels extends Record<string, ModelEntry>,
   TName extends keyof TModels & string,
->(db: DatabaseInstance<TModels>, tableName: TName): EntityDbAdapter {
+>(db: DatabaseClient<TModels>, tableName: TName): EntityDbAdapter {
+  const delegate = db[tableName];
+
   return {
     async get(id: string) {
-      const result = await db.get(tableName, { where: { id } } as never);
+      const result = await delegate.get({ where: { id } } as never);
       if (!result.ok) {
         return null;
       }
@@ -41,7 +43,7 @@ export function createDatabaseBridgeAdapter<
       if (options?.limit !== undefined) {
         dbOptions.limit = options.limit;
       }
-      const result = await db.listAndCount(tableName, dbOptions as never);
+      const result = await delegate.listAndCount(dbOptions as never);
       if (!result.ok) {
         throw result.error;
       }
@@ -49,7 +51,7 @@ export function createDatabaseBridgeAdapter<
     },
 
     async create(data: Record<string, unknown>) {
-      const result = await db.create(tableName, { data } as never);
+      const result = await delegate.create({ data } as never);
       if (!result.ok) {
         throw result.error;
       }
@@ -57,7 +59,7 @@ export function createDatabaseBridgeAdapter<
     },
 
     async update(id: string, data: Record<string, unknown>) {
-      const result = await db.update(tableName, { where: { id }, data } as never);
+      const result = await delegate.update({ where: { id }, data } as never);
       if (!result.ok) {
         throw result.error;
       }
@@ -65,7 +67,7 @@ export function createDatabaseBridgeAdapter<
     },
 
     async delete(id: string) {
-      const result = await db.delete(tableName, { where: { id } } as never);
+      const result = await delegate.delete({ where: { id } } as never);
       if (!result.ok) {
         return null;
       }

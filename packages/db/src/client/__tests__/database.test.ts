@@ -48,7 +48,7 @@ const auditLogs = d.table('audit_logs', {
 // ---------------------------------------------------------------------------
 
 describe('createDb', () => {
-  it('returns a Database instance with _models', () => {
+  it('returns a DatabaseClient with _internals.models', () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
       models: {
@@ -57,12 +57,12 @@ describe('createDb', () => {
       },
     });
 
-    expect(db._models).toBeDefined();
-    expect(db._models.organizations).toBeDefined();
-    expect(db._models.users).toBeDefined();
+    expect(db._internals.models).toBeDefined();
+    expect(db._internals.models.organizations).toBeDefined();
+    expect(db._internals.models.users).toBeDefined();
   });
 
-  it('computes tenant graph and exposes it as $tenantGraph', () => {
+  it('computes tenant graph and exposes it as _internals.tenantGraph', () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
       models: {
@@ -74,12 +74,12 @@ describe('createDb', () => {
       },
     });
 
-    expect(db.$tenantGraph).toBeDefined();
-    expect(db.$tenantGraph.root).toBe('organizations');
-    expect(db.$tenantGraph.directlyScoped).toContain('users');
-    expect(db.$tenantGraph.directlyScoped).toContain('projects');
-    expect(db.$tenantGraph.indirectlyScoped).toContain('tasks');
-    expect(db.$tenantGraph.shared).toContain('featureFlags');
+    expect(db._internals.tenantGraph).toBeDefined();
+    expect(db._internals.tenantGraph.root).toBe('organizations');
+    expect(db._internals.tenantGraph.directlyScoped).toContain('users');
+    expect(db._internals.tenantGraph.directlyScoped).toContain('projects');
+    expect(db._internals.tenantGraph.indirectlyScoped).toContain('tasks');
+    expect(db._internals.tenantGraph.shared).toContain('featureFlags');
   });
 
   it('logs a notice for tables without tenant path and not shared', () => {

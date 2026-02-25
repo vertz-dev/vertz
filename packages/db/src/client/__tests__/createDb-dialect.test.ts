@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { d } from '../../d';
-import type { DatabaseInstance } from '../database';
 import { createDb } from '../database';
 
 // ---------------------------------------------------------------------------
@@ -47,8 +46,8 @@ describe('createDb dialect option', () => {
         },
       });
 
-      expect(db._models).toBeDefined();
-      expect(db._models.organizations).toBeDefined();
+      expect(db._internals.models).toBeDefined();
+      expect(db._internals.models.organizations).toBeDefined();
     });
   });
 
@@ -76,11 +75,11 @@ describe('createDb dialect option', () => {
         d1: mockD1,
       });
 
-      expect(db._models).toBeDefined();
-      expect(db._models.organizations).toBeDefined();
+      expect(db._internals.models).toBeDefined();
+      expect(db._internals.models.organizations).toBeDefined();
 
       // Verify it's using SQLite driver by checking query works
-      const result = await db.query({ sql: 'SELECT 1', params: [] });
+      const result = await db.query({ _tag: 'SqlFragment' as const, sql: 'SELECT 1', params: [] });
       expect(result.ok).toBe(true);
       expect(mockD1.prepare).toHaveBeenCalledWith('SELECT 1');
     });
@@ -121,8 +120,8 @@ describe('createDb dialect option', () => {
         dialect: 'postgres',
       });
 
-      expect(db._models).toBeDefined();
-      expect(db._models.organizations).toBeDefined();
+      expect(db._internals.models).toBeDefined();
+      expect(db._internals.models.organizations).toBeDefined();
     });
   });
 });

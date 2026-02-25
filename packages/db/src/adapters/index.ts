@@ -51,7 +51,7 @@ export interface SqliteAdapterConfig {
  * Create a database provider for the specified dialect.
  *
  * @deprecated Use `createDb()` from `@vertz/db` instead. `createDb` returns a
- * `DatabaseInstance` with the full typed query builder. Pass it directly to
+ * `DatabaseClient` with the full typed query builder. Pass it directly to
  * `createServer({ db })` — it is auto-bridged per entity.
  *
  * @example

@@ -112,19 +112,19 @@ describe('Relation loading (DB-011)', () => {
   describe('include: belongsTo (one)', () => {
     it('loads a single related object via include: { author: true }', async () => {
       const user = unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: { name: 'Alice', email: 'alice@test.com' },
         }),
       ) as Record<string, unknown>;
 
       unwrap(
-        await db.create('posts', {
+        await db.posts.create({
           data: { title: 'Post 1', authorId: user.id },
         }),
       );
 
       const post = unwrap(
-        await db.get('posts', {
+        await db.posts.get({
           where: { title: 'Post 1' },
           include: { author: true },
         }),
@@ -139,20 +139,20 @@ describe('Relation loading (DB-011)', () => {
     it('sets null when FK has no matching row', async () => {
       // Create user and post, then delete the user (via raw SQL to bypass FK)
       const user = unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: { name: 'Alice', email: 'alice@test.com' },
         }),
       ) as Record<string, unknown>;
 
       unwrap(
-        await db.create('posts', {
+        await db.posts.create({
           data: { title: 'Post 1', authorId: user.id },
         }),
       );
 
       // The author exists, so it should load
       const post = unwrap(
-        await db.get('posts', {
+        await db.posts.get({
           where: { title: 'Post 1' },
           include: { author: true },
         }),
@@ -169,24 +169,24 @@ describe('Relation loading (DB-011)', () => {
   describe('include: hasMany (many)', () => {
     it('loads array of related objects via include: { posts: true }', async () => {
       const user = unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: { name: 'Alice', email: 'alice@test.com' },
         }),
       ) as Record<string, unknown>;
 
       unwrap(
-        await db.create('posts', {
+        await db.posts.create({
           data: { title: 'Post 1', authorId: user.id },
         }),
       );
       unwrap(
-        await db.create('posts', {
+        await db.posts.create({
           data: { title: 'Post 2', authorId: user.id },
         }),
       );
 
       const result = unwrap(
-        await db.get('users', {
+        await db.users.get({
           where: { name: 'Alice' },
           include: { posts: true },
         }),
@@ -203,13 +203,13 @@ describe('Relation loading (DB-011)', () => {
 
     it('returns empty array when no related rows exist', async () => {
       unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: { name: 'Bob', email: 'bob@test.com' },
         }),
       );
 
       const result = unwrap(
-        await db.get('users', {
+        await db.users.get({
           where: { name: 'Bob' },
           include: { posts: true },
         }),
@@ -227,23 +227,23 @@ describe('Relation loading (DB-011)', () => {
   describe('batched loading', () => {
     it('prevents N+1 by batching relation loads with IN query', async () => {
       const alice = unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: { name: 'Alice', email: 'alice@test.com' },
         }),
       ) as Record<string, unknown>;
       const bob = unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: { name: 'Bob', email: 'bob@test.com' },
         }),
       ) as Record<string, unknown>;
 
-      unwrap(await db.create('posts', { data: { title: 'Alice Post 1', authorId: alice.id } }));
-      unwrap(await db.create('posts', { data: { title: 'Alice Post 2', authorId: alice.id } }));
-      unwrap(await db.create('posts', { data: { title: 'Bob Post 1', authorId: bob.id } }));
+      unwrap(await db.posts.create({ data: { title: 'Alice Post 1', authorId: alice.id } }));
+      unwrap(await db.posts.create({ data: { title: 'Alice Post 2', authorId: alice.id } }));
+      unwrap(await db.posts.create({ data: { title: 'Bob Post 1', authorId: bob.id } }));
 
       // list with include should batch the relation query
       const users = unwrap(
-        await db.list('users', {
+        await db.users.list({
           orderBy: { name: 'asc' },
           include: { posts: true },
         }),
@@ -268,19 +268,19 @@ describe('Relation loading (DB-011)', () => {
   describe('include with select', () => {
     it('narrows included relation fields via select', async () => {
       const user = unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: { name: 'Alice', email: 'alice@test.com' },
         }),
       ) as Record<string, unknown>;
 
       unwrap(
-        await db.create('posts', {
+        await db.posts.create({
           data: { title: 'Post 1', authorId: user.id },
         }),
       );
 
       const post = unwrap(
-        await db.get('posts', {
+        await db.posts.get({
           where: { title: 'Post 1' },
           include: { author: { select: { name: true } } },
         }),
@@ -301,17 +301,17 @@ describe('Relation loading (DB-011)', () => {
   describe('listAndCount with include', () => {
     it('loads relations alongside paginated results', async () => {
       const user = unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: { name: 'Alice', email: 'alice@test.com' },
         }),
       ) as Record<string, unknown>;
 
-      unwrap(await db.create('posts', { data: { title: 'Post 1', authorId: user.id } }));
-      unwrap(await db.create('posts', { data: { title: 'Post 2', authorId: user.id } }));
-      unwrap(await db.create('posts', { data: { title: 'Post 3', authorId: user.id } }));
+      unwrap(await db.posts.create({ data: { title: 'Post 1', authorId: user.id } }));
+      unwrap(await db.posts.create({ data: { title: 'Post 2', authorId: user.id } }));
+      unwrap(await db.posts.create({ data: { title: 'Post 3', authorId: user.id } }));
 
       const { data, total } = unwrap(
-        await db.listAndCount('posts', {
+        await db.posts.listAndCount({
           orderBy: { title: 'asc' },
           limit: 2,
           include: { author: true },
@@ -331,30 +331,30 @@ describe('Relation loading (DB-011)', () => {
   describe('nested includes (B3)', () => {
     it('loads depth-2 nested includes: posts -> comments', async () => {
       const user = unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: { name: 'Alice', email: 'alice@test.com' },
         }),
       ) as Record<string, unknown>;
 
       const post = unwrap(
-        await db.create('posts', {
+        await db.posts.create({
           data: { title: 'Post 1', authorId: user.id },
         }),
       ) as Record<string, unknown>;
 
       unwrap(
-        await db.create('comments', {
+        await db.comments.create({
           data: { text: 'Great post!', postId: post.id, authorId: user.id },
         }),
       );
       unwrap(
-        await db.create('comments', {
+        await db.comments.create({
           data: { text: 'Nice one!', postId: post.id, authorId: user.id },
         }),
       );
 
       const result = unwrap(
-        await db.get('users', {
+        await db.users.get({
           where: { name: 'Alice' },
           include: { posts: { include: { comments: true } } },
         }),
@@ -372,25 +372,25 @@ describe('Relation loading (DB-011)', () => {
 
     it('loads nested belongsTo: comments -> post -> author', async () => {
       const user = unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: { name: 'Alice', email: 'alice@test.com' },
         }),
       ) as Record<string, unknown>;
 
       const post = unwrap(
-        await db.create('posts', {
+        await db.posts.create({
           data: { title: 'Post 1', authorId: user.id },
         }),
       ) as Record<string, unknown>;
 
       unwrap(
-        await db.create('comments', {
+        await db.comments.create({
           data: { text: 'Great post!', postId: post.id, authorId: user.id },
         }),
       );
 
       const comment = unwrap(
-        await db.get('comments', {
+        await db.comments.get({
           where: { text: 'Great post!' },
           include: { post: { include: { author: true } } },
         }),
@@ -511,47 +511,47 @@ describe('Many-to-many relation loading (B2)', () => {
   });
 
   it('loads many-to-many related objects via join table', async () => {
-    const user = unwrap(await db.create('users', { data: { name: 'Alice' } })) as Record<
+    const user = unwrap(await db.users.create({ data: { name: 'Alice' } })) as Record<
       string,
       unknown
     >;
 
     const post1 = unwrap(
-      await db.create('posts', {
+      await db.posts.create({
         data: { title: 'Post 1', authorId: user.id },
       }),
     ) as Record<string, unknown>;
     const post2 = unwrap(
-      await db.create('posts', {
+      await db.posts.create({
         data: { title: 'Post 2', authorId: user.id },
       }),
     ) as Record<string, unknown>;
 
     const tag1 = unwrap(
-      await db.create('tags', {
+      await db.tags.create({
         data: { label: 'TypeScript' },
       }),
     ) as Record<string, unknown>;
     const tag2 = unwrap(
-      await db.create('tags', {
+      await db.tags.create({
         data: { label: 'PostgreSQL' },
       }),
     ) as Record<string, unknown>;
     const tag3 = unwrap(
-      await db.create('tags', {
+      await db.tags.create({
         data: { label: 'Testing' },
       }),
     ) as Record<string, unknown>;
 
     // Post 1 has TypeScript + PostgreSQL
-    unwrap(await db.create('postTags', { data: { postId: post1.id, tagId: tag1.id } }));
-    unwrap(await db.create('postTags', { data: { postId: post1.id, tagId: tag2.id } }));
+    unwrap(await db.postTags.create({ data: { postId: post1.id, tagId: tag1.id } }));
+    unwrap(await db.postTags.create({ data: { postId: post1.id, tagId: tag2.id } }));
     // Post 2 has PostgreSQL + Testing
-    unwrap(await db.create('postTags', { data: { postId: post2.id, tagId: tag2.id } }));
-    unwrap(await db.create('postTags', { data: { postId: post2.id, tagId: tag3.id } }));
+    unwrap(await db.postTags.create({ data: { postId: post2.id, tagId: tag2.id } }));
+    unwrap(await db.postTags.create({ data: { postId: post2.id, tagId: tag3.id } }));
 
     const result = unwrap(
-      await db.list('posts', {
+      await db.posts.list({
         orderBy: { title: 'asc' },
         include: { tags: true },
       }),
@@ -575,19 +575,19 @@ describe('Many-to-many relation loading (B2)', () => {
   });
 
   it('returns empty array when no join table entries exist', async () => {
-    const user = unwrap(await db.create('users', { data: { name: 'Bob' } })) as Record<
+    const user = unwrap(await db.users.create({ data: { name: 'Bob' } })) as Record<
       string,
       unknown
     >;
 
     unwrap(
-      await db.create('posts', {
+      await db.posts.create({
         data: { title: 'Lonely Post', authorId: user.id },
       }),
     );
 
     const result = unwrap(
-      await db.get('posts', {
+      await db.posts.get({
         where: { title: 'Lonely Post' },
         include: { tags: true },
       }),
@@ -598,33 +598,33 @@ describe('Many-to-many relation loading (B2)', () => {
   });
 
   it('loads the reverse manyToMany direction (tags -> posts)', async () => {
-    const user = unwrap(await db.create('users', { data: { name: 'Alice' } })) as Record<
+    const user = unwrap(await db.users.create({ data: { name: 'Alice' } })) as Record<
       string,
       unknown
     >;
 
     const post1 = unwrap(
-      await db.create('posts', {
+      await db.posts.create({
         data: { title: 'Post 1', authorId: user.id },
       }),
     ) as Record<string, unknown>;
     const post2 = unwrap(
-      await db.create('posts', {
+      await db.posts.create({
         data: { title: 'Post 2', authorId: user.id },
       }),
     ) as Record<string, unknown>;
 
     const tag = unwrap(
-      await db.create('tags', {
+      await db.tags.create({
         data: { label: 'TypeScript' },
       }),
     ) as Record<string, unknown>;
 
-    unwrap(await db.create('postTags', { data: { postId: post1.id, tagId: tag.id } }));
-    unwrap(await db.create('postTags', { data: { postId: post2.id, tagId: tag.id } }));
+    unwrap(await db.postTags.create({ data: { postId: post1.id, tagId: tag.id } }));
+    unwrap(await db.postTags.create({ data: { postId: post2.id, tagId: tag.id } }));
 
     const result = unwrap(
-      await db.get('tags', {
+      await db.tags.get({
         where: { label: 'TypeScript' },
         include: { posts: true },
       }),
@@ -710,11 +710,11 @@ describe('Relation loading with non-standard PK', () => {
   });
 
   it('loads belongsTo (one) relation with non-standard PK', async () => {
-    unwrap(await db.create('countries', { data: { code: 'US', name: 'United States' } }));
-    unwrap(await db.create('cities', { data: { name: 'New York', countryCode: 'US' } }));
+    unwrap(await db.countries.create({ data: { code: 'US', name: 'United States' } }));
+    unwrap(await db.cities.create({ data: { name: 'New York', countryCode: 'US' } }));
 
     const city = unwrap(
-      await db.get('cities', {
+      await db.cities.get({
         where: { name: 'New York' },
         include: { country: true },
       }),
@@ -728,12 +728,12 @@ describe('Relation loading with non-standard PK', () => {
   });
 
   it('loads hasMany (many) relation with non-standard PK', async () => {
-    unwrap(await db.create('countries', { data: { code: 'US', name: 'United States' } }));
-    unwrap(await db.create('cities', { data: { name: 'New York', countryCode: 'US' } }));
-    unwrap(await db.create('cities', { data: { name: 'Los Angeles', countryCode: 'US' } }));
+    unwrap(await db.countries.create({ data: { code: 'US', name: 'United States' } }));
+    unwrap(await db.cities.create({ data: { name: 'New York', countryCode: 'US' } }));
+    unwrap(await db.cities.create({ data: { name: 'Los Angeles', countryCode: 'US' } }));
 
     const country = unwrap(
-      await db.get('countries', {
+      await db.countries.get({
         where: { code: 'US' },
         include: { cities: true },
       }),

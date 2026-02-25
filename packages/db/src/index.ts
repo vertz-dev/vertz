@@ -39,8 +39,10 @@ export { migrateDeploy, migrateDev, migrateStatus, push } from './cli/index';
 // Client
 export type {
   CreateDbOptions,
-  DatabaseInstance,
+  DatabaseClient,
+  DatabaseInternals,
   DbDriver,
+  ModelDelegate,
   PoolConfig,
   QueryResult,
   TenantGraph,

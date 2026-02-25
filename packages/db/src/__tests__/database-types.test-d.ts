@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest';
-import type { DatabaseInstance } from '../client/database';
+import type { DatabaseClient } from '../client/database';
 import { d } from '../d';
 import type {
   FilterType,
@@ -78,8 +78,8 @@ const models = {
   featureFlags: { table: featureFlags, relations: {} },
 } satisfies Record<string, ModelEntry>;
 
-// Type alias for the typed database instance
-type DB = DatabaseInstance<typeof models>;
+// Type alias for the typed database client
+type DB = DatabaseClient<typeof models>;
 
 // ---------------------------------------------------------------------------
 // Helper: simulate what a method call would return by testing FindResult
@@ -117,12 +117,12 @@ describe('Cycle 1: get return type', () => {
     expectTypeOf<Result>().not.toHaveProperty('passwordHash');
   });
 
-  it('DatabaseInstance get method exists and is a function', () => {
-    expectTypeOf<DB['get']>().toBeFunction();
+  it('DatabaseClient organizations delegate has get method', () => {
+    expectTypeOf<DB['organizations']['get']>().toBeFunction();
   });
 
-  it('DatabaseInstance getOrThrow method exists and is a function', () => {
-    expectTypeOf<DB['getOrThrow']>().toBeFunction();
+  it('DatabaseClient organizations delegate has getOrThrow method', () => {
+    expectTypeOf<DB['organizations']['getOrThrow']>().toBeFunction();
   });
 });
 
@@ -349,43 +349,51 @@ describe('Cycle 7: where/filter typing', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Cycle 8: DatabaseInstance method signatures
+// Cycle 8: DatabaseClient model delegate method signatures
 // ---------------------------------------------------------------------------
 
-describe('Cycle 8: DatabaseInstance method signatures', () => {
-  it('get method is defined', () => {
-    expectTypeOf<DB['get']>().toBeFunction();
+describe('Cycle 8: DatabaseClient model delegate method signatures', () => {
+  it('posts delegate get method is defined', () => {
+    expectTypeOf<DB['posts']['get']>().toBeFunction();
   });
 
-  it('list method is defined', () => {
-    expectTypeOf<DB['list']>().toBeFunction();
+  it('posts delegate list method is defined', () => {
+    expectTypeOf<DB['posts']['list']>().toBeFunction();
   });
 
-  it('create method is defined', () => {
-    expectTypeOf<DB['create']>().toBeFunction();
+  it('posts delegate create method is defined', () => {
+    expectTypeOf<DB['posts']['create']>().toBeFunction();
   });
 
-  it('update method is defined', () => {
-    expectTypeOf<DB['update']>().toBeFunction();
+  it('posts delegate update method is defined', () => {
+    expectTypeOf<DB['posts']['update']>().toBeFunction();
   });
 
-  it('upsert method is defined', () => {
-    expectTypeOf<DB['upsert']>().toBeFunction();
+  it('posts delegate upsert method is defined', () => {
+    expectTypeOf<DB['posts']['upsert']>().toBeFunction();
   });
 
-  it('delete method is defined', () => {
-    expectTypeOf<DB['delete']>().toBeFunction();
+  it('posts delegate delete method is defined', () => {
+    expectTypeOf<DB['posts']['delete']>().toBeFunction();
   });
 
-  it('count returns number', () => {
-    expectTypeOf<DB['count']>().toBeFunction();
+  it('posts delegate count method is defined', () => {
+    expectTypeOf<DB['posts']['count']>().toBeFunction();
   });
 
-  it('createMany returns count', () => {
-    expectTypeOf<DB['createMany']>().toBeFunction();
+  it('posts delegate createMany method is defined', () => {
+    expectTypeOf<DB['posts']['createMany']>().toBeFunction();
   });
 
-  it('createManyAndReturn method is defined', () => {
-    expectTypeOf<DB['createManyAndReturn']>().toBeFunction();
+  it('posts delegate createManyAndReturn method is defined', () => {
+    expectTypeOf<DB['posts']['createManyAndReturn']>().toBeFunction();
+  });
+
+  it('top-level query method is defined', () => {
+    expectTypeOf<DB['query']>().toBeFunction();
+  });
+
+  it('_internals.models is accessible', () => {
+    expectTypeOf<DB['_internals']>().toHaveProperty('models');
   });
 });

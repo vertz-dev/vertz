@@ -82,7 +82,7 @@ describe('SQLite integration (via D1 mock)', () => {
     });
 
     const created = unwrap(
-      await db.create('users', {
+      await db.users.create({
         data: { id: 'test-uuid-123', name: 'Alice', active: true, createdAt: 'now' },
       }),
     );
@@ -110,7 +110,7 @@ describe('SQLite integration (via D1 mock)', () => {
       models,
     });
 
-    const result = unwrap(await db.list('users'));
+    const result = unwrap(await db.users.list());
 
     expect(result).toHaveLength(1);
 

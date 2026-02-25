@@ -234,7 +234,7 @@ describe('E2E Acceptance Test (db-018)', () => {
   describe('2. CRUD operations', () => {
     it('creates an organization', async () => {
       const org = unwrap(
-        await db.create('organizations', {
+        await db.organizations.create({
           data: {
             id: ORG_ID,
             name: 'Acme Corp',
@@ -251,7 +251,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('creates a user', async () => {
       const user = unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: {
             id: USER_ID,
             organizationId: ORG_ID,
@@ -269,7 +269,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('creates a second user', async () => {
       const user = unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: {
             id: USER2_ID,
             organizationId: ORG_ID,
@@ -286,7 +286,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('creates posts', async () => {
       const post1 = unwrap(
-        await db.create('posts', {
+        await db.posts.create({
           data: {
             id: POST_ID,
             authorId: USER_ID,
@@ -302,7 +302,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       expect(post1.title).toBe('First Post');
 
       const post2 = unwrap(
-        await db.create('posts', {
+        await db.posts.create({
           data: {
             id: POST2_ID,
             authorId: USER_ID,
@@ -320,7 +320,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('creates a comment', async () => {
       const comment = unwrap(
-        await db.create('comments', {
+        await db.comments.create({
           data: {
             id: COMMENT_ID,
             postId: POST_ID,
@@ -336,7 +336,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('creates a feature flag', async () => {
       const flag = unwrap(
-        await db.create('featureFlags', {
+        await db.featureFlags.create({
           data: {
             id: FLAG_ID,
             name: 'dark_mode',
@@ -351,7 +351,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('updates a post', async () => {
       const updated = unwrap(
-        await db.update('posts', {
+        await db.posts.update({
           where: { id: POST_ID },
           data: { views: 150, status: 'published' },
         }),
@@ -363,7 +363,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('deletes a comment', async () => {
       const deleted = unwrap(
-        await db.delete('comments', {
+        await db.comments.delete({
           where: { id: COMMENT_ID },
         }),
       );
@@ -373,7 +373,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
       // Verify it is gone
       const result = unwrap(
-        await db.get('comments', {
+        await db.comments.get({
           where: { id: COMMENT_ID },
         }),
       );
@@ -382,7 +382,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('re-creates the comment for subsequent tests', async () => {
       unwrap(
-        await db.create('comments', {
+        await db.comments.create({
           data: {
             id: COMMENT_ID,
             postId: POST_ID,
@@ -401,7 +401,7 @@ describe('E2E Acceptance Test (db-018)', () => {
   describe('3. Relation includes', () => {
     it('list posts with include author', async () => {
       const postsResult = unwrap(
-        await db.list('posts', {
+        await db.posts.list({
           include: { author: true },
         }),
       );
@@ -418,7 +418,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('list posts with include comments', async () => {
       const postsResult = unwrap(
-        await db.list('posts', {
+        await db.posts.list({
           where: { id: POST_ID },
           include: { comments: true },
         }),
@@ -438,7 +438,7 @@ describe('E2E Acceptance Test (db-018)', () => {
   describe('4. Select narrowing', () => {
     it('select: { title: true, status: true } narrows returned fields', async () => {
       const result = unwrap(
-        await db.list('posts', {
+        await db.posts.list({
           select: { title: true, status: true },
         }),
       );
@@ -462,7 +462,7 @@ describe('E2E Acceptance Test (db-018)', () => {
   describe('5. Visibility filter', () => {
     it('select: { not: "sensitive" } excludes email', async () => {
       const result = unwrap(
-        await db.list('users', {
+        await db.users.list({
           select: { not: 'sensitive' },
         }),
       );
@@ -489,7 +489,7 @@ describe('E2E Acceptance Test (db-018)', () => {
   describe('6. Filter operators', () => {
     it('gte, in, and contains work correctly', async () => {
       const result = unwrap(
-        await db.list('posts', {
+        await db.posts.list({
           where: {
             views: { gte: 0 },
             status: { in: ['published', 'draft'] },
@@ -506,7 +506,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('eq filter works as direct value shorthand', async () => {
       const result = unwrap(
-        await db.list('posts', {
+        await db.posts.list({
           where: { title: 'First Post' },
         }),
       );
@@ -517,7 +517,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('gt filter works for numeric columns', async () => {
       const result = unwrap(
-        await db.list('posts', {
+        await db.posts.list({
           where: { views: { gt: 50 } },
         }),
       );
@@ -534,7 +534,7 @@ describe('E2E Acceptance Test (db-018)', () => {
   describe('7. listAndCount', () => {
     it('returns paginated results with total count', async () => {
       const { data, total } = unwrap(
-        await db.listAndCount('posts', {
+        await db.posts.listAndCount({
           limit: 1,
           offset: 0,
           orderBy: { views: 'desc' },
@@ -548,7 +548,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('returns second page correctly', async () => {
       const { data, total } = unwrap(
-        await db.listAndCount('posts', {
+        await db.posts.listAndCount({
           limit: 1,
           offset: 1,
           orderBy: { views: 'desc' },
@@ -567,7 +567,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('8. Error handling', () => {
     it('throws UniqueConstraintError on duplicate email', async () => {
-      const result = await db.create('users', {
+      const result = await db.users.create({
         data: {
           id: '99999999-9999-9999-9999-999999999999',
           organizationId: ORG_ID,
@@ -585,7 +585,7 @@ describe('E2E Acceptance Test (db-018)', () => {
     });
 
     it('throws ForeignKeyError on invalid FK reference', async () => {
-      const result = await db.create('posts', {
+      const result = await db.posts.create({
         data: {
           id: '99999999-9999-9999-9999-999999999998',
           authorId: '00000000-0000-0000-0000-000000000000', // Non-existent user
@@ -602,7 +602,7 @@ describe('E2E Acceptance Test (db-018)', () => {
     });
 
     it('returns null when get finds no match', async () => {
-      const result = await db.get('posts', {
+      const result = await db.posts.get({
         where: { id: '00000000-0000-0000-0000-000000000000' },
       });
 
@@ -646,7 +646,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('10. Tenant graph', () => {
     it('computes tenant graph correctly', () => {
-      const graph = db.$tenantGraph;
+      const graph = db._internals.tenantGraph;
 
       // organizations is the root (users have d.tenant(organizations))
       expect(graph.root).toBe('organizations');
@@ -670,13 +670,13 @@ describe('E2E Acceptance Test (db-018)', () => {
 
   describe('Additional coverage', () => {
     it('count returns correct number', async () => {
-      const count = unwrap(await db.count('posts'));
+      const count = unwrap(await db.posts.count());
       expect(count).toBe(2);
     });
 
     it('count with where filter', async () => {
       const count = unwrap(
-        await db.count('posts', {
+        await db.posts.count({
           where: { status: 'published' },
         }),
       );
@@ -685,7 +685,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('updateMany returns correct count', async () => {
       const result = unwrap(
-        await db.updateMany('posts', {
+        await db.posts.updateMany({
           where: { status: 'draft' },
           data: { views: 10 },
         }),
@@ -696,7 +696,7 @@ describe('E2E Acceptance Test (db-018)', () => {
     it('deleteMany returns correct count', async () => {
       // Insert a temp post to delete
       unwrap(
-        await db.create('posts', {
+        await db.posts.create({
           data: {
             id: '88888888-8888-8888-8888-888888888888',
             authorId: USER_ID,
@@ -708,7 +708,7 @@ describe('E2E Acceptance Test (db-018)', () => {
       );
 
       const result = unwrap(
-        await db.deleteMany('posts', {
+        await db.posts.deleteMany({
           where: { id: '88888888-8888-8888-8888-888888888888' },
         }),
       );
@@ -717,7 +717,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('upsert creates a new row', async () => {
       const result = unwrap(
-        await db.upsert('featureFlags', {
+        await db.featureFlags.upsert({
           where: { name: 'new_feature' },
           create: {
             id: '66666666-6666-6666-6666-666666666666',
@@ -734,7 +734,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('upsert updates existing row', async () => {
       const result = unwrap(
-        await db.upsert('featureFlags', {
+        await db.featureFlags.upsert({
           where: { name: 'new_feature' },
           create: {
             id: '77777777-7777-7777-7777-777777777777',
@@ -751,7 +751,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('createMany inserts multiple rows', async () => {
       const result = unwrap(
-        await db.createMany('featureFlags', {
+        await db.featureFlags.createMany({
           data: [
             { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', name: 'feature_a', enabled: true },
             { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', name: 'feature_b', enabled: false },
@@ -764,7 +764,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('get returns null when not found', async () => {
       const result = unwrap(
-        await db.get('posts', {
+        await db.posts.get({
           where: { id: '00000000-0000-0000-0000-000000000000' },
         }),
       );
@@ -773,7 +773,7 @@ describe('E2E Acceptance Test (db-018)', () => {
 
     it('get returns the row when found', async () => {
       const result = unwrap(
-        await db.get('posts', {
+        await db.posts.get({
           where: { id: POST_ID },
         }),
       );

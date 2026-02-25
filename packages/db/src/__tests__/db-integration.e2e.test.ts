@@ -145,7 +145,7 @@ describe('db-integration e2e', () => {
     });
 
     // Create a user
-    const createdResult = await db.create('users', {
+    const createdResult = await db.users.create({
       data: {
         name: 'Bob',
         email: 'bob@test.com',
@@ -158,7 +158,7 @@ describe('db-integration e2e', () => {
     expect(created.email).toBe('bob@test.com');
 
     // Read back
-    const foundResult = await db.list('users', {
+    const foundResult = await db.users.list({
       where: { email: 'bob@test.com' },
     });
     const found = unwrap(foundResult);
@@ -210,7 +210,7 @@ describe('db-integration e2e', () => {
     expect(methods).toBe(db);
 
     // Can query
-    const allUsersResult = await db.list('users');
+    const allUsersResult = await db.users.list();
     const allUsers = unwrap(allUsersResult);
     expect(allUsers.length).toBeGreaterThan(0);
 

@@ -114,12 +114,12 @@ async function seedTestData(
   suffix: string,
 ) {
   unwrap(
-    await db.create('organizations', {
+    await db.organizations.create({
       data: { id: ids.ORG_ID, name: 'Acme Corp', slug: `acme-${suffix}` },
     }),
   );
   unwrap(
-    await db.create('users', {
+    await db.users.create({
       data: {
         id: ids.USER_ID,
         organizationId: ids.ORG_ID,
@@ -130,7 +130,7 @@ async function seedTestData(
     }),
   );
   unwrap(
-    await db.create('users', {
+    await db.users.create({
       data: {
         id: ids.USER2_ID,
         organizationId: ids.ORG_ID,
@@ -141,7 +141,7 @@ async function seedTestData(
     }),
   );
   unwrap(
-    await db.create('posts', {
+    await db.posts.create({
       data: {
         id: ids.POST_ID,
         authorId: ids.USER_ID,
@@ -153,7 +153,7 @@ async function seedTestData(
     }),
   );
   unwrap(
-    await db.create('posts', {
+    await db.posts.create({
       data: {
         id: ids.POST2_ID,
         authorId: ids.USER_ID,
@@ -165,7 +165,7 @@ async function seedTestData(
     }),
   );
   unwrap(
-    await db.create('comments', {
+    await db.comments.create({
       data: {
         id: ids.COMMENT_ID,
         postId: ids.POST_ID,
@@ -278,7 +278,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('creates an organization and finds it back', async () => {
       const org = unwrap(
-        await db.create('organizations', {
+        await db.organizations.create({
           data: { id: ids.ORG_ID, name: 'Acme Corp', slug: 'acme-create-test' },
         }),
       );
@@ -289,7 +289,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
       expect(org.slug).toBe('acme-create-test');
       expect(org.createdAt).toBeInstanceOf(Date);
 
-      const found = unwrap(await db.get('organizations', { where: { id: ids.ORG_ID } }));
+      const found = unwrap(await db.organizations.get({ where: { id: ids.ORG_ID } }));
       expect(found).not.toBeNull();
       expect(found?.id).toBe(ids.ORG_ID);
       expect(found?.name).toBe('Acme Corp');
@@ -297,12 +297,12 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('creates users', async () => {
-      await db.create('organizations', {
+      await db.organizations.create({
         data: { id: ids.ORG_ID, name: 'Acme Corp', slug: 'acme-users-test' },
       });
 
       const user1 = unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: {
             id: ids.USER_ID,
             organizationId: ids.ORG_ID,
@@ -317,7 +317,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
       expect(user1.name).toBe('Alice');
 
       const user2 = unwrap(
-        await db.create('users', {
+        await db.users.create({
           data: {
             id: ids.USER2_ID,
             organizationId: ids.ORG_ID,
@@ -332,10 +332,10 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('creates posts', async () => {
-      await db.create('organizations', {
+      await db.organizations.create({
         data: { id: ids.ORG_ID, name: 'Acme Corp', slug: 'acme-posts-test' },
       });
-      await db.create('users', {
+      await db.users.create({
         data: {
           id: ids.USER_ID,
           organizationId: ids.ORG_ID,
@@ -346,7 +346,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
       });
 
       const post1 = unwrap(
-        await db.create('posts', {
+        await db.posts.create({
           data: {
             id: ids.POST_ID,
             authorId: ids.USER_ID,
@@ -361,7 +361,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
       expect(post1.title).toBe('First Post');
 
       const post2 = unwrap(
-        await db.create('posts', {
+        await db.posts.create({
           data: {
             id: ids.POST2_ID,
             authorId: ids.USER_ID,
@@ -380,10 +380,10 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
       await seedTestData(db, ids, 'comment-test');
 
       // Remove the seeded comment to test creation fresh
-      await db.delete('comments', { where: { id: ids.COMMENT_ID } });
+      await db.comments.delete({ where: { id: ids.COMMENT_ID } });
 
       const comment = unwrap(
-        await db.create('comments', {
+        await db.comments.create({
           data: {
             id: ids.COMMENT_ID,
             postId: ids.POST_ID,
@@ -398,7 +398,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('creates a feature flag', async () => {
       const flag = unwrap(
-        await db.create('featureFlags', {
+        await db.featureFlags.create({
           data: { id: ids.FLAG_ID, name: 'dark_mode_create', enabled: true },
         }),
       );
@@ -421,25 +421,25 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('finds all posts', async () => {
-      const result = unwrap(await db.list('posts'));
+      const result = unwrap(await db.posts.list());
       expect(result).toHaveLength(2);
     });
 
     it('filters by status', async () => {
-      const result = unwrap(await db.list('posts', { where: { status: 'published' } }));
+      const result = unwrap(await db.posts.list({ where: { status: 'published' } }));
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('First Post');
     });
 
     it('filters by views with gte', async () => {
-      const result = unwrap(await db.list('posts', { where: { views: { gte: 50 } } }));
+      const result = unwrap(await db.posts.list({ where: { views: { gte: 50 } } }));
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('First Post');
     });
 
     it('filters with in operator', async () => {
       const result = unwrap(
-        await db.list('posts', {
+        await db.posts.list({
           where: { status: { in: ['published', 'draft'] } },
         }),
       );
@@ -447,18 +447,18 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('filters with contains operator', async () => {
-      const result = unwrap(await db.list('posts', { where: { title: { contains: 'First' } } }));
+      const result = unwrap(await db.posts.list({ where: { title: { contains: 'First' } } }));
       expect(result).toHaveLength(1);
       expect(result[0].title).toBe('First Post');
     });
 
     it('filters with gt operator', async () => {
-      const result = unwrap(await db.list('posts', { where: { views: { gt: 50 } } }));
+      const result = unwrap(await db.posts.list({ where: { views: { gt: 50 } } }));
       expect(result).toHaveLength(1);
     });
 
     it('returns empty array when no match', async () => {
-      const result = unwrap(await db.list('posts', { where: { title: 'nonexistent' } }));
+      const result = unwrap(await db.posts.list({ where: { title: 'nonexistent' } }));
       expect(result).toHaveLength(0);
     });
   });
@@ -477,7 +477,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('returns paginated results with total count', async () => {
       const result = unwrap(
-        await db.listAndCount('posts', {
+        await db.posts.listAndCount({
           limit: 1,
           offset: 0,
           orderBy: { views: 'desc' },
@@ -491,7 +491,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('returns second page correctly', async () => {
       const result = unwrap(
-        await db.listAndCount('posts', {
+        await db.posts.listAndCount({
           limit: 1,
           offset: 1,
           orderBy: { views: 'desc' },
@@ -505,7 +505,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('count returns 0 for no matches', async () => {
       const result = unwrap(
-        await db.listAndCount('posts', {
+        await db.posts.listAndCount({
           where: { title: 'nonexistent' },
         }),
       );
@@ -529,7 +529,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('updates a post', async () => {
       const updated = unwrap(
-        await db.update('posts', {
+        await db.posts.update({
           where: { id: ids.POST_ID },
           data: { views: 200 },
         }),
@@ -540,7 +540,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('updateMany returns correct count', async () => {
       const result = unwrap(
-        await db.updateMany('posts', {
+        await db.posts.updateMany({
           where: { status: 'draft' },
           data: { views: 10 },
         }),
@@ -549,17 +549,17 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('deletes a comment and verifies it is gone', async () => {
-      const deleted = unwrap(await db.delete('comments', { where: { id: ids.COMMENT_ID } }));
+      const deleted = unwrap(await db.comments.delete({ where: { id: ids.COMMENT_ID } }));
       expect(deleted).toBeDefined();
       expect(deleted.id).toBe(ids.COMMENT_ID);
 
-      const found = unwrap(await db.get('comments', { where: { id: ids.COMMENT_ID } }));
+      const found = unwrap(await db.comments.get({ where: { id: ids.COMMENT_ID } }));
       expect(found).toBeNull();
     });
 
     it('deleteMany returns correct count', async () => {
       const tempId = 'a8888888-8888-8888-8888-888888888888';
-      await db.create('posts', {
+      await db.posts.create({
         data: {
           id: tempId,
           authorId: ids.USER_ID,
@@ -569,7 +569,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
         },
       });
 
-      const result = unwrap(await db.deleteMany('posts', { where: { id: tempId } }));
+      const result = unwrap(await db.posts.deleteMany({ where: { id: tempId } }));
       expect(result.count).toBe(1);
     });
   });
@@ -587,7 +587,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('list posts with include author', async () => {
-      const postsResult = unwrap(await db.list('posts', { include: { author: true } }));
+      const postsResult = unwrap(await db.posts.list({ include: { author: true } }));
       expect(postsResult.length).toBeGreaterThan(0);
       for (const post of postsResult) {
         expect(post.author).toBeDefined();
@@ -598,7 +598,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('list posts with include comments', async () => {
       const postsResult = unwrap(
-        await db.list('posts', {
+        await db.posts.list({
           where: { id: ids.POST_ID },
           include: { comments: true },
         }),
@@ -611,7 +611,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('get with single include works', async () => {
       const post = unwrap(
-        await db.get('posts', {
+        await db.posts.get({
           where: { id: ids.POST_ID },
           include: { author: true },
         }),
@@ -623,7 +623,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('getOrThrow with multiple includes works', async () => {
       const post = unwrap(
-        await db.getOrThrow('posts', {
+        await db.posts.getOrThrow({
           where: { id: ids.POST_ID },
           include: { author: true, comments: true },
         }),
@@ -636,7 +636,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('listAndCount with include works', async () => {
       const result = unwrap(
-        await db.listAndCount('posts', {
+        await db.posts.listAndCount({
           where: { id: ids.POST_ID },
           include: { author: true, comments: true },
         }),
@@ -662,7 +662,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('returns CONSTRAINT_ERROR on duplicate email', async () => {
-      const result = await db.create('users', {
+      const result = await db.users.create({
         data: {
           id: 'a9999999-9999-9999-9999-999999999999',
           organizationId: ids.ORG_ID,
@@ -679,7 +679,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('returns CONSTRAINT_ERROR on invalid FK reference', async () => {
-      const result = await db.create('posts', {
+      const result = await db.posts.create({
         data: {
           id: 'a9999999-9999-9999-9999-999999999998',
           authorId: '00000000-0000-0000-0000-000000000000',
@@ -695,7 +695,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('returns NOT_FOUND on getOrThrow with no match', async () => {
-      const result = await db.getOrThrow('posts', {
+      const result = await db.posts.getOrThrow({
         where: { id: '00000000-0000-0000-0000-000000000000' },
       });
       expect(result.ok).toBe(false);
@@ -706,7 +706,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('returns error on update with no match', async () => {
-      const result = await db.update('posts', {
+      const result = await db.posts.update({
         where: { id: '00000000-0000-0000-0000-000000000000' },
         data: { views: 999 },
       });
@@ -714,7 +714,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('returns error on delete with no match', async () => {
-      const result = await db.delete('posts', {
+      const result = await db.posts.delete({
         where: { id: '00000000-0000-0000-0000-000000000000' },
       });
       expect(result.ok).toBe(false);
@@ -744,12 +744,12 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('count returns correct number', async () => {
-      const result = unwrap(await db.count('posts'));
+      const result = unwrap(await db.posts.count());
       expect(result).toBe(2);
     });
 
     it('count with where filter', async () => {
-      const result = unwrap(await db.count('posts', { where: { status: 'published' } }));
+      const result = unwrap(await db.posts.count({ where: { status: 'published' } }));
       expect(result).toBe(1);
     });
   });
@@ -765,7 +765,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('upsert creates a new row', async () => {
       const result = unwrap(
-        await db.upsert('featureFlags', {
+        await db.featureFlags.upsert({
           where: { name: 'new_feature_upsert' },
           create: {
             id: 'a6666666-6666-6666-6666-666666666666',
@@ -782,7 +782,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('upsert updates existing row', async () => {
       // Create first
-      await db.create('featureFlags', {
+      await db.featureFlags.create({
         data: {
           id: 'a6666666-6666-6666-6666-666666666677',
           name: 'existing_feature_upsert',
@@ -791,7 +791,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
       });
 
       const result = unwrap(
-        await db.upsert('featureFlags', {
+        await db.featureFlags.upsert({
           where: { name: 'existing_feature_upsert' },
           create: {
             id: 'a7777777-7777-7777-7777-777777777777',
@@ -819,7 +819,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('createMany inserts multiple rows', async () => {
       const result = unwrap(
-        await db.createMany('featureFlags', {
+        await db.featureFlags.createMany({
           data: [
             { id: 'aabbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', name: 'feature_a_batch', enabled: true },
             { id: 'aacccccc-cccc-cccc-cccc-cccccccccccc', name: 'feature_b_batch', enabled: false },
@@ -831,7 +831,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('get returns null when not found', async () => {
       const result = unwrap(
-        await db.get('posts', {
+        await db.posts.get({
           where: { id: '00000000-0000-0000-0000-000000000000' },
         }),
       );
@@ -840,7 +840,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
 
     it('getOrThrow returns the row when found', async () => {
       await seedTestData(db, ids, 'batch-find');
-      const result = unwrap(await db.getOrThrow('posts', { where: { id: ids.POST_ID } }));
+      const result = unwrap(await db.posts.getOrThrow({ where: { id: ids.POST_ID } }));
       expect(result).toBeDefined();
       expect(result.id).toBe(ids.POST_ID);
     });
@@ -859,7 +859,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('timestamps are returned as Date objects', async () => {
-      const org = unwrap(await db.getOrThrow('organizations', { where: { id: ids.ORG_ID } }));
+      const org = unwrap(await db.organizations.getOrThrow({ where: { id: ids.ORG_ID } }));
       expect(org.createdAt).toBeInstanceOf(Date);
       const now = new Date();
       const diff = now.getTime() - (org.createdAt as Date).getTime();
@@ -867,7 +867,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('post timestamps are Date objects', async () => {
-      const post = unwrap(await db.getOrThrow('posts', { where: { id: ids.POST_ID } }));
+      const post = unwrap(await db.posts.getOrThrow({ where: { id: ids.POST_ID } }));
       expect(post.createdAt).toBeInstanceOf(Date);
       expect(post.updatedAt).toBeInstanceOf(Date);
     });
@@ -886,7 +886,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('select narrows returned fields', async () => {
-      const result = unwrap(await db.list('posts', { select: { title: true, status: true } }));
+      const result = unwrap(await db.posts.list({ select: { title: true, status: true } }));
       expect(result.length).toBeGreaterThan(0);
       const first = result[0];
       expect(first.title).toBeDefined();
@@ -895,7 +895,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
     });
 
     it('select with not sensitive excludes email', async () => {
-      const result = unwrap(await db.list('users', { select: { not: 'sensitive' } }));
+      const result = unwrap(await db.users.list({ select: { not: 'sensitive' } }));
       expect(result.length).toBeGreaterThan(0);
       const first = result[0];
       expect(first.name).toBeDefined();
@@ -915,7 +915,7 @@ describe('PostgreSQL Integration Tests (PGlite)', () => {
       await truncateAll(pg);
       await seedTestData(db, ids, 'sql-escape');
       // Update views for predictable assertion
-      await db.update('posts', {
+      await db.posts.update({
         where: { id: ids.POST_ID },
         data: { views: 200 },
       });
