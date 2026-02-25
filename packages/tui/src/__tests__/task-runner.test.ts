@@ -229,6 +229,37 @@ describe('TaskRunner', () => {
     }
   });
 
+  it('CI mode does not leak error messages to stdout', async () => {
+    process.env.CI = 'true';
+    const output: string[] = [];
+    const originalWrite = process.stdout.write;
+    process.stdout.write = ((chunk: string) => {
+      output.push(chunk);
+      return true;
+    }) as typeof process.stdout.write;
+
+    try {
+      await TaskRunner({
+        tasks: [
+          {
+            label: 'Sensitive',
+            run: async () => {
+              throw new Error('database password: s3cret');
+            },
+          },
+        ],
+      }).run();
+
+      const joined = output.join('');
+      expect(joined).toContain('Sensitive');
+      expect(joined).toContain('failed');
+      expect(joined).not.toContain('s3cret');
+      expect(joined).not.toContain('database password');
+    } finally {
+      process.stdout.write = originalWrite;
+    }
+  });
+
   it('renderToString renders task results summary', async () => {
     process.env.CI = 'true';
 

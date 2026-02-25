@@ -1,30 +1,89 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isInteractive, NonInteractiveError } from '../interactive';
 import { prompt } from '../prompt';
 
-describe('isInteractive', () => {
-  const originalCI = process.env.CI;
+const CI_ENV_VARS = [
+  'CI',
+  'GITHUB_ACTIONS',
+  'GITLAB_CI',
+  'CIRCLECI',
+  'TRAVIS',
+  'JENKINS_URL',
+  'BUILD_NUMBER',
+  'BUILDKITE',
+  'CODEBUILD_BUILD_ID',
+  'TF_BUILD',
+] as const;
 
-  afterEach(() => {
-    if (originalCI !== undefined) {
-      process.env.CI = originalCI;
-    } else {
-      delete process.env.CI;
+describe('isInteractive', () => {
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const v of CI_ENV_VARS) {
+      saved[v] = process.env[v];
     }
   });
 
+  afterEach(() => {
+    for (const v of CI_ENV_VARS) {
+      if (saved[v] !== undefined) {
+        process.env[v] = saved[v];
+      } else {
+        delete process.env[v];
+      }
+    }
+  });
+
+  function clearAllCI(): void {
+    for (const v of CI_ENV_VARS) {
+      delete process.env[v];
+    }
+  }
+
   it('returns false when CI env var is set', () => {
+    clearAllCI();
     process.env.CI = 'true';
     expect(isInteractive()).toBe(false);
   });
 
   it('returns false when CI env var is "1"', () => {
+    clearAllCI();
     process.env.CI = '1';
     expect(isInteractive()).toBe(false);
   });
 
+  it('returns false when GITHUB_ACTIONS is set', () => {
+    clearAllCI();
+    process.env.GITHUB_ACTIONS = 'true';
+    expect(isInteractive()).toBe(false);
+  });
+
+  it('returns false when GITLAB_CI is set', () => {
+    clearAllCI();
+    process.env.GITLAB_CI = 'true';
+    expect(isInteractive()).toBe(false);
+  });
+
+  it('returns false when JENKINS_URL is set', () => {
+    clearAllCI();
+    process.env.JENKINS_URL = 'http://jenkins.local';
+    expect(isInteractive()).toBe(false);
+  });
+
+  it('returns false when BUILD_NUMBER is set', () => {
+    clearAllCI();
+    process.env.BUILD_NUMBER = '42';
+    expect(isInteractive()).toBe(false);
+  });
+
+  it('returns false when BUILDKITE is set', () => {
+    clearAllCI();
+    process.env.BUILDKITE = 'true';
+    expect(isInteractive()).toBe(false);
+  });
+
   it('returns false when stdin.isTTY is false (without CI env var)', () => {
-    delete process.env.CI;
+    clearAllCI();
     const originalStdinIsTTY = process.stdin.isTTY;
     const originalStdoutIsTTY = process.stdout.isTTY;
     try {

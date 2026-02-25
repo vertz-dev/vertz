@@ -17,6 +17,7 @@ export async function requestDeviceCode(config: AuthConfig): Promise<DeviceCodeR
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(body),
+    signal: AbortSignal.timeout(30_000),
   });
   if (!response.ok) {
     throw new Error(`Device code request failed: ${response.status}`);
@@ -60,6 +61,9 @@ export async function pollTokenUntilComplete(
         device_code: deviceCode.device_code,
         client_id: config.clientId,
       }),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
+        : AbortSignal.timeout(30_000),
     });
 
     if (response.ok) {

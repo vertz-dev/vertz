@@ -76,7 +76,7 @@ export function TaskRunner(config: TaskRunnerConfig): TaskRunnerHandle {
         const error = err instanceof Error ? err : new Error(String(err));
         state.value = { status: 'error', duration, error };
         results.push({ label: task.label, status: 'error', error, duration });
-        if (ci) write(`${symbols.error} ${task.label} — ${error.message}`);
+        if (ci) write(`${symbols.error} ${task.label} — failed`);
         failed = true;
       }
     }
