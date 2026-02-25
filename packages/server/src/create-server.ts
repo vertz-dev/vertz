@@ -2,7 +2,7 @@ import type { AppBuilder, AppConfig, EntityRouteEntry } from '@vertz/core';
 import { createServer as coreCreateServer } from '@vertz/core';
 import {
   createDatabaseBridgeAdapter,
-  type DatabaseInstance,
+  type DatabaseClient,
   type EntityDbAdapter,
   type ModelEntry,
 } from '@vertz/db';
@@ -11,20 +11,20 @@ import { generateEntityRoutes } from './entity/route-generator';
 import type { EntityDefinition } from './entity/types';
 
 // ---------------------------------------------------------------------------
-// DatabaseInstance detection
+// DatabaseClient detection
 // ---------------------------------------------------------------------------
 
 /**
- * Detects whether the provided db object is a DatabaseInstance (query builder)
+ * Detects whether the provided db object is a DatabaseClient (query builder)
  * rather than a plain EntityDbAdapter.
  *
- * A DatabaseInstance has `_models` and `_dialect` properties that an
- * EntityDbAdapter does not.
+ * A DatabaseClient has `_internals` with `models` and `dialect` properties
+ * that an EntityDbAdapter does not.
  */
-function isDatabaseInstance(
-  db: DatabaseInstance<Record<string, ModelEntry>> | EntityDbAdapter,
-): db is DatabaseInstance<Record<string, ModelEntry>> {
-  return db !== null && typeof db === 'object' && '_models' in db && '_dialect' in db;
+function isDatabaseClient(
+  db: DatabaseClient<Record<string, ModelEntry>> | EntityDbAdapter,
+): db is DatabaseClient<Record<string, ModelEntry>> {
+  return db !== null && typeof db === 'object' && '_internals' in db;
 }
 
 // ---------------------------------------------------------------------------
@@ -37,10 +37,10 @@ export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'enti
   /**
    * Database for entity CRUD operations.
    * Accepts either:
-   * - A DatabaseInstance from createDb() (recommended — auto-bridged per entity)
+   * - A DatabaseClient from createDb() (recommended — auto-bridged per entity)
    * - An EntityDbAdapter (deprecated — simple adapter with get/list/create/update/delete)
    */
-  db?: DatabaseInstance<Record<string, ModelEntry>> | EntityDbAdapter;
+  db?: DatabaseClient<Record<string, ModelEntry>> | EntityDbAdapter;
   /** @internal Factory to create a DB adapter for each entity. Prefer `db` instead. */
   _entityDbFactory?: (entityDef: EntityDefinition) => EntityDbAdapter;
 }
@@ -85,11 +85,11 @@ export function createServer(config: ServerConfig): AppBuilder {
     const { db } = config;
     let dbFactory: (entityDef: EntityDefinition) => EntityDbAdapter;
 
-    if (db && isDatabaseInstance(db)) {
-      // DatabaseInstance detected — create bridge adapters per entity
+    if (db && isDatabaseClient(db)) {
+      // DatabaseClient detected — create bridge adapters per entity
       dbFactory = (entityDef) =>
         createDatabaseBridgeAdapter(
-          db as DatabaseInstance<Record<string, ModelEntry>>,
+          db as DatabaseClient<Record<string, ModelEntry>>,
           entityDef.name,
         );
     } else if (db) {

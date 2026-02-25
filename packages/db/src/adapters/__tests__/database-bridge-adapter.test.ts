@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ok } from '@vertz/schema';
-import type { DatabaseInstance } from '../../client/database';
+import type { DatabaseClient, ModelDelegate } from '../../client/database';
 import { d } from '../../d';
 import { createDatabaseBridgeAdapter } from '../database-bridge-adapter';
 
@@ -17,34 +17,18 @@ const usersTable = d.table('users', {
 const models = { users: d.model(usersTable) };
 
 // ---------------------------------------------------------------------------
-// Mock DatabaseInstance
+// Mock DatabaseClient
 // ---------------------------------------------------------------------------
 
-function createMockDb(
-  overrides: Partial<DatabaseInstance<typeof models>> = {},
-): DatabaseInstance<typeof models> {
+function createMockDelegate(
+  overrides: Partial<ModelDelegate<(typeof models)['users']>> = {},
+): ModelDelegate<(typeof models)['users']> {
   return {
-    _models: models,
-    _dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
-    $tenantGraph: {
-      root: null,
-      directlyScoped: new Set(),
-      indirectlyScoped: new Set(),
-      shared: new Set(),
-    },
-    query: async () => ok({ rows: [], rowCount: 0 }),
-    close: async () => {},
-    isHealthy: async () => true,
     get: async () => ok(null),
     getRequired: async () => ok(null as never),
     getOrThrow: async () => ok(null as never),
     list: async () => ok([]),
     listAndCount: async () => ok({ data: [], total: 0 }),
-    findOne: async () => ok(null),
-    findOneRequired: async () => ok(null as never),
-    findOneOrThrow: async () => ok(null as never),
-    findMany: async () => ok([]),
-    findManyAndCount: async () => ok({ data: [], total: 0 }),
     create: async () => ok({} as never),
     createMany: async () => ok({ count: 0 }),
     createManyAndReturn: async () => ok([]),
@@ -55,8 +39,30 @@ function createMockDb(
     deleteMany: async () => ok({ count: 0 }),
     count: async () => ok(0),
     aggregate: async () => ok({} as never),
+    groupBy: async () => ok([] as never),
     ...overrides,
-  } as DatabaseInstance<typeof models>;
+  } as ModelDelegate<(typeof models)['users']>;
+}
+
+function createMockDb(
+  delegateOverrides: Partial<ModelDelegate<(typeof models)['users']>> = {},
+): DatabaseClient<typeof models> {
+  return {
+    users: createMockDelegate(delegateOverrides),
+    query: async () => ok({ rows: [], rowCount: 0 }),
+    close: async () => {},
+    isHealthy: async () => true,
+    _internals: {
+      models,
+      dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
+      tenantGraph: {
+        root: null,
+        directlyScoped: new Set(),
+        indirectlyScoped: new Set(),
+        shared: new Set(),
+      },
+    },
+  } as DatabaseClient<typeof models>;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,7 +70,7 @@ function createMockDb(
 // ---------------------------------------------------------------------------
 
 describe('createDatabaseBridgeAdapter', () => {
-  it('get() delegates to db.get and unwraps Result', async () => {
+  it('get() delegates to delegate.get and unwraps Result', async () => {
     const mockUser = { id: 'u1', name: 'Alice', email: 'alice@example.com' };
     const db = createMockDb({
       get: async () => ok(mockUser),
@@ -76,7 +82,7 @@ describe('createDatabaseBridgeAdapter', () => {
     expect(result).toEqual(mockUser);
   });
 
-  it('get() returns null when db.get returns ok(null)', async () => {
+  it('get() returns null when delegate.get returns ok(null)', async () => {
     const db = createMockDb({
       get: async () => ok(null),
     });
@@ -87,7 +93,7 @@ describe('createDatabaseBridgeAdapter', () => {
     expect(result).toBeNull();
   });
 
-  it('list() delegates to db.listAndCount and unwraps Result', async () => {
+  it('list() delegates to delegate.listAndCount and unwraps Result', async () => {
     const mockUsers = [
       { id: 'u1', name: 'Alice', email: 'alice@example.com' },
       { id: 'u2', name: 'Bob', email: 'bob@example.com' },
@@ -102,10 +108,10 @@ describe('createDatabaseBridgeAdapter', () => {
     expect(result).toEqual({ data: mockUsers, total: 2 });
   });
 
-  it('list() passes where and limit options to db.listAndCount', async () => {
+  it('list() passes where and limit options to delegate.listAndCount', async () => {
     let capturedOptions: unknown;
     const db = createMockDb({
-      listAndCount: async (_table: string, options?: unknown) => {
+      listAndCount: async (options?: unknown) => {
         capturedOptions = options;
         return ok({ data: [], total: 0 });
       },
@@ -119,13 +125,13 @@ describe('createDatabaseBridgeAdapter', () => {
     );
   });
 
-  it('create() delegates to db.create with { data } wrapper and unwraps Result', async () => {
+  it('create() delegates to delegate.create with { data } wrapper and unwraps Result', async () => {
     const inputData = { name: 'Charlie', email: 'charlie@example.com' };
     const createdRecord = { id: 'u3', ...inputData };
     let capturedOptions: unknown;
 
     const db = createMockDb({
-      create: async (_table: string, options?: unknown) => {
+      create: async (options?: unknown) => {
         capturedOptions = options;
         return ok(createdRecord);
       },
@@ -138,13 +144,13 @@ describe('createDatabaseBridgeAdapter', () => {
     expect(capturedOptions).toEqual({ data: inputData });
   });
 
-  it('update() delegates to db.update with { where: { id }, data } and unwraps Result', async () => {
+  it('update() delegates to delegate.update with { where: { id }, data } and unwraps Result', async () => {
     const updateData = { name: 'Alice Updated' };
     const updatedRecord = { id: 'u1', name: 'Alice Updated', email: 'alice@example.com' };
     let capturedOptions: unknown;
 
     const db = createMockDb({
-      update: async (_table: string, options?: unknown) => {
+      update: async (options?: unknown) => {
         capturedOptions = options;
         return ok(updatedRecord);
       },
@@ -157,12 +163,12 @@ describe('createDatabaseBridgeAdapter', () => {
     expect(capturedOptions).toEqual({ where: { id: 'u1' }, data: updateData });
   });
 
-  it('delete() delegates to db.delete with { where: { id } } and unwraps Result', async () => {
+  it('delete() delegates to delegate.delete with { where: { id } } and unwraps Result', async () => {
     const deletedRecord = { id: 'u1', name: 'Alice', email: 'alice@example.com' };
     let capturedOptions: unknown;
 
     const db = createMockDb({
-      delete: async (_table: string, options?: unknown) => {
+      delete: async (options?: unknown) => {
         capturedOptions = options;
         return ok(deletedRecord);
       },
@@ -175,7 +181,7 @@ describe('createDatabaseBridgeAdapter', () => {
     expect(capturedOptions).toEqual({ where: { id: 'u1' } });
   });
 
-  it('delete() returns null when db.delete returns an error', async () => {
+  it('delete() returns null when delegate.delete returns an error', async () => {
     const db = createMockDb({
       delete: async () => ({ ok: false, error: { code: 'NOT_FOUND', message: 'not found' } }),
     });

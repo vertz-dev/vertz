@@ -162,19 +162,11 @@ describe('createServer', () => {
     expect(listBody.data[0].name).toBe('Alice');
   });
 
-  it('accepts a DatabaseInstance via db and bridges it to EntityDbAdapter', async () => {
+  it('accepts a DatabaseClient via db and bridges it to EntityDbAdapter', async () => {
     const mockUser = { id: 'u1', name: 'Alice' };
 
-    // A mock DatabaseInstance — has _models, _dialect, and Result-returning methods
-    const mockDatabaseInstance = {
-      _models: { users: { table: usersTable } },
-      _dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
-      $tenantGraph: {
-        root: null,
-        directlyScoped: new Set(),
-        indirectlyScoped: new Set(),
-        shared: new Set(),
-      },
+    // A mock DatabaseClient — has _internals and model delegates with Result-returning methods
+    const mockDelegate = {
       get: async () => ok(mockUser),
       getRequired: async () => ok(mockUser),
       getOrThrow: async () => ok(mockUser),
@@ -183,14 +175,28 @@ describe('createServer', () => {
       create: async () => ok(mockUser),
       update: async () => ok(mockUser),
       delete: async () => ok(mockUser),
+    };
+
+    const mockDatabaseClient = {
+      users: mockDelegate,
       close: async () => {},
       isHealthy: async () => true,
       query: async () => ok({ rows: [], rowCount: 0 }),
+      _internals: {
+        models: { users: { table: usersTable } },
+        dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
+        tenantGraph: {
+          root: null,
+          directlyScoped: new Set(),
+          indirectlyScoped: new Set(),
+          shared: new Set(),
+        },
+      },
     };
 
     const app = createServer({
       basePath: '/',
-      db: mockDatabaseInstance,
+      db: mockDatabaseClient,
       entities: [
         {
           name: 'users',
@@ -210,7 +216,7 @@ describe('createServer', () => {
       ] as never[],
     });
 
-    // The bridge adapter should delegate to the DatabaseInstance's listAndCount
+    // The bridge adapter should delegate to the DatabaseClient's users.listAndCount
     const listResponse = await app.handler(new Request('http://localhost/api/users'));
     expect(listResponse.status).toBe(200);
     const listBody = await listResponse.json();
