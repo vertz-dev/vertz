@@ -45,14 +45,13 @@ export { useKeyboard } from './input/hooks';
 export type { KeyEvent } from './input/key-parser';
 export type { KeyMap } from './input/match';
 export { match } from './input/match';
-
+// Interactive detection
+export { isInteractive, NonInteractiveError } from './interactive';
 // Types
 export type { Color } from './jsx-runtime/index';
 export type { TaskGroup, TaskHandle, TaskRunner } from './legacy';
 // Legacy API (deprecated — will be removed in future version)
 export { createTaskRunner, Message, SelectList, Task, TaskList } from './legacy';
-// Interactive detection
-export { NonInteractiveError, isInteractive } from './interactive';
 // Prompt API
 export type {
   ConfirmPromptConfig,

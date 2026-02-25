@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NonInteractiveError, isInteractive } from '../interactive';
+import { isInteractive, NonInteractiveError } from '../interactive';
 import { prompt } from '../prompt';
 
 describe('isInteractive', () => {
