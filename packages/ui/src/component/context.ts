@@ -24,10 +24,38 @@ function asKey<T>(ctx: Context<T>): Context<unknown> {
 }
 
 /**
+ * Global context registry keyed by stable ID.
+ * Lives on globalThis so it survives bundle re-evaluation during HMR.
+ * When Bun re-evaluates a bundle, createContext() with the same ID returns
+ * the existing object — preserving object identity for ContextScope Map keys.
+ *
+ * @internal — only used by the HMR system; invisible to end users.
+ */
+const REGISTRY_KEY = '__VERTZ_CTX_REG__';
+const contextRegistry: Map<string, Context<unknown>> =
+  ((globalThis as Record<string, unknown>)[REGISTRY_KEY] as Map<string, Context<unknown>>) ??
+  (() => {
+    const m = new Map<string, Context<unknown>>();
+    (globalThis as Record<string, unknown>)[REGISTRY_KEY] = m;
+    return m;
+  })();
+
+/**
  * Create a context with an optional default value.
  * Returns an object with a `Provider` function.
+ *
+ * The optional `__stableId` parameter is injected by the compiler for HMR
+ * support. When provided, the context object is cached in a global registry
+ * so that bundle re-evaluation returns the same object — preserving identity
+ * for ContextScope Map lookups. Users never pass this parameter directly.
  */
-export function createContext<T>(defaultValue?: T): Context<T> {
+export function createContext<T>(defaultValue?: T, __stableId?: string): Context<T> {
+  // HMR: return existing context if the same ID was already registered
+  if (__stableId) {
+    const existing = contextRegistry.get(__stableId);
+    if (existing) return existing as Context<T>;
+  }
+
   const ctx: Context<T> = {
     Provider(value: T, fn: () => void): void {
       // Build a new scope that inherits all existing context values
@@ -48,6 +76,12 @@ export function createContext<T>(defaultValue?: T): Context<T> {
     _default: defaultValue,
     _stack: [],
   };
+
+  // Register for HMR stability
+  if (__stableId) {
+    contextRegistry.set(__stableId, ctx as Context<unknown>);
+  }
+
   return ctx;
 }
 

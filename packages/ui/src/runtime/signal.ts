@@ -20,6 +20,22 @@ function isSSR(): boolean {
   return typeof check === 'function' ? check() : false;
 }
 
+// ─── Signal Collection ────────────────────────────────────────────────────
+//
+// Stack-based collector for capturing signal references during component
+// factory execution. Used by Fast Refresh to snapshot/restore signal values
+// across HMR cycles. Mirrors the cleanupStack pattern in disposal.ts.
+
+const signalCollectorStack: Signal<unknown>[][] = [];
+
+export function startSignalCollection(): void {
+  signalCollectorStack.push([]);
+}
+
+export function stopSignalCollection(): Signal<unknown>[] {
+  return signalCollectorStack.pop() ?? [];
+}
+
 /** Global ID counter for subscriber deduplication. */
 let nextId = 0;
 
@@ -75,7 +91,12 @@ class SignalImpl<T> implements Signal<T> {
  * Create a reactive signal with an initial value.
  */
 export function signal<T>(initial: T): Signal<T> {
-  return new SignalImpl(initial);
+  const s = new SignalImpl(initial);
+  const collector = signalCollectorStack[signalCollectorStack.length - 1];
+  if (collector) {
+    collector.push(s as Signal<unknown>);
+  }
+  return s;
 }
 
 // ─── Computed ──────────────────────────────────────────────────────────────

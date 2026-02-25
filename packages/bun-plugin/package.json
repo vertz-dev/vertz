@@ -1,0 +1,50 @@
+{
+  "name": "@vertz/bun-plugin",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Vertz UI Bun plugin — compiler integration, CSS sidecar HMR, and Fast Refresh",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vertz-dev/vertz.git",
+    "directory": "packages/bun-plugin"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./fast-refresh-runtime": {
+      "import": "./dist/fast-refresh-runtime.js",
+      "types": "./dist/fast-refresh-runtime.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bunup",
+    "test": "echo 'No tests — browser runtime tested via exploration app'",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
+  },
+  "dependencies": {
+    "@ampproject/remapping": "^2.3.0",
+    "@vertz/ui-compiler": "workspace:*",
+    "magic-string": "^0.30.0",
+    "ts-morph": "^25.0.0"
+  },
+  "peerDependencies": {
+    "@vertz/ui": "workspace:*"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "bunup": "latest",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "private": true
+}

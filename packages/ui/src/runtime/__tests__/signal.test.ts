@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { batch } from '../scheduler';
-import { computed, domEffect, lifecycleEffect, signal } from '../signal';
+import {
+  computed,
+  domEffect,
+  lifecycleEffect,
+  signal,
+  startSignalCollection,
+  stopSignalCollection,
+} from '../signal';
 import { untrack } from '../tracking';
 
 describe('signal', () => {
@@ -442,6 +449,59 @@ describe('lifecycleEffect', () => {
     dispose();
     s.value = 2;
     expect(runs).toBe(1);
+  });
+});
+
+describe('signal collection', () => {
+  it('captures signals created between start and stop', () => {
+    startSignalCollection();
+    const a = signal(1);
+    const b = signal('hello');
+    const collected = stopSignalCollection();
+    expect(collected).toHaveLength(2);
+    expect(collected[0]).toBe(a);
+    expect(collected[1]).toBe(b);
+  });
+
+  it('returns empty array when no signals created', () => {
+    startSignalCollection();
+    const collected = stopSignalCollection();
+    expect(collected).toHaveLength(0);
+  });
+
+  it('does not capture signals when collection is inactive', () => {
+    const a = signal(1);
+    const b = signal(2);
+    // No startSignalCollection — these should not be captured anywhere
+    // Verify signals still work normally
+    expect(a.value).toBe(1);
+    expect(b.value).toBe(2);
+  });
+
+  it('handles nested collection scopes independently', () => {
+    startSignalCollection();
+    const outer1 = signal('outer1');
+
+    startSignalCollection();
+    const inner1 = signal('inner1');
+    const inner2 = signal('inner2');
+    const innerCollected = stopSignalCollection();
+
+    const outer2 = signal('outer2');
+    const outerCollected = stopSignalCollection();
+
+    expect(innerCollected).toHaveLength(2);
+    expect(innerCollected[0]).toBe(inner1);
+    expect(innerCollected[1]).toBe(inner2);
+
+    expect(outerCollected).toHaveLength(2);
+    expect(outerCollected[0]).toBe(outer1);
+    expect(outerCollected[1]).toBe(outer2);
+  });
+
+  it('returns empty array when stopped without starting', () => {
+    const collected = stopSignalCollection();
+    expect(collected).toHaveLength(0);
   });
 });
 
