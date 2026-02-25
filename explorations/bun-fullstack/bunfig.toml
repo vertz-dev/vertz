@@ -1,0 +1,10 @@
+# Vertz Bun dev server configuration.
+#
+# The plugin runs the Vertz compiler on .tsx files, applying:
+# - Hydration markers (data-v-id)
+# - Reactive transforms (let → signal, const → computed)
+# - JSX transforms (JSX → DOM helpers)
+# - CSS extraction → sidecar .css files for HMR
+
+[serve.static]
+plugins = ["./vertz-bun-plugin-hmr.ts"]
