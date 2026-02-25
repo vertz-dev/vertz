@@ -1,4 +1,4 @@
-import type { ModelDef, RelationDef, SchemaLike } from '@vertz/db';
+import type { ModelDef, RelationDef, SchemaLike, TableDef } from '@vertz/db';
 import type { EntityOperations } from './entity-operations';
 
 // ---------------------------------------------------------------------------
@@ -65,11 +65,76 @@ export interface EntityActionDef<TInput = unknown, TOutput = unknown, TResponse 
 // Relations config
 // ---------------------------------------------------------------------------
 
+/** Extract column keys from a RelationDef's target table. */
+type RelationColumnKeys<R> =
+  R extends RelationDef<infer TTarget>
+    ? TTarget extends TableDef<infer TCols>
+      ? Extract<keyof TCols, string>
+      : string
+    : string;
+
 export type EntityRelationsConfig<
   TRelations extends Record<string, RelationDef> = Record<string, RelationDef>,
 > = {
-  [K in keyof TRelations]?: true | false | Record<string, true>;
+  [K in keyof TRelations]?: true | false | { [F in RelationColumnKeys<TRelations[K]>]?: true };
 };
+
+// ---------------------------------------------------------------------------
+// Typed query options — SDK-facing types for VertzQL
+// ---------------------------------------------------------------------------
+
+/** Extract non-hidden column keys from a table (public fields). */
+export type PublicColumnKeys<TTable extends TableDef> =
+  TTable extends TableDef<infer TCols>
+    ? {
+        [K in keyof TCols & string]: TCols[K] extends { _meta: { hidden: true } } ? never : K;
+      }[keyof TCols & string]
+    : string;
+
+/**
+ * Typed `select` option — only public (non-hidden) columns allowed.
+ */
+export type TypedSelectOption<TTable extends TableDef> = {
+  [K in PublicColumnKeys<TTable>]?: true;
+};
+
+/**
+ * Typed `where` option — only public (non-hidden) columns allowed.
+ * Values are unknown because operators vary by column type.
+ */
+export type TypedWhereOption<TTable extends TableDef> = {
+  [K in PublicColumnKeys<TTable>]?: unknown;
+};
+
+/**
+ * Typed `include` option — constrained by entity relations config.
+ *
+ * If the entity config narrows a relation to specific fields, the include
+ * can request `true` (all allowed fields) or a subset of those fields.
+ */
+export type TypedIncludeOption<TRelationsConfig extends EntityRelationsConfig> = {
+  [K in keyof TRelationsConfig as TRelationsConfig[K] extends false
+    ? never
+    : K]?: TRelationsConfig[K] extends Record<string, true>
+    ? true | Partial<TRelationsConfig[K]>
+    : true;
+};
+
+/**
+ * Full typed query options for an entity.
+ * Used by SDK codegen to generate typed client methods.
+ */
+export interface TypedQueryOptions<
+  TTable extends TableDef = TableDef,
+  TRelationsConfig extends EntityRelationsConfig = EntityRelationsConfig,
+> {
+  where?: TypedWhereOption<TTable>;
+  orderBy?: { [K in PublicColumnKeys<TTable>]?: 'asc' | 'desc' };
+  limit?: number;
+  after?: string;
+  select?: TypedSelectOption<TTable>;
+  include?: TypedIncludeOption<TRelationsConfig>;
+}
 
 // ---------------------------------------------------------------------------
 // EntityConfig — what developers pass to entity()

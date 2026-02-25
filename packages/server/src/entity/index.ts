@@ -32,6 +32,11 @@ export type {
   EntityContext,
   EntityDefinition,
   EntityRelationsConfig,
+  PublicColumnKeys,
+  TypedIncludeOption,
+  TypedQueryOptions,
+  TypedSelectOption,
+  TypedWhereOption,
 } from './types';
 export type { ValidationResult, VertzQLOptions } from './vertzql-parser';
 export { parseVertzQL, validateVertzQL } from './vertzql-parser';
