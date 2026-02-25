@@ -22,6 +22,26 @@ describe('isInteractive', () => {
     process.env.CI = '1';
     expect(isInteractive()).toBe(false);
   });
+
+  it('returns false when stdin.isTTY is false (without CI env var)', () => {
+    delete process.env.CI;
+    const originalStdinIsTTY = process.stdin.isTTY;
+    const originalStdoutIsTTY = process.stdout.isTTY;
+    try {
+      Object.defineProperty(process.stdin, 'isTTY', { value: false, configurable: true });
+      Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+      expect(isInteractive()).toBe(false);
+    } finally {
+      Object.defineProperty(process.stdin, 'isTTY', {
+        value: originalStdinIsTTY,
+        configurable: true,
+      });
+      Object.defineProperty(process.stdout, 'isTTY', {
+        value: originalStdoutIsTTY,
+        configurable: true,
+      });
+    }
+  });
 });
 
 describe('prompt CI mode', () => {

@@ -1,13 +1,18 @@
+import { signal } from '@vertz/ui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AuthConfig, DeviceCodeResponse } from '../auth/index';
+import { tui } from '../app';
+import type { AuthConfig, AuthStatus, DeviceCodeResponse } from '../auth/index';
 import {
   AuthCancelledError,
   AuthDeniedError,
   AuthExpiredError,
   DeviceCodeAuth,
+  DeviceCodeDisplay,
   pollTokenUntilComplete,
   requestDeviceCode,
 } from '../auth/index';
+import { TestAdapter } from '../test/test-adapter';
+import { TestStdin } from '../test/test-stdin';
 
 function createMockFetcher(responses: Array<{ status: number; body: unknown }>) {
   let callIndex = 0;
@@ -60,6 +65,24 @@ describe('Auth error types', () => {
 });
 
 describe('requestDeviceCode', () => {
+  it('sends request without scope param when no scopes provided', async () => {
+    const fetcher = createMockFetcher([{ status: 200, body: MOCK_DEVICE_CODE_RESPONSE }]);
+
+    const config: AuthConfig = {
+      clientId: 'my-app',
+      deviceCodeUrl: 'https://auth.example.com/device/code',
+      tokenUrl: 'https://auth.example.com/token',
+      fetcher,
+    };
+
+    await requestDeviceCode(config);
+
+    const [, init] = fetcher.mock.calls[0];
+    const body = new URLSearchParams(init.body as string);
+    expect(body.get('client_id')).toBe('my-app');
+    expect(body.has('scope')).toBe(false);
+  });
+
   it('sends correct POST body and returns device code response', async () => {
     const fetcher = createMockFetcher([{ status: 200, body: MOCK_DEVICE_CODE_RESPONSE }]);
 
@@ -180,6 +203,51 @@ describe('pollTokenUntilComplete', () => {
     });
   });
 
+  it('throws generic Error with description on unknown error type', async () => {
+    const fetcher = createMockFetcher([
+      {
+        status: 400,
+        body: { error: 'server_error', error_description: 'something went wrong' },
+      },
+    ]);
+
+    const config: AuthConfig = {
+      clientId: 'my-app',
+      deviceCodeUrl: 'https://auth.example.com/device/code',
+      tokenUrl: 'https://auth.example.com/token',
+      fetcher,
+    };
+
+    await expect(
+      pollTokenUntilComplete(config, { ...MOCK_DEVICE_CODE_RESPONSE, interval: 0.01 }),
+    ).rejects.toThrow('Token request failed: server_error \u2014 something went wrong');
+  });
+
+  it('throws AuthExpiredError when signal is pre-aborted', async () => {
+    const fetcher = createMockFetcher([]);
+
+    const config: AuthConfig = {
+      clientId: 'my-app',
+      deviceCodeUrl: 'https://auth.example.com/device/code',
+      tokenUrl: 'https://auth.example.com/token',
+      fetcher,
+    };
+
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      pollTokenUntilComplete(
+        config,
+        { ...MOCK_DEVICE_CODE_RESPONSE, interval: 0.01 },
+        controller.signal,
+      ),
+    ).rejects.toThrow(AuthExpiredError);
+
+    // Should not have made any fetch calls since signal was already aborted
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it('handles slow_down by increasing interval', { timeout: 10_000 }, async () => {
     const fetcher = createMockFetcher([
       { status: 400, body: { error: 'slow_down' } },
@@ -269,5 +337,281 @@ describe('DeviceCodeAuth', () => {
     } finally {
       process.stdout.write = originalWrite;
     }
+  });
+
+  it('interactive mode mounts display, polls, and returns tokens on success', async () => {
+    const adapter = new TestAdapter(60, 20);
+    const testStdin = new TestStdin();
+    const fetcher = createMockFetcher([
+      { status: 200, body: MOCK_DEVICE_CODE_RESPONSE },
+      { status: 200, body: MOCK_TOKEN_RESPONSE },
+    ]);
+
+    const tokens = await DeviceCodeAuth({
+      clientId: 'test-app',
+      deviceCodeUrl: 'https://auth.example.com/device/code',
+      tokenUrl: 'https://auth.example.com/token',
+      fetcher,
+      _mountOptions: { adapter, testStdin },
+    });
+
+    expect(tokens.accessToken).toBe('test-access-token');
+    expect(tokens.refreshToken).toBe('test-refresh-token');
+    expect(tokens.expiresIn).toBe(3600);
+  });
+
+  it('interactive mode rejects with AuthDeniedError on access_denied', async () => {
+    const adapter = new TestAdapter(60, 20);
+    const testStdin = new TestStdin();
+    const fetcher = createMockFetcher([
+      { status: 200, body: MOCK_DEVICE_CODE_RESPONSE },
+      { status: 400, body: { error: 'access_denied' } },
+    ]);
+
+    await expect(
+      DeviceCodeAuth({
+        clientId: 'test-app',
+        deviceCodeUrl: 'https://auth.example.com/device/code',
+        tokenUrl: 'https://auth.example.com/token',
+        fetcher,
+        _mountOptions: { adapter, testStdin },
+      }),
+    ).rejects.toThrow(AuthDeniedError);
+  });
+
+  it('interactive mode rejects with AuthCancelledError when Escape is pressed', async () => {
+    // Use a fetcher that returns device code but never resolves the token poll
+    let resolveBlock: (() => void) | null = null;
+    const blockingPromise = new Promise<void>((resolve) => {
+      resolveBlock = resolve;
+    });
+
+    let callIndex = 0;
+    const fetcher = vi.fn(async () => {
+      callIndex++;
+      if (callIndex === 1) {
+        // Device code request
+        return new Response(JSON.stringify(MOCK_DEVICE_CODE_RESPONSE), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      // Token poll — block forever so we can cancel
+      await blockingPromise;
+      return new Response(JSON.stringify({ error: 'authorization_pending' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    const adapter = new TestAdapter(60, 20);
+    const testStdin = new TestStdin();
+
+    const authPromise = DeviceCodeAuth({
+      clientId: 'test-app',
+      deviceCodeUrl: 'https://auth.example.com/device/code',
+      tokenUrl: 'https://auth.example.com/token',
+      fetcher,
+      _mountOptions: { adapter, testStdin },
+    });
+
+    // Wait a tick for the device code request to complete and the display to mount
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Press Escape to cancel
+    testStdin.pressKey('escape');
+
+    await expect(authPromise).rejects.toThrow(AuthCancelledError);
+
+    // Unblock the fetcher so the test doesn't hang
+    resolveBlock?.();
+  });
+});
+
+describe('DeviceCodeDisplay', () => {
+  it('renders title, URL, code, and hint text', () => {
+    const adapter = new TestAdapter(60, 20);
+    const testStdin = new TestStdin();
+    const handle = tui.mount(
+      () =>
+        DeviceCodeDisplay({
+          title: 'Login',
+          userCode: signal('ABCD-1234'),
+          verificationUri: signal('https://example.com/verify'),
+          secondsRemaining: signal(120),
+          status: signal<AuthStatus>('awaiting-approval'),
+          onCancel: () => {},
+          onOpenBrowser: () => {},
+        }),
+      { adapter, testStdin },
+    );
+
+    const text = adapter.text();
+    expect(text).toContain('Login');
+    expect(text).toContain('https://example.com/verify');
+    expect(text).toContain('ABCD-1234');
+    expect(text).toContain('Press Enter to open browser');
+    expect(text).toContain('Press Esc to cancel');
+    handle.unmount();
+  });
+
+  it('shows awaiting-approval status with countdown', () => {
+    const adapter = new TestAdapter(60, 20);
+    const testStdin = new TestStdin();
+    const handle = tui.mount(
+      () =>
+        DeviceCodeDisplay({
+          userCode: signal('TEST-CODE'),
+          verificationUri: signal('https://example.com'),
+          secondsRemaining: signal(125),
+          status: signal<AuthStatus>('awaiting-approval'),
+        }),
+      { adapter, testStdin },
+    );
+
+    const text = adapter.text();
+    expect(text).toContain('Waiting for approval...');
+    expect(text).toContain('2m 5s');
+    handle.unmount();
+  });
+
+  it('shows seconds-only countdown when < 60 seconds', () => {
+    const adapter = new TestAdapter(60, 20);
+    const testStdin = new TestStdin();
+    const handle = tui.mount(
+      () =>
+        DeviceCodeDisplay({
+          userCode: signal('TEST-CODE'),
+          verificationUri: signal('https://example.com'),
+          secondsRemaining: signal(45),
+          status: signal<AuthStatus>('polling'),
+        }),
+      { adapter, testStdin },
+    );
+
+    const text = adapter.text();
+    expect(text).toContain('Waiting for approval...');
+    expect(text).toContain('(45s)');
+    // Should not show minutes format like "Xm Ys"
+    expect(text).not.toMatch(/\d+m \d+s/);
+    handle.unmount();
+  });
+
+  it('shows success status', () => {
+    const adapter = new TestAdapter(60, 20);
+    const testStdin = new TestStdin();
+    const handle = tui.mount(
+      () =>
+        DeviceCodeDisplay({
+          userCode: signal('TEST-CODE'),
+          verificationUri: signal('https://example.com'),
+          secondsRemaining: signal(0),
+          status: signal<AuthStatus>('success'),
+        }),
+      { adapter, testStdin },
+    );
+
+    const text = adapter.text();
+    expect(text).toContain('Authenticated!');
+    handle.unmount();
+  });
+
+  it('shows expired status', () => {
+    const adapter = new TestAdapter(60, 20);
+    const testStdin = new TestStdin();
+    const handle = tui.mount(
+      () =>
+        DeviceCodeDisplay({
+          userCode: signal('TEST-CODE'),
+          verificationUri: signal('https://example.com'),
+          secondsRemaining: signal(0),
+          status: signal<AuthStatus>('expired'),
+        }),
+      { adapter, testStdin },
+    );
+
+    const text = adapter.text();
+    expect(text).toContain('Code expired');
+    handle.unmount();
+  });
+
+  it('shows denied status', () => {
+    const adapter = new TestAdapter(60, 20);
+    const testStdin = new TestStdin();
+    const handle = tui.mount(
+      () =>
+        DeviceCodeDisplay({
+          userCode: signal('TEST-CODE'),
+          verificationUri: signal('https://example.com'),
+          secondsRemaining: signal(0),
+          status: signal<AuthStatus>('denied'),
+        }),
+      { adapter, testStdin },
+    );
+
+    const text = adapter.text();
+    expect(text).toContain('Authorization denied');
+    handle.unmount();
+  });
+
+  it('shows error status', () => {
+    const adapter = new TestAdapter(60, 20);
+    const testStdin = new TestStdin();
+    const handle = tui.mount(
+      () =>
+        DeviceCodeDisplay({
+          userCode: signal('TEST-CODE'),
+          verificationUri: signal('https://example.com'),
+          secondsRemaining: signal(0),
+          status: signal<AuthStatus>('error'),
+        }),
+      { adapter, testStdin },
+    );
+
+    const text = adapter.text();
+    expect(text).toContain('Authentication failed');
+    handle.unmount();
+  });
+
+  it('pressing Escape calls onCancel', () => {
+    const cancelFn = vi.fn();
+    const adapter = new TestAdapter(60, 20);
+    const testStdin = new TestStdin();
+    const handle = tui.mount(
+      () =>
+        DeviceCodeDisplay({
+          userCode: signal('TEST-CODE'),
+          verificationUri: signal('https://example.com'),
+          secondsRemaining: signal(120),
+          status: signal<AuthStatus>('awaiting-approval'),
+          onCancel: cancelFn,
+        }),
+      { adapter, testStdin },
+    );
+
+    testStdin.pressKey('escape');
+    expect(cancelFn).toHaveBeenCalledOnce();
+    handle.unmount();
+  });
+
+  it('pressing Enter calls onOpenBrowser', () => {
+    const browserFn = vi.fn();
+    const adapter = new TestAdapter(60, 20);
+    const testStdin = new TestStdin();
+    const handle = tui.mount(
+      () =>
+        DeviceCodeDisplay({
+          userCode: signal('TEST-CODE'),
+          verificationUri: signal('https://example.com'),
+          secondsRemaining: signal(120),
+          status: signal<AuthStatus>('awaiting-approval'),
+          onOpenBrowser: browserFn,
+        }),
+      { adapter, testStdin },
+    );
+
+    testStdin.pressKey('return');
+    expect(browserFn).toHaveBeenCalledOnce();
+    handle.unmount();
   });
 });

@@ -164,6 +164,71 @@ describe('TaskRunner', () => {
     handle.unmount();
   });
 
+  it('component shows running indicator during task execution', async () => {
+    let resolveTask: (() => void) | null = null;
+    const taskPromise = new Promise<void>((resolve) => {
+      resolveTask = resolve;
+    });
+
+    const adapter = new TestAdapter(60, 10);
+    const runner = TaskRunner({
+      tasks: [
+        {
+          label: 'Deploy',
+          run: () => taskPromise,
+        },
+      ],
+    });
+
+    const handle = tui.mount(() => runner.component(), { adapter });
+
+    // Start run (don't await — it will block until we resolve)
+    const runPromise = runner.run();
+
+    // Wait a tick for the state to update to 'running'
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    // While running, the component shows the label (running state renders empty string for indicator)
+    const text = adapter.text();
+    expect(text).toContain('Deploy');
+
+    // Resolve the task so it completes
+    resolveTask?.();
+    await runPromise;
+
+    handle.unmount();
+  });
+
+  it('CI mode logs skip message for tasks after failure', async () => {
+    process.env.CI = 'true';
+    const output: string[] = [];
+    const originalWrite = process.stdout.write;
+    process.stdout.write = ((chunk: string) => {
+      output.push(chunk);
+      return true;
+    }) as typeof process.stdout.write;
+
+    try {
+      await TaskRunner({
+        tasks: [
+          {
+            label: 'Fail',
+            run: async () => {
+              throw new Error('oops');
+            },
+          },
+          { label: 'Skipped Task', run: async () => 'nope' },
+        ],
+      }).run();
+
+      const joined = output.join('');
+      expect(joined).toContain('Skipped Task');
+      expect(joined).toContain('skipped');
+    } finally {
+      process.stdout.write = originalWrite;
+    }
+  });
+
   it('renderToString renders task results summary', async () => {
     process.env.CI = 'true';
 
