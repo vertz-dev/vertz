@@ -352,6 +352,7 @@
         "pixi.js": "^8.0.0",
       },
       "devDependencies": {
+        "@happy-dom/global-registrator": "^20.7.0",
         "@vertz/ui": "workspace:*",
         "bunup": "latest",
         "happy-dom": "^18.0.1",

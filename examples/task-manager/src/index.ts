@@ -7,7 +7,7 @@
  * during server rendering.
  */
 
-import { globalCss, mount } from '@vertz/ui';
+import { getInjectedCSS, globalCss, mount } from '@vertz/ui';
 import { App } from './app';
 import { taskManagerTheme } from './styles/theme';
 
@@ -59,11 +59,25 @@ const viewTransitionsCss = `
 }
 `;
 
+// Export global styles for SSR — included in every SSR response
+// so the page renders with correct typography, spacing, and colors
+// before JS loads. Without this, the SSR HTML lacks body/reset styles.
+export const styles = [globalStyles.css, viewTransitionsCss];
+
+// Export CSS collection for SSR.
+// The Vite SSR build bundles @vertz/ui into the server bundle, creating
+// a separate module instance from the one @vertz/ui-server depends on.
+// Exporting getInjectedCSS lets @vertz/ui-server collect CSS from the
+// same Set that component-level css() calls write to.
+export { getInjectedCSS };
+
 // ── Mount (client-only) ─────────────────────────────────────────
 // During SSR, the virtual entry imports this module to call App().
-// Guard mount() so it only runs in a real browser, not under the DOM shim.
+// Guard mount() so it only runs in a real browser, not under the DOM shim
+// or production SSR (where document doesn't exist at import time).
 // biome-ignore lint/suspicious/noExplicitAny: SSR global check
-const isSSR = typeof (globalThis as any).__SSR_URL__ !== 'undefined';
+const hasSSRUrl = typeof (globalThis as any).__SSR_URL__ !== 'undefined';
+const isSSR = hasSSRUrl || typeof document === 'undefined';
 if (!isSSR) {
   mount(App, '#app', {
     theme: taskManagerTheme,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SSRComment } from '../dom-shim/ssr-comment';
 import { SSRElement } from '../dom-shim/ssr-element';
 import { SSRDocumentFragment } from '../dom-shim/ssr-fragment';
 import { SSRTextNode } from '../dom-shim/ssr-text-node';
@@ -22,10 +23,11 @@ describe('createSSRAdapter', () => {
     expect(text.data).toBe('hello');
   });
 
-  it('createComment returns an SSRTextNode (comments invisible in SSR)', () => {
+  it('createComment returns an SSRComment that serializes to HTML comment', () => {
     const adapter = createSSRAdapter();
-    const comment = adapter.createComment('test');
-    expect(comment).toBeInstanceOf(SSRTextNode);
+    const comment = adapter.createComment('conditional');
+    expect(comment).toBeInstanceOf(SSRComment);
+    expect(comment.data).toBe('conditional');
   });
 
   it('createDocumentFragment returns an SSRDocumentFragment', () => {

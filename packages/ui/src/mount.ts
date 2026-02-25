@@ -12,8 +12,6 @@ export interface MountOptions {
   theme?: Theme;
   /** Global CSS strings to inject */
   styles?: string[];
-  /** Hydration mode: 'replace' (default), 'tolerant' (walk SSR DOM), or 'strict' (reserved) */
-  hydration?: 'replace' | 'tolerant' | 'strict';
   /** Callback after mount completes */
   onMount?: (root: HTMLElement) => void;
 }
@@ -31,9 +29,9 @@ export interface MountHandle {
 /**
  * Mount an app to a DOM element.
  *
- * For full-app SSR hydration, use `{ hydration: 'tolerant' }` to walk
- * existing SSR DOM and attach reactivity without clearing and re-rendering.
- * For island/per-component hydration, use `hydrate()` instead.
+ * Uses tolerant hydration automatically: if the root element has SSR content,
+ * it walks the existing DOM and attaches reactivity without re-creating nodes.
+ * If the root is empty (CSR), it renders from scratch.
  *
  * @param app - App function that returns an HTMLElement
  * @param selector - CSS selector string or HTMLElement
@@ -71,63 +69,46 @@ export function mount<AppFn extends () => HTMLElement>(
     }
   }
 
-  const mode = options?.hydration ?? 'replace';
-
-  if (mode === 'strict') {
-    throw new Error(
-      "mount(): hydration: 'strict' is reserved but not yet implemented. " +
-        "Use 'tolerant' for SSR hydration or 'replace' (default) for CSR.",
-    );
-  }
-
-  if (mode === 'tolerant') {
-    if (!root.firstChild) {
-      // Dev warning: tolerant mode on empty root is likely a mistake
+  // Tolerant hydration: if the root has SSR content, walk and adopt it
+  if (root.firstChild) {
+    const scope = pushScope();
+    try {
+      startHydration(root);
+      app();
+      endHydration();
+      popScope();
+      options?.onMount?.(root);
+      return {
+        unmount: () => {
+          runCleanups(scope);
+          root.textContent = '';
+        },
+        root,
+      };
+    } catch (e) {
+      // Bail out: hydration failed, fall back to full CSR
+      endHydration();
+      popScope();
+      runCleanups(scope);
       if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
-        console.warn(
-          '[mount] hydration: "tolerant" has no effect on an empty root ' +
-            '(no SSR content found). Using replace mode.',
-        );
+        console.warn('[mount] Hydration failed — re-rendering from scratch (no data loss):', e);
       }
-      // Fall through to replace mode
-    } else {
-      const scope = pushScope();
-      try {
-        startHydration(root);
-        app();
-        endHydration();
-        popScope();
-        options?.onMount?.(root);
-        return {
-          unmount: () => {
-            runCleanups(scope);
-            root.textContent = '';
-          },
-          root,
-        };
-      } catch (e) {
-        // Bail out: hydration failed, fall back to full CSR
-        endHydration();
-        popScope();
-        runCleanups(scope);
-        if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
-          console.warn('[mount] Hydration failed — re-rendering from scratch (no data loss):', e);
-        }
-        // Fall through to replace mode
-      }
+      // Fall through to CSR render
     }
   }
 
-  // Replace mode (default, or fallback from failed tolerant)
+  // CSR render (empty root, or fallback from failed hydration)
+  const scope = pushScope();
   root.textContent = '';
   const appElement = app();
   root.appendChild(appElement);
+  popScope();
 
-  // Call onMount callback
   options?.onMount?.(root);
 
   return {
     unmount: () => {
+      runCleanups(scope);
       root.textContent = '';
     },
     root,

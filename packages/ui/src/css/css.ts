@@ -61,7 +61,7 @@ const injectedCSS = new Set<string>();
  * We bypass dedup when __SSR_URL__ is set (SSR context).
  */
 export function injectCSS(cssText: string): void {
-  if (!cssText || typeof document === 'undefined') return;
+  if (!cssText) return;
 
   const isSSR = typeof globalThis.__SSR_URL__ === 'string';
 
@@ -71,6 +71,11 @@ export function injectCSS(cssText: string): void {
   // request by installDomShim(), but the Set persists across requests.
   if (!isSSR && injectedCSS.has(cssText)) return;
   injectedCSS.add(cssText);
+
+  // Skip DOM injection when document is unavailable (e.g. module-level
+  // css() calls during SSR import, before the DOM shim is installed).
+  // The CSS is still tracked in injectedCSS for getInjectedCSS().
+  if (typeof document === 'undefined') return;
 
   const style = document.createElement('style');
   style.setAttribute('data-vertz-css', '');

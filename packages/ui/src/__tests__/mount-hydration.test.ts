@@ -42,7 +42,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    const handle = mount(App, root, { hydration: 'tolerant' });
+    const handle = mount(App, root);
 
     // Content preserved (no flash)
     expect(root.innerHTML).toContain('Hello');
@@ -68,7 +68,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    const handle = mount(App, root, { hydration: 'tolerant' });
+    const handle = mount(App, root);
 
     expect(root.innerHTML).toContain('text');
     expect(root.querySelector('p')).not.toBeNull();
@@ -95,7 +95,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    mount(App, root, { hydration: 'tolerant' });
+    mount(App, root);
 
     const button = root.querySelector('button')!;
     button.click();
@@ -116,33 +116,27 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    mount(App, root, { hydration: 'tolerant' });
+    mount(App, root);
     expect(root.textContent).toContain('Count: 0');
 
     count.value = 42;
     expect(root.textContent).toContain('Count: 42');
   });
 
-  it('warns and falls back to replace on empty root', () => {
-    // Root has no SSR content
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
+  it('renders from scratch on empty root (CSR)', () => {
+    // Root has no SSR content — falls through to CSR render
     const App = () => {
       const el = document.createElement('div');
       el.textContent = 'fresh';
       return el;
     };
 
-    mount(App, root, { hydration: 'tolerant' });
+    mount(App, root);
 
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('no SSR content found'));
-    // Falls back to replace mode, so fresh content is rendered
     expect(root.textContent).toBe('fresh');
-
-    warnSpy.mockRestore();
   });
 
-  it('bails out to replace mode on hydration error', () => {
+  it('bails out to CSR render on hydration error', () => {
     root.innerHTML = '<div>SSR content</div>';
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -153,19 +147,19 @@ describe('mount() — tolerant hydration', () => {
         // Throw on first call (hydration attempt)
         throw new Error('hydration broke');
       }
-      // Second call (replace fallback) succeeds
+      // Second call (CSR fallback) succeeds
       const el = document.createElement('div');
       el.textContent = 'fallback';
       return el;
     };
 
-    mount(App, root, { hydration: 'tolerant' });
+    mount(App, root);
 
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('Hydration failed'),
       expect.any(Error),
     );
-    // Replace mode rendered successfully
+    // CSR render succeeded
     expect(root.textContent).toBe('fallback');
     warnSpy.mockRestore();
   });
@@ -194,7 +188,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    mount(App, root, { hydration: 'tolerant' });
+    mount(App, root);
 
     // The effect from the failed hydration ran once during setup
     const runCountAfterMount = effectRunCount;
@@ -206,43 +200,7 @@ describe('mount() — tolerant hydration', () => {
     vi.restoreAllMocks();
   });
 
-  it('default mode clears and renders (existing behavior unchanged)', () => {
-    root.innerHTML = '<span>old content</span>';
-    const App = () => {
-      const el = document.createElement('div');
-      el.textContent = 'new';
-      return el;
-    };
-
-    mount(App, root);
-
-    expect(root.innerHTML).not.toContain('old content');
-    expect(root.textContent).toBe('new');
-  });
-
-  it('explicit replace mode same as default', () => {
-    root.innerHTML = '<span>old</span>';
-    const App = () => {
-      const el = document.createElement('div');
-      el.textContent = 'new';
-      return el;
-    };
-
-    mount(App, root, { hydration: 'replace' });
-
-    expect(root.innerHTML).not.toContain('old');
-    expect(root.textContent).toBe('new');
-  });
-
-  it('strict mode throws an explicit error (reserved, not implemented)', () => {
-    const App = () => document.createElement('div');
-
-    expect(() => {
-      mount(App, root, { hydration: 'strict' });
-    }).toThrow(/not yet implemented/);
-  });
-
-  it('calls onMount after tolerant hydration', () => {
+  it('calls onMount after hydration', () => {
     root.innerHTML = '<div>content</div>';
     const onMount = vi.fn();
 
@@ -254,9 +212,50 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    mount(App, root, { hydration: 'tolerant', onMount });
+    mount(App, root, { onMount });
 
     expect(onMount).toHaveBeenCalledTimes(1);
     expect(onMount).toHaveBeenCalledWith(root);
+  });
+
+  it('SSR nodes are adopted (same DOM references)', () => {
+    root.innerHTML = '<div><h1>Hello</h1><button>Click</button></div>';
+
+    const ssrDiv = root.firstChild as HTMLElement;
+    const ssrH1 = ssrDiv.querySelector('h1')!;
+    const ssrButton = ssrDiv.querySelector('button')!;
+
+    let clicked = false;
+    const App = () => {
+      const el = __element('div');
+      __enterChildren(el);
+      const h1 = __element('h1');
+      __enterChildren(h1);
+      __append(h1, __staticText('Hello'));
+      __exitChildren();
+      __append(el, h1);
+      const btn = __element('button');
+      __on(btn, 'click', () => {
+        clicked = true;
+      });
+      __enterChildren(btn);
+      __append(btn, __staticText('Click'));
+      __exitChildren();
+      __append(el, btn);
+      __exitChildren();
+      return el;
+    };
+
+    mount(App, root);
+
+    // SSR nodes were adopted — same DOM references
+    const currentDiv = root.firstChild as HTMLElement;
+    expect(currentDiv).toBe(ssrDiv);
+    expect(currentDiv.querySelector('h1')).toBe(ssrH1);
+    expect(currentDiv.querySelector('button')).toBe(ssrButton);
+
+    // Event handlers are attached to adopted nodes
+    ssrButton.click();
+    expect(clicked).toBe(true);
   });
 });

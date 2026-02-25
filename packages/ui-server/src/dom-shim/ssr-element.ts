@@ -1,4 +1,5 @@
-import type { VNode } from '../types';
+import { rawHtml, type VNode } from '../types';
+import { SSRComment } from './ssr-comment';
 import { SSRDocumentFragment } from './ssr-fragment';
 import { SSRNode } from './ssr-node';
 import { SSRTextNode } from './ssr-text-node';
@@ -42,7 +43,7 @@ function createStyleProxy(element: SSRElement): { display: string; [key: string]
 export class SSRElement extends SSRNode {
   tag: string;
   attrs: Record<string, string> = {};
-  children: (SSRElement | string)[] = [];
+  children: (SSRElement | SSRComment | string)[] = [];
   _classList: Set<string> = new Set();
   _textContent: string | null = null;
   _innerHTML: string | null = null;
@@ -73,15 +74,21 @@ export class SSRElement extends SSRNode {
     }
   }
 
-  appendChild(child: SSRElement | SSRTextNode | SSRDocumentFragment): void {
-    if (child instanceof SSRTextNode) {
+  appendChild(child: SSRElement | SSRTextNode | SSRComment | SSRDocumentFragment): void {
+    if (child instanceof SSRComment) {
+      this.children.push(child);
+      this.childNodes.push(child);
+      child.parentNode = this;
+    } else if (child instanceof SSRTextNode) {
       this.children.push(child.text);
       this.childNodes.push(child);
       child.parentNode = this;
     } else if (child instanceof SSRDocumentFragment) {
       // Flatten fragment children
       for (const fragmentChild of child.childNodes) {
-        if (fragmentChild instanceof SSRTextNode) {
+        if (fragmentChild instanceof SSRComment) {
+          this.children.push(fragmentChild);
+        } else if (fragmentChild instanceof SSRTextNode) {
           this.children.push(fragmentChild.text);
         } else if (fragmentChild instanceof SSRElement) {
           this.children.push(fragmentChild);
@@ -103,9 +110,10 @@ export class SSRElement extends SSRNode {
     const result = super.insertBefore(newNode, referenceNode);
 
     if (newNode instanceof SSRDocumentFragment) {
-      const fragmentChildren: (SSRElement | string)[] = [];
+      const fragmentChildren: (SSRElement | SSRComment | string)[] = [];
       for (const fc of newNode.childNodes) {
-        if (fc instanceof SSRTextNode) fragmentChildren.push(fc.text);
+        if (fc instanceof SSRComment) fragmentChildren.push(fc);
+        else if (fc instanceof SSRTextNode) fragmentChildren.push(fc.text);
         else if (fc instanceof SSRElement) fragmentChildren.push(fc);
       }
       if (!referenceNode || refIdx === -1) {
@@ -114,12 +122,14 @@ export class SSRElement extends SSRNode {
         this.children.splice(refIdx, 0, ...fragmentChildren);
       }
     } else {
-      const child =
-        newNode instanceof SSRTextNode
-          ? newNode.text
-          : newNode instanceof SSRElement
-            ? newNode
-            : null;
+      const child: SSRElement | SSRComment | string | null =
+        newNode instanceof SSRComment
+          ? newNode
+          : newNode instanceof SSRTextNode
+            ? newNode.text
+            : newNode instanceof SSRElement
+              ? newNode
+              : null;
       if (child != null) {
         if (!referenceNode || refIdx === -1) {
           this.children.push(child);
@@ -137,12 +147,14 @@ export class SSRElement extends SSRNode {
     const oldIdx = this._findChildIndex(oldNode);
     const result = super.replaceChild(newNode, oldNode);
     if (oldIdx !== -1) {
-      const newChild =
-        newNode instanceof SSRTextNode
-          ? newNode.text
-          : newNode instanceof SSRElement
-            ? newNode
-            : null;
+      const newChild: SSRElement | SSRComment | string | null =
+        newNode instanceof SSRComment
+          ? newNode
+          : newNode instanceof SSRTextNode
+            ? newNode.text
+            : newNode instanceof SSRElement
+              ? newNode
+              : null;
       if (newChild != null) {
         this.children[oldIdx] = newChild;
       } else {
@@ -243,6 +255,7 @@ export class SSRElement extends SSRNode {
       attrs: { ...this.attrs },
       children: this.children.map((child) => {
         if (typeof child === 'string') return child;
+        if (child instanceof SSRComment) return rawHtml(`<!--${child.text}-->`);
         if (typeof child.toVNode === 'function') return child.toVNode();
         // Fallback: stringify non-SSRElement children (e.g. plain objects)
         return String(child);

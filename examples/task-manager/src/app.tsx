@@ -2,15 +2,29 @@
  * App shell — root component with sidebar navigation and theme switching.
  *
  * Demonstrates:
- * - JSX for layout composition
  * - ThemeProvider for theme context (CSS variable scoping)
  * - createContext / useContext for app-wide settings
  * - RouterContext + RouterView for declarative route rendering
- * - ThemeProvider for CSS custom property scoping
  * - Full composition of all @vertz/ui features
+ *
+ * The shell structure uses __element/__enterChildren/__exitChildren directly
+ * (the same API the compiler generates for JSX) to ensure elements are created
+ * in DOM tree order. This is required for hydration: the cursor-based walker
+ * visits nodes top-down, so parent elements must be claimed before children.
+ * JSX evaluation is bottom-up (children first), which breaks cursor tracking.
  */
 
-import { css, RouterContext, RouterView, ThemeProvider } from '@vertz/ui';
+import {
+  __append,
+  __element,
+  __enterChildren,
+  __exitChildren,
+  __staticText,
+  css,
+  RouterContext,
+  RouterView,
+  ThemeProvider,
+} from '@vertz/ui';
 import { createSettingsValue, SettingsContext } from './lib/settings-context';
 import { appRouter, Link } from './router';
 import { layoutStyles } from './styles/components';
@@ -31,63 +45,104 @@ const navStyles = css({
 export function App() {
   const settings = createSettingsValue();
 
-  const container = <div data-testid="app-root" />;
+  // Build the shell top-down so hydration cursor claims nodes in DOM order.
+  // container > ThemeProvider > shell > [nav, main > RouterView]
+  const container = __element('div', { 'data-testid': 'app-root' });
+  __enterChildren(container);
 
-  // We wrap the render in the SettingsContext.Provider scope
   SettingsContext.Provider(settings, () => {
     RouterContext.Provider(appRouter, () => {
-      // RouterView declaratively renders the matched route's component
-      const routerView = RouterView({
-        router: appRouter,
-        fallback: () => <div data-testid="not-found">Page not found</div>,
-      });
-
-      const main = (
-        <main class={layoutStyles.main} data-testid="main-content">
-          {routerView}
-        </main>
-      );
-
-      // Shell layout: sidebar + main, composed with JSX
-      const shell = (
-        <div class={layoutStyles.shell}>
-          <nav class={layoutStyles.sidebar} aria-label="Main navigation">
-            <div class={navStyles.navTitle}>Task Manager</div>
-            <div class={navStyles.navList}>
-              <Link
-                href="/"
-                children="All Tasks"
-                activeClass="font-bold"
-                className={navStyles.navItem}
-              />
-              <Link
-                href="/tasks/new"
-                children="Create Task"
-                activeClass="font-bold"
-                className={navStyles.navItem}
-              />
-              <Link
-                href="/settings"
-                children="Settings"
-                activeClass="font-bold"
-                className={navStyles.navItem}
-              />
-            </div>
-          </nav>
-          {main}
-        </div>
-      );
-
-      // Wrap in ThemeProvider with reactive theme.
-      // Note: ThemeProvider will be rewritten as compiled JSX in Issue E (#670).
-      // Until then, we pass the initial theme and let ThemeProvider handle it.
+      // ThemeProvider claims div[data-theme] — must be first child of container
       const themeWrapper = ThemeProvider({
         theme: settings.theme.peek(),
-        children: [shell],
-      }) as HTMLElement;
-      container.appendChild(themeWrapper);
+        children: [], // children built manually below
+      });
+      __append(container, themeWrapper);
+
+      __enterChildren(themeWrapper);
+
+      // Shell layout div
+      const shell = __element('div', { class: layoutStyles.shell });
+      __append(themeWrapper, shell);
+      __enterChildren(shell);
+
+      // Sidebar nav (first child of shell)
+      const nav = __element('nav', {
+        class: layoutStyles.sidebar,
+        'aria-label': 'Main navigation',
+      });
+      __append(shell, nav);
+      __enterChildren(nav);
+
+      // Nav title
+      const navTitle = __element('div', { class: navStyles.navTitle });
+      __enterChildren(navTitle);
+      __append(navTitle, __staticText('Task Manager'));
+      __exitChildren();
+      __append(nav, navTitle);
+
+      // Nav list with links
+      const navList = __element('div', { class: navStyles.navList });
+      __enterChildren(navList);
+      __append(
+        navList,
+        Link({
+          href: '/',
+          children: 'All Tasks',
+          activeClass: 'font-bold',
+          className: navStyles.navItem,
+        }),
+      );
+      __append(
+        navList,
+        Link({
+          href: '/tasks/new',
+          children: 'Create Task',
+          activeClass: 'font-bold',
+          className: navStyles.navItem,
+        }),
+      );
+      __append(
+        navList,
+        Link({
+          href: '/settings',
+          children: 'Settings',
+          activeClass: 'font-bold',
+          className: navStyles.navItem,
+        }),
+      );
+      __exitChildren(); // navList
+      __append(nav, navList);
+
+      __exitChildren(); // nav
+
+      // Main content area (second child of shell)
+      const main = __element('main', {
+        class: layoutStyles.main,
+        'data-testid': 'main-content',
+      });
+      __append(shell, main);
+      __enterChildren(main);
+
+      // RouterView claims its container div inside main
+      const routerView = RouterView({
+        router: appRouter,
+        fallback: () => {
+          const fb = __element('div', { 'data-testid': 'not-found' });
+          __enterChildren(fb);
+          __append(fb, __staticText('Page not found'));
+          __exitChildren();
+          return fb;
+        },
+      });
+      __append(main, routerView);
+
+      __exitChildren(); // main
+      __exitChildren(); // shell
+      __exitChildren(); // themeWrapper
     });
   });
 
-  return container as HTMLElement;
+  __exitChildren(); // container
+  return container;
 }

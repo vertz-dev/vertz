@@ -126,18 +126,20 @@ describe('mount()', () => {
     expect(root.textContent).toBe('');
   });
 
-  // Test 9: mount clears existing content (replace mode)
-  test('mount clears existing content (replace mode)', () => {
-    // Pre-populate root with existing content
-    root.innerHTML = '<span>old content</span>';
-    expect(root.children.length).toBe(1);
+  // Test 9: mount renders fresh content on empty root (CSR)
+  test('mount renders fresh content on empty root', () => {
+    // Empty root — no SSR content to hydrate, direct CSR render
+    expect(root.children.length).toBe(0);
 
-    const app = () => document.createElement('div');
+    const app = () => {
+      const el = document.createElement('div');
+      el.textContent = 'fresh';
+      return el;
+    };
     mount(app, root);
 
-    // Root should be cleared and new content added
     expect(root.children.length).toBe(1);
-    expect(root.innerHTML).not.toContain('old content');
+    expect(root.textContent).toBe('fresh');
   });
 
   // Test 10: mount calls onMount callback after mounting

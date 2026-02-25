@@ -1,3 +1,4 @@
+import { isNavPrefetchActive } from '../router/server-nav';
 import { computed, lifecycleEffect, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal, Unwrapped } from '../runtime/signal-types';
 import { setReadValueCallback, untrack } from '../runtime/tracking';
@@ -73,6 +74,22 @@ const inflight = new Map<string, Promise<unknown>>();
 export function __inflightSize(): number {
   return inflight.size;
 }
+
+/**
+ * Clear the default query cache.
+ * Called by SSR renders to ensure fresh query discovery on each request.
+ * Without this, cached module state causes queries to skip registration
+ * on subsequent SSR renders (they find stale cache hits from the first render).
+ */
+function clearDefaultQueryCache(): void {
+  defaultCache.clear();
+  inflight.clear();
+}
+
+// Install global hook so ui-server can clear the query cache per-request
+// without importing @vertz/ui directly (avoids circular deps).
+// biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+(globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__ = clearDefaultQueryCache;
 
 /**
  * Create a reactive data-fetching query.
@@ -188,6 +205,7 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
   // If the server streamed data for this query, use it instead of fetching.
   let ssrHydrationCleanup: (() => void) | null = null;
   let ssrHydrated = false;
+  let navPrefetchDeferred = false;
 
   if (!isSSR() && enabled && initialData === undefined) {
     // Derive the cache key for hydration matching.
@@ -201,6 +219,43 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
       cache.set(hydrationKey, result as T);
       ssrHydrated = true;
     });
+
+    // If SSR hydration didn't find data in the buffer but a nav prefetch is
+    // active, defer the client-side fetch. Wait for the SSE stream to complete
+    // before falling back to client fetch. This prevents double-fetching.
+    //
+    // But first check the query cache — data from a previous visit may still
+    // be available. If so, serve it immediately (no loading flash).
+    if (!ssrHydrated && ssrHydrationCleanup !== null && isNavPrefetchActive()) {
+      if (customKey) {
+        const cached = cache.get(customKey);
+        if (cached !== undefined) {
+          data.value = cached;
+          loading.value = false;
+          ssrHydrated = true; // Prevents the effect from re-fetching
+        }
+      }
+    }
+
+    if (!ssrHydrated && ssrHydrationCleanup !== null && isNavPrefetchActive()) {
+      navPrefetchDeferred = true;
+      const doneHandler = () => {
+        document.removeEventListener('vertz:nav-prefetch-done', doneHandler);
+        // If still no data after prefetch completed, trigger client-side fetch
+        if (data.peek() === undefined) {
+          refetchTrigger.value = refetchTrigger.peek() + 1;
+        }
+      };
+      document.addEventListener('vertz:nav-prefetch-done', doneHandler);
+
+      // Chain cleanup: both the SSR hydration listener AND the done listener
+      // must be removed on dispose/abort.
+      const prevCleanup = ssrHydrationCleanup;
+      ssrHydrationCleanup = () => {
+        prevCleanup?.();
+        document.removeEventListener('vertz:nav-prefetch-done', doneHandler);
+      };
+    }
   }
 
   // Track the latest fetch id to ignore stale responses.
@@ -296,8 +351,27 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
       // Read the refetch trigger so this effect re-runs on manual refetch().
       refetchTrigger.value;
 
-      // Skip initial fetch if SSR hydration already provided data
+      // Skip initial fetch if SSR hydration already provided data.
       if (isFirst && ssrHydrated) {
+        isFirst = false;
+        return;
+      }
+
+      // Nav prefetch active: check cache first (data from a previous visit
+      // may still be available), then defer to SSE stream if no cache hit.
+      if (isFirst && navPrefetchDeferred) {
+        if (customKey) {
+          const cached = untrack(() => cache.get(customKey));
+          if (cached !== undefined) {
+            untrack(() => {
+              data.value = cached;
+              loading.value = false;
+            });
+            isFirst = false;
+            return;
+          }
+        }
+        // No cache hit — defer to the SSE stream / doneHandler fallback.
         isFirst = false;
         return;
       }

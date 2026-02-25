@@ -1,21 +1,32 @@
-// Temporary worker entry point
-// Will be replaced by @vertz/cloudflare adapter (see issue #381)
-// For now, serves a simple status page
+/**
+ * Cloudflare Worker entry point for the Task Manager SSR app.
+ *
+ * Uses createSSRHandler() from @vertz/ui-server to handle SSR HTML
+ * and nav pre-fetch SSE requests. Static files are served by
+ * Cloudflare's [site] configuration in wrangler.toml.
+ */
+
+import { createSSRHandler } from '@vertz/ui-server';
+import * as ssrModule from './index';
+
+// Template will be embedded during build or served from KV.
+// For now, a minimal template that matches the production build output.
+const template = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Manager — @vertz/ui demo</title>
+</head>
+<body>
+<div id="app"><!--ssr-outlet--></div>
+</body>
+</html>`;
+
+const handler = createSSRHandler({ module: ssrModule, template });
 
 export default {
   async fetch(request: Request): Promise<Response> {
-    const url = new URL(request.url)
-    
-    return new Response(`
-      <!DOCTYPE html>
-      <html>
-        <head><title>Vertz Task Manager</title></head>
-        <body>
-          <h1>Vertz Task Manager</h1>
-          <p>SSR coming soon via @vertz/cloudflare adapter</p>
-          <p>Path: ${url.pathname}</p>
-        </body>
-      </html>
-    `, { headers: { 'content-type': 'text/html' } })
-  }
-}
+    return handler(request);
+  },
+};
