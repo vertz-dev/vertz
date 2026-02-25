@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "build": "bunup",
-    "test": "bun test",
+    "test": "echo 'No tests — browser runtime tested via exploration app'",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {
