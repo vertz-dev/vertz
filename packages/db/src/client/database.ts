@@ -273,267 +273,133 @@ type TypedCountOptions<TEntry extends ModelEntry> = {
 };
 
 // ---------------------------------------------------------------------------
-// Database instance interface — unified type (resolves follow-up #8)
+// Model delegate — the object you get from db.users, db.posts, etc.
+// Carries all CRUD methods typed for a specific model entry.
 // ---------------------------------------------------------------------------
 
-export interface DatabaseInstance<TModels extends Record<string, ModelEntry>> {
-  /** The model registry for type-safe access. */
-  readonly _models: TModels;
-  /** The SQL dialect used by this database instance. */
-  readonly _dialect: Dialect;
-  /** The computed tenant scoping graph. */
-  readonly $tenantGraph: TenantGraph;
-
-  /**
-   * Execute a raw SQL query via the sql tagged template.
-   */
-  query<T = Record<string, unknown>>(
-    fragment: SqlFragment,
-  ): Promise<Result<QueryResult<T>, ReadError>>;
-
-  /**
-   * Close all pool connections.
-   */
-  close(): Promise<void>;
-
-  /**
-   * Check if the database connection is healthy.
-   */
-  isHealthy(): Promise<boolean>;
-
-  // -------------------------------------------------------------------------
-  // Query methods (DB-010)
-  // -------------------------------------------------------------------------
-
-  /**
-   * Get a single row or null.
-   * Returns ok(null) when no record is found - absence is not an error.
-   */
-  get<TName extends keyof TModels & string, TOptions extends TypedGetOptions<TModels[TName]>>(
-    table: TName,
+export interface ModelDelegate<TEntry extends ModelEntry> {
+  /** Get a single row or null. */
+  get<TOptions extends TypedGetOptions<TEntry>>(
     options?: TOptions,
   ): Promise<
-    Result<
-      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>> | null,
-      ReadError
-    >
+    Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>> | null, ReadError>
   >;
 
-  /**
-   * Get a single row or return NotFoundError.
-   * Use when absence of a record is an error condition.
-   */
-  getRequired<
-    TName extends keyof TModels & string,
-    TOptions extends TypedGetOptions<TModels[TName]>,
-  >(
-    table: TName,
+  /** Get a single row or return NotFoundError. */
+  getRequired<TOptions extends TypedGetOptions<TEntry>>(
     options?: TOptions,
-  ): Promise<
-    Result<
-      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>,
-      ReadError
-    >
-  >;
+  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>, ReadError>>;
 
-  /**
-   * Get a single row or throw NotFoundError.
-   * Alias for getRequired.
-   */
-  getOrThrow<
-    TName extends keyof TModels & string,
-    TOptions extends TypedGetOptions<TModels[TName]>,
-  >(
-    table: TName,
+  /** Alias for getRequired. */
+  getOrThrow<TOptions extends TypedGetOptions<TEntry>>(
     options?: TOptions,
-  ): Promise<
-    Result<
-      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>,
-      ReadError
-    >
-  >;
+  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>, ReadError>>;
 
-  /**
-   * List multiple rows.
-   */
-  list<TName extends keyof TModels & string, TOptions extends TypedListOptions<TModels[TName]>>(
-    table: TName,
+  /** List multiple rows. */
+  list<TOptions extends TypedListOptions<TEntry>>(
     options?: TOptions,
-  ): Promise<
-    Result<
-      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>[],
-      ReadError
-    >
-  >;
+  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>[], ReadError>>;
 
-  /**
-   * List multiple rows with total count.
-   */
-  listAndCount<
-    TName extends keyof TModels & string,
-    TOptions extends TypedListOptions<TModels[TName]>,
-  >(
-    table: TName,
+  /** List multiple rows with total count. */
+  listAndCount<TOptions extends TypedListOptions<TEntry>>(
     options?: TOptions,
   ): Promise<
     Result<
       {
-        data: FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>[];
+        data: FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>[];
         total: number;
       },
       ReadError
     >
   >;
 
-  /** @deprecated Use `get` instead */
-  findOne: DatabaseInstance<TModels>['get'];
-  /** @deprecated Use `getRequired` instead */
-  findOneRequired: DatabaseInstance<TModels>['getRequired'];
-  /** @deprecated Use `getOrThrow` instead */
-  findOneOrThrow: DatabaseInstance<TModels>['getOrThrow'];
-  /** @deprecated Use `list` instead */
-  findMany: DatabaseInstance<TModels>['list'];
-  /** @deprecated Use `listAndCount` instead */
-  findManyAndCount: DatabaseInstance<TModels>['listAndCount'];
-
-  // -------------------------------------------------------------------------
-  // Create queries (DB-010)
-  // -------------------------------------------------------------------------
-
-  /**
-   * Insert a single row and return it.
-   */
-  create<TName extends keyof TModels & string, TOptions extends TypedCreateOptions<TModels[TName]>>(
-    table: TName,
+  /** Insert a single row and return it. */
+  create<TOptions extends TypedCreateOptions<TEntry>>(
     options: TOptions,
-  ): Promise<
-    Result<
-      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>,
-      WriteError
-    >
-  >;
+  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>, WriteError>>;
 
-  /**
-   * Insert multiple rows and return the count.
-   */
-  createMany<TName extends keyof TModels & string>(
-    table: TName,
-    options: TypedCreateManyOptions<TModels[TName]>,
+  /** Insert multiple rows and return the count. */
+  createMany(
+    options: TypedCreateManyOptions<TEntry>,
   ): Promise<Result<{ count: number }, WriteError>>;
 
-  /**
-   * Insert multiple rows and return them.
-   */
-  createManyAndReturn<
-    TName extends keyof TModels & string,
-    TOptions extends TypedCreateManyAndReturnOptions<TModels[TName]>,
-  >(
-    table: TName,
+  /** Insert multiple rows and return them. */
+  createManyAndReturn<TOptions extends TypedCreateManyAndReturnOptions<TEntry>>(
     options: TOptions,
   ): Promise<
-    Result<
-      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>[],
-      WriteError
-    >
+    Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>[], WriteError>
   >;
 
-  // -------------------------------------------------------------------------
-  // Update queries (DB-010)
-  // -------------------------------------------------------------------------
-
-  /**
-   * Update matching rows and return the first.
-   * Returns NotFoundError if no rows match.
-   */
-  update<TName extends keyof TModels & string, TOptions extends TypedUpdateOptions<TModels[TName]>>(
-    table: TName,
+  /** Update matching rows and return the first. */
+  update<TOptions extends TypedUpdateOptions<TEntry>>(
     options: TOptions,
-  ): Promise<
-    Result<
-      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>,
-      WriteError
-    >
-  >;
+  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>, WriteError>>;
 
-  /**
-   * Update matching rows and return the count.
-   */
-  updateMany<TName extends keyof TModels & string>(
-    table: TName,
-    options: TypedUpdateManyOptions<TModels[TName]>,
+  /** Update matching rows and return the count. */
+  updateMany(
+    options: TypedUpdateManyOptions<TEntry>,
   ): Promise<Result<{ count: number }, WriteError>>;
 
-  // -------------------------------------------------------------------------
-  // Upsert (DB-010)
-  // -------------------------------------------------------------------------
-
-  /**
-   * Insert or update a row.
-   */
-  upsert<TName extends keyof TModels & string, TOptions extends TypedUpsertOptions<TModels[TName]>>(
-    table: TName,
+  /** Insert or update a row. */
+  upsert<TOptions extends TypedUpsertOptions<TEntry>>(
     options: TOptions,
-  ): Promise<
-    Result<
-      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>,
-      WriteError
-    >
-  >;
+  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>, WriteError>>;
 
-  // -------------------------------------------------------------------------
-  // Delete queries (DB-010)
-  // -------------------------------------------------------------------------
-
-  /**
-   * Delete a matching row and return it.
-   * Returns NotFoundError if no rows match.
-   */
-  delete<TName extends keyof TModels & string, TOptions extends TypedDeleteOptions<TModels[TName]>>(
-    table: TName,
+  /** Delete a matching row and return it. */
+  delete<TOptions extends TypedDeleteOptions<TEntry>>(
     options: TOptions,
-  ): Promise<
-    Result<
-      FindResult<EntryTable<TModels[TName]>, TOptions, EntryRelations<TModels[TName]>>,
-      WriteError
-    >
-  >;
+  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>, WriteError>>;
 
-  /**
-   * Delete matching rows and return the count.
-   */
-  deleteMany<TName extends keyof TModels & string>(
-    table: TName,
-    options: TypedDeleteManyOptions<TModels[TName]>,
+  /** Delete matching rows and return the count. */
+  deleteMany(
+    options: TypedDeleteManyOptions<TEntry>,
   ): Promise<Result<{ count: number }, WriteError>>;
 
-  // -------------------------------------------------------------------------
-  // Aggregation queries (DB-012)
-  // -------------------------------------------------------------------------
+  /** Count rows matching an optional filter. */
+  count(options?: TypedCountOptions<TEntry>): Promise<Result<number, ReadError>>;
 
-  /**
-   * Count rows matching an optional filter.
-   */
-  count<TName extends keyof TModels & string>(
-    table: TName,
-    options?: TypedCountOptions<TModels[TName]>,
-  ): Promise<Result<number, ReadError>>;
+  /** Run aggregation functions on a table. */
+  aggregate(options: agg.AggregateArgs): Promise<Result<Record<string, unknown>, ReadError>>;
 
-  /**
-   * Run aggregation functions on a table.
-   */
-  aggregate<TName extends keyof TModels & string>(
-    table: TName,
-    options: agg.AggregateArgs,
-  ): Promise<Result<Record<string, unknown>, ReadError>>;
-
-  /**
-   * Group rows by columns and apply aggregation functions.
-   */
-  groupBy<TName extends keyof TModels & string>(
-    table: TName,
-    options: agg.GroupByArgs,
-  ): Promise<Result<Record<string, unknown>[], ReadError>>;
+  /** Group rows by columns and apply aggregation functions. */
+  groupBy(options: agg.GroupByArgs): Promise<Result<Record<string, unknown>[], ReadError>>;
 }
+
+// ---------------------------------------------------------------------------
+// Database internals — grouped under _internals
+// ---------------------------------------------------------------------------
+
+export interface DatabaseInternals<TModels extends Record<string, ModelEntry>> {
+  /** The model registry. */
+  readonly models: TModels;
+  /** The SQL dialect used by this database instance. */
+  readonly dialect: Dialect;
+  /** The computed tenant scoping graph. */
+  readonly tenantGraph: TenantGraph;
+}
+
+// ---------------------------------------------------------------------------
+// DatabaseClient — Prisma-style API: db.users.create(), db.posts.list(), etc.
+// Model delegates are mapped from the models registry keys.
+// ---------------------------------------------------------------------------
+
+export type DatabaseClient<TModels extends Record<string, ModelEntry>> = {
+  readonly [K in keyof TModels]: ModelDelegate<TModels[K]>;
+} & {
+  /** Execute a raw SQL query via the sql tagged template. */
+  query<T = Record<string, unknown>>(
+    fragment: SqlFragment,
+  ): Promise<Result<QueryResult<T>, ReadError>>;
+
+  /** Close all pool connections. */
+  close(): Promise<void>;
+
+  /** Check if the database connection is healthy. */
+  isHealthy(): Promise<boolean>;
+
+  /** Internal properties — not part of the public API. */
+  readonly _internals: DatabaseInternals<TModels>;
+};
 
 // ---------------------------------------------------------------------------
 // Resolve model entry helper
@@ -551,11 +417,21 @@ function resolveModel<TModels extends Record<string, ModelEntry>>(
 }
 
 // ---------------------------------------------------------------------------
+// Reserved model names — collide with top-level DatabaseClient methods
+// ---------------------------------------------------------------------------
+
+const RESERVED_MODEL_NAMES = new Set(['query', 'close', 'isHealthy', '_internals']);
+
+// ---------------------------------------------------------------------------
 // createDb — factory function
 // ---------------------------------------------------------------------------
 
 /**
- * Creates a typed Database instance.
+ * Creates a typed database client with Prisma-style model delegates.
+ *
+ * Instead of `db.get('users', opts)`, use `db.users.get(opts)`.
+ * Each model in the registry becomes a property on the returned client
+ * with all CRUD methods typed for that specific model.
  *
  * Computes the tenant graph at creation time from d.tenant() metadata,
  * traversing references to find indirect tenant paths.
@@ -577,8 +453,18 @@ function resolveModel<TModels extends Record<string, ModelEntry>>(
  */
 export function createDb<TModels extends Record<string, ModelEntry>>(
   options: CreateDbOptions<TModels>,
-): DatabaseInstance<TModels> {
+): DatabaseClient<TModels> {
   const { models, log, dialect } = options;
+
+  // Validate reserved model names
+  for (const key of Object.keys(models)) {
+    if (RESERVED_MODEL_NAMES.has(key)) {
+      throw new Error(
+        `Model name "${key}" is reserved. Choose a different name for this model. ` +
+          `Reserved names: ${[...RESERVED_MODEL_NAMES].join(', ')}`,
+      );
+    }
+  }
 
   // Validate dialect-specific options
   if (dialect === 'sqlite') {
@@ -703,60 +589,14 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
   })();
 
   // -----------------------------------------------------------------------
-  // Implementation note: The interface provides fully typed signatures.
-  // Internally, the CRUD functions use Record<string, unknown> at runtime.
-  // We use `as any` on the return type to bridge the gap — the external
-  // contract (DatabaseInstance<TModels>) ensures type safety for callers.
+  // Internal CRUD implementations — curried by table name for delegates
   // -----------------------------------------------------------------------
 
   // biome-ignore lint/suspicious/noExplicitAny: Internal implementation bridges typed interface to untyped CRUD layer
   type AnyResult = any;
 
-  return {
-    _models: models,
-    _dialect: dialectObj,
-    $tenantGraph: tenantGraph,
-
-    async query<T = Record<string, unknown>>(
-      fragment: SqlFragment,
-    ): Promise<Result<QueryResult<T>, ReadError>> {
-      try {
-        const result = await executeQuery<T>(queryFn, fragment.sql, fragment.params);
-        return ok(result);
-      } catch (e) {
-        return err(toReadError(e, fragment.sql));
-      }
-    },
-
-    async close(): Promise<void> {
-      // Close primary driver
-      if (driver) {
-        await driver.close();
-      }
-      // Close SQLite driver
-      if (sqliteDriver) {
-        await sqliteDriver.close();
-      }
-      // Close all replica drivers
-      await Promise.all(replicaDrivers.map((r) => r.close()));
-    },
-
-    async isHealthy(): Promise<boolean> {
-      if (driver) {
-        return driver.isHealthy();
-      }
-      if (sqliteDriver) {
-        return sqliteDriver.isHealthy();
-      }
-      // When using _queryFn (PGlite), assume healthy
-      return true;
-    },
-
-    // -----------------------------------------------------------------------
-    // Query methods
-    // -----------------------------------------------------------------------
-
-    async get(name, opts): Promise<AnyResult> {
+  function implGet(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
         const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs, dialectObj);
@@ -776,9 +616,11 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
       } catch (e) {
         return err(toReadError(e));
       }
-    },
+    })();
+  }
 
-    async getRequired(name, opts): Promise<AnyResult> {
+  function implGetRequired(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
         const result = await crud.get(queryFn, entry.table, opts as crud.GetArgs, dialectObj);
@@ -805,13 +647,11 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
       } catch (e) {
         return err(toReadError(e));
       }
-    },
+    })();
+  }
 
-    async getOrThrow(name, opts): Promise<AnyResult> {
-      return this.getRequired(name, opts);
-    },
-
-    async list(name, opts): Promise<AnyResult> {
+  function implList(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
         const results = await crud.list(queryFn, entry.table, opts as crud.ListArgs, dialectObj);
@@ -831,9 +671,11 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
       } catch (e) {
         return err(toReadError(e));
       }
-    },
+    })();
+  }
 
-    async listAndCount(name, opts): Promise<AnyResult> {
+  function implListAndCount(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
         const { data, total } = await crud.listAndCount(
@@ -858,151 +700,150 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
       } catch (e) {
         return err(toReadError(e));
       }
-    },
+    })();
+  }
 
-    // Deprecated aliases
-    get findOne() {
-      return this.get;
-    },
-    get findOneRequired() {
-      return this.getRequired;
-    },
-    get findOneOrThrow() {
-      return this.getOrThrow;
-    },
-    get findMany() {
-      return this.list;
-    },
-    get findManyAndCount() {
-      return this.listAndCount;
-    },
-
-    // -----------------------------------------------------------------------
-    // Create queries
-    // -----------------------------------------------------------------------
-
-    async create(name, opts): Promise<AnyResult> {
+  function implCreate(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
-        const result = await crud.create(queryFn, entry.table, opts as crud.CreateArgs, dialectObj);
+        const result = await crud.create(
+          queryFn,
+          entry.table,
+          opts as unknown as crud.CreateArgs,
+          dialectObj,
+        );
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
       }
-    },
+    })();
+  }
 
-    async createMany(name, opts): Promise<AnyResult> {
+  function implCreateMany(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
         const result = await crud.createMany(
           queryFn,
           entry.table,
-          opts as crud.CreateManyArgs,
+          opts as unknown as crud.CreateManyArgs,
           dialectObj,
         );
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
       }
-    },
+    })();
+  }
 
-    async createManyAndReturn(name, opts): Promise<AnyResult> {
+  function implCreateManyAndReturn(
+    name: string,
+    opts: Record<string, unknown>,
+  ): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
         const result = await crud.createManyAndReturn(
           queryFn,
           entry.table,
-          opts as crud.CreateManyAndReturnArgs,
+          opts as unknown as crud.CreateManyAndReturnArgs,
           dialectObj,
         );
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
       }
-    },
+    })();
+  }
 
-    // -----------------------------------------------------------------------
-    // Update queries
-    // -----------------------------------------------------------------------
-
-    async update(name, opts): Promise<AnyResult> {
+  function implUpdate(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
-        const result = await crud.update(queryFn, entry.table, opts as crud.UpdateArgs, dialectObj);
+        const result = await crud.update(
+          queryFn,
+          entry.table,
+          opts as unknown as crud.UpdateArgs,
+          dialectObj,
+        );
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
       }
-    },
+    })();
+  }
 
-    async updateMany(name, opts): Promise<AnyResult> {
+  function implUpdateMany(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
         const result = await crud.updateMany(
           queryFn,
           entry.table,
-          opts as crud.UpdateManyArgs,
+          opts as unknown as crud.UpdateManyArgs,
           dialectObj,
         );
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
       }
-    },
+    })();
+  }
 
-    // -----------------------------------------------------------------------
-    // Upsert
-    // -----------------------------------------------------------------------
-
-    async upsert(name, opts): Promise<AnyResult> {
+  function implUpsert(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
-        const result = await crud.upsert(queryFn, entry.table, opts as crud.UpsertArgs, dialectObj);
+        const result = await crud.upsert(
+          queryFn,
+          entry.table,
+          opts as unknown as crud.UpsertArgs,
+          dialectObj,
+        );
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
       }
-    },
+    })();
+  }
 
-    // -----------------------------------------------------------------------
-    // Delete queries
-    // -----------------------------------------------------------------------
-
-    async delete(name, opts): Promise<AnyResult> {
+  function implDelete(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
         const result = await crud.deleteOne(
           queryFn,
           entry.table,
-          opts as crud.DeleteArgs,
+          opts as unknown as crud.DeleteArgs,
           dialectObj,
         );
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
       }
-    },
+    })();
+  }
 
-    async deleteMany(name, opts): Promise<AnyResult> {
+  function implDeleteMany(name: string, opts: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
         const result = await crud.deleteMany(
           queryFn,
           entry.table,
-          opts as crud.DeleteManyArgs,
+          opts as unknown as crud.DeleteManyArgs,
           dialectObj,
         );
         return ok(result);
       } catch (e) {
         return err(toWriteError(e));
       }
-    },
+    })();
+  }
 
-    // -----------------------------------------------------------------------
-    // Aggregation queries
-    // -----------------------------------------------------------------------
-
-    async count(name, opts): Promise<AnyResult> {
+  function implCount(name: string, opts?: Record<string, unknown>): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
         const result = await agg.count(
@@ -1014,9 +855,11 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
       } catch (e) {
         return err(toReadError(e));
       }
-    },
+    })();
+  }
 
-    async aggregate(name, opts): Promise<AnyResult> {
+  function implAggregate(name: string, opts: agg.AggregateArgs): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
         const result = await agg.aggregate(queryFn, entry.table, opts);
@@ -1024,9 +867,11 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
       } catch (e) {
         return err(toReadError(e));
       }
-    },
+    })();
+  }
 
-    async groupBy(name, opts): Promise<AnyResult> {
+  function implGroupBy(name: string, opts: agg.GroupByArgs): Promise<AnyResult> {
+    return (async () => {
       try {
         const entry = resolveModel(models, name);
         const result = await agg.groupBy(queryFn, entry.table, opts);
@@ -1034,6 +879,77 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
       } catch (e) {
         return err(toReadError(e));
       }
-    },
+    })();
+  }
+
+  // -----------------------------------------------------------------------
+  // Build model delegates eagerly — one per registered model
+  // -----------------------------------------------------------------------
+
+  // biome-ignore lint/suspicious/noExplicitAny: Delegates are typed externally via DatabaseClient<TModels>
+  const client: Record<string, any> = {};
+
+  for (const name of Object.keys(models)) {
+    client[name] = {
+      get: (opts?: Record<string, unknown>) => implGet(name, opts),
+      getRequired: (opts?: Record<string, unknown>) => implGetRequired(name, opts),
+      getOrThrow: (opts?: Record<string, unknown>) => implGetRequired(name, opts),
+      list: (opts?: Record<string, unknown>) => implList(name, opts),
+      listAndCount: (opts?: Record<string, unknown>) => implListAndCount(name, opts),
+      create: (opts: Record<string, unknown>) => implCreate(name, opts),
+      createMany: (opts: Record<string, unknown>) => implCreateMany(name, opts),
+      createManyAndReturn: (opts: Record<string, unknown>) => implCreateManyAndReturn(name, opts),
+      update: (opts: Record<string, unknown>) => implUpdate(name, opts),
+      updateMany: (opts: Record<string, unknown>) => implUpdateMany(name, opts),
+      upsert: (opts: Record<string, unknown>) => implUpsert(name, opts),
+      delete: (opts: Record<string, unknown>) => implDelete(name, opts),
+      deleteMany: (opts: Record<string, unknown>) => implDeleteMany(name, opts),
+      count: (opts?: Record<string, unknown>) => implCount(name, opts),
+      aggregate: (opts: agg.AggregateArgs) => implAggregate(name, opts),
+      groupBy: (opts: agg.GroupByArgs) => implGroupBy(name, opts),
+    };
+  }
+
+  // -----------------------------------------------------------------------
+  // Add top-level methods and _internals
+  // -----------------------------------------------------------------------
+
+  client.query = async <T = Record<string, unknown>>(
+    fragment: SqlFragment,
+  ): Promise<Result<QueryResult<T>, ReadError>> => {
+    try {
+      const result = await executeQuery<T>(queryFn, fragment.sql, fragment.params);
+      return ok(result);
+    } catch (e) {
+      return err(toReadError(e, fragment.sql));
+    }
   };
+
+  client.close = async (): Promise<void> => {
+    if (driver) {
+      await driver.close();
+    }
+    if (sqliteDriver) {
+      await sqliteDriver.close();
+    }
+    await Promise.all(replicaDrivers.map((r) => r.close()));
+  };
+
+  client.isHealthy = async (): Promise<boolean> => {
+    if (driver) {
+      return driver.isHealthy();
+    }
+    if (sqliteDriver) {
+      return sqliteDriver.isHealthy();
+    }
+    return true;
+  };
+
+  client._internals = {
+    models,
+    dialect: dialectObj,
+    tenantGraph,
+  };
+
+  return client as DatabaseClient<TModels>;
 }

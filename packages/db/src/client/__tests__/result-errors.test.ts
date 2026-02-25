@@ -28,7 +28,7 @@ const _projects = d.table('projects', {
 // Tests - Result return types
 // ---------------------------------------------------------------------------
 
-describe('db.get() returns Result', () => {
+describe('db.organizations.get() returns Result', () => {
   it('returns ok() with null when record not found', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
@@ -38,7 +38,7 @@ describe('db.get() returns Result', () => {
       _queryFn: async () => ({ rows: [], rowCount: 0 }),
     });
 
-    const result = await db.get('organizations', { where: { id: '123' } });
+    const result = await db.organizations.get({ where: { id: '123' } });
 
     expect(result.ok).toBe(true);
     expect(result.data).toBe(null);
@@ -54,7 +54,7 @@ describe('db.get() returns Result', () => {
       _queryFn: async () => ({ rows: [mockOrg], rowCount: 1 }),
     });
 
-    const result = await db.get('organizations', { where: { id: '123' } });
+    const result = await db.organizations.get({ where: { id: '123' } });
 
     expect(result.ok).toBe(true);
     expect(result.data).toEqual(mockOrg);
@@ -73,7 +73,7 @@ describe('db.get() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.get('organizations', { where: { id: '123' } });
+    const result = await db.organizations.get({ where: { id: '123' } });
 
     expect(result.ok).toBe(false);
     // Either CONNECTION_ERROR or QUERY_ERROR is acceptable
@@ -94,7 +94,7 @@ describe('db.get() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.get('organizations', { where: { id: '123' } });
+    const result = await db.organizations.get({ where: { id: '123' } });
 
     expect(result.ok).toBe(false);
     // Accept either CONNECTION_ERROR or QUERY_ERROR
@@ -102,7 +102,7 @@ describe('db.get() returns Result', () => {
   });
 });
 
-describe('db.getRequired() returns Result', () => {
+describe('db.organizations.getRequired() returns Result', () => {
   it('returns ok() with data when record found', async () => {
     const mockOrg = { id: '123', name: 'Test Org' };
     const db = createDb({
@@ -113,7 +113,7 @@ describe('db.getRequired() returns Result', () => {
       _queryFn: async () => ({ rows: [mockOrg], rowCount: 1 }),
     });
 
-    const result = await db.getRequired('organizations', { where: { id: '123' } });
+    const result = await db.organizations.getRequired({ where: { id: '123' } });
 
     expect(result.ok).toBe(true);
     expect(result.data).toEqual(mockOrg);
@@ -128,7 +128,7 @@ describe('db.getRequired() returns Result', () => {
       _queryFn: async () => ({ rows: [], rowCount: 0 }),
     });
 
-    const result = await db.getRequired('organizations', { where: { id: 'nonexistent' } });
+    const result = await db.organizations.getRequired({ where: { id: 'nonexistent' } });
 
     expect(result.ok).toBe(false);
     expect(result.error.code).toBe('NotFound');
@@ -147,13 +147,13 @@ describe('db.getRequired() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.getRequired('organizations', { where: { id: '123' } });
+    const result = await db.organizations.getRequired({ where: { id: '123' } });
 
     expect(result.ok).toBe(false);
   });
 });
 
-describe('db.list() returns Result', () => {
+describe('db.organizations.list() returns Result', () => {
   it('returns ok() with empty array when no records', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
@@ -163,7 +163,7 @@ describe('db.list() returns Result', () => {
       _queryFn: async () => ({ rows: [], rowCount: 0 }),
     });
 
-    const result = await db.list('organizations');
+    const result = await db.organizations.list();
 
     expect(result.ok).toBe(true);
     expect(result.data).toEqual([]);
@@ -182,7 +182,7 @@ describe('db.list() returns Result', () => {
       _queryFn: async () => ({ rows: mockOrgs, rowCount: 2 }),
     });
 
-    const result = await db.list('organizations');
+    const result = await db.organizations.list();
 
     expect(result.ok).toBe(true);
     expect(result.data).toEqual(mockOrgs);
@@ -201,13 +201,13 @@ describe('db.list() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.list('organizations');
+    const result = await db.organizations.list();
 
     expect(result.ok).toBe(false);
   });
 });
 
-describe('db.listAndCount() returns Result', () => {
+describe('db.organizations.listAndCount() returns Result', () => {
   it('returns ok() with data and total', async () => {
     const mockOrgs = [{ id: '1', name: 'Org 1' }];
     let callCount = 0;
@@ -228,7 +228,7 @@ describe('db.listAndCount() returns Result', () => {
       },
     });
 
-    const result = await db.listAndCount('organizations');
+    const result = await db.organizations.listAndCount();
 
     expect(result.ok).toBe(true);
     expect(result.data.data).toEqual(mockOrgs);
@@ -249,13 +249,13 @@ describe('db.listAndCount() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.listAndCount('organizations');
+    const result = await db.organizations.listAndCount();
 
     expect(result.ok).toBe(false);
   });
 });
 
-describe('db.create() returns Result', () => {
+describe('db.organizations.create() returns Result', () => {
   it('returns ok() with created record', async () => {
     const createdOrg = { id: '123', name: 'New Org' };
     const db = createDb({
@@ -266,7 +266,7 @@ describe('db.create() returns Result', () => {
       _queryFn: async () => ({ rows: [createdOrg], rowCount: 1 }),
     });
 
-    const result = await db.create('organizations', { data: { name: 'New Org' } });
+    const result = await db.organizations.create({ data: { name: 'New Org' } });
 
     expect(result.ok).toBe(true);
     expect(result.data).toEqual(createdOrg);
@@ -291,7 +291,7 @@ describe('db.create() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.create('users', { data: { name: 'Test', email: 'test@test.com' } });
+    const result = await db.users.create({ data: { name: 'Test', email: 'test@test.com' } });
 
     expect(result.ok).toBe(false);
     expect(result.error.code).toBe('CONSTRAINT_ERROR');
@@ -315,7 +315,7 @@ describe('db.create() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.create('users', {
+    const result = await db.users.create({
       data: { name: null as any, email: 'test@test.com' },
     });
 
@@ -342,7 +342,7 @@ describe('db.create() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.create('users', {
+    const result = await db.users.create({
       data: { name: 'Test', email: 'test@test.com', organizationId: 'nonexistent' },
     });
 
@@ -363,13 +363,13 @@ describe('db.create() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.create('organizations', { data: { name: 'New Org' } });
+    const result = await db.organizations.create({ data: { name: 'New Org' } });
 
     expect(result.ok).toBe(false);
   });
 });
 
-describe('db.createMany() returns Result', () => {
+describe('db.organizations.createMany() returns Result', () => {
   it('returns ok() with count', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
@@ -379,7 +379,7 @@ describe('db.createMany() returns Result', () => {
       _queryFn: async () => ({ rows: [], rowCount: 2 }),
     });
 
-    const result = await db.createMany('organizations', {
+    const result = await db.organizations.createMany({
       data: [{ name: 'Org 1' }, { name: 'Org 2' }],
     });
 
@@ -401,7 +401,7 @@ describe('db.createMany() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.createMany('users', {
+    const result = await db.users.createMany({
       data: [{ name: 'Test', email: 'test@test.com' }],
     });
 
@@ -410,7 +410,7 @@ describe('db.createMany() returns Result', () => {
   });
 });
 
-describe('db.update() returns Result', () => {
+describe('db.organizations.update() returns Result', () => {
   it('returns ok() with updated record', async () => {
     const updatedOrg = { id: '123', name: 'Updated Org' };
     const db = createDb({
@@ -421,7 +421,7 @@ describe('db.update() returns Result', () => {
       _queryFn: async () => ({ rows: [updatedOrg], rowCount: 1 }),
     });
 
-    const result = await db.update('organizations', {
+    const result = await db.organizations.update({
       where: { id: '123' },
       data: { name: 'Updated Org' },
     });
@@ -439,7 +439,7 @@ describe('db.update() returns Result', () => {
       _queryFn: async () => ({ rows: [], rowCount: 0 }),
     });
 
-    const result = await db.update('organizations', {
+    const result = await db.organizations.update({
       where: { id: 'nonexistent' },
       data: { name: 'Updated' },
     });
@@ -460,7 +460,7 @@ describe('db.update() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.update('organizations', {
+    const result = await db.organizations.update({
       where: { id: '123' },
       data: { name: 'Updated' },
     });
@@ -469,7 +469,7 @@ describe('db.update() returns Result', () => {
   });
 });
 
-describe('db.delete() returns Result', () => {
+describe('db.organizations.delete() returns Result', () => {
   it('returns ok() with deleted record', async () => {
     const deletedOrg = { id: '123', name: 'Deleted Org' };
     const db = createDb({
@@ -480,7 +480,7 @@ describe('db.delete() returns Result', () => {
       _queryFn: async () => ({ rows: [deletedOrg], rowCount: 1 }),
     });
 
-    const result = await db.delete('organizations', { where: { id: '123' } });
+    const result = await db.organizations.delete({ where: { id: '123' } });
 
     expect(result.ok).toBe(true);
     expect(result.data).toEqual(deletedOrg);
@@ -495,7 +495,7 @@ describe('db.delete() returns Result', () => {
       _queryFn: async () => ({ rows: [], rowCount: 0 }),
     });
 
-    const result = await db.delete('organizations', { where: { id: 'nonexistent' } });
+    const result = await db.organizations.delete({ where: { id: 'nonexistent' } });
 
     expect(result.ok).toBe(false);
   });
@@ -540,7 +540,7 @@ describe('db.query() returns Result', () => {
   });
 });
 
-describe('db.count() returns Result', () => {
+describe('db.organizations.count() returns Result', () => {
   it('returns ok() with count', async () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
@@ -550,7 +550,7 @@ describe('db.count() returns Result', () => {
       _queryFn: async () => ({ rows: [{ count: '5' }], rowCount: 1 }),
     });
 
-    const result = await db.count('organizations');
+    const result = await db.organizations.count();
 
     expect(result.ok).toBe(true);
     expect(result.data).toBe(5);
@@ -569,7 +569,7 @@ describe('db.count() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.count('organizations');
+    const result = await db.organizations.count();
 
     expect(result.ok).toBe(false);
   });

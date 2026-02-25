@@ -53,7 +53,7 @@ describe('Postgres regression: create and list users via PGlite', () => {
     });
 
     // Create a user
-    const createResult = await db.create('users', {
+    const createResult = await db.users.create({
       data: {
         id: '123e4567-e89b-12d3-a456-426614174000',
         name: 'Alice',
@@ -65,7 +65,7 @@ describe('Postgres regression: create and list users via PGlite', () => {
     expect(createResult.ok).toBe(true);
 
     // List users
-    const listResult = await db.list('users');
+    const listResult = await db.users.list();
 
     expect(listResult.ok).toBe(true);
     if (listResult.ok) {

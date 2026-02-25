@@ -57,7 +57,7 @@ describe('createDbProvider', () => {
     expect(typeof provider.onDestroy).toBe('function');
   });
 
-  it('onInit creates a DatabaseInstance and returns it as state', async () => {
+  it('onInit creates a DatabaseClient and returns it as state', async () => {
     const provider = createDbProvider({
       url: 'postgres://localhost:5432/test',
       models: { users: { table: users, relations: {} } },
@@ -66,15 +66,15 @@ describe('createDbProvider', () => {
 
     const db = await provider.onInit({});
     expect(db).toBeDefined();
-    expect(typeof db.list).toBe('function');
-    expect(typeof db.create).toBe('function');
+    expect(typeof db.users.list).toBe('function');
+    expect(typeof db.users.create).toBe('function');
     expect(typeof db.close).toBe('function');
     expect(typeof db.isHealthy).toBe('function');
 
     await db.close();
   }, 30_000);
 
-  it('methods returns the DatabaseInstance directly', async () => {
+  it('methods returns the DatabaseClient directly', async () => {
     const provider = createDbProvider({
       url: 'postgres://localhost:5432/test',
       models: { users: { table: users, relations: {} } },

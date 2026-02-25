@@ -85,21 +85,21 @@ describe('CRUD queries (DB-010)', () => {
 
   describe('get', () => {
     it('returns typed result or null when no match', async () => {
-      const result = await db.get('users', { where: { name: 'Nobody' } });
+      const result = await db.users.get({ where: { name: 'Nobody' } });
       expect(result.data).toBeNull();
     });
 
     it('returns a row when match exists', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'alice@test.com' } });
-      const result = await db.get('users', { where: { name: 'Alice' } });
+      await db.users.create({ data: { name: 'Alice', email: 'alice@test.com' } });
+      const result = await db.users.get({ where: { name: 'Alice' } });
       expect(result.data).not.toBeNull();
       expect((result.data as Record<string, unknown>).name).toBe('Alice');
       expect((result.data as Record<string, unknown>).email).toBe('alice@test.com');
     });
 
     it('returns camelCase keys from snake_case columns', async () => {
-      await db.create('users', { data: { name: 'Bob', email: 'bob@test.com' } });
-      const result = (await db.get('users', {
+      await db.users.create({ data: { name: 'Bob', email: 'bob@test.com' } });
+      const result = (await db.users.get({
         where: { name: 'Bob' },
       })) as Record<string, unknown>;
       expect(result.data).toHaveProperty('createdAt');
@@ -110,14 +110,14 @@ describe('CRUD queries (DB-010)', () => {
 
   describe('getOrThrow', () => {
     it('returns error Result when no match', async () => {
-      const result = await db.getOrThrow('users', { where: { name: 'Nobody' } });
+      const result = await db.users.getOrThrow({ where: { name: 'Nobody' } });
       expect(result.ok).toBe(false);
       expect(result.error.code).toBe('NotFound');
     });
 
     it('returns row when match exists', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'alice@test.com' } });
-      const result = (await db.getOrThrow('users', {
+      await db.users.create({ data: { name: 'Alice', email: 'alice@test.com' } });
+      const result = (await db.users.getOrThrow({
         where: { name: 'Alice' },
       })) as Record<string, unknown>;
       expect(result.data.name).toBe('Alice');
@@ -126,16 +126,16 @@ describe('CRUD queries (DB-010)', () => {
 
   describe('list', () => {
     it('returns array with pagination support', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'a@test.com', age: 30 } });
-      await db.create('users', { data: { name: 'Bob', email: 'b@test.com', age: 25 } });
-      await db.create('users', { data: { name: 'Carol', email: 'c@test.com', age: 35 } });
+      await db.users.create({ data: { name: 'Alice', email: 'a@test.com', age: 30 } });
+      await db.users.create({ data: { name: 'Bob', email: 'b@test.com', age: 25 } });
+      await db.users.create({ data: { name: 'Carol', email: 'c@test.com', age: 35 } });
 
       // No filter — return all
-      const all = await db.list('users');
+      const all = await db.users.list();
       expect(all.data).toHaveLength(3);
 
       // With limit/offset
-      const page = await db.list('users', {
+      const page = await db.users.list({
         orderBy: { name: 'asc' },
         limit: 2,
         offset: 0,
@@ -145,7 +145,7 @@ describe('CRUD queries (DB-010)', () => {
       expect((page.data[1] as Record<string, unknown>).name).toBe('Bob');
 
       // Page 2
-      const page2 = await db.list('users', {
+      const page2 = await db.users.list({
         orderBy: { name: 'asc' },
         limit: 2,
         offset: 2,
@@ -155,18 +155,18 @@ describe('CRUD queries (DB-010)', () => {
     });
 
     it('returns empty array when no matches', async () => {
-      const result = await db.list('users', { where: { name: 'Nobody' } });
+      const result = await db.users.list({ where: { name: 'Nobody' } });
       expect(result.data).toEqual([]);
     });
 
     it('supports cursor-based pagination with take', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'a@test.com', age: 20 } });
-      await db.create('users', { data: { name: 'Bob', email: 'b@test.com', age: 25 } });
-      await db.create('users', { data: { name: 'Carol', email: 'c@test.com', age: 30 } });
-      await db.create('users', { data: { name: 'Dave', email: 'd@test.com', age: 35 } });
+      await db.users.create({ data: { name: 'Alice', email: 'a@test.com', age: 20 } });
+      await db.users.create({ data: { name: 'Bob', email: 'b@test.com', age: 25 } });
+      await db.users.create({ data: { name: 'Carol', email: 'c@test.com', age: 30 } });
+      await db.users.create({ data: { name: 'Dave', email: 'd@test.com', age: 35 } });
 
       // First page — no cursor, just take
-      const page1 = await db.list('users', {
+      const page1 = await db.users.list({
         orderBy: { name: 'asc' },
         take: 2,
       });
@@ -176,7 +176,7 @@ describe('CRUD queries (DB-010)', () => {
 
       // Second page — cursor from last result
       const lastNamePage1 = (page1.data[1] as Record<string, unknown>).name as string;
-      const page2 = await db.list('users', {
+      const page2 = await db.users.list({
         orderBy: { name: 'asc' },
         cursor: { name: lastNamePage1 },
         take: 2,
@@ -187,7 +187,7 @@ describe('CRUD queries (DB-010)', () => {
 
       // Third page — cursor from last result, should be empty
       const lastNamePage2 = (page2.data[1] as Record<string, unknown>).name as string;
-      const page3 = await db.list('users', {
+      const page3 = await db.users.list({
         orderBy: { name: 'asc' },
         cursor: { name: lastNamePage2 },
         take: 2,
@@ -196,21 +196,21 @@ describe('CRUD queries (DB-010)', () => {
     });
 
     it('supports cursor with where filters combined', async () => {
-      await db.create('users', {
+      await db.users.create({
         data: { name: 'Alice', email: 'a@test.com', age: 20, active: true },
       });
-      await db.create('users', {
+      await db.users.create({
         data: { name: 'Bob', email: 'b@test.com', age: 25, active: false },
       });
-      await db.create('users', {
+      await db.users.create({
         data: { name: 'Carol', email: 'c@test.com', age: 30, active: true },
       });
-      await db.create('users', {
+      await db.users.create({
         data: { name: 'Dave', email: 'd@test.com', age: 35, active: true },
       });
 
       // Cursor with where: only active users after Alice
-      const result = await db.list('users', {
+      const result = await db.users.list({
         where: { active: true },
         orderBy: { name: 'asc' },
         cursor: { name: 'Alice' },
@@ -222,12 +222,12 @@ describe('CRUD queries (DB-010)', () => {
     });
 
     it('supports cursor with desc ordering', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'a@test.com', age: 20 } });
-      await db.create('users', { data: { name: 'Bob', email: 'b@test.com', age: 25 } });
-      await db.create('users', { data: { name: 'Carol', email: 'c@test.com', age: 30 } });
+      await db.users.create({ data: { name: 'Alice', email: 'a@test.com', age: 20 } });
+      await db.users.create({ data: { name: 'Bob', email: 'b@test.com', age: 25 } });
+      await db.users.create({ data: { name: 'Carol', email: 'c@test.com', age: 30 } });
 
       // Desc ordering: start from Carol, go backwards
-      const result = await db.list('users', {
+      const result = await db.users.list({
         orderBy: { name: 'desc' },
         cursor: { name: 'Carol' },
         take: 10,
@@ -240,11 +240,11 @@ describe('CRUD queries (DB-010)', () => {
 
   describe('listAndCount', () => {
     it('returns { data, total } in a single query', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'a@test.com' } });
-      await db.create('users', { data: { name: 'Bob', email: 'b@test.com' } });
-      await db.create('users', { data: { name: 'Carol', email: 'c@test.com' } });
+      await db.users.create({ data: { name: 'Alice', email: 'a@test.com' } });
+      await db.users.create({ data: { name: 'Bob', email: 'b@test.com' } });
+      await db.users.create({ data: { name: 'Carol', email: 'c@test.com' } });
 
-      const result = await db.listAndCount('users', {
+      const result = await db.users.listAndCount({
         orderBy: { name: 'asc' },
         limit: 2,
       });
@@ -254,7 +254,7 @@ describe('CRUD queries (DB-010)', () => {
     });
 
     it('returns { data: [], total: 0 } when no rows', async () => {
-      const result = await db.listAndCount('users', {
+      const result = await db.users.listAndCount({
         where: { name: 'Nobody' },
       });
       expect(result.data.data).toEqual([]);
@@ -268,7 +268,7 @@ describe('CRUD queries (DB-010)', () => {
 
   describe('create', () => {
     it('inserts and returns the created row', async () => {
-      const user = (await db.create('users', {
+      const user = (await db.users.create({
         data: { name: 'Alice', email: 'alice@test.com' },
       })) as Record<string, unknown>;
 
@@ -279,8 +279,8 @@ describe('CRUD queries (DB-010)', () => {
     });
 
     it('returns error Result on duplicate key', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'alice@test.com' } });
-      const result = await db.create('users', {
+      await db.users.create({ data: { name: 'Alice', email: 'alice@test.com' } });
+      const result = await db.users.create({
         data: { name: 'Alice2', email: 'alice@test.com' },
       });
       // Result now returns { ok: false, error: {...} }
@@ -291,7 +291,7 @@ describe('CRUD queries (DB-010)', () => {
 
   describe('createMany', () => {
     it('batch inserts and returns { count }', async () => {
-      const result = await db.createMany('users', {
+      const result = await db.users.createMany({
         data: [
           { name: 'Alice', email: 'a@test.com' },
           { name: 'Bob', email: 'b@test.com' },
@@ -299,19 +299,19 @@ describe('CRUD queries (DB-010)', () => {
       });
       expect(result.data.count).toBe(2);
 
-      const all = await db.list('users');
+      const all = await db.users.list();
       expect(all.data).toHaveLength(2);
     });
 
     it('returns { count: 0 } for empty data array', async () => {
-      const result = await db.createMany('users', { data: [] });
+      const result = await db.users.createMany({ data: [] });
       expect(result.data.count).toBe(0);
     });
   });
 
   describe('createManyAndReturn', () => {
     it('batch inserts and returns all rows', async () => {
-      const rows = await db.createManyAndReturn('users', {
+      const rows = await db.users.createManyAndReturn({
         data: [
           { name: 'Alice', email: 'a@test.com' },
           { name: 'Bob', email: 'b@test.com' },
@@ -330,9 +330,9 @@ describe('CRUD queries (DB-010)', () => {
 
   describe('update', () => {
     it('updates and returns the updated row', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'alice@test.com', age: 30 } });
+      await db.users.create({ data: { name: 'Alice', email: 'alice@test.com', age: 30 } });
 
-      const updated = (await db.update('users', {
+      const updated = (await db.users.update({
         where: { email: 'alice@test.com' },
         data: { age: 31 },
       })) as Record<string, unknown>;
@@ -342,7 +342,7 @@ describe('CRUD queries (DB-010)', () => {
     });
 
     it('returns error Result when no rows match', async () => {
-      const result = await db.update('users', {
+      const result = await db.users.update({
         where: { email: 'nobody@test.com' },
         data: { age: 99 },
       });
@@ -353,10 +353,10 @@ describe('CRUD queries (DB-010)', () => {
 
   describe('updateMany', () => {
     it('updates multiple rows and returns count', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'a@test.com', active: true } });
-      await db.create('users', { data: { name: 'Bob', email: 'b@test.com', active: true } });
+      await db.users.create({ data: { name: 'Alice', email: 'a@test.com', active: true } });
+      await db.users.create({ data: { name: 'Bob', email: 'b@test.com', active: true } });
 
-      const result = await db.updateMany('users', {
+      const result = await db.users.updateMany({
         where: { active: true },
         data: { active: false },
       });
@@ -364,14 +364,14 @@ describe('CRUD queries (DB-010)', () => {
     });
 
     it('returns error Result when where is an empty object to prevent accidental mass update', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'a@test.com' } });
+      await db.users.create({ data: { name: 'Alice', email: 'a@test.com' } });
 
-      const result = await db.updateMany('users', { where: {}, data: { name: 'Overwritten' } });
+      const result = await db.users.updateMany({ where: {}, data: { name: 'Overwritten' } });
       expect(result.ok).toBe(false);
       expect(result.error.code).toBe('QUERY_ERROR');
 
       // Verify the row was NOT modified
-      const alice = (await db.get('users', {
+      const alice = (await db.users.get({
         where: { email: 'a@test.com' },
       })) as Record<string, unknown>;
       expect(alice.data.name).toBe('Alice');
@@ -384,7 +384,7 @@ describe('CRUD queries (DB-010)', () => {
 
   describe('upsert', () => {
     it('inserts when no existing row (ON CONFLICT)', async () => {
-      const result = (await db.upsert('users', {
+      const result = (await db.users.upsert({
         where: { email: 'alice@test.com' },
         create: { name: 'Alice', email: 'alice@test.com', age: 30 },
         update: { name: 'Alice Updated' },
@@ -395,9 +395,9 @@ describe('CRUD queries (DB-010)', () => {
     });
 
     it('updates when existing row conflicts', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'alice@test.com', age: 30 } });
+      await db.users.create({ data: { name: 'Alice', email: 'alice@test.com', age: 30 } });
 
-      const result = (await db.upsert('users', {
+      const result = (await db.users.upsert({
         where: { email: 'alice@test.com' },
         create: { name: 'Alice', email: 'alice@test.com', age: 30 },
         update: { name: 'Alice Updated' },
@@ -414,20 +414,20 @@ describe('CRUD queries (DB-010)', () => {
 
   describe('delete', () => {
     it('deletes and returns the deleted row', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'alice@test.com' } });
+      await db.users.create({ data: { name: 'Alice', email: 'alice@test.com' } });
 
-      const deleted = (await db.delete('users', {
+      const deleted = (await db.users.delete({
         where: { email: 'alice@test.com' },
       })) as Record<string, unknown>;
 
       expect(deleted.data.name).toBe('Alice');
 
-      const remaining = await db.list('users');
+      const remaining = await db.users.list();
       expect(remaining.data).toHaveLength(0);
     });
 
     it('returns error Result when no rows match', async () => {
-      const result = await db.delete('users', { where: { email: 'nobody@test.com' } });
+      const result = await db.users.delete({ where: { email: 'nobody@test.com' } });
       expect(result.ok).toBe(false);
       expect(result.error.code).toBe('QUERY_ERROR');
     });
@@ -435,22 +435,22 @@ describe('CRUD queries (DB-010)', () => {
 
   describe('deleteMany', () => {
     it('deletes multiple rows and returns count', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'a@test.com', active: true } });
-      await db.create('users', { data: { name: 'Bob', email: 'b@test.com', active: true } });
+      await db.users.create({ data: { name: 'Alice', email: 'a@test.com', active: true } });
+      await db.users.create({ data: { name: 'Bob', email: 'b@test.com', active: true } });
 
-      const result = await db.deleteMany('users', { where: { active: true } });
+      const result = await db.users.deleteMany({ where: { active: true } });
       expect(result.data.count).toBe(2);
     });
 
     it('returns error Result when where is an empty object to prevent accidental mass delete', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'a@test.com' } });
+      await db.users.create({ data: { name: 'Alice', email: 'a@test.com' } });
 
-      const result = await db.deleteMany('users', { where: {} });
+      const result = await db.users.deleteMany({ where: {} });
       expect(result.ok).toBe(false);
       expect(result.error.code).toBe('QUERY_ERROR');
 
       // Verify the row was NOT deleted
-      const all = await db.list('users');
+      const all = await db.users.list();
       expect(all.data).toHaveLength(1);
     });
   });
@@ -461,9 +461,9 @@ describe('CRUD queries (DB-010)', () => {
 
   describe('select option', () => {
     it('narrows returned columns when select is provided', async () => {
-      await db.create('users', { data: { name: 'Alice', email: 'alice@test.com', age: 30 } });
+      await db.users.create({ data: { name: 'Alice', email: 'alice@test.com', age: 30 } });
 
-      const result = (await db.get('users', {
+      const result = (await db.users.get({
         where: { name: 'Alice' },
         select: { name: true, email: true },
       })) as Record<string, unknown>;
@@ -481,7 +481,7 @@ describe('CRUD queries (DB-010)', () => {
 
   describe('ForeignKeyError', () => {
     it('returns error Result on invalid FK reference', async () => {
-      const result = await db.create('posts', {
+      const result = await db.posts.create({
         data: {
           title: 'Test Post',
           authorId: '00000000-0000-0000-0000-000000000000',
@@ -500,21 +500,21 @@ describe('CRUD queries (DB-010)', () => {
   describe('integration: full CRUD cycle', () => {
     it('creates, finds, updates, and deletes a row', async () => {
       // Create
-      const created = (await db.create('users', {
+      const created = (await db.users.create({
         data: { name: 'Alice', email: 'alice@test.com', age: 30 },
       })) as Record<string, unknown>;
       expect(created.data.id).toBeDefined();
       expect(created.data.name).toBe('Alice');
 
       // Find
-      const found = (await db.get('users', {
+      const found = (await db.users.get({
         where: { id: created.data.id },
       })) as Record<string, unknown>;
       expect(found.data).not.toBeNull();
       expect(found.data.email).toBe('alice@test.com');
 
       // Update
-      const updated = (await db.update('users', {
+      const updated = (await db.users.update({
         where: { id: created.data.id },
         data: { age: 31, name: 'Alice Smith' },
       })) as Record<string, unknown>;
@@ -522,13 +522,13 @@ describe('CRUD queries (DB-010)', () => {
       expect(updated.data.name).toBe('Alice Smith');
 
       // Delete
-      const deleted = (await db.delete('users', {
+      const deleted = (await db.users.delete({
         where: { id: created.data.id },
       })) as Record<string, unknown>;
       expect(deleted.data.name).toBe('Alice Smith');
 
       // Verify deleted
-      const notFound = await db.get('users', { where: { id: created.data.id } });
+      const notFound = await db.users.get({ where: { id: created.data.id } });
       expect(notFound.data).toBeNull();
     });
   });

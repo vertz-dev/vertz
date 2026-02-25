@@ -71,14 +71,14 @@ describe('CRUD ID Generation', () => {
 
   // Test 14: create() with generate:'cuid' — insert without ID → returned row has cuid-format ID
   it('generates CUID on create when ID not provided', async () => {
-    const user = unwrap(await db.create('usersCuid', { data: { name: 'Alice' } }));
+    const user = unwrap(await db.usersCuid.create({ data: { name: 'Alice' } }));
     expect(user.id).toMatch(/^[a-z0-9]{24,}$/);
     expect(user.name).toBe('Alice');
   });
 
   // Test 15: create() with generate:'uuid' — insert without ID → returned row has UUIDv7-format ID
   it('generates UUID v7 on create when ID not provided', async () => {
-    const user = unwrap(await db.create('usersUuid', { data: { name: 'Bob' } }));
+    const user = unwrap(await db.usersUuid.create({ data: { name: 'Bob' } }));
     expect(user.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     expect(user.id.charAt(14)).toBe('7'); // version nibble
     expect(user.name).toBe('Bob');
@@ -86,7 +86,7 @@ describe('CRUD ID Generation', () => {
 
   // Test 16: create() with generate:'nanoid' — insert without ID → returned row has nanoid-format ID
   it('generates Nano ID on create when ID not provided', async () => {
-    const user = unwrap(await db.create('usersNanoid', { data: { name: 'Charlie' } }));
+    const user = unwrap(await db.usersNanoid.create({ data: { name: 'Charlie' } }));
     expect(typeof user.id).toBe('string');
     expect(user.id.length).toBe(21);
     expect(user.name).toBe('Charlie');
@@ -95,7 +95,7 @@ describe('CRUD ID Generation', () => {
   // Test 17: create() with user-provided ID — explicit ID used, not overwritten
   it('respects user-provided ID', async () => {
     const user = unwrap(
-      await db.create('usersCuid', { data: { id: 'my-custom-id', name: 'Dave' } }),
+      await db.usersCuid.create({ data: { id: 'my-custom-id', name: 'Dave' } }),
     );
     expect(user.id).toBe('my-custom-id');
     expect(user.name).toBe('Dave');
@@ -104,7 +104,7 @@ describe('CRUD ID Generation', () => {
   // Test 18: create() with explicit null ID — null passed through, not generated
   it('respects explicit null ID', async () => {
     // This will fail at DB level due to NOT NULL, but tests that we don't generate
-    const result = await db.create('usersCuid', {
+    const result = await db.usersCuid.create({
       data: { id: null as unknown as string, name: 'Eve' },
     });
     expect(result.ok).toBe(false);
@@ -113,7 +113,7 @@ describe('CRUD ID Generation', () => {
   // Test 19: create() without generate — omitting ID works (existing behavior)
   it('allows omitting ID when no generate strategy', async () => {
     // This will fail at DB level, confirming no generation happens
-    const result = await db.create('usersNoGen', { data: { name: 'Frank' } });
+    const result = await db.usersNoGen.create({ data: { name: 'Frank' } });
     expect(result.ok).toBe(false);
   });
 
@@ -121,7 +121,7 @@ describe('CRUD ID Generation', () => {
   it('generates unique IDs for createMany', async () => {
     await pg.exec('TRUNCATE TABLE users_cuid');
     const users = Array.from({ length: 10 }, (_, i) => ({ name: `User${i}` }));
-    unwrap(await db.createMany('usersCuid', { data: users }));
+    unwrap(await db.usersCuid.createMany({ data: users }));
 
     const results = await pg.query('SELECT id FROM users_cuid ORDER BY name');
     const ids = results.rows.map((r: { id: string }) => r.id);
@@ -135,7 +135,7 @@ describe('CRUD ID Generation', () => {
   // Test 21: createManyAndReturn() — batch of 5 → all returned rows have unique IDs
   it('generates unique IDs for createManyAndReturn', async () => {
     const users = Array.from({ length: 5 }, (_, i) => ({ name: `Batch${i}` }));
-    const results = unwrap(await db.createManyAndReturn('usersUuid', { data: users }));
+    const results = unwrap(await db.usersUuid.createManyAndReturn({ data: users }));
 
     expect(results.length).toBe(5);
     const ids = results.map((r) => r.id);
@@ -149,7 +149,7 @@ describe('CRUD ID Generation', () => {
   // Test 22: upsert() create path — missing ID → ID generated
   it('generates ID on upsert create path', async () => {
     const user = unwrap(
-      await db.upsert('usersNanoid', {
+      await db.usersNanoid.upsert({
         where: { name: 'George' },
         create: { name: 'George' },
         update: { name: 'George Updated' },
@@ -163,10 +163,10 @@ describe('CRUD ID Generation', () => {
 
   // Test 23: upsert() with user-provided ID — explicit ID respected
   it('respects user-provided ID in upsert', async () => {
-    unwrap(await db.create('usersCuid', { data: { id: 'preset-id', name: 'Helen' } }));
+    unwrap(await db.usersCuid.create({ data: { id: 'preset-id', name: 'Helen' } }));
 
     const user = unwrap(
-      await db.upsert('usersCuid', {
+      await db.usersCuid.upsert({
         where: { id: 'preset-id' },
         create: { id: 'preset-id', name: 'Helen' },
         update: { name: 'Helen Updated' },
@@ -201,7 +201,7 @@ describe('CRUD ID Generation', () => {
       _queryFn: queryFn,
     });
 
-    const result = await badDb.create('bad', { data: { name: 'Invalid' } });
+    const result = await badDb.bad.create({ data: { name: 'Invalid' } });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.message).toMatch(
@@ -212,7 +212,7 @@ describe('CRUD ID Generation', () => {
 
   // Test 25: fillGeneratedIds runs before readOnly filter — PK with generate + readOnly works
   it('generates ID before readOnly filter strips it', async () => {
-    const user = unwrap(await db.create('usersReadonly', { data: { name: 'Isaac' } }));
+    const user = unwrap(await db.usersReadonly.create({ data: { name: 'Isaac' } }));
     expect(user.id).toMatch(/^[a-z0-9]{24,}$/);
     expect(user.name).toBe('Isaac');
   });

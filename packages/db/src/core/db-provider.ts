@@ -1,4 +1,4 @@
-import { type CreateDbOptions, createDb, type DatabaseInstance } from '../client/database';
+import { type CreateDbOptions, createDb, type DatabaseClient } from '../client/database';
 import { ConnectionError } from '../errors/db-error';
 import { autoMigrate, type SchemaSnapshot } from '../migration';
 import type { ModelEntry } from '../schema/inference';
@@ -109,24 +109,25 @@ export interface DbProviderMigrationsConfig {
 // DbProviderConfig — same as CreateDbOptions, passed through to createDb
 // ---------------------------------------------------------------------------
 
-export type DbProviderConfig<TModels extends Record<string, ModelEntry>> = CreateDbOptions<TModels> & {
-  /** Migration configuration for auto-migrations. */
-  migrations?: DbProviderMigrationsConfig;
-};
+export type DbProviderConfig<TModels extends Record<string, ModelEntry>> =
+  CreateDbOptions<TModels> & {
+    /** Migration configuration for auto-migrations. */
+    migrations?: DbProviderMigrationsConfig;
+  };
 
 // ---------------------------------------------------------------------------
 // ServiceDef-compatible shape (structural typing — no @vertz/core import)
 // ---------------------------------------------------------------------------
 
 export interface DbProviderDef<TModels extends Record<string, ModelEntry>> {
-  readonly onInit: (deps: Record<string, never>) => Promise<DatabaseInstance<TModels>>;
+  readonly onInit: (deps: Record<string, never>) => Promise<DatabaseClient<TModels>>;
   readonly methods: (
     deps: Record<string, never>,
-    state: DatabaseInstance<TModels>,
-  ) => DatabaseInstance<TModels>;
+    state: DatabaseClient<TModels>,
+  ) => DatabaseClient<TModels>;
   readonly onDestroy: (
     deps: Record<string, never>,
-    state: DatabaseInstance<TModels>,
+    state: DatabaseClient<TModels>,
   ) => Promise<void>;
 }
 
@@ -140,7 +141,7 @@ export interface DbProviderDef<TModels extends Record<string, ModelEntry>> {
  * via structural typing (no dependency on @vertz/core).
  *
  * - `onInit` creates the database instance and verifies connectivity.
- * - `methods` returns the `DatabaseInstance` directly — all query methods available.
+ * - `methods` returns the `DatabaseClient` directly — all query methods available.
  * - `onDestroy` closes the connection pool.
  *
  * @example
@@ -178,7 +179,10 @@ export function createDbProvider<TModels extends Record<string, ModelEntry>>(
         const currentSchema = extractSchemaSnapshot(config.models);
 
         // Wrap db.query to match MigrationQueryFn signature
-        const queryFn: (sql: string, params: readonly unknown[]) => Promise<{
+        const queryFn: (
+          sql: string,
+          params: readonly unknown[],
+        ) => Promise<{
           rows: readonly Record<string, unknown>[];
           rowCount: number;
         }> = async (sql, params) => {
