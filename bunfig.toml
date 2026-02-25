@@ -1,2 +1,5 @@
 [install]
 peer = true
+
+[test]
+preload = ["./happydom.ts"]
