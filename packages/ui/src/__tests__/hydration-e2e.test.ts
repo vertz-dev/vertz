@@ -75,7 +75,7 @@ describe('tolerant hydration e2e', () => {
       return el;
     };
 
-    const handle = mount(App, root, { hydration: 'tolerant' });
+    const handle = mount(App, root);
 
     // 4. Verify: no flash (SSR nodes adopted, not recreated)
     expect(root.innerHTML).toContain('Hello');
@@ -135,7 +135,7 @@ describe('tolerant hydration e2e', () => {
       return el;
     };
 
-    mount(App, root, { hydration: 'tolerant' });
+    mount(App, root);
 
     // The SSR span must still be in the DOM — not ripped out
     expect(root.querySelector('span')).toBe(ssrSpan);
@@ -171,7 +171,7 @@ describe('tolerant hydration e2e', () => {
       return ul;
     };
 
-    mount(App, root, { hydration: 'tolerant' });
+    mount(App, root);
 
     // SSR li nodes were adopted (same references)
     const currentItems = Array.from(root.querySelectorAll('li'));
