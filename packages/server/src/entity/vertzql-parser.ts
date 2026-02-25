@@ -1,4 +1,5 @@
 import type { ColumnBuilder, ColumnMetadata, TableDef } from '@vertz/db';
+import type { EntityRelationsConfig } from './types';
 
 // ---------------------------------------------------------------------------
 // VertzQL query param parser
@@ -16,6 +17,8 @@ export interface VertzQLOptions {
   orderBy?: Record<string, 'asc' | 'desc'>;
   limit?: number;
   after?: string;
+  select?: Record<string, true>;
+  include?: Record<string, true | Record<string, true>>;
 }
 
 /**
@@ -68,6 +71,22 @@ export function parseVertzQL(query: Record<string, string>): VertzQLOptions {
         if (!result.orderBy) result.orderBy = {};
         result.orderBy[field] = dir === 'desc' ? 'desc' : 'asc';
       }
+      continue;
+    }
+
+    // q= param (base64url-encoded structural query)
+    if (key === 'q') {
+      try {
+        const decoded = JSON.parse(atob(value)) as Record<string, unknown>;
+        if (decoded.select && typeof decoded.select === 'object') {
+          result.select = decoded.select as Record<string, true>;
+        }
+        if (decoded.include && typeof decoded.include === 'object') {
+          result.include = decoded.include as Record<string, true | Record<string, true>>;
+        }
+      } catch {
+        // Invalid base64 or JSON — ignore
+      }
     }
   }
 
@@ -104,13 +123,20 @@ function getHiddenColumns(table: TableDef): Set<string> {
 }
 
 /**
- * Validates parsed VertzQL options against the entity's table schema.
+ * Validates parsed VertzQL options against the entity's table schema and relations config.
  *
  * Rejects:
  * - Hidden fields in `where` filters
  * - Hidden fields in `orderBy`
+ * - Hidden fields in `select`
+ * - Includes for relations not exposed in entity config
+ * - Over-wide field selections on includes beyond entity config restrictions
  */
-export function validateVertzQL(options: VertzQLOptions, table: TableDef): ValidationResult {
+export function validateVertzQL(
+  options: VertzQLOptions,
+  table: TableDef,
+  relationsConfig?: EntityRelationsConfig,
+): ValidationResult {
   const hiddenColumns = getHiddenColumns(table);
 
   // Validate where fields
@@ -127,6 +153,39 @@ export function validateVertzQL(options: VertzQLOptions, table: TableDef): Valid
     for (const field of Object.keys(options.orderBy)) {
       if (hiddenColumns.has(field)) {
         return { ok: false, error: `Field "${field}" is not sortable` };
+      }
+    }
+  }
+
+  // Validate select fields
+  if (options.select) {
+    for (const field of Object.keys(options.select)) {
+      if (hiddenColumns.has(field)) {
+        return { ok: false, error: `Field "${field}" is not selectable` };
+      }
+    }
+  }
+
+  // Validate include against entity relations config
+  if (options.include && relationsConfig) {
+    for (const [relation, requested] of Object.entries(options.include)) {
+      const entityConfig = relationsConfig[relation];
+
+      // Relation not in config or explicitly false → rejected
+      if (entityConfig === undefined || entityConfig === false) {
+        return { ok: false, error: `Relation "${relation}" is not exposed` };
+      }
+
+      // If entity config narrows to specific fields, validate the request is within bounds
+      if (typeof entityConfig === 'object' && typeof requested === 'object') {
+        for (const field of Object.keys(requested)) {
+          if (!(field in entityConfig)) {
+            return {
+              ok: false,
+              error: `Field "${field}" is not exposed on relation "${relation}"`,
+            };
+          }
+        }
       }
     }
   }

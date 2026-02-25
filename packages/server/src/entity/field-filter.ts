@@ -82,6 +82,25 @@ export function narrowRelationFields(
 }
 
 /**
+ * Applies a select map to response data, keeping only the specified fields.
+ * If select is undefined, all fields pass through unchanged.
+ */
+export function applySelect(
+  select: Record<string, true> | undefined,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!select) return data;
+
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(select)) {
+    if (key in data) {
+      result[key] = data[key];
+    }
+  }
+  return result;
+}
+
+/**
  * Strips readOnly and primary key columns from input data.
  * Used before DB writes to prevent setting immutable fields.
  */

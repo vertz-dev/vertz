@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 import { d } from '@vertz/db';
-import { narrowRelationFields, stripHiddenFields, stripReadOnlyFields } from '../field-filter';
+import {
+  applySelect,
+  narrowRelationFields,
+  stripHiddenFields,
+  stripReadOnlyFields,
+} from '../field-filter';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -113,6 +118,33 @@ describe('Feature: relation field narrowing', () => {
         };
 
         const result = narrowRelationFields(relationsConfig, data);
+
+        expect(result).toEqual(data);
+      });
+    });
+  });
+});
+
+describe('Feature: field selection (applySelect)', () => {
+  describe('Given a select of { name: true, email: true }', () => {
+    describe('When applySelect is called on data with extra fields', () => {
+      it('Then only selected fields are kept', () => {
+        const select = { name: true as const, email: true as const };
+        const data = { id: '1', name: 'Alice', email: 'a@b.com', role: 'admin', createdAt: '2024' };
+
+        const result = applySelect(select, data);
+
+        expect(result).toEqual({ name: 'Alice', email: 'a@b.com' });
+      });
+    });
+  });
+
+  describe('Given undefined select', () => {
+    describe('When applySelect is called', () => {
+      it('Then all fields pass through unchanged', () => {
+        const data = { id: '1', name: 'Alice', email: 'a@b.com' };
+
+        const result = applySelect(undefined, data);
 
         expect(result).toEqual(data);
       });

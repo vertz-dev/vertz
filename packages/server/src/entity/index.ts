@@ -15,7 +15,12 @@ export type { EntityOperations } from './entity-operations';
 export { EntityRegistry } from './entity-registry';
 export type { EntityErrorResult } from './error-handler';
 export { entityErrorHandler } from './error-handler';
-export { narrowRelationFields, stripHiddenFields, stripReadOnlyFields } from './field-filter';
+export {
+  applySelect,
+  narrowRelationFields,
+  stripHiddenFields,
+  stripReadOnlyFields,
+} from './field-filter';
 export type { EntityRouteOptions } from './route-generator';
 export { generateEntityRoutes } from './route-generator';
 export type {

@@ -5,6 +5,7 @@ import { createCrudHandlers, type EntityDbAdapter, type ListOptions } from './cr
 import type { EntityOperations } from './entity-operations';
 import type { EntityRegistry } from './entity-registry';
 import { entityErrorHandler } from './error-handler';
+import { applySelect } from './field-filter';
 import type { EntityDefinition } from './types';
 import { parseVertzQL, validateVertzQL } from './vertzql-parser';
 
@@ -112,8 +113,9 @@ export function generateEntityRoutes(
             const query = (ctx.query ?? {}) as Record<string, string>;
             const parsed = parseVertzQL(query);
 
-            // Validate against entity schema (reject hidden fields)
-            const validation = validateVertzQL(parsed, def.model.table);
+            // Validate against entity schema and relations config
+            const relationsConfig = def.relations;
+            const validation = validateVertzQL(parsed, def.model.table, relationsConfig);
             if (!validation.ok) {
               return jsonResponse(
                 { error: { code: 'BadRequest', message: validation.error } },
@@ -131,6 +133,14 @@ export function generateEntityRoutes(
               const { status, body } = entityErrorHandler(result.error);
               return jsonResponse(body, status);
             }
+
+            // Apply select narrowing if requested
+            if (parsed.select && result.data.body.data) {
+              result.data.body.data = result.data.body.data.map((row) =>
+                applySelect(parsed.select, row as Record<string, unknown>),
+              );
+            }
+
             return jsonResponse(result.data.body, result.data.status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
@@ -139,6 +149,56 @@ export function generateEntityRoutes(
         },
       });
     }
+
+    // --- POST query fallback (for large queries that don't fit in URL) ---
+    routes.push({
+      method: 'POST',
+      path: `${basePath}/query`,
+      handler: async (ctx) => {
+        try {
+          const entityCtx = makeEntityCtx(ctx);
+          const body = (ctx.body ?? {}) as Record<string, unknown>;
+
+          const parsed = {
+            where: body.where as Record<string, unknown> | undefined,
+            orderBy: body.orderBy as Record<string, 'asc' | 'desc'> | undefined,
+            limit: typeof body.limit === 'number' ? body.limit : undefined,
+            after: typeof body.after === 'string' ? body.after : undefined,
+            select: body.select as Record<string, true> | undefined,
+            include: body.include as Record<string, true | Record<string, true>> | undefined,
+          };
+
+          const relationsConfig = def.relations;
+          const validation = validateVertzQL(parsed, def.model.table, relationsConfig);
+          if (!validation.ok) {
+            return jsonResponse({ error: { code: 'BadRequest', message: validation.error } }, 400);
+          }
+
+          const options: ListOptions = {
+            where: parsed.where,
+            limit: parsed.limit,
+            after: parsed.after,
+          };
+          const result = await crudHandlers.list(entityCtx, options);
+          if (!result.ok) {
+            const { status, body: errBody } = entityErrorHandler(result.error);
+            return jsonResponse(errBody, status);
+          }
+
+          // Apply select narrowing if requested
+          if (parsed.select && result.data.body.data) {
+            result.data.body.data = result.data.body.data.map((row) =>
+              applySelect(parsed.select, row as Record<string, unknown>),
+            );
+          }
+
+          return jsonResponse(result.data.body, result.data.status);
+        } catch (error) {
+          const { status, body: errBody } = entityErrorHandler(error);
+          return jsonResponse(errBody, status);
+        }
+      },
+    });
   }
 
   // --- GET ---
@@ -166,12 +226,33 @@ export function generateEntityRoutes(
           try {
             const entityCtx = makeEntityCtx(ctx);
             const id = getParams(ctx).id as string;
+
+            // Parse q= param for select narrowing
+            const query = (ctx.query ?? {}) as Record<string, string>;
+            const parsed = parseVertzQL(query);
+
+            // Validate select/include
+            const relationsConfig = def.relations;
+            const validation = validateVertzQL(parsed, def.model.table, relationsConfig);
+            if (!validation.ok) {
+              return jsonResponse(
+                { error: { code: 'BadRequest', message: validation.error } },
+                400,
+              );
+            }
+
             const result = await crudHandlers.get(entityCtx, id);
             if (!result.ok) {
               const { status, body } = entityErrorHandler(result.error);
               return jsonResponse(body, status);
             }
-            return jsonResponse(result.data.body, result.data.status);
+
+            // Apply select narrowing if requested
+            const body = parsed.select
+              ? applySelect(parsed.select, result.data.body)
+              : result.data.body;
+
+            return jsonResponse(body, result.data.status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);

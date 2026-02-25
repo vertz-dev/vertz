@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { d } from '@vertz/db';
+import type { EntityRelationsConfig } from '../types';
 import { parseVertzQL, validateVertzQL } from '../vertzql-parser';
 
 // ---------------------------------------------------------------------------
@@ -203,6 +204,82 @@ describe('Feature: VertzQL query param parsing', () => {
     });
   });
 
+  // --- q= param (structural queries) ---
+
+  describe('Given a query with q= param encoding { select: { title: true } }', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then returns select: { title: true }', () => {
+        const structural = { select: { title: true } };
+        const q = btoa(JSON.stringify(structural));
+        const query = { q };
+
+        const result = parseVertzQL(query);
+
+        expect(result.select).toEqual({ title: true });
+      });
+    });
+  });
+
+  describe('Given a query with q= param encoding { include: { assignee: true } }', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then returns include: { assignee: true }', () => {
+        const structural = { include: { assignee: true } };
+        const q = btoa(JSON.stringify(structural));
+        const query = { q };
+
+        const result = parseVertzQL(query);
+
+        expect(result.include).toEqual({ assignee: true });
+      });
+    });
+  });
+
+  describe('Given a query with q= param encoding both select and include', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then returns both select and include', () => {
+        const structural = {
+          select: { title: true, status: true },
+          include: { creator: { id: true, name: true } },
+        };
+        const q = btoa(JSON.stringify(structural));
+        const query = { q };
+
+        const result = parseVertzQL(query);
+
+        expect(result.select).toEqual({ title: true, status: true });
+        expect(result.include).toEqual({ creator: { id: true, name: true } });
+      });
+    });
+  });
+
+  describe('Given a combined query with where and q= param', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then merges readable and structural params', () => {
+        const structural = { include: { assignee: true } };
+        const q = btoa(JSON.stringify(structural));
+        const query = { 'where[status]': 'todo', q };
+
+        const result = parseVertzQL(query);
+
+        expect(result.where).toEqual({ status: 'todo' });
+        expect(result.include).toEqual({ assignee: true });
+      });
+    });
+  });
+
+  describe('Given a query with invalid q= param (not valid base64/JSON)', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then ignores the invalid q= param', () => {
+        const query = { q: 'not-valid-base64!!!' };
+
+        const result = parseVertzQL(query);
+
+        expect(result.select).toBeUndefined();
+        expect(result.include).toBeUndefined();
+      });
+    });
+  });
+
   // --- Unknown keys are ignored ---
 
   describe('Given a query with unknown keys', () => {
@@ -295,6 +372,117 @@ describe('Feature: VertzQL validation', () => {
         const options = { limit: 20, after: 'cursor-abc' };
 
         const result = validateVertzQL(options, usersTable);
+
+        expect(result.ok).toBe(true);
+      });
+    });
+  });
+
+  // --- Select validation ---
+
+  describe('Given a select with a hidden field', () => {
+    describe('When validateVertzQL is called', () => {
+      it('Then returns an error', () => {
+        const options = { select: { passwordHash: true as const } };
+
+        const result = validateVertzQL(options, usersTable);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('passwordHash');
+        }
+      });
+    });
+  });
+
+  describe('Given a select with only public fields', () => {
+    describe('When validateVertzQL is called', () => {
+      it('Then returns ok', () => {
+        const options = { select: { name: true as const, email: true as const } };
+
+        const result = validateVertzQL(options, usersTable);
+
+        expect(result.ok).toBe(true);
+      });
+    });
+  });
+
+  // --- Include validation ---
+
+  describe('Given an include for a relation not in entity relations config', () => {
+    describe('When validateVertzQL is called with relationsConfig', () => {
+      it('Then returns an error', () => {
+        const options = { include: { project: true } };
+        const relationsConfig: EntityRelationsConfig = { assignee: true };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('project');
+        }
+      });
+    });
+  });
+
+  describe('Given an include for a relation set to false in entity config', () => {
+    describe('When validateVertzQL is called', () => {
+      it('Then returns an error', () => {
+        const options = { include: { project: true } };
+        const relationsConfig: EntityRelationsConfig = { project: false };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('project');
+        }
+      });
+    });
+  });
+
+  describe('Given an include with over-wide field selection beyond entity config', () => {
+    describe('When validateVertzQL is called', () => {
+      it('Then returns an error for the unauthorized field', () => {
+        const options = {
+          include: { creator: { id: true, name: true, email: true } },
+        };
+        const relationsConfig: EntityRelationsConfig = {
+          creator: { id: true, name: true } as Record<string, true>,
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('email');
+        }
+      });
+    });
+  });
+
+  describe('Given a valid include within entity config restrictions', () => {
+    describe('When validateVertzQL is called', () => {
+      it('Then returns ok', () => {
+        const options = { include: { assignee: true } };
+        const relationsConfig: EntityRelationsConfig = { assignee: true };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
+
+        expect(result.ok).toBe(true);
+      });
+    });
+  });
+
+  describe('Given a valid include with field narrowing within entity config', () => {
+    describe('When validateVertzQL is called', () => {
+      it('Then returns ok', () => {
+        const options = { include: { creator: { id: true, name: true } } };
+        const relationsConfig: EntityRelationsConfig = {
+          creator: { id: true, name: true } as Record<string, true>,
+        };
+
+        const result = validateVertzQL(options, usersTable, relationsConfig);
 
         expect(result.ok).toBe(true);
       });
