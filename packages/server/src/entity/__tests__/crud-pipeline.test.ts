@@ -1,8 +1,7 @@
-import { ForbiddenException } from '@vertz/core';
-import { EntityNotFoundError } from '@vertz/errors';
-import { d } from '@vertz/db';
-import { unwrap } from '@vertz/errors';
 import { describe, expect, it, mock } from 'bun:test';
+import { ForbiddenException } from '@vertz/core';
+import { d } from '@vertz/db';
+import { EntityNotFoundError, unwrap } from '@vertz/errors';
 import { createEntityContext } from '../context';
 import { createCrudHandlers } from '../crud-pipeline';
 import { entity } from '../entity';
@@ -195,12 +194,14 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx({ roles: ['admin'] });
 
-        const result = unwrap(await handlers.create!(ctx, {
-          email: 'new@example.com',
-          name: 'New',
-          createdAt: 'should-be-stripped',
-          id: 'should-be-stripped',
-        }));
+        const result = unwrap(
+          await handlers.create!(ctx, {
+            email: 'new@example.com',
+            name: 'New',
+            createdAt: 'should-be-stripped',
+            id: 'should-be-stripped',
+          }),
+        );
 
         expect(result.status).toBe(201);
         expect(result.body).not.toHaveProperty('passwordHash');
@@ -291,10 +292,12 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx({ userId: 'user-1' });
 
-        const result = unwrap(await handlers.update!(ctx, 'user-1', {
-          name: 'Updated',
-          createdAt: 'should-be-stripped',
-        }));
+        const result = unwrap(
+          await handlers.update!(ctx, 'user-1', {
+            name: 'Updated',
+            createdAt: 'should-be-stripped',
+          }),
+        );
 
         expect(result.status).toBe(200);
         expect(result.body).not.toHaveProperty('passwordHash');
@@ -650,11 +653,13 @@ describe('Feature: CRUD pipeline', () => {
         const ctx = makeCtx();
 
         // Filter to viewers (user-1, user-3), cursor after user-1
-        const result = unwrap(await handlers.list(ctx, {
-          where: { role: 'viewer' },
-          after: 'user-1',
-          limit: 10,
-        }));
+        const result = unwrap(
+          await handlers.list(ctx, {
+            where: { role: 'viewer' },
+            after: 'user-1',
+            limit: 10,
+          }),
+        );
 
         // user-2 filtered out (admin), user-1 is before cursor → only user-3
         expect(result.body.data).toHaveLength(1);
@@ -679,20 +684,24 @@ describe('Feature: CRUD pipeline', () => {
         expect(page1.body.hasNextPage).toBe(true);
 
         // Page 2 — use nextCursor from page 1
-        const page2 = unwrap(await handlers.list(ctx, {
-          after: page1.body.nextCursor!,
-          limit: 1,
-        }));
+        const page2 = unwrap(
+          await handlers.list(ctx, {
+            after: page1.body.nextCursor!,
+            limit: 1,
+          }),
+        );
         expect(page2.body.data).toHaveLength(1);
         expect(page2.body.data[0]).toHaveProperty('email', 'bob@example.com');
         expect(page2.body.nextCursor).toBe('user-2');
         expect(page2.body.hasNextPage).toBe(true);
 
         // Page 3 — use nextCursor from page 2 (should be empty)
-        const page3 = unwrap(await handlers.list(ctx, {
-          after: page2.body.nextCursor!,
-          limit: 1,
-        }));
+        const page3 = unwrap(
+          await handlers.list(ctx, {
+            after: page2.body.nextCursor!,
+            limit: 1,
+          }),
+        );
         expect(page3.body.data).toHaveLength(0);
         expect(page3.body.nextCursor).toBeNull();
         expect(page3.body.hasNextPage).toBe(false);
@@ -742,9 +751,11 @@ describe('Feature: CRUD pipeline', () => {
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        const result = unwrap(await handlers.list(ctx, {
-          where: { role: 'admin', passwordHash: 'hash123' },
-        }));
+        const result = unwrap(
+          await handlers.list(ctx, {
+            where: { role: 'admin', passwordHash: 'hash123' },
+          }),
+        );
 
         // passwordHash stripped, only role filter applied
         expect(result.body.data).toHaveLength(1);
@@ -810,6 +821,132 @@ describe('Feature: CRUD pipeline', () => {
         await expect(handlers.create!(ctx, {})).rejects.toThrow(ForbiddenException);
         await expect(handlers.update!(ctx, 'user-1', {})).rejects.toThrow(ForbiddenException);
         await expect(handlers.delete!(ctx, 'user-1')).rejects.toThrow(ForbiddenException);
+      });
+    });
+  });
+
+  // --- Relation field narrowing ---
+
+  describe('Given an entity with relations: { creator: { id: true, name: true } }', () => {
+    const tasksTable = d.table('tasks', {
+      id: d.uuid().primary(),
+      title: d.text(),
+    });
+    const tasksModel = d.model(tasksTable);
+    const def = entity('tasks', {
+      model: tasksModel,
+      access: { list: () => true, get: () => true },
+      relations: { creator: { id: true, name: true } },
+    });
+
+    function createTaskDbWithRelations() {
+      const rows: Record<string, Record<string, unknown>> = {
+        'task-1': {
+          id: 'task-1',
+          title: 'Review PR',
+          creator: { id: 'u1', name: 'Alice', email: 'alice@example.com', role: 'admin' },
+        },
+      };
+      return {
+        get: mock(async (id: string) => rows[id] ?? null),
+        list: mock(async () => ({
+          data: Object.values(rows),
+          total: Object.values(rows).length,
+        })),
+        create: mock(async (data: Record<string, unknown>) => data),
+        update: mock(async (_id: string, data: Record<string, unknown>) => data),
+        delete: mock(async () => null),
+      };
+    }
+
+    describe('When list returns rows with full creator data', () => {
+      it('Then the response narrows creator to only id and name', async () => {
+        const db = createTaskDbWithRelations();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(await handlers.list(ctx));
+
+        expect(result.body.data[0]).toHaveProperty('title', 'Review PR');
+        const creator = result.body.data[0].creator as Record<string, unknown>;
+        expect(creator).toEqual({ id: 'u1', name: 'Alice' });
+        // email and role should be stripped
+        expect(creator).not.toHaveProperty('email');
+        expect(creator).not.toHaveProperty('role');
+      });
+    });
+
+    describe('When get returns a row with full creator data', () => {
+      it('Then the response narrows creator to only id and name', async () => {
+        const db = createTaskDbWithRelations();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(await handlers.get(ctx, 'task-1'));
+
+        expect(result.body).toHaveProperty('title', 'Review PR');
+        const creator = result.body.creator as Record<string, unknown>;
+        expect(creator).toEqual({ id: 'u1', name: 'Alice' });
+        expect(creator).not.toHaveProperty('email');
+      });
+    });
+  });
+
+  describe('Given an entity with relations: { project: false }', () => {
+    const tasksTable = d.table('tasks', {
+      id: d.uuid().primary(),
+      title: d.text(),
+    });
+    const tasksModel = d.model(tasksTable);
+    const def = entity('tasks', {
+      model: tasksModel,
+      access: { list: () => true, get: () => true },
+      relations: { project: false },
+    });
+
+    function createTaskDbWithProject() {
+      const rows: Record<string, Record<string, unknown>> = {
+        'task-1': {
+          id: 'task-1',
+          title: 'Review PR',
+          project: { id: 'p1', name: 'Acme', budget: 100000 },
+        },
+      };
+      return {
+        get: mock(async (id: string) => rows[id] ?? null),
+        list: mock(async () => ({
+          data: Object.values(rows),
+          total: Object.values(rows).length,
+        })),
+        create: mock(async (data: Record<string, unknown>) => data),
+        update: mock(async (_id: string, data: Record<string, unknown>) => data),
+        delete: mock(async () => null),
+      };
+    }
+
+    describe('When list returns rows with project data', () => {
+      it('Then the project relation is stripped from the response', async () => {
+        const db = createTaskDbWithProject();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(await handlers.list(ctx));
+
+        expect(result.body.data[0]).toHaveProperty('title', 'Review PR');
+        expect(result.body.data[0]).not.toHaveProperty('project');
+      });
+    });
+
+    describe('When get returns a row with project data', () => {
+      it('Then the project relation is stripped from the response', async () => {
+        const db = createTaskDbWithProject();
+        const handlers = createCrudHandlers(def, db);
+        const ctx = makeCtx();
+
+        const result = unwrap(await handlers.get(ctx, 'task-1'));
+
+        expect(result.body).toHaveProperty('title', 'Review PR');
+        expect(result.body).not.toHaveProperty('project');
       });
     });
   });

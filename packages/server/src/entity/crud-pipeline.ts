@@ -1,12 +1,17 @@
-import { ok, err, type Result } from '@vertz/errors';
-import { EntityNotFoundError, type EntityError } from '@vertz/errors';
-import type { ColumnBuilder, ColumnMetadata, TableDef, ListOptions, EntityDbAdapter } from '@vertz/db';
+import type {
+  ColumnBuilder,
+  ColumnMetadata,
+  EntityDbAdapter,
+  ListOptions,
+  TableDef,
+} from '@vertz/db';
+import { type EntityError, EntityNotFoundError, err, ok, type Result } from '@vertz/errors';
 import { enforceAccess } from './access-enforcer';
-import { stripHiddenFields, stripReadOnlyFields } from './field-filter';
+import { narrowRelationFields, stripHiddenFields, stripReadOnlyFields } from './field-filter';
 import type { EntityContext, EntityDefinition } from './types';
 
 // Re-export types from @vertz/db for backward compatibility
-export type { ListOptions, EntityDbAdapter } from '@vertz/db';
+export type { EntityDbAdapter, ListOptions } from '@vertz/db';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -51,8 +56,14 @@ export interface CrudResult<T = unknown> {
 }
 
 export interface CrudHandlers {
-  list(ctx: EntityContext, options?: ListOptions): Promise<Result<CrudResult<ListResult>, EntityError>>;
-  get(ctx: EntityContext, id: string): Promise<Result<CrudResult<Record<string, unknown>>, EntityError>>;
+  list(
+    ctx: EntityContext,
+    options?: ListOptions,
+  ): Promise<Result<CrudResult<ListResult>, EntityError>>;
+  get(
+    ctx: EntityContext,
+    id: string,
+  ): Promise<Result<CrudResult<Record<string, unknown>>, EntityError>>;
   create(
     ctx: EntityContext,
     data: Record<string, unknown>,
@@ -85,7 +96,9 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
       const after = options?.after && options.after.length <= 512 ? options.after : undefined;
 
       const { data: rows, total } = await db.list({ where, limit, after });
-      const data = rows.map((row) => stripHiddenFields(table, row));
+      const data = rows.map((row) =>
+        narrowRelationFields(def.relations, stripHiddenFields(table, row)),
+      );
 
       // Compute nextCursor: if we got a full page, there may be more rows
       const pkColumn = resolvePrimaryKeyColumn(table);
@@ -107,7 +120,10 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
 
       await enforceAccess('get', def.access, ctx, row);
 
-      return ok({ status: 200, body: stripHiddenFields(table, row) });
+      return ok({
+        status: 200,
+        body: narrowRelationFields(def.relations, stripHiddenFields(table, row)),
+      });
     },
 
     async create(ctx, data) {
@@ -133,7 +149,7 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
         }
       }
 
-      return ok({ status: 201, body: strippedResult });
+      return ok({ status: 201, body: narrowRelationFields(def.relations, strippedResult) });
     },
 
     async update(ctx, id, data) {
@@ -165,7 +181,10 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
         }
       }
 
-      return ok({ status: 200, body: strippedResult });
+      return ok({
+        status: 200,
+        body: narrowRelationFields(def.relations, strippedResult),
+      });
     },
 
     async delete(ctx, id) {
