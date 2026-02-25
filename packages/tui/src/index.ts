@@ -51,7 +51,17 @@ export type { Color } from './jsx-runtime/index';
 export type { TaskGroup, TaskHandle, TaskRunner } from './legacy';
 // Legacy API (deprecated — will be removed in future version)
 export { createTaskRunner, Message, SelectList, Task, TaskList } from './legacy';
+// Interactive detection
+export { NonInteractiveError, isInteractive } from './interactive';
 // Prompt API
+export type {
+  ConfirmPromptConfig,
+  MultiSelectPromptConfig,
+  PasswordPromptConfig,
+  PromptAPI,
+  SelectPromptConfig,
+  TextPromptConfig,
+} from './prompt';
 export { prompt } from './prompt';
 // Render to string
 export type { RenderToStringOptions } from './render-to-string';

@@ -7,35 +7,40 @@ import type { SelectOption } from './components/Select';
 import { Select } from './components/Select';
 import { Spinner } from './components/Spinner';
 import { TextInput } from './components/TextInput';
+import { isInteractive, NonInteractiveError } from './interactive';
 import { __append, __child, __element, __staticText } from './internals';
 import { symbols } from './theme';
 import type { TuiElement } from './tui-element';
 
-interface TextPromptConfig {
+export interface TextPromptConfig {
   message: string;
   placeholder?: string;
+  default?: string;
   validate?: (value: string) => string | undefined;
   _mountOptions?: TuiMountOptions;
 }
 
-interface SelectPromptConfig<T> {
+export interface SelectPromptConfig<T> {
   message: string;
   options: SelectOption<T>[];
+  default?: T;
 }
 
-interface MultiSelectPromptConfig<T> {
+export interface MultiSelectPromptConfig<T> {
   message: string;
   options: SelectOption<T>[];
   defaultValue?: T[];
 }
 
-interface ConfirmPromptConfig {
+export interface ConfirmPromptConfig {
   message: string;
+  default?: boolean;
 }
 
-interface PasswordPromptConfig {
+export interface PasswordPromptConfig {
   message: string;
   placeholder?: string;
+  default?: string;
 }
 
 interface SpinnerHandle {
@@ -69,6 +74,10 @@ function write(text: string): void {
 /** Imperative prompt API — sugar built on top of persistent tree components. */
 export const prompt: PromptAPI = {
   text(config: TextPromptConfig): Promise<string> {
+    if (!config._mountOptions && !isInteractive()) {
+      if (config.default !== undefined) return Promise.resolve(config.default);
+      return Promise.reject(new NonInteractiveError('text'));
+    }
     return new Promise((resolve) => {
       let handle: ReturnType<typeof tui.mount> | null = null;
       const errorMsg = signal('');
@@ -107,6 +116,10 @@ export const prompt: PromptAPI = {
   },
 
   select<T>(config: SelectPromptConfig<T>): Promise<T> {
+    if (!isInteractive()) {
+      if (config.default !== undefined) return Promise.resolve(config.default);
+      return Promise.reject(new NonInteractiveError('select'));
+    }
     return new Promise((resolve) => {
       let handle: ReturnType<typeof tui.mount> | null = null;
       function App(): TuiElement {
@@ -124,6 +137,10 @@ export const prompt: PromptAPI = {
   },
 
   multiSelect<T>(config: MultiSelectPromptConfig<T>): Promise<T[]> {
+    if (!isInteractive()) {
+      if (config.defaultValue !== undefined) return Promise.resolve(config.defaultValue);
+      return Promise.reject(new NonInteractiveError('multiSelect'));
+    }
     return new Promise((resolve) => {
       let handle: ReturnType<typeof tui.mount> | null = null;
       function App(): TuiElement {
@@ -142,6 +159,10 @@ export const prompt: PromptAPI = {
   },
 
   confirm(config: ConfirmPromptConfig): Promise<boolean> {
+    if (!isInteractive()) {
+      if (config.default !== undefined) return Promise.resolve(config.default);
+      return Promise.reject(new NonInteractiveError('confirm'));
+    }
     return new Promise((resolve) => {
       let handle: ReturnType<typeof tui.mount> | null = null;
       function App(): TuiElement {
@@ -158,6 +179,10 @@ export const prompt: PromptAPI = {
   },
 
   password(config: PasswordPromptConfig): Promise<string> {
+    if (!isInteractive()) {
+      if (config.default !== undefined) return Promise.resolve(config.default);
+      return Promise.reject(new NonInteractiveError('password'));
+    }
     return new Promise((resolve) => {
       let handle: ReturnType<typeof tui.mount> | null = null;
       function App(): TuiElement {
@@ -182,6 +207,17 @@ export const prompt: PromptAPI = {
   },
 
   spinner(): SpinnerHandle {
+    if (!isInteractive()) {
+      // Degrade to static log lines in CI
+      return {
+        start(message: string) {
+          write(`${symbols.info} ${message}`);
+        },
+        stop(message: string) {
+          write(`${symbols.success} ${message}`);
+        },
+      };
+    }
     let handle: ReturnType<typeof tui.mount> | null = null;
     return {
       start(message: string) {
