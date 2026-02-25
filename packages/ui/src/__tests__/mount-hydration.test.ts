@@ -206,7 +206,42 @@ describe('mount() — tolerant hydration', () => {
     vi.restoreAllMocks();
   });
 
-  it('default mode clears and renders (existing behavior unchanged)', () => {
+  it('auto-detects SSR and uses tolerant hydration when __VERTZ_SSR_DATA__ exists', () => {
+    // Simulate SSR: root has content + SSR data marker on window
+    root.innerHTML = '<div><h1>SSR Content</h1></div>';
+    // biome-ignore lint/suspicious/noExplicitAny: test setup
+    (globalThis as any).__VERTZ_SSR_DATA__ = [{ key: 'test', data: 'ok' }];
+
+    // Grab the original SSR <h1> node reference — if hydration is tolerant,
+    // this exact DOM node is preserved (adopted). If replace mode runs,
+    // the node is destroyed and a new one is created.
+    const ssrH1 = root.querySelector('h1')!;
+
+    const App = () => {
+      const el = __element('div');
+      __enterChildren(el);
+      const h1 = __element('h1');
+      __enterChildren(h1);
+      __append(h1, __staticText('SSR Content'));
+      __exitChildren();
+      __append(el, h1);
+      __exitChildren();
+      return el;
+    };
+
+    // No hydration option specified — should auto-detect tolerant mode
+    const handle = mount(App, root);
+
+    // The SAME DOM node must be preserved (tolerant hydration adopts, replace destroys)
+    const currentH1 = root.querySelector('h1')!;
+    expect(currentH1).toBe(ssrH1);
+
+    handle.unmount();
+    // biome-ignore lint/suspicious/noExplicitAny: test cleanup
+    delete (globalThis as any).__VERTZ_SSR_DATA__;
+  });
+
+  it('default mode clears and renders when no SSR data exists', () => {
     root.innerHTML = '<span>old content</span>';
     const App = () => {
       const el = document.createElement('div');

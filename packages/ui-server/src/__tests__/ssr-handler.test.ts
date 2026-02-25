@@ -165,6 +165,38 @@ describe('createSSRHandler', () => {
     expect(text).toBe('Internal Server Error');
   });
 
+  it('inlines CSS when inlineCSS map is provided, replacing <link> tags', async () => {
+    const templateWithLink = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Test</title>
+  <script type="module" src="/assets/index.js"></script>
+  <link rel="stylesheet" href="/assets/vertz.css">
+</head>
+<body><div id="app"><!--ssr-outlet--></div></body>
+</html>`;
+
+    const cssContent = '._card { padding: 1rem; border-radius: 0.5rem; }';
+
+    const handler = createSSRHandler({
+      module: simpleModule,
+      template: templateWithLink,
+      inlineCSS: { '/assets/vertz.css': cssContent },
+    });
+
+    const response = await handler(new Request('http://localhost/'));
+    const html = await response.text();
+
+    // The <link> tag should be replaced with an inline <style>
+    expect(html).not.toContain('<link rel="stylesheet" href="/assets/vertz.css">');
+    expect(html).toContain(`<style data-vertz-css>${cssContent}</style>`);
+
+    // The inlined style should be in <head>
+    const styleIdx = html.indexOf(cssContent);
+    const headCloseIdx = html.indexOf('</head>');
+    expect(styleIdx).toBeLessThan(headCloseIdx);
+  });
+
   it('returns graceful SSE done event when nav discovery crashes', async () => {
     const brokenModule: SSRModule = {
       default: () => {

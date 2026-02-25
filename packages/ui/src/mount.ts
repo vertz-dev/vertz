@@ -71,7 +71,17 @@ export function mount<AppFn extends () => HTMLElement>(
     }
   }
 
-  const mode = options?.hydration ?? 'replace';
+  // Auto-detect SSR: if no hydration mode is specified, check for SSR markers.
+  // When __VERTZ_SSR_DATA__ exists and the root has content, the page was
+  // server-rendered — use tolerant hydration to preserve SSR DOM.
+  let mode = options?.hydration ?? 'replace';
+  if (!options?.hydration && root.firstChild) {
+    // biome-ignore lint/suspicious/noExplicitAny: SSR global check
+    const hasSSRData = typeof (globalThis as any).__VERTZ_SSR_DATA__ !== 'undefined';
+    if (hasSSRData) {
+      mode = 'tolerant';
+    }
+  }
 
   if (mode === 'strict') {
     throw new Error(

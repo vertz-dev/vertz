@@ -10,9 +10,19 @@ import { createSSRHandler } from '@vertz/ui-server';
 const ssrModule = await import('./dist/server/index.js');
 const template = await Bun.file('./dist/client/index.html').text();
 
+// Read extracted CSS and inline it into the template to prevent FOUC.
+// Without inlining, the browser needs an extra request for the CSS file,
+// which causes unstyled content on slow connections.
+const vertzCssFile = Bun.file('./dist/client/assets/vertz.css');
+const inlineCSS: Record<string, string> = {};
+if (await vertzCssFile.exists()) {
+  inlineCSS['/assets/vertz.css'] = await vertzCssFile.text();
+}
+
 const handler = createSSRHandler({
   module: ssrModule,
   template,
+  inlineCSS,
 });
 
 const server = Bun.serve({

@@ -19,6 +19,17 @@ export interface SSRHandlerOptions {
   template: string;
   /** SSR timeout for queries (default: 300ms) */
   ssrTimeout?: number;
+  /**
+   * Map of CSS asset URLs to their content for inlining.
+   * Replaces `<link rel="stylesheet" href="...">` tags with inline `<style>` tags.
+   * Eliminates extra network requests, preventing FOUC on slow connections.
+   *
+   * @example
+   * ```ts
+   * inlineCSS: { '/assets/vertz.css': await Bun.file('./dist/client/assets/vertz.css').text() }
+   * ```
+   */
+  inlineCSS?: Record<string, string>;
 }
 
 /**
@@ -67,7 +78,17 @@ function injectIntoTemplate(
 export function createSSRHandler(
   options: SSRHandlerOptions,
 ): (request: Request) => Promise<Response> {
-  const { module, template, ssrTimeout } = options;
+  const { module, ssrTimeout, inlineCSS } = options;
+
+  // Pre-process template: inline CSS assets to eliminate extra requests
+  let template = options.template;
+  if (inlineCSS) {
+    for (const [href, css] of Object.entries(inlineCSS)) {
+      const escapedHref = href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const linkPattern = new RegExp(`<link[^>]*href=["']${escapedHref}["'][^>]*>`);
+      template = template.replace(linkPattern, `<style data-vertz-css>${css}</style>`);
+    }
+  }
 
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
