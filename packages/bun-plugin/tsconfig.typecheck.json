@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "noEmit": true,
+    "noUncheckedIndexedAccess": false,
+    "skipLibCheck": true,
+    "types": ["bun-types"]
+  },
+  "extends": "../../tsconfig.json",
+  "include": ["src"]
+}
