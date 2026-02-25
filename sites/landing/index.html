@@ -86,8 +86,51 @@
     .syn-prop { color: #8AAEC8; }
     .syn-punct { color: #555555; }
     .syn-comment { color: #555555; }
+    .syn-type { color: #C8B88A; }
+    .syn-num { color: #B89E9E; }
     .syn-var { color: #E4E4E7; }
+    .file-tab { 
+      transition: all 0.15s; 
+      display: inline-block; 
+      border: none;
+      cursor: pointer;
+      padding: 2px 8px;
+      font-family: monospace;
+      font-size: 11px;
+    }
+    .file-tab-active { 
+      background: #27272a; 
+      color: #e4e4e7; 
+    }
+    .file-tab:not(.file-tab-active) { 
+      background: transparent; 
+      color: #71717a; 
+    }
+    .file-tab:not(.file-tab-active):hover { 
+      color: #a1a1aa; 
+    }
+    .code-panel.hidden { display: none; }
   </style>
+  <script>
+    function showCodeTab(tabName) {
+      // Hide all code blocks
+      document.getElementById('code-counter').classList.add('hidden');
+      document.getElementById('code-fetch').classList.add('hidden');
+      document.getElementById('code-form').classList.add('hidden');
+      
+      // Reset all tab buttons
+      var buttons = document.querySelectorAll('.file-tab');
+      for (var i = 0; i < buttons.length; i++) {
+        buttons[i].classList.remove('file-tab-active');
+      }
+      
+      // Show selected code and activate button
+      document.getElementById('code-' + tabName).classList.remove('hidden');
+      // Find and activate the button that was clicked
+      var tabMap = { 'counter': 0, 'fetch': 1, 'form': 2 };
+      buttons[tabMap[tabName]].classList.add('file-tab-active');
+    }
+  </script>
 </head>
 <body class="font-sans text-zinc-50 antialiased">
 
@@ -147,8 +190,91 @@
       </div>
     </section>
 
-    <!-- ===================== 2. CODE EXAMPLES ===================== -->
-    <section class="py-24 px-6 reveal bg-[#0e0e11] border-y border-white/[0.02]">
+    <!-- ===================== CODE EXAMPLES ===================== -->
+    <section class="py-24 px-6">
+      <div class="max-w-4xl mx-auto">
+        <p class="font-mono text-xs tracking-widest uppercase text-zinc-500 mb-8 text-center">@vertz/ui</p>
+        
+        <!-- Code Window with Tabs -->
+        <div class="bg-[#0a0a0b] border border-border overflow-hidden rounded-lg shadow-2xl">
+          <div class="flex items-center gap-1 px-2 py-2 border-b border-border bg-[#0d0d0f]">
+            <button onclick="showCodeTab('counter')" class="file-tab file-tab-active">Counter.tsx</button>
+            <button onclick="showCodeTab('fetch')" class="file-tab">UserProfile.tsx</button>
+            <button onclick="showCodeTab('form')" class="file-tab">LoginForm.tsx</button>
+          </div>
+          
+          <!-- Counter Code -->
+          <div id="code-counter">
+            <pre class="p-6 text-sm font-mono leading-relaxed overflow-x-auto"><code><span class="syn-kw">import</span> <span class="syn-punct">{</span> css <span class="syn-punct">}</span> <span class="syn-kw">from</span> <span class="syn-str">'@vertz/ui'</span><span class="syn-punct">;</span>
+
+<span class="syn-kw">const</span> styles <span class="syn-punct">=</span> <span class="syn-fn">css</span><span class="syn-punct">({</span>
+  <span class="syn-prop">button</span><span class="syn-punct">:</span> <span class="syn-punct">[</span><span class="syn-str">'px:4'</span><span class="syn-punct">,</span> <span class="syn-str">'py:2'</span><span class="syn-punct">,</span> <span class="syn-str">'rounded:md'</span><span class="syn-punct">,</span> <span class="syn-str">'bg:blue-600'</span><span class="syn-punct">,</span> <span class="syn-str">'text:white'</span><span class="syn-punct">]</span>
+<span class="syn-punct">});</span>
+
+<span class="syn-kw">export</span> <span class="syn-kw">function</span> <span class="syn-fn">Counter</span><span class="syn-punct">()</span> <span class="syn-punct">{</span>
+  <span class="syn-kw">let</span> count <span class="syn-punct">=</span> <span class="syn-str">0</span><span class="syn-punct">;</span>
+
+  <span class="syn-kw">return</span> <span class="syn-punct">(</span>
+    <span class="syn-punct">&lt;</span><span class="syn-kw">button</span> <span class="syn-prop">class</span><span class="syn-punct">={</span>styles<span class="syn-punct">.</span>button<span class="syn-punct">}</span> <span class="syn-prop">onClick</span><span class="syn-punct">={()</span> <span class="syn-punct">=&gt;</span> count<span class="syn-punct">++}&gt;</span>
+      Clicked <span class="syn-punct">{</span>count<span class="syn-punct">}</span> times
+    <span class="syn-punct">&lt;/</span><span class="syn-kw">button</span><span class="syn-punct">&gt;</span>
+  <span class="syn-punct">);</span>
+<span class="syn-punct">}</span></code></pre>
+          </div>
+          
+          <!-- Fetch Code -->
+          <div id="code-fetch" class="hidden">
+            <pre class="p-6 text-sm font-mono leading-relaxed overflow-x-auto"><code><span class="syn-kw">import</span> <span class="syn-punct">{</span> query <span class="syn-punct">}</span> <span class="syn-kw">from</span> <span class="syn-str">'@vertz/ui'</span><span class="syn-punct">;</span>
+<span class="syn-kw">import</span> <span class="syn-punct">{</span> api <span class="syn-punct">}</span> <span class="syn-kw">from</span> <span class="syn-str">'./sdk'</span><span class="syn-punct">;</span>
+
+<span class="syn-kw">export</span> <span class="syn-kw">function</span> <span class="syn-fn">UserProfile</span><span class="syn-punct">({</span> <span class="syn-prop">userId</span> <span class="syn-punct">}:</span> <span class="syn-punct">{</span> <span class="syn-prop">userId</span><span class="syn-punct">:</span> <span class="syn-kw">string</span> <span class="syn-punct">})</span> <span class="syn-punct">{</span>
+  <span class="syn-kw">const</span> <span class="syn-punct">{</span>data, error, loading<span class="syn-punct">}</span> <span class="syn-punct">=</span> <span class="syn-fn">query</span><span class="syn-punct">(()</span> <span class="syn-kw">=></span> api<span class="syn-punct">.</span>users<span class="syn-punct">.</span><span class="syn-fn">read</span><span class="syn-punct">(</span><span class="syn-var">userId</span><span class="syn-punct">));</span>
+
+  <span class="syn-kw">if</span> <span class="syn-punct">(</span>loading<span class="syn-punct">)</span> <span class="syn-kw">return</span> <span class="syn-punct">&lt;</span><span class="syn-kw">p</span><span class="syn-punct">&gt;Loading...&lt;/</span><span class="syn-kw">p</span><span class="syn-punct">&gt;</span>;
+  <span class="syn-kw">if</span> <span class="syn-punct">(</span>error<span class="syn-punct">)</span> <span class="syn-kw">return</span> <span class="syn-punct">&lt;</span><span class="syn-kw">p</span><span class="syn-punct">&gt;{</span>error<span class="syn-punct">}&lt;/</span><span class="syn-kw">p</span><span class="syn-punct">&gt;</span>;
+
+  <span class="syn-kw">return</span> <span class="syn-punct">(</span>
+    <span class="syn-punct">&lt;</span><span class="syn-kw">div</span><span class="syn-punct">&gt;</span>
+      <span class="syn-punct">&lt;</span><span class="syn-kw">h1</span><span class="syn-punct">&gt;{</span>data<span class="syn-punct">.</span>name<span class="syn-punct">}&lt;/</span><span class="syn-kw">h1</span><span class="syn-punct">&gt;</span>
+      <span class="syn-punct">&lt;</span><span class="syn-kw">p</span><span class="syn-punct">&gt;{</span>data<span class="syn-punct">.</span>email<span class="syn-punct">}&lt;/</span><span class="syn-kw">p</span><span class="syn-punct">&gt;</span>
+    <span class="syn-punct">&lt;/</span><span class="syn-kw">div</span><span class="syn-punct">&gt;</span>
+  <span class="syn-punct">);</span>
+<span class="syn-punct">}</span>
+
+<span class="syn-comment">// query(() => api.users.read(userId))</span>
+<span class="syn-comment">// Returns { data, error, loading }</span></code></pre>
+          </div>
+          
+          <!-- Form Code -->
+          <div id="code-form" class="hidden">
+            <pre class="p-6 text-sm font-mono leading-relaxed overflow-x-auto"><code><span class="syn-kw">import</span> <span class="syn-punct">{</span> form <span class="syn-punct">}</span> <span class="syn-kw">from</span> <span class="syn-str">'@vertz/ui'</span><span class="syn-punct">;</span>
+<span class="syn-kw">import</span> <span class="syn-punct">{</span> api <span class="syn-punct">}</span> <span class="syn-kw">from</span> <span class="syn-str">'./sdk'</span><span class="syn-punct">;</span>
+
+<span class="syn-kw">const</span> loginForm <span class="syn-punct">=</span> <span class="syn-fn">form</span><span class="syn-punct">(</span>api<span class="syn-punct">.</span>users<span class="syn-punct">.</span><span class="syn-fn">login</span><span class="syn-punct">,</span> <span class="syn-punct">{</span>
+  <span class="syn-prop">onSuccess</span><span class="syn-punct">:</span> <span class="syn-punct">()</span> <span class="syn-kw">=></span> <span class="syn-fn">redirect</span><span class="syn-punct">(</span><span class="syn-str">'/dashboard'</span><span class="syn-punct">)</span>
+<span class="syn-punct">});</span>
+
+<span class="syn-kw">return</span> <span class="syn-punct">(</span>
+  <span class="syn-punct">&lt;</span><span class="syn-kw">form</span> <span class="syn-prop">onSubmit</span><span class="syn-punct">={</span>loginForm<span class="syn-punct">.</span>onSubmit<span class="syn-punct">}&gt;</span>
+    <span class="syn-punct">&lt;</span><span class="syn-kw">input</span> <span class="syn-prop">name</span><span class="syn-punct">=</span><span class="syn-str">"email"</span> <span class="syn-prop">placeholder</span><span class="syn-punct">=</span><span class="syn-str">"Email"</span> <span class="syn-punct">/&gt;</span>
+    <span class="syn-punct">&lt;</span><span class="syn-kw">input</span> <span class="syn-prop">name</span><span class="syn-punct">=</span><span class="syn-str">"password"</span> <span class="syn-prop">type</span><span class="syn-punct">=</span><span class="syn-str">"password"</span> <span class="syn-punct">/&gt;</span>
+    <span class="syn-punct">&lt;</span><span class="syn-kw">button</span> <span class="syn-prop">type</span><span class="syn-punct">=</span><span class="syn-str">"submit"</span> <span class="syn-prop">disabled</span><span class="syn-punct">={</span>loginForm<span class="syn-punct">.</span>submitting<span class="syn-punct">}&gt;</span>Sign in<span class="syn-punct">&lt;/</span><span class="syn-kw">button</span><span class="syn-punct">&gt;</span>
+  <span class="syn-punct">&lt;/</span><span class="syn-kw">form</span><span class="syn-punct">&gt;</span>
+<span class="syn-punct">);</span>
+
+<span class="syn-comment">// form(api.users.login, { onSuccess })</span>
+<span class="syn-comment">// Returns { onSubmit, action, method, submitting }</span></code></pre>
+          </div>
+        </div>
+        
+        <p class="mt-8 text-zinc-400 text-center">
+          React without the regret. Signals-first, compile-time optimized, zero runtime overhead.
+        </p>
+      </div>
+    </section>
+
+    <!-- ===================== 2. THE PROBLEM ===================== -->
+    <section class="pt-32 pb-24 px-6 reveal">
       <div class="max-w-3xl mx-auto">
 
         <!-- Code Window with Tabs -->
