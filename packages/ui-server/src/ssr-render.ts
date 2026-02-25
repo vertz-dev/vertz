@@ -78,6 +78,13 @@ export async function ssrRenderToString(
     // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
     (globalThis as any).__SSR_URL__ = normalizedUrl;
     installDomShim();
+
+    // Clear the query cache before each render. In production, the SSR module
+    // stays loaded across requests, so stale cache entries from previous renders
+    // cause queries to skip SSR registration (they see cache hits instead).
+    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+    (globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__?.();
+
     try {
       setGlobalSSRTimeout(ssrTimeout);
 
@@ -167,6 +174,11 @@ export async function ssrDiscoverQueries(
     // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
     (globalThis as any).__SSR_URL__ = normalizedUrl;
     installDomShim();
+
+    // Clear query cache (same reason as ssrRenderToString — stale module state)
+    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+    (globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__?.();
+
     try {
       setGlobalSSRTimeout(ssrTimeout);
 

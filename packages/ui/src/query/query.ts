@@ -76,6 +76,22 @@ export function __inflightSize(): number {
 }
 
 /**
+ * Clear the default query cache.
+ * Called by SSR renders to ensure fresh query discovery on each request.
+ * Without this, cached module state causes queries to skip registration
+ * on subsequent SSR renders (they find stale cache hits from the first render).
+ */
+function clearDefaultQueryCache(): void {
+  defaultCache.clear();
+  inflight.clear();
+}
+
+// Install global hook so ui-server can clear the query cache per-request
+// without importing @vertz/ui directly (avoids circular deps).
+// biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+(globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__ = clearDefaultQueryCache;
+
+/**
  * Create a reactive data-fetching query.
  *
  * The thunk is wrapped in an effect so that when reactive dependencies

@@ -6,6 +6,7 @@ export interface CacheStore<T = unknown> {
   get(key: string): T | undefined;
   set(key: string, value: T): void;
   delete(key: string): void;
+  clear?(): void;
 }
 
 /**
@@ -24,5 +25,9 @@ export class MemoryCache<T = unknown> implements CacheStore<T> {
 
   delete(key: string): void {
     this._store.delete(key);
+  }
+
+  clear(): void {
+    this._store.clear();
   }
 }
