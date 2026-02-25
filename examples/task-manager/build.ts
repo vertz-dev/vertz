@@ -12,7 +12,7 @@
 import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { plugin } from 'bun';
-import { createVertzBunPlugin } from '@vertz/bun-plugin';
+import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
 
 const ROOT = import.meta.dir;
 const ENTRY = resolve(ROOT, 'src', 'index.ts');

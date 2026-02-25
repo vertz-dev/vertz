@@ -6,7 +6,7 @@
  *   bun run dev:ssr    → SSR mode (Bun.build() + ssrRenderToString, bun --watch)
  *
  * HMR mode uses Bun's native HTML import to serve the SPA with module-level
- * HMR. The @vertz/bun-plugin handles compiler transforms, CSS extraction to
+ * HMR. The @vertz/ui-server/bun-plugin handles compiler transforms, CSS extraction to
  * sidecar files, and Fast Refresh component wrappers.
  *
  * SSR mode uses Bun.build() to create a client bundle and ssrRenderToString()
@@ -57,7 +57,7 @@ async function startSSRServer(): Promise<void> {
   const { resolve } = await import('node:path');
   const { watch } = await import('node:fs');
   const { plugin } = await import('bun');
-  const { createVertzBunPlugin } = await import('@vertz/bun-plugin');
+  const { createVertzBunPlugin } = await import('@vertz/ui-server/bun-plugin');
   const { ssrRenderToString, ssrDiscoverQueries, safeSerialize } = await import('@vertz/ui-server');
 
   const ENTRY = resolve(import.meta.dir, 'src', 'index.ts');

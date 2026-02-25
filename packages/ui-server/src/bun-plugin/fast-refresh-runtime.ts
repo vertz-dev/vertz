@@ -237,7 +237,8 @@ export function __$refreshPerform(moduleId: string): void {
       // 4. Restore signal values by position (same strategy as React hooks)
       if (savedValues.length > 0 && newSignals.length === savedValues.length) {
         for (let i = 0; i < newSignals.length; i++) {
-          newSignals[i].value = savedValues[i];
+          const sig = newSignals[i];
+          if (sig) sig.value = savedValues[i];
         }
       } else if (savedValues.length > 0 && newSignals.length !== savedValues.length) {
         console.warn(

@@ -1,61 +1,55 @@
-# Bun Dev Server — Setup & Usage
+# Vertz Dev Server
 
-Run `@vertz/ui` apps with a single Bun server. No Vite, no webpack — just `bun run dev`.
-
-The Bun dev server provides two modes from one entry point:
-
-| Mode | Command | What it does |
-|------|---------|--------------|
-| **HMR** | `bun run dev` | Client-only with CSS Hot Reload + Fast Refresh |
-| **SSR** | `bun run dev:ssr` | Server-rendered HTML + client hydration |
-
-Both use `@vertz/bun-plugin` for compiler transforms (reactive signals, JSX, CSS extraction).
-
----
-
-## Prerequisites
-
-- [Bun](https://bun.sh) v1.2+ (uses HTML imports, `Bun.serve()` routes API)
-- A `@vertz/ui` app with a `src/index.ts` entry point
-
----
-
-## Setup
-
-### 1. Install the plugin
+Run your `@vertz/ui` app with a single Bun server — server-rendered by default, with API routes built in.
 
 ```bash
-bun add -d @vertz/bun-plugin
+bun run dev
 ```
 
-### 2. Create the plugin shim
+Your app is server-rendered, hydrated on the client, and rebuilt on every file change. The compiler handles everything — what runs on the server vs. the client, reactive transforms, CSS extraction — so you write components once and they work everywhere.
 
-Bun's `bunfig.toml` requires plugins to export a default. `@vertz/bun-plugin` exports a factory function, so create a thin shim:
+---
 
-**`bun-plugin-shim.ts`**
+## Quick Start
+
+### 1. Install dependencies
+
+```bash
+bun add @vertz/ui @vertz/ui-server
+```
+
+If your app has API routes (entities + database):
+
+```bash
+bun add @vertz/server @vertz/db
+```
+
+### 2. Create your project files
+
+**`src/index.ts`** — App entry point:
+
 ```ts
-import { createVertzBunPlugin } from '@vertz/bun-plugin';
+import { globalCss, mount } from '@vertz/ui';
+import { App } from './app';
 
-const { plugin } = createVertzBunPlugin();
+export { App };
+export default App;
 
-export default plugin;
+const globalStyles = globalCss({
+  '*, *::before, *::after': { boxSizing: 'border-box', margin: '0', padding: '0' },
+  body: { fontFamily: 'system-ui, sans-serif', minHeight: '100vh', lineHeight: '1.5' },
+});
+
+export const styles = [globalStyles.css];
+
+// Mount on the client — the compiler skips this during SSR
+const isSSR = typeof (globalThis as any).__SSR_URL__ !== 'undefined' || typeof document === 'undefined';
+if (!isSSR) {
+  mount(App, '#app', { styles: [globalStyles.css] });
+}
 ```
 
-### 3. Configure `bunfig.toml`
-
-Add the plugin to `[serve.static]` so Bun's HTML import runs your `.tsx` files through the compiler:
-
-```toml
-[serve.static]
-plugins = ["./bun-plugin-shim.ts"]
-```
-
-### 4. Update `index.html`
-
-Two changes from a Vite-based setup:
-
-1. **Add the Fast Refresh runtime** before your app entry (it must load first to populate `globalThis`)
-2. **Use relative paths** (Bun resolves `./src/...`, not `/src/...`)
+**`index.html`** — HTML shell:
 
 ```html
 <!doctype html>
@@ -68,129 +62,274 @@ Two changes from a Vite-based setup:
   </head>
   <body>
     <div id="app"></div>
-    <!-- Fast Refresh runtime MUST load before app -->
-    <script type="module" src="./node_modules/@vertz/bun-plugin/dist/fast-refresh-runtime.js"></script>
     <script type="module" src="./src/index.ts"></script>
   </body>
 </html>
 ```
 
-### 5. Create `dev-server.ts`
+**`bunfig.toml`** — Register the compiler plugin:
 
-**Minimal HMR-only server:**
-
-```ts
-// @ts-ignore — Bun HTML import
-import homepage from './index.html';
-
-const server = Bun.serve({
-  port: 5173,
-  routes: { '/*': homepage },
-  development: { hmr: true, console: true },
-});
-
-console.log(`Dev server at http://localhost:${server.port}`);
+```toml
+[serve.static]
+plugins = ["./bun-plugin-shim.ts"]
 ```
 
-### 6. Add scripts to `package.json`
+**`bun-plugin-shim.ts`** — Plugin shim (Bun requires a default export):
+
+```ts
+import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
+
+const { plugin } = createVertzBunPlugin();
+
+export default plugin;
+```
+
+### 3. Create the dev server
+
+**`dev-server.ts`** — This is your entire dev server:
+
+```ts
+import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
+import { ssrRenderToString, ssrDiscoverQueries, safeSerialize } from '@vertz/ui-server';
+import { resolve } from 'node:path';
+import { watch } from 'node:fs';
+
+const PORT = Number(process.env.PORT) || 5173;
+const ENTRY = resolve(import.meta.dir, 'src', 'index.ts');
+
+// ── Register compiler plugins ────────────────────────────────────
+
+// JSX runtime swap: use server JSX during SSR
+Bun.plugin({
+  name: 'vertz-ssr-jsx-swap',
+  setup(build) {
+    build.onResolve({ filter: /^@vertz\/ui\/jsx(-dev)?-runtime$/ }, () => ({
+      path: '@vertz/ui-server/jsx-runtime',
+      external: false,
+    }));
+  },
+});
+
+// Vertz compiler for server-side transforms
+const { plugin: serverPlugin } = createVertzBunPlugin({ hmr: false, fastRefresh: false });
+Bun.plugin(serverPlugin);
+
+// ── Build client bundle ──────────────────────────────────────────
+
+const { plugin: clientPlugin } = createVertzBunPlugin({ hmr: false, fastRefresh: false });
+
+let clientBundle = '';
+
+async function buildClient() {
+  const start = performance.now();
+  const result = await Bun.build({
+    entrypoints: [ENTRY],
+    plugins: [clientPlugin],
+    target: 'browser',
+    minify: false,
+    sourcemap: 'inline',
+  });
+
+  if (!result.success) {
+    console.error('Client build failed:');
+    for (const log of result.logs) console.error(' ', log.message);
+    return false;
+  }
+
+  for (const output of result.outputs) clientBundle = await output.text();
+  console.log(`Client built in ${(performance.now() - start).toFixed(0)}ms`);
+  return true;
+}
+
+if (!await buildClient()) process.exit(1);
+
+// ── Load SSR module ──────────────────────────────────────────────
+
+const ssrModule = await import(ENTRY);
+const indexHtml = await Bun.file(resolve(import.meta.dir, 'index.html')).text();
+
+// ── Watch for changes ────────────────────────────────────────────
+
+let rebuildTimeout: ReturnType<typeof setTimeout> | null = null;
+watch(resolve(import.meta.dir, 'src'), { recursive: true }, (_event, filename) => {
+  if (!filename) return;
+  if (rebuildTimeout) clearTimeout(rebuildTimeout);
+  rebuildTimeout = setTimeout(async () => {
+    console.log(`\nFile changed: ${filename}`);
+    await buildClient();
+  }, 100);
+});
+
+// ── Start server ─────────────────────────────────────────────────
+
+const server = Bun.serve({
+  port: PORT,
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+
+    // Serve static files from public/
+    if (pathname !== '/' && !pathname.endsWith('.html')) {
+      const publicFile = Bun.file(resolve(import.meta.dir, `public${pathname}`));
+      if (await publicFile.exists()) return new Response(publicFile);
+    }
+
+    // Nav pre-fetch (SSE)
+    if (request.headers.get('x-vertz-nav') === '1') {
+      const result = await ssrDiscoverQueries(ssrModule, pathname, { ssrTimeout: 300 });
+      let body = '';
+      for (const entry of result.resolved) body += `event: data\ndata: ${safeSerialize(entry)}\n\n`;
+      body += 'event: done\ndata: {}\n\n';
+      return new Response(body, {
+        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+      });
+    }
+
+    // SSR render
+    const result = await ssrRenderToString(ssrModule, pathname, { ssrTimeout: 300 });
+    let html = indexHtml
+      .replace(/<script type="module" src="\.\/src\/index\.ts"><\/script>/,
+        `<script type="module">\n${clientBundle}\n</script>`)
+      .replace(/(<div[^>]*id="app"[^>]*>)([\s\S]*?)(<\/div>)/, `$1${result.html}$3`);
+
+    if (result.css) html = html.replace('</head>', `${result.css}\n</head>`);
+    if (result.ssrData.length > 0) {
+      html = html.replace('</body>',
+        `<script>window.__VERTZ_SSR_DATA__=${safeSerialize(result.ssrData)};</script>\n</body>`);
+    }
+
+    return new Response(html, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
+  },
+});
+
+console.log(`\nDev server at http://localhost:${server.port}`);
+```
+
+### 4. Add scripts to `package.json`
 
 ```json
 {
   "scripts": {
-    "dev": "bun run dev-server.ts",
-    "dev:ssr": "bun --watch run dev-server.ts --ssr"
+    "dev": "bun --watch run dev-server.ts"
   }
 }
 ```
 
----
+`bun --watch` restarts the server on file changes so the SSR module always reflects your latest code.
 
-## HMR Mode
+### 5. Run it
 
 ```bash
 bun run dev
 ```
 
-This uses Bun's native HTML import (`import page from './index.html'`), which gives you:
-
-- **Module-level HMR** — Bun watches your source files and pushes updates over WebSocket
-- **CSS sidecar HMR** — The plugin extracts `css()` calls into `.css` sidecar files in `.vertz/css/`. Bun hot-swaps `<link>` tags natively — no flash, no JS involved
-- **Fast Refresh** — The plugin wraps component functions with tracking code. When a module updates, only the changed components re-mount in place — state is preserved by position (same strategy as React Fast Refresh)
-
-### How it works
-
-```
-index.html
-  → Bun resolves ./src/index.ts
-  → bunfig.toml plugin transforms .tsx files:
-      1. Hydration markers (data-v-id)
-      2. Reactive transforms (let → signal, const → computed)
-      3. JSX → DOM helpers
-      4. CSS extraction → .vertz/css/*.css sidecar files
-      5. Fast Refresh wrappers
-      6. import.meta.hot.accept()
-  → Bun serves the bundled page with HMR WebSocket
-```
+Open `http://localhost:5173`. Your app is server-rendered and hydrates on the client.
 
 ---
 
-## SSR Mode
+## Adding API Routes
 
-```bash
-bun run dev:ssr
-```
+If your app has entities and a database, the API handler composes into the same server. One port, one process.
 
-This uses a custom `fetch` handler with:
+### Define your schema and entities
 
-- **`Bun.build()`** for the client bundle (browser target, inline source maps)
-- **`ssrRenderToString()`** from `@vertz/ui-server` for server rendering
-- **`bun --watch`** for SSR module freshness (restarts server on file changes, ~200ms)
-- **Nav pre-fetch** via `X-Vertz-Nav: 1` header → SSE response with pre-fetched query data
-
-### Adding SSR to `dev-server.ts`
-
-Detect a `--ssr` flag and branch:
+**`src/schema.ts`**:
 
 ```ts
-const SSR_MODE = process.argv.includes('--ssr');
+import { d } from '@vertz/db';
 
-if (SSR_MODE) {
-  await startSSRServer();
-} else {
-  startHMRServer();
+export const tasksTable = d.table('tasks', {
+  id: d.uuid().primary({ generate: 'uuid' }),
+  title: d.text(),
+  status: d.text().default('todo'),
+  createdAt: d.timestamp().default('now').readOnly(),
+});
+
+export const tasksModel = d.model(tasksTable);
+```
+
+**`src/entities.ts`**:
+
+```ts
+import { entity } from '@vertz/server';
+import { tasksModel } from './schema';
+
+export const tasks = entity('tasks', {
+  model: tasksModel,
+  access: {
+    list: () => true,
+    get: () => true,
+    create: () => true,
+    update: () => true,
+    delete: () => true,
+  },
+});
+```
+
+### Wire into the dev server
+
+Add the API handler before the SSR rendering in `dev-server.ts`:
+
+```ts
+import { createDbProvider } from '@vertz/db';
+import { createServer } from '@vertz/server';
+import { tasks } from './src/entities';
+import { tasksTable } from './src/schema';
+
+// Set up the database
+const db = await createDbProvider({
+  dialect: 'sqlite',
+  schema: tasksTable,
+  migrations: { autoApply: true },
+});
+
+// Create the API handler
+const apiApp = createServer({ entities: [tasks], db });
+
+// In Bun.serve() fetch handler, before SSR rendering:
+async fetch(request) {
+  const pathname = new URL(request.url).pathname;
+
+  // API routes
+  if (pathname.startsWith('/api/')) {
+    return apiApp.handler(request);
+  }
+
+  // ... static files, nav pre-fetch, SSR render
 }
 ```
 
-The SSR server:
-1. Registers `@vertz/bun-plugin` via `Bun.plugin()` for server-side `.tsx` transforms
-2. Registers a JSX runtime swap (`@vertz/ui/jsx-runtime` → `@vertz/ui-server/jsx-runtime`)
-3. Builds the client bundle with `Bun.build()`
-4. Loads the SSR module via `await import('./src/index.ts')`
-5. Watches `src/` for changes → rebuilds client bundle
-6. Serves HTML via `ssrRenderToString()` with the client bundle inlined
+This gives you a full REST API:
 
-See the [task-manager dev-server.ts](../../examples/task-manager/dev-server.ts) for the full implementation.
+```
+GET    /api/tasks        → list all tasks
+GET    /api/tasks/:id    → get one task
+POST   /api/tasks        → create a task
+PATCH  /api/tasks/:id    → update a task
+DELETE /api/tasks/:id    → delete a task
+```
 
-### SSR module freshness
-
-Bun caches `import()` results — you can't re-import a module to get fresh code. The solution: run with `bun --watch`, which restarts the entire server on file changes (~200ms). The client-side Fast Refresh still handles component-level updates in HMR mode.
+All from the same `bun run dev` command, same port, same server.
 
 ---
 
 ## Production Build
 
-Create a `build.ts` script that uses `Bun.build()`:
+Create a `build.ts` script for production bundles:
 
 ```ts
-import { createVertzBunPlugin } from '@vertz/bun-plugin';
+import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
 
 const { plugin, fileExtractions } = createVertzBunPlugin({
   hmr: false,
   fastRefresh: false,
 });
 
-// Client build → dist/client/assets/
-await Bun.build({
+// Client build
+const clientResult = await Bun.build({
   entrypoints: ['./src/index.ts'],
   plugins: [plugin],
   target: 'browser',
@@ -201,107 +340,78 @@ await Bun.build({
   naming: '[name]-[hash].[ext]',
 });
 
-// Server build → dist/server/
-// (register JSX swap plugin first, then build with target: 'bun')
+// Process index.html — inject hashed assets, extracted CSS
+// Server build — target: 'bun' with JSX runtime swap
 ```
 
-### HTML template processing
-
-`Bun.build()` doesn't process HTML like Vite does. Your build script must:
-
-1. Build JS → collect output filenames with hashes
-2. Read `index.html`
-3. Replace `<script src="./src/index.ts">` with `<script src="/assets/index-[hash].js">`
-4. Inject `<link>` tags for extracted CSS
-5. Remove the Fast Refresh runtime script
-6. Write to `dist/client/index.html`
-7. Copy `public/` → `dist/client/`
-
-See the [task-manager build.ts](../../examples/task-manager/build.ts) for a complete example.
+See the [task-manager build.ts](../../examples/task-manager/build.ts) for the complete implementation including HTML template processing and server builds.
 
 ### Production server
-
-The production server uses `createSSRHandler()` from `@vertz/ui-server` — same as before:
 
 ```ts
 import { createSSRHandler } from '@vertz/ui-server';
 
 const ssrModule = await import('./dist/server/index.js');
 const template = await Bun.file('./dist/client/index.html').text();
-
 const handler = createSSRHandler({ module: ssrModule, template });
 
 Bun.serve({
   port: 3000,
   async fetch(request) {
     const url = new URL(request.url);
+
+    // Static assets
     if (url.pathname !== '/' && !url.pathname.endsWith('.html')) {
       const file = Bun.file(`./dist/client${url.pathname}`);
       if (await file.exists()) return new Response(file);
     }
+
+    // SSR
     return handler(request);
   },
 });
 ```
 
----
+Add to `package.json`:
 
-## Adding API Routes
-
-If your app has a `@vertz/server` backend, compose it into the same server:
-
-### HMR mode — route-based
-
-```ts
-import { createServer } from '@vertz/server';
-const apiApp = createServer({ entities: [...], db });
-
-Bun.serve({
-  routes: {
-    '/api/*': { async fetch(req) { return apiApp.handler(req); } },
-    '/*': homepage,
-  },
-  development: { hmr: true },
-});
-```
-
-The `/api/*` route is declared before `/*` so it takes precedence.
-
-### SSR mode — fetch-based
-
-```ts
-Bun.serve({
-  async fetch(request) {
-    const pathname = new URL(request.url).pathname;
-    if (pathname.startsWith('/api/')) return apiApp.handler(request);
-    // ... SSR rendering
-  },
-});
+```json
+{
+  "scripts": {
+    "dev": "bun --watch run dev-server.ts",
+    "build": "bun run build.ts",
+    "start": "bun run server.ts"
+  }
+}
 ```
 
 ---
 
-## Migrating from Vite
+## How It Works
 
-| Before (Vite) | After (Bun) |
-|----------------|-------------|
-| `vite.config.ts` with `vertzPlugin()` | `bunfig.toml` with `[serve.static] plugins` |
-| `vite` dependency | `@vertz/bun-plugin` dev dependency |
-| `vite dev` | `bun run dev-server.ts` |
-| `vite build` | `bun run build.ts` |
-| `/src/index.ts` (absolute path) | `./src/index.ts` (relative path) |
-| Vite HMR | Bun native HMR + CSS sidecar + Fast Refresh |
-| Vite SSR middleware | `ssrRenderToString()` + `Bun.build()` |
+The compiler (`@vertz/ui-server/bun-plugin`) transforms your `.tsx` files at build time:
 
-### Steps
+1. **Reactive transforms** — `let` declarations become signals, `const` derivations become computed values
+2. **JSX** — JSX expressions compile to efficient DOM helpers
+3. **CSS extraction** — `css()` calls are extracted to static CSS
+4. **Hydration markers** — `data-v-id` attributes enable client-side hydration of server-rendered HTML
+5. **JSX runtime swap** — During SSR, `@vertz/ui/jsx-runtime` is replaced with `@vertz/ui-server/jsx-runtime`, so the same components render to strings on the server and DOM nodes on the client
 
-1. Delete `vite.config.ts`
-2. Remove `vite` from `devDependencies`
-3. Add `@vertz/bun-plugin` to `devDependencies`
-4. Create `bun-plugin-shim.ts` and update `bunfig.toml`
-5. Update `index.html` (relative paths + Fast Refresh runtime)
-6. Create `dev-server.ts` and `build.ts`
-7. Update `package.json` scripts
+You don't need to think about what runs where. Write components, and the compiler handles the rest.
+
+### Dev server flow
+
+```
+bun run dev
+  → Registers compiler plugins (JSX swap + transforms)
+  → Builds client bundle via Bun.build() (browser target)
+  → Loads SSR module via import('./src/index.ts')
+  → Watches src/ for changes → rebuilds client bundle
+  → bun --watch restarts server → fresh SSR module
+  → Bun.serve():
+      /api/*  → entity handler (REST API)
+      static  → public/ files
+      HTML    → ssrRenderToString() → inject into template
+```
 
 ---
 
@@ -309,20 +419,16 @@ Bun.serve({
 
 ### Build error: "Could not resolve: /favicon.svg"
 
-Bun's HTML import resolves all paths in the HTML. Use relative paths (`./public/favicon.svg`) instead of absolute (`/favicon.svg`).
+Use relative paths in `index.html` (`./public/favicon.svg`, not `/favicon.svg`). Bun resolves all paths relative to the HTML file.
 
-### Fast Refresh not working — full page reloads
+### SSR module fails to load
 
-Ensure the Fast Refresh runtime script loads **before** the app entry in `index.html`. The runtime must populate `globalThis` before any component modules execute.
+The JSX runtime swap plugin must be registered **before** importing the app entry. Make sure `Bun.plugin()` runs before `await import('./src/index.ts')`.
 
-### CSS changes don't hot-reload
+### Changes not reflected after saving
 
-Check that `.vertz/css/` exists and contains `.css` sidecar files. The plugin extracts `css()` calls to disk-based files that Bun watches for CSS HMR.
-
-### SSR mode: "Failed to load SSR module"
-
-The JSX runtime swap plugin must be registered before importing the app entry. Make sure `Bun.plugin()` for the JSX swap runs before `await import('./src/index.ts')`.
+Make sure you're running with `bun --watch run dev-server.ts`. Without `--watch`, Bun caches the SSR module and won't pick up changes.
 
 ### `bunfig.toml` plugin not loading
 
-The plugin file must export a `BunPlugin` as the default export. If using `@vertz/bun-plugin` (which uses named exports), create a shim file — see [Setup step 2](#2-create-the-plugin-shim).
+The plugin file must export a `BunPlugin` as the default export. `@vertz/ui-server/bun-plugin` uses named exports, so the shim file (`bun-plugin-shim.ts`) bridges the gap.
