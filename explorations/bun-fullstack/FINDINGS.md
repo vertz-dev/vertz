@@ -122,18 +122,20 @@ After gzip, the difference narrows. For production, a CDN handles compression.
 | TypeScript/TSX compilation | ✅ | ✅ | No |
 | Custom compiler transforms | ✅ transform() | ✅ onLoad() | No |
 | Hydration markers | ✅ | ✅ | No |
-| Source maps | ✅ Separate field | ✅ Inline data URL | Minor |
+| Source maps | ✅ Separate field | ✅ Inline data URL | Minor (no `map` return in onLoad) |
 | CSS extraction | ✅ | ✅ | No |
 | Dead CSS elimination | ✅ | ✅ | No |
 | HMR (CSS) | ✅ Virtual module invalidation | ✅ Sidecar file `<link>` swap | No (Phase 6) |
 | HMR (JS) | ✅ Module-level | ✅ Fast Refresh — component remount (Phase 7) | No |
+| HMR state persistence | ✅ `import.meta.hot.data` | ✅ `import.meta.hot.data` | No (signal preservation feasible) |
+| Error overlay | ✅ Built-in | ✅ Built-in (since ~v1.2.3) | No |
 | SSR | ✅ | ✅ | No |
 | SSR module invalidation | ✅ Per-request | ⚠️ Per-hot-reload | Minor |
 | Production minification | ✅ | ✅ | No |
 | Code splitting | ✅ | ✅ | No |
 | Tree shaking | ✅ | ✅ | No |
-| Route-level CSS splitting | ✅ | ❌ Not yet implemented | Feature gap |
-| Virtual modules | ✅ resolveId/load | ❌ No equivalent | Feature gap |
+| Route-level CSS splitting | ✅ | ⚠️ Per-entry works; dynamic import CSS has bugs | Minor |
+| Virtual modules | ✅ resolveId/load | ✅ onResolve/onLoad + namespaces | No |
 
 ---
 
@@ -148,13 +150,11 @@ After gzip, the difference narrows. For production, a CDN handles compression.
 2. **Import graph isolation**: The runtime exposes its API via `globalThis` instead of ES imports, preventing Bun from propagating HMR updates through `@vertz/ui/dist` chunks (which would trigger full page reloads).
 3. **Consecutive updates**: The dirty detection correctly marks modules on every re-evaluation (wrapper `toString()` comparison was replaced since the wrapper boilerplate is identical across evals).
 
-**Remaining limitation:** Local state resets on HMR (MVP behavior — signal preservation deferred). Non-component modules (utility files, type files) still trigger full page reload.
+**Remaining limitation:** Local state resets on HMR (MVP). Signal preservation is feasible now — Bun supports `import.meta.hot.data` for persisting state across HMR updates. Non-component modules (utility files, type files) still trigger full page reload via HMR bubble-up.
 
-### 2. Virtual Modules Not Supported (Moderate)
+### ~~2. Virtual Modules Not Supported~~ (Resolved)
 
-Vite's `resolveId()` + `load()` hooks create virtual modules (`\0vertz-css:*`, `\0vertz:ssr-entry`). Bun has no equivalent. The SSR entry and CSS modules must be handled differently.
-
-**Mitigation:** For SSR, we import the app entry directly instead of through a virtual module. For CSS, the extraction runs as a post-build step rather than through virtual modules.
+**Correction:** Bun DOES support virtual modules via `onResolve` + `onLoad` with custom namespaces — the same pattern as esbuild. Vite's `resolveId()` + `load()` hooks for virtual modules (`\0vertz-css:*`, `\0vertz:ssr-entry`) can be replicated in Bun. This is not a gap.
 
 ### 3. Workspace Resolution from Non-Package Dirs (Minor)
 
@@ -208,7 +208,8 @@ Bun's `onLoad` callback can't return a source map separately. Maps must be inlin
 - Bun's plugin ecosystem is less mature than Vite's
 - Bundle size is ~30% larger before gzip (but post-gzip is closer)
 - Bun's bundler has fewer knobs than Rollup for optimization
-- Local state resets on JS HMR (signal preservation deferred)
+- Local state resets on JS HMR (`import.meta.hot.data` available — signal preservation is feasible, just not implemented yet)
+- Source maps in plugins require inline data URLs (no `map` return field — draft PR in progress)
 
 ### Recommended Migration Path
 
@@ -390,10 +391,9 @@ The dominant cost is Bun's bundle re-evaluation (~200ms for the full task-manage
 
 | Feature | Why Deferred |
 |---|---|
-| **Signal/state preservation** | Requires `import.meta.hot.data` to persist signal values + identity mapping |
+| **Signal/state preservation** | `import.meta.hot.data` IS available in Bun — this is feasible now. Deferred from prototype scope, not blocked by Bun. |
 | **Granular mode (template-only)** | Would need compiler to split components into setup + render phases |
-| **Non-component module propagation** | Changes to utility modules (`types.ts`, `mock-data.ts`) always trigger full reload |
-| **Error overlay** | Nice DX but not essential for prototype |
+| **Non-component module propagation** | Changes to utility modules (`types.ts`, `mock-data.ts`) trigger full reload via HMR bubble-up |
 | **Root component HMR** | App shell uses `__element()` not JSX — not detected by ComponentAnalyzer |
 
 ### Revised Recommendation
