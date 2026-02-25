@@ -31,7 +31,7 @@ const todosDbAdapter = createTodosDb();
 const app = createServer({
   basePath: '/api',
   entities: [todos],
-  _entityDbFactory: () => todosDbAdapter,
+  db: todosDbAdapter,
 });
 
 const apiHandler = app.handler;

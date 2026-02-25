@@ -152,7 +152,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       const db = createInMemoryDb();
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'POST', '/api/users', {
@@ -174,7 +174,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       ]);
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users');
@@ -197,7 +197,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       ]);
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users/u1');
@@ -214,7 +214,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       ]);
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'PATCH', '/api/users/u1', { name: 'Alicia' });
@@ -229,7 +229,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       const db = createInMemoryDb([{ id: 'u1' }]);
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'DELETE', '/api/users/u1');
@@ -243,7 +243,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       const db = createInMemoryDb();
       const app = createServer({
         entities: [openEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'POST', '/api/users', {
@@ -276,7 +276,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       ]);
       const app = createServer({
         entities: [paginatedEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users?limit=2');
@@ -299,7 +299,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       ]);
       const app = createServer({
         entities: [paginatedEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users?role=admin');
@@ -319,7 +319,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       ]);
       const app = createServer({
         entities: [paginatedEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users?limit=1');
@@ -339,7 +339,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       ]);
       const app = createServer({
         entities: [paginatedEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users?after=u1&limit=1');
@@ -359,7 +359,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       ]);
       const app = createServer({
         entities: [paginatedEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users?role=user&limit=1');
@@ -385,7 +385,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       ]);
       const app = createServer({
         entities: [usersEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'GET', '/api/users');
@@ -399,7 +399,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       const db = createInMemoryDb();
       const app = createServer({
         entities: [usersEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'POST', '/api/users', {
@@ -414,7 +414,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       const db = createInMemoryDb([{ id: 'u1' }]);
       const app = createServer({
         entities: [usersEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       const res = await request(app, 'DELETE', '/api/users/u1');
@@ -441,7 +441,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       const db = createInMemoryDb();
       const app = createServer({
         entities: [entityWithAfterHook],
-        _entityDbFactory: () => db,
+        db,
       });
 
       await request(app, 'POST', '/api/users', {
@@ -476,7 +476,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       const db = createInMemoryDb();
       const app = createServer({
         entities: [lifecycleEntity],
-        _entityDbFactory: () => db,
+        db,
       });
 
       // 1. Create
