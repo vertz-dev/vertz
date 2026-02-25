@@ -61,5 +61,7 @@ export type { MatchResult } from './router/matcher';
 export { matchPath } from './router/matcher';
 // Runtime scope management (used by component lifecycle internals)
 export { _tryOnCleanup, popScope, pushScope, runCleanups } from './runtime/disposal';
+// Context scope management (used by HMR Fast Refresh runtime)
+export { getContextScope, setContextScope } from './component/context';
 // Effect primitives (used by sibling packages that can't go through the compiler)
 export { domEffect, lifecycleEffect } from './runtime/signal';

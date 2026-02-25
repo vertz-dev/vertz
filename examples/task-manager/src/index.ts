@@ -11,6 +11,11 @@ import { getInjectedCSS, globalCss, mount } from '@vertz/ui';
 import { App } from './app';
 import { taskManagerTheme } from './styles/theme';
 
+// HMR self-accept — prevents Bun from triggering full page reloads when
+// @vertz/ui dist chunks are included in HMR updates (false positives from
+// Bun's file watcher). Component-level Fast Refresh handles actual changes.
+import.meta.hot.accept();
+
 // Re-export App as default for SSR entry auto-detection
 export { App };
 export default App;

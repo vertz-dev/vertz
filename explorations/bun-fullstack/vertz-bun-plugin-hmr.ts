@@ -14,17 +14,18 @@
  *   // In bunfig.toml [serve.static] plugins or Bun.build({ plugins: [...] })
  */
 
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, relative, resolve } from 'node:path';
 import remapping from '@ampproject/remapping';
 import type { BunPlugin } from 'bun';
 import MagicString from 'magic-string';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
 import { Project, ts } from 'ts-morph';
 
 // Use relative source imports since explorations/ is outside the workspace
+import { ComponentAnalyzer } from '../../packages/ui-compiler/src/analyzers/component-analyzer';
 import { compile } from '../../packages/ui-compiler/src/compiler';
-import { CSSExtractor } from '../../packages/ui-compiler/src/css-extraction/extractor';
 import type { CSSExtractionResult } from '../../packages/ui-compiler/src/css-extraction/extractor';
+import { CSSExtractor } from '../../packages/ui-compiler/src/css-extraction/extractor';
 import { HydrationTransformer } from '../../packages/ui-compiler/src/transformers/hydration-transformer';
 
 export interface VertzBunPluginHMROptions {
@@ -39,6 +40,13 @@ export interface VertzBunPluginHMROptions {
   cssOutDir?: string;
   /** Enable HMR support (import.meta.hot.accept). Defaults to true. */
   hmr?: boolean;
+  /**
+   * Enable JS Fast Refresh (component-level HMR).
+   * When true, components are wrapped with tracking code and re-mounted
+   * on file change instead of doing a full page reload.
+   * Defaults to true when hmr is true.
+   */
+  jsHmr?: boolean;
   /** Project root for computing relative paths. */
   projectRoot?: string;
 }
@@ -67,9 +75,11 @@ function filePathHash(filePath: string): string {
 export function vertzBunPluginHMR(options?: VertzBunPluginHMROptions): BunPlugin {
   const filter = options?.filter ?? /\.tsx$/;
   const hmr = options?.hmr ?? true;
+  const jsHmr = options?.jsHmr ?? hmr;
   const projectRoot = options?.projectRoot ?? resolve(import.meta.dir, '..', '..');
   const cssOutDir = options?.cssOutDir ?? resolve(projectRoot, '.vertz', 'css');
   const cssExtractor = new CSSExtractor();
+  const componentAnalyzer = new ComponentAnalyzer();
 
   // Ensure CSS output directory exists
   mkdirSync(cssOutDir, { recursive: true });
@@ -92,6 +102,43 @@ export function vertzBunPluginHMR(options?: VertzBunPluginHMROptions): BunPlugin
         const hydrationSourceFile = hydrationProject.createSourceFile(args.path, source);
         const hydrationTransformer = new HydrationTransformer();
         hydrationTransformer.transform(hydrationS, hydrationSourceFile);
+
+        // ── 1b. Context stable IDs: inject __stableId for HMR ────
+        //
+        // Detect `const X = createContext(...)` patterns and inject a stable
+        // ID so the context registry survives bundle re-evaluation.
+        // The ID format is `filePath::varName` — unique because file paths
+        // are unique and variable names are unique within a file.
+        // This runs before compile() so the IDs flow through to the output.
+        if (jsHmr) {
+          const relFilePath = relative(projectRoot, args.path);
+          for (const stmt of hydrationSourceFile.getStatements()) {
+            if (!ts.isVariableStatement(stmt.compilerNode)) continue;
+            for (const decl of stmt.compilerNode.declarationList.declarations) {
+              if (!decl.initializer || !ts.isCallExpression(decl.initializer)) continue;
+              const callText = decl.initializer.expression.getText(hydrationSourceFile.compilerNode);
+              if (callText !== 'createContext') continue;
+              if (!ts.isIdentifier(decl.name)) continue;
+
+              const varName = decl.name.text;
+              const stableId = `${relFilePath}::${varName}`;
+              const callExpr = decl.initializer;
+
+              // Insert the stable ID as the last argument
+              const argsArr = callExpr.arguments;
+              if (argsArr.length === 0) {
+                // createContext<T>() → createContext<T>(undefined, 'id')
+                const closeParenPos = callExpr.end - 1;
+                hydrationS.appendLeft(closeParenPos, `undefined, '${stableId}'`);
+              } else {
+                // createContext<T>(defaultValue) → createContext<T>(defaultValue, 'id')
+                const lastArg = argsArr[argsArr.length - 1];
+                hydrationS.appendLeft(lastArg.end, `, '${stableId}'`);
+              }
+            }
+          }
+        }
+
         const hydratedCode = hydrationS.toString();
         const hydrationMap = hydrationS.generateMap({
           source: args.path,
@@ -134,22 +181,82 @@ export function vertzBunPluginHMR(options?: VertzBunPluginHMROptions): BunPlugin
           cssImportLine = `import '${importPath}';\n`;
         }
 
-        // ── 5. Assemble output ─────────────────────────────────
+        // ── 5. Fast Refresh: detect components and inject wrappers ──
+        let refreshPreamble = '';
+        let refreshEpilogue = '';
+        const componentNames: string[] = [];
+
+        if (jsHmr) {
+          // Analyze the source for component functions (functions that return JSX).
+          // We reuse the hydration source file since it's already parsed by ts-morph.
+          const components = componentAnalyzer.analyze(hydrationSourceFile);
+          if (components.length > 0) {
+            // Access Fast Refresh functions from globalThis instead of imports.
+            // CRITICAL: Component modules must NOT import @vertz/ui/internals or
+            // the runtime module directly. Bun's HMR propagates updates through
+            // the import graph — new imports to @vertz/ui/dist chunks would cause
+            // those chunks to appear in the HMR update, and since they don't
+            // self-accept, Bun triggers a full page reload. By reading from
+            // globalThis (populated by vertz-fast-refresh-runtime.ts loaded in
+            // the HTML), we avoid polluting the import graph entirely.
+            refreshPreamble +=
+              `const __$fr = globalThis[Symbol.for('vertz:fast-refresh')];\n` +
+              `const { __$refreshReg, __$refreshTrack, __$refreshPerform, ` +
+              `pushScope: __$pushScope, popScope: __$popScope, ` +
+              `_tryOnCleanup: __$tryCleanup, runCleanups: __$runCleanups, ` +
+              `getContextScope: __$getCtx, setContextScope: __$setCtx } = __$fr;\n` +
+              `const __$moduleId = '${args.path}';\n`;
+
+            // For each component, generate wrapper + registration code
+            for (const comp of components) {
+              componentNames.push(comp.name);
+              refreshEpilogue +=
+                `\nconst __$orig_${comp.name} = ${comp.name};\n` +
+                `${comp.name} = function(...__$args) {\n` +
+                `  const __$scope = __$pushScope();\n` +
+                `  const __$ctx = __$getCtx();\n` +
+                `  const __$ret = __$orig_${comp.name}.apply(this, __$args);\n` +
+                `  __$popScope();\n` +
+                `  if (__$scope.length > 0) {\n` +
+                `    __$tryCleanup(() => __$runCleanups(__$scope));\n` +
+                `  }\n` +
+                `  return __$refreshTrack(__$moduleId, '${comp.name}', __$ret, __$args, __$scope, __$ctx);\n` +
+                `};\n` +
+                `__$refreshReg(__$moduleId, '${comp.name}', ${comp.name});\n`;
+            }
+          }
+        }
+
+        // ── 6. Assemble output ─────────────────────────────────
         const mapBase64 = Buffer.from(remapped.toString()).toString('base64');
         const sourceMapComment = `\n//# sourceMappingURL=data:application/json;base64,${mapBase64}`;
 
-        // Prepend CSS import, append HMR accept
+        // Prepend CSS import + refresh preamble, append wrappers + HMR accept
         let contents = '';
         if (cssImportLine) {
           contents += cssImportLine;
         }
+        if (refreshPreamble) {
+          contents += refreshPreamble;
+        }
         contents += compileResult.code;
+
+        if (refreshEpilogue) {
+          contents += refreshEpilogue;
+        }
+
         if (hmr) {
           // Bun statically analyzes import.meta.hot.accept() calls.
           // It MUST be called directly (no optional chaining, no variable indirection).
           // Each module that self-accepts will be individually re-evaluated on change.
           contents += '\nimport.meta.hot.accept();\n';
         }
+
+        if (jsHmr && componentNames.length > 0) {
+          // Perform hot replacement after module re-evaluation completes
+          contents += `__$refreshPerform(__$moduleId);\n`;
+        }
+
         contents += sourceMapComment;
 
         return { contents, loader: 'tsx' };
