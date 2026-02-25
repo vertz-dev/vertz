@@ -34,6 +34,15 @@ export { Spinner } from './components/Spinner';
 export type { TableColumn, TableProps } from './components/Table';
 // Data display
 export { Table } from './components/Table';
+// Task runner
+export type {
+  TaskConfig,
+  TaskResult,
+  TaskRunnerConfig,
+  TaskRunnerHandle,
+  TaskStatus,
+} from './components/TaskRunner';
+export { TaskRunner } from './components/TaskRunner';
 export type { TextProps } from './components/Text';
 export { Text } from './components/Text';
 export type { TextInputProps } from './components/TextInput';
@@ -49,7 +58,7 @@ export { match } from './input/match';
 export { isInteractive, NonInteractiveError } from './interactive';
 // Types
 export type { Color } from './jsx-runtime/index';
-export type { TaskGroup, TaskHandle, TaskRunner } from './legacy';
+export type { TaskGroup, TaskHandle, TaskRunner as LegacyTaskRunner } from './legacy';
 // Legacy API (deprecated — will be removed in future version)
 export { createTaskRunner, Message, SelectList, Task, TaskList } from './legacy';
 // Prompt API
