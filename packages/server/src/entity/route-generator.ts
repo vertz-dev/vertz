@@ -125,6 +125,7 @@ export function generateEntityRoutes(
 
             const options: ListOptions = {
               where: parsed.where ? (parsed.where as Record<string, unknown>) : undefined,
+              orderBy: parsed.orderBy,
               limit: parsed.limit,
               after: parsed.after,
             };
@@ -176,6 +177,7 @@ export function generateEntityRoutes(
 
           const options: ListOptions = {
             where: parsed.where,
+            orderBy: parsed.orderBy,
             limit: parsed.limit,
             after: parsed.after,
           };

@@ -12,6 +12,9 @@ import type { EntityRelationsConfig } from './types';
 //   after=cursor                → { after: cursor }
 // ---------------------------------------------------------------------------
 
+/** Maximum allowed limit to prevent DoS via large result sets. */
+export const MAX_LIMIT = 1000;
+
 export interface VertzQLOptions {
   where?: Record<string, unknown>;
   orderBy?: Record<string, 'asc' | 'desc'>;
@@ -19,6 +22,8 @@ export interface VertzQLOptions {
   after?: string;
   select?: Record<string, true>;
   include?: Record<string, true | Record<string, true>>;
+  /** @internal Parse error for the q= param, if any. */
+  _qError?: string;
 }
 
 /**
@@ -36,22 +41,32 @@ export function parseVertzQL(query: Record<string, string>): VertzQLOptions {
       if (!result.where) result.where = {};
       const field = whereMatch[1]!;
       const op = whereMatch[2];
+      const existing = result.where[field];
       if (op) {
-        result.where[field] = {
-          ...(result.where[field] as Record<string, unknown> | undefined),
-          [op]: value,
-        };
+        // Operator filter — merge with existing operators or promote equality to { eq }
+        const base =
+          existing && typeof existing === 'object'
+            ? (existing as Record<string, unknown>)
+            : existing !== undefined
+              ? { eq: existing }
+              : {};
+        result.where[field] = { ...base, [op]: value };
       } else {
-        result.where[field] = value;
+        // Equality filter — if operators already exist on this field, merge as { eq: value }
+        if (existing && typeof existing === 'object') {
+          result.where[field] = { ...(existing as Record<string, unknown>), eq: value };
+        } else {
+          result.where[field] = value;
+        }
       }
       continue;
     }
 
-    // limit=N
+    // limit=N (clamped to [0, MAX_LIMIT])
     if (key === 'limit') {
       const parsed = Number.parseInt(value, 10);
       if (!Number.isNaN(parsed)) {
-        result.limit = parsed;
+        result.limit = Math.max(0, Math.min(parsed, MAX_LIMIT));
       }
       continue;
     }
@@ -77,7 +92,11 @@ export function parseVertzQL(query: Record<string, string>): VertzQLOptions {
     // q= param (base64url-encoded structural query)
     if (key === 'q') {
       try {
-        const decoded = JSON.parse(atob(value)) as Record<string, unknown>;
+        // URL-decode first, then convert base64url to standard base64
+        const urlDecoded = decodeURIComponent(value);
+        const b64 = urlDecoded.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+        const decoded = JSON.parse(atob(padded)) as Record<string, unknown>;
         if (decoded.select && typeof decoded.select === 'object') {
           result.select = decoded.select as Record<string, true>;
         }
@@ -85,7 +104,7 @@ export function parseVertzQL(query: Record<string, string>): VertzQLOptions {
           result.include = decoded.include as Record<string, true | Record<string, true>>;
         }
       } catch {
-        // Invalid base64 or JSON — ignore
+        result._qError = 'Invalid q= parameter: not valid base64 or JSON';
       }
     }
   }
@@ -137,6 +156,11 @@ export function validateVertzQL(
   table: TableDef,
   relationsConfig?: EntityRelationsConfig,
 ): ValidationResult {
+  // Surface q= parse errors
+  if (options._qError) {
+    return { ok: false, error: options._qError };
+  }
+
   const hiddenColumns = getHiddenColumns(table);
 
   // Validate where fields

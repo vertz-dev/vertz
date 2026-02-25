@@ -11,6 +11,7 @@
 
 export interface ListOptions {
   where?: Record<string, unknown>;
+  orderBy?: Record<string, 'asc' | 'desc'>;
   limit?: number;
   /** Cursor-based pagination: fetch records after this ID. */
   after?: string;

@@ -95,7 +95,8 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
       const limit = Math.max(0, options?.limit ?? 20);
       const after = options?.after && options.after.length <= 512 ? options.after : undefined;
 
-      const { data: rows, total } = await db.list({ where, limit, after });
+      const orderBy = options?.orderBy;
+      const { data: rows, total } = await db.list({ where, orderBy, limit, after });
       const data = rows.map((row) =>
         narrowRelationFields(def.relations, stripHiddenFields(table, row)),
       );

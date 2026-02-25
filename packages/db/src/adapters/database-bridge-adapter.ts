@@ -35,12 +35,15 @@ export function createDatabaseBridgeAdapter<
       if (options?.where) {
         dbOptions.where = options.where;
       }
+      if (options?.orderBy) {
+        dbOptions.orderBy = options.orderBy;
+      }
       if (options?.limit !== undefined) {
         dbOptions.limit = options.limit;
       }
       const result = await db.listAndCount(tableName, dbOptions as never);
       if (!result.ok) {
-        return { data: [], total: 0 };
+        throw result.error;
       }
       return result.data as { data: Record<string, unknown>[]; total: number };
     },

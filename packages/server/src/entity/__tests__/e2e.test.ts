@@ -873,6 +873,59 @@ describe('EDA v0.1.0 E2E', () => {
       expect(body.data[0]).not.toHaveProperty('id');
     });
 
+    it('GET /api/users?q=<invalid base64> returns 400', async () => {
+      const db = createInMemoryDb([
+        { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
+      ]);
+      const app = createServer({ entities: [openEntity], db });
+
+      const res = await request(app, 'GET', '/api/users?q=not-valid-base64!!!');
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.message).toContain('q=');
+    });
+
+    it('POST /api/users/query passes orderBy to the DB adapter', async () => {
+      const db = createInMemoryDb([
+        { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
+        { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
+      ]);
+      // Spy on db.list to verify orderBy is passed through
+      const originalList = db.list;
+      let capturedOptions: Record<string, unknown> | undefined;
+      db.list = async (options) => {
+        capturedOptions = options as Record<string, unknown> | undefined;
+        return originalList.call(db, options);
+      };
+      const app = createServer({ entities: [openEntity], db });
+
+      const res = await request(app, 'POST', '/api/users/query', {
+        orderBy: { name: 'desc' },
+      });
+
+      expect(res.status).toBe(200);
+      expect(capturedOptions).toHaveProperty('orderBy', { name: 'desc' });
+    });
+
+    it('GET /api/users?orderBy=name:desc passes orderBy to the DB adapter', async () => {
+      const db = createInMemoryDb([
+        { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
+      ]);
+      let capturedOptions: Record<string, unknown> | undefined;
+      const originalList = db.list;
+      db.list = async (options) => {
+        capturedOptions = options as Record<string, unknown> | undefined;
+        return originalList.call(db, options);
+      };
+      const app = createServer({ entities: [openEntity], db });
+
+      const res = await request(app, 'GET', '/api/users?orderBy=name:desc');
+
+      expect(res.status).toBe(200);
+      expect(capturedOptions).toHaveProperty('orderBy', { name: 'desc' });
+    });
+
     it('GET /api/users?q=<include for unexposed relation> returns 400', async () => {
       const entityWithRelations = entity('users', {
         model: usersModel,

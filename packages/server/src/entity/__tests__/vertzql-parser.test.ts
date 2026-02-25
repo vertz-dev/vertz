@@ -267,15 +267,98 @@ describe('Feature: VertzQL query param parsing', () => {
     });
   });
 
+  describe('Given a query with q= param using base64url encoding (no padding, - and _)', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then correctly decodes base64url', () => {
+        const structural = { select: { title: true } };
+        const json = JSON.stringify(structural);
+        // Base64URL: replace + with -, / with _, strip padding
+        const q = btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const query = { q };
+
+        const result = parseVertzQL(query);
+
+        expect(result.select).toEqual({ title: true });
+      });
+    });
+  });
+
+  describe('Given a query with URL-encoded q= param', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then URL-decodes before base64 decoding', () => {
+        const structural = { select: { title: true } };
+        const b64 = btoa(JSON.stringify(structural));
+        // Simulate URL-encoding of the base64 string (e.g., = becomes %3D)
+        const q = encodeURIComponent(b64);
+        const query = { q };
+
+        const result = parseVertzQL(query);
+
+        expect(result.select).toEqual({ title: true });
+      });
+    });
+  });
+
   describe('Given a query with invalid q= param (not valid base64/JSON)', () => {
     describe('When parseVertzQL is called', () => {
-      it('Then ignores the invalid q= param', () => {
+      it('Then returns a parse error', () => {
         const query = { q: 'not-valid-base64!!!' };
 
         const result = parseVertzQL(query);
 
-        expect(result.select).toBeUndefined();
-        expect(result.include).toBeUndefined();
+        expect(result._qError).toBe('Invalid q= parameter: not valid base64 or JSON');
+      });
+    });
+  });
+
+  // --- Multiple operators on same field ---
+
+  describe('Given equality and operator on the same field: where[status]=active&where[status][ne]=archived', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then merges both conditions into the where clause', () => {
+        const query = { 'where[status]': 'active', 'where[status][ne]': 'archived' };
+
+        const result = parseVertzQL(query);
+
+        expect(result.where).toEqual({ status: { eq: 'active', ne: 'archived' } });
+      });
+    });
+  });
+
+  describe('Given multiple operators on the same field: where[age][gte]=18&where[age][lte]=65', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then merges both operators', () => {
+        const query = { 'where[age][gte]': '18', 'where[age][lte]': '65' };
+
+        const result = parseVertzQL(query);
+
+        expect(result.where).toEqual({ age: { gte: '18', lte: '65' } });
+      });
+    });
+  });
+
+  // --- Limit upper bound ---
+
+  describe('Given a query with limit exceeding MAX_LIMIT (1000)', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then clamps limit to MAX_LIMIT', () => {
+        const query = { limit: '999999' };
+
+        const result = parseVertzQL(query);
+
+        expect(result.limit).toBe(1000);
+      });
+    });
+  });
+
+  describe('Given a query with negative limit', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then clamps limit to 0', () => {
+        const query = { limit: '-5' };
+
+        const result = parseVertzQL(query);
+
+        expect(result.limit).toBe(0);
       });
     });
   });
@@ -470,6 +553,21 @@ describe('Feature: VertzQL validation', () => {
         const result = validateVertzQL(options, usersTable, relationsConfig);
 
         expect(result.ok).toBe(true);
+      });
+    });
+  });
+
+  describe('Given a query with invalid q= param', () => {
+    describe('When validateVertzQL is called', () => {
+      it('Then returns an error for the invalid q= param', () => {
+        const parsed = parseVertzQL({ q: 'not-valid!!!' });
+
+        const result = validateVertzQL(parsed, usersTable);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain('q=');
+        }
       });
     });
   });

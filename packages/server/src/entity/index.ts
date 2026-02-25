@@ -39,4 +39,4 @@ export type {
   TypedWhereOption,
 } from './types';
 export type { ValidationResult, VertzQLOptions } from './vertzql-parser';
-export { parseVertzQL, validateVertzQL } from './vertzql-parser';
+export { MAX_LIMIT, parseVertzQL, validateVertzQL } from './vertzql-parser';
