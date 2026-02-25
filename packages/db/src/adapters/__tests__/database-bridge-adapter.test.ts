@@ -25,7 +25,7 @@ function createMockDelegate(
 ): ModelDelegate<(typeof models)['users']> {
   return {
     get: async () => ok(null),
-    getRequired: async () => ok(null as never),
+    getOrThrow: async () => ok(null as never),
     getOrThrow: async () => ok(null as never),
     list: async () => ok([]),
     listAndCount: async () => ok({ data: [], total: 0 }),

@@ -64,8 +64,8 @@ describe('Model delegate has all CRUD methods', () => {
     expectTypeOf<DB['users']['get']>().toBeFunction();
   });
 
-  it('getRequired method exists', () => {
-    expectTypeOf<DB['users']['getRequired']>().toBeFunction();
+  it('getOrThrow method exists', () => {
+    expectTypeOf<DB['users']['getOrThrow']>().toBeFunction();
   });
 
   it('list method exists', () => {

@@ -62,7 +62,7 @@ export interface DbConstraintError extends DbErrorBase {
 }
 
 /**
- * Record not found - for getRequired, update, delete operations.
+ * Record not found - for getOrThrow, update, delete operations.
  */
 export interface DbNotFoundError extends DbErrorBase {
   readonly code: 'NotFound';

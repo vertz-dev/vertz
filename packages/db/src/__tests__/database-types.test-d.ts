@@ -121,8 +121,8 @@ describe('Cycle 1: get return type', () => {
     expectTypeOf<DB['organizations']['get']>().toBeFunction();
   });
 
-  it('DatabaseClient organizations delegate has getRequired method', () => {
-    expectTypeOf<DB['organizations']['getRequired']>().toBeFunction();
+  it('DatabaseClient organizations delegate has getOrThrow method', () => {
+    expectTypeOf<DB['organizations']['getOrThrow']>().toBeFunction();
   });
 });
 

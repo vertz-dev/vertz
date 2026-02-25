@@ -89,7 +89,7 @@ describe('Prisma-style API (db.model.method)', () => {
   it('db.users is a model delegate with CRUD methods', () => {
     expect(db.users).toBeDefined();
     expect(typeof db.users.get).toBe('function');
-    expect(typeof db.users.getRequired).toBe('function');
+    expect(typeof db.users.getOrThrow).toBe('function');
     expect(typeof db.users.list).toBe('function');
     expect(typeof db.users.listAndCount).toBe('function');
     expect(typeof db.users.create).toBe('function');
@@ -155,8 +155,8 @@ describe('Prisma-style API (db.model.method)', () => {
     }
   });
 
-  it('db.users.getRequired returns user or error', async () => {
-    const result = await db.users.getRequired({ where: { id: USER_ID } });
+  it('db.users.getOrThrow returns user or error', async () => {
+    const result = await db.users.getOrThrow({ where: { id: USER_ID } });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data.name).toBe('Alice');

@@ -286,11 +286,6 @@ export interface ModelDelegate<TEntry extends ModelEntry> {
   >;
 
   /** Get a single row or return NotFoundError. */
-  getRequired<TOptions extends TypedGetOptions<TEntry>>(
-    options?: TOptions,
-  ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>, ReadError>>;
-
-  /** Alias for getRequired. */
   getOrThrow<TOptions extends TypedGetOptions<TEntry>>(
     options?: TOptions,
   ): Promise<Result<FindResult<EntryTable<TEntry>, TOptions, EntryRelations<TEntry>>, ReadError>>;
@@ -892,7 +887,6 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
   for (const name of Object.keys(models)) {
     client[name] = {
       get: (opts?: Record<string, unknown>) => implGet(name, opts),
-      getRequired: (opts?: Record<string, unknown>) => implGetRequired(name, opts),
       getOrThrow: (opts?: Record<string, unknown>) => implGetRequired(name, opts),
       list: (opts?: Record<string, unknown>) => implList(name, opts),
       listAndCount: (opts?: Record<string, unknown>) => implListAndCount(name, opts),

@@ -168,7 +168,7 @@ describe('createServer', () => {
     // A mock DatabaseClient — has _internals and model delegates with Result-returning methods
     const mockDelegate = {
       get: async () => ok(mockUser),
-      getRequired: async () => ok(mockUser),
+      getOrThrow: async () => ok(mockUser),
       getOrThrow: async () => ok(mockUser),
       list: async () => ok([mockUser]),
       listAndCount: async () => ok({ data: [mockUser], total: 1 }),

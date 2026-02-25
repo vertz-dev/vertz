@@ -102,7 +102,7 @@ describe('db.organizations.get() returns Result', () => {
   });
 });
 
-describe('db.organizations.getRequired() returns Result', () => {
+describe('db.organizations.getOrThrow() returns Result', () => {
   it('returns ok() with data when record found', async () => {
     const mockOrg = { id: '123', name: 'Test Org' };
     const db = createDb({
@@ -113,7 +113,7 @@ describe('db.organizations.getRequired() returns Result', () => {
       _queryFn: async () => ({ rows: [mockOrg], rowCount: 1 }),
     });
 
-    const result = await db.organizations.getRequired({ where: { id: '123' } });
+    const result = await db.organizations.getOrThrow({ where: { id: '123' } });
 
     expect(result.ok).toBe(true);
     expect(result.data).toEqual(mockOrg);
@@ -128,7 +128,7 @@ describe('db.organizations.getRequired() returns Result', () => {
       _queryFn: async () => ({ rows: [], rowCount: 0 }),
     });
 
-    const result = await db.organizations.getRequired({ where: { id: 'nonexistent' } });
+    const result = await db.organizations.getOrThrow({ where: { id: 'nonexistent' } });
 
     expect(result.ok).toBe(false);
     expect(result.error.code).toBe('NotFound');
@@ -147,7 +147,7 @@ describe('db.organizations.getRequired() returns Result', () => {
       _queryFn: failingQueryFn,
     });
 
-    const result = await db.organizations.getRequired({ where: { id: '123' } });
+    const result = await db.organizations.getOrThrow({ where: { id: '123' } });
 
     expect(result.ok).toBe(false);
   });
