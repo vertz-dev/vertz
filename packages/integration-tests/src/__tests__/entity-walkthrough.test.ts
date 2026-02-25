@@ -292,7 +292,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       expect(body.nextCursor).toBe('u2');
     });
 
-    it('GET /api/users?role=admin filters by query params', async () => {
+    it('GET /api/users?where[role]=admin filters by query params', async () => {
       const db = createInMemoryDb([
         { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
         { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
@@ -302,7 +302,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
         db,
       });
 
-      const res = await request(app, 'GET', '/api/users?role=admin');
+      const res = await request(app, 'GET', '/api/users?where[role]=admin');
 
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -351,7 +351,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       expect(body.nextCursor).toBe('u2');
     });
 
-    it('GET /api/users?role=user&limit=1 combines filtering with pagination', async () => {
+    it('GET /api/users?where[role]=user&limit=1 combines filtering with pagination', async () => {
       const db = createInMemoryDb([
         { id: 'u1', email: 'a@b.com', name: 'Alice', passwordHash: 'h1', role: 'user' },
         { id: 'u2', email: 'b@b.com', name: 'Bob', passwordHash: 'h2', role: 'admin' },
@@ -362,7 +362,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
         db,
       });
 
-      const res = await request(app, 'GET', '/api/users?role=user&limit=1');
+      const res = await request(app, 'GET', '/api/users?where[role]=user&limit=1');
 
       expect(res.status).toBe(200);
       const body = await res.json();

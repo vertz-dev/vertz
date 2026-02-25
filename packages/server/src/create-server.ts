@@ -1,9 +1,31 @@
 import type { AppBuilder, AppConfig, EntityRouteEntry } from '@vertz/core';
 import { createServer as coreCreateServer } from '@vertz/core';
-import type { EntityDbAdapter } from './entity/crud-pipeline';
+import {
+  createDatabaseBridgeAdapter,
+  type DatabaseInstance,
+  type EntityDbAdapter,
+  type ModelEntry,
+} from '@vertz/db';
 import { EntityRegistry } from './entity/entity-registry';
 import { generateEntityRoutes } from './entity/route-generator';
 import type { EntityDefinition } from './entity/types';
+
+// ---------------------------------------------------------------------------
+// DatabaseInstance detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Detects whether the provided db object is a DatabaseInstance (query builder)
+ * rather than a plain EntityDbAdapter.
+ *
+ * A DatabaseInstance has `_models` and `_dialect` properties that an
+ * EntityDbAdapter does not.
+ */
+function isDatabaseInstance(
+  db: DatabaseInstance<Record<string, ModelEntry>> | EntityDbAdapter,
+): db is DatabaseInstance<Record<string, ModelEntry>> {
+  return db !== null && typeof db === 'object' && '_models' in db && '_dialect' in db;
+}
 
 // ---------------------------------------------------------------------------
 // Extended config for @vertz/server's createServer
@@ -12,8 +34,13 @@ import type { EntityDefinition } from './entity/types';
 export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'entities'> {
   /** Entity definitions created via entity() from @vertz/server */
   entities?: EntityDefinition[];
-  /** Database adapter for entity CRUD operations. */
-  db?: EntityDbAdapter;
+  /**
+   * Database for entity CRUD operations.
+   * Accepts either:
+   * - A DatabaseInstance from createDb() (recommended — auto-bridged per entity)
+   * - An EntityDbAdapter (deprecated — simple adapter with get/list/create/update/delete)
+   */
+  db?: DatabaseInstance<Record<string, ModelEntry>> | EntityDbAdapter;
   /** @internal Factory to create a DB adapter for each entity. Prefer `db` instead. */
   _entityDbFactory?: (entityDef: EntityDefinition) => EntityDbAdapter;
 }
@@ -56,14 +83,29 @@ export function createServer(config: ServerConfig): AppBuilder {
   if (config.entities && config.entities.length > 0) {
     const registry = new EntityRegistry();
     const { db } = config;
-    const dbFactory = db ? () => db : (config._entityDbFactory ?? createNoopDbAdapter);
+    let dbFactory: (entityDef: EntityDefinition) => EntityDbAdapter;
+
+    if (db && isDatabaseInstance(db)) {
+      // DatabaseInstance detected — create bridge adapters per entity
+      dbFactory = (entityDef) =>
+        createDatabaseBridgeAdapter(
+          db as DatabaseInstance<Record<string, ModelEntry>>,
+          entityDef.name,
+        );
+    } else if (db) {
+      // Plain EntityDbAdapter — use directly
+      dbFactory = () => db as EntityDbAdapter;
+    } else {
+      dbFactory = config._entityDbFactory ?? createNoopDbAdapter;
+    }
+
     const apiPrefix = config.apiPrefix === undefined ? '/api' : config.apiPrefix;
 
     // Generate routes for each entity
     entityRoutes = [];
     for (const entityDef of config.entities) {
-      const db = dbFactory(entityDef as EntityDefinition);
-      const routes = generateEntityRoutes(entityDef as EntityDefinition, registry, db, {
+      const entityDb = dbFactory(entityDef as EntityDefinition);
+      const routes = generateEntityRoutes(entityDef as EntityDefinition, registry, entityDb, {
         apiPrefix,
       });
       entityRoutes.push(...routes);

@@ -100,7 +100,8 @@ describe('generateEntityRoutes', () => {
       expect(methods).toContain('POST /api/users');
       expect(methods).toContain('PATCH /api/users/:id');
       expect(methods).toContain('DELETE /api/users/:id');
-      expect(methods).toHaveLength(5);
+      expect(methods).toContain('POST /api/users/query');
+      expect(methods).toHaveLength(6);
     });
 
     it('uses PATCH for updates, not PUT', () => {
@@ -250,7 +251,7 @@ describe('generateEntityRoutes', () => {
       expect(body.hasNextPage).toBe(true);
     });
 
-    it('list handler passes non-reserved query params as where filter', async () => {
+    it('list handler passes where[field]=value as where filter (VertzQL bracket syntax)', async () => {
       const def = buildEntityDef();
       const db = createMockDb([
         { id: '1', email: 'a@b.com', name: 'Alice', passwordHash: 'secret', role: 'admin' },
@@ -263,7 +264,7 @@ describe('generateEntityRoutes', () => {
       const response = await listRoute!.handler({
         params: {},
         body: undefined,
-        query: { role: 'admin' },
+        query: { 'where[role]': 'admin' },
         headers: {},
       });
 
@@ -393,7 +394,7 @@ describe('generateEntityRoutes', () => {
       const registry = new EntityRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
-      const createRoute = routes.find((r) => r.method === 'POST');
+      const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
       const response = await createRoute!.handler({
         params: {},
         body: { email: 'a@b.com', name: 'Alice' },
@@ -418,7 +419,7 @@ describe('generateEntityRoutes', () => {
       const registry = new EntityRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
-      const createRoute = routes.find((r) => r.method === 'POST');
+      const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
       await createRoute!.handler({
         params: {},
         body: { email: 'a@b.com', name: 'Alice', createdAt: '2025-01-01' },
@@ -566,7 +567,7 @@ describe('generateEntityRoutes', () => {
       const registry = new EntityRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
-      const createRoute = routes.find((r) => r.method === 'POST');
+      const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
       const response = await createRoute!.handler({
         params: {},
         body: { email: 'test@test.com' },
@@ -698,7 +699,7 @@ describe('generateEntityRoutes', () => {
       const registry = new EntityRegistry();
       const routes = generateEntityRoutes(def, registry, db);
 
-      const createRoute = routes.find((r) => r.method === 'POST');
+      const createRoute = routes.find((r) => r.method === 'POST' && r.path === '/api/users');
       const response = await createRoute!.handler({
         params: {},
         body: { email: 'a@b.com', name: 'Alice' },

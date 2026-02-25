@@ -6,6 +6,22 @@
 // Plugin system         -> @vertz/db/plugin
 // ---------------------------------------------------------------------------
 
+export type { CreateDbProviderOptions, DbDialect, SqliteAdapterConfig } from './adapters';
+// Database adapters (SQLite & D1)
+export {
+  createD1Adapter,
+  createD1Driver,
+  createDatabaseBridgeAdapter,
+  createDbProvider,
+  createSqliteAdapter,
+  createSqliteDriver,
+} from './adapters';
+export type {
+  D1AdapterOptions,
+  D1DatabaseBinding,
+  D1PreparedStatement,
+} from './adapters/d1-adapter';
+export type { SqliteAdapterOptions } from './adapters/sqlite-adapter';
 // CLI / Migrations
 export type {
   MigrateDeployOptions,
@@ -122,6 +138,7 @@ export type { ModelSchemas, SchemaLike } from './schema/model-schemas';
 export { createRegistry } from './schema/registry';
 export type { RelationDef } from './schema/relation';
 export type { IndexDef, TableDef } from './schema/table';
+export type { EntityDbAdapter, ListOptions } from './types/adapter';
 // Branded error types
 export type {
   InvalidColumn,
@@ -131,9 +148,3 @@ export type {
   StrictKeys,
   ValidateKeys,
 } from './types/branded-errors';
-// Database adapters (SQLite & D1)
-export { createDbProvider, createSqliteAdapter, createSqliteDriver, createD1Adapter, createD1Driver } from './adapters';
-export type { CreateDbProviderOptions, DbDialect, SqliteAdapterConfig } from './adapters';
-export type { SqliteAdapterOptions } from './adapters/sqlite-adapter';
-export type { D1AdapterOptions, D1DatabaseBinding, D1PreparedStatement } from './adapters/d1-adapter';
-export type { EntityDbAdapter, ListOptions } from './types/adapter';

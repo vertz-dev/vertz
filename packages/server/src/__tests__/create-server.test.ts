@@ -2,6 +2,8 @@ import { describe, expect, it } from 'bun:test';
 import { d } from '@vertz/db';
 import { createServer } from '../create-server';
 
+const ok = <T>(data: T) => ({ ok: true as const, data });
+
 const usersTable = d.table('users', {
   id: d.uuid().primary(),
   name: d.text(),
@@ -158,6 +160,69 @@ describe('createServer', () => {
     const listBody = await listResponse.json();
     expect(listBody.data).toHaveLength(1);
     expect(listBody.data[0].name).toBe('Alice');
+  });
+
+  it('accepts a DatabaseInstance via db and bridges it to EntityDbAdapter', async () => {
+    const mockUser = { id: 'u1', name: 'Alice' };
+
+    // A mock DatabaseInstance — has _models, _dialect, and Result-returning methods
+    const mockDatabaseInstance = {
+      _models: { users: { table: usersTable } },
+      _dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
+      $tenantGraph: {
+        root: null,
+        directlyScoped: new Set(),
+        indirectlyScoped: new Set(),
+        shared: new Set(),
+      },
+      get: async () => ok(mockUser),
+      getRequired: async () => ok(mockUser),
+      getOrThrow: async () => ok(mockUser),
+      list: async () => ok([mockUser]),
+      listAndCount: async () => ok({ data: [mockUser], total: 1 }),
+      create: async () => ok(mockUser),
+      update: async () => ok(mockUser),
+      delete: async () => ok(mockUser),
+      close: async () => {},
+      isHealthy: async () => true,
+      query: async () => ok({ rows: [], rowCount: 0 }),
+    };
+
+    const app = createServer({
+      basePath: '/',
+      db: mockDatabaseInstance,
+      entities: [
+        {
+          name: 'users',
+          model: usersModel,
+          access: {
+            list: () => true,
+            get: () => true,
+            create: () => true,
+            update: () => true,
+            delete: () => true,
+          },
+          before: {},
+          after: {},
+          actions: {},
+          relations: {},
+        },
+      ] as never[],
+    });
+
+    // The bridge adapter should delegate to the DatabaseInstance's listAndCount
+    const listResponse = await app.handler(new Request('http://localhost/api/users'));
+    expect(listResponse.status).toBe(200);
+    const listBody = await listResponse.json();
+    expect(listBody.data).toHaveLength(1);
+    expect(listBody.data[0].name).toBe('Alice');
+    expect(listBody.total).toBe(1);
+
+    // Get by ID should return the record
+    const getResponse = await app.handler(new Request('http://localhost/api/users/u1'));
+    expect(getResponse.status).toBe(200);
+    const getBody = await getResponse.json();
+    expect(getBody.name).toBe('Alice');
   });
 
   it('uses default /api prefix when apiPrefix is not specified', () => {
