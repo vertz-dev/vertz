@@ -806,6 +806,48 @@ function About() {
     });
   });
 
+  describe('transformIndexHtml', () => {
+    it('injects <link> tags for emitted CSS assets in production', () => {
+      const plugin = vertzPlugin();
+      setMode(plugin, 'production');
+
+      // Transform a file with CSS
+      const code = `
+function Card() {
+  const styles = css({
+    card: ['p:4', 'rounded:md'],
+  });
+  return <div class={styles.card}>Hello</div>;
+}
+      `.trim();
+      callTransform(plugin, code, '/src/Card.tsx');
+
+      // Run generateBundle to emit CSS
+      const emitFile = vi.fn();
+      const generateBundle = plugin.generateBundle as () => void;
+      generateBundle.call({ emitFile });
+
+      // Now run transformIndexHtml — it should inject a <link> tag
+      const html = `<!DOCTYPE html>
+<html>
+<head><title>Test</title>
+<script type="module" src="/assets/index.js"></script>
+</head>
+<body><div id="app"></div></body>
+</html>`;
+
+      const transformIndexHtml = plugin.transformIndexHtml as
+        | (() => Array<{ tag: string; attrs: Record<string, string>; injectTo: string }>)
+        | undefined;
+      expect(transformIndexHtml).toBeDefined();
+
+      const tags = transformIndexHtml!();
+      const linkTags = tags.filter((t) => t.tag === 'link' && t.attrs.rel === 'stylesheet');
+      expect(linkTags.length).toBeGreaterThan(0);
+      expect(linkTags.some((t) => t.attrs.href?.includes('vertz.css'))).toBe(true);
+    });
+  });
+
   // ─── CSSHMRHandler Integration ─────────────────────────────
 
   describe('CSSHMRHandler', () => {

@@ -161,4 +161,36 @@ describe('per-request isolation', () => {
     expect(result2.ssrData[0].key).toBe('query-B');
     expect(result2.html).toContain('B');
   });
+
+  it('concurrent renders with async queries all succeed without 500s', async () => {
+    // Simulate real-world scenario: same module rendered concurrently with
+    // async queries that yield the event loop (causing actual interleaving)
+    const makeModule = (label: string) => ({
+      default: () => {
+        registerSSRQuery({
+          key: `data-${label}`,
+          // Use a real async delay to force event loop interleaving
+          promise: new Promise((resolve) => setTimeout(() => resolve({ label }), 10)),
+          timeout: 300,
+          resolve: () => {},
+        });
+        const el = document.createElement('div');
+        el.textContent = label;
+        return el;
+      },
+    });
+
+    // Launch 10 concurrent renders — mirrors rapid browser refreshes
+    const results = await Promise.all(
+      Array.from({ length: 10 }, (_, i) => ssrRenderToString(makeModule(`req-${i}`), `/page-${i}`)),
+    );
+
+    // Every single render must succeed with correct HTML and query data
+    for (let i = 0; i < 10; i++) {
+      expect(results[i].html).toContain(`req-${i}`);
+      expect(results[i].ssrData).toHaveLength(1);
+      expect(results[i].ssrData[0].key).toBe(`data-req-${i}`);
+      expect(results[i].ssrData[0].data).toEqual({ label: `req-${i}` });
+    }
+  });
 });

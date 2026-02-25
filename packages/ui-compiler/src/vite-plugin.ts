@@ -106,6 +106,9 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
     return false;
   }
 
+  /** CSS asset file names emitted during generateBundle(). */
+  const emittedCssFiles: string[] = [];
+
   return {
     name: 'vertz',
     enforce: 'pre',
@@ -438,6 +441,7 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
             fileName,
             source: css,
           });
+          emittedCssFiles.push(`/${fileName}`);
         }
       } else if (liveCSS.length > 0) {
         // No route map: emit a single combined CSS file
@@ -446,7 +450,21 @@ export default function vertzPlugin(options?: VertzPluginOptions): Plugin {
           fileName: 'assets/vertz.css',
           source: liveCSS,
         });
+        emittedCssFiles.push('/assets/vertz.css');
       }
+    },
+
+    transformIndexHtml() {
+      if (!isProduction || emittedCssFiles.length === 0) return [];
+
+      // Inject <link rel="stylesheet"> tags for emitted CSS assets.
+      // Without this, styles are only loaded when JS executes, causing
+      // a flash of unstyled content on slow connections.
+      return emittedCssFiles.map((href) => ({
+        tag: 'link',
+        attrs: { rel: 'stylesheet', href },
+        injectTo: 'head' as const,
+      }));
     },
   };
 }

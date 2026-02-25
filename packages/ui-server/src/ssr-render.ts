@@ -16,6 +16,25 @@ import {
 } from './ssr-context';
 import { streamToString } from './streaming';
 
+/**
+ * Mutex to serialize SSR renders.
+ *
+ * The SSR pipeline depends on global mutable state (document, window,
+ * injectedCSS set, __SSR_URL__) that cannot be isolated per-request.
+ * Concurrent renders race on this state, causing crashes. A mutex ensures
+ * only one render runs at a time while still being async-safe.
+ */
+let renderLock: Promise<unknown> = Promise.resolve();
+
+function withRenderLock<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = renderLock;
+  let release: () => void;
+  renderLock = new Promise<void>((r) => {
+    release = r;
+  });
+  return prev.then(fn).finally(() => release());
+}
+
 export interface SSRModule {
   default?: () => unknown;
   App?: () => unknown;
@@ -64,6 +83,14 @@ function collectCSS(themeCss: string): string {
  * - Pass 2: Render — calls the app again with data populated, renders to HTML
  */
 export async function ssrRenderToString(
+  module: SSRModule,
+  url: string,
+  options?: { ssrTimeout?: number },
+): Promise<SSRRenderResult> {
+  return withRenderLock(() => ssrRenderToStringUnsafe(module, url, options));
+}
+
+async function ssrRenderToStringUnsafe(
   module: SSRModule,
   url: string,
   options?: { ssrTimeout?: number },
@@ -160,6 +187,14 @@ export async function ssrRenderToString(
  * Used by the production handler to pre-fetch query data for client-side navigations.
  */
 export async function ssrDiscoverQueries(
+  module: SSRModule,
+  url: string,
+  options?: { ssrTimeout?: number },
+): Promise<SSRDiscoverResult> {
+  return withRenderLock(() => ssrDiscoverQueriesUnsafe(module, url, options));
+}
+
+async function ssrDiscoverQueriesUnsafe(
   module: SSRModule,
   url: string,
   options?: { ssrTimeout?: number },
