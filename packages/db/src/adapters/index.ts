@@ -5,12 +5,11 @@
  * Supports SQLite (local) and D1 (Cloudflare Workers).
  */
 
-import type { ColumnRecord } from '../schema/table';
-import type { TableDef } from '../schema/table';
-import { createSqliteAdapter } from './sqlite-adapter';
-import { createD1Adapter } from './d1-adapter';
-import type { D1DatabaseBinding } from './d1-adapter';
+import type { ColumnRecord, TableDef } from '../schema/table';
 import type { EntityDbAdapter } from '../types/adapter';
+import type { D1DatabaseBinding } from './d1-adapter';
+import { createD1Adapter } from './d1-adapter';
+import { createSqliteAdapter } from './sqlite-adapter';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,7 +49,7 @@ export interface SqliteAdapterConfig {
 
 /**
  * Create a database provider for the specified dialect.
- * 
+ *
  * @example
  * // SQLite (local development)
  * const db = await createDbProvider({
@@ -58,7 +57,7 @@ export interface SqliteAdapterConfig {
  *   schema: todosTable,
  *   migrations: { autoApply: true },
  * });
- * 
+ *
  * @example
  * // D1 (Cloudflare Workers)
  * const db = createDbProvider({
@@ -69,7 +68,7 @@ export interface SqliteAdapterConfig {
  * });
  */
 export async function createDbProvider<T extends ColumnRecord>(
-  options: CreateDbProviderOptions<T>
+  options: CreateDbProviderOptions<T>,
 ): Promise<EntityDbAdapter> {
   const { dialect, schema, migrations } = options;
 
@@ -97,10 +96,11 @@ export async function createDbProvider<T extends ColumnRecord>(
   }
 }
 
-// Re-export types and functions from sub-modules
-export { createSqliteAdapter, createSqliteDriver } from './sqlite-adapter';
+export type { D1AdapterOptions, D1DatabaseBinding, D1PreparedStatement } from './d1-adapter';
 export { createD1Adapter, createD1Driver } from './d1-adapter';
+export { createDatabaseBridgeAdapter } from './database-bridge-adapter';
 
 // Export types
 export type { SqliteAdapterOptions } from './sqlite-adapter';
-export type { D1AdapterOptions, D1DatabaseBinding, D1PreparedStatement } from './d1-adapter';
+// Re-export types and functions from sub-modules
+export { createSqliteAdapter, createSqliteDriver } from './sqlite-adapter';
