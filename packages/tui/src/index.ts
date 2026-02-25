@@ -37,6 +37,8 @@ export type { BoxProps } from './components/Box';
 export { Box } from './components/Box';
 export type { ConfirmProps } from './components/Confirm';
 export { Confirm } from './components/Confirm';
+export type { DashboardProps } from './components/Dashboard';
+export { Dashboard } from './components/Dashboard';
 export type {
   DiagnosticItem,
   DiagnosticViewProps,
@@ -49,6 +51,8 @@ export type { KeyValueEntry, KeyValueProps } from './components/KeyValue';
 export { KeyValue } from './components/KeyValue';
 export type { LogProps } from './components/Log';
 export { Log } from './components/Log';
+export type { LogStreamProps } from './components/LogStream';
+export { LogStream } from './components/LogStream';
 export type { MultiSelectProps } from './components/MultiSelect';
 export { MultiSelect } from './components/MultiSelect';
 export type { PasswordInputProps } from './components/PasswordInput';
