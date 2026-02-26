@@ -1,5 +1,5 @@
 import type { AppBuilder } from '@vertz/core';
-import type { SSRModule } from '@vertz/ui-server';
+import type { SSRModule } from '@vertz/ui-server/ssr';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -205,7 +205,7 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
     if (!ssr) return;
 
     if (isSSRModuleConfig(ssr)) {
-      const { createSSRHandler } = await import('@vertz/ui-server');
+      const { createSSRHandler } = await import('@vertz/ui-server/ssr');
       const { module, clientScript = '/assets/entry-client.js', title = 'Vertz App' } = ssr;
       ssrHandler = createSSRHandler({
         module,

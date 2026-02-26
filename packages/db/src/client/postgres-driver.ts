@@ -12,7 +12,6 @@
  * - Connection close and health check
  */
 
-import postgresLib from 'postgres';
 import type { ExecutorResult, QueryFn } from '../query/executor';
 import type { PoolConfig } from './database';
 import type { DbDriver } from './driver';
@@ -22,7 +21,22 @@ import type { DbDriver } from './driver';
 // ---------------------------------------------------------------------------
 
 /** The postgres.js Sql instance (connection pool). */
-type PostgresSql = ReturnType<typeof postgresLib>;
+type PostgresSql = import('postgres').Sql<{}>;
+
+// ---------------------------------------------------------------------------
+// Lazy-load postgres (optional peer dependency)
+// ---------------------------------------------------------------------------
+
+function loadPostgres(): (...args: unknown[]) => PostgresSql {
+  try {
+    // biome-ignore lint/suspicious/noExplicitAny: lazy-loaded optional dep
+    const mod = require('postgres') as any;
+    // Handle ESM interop: require() may return { default: fn } or fn directly
+    return typeof mod === 'function' ? mod : mod.default;
+  } catch {
+    throw new Error('The "postgres" package is required for PostgreSQL. Install: bun add postgres');
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Error adaptation
@@ -98,7 +112,7 @@ export interface PostgresDriver extends DbDriver {
  * @returns A PostgresDriver with queryFn, close(), and isHealthy()
  */
 export function createPostgresDriver(url: string, pool?: PoolConfig): PostgresDriver {
-  const sql: PostgresSql = postgresLib(url, {
+  const sql: PostgresSql = loadPostgres()(url, {
     max: pool?.max ?? 10,
     idle_timeout: pool?.idleTimeout !== undefined ? pool.idleTimeout / 1000 : 30,
     connect_timeout: pool?.connectionTimeout !== undefined ? pool.connectionTimeout / 1000 : 10,

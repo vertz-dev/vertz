@@ -376,7 +376,7 @@ describe('createHandler (SSR module config)', () => {
   const mockCreateSSRHandler = vi.fn().mockReturnValue(mockSSRRequestHandler);
 
   beforeEach(() => {
-    vi.doMock('@vertz/ui-server', () => ({
+    vi.doMock('@vertz/ui-server/ssr', () => ({
       createSSRHandler: mockCreateSSRHandler,
     }));
     mockSSRRequestHandler.mockClear();
@@ -384,7 +384,7 @@ describe('createHandler (SSR module config)', () => {
   });
 
   afterEach(() => {
-    vi.doUnmock('@vertz/ui-server');
+    vi.doUnmock('@vertz/ui-server/ssr');
   });
 
   it('routes non-API requests through the SSR handler created from module config', async () => {
