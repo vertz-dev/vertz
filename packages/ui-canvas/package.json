@@ -40,7 +40,7 @@
     "@happy-dom/global-registrator": "^20.7.0",
     "@vertz/ui": "workspace:*",
     "bunup": "latest",
-    "happy-dom": "^18.0.1",
+    "happy-dom": "^20.7.0",
     "typescript": "^5.7.0"
   },
   "engines": {

@@ -21,7 +21,7 @@
     "@vertz/ui-server": "workspace:*"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250214.0",
+    "@cloudflare/workers-types": "^4.20260305.0",
     "@vertz/cli": "workspace:*",
     "@vertz/ui-compiler": "workspace:*",
     "bun-types": "^1.3.9",

@@ -67,12 +67,12 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260228.0",
+    "@cloudflare/workers-types": "^4.20260305.0",
     "@electric-sql/pglite": "^0.3.14",
     "@types/better-sqlite3": "^7.6.12",
-    "@types/node": "^25.2.1",
+    "@types/node": "^25.3.1",
     "@vitest/coverage-v8": "^4.0.18",
-    "better-sqlite3": "^11.7.0",
+    "better-sqlite3": "^12.6.2",
     "bunup": "latest",
     "postgres": "^3.4.8",
     "typescript": "^5.7.0",
@@ -84,9 +84,9 @@
   "dependencies": {
     "@vertz/errors": "workspace:*",
     "@vertz/schema": "workspace:*",
-    "@paralleldrive/cuid2": "^2.2.2",
+    "@paralleldrive/cuid2": "^3.3.0",
     "nanoid": "^5.1.5",
-    "uuid": "^11.1.0"
+    "uuid": "^13.0.0"
   },
   "peerDependencies": {
     "bun:sqlite": "*",
