@@ -1,5 +1,5 @@
-import { s } from '@vertz/schema';
 import { describe, expect, it, vi } from 'bun:test';
+import { s } from '@vertz/schema';
 import type { SdkMethodWithMeta } from '../form';
 import { form } from '../form';
 import type { FormSchema } from '../validation';
@@ -541,6 +541,67 @@ describe('form', () => {
       } finally {
         globalThis.FormData = OriginalFormData;
       }
+    });
+  });
+
+  describe('per-field setValue and reset', () => {
+    it('field.setValue() updates value and dirty through form proxy', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+
+      const f = form(sdk, { schema: passingSchema(), initial: { title: 'Original' } });
+
+      f.title.setValue('Changed');
+      expect(f.title.value.peek()).toBe('Changed');
+      expect(f.title.dirty.peek()).toBe(true);
+    });
+
+    it('field.setValue() back to initial clears dirty', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+
+      const f = form(sdk, { schema: passingSchema(), initial: { title: 'Original' } });
+
+      f.title.setValue('Changed');
+      expect(f.title.dirty.peek()).toBe(true);
+
+      f.title.setValue('Original');
+      expect(f.title.dirty.peek()).toBe(false);
+    });
+
+    it('field.reset() restores single field without affecting others', () => {
+      const sdk = mockSdkMethod({
+        url: '/api/users',
+        method: 'POST',
+        handler: async () => ({ id: 1 }),
+      });
+
+      const f = form(sdk, {
+        schema: passingSchema(),
+        initial: { title: 'Original', name: 'Alice' },
+      });
+
+      // Modify both fields
+      f.title.setValue('Changed title');
+      f.name.setValue('Bob');
+      f.setFieldError('title', 'Too long');
+
+      // Reset only title
+      f.title.reset();
+
+      expect(f.title.value.peek()).toBe('Original');
+      expect(f.title.error.peek()).toBeUndefined();
+      expect(f.title.dirty.peek()).toBe(false);
+
+      // Name should be untouched
+      expect(f.name.value.peek()).toBe('Bob');
+      expect(f.name.dirty.peek()).toBe(true);
     });
   });
 

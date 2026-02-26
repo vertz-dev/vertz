@@ -100,6 +100,14 @@ void _emailValue;
 const _nameValue: Signal<string> = userForm.name.value;
 void _nameValue;
 
+// ─── 10b. form.<field>.setValue() and .reset() ───────────────────
+
+const _setEmailValue: (value: string) => void = userForm.email.setValue;
+void _setEmailValue;
+
+const _resetEmail: () => void = userForm.email.reset;
+void _resetEmail;
+
 // ─── 11. Reserved name conflict → type error ──────────────────────
 
 // When a field name conflicts with a reserved property, the type resolves

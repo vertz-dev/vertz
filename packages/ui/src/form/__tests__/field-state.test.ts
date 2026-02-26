@@ -32,4 +32,55 @@ describe('createFieldState', () => {
     field.value.value = 'updated';
     expect(field.value.peek()).toBe('updated');
   });
+
+  describe('setValue', () => {
+    it('sets the value signal and marks the field as dirty', () => {
+      const field = createFieldState<string>('title', 'initial');
+
+      field.setValue('updated');
+
+      expect(field.value.peek()).toBe('updated');
+      expect(field.dirty.peek()).toBe(true);
+    });
+
+    it('marks dirty as false when set back to initial value', () => {
+      const field = createFieldState<string>('title', 'initial');
+
+      field.setValue('changed');
+      expect(field.dirty.peek()).toBe(true);
+
+      field.setValue('initial');
+      expect(field.dirty.peek()).toBe(false);
+    });
+  });
+
+  describe('reset', () => {
+    it('restores value to initial and clears error, dirty, touched', () => {
+      const field = createFieldState<string>('title', 'initial');
+
+      field.value.value = 'changed';
+      field.error.value = 'Required';
+      field.dirty.value = true;
+      field.touched.value = true;
+
+      field.reset();
+
+      expect(field.value.peek()).toBe('initial');
+      expect(field.error.peek()).toBeUndefined();
+      expect(field.dirty.peek()).toBe(false);
+      expect(field.touched.peek()).toBe(false);
+    });
+
+    it('restores to undefined when no initial value was provided', () => {
+      const field = createFieldState<string>('title');
+
+      field.value.value = 'something';
+      field.dirty.value = true;
+
+      field.reset();
+
+      expect(field.value.peek()).toBeUndefined();
+      expect(field.dirty.peek()).toBe(false);
+    });
+  });
 });

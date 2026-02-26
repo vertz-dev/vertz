@@ -180,12 +180,8 @@ export function form<TBody, TResult>(
   let boundElement: HTMLFormElement | undefined;
 
   function resetForm(): void {
-    for (const [name, field] of fieldCache) {
-      field.error.value = undefined;
-      field.dirty.value = false;
-      field.touched.value = false;
-      const initialValue = (options?.initial as Record<string, unknown> | undefined)?.[name];
-      field.value.value = initialValue;
+    for (const field of fieldCache.values()) {
+      field.reset();
     }
   }
 
