@@ -76,4 +76,36 @@ describe('resolveChildren', () => {
     expect(result[1]).toBe(b);
     expect(result[2]).toBeInstanceOf(Text);
   });
+
+  test('resolves thunk returning a node', () => {
+    const el = document.createElement('div');
+    expect(resolveChildren(() => el)).toEqual([el]);
+  });
+
+  test('resolves thunk returning an array', () => {
+    const a = document.createElement('div');
+    const b = document.createElement('span');
+    expect(resolveChildren(() => [a, b])).toEqual([a, b]);
+  });
+
+  test('resolves thunk returning a string', () => {
+    const result = resolveChildren(() => 'text');
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBeInstanceOf(Text);
+    expect((result[0] as Text).textContent).toBe('text');
+  });
+
+  test('resolves thunk returning null', () => {
+    expect(resolveChildren(() => null)).toEqual([]);
+  });
+
+  test('resolves nested thunks', () => {
+    const el = document.createElement('div');
+    expect(resolveChildren(() => () => el)).toEqual([el]);
+  });
+
+  test('throws on circular thunks exceeding max depth', () => {
+    const circular: () => (() => unknown) = () => circular;
+    expect(() => resolveChildren(circular)).toThrow(/max recursion depth/);
+  });
 });

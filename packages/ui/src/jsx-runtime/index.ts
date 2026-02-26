@@ -62,6 +62,10 @@ type Tag = string | JSXComponentFn;
  */
 function applyChildren(parent: Node, children: unknown): void {
   if (children == null || children === false || children === true) return;
+  if (typeof children === 'function') {
+    applyChildren(parent, (children as () => unknown)());
+    return;
+  }
   if (Array.isArray(children)) {
     for (const child of children) {
       applyChildren(parent, child);

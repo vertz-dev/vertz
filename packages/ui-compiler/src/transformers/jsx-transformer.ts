@@ -133,7 +133,43 @@ function transformJsxElement(
   const isComponent = /^[A-Z]/.test(tagName);
 
   if (isComponent) {
-    const propsObj = buildPropsObject(openingElement, jsxMap, source);
+    // Check for explicit children prop — if present, skip thunk generation.
+    // Use getAttributes() to avoid descending into nested JSX inside prop values.
+    const hasExplicitChildren = openingElement
+      .getAttributes()
+      .filter((a) => a.isKind(SyntaxKind.JsxAttribute))
+      .some((attr) => attr.getNameNode().getText() === 'children');
+
+    let extraEntries: Map<string, string> | undefined;
+    if (!hasExplicitChildren) {
+      const children = getJsxChildren(node);
+      const nonEmptyChildren = children.filter((child) => {
+        if (child.isKind(SyntaxKind.JsxText)) return !!child.getText().trim();
+        return true;
+      });
+
+      if (nonEmptyChildren.length > 0) {
+        const thunkCode = buildComponentChildrenThunk(
+          nonEmptyChildren,
+          reactiveNames,
+          jsxMap,
+          source,
+          formVarNames,
+        );
+        if (thunkCode) {
+          extraEntries = new Map([['children', thunkCode]]);
+        }
+      }
+    }
+
+    const propsObj = buildPropsObject(
+      openingElement,
+      jsxMap,
+      source,
+      reactiveNames,
+      formVarNames,
+      extraEntries,
+    );
     return `${tagName}(${propsObj})`;
   }
 
@@ -176,7 +212,7 @@ function transformJsxElement(
 
 function transformSelfClosingElement(
   node: Node,
-  _reactiveNames: Set<string>,
+  reactiveNames: Set<string>,
   jsxMap: Map<number, JsxExpressionInfo>,
   source: MagicString,
   formVarNames: Set<string> = new Set(),
@@ -187,7 +223,7 @@ function transformSelfClosingElement(
   const isComponent = /^[A-Z]/.test(tagName);
 
   if (isComponent) {
-    const propsObj = buildPropsObject(node, jsxMap, source);
+    const propsObj = buildPropsObject(node, jsxMap, source, reactiveNames, formVarNames);
     return `${tagName}(${propsObj})`;
   }
 
@@ -317,12 +353,90 @@ function transformChild(
     return `__insert(${parentVar}, ${exprText})`;
   }
 
-  if (child.isKind(SyntaxKind.JsxElement) || child.isKind(SyntaxKind.JsxSelfClosingElement)) {
+  if (
+    child.isKind(SyntaxKind.JsxElement) ||
+    child.isKind(SyntaxKind.JsxSelfClosingElement) ||
+    child.isKind(SyntaxKind.JsxFragment)
+  ) {
     const childCode = transformJsxNode(child, reactiveNames, jsxMap, source, formVarNames);
     return `__append(${parentVar}, ${childCode})`;
   }
 
   return null;
+}
+
+/**
+ * Transform a child node into a value expression (not an append statement).
+ * Used for component children thunks where we need return values, not side effects.
+ *
+ * Comparison with transformChild():
+ *   transformChild() → `__append(parentVar, __staticText("text"))` (statement)
+ *   transformChildAsValue() → `__staticText("text")` (expression)
+ */
+function transformChildAsValue(
+  child: Node,
+  reactiveNames: Set<string>,
+  jsxMap: Map<number, JsxExpressionInfo>,
+  source: MagicString,
+  formVarNames: Set<string> = new Set(),
+): string | null {
+  if (child.isKind(SyntaxKind.JsxText)) {
+    const text = child.getText().trim();
+    if (!text) return null;
+    return `__staticText(${JSON.stringify(text)})`;
+  }
+
+  if (child.isKind(SyntaxKind.JsxExpression)) {
+    const exprInfo = jsxMap.get(child.getStart());
+    const exprNode = child.getExpression();
+    if (!exprNode) return null;
+
+    if (exprInfo?.reactive) {
+      const conditionalCode = tryTransformConditional(exprNode, reactiveNames, jsxMap, source);
+      if (conditionalCode) {
+        return conditionalCode;
+      }
+    }
+
+    const exprText = source.slice(exprNode.getStart(), exprNode.getEnd());
+
+    if (exprInfo?.reactive) {
+      return `__child(() => ${exprText})`;
+    }
+    return exprText;
+  }
+
+  if (
+    child.isKind(SyntaxKind.JsxElement) ||
+    child.isKind(SyntaxKind.JsxSelfClosingElement) ||
+    child.isKind(SyntaxKind.JsxFragment)
+  ) {
+    return transformJsxNode(child, reactiveNames, jsxMap, source, formVarNames);
+  }
+
+  return null;
+}
+
+/**
+ * Build a children thunk for a component call.
+ * Collects children values and wraps them in `() => value` or `() => [val1, val2, ...]`.
+ */
+function buildComponentChildrenThunk(
+  children: Node[],
+  reactiveNames: Set<string>,
+  jsxMap: Map<number, JsxExpressionInfo>,
+  source: MagicString,
+  formVarNames: Set<string>,
+): string {
+  const values: string[] = [];
+  for (const child of children) {
+    const value = transformChildAsValue(child, reactiveNames, jsxMap, source, formVarNames);
+    if (value) values.push(value);
+  }
+
+  if (values.length === 0) return '';
+  if (values.length === 1) return `() => ${values[0]}`;
+  return `() => [${values.join(', ')}]`;
 }
 
 /**
@@ -549,13 +663,85 @@ function buildListRenderFunction(
   return `(${itemParam}) => ${bodyText}`;
 }
 
+/**
+ * Read expression text from MagicString, transforming any JSX nodes found
+ * within the expression. This handles the case where JSX appears inside
+ * arrow function prop values (e.g., `fallback={() => <div>Not found</div>}`).
+ *
+ * Without this, buildPropsObject would read untransformed JSX from the source.
+ */
+function sliceWithTransformedJsx(
+  node: Node,
+  reactiveNames: Set<string>,
+  jsxMap: Map<number, JsxExpressionInfo>,
+  source: MagicString,
+  formVarNames: Set<string>,
+): string {
+  const start = node.getStart();
+  const end = node.getEnd();
+
+  // Collect all top-level JSX nodes in this expression
+  const jsxNodes: { start: number; end: number; transformed: string }[] = [];
+  collectJsxInExpression(node, reactiveNames, jsxMap, source, formVarNames, jsxNodes);
+
+  if (jsxNodes.length === 0) {
+    return source.slice(start, end);
+  }
+
+  // Sort by position and build text by reading gaps from source
+  // and inserting transformed JSX
+  jsxNodes.sort((a, b) => a.start - b.start);
+
+  let result = '';
+  let cursor = start;
+  for (const jsx of jsxNodes) {
+    result += source.slice(cursor, jsx.start);
+    result += jsx.transformed;
+    cursor = jsx.end;
+  }
+  result += source.slice(cursor, end);
+
+  return result;
+}
+
+/**
+ * Recursively find top-level JSX nodes within an expression AST.
+ * When a JSX node is found, transform it and add to results.
+ * Does NOT recurse into JSX children (handled by transformJsxNode).
+ */
+function collectJsxInExpression(
+  node: Node,
+  reactiveNames: Set<string>,
+  jsxMap: Map<number, JsxExpressionInfo>,
+  source: MagicString,
+  formVarNames: Set<string>,
+  results: { start: number; end: number; transformed: string }[],
+): void {
+  if (isJsxTopLevel(node)) {
+    const transformed = transformJsxNode(node, reactiveNames, jsxMap, source, formVarNames);
+    results.push({ start: node.getStart(), end: node.getEnd(), transformed });
+    return; // Don't recurse into JSX children
+  }
+  for (const child of node.getChildren()) {
+    collectJsxInExpression(child, reactiveNames, jsxMap, source, formVarNames, results);
+  }
+}
+
 function buildPropsObject(
   element: Node,
   jsxMap: Map<number, JsxExpressionInfo>,
   source: MagicString,
+  reactiveNames: Set<string>,
+  formVarNames: Set<string>,
+  extraEntries?: Map<string, string>,
 ): string {
-  const attrs = element.getDescendantsOfKind(SyntaxKind.JsxAttribute);
-  if (attrs.length === 0) return '{}';
+  // Use getAttributes() for direct attributes only — getDescendantsOfKind()
+  // would descend into nested JSX inside arrow functions within prop values.
+  const attrs =
+    element.isKind(SyntaxKind.JsxOpeningElement) || element.isKind(SyntaxKind.JsxSelfClosingElement)
+      ? element.getAttributes().filter((a) => a.isKind(SyntaxKind.JsxAttribute))
+      : element.getDescendantsOfKind(SyntaxKind.JsxAttribute);
+  if (attrs.length === 0 && (!extraEntries || extraEntries.size === 0)) return '{}';
 
   const props: string[] = [];
   for (const attr of attrs) {
@@ -574,14 +760,22 @@ function buildPropsObject(
     if (init.isKind(SyntaxKind.JsxExpression)) {
       const exprInfo = jsxMap.get(init.getStart());
       const exprNode = init.getExpression();
-      // Read from MagicString
-      const exprText = exprNode ? source.slice(exprNode.getStart(), exprNode.getEnd()) : '';
+      // Read from MagicString, transforming any JSX within the expression
+      const exprText = exprNode
+        ? sliceWithTransformedJsx(exprNode, reactiveNames, jsxMap, source, formVarNames)
+        : '';
 
       if (exprInfo?.reactive) {
         props.push(`get ${name}() { return ${exprText}; }`);
       } else {
         props.push(`${name}: ${exprText}`);
       }
+    }
+  }
+
+  if (extraEntries) {
+    for (const [key, value] of extraEntries) {
+      props.push(`${key}: ${value}`);
     }
   }
 
@@ -614,7 +808,8 @@ function isJsxChild(node: Node): boolean {
     node.isKind(SyntaxKind.JsxText) ||
     node.isKind(SyntaxKind.JsxExpression) ||
     node.isKind(SyntaxKind.JsxElement) ||
-    node.isKind(SyntaxKind.JsxSelfClosingElement)
+    node.isKind(SyntaxKind.JsxSelfClosingElement) ||
+    node.isKind(SyntaxKind.JsxFragment)
   );
 }
 

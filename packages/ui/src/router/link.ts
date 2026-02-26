@@ -26,8 +26,8 @@ import type { RoutePaths } from './params';
 export interface LinkProps<T extends Record<string, RouteConfigLike> = RouteDefinitionMap> {
   /** The target URL path. */
   href: RoutePaths<T>;
-  /** Text or content for the link. */
-  children: string;
+  /** Text or content for the link. Thunk may return string or Text node. */
+  children: string | (() => string | Node);
   /** Class applied when the link's href matches the current path. */
   activeClass?: string;
   /** Static class name for the anchor element. */
@@ -81,7 +81,18 @@ export function createLink(
     __on(el, 'click', handleClick as EventListener);
 
     __enterChildren(el);
-    __append(el, __staticText(children));
+    if (typeof children === 'function') {
+      // Compiler thunk may return a Text node (__staticText) or a raw string
+      const result = children();
+      if (typeof result === 'string') {
+        __append(el, __staticText(result));
+      } else {
+        // Result is already a Text node from __staticText() — use directly
+        __append(el, result as Node);
+      }
+    } else {
+      __append(el, __staticText(children));
+    }
     __exitChildren();
 
     // Reactive active state — re-evaluates whenever currentPath changes.

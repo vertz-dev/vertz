@@ -72,7 +72,7 @@ describe('TaskListPage', () => {
     router.dispose();
   });
 
-  it.skip('filters tasks by status', async () => {
+  it('filters tasks by status', async () => {
     const { page, router } = renderTaskListPage();
     const { findByTestId: find, click, queryByText, unmount } = renderTest(page);
 

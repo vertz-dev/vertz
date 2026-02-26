@@ -170,6 +170,53 @@ describe('createContext / useContext', () => {
     q?.dispose();
   });
 
+  test('JSX pattern: Provider({ value, children }) provides value to children thunk', () => {
+    const ThemeCtx = createContext('light');
+    const result = ThemeCtx.Provider({ value: 'dark', children: () => useContext(ThemeCtx) });
+    expect(result).toBe('dark');
+  });
+
+  test('JSX pattern: nested providers shadow correctly', () => {
+    const ThemeCtx = createContext('light');
+    const result = ThemeCtx.Provider({
+      value: 'dark',
+      children: () => {
+        const inner = ThemeCtx.Provider({
+          value: 'blue',
+          children: () => useContext(ThemeCtx),
+        });
+        return inner;
+      },
+    });
+    expect(result).toBe('blue');
+  });
+
+  test('JSX pattern: multi-child array throws in dev mode', () => {
+    const Ctx = createContext('val');
+    const span1 = document.createElement('span');
+    const span2 = document.createElement('span');
+    expect(() => {
+      Ctx.Provider({ value: 'v', children: () => [span1, span2] as unknown });
+    }).toThrow(/single root/i);
+  });
+
+  test('JSX pattern: fragment child works (single DocumentFragment node)', () => {
+    const Ctx = createContext('val');
+    const frag = document.createDocumentFragment();
+    frag.appendChild(document.createElement('span'));
+    const result = Ctx.Provider({ value: 'v', children: () => frag });
+    expect(result).toBe(frag);
+  });
+
+  test('callback pattern still works after JSX overload', () => {
+    const ThemeCtx = createContext('light');
+    let captured: string | undefined;
+    ThemeCtx.Provider('dark', () => {
+      captured = useContext(ThemeCtx);
+    });
+    expect(captured).toBe('dark');
+  });
+
   test('disposed effect does not re-run on signal change', () => {
     const ThemeCtx = createContext('light');
     const count = signal(0);

@@ -86,6 +86,17 @@ describe('Link component', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
+  test('accepts thunked string children', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    const el = Link({ children: () => 'Home', href: '/' });
+
+    expect(el.tagName).toBe('A');
+    expect(el.textContent).toBe('Home');
+  });
+
   test('activeClass toggles reactively when currentPath changes', () => {
     const currentPath = signal('/');
     const navigate = vi.fn();
