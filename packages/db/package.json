@@ -74,6 +74,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "better-sqlite3": "^11.7.0",
     "bunup": "latest",
+    "postgres": "^3.4.8",
     "typescript": "^5.7.0",
     "vitest": "^4.0.18"
   },
