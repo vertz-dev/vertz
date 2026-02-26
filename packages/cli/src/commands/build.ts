@@ -1,16 +1,14 @@
 /**
  * Vertz Build Command - Production Build
  *
- * Production build command that orchestrates:
- * 1. Codegen - runs the full pipeline to generate types, routes, OpenAPI
- * 2. Typecheck - runs TypeScript compiler for type checking
- * 3. Bundle - bundles the server for production (esbuild)
- * 4. Manifest - generates build manifest for vertz publish
+ * Dispatches to the correct build pipeline based on app type:
+ * - API-only (src/server.ts): Codegen + typecheck + esbuild bundle
+ * - UI-only (src/app.tsx):    Client + CSS + HTML + server SSR (Bun.build)
+ * - Full-stack (both):        API build + UI build
  */
 
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { type BuildConfig, BuildOrchestrator } from '../production-build';
+import { type DetectedApp, detectAppType } from '../dev-server/app-detector';
+import { type BuildConfig, BuildOrchestrator, buildUI } from '../production-build';
 import { formatDuration, formatFileSize } from '../utils/format';
 import { findProjectRoot } from '../utils/paths';
 
@@ -46,24 +44,74 @@ export async function buildAction(options: BuildCommandOptions = {}): Promise<nu
     return 1;
   }
 
-  // Check for entry point
-  const entryPoint = 'src/app.ts';
-  const entryPath = join(projectRoot, entryPoint);
-  if (!existsSync(entryPath)) {
-    console.error(`Error: Entry point not found at ${entryPoint}`);
-    console.error('Make sure you have an app.ts in your src directory.');
+  // Detect app type
+  let detected: DetectedApp;
+  try {
+    detected = detectAppType(projectRoot);
+  } catch (error) {
+    console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
     return 1;
   }
 
-  console.log('🚀 Starting Vertz production build...\n');
+  if (verbose) {
+    console.log(`Detected app type: ${detected.type}`);
+  }
 
-  // Configure the build
+  switch (detected.type) {
+    case 'api-only':
+      return buildApiOnly(detected, { output, target, noTypecheck, noMinify, sourcemap, verbose });
+    case 'ui-only':
+      return buildUIOnly(detected, { noMinify, sourcemap, verbose });
+    case 'full-stack':
+      return buildFullStack(detected, {
+        output,
+        target,
+        noTypecheck,
+        noMinify,
+        sourcemap,
+        verbose,
+      });
+  }
+}
+
+/**
+ * Build an API-only app using the existing BuildOrchestrator (esbuild).
+ */
+async function buildApiOnly(
+  detected: DetectedApp,
+  options: {
+    output?: string;
+    target?: 'node' | 'edge' | 'worker';
+    noTypecheck?: boolean;
+    noMinify?: boolean;
+    sourcemap?: boolean;
+    verbose?: boolean;
+  },
+): Promise<number> {
+  const {
+    output,
+    target = 'node',
+    noTypecheck = false,
+    noMinify = false,
+    sourcemap = false,
+    verbose = false,
+  } = options;
+
+  // Derive entry point relative to project root
+  if (!detected.serverEntry) {
+    console.error('Error: No server entry point found for API build.');
+    return 1;
+  }
+  const entryPoint = detected.serverEntry.replace(`${detected.projectRoot}/`, '');
+
+  console.log('🚀 Starting Vertz API production build...\n');
+
   const buildConfig: BuildConfig = {
     sourceDir: 'src',
     outputDir: output || '.vertz/build',
     typecheck: !noTypecheck,
     minify: !noMinify,
-    sourcemap,
+    sourcemap: sourcemap,
     target,
     entryPoint,
   };
@@ -79,7 +127,6 @@ export async function buildAction(options: BuildCommandOptions = {}): Promise<nu
     console.log('');
   }
 
-  // Create and run the build orchestrator
   const orchestrator = new BuildOrchestrator(buildConfig);
 
   try {
@@ -92,7 +139,6 @@ export async function buildAction(options: BuildCommandOptions = {}): Promise<nu
       return 1;
     }
 
-    // Print summary
     console.log('\n📊 Build Summary:');
     console.log(`   Entry: ${result.manifest.entryPoint}`);
     console.log(`   Output: ${result.manifest.outputDir}`);
@@ -119,4 +165,97 @@ export async function buildAction(options: BuildCommandOptions = {}): Promise<nu
     await orchestrator.dispose();
     return 1;
   }
+}
+
+/**
+ * Build a UI-only app using the UI build pipeline (Bun.build).
+ */
+async function buildUIOnly(
+  detected: DetectedApp,
+  options: { noMinify?: boolean; sourcemap?: boolean; verbose?: boolean },
+): Promise<number> {
+  const { noMinify = false, sourcemap = false, verbose = false } = options;
+
+  if (!detected.clientEntry) {
+    console.error('Error: No client entry point found (src/entry-client.ts).');
+    console.error('UI apps require a src/entry-client.ts file.');
+    return 1;
+  }
+
+  const serverEntry = detected.uiEntry ?? detected.ssrEntry;
+  if (!serverEntry) {
+    console.error('Error: No server entry point found (src/app.tsx or src/entry-server.ts).');
+    return 1;
+  }
+
+  console.log('🚀 Starting Vertz UI production build...\n');
+
+  if (verbose) {
+    console.log('Build configuration:');
+    console.log(`  Client entry: ${detected.clientEntry}`);
+    console.log(`  Server entry: ${serverEntry}`);
+    console.log(`  Output: dist`);
+    console.log(`  Minify: ${!noMinify ? 'enabled' : 'disabled'}`);
+    console.log(`  Sourcemap: ${sourcemap ? 'enabled' : 'disabled'}`);
+    console.log('');
+  }
+
+  const result = await buildUI({
+    projectRoot: detected.projectRoot,
+    clientEntry: detected.clientEntry,
+    serverEntry,
+    outputDir: 'dist',
+    minify: !noMinify,
+    sourcemap,
+  });
+
+  if (!result.success) {
+    console.error('\n❌ Build failed:');
+    console.error(`   ${result.error}`);
+    return 1;
+  }
+
+  console.log(`\n📊 Build completed in ${formatDuration(result.durationMs)}`);
+  return 0;
+}
+
+/**
+ * Build a full-stack app: API build + UI build.
+ */
+async function buildFullStack(
+  detected: DetectedApp,
+  options: {
+    output?: string;
+    target?: 'node' | 'edge' | 'worker';
+    noTypecheck?: boolean;
+    noMinify?: boolean;
+    sourcemap?: boolean;
+    verbose?: boolean;
+  },
+): Promise<number> {
+  const { noMinify = false, sourcemap = false, verbose = false } = options;
+
+  console.log('🚀 Starting Vertz full-stack production build...\n');
+
+  // Step 1: API build (codegen + typecheck + esbuild)
+  if (detected.serverEntry) {
+    console.log('── API Build ──────────────────────────────────────\n');
+    const apiResult = await buildApiOnly(detected, options);
+    if (apiResult !== 0) {
+      return apiResult;
+    }
+    console.log('');
+  }
+
+  // Step 2: UI build (client + server SSR)
+  if (detected.clientEntry && (detected.uiEntry ?? detected.ssrEntry)) {
+    console.log('── UI Build ───────────────────────────────────────\n');
+    const uiResult = await buildUIOnly(detected, { noMinify, sourcemap, verbose });
+    if (uiResult !== 0) {
+      return uiResult;
+    }
+  }
+
+  console.log('\n✅ Full-stack build complete!');
+  return 0;
 }

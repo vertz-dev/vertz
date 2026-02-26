@@ -7,7 +7,7 @@
     "dev": "vertz dev",
     "dev:ssr": "vertz dev --ssr",
     "dev:worker": "wrangler dev",
-    "build": "bun run build.ts",
+    "build": "vertz build",
     "build:worker": "esbuild src/worker.ts --bundle --format=esm --outfile=dist/worker.js --platform=neutral --target=es2022",
     "start": "bun run server.ts",
     "preview": "bun run build && bun run start",

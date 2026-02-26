@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vertz dev",
     "dev:legacy": "bun run src/dev-server.ts",
-    "build": "bun run build.ts",
+    "build": "vertz build",
     "deploy": "bun run build && wrangler deploy",
     "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
     "test": "bun run codegen && bun test",
