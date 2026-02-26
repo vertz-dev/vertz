@@ -16,6 +16,10 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
+    "./ssr": {
+      "import": "./dist/ssr/index.js",
+      "types": "./dist/ssr/index.d.ts"
+    },
     "./dom-shim": {
       "import": "./dist/dom-shim/index.js",
       "types": "./dist/dom-shim/index.d.ts"

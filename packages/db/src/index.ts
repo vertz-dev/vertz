@@ -1,27 +1,28 @@
 // ---------------------------------------------------------------------------
 // @vertz/db -- Primary developer-facing API
 //
+// Dialect-specific adapters/drivers are in sub-paths:
+//   @vertz/db/sqlite   — createSqliteAdapter, createSqliteDriver
+//   @vertz/db/postgres  — createPostgresDriver
+//   @vertz/db/d1        — createD1Adapter, createD1Driver
+//
 // SQL builders          -> @vertz/db/sql
 // Internal utilities    -> @vertz/db/internals
 // Plugin system         -> @vertz/db/plugin
 // ---------------------------------------------------------------------------
 
-export type { CreateDbProviderOptions, DbDialect, SqliteAdapterConfig } from './adapters';
-// Database adapters (SQLite & D1)
-export {
-  createD1Adapter,
-  createD1Driver,
-  createDatabaseBridgeAdapter,
-  createDbProvider,
-  createSqliteAdapter,
-  createSqliteDriver,
-} from './adapters';
 export type {
   D1AdapterOptions,
   D1DatabaseBinding,
   D1PreparedStatement,
 } from './adapters/d1-adapter';
+export { createD1Adapter, createD1Driver } from './adapters/d1-adapter';
+// Database bridge adapter (dialect-agnostic — used by @vertz/server)
+export { createDatabaseBridgeAdapter } from './adapters/database-bridge-adapter';
+// Dialect-specific adapters — also available via @vertz/db/{sqlite,postgres,d1}
+// Re-exported here so sub-path types share the same PhantomType declaration.
 export type { SqliteAdapterOptions } from './adapters/sqlite-adapter';
+export { createSqliteAdapter, createSqliteDriver } from './adapters/sqlite-adapter';
 // CLI / Migrations
 export type {
   MigrateDeployOptions,
@@ -48,6 +49,8 @@ export type {
   TenantGraph,
 } from './client';
 export { computeTenantGraph, createDb } from './client';
+export type { PostgresDriver } from './client/postgres-driver';
+export { createPostgresDriver } from './client/postgres-driver';
 // Schema builder
 export { d } from './d';
 // Diagnostic

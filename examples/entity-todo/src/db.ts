@@ -1,14 +1,13 @@
 /**
  * SQLite database setup for entity-todo.
  *
- * Uses the generic createDbProvider from @vertz/db - no manual SQL/CRUD boilerplate.
+ * Uses createSqliteAdapter from @vertz/db/sqlite - no manual SQL/CRUD boilerplate.
  */
 
-import { createDbProvider } from '@vertz/db';
+import { createSqliteAdapter } from '@vertz/db/sqlite';
 import { todosTable } from './schema';
 
-export const db = await createDbProvider({
-  dialect: 'sqlite',
+export const db = await createSqliteAdapter({
   schema: todosTable,
   migrations: { autoApply: true },
 });

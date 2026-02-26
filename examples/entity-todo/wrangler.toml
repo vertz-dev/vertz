@@ -8,15 +8,10 @@ binding = "DB"
 database_name = "entity-todo-db"
 database_id = "your-database-id-here"
 
-# Serve static assets from the build output
-# The client JS/CSS bundles will be served from the assets folder
-[site]
-bucket = "dist"
-
-# Worker binding for future enhancements (KV, Durable Objects, etc.)
-# [[kv_namespaces]]
-# binding = "TODO_CACHE"
-# id = "your-kv-namespace-id"
+# Serve static assets (client JS/CSS) automatically.
+# Cloudflare serves matching files from this directory before hitting the Worker.
+[assets]
+directory = "dist/client"
 
 [observability]
 enabled = true

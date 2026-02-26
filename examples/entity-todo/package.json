@@ -5,12 +5,10 @@
   "scripts": {
     "dev": "vertz dev",
     "dev:legacy": "bun run src/dev-server.ts",
-    "dev:vite": "vite",
-    "build": "vite build",
-    "build:worker": "vite build --outDir dist-worker",
-    "deploy": "wrangler deploy",
+    "build": "bun run build.ts",
+    "deploy": "bun run build && wrangler deploy",
     "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
-    "test": "bun run codegen && vitest run && bun test",
+    "test": "bun run codegen && bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -27,11 +25,9 @@
     "@vertz/cli": "workspace:*",
     "@vertz/ui-compiler": "workspace:*",
     "bun-types": "^1.3.9",
-    "concurrently": "^9.0.0",
+    "esbuild": "^0.27.3",
     "happy-dom": "^20.6.1",
-    "tsx": "^4.0.0",
     "typescript": "^5.8.0",
-    "vite": "^6.0.0",
-    "vitest": "^4.0.0"
+    "wrangler": "^3.0.0"
   }
 }
