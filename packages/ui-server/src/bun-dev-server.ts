@@ -18,6 +18,48 @@ import type { SSRModule } from './ssr-render';
 import { ssrDiscoverQueries, ssrRenderToString } from './ssr-render';
 import { safeSerialize } from './ssr-streaming-runtime';
 
+/**
+ * Inject SSR output into an HTML template string.
+ *
+ * - Replaces `<script type="module" src="...">` with an inlined client bundle
+ * - Injects `appHtml` into `<div id="app">` or `<!--ssr-outlet-->`
+ * - Injects CSS before `</head>`
+ * - Injects `__VERTZ_SSR_DATA__` before `</body>`
+ */
+export function injectIntoTemplate(
+  template: string,
+  clientBundle: string,
+  appHtml: string,
+  appCss: string,
+  ssrData: Array<{ key: string; data: unknown }>,
+): string {
+  // Replace script src with inline client bundle
+  let html = template.replace(
+    /<script type="module" src="[^"]+"><\/script>/,
+    `<script type="module">\n${clientBundle}\n</script>`,
+  );
+
+  // Inject app HTML into <div id="app"> or <!--ssr-outlet-->
+  if (html.includes('<!--ssr-outlet-->')) {
+    html = html.replace('<!--ssr-outlet-->', appHtml);
+  } else {
+    html = html.replace(/(<div[^>]*id="app"[^>]*>)([\s\S]*?)(<\/div>)/, `$1${appHtml}$3`);
+  }
+
+  // Inject CSS before </head>
+  if (appCss) {
+    html = html.replace('</head>', `${appCss}\n</head>`);
+  }
+
+  // Inject SSR data for client-side hydration before </body>
+  if (ssrData.length > 0) {
+    const ssrDataScript = `<script>window.__VERTZ_SSR_DATA__=${safeSerialize(ssrData)};</script>`;
+    html = html.replace('</body>', `${ssrDataScript}\n</body>`);
+  }
+
+  return html;
+}
+
 export interface BunDevServerOptions {
   /** SSR entry module (e.g., './src/app.tsx') */
   entry: string;
@@ -316,42 +358,6 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       process.exit(1);
     }
 
-    /**
-     * Inject SSR output into the HTML template.
-     */
-    function injectIntoTemplate(
-      template: string,
-      appHtml: string,
-      appCss: string,
-      ssrData: Array<{ key: string; data: unknown }>,
-    ): string {
-      // Replace script src with inline client bundle
-      let html = template.replace(
-        /<script type="module" src="[^"]+"><\/script>/,
-        `<script type="module">\n${clientBundle}\n</script>`,
-      );
-
-      // Inject app HTML into <div id="app"> or <!--ssr-outlet-->
-      if (html.includes('<!--ssr-outlet-->')) {
-        html = html.replace('<!--ssr-outlet-->', appHtml);
-      } else {
-        html = html.replace(/(<div[^>]*id="app"[^>]*>)([\s\S]*?)(<\/div>)/, `$1${appHtml}$3`);
-      }
-
-      // Inject CSS before </head>
-      if (appCss) {
-        html = html.replace('</head>', `${appCss}\n</head>`);
-      }
-
-      // Inject SSR data for client-side hydration before </body>
-      if (ssrData.length > 0) {
-        const ssrDataScript = `<script>window.__VERTZ_SSR_DATA__=${safeSerialize(ssrData)};</script>`;
-        html = html.replace('</body>', `${ssrDataScript}\n</body>`);
-      }
-
-      return html;
-    }
-
     // Client-only fallback HTML
     const clientOnlyHtml = indexHtml.replace(
       /<script type="module" src="[^"]+"><\/script>/,
@@ -451,7 +457,13 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
         try {
           const result = await ssrRenderToString(ssrMod, pathname, { ssrTimeout: 300 });
-          const html = injectIntoTemplate(indexHtml, result.html, result.css, result.ssrData);
+          const html = injectIntoTemplate(
+            indexHtml,
+            clientBundle,
+            result.html,
+            result.css,
+            result.ssrData,
+          );
 
           return new Response(html, {
             status: 200,
