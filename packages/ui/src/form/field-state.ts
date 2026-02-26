@@ -6,13 +6,30 @@ export interface FieldState<T = unknown> {
   dirty: Signal<boolean>;
   touched: Signal<boolean>;
   value: Signal<T>;
+  setValue: (value: T) => void;
+  reset: () => void;
 }
 
 export function createFieldState<T>(_name: string, initialValue?: T): FieldState<T> {
+  const error = signal<string | undefined>(undefined);
+  const dirty = signal(false);
+  const touched = signal(false);
+  const value = signal(initialValue as T);
+
   return {
-    error: signal<string | undefined>(undefined),
-    dirty: signal(false),
-    touched: signal(false),
-    value: signal(initialValue as T),
+    error,
+    dirty,
+    touched,
+    value,
+    setValue(newValue: T) {
+      value.value = newValue;
+      dirty.value = newValue !== initialValue;
+    },
+    reset() {
+      value.value = initialValue as T;
+      error.value = undefined;
+      dirty.value = false;
+      touched.value = false;
+    },
   };
 }
