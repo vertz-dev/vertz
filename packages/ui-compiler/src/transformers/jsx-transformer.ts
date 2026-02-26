@@ -133,9 +133,11 @@ function transformJsxElement(
   const isComponent = /^[A-Z]/.test(tagName);
 
   if (isComponent) {
-    // Check for explicit children prop — if present, skip thunk generation
+    // Check for explicit children prop — if present, skip thunk generation.
+    // Use getAttributes() to avoid descending into nested JSX inside prop values.
     const hasExplicitChildren = openingElement
-      .getDescendantsOfKind(SyntaxKind.JsxAttribute)
+      .getAttributes()
+      .filter((a) => a.isKind(SyntaxKind.JsxAttribute))
       .some((attr) => attr.getNameNode().getText() === 'children');
 
     let extraEntries: Map<string, string> | undefined;
@@ -344,7 +346,11 @@ function transformChild(
     return `__insert(${parentVar}, ${exprText})`;
   }
 
-  if (child.isKind(SyntaxKind.JsxElement) || child.isKind(SyntaxKind.JsxSelfClosingElement)) {
+  if (
+    child.isKind(SyntaxKind.JsxElement) ||
+    child.isKind(SyntaxKind.JsxSelfClosingElement) ||
+    child.isKind(SyntaxKind.JsxFragment)
+  ) {
     const childCode = transformJsxNode(child, reactiveNames, jsxMap, source, formVarNames);
     return `__append(${parentVar}, ${childCode})`;
   }
