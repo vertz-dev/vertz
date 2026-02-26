@@ -24,9 +24,12 @@
 import { existsSync, readFileSync, watch } from 'node:fs';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { createServer as createHttpServer } from 'node:http';
+import { dirname, resolve } from 'node:path';
 import { InternalServerErrorException } from '@vertz/server';
 import type { InlineConfig, Plugin, ViteDevServer } from 'vite';
 import { createServer as createViteServer } from 'vite';
+import type { SSRModule } from './ssr-render';
+import { ssrRenderToString } from './ssr-render';
 
 /**
  * Vite plugin that swaps `@vertz/ui/jsx-runtime` → `@vertz/ui-server/jsx-runtime`
@@ -119,6 +122,62 @@ export interface DevServerOptions {
    * When provided, serves the OpenAPI spec at GET /api/openapi.json
    */
   openapi?: OpenAPIOptions;
+
+  /**
+   * When true, treats the entry module as an SSRModule (exports App, theme, styles)
+   * instead of expecting a renderToString function.
+   * The server bridges SSRModule to complete HTML automatically.
+   * @default false
+   */
+  ssrModule?: boolean;
+
+  /**
+   * Path to the client entry module for hydration.
+   * Only used when ssrModule is true.
+   * If not provided, looks for src/entry-client.ts next to entry.
+   */
+  clientEntry?: string;
+
+  /**
+   * HTML page title.
+   * Only used when ssrModule is true (auto-generated HTML template).
+   */
+  title?: string;
+}
+
+export interface GenerateSSRHtmlOptions {
+  appHtml: string;
+  css: string;
+  ssrData: Array<{ key: string; data: unknown }>;
+  clientEntry: string;
+  title?: string;
+}
+
+/**
+ * Generate a complete HTML document from SSR render results.
+ */
+export function generateSSRHtml(options: GenerateSSRHtmlOptions): string {
+  const { appHtml, css, ssrData, clientEntry, title = 'Vertz App' } = options;
+
+  const ssrDataScript =
+    ssrData.length > 0
+      ? `<script>window.__VERTZ_SSR_DATA__ = ${JSON.stringify(ssrData)};</script>`
+      : '';
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${title}</title>
+    ${css}
+  </head>
+  <body>
+    <div id="app">${appHtml}</div>
+    ${ssrDataScript}
+    <script type="module" src="${clientEntry}"></script>
+  </body>
+</html>`;
 }
 
 export interface DevServer {
@@ -157,7 +216,13 @@ export function createDevServer(options: DevServerOptions): DevServer {
     logRequests = true,
     skipSSRPaths = ['/api/'],
     openapi,
+    ssrModule: useSSRModule = false,
+    clientEntry: clientEntryOption,
+    title,
   } = options;
+
+  // Resolve client entry path for SSR module mode
+  const clientEntry = clientEntryOption ?? resolve(dirname(entry), 'entry-client.ts');
 
   let vite: ViteDevServer;
   let httpServer: Server;
@@ -319,14 +384,36 @@ export function createDevServer(options: DevServerOptions): DevServer {
         // Load the entry-server module with SSR transform
         const entryModule = await vite.ssrLoadModule(entry);
 
-        if (!entryModule.renderToString) {
-          throw new InternalServerErrorException(
-            `Entry module "${entry}" does not export a renderToString function`,
-          );
-        }
+        let html: string;
 
-        // Render the app to HTML
-        const html = await entryModule.renderToString(url);
+        if (useSSRModule) {
+          // SSR module mode: entry exports App/default, theme, styles
+          const ssrMod = entryModule as SSRModule;
+          if (typeof ssrMod.default !== 'function' && typeof ssrMod.App !== 'function') {
+            throw new InternalServerErrorException(
+              `Entry module "${entry}" does not export an App or default function. ` +
+                'When ssrModule is true, the entry must export a component factory.',
+            );
+          }
+
+          const result = await ssrRenderToString(ssrMod, url);
+          html = generateSSRHtml({
+            appHtml: result.html,
+            css: result.css,
+            ssrData: result.ssrData,
+            clientEntry,
+            title,
+          });
+        } else {
+          // Legacy mode: entry exports renderToString
+          if (!entryModule.renderToString) {
+            throw new InternalServerErrorException(
+              `Entry module "${entry}" does not export a renderToString function`,
+            );
+          }
+
+          html = await entryModule.renderToString(url);
+        }
 
         // Transform the HTML template (injects HMR client, etc.)
         const transformedHtml = await vite.transformIndexHtml(url, html);

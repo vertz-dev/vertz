@@ -1,16 +1,19 @@
 /**
- * Vertz Dev Command - Phase 1 Implementation
+ * Vertz Dev Command
  *
- * Unified `vertz dev` command that orchestrates the full development workflow:
- * 1. Analyze - runs @vertz/compiler to produce AppIR
- * 2. Generate - runs @vertz/codegen to emit types, route map, DB client
- * 3. Build UI - UI compilation (Vite for now)
- * 4. Serve - dev server with HMR
+ * Unified `vertz dev` command that:
+ * 1. Detects app type (api-only, full-stack, ui-only) from file conventions
+ * 2. Runs the pipeline orchestrator (analyze, codegen)
+ * 3. Starts the appropriate dev server:
+ *    - api-only: subprocess with bun run --watch
+ *    - full-stack: in-process Vite SSR + API middleware
+ *    - ui-only: in-process Vite SSR only
  */
 
-import { type ChildProcess, spawn } from 'node:child_process';
 import { join } from 'node:path';
 import type { Command } from 'commander';
+import { detectAppType } from '../dev-server/app-detector';
+import { startDevServer } from '../dev-server/fullstack-server';
 import {
   createPipelineWatcher,
   type FileChange,
@@ -49,9 +52,25 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
     process.exit(1);
   }
 
-  console.log('🚀 Starting Vertz development server...\n');
+  // Detect app type from file conventions
+  const detected = (() => {
+    try {
+      return detectAppType(projectRoot);
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    }
+  })();
 
-  // Configure the pipeline
+  if (verbose) {
+    console.log(`Detected app type: ${detected.type}`);
+    if (detected.serverEntry) console.log(`  Server: ${detected.serverEntry}`);
+    if (detected.uiEntry) console.log(`  UI:     ${detected.uiEntry}`);
+    if (detected.ssrEntry) console.log(`  SSR:    ${detected.ssrEntry}`);
+    if (detected.clientEntry) console.log(`  Client: ${detected.clientEntry}`);
+  }
+
+  // Configure and run the pipeline
   const pipelineConfig: PipelineConfig = {
     sourceDir: 'src',
     outputDir: '.vertz/generated',
@@ -62,22 +81,12 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
     host,
   };
 
-  // Create the pipeline orchestrator
   const orchestrator = new PipelineOrchestrator(pipelineConfig);
-
-  // Track if we should continue
   let isRunning = true;
-  let viteProcess: ChildProcess | null = null;
 
   // Handle graceful shutdown
   const shutdown = async () => {
-    console.log('\n\n👋 Shutting down...');
     isRunning = false;
-
-    if (viteProcess) {
-      viteProcess.kill('SIGTERM');
-    }
-
     await orchestrator.dispose();
     process.exit(0);
   };
@@ -87,85 +96,58 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
 
   try {
     // Step 1: Initial analysis and codegen
-    console.log('📦 Running initial pipeline...');
     const initialResult = await orchestrator.runFull();
 
     if (!initialResult.success) {
-      console.error('\n❌ Initial pipeline failed:');
+      console.error('Initial pipeline failed:');
       for (const stage of initialResult.stages) {
         if (!stage.success && stage.error) {
           console.error(`  - ${stage.stage}: ${stage.error.message}`);
         }
       }
-      console.log('\n💡 Try fixing the errors above and the watcher will retry.');
-    } else {
-      if (verbose) {
-        console.log('\n✅ Initial pipeline complete:');
-        for (const stage of initialResult.stages) {
-          console.log(`  - ${stage.stage}: ${stage.output} (${formatDuration(stage.durationMs)})`);
-        }
+      console.log('Fix the errors above and the watcher will retry.');
+    } else if (verbose) {
+      console.log('Initial pipeline complete:');
+      for (const stage of initialResult.stages) {
+        console.log(`  - ${stage.stage}: ${stage.output} (${formatDuration(stage.durationMs)})`);
       }
     }
 
     // Step 2: Start file watcher for incremental builds
-    console.log('\n👀 Watching for file changes...');
-
     const _watcher = createPipelineWatcher({
       dir: join(projectRoot, 'src'),
       debounceMs: 100,
       onChange: async (changes: FileChange[]) => {
         if (!isRunning) return;
 
-        // Determine which stages to run
         const stages = getStagesForChanges(changes);
 
         if (verbose) {
-          console.log(`\n🔄 File change detected: ${changes.map((c) => c.path).join(', ')}`);
-          console.log(`   Running stages: ${stages.join(', ')}`);
+          console.log(`File change detected: ${changes.map((c) => c.path).join(', ')}`);
+          console.log(`  Running stages: ${stages.join(', ')}`);
         }
 
-        // Run the affected stages
         const result = await orchestrator.runStages(stages);
 
         if (!result.success) {
-          console.error('\n❌ Pipeline update failed:');
+          console.error('Pipeline update failed:');
           for (const stage of result.stages) {
             if (!stage.success && stage.error) {
               console.error(`  - ${stage.stage}: ${stage.error.message}`);
             }
           }
-          console.log('\n💡 Try fixing the errors above.');
         } else if (verbose) {
           for (const stage of result.stages) {
-            console.log(`  ✓ ${stage.stage}: ${stage.output}`);
+            console.log(`  ${stage.stage}: ${stage.output}`);
           }
         }
       },
     });
 
-    // Step 3: Start Vite dev server
-    // Note: For now, we delegate to Vite. In Phase 3+, we'll use our own dev server.
-    console.log(`\n🌐 Starting Vite dev server on http://${host}:${port}...`);
-
-    viteProcess = spawn('npx', ['vite', '--port', String(port), '--host', host], {
-      cwd: projectRoot,
-      stdio: 'inherit',
-      shell: true,
-      env: {
-        ...process.env,
-        // Pass the generated output dir to Vite
-        VERTZ_GENERATED_DIR: pipelineConfig.outputDir,
-      },
-    });
-
-    viteProcess.on('close', (code) => {
-      if (isRunning && code !== 0) {
-        console.log(`\n⚠️ Vite process exited with code ${code}`);
-      }
-      shutdown();
-    });
+    // Step 3: Start dev server based on detected app type
+    await startDevServer({ detected, port, host });
   } catch (error) {
-    console.error('\n❌ Fatal error:', error instanceof Error ? error.message : String(error));
+    console.error('Fatal error:', error instanceof Error ? error.message : String(error));
     await shutdown();
     process.exit(1);
   }
@@ -177,7 +159,7 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
 export function registerDevCommand(program: Command): void {
   program
     .command('dev')
-    .description('Start development server with hot reload (unified pipeline)')
+    .description('Start development server with hot reload')
     .option('-p, --port <port>', 'Server port', '3000')
     .option('--host <host>', 'Server host', 'localhost')
     .option('--open', 'Open browser on start')

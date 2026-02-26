@@ -1,10 +1,16 @@
 /**
- * Type test: globalStyles should be exported from index.ts
- * 
- * This test verifies that entry-server.ts can import globalStyles
- * from ./index without type errors.
+ * Type test: SSRModule exports from app.tsx
+ *
+ * Verifies that app.tsx exports the SSRModule interface (App, theme, styles)
+ * so createDevServer can use it in ssrModule mode.
  */
-import { globalStyles } from './index';
+import { App, styles, theme } from './app';
 
-// Verify it's a valid CSS object with .css property
-const _styles: string = globalStyles.css;
+// Verify App is a component factory
+const _app: () => unknown = App;
+
+// Verify theme is present
+const _theme: object = theme;
+
+// Verify styles is a string array
+const _styles: string[] = styles;

@@ -1,10 +1,17 @@
 export { renderAssetTags } from './asset-pipeline';
 export { inlineCriticalCss } from './critical-css';
-export type { DevServer, DevServerOptions } from './dev-server';
-export { createDevServer } from './dev-server';
+export type {
+  DevServer,
+  DevServerOptions,
+  GenerateSSRHtmlOptions,
+  OpenAPIOptions,
+} from './dev-server';
+export { createDevServer, generateSSRHtml } from './dev-server';
 export { HeadCollector, renderHeadToHtml } from './head';
 export { serializeToHtml } from './html-serializer';
 export { wrapWithHydrationMarkers } from './hydration-markers';
+export type { ApiMiddlewareOptions } from './node-web-bridge';
+export { createApiMiddleware, toNodeResponse, toWebRequest } from './node-web-bridge';
 export type { PageOptions } from './render-page';
 export { renderPage } from './render-page';
 export type { RenderToHTMLOptions, RenderToHTMLStreamOptions } from './render-to-html';
