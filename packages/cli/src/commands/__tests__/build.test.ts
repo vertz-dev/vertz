@@ -3,15 +3,25 @@
  *
  * Tests for the vertz build CLI command.
  * Verifies app type detection dispatch and proper exit codes.
+ *
+ * NOTE: This test file avoids vi.mock() for shared modules (production-build,
+ * utils/paths) because Bun test runs all files in one process and vi.mock()
+ * is permanent — it would break orchestrator.test.ts and ui-build-pipeline.test.ts.
+ * Instead, we spy on individual functions in beforeEach/afterEach.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// Mock the production-build module to avoid real bundling
-vi.mock('../../production-build', () => {
-  const mockBuild = vi.fn().mockResolvedValue({
+describe('buildAction', () => {
+  let tmpDir: string;
+  let pathsSpy: Mock<(...args: unknown[]) => unknown>;
+  let orchestratorSpy: Mock<(...args: unknown[]) => unknown>;
+  let buildUISpy: Mock<(...args: unknown[]) => unknown>;
+
+  const mockBuildResult = {
     success: true,
     stages: { codegen: true, typecheck: true, bundle: true },
     manifest: {
@@ -23,39 +33,39 @@ vi.mock('../../production-build', () => {
       target: 'node',
     },
     durationMs: 100,
-  });
+  };
 
-  const mockDispose = vi.fn().mockResolvedValue(undefined);
+  beforeEach(async () => {
+    tmpDir = join(tmpdir(), `.vertz-build-test-${Date.now()}`);
+    mkdirSync(join(tmpDir, 'src'), { recursive: true });
 
-  return {
-    BuildOrchestrator: vi.fn(() => ({
-      build: mockBuild,
-      dispose: mockDispose,
-    })),
-    buildUI: vi.fn().mockResolvedValue({
+    // Spy on findProjectRoot to return our temp dir
+    const pathsMod = await import('../../utils/paths');
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(tmpDir) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    // Spy on BuildOrchestrator to avoid real bundling
+    const prodBuild = await import('../../production-build');
+    orchestratorSpy = vi.spyOn(prodBuild, 'BuildOrchestrator').mockImplementation(
+      () =>
+        ({
+          build: vi.fn().mockResolvedValue(mockBuildResult),
+          dispose: vi.fn().mockResolvedValue(undefined),
+        }) as unknown,
+    ) as Mock<(...args: unknown[]) => unknown>;
+
+    buildUISpy = vi.spyOn(prodBuild, 'buildUI').mockResolvedValue({
       success: true,
       durationMs: 100,
-    }),
-  };
-});
-
-// Mock findProjectRoot to return a controlled temp dir
-let tmpDir: string;
-
-vi.mock('../../utils/paths', () => ({
-  findProjectRoot: vi.fn(() => tmpDir),
-}));
-
-describe('buildAction', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    tmpDir = join(import.meta.dir, `.tmp-build-test-${Date.now()}`);
-    mkdirSync(join(tmpDir, 'src'), { recursive: true });
+    }) as Mock<(...args: unknown[]) => unknown>;
   });
 
   afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true });
-    vi.restoreAllMocks();
+    pathsSpy.mockRestore();
+    orchestratorSpy.mockRestore();
+    buildUISpy.mockRestore();
   });
 
   it('should export buildAction function', async () => {
@@ -65,9 +75,7 @@ describe('buildAction', () => {
   });
 
   it('should be an async function that returns a number', async () => {
-    // Create an API-only project
     writeFileSync(join(tmpDir, 'src', 'server.ts'), 'export default {};');
-    writeFileSync(join(tmpDir, 'package.json'), '{}');
 
     const { buildAction } = await import('../build');
     const result = buildAction({ noTypecheck: true });
@@ -79,9 +87,6 @@ describe('buildAction', () => {
   });
 
   it('should return exit code 1 when no app entries are found', async () => {
-    // Empty src/ — no server.ts, no app.tsx
-    writeFileSync(join(tmpDir, 'package.json'), '{}');
-
     const { buildAction } = await import('../build');
     const exitCode = await buildAction();
 
@@ -90,52 +95,40 @@ describe('buildAction', () => {
 
   it('should dispatch to API build for api-only projects', async () => {
     writeFileSync(join(tmpDir, 'src', 'server.ts'), 'export default {};');
-    writeFileSync(join(tmpDir, 'package.json'), '{}');
 
     const { buildAction } = await import('../build');
-    const { BuildOrchestrator } = await import('../../production-build');
-
     const exitCode = await buildAction({ noTypecheck: true });
 
     expect(exitCode).toBe(0);
-    expect(BuildOrchestrator).toHaveBeenCalled();
+    expect(orchestratorSpy).toHaveBeenCalled();
   });
 
   it('should dispatch to UI build for ui-only projects', async () => {
     writeFileSync(join(tmpDir, 'src', 'app.tsx'), 'export default function App() {}');
     writeFileSync(join(tmpDir, 'src', 'entry-client.ts'), 'console.log("client");');
-    writeFileSync(join(tmpDir, 'package.json'), '{}');
 
     const { buildAction } = await import('../build');
-    const { buildUI } = await import('../../production-build');
-
     const exitCode = await buildAction();
 
     expect(exitCode).toBe(0);
-    expect(buildUI).toHaveBeenCalled();
+    expect(buildUISpy).toHaveBeenCalled();
   });
 
   it('should dispatch to full-stack build for projects with both server and UI', async () => {
     writeFileSync(join(tmpDir, 'src', 'server.ts'), 'export default {};');
     writeFileSync(join(tmpDir, 'src', 'app.tsx'), 'export default function App() {}');
     writeFileSync(join(tmpDir, 'src', 'entry-client.ts'), 'console.log("client");');
-    writeFileSync(join(tmpDir, 'package.json'), '{}');
 
     const { buildAction } = await import('../build');
-    const { BuildOrchestrator, buildUI } = await import('../../production-build');
-
     const exitCode = await buildAction();
 
     expect(exitCode).toBe(0);
-    // Full-stack runs both API and UI builds
-    expect(BuildOrchestrator).toHaveBeenCalled();
-    expect(buildUI).toHaveBeenCalled();
+    expect(orchestratorSpy).toHaveBeenCalled();
+    expect(buildUISpy).toHaveBeenCalled();
   });
 
   it('should return exit code 1 for ui-only project without client entry', async () => {
     writeFileSync(join(tmpDir, 'src', 'app.tsx'), 'export default function App() {}');
-    // No entry-client.ts
-    writeFileSync(join(tmpDir, 'package.json'), '{}');
 
     const { buildAction } = await import('../build');
     const exitCode = await buildAction();
