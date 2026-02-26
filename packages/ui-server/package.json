@@ -35,6 +35,10 @@
     "./fast-refresh-runtime": {
       "import": "./dist/bun-plugin/fast-refresh-runtime.js",
       "types": "./dist/bun-plugin/fast-refresh-runtime.d.ts"
+    },
+    "./bun-dev-server": {
+      "import": "./dist/bun-dev-server.js",
+      "types": "./dist/bun-dev-server.d.ts"
     }
   },
   "files": [
@@ -49,26 +53,16 @@
   "dependencies": {
     "@ampproject/remapping": "^2.3.0",
     "@vertz/core": "workspace:*",
-    "@vertz/server": "workspace:*",
     "@vertz/ui": "workspace:*",
     "@vertz/ui-compiler": "workspace:*",
     "magic-string": "^0.30.0",
     "ts-morph": "^27.0.2"
-  },
-  "peerDependencies": {
-    "vite": "^6.0.0"
-  },
-  "peerDependenciesMeta": {
-    "vite": {
-      "optional": true
-    }
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",
     "bun-types": "latest",
     "bunup": "latest",
     "typescript": "^5.7.0",
-    "vite": "^6.0.0",
     "vitest": "^4.0.18"
   },
   "engines": {

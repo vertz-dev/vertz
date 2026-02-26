@@ -47,6 +47,4 @@ export type {
   ReactivityKind,
   VariableInfo,
 } from './types';
-export type { VertzPluginOptions } from './vite-plugin';
-// Vite Plugin
-export { default } from './vite-plugin';
+// Note: Vite plugin has been removed. Use the Bun plugin from @vertz/ui-server/bun-plugin.

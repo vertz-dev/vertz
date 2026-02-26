@@ -122,7 +122,6 @@
         "bunup": "^0.16.23",
         "ink-testing-library": "^4.0.0",
         "typescript": "^5.9.3",
-        "vite": "^6.0.0",
         "vitest": "^4.0.18",
       },
     },
@@ -397,15 +396,8 @@
         "@vitest/coverage-v8": "^4.0.18",
         "bunup": "latest",
         "typescript": "^5.7.0",
-        "vite": "^6.0.0",
         "vitest": "^4.0.18",
       },
-      "peerDependencies": {
-        "vite": "^5.0.0 || ^6.0.0",
-      },
-      "optionalPeers": [
-        "vite",
-      ],
     },
     "packages/ui-primitives": {
       "name": "@vertz/ui-primitives",
@@ -426,7 +418,6 @@
       "dependencies": {
         "@ampproject/remapping": "^2.3.0",
         "@vertz/core": "workspace:*",
-        "@vertz/server": "workspace:*",
         "@vertz/ui": "workspace:*",
         "@vertz/ui-compiler": "workspace:*",
         "magic-string": "^0.30.0",
@@ -437,15 +428,8 @@
         "bun-types": "latest",
         "bunup": "latest",
         "typescript": "^5.7.0",
-        "vite": "^6.0.0",
         "vitest": "^4.0.18",
       },
-      "peerDependencies": {
-        "vite": "^6.0.0",
-      },
-      "optionalPeers": [
-        "vite",
-      ],
     },
     "packages/vertz": {
       "name": "vertz",

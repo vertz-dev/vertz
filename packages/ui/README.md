@@ -25,17 +25,9 @@ That's it. `count` is reactive. The compiler transforms your code into efficient
 npm install @vertz/ui @vertz/ui-compiler
 ```
 
-### Vite Setup
+### Bun Setup
 
-```ts
-// vite.config.ts
-import vertz from '@vertz/ui-compiler/vite';
-import { defineConfig } from 'vite';
-
-export default defineConfig({
-  plugins: [vertz()],
-});
-```
+The `@vertz/ui-server/bun-plugin` handles compiler transforms, CSS extraction, and Fast Refresh automatically when using `Bun.serve()` with HTML imports or `vertz dev`.
 
 ---
 
@@ -490,7 +482,7 @@ await navigate('/about');
 
 ## JSX Runtime
 
-The `@vertz/ui/jsx-runtime` subpath provides the JSX factory used by the compiler. This is configured automatically by the `@vertz/ui-compiler` Vite plugin — you don't need to set it up manually.
+The `@vertz/ui/jsx-runtime` subpath provides the JSX factory used by the compiler. This is configured automatically by the Bun plugin — you don't need to set it up manually.
 
 ---
 

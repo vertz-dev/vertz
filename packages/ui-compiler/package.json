@@ -38,16 +38,7 @@
     "@vitest/coverage-v8": "^4.0.18",
     "bunup": "latest",
     "typescript": "^5.7.0",
-    "vite": "^6.0.0",
     "vitest": "^4.0.18"
-  },
-  "peerDependencies": {
-    "vite": "^5.0.0 || ^6.0.0"
-  },
-  "peerDependenciesMeta": {
-    "vite": {
-      "optional": true
-    }
   },
   "engines": {
     "node": ">=22"

@@ -1,22 +1,24 @@
 /**
  * Unified Development Server for Entity Todo
  *
- * Uses @vertz/ui-server's createDevServer for:
- * - Vite HMR for UI hot-reload
- * - SSR via vite.ssrLoadModule() + renderToString
- * - API routes via custom middleware
+ * Uses @vertz/ui-server's createBunDevServer for:
+ * - HMR mode (default): Bun.serve() + HTML import + Fast Refresh
+ * - SSR mode (--ssr): Bun.serve() + SSR rendering + bun --watch
+ * - API routes via @vertz/server handler
  * - SQLite for local persistence
  *
- * Usage: bun run dev
+ * Usage:
+ *   bun run dev          # HMR mode
+ *   bun --watch dev-server.ts --ssr  # SSR mode
  */
 
-import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createServer } from '@vertz/server';
-import { createDevServer } from '@vertz/ui-server';
+import { createBunDevServer } from '@vertz/ui-server/bun-dev-server';
 import { createTodosDb } from './db';
 import { todos } from './entities';
 
 const PORT = Number(process.env.PORT) || 3000;
+const SSR_MODE = process.argv.includes('--ssr');
 
 // ============================================================================
 // Database Setup (SQLite for local dev)
@@ -34,144 +36,35 @@ const app = createServer({
   db: todosDbAdapter,
 });
 
-const apiHandler = app.handler;
-
-// ============================================================================
-// API Middleware
-// ============================================================================
-
-/**
- * Convert Node http IncomingMessage to Web Request
- */
-function toWebRequest(req: IncomingMessage): Request {
-  const headers: Record<string, string> = {};
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (typeof value === 'string') {
-      headers[key] = value;
-    } else if (Array.isArray(value)) {
-      headers[key] = value.join(', ');
-    }
-  }
-
-  const host = req.headers.host || `localhost:${PORT}`;
-  const protocol = req.socket.encrypted ? 'https' : 'http';
-  return new Request(`${protocol}://${host}${req.url || '/'}`, {
-    method: req.method || 'GET',
-    headers,
-  });
-}
-
-/**
- * Convert Web Response to Node http response
- */
-async function toNodeResponse(res: ServerResponse, webResponse: Response): Promise<void> {
-  const headers: Record<string, string> = {};
-  webResponse.headers.forEach((value, key) => {
-    headers[key] = value;
-  });
-
-  res.writeHead(webResponse.status, headers);
-
-  const body = await webResponse.text();
-  res.end(body);
-}
-
-/**
- * API middleware to handle /api/* routes
- */
-async function apiMiddleware(req: IncomingMessage, res: ServerResponse, next: () => void) {
-  const url = req.url || '/';
-
-  // Only handle API routes (skip OpenAPI spec - handled by dev server)
-  if (!url.startsWith('/api/') || url === '/api/openapi.json') {
-    return next();
-  }
-
-  // Handle request body for POST/PATCH/PUT
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', async () => {
-      try {
-        const bodyStr = Buffer.concat(chunks).toString('utf-8');
-
-        const headers: Record<string, string> = {};
-        for (const [key, value] of Object.entries(req.headers)) {
-          if (typeof value === 'string') {
-            headers[key] = value;
-          } else if (Array.isArray(value)) {
-            headers[key] = value.join(', ');
-          }
-        }
-
-        const host = req.headers.host || `localhost:${PORT}`;
-        const protocol = req.socket.encrypted ? 'https' : 'http';
-        const apiReq = new Request(`${protocol}://${host}${req.url || '/'}`, {
-          method: req.method || 'GET',
-          headers,
-          body: bodyStr,
-        });
-
-        const apiRes = await apiHandler(apiReq);
-        await toNodeResponse(res, apiRes);
-      } catch (err) {
-        if (!res.headersSent) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(
-            JSON.stringify({
-              error: { code: 'InternalError', message: String(err) },
-            }),
-          );
-        }
-      }
-    });
-  } else {
-    const apiReq = toWebRequest(req);
-    const apiRes = await apiHandler(apiReq);
-    await toNodeResponse(res, apiRes);
-  }
-}
-
 // ============================================================================
 // Dev Server
 // ============================================================================
 
-const devServer = createDevServer({
+const devServer = createBunDevServer({
   entry: './src/app.tsx',
+  port: PORT,
   ssrModule: true,
   title: 'Entity Todo — vertz full-stack demo',
-  port: PORT,
-  middleware: apiMiddleware,
+  apiHandler: app.handler,
   openapi: {
     specPath: './.vertz/generated/openapi.json',
   },
-  viteConfig: {
-    resolve: {
-      alias: {
-        '@vertz/ui/jsx-runtime': '@vertz/ui-server/jsx-runtime',
-        '@vertz/ui/jsx-dev-runtime': '@vertz/ui-server/jsx-runtime',
-      },
-    },
-    optimizeDeps: {
-      exclude: ['fsevents', 'lightningcss'],
-    },
-  },
+  ssr: SSR_MODE,
 });
 
 console.log(`
 ╔═════════════════════════════════════════════════════════════╗
 ║                                                             ║
-║   🏗️  Vertz Dev Server (SSR)                                ║
+║   Vertz Dev Server (${SSR_MODE ? 'SSR' : 'HMR'})                                ║
 ║                                                             ║
 ║   Local:    http://localhost:${PORT}                        ║
 ║   API:      http://localhost:${PORT}/api                    ║
 ║   OpenAPI:  http://localhost:${PORT}/api/openapi.json       ║
 ║                                                             ║
 ║   Stack:                                                   ║
-║   • Vite SSR (vite.ssrLoadModule) ✅                     ║
+║   • Bun.serve() (${SSR_MODE ? 'SSR' : 'HMR'} mode) ✅                         ║
 ║   • @vertz/server (API routes) ✅                          ║
 ║   • SQLite (local persistence) ✅                          ║
-║   • HMR (UI hot-reload) ✅                                ║
 ║   • OpenAPI spec ✅                                       ║
 ║                                                             ║
 ║   Available API endpoints:                                 ║
@@ -184,4 +77,4 @@ console.log(`
 ╚═════════════════════════════════════════════════════════════╝
 `);
 
-devServer.listen();
+await devServer.start();

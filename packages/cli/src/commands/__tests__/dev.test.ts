@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'bun:test';
+import { Command } from 'commander';
 import type { FileChange } from '../../pipeline';
 import {
   categorizeFileChange,
   getAffectedStages,
   getStagesForChanges,
 } from '../../pipeline/watcher';
+import { registerDevCommand } from '../dev';
 
 describe('Pipeline Orchestrator', () => {
   describe('categorizeFileChange', () => {
@@ -194,5 +196,79 @@ describe('Pipeline Orchestrator', () => {
         });
       });
     });
+  });
+});
+
+describe('registerDevCommand', () => {
+  it('registers a "dev" command on the program', () => {
+    const program = new Command();
+    registerDevCommand(program);
+
+    const devCmd = program.commands.find((cmd) => cmd.name() === 'dev');
+    expect(devCmd).toBeDefined();
+  });
+
+  it('has description', () => {
+    const program = new Command();
+    registerDevCommand(program);
+
+    const devCmd = program.commands.find((cmd) => cmd.name() === 'dev');
+    expect(devCmd?.description()).toContain('development server');
+  });
+
+  it('supports --port option with default 3000', () => {
+    const program = new Command();
+    registerDevCommand(program);
+
+    const devCmd = program.commands.find((cmd) => cmd.name() === 'dev');
+    const portOpt = devCmd?.options.find((o) => o.long === '--port');
+    expect(portOpt).toBeDefined();
+    expect(portOpt?.defaultValue).toBe('3000');
+  });
+
+  it('supports --host option with default localhost', () => {
+    const program = new Command();
+    registerDevCommand(program);
+
+    const devCmd = program.commands.find((cmd) => cmd.name() === 'dev');
+    const hostOpt = devCmd?.options.find((o) => o.long === '--host');
+    expect(hostOpt).toBeDefined();
+    expect(hostOpt?.defaultValue).toBe('localhost');
+  });
+
+  it('supports --ssr flag', () => {
+    const program = new Command();
+    registerDevCommand(program);
+
+    const devCmd = program.commands.find((cmd) => cmd.name() === 'dev');
+    const ssrOpt = devCmd?.options.find((o) => o.long === '--ssr');
+    expect(ssrOpt).toBeDefined();
+  });
+
+  it('supports --open flag', () => {
+    const program = new Command();
+    registerDevCommand(program);
+
+    const devCmd = program.commands.find((cmd) => cmd.name() === 'dev');
+    const openOpt = devCmd?.options.find((o) => o.long === '--open');
+    expect(openOpt).toBeDefined();
+  });
+
+  it('supports --no-typecheck flag', () => {
+    const program = new Command();
+    registerDevCommand(program);
+
+    const devCmd = program.commands.find((cmd) => cmd.name() === 'dev');
+    const noTypecheckOpt = devCmd?.options.find((o) => o.long === '--no-typecheck');
+    expect(noTypecheckOpt).toBeDefined();
+  });
+
+  it('supports --verbose flag', () => {
+    const program = new Command();
+    registerDevCommand(program);
+
+    const devCmd = program.commands.find((cmd) => cmd.name() === 'dev');
+    const verboseOpt = devCmd?.options.find((o) => o.long === '--verbose');
+    expect(verboseOpt).toBeDefined();
   });
 });

@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import type { InlineConfig, Plugin } from 'vite';
 import type { DetectedApp } from './app-detector';
 import { createProcessManager } from './process-manager';
 
@@ -107,42 +106,17 @@ export async function importServerModule(serverEntry: string): Promise<ServerMod
 }
 
 /**
- * Build a Vite InlineConfig for the dev server.
- * Includes vertzPlugin from @vertz/ui-compiler if available.
- */
-export function buildViteConfig(projectRoot: string): InlineConfig {
-  const plugins: Plugin[] = [];
-
-  // Try to load @vertz/ui-compiler's Vite plugin
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { default: vertzPlugin } = require('@vertz/ui-compiler');
-    if (typeof vertzPlugin === 'function') {
-      plugins.push(vertzPlugin({ ssr: true }));
-    }
-  } catch {
-    // @vertz/ui-compiler not installed — skip
-  }
-
-  return {
-    root: projectRoot,
-    plugins,
-    optimizeDeps: {
-      exclude: ['fsevents', 'lightningcss'],
-    },
-  };
-}
-
-/**
  * Format a dev server banner for console output.
  */
 export function formatBanner(
   appType: 'api-only' | 'full-stack' | 'ui-only',
   port: number,
   host: string,
+  ssr: boolean,
 ): string {
   const url = `http://${host}:${port}`;
-  const lines = ['', `  Vertz Dev Server (${appType})`, '', `  Local:  ${url}`];
+  const mode = ssr ? 'SSR' : 'HMR';
+  const lines = ['', `  Vertz Dev Server (${appType}, ${mode})`, '', `  Local:  ${url}`];
 
   if (appType !== 'ui-only') {
     lines.push(`  API:    ${url}/api`);
@@ -156,68 +130,62 @@ export interface StartDevServerOptions {
   detected: DetectedApp;
   port: number;
   host: string;
+  ssr?: boolean;
 }
 
 /**
  * Start the appropriate dev server based on the detected app type.
  *
  * - api-only: subprocess with bun run --watch
- * - full-stack: in-process Vite SSR + API middleware
- * - ui-only: in-process Vite SSR only
+ * - full-stack / ui-only: Bun.serve() with HMR or SSR mode
  */
 export async function startDevServer(options: StartDevServerOptions): Promise<void> {
-  const { detected, port, host } = options;
+  const { detected, port, host, ssr = false } = options;
   const mode = resolveDevMode(detected);
 
-  console.log(formatBanner(mode.kind, port, host));
+  console.log(formatBanner(mode.kind, port, host, ssr));
 
   if (mode.kind === 'api-only') {
     return startApiOnlyServer(mode.serverEntry, port);
   }
 
-  // full-stack or ui-only: use Vite SSR dev server
-  const { createDevServer, createApiMiddleware } = await import('@vertz/ui-server');
+  // full-stack or ui-only: use Bun dev server
+  const { createBunDevServer } = await import('@vertz/ui-server/bun-dev-server');
 
-  const viteConfig = buildViteConfig(detected.projectRoot);
-
-  // Resolve the UI entry as a relative path for Vite
-  const uiEntry = `./${relative(detected.projectRoot, mode.uiEntry)}`;
-
-  // API middleware for full-stack mode
-  let middleware:
-    | ((
-        req: import('node:http').IncomingMessage,
-        res: import('node:http').ServerResponse,
-        next: () => void,
-      ) => void)
-    | undefined;
+  let apiHandler: ((req: Request) => Promise<Response>) | undefined;
   if (mode.kind === 'full-stack') {
     const serverMod = await importServerModule(mode.serverEntry);
-    middleware = createApiMiddleware(serverMod.handler, { port });
+    apiHandler = serverMod.handler;
   }
 
-  // Resolve OpenAPI spec path
-  const openapiPath = join(detected.projectRoot, '.vertz/generated/openapi.json');
-  const openapi = existsSync(openapiPath) ? { specPath: openapiPath } : undefined;
-
-  // Resolve client entry as relative path
+  const uiEntry = `./${relative(detected.projectRoot, mode.uiEntry)}`;
   const clientEntry = mode.clientEntry
     ? `/${relative(detected.projectRoot, mode.clientEntry)}`
     : undefined;
+  const openapiPath = join(detected.projectRoot, '.vertz/generated/openapi.json');
+  const openapi = existsSync(openapiPath) ? { specPath: openapiPath } : undefined;
 
-  const devServer = createDevServer({
+  const devServer = createBunDevServer({
     entry: uiEntry,
     port,
     host,
-    viteConfig,
-    middleware,
+    apiHandler,
     openapi,
     ssrModule: mode.ssrModule,
     clientEntry,
-    logRequests: true,
+    projectRoot: detected.projectRoot,
+    ssr,
   });
 
-  await devServer.listen();
+  await devServer.start();
+
+  // Graceful shutdown
+  const shutdown = async () => {
+    await devServer.stop();
+    process.exit(0);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }
 
 function startApiOnlyServer(serverEntry: string, port: number): Promise<void> {
