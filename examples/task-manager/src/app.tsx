@@ -11,17 +11,7 @@
  * ensuring elements are created top-down for hydration compatibility.
  */
 
-import {
-  __append,
-  __element,
-  __enterChildren,
-  __exitChildren,
-  __staticText,
-  css,
-  RouterContext,
-  RouterView,
-  ThemeProvider,
-} from '@vertz/ui';
+import { css, RouterContext, RouterView, ThemeProvider } from '@vertz/ui';
 import { createSettingsValue, SettingsContext } from './lib/settings-context';
 import { appRouter, Link } from './router';
 import { layoutStyles } from './styles/components';
@@ -66,13 +56,7 @@ export function App() {
               <main class={layoutStyles.main} data-testid="main-content">
                 <RouterView
                   router={appRouter}
-                  fallback={() => {
-                    const fb = __element('div', { 'data-testid': 'not-found' });
-                    __enterChildren(fb);
-                    __append(fb, __staticText('Page not found'));
-                    __exitChildren();
-                    return fb;
-                  }}
+                  fallback={() => <div data-testid="not-found">Page not found</div>}
                 />
               </main>
             </div>

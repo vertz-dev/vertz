@@ -8,10 +8,17 @@ export type ContextScope = Map<Context<unknown>, unknown>;
 /** The currently active context scope. */
 let currentScope: ContextScope | null = null;
 
-/** Props for the JSX pattern of Context.Provider. */
+/**
+ * Props for the JSX pattern of Context.Provider.
+ *
+ * `children` accepts both raw values (what TypeScript sees in JSX) and
+ * thunks (what the compiler produces). At compile time the compiler wraps
+ * JSX children in `() => ...`, but TypeScript checks the pre-compilation
+ * source where children are plain elements.
+ */
 export interface ProviderJsxProps<T> {
   value: T;
-  children: () => unknown;
+  children: (() => unknown) | unknown;
 }
 
 /** A context object created by `createContext`. */
@@ -19,7 +26,7 @@ export interface Context<T> {
   /** Provide a value via callback pattern. */
   Provider(value: T, fn: () => void): void;
   /** Provide a value via JSX pattern (single-arg object with children thunk). */
-  Provider(props: ProviderJsxProps<T>): unknown;
+  Provider(props: ProviderJsxProps<T>): HTMLElement;
   /** @internal — current value stack */
   _stack: T[];
   /** @internal — default value */
@@ -65,8 +72,11 @@ export function createContext<T>(defaultValue?: T, __stableId?: string): Context
     if (existing) return existing as Context<T>;
   }
 
-  const ctx: Context<T> = {
-    Provider(valueOrProps: T | ProviderJsxProps<T>, fn?: () => void): unknown {
+  // The Provider implementation uses a single function with overload
+  // disambiguation. TypeScript can't narrow return types across overloads
+  // in a single implementation, so we type the object with explicit assertion.
+  const ctx = {
+    Provider(valueOrProps: T | ProviderJsxProps<T>, fn?: () => void): undefined | HTMLElement {
       // Disambiguate: 2 args = callback pattern, 1 arg = JSX pattern
       if (fn !== undefined) {
         // Callback pattern: Provider(value, fn)
@@ -99,14 +109,16 @@ export function createContext<T>(defaultValue?: T, __stableId?: string): Context
       const prevScope = currentScope;
       currentScope = scope;
       try {
-        const result = children();
+        // Children may be a thunk (compiler output) or a raw value
+        // (JSX runtime / test code). Handle both.
+        const result = typeof children === 'function' ? children() : children;
         if (process.env.NODE_ENV !== 'production' && Array.isArray(result)) {
           throw new Error(
             'Context.Provider JSX children must have a single root element. ' +
               'Wrap multiple children in a fragment: <><Child1 /><Child2 /></>',
           );
         }
-        return result;
+        return result as HTMLElement;
       } finally {
         ctx._stack.pop();
         currentScope = prevScope;
@@ -114,7 +126,7 @@ export function createContext<T>(defaultValue?: T, __stableId?: string): Context
     },
     _default: defaultValue,
     _stack: [],
-  };
+  } as Context<T>;
 
   // Register for HMR stability
   if (__stableId) {

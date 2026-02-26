@@ -162,7 +162,14 @@ function transformJsxElement(
       }
     }
 
-    const propsObj = buildPropsObject(openingElement, jsxMap, source, extraEntries);
+    const propsObj = buildPropsObject(
+      openingElement,
+      jsxMap,
+      source,
+      reactiveNames,
+      formVarNames,
+      extraEntries,
+    );
     return `${tagName}(${propsObj})`;
   }
 
@@ -205,7 +212,7 @@ function transformJsxElement(
 
 function transformSelfClosingElement(
   node: Node,
-  _reactiveNames: Set<string>,
+  reactiveNames: Set<string>,
   jsxMap: Map<number, JsxExpressionInfo>,
   source: MagicString,
   formVarNames: Set<string> = new Set(),
@@ -216,7 +223,7 @@ function transformSelfClosingElement(
   const isComponent = /^[A-Z]/.test(tagName);
 
   if (isComponent) {
-    const propsObj = buildPropsObject(node, jsxMap, source);
+    const propsObj = buildPropsObject(node, jsxMap, source, reactiveNames, formVarNames);
     return `${tagName}(${propsObj})`;
   }
 
@@ -656,10 +663,76 @@ function buildListRenderFunction(
   return `(${itemParam}) => ${bodyText}`;
 }
 
+/**
+ * Read expression text from MagicString, transforming any JSX nodes found
+ * within the expression. This handles the case where JSX appears inside
+ * arrow function prop values (e.g., `fallback={() => <div>Not found</div>}`).
+ *
+ * Without this, buildPropsObject would read untransformed JSX from the source.
+ */
+function sliceWithTransformedJsx(
+  node: Node,
+  reactiveNames: Set<string>,
+  jsxMap: Map<number, JsxExpressionInfo>,
+  source: MagicString,
+  formVarNames: Set<string>,
+): string {
+  const start = node.getStart();
+  const end = node.getEnd();
+
+  // Collect all top-level JSX nodes in this expression
+  const jsxNodes: { start: number; end: number; transformed: string }[] = [];
+  collectJsxInExpression(node, reactiveNames, jsxMap, source, formVarNames, jsxNodes);
+
+  if (jsxNodes.length === 0) {
+    return source.slice(start, end);
+  }
+
+  // Sort by position and build text by reading gaps from source
+  // and inserting transformed JSX
+  jsxNodes.sort((a, b) => a.start - b.start);
+
+  let result = '';
+  let cursor = start;
+  for (const jsx of jsxNodes) {
+    result += source.slice(cursor, jsx.start);
+    result += jsx.transformed;
+    cursor = jsx.end;
+  }
+  result += source.slice(cursor, end);
+
+  return result;
+}
+
+/**
+ * Recursively find top-level JSX nodes within an expression AST.
+ * When a JSX node is found, transform it and add to results.
+ * Does NOT recurse into JSX children (handled by transformJsxNode).
+ */
+function collectJsxInExpression(
+  node: Node,
+  reactiveNames: Set<string>,
+  jsxMap: Map<number, JsxExpressionInfo>,
+  source: MagicString,
+  formVarNames: Set<string>,
+  results: { start: number; end: number; transformed: string }[],
+): void {
+  if (isJsxTopLevel(node)) {
+    const transformed = transformJsxNode(node, reactiveNames, jsxMap, source, formVarNames);
+    results.push({ start: node.getStart(), end: node.getEnd(), transformed });
+    return; // Don't recurse into JSX children
+  }
+  for (const child of node.getChildren()) {
+    collectJsxInExpression(child, reactiveNames, jsxMap, source, formVarNames, results);
+  }
+}
+
 function buildPropsObject(
   element: Node,
   jsxMap: Map<number, JsxExpressionInfo>,
   source: MagicString,
+  reactiveNames: Set<string>,
+  formVarNames: Set<string>,
   extraEntries?: Map<string, string>,
 ): string {
   // Use getAttributes() for direct attributes only — getDescendantsOfKind()
@@ -687,8 +760,10 @@ function buildPropsObject(
     if (init.isKind(SyntaxKind.JsxExpression)) {
       const exprInfo = jsxMap.get(init.getStart());
       const exprNode = init.getExpression();
-      // Read from MagicString
-      const exprText = exprNode ? source.slice(exprNode.getStart(), exprNode.getEnd()) : '';
+      // Read from MagicString, transforming any JSX within the expression
+      const exprText = exprNode
+        ? sliceWithTransformedJsx(exprNode, reactiveNames, jsxMap, source, formVarNames)
+        : '';
 
       if (exprInfo?.reactive) {
         props.push(`get ${name}() { return ${exprText}; }`);

@@ -129,3 +129,43 @@ describe('JSX children thunks — pipeline integration', () => {
     expect(result).not.toContain('get val()');
   });
 });
+
+describe('JSX inside arrow function props', () => {
+  it('transforms JSX inside an arrow function prop value', () => {
+    const result = transform(
+      `function App() {\n  return <RouterView fallback={() => <div>Not found</div>} />;\n}`,
+    );
+    expect(result).toContain('RouterView(');
+    expect(result).toContain('fallback: () =>');
+    expect(result).toContain('__element("div")');
+    // Should NOT contain raw JSX
+    expect(result).not.toContain('<div>');
+  });
+
+  it('transforms JSX inside a block-body arrow function prop', () => {
+    const result = transform(
+      `function App() {
+  return <Comp render={() => {
+    return <span>hello</span>;
+  }} />;
+}`,
+    );
+    expect(result).toContain('Comp(');
+    expect(result).toContain('__element("span")');
+    expect(result).not.toContain('<span>');
+  });
+
+  it('transforms nested JSX inside arrow function with component children', () => {
+    const result = transform(
+      `function App() {
+  return <Outer>
+    <RouterView fallback={() => <div>404</div>} />
+  </Outer>;
+}`,
+    );
+    expect(result).toContain('Outer(');
+    expect(result).toContain('children: () => RouterView(');
+    expect(result).toContain('__element("div")');
+    expect(result).not.toContain('<div>');
+  });
+});

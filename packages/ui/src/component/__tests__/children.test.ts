@@ -103,4 +103,9 @@ describe('resolveChildren', () => {
     const el = document.createElement('div');
     expect(resolveChildren(() => () => el)).toEqual([el]);
   });
+
+  test('throws on circular thunks exceeding max depth', () => {
+    const circular: () => (() => unknown) = () => circular;
+    expect(() => resolveChildren(circular)).toThrow(/max recursion depth/);
+  });
 });

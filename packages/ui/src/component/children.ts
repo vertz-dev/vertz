@@ -11,18 +11,24 @@ export type ChildValue =
 /** A function that returns children (slot accessor). */
 export type ChildrenAccessor = () => ChildValue;
 
+const MAX_RESOLVE_DEPTH = 100;
+
 /**
  * Resolve a raw child value into a flat array of DOM nodes.
  * Strings and numbers are converted to Text nodes.
  * Null and undefined are filtered out.
  * Arrays are flattened recursively.
+ * Thunks (functions) are called and their results re-resolved.
  */
-export function resolveChildren(value: ChildValue): Node[] {
+export function resolveChildren(value: ChildValue, _depth = 0): Node[] {
   if (value == null) {
     return [];
   }
   if (typeof value === 'function') {
-    return resolveChildren(value());
+    if (_depth >= MAX_RESOLVE_DEPTH) {
+      throw new Error('resolveChildren: max recursion depth exceeded — possible circular thunk');
+    }
+    return resolveChildren(value(), _depth + 1);
   }
   if (typeof value === 'string') {
     return [document.createTextNode(value)];
@@ -33,7 +39,7 @@ export function resolveChildren(value: ChildValue): Node[] {
   if (Array.isArray(value)) {
     const result: Node[] = [];
     for (const child of value) {
-      const resolved = resolveChildren(child);
+      const resolved = resolveChildren(child, _depth);
       for (const node of resolved) {
         result.push(node);
       }

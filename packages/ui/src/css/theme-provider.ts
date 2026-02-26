@@ -25,8 +25,13 @@ export type ThemeChild = Node | string;
 export interface ThemeProviderProps {
   /** The theme variant name (e.g., 'light', 'dark'). Defaults to 'light'. */
   theme?: string;
-  /** Child elements to render inside the provider. */
-  children: ThemeChild[] | (() => ThemeChild | ThemeChild[]);
+  /**
+   * Child elements to render inside the provider.
+   *
+   * Accepts a single child (what TypeScript sees in JSX), an array, or a
+   * thunk (what the compiler produces after wrapping JSX children).
+   */
+  children: ThemeChild | ThemeChild[] | (() => ThemeChild | ThemeChild[]);
 }
 
 /**
