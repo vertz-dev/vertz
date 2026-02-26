@@ -419,7 +419,11 @@ export function generateEntityRoutes(
             const id = getParams(ctx).id as string;
             const input = ctx.body;
             const result = await actionHandler(entityCtx, id, input);
-            return jsonResponse(result.body, result.status);
+            if (!result.ok) {
+              const { status, body } = entityErrorHandler(result.error);
+              return jsonResponse(body, status);
+            }
+            return jsonResponse(result.data.body, result.data.status);
           } catch (error) {
             const { status, body } = entityErrorHandler(error);
             return jsonResponse(body, status);
