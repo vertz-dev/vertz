@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { compile } from '../compiler';
-import vertzPlugin from '../vite-plugin';
 
 describe('Integration Tests', () => {
   it('IT-1B-1: Counter component — let count → signal, {count} → subscription', () => {
@@ -259,31 +258,5 @@ function TaskList() {
     // fn becomes computed (over-classified but harmless)
     expect(result.code).toContain('computed(() => tasks.refetch)');
     expect(result.diagnostics).toHaveLength(0);
-  });
-
-  it('IT-1B-7: Vite plugin — .tsx → transformed code + source map', () => {
-    const plugin = vertzPlugin();
-
-    const code = `
-function Counter() {
-  let count = 0;
-  return <div>{count}</div>;
-}
-    `.trim();
-
-    const transform = plugin.transform as (
-      code: string,
-      id: string,
-    ) => { code: string; map: unknown } | undefined;
-    const result = transform.call(plugin, code, 'Counter.tsx');
-
-    expect(result).toBeDefined();
-    expect(result?.code).toContain('signal(');
-    expect(result?.code).toContain('__element(');
-    expect(result?.map).toBeDefined();
-
-    // Non-tsx should be skipped
-    const skipped = transform.call(plugin, 'const x = 1;', 'file.ts');
-    expect(skipped).toBeUndefined();
   });
 });

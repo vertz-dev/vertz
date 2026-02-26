@@ -6,8 +6,7 @@
  * 2. Runs the pipeline orchestrator (analyze, codegen)
  * 3. Starts the appropriate dev server:
  *    - api-only: subprocess with bun run --watch
- *    - full-stack: in-process Vite SSR + API middleware
- *    - ui-only: in-process Vite SSR only
+ *    - full-stack / ui-only: Bun.serve() with HMR (default) or SSR mode
  */
 
 import { join } from 'node:path';
@@ -27,6 +26,7 @@ import { findProjectRoot } from '../utils/paths';
 export interface DevCommandOptions {
   port?: number;
   host?: string;
+  ssr?: boolean;
   open?: boolean;
   typecheck?: boolean;
   noTypecheck?: boolean;
@@ -40,6 +40,7 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
   const {
     port = 3000,
     host = 'localhost',
+    ssr = false,
     open = false,
     typecheck = true,
     verbose = false,
@@ -145,7 +146,7 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
     });
 
     // Step 3: Start dev server based on detected app type
-    await startDevServer({ detected, port, host });
+    await startDevServer({ detected, port, host, ssr });
   } catch (error) {
     console.error('Fatal error:', error instanceof Error ? error.message : String(error));
     await shutdown();
@@ -162,6 +163,7 @@ export function registerDevCommand(program: Command): void {
     .description('Start development server with hot reload')
     .option('-p, --port <port>', 'Server port', '3000')
     .option('--host <host>', 'Server host', 'localhost')
+    .option('--ssr', 'Enable SSR mode (server-side rendering, no HMR)')
     .option('--open', 'Open browser on start')
     .option('--no-typecheck', 'Disable background type checking')
     .option('-v, --verbose', 'Verbose output')
@@ -169,6 +171,7 @@ export function registerDevCommand(program: Command): void {
       await devAction({
         port: parseInt(opts.port, 10),
         host: opts.host,
+        ssr: opts.ssr,
         open: opts.open,
         typecheck: opts.typecheck !== false && !opts.noTypecheck,
         verbose: opts.verbose,

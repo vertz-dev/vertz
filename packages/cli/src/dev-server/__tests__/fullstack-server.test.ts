@@ -3,12 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DetectedApp } from '../app-detector';
-import {
-  buildViteConfig,
-  formatBanner,
-  importServerModule,
-  resolveDevMode,
-} from '../fullstack-server';
+import { formatBanner, importServerModule, resolveDevMode } from '../fullstack-server';
 
 describe('resolveDevMode', () => {
   it('returns api-only mode for api-only apps', () => {
@@ -168,56 +163,41 @@ describe('importServerModule', () => {
   });
 });
 
-describe('buildViteConfig', () => {
-  it('includes optimizeDeps.exclude for fsevents and lightningcss', () => {
-    const config = buildViteConfig('/project');
-
-    expect(config.optimizeDeps?.exclude).toContain('fsevents');
-    expect(config.optimizeDeps?.exclude).toContain('lightningcss');
-  });
-
-  it('includes vertz ui-compiler plugin when available', () => {
-    // When @vertz/ui-compiler is installed (it is in this monorepo)
-    const config = buildViteConfig('/project');
-
-    // Should have plugins array
-    expect(config.plugins).toBeDefined();
-  });
-
-  it('sets project root', () => {
-    const config = buildViteConfig('/my/project');
-
-    expect(config.root).toBe('/my/project');
-  });
-});
-
 describe('formatBanner', () => {
-  it('includes app type in banner', () => {
-    const banner = formatBanner('full-stack', 3000, 'localhost');
+  it('includes app type and mode in banner', () => {
+    const banner = formatBanner('full-stack', 3000, 'localhost', false);
 
     expect(banner).toContain('full-stack');
+    expect(banner).toContain('HMR');
+  });
+
+  it('shows SSR mode when ssr is true', () => {
+    const banner = formatBanner('full-stack', 3000, 'localhost', true);
+
+    expect(banner).toContain('SSR');
+    expect(banner).not.toContain('HMR');
   });
 
   it('includes local URL', () => {
-    const banner = formatBanner('api-only', 4000, 'localhost');
+    const banner = formatBanner('api-only', 4000, 'localhost', false);
 
     expect(banner).toContain('http://localhost:4000');
   });
 
   it('includes API URL for full-stack apps', () => {
-    const banner = formatBanner('full-stack', 3000, 'localhost');
+    const banner = formatBanner('full-stack', 3000, 'localhost', false);
 
     expect(banner).toContain('/api');
   });
 
   it('includes API URL for api-only apps', () => {
-    const banner = formatBanner('api-only', 3000, 'localhost');
+    const banner = formatBanner('api-only', 3000, 'localhost', false);
 
     expect(banner).toContain('/api');
   });
 
   it('does not include API URL for ui-only apps', () => {
-    const banner = formatBanner('ui-only', 3000, 'localhost');
+    const banner = formatBanner('ui-only', 3000, 'localhost', false);
 
     expect(banner).not.toContain('/api');
   });
