@@ -137,7 +137,9 @@ async function apiMiddleware(req: IncomingMessage, res: ServerResponse, next: ()
 // ============================================================================
 
 const devServer = createDevServer({
-  entry: './src/entry-server.ts',
+  entry: './src/app.tsx',
+  ssrModule: true,
+  title: 'Entity Todo — vertz full-stack demo',
   port: PORT,
   middleware: apiMiddleware,
   openapi: {

@@ -1,2 +1,7 @@
-export type { CloudflareHandlerOptions } from './handler.js';
-export { createHandler } from './handler.js';
+export type {
+  CloudflareHandlerConfig,
+  CloudflareHandlerOptions,
+  CloudflareWorkerModule,
+  SSRModuleConfig,
+} from './handler.js';
+export { createHandler, generateHTMLTemplate } from './handler.js';
