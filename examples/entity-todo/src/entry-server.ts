@@ -7,24 +7,29 @@
  */
 
 import { compileTheme } from '@vertz/ui';
-import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
 import { renderToStream, streamToString } from '@vertz/ui-server';
+import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
 import { App } from './app';
 import { globalStyles } from './styles/global';
 import { todoTheme } from './styles/theme';
 
+export interface RenderOptions {
+  /** Path to the client-side entry script. Defaults to '/src/entry-client.ts' (dev). */
+  clientScript?: string;
+}
+
 /**
  * Render the app to an HTML string.
  *
- * Used by createDevServer for SSR in local development.
- * The compiler transforms JSX into __element() calls that create SSRElement
- * instances when the DOM shim is installed. We convert them to VNodes and
- * serialize to HTML.
+ * Used by createDevServer for SSR in local development and by the
+ * Cloudflare Worker for production SSR.
  *
  * @param url - The request URL for routing/SSR context
+ * @param options - Render options (e.g. clientScript path for production)
  * @returns Promise<string> - The rendered HTML string
  */
-export async function renderToString(url: string): Promise<string> {
+export async function renderToString(url: string, options?: RenderOptions): Promise<string> {
+  const clientScript = options?.clientScript ?? '/src/entry-client.ts';
   try {
     // Normalize URL
     const normalizedUrl = url.endsWith('/index.html')
@@ -70,7 +75,7 @@ export async function renderToString(url: string): Promise<string> {
   </head>
   <body>
     <div id="app">${appHtml}</div>
-    <script type="module" src="/src/entry-client.ts"></script>
+    <script type="module" src="${clientScript}"></script>
   </body>
 </html>`;
     } finally {
@@ -94,7 +99,7 @@ export async function renderToString(url: string): Promise<string> {
   <div id="app">
     <p>Server render error: ${errorMessage}</p>
   </div>
-  <script type="module" src="/src/entry-client.ts"></script>
+  <script type="module" src="${clientScript}"></script>
 </body>
 </html>`;
   }

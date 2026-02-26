@@ -1,5 +1,5 @@
-import vertzPlugin from '@vertz/ui-compiler';
 import { resolve } from 'node:path';
+import vertzPlugin from '@vertz/ui-compiler';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
@@ -7,12 +7,12 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['fsevents', 'lightningcss'],
   },
-  // Build configuration for SSR + client bundles (production)
+  // Build configuration for Cloudflare Worker + client bundles (production)
   build: {
     ssr: true,
     rollupOptions: {
       input: {
-        server: resolve(__dirname, 'src/entry-server.ts'),
+        server: resolve(__dirname, 'src/worker.ts'),
         client: resolve(__dirname, 'src/entry-client.ts'),
       },
       output: {
@@ -20,10 +20,11 @@ export default defineConfig({
           if (chunkInfo.name === 'server') {
             return 'worker.js';
           }
-          return 'assets/[name].js';
+          // Client assets go under client/ — served by Cloudflare [assets]
+          return 'client/assets/[name].js';
         },
-        chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name].[ext]',
+        chunkFileNames: 'client/assets/[name].js',
+        assetFileNames: 'client/assets/[name].[ext]',
       },
     },
   },
