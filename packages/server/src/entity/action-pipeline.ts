@@ -22,7 +22,8 @@ export function createActionHandler(
     }
 
     // 2. Enforce access
-    await enforceAccess(actionName, def.access, ctx, row);
+    const accessResult = await enforceAccess(actionName, def.access, ctx, row);
+    if (!accessResult.ok) return err(accessResult.error);
 
     // 3. Validate input against schema
     const input = actionDef.input.parse(rawInput);

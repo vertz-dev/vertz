@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   type AuthError,
+  createAuthValidationError,
   createInvalidCredentialsError,
   createPermissionDeniedError,
   createRateLimitedError,
   createSessionExpiredError,
   createUserExistsError,
+  isAuthValidationError,
   isInvalidCredentialsError,
   isPermissionDeniedError,
   isRateLimitedError,
@@ -108,6 +110,32 @@ describe('domain/auth', () => {
     });
   });
 
+  describe('AuthValidationError', () => {
+    it('creates with field and message', () => {
+      const error = createAuthValidationError('Invalid email format', 'email');
+      expect(error.code).toBe('AUTH_VALIDATION_ERROR');
+      expect(error.message).toBe('Invalid email format');
+      expect(error.field).toBe('email');
+      expect(error.constraint).toBeUndefined();
+    });
+
+    it('creates with constraint', () => {
+      const error = createAuthValidationError(
+        'Password must be at least 8 characters',
+        'password',
+        'TOO_SHORT',
+      );
+      expect(error.field).toBe('password');
+      expect(error.constraint).toBe('TOO_SHORT');
+    });
+
+    it('type guard works', () => {
+      const error = createAuthValidationError('Invalid email', 'email');
+      expect(isAuthValidationError(error)).toBe(true);
+      expect(isAuthValidationError(createInvalidCredentialsError())).toBe(false);
+    });
+  });
+
   describe('AuthError union', () => {
     it('accepts all auth error types', () => {
       const errors: AuthError[] = [
@@ -116,9 +144,10 @@ describe('domain/auth', () => {
         createSessionExpiredError(),
         createPermissionDeniedError(),
         createRateLimitedError(),
+        createAuthValidationError('Invalid email', 'email'),
       ];
 
-      expect(errors.length).toBe(5);
+      expect(errors.length).toBe(6);
       expect(errors.every((e) => 'code' in e)).toBe(true);
     });
   });

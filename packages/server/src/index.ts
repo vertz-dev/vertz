@@ -59,18 +59,13 @@ export {
   VertzException,
   vertz,
 } from '@vertz/core';
-// Server — wraps core's createServer with entity route generation
-export type { ServerConfig } from './create-server';
-export { createServer } from './create-server';
 export type {
   AccessConfig,
   AccessInstance,
   AuthApi,
   AuthConfig,
   AuthContext,
-  AuthError,
   AuthInstance,
-  AuthResult,
   AuthUser,
   CookieConfig,
   EmailPasswordConfig,
@@ -97,6 +92,9 @@ export {
   validatePassword,
   verifyPassword,
 } from './auth';
+// Server — wraps core's createServer with entity route generation
+export type { ServerConfig } from './create-server';
+export { createServer } from './create-server';
 // Entity API
 export type {
   AccessRule,
@@ -120,10 +118,10 @@ export type {
 export {
   createCrudHandlers,
   createEntityContext,
+  EntityRegistry,
   enforceAccess,
   entity,
   entityErrorHandler,
-  EntityRegistry,
   generateEntityRoutes,
   stripHiddenFields,
   stripReadOnlyFields,

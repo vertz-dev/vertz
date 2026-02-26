@@ -8,12 +8,15 @@
 // Auth errors - using prefixed names to avoid conflicts
 export {
   type AuthError,
+  type AuthValidationError,
+  createAuthValidationError,
   createInvalidCredentialsError,
   createPermissionDeniedError,
   createRateLimitedError as createAuthRateLimitedError,
   createSessionExpiredError,
   createUserExistsError,
   type InvalidCredentialsError,
+  isAuthValidationError,
   isInvalidCredentialsError,
   isPermissionDeniedError,
   isRateLimitedError as isAuthRateLimitedError,
