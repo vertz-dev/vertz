@@ -1,6 +1,7 @@
-import { ForbiddenException, NotFoundException } from '@vertz/core';
-import { d } from '@vertz/db';
 import { describe, expect, it, mock } from 'bun:test';
+import { ForbiddenException } from '@vertz/core';
+import { d } from '@vertz/db';
+import { EntityNotFoundError } from '@vertz/errors';
 import { createActionHandler } from '../action-pipeline';
 import { createEntityContext } from '../context';
 import { entity } from '../entity';
@@ -75,15 +76,18 @@ describe('Feature: action pipeline', () => {
     });
 
     describe('When calling the action with valid input', () => {
-      it('Then calls handler with (input, ctx, row) and returns 200', async () => {
+      it('Then calls handler with (input, ctx, row) and returns ok Result with 200', async () => {
         const db = createStubDb();
         const handler = createActionHandler(def, 'complete', def.actions.complete, db);
         const ctx = makeCtx();
 
         const result = await handler(ctx, 'task-1', { reason: 'done' });
 
-        expect(result.status).toBe(200);
-        expect(result.body).toEqual({ completedAt: '2024-01-01' });
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.data.status).toBe(200);
+          expect(result.data.body).toEqual({ completedAt: '2024-01-01' });
+        }
         expect(completeSpy).toHaveBeenCalledOnce();
         // Check handler received correct args
         const [input, , row] = completeSpy.mock.calls[0]!;
@@ -93,14 +97,18 @@ describe('Feature: action pipeline', () => {
     });
 
     describe('When the row does not exist', () => {
-      it('Then throws NotFoundException', async () => {
+      it('Then returns err(EntityNotFoundError)', async () => {
         const db = createStubDb();
         const handler = createActionHandler(def, 'complete', def.actions.complete, db);
         const ctx = makeCtx();
 
-        await expect(handler(ctx, 'nonexistent', { reason: 'done' })).rejects.toThrow(
-          NotFoundException,
-        );
+        const result = await handler(ctx, 'nonexistent', { reason: 'done' });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityNotFoundError);
+          expect(result.error.message).toContain('nonexistent');
+        }
       });
     });
 
