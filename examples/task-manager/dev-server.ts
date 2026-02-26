@@ -26,7 +26,7 @@ if (SSR_MODE) {
 // ── HMR Mode ──────────────────────────────────────────────────────
 
 function startHMRServer(): void {
-  // @ts-ignore — Bun HTML import, resolved at serve time
+  // @ts-expect-error — Bun HTML import, resolved at serve time
   const homepage = require('./index.html');
 
   // TODO: API handler composition — when the app has a @vertz/server backend:

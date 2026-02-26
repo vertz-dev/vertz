@@ -170,7 +170,7 @@ export function TaskDetailPage() {
           <div style="margin-top: 1.5rem">
             <div
               role="tablist"
-              style="display: flex; gap: 0.5rem; border-bottom: 1px solid var(--color-border-200); padding-bottom: 0.5rem; margin-bottom: 1rem"
+              style="display: flex; gap: 0.5rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.5rem; margin-bottom: 1rem"
             >
               <button
                 type="button"

@@ -66,11 +66,8 @@ export function TaskListPage() {
   // ── Lifecycle ──────────────────────────────────────
 
   onMount(() => {
-    console.log('TaskListPage mounted');
-
     onCleanup(() => {
       tasksQuery.dispose();
-      console.log('TaskListPage cleaned up');
     });
   });
 
