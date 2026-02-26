@@ -3,14 +3,24 @@
  * JWT sessions, email/password authentication
  */
 
+import {
+  type AuthError,
+  type AuthValidationError,
+  createAuthRateLimitedError,
+  createAuthValidationError,
+  createInvalidCredentialsError,
+  createSessionExpiredError,
+  createUserExistsError,
+  err,
+  ok,
+  type Result,
+} from '@vertz/errors';
 import bcrypt from 'bcryptjs';
 import * as jose from 'jose';
 import type {
   AuthApi,
   AuthConfig,
-  AuthError,
   AuthInstance,
-  AuthResult,
   AuthUser,
   CookieConfig,
   PasswordRequirements,
@@ -101,39 +111,39 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 export function validatePassword(
   password: string,
   requirements?: PasswordRequirements,
-): AuthError | null {
+): AuthValidationError | null {
   const req = { ...DEFAULT_PASSWORD_REQUIREMENTS, ...requirements };
 
   if (password.length < (req.minLength ?? 8)) {
-    return {
-      code: 'PASSWORD_TOO_SHORT',
-      message: `Password must be at least ${req.minLength} characters`,
-      status: 400,
-    };
+    return createAuthValidationError(
+      `Password must be at least ${req.minLength} characters`,
+      'password',
+      'TOO_SHORT',
+    );
   }
 
   if (req.requireUppercase && !/[A-Z]/.test(password)) {
-    return {
-      code: 'PASSWORD_NO_UPPERCASE',
-      message: 'Password must contain at least one uppercase letter',
-      status: 400,
-    };
+    return createAuthValidationError(
+      'Password must contain at least one uppercase letter',
+      'password',
+      'NO_UPPERCASE',
+    );
   }
 
   if (req.requireNumbers && !/\d/.test(password)) {
-    return {
-      code: 'PASSWORD_NO_NUMBER',
-      message: 'Password must contain at least one number',
-      status: 400,
-    };
+    return createAuthValidationError(
+      'Password must contain at least one number',
+      'password',
+      'NO_NUMBER',
+    );
   }
 
   if (req.requireSymbols && !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-    return {
-      code: 'PASSWORD_NO_SYMBOL',
-      message: 'Password must contain at least one symbol',
-      status: 400,
-    };
+    return createAuthValidationError(
+      'Password must contain at least one symbol',
+      'password',
+      'NO_SYMBOL',
+    );
   }
 
   return null;
@@ -267,29 +277,23 @@ export function createAuth(config: AuthConfig): AuthInstance {
   // API: Sign Up
   // ==========================================================================
 
-  async function signUp(data: SignUpInput): Promise<AuthResult<Session>> {
+  async function signUp(data: SignUpInput): Promise<Result<Session, AuthError>> {
     const { email, password, role = 'user', ...additionalFields } = data;
 
     // Check email format
     if (!email || !email.includes('@')) {
-      return {
-        ok: false,
-        error: { code: 'INVALID_EMAIL', message: 'Invalid email format', status: 400 },
-      };
+      return err(createAuthValidationError('Invalid email format', 'email', 'INVALID_FORMAT'));
     }
 
     // Check password requirements
     const passwordError = validatePassword(password, emailPassword?.password);
     if (passwordError) {
-      return { ok: false, error: passwordError };
+      return err(passwordError);
     }
 
     // Check if user exists
     if (users.has(email.toLowerCase())) {
-      return {
-        ok: false,
-        error: { code: 'USER_EXISTS', message: 'User already exists', status: 409 },
-      };
+      return err(createUserExistsError('User already exists', email.toLowerCase()));
     }
 
     // Rate limit on sign up
@@ -298,10 +302,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       emailPassword?.rateLimit?.maxAttempts || 3,
     );
     if (!signUpRateLimit.allowed) {
-      return {
-        ok: false,
-        error: { code: 'RATE_LIMITED', message: 'Too many sign up attempts', status: 429 },
-      };
+      return err(createAuthRateLimitedError('Too many sign up attempts'));
     }
 
     // Hash password
@@ -335,26 +336,20 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
     sessions.set(token, { userId: user.id, expiresAt });
 
-    return {
-      ok: true,
-      data: { user, expiresAt, payload },
-    };
+    return ok({ user, expiresAt, payload });
   }
 
   // ==========================================================================
   // API: Sign In
   // ==========================================================================
 
-  async function signIn(data: SignInInput): Promise<AuthResult<Session>> {
+  async function signIn(data: SignInInput): Promise<Result<Session, AuthError>> {
     const { email, password } = data;
 
     // Check if user exists
     const stored = users.get(email.toLowerCase());
     if (!stored) {
-      return {
-        ok: false,
-        error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password', status: 401 },
-      };
+      return err(createInvalidCredentialsError());
     }
 
     // Rate limit on sign in
@@ -363,19 +358,13 @@ export function createAuth(config: AuthConfig): AuthInstance {
       emailPassword?.rateLimit?.maxAttempts || 5,
     );
     if (!signInRateLimit.allowed) {
-      return {
-        ok: false,
-        error: { code: 'RATE_LIMITED', message: 'Too many sign in attempts', status: 429 },
-      };
+      return err(createAuthRateLimitedError('Too many sign in attempts'));
     }
 
     // Verify password
     const valid = await verifyPassword(password, stored.passwordHash);
     if (!valid) {
-      return {
-        ok: false,
-        error: { code: 'INVALID_CREDENTIALS', message: 'Invalid email or password', status: 401 },
-      };
+      return err(createInvalidCredentialsError());
     }
 
     const user = buildAuthUser(stored);
@@ -395,17 +384,14 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
     sessions.set(token, { userId: user.id, expiresAt });
 
-    return {
-      ok: true,
-      data: { user, expiresAt, payload },
-    };
+    return ok({ user, expiresAt, payload });
   }
 
   // ==========================================================================
   // API: Sign Out
   // ==========================================================================
 
-  async function signOut(ctx: { headers: Headers }): Promise<AuthResult<void>> {
+  async function signOut(ctx: { headers: Headers }): Promise<Result<void, AuthError>> {
     const cookieName = cookieConfig.name || 'vertz.sid';
     const token = ctx.headers
       .get('cookie')
@@ -417,14 +403,14 @@ export function createAuth(config: AuthConfig): AuthInstance {
       sessions.delete(token);
     }
 
-    return { ok: true, data: undefined };
+    return ok(undefined);
   }
 
   // ==========================================================================
   // API: Get Session
   // ==========================================================================
 
-  async function getSession(headers: Headers): Promise<AuthResult<Session | null>> {
+  async function getSession(headers: Headers): Promise<Result<Session | null, AuthError>> {
     const cookieName = cookieConfig.name || 'vertz.sid';
     const token = headers
       .get('cookie')
@@ -433,58 +419,52 @@ export function createAuth(config: AuthConfig): AuthInstance {
       ?.split('=')[1];
 
     if (!token) {
-      return { ok: true, data: null };
+      return ok(null);
     }
 
     // Check session exists
     const session = sessions.get(token);
     if (!session) {
-      return { ok: true, data: null };
+      return ok(null);
     }
 
     // Check if expired
     if (session.expiresAt < new Date()) {
       sessions.delete(token);
-      return { ok: true, data: null };
+      return ok(null);
     }
 
     // Verify JWT
     const payload = await verifyJWT(token, jwtSecret, jwtAlgorithm);
     if (!payload) {
       sessions.delete(token);
-      return { ok: true, data: null };
+      return ok(null);
     }
 
     // Get user
     const stored = users.get(payload.email);
     if (!stored) {
-      return { ok: true, data: null };
+      return ok(null);
     }
 
     const user = buildAuthUser(stored);
     const expiresAt = new Date(payload.exp * 1000);
 
-    return {
-      ok: true,
-      data: { user, expiresAt, payload },
-    };
+    return ok({ user, expiresAt, payload });
   }
 
   // ==========================================================================
   // API: Refresh Session
   // ==========================================================================
 
-  async function refreshSession(ctx: { headers: Headers }): Promise<AuthResult<Session>> {
+  async function refreshSession(ctx: { headers: Headers }): Promise<Result<Session, AuthError>> {
     // Rate limit
     const refreshRateLimit = refreshLimiter.check(
       `refresh:${ctx.headers.get('x-forwarded-ip') || 'default'}`,
       10,
     );
     if (!refreshRateLimit.allowed) {
-      return {
-        ok: false,
-        error: { code: 'RATE_LIMITED', message: 'Too many refresh attempts', status: 429 },
-      };
+      return err(createAuthRateLimitedError('Too many refresh attempts'));
     }
 
     const sessionResult = await getSession(ctx.headers);
@@ -493,10 +473,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
 
     if (!sessionResult.data) {
-      return {
-        ok: false,
-        error: { code: 'NO_SESSION', message: 'No active session', status: 401 },
-      };
+      return err(createSessionExpiredError('No active session'));
     }
 
     const user = sessionResult.data.user;
@@ -516,15 +493,31 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
     sessions.set(token, { userId: user.id, expiresAt });
 
-    return {
-      ok: true,
-      data: { user, expiresAt, payload },
-    };
+    return ok({ user, expiresAt, payload });
   }
 
   // ==========================================================================
   // HTTP Handler
   // ==========================================================================
+
+  function authErrorToStatus(error: AuthError): number {
+    switch (error.code) {
+      case 'AUTH_VALIDATION_ERROR':
+        return 400;
+      case 'INVALID_CREDENTIALS':
+        return 401;
+      case 'SESSION_EXPIRED':
+        return 401;
+      case 'USER_EXISTS':
+        return 409;
+      case 'RATE_LIMITED':
+        return 429;
+      case 'PERMISSION_DENIED':
+        return 403;
+      default:
+        return 500;
+    }
+  }
 
   async function handleAuthRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -557,7 +550,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
         if (!result.ok) {
           return new Response(JSON.stringify({ error: result.error }), {
-            status: result.error.status,
+            status: authErrorToStatus(result.error),
             headers: { 'Content-Type': 'application/json' },
           });
         }
@@ -585,7 +578,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
         if (!result.ok) {
           return new Response(JSON.stringify({ error: result.error }), {
-            status: result.error.status,
+            status: authErrorToStatus(result.error),
             headers: { 'Content-Type': 'application/json' },
           });
         }
@@ -642,7 +635,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
         if (!result.ok) {
           return new Response(JSON.stringify({ error: result.error }), {
-            status: result.error.status,
+            status: authErrorToStatus(result.error),
             headers: { 'Content-Type': 'application/json' },
           });
         }
@@ -751,9 +744,7 @@ export type {
   AuthApi,
   AuthConfig,
   AuthContext,
-  AuthError,
   AuthInstance,
-  AuthResult,
   AuthUser,
   CookieConfig,
   EmailPasswordConfig,

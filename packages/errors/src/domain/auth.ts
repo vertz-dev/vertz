@@ -168,6 +168,47 @@ export function isRateLimitedError(error: { readonly code: string }): error is R
 }
 
 // ============================================================================
+// Auth Validation Errors
+// ============================================================================
+
+/**
+ * Auth validation error.
+ *
+ * Returned when auth input fails validation (invalid email, weak password, etc.).
+ */
+export interface AuthValidationError {
+  readonly code: 'AUTH_VALIDATION_ERROR';
+  readonly message: string;
+  readonly field: 'email' | 'password';
+  readonly constraint?: string;
+}
+
+/**
+ * Creates an AuthValidationError.
+ */
+export function createAuthValidationError(
+  message: string,
+  field: 'email' | 'password',
+  constraint?: string,
+): AuthValidationError {
+  return {
+    code: 'AUTH_VALIDATION_ERROR',
+    message,
+    field,
+    ...(constraint !== undefined ? { constraint } : {}),
+  };
+}
+
+/**
+ * Type guard for AuthValidationError.
+ */
+export function isAuthValidationError(error: {
+  readonly code: string;
+}): error is AuthValidationError {
+  return error.code === 'AUTH_VALIDATION_ERROR';
+}
+
+// ============================================================================
 // Combined Types
 // ============================================================================
 
@@ -179,4 +220,5 @@ export type AuthError =
   | UserExistsError
   | SessionExpiredError
   | PermissionDeniedError
-  | RateLimitedError;
+  | RateLimitedError
+  | AuthValidationError;

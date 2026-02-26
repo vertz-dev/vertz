@@ -1,7 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { ForbiddenException } from '@vertz/core';
 import { d } from '@vertz/db';
-import { EntityNotFoundError } from '@vertz/errors';
+import { EntityForbiddenError, EntityNotFoundError } from '@vertz/errors';
 import { createActionHandler } from '../action-pipeline';
 import { createEntityContext } from '../context';
 import { entity } from '../entity';
@@ -113,14 +112,16 @@ describe('Feature: action pipeline', () => {
     });
 
     describe('When access is denied', () => {
-      it('Then throws ForbiddenException', async () => {
+      it('Then returns err(EntityForbiddenError)', async () => {
         const db = createStubDb();
         const handler = createActionHandler(def, 'complete', def.actions.complete, db);
         const ctx = makeCtx({ userId: null });
 
-        await expect(handler(ctx, 'task-1', { reason: 'done' })).rejects.toThrow(
-          ForbiddenException,
-        );
+        const result = await handler(ctx, 'task-1', { reason: 'done' });
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityForbiddenError);
+        }
       });
     });
   });

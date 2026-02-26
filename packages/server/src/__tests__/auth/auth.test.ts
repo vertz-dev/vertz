@@ -57,27 +57,33 @@ describe('Auth Module', () => {
       it('should reject short password', () => {
         const result = validatePassword('short', { minLength: 8 });
         expect(result).not.toBeNull();
-        expect(result?.code).toBe('PASSWORD_TOO_SHORT');
+        expect(result?.code).toBe('AUTH_VALIDATION_ERROR');
+        expect(result?.field).toBe('password');
+        expect(result?.constraint).toBe('TOO_SHORT');
       });
 
       it('should reject password without uppercase when required', () => {
         const result = validatePassword('password123', { requireUppercase: true });
-        expect(result?.code).toBe('PASSWORD_NO_UPPERCASE');
+        expect(result?.code).toBe('AUTH_VALIDATION_ERROR');
+        expect(result?.constraint).toBe('NO_UPPERCASE');
       });
 
       it('should reject password without numbers when required', () => {
         const result = validatePassword('PasswordABC', { requireNumbers: true });
-        expect(result?.code).toBe('PASSWORD_NO_NUMBER');
+        expect(result?.code).toBe('AUTH_VALIDATION_ERROR');
+        expect(result?.constraint).toBe('NO_NUMBER');
       });
 
       it('should reject password without symbols when required', () => {
         const result = validatePassword('Password123', { requireSymbols: true });
-        expect(result?.code).toBe('PASSWORD_NO_SYMBOL');
+        expect(result?.code).toBe('AUTH_VALIDATION_ERROR');
+        expect(result?.constraint).toBe('NO_SYMBOL');
       });
 
       it('should use default requirements when not specified', () => {
         const result = validatePassword('abc'); // Too short
-        expect(result?.code).toBe('PASSWORD_TOO_SHORT');
+        expect(result?.code).toBe('AUTH_VALIDATION_ERROR');
+        expect(result?.constraint).toBe('TOO_SHORT');
       });
     });
   });
@@ -157,7 +163,10 @@ describe('Auth Module', () => {
         });
 
         expect(result.ok).toBe(false);
-        expect(result.error?.code).toBe('INVALID_EMAIL');
+        if (!result.ok) {
+          expect(result.error.code).toBe('AUTH_VALIDATION_ERROR');
+          expect(result.error).toHaveProperty('field', 'email');
+        }
       });
 
       it('should reject weak password', async () => {
@@ -168,7 +177,11 @@ describe('Auth Module', () => {
         });
 
         expect(result.ok).toBe(false);
-        expect(result.error?.code).toBe('PASSWORD_TOO_SHORT');
+        if (!result.ok) {
+          expect(result.error.code).toBe('AUTH_VALIDATION_ERROR');
+          expect(result.error).toHaveProperty('field', 'password');
+          expect(result.error).toHaveProperty('constraint', 'TOO_SHORT');
+        }
       });
 
       it('should reject duplicate email', { timeout: 15_000 }, async () => {

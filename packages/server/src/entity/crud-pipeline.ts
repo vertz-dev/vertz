@@ -85,7 +85,8 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
 
   return {
     async list(ctx, options) {
-      await enforceAccess('list', def.access, ctx);
+      const accessResult = await enforceAccess('list', def.access, ctx);
+      if (!accessResult.ok) return err(accessResult.error);
 
       // Strip hidden fields from where filter to prevent enumeration attacks
       const rawWhere = options?.where;
@@ -119,7 +120,8 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
         return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
       }
 
-      await enforceAccess('get', def.access, ctx, row);
+      const accessResult = await enforceAccess('get', def.access, ctx, row);
+      if (!accessResult.ok) return err(accessResult.error);
 
       return ok({
         status: 200,
@@ -128,7 +130,8 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
     },
 
     async create(ctx, data) {
-      await enforceAccess('create', def.access, ctx);
+      const accessResult = await enforceAccess('create', def.access, ctx);
+      if (!accessResult.ok) return err(accessResult.error);
 
       let input = stripReadOnlyFields(table, data);
 
@@ -159,7 +162,8 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
         return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
       }
 
-      await enforceAccess('update', def.access, ctx, existing);
+      const accessResult = await enforceAccess('update', def.access, ctx, existing);
+      if (!accessResult.ok) return err(accessResult.error);
 
       let input = stripReadOnlyFields(table, data);
 
@@ -194,7 +198,8 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
         return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
       }
 
-      await enforceAccess('delete', def.access, ctx, existing);
+      const accessResult = await enforceAccess('delete', def.access, ctx, existing);
+      if (!accessResult.ok) return err(accessResult.error);
 
       await db.delete(id);
 

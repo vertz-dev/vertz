@@ -4,6 +4,7 @@
  */
 
 import type { ModelEntry } from '@vertz/db';
+import type { AuthError, Result } from '@vertz/errors';
 
 // ============================================================================
 // Session Types
@@ -109,11 +110,11 @@ export interface SignInInput {
 }
 
 export interface AuthApi {
-  signUp: (data: SignUpInput) => Promise<AuthResult<Session>>;
-  signIn: (data: SignInInput) => Promise<AuthResult<Session>>;
-  signOut: (ctx: AuthContext) => Promise<AuthResult<void>>;
-  getSession: (headers: Headers) => Promise<AuthResult<Session | null>>;
-  refreshSession: (ctx: AuthContext) => Promise<AuthResult<Session>>;
+  signUp: (data: SignUpInput) => Promise<Result<Session, AuthError>>;
+  signIn: (data: SignInInput) => Promise<Result<Session, AuthError>>;
+  signOut: (ctx: AuthContext) => Promise<Result<void, AuthError>>;
+  getSession: (headers: Headers) => Promise<Result<Session | null, AuthError>>;
+  refreshSession: (ctx: AuthContext) => Promise<Result<Session, AuthError>>;
 }
 
 // ============================================================================
@@ -142,16 +143,11 @@ export interface AuthContext {
 }
 
 // ============================================================================
-// Result Type
+// Result Type (re-exported from @vertz/errors)
 // ============================================================================
 
-export type AuthResult<T> = { ok: true; data: T } | { ok: false; error: AuthError };
-
-export interface AuthError {
-  code: string;
-  message: string;
-  status: number;
-}
+// AuthResult is now Result<T, AuthError> from @vertz/errors
+// AuthError is now the union type from @vertz/errors
 
 // ============================================================================
 // Rate Limiting

@@ -1,5 +1,5 @@
-import { ForbiddenException } from '@vertz/core';
 import { describe, expect, it } from 'bun:test';
+import { EntityForbiddenError } from '@vertz/errors';
 import { enforceAccess } from '../access-enforcer';
 import type { EntityContext } from '../types';
 
@@ -27,90 +27,107 @@ function stubCtx(overrides: Partial<EntityContext> = {}): EntityContext {
 describe('Feature: enforceAccess', () => {
   describe('Given no access rule for the operation', () => {
     describe('When enforceAccess is called', () => {
-      it('Then throws ForbiddenException (deny by default)', async () => {
+      it('Then returns err(EntityForbiddenError) (deny by default)', async () => {
         const ctx = stubCtx();
 
-        await expect(enforceAccess('create', {}, ctx)).rejects.toThrow(ForbiddenException);
+        const result = await enforceAccess('create', {}, ctx);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityForbiddenError);
+        }
       });
     });
   });
 
   describe('Given access rule is false (disabled)', () => {
     describe('When enforceAccess is called', () => {
-      it('Then throws ForbiddenException with "disabled" message', async () => {
+      it('Then returns err(EntityForbiddenError) with "disabled" message', async () => {
         const ctx = stubCtx();
 
-        await expect(enforceAccess('delete', { delete: false }, ctx)).rejects.toThrow(/disabled/);
+        const result = await enforceAccess('delete', { delete: false }, ctx);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityForbiddenError);
+          expect(result.error.message).toContain('disabled');
+        }
       });
     });
   });
 
   describe('Given access rule is a function that returns true', () => {
     describe('When enforceAccess is called', () => {
-      it('Then does not throw', async () => {
+      it('Then returns ok(undefined)', async () => {
         const ctx = stubCtx();
 
-        await expect(enforceAccess('list', { list: () => true }, ctx)).resolves.toBeUndefined();
+        const result = await enforceAccess('list', { list: () => true }, ctx);
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.data).toBeUndefined();
+        }
       });
     });
   });
 
   describe('Given access rule is a function that returns false', () => {
     describe('When enforceAccess is called', () => {
-      it('Then throws ForbiddenException', async () => {
+      it('Then returns err(EntityForbiddenError)', async () => {
         const ctx = stubCtx();
 
-        await expect(enforceAccess('list', { list: () => false }, ctx)).rejects.toThrow(
-          ForbiddenException,
-        );
+        const result = await enforceAccess('list', { list: () => false }, ctx);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityForbiddenError);
+        }
       });
     });
   });
 
   describe('Given access rule that uses row parameter', () => {
     describe('When called with a matching row', () => {
-      it('Then does not throw', async () => {
+      it('Then returns ok(undefined)', async () => {
         const ctx = stubCtx({ userId: 'user-1' });
         const rule = (_ctx: EntityContext, row: Record<string, unknown>) =>
           row.ownerId === _ctx.userId;
 
-        await expect(
-          enforceAccess('update', { update: rule }, ctx, { ownerId: 'user-1' }),
-        ).resolves.toBeUndefined();
+        const result = await enforceAccess('update', { update: rule }, ctx, { ownerId: 'user-1' });
+        expect(result.ok).toBe(true);
       });
     });
 
     describe('When called with a non-matching row', () => {
-      it('Then throws ForbiddenException', async () => {
+      it('Then returns err(EntityForbiddenError)', async () => {
         const ctx = stubCtx({ userId: 'user-1' });
         const rule = (_ctx: EntityContext, row: Record<string, unknown>) =>
           row.ownerId === _ctx.userId;
 
-        await expect(
-          enforceAccess('update', { update: rule }, ctx, { ownerId: 'user-2' }),
-        ).rejects.toThrow(ForbiddenException);
+        const result = await enforceAccess('update', { update: rule }, ctx, { ownerId: 'user-2' });
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityForbiddenError);
+        }
       });
     });
   });
 
   describe('Given access rule is an async function', () => {
     describe('When it resolves to true', () => {
-      it('Then does not throw', async () => {
+      it('Then returns ok(undefined)', async () => {
         const ctx = stubCtx();
 
-        await expect(
-          enforceAccess('list', { list: async () => true }, ctx),
-        ).resolves.toBeUndefined();
+        const result = await enforceAccess('list', { list: async () => true }, ctx);
+        expect(result.ok).toBe(true);
       });
     });
 
     describe('When it resolves to false', () => {
-      it('Then throws ForbiddenException', async () => {
+      it('Then returns err(EntityForbiddenError)', async () => {
         const ctx = stubCtx();
 
-        await expect(enforceAccess('list', { list: async () => false }, ctx)).rejects.toThrow(
-          ForbiddenException,
-        );
+        const result = await enforceAccess('list', { list: async () => false }, ctx);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityForbiddenError);
+        }
       });
     });
   });

@@ -1,7 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { ForbiddenException } from '@vertz/core';
 import { d } from '@vertz/db';
-import { EntityNotFoundError, unwrap } from '@vertz/errors';
+import { EntityForbiddenError, EntityNotFoundError, unwrap } from '@vertz/errors';
 import { createEntityContext } from '../context';
 import { createCrudHandlers } from '../crud-pipeline';
 import { entity } from '../entity';
@@ -135,12 +134,14 @@ describe('Feature: CRUD pipeline', () => {
     });
 
     describe('When an unauthenticated user calls list', () => {
-      it('Then throws ForbiddenException', async () => {
+      it('Then returns err(EntityForbiddenError)', async () => {
         const db = createStubDb();
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx({ userId: null });
 
-        await expect(handlers.list!(ctx)).rejects.toThrow(ForbiddenException);
+        const result = await handlers.list!(ctx);
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error).toBeInstanceOf(EntityForbiddenError);
       });
     });
   });
@@ -214,14 +215,14 @@ describe('Feature: CRUD pipeline', () => {
     });
 
     describe('When a non-admin creates a record', () => {
-      it('Then throws ForbiddenException', async () => {
+      it('Then returns err(EntityForbiddenError)', async () => {
         const db = createStubDb();
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx({ roles: ['viewer'] });
 
-        await expect(
-          handlers.create!(ctx, { email: 'new@example.com', name: 'New' }),
-        ).rejects.toThrow(ForbiddenException);
+        const result = await handlers.create!(ctx, { email: 'new@example.com', name: 'New' });
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error).toBeInstanceOf(EntityForbiddenError);
       });
     });
   });
@@ -308,14 +309,14 @@ describe('Feature: CRUD pipeline', () => {
     });
 
     describe('When a non-owner updates the record', () => {
-      it('Then throws ForbiddenException', async () => {
+      it('Then returns err(EntityForbiddenError)', async () => {
         const db = createStubDb();
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx({ userId: 'user-2' });
 
-        await expect(handlers.update!(ctx, 'user-1', { name: 'Hacked' })).rejects.toThrow(
-          ForbiddenException,
-        );
+        const result = await handlers.update!(ctx, 'user-1', { name: 'Hacked' });
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error).toBeInstanceOf(EntityForbiddenError);
       });
     });
   });
@@ -774,12 +775,17 @@ describe('Feature: CRUD pipeline', () => {
     });
 
     describe('When attempting to delete', () => {
-      it('Then throws ForbiddenException (disabled)', async () => {
+      it('Then returns err(EntityForbiddenError) with "disabled" message', async () => {
         const db = createStubDb();
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        await expect(handlers.delete!(ctx, 'user-1')).rejects.toThrow(/disabled/);
+        const result = await handlers.delete!(ctx, 'user-1');
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(EntityForbiddenError);
+          expect(result.error.message).toContain('disabled');
+        }
       });
     });
   });
@@ -793,14 +799,14 @@ describe('Feature: CRUD pipeline', () => {
     });
 
     describe('When attempting to create (no access rule)', () => {
-      it('Then throws ForbiddenException', async () => {
+      it('Then returns err(EntityForbiddenError)', async () => {
         const db = createStubDb();
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        await expect(handlers.create!(ctx, { email: 'a@b.com', name: 'New' })).rejects.toThrow(
-          ForbiddenException,
-        );
+        const result = await handlers.create!(ctx, { email: 'a@b.com', name: 'New' });
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error).toBeInstanceOf(EntityForbiddenError);
       });
     });
   });
@@ -811,16 +817,21 @@ describe('Feature: CRUD pipeline', () => {
     const def = entity('users', { model: usersModel });
 
     describe('When building CRUD handlers', () => {
-      it('Then all handlers throw ForbiddenException (deny by default)', async () => {
+      it('Then all handlers return err(EntityForbiddenError) (deny by default)', async () => {
         const db = createStubDb();
         const handlers = createCrudHandlers(def, db);
         const ctx = makeCtx();
 
-        await expect(handlers.list!(ctx)).rejects.toThrow(ForbiddenException);
-        await expect(handlers.get!(ctx, 'user-1')).rejects.toThrow(ForbiddenException);
-        await expect(handlers.create!(ctx, {})).rejects.toThrow(ForbiddenException);
-        await expect(handlers.update!(ctx, 'user-1', {})).rejects.toThrow(ForbiddenException);
-        await expect(handlers.delete!(ctx, 'user-1')).rejects.toThrow(ForbiddenException);
+        for (const result of [
+          await handlers.list!(ctx),
+          await handlers.get!(ctx, 'user-1'),
+          await handlers.create!(ctx, {}),
+          await handlers.update!(ctx, 'user-1', {}),
+          await handlers.delete!(ctx, 'user-1'),
+        ]) {
+          expect(result.ok).toBe(false);
+          if (!result.ok) expect(result.error).toBeInstanceOf(EntityForbiddenError);
+        }
       });
     });
   });
