@@ -108,6 +108,7 @@ export function isHttpError(error: unknown): error is HttpError {
  */
 export class FetchBadRequestError extends HttpError {
   readonly code = 'HttpError' as const;
+  declare readonly status: 400;
 
   constructor(message: string, serverCode?: string) {
     super(400, message, serverCode);
@@ -127,6 +128,7 @@ export function isFetchBadRequestError(error: unknown): error is FetchBadRequest
  */
 export class FetchUnauthorizedError extends HttpError {
   readonly code = 'HttpError' as const;
+  declare readonly status: 401;
 
   constructor(message: string, serverCode?: string) {
     super(401, message, serverCode);
@@ -146,6 +148,7 @@ export function isFetchUnauthorizedError(error: unknown): error is FetchUnauthor
  */
 export class FetchForbiddenError extends HttpError {
   readonly code = 'HttpError' as const;
+  declare readonly status: 403;
 
   constructor(message: string, serverCode?: string) {
     super(403, message, serverCode);
@@ -165,6 +168,7 @@ export function isFetchForbiddenError(error: unknown): error is FetchForbiddenEr
  */
 export class FetchNotFoundError extends HttpError {
   readonly code = 'HttpError' as const;
+  declare readonly status: 404;
 
   constructor(message: string, serverCode?: string) {
     super(404, message, serverCode);
@@ -184,6 +188,7 @@ export function isFetchNotFoundError(error: unknown): error is FetchNotFoundErro
  */
 export class FetchConflictError extends HttpError {
   readonly code = 'HttpError' as const;
+  declare readonly status: 409;
 
   constructor(message: string, serverCode?: string) {
     super(409, message, serverCode);
@@ -203,6 +208,7 @@ export function isFetchConflictError(error: unknown): error is FetchConflictErro
  */
 export class FetchGoneError extends HttpError {
   readonly code = 'HttpError' as const;
+  declare readonly status: 410;
 
   constructor(message: string, serverCode?: string) {
     super(410, message, serverCode);
@@ -222,6 +228,7 @@ export function isFetchGoneError(error: unknown): error is FetchGoneError {
  */
 export class FetchUnprocessableEntityError extends HttpError {
   readonly code = 'HttpError' as const;
+  declare readonly status: 422;
 
   constructor(message: string, serverCode?: string) {
     super(422, message, serverCode);
@@ -243,6 +250,7 @@ export function isFetchUnprocessableEntityError(
  */
 export class FetchRateLimitError extends HttpError {
   readonly code = 'HttpError' as const;
+  declare readonly status: 429;
 
   constructor(message: string, serverCode?: string) {
     super(429, message, serverCode);
@@ -266,6 +274,7 @@ export function isFetchRateLimitError(error: unknown): error is FetchRateLimitEr
  */
 export class FetchInternalServerError extends HttpError {
   readonly code = 'HttpError' as const;
+  declare readonly status: 500;
 
   constructor(message: string, serverCode?: string) {
     super(500, message, serverCode);
@@ -285,6 +294,7 @@ export function isFetchInternalServerError(error: unknown): error is FetchIntern
  */
 export class FetchServiceUnavailableError extends HttpError {
   readonly code = 'HttpError' as const;
+  declare readonly status: 503;
 
   constructor(message: string, serverCode?: string) {
     super(503, message, serverCode);
