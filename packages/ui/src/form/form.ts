@@ -201,9 +201,7 @@ export function form<TBody, TResult>(
     const target = e.target as HTMLInputElement | null;
     if (!target?.name) return;
     const field = getOrCreateField(target.name);
-    field.value.value = target.value;
-    const initialValue = (options?.initial as Record<string, unknown> | undefined)?.[target.name];
-    field.dirty.value = target.value !== initialValue;
+    field.setValue(target.value);
   }
 
   function handleFocusout(e: Event): void {
