@@ -11,11 +11,12 @@
 
 import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { plugin } from 'bun';
 import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
+import { plugin } from 'bun';
 
 const ROOT = import.meta.dir;
-const ENTRY = resolve(ROOT, 'src', 'index.ts');
+const CLIENT_ENTRY = resolve(ROOT, 'src', 'entry-client.ts');
+const SERVER_ENTRY = resolve(ROOT, 'src', 'app.tsx');
 const DIST_CLIENT = resolve(ROOT, 'dist', 'client');
 const DIST_SERVER = resolve(ROOT, 'dist', 'server');
 
@@ -34,7 +35,7 @@ const { plugin: clientPlugin, fileExtractions } = createVertzBunPlugin({
 });
 
 const clientResult = await Bun.build({
-  entrypoints: [ENTRY],
+  entrypoints: [CLIENT_ENTRY],
   plugins: [clientPlugin],
   target: 'browser',
   minify: true,
@@ -95,7 +96,7 @@ let html = await Bun.file(resolve(ROOT, 'index.html')).text();
 
 // Replace the source script tag with the built entry
 html = html.replace(
-  /<script type="module" src="\.\/src\/index\.ts"><\/script>/,
+  /<script type="module" src="\.\/src\/entry-client\.ts"><\/script>/,
   `<script type="module" crossorigin src="${clientJsPath}"></script>`,
 );
 
@@ -147,7 +148,7 @@ const { plugin: serverPlugin } = createVertzBunPlugin({
 });
 
 const serverResult = await Bun.build({
-  entrypoints: [ENTRY],
+  entrypoints: [SERVER_ENTRY],
   plugins: [serverPlugin],
   target: 'bun',
   minify: false,
@@ -165,7 +166,7 @@ if (!serverResult.success) {
   process.exit(1);
 }
 
-console.log('  Server entry: dist/server/index.js');
+console.log('  Server entry: dist/server/app.js');
 
 // ── Done ─────────────────────────────────────────────────────────
 

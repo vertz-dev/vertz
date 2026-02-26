@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run dev-server.ts",
-    "dev:ssr": "bun --watch run dev-server.ts --ssr",
+    "dev": "vertz dev",
+    "dev:ssr": "vertz dev --ssr",
     "dev:worker": "wrangler dev",
     "build": "bun run build.ts",
     "build:worker": "esbuild src/worker.ts --bundle --format=esm --outfile=dist/worker.js --platform=neutral --target=es2022",
@@ -24,7 +24,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
-"@vertz/ui-compiler": "workspace:*",
+    "@vertz/cli": "workspace:*",
+    "@vertz/ui-compiler": "workspace:*",
     "bun-types": "^1.3.9",
     "esbuild": "^0.27.3",
     "happy-dom": "^20.6.1",

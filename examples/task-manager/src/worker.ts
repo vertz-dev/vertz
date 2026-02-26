@@ -7,7 +7,7 @@
  */
 
 import { createSSRHandler } from '@vertz/ui-server';
-import * as ssrModule from './index';
+import * as ssrModule from './app';
 
 // Template will be embedded during build or served from KV.
 // For now, a minimal template that matches the production build output.
