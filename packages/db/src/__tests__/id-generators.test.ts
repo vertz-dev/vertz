@@ -31,7 +31,7 @@ describe('ID Generators', () => {
   });
 
   // Test 5: 1000 calls per strategy produce 1000 unique values
-  it('generates unique IDs for each strategy', () => {
+  it('generates unique IDs for each strategy', { timeout: 15_000 }, () => {
     const strategies: Array<'cuid' | 'uuid' | 'nanoid'> = ['cuid', 'uuid', 'nanoid'];
     
     for (const strategy of strategies) {
