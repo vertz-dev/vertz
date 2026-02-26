@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun run src/dev-server.ts",
+    "dev": "vertz dev",
+    "dev:legacy": "bun run src/dev-server.ts",
     "dev:vite": "vite",
     "build": "vite build",
     "build:worker": "vite build --outDir dist-worker",
