@@ -29,7 +29,7 @@ describe('Auth Module', () => {
 
       it('should use bcrypt cost of 12', { timeout: 15_000 }, async () => {
         const hash = await hashPassword('test');
-        expect(hash.startsWith('$2a$12$')).toBe(true);
+        expect(hash.startsWith('$2b$12$')).toBe(true);
       });
     });
 

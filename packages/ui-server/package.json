@@ -53,7 +53,7 @@
     "@vertz/ui": "workspace:*",
     "@vertz/ui-compiler": "workspace:*",
     "magic-string": "^0.30.0",
-    "ts-morph": "^25.0.0"
+    "ts-morph": "^27.0.2"
   },
   "peerDependencies": {
     "vite": "^6.0.0"

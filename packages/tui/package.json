@@ -46,7 +46,7 @@
     "@vertz/ui": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^25.2.2",
+    "@types/node": "^25.3.1",
     "@vitest/coverage-v8": "^4.0.18",
     "bunup": "^0.16.23",
     "typescript": "^5.9.3",
