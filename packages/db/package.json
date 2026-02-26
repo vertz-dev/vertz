@@ -90,17 +90,13 @@
   },
   "peerDependencies": {
     "bun:sqlite": "*",
-    "postgres": "^3.4.8",
-    "@vertz/server": "workspace:*"
+    "postgres": "^3.4.8"
   },
   "peerDependenciesMeta": {
     "bun:sqlite": {
       "optional": true
     },
     "postgres": {
-      "optional": true
-    },
-    "@vertz/server": {
       "optional": true
     }
   }
