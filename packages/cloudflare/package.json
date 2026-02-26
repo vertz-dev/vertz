@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250214.0",
+    "@vertz/ui-server": "workspace:*",
     "@vitest/coverage-v8": "^4.0.18",
     "bunup": "latest",
     "typescript": "^5.7.3"
