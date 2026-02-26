@@ -169,6 +169,11 @@ export function __insert(
  * This is a compiler output target — the compiler generates calls
  * to __element for each JSX element.
  */
+export function __element<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  props?: Record<string, string>,
+): HTMLElementTagNameMap[K];
+export function __element(tag: string, props?: Record<string, string>): HTMLElement;
 export function __element(tag: string, props?: Record<string, string>): HTMLElement {
   if (getIsHydrating()) {
     const claimed = claimElement(tag);
