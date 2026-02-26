@@ -14,6 +14,8 @@
  * ```
  */
 
+import type { ChildValue } from '../component/children';
+import { resolveChildren } from '../component/children';
 import { __append, __element, __enterChildren, __exitChildren } from '../dom/element';
 
 /** A child node: either a DOM Node or a string (text content). */
@@ -24,7 +26,7 @@ export interface ThemeProviderProps {
   /** The theme variant name (e.g., 'light', 'dark'). Defaults to 'light'. */
   theme?: string;
   /** Child elements to render inside the provider. */
-  children: ThemeChild[];
+  children: ThemeChild[] | (() => ThemeChild | ThemeChild[]);
 }
 
 /**
@@ -36,12 +38,9 @@ export interface ThemeProviderProps {
 export function ThemeProvider({ theme = 'light', children }: ThemeProviderProps): HTMLElement {
   const el = __element('div', { 'data-theme': theme });
   __enterChildren(el);
-  for (const child of children) {
-    if (typeof child === 'string') {
-      el.appendChild(document.createTextNode(child));
-    } else {
-      __append(el, child);
-    }
+  const nodes = resolveChildren(children as ChildValue);
+  for (const node of nodes) {
+    __append(el, node);
   }
   __exitChildren();
   return el;

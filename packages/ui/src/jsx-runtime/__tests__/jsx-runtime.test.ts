@@ -169,6 +169,28 @@ describe('JSX Runtime (Client)', () => {
     });
   });
 
+  describe('thunked children', () => {
+    it('resolves function children to text', () => {
+      const el = jsx('div', { children: () => 'text' });
+      expect(el.textContent).toBe('text');
+    });
+
+    it('resolves function children to element', () => {
+      const child = jsx('span', { children: 'inner' });
+      const el = jsx('div', { children: () => child });
+      expect(el.children.length).toBe(1);
+      expect(el.children[0]).toBe(child);
+    });
+
+    it('resolves function children for components', () => {
+      const MyComp = (props: { children: unknown }) => {
+        return jsx('div', { children: props.children });
+      };
+      const el = jsx(MyComp, { children: () => jsx('span', {}) });
+      expect(el.querySelector('span')).toBeInstanceOf(HTMLSpanElement);
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle empty props object', () => {
       const el = jsx('div', {});

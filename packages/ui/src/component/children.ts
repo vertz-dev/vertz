@@ -1,5 +1,12 @@
-/** A single child value: DOM node, string, number, null, undefined, or nested array. */
-export type ChildValue = Node | string | number | null | undefined | ChildValue[];
+/** A single child value: DOM node, string, number, null, undefined, thunk, or nested array. */
+export type ChildValue =
+  | Node
+  | string
+  | number
+  | null
+  | undefined
+  | ChildValue[]
+  | (() => ChildValue);
 
 /** A function that returns children (slot accessor). */
 export type ChildrenAccessor = () => ChildValue;
@@ -13,6 +20,9 @@ export type ChildrenAccessor = () => ChildValue;
 export function resolveChildren(value: ChildValue): Node[] {
   if (value == null) {
     return [];
+  }
+  if (typeof value === 'function') {
+    return resolveChildren(value());
   }
   if (typeof value === 'string') {
     return [document.createTextNode(value)];

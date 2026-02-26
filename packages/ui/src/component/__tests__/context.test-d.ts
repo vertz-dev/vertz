@@ -118,3 +118,14 @@ if (authVal && authVal.type === 'logged-in') {
   const _userId: string = authVal.userId;
   void _userId;
 }
+
+// ─── Context<T>.Provider — JSX overload type safety ─────────────
+
+// JSX pattern accepts correct shape
+StringCtx.Provider({ value: 'hello', children: () => null });
+
+// @ts-expect-error - missing 'value' key in JSX props
+StringCtx.Provider({ children: () => null });
+
+// @ts-expect-error - wrong type for value in JSX props
+StringCtx.Provider({ value: 123, children: () => null });

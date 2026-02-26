@@ -34,4 +34,32 @@ describe('ThemeProvider', () => {
     const el = ThemeProvider({ theme: 'dark', children: ['hello world'] });
     expect(el.textContent).toBe('hello world');
   });
+
+  it('accepts a thunk returning a single child', () => {
+    const child = document.createElement('div');
+    const el = ThemeProvider({ theme: 'dark', children: () => child });
+    expect(el.children.length).toBe(1);
+    expect(el.children[0]).toBe(child);
+  });
+
+  it('accepts a thunk returning multiple children', () => {
+    const nav = document.createElement('nav');
+    const main = document.createElement('main');
+    const el = ThemeProvider({ theme: 'dark', children: () => [nav, main] });
+    expect(el.children.length).toBe(2);
+    expect(el.children[0]).toBe(nav);
+    expect(el.children[1]).toBe(main);
+  });
+
+  it('legacy array children still works', () => {
+    const child = document.createElement('div');
+    const el = ThemeProvider({ theme: 'dark', children: [child] });
+    expect(el.children.length).toBe(1);
+    expect(el.children[0]).toBe(child);
+  });
+
+  it('accepts a thunk returning text', () => {
+    const el = ThemeProvider({ theme: 'dark', children: () => 'text' });
+    expect(el.textContent).toBe('text');
+  });
 });
