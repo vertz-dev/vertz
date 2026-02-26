@@ -7,11 +7,25 @@
  * 3. HTML template → inject built assets, strip dev scripts
  * 4. Public assets → copy to dist/client/
  * 5. Server build → bun target, SSR with JSX runtime swap
+ *
+ * Note: This module uses Bun.build() for bundling. It is only invoked at runtime
+ * under Bun, never under Node.js. The Bun global is declared locally to satisfy
+ * TypeScript without requiring bun-types in the CLI package.
  */
 
-import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
-import type { BunPlugin } from 'bun';
+
+// Minimal ambient declaration for Bun APIs used by this module.
+// The CLI runs under Bun at runtime; these declarations let tsc validate
+// without pulling in bun-types (which conflicts with @types/node).
+declare const Bun: {
+  build(options: Record<string, unknown>): Promise<{
+    success: boolean;
+    logs: Array<{ message: string }>;
+    outputs: Array<{ path: string; kind: string }>;
+  }>;
+};
 
 export interface UIBuildConfig {
   /** Absolute path to the project root */
@@ -84,7 +98,7 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
     });
 
     if (!clientResult.success) {
-      const errors = clientResult.logs.map((l) => l.message).join('\n');
+      const errors = clientResult.logs.map((l: { message: string }) => l.message).join('\n');
       return {
         success: false,
         error: `Client build failed:\n${errors}`,
@@ -120,7 +134,7 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
 
     if (extractedCss) {
       const cssOutPath = resolve(distClient, 'assets', 'vertz.css');
-      await Bun.write(cssOutPath, extractedCss);
+      writeFileSync(cssOutPath, extractedCss);
       clientCssPaths.push('/assets/vertz.css');
       console.log('  CSS (extracted): /assets/vertz.css');
     }
@@ -128,7 +142,7 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
     // ── 3. HTML template processing ───────────────────────────────
     console.log('📄 Processing HTML template...');
 
-    let html = await Bun.file(indexHtmlPath).text();
+    let html = readFileSync(indexHtmlPath, 'utf-8');
 
     // Replace dev script tag with built entry.
     // Use the basename of the client entry to match regardless of path prefix
@@ -159,7 +173,7 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
     // Fix ./public/ asset paths to / (e.g. ./public/favicon.svg → /favicon.svg)
     html = html.replace(/(['"])\.\/public\//g, '$1/');
 
-    await Bun.write(resolve(distClient, 'index.html'), html);
+    writeFileSync(resolve(distClient, 'index.html'), html);
 
     // ── 4. Copy public/ → dist/client/ ────────────────────────────
     const publicDir = resolve(projectRoot, 'public');
@@ -172,9 +186,14 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
     console.log('📦 Building server...');
 
     // JSX runtime swap plugin for SSR (passed via plugins array, not global plugin())
-    const jsxSwapPlugin: BunPlugin = {
+    const jsxSwapPlugin = {
       name: 'vertz-ssr-jsx-swap',
-      setup(build) {
+      setup(build: {
+        onResolve: (
+          opts: { filter: RegExp },
+          cb: (args: { path: string }) => { path: string; external: boolean },
+        ) => void;
+      }) {
         build.onResolve({ filter: /^@vertz\/ui\/jsx-runtime$/ }, () => {
           return { path: '@vertz/ui-server/jsx-runtime', external: false };
         });
@@ -200,7 +219,7 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
     });
 
     if (!serverResult.success) {
-      const errors = serverResult.logs.map((l) => l.message).join('\n');
+      const errors = serverResult.logs.map((l: { message: string }) => l.message).join('\n');
       return {
         success: false,
         error: `Server build failed:\n${errors}`,

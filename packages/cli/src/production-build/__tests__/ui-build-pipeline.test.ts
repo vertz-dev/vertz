@@ -7,7 +7,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { buildUI, type UIBuildConfig } from '../ui-build-pipeline';
 
 // Mock @vertz/ui-server/bun-plugin since the real plugin requires the full compiler stack
@@ -29,13 +29,9 @@ vi.mock('@vertz/ui-server/bun-plugin', () => {
 
 // We need to mock Bun.build since we can't run the real bundler in tests
 const mockBunBuild = vi.fn();
-const mockBunWrite = vi.fn();
-const mockBunFile = vi.fn();
 
 // Store original globals
 const originalBunBuild = Bun.build;
-const originalBunWrite = Bun.write;
-const originalBunFile = Bun.file;
 
 describe('buildUI', () => {
   let tmpDir: string;
@@ -114,25 +110,9 @@ describe('buildUI', () => {
       };
     });
 
-    mockBunWrite.mockImplementation(async (path: string, content: string) => {
-      const dir = resolve(path, '..');
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(path, content);
-    });
-
-    mockBunFile.mockImplementation((path: string) => {
-      return {
-        text: async () => readFileSync(path, 'utf-8'),
-      };
-    });
-
-    // Patch globals
-    // @ts-expect-error — overriding Bun globals for test
+    // Patch Bun.build
+    // @ts-expect-error — overriding Bun global for test
     Bun.build = mockBunBuild;
-    // @ts-expect-error — overriding Bun globals for test
-    Bun.write = mockBunWrite;
-    // @ts-expect-error — overriding Bun globals for test
-    Bun.file = mockBunFile;
   });
 
   afterEach(() => {
@@ -140,12 +120,8 @@ describe('buildUI', () => {
     vi.restoreAllMocks();
 
     // Restore Bun globals
-    // @ts-expect-error — restoring Bun globals
+    // @ts-expect-error — restoring Bun global
     Bun.build = originalBunBuild;
-    // @ts-expect-error — restoring Bun globals
-    Bun.write = originalBunWrite;
-    // @ts-expect-error — restoring Bun globals
-    Bun.file = originalBunFile;
   });
 
   it('should produce correct output structure', async () => {
