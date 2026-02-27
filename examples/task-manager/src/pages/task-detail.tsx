@@ -11,7 +11,7 @@
  * - Compiler conditional transform for loading/error/content visibility
  */
 
-import { css, onMount, query, useParams } from '@vertz/ui';
+import { css, query, useParams } from '@vertz/ui';
 import { api } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import { Icon } from '../components/icon';
@@ -88,14 +88,6 @@ export function TaskDetailPage() {
 
   // Tab state — compiler transforms `let` to signal()
   let activeTab = 'details';
-
-  // ── Cleanup ────────────────────────────────────────
-
-  onMount(() => {
-    return () => {
-      taskQuery.dispose();
-    };
-  });
 
   // ── Page layout with declarative conditionals ──────
 

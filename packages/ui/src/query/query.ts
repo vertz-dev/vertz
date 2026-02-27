@@ -1,5 +1,6 @@
 import { isQueryDescriptor, type QueryDescriptor } from '@vertz/fetch';
 import { isNavPrefetchActive } from '../router/server-nav';
+import { _tryOnCleanup } from '../runtime/disposal';
 import { computed, lifecycleEffect, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal, Unwrapped } from '../runtime/signal-types';
 import { setReadValueCallback, untrack } from '../runtime/tracking';
@@ -508,6 +509,10 @@ export function query<T, E = unknown>(
     }
     inflightKeys.clear();
   }
+
+  // Auto-register disposal with the current scope (component/page/app).
+  // If no scope is active (standalone usage), this is a silent no-op.
+  _tryOnCleanup(dispose);
 
   // Return signals with type casts to match the unwrapped return types
   return {

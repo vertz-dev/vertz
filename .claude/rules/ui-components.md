@@ -167,15 +167,13 @@ Use inline `style` only for truly dynamic values or one-off layout (flex gaps, m
 
 ## Data Fetching & Forms
 
-### `query()` with cleanup
+### `query()` — auto-disposed
 
 ```tsx
 const tasks = query(() => fetchTasks(), { key: 'task-list' });
-
-onMount(() => {
-  return () => tasks.dispose();
-});
 ```
+
+`query()` auto-registers disposal with the current component/page scope via `_tryOnCleanup()`. No manual `onMount(() => () => tasks.dispose())` needed. The dispose stops reactive effects, timers, and in-flight tracking — but preserves the shared cache so navigating back serves data instantly.
 
 Signal properties (`.data`, `.loading`, `.error`) auto-unwrap in JSX. Use `.value` only outside JSX (in `watch()`, event handlers, etc.).
 

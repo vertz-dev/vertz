@@ -8,7 +8,7 @@
  * - Declarative JSX conditionals for loading/error/content visibility
  */
 
-import { onMount, query } from '@vertz/ui';
+import { query } from '@vertz/ui';
 import { isOk, matchError, type Result, type FetchErrorType } from '@vertz/fetch';
 import type { Todo } from '../api/client';
 import { fetchTodos } from '../api/client';
@@ -62,12 +62,6 @@ export function TodoListPage() {
   const handleCreate = (_todo: Todo) => {
     todosQuery.refetch();
   };
-
-  onMount(() => {
-    return () => {
-      todosQuery.dispose();
-    };
-  });
 
   return (
     <div class={layoutStyles.container} data-testid="todo-list-page">
