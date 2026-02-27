@@ -22,5 +22,14 @@ export function textOpacity(token: string, percent: number): RawDeclaration {
   };
 }
 
+/** Create a RawDeclaration for a CSS animation. */
+export function animationDecl(value: string): RawDeclaration {
+  return { property: 'animation', value };
+}
+
+/** Standard animation timing. */
+export const ANIM_DURATION = '150ms';
+export const ANIM_EASING = 'ease-out';
+
 /** Dark mode selector for use in css() object-form entries. */
 export const DARK = '[data-theme="dark"] &';

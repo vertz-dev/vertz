@@ -1,5 +1,6 @@
 import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
 import { css } from '@vertz/ui';
+import { animationDecl } from './_helpers';
 
 type DialogBlocks = {
   overlay: StyleEntry[];
@@ -31,7 +32,12 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
       {
         '&': [{ property: 'background-color', value: 'oklch(0 0 0 / 50%)' }],
       },
-      { '&[data-state="closed"]': ['hidden'] },
+      {
+        '&[data-state="open"]': [animationDecl('vz-fade-in 150ms ease-out forwards')],
+      },
+      {
+        '&[data-state="closed"]': [animationDecl('vz-fade-out 150ms ease-out forwards')],
+      },
     ],
     dialogPanel: [
       'fixed',
@@ -44,7 +50,12 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
       'shadow:lg',
       'p:6',
       'gap:4',
-      { '&[data-state="closed"]': ['hidden'] },
+      {
+        '&[data-state="open"]': [animationDecl('vz-zoom-in 200ms ease-out forwards')],
+      },
+      {
+        '&[data-state="closed"]': [animationDecl('vz-zoom-out 200ms ease-out forwards')],
+      },
     ],
     dialogTitle: ['text:lg', 'font:semibold', 'leading:none', 'tracking:tight'],
     dialogDescription: ['text:sm', 'text:muted-foreground'],

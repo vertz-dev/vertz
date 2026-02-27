@@ -3,6 +3,16 @@
  * Provides functions for setting and toggling ARIA attributes on DOM elements.
  */
 
+import { onAnimationsComplete } from './animation';
+
+/**
+ * Generation counter per element to invalidate stale hide callbacks.
+ * Each call to setHiddenAnimated increments the generation; when the
+ * animation-complete callback fires, it only applies display:none if
+ * the generation hasn't changed (i.e., no subsequent open/close occurred).
+ */
+const hideGeneration = new WeakMap<HTMLElement, number>();
+
 /**
  * Set aria-expanded on an element.
  */
@@ -37,6 +47,35 @@ export function setSelected(el: HTMLElement, selected: boolean): void {
 export function setHidden(el: HTMLElement, hidden: boolean): void {
   el.setAttribute('aria-hidden', String(hidden));
   el.style.display = hidden ? 'none' : '';
+}
+
+/**
+ * Hide an element after its CSS exit animations complete.
+ * Sets aria-hidden immediately for screen readers, but defers
+ * style.display = 'none' until animations finish.
+ *
+ * For showing (hidden=false), the display is set immediately
+ * so enter animations can play.
+ */
+export function setHiddenAnimated(el: HTMLElement, hidden: boolean): void {
+  const gen = (hideGeneration.get(el) ?? 0) + 1;
+  hideGeneration.set(el, gen);
+
+  if (!hidden) {
+    // Show immediately so enter animation is visible
+    el.setAttribute('aria-hidden', 'false');
+    el.style.display = '';
+    return;
+  }
+
+  // Hide: set aria-hidden immediately, defer display:none
+  el.setAttribute('aria-hidden', 'true');
+  onAnimationsComplete(el, () => {
+    // Only hide if no subsequent open/close has occurred
+    if (hideGeneration.get(el) === gen) {
+      el.style.display = 'none';
+    }
+  });
 }
 
 /**

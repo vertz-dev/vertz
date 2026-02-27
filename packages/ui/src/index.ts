@@ -30,16 +30,30 @@ export type {
   VariantsConfig,
 } from './css';
 export {
+  ANIMATION_DURATION,
+  ANIMATION_EASING,
+  accordionDown,
+  accordionUp,
   compileTheme,
   css,
   defineTheme,
+  fadeIn,
+  fadeOut,
   getInjectedCSS,
   globalCss,
+  injectCSS,
+  keyframes,
   palettes,
   resetInjectedStyles,
   s,
+  slideInFromBottom,
+  slideInFromTop,
+  slideOutToBottom,
+  slideOutToTop,
   ThemeProvider,
   variants,
+  zoomIn,
+  zoomOut,
 } from './css';
 // Render adapter
 export type { RenderAdapter, RenderElement, RenderNode, RenderText } from './dom/adapter';

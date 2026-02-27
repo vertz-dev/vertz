@@ -5,7 +5,7 @@
 
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
-import { setDataState, setExpanded, setHidden } from '../utils/aria';
+import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
@@ -95,10 +95,20 @@ export const Accordion = {
       trigger.addEventListener('click', () => {
         toggleItem(value);
         const nowOpen = state.value.peek().includes(value);
+        if (nowOpen) {
+          // Show first so scrollHeight is measurable
+          setHidden(content, false);
+        }
+        // Measure content height for accordion animation
+        const height = content.scrollHeight;
+        content.style.setProperty('--accordion-content-height', `${height}px`);
         setExpanded(trigger, nowOpen);
-        setHidden(content, !nowOpen);
         setDataState(trigger, nowOpen ? 'open' : 'closed');
         setDataState(content, nowOpen ? 'open' : 'closed');
+        if (!nowOpen) {
+          // Defer display:none until exit animations complete
+          setHiddenAnimated(content, true);
+        }
       });
 
       triggers.push(trigger);
