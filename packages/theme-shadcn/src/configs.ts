@@ -1,2 +1,4 @@
 // Variant config objects for customization via config-object spread.
-// Populated in Phase 3 when style definitions are created.
+
+export { badgeConfig } from './styles/badge';
+export { buttonConfig } from './styles/button';

@@ -1,2 +1,2 @@
-export type { ResolvedTheme, ThemeConfig } from './configure';
+export type { ResolvedTheme, ThemeConfig, ThemeStyles } from './configure';
 export { configureTheme } from './configure';
