@@ -219,12 +219,49 @@ import { createAuth } from '@vertz/server';
 
 const auth = createAuth({
   session: {
-    cookie: { name: 'session', httpOnly: true },
+    strategy: 'jwt',
+    ttl: '7d',
+    cookie: { name: 'session', httpOnly: true, secure: true },
   },
   jwtSecret: process.env.AUTH_SECRET!,
   emailPassword: {
-    // password requirements, rate limits
+    enabled: true,
+    password: { minLength: 8, requireUppercase: true },
+    rateLimit: { window: '15m', maxAttempts: 5 },
   },
+});
+```
+
+### Auth Configuration
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `session` | `SessionConfig` | *required* | Session strategy, TTL, and cookie settings |
+| `jwtSecret` | `string` | — | JWT signing secret. **Required in production** |
+| `jwtAlgorithm` | `'HS256' \| 'HS384' \| 'HS512' \| 'RS256'` | `'HS256'` | JWT signing algorithm |
+| `emailPassword` | `EmailPasswordConfig` | — | Password requirements and rate limiting |
+| `claims` | `(user: AuthUser) => Record<string, unknown>` | — | Custom JWT claims |
+| `isProduction` | `boolean` | auto-detected | Override production mode detection |
+
+### Production Mode
+
+By default, `createAuth` auto-detects production mode from `NODE_ENV`. In production mode:
+- `jwtSecret` is **required** (throws if missing)
+- CSRF validation is enforced on state-changing requests
+
+On edge runtimes where `process` is unavailable (Cloudflare Workers, Deno Deploy), the default is **production** (secure-by-default). Pass `isProduction: false` explicitly for development:
+
+```typescript
+// Edge runtime — defaults to production (secure)
+const auth = createAuth({
+  session: { strategy: 'jwt', ttl: '7d' },
+  jwtSecret: env.AUTH_SECRET, // required — no fallback
+});
+
+// Edge runtime in development — opt in explicitly
+const auth = createAuth({
+  session: { strategy: 'jwt', ttl: '7d' },
+  isProduction: false, // uses insecure default secret
 });
 ```
 
