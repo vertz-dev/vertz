@@ -1,34 +1,29 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { SchemaSnapshot } from './snapshot';
+import type { SnapshotStorage } from './storage';
 
 /**
- * Load a schema snapshot from a JSON file.
- * Returns null if the file doesn't exist (first run).
+ * Node.js filesystem implementation of SnapshotStorage.
+ * Uses node:fs/promises for file I/O and node:path for directory creation.
  */
-export async function loadSnapshot(path: string): Promise<SchemaSnapshot | null> {
-  try {
-    const content = await readFile(path, 'utf-8');
-    return JSON.parse(content) as SchemaSnapshot;
-  } catch (err) {
-    // File doesn't exist or is invalid — treat as first run
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return null;
+export class NodeSnapshotStorage implements SnapshotStorage {
+  async load(path: string): Promise<SchemaSnapshot | null> {
+    try {
+      const content = await readFile(path, 'utf-8');
+      return JSON.parse(content) as SchemaSnapshot;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null;
+      }
+      throw err;
     }
-    throw err;
   }
-}
 
-/**
- * Save a schema snapshot to a JSON file.
- * Creates parent directories if they don't exist.
- */
-export async function saveSnapshot(
-  path: string,
-  snapshot: SchemaSnapshot,
-): Promise<void> {
-  const dir = dirname(path);
-  await mkdir(dir, { recursive: true });
-  const content = JSON.stringify(snapshot, null, 2);
-  await writeFile(path, content, 'utf-8');
+  async save(path: string, snapshot: SchemaSnapshot): Promise<void> {
+    const dir = dirname(path);
+    await mkdir(dir, { recursive: true });
+    const content = JSON.stringify(snapshot, null, 2);
+    await writeFile(path, `${content}\n`, 'utf-8');
+  }
 }

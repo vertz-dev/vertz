@@ -1,18 +1,16 @@
-import type { SchemaSnapshot } from './snapshot';
-import { computeDiff, type DiffChange } from './differ';
-import { generateMigrationSql } from './sql-generator';
-import { createMigrationRunner, type MigrationQueryFn } from './runner';
-import { loadSnapshot, saveSnapshot } from './snapshot-storage';
-import { defaultSqliteDialect } from '../dialect';
 import { isErr } from '@vertz/errors';
+import { defaultSqliteDialect } from '../dialect';
+import { computeDiff, type DiffChange } from './differ';
+import { createMigrationRunner, type MigrationQueryFn } from './runner';
+import type { SchemaSnapshot } from './snapshot';
+import { NodeSnapshotStorage } from './snapshot-storage';
+import { generateMigrationSql } from './sql-generator';
+import type { SnapshotStorage } from './storage';
 
 /**
  * Types of changes that are considered destructive (data loss).
  */
-const DESTRUCTIVE_CHANGE_TYPES: DiffChange['type'][] = [
-  'table_removed',
-  'column_removed',
-];
+const DESTRUCTIVE_CHANGE_TYPES: DiffChange['type'][] = ['table_removed', 'column_removed'];
 
 /**
  * Check if a change is destructive (causes data loss).
@@ -27,12 +25,14 @@ function isDestructiveChange(change: DiffChange): boolean {
 export interface AutoMigrateOptions {
   /** The current schema snapshot (from d.table() definitions). */
   currentSchema: SchemaSnapshot;
-  /** Path to the snapshot file for persistence. */
+  /** Key for snapshot persistence (file path for NodeSnapshotStorage, or any string key for custom backends). */
   snapshotPath: string;
   /** Database dialect - currently only 'sqlite' is supported. */
   dialect: 'sqlite';
   /** Database connection that can execute SQL queries. */
   db: MigrationQueryFn;
+  /** Optional storage adapter. Defaults to NodeSnapshotStorage. */
+  storage?: SnapshotStorage;
 }
 
 /**
@@ -49,9 +49,10 @@ export interface AutoMigrateOptions {
  */
 export async function autoMigrate(options: AutoMigrateOptions): Promise<void> {
   const { currentSchema, snapshotPath, db } = options;
+  const storage = options.storage ?? new NodeSnapshotStorage();
 
   // Load previous snapshot
-  const previousSnapshot = await loadSnapshot(snapshotPath);
+  const previousSnapshot = await storage.load(snapshotPath);
 
   // Get the appropriate dialect
   const dialectObj = defaultSqliteDialect;
@@ -79,21 +80,27 @@ export async function autoMigrate(options: AutoMigrateOptions): Promise<void> {
         }
       }
 
-      const sql = generateMigrationSql(diff.changes, {
-        tables: currentSchema.tables,
-        enums: currentSchema.enums,
-      }, dialectObj);
+      const sql = generateMigrationSql(
+        diff.changes,
+        {
+          tables: currentSchema.tables,
+          enums: currentSchema.enums,
+        },
+        dialectObj,
+      );
 
       if (sql.trim()) {
         const result = await runner.apply(db, sql, 'auto-migrate-initial');
         if (isErr(result)) {
           const error = result.error;
-          const errorMessage = typeof error === 'object' && error !== null && 'message' in error
-            ? (error as { message: unknown }).message
-            : String(error);
-          const cause = typeof error === 'object' && error !== null && 'cause' in error
-            ? (error as { cause: unknown }).cause
-            : undefined;
+          const errorMessage =
+            typeof error === 'object' && error !== null && 'message' in error
+              ? (error as { message: unknown }).message
+              : String(error);
+          const cause =
+            typeof error === 'object' && error !== null && 'cause' in error
+              ? (error as { cause: unknown }).cause
+              : undefined;
           const causeStr = cause ? ` (cause: ${String(cause)})` : '';
           throw new Error(`Failed to apply initial schema: ${errorMessage}${causeStr}`);
         }
@@ -125,21 +132,27 @@ export async function autoMigrate(options: AutoMigrateOptions): Promise<void> {
         );
       }
 
-      const sql = generateMigrationSql(diff.changes, {
-        tables: currentSchema.tables,
-        enums: currentSchema.enums,
-      }, dialectObj);
+      const sql = generateMigrationSql(
+        diff.changes,
+        {
+          tables: currentSchema.tables,
+          enums: currentSchema.enums,
+        },
+        dialectObj,
+      );
 
       if (sql.trim()) {
         const result = await runner.apply(db, sql, `auto-migrate-${Date.now()}`);
         if (isErr(result)) {
           const error = result.error;
-          const errorMessage = typeof error === 'object' && error !== null && 'message' in error
-            ? (error as { message: unknown }).message
-            : String(error);
-          const cause = typeof error === 'object' && error !== null && 'cause' in error
-            ? (error as { cause: unknown }).cause
-            : undefined;
+          const errorMessage =
+            typeof error === 'object' && error !== null && 'message' in error
+              ? (error as { message: unknown }).message
+              : String(error);
+          const cause =
+            typeof error === 'object' && error !== null && 'cause' in error
+              ? (error as { cause: unknown }).cause
+              : undefined;
           const causeStr = cause ? ` (cause: ${String(cause)})` : '';
           throw new Error(`Failed to apply migration: ${errorMessage}${causeStr}`);
         }
@@ -149,6 +162,6 @@ export async function autoMigrate(options: AutoMigrateOptions): Promise<void> {
   }
 
   // Save updated snapshot
-  await saveSnapshot(snapshotPath, currentSchema);
+  await storage.save(snapshotPath, currentSchema);
   console.log('[auto-migrate] Snapshot saved.');
 }
