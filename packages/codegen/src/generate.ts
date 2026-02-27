@@ -5,15 +5,7 @@ import type { ResolvedCodegenConfig } from './config';
 import { formatWithBiome } from './format';
 import { EntitySchemaGenerator } from './generators/entity-schema-generator';
 import { EntitySdkGenerator } from './generators/entity-sdk-generator';
-import { emitManifestFile } from './generators/typescript/emit-cli';
-import { emitClientFile, emitModuleFile } from './generators/typescript/emit-client';
-import { emitRouteMapType } from './generators/typescript/emit-routes';
-import {
-  emitBarrelIndex,
-  emitPackageJson,
-  emitSchemaReExports,
-} from './generators/typescript/emit-sdk';
-import { emitModuleTypesFile, emitSharedTypesFile } from './generators/typescript/emit-types';
+import { EntityTypesGenerator } from './generators/entity-types-generator';
 import type { IncrementalResult } from './incremental';
 import { writeIncremental } from './incremental';
 import { adaptIR } from './ir-adapter';
@@ -36,89 +28,21 @@ export interface GenerateResult {
 
 // ── TypeScript generator ───────────────────────────────────────────
 
-function runTypescriptGenerator(ir: CodegenIR, config: ResolvedCodegenConfig): GeneratedFile[] {
+function runTypescriptGenerator(ir: CodegenIR, _config: ResolvedCodegenConfig): GeneratedFile[] {
   const files: GeneratedFile[] = [];
+  const generatorConfig = { outputDir: _config.outputDir, options: {} };
 
-  // Determine which schemas belong to which module
-  const moduleSchemaNames = new Set<string>();
-  for (const mod of ir.modules) {
-    for (const op of mod.operations) {
-      for (const ref of Object.values(op.schemaRefs)) {
-        if (ref) moduleSchemaNames.add(ref);
-      }
-    }
-  }
+  // Entity types (types/tasks.ts, types/index.ts)
+  const entityTypesGen = new EntityTypesGenerator();
+  files.push(...entityTypesGen.generate(ir, generatorConfig));
 
-  // Shared schemas: those not referenced by any module operation's schemaRefs
-  const sharedSchemas = ir.schemas.filter((s) => !moduleSchemaNames.has(s.name));
-
-  // Module type files
-  for (const mod of ir.modules) {
-    // Get schemas referenced by this module
-    const moduleRefNames = new Set<string>();
-    for (const op of mod.operations) {
-      for (const ref of Object.values(op.schemaRefs)) {
-        if (ref) moduleRefNames.add(ref);
-      }
-    }
-    const moduleSchemas = ir.schemas.filter((s) => moduleRefNames.has(s.name));
-
-    files.push(emitModuleTypesFile(mod, moduleSchemas));
-  }
-
-  // Shared types file (only if there are shared schemas)
-  if (sharedSchemas.length > 0) {
-    files.push(emitSharedTypesFile(sharedSchemas));
-  }
-
-  // Route map type for typed test app
-  files.push(emitRouteMapType(ir));
-
-  // Module client files
-  for (const mod of ir.modules) {
-    files.push(emitModuleFile(mod));
-  }
-
-  // Client file
-  files.push(emitClientFile(ir));
-
-  // Schema re-exports
-  if (ir.schemas.length > 0) {
-    files.push(emitSchemaReExports(ir.schemas));
-  }
-
-  // Barrel index
-  files.push(emitBarrelIndex(ir));
-
-  // Package.json
-  if (config.typescript?.publishable) {
-    files.push(
-      emitPackageJson(ir, {
-        packageName: config.typescript.publishable.name,
-        packageVersion: config.typescript.publishable.version,
-      }),
-    );
-  }
-
-  // Entity schema files (schemas/todos.ts, schemas/index.ts)
-  const generatorConfig = { outputDir: config.outputDir, options: {} };
+  // Entity schema files (schemas/tasks.ts, schemas/index.ts)
   const entitySchemaGen = new EntitySchemaGenerator();
   files.push(...entitySchemaGen.generate(ir, generatorConfig));
 
-  // Entity SDK files (entities/todos.ts, entities/index.ts)
+  // Entity SDK files (entities/tasks.ts, entities/index.ts)
   const entitySdkGen = new EntitySdkGenerator();
   files.push(...entitySdkGen.generate(ir, generatorConfig));
-
-  return files;
-}
-
-// ── CLI Generator ───────────────────────────────────────────────
-
-function runCLIGenerator(ir: CodegenIR): GeneratedFile[] {
-  const files: GeneratedFile[] = [];
-
-  // cli/manifest.ts — command definitions
-  files.push(emitManifestFile(ir));
 
   return files;
 }
@@ -133,9 +57,6 @@ export function generateSync(ir: CodegenIR, config: ResolvedCodegenConfig): Gene
     if (gen === 'typescript') {
       generators.push('typescript');
       files.push(...runTypescriptGenerator(ir, config));
-    } else if (gen === 'cli') {
-      generators.push('cli');
-      files.push(...runCLIGenerator(ir));
     }
   }
 

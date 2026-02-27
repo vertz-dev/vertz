@@ -124,6 +124,7 @@ export interface CodegenEntityOperation {
   inputSchema?: string;
   outputSchema?: string;
   resolvedFields?: CodegenResolvedField[];
+  responseFields?: CodegenResolvedField[];
 }
 
 /** Structured field info for schema generation. */

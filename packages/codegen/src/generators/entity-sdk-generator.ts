@@ -66,14 +66,15 @@ export class EntitySdkGenerator implements Generator {
         if (action.inputSchema) typeImports.add(action.inputSchema);
         if (action.outputSchema) typeImports.add(action.outputSchema);
       }
-      lines.push(`import type { ${[...typeImports].join(', ')} } from '../types';`);
-      lines.push(`import type { Client } from '../client';`);
-      lines.push(`import { createDescriptor } from '@vertz/fetch';`);
+      lines.push(
+        `import type { ${[...typeImports].join(', ')} } from '../types/${entity.entityName}';`,
+      );
+      lines.push(`import { type FetchClient, createDescriptor } from '@vertz/fetch';`);
       lines.push('');
     }
 
     // Generate SDK object
-    lines.push(`export function create${pascal}Sdk(client: Client) {`);
+    lines.push(`export function create${pascal}Sdk(client: FetchClient) {`);
     lines.push('  return {');
 
     for (const op of entity.operations) {
