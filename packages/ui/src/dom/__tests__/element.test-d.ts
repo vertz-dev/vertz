@@ -44,7 +44,7 @@ const form2 = __element('form');
 // @ts-expect-error — <form> returns HTMLFormElement, not HTMLInputElement
 void (form2 satisfies HTMLInputElement);
 
-// --- Unknown tags fall back to HTMLElement ---
+// --- Unknown tags fall back to Element (could be HTML or SVG) ---
 
 const custom = __element('my-widget');
-void (custom satisfies HTMLElement);
+void (custom satisfies Element);

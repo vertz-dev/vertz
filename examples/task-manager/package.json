@@ -22,8 +22,9 @@
     "@vertz/fetch": "workspace:*",
     "@vertz/theme-shadcn": "workspace:*",
     "@vertz/ui": "workspace:*",
+    "@vertz/ui-primitives": "workspace:*",
     "@vertz/ui-server": "workspace:*",
-    "@vertz/ui-primitives": "workspace:*"
+    "lucide-static": "^0.575.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

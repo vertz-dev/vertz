@@ -8,6 +8,7 @@ import {
 import { domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
 import { getAdapter, isRenderNode } from './adapter';
+import { isSVGTag, normalizeSVGAttr, SVG_NS } from './svg-tags';
 
 /** A Text node that also carries a dispose function for cleanup. */
 export interface DisposableText extends Text {
@@ -173,8 +174,8 @@ export function __element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   props?: Record<string, string>,
 ): HTMLElementTagNameMap[K];
-export function __element(tag: string, props?: Record<string, string>): HTMLElement;
-export function __element(tag: string, props?: Record<string, string>): HTMLElement {
+export function __element(tag: string, props?: Record<string, string>): Element;
+export function __element(tag: string, props?: Record<string, string>): Element {
   if (getIsHydrating()) {
     const claimed = claimElement(tag);
     if (claimed) {
@@ -194,13 +195,18 @@ export function __element(tag: string, props?: Record<string, string>): HTMLElem
       return claimed;
     }
   }
-  const el = getAdapter().createElement(tag) as unknown as HTMLElement;
+  const adapter = getAdapter();
+  const svg = isSVGTag(tag);
+  const el = svg ? adapter.createElementNS(SVG_NS, tag) : adapter.createElement(tag);
   if (props) {
     for (const [key, value] of Object.entries(props)) {
-      el.setAttribute(key, value);
+      const attrName = svg ? normalizeSVGAttr(key) : key;
+      el.setAttribute(attrName, value);
     }
   }
-  return el;
+  // RenderElement → Element: adapter returns RenderElement but callers expect DOM Element.
+  // This is safe because the DOM adapter creates real DOM elements.
+  return el as unknown as Element;
 }
 
 /**

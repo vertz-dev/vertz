@@ -11,6 +11,7 @@
  */
 
 import { css } from '@vertz/ui';
+import { Icon } from '../components/icon';
 import { useSettings } from '../lib/settings-context';
 import { formStyles } from '../styles/components';
 
@@ -72,8 +73,11 @@ export function SettingsPage() {
             tabindex="0"
             onClick={() => selectTheme('light')}
           >
-            <div class={settingsStyles.previewBox} style="background-color: #ffffff">
-              <div class={settingsStyles.previewText}>Light theme preview</div>
+            <div
+              class={settingsStyles.previewBox}
+              style="background-color: #ffffff; display: flex; align-items: center; justify-content: center"
+            >
+              <Icon name="Sun" size={24} />
             </div>
             <div style="font-weight: 500">Light</div>
           </div>
@@ -88,8 +92,11 @@ export function SettingsPage() {
             tabindex="0"
             onClick={() => selectTheme('dark')}
           >
-            <div class={settingsStyles.previewBox} style="background-color: #111827">
-              <div class={settingsStyles.previewText}>Dark theme preview</div>
+            <div
+              class={settingsStyles.previewBox}
+              style="background-color: #111827; color: #ffffff; display: flex; align-items: center; justify-content: center"
+            >
+              <Icon name="Moon" size={24} />
             </div>
             <div style="font-weight: 500">Dark</div>
           </div>

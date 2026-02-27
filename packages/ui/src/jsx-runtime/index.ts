@@ -12,6 +12,8 @@
  * - Fragment          — document fragment
  */
 
+import { isSVGTag, normalizeSVGAttr, SVG_NS } from '../dom/svg-tags';
+
 /**
  * JSX namespace - required for TypeScript's react-jsx mode
  * to understand intrinsic element types and component types.
@@ -20,7 +22,7 @@ export namespace JSX {
   /**
    * The return type of JSX expressions
    */
-  export type Element = HTMLElement;
+  export type Element = HTMLElement | SVGElement;
 
   /**
    * Component function type
@@ -89,7 +91,8 @@ function jsxImpl(
 
   // Tag is a string → create a DOM element
   const { children, ...attrs } = props || {};
-  const element = document.createElement(tag);
+  const svg = isSVGTag(tag);
+  const element = svg ? document.createElementNS(SVG_NS, tag) : document.createElement(tag);
 
   // Apply attributes
   for (const [key, value] of Object.entries(attrs)) {
@@ -98,15 +101,17 @@ function jsxImpl(
       const eventName = key.slice(2).toLowerCase();
       element.addEventListener(eventName, value as EventListener);
     } else if (key === 'class' && value != null) {
-      element.className = String(value);
+      // SVGElement.className is read-only (SVGAnimatedString), use setAttribute
+      element.setAttribute('class', String(value));
     } else if (key === 'style' && value != null) {
       element.setAttribute('style', String(value));
     } else if (value === true) {
       // Boolean attribute (e.g. checked, disabled)
       element.setAttribute(key, '');
     } else if (value != null && value !== false) {
-      // All other attributes
-      element.setAttribute(key, String(value));
+      // SVG attribute normalization (camelCase → hyphenated)
+      const attrName = svg ? normalizeSVGAttr(key) : key;
+      element.setAttribute(attrName, String(value));
     }
   }
 
