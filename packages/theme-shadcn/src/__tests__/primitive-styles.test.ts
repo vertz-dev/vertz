@@ -1,12 +1,38 @@
 import { describe, expect, it } from 'bun:test';
 import { createAccordionStyles } from '../styles/accordion';
+import { createAlertDialogStyles } from '../styles/alert-dialog';
 import { createCheckboxStyles } from '../styles/checkbox';
 import { createDialogStyles } from '../styles/dialog';
 import { createProgressStyles } from '../styles/progress';
 import { createSelectStyles } from '../styles/select';
 import { createSwitchStyles } from '../styles/switch';
 import { createTabsStyles } from '../styles/tabs';
+import { createToastStyles } from '../styles/toast';
 import { createTooltipStyles } from '../styles/tooltip';
+
+describe('alert-dialog', () => {
+  const alertDialog = createAlertDialogStyles();
+
+  it('has overlay, panel, title, description, footer, cancel, and action blocks', () => {
+    expect(typeof alertDialog.overlay).toBe('string');
+    expect(typeof alertDialog.panel).toBe('string');
+    expect(typeof alertDialog.title).toBe('string');
+    expect(typeof alertDialog.description).toBe('string');
+    expect(typeof alertDialog.footer).toBe('string');
+    expect(typeof alertDialog.cancel).toBe('string');
+    expect(typeof alertDialog.action).toBe('string');
+  });
+
+  it('all class names are non-empty', () => {
+    expect(alertDialog.overlay.length).toBeGreaterThan(0);
+    expect(alertDialog.panel.length).toBeGreaterThan(0);
+    expect(alertDialog.title.length).toBeGreaterThan(0);
+    expect(alertDialog.description.length).toBeGreaterThan(0);
+    expect(alertDialog.footer.length).toBeGreaterThan(0);
+    expect(alertDialog.cancel.length).toBeGreaterThan(0);
+    expect(alertDialog.action.length).toBeGreaterThan(0);
+  });
+});
 
 describe('dialog', () => {
   const dialog = createDialogStyles();
@@ -174,6 +200,28 @@ describe('accordion', () => {
 
   it('CSS does not use display:none for animated states', () => {
     expect(accordion.css).not.toContain('display: none');
+  });
+});
+
+describe('toast', () => {
+  const toast = createToastStyles();
+
+  it('has viewport, root, title, description, action, and close blocks', () => {
+    expect(typeof toast.viewport).toBe('string');
+    expect(typeof toast.root).toBe('string');
+    expect(typeof toast.title).toBe('string');
+    expect(typeof toast.description).toBe('string');
+    expect(typeof toast.action).toBe('string');
+    expect(typeof toast.close).toBe('string');
+  });
+
+  it('all class names are non-empty', () => {
+    expect(toast.viewport.length).toBeGreaterThan(0);
+    expect(toast.root.length).toBeGreaterThan(0);
+    expect(toast.title.length).toBeGreaterThan(0);
+    expect(toast.description.length).toBeGreaterThan(0);
+    expect(toast.action.length).toBeGreaterThan(0);
+    expect(toast.close.length).toBeGreaterThan(0);
   });
 });
 

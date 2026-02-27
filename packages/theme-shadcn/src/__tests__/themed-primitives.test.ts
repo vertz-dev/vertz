@@ -1,12 +1,104 @@
 import { describe, expect, it } from 'bun:test';
 import { createAccordionStyles } from '../styles/accordion';
+import { createAlertDialogStyles } from '../styles/alert-dialog';
 import { createCheckboxStyles } from '../styles/checkbox';
 import { createDialogStyles } from '../styles/dialog';
 import { createProgressStyles } from '../styles/progress';
 import { createSelectStyles } from '../styles/select';
 import { createSwitchStyles } from '../styles/switch';
 import { createTabsStyles } from '../styles/tabs';
+import { createToastStyles } from '../styles/toast';
 import { createTooltipStyles } from '../styles/tooltip';
+
+// ── AlertDialog ────────────────────────────────────────────
+
+describe('createThemedAlertDialog', () => {
+  it('applies theme classes to alert dialog elements', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog();
+
+    expect(ad.overlay.classList.contains(styles.overlay)).toBe(true);
+    expect(ad.content.classList.contains(styles.panel)).toBe(true);
+    expect(ad.title.classList.contains(styles.title)).toBe(true);
+  });
+
+  it('applies theme classes to footer, cancel, and action', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog();
+
+    expect(ad.footer.classList.contains(styles.footer)).toBe(true);
+    expect(ad.cancel.classList.contains(styles.cancel)).toBe(true);
+    expect(ad.action.classList.contains(styles.action)).toBe(true);
+  });
+
+  it('trigger opens the alert dialog', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog();
+
+    expect(ad.state.open.peek()).toBe(false);
+    ad.trigger.click();
+    expect(ad.state.open.peek()).toBe(true);
+  });
+
+  it('overlay click does NOT close the alert dialog', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog({ defaultOpen: true });
+
+    expect(ad.state.open.peek()).toBe(true);
+    ad.overlay.click();
+    expect(ad.state.open.peek()).toBe(true);
+  });
+
+  it('Escape key does NOT close the alert dialog', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog({ defaultOpen: true });
+
+    expect(ad.state.open.peek()).toBe(true);
+    const event = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    });
+    ad.content.dispatchEvent(event);
+    expect(ad.state.open.peek()).toBe(true);
+  });
+
+  it('returns all expected elements', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog();
+
+    expect(ad.trigger).toBeInstanceOf(HTMLButtonElement);
+    expect(ad.overlay).toBeInstanceOf(HTMLDivElement);
+    expect(ad.content).toBeInstanceOf(HTMLDivElement);
+    expect(ad.title).toBeInstanceOf(HTMLHeadingElement);
+    expect(ad.description).toBeInstanceOf(HTMLParagraphElement);
+    expect(ad.footer).toBeInstanceOf(HTMLDivElement);
+    expect(ad.cancel).toBeInstanceOf(HTMLButtonElement);
+    expect(ad.action).toBeInstanceOf(HTMLButtonElement);
+    expect(ad.state).toBeDefined();
+  });
+
+  it('passes defaultOpen option through', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog({ defaultOpen: true });
+
+    expect(ad.state.open.peek()).toBe(true);
+  });
+});
 
 // ── Dialog ─────────────────────────────────────────────────
 
@@ -251,6 +343,65 @@ describe('createThemedAccordion', () => {
     expect(accordion.state.value.peek()).toEqual([]);
     item.trigger.click();
     expect(accordion.state.value.peek()).toEqual(['section1']);
+  });
+});
+
+// ── Toast ──────────────────────────────────────────────────
+
+describe('createThemedToast', () => {
+  it('applies theme class to toast region (viewport)', async () => {
+    const { createThemedToast } = await import('../components/primitives/toast');
+    const styles = createToastStyles();
+    const themedToast = createThemedToast(styles);
+    const toast = themedToast();
+
+    expect(toast.region.classList.contains(styles.viewport)).toBe(true);
+  });
+
+  it('applies theme class to announced messages', async () => {
+    const { createThemedToast } = await import('../components/primitives/toast');
+    const styles = createToastStyles();
+    const themedToast = createThemedToast(styles);
+    const toast = themedToast({ duration: 0 });
+
+    const msg = toast.announce('Hello');
+    expect(msg.el.classList.contains(styles.root)).toBe(true);
+  });
+
+  it('preserves primitive behavior — announce and dismiss', async () => {
+    const { createThemedToast } = await import('../components/primitives/toast');
+    const styles = createToastStyles();
+    const themedToast = createThemedToast(styles);
+    const toast = themedToast({ duration: 0 });
+
+    expect(toast.state.messages.peek()).toHaveLength(0);
+    const msg = toast.announce('Test message');
+    expect(toast.state.messages.peek()).toHaveLength(1);
+    expect(msg.content).toBe('Test message');
+
+    toast.dismiss(msg.id);
+    expect(toast.state.messages.peek()).toHaveLength(0);
+  });
+
+  it('passes options through to primitive', async () => {
+    const { createThemedToast } = await import('../components/primitives/toast');
+    const styles = createToastStyles();
+    const themedToast = createThemedToast(styles);
+    const toast = themedToast({ politeness: 'assertive', duration: 0 });
+
+    expect(toast.region.getAttribute('aria-live')).toBe('assertive');
+  });
+
+  it('returns region, state, announce, and dismiss', async () => {
+    const { createThemedToast } = await import('../components/primitives/toast');
+    const styles = createToastStyles();
+    const themedToast = createThemedToast(styles);
+    const toast = themedToast();
+
+    expect(toast.region).toBeInstanceOf(HTMLDivElement);
+    expect(toast.state).toBeDefined();
+    expect(typeof toast.announce).toBe('function');
+    expect(typeof toast.dismiss).toBe('function');
   });
 });
 

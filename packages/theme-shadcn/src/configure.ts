@@ -16,6 +16,7 @@ import type {
   SwitchOptions,
   SwitchState,
   TabsOptions,
+  ToastOptions,
   TooltipElements,
   TooltipOptions,
   TooltipState,
@@ -36,6 +37,8 @@ import type { LabelProps } from './components/label';
 import { createLabelComponent } from './components/label';
 import type { ThemedAccordionResult } from './components/primitives/accordion';
 import { createThemedAccordion } from './components/primitives/accordion';
+import type { AlertDialogElements, AlertDialogOptions } from './components/primitives/alert-dialog';
+import { createThemedAlertDialog } from './components/primitives/alert-dialog';
 import { createThemedCheckbox } from './components/primitives/checkbox';
 import { createThemedDialog } from './components/primitives/dialog';
 import { createThemedProgress } from './components/primitives/progress';
@@ -44,6 +47,8 @@ import { createThemedSelect } from './components/primitives/select';
 import { createThemedSwitch } from './components/primitives/switch';
 import type { ThemedTabsResult } from './components/primitives/tabs';
 import { createThemedTabs } from './components/primitives/tabs';
+import type { ThemedToastResult } from './components/primitives/toast';
+import { createThemedToast } from './components/primitives/toast';
 import { createThemedTooltip } from './components/primitives/tooltip';
 import type { SeparatorProps } from './components/separator';
 import { createSeparatorComponent } from './components/separator';
@@ -53,6 +58,7 @@ import { deepMergeTokens } from './merge';
 import {
   createAccordionStyles,
   createAlert,
+  createAlertDialogStyles,
   createBadge,
   createButton,
   createCard,
@@ -67,6 +73,7 @@ import {
   createSwitchStyles,
   createTabsStyles,
   createTextarea,
+  createToastStyles,
   createTooltipStyles,
 } from './styles';
 import type { PaletteName } from './tokens';
@@ -168,11 +175,32 @@ export interface ThemeStyles {
     readonly indicator: string;
     readonly css: string;
   };
+  /** AlertDialog css() styles. */
+  alertDialog: {
+    readonly overlay: string;
+    readonly panel: string;
+    readonly title: string;
+    readonly description: string;
+    readonly footer: string;
+    readonly cancel: string;
+    readonly action: string;
+    readonly css: string;
+  };
   /** Accordion css() styles. */
   accordion: {
     readonly item: string;
     readonly trigger: string;
     readonly content: string;
+    readonly css: string;
+  };
+  /** Toast css() styles. */
+  toast: {
+    readonly viewport: string;
+    readonly root: string;
+    readonly title: string;
+    readonly description: string;
+    readonly action: string;
+    readonly close: string;
     readonly css: string;
   };
   /** Tooltip css() styles. */
@@ -184,6 +212,8 @@ export interface ThemeStyles {
 
 /** Themed primitive factories returned by configureTheme(). */
 export interface ThemedPrimitives {
+  /** Themed AlertDialog — modal dialog requiring explicit confirm/cancel action. */
+  alertDialog: (options?: AlertDialogOptions) => AlertDialogElements;
   /** Themed Dialog — wraps @vertz/ui-primitives Dialog with shadcn styles. */
   dialog: (options?: DialogOptions) => DialogElements & { state: DialogState };
   /** Themed Select — wraps @vertz/ui-primitives Select with shadcn styles. */
@@ -200,6 +230,8 @@ export interface ThemedPrimitives {
   ) => ProgressElements & { state: ProgressState; setValue: (value: number) => void };
   /** Themed Accordion — wraps @vertz/ui-primitives Accordion with shadcn styles. */
   accordion: (options?: AccordionOptions) => ThemedAccordionResult;
+  /** Themed Toast — wraps @vertz/ui-primitives Toast with shadcn styles. */
+  toast: (options?: ToastOptions) => ThemedToastResult;
   /** Themed Tooltip — wraps @vertz/ui-primitives Tooltip with shadcn styles. */
   tooltip: (options?: TooltipOptions) => TooltipElements & { state: TooltipState };
 }
@@ -304,12 +336,15 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const switchStyles = createSwitchStyles();
   const progressStyles = createProgressStyles();
   const alertStyles = createAlert();
+  const alertDialogStyles = createAlertDialogStyles();
   const accordionStyles = createAccordionStyles();
   const textareaStyles = createTextarea();
+  const toastStyles = createToastStyles();
   const tooltipStyles = createTooltipStyles();
 
   const styles: ThemeStyles = {
     alert: alertStyles,
+    alertDialog: alertDialogStyles,
     button: buttonStyles,
     badge: badgeStyles,
     card: cardStyles,
@@ -325,6 +360,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     switch: switchStyles,
     progress: progressStyles,
     accordion: accordionStyles,
+    toast: toastStyles,
     tooltip: tooltipStyles,
   };
 
@@ -340,6 +376,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     Separator: createSeparatorComponent(separatorStyles),
     FormGroup: createFormGroupComponents(formGroupStyles),
     primitives: {
+      alertDialog: createThemedAlertDialog(alertDialogStyles),
       dialog: createThemedDialog(dialogStyles),
       select: createThemedSelect(selectStyles),
       tabs: createThemedTabs(tabsStyles),
@@ -347,6 +384,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       switch: createThemedSwitch(switchStyles),
       progress: createThemedProgress(progressStyles),
       accordion: createThemedAccordion(accordionStyles),
+      toast: createThemedToast(toastStyles),
       tooltip: createThemedTooltip(tooltipStyles),
     },
   };

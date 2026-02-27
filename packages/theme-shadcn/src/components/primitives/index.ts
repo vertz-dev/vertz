@@ -1,5 +1,7 @@
 export type { ThemedAccordionResult } from './accordion';
 export { createThemedAccordion } from './accordion';
+export type { AlertDialogElements, AlertDialogOptions } from './alert-dialog';
+export { createThemedAlertDialog } from './alert-dialog';
 export { createThemedCheckbox } from './checkbox';
 export { createThemedDialog } from './dialog';
 export { createThemedProgress } from './progress';
@@ -8,4 +10,6 @@ export { createThemedSelect } from './select';
 export { createThemedSwitch } from './switch';
 export type { ThemedTabsResult } from './tabs';
 export { createThemedTabs } from './tabs';
+export type { ThemedToastResult } from './toast';
+export { createThemedToast } from './toast';
 export { createThemedTooltip } from './tooltip';
