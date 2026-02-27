@@ -24,6 +24,8 @@ export class ReactivityAnalyzer {
     const lets = new Map<string, { start: number; end: number; deps: string[] }>();
     const consts = new Map<string, { start: number; end: number; deps: string[] }>();
     const signalApiVars = new Map<string, SignalApiConfig>(); // Track variables assigned from signal APIs
+    const destructuredFromMap = new Map<string, string>(); // binding name → synthetic var name
+    const syntheticCounters = new Map<string, number>(); // API name → counter for unique naming
 
     for (const stmt of bodyNode.getChildSyntaxList()?.getChildren() ?? []) {
       if (!stmt.isKind(SyntaxKind.VariableStatement)) continue;
@@ -40,14 +42,54 @@ export class ReactivityAnalyzer {
 
         // Handle destructuring: let { a, b } = expr
         if (nameNode.isKind(SyntaxKind.ObjectBindingPattern)) {
-          const deps = init ? collectIdentifierRefs(init) : [];
+          // Check if the initializer is a signal API call
+          let signalApiConfig: SignalApiConfig | undefined;
+          let syntheticName: string | undefined;
+
+          if (isConst && init?.isKind(SyntaxKind.CallExpression)) {
+            const callExpr = init.asKindOrThrow(SyntaxKind.CallExpression);
+            const callName = callExpr.getExpression();
+            if (callName.isKind(SyntaxKind.Identifier)) {
+              const fnName = callName.getText();
+              const originalName = importAliases.get(fnName) ?? fnName;
+              if (isSignalApi(originalName)) {
+                signalApiConfig = getSignalApiConfig(originalName);
+                if (signalApiConfig) {
+                  const counter = syntheticCounters.get(originalName) ?? 0;
+                  syntheticName = `__${originalName}_${counter}`;
+                  syntheticCounters.set(originalName, counter + 1);
+
+                  // Register the synthetic variable with signal API config
+                  signalApiVars.set(syntheticName, signalApiConfig);
+                  consts.set(syntheticName, {
+                    start: decl.getStart(),
+                    end: decl.getEnd(),
+                    deps: [],
+                  });
+                }
+              }
+            }
+          }
+
           for (const element of nameNode.getElements()) {
             const bindingName = element.getName();
-            const entry = { start: decl.getStart(), end: decl.getEnd(), deps };
-            if (isLet) {
-              lets.set(bindingName, entry);
-            } else if (isConst) {
+            const propName = element.getPropertyNameNode()?.getText() ?? bindingName;
+
+            if (signalApiConfig && syntheticName) {
+              // Classify based on registry: plain props are static, everything else is computed
+              const isPlainProp = signalApiConfig.plainProperties.has(propName);
+              const deps = isPlainProp ? [] : [syntheticName];
+              const entry = { start: decl.getStart(), end: decl.getEnd(), deps };
               consts.set(bindingName, entry);
+              destructuredFromMap.set(bindingName, syntheticName);
+            } else {
+              const deps = init ? collectIdentifierRefs(init) : [];
+              const entry = { start: decl.getStart(), end: decl.getEnd(), deps };
+              if (isLet) {
+                lets.set(bindingName, entry);
+              } else if (isConst) {
+                consts.set(bindingName, entry);
+              }
             }
           }
           continue;
@@ -168,6 +210,10 @@ export class ReactivityAnalyzer {
         varInfo.signalProperties = apiConfig.signalProperties;
         varInfo.plainProperties = apiConfig.plainProperties;
         varInfo.fieldSignalProperties = apiConfig.fieldSignalProperties;
+      }
+      const syntheticSource = destructuredFromMap.get(name);
+      if (syntheticSource) {
+        varInfo.destructuredFrom = syntheticSource;
       }
       results.push(varInfo);
     }

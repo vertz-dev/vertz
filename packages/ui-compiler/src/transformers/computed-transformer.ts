@@ -20,6 +20,18 @@ export class ComputedTransformer {
     const bodyNode = findBodyNode(sourceFile, component);
     if (!bodyNode) return;
 
+    // Build lookup maps for destructuredFrom bindings
+    const destructuredFromMap = new Map<string, string>();
+    const syntheticVarInfo = new Map<string, VariableInfo>();
+    for (const v of variables) {
+      if (v.destructuredFrom) {
+        destructuredFromMap.set(v.name, v.destructuredFrom);
+      }
+      if (v.name.startsWith('__') && v.signalProperties) {
+        syntheticVarInfo.set(v.name, v);
+      }
+    }
+
     // IMPORTANT: Transform reads FIRST, then wrap declarations.
     // This ensures `.value` appended at the end of an initializer expression
     // comes before the closing `)` of `computed(() => ...)`.
@@ -39,6 +51,36 @@ export class ComputedTransformer {
         // Handle destructuring: const { name, age } = user
         if (nameNode.isKind(SyntaxKind.ObjectBindingPattern)) {
           const elements = nameNode.getElements();
+
+          // Check if this is a destructured signal API (any element has destructuredFrom)
+          const firstBindingName = elements[0]?.getName();
+          const syntheticName = firstBindingName
+            ? destructuredFromMap.get(firstBindingName)
+            : undefined;
+
+          if (syntheticName) {
+            // Signal API destructuring: emit synthetic var + individual bindings
+            const initText = source.slice(init.getStart(), init.getEnd());
+            const synthetic = syntheticVarInfo.get(syntheticName);
+            const signalProps = synthetic?.signalProperties ?? new Set<string>();
+
+            const lines: string[] = [];
+            lines.push(`const ${syntheticName} = ${initText}`);
+            for (const el of elements) {
+              const bindingName = el.getName();
+              const propName = el.getPropertyNameNode()?.getText() ?? bindingName;
+              if (computeds.has(bindingName) && signalProps.has(propName)) {
+                lines.push(
+                  `const ${bindingName} = computed(() => ${syntheticName}.${propName}.value)`,
+                );
+              } else {
+                lines.push(`const ${bindingName} = ${syntheticName}.${propName}`);
+              }
+            }
+            source.overwrite(stmt.getStart(), stmt.getEnd(), `${lines.join(';\n')};`);
+            continue;
+          }
+
           const computedElements = elements.filter((el) => computeds.has(el.getName()));
 
           if (computedElements.length > 0) {

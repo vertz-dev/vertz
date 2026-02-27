@@ -294,6 +294,176 @@ describe('Signal Auto-Unwrap', () => {
     expect(result.diagnostics).toHaveLength(0);
   });
 
+  describe('Destructured Signal API', () => {
+    it('should emit synthetic var + computed bindings for destructured query()', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function TaskList() {
+          const { data, loading, error } = query('/api/tasks');
+          return <div>{data}</div>;
+        }
+      `;
+
+      const result = compile(source, 'test.tsx');
+
+      expect(result.code).toContain("const __query_0 = query('/api/tasks')");
+      expect(result.code).toContain('const data = computed(() => __query_0.data.value)');
+      expect(result.code).toContain('const loading = computed(() => __query_0.loading.value)');
+      expect(result.code).toContain('const error = computed(() => __query_0.error.value)');
+      expect(result.code).toContain('__child(');
+      expect(result.diagnostics).toHaveLength(0);
+    });
+
+    it('should keep plain properties static for destructured query()', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function TaskList() {
+          const { data, refetch } = query('/api/tasks');
+          return <div>{data}</div>;
+        }
+      `;
+
+      const result = compile(source, 'test.tsx');
+
+      expect(result.code).toContain('const data = computed(() => __query_0.data.value)');
+      expect(result.code).toContain('const refetch = __query_0.refetch');
+      expect(result.code).not.toContain('computed(() => __query_0.refetch');
+      expect(result.diagnostics).toHaveLength(0);
+    });
+
+    it('should handle destructured form()', () => {
+      const source = `
+        import { form } from '@vertz/ui';
+
+        function TaskForm() {
+          const { submitting, action } = form({ name: '' });
+          return <button disabled={submitting}>Submit</button>;
+        }
+      `;
+
+      const result = compile(source, 'test.tsx');
+
+      expect(result.code).toContain('const __form_0 = form(');
+      expect(result.code).toContain('const submitting = computed(() => __form_0.submitting.value)');
+      expect(result.code).toContain('const action = __form_0.action');
+      expect(result.diagnostics).toHaveLength(0);
+    });
+
+    it('should handle renamed properties in destructuring', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function TaskList() {
+          const { data: tasks } = query('/api/tasks');
+          return <div>{tasks}</div>;
+        }
+      `;
+
+      const result = compile(source, 'test.tsx');
+
+      expect(result.code).toContain('const tasks = computed(() => __query_0.data.value)');
+      expect(result.code).toContain('__child(');
+      expect(result.diagnostics).toHaveLength(0);
+    });
+
+    it('should handle aliased signal API imports in destructuring', () => {
+      const source = `
+        import { query as fetchData } from '@vertz/ui';
+
+        function TaskList() {
+          const { data } = fetchData('/api/tasks');
+          return <div>{data}</div>;
+        }
+      `;
+
+      const result = compile(source, 'test.tsx');
+
+      expect(result.code).toContain("const __query_0 = fetchData('/api/tasks')");
+      expect(result.code).toContain('const data = computed(() => __query_0.data.value)');
+      expect(result.diagnostics).toHaveLength(0);
+    });
+
+    it('should handle destructured signal prop in direct JSX attribute', () => {
+      const source = `
+        import { form } from '@vertz/ui';
+
+        function TaskForm() {
+          const { submitting } = form({ name: '' });
+          return <button disabled={submitting}>Submit</button>;
+        }
+      `;
+
+      const result = compile(source, 'test.tsx');
+
+      expect(result.code).toContain('const submitting = computed(() => __form_0.submitting.value)');
+      expect(result.code).toContain('__attr(');
+      expect(result.code).toContain('submitting.value');
+      expect(result.diagnostics).toHaveLength(0);
+    });
+  });
+
+  describe('Destructured Signal API Edge Cases', () => {
+    it('should handle partial destructuring (only some props)', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function TaskList() {
+          const { data } = query('/api/tasks');
+          return <div>{data}</div>;
+        }
+      `;
+
+      const result = compile(source, 'test.tsx');
+
+      expect(result.code).toContain("const __query_0 = query('/api/tasks')");
+      expect(result.code).toContain('const data = computed(() => __query_0.data.value)');
+      expect(result.code).not.toContain('loading');
+      expect(result.code).not.toContain('error');
+      expect(result.diagnostics).toHaveLength(0);
+    });
+
+    it('should not break non-signal-API destructuring (regression)', () => {
+      const source = `
+        function Profile() {
+          let user = { name: 'Alice', age: 30 };
+          const { name, age } = user;
+          return <div>{name} - {age}</div>;
+        }
+      `;
+
+      const result = compile(source, 'test.tsx');
+
+      // Regular destructuring should still work as before — no synthetic variable
+      expect(result.code).toContain('computed(() => user.value.name)');
+      expect(result.code).toContain('computed(() => user.value.age)');
+      expect(result.code).not.toContain('__query_');
+      expect(result.code).not.toContain('__form_');
+      expect(result.diagnostics).toHaveLength(0);
+    });
+
+    it('should generate unique synthetic names for multiple destructured signal APIs', () => {
+      const source = `
+        import { query } from '@vertz/ui';
+
+        function TaskList() {
+          const { data: tasks } = query('/api/tasks');
+          const { data: users } = query('/api/users');
+          return <div>{tasks} {users}</div>;
+        }
+      `;
+
+      const result = compile(source, 'test.tsx');
+
+      expect(result.code).toContain('const __query_0 =');
+      expect(result.code).toContain('const __query_1 =');
+      expect(result.code).toContain('const tasks = computed(() => __query_0.data.value)');
+      expect(result.code).toContain('const users = computed(() => __query_1.data.value)');
+      expect(result.diagnostics).toHaveLength(0);
+    });
+  });
+
   it('should NOT double-unwrap when .value already exists (migration case)', () => {
     const source = `
       import { query } from '@vertz/ui';
