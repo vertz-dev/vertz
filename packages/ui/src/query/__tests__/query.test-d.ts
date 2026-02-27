@@ -28,7 +28,7 @@ void _loading;
 const _loadingValue: boolean = result.loading;
 void _loadingValue;
 
-// error is Unwrapped<ReadonlySignal<unknown>> which equals unknown
+// error is Unwrapped<ReadonlySignal<unknown | undefined>> which equals unknown
 const _error: unknown = result.error;
 void _error;
 
@@ -128,6 +128,34 @@ query(descriptor, { key: 'manual-key' });
 // descriptor overload still allows other options
 query(descriptor, { enabled: false });
 query(descriptor, { debounce: 300 });
+
+// ─── query() — descriptor error type flows through ───────────────
+
+import type { FetchError } from '@vertz/fetch';
+
+// Default descriptor carries FetchError as error type
+const _descriptorError: FetchError | undefined = descriptorResult.error;
+void _descriptorError;
+
+// Custom error type on descriptor flows through to QueryResult
+interface CustomError {
+  code: string;
+  detail: string;
+}
+
+declare const customDescriptor: QueryDescriptor<string, CustomError>;
+const customResult = query(customDescriptor);
+const _customError: CustomError | undefined = customResult.error;
+void _customError;
+
+// @ts-expect-error - error type mismatch: cannot assign FetchError | undefined to string
+const _wrongError: string = customResult.error;
+void _wrongError;
+
+// Thunk overload error is still unknown (no error type info from thunks)
+const thunkResult = query(() => Promise.resolve('hello'));
+const _thunkError: unknown = thunkResult.error;
+void _thunkError;
 
 // ─── QueryResult<T> — complex generic types ──────────────────────
 
