@@ -102,6 +102,31 @@ describe('Accordion', () => {
     expect(heightVar).toMatch(/^\d+px$/);
   });
 
+  it('measures scrollHeight after making content visible when opening', () => {
+    const { root, Item } = Accordion.Root();
+    container.appendChild(root);
+    const { trigger, content } = Item('section1');
+
+    // Track when scrollHeight is read relative to display changes
+    const displayLog: string[] = [];
+    let capturedScrollHeight = -1;
+
+    Object.defineProperty(content, 'scrollHeight', {
+      get() {
+        displayLog.push(`scrollHeight read, display=${content.style.display}`);
+        capturedScrollHeight = content.style.display === 'none' ? 0 : 100;
+        return capturedScrollHeight;
+      },
+    });
+
+    // Open the accordion
+    trigger.click();
+
+    // scrollHeight should have been read when display was NOT 'none'
+    expect(capturedScrollHeight).toBe(100);
+    expect(content.style.getPropertyValue('--accordion-content-height')).toBe('100px');
+  });
+
   it('navigates with ArrowDown between triggers', () => {
     const { root, Item } = Accordion.Root();
     container.appendChild(root);

@@ -95,15 +95,17 @@ export const Accordion = {
       trigger.addEventListener('click', () => {
         toggleItem(value);
         const nowOpen = state.value.peek().includes(value);
+        if (nowOpen) {
+          // Show first so scrollHeight is measurable
+          setHidden(content, false);
+        }
         // Measure content height for accordion animation
         const height = content.scrollHeight;
         content.style.setProperty('--accordion-content-height', `${height}px`);
         setExpanded(trigger, nowOpen);
         setDataState(trigger, nowOpen ? 'open' : 'closed');
         setDataState(content, nowOpen ? 'open' : 'closed');
-        if (nowOpen) {
-          setHidden(content, false);
-        } else {
+        if (!nowOpen) {
           // Defer display:none until exit animations complete
           setHiddenAnimated(content, true);
         }

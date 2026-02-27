@@ -52,4 +52,31 @@ describe('setHiddenAnimated', () => {
     setHiddenAnimated(el, true);
     expect(el.style.display).toBe('none');
   });
+
+  it('does not hide element if re-opened before animation finishes', async () => {
+    let resolveAnim!: () => void;
+    const animFinished = new Promise<void>((resolve) => {
+      resolveAnim = resolve;
+    });
+
+    el.getAnimations = () => [{ finished: animFinished } as unknown as Animation];
+
+    // Close — starts exit animation
+    setHiddenAnimated(el, true);
+    expect(el.getAttribute('aria-hidden')).toBe('true');
+
+    // Re-open before animation finishes
+    el.getAnimations = () => [];
+    setHiddenAnimated(el, false);
+    expect(el.getAttribute('aria-hidden')).toBe('false');
+    expect(el.style.display).toBe('');
+
+    // Exit animation finishes — should NOT hide the element
+    resolveAnim();
+    await animFinished;
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(el.style.display).toBe('');
+    expect(el.getAttribute('aria-hidden')).toBe('false');
+  });
 });
