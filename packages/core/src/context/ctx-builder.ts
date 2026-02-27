@@ -35,7 +35,7 @@ function validateCollisions(config: CtxConfig): void {
 }
 
 export function buildCtx(config: CtxConfig): HandlerCtx {
-  if (process.env.NODE_ENV === 'development') {
+  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') {
     validateCollisions(config);
   }
 

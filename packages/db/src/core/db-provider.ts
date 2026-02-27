@@ -87,7 +87,7 @@ function shouldAutoMigrate(config: DbProviderMigrationsConfig | undefined): bool
   }
   // Default: auto-apply in non-production environments
   if (config?.autoApply === undefined || config?.autoApply === null) {
-    return process.env.NODE_ENV !== 'production';
+    return typeof process !== 'undefined' && process.env.NODE_ENV !== 'production';
   }
   return false;
 }

@@ -112,7 +112,11 @@ export function createContext<T>(defaultValue?: T, __stableId?: string): Context
         // Children may be a thunk (compiler output) or a raw value
         // (JSX runtime / test code). Handle both.
         const result = typeof children === 'function' ? children() : children;
-        if (process.env.NODE_ENV !== 'production' && Array.isArray(result)) {
+        if (
+          typeof process !== 'undefined' &&
+          process.env.NODE_ENV !== 'production' &&
+          Array.isArray(result)
+        ) {
           throw new Error(
             'Context.Provider JSX children must have a single root element. ' +
               'Wrap multiple children in a fragment: <><Child1 /><Child2 /></>',
