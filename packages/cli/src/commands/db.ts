@@ -24,9 +24,10 @@ export interface DbCommandContext {
   migrationFiles: MigrationFile[];
   migrationsDir: string;
   existingFiles: string[];
-  dialect?: Dialect;
+  dialect: Dialect;
   writeFile: (path: string, content: string) => Promise<void>;
-  readFile?: (path: string) => Promise<string>;
+  readFile: (path: string) => Promise<string>;
+  close: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------

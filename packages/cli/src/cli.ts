@@ -4,6 +4,7 @@ import { createJiti } from 'jiti';
 import { buildAction } from './commands/build';
 import { codegenAction } from './commands/codegen';
 import { createAction } from './commands/create';
+import type { DbCommandContext } from './commands/db';
 import {
   dbBaselineAction,
   dbDeployAction,
@@ -202,37 +203,58 @@ export function createCLI(): Command {
   // Database commands
   const dbCommand = program.command('db').description('Database management commands');
 
+  /** Run a db action with proper error handling and connection cleanup. */
+  async function withDbContext(fn: (ctx: DbCommandContext) => Promise<void>): Promise<void> {
+    let ctx: DbCommandContext;
+    try {
+      ctx = await loadDbContext();
+    } catch (error) {
+      console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
+    try {
+      await fn(ctx);
+    } catch (error) {
+      console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    } finally {
+      await ctx.close();
+    }
+  }
+
   dbCommand
     .command('migrate')
     .description('Generate a migration file and apply it (development)')
     .option('-n, --name <name>', 'Migration name')
     .option('--dry-run', 'Preview SQL without writing or applying')
     .action(async (opts) => {
-      const ctx = await loadDbContext();
-      const result = await dbMigrateAction({
-        ctx,
-        name: opts.name ?? undefined,
-        dryRun: opts.dryRun ?? false,
+      await withDbContext(async (ctx) => {
+        const result = await dbMigrateAction({
+          ctx,
+          name: opts.name ?? undefined,
+          dryRun: opts.dryRun ?? false,
+        });
+        if (result.dryRun) {
+          console.log('[dry-run] Migration file:', result.migrationFile);
+          console.log(result.sql || '-- no changes');
+        } else {
+          console.log('Migration applied:', result.migrationFile);
+        }
       });
-      if (result.dryRun) {
-        console.log('[dry-run] Migration file:', result.migrationFile);
-        console.log(result.sql || '-- no changes');
-      } else {
-        console.log('Migration applied:', result.migrationFile);
-      }
     });
 
   dbCommand
     .command('push')
     .description('Push schema changes directly (no migration file)')
     .action(async () => {
-      const ctx = await loadDbContext();
-      const result = await dbPushAction({ ctx });
-      if (result.tablesAffected.length === 0) {
-        console.log('No changes to push.');
-      } else {
-        console.log('Pushed changes to:', result.tablesAffected.join(', '));
-      }
+      await withDbContext(async (ctx) => {
+        const result = await dbPushAction({ ctx });
+        if (result.tablesAffected.length === 0) {
+          console.log('No changes to push.');
+        } else {
+          console.log('Pushed changes to:', result.tablesAffected.join(', '));
+        }
+      });
     });
 
   dbCommand
@@ -240,64 +262,68 @@ export function createCLI(): Command {
     .description('Apply pending migration files (production)')
     .option('--dry-run', 'Preview SQL without applying')
     .action(async (opts) => {
-      const ctx = await loadDbContext();
-      const data = await dbDeployAction({ ctx, dryRun: opts.dryRun ?? false });
-      if (data.applied.length === 0) {
-        console.log('No pending migrations.');
-      } else {
-        const prefix = data.dryRun ? '[dry-run] Would apply' : 'Applied';
-        console.log(`${prefix}: ${data.applied.join(', ')}`);
-      }
+      await withDbContext(async (ctx) => {
+        const data = await dbDeployAction({ ctx, dryRun: opts.dryRun ?? false });
+        if (data.applied.length === 0) {
+          console.log('No pending migrations.');
+        } else {
+          const prefix = data.dryRun ? '[dry-run] Would apply' : 'Applied';
+          console.log(`${prefix}: ${data.applied.join(', ')}`);
+        }
+      });
     });
 
   dbCommand
     .command('status')
     .description('Show migration status and drift report')
     .action(async () => {
-      const ctx = await loadDbContext();
-      const data = await dbStatusAction({ ctx });
-      console.log(`Applied: ${data.applied.length}`);
-      console.log(`Pending: ${data.pending.length}`);
-      if (data.pending.length > 0) {
-        for (const name of data.pending) {
-          console.log(`  - ${name}`);
+      await withDbContext(async (ctx) => {
+        const data = await dbStatusAction({ ctx });
+        console.log(`Applied: ${data.applied.length}`);
+        console.log(`Pending: ${data.pending.length}`);
+        if (data.pending.length > 0) {
+          for (const name of data.pending) {
+            console.log(`  - ${name}`);
+          }
         }
-      }
-      if (data.codeChanges.length > 0) {
-        console.log('Code changes:');
-        for (const c of data.codeChanges) {
-          console.log(`  - ${c.description}`);
+        if (data.codeChanges.length > 0) {
+          console.log('Code changes:');
+          for (const c of data.codeChanges) {
+            console.log(`  - ${c.description}`);
+          }
         }
-      }
-      if (data.drift.length > 0) {
-        console.log('Drift detected:');
-        for (const d of data.drift) {
-          console.log(`  - ${d.description}`);
+        if (data.drift.length > 0) {
+          console.log('Drift detected:');
+          for (const d of data.drift) {
+            console.log(`  - ${d.description}`);
+          }
         }
-      }
+      });
     });
 
   dbCommand
     .command('reset')
     .description('Drop all tables and re-apply migrations')
     .action(async () => {
-      const ctx = await loadDbContext();
-      const data = await dbResetAction({ ctx });
-      console.log(`Dropped: ${data.tablesDropped.length} table(s)`);
-      console.log(`Applied: ${data.migrationsApplied.length} migration(s)`);
+      await withDbContext(async (ctx) => {
+        const data = await dbResetAction({ ctx });
+        console.log(`Dropped: ${data.tablesDropped.length} table(s)`);
+        console.log(`Applied: ${data.migrationsApplied.length} migration(s)`);
+      });
     });
 
   dbCommand
     .command('baseline')
     .description('Mark existing database as migrated')
     .action(async () => {
-      const ctx = await loadDbContext();
-      const data = await dbBaselineAction({ ctx });
-      if (data.recorded.length === 0) {
-        console.log('All migrations already recorded.');
-      } else {
-        console.log(`Recorded: ${data.recorded.join(', ')}`);
-      }
+      await withDbContext(async (ctx) => {
+        const data = await dbBaselineAction({ ctx });
+        if (data.recorded.length === 0) {
+          console.log('All migrations already recorded.');
+        } else {
+          console.log(`Recorded: ${data.recorded.join(', ')}`);
+        }
+      });
     });
 
   return program;

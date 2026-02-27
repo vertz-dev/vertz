@@ -54,6 +54,9 @@
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
+  "optionalDependencies": {
+    "postgres": "^3.4.0"
+  },
   "engines": {
     "node": ">=22"
   }
