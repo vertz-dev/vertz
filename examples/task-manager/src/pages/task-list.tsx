@@ -103,7 +103,7 @@ export function TaskListPage() {
       </div>
       {tasksQuery.loading && <div data-testid="loading">Loading tasks...</div>}
       {tasksQuery.error && (
-        <div style="color: var(--color-danger-500)" data-testid="error">
+        <div style="color: var(--color-destructive)" data-testid="error">
           {errorMsg}
         </div>
       )}

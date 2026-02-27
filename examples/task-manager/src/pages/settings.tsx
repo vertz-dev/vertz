@@ -21,11 +21,11 @@ const settingsStyles = css({
   sectionTitle: ['font:lg', 'font:semibold', 'text:foreground', 'mb:4'],
   themeGrid: ['grid', 'grid-cols:2', 'gap:4'],
   themeCard: ['p:4', 'rounded:lg', 'border:2', 'cursor:pointer', 'transition:all'],
-  themeCardActive: ['border:primary.500'],
+  themeCardActive: ['border:primary'],
   themeCardInactive: ['border:border'],
   previewBox: ['p:3', 'rounded:md', 'mb:2'],
   previewText: ['text:sm'],
-  savedMsg: ['text:sm', 'text:success.500', 'mt:2'],
+  savedMsg: ['text:sm', 'text:accent-foreground', 'mt:2'],
 });
 
 /**

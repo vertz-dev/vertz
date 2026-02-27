@@ -33,7 +33,7 @@ const detailStyles = css({
     'gap:2',
     'items:center',
     'p:3',
-    'bg:surface',
+    'bg:card',
     'rounded:lg',
     'border:1',
     'border:border',
@@ -103,7 +103,7 @@ export function TaskDetailPage() {
     <div class={detailStyles.page} data-testid="task-detail-page">
       {taskQuery.loading && <div data-testid="loading">Loading task...</div>}
       {taskQuery.error && (
-        <div style="color: var(--color-danger-500)" data-testid="error">
+        <div style="color: var(--color-destructive)" data-testid="error">
           {errorMsg}
         </div>
       )}

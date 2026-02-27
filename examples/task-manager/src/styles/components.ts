@@ -21,7 +21,7 @@ export const formGroupStyles = themeStyles.formGroup;
 
 export const layoutStyles = css({
   shell: ['flex', 'min-h:screen', 'bg:background'],
-  sidebar: ['w:64', 'bg:surface', 'border-r:1', 'border:border', 'p:4'],
+  sidebar: ['w:64', 'bg:card', 'border-r:1', 'border:border', 'p:4'],
   main: ['flex-1', 'p:6'],
   header: ['flex', 'justify:between', 'items:center', 'mb:6'],
 });
@@ -43,8 +43,8 @@ export const formStyles = css({
     'text:sm',
     'focus:outline-none',
     'focus:ring:2',
-    'focus:ring:primary.500',
-    'focus:border:primary.500',
+    'focus-visible:ring:ring',
+    'focus-visible:border:primary',
   ],
   textarea: [
     'w:full',
@@ -60,7 +60,7 @@ export const formStyles = css({
     'resize:vertical',
     'focus:outline-none',
     'focus:ring:2',
-    'focus:ring:primary.500',
+    'focus-visible:ring:ring',
   ],
   select: [
     'w:full',
@@ -73,7 +73,7 @@ export const formStyles = css({
     'text:foreground',
     'text:sm',
   ],
-  error: ['text:xs', 'text:danger.500', 'mt:1'],
+  error: ['text:xs', 'text:destructive', 'mt:1'],
 });
 
 // ── Empty state ─────────────────────────────────────────────
