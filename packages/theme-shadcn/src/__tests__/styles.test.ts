@@ -101,6 +101,7 @@ describe('card', () => {
     expect(card.root.length).toBeGreaterThan(0);
     expect(card.header.length).toBeGreaterThan(0);
     expect(card.title.length).toBeGreaterThan(0);
+    expect(card.description.length).toBeGreaterThan(0);
     expect(card.content.length).toBeGreaterThan(0);
     expect(card.footer.length).toBeGreaterThan(0);
   });
