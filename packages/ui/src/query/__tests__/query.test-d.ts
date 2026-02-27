@@ -28,7 +28,7 @@ void _loading;
 const _loadingValue: boolean = result.loading;
 void _loadingValue;
 
-// error is Unwrapped<ReadonlySignal<unknown>> which equals unknown
+// error is Unwrapped<ReadonlySignal<unknown | undefined>> which equals unknown
 const _error: unknown = result.error;
 void _error;
 
@@ -110,6 +110,66 @@ readonlyCheck.loading = null as unknown as boolean;
 
 // @ts-expect-error - error is readonly, cannot reassign
 readonlyCheck.error = null as unknown as unknown;
+
+// ─── query() — QueryDescriptor overload ──────────────────────────
+
+import type { QueryDescriptor } from '@vertz/fetch';
+
+// query() infers T from QueryDescriptor<T>
+declare const descriptor: QueryDescriptor<string[]>;
+const descriptorResult = query(descriptor);
+const _descriptorData: string[] | undefined = descriptorResult.data;
+void _descriptorData;
+
+// descriptor overload omits 'key' from options
+// @ts-expect-error - key is not allowed in descriptor overload
+query(descriptor, { key: 'manual-key' });
+
+// descriptor overload still allows other options
+query(descriptor, { enabled: false });
+query(descriptor, { debounce: 300 });
+
+// ─── query() — descriptor error type flows through ───────────────
+
+import type { FetchError } from '@vertz/fetch';
+
+// Default descriptor carries FetchError as error type
+const _descriptorError: FetchError | undefined = descriptorResult.error;
+void _descriptorError;
+
+// FetchError has .status (not the @vertz/errors FetchError)
+if (descriptorResult.error) {
+  const _status: number = descriptorResult.error.status;
+  void _status;
+}
+
+// Custom error type on descriptor flows through to QueryResult
+interface CustomError {
+  code: string;
+  detail: string;
+}
+
+declare const customDescriptor: QueryDescriptor<string, CustomError>;
+const customResult = query(customDescriptor);
+const _customError: CustomError | undefined = customResult.error;
+void _customError;
+
+// Custom error properties are accessible
+if (customResult.error) {
+  const _code: string = customResult.error.code;
+  const _detail: string = customResult.error.detail;
+  void _code;
+  void _detail;
+}
+
+// @ts-expect-error - error type mismatch: cannot assign CustomError | undefined to string
+const _wrongError: string = customResult.error;
+void _wrongError;
+
+// Thunk overload error is still unknown (no error type info from thunks)
+const thunkResult = query(() => Promise.resolve('hello'));
+const _thunkError: unknown = thunkResult.error;
+void _thunkError;
 
 // ─── QueryResult<T> — complex generic types ──────────────────────
 

@@ -1,4 +1,10 @@
+// Re-export Result utilities for consumers
+export type { EntityErrorType, FetchErrorType, Result } from '@vertz/errors';
+// Re-export matchError for error handling
+export { err, isErr, isOk, matchError, ok, unwrap, unwrapOr } from '@vertz/errors';
 export { FetchClient } from './client';
+export type { QueryDescriptor } from './descriptor';
+export { createDescriptor, isQueryDescriptor } from './descriptor';
 export {
   BadRequestError,
   ConflictError,
@@ -23,11 +29,3 @@ export type {
   StreamingFormat,
   StreamingRequestOptions,
 } from './types';
-
-// Re-export Result utilities for consumers
-export type { Result } from '@vertz/errors';
-export { ok, err, unwrap, unwrapOr, isOk, isErr } from '@vertz/errors';
-
-// Re-export matchError for error handling
-export { matchError } from '@vertz/errors';
-export type { FetchErrorType, EntityErrorType } from '@vertz/errors';

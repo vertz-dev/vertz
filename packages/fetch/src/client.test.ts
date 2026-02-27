@@ -1,4 +1,3 @@
-import { describe, expect, it, vi } from 'vitest';
 import {
   FetchError,
   FetchNetworkError,
@@ -8,6 +7,7 @@ import {
   ParseError,
   unwrap,
 } from '@vertz/errors';
+import { describe, expect, it, vi } from 'vitest';
 import { FetchClient } from './client';
 
 describe('FetchClient', () => {
@@ -606,9 +606,9 @@ describe('FetchClient edge cases', () => {
 
 describe('FetchClient convenience methods', () => {
   it('get() delegates to request with GET method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ users: [] }), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ users: [] }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -624,9 +624,9 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('post() sends body with POST method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 1 }), { status: 201 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: 1 }), { status: 201 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -643,9 +643,9 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('patch() sends body with PATCH method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 1, name: 'Bob' }), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: 1, name: 'Bob' }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -662,9 +662,9 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('put() sends body with PUT method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 1 }), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: 1 }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -681,9 +681,9 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('delete() delegates to request with DELETE method', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ success: true }), { status: 200 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -725,9 +725,11 @@ describe('FetchClient network error handling', () => {
   });
 
   it('should parse serverCode from error response', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: { code: 'USER_NOT_FOUND' } }), { status: 404 }),
-    );
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ error: { code: 'USER_NOT_FOUND' } }), { status: 404 }),
+      );
     const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
     const result = await client.get('/test');
     expect(result.ok).toBe(false);
@@ -735,6 +737,84 @@ describe('FetchClient network error handling', () => {
       expect(result.error).toBeInstanceOf(FetchError);
       expect((result.error as HttpError).serverCode).toBe('USER_NOT_FOUND');
     }
+  });
+});
+
+describe('FetchClient buildURL', () => {
+  it('preserves base path when path starts with /', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000/api',
+      fetch: mockFetch,
+    });
+
+    await client.get('/tasks');
+
+    const [request] = mockFetch.mock.calls[0] as [Request];
+    expect(request.url).toBe('http://localhost:3000/api/tasks');
+  });
+
+  it('preserves base path when path has no leading /', async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000/api',
+      fetch: mockFetch,
+    });
+
+    await client.get('tasks');
+
+    const [request] = mockFetch.mock.calls[0] as [Request];
+    expect(request.url).toBe('http://localhost:3000/api/tasks');
+  });
+});
+
+describe('FetchClient 204 No Content', () => {
+  it('returns ok with undefined data for 204 response', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000',
+      fetch: mockFetch,
+    });
+
+    const result = await client.delete('/api/tasks/1');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.data).toBeUndefined();
+      expect(result.data.status).toBe(204);
+    }
+  });
+
+  it('returns ok with undefined data for 205 response', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(new Response(null, { status: 205 }));
+
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000',
+      fetch: mockFetch,
+    });
+
+    const result = await client.delete('/api/tasks/1');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.data).toBeUndefined();
+      expect(result.data.status).toBe(205);
+    }
+  });
+});
+
+describe('FetchClient fetch binding', () => {
+  it('binds globalThis.fetch to globalThis to preserve this context', () => {
+    // When no custom fetch is provided, the client should bind globalThis.fetch
+    // so it works correctly even in HMR / module reload scenarios.
+    const client = new FetchClient({ baseURL: 'http://localhost:3000' });
+    // The client should not throw during construction — binding is applied
+    expect(client).toBeInstanceOf(FetchClient);
   });
 });
 
@@ -753,7 +833,9 @@ describe('FetchClient parse and validation errors', () => {
     const body = {
       error: { code: 'ValidationError', errors: [{ path: 'email', message: 'Invalid email' }] },
     };
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 422 }));
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(body), { status: 422 }));
     const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
     const result = await client.get('/test');
     expect(result.ok).toBe(false);

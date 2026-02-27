@@ -6,6 +6,8 @@
  * with an in-memory array and artificial async delays.
  */
 
+import { ok } from '@vertz/errors';
+import { createDescriptor } from '@vertz/fetch';
 import type { CreateTaskBody, Task, TaskStatus, UpdateTaskBody } from '../lib/types';
 
 let nextId = 4;
@@ -102,6 +104,69 @@ export async function deleteTask(id: string): Promise<{ success: boolean }> {
   tasks.splice(idx, 1);
   return { success: true };
 }
+
+/**
+ * Simulated SDK using QueryDescriptor.
+ *
+ * This mimics what @vertz/codegen produces: each method returns a
+ * QueryDescriptor that works with both query() and await.
+ *
+ *   const tasks = query(api.tasks.list());     // reactive
+ *   const task  = await api.tasks.get('1');     // imperative
+ */
+function mockFetchResponse<T>(fn: () => Promise<T>) {
+  return async () => ok({ data: await fn(), status: 200, headers: new Headers() });
+}
+
+export const api = {
+  tasks: {
+    list: Object.assign(
+      () =>
+        createDescriptor<{ tasks: Task[]; total: number }>(
+          'GET',
+          '/tasks',
+          mockFetchResponse(() => fetchTasks()),
+        ),
+      { url: '/tasks', method: 'GET' as const },
+    ),
+    get: Object.assign(
+      (id: string) =>
+        createDescriptor<Task>(
+          'GET',
+          `/tasks/${id}`,
+          mockFetchResponse(() => fetchTask(id)),
+        ),
+      { url: '/tasks/:id', method: 'GET' as const },
+    ),
+    create: Object.assign(
+      (body: CreateTaskBody) =>
+        createDescriptor<Task>(
+          'POST',
+          '/tasks',
+          mockFetchResponse(() => createTask(body)),
+        ),
+      { url: '/tasks', method: 'POST' as const },
+    ),
+    update: Object.assign(
+      (id: string, body: UpdateTaskBody) =>
+        createDescriptor<Task>(
+          'PATCH',
+          `/tasks/${id}`,
+          mockFetchResponse(() => updateTask(id, body)),
+        ),
+      { url: '/tasks/:id', method: 'PATCH' as const },
+    ),
+    delete: Object.assign(
+      (id: string) =>
+        createDescriptor<{ success: boolean }>(
+          'DELETE',
+          `/tasks/${id}`,
+          mockFetchResponse(() => deleteTask(id)),
+        ),
+      { url: '/tasks/:id', method: 'DELETE' as const },
+    ),
+  },
+};
 
 /**
  * Simulated SDK methods for use with form().

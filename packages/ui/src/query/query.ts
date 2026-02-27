@@ -1,3 +1,4 @@
+import { isQueryDescriptor, type QueryDescriptor } from '@vertz/fetch';
 import { isNavPrefetchActive } from '../router/server-nav';
 import { computed, lifecycleEffect, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal, Unwrapped } from '../runtime/signal-types';
@@ -38,13 +39,13 @@ export interface QueryOptions<T> {
 }
 
 /** The reactive object returned by query(). */
-export interface QueryResult<T> {
+export interface QueryResult<T, E = unknown> {
   /** The fetched data, or undefined while loading. */
   readonly data: Unwrapped<ReadonlySignal<T | undefined>>;
   /** True while a fetch is in progress. */
   readonly loading: Unwrapped<ReadonlySignal<boolean>>;
   /** The error from the latest failed fetch, or undefined. */
-  readonly error: Unwrapped<ReadonlySignal<unknown>>;
+  readonly error: Unwrapped<ReadonlySignal<E | undefined>>;
   /** Manually trigger a refetch (clears cache for this key). */
   refetch: () => void;
   /** Alias for refetch — revalidate the cached data. */
@@ -97,11 +98,24 @@ function clearDefaultQueryCache(): void {
  * The thunk is wrapped in an effect so that when reactive dependencies
  * used *before* the async call change, the query automatically re-fetches.
  *
- * @param thunk - An async function that returns the data.
+ * @param source - A QueryDescriptor or an async function that returns the data.
  * @param options - Optional configuration.
  * @returns A QueryResult with reactive signals for data, loading, and error.
  */
-export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {}): QueryResult<T> {
+export function query<T, E>(
+  descriptor: QueryDescriptor<T, E>,
+  options?: Omit<QueryOptions<T>, 'key'>,
+): QueryResult<T, E>;
+export function query<T>(thunk: () => Promise<T>, options?: QueryOptions<T>): QueryResult<T>;
+export function query<T, E = unknown>(
+  source: QueryDescriptor<T, E> | (() => Promise<T>),
+  options: QueryOptions<T> = {},
+): QueryResult<T, E> {
+  if (isQueryDescriptor<T, E>(source)) {
+    return query(() => source._fetch(), { ...options, key: source._key }) as QueryResult<T, E>;
+  }
+
+  const thunk = source as () => Promise<T>;
   const {
     initialData,
     debounce: debounceMs,
@@ -499,7 +513,7 @@ export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {})
   return {
     data: data as unknown as Unwrapped<ReadonlySignal<T | undefined>>,
     loading: loading as unknown as Unwrapped<ReadonlySignal<boolean>>,
-    error: error as unknown as Unwrapped<ReadonlySignal<unknown>>,
+    error: error as unknown as Unwrapped<ReadonlySignal<E | undefined>>,
     refetch,
     revalidate: refetch,
     dispose,

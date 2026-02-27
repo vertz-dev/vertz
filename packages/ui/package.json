@@ -62,6 +62,9 @@
     "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@vertz/fetch": "workspace:*"
+  },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.7.0",
     "@vertz/schema": "workspace:*",

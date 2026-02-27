@@ -92,7 +92,7 @@ describe('Subpath Exports — @vertz/ui/form', () => {
 });
 
 describe('Subpath Exports — @vertz/ui/query', () => {
-  const expectedExports = ['query'];
+  const expectedExports = ['isQueryDescriptor', 'query'];
 
   test('exports exactly the public API (no internal leaks)', async () => {
     const mod = await import('../query/public');
@@ -117,6 +117,7 @@ describe('Subpath Exports — @vertz/ui/query', () => {
     const main = await import('../index');
     const subpath = await import('../query/public');
     expect(subpath.query).toBe(main.query);
+    expect(subpath.isQueryDescriptor).toBe(main.isQueryDescriptor);
   });
 });
 
@@ -223,6 +224,7 @@ describe('Subpath Exports — main barrel backward compat', () => {
   test('main barrel re-exports all query symbols', async () => {
     const main = await import('../index');
     expect(main.query).toBeTypeOf('function');
+    expect(main.isQueryDescriptor).toBeTypeOf('function');
   });
 
   test('main barrel re-exports all css symbols', async () => {

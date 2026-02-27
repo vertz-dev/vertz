@@ -232,6 +232,10 @@ export function emitClientFile(ir: CodegenIR): GeneratedFile {
   sections.push(configFragment.content);
   sections.push('');
 
+  // Client type alias for entity SDKs
+  sections.push('export type Client = FetchClient;');
+  sections.push('');
+
   // createClient function
   const moduleEntries = ir.modules
     .map((mod) => `    ${toCamelCase(mod.name)}: create${toPascalCase(mod.name)}Module(client)`)

@@ -3,7 +3,7 @@
  *
  * Demonstrates:
  * - JSX for page layout and dynamic content
- * - query() with reactive params (task ID from route)
+ * - query() with QueryDescriptor for zero-boilerplate data fetching
  * - Auto-unwrapped signal properties: taskQuery.loading, taskQuery.error
  * - Compiler `const` → computed transform for derived values from query()
  * - Dialog primitive for delete confirmation (<ConfirmDialog /> in JSX)
@@ -12,7 +12,7 @@
  */
 
 import { css, onCleanup, onMount, query, useParams } from '@vertz/ui';
-import { deleteTask, fetchTask, updateTask } from '../api/mock-data';
+import { api } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import type { TaskStatus } from '../lib/types';
 import { useAppRouter } from '../router';
@@ -59,9 +59,8 @@ export function TaskDetailPage() {
   const { id: taskId } = useParams<'/tasks/:id'>();
   // ── Data fetching ──────────────────────────────────
 
-  const taskQuery = query(() => fetchTask(taskId), {
-    key: `task-${taskId}`,
-  });
+  // query() with QueryDescriptor — key auto-derived: "GET:/tasks/<id>"
+  const taskQuery = query(api.tasks.get(taskId));
 
   // Derived values — the compiler classifies these as computed (they depend on
   // signal API properties) and wraps them in computed() automatically.
@@ -132,7 +131,7 @@ export function TaskDetailPage() {
                 description={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
                 confirmLabel="Delete Task"
                 onConfirm={async () => {
-                  await deleteTask(taskId);
+                  await api.tasks.delete(taskId);
                   navigate('/');
                 }}
               />
@@ -159,7 +158,7 @@ export function TaskDetailPage() {
               <button
                 class={button({ intent: 'secondary', size: 'sm' })}
                 onClick={async () => {
-                  await updateTask(taskId, { status: tr.status });
+                  await api.tasks.update(taskId, { status: tr.status });
                   taskQuery.revalidate();
                 }}
               >
