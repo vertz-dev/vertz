@@ -1,5 +1,5 @@
-import { s } from '@vertz/schema';
 import { afterEach, describe, expect, it } from 'bun:test';
+import { s } from '@vertz/schema';
 import { createEnv } from '../env-validator';
 
 describe('createEnv', () => {
@@ -65,6 +65,30 @@ describe('createEnv', () => {
     });
 
     expect(Object.isFrozen(env)).toBe(true);
+  });
+
+  it('uses explicit env record when provided', () => {
+    const env = createEnv({
+      schema: s.object({
+        MY_VAR: s.string(),
+      }),
+      env: { MY_VAR: 'hello' },
+    });
+
+    expect(env.MY_VAR).toBe('hello');
+  });
+
+  it('explicit env takes precedence over process.env', () => {
+    process.env.FOO = 'from-process';
+
+    const env = createEnv({
+      schema: s.object({
+        FOO: s.string(),
+      }),
+      env: { FOO: 'from-config' },
+    });
+
+    expect(env.FOO).toBe('from-config');
   });
 
   it('deep-freezes nested objects in the result', () => {

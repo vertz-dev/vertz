@@ -1,6 +1,6 @@
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/errors';
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import type { MigrationFile } from '../runner';
 import { computeChecksum, createMigrationRunner, parseMigrationName } from '../runner';
 
@@ -60,7 +60,7 @@ describe('MigrationRunner', () => {
     const applied = unwrap(appliedResult);
     expect(applied).toHaveLength(1);
     expect(applied[0]?.name).toBe('0001_initial.sql');
-    expect(applied[0]?.checksum).toBe(computeChecksum(migrationSql));
+    expect(applied[0]?.checksum).toBe(await computeChecksum(migrationSql));
   });
 
   it('getApplied returns migrations in order', async () => {
@@ -103,7 +103,7 @@ describe('MigrationRunner', () => {
     expect(pending[0]?.name).toBe('0003_add_bio.sql');
   });
 
-  it('detectDrift identifies modified migrations', () => {
+  it('detectDrift identifies modified migrations', async () => {
     const runner = createMigrationRunner();
     const originalSql = 'CREATE TABLE users (id serial PRIMARY KEY);';
     const modifiedSql = 'CREATE TABLE users (id uuid PRIMARY KEY);';
@@ -111,23 +111,27 @@ describe('MigrationRunner', () => {
     const files: MigrationFile[] = [{ name: '0001_initial.sql', sql: modifiedSql, timestamp: 1 }];
 
     const applied = [
-      { name: '0001_initial.sql', checksum: computeChecksum(originalSql), appliedAt: new Date() },
+      {
+        name: '0001_initial.sql',
+        checksum: await computeChecksum(originalSql),
+        appliedAt: new Date(),
+      },
     ];
 
-    const drifted = runner.detectDrift(files, applied);
+    const drifted = await runner.detectDrift(files, applied);
     expect(drifted).toEqual(['0001_initial.sql']);
   });
 
-  it('detectDrift returns empty when checksums match', () => {
+  it('detectDrift returns empty when checksums match', async () => {
     const runner = createMigrationRunner();
     const sql = 'CREATE TABLE users (id serial PRIMARY KEY);';
 
     const files: MigrationFile[] = [{ name: '0001_initial.sql', sql, timestamp: 1 }];
     const applied = [
-      { name: '0001_initial.sql', checksum: computeChecksum(sql), appliedAt: new Date() },
+      { name: '0001_initial.sql', checksum: await computeChecksum(sql), appliedAt: new Date() },
     ];
 
-    const drifted = runner.detectDrift(files, applied);
+    const drifted = await runner.detectDrift(files, applied);
     expect(drifted).toEqual([]);
   });
 
@@ -173,7 +177,7 @@ describe('MigrationRunner', () => {
       expect(result.dryRun).toBe(true);
       expect(result.name).toBe('0003_dry_run.sql');
       expect(result.sql).toBe(migrationSql);
-      expect(result.checksum).toBe(computeChecksum(migrationSql));
+      expect(result.checksum).toBe(await computeChecksum(migrationSql));
       expect(result.statements).toHaveLength(2);
       expect(result.statements[0]).toBe(migrationSql);
       expect(result.statements[1]).toContain('INSERT INTO');
@@ -237,7 +241,7 @@ describe('MigrationRunner', () => {
       expect(result.dryRun).toBe(false);
       expect(result.name).toBe('0004_add_avatar.sql');
       expect(result.sql).toBe(migrationSql);
-      expect(result.checksum).toBe(computeChecksum(migrationSql));
+      expect(result.checksum).toBe(await computeChecksum(migrationSql));
       expect(result.statements).toHaveLength(2);
     });
   });
@@ -262,13 +266,13 @@ describe('parseMigrationName', () => {
 });
 
 describe('computeChecksum', () => {
-  it('returns consistent hash for same input', () => {
+  it('returns consistent hash for same input', async () => {
     const sql = 'CREATE TABLE users (id serial PRIMARY KEY);';
-    expect(computeChecksum(sql)).toBe(computeChecksum(sql));
+    expect(await computeChecksum(sql)).toBe(await computeChecksum(sql));
   });
 
-  it('returns different hash for different input', () => {
-    expect(computeChecksum('SELECT 1')).not.toBe(computeChecksum('SELECT 2'));
+  it('returns different hash for different input', async () => {
+    expect(await computeChecksum('SELECT 1')).not.toBe(await computeChecksum('SELECT 2'));
   });
 });
 

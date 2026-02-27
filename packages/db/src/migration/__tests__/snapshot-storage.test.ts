@@ -1,24 +1,28 @@
-import { describe, expect, it, beforeEach, afterEach, mock } from 'bun:test';
-import { loadSnapshot, saveSnapshot } from '../snapshot-storage';
-import { writeFile, rm, access } from 'node:fs/promises';
-import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { SchemaSnapshot } from '../snapshot';
+import { NodeSnapshotStorage } from '../snapshot-storage';
+import type { SnapshotStorage } from '../storage';
 
-describe('snapshot-storage', () => {
+describe('NodeSnapshotStorage', () => {
   let tmpDir: string;
+  let storage: NodeSnapshotStorage;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'snapshot-test-'));
+    storage = new NodeSnapshotStorage();
   });
 
-  afterEach(async () => {
+  afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  describe('loadSnapshot', () => {
+  describe('load', () => {
     it('returns null when file does not exist', async () => {
-      const result = await loadSnapshot(join(tmpDir, 'nonexistent.json'));
+      const result = await storage.load(join(tmpDir, 'nonexistent.json'));
       expect(result).toBeNull();
     });
 
@@ -26,7 +30,7 @@ describe('snapshot-storage', () => {
       const corruptedPath = join(tmpDir, 'corrupted.json');
       await writeFile(corruptedPath, '{ invalid json }');
 
-      await expect(loadSnapshot(corruptedPath)).rejects.toThrow();
+      await expect(storage.load(corruptedPath)).rejects.toThrow();
     });
 
     it('loads valid snapshot from file', async () => {
@@ -47,21 +51,20 @@ describe('snapshot-storage', () => {
       };
 
       await writeFile(snapshotPath, JSON.stringify(snapshot));
-      const loaded = await loadSnapshot(snapshotPath);
+      const loaded = await storage.load(snapshotPath);
 
       expect(loaded).toEqual(snapshot);
     });
   });
 
-  describe('saveSnapshot', () => {
+  describe('save', () => {
     it('creates parent directory if it does not exist', async () => {
       const nestedPath = join(tmpDir, 'nested', 'deep', 'snapshot.json');
       const snapshot = { version: 1, tables: {}, enums: {} };
 
-      await saveSnapshot(nestedPath, snapshot);
+      await storage.save(nestedPath, snapshot as SchemaSnapshot);
 
-      // Verify file was created
-      const loaded = await loadSnapshot(nestedPath);
+      const loaded = await storage.load(nestedPath);
       expect(loaded).toEqual(snapshot);
     });
 
@@ -84,8 +87,8 @@ describe('snapshot-storage', () => {
         enums: { user_role: ['admin', 'editor', 'viewer'] },
       };
 
-      await saveSnapshot(snapshotPath, snapshot);
-      const loaded = await loadSnapshot(snapshotPath);
+      await storage.save(snapshotPath, snapshot as SchemaSnapshot);
+      const loaded = await storage.load(snapshotPath);
 
       expect(loaded).toEqual(snapshot);
     });
@@ -93,12 +96,54 @@ describe('snapshot-storage', () => {
     it('overwrites existing file', async () => {
       const snapshotPath = join(tmpDir, 'snapshot.json');
 
-      await saveSnapshot(snapshotPath, { version: 1, tables: { users: { columns: { id: { type: 'uuid', nullable: false, primary: true, unique: false } }, indexes: [], foreignKeys: [], _metadata: {} } }, enums: {} });
-      await saveSnapshot(snapshotPath, { version: 1, tables: { posts: { columns: { id: { type: 'uuid', nullable: false, primary: true, unique: false } }, indexes: [], foreignKeys: [], _metadata: {} } }, enums: {} });
+      await storage.save(snapshotPath, {
+        version: 1,
+        tables: {
+          users: {
+            columns: { id: { type: 'uuid', nullable: false, primary: true, unique: false } },
+            indexes: [],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+        enums: {},
+      } as SchemaSnapshot);
+      await storage.save(snapshotPath, {
+        version: 1,
+        tables: {
+          posts: {
+            columns: { id: { type: 'uuid', nullable: false, primary: true, unique: false } },
+            indexes: [],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+        enums: {},
+      } as SchemaSnapshot);
 
-      const loaded = await loadSnapshot(snapshotPath);
+      const loaded = await storage.load(snapshotPath);
       expect(loaded?.tables).toHaveProperty('posts');
       expect(loaded?.tables).not.toHaveProperty('users');
     });
+  });
+});
+
+describe('SnapshotStorage contract', () => {
+  it('works with an in-memory implementation', async () => {
+    const store = new Map<string, SchemaSnapshot>();
+    const inMemory: SnapshotStorage = {
+      async load(key) {
+        return store.get(key) ?? null;
+      },
+      async save(key, snapshot) {
+        store.set(key, snapshot);
+      },
+    };
+
+    const snapshot = { version: 1, tables: {}, enums: {} } as SchemaSnapshot;
+
+    expect(await inMemory.load('test')).toBeNull();
+    await inMemory.save('test', snapshot);
+    expect(await inMemory.load('test')).toEqual(snapshot);
   });
 });

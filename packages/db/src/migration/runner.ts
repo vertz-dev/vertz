@@ -1,11 +1,11 @@
-import { createHash } from 'node:crypto';
 import {
   createMigrationQueryError,
   err,
-  ok,
   type MigrationError,
+  ok,
   type Result,
 } from '@vertz/errors';
+import { sha256Hex } from '../util/hash';
 
 /**
  * The query function type expected by the migration runner.
@@ -70,7 +70,7 @@ export interface MigrationRunner {
   ): Promise<Result<ApplyResult, MigrationError>>;
   getApplied(queryFn: MigrationQueryFn): Promise<Result<AppliedMigration[], MigrationError>>;
   getPending(files: MigrationFile[], applied: AppliedMigration[]): MigrationFile[];
-  detectDrift(files: MigrationFile[], applied: AppliedMigration[]): string[];
+  detectDrift(files: MigrationFile[], applied: AppliedMigration[]): Promise<string[]>;
   detectOutOfOrder(files: MigrationFile[], applied: AppliedMigration[]): string[];
 }
 
@@ -88,8 +88,8 @@ CREATE TABLE IF NOT EXISTS "${HISTORY_TABLE}" (
 /**
  * Compute a SHA-256 checksum for migration SQL content.
  */
-export function computeChecksum(sql: string): string {
-  return createHash('sha256').update(sql).digest('hex');
+export async function computeChecksum(sql: string): Promise<string> {
+  return sha256Hex(sql);
 }
 
 /**
@@ -130,7 +130,7 @@ export function createMigrationRunner(): MigrationRunner {
       name: string,
       options?: ApplyOptions,
     ): Promise<Result<ApplyResult, MigrationError>> {
-      const checksum = computeChecksum(sql);
+      const checksum = await computeChecksum(sql);
       const recordSql = `INSERT INTO "${HISTORY_TABLE}" ("name", "checksum") VALUES ($1, $2)`;
 
       // Collect all statements that would be executed
@@ -202,13 +202,13 @@ export function createMigrationRunner(): MigrationRunner {
         .sort((a, b) => a.timestamp - b.timestamp);
     },
 
-    detectDrift(files: MigrationFile[], applied: AppliedMigration[]): string[] {
+    async detectDrift(files: MigrationFile[], applied: AppliedMigration[]): Promise<string[]> {
       const drifted: string[] = [];
       const appliedMap = new Map(applied.map((a) => [a.name, a.checksum]));
 
       for (const file of files) {
         const appliedChecksum = appliedMap.get(file.name);
-        if (appliedChecksum && appliedChecksum !== computeChecksum(file.sql)) {
+        if (appliedChecksum && appliedChecksum !== (await computeChecksum(file.sql))) {
           drifted.push(file.name);
         }
       }

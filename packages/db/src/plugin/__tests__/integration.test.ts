@@ -30,7 +30,7 @@ describe('Plugin Integration Tests', () => {
   });
 
   // IT-6-2: Query fingerprinting produces stable hashes
-  it('IT-6-2: fingerprint produces stable hashes for same query shape', () => {
+  it('IT-6-2: fingerprint produces stable hashes for same query shape', async () => {
     const shape1 = {
       table: 'users',
       operation: 'list',
@@ -45,8 +45,8 @@ describe('Plugin Integration Tests', () => {
       select: { id: true, email: true },
     };
 
-    const fp1 = fingerprint(shape1);
-    const fp2 = fingerprint(shape2);
+    const fp1 = await fingerprint(shape1);
+    const fp2 = await fingerprint(shape2);
 
     expect(fp1).toBe(fp2);
 
@@ -58,10 +58,10 @@ describe('Plugin Integration Tests', () => {
       select: { id: true, email: true },
     };
 
-    expect(fingerprint(shape3)).not.toBe(fp1);
+    expect(await fingerprint(shape3)).not.toBe(fp1);
 
     // Stability: calling twice on same object gives same result
-    expect(fingerprint(shape1)).toBe(fp1);
+    expect(await fingerprint(shape1)).toBe(fp1);
   });
 
   // IT-6-3: Plugin beforeQuery hook is invoked

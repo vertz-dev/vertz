@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { sha256Hex } from '../util/hash';
 
 /**
  * The shape of a query for fingerprinting.
@@ -18,7 +18,7 @@ export interface QueryShape {
  * Same shape (table + operation + where keys + select keys + include keys)
  * always yields the same fingerprint, regardless of parameter values.
  */
-export function fingerprint(query: QueryShape): string {
+export async function fingerprint(query: QueryShape): Promise<string> {
   const parts: string[] = [
     query.table,
     query.operation,
@@ -28,7 +28,8 @@ export function fingerprint(query: QueryShape): string {
   ];
 
   const input = parts.join('|');
-  return createHash('sha256').update(input).digest('hex').slice(0, 16);
+  const hex = await sha256Hex(input);
+  return hex.slice(0, 16);
 }
 
 function sortedKeys(obj?: Record<string, unknown>): string {
