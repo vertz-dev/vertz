@@ -161,4 +161,53 @@ const button = css({ root: ['m:2'] });`;
     const result = transformCSS(source);
     expect(result.css).toContain("content: '';");
   });
+
+  it('resolves non-display keywords (relative, flex-col, uppercase, outline-none)', () => {
+    const source = `const styles = css({
+  panel: ['relative', 'flex-col', 'uppercase', 'outline-none'],
+});`;
+    const result = transformCSS(source);
+    expect(result.css).toContain('position: relative;');
+    expect(result.css).toContain('flex-direction: column;');
+    expect(result.css).toContain('text-transform: uppercase;');
+    expect(result.css).toContain('outline: none;');
+  });
+
+  it('resolves non-display keywords in nested selectors', () => {
+    const source = `const styles = css({
+  card: ['p:4', { '&:hover': ['relative', 'uppercase'] }],
+});`;
+    const result = transformCSS(source);
+    expect(result.css).toContain('position: relative;');
+    expect(result.css).toContain('text-transform: uppercase;');
+  });
+
+  it('handles raw declaration objects in nested selectors', () => {
+    const source = `const styles = css({
+  btn: ['p:4', { '&:hover': [{ property: 'background-color', value: 'color-mix(in oklch, var(--color-primary) 90%, transparent)' }] }],
+});`;
+    const result = transformCSS(source);
+    expect(result.css).toContain('background-color: color-mix(in oklch, var(--color-primary) 90%, transparent);');
+    expect(result.css).toContain(':hover');
+  });
+
+  it('mixes raw declarations with shorthands in nested selectors', () => {
+    const source = `const styles = css({
+  card: ['p:4', { '[data-theme="dark"] &': ['text:foreground', { property: 'background-color', value: 'rgba(0,0,0,0.3)' }] }],
+});`;
+    const result = transformCSS(source);
+    expect(result.css).toContain('color: var(--color-foreground);');
+    expect(result.css).toContain('background-color: rgba(0,0,0,0.3);');
+  });
+
+  it('replaces all & occurrences in compound selectors', () => {
+    const source = `const styles = css({
+  card: ['p:4', { '[data-theme="dark"] &:hover': ['bg:primary'] }],
+});`;
+    const result = transformCSS(source);
+    const classNameMatch = result.code.match(/'(_[0-9a-f]{8})'/);
+    const className = classNameMatch?.[1];
+    expect(result.css).toContain(`[data-theme="dark"] .${className}:hover`);
+    expect(result.css).not.toContain('&');
+  });
 });

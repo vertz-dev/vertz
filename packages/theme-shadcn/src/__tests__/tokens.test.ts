@@ -47,8 +47,8 @@ function testPalette(name: string, tokens: PaletteTokens): void {
     it('all values are valid CSS color strings', () => {
       for (const token of REQUIRED_TOKENS) {
         const values = tokens[token];
-        expect(values?.DEFAULT).toMatch(/^hsl\(/);
-        expect(values?._dark).toMatch(/^hsl\(/);
+        expect(values?.DEFAULT).toMatch(/^oklch\(/);
+        expect(values?._dark).toMatch(/^oklch\(/);
       }
     });
   });

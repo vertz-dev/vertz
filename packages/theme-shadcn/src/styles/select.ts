@@ -1,5 +1,6 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
 import { css } from '@vertz/ui';
+import { bgOpacity, DARK } from './_helpers';
 
 type SelectBlocks = {
   trigger: StyleEntry[];
@@ -7,34 +8,46 @@ type SelectBlocks = {
   item: StyleEntry[];
 };
 
+const focusRing: Record<string, (string | RawDeclaration)[]> = {
+  '&:focus-visible': [
+    'outline-none',
+    {
+      property: 'outline',
+      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+    },
+    { property: 'outline-offset', value: '2px' },
+  ],
+};
+
 /** Create select css() styles. */
 export function createSelectStyles(): CSSOutput<SelectBlocks> {
   const s = css({
     selectTrigger: [
       'flex',
-      'h:10',
+      'h:9',
       'w:full',
       'items:center',
       'justify:between',
+      'whitespace-nowrap',
       'rounded:md',
       'border:1',
       'border:input',
-      'bg:background',
+      'bg:transparent',
       'px:3',
       'py:2',
       'text:sm',
+      'shadow:xs',
       'cursor:pointer',
-      'focus-visible:outline-none',
-      'focus-visible:ring:2',
-      'focus-visible:ring:ring',
-      'disabled:opacity:0.5',
-      'disabled:cursor:default',
+      focusRing,
+      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
       { '&[data-state="open"]': ['border:ring'] },
+      { [DARK]: [bgOpacity('input', 30)] },
     ],
     selectContent: [
       'z:50',
-      'bg:card',
-      'text:card-foreground',
+      'overflow-hidden',
+      'bg:popover',
+      'text:popover-foreground',
       'rounded:md',
       'border:1',
       'border:border',
@@ -45,12 +58,14 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
     selectItem: [
       'flex',
       'items:center',
-      'px:3',
+      'px:2',
       'py:1.5',
       'text:sm',
       'cursor:pointer',
-      'hover:bg:accent',
-      'hover:text:accent-foreground',
+      'rounded:sm',
+      'outline-none',
+      { '&:focus': ['bg:accent', 'text:accent-foreground'] },
+      { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
     ],
   });
   return {

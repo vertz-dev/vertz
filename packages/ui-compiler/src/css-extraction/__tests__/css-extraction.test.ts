@@ -165,6 +165,54 @@ const button = css({ root: ['m:2'] });`;
     expect(result.css).toContain('padding: 1rem');
     expect(result.css).toContain('margin: 0.5rem');
   });
+
+  it('extracts non-display keywords (relative, flex-col, uppercase, outline-none)', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ panel: ['relative', 'flex-col', 'uppercase', 'outline-none'] });`;
+    const result = extractor.extract(source, 'Panel.tsx');
+
+    expect(result.css).toContain('position: relative');
+    expect(result.css).toContain('flex-direction: column');
+    expect(result.css).toContain('text-transform: uppercase');
+    expect(result.css).toContain('outline: none');
+  });
+
+  it('extracts raw declaration objects in nested selectors', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ btn: ['p:4', { '&:hover': [{ property: 'background-color', value: 'color-mix(in oklch, var(--color-primary) 90%, transparent)' }] }] });`;
+    const result = extractor.extract(source, 'Button.tsx');
+
+    expect(result.css).toContain('background-color: color-mix(in oklch, var(--color-primary) 90%, transparent)');
+    expect(result.css).toContain(':hover');
+  });
+
+  it('mixes raw declarations with shorthands in nested selectors', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['p:4', { '[data-theme="dark"] &': ['text:foreground', { property: 'background-color', value: 'rgba(0,0,0,0.3)' }] }] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).toContain('color: var(--color-foreground)');
+    expect(result.css).toContain('background-color: rgba(0,0,0,0.3)');
+  });
+
+  it('extracts non-display keywords in nested selectors', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['p:4', { '&:hover': ['relative', 'uppercase'] }] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).toContain('position: relative');
+    expect(result.css).toContain('text-transform: uppercase');
+  });
+
+  it('replaces all & occurrences in compound selectors', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ card: ['p:4', { '[data-theme="dark"] &:hover': ['bg:primary'] }] });`;
+    const result = extractor.extract(source, 'Card.tsx');
+
+    expect(result.css).not.toContain('&');
+    expect(result.css).toContain('[data-theme="dark"]');
+    expect(result.css).toContain(':hover');
+  });
 });
 
 // ─── Dead CSS Elimination Tests ────────────────────────────────

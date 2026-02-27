@@ -1,7 +1,7 @@
-import type { VariantFunction, VariantsConfig } from '@vertz/ui';
+import type { StyleEntry, VariantFunction, VariantsConfig } from '@vertz/ui';
 import { variants } from '@vertz/ui';
 
-const colorVariants: Record<string, string[]> = {
+const colorVariants: Record<string, StyleEntry[]> = {
   blue: ['bg:primary', 'text:primary-foreground'],
   green: ['bg:accent', 'text:accent-foreground'],
   yellow: ['bg:secondary', 'text:secondary-foreground'],
@@ -10,7 +10,7 @@ const colorVariants: Record<string, string[]> = {
 };
 
 type BadgeVariants = {
-  color: Record<string, string[]>;
+  color: Record<string, StyleEntry[]>;
 };
 
 /** Exportable config for variant customization via spread. */
@@ -24,6 +24,10 @@ export const badgeConfig: VariantsConfig<BadgeVariants> = {
     'px:2.5',
     'py:0.5',
     'transition:colors',
+    'border:1',
+    'border:transparent',
+    'whitespace-nowrap',
+    'shrink-0',
   ],
   variants: {
     color: colorVariants,

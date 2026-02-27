@@ -75,6 +75,10 @@ describe('tabs', () => {
     expect(tabs.css).toContain('[data-state="active"]');
     expect(tabs.css).toContain('[data-state="inactive"]');
   });
+
+  it('CSS contains dark mode selector for active trigger', () => {
+    expect(tabs.css).toContain('[data-theme="dark"]');
+  });
 });
 
 describe('checkbox', () => {

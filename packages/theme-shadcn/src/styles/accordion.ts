@@ -20,9 +20,16 @@ export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
       'font:medium',
       'text:sm',
       'cursor:pointer',
+      'transition:colors',
+      'hover:text:foreground',
       { '&[data-state="open"]': ['font:semibold'] },
     ],
-    accordionContent: ['text:sm', 'pb:4', { '&[data-state="closed"]': ['hidden'] }],
+    accordionContent: [
+      'overflow-hidden',
+      'text:sm',
+      'pb:4',
+      { '&[data-state="closed"]': ['hidden'] },
+    ],
   });
   return {
     item: s.accordionItem,

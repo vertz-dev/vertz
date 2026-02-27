@@ -142,6 +142,19 @@ export const KEYWORD_MAP: Record<string, CSSDeclarationEntry[]> = {
 
   // Outline
   'outline-none': [{ property: 'outline', value: 'none' }],
+
+  // Overflow
+  'overflow-hidden': [{ property: 'overflow', value: 'hidden' }],
+
+  // User interaction
+  'select-none': [{ property: 'user-select', value: 'none' }],
+  'pointer-events-none': [{ property: 'pointer-events', value: 'none' }],
+
+  // Text wrapping
+  'whitespace-nowrap': [{ property: 'white-space', value: 'nowrap' }],
+
+  // Flex shrink
+  'shrink-0': [{ property: 'flex-shrink', value: '0' }],
 };
 
 /**
@@ -212,6 +225,7 @@ export const RADIUS_SCALE: Record<string, string> = {
 
 /** Shadow scale. */
 export const SHADOW_SCALE: Record<string, string> = {
+  xs: '0 1px 1px 0 rgb(0 0 0 / 0.03)',
   sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
   md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
   lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',

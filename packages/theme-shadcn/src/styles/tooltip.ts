@@ -10,15 +10,14 @@ export function createTooltipStyles(): CSSOutput<TooltipBlocks> {
   const s = css({
     tooltipContent: [
       'z:50',
-      'bg:card',
-      'text:card-foreground',
+      'overflow-hidden',
+      'bg:primary',
+      'text:primary-foreground',
       'rounded:md',
-      'border:1',
-      'border:border',
       'shadow:md',
       'px:3',
       'py:1.5',
-      'text:sm',
+      'text:xs',
       { '&[data-state="closed"]': ['hidden'] },
     ],
   });

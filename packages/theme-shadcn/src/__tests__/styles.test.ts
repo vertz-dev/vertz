@@ -17,8 +17,15 @@ describe('button', () => {
     expect(className.length).toBeGreaterThan(0);
   });
 
-  it('accepts all intent variants', () => {
-    for (const intent of ['primary', 'secondary', 'destructive', 'ghost', 'outline'] as const) {
+  it('accepts all intent variants including link', () => {
+    for (const intent of [
+      'primary',
+      'secondary',
+      'destructive',
+      'ghost',
+      'outline',
+      'link',
+    ] as const) {
       expect(typeof button({ intent })).toBe('string');
     }
   });

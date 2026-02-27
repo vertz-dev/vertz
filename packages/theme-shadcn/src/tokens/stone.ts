@@ -2,25 +2,47 @@ import type { PaletteTokens } from '../types';
 
 /**
  * Stone palette — shadcn/ui stone variant.
+ * Values use oklch color space matching shadcn/ui v4.
  */
 export const stoneTokens: PaletteTokens = {
-  background: { DEFAULT: 'hsl(0 0% 100%)', _dark: 'hsl(20 14.3% 4.1%)' },
-  foreground: { DEFAULT: 'hsl(20 14.3% 4.1%)', _dark: 'hsl(60 9.1% 97.8%)' },
-  card: { DEFAULT: 'hsl(0 0% 100%)', _dark: 'hsl(20 14.3% 4.1%)' },
-  'card-foreground': { DEFAULT: 'hsl(20 14.3% 4.1%)', _dark: 'hsl(60 9.1% 97.8%)' },
-  popover: { DEFAULT: 'hsl(0 0% 100%)', _dark: 'hsl(20 14.3% 4.1%)' },
-  'popover-foreground': { DEFAULT: 'hsl(20 14.3% 4.1%)', _dark: 'hsl(60 9.1% 97.8%)' },
-  primary: { DEFAULT: 'hsl(24 9.8% 10%)', _dark: 'hsl(60 9.1% 97.8%)' },
-  'primary-foreground': { DEFAULT: 'hsl(60 9.1% 97.8%)', _dark: 'hsl(24 9.8% 10%)' },
-  secondary: { DEFAULT: 'hsl(60 4.8% 95.9%)', _dark: 'hsl(12 6.5% 15.1%)' },
-  'secondary-foreground': { DEFAULT: 'hsl(24 9.8% 10%)', _dark: 'hsl(60 9.1% 97.8%)' },
-  muted: { DEFAULT: 'hsl(60 4.8% 95.9%)', _dark: 'hsl(12 6.5% 15.1%)' },
-  'muted-foreground': { DEFAULT: 'hsl(25 5.3% 44.7%)', _dark: 'hsl(24 5.4% 63.9%)' },
-  accent: { DEFAULT: 'hsl(60 4.8% 95.9%)', _dark: 'hsl(12 6.5% 15.1%)' },
-  'accent-foreground': { DEFAULT: 'hsl(24 9.8% 10%)', _dark: 'hsl(60 9.1% 97.8%)' },
-  destructive: { DEFAULT: 'hsl(0 84.2% 60.2%)', _dark: 'hsl(0 62.8% 30.6%)' },
-  'destructive-foreground': { DEFAULT: 'hsl(60 9.1% 97.8%)', _dark: 'hsl(60 9.1% 97.8%)' },
-  border: { DEFAULT: 'hsl(20 5.9% 90%)', _dark: 'hsl(12 6.5% 15.1%)' },
-  input: { DEFAULT: 'hsl(20 5.9% 90%)', _dark: 'hsl(12 6.5% 15.1%)' },
-  ring: { DEFAULT: 'hsl(20 14.3% 4.1%)', _dark: 'hsl(24 5.7% 82.9%)' },
+  background: { DEFAULT: 'oklch(1 0 0)', _dark: 'oklch(0.147 0.004 49.25)' },
+  foreground: { DEFAULT: 'oklch(0.147 0.004 49.25)', _dark: 'oklch(0.985 0.001 106.423)' },
+  card: { DEFAULT: 'oklch(1 0 0)', _dark: 'oklch(0.208 0.004 56.043)' },
+  'card-foreground': {
+    DEFAULT: 'oklch(0.147 0.004 49.25)',
+    _dark: 'oklch(0.985 0.001 106.423)',
+  },
+  popover: { DEFAULT: 'oklch(1 0 0)', _dark: 'oklch(0.208 0.004 56.043)' },
+  'popover-foreground': {
+    DEFAULT: 'oklch(0.147 0.004 49.25)',
+    _dark: 'oklch(0.985 0.001 106.423)',
+  },
+  primary: { DEFAULT: 'oklch(0.216 0.006 56.043)', _dark: 'oklch(0.985 0.001 106.423)' },
+  'primary-foreground': {
+    DEFAULT: 'oklch(0.985 0.001 106.423)',
+    _dark: 'oklch(0.216 0.006 56.043)',
+  },
+  secondary: { DEFAULT: 'oklch(0.97 0.001 106.424)', _dark: 'oklch(0.268 0.005 56.366)' },
+  'secondary-foreground': {
+    DEFAULT: 'oklch(0.216 0.006 56.043)',
+    _dark: 'oklch(0.985 0.001 106.423)',
+  },
+  muted: { DEFAULT: 'oklch(0.97 0.001 106.424)', _dark: 'oklch(0.268 0.005 56.366)' },
+  'muted-foreground': {
+    DEFAULT: 'oklch(0.553 0.013 58.071)',
+    _dark: 'oklch(0.709 0.01 56.259)',
+  },
+  accent: { DEFAULT: 'oklch(0.97 0.001 106.424)', _dark: 'oklch(0.268 0.005 56.366)' },
+  'accent-foreground': {
+    DEFAULT: 'oklch(0.216 0.006 56.043)',
+    _dark: 'oklch(0.985 0.001 106.423)',
+  },
+  destructive: { DEFAULT: 'oklch(0.577 0.245 27.325)', _dark: 'oklch(0.704 0.191 22.216)' },
+  'destructive-foreground': {
+    DEFAULT: 'oklch(0.985 0.001 106.423)',
+    _dark: 'oklch(0.985 0.001 106.423)',
+  },
+  border: { DEFAULT: 'oklch(0.923 0.003 48.717)', _dark: 'oklch(1 0 0 / 10%)' },
+  input: { DEFAULT: 'oklch(0.923 0.003 48.717)', _dark: 'oklch(1 0 0 / 15%)' },
+  ring: { DEFAULT: 'oklch(0.709 0.01 56.259)', _dark: 'oklch(0.553 0.013 58.071)' },
 };

@@ -23,6 +23,7 @@ import {
   FONT_SIZE_SCALE,
   FONT_WEIGHT_SCALE,
   HEIGHT_AXIS_PROPERTIES,
+  KEYWORD_MAP,
   LINE_HEIGHT_SCALE,
   PROPERTY_MAP,
   PSEUDO_MAP,
@@ -145,12 +146,19 @@ function findCallAtPosition(sourceFile: SourceFile, start: number): CallExpressi
   return null;
 }
 
+/** A raw CSS declaration extracted from AST. */
+interface RawDecl {
+  property: string;
+  value: string;
+}
+
 /** Extract string entries and nested objects from an array literal. */
 interface ExtractedEntry {
   kind: 'shorthand' | 'nested';
   value: string; // For shorthand
   selector?: string; // For nested
   entries?: string[]; // For nested
+  rawDeclarations?: RawDecl[]; // For nested raw declarations
 }
 
 function extractEntries(arrayNode: Node): ExtractedEntry[] {
@@ -176,9 +184,13 @@ function extractEntries(arrayNode: Node): ExtractedEntry[] {
         if (!init || !init.isKind(SyntaxKind.ArrayLiteralExpression)) continue;
 
         const nestedEntries: string[] = [];
+        const rawDeclarations: RawDecl[] = [];
         for (const el of init.getElements()) {
           if (el.isKind(SyntaxKind.StringLiteral)) {
             nestedEntries.push(el.getLiteralValue());
+          } else if (el.isKind(SyntaxKind.ObjectLiteralExpression)) {
+            const rawDecl = extractRawDeclaration(el);
+            if (rawDecl) rawDeclarations.push(rawDecl);
           }
         }
 
@@ -187,12 +199,34 @@ function extractEntries(arrayNode: Node): ExtractedEntry[] {
           value: '',
           selector: actualSelector,
           entries: nestedEntries,
+          rawDeclarations,
         });
       }
     }
   }
 
   return results;
+}
+
+/** Extract a raw declaration { property: '...', value: '...' } from an object literal. */
+function extractRawDeclaration(node: Node): RawDecl | null {
+  if (!node.isKind(SyntaxKind.ObjectLiteralExpression)) return null;
+
+  let property: string | null = null;
+  let value: string | null = null;
+
+  for (const prop of node.getProperties()) {
+    if (!prop.isKind(SyntaxKind.PropertyAssignment)) return null;
+    const name = prop.getName();
+    const init = prop.getInitializer();
+    if (!init || !init.isKind(SyntaxKind.StringLiteral)) return null;
+
+    if (name === 'property') property = init.getLiteralValue();
+    else if (name === 'value') value = init.getLiteralValue();
+  }
+
+  if (property && value) return { property, value };
+  return null;
 }
 
 // ─── Class Name Generation (mirrors @vertz/ui class-generator.ts) ──────
@@ -242,7 +276,12 @@ function buildCSSRules(className: string, entries: ExtractedEntry[]): string[] {
         if (!resolved) continue;
         nestedDecls.push(...resolved);
       }
-      const resolvedSelector = entry.selector.replace('&', `.${className}`);
+      if (entry.rawDeclarations) {
+        for (const raw of entry.rawDeclarations) {
+          nestedDecls.push(`${raw.property}: ${raw.value};`);
+        }
+      }
+      const resolvedSelector = entry.selector.replaceAll('&', `.${className}`);
       if (nestedDecls.length > 0) {
         rules.push(formatCSSRule(resolvedSelector, nestedDecls));
       }
@@ -308,6 +347,12 @@ function resolveInline(parsed: InlineParsed): string[] | null {
   // Display keywords
   if (DISPLAY_MAP[property] !== undefined && value === null) {
     return [`display: ${DISPLAY_MAP[property]};`];
+  }
+
+  // Non-display keywords (flex-col, relative, uppercase, outline-none, etc.)
+  const keyword = KEYWORD_MAP[property];
+  if (keyword !== undefined && value === null) {
+    return keyword.map((d) => `${d.property}: ${d.value};`);
   }
 
   const mapping = PROPERTY_MAP[property] as CompilerPropertyMapping | undefined;
