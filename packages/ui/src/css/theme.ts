@@ -14,6 +14,8 @@
  *   → `[data-theme="dark"] { --color-background: #111827; }`
  */
 
+import { COLOR_NAMESPACES } from './token-tables';
+
 // ─── Types ──────────────────────────────────────────────────────
 
 /** A token value entry: either a raw string value or a nested shade/variant map. */
@@ -80,6 +82,29 @@ export function compileTheme(theme: Theme): CompiledTheme {
   const rootVars: string[] = [];
   const darkVars: string[] = [];
   const tokenPaths: string[] = [];
+
+  // Validate: reject camelCase color token keys
+  for (const name of Object.keys(theme.colors)) {
+    if (/[A-Z]/.test(name)) {
+      throw new Error(
+        `Color token '${name}' uses camelCase. Use kebab-case to match CSS custom property naming.`,
+      );
+    }
+  }
+
+  // Validate: detect namespace+shade collisions with compound namespaces
+  for (const [name, values] of Object.entries(theme.colors)) {
+    for (const key of Object.keys(values)) {
+      if (key === 'DEFAULT' || key.startsWith('_')) continue;
+      const compoundName = `${name}-${key}`;
+      if (COLOR_NAMESPACES.has(compoundName)) {
+        throw new Error(
+          `Token collision: '${name}.${key}' produces CSS variable '--color-${name}-${key}' ` +
+            `which conflicts with semantic token '${compoundName}'.`,
+        );
+      }
+    }
+  }
 
   // Process color tokens
   for (const [name, values] of Object.entries(theme.colors)) {
