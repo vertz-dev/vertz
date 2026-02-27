@@ -629,6 +629,50 @@ router.post('/send', {
 });
 ```
 
+### Environment Validation
+
+`createEnv` validates environment variables against a schema at startup, returning a frozen, typed configuration object.
+
+```typescript
+import { createEnv } from '@vertz/core';
+import { s } from '@vertz/schema';
+
+const env = createEnv({
+  schema: s.object({
+    DATABASE_URL: s.string(),
+    PORT: s.coerce.number().default(3000),
+    NODE_ENV: s.enum(['development', 'production', 'test']),
+  }),
+});
+
+// env.DATABASE_URL — fully typed, validated, immutable
+```
+
+By default, `createEnv` reads from `process.env`. You can pass an explicit `env` record instead — useful for edge runtimes (Cloudflare Workers, Deno Deploy) or testing:
+
+```typescript
+// Edge runtime — pass env explicitly
+const env = createEnv({
+  schema: s.object({
+    DATABASE_URL: s.string(),
+    API_KEY: s.string(),
+  }),
+  env: context.env, // Cloudflare Workers env bindings
+});
+
+// Testing — inject controlled values
+const env = createEnv({
+  schema: s.object({ PORT: s.coerce.number() }),
+  env: { PORT: '4000' },
+});
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `schema` | `Schema<T>` | A `@vertz/schema` schema to validate against |
+| `env` | `Record<string, string \| undefined>` | Explicit env record. Defaults to `process.env` with a `typeof process` guard for non-Node runtimes |
+| `load` | `string[]` | Dotenv file paths to load before validation |
+
 ### Custom Server Adapters
 
 Use the `.handler` property to integrate with custom servers:

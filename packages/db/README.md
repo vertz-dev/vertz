@@ -544,6 +544,81 @@ await migrateDeploy({
 });
 ```
 
+### Auto-Migrate
+
+For development workflows, `autoMigrate` diffs the current schema against a saved snapshot and applies changes automatically — no migration files needed.
+
+```typescript
+import { autoMigrate } from '@vertz/db';
+
+await autoMigrate({
+  currentSchema, // from d.table() definitions
+  snapshotPath: '.vertz/schema-snapshot.json',
+  dialect: 'sqlite',
+  db: queryFn,
+});
+```
+
+When using `createDbProvider`, auto-migration runs automatically in non-production environments:
+
+```typescript
+import { createDbProvider } from '@vertz/db/core';
+
+const dbProvider = createDbProvider({
+  url: process.env.DATABASE_URL!,
+  models: { users: { table: users, relations: {} } },
+  migrations: {
+    autoApply: true, // explicit opt-in (defaults to NODE_ENV !== 'production')
+    snapshotPath: '.vertz/schema-snapshot.json',
+  },
+});
+```
+
+### Custom Snapshot Storage
+
+By default, snapshots are stored on the filesystem via `NodeSnapshotStorage`. For non-Node runtimes (Cloudflare Workers, Deno Deploy) or custom backends, implement the `SnapshotStorage` interface:
+
+```typescript
+import type { SnapshotStorage, SchemaSnapshot } from '@vertz/db';
+
+class KVSnapshotStorage implements SnapshotStorage {
+  constructor(private kv: KVNamespace) {}
+
+  async load(key: string): Promise<SchemaSnapshot | null> {
+    const data = await this.kv.get(key);
+    return data ? JSON.parse(data) : null;
+  }
+
+  async save(key: string, snapshot: SchemaSnapshot): Promise<void> {
+    await this.kv.put(key, JSON.stringify(snapshot));
+  }
+}
+
+// Pass to autoMigrate or createDbProvider
+await autoMigrate({
+  currentSchema,
+  snapshotPath: 'schema-snapshot',
+  dialect: 'sqlite',
+  db: queryFn,
+  storage: new KVSnapshotStorage(env.SNAPSHOTS),
+});
+
+// Or via the provider
+const dbProvider = createDbProvider({
+  url: env.DATABASE_URL,
+  models,
+  migrations: {
+    storage: new KVSnapshotStorage(env.SNAPSHOTS),
+  },
+});
+```
+
+| Interface | Method | Description |
+|-----------|--------|-------------|
+| `SnapshotStorage` | `load(key: string)` | Load a snapshot by key. Returns `null` on first run |
+| `SnapshotStorage` | `save(key: string, snapshot)` | Persist a snapshot |
+| `NodeSnapshotStorage` | (class) | Built-in filesystem implementation using `node:fs` |
+
 ## Raw SQL
 
 ```typescript
