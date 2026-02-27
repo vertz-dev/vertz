@@ -1,5 +1,5 @@
-import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it, mock } from 'bun:test';
+import { PGlite } from '@electric-sql/pglite';
 import { d } from '../../d';
 import type { MigrationQueryFn } from '../../migration';
 import { createSnapshot } from '../../migration';
@@ -53,10 +53,11 @@ describe('CLI Integration Tests', () => {
       dryRun: false,
     });
 
-    // Migration file was written
-    expect(writtenFiles).toHaveLength(1);
-    expect(writtenFiles[0]?.path).toBe('/tmp/test-migrations/0001_create_cli_users.sql');
-    expect(writtenFiles[0]?.content).toContain('CREATE TABLE "cli_users"');
+    // Migration file, journal, and snapshot were written
+    const sqlFile = writtenFiles.find((f) => f.path.endsWith('.sql'));
+    expect(sqlFile).toBeDefined();
+    expect(sqlFile?.path).toBe('/tmp/test-migrations/0001_create_cli_users.sql');
+    expect(sqlFile?.content).toContain('CREATE TABLE "cli_users"');
 
     // SQL contains correct content
     expect(result.sql).toContain('CREATE TABLE "cli_users"');

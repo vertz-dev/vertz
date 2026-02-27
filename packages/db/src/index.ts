@@ -25,6 +25,10 @@ export type { SqliteAdapterOptions } from './adapters/sqlite-adapter';
 export { createSqliteAdapter, createSqliteDriver } from './adapters/sqlite-adapter';
 // CLI / Migrations
 export type {
+  BaselineOptions,
+  BaselineResult,
+  CodeChange,
+  DriftEntry,
   MigrateDeployOptions,
   MigrateDeployResult,
   MigrateDevOptions,
@@ -35,8 +39,18 @@ export type {
   PushOptions,
   PushResult,
   RenameSuggestion,
+  ResetOptions,
+  ResetResult,
 } from './cli/index';
-export { migrateDeploy, migrateDev, migrateStatus, push } from './cli/index';
+export {
+  baseline,
+  detectSchemaDrift,
+  migrateDeploy,
+  migrateDev,
+  migrateStatus,
+  push,
+  reset,
+} from './cli/index';
 // Client
 export type {
   CreateDbOptions,
@@ -111,6 +125,13 @@ export {
   UniqueConstraintError,
 } from './errors';
 export { generateId } from './id';
+// Migration types used by CLI consumers
+export type { MigrationError } from './migration/index';
+export type { MigrationFile, MigrationQueryFn } from './migration/runner';
+export { parseMigrationName } from './migration/runner';
+export type { SchemaSnapshot } from './migration/snapshot';
+export { createSnapshot } from './migration/snapshot';
+export { NodeSnapshotStorage } from './migration/snapshot-storage';
 // Schema types
 export type {
   ColumnBuilder,

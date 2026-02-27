@@ -4,6 +4,15 @@ export { type AutoMigrateOptions, autoMigrate } from './auto-migrate';
 export type { ChangeType, DiffChange, DiffResult } from './differ';
 export { computeDiff } from './differ';
 export { formatMigrationFilename, nextMigrationNumber } from './files';
+export { introspectPostgres, introspectSqlite } from './introspect';
+export type { CollisionInfo, Journal, JournalEntry } from './journal';
+export {
+  addJournalEntry,
+  createJournal,
+  detectCollisions,
+  readJournal,
+  writeJournal,
+} from './journal';
 export type {
   AppliedMigration,
   ApplyOptions,
@@ -11,6 +20,7 @@ export type {
   MigrationFile,
   MigrationQueryFn,
   MigrationRunner,
+  MigrationRunnerOptions,
 } from './runner';
 export { computeChecksum, createMigrationRunner, parseMigrationName } from './runner';
 export type {

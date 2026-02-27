@@ -64,4 +64,72 @@ describe('createCLI', () => {
     const program = createCLI();
     expect(program.description()).toContain('Vertz');
   });
+
+  describe('db subcommands', () => {
+    function getDbCommand() {
+      const program = createCLI();
+      return program.commands.find((c) => c.name() === 'db');
+    }
+
+    it('registers db command', () => {
+      expect(getDbCommand()).toBeDefined();
+    });
+
+    it('registers db migrate subcommand', () => {
+      const db = getDbCommand();
+      const sub = db?.commands.find((c) => c.name() === 'migrate');
+      expect(sub).toBeDefined();
+    });
+
+    it('db migrate has --name option', () => {
+      const db = getDbCommand();
+      const sub = db?.commands.find((c) => c.name() === 'migrate');
+      const opt = sub?.options.find((o) => o.long === '--name');
+      expect(opt).toBeDefined();
+    });
+
+    it('db migrate has --dry-run option', () => {
+      const db = getDbCommand();
+      const sub = db?.commands.find((c) => c.name() === 'migrate');
+      const opt = sub?.options.find((o) => o.long === '--dry-run');
+      expect(opt).toBeDefined();
+    });
+
+    it('registers db push subcommand', () => {
+      const db = getDbCommand();
+      const sub = db?.commands.find((c) => c.name() === 'push');
+      expect(sub).toBeDefined();
+    });
+
+    it('registers db deploy subcommand', () => {
+      const db = getDbCommand();
+      const sub = db?.commands.find((c) => c.name() === 'deploy');
+      expect(sub).toBeDefined();
+    });
+
+    it('db deploy has --dry-run option', () => {
+      const db = getDbCommand();
+      const sub = db?.commands.find((c) => c.name() === 'deploy');
+      const opt = sub?.options.find((o) => o.long === '--dry-run');
+      expect(opt).toBeDefined();
+    });
+
+    it('registers db status subcommand', () => {
+      const db = getDbCommand();
+      const sub = db?.commands.find((c) => c.name() === 'status');
+      expect(sub).toBeDefined();
+    });
+
+    it('registers db reset subcommand', () => {
+      const db = getDbCommand();
+      const sub = db?.commands.find((c) => c.name() === 'reset');
+      expect(sub).toBeDefined();
+    });
+
+    it('registers db baseline subcommand', () => {
+      const db = getDbCommand();
+      const sub = db?.commands.find((c) => c.name() === 'baseline');
+      expect(sub).toBeDefined();
+    });
+  });
 });

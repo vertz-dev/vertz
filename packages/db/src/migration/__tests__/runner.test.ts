@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/errors';
+import { defaultPostgresDialect, defaultSqliteDialect } from '../../dialect';
 import type { MigrationFile } from '../runner';
 import { computeChecksum, createMigrationRunner, parseMigrationName } from '../runner';
 
@@ -273,6 +274,115 @@ describe('computeChecksum', () => {
 
   it('returns different hash for different input', async () => {
     expect(await computeChecksum('SELECT 1')).not.toBe(await computeChecksum('SELECT 2'));
+  });
+});
+
+describe('dialect-aware DDL', () => {
+  it('defaults to postgres DDL when no dialect is provided', async () => {
+    const captured: string[] = [];
+    const mockQueryFn = async (sql: string, _params: readonly unknown[]) => {
+      captured.push(sql);
+      return { rows: [] as Record<string, unknown>[], rowCount: 0 };
+    };
+
+    const runner = createMigrationRunner();
+    await runner.createHistoryTable(mockQueryFn);
+
+    expect(captured).toHaveLength(1);
+    const ddl = captured[0]!;
+    expect(ddl).toContain('serial PRIMARY KEY');
+    expect(ddl).toContain('timestamp with time zone');
+    expect(ddl).toContain('now()');
+  });
+
+  it('generates SQLite DDL when sqlite dialect is provided', async () => {
+    const captured: string[] = [];
+    const mockQueryFn = async (sql: string, _params: readonly unknown[]) => {
+      captured.push(sql);
+      return { rows: [] as Record<string, unknown>[], rowCount: 0 };
+    };
+
+    const runner = createMigrationRunner({ dialect: defaultSqliteDialect });
+    await runner.createHistoryTable(mockQueryFn);
+
+    expect(captured).toHaveLength(1);
+    const ddl = captured[0]!;
+    expect(ddl).toContain('INTEGER PRIMARY KEY AUTOINCREMENT');
+    expect(ddl).not.toContain('serial');
+    expect(ddl).not.toContain('timestamp with time zone');
+    expect(ddl).toContain("datetime('now')");
+  });
+
+  it('generates Postgres DDL when postgres dialect is explicitly provided', async () => {
+    const captured: string[] = [];
+    const mockQueryFn = async (sql: string, _params: readonly unknown[]) => {
+      captured.push(sql);
+      return { rows: [] as Record<string, unknown>[], rowCount: 0 };
+    };
+
+    const runner = createMigrationRunner({ dialect: defaultPostgresDialect });
+    await runner.createHistoryTable(mockQueryFn);
+
+    expect(captured).toHaveLength(1);
+    const ddl = captured[0]!;
+    expect(ddl).toContain('serial PRIMARY KEY');
+    expect(ddl).toContain('timestamp with time zone');
+    expect(ddl).toContain('now()');
+    expect(ddl).not.toContain('AUTOINCREMENT');
+    expect(ddl).not.toContain("datetime('now')");
+  });
+
+  it('uses sqlite parameter syntax in INSERT when sqlite dialect is provided', async () => {
+    const captured: { sql: string; params: readonly unknown[] }[] = [];
+    const mockQueryFn = async (sql: string, params: readonly unknown[]) => {
+      captured.push({ sql, params });
+      return { rows: [] as Record<string, unknown>[], rowCount: 0 };
+    };
+
+    const runner = createMigrationRunner({ dialect: defaultSqliteDialect });
+    await runner.apply(mockQueryFn, 'CREATE TABLE foo (id INTEGER);', '0001_test.sql');
+
+    // Second call is the INSERT into history
+    const insertCall = captured[1]!;
+    expect(insertCall.sql).toContain('VALUES (?, ?)');
+    expect(insertCall.sql).not.toContain('$1');
+  });
+
+  it('dry-run statements reflect sqlite parameter syntax', async () => {
+    const mockQueryFn = async (_sql: string, _params: readonly unknown[]) => {
+      return { rows: [] as Record<string, unknown>[], rowCount: 0 };
+    };
+
+    const runner = createMigrationRunner({ dialect: defaultSqliteDialect });
+    const result = await runner.apply(
+      mockQueryFn,
+      'CREATE TABLE foo (id INTEGER);',
+      '0001_test.sql',
+      {
+        dryRun: true,
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    const applied = unwrap(result);
+    expect(applied.statements[1]).toContain('VALUES (?, ?)');
+    expect(applied.statements[1]).not.toContain('$1');
+  });
+
+  it('uses postgres parameter syntax in INSERT when postgres dialect is provided', async () => {
+    const captured: { sql: string; params: readonly unknown[] }[] = [];
+    const mockQueryFn = async (sql: string, params: readonly unknown[]) => {
+      captured.push({ sql, params });
+      return { rows: [] as Record<string, unknown>[], rowCount: 0 };
+    };
+
+    const runner = createMigrationRunner({ dialect: defaultPostgresDialect });
+    await runner.apply(mockQueryFn, 'CREATE TABLE foo (id serial);', '0001_test.sql');
+
+    // Second call is the INSERT into history
+    const insertCall = captured[1]!;
+    expect(insertCall.sql).toContain('VALUES ($1, $2)');
+    expect(insertCall.sql).not.toContain('?');
   });
 });
 
