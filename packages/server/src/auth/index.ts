@@ -230,24 +230,25 @@ export function createAuth(config: AuthConfig): AuthInstance {
     claims,
   } = config;
 
+  // Determine production mode: explicit config > process.env > secure default (true)
+  const isProduction =
+    config.isProduction ??
+    (typeof process === 'undefined' || process.env.NODE_ENV === 'production');
+
   // Validate JWT secret - throw in production, warn in development
-  const envJwtSecret = process.env.AUTH_JWT_SECRET;
   let jwtSecret: string;
 
   if (configJwtSecret) {
     jwtSecret = configJwtSecret;
-  } else if (envJwtSecret) {
-    jwtSecret = envJwtSecret;
+  } else if (isProduction) {
+    throw new Error(
+      'jwtSecret is required in production. Provide it via createAuth({ jwtSecret: "..." }).',
+    );
   } else {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(
-        'AUTH_JWT_SECRET is required in production. Provide a secret via createAuth({ session: { secret: "..." } }) or set the AUTH_JWT_SECRET environment variable.',
-      );
-    } else {
-      // eslint-disable-next-line no-console
-      console.warn('⚠️ Using insecure default JWT secret. Set AUTH_JWT_SECRET for production.');
-      jwtSecret = 'dev-secret-change-in-production';
-    }
+    console.warn(
+      'Using insecure default JWT secret. Provide jwtSecret in createAuth() config for production.',
+    );
+    jwtSecret = 'dev-secret-change-in-production';
   }
 
   const cookieConfig = { ...DEFAULT_COOKIE_CONFIG, ...session.cookie };
@@ -533,7 +534,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       // For Phase 1, we do a basic check
       if (!origin && !referer) {
         // Could be a CSRF attempt - but allow in development
-        if (process.env.NODE_ENV === 'production') {
+        if (isProduction) {
           return new Response(JSON.stringify({ error: 'CSRF validation failed' }), {
             status: 403,
             headers: { 'Content-Type': 'application/json' },

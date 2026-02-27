@@ -61,6 +61,12 @@ export interface AuthConfig {
   jwtAlgorithm?: 'HS256' | 'HS384' | 'HS512' | 'RS256';
   /** Custom claims function for JWT payload */
   claims?: (user: AuthUser) => Record<string, unknown>;
+  /**
+   * Whether the app runs in production mode.
+   * Controls security enforcement (JWT secret requirement, CSRF validation).
+   * Defaults to true when process.env is unavailable (secure-by-default for edge runtimes).
+   */
+  isProduction?: boolean;
 }
 
 // ============================================================================
