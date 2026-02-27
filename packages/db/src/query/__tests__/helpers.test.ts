@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'bun:test';
 import { d } from '../../d';
 import {
+  getAutoUpdateColumns,
   getColumnNames,
   getDefaultColumns,
   getNotHiddenColumns,
   getNotSensitiveColumns,
   getPrimaryKeyColumns,
+  getReadOnlyColumns,
   getTimestampColumns,
   resolveSelectColumns,
 } from '../helpers';
@@ -93,6 +95,47 @@ describe('query helpers', () => {
     it('returns explicit picks when select has boolean values', () => {
       const cols = resolveSelectColumns(table, { id: true, name: true });
       expect(cols).toEqual(['id', 'name']);
+    });
+
+    it('excludes keys set to false in explicit pick', () => {
+      const cols = resolveSelectColumns(table, { id: true, name: false, email: true });
+      expect(cols).toEqual(['id', 'email']);
+      expect(cols).not.toContain('name');
+    });
+
+    it('falls back to not-hidden when not key is present but not "sensitive"', () => {
+      const cols = resolveSelectColumns(table, { not: 'hidden' });
+      expect(cols).toContain('password');
+      expect(cols).toContain('name');
+      expect(cols).not.toContain('internalNote');
+    });
+  });
+
+  describe('getReadOnlyColumns', () => {
+    it('returns readOnly columns', () => {
+      const roTable = d.table('ro_test', {
+        id: d.uuid().primary(),
+        name: d.text(),
+        createdAt: d.timestamp().default('now').readOnly(),
+      });
+      const cols = getReadOnlyColumns(roTable);
+      expect(cols).toEqual(['createdAt']);
+      expect(cols).not.toContain('id');
+      expect(cols).not.toContain('name');
+    });
+  });
+
+  describe('getAutoUpdateColumns', () => {
+    it('returns autoUpdate columns', () => {
+      const auTable = d.table('au_test', {
+        id: d.uuid().primary(),
+        name: d.text(),
+        updatedAt: d.timestamp().autoUpdate(),
+      });
+      const cols = getAutoUpdateColumns(auTable);
+      expect(cols).toEqual(['updatedAt']);
+      expect(cols).not.toContain('id');
+      expect(cols).not.toContain('name');
     });
   });
 });
