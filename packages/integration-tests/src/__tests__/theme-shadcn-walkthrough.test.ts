@@ -156,4 +156,59 @@ describe('Theme Shadcn Walkthrough', () => {
     expect(globals.css).toContain('box-sizing');
     expect(globals.css).toContain('font-family');
   });
+
+  // ── Components (Phase 3) ──────────────────────────────────
+
+  it('configureTheme() returns components alongside styles', () => {
+    const result = configureTheme();
+    expect(result.components).toBeDefined();
+    expect(typeof result.components.Button).toBe('function');
+    expect(typeof result.components.Badge).toBe('function');
+    expect(typeof result.components.Input).toBe('function');
+    expect(typeof result.components.Label).toBe('function');
+    expect(typeof result.components.Separator).toBe('function');
+  });
+
+  it('components.Card has all sub-component factories', () => {
+    const { components } = configureTheme();
+    expect(typeof components.Card.Card).toBe('function');
+    expect(typeof components.Card.CardHeader).toBe('function');
+    expect(typeof components.Card.CardTitle).toBe('function');
+    expect(typeof components.Card.CardDescription).toBe('function');
+    expect(typeof components.Card.CardContent).toBe('function');
+    expect(typeof components.Card.CardFooter).toBe('function');
+  });
+
+  it('components.FormGroup has FormGroup and FormError factories', () => {
+    const { components } = configureTheme();
+    expect(typeof components.FormGroup.FormGroup).toBe('function');
+    expect(typeof components.FormGroup.FormError).toBe('function');
+  });
+
+  it('components.primitives has all themed primitive factories', () => {
+    const { components } = configureTheme();
+    expect(typeof components.primitives.dialog).toBe('function');
+    expect(typeof components.primitives.select).toBe('function');
+    expect(typeof components.primitives.tabs).toBe('function');
+    expect(typeof components.primitives.checkbox).toBe('function');
+    expect(typeof components.primitives.switch).toBe('function');
+    expect(typeof components.primitives.progress).toBe('function');
+    expect(typeof components.primitives.accordion).toBe('function');
+    expect(typeof components.primitives.tooltip).toBe('function');
+  });
+
+  it('styles include primitive style definitions', () => {
+    const { styles } = configureTheme();
+    expect(typeof styles.dialog.overlay).toBe('string');
+    expect(typeof styles.dialog.panel).toBe('string');
+    expect(typeof styles.tabs.list).toBe('string');
+    expect(typeof styles.tabs.trigger).toBe('string');
+    expect(typeof styles.select.trigger).toBe('string');
+    expect(typeof styles.select.content).toBe('string');
+    expect(typeof styles.checkbox.root).toBe('string');
+    expect(typeof styles.switch.root).toBe('string');
+    expect(typeof styles.progress.root).toBe('string');
+    expect(typeof styles.accordion.item).toBe('string');
+    expect(typeof styles.tooltip.content).toBe('string');
+  });
 });
