@@ -1,6 +1,6 @@
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/errors';
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { d } from '../../d';
 import { computeDiff } from '../differ';
 import type { MigrationQueryFn } from '../runner';
@@ -138,7 +138,7 @@ describe('Migration Integration Tests', () => {
     const applied = unwrap(appliedResult);
     expect(applied).toHaveLength(1);
     expect(applied[0]?.name).toBe('0001_create_posts.sql');
-    expect(applied[0]?.checksum).toBe(computeChecksum(migSql));
+    expect(applied[0]?.checksum).toBe(await computeChecksum(migSql));
 
     // Verify the table was actually created
     const postsResult = await db.query(
