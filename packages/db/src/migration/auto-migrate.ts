@@ -3,7 +3,6 @@ import { defaultSqliteDialect } from '../dialect';
 import { computeDiff, type DiffChange } from './differ';
 import { createMigrationRunner, type MigrationQueryFn } from './runner';
 import type { SchemaSnapshot } from './snapshot';
-import { NodeSnapshotStorage } from './snapshot-storage';
 import { generateMigrationSql } from './sql-generator';
 import type { SnapshotStorage } from './storage';
 
@@ -49,7 +48,14 @@ export interface AutoMigrateOptions {
  */
 export async function autoMigrate(options: AutoMigrateOptions): Promise<void> {
   const { currentSchema, snapshotPath, db } = options;
-  const storage = options.storage ?? new NodeSnapshotStorage();
+  let storage: SnapshotStorage;
+  if (options.storage) {
+    storage = options.storage;
+  } else {
+    // Lazy-import to avoid loading node:fs/node:path on non-Node platforms
+    const { NodeSnapshotStorage } = await import('./snapshot-storage');
+    storage = new NodeSnapshotStorage();
+  }
 
   // Load previous snapshot
   const previousSnapshot = await storage.load(snapshotPath);

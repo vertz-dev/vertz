@@ -1,6 +1,6 @@
 import { type CreateDbOptions, createDb, type DatabaseClient } from '../client/database';
 import { ConnectionError } from '../errors/db-error';
-import { autoMigrate, type SchemaSnapshot } from '../migration';
+import { autoMigrate, type SchemaSnapshot, type SnapshotStorage } from '../migration';
 import type { ModelEntry } from '../schema/inference';
 import type { TableDef } from '../schema/table';
 
@@ -103,6 +103,8 @@ export interface DbProviderMigrationsConfig {
   snapshotPath?: string;
   /** Database dialect - 'sqlite' or 'postgres'. Default: 'sqlite' */
   dialect?: 'sqlite' | 'postgres';
+  /** Custom snapshot storage adapter. Defaults to NodeSnapshotStorage (filesystem). */
+  storage?: SnapshotStorage;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,6 +204,7 @@ export function createDbProvider<TModels extends Record<string, ModelEntry>>(
           snapshotPath,
           dialect: dialect as 'sqlite', // TODO: support postgres
           db: queryFn,
+          storage: config.migrations?.storage,
         });
       }
 

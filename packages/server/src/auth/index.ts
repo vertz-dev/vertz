@@ -231,9 +231,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
   } = config;
 
   // Determine production mode: explicit config > process.env > secure default (true)
+  // When process is unavailable (edge runtimes) or NODE_ENV is unset, default to production (secure).
+  // Only explicit NODE_ENV=development opts into insecure defaults.
   const isProduction =
     config.isProduction ??
-    (typeof process === 'undefined' || process.env.NODE_ENV === 'production');
+    (typeof process === 'undefined' || process.env.NODE_ENV !== 'development');
 
   // Validate JWT secret - throw in production, warn in development
   let jwtSecret: string;
