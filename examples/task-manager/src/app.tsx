@@ -11,16 +11,72 @@
  * ensuring elements are created top-down for hydration compatibility.
  */
 
-import { css, RouterContext, RouterView, ThemeProvider } from '@vertz/ui';
+import {
+  css,
+  getInjectedCSS,
+  globalCss,
+  RouterContext,
+  RouterView,
+  ThemeProvider,
+} from '@vertz/ui';
 import { createSettingsValue, SettingsContext } from './lib/settings-context';
 import { appRouter, Link } from './router';
 import { layoutStyles } from './styles/components';
+import { taskManagerTheme } from './styles/theme';
 
 const navStyles = css({
   navItem: ['text:sm', 'text:muted', 'hover:text:foreground', 'transition:colors'],
   navList: ['flex', 'flex-col', 'gap:1'],
   navTitle: ['font:lg', 'font:bold', 'text:foreground', 'mb:6'],
 });
+
+// ── Global reset styles ────────────────────────────────────────
+
+const globalStyles = globalCss({
+  '*, *::before, *::after': {
+    boxSizing: 'border-box',
+    margin: '0',
+    padding: '0',
+  },
+  body: {
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    backgroundColor: 'var(--color-background)',
+    color: 'var(--color-foreground)',
+    minHeight: '100vh',
+    lineHeight: '1.5',
+  },
+  a: {
+    textDecoration: 'none',
+    color: 'inherit',
+  },
+});
+
+// ── View Transitions CSS ───────────────────────────────────────
+
+const viewTransitionsCss = `
+::view-transition-old(root) {
+  animation: fade-out 120ms ease-in;
+}
+::view-transition-new(root) {
+  animation: fade-in 200ms ease-out;
+}
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+`;
+
+// ── SSR module exports ─────────────────────────────────────────
+
+export { getInjectedCSS };
+export const theme = taskManagerTheme;
+export const styles = [globalStyles.css, viewTransitionsCss];
+
+// ── App component ──────────────────────────────────────────────
 
 /**
  * Create the root app element.

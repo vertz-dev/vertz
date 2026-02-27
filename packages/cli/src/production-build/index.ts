@@ -10,3 +10,5 @@
 
 export { BuildOrchestrator, createBuildOrchestrator } from './orchestrator';
 export type { BuildConfig, BuildManifest, BuildResult, BuildStageStatus } from './types';
+export type { UIBuildConfig, UIBuildResult } from './ui-build-pipeline';
+export { buildUI } from './ui-build-pipeline';
