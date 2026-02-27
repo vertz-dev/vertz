@@ -1,3 +1,4 @@
+import { isQueryDescriptor, type QueryDescriptor } from '@vertz/fetch';
 import { isNavPrefetchActive } from '../router/server-nav';
 import { computed, lifecycleEffect, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal, Unwrapped } from '../runtime/signal-types';
@@ -97,11 +98,24 @@ function clearDefaultQueryCache(): void {
  * The thunk is wrapped in an effect so that when reactive dependencies
  * used *before* the async call change, the query automatically re-fetches.
  *
- * @param thunk - An async function that returns the data.
+ * @param source - A QueryDescriptor or an async function that returns the data.
  * @param options - Optional configuration.
  * @returns A QueryResult with reactive signals for data, loading, and error.
  */
-export function query<T>(thunk: () => Promise<T>, options: QueryOptions<T> = {}): QueryResult<T> {
+export function query<T>(
+  descriptor: QueryDescriptor<T>,
+  options?: Omit<QueryOptions<T>, 'key'>,
+): QueryResult<T>;
+export function query<T>(thunk: () => Promise<T>, options?: QueryOptions<T>): QueryResult<T>;
+export function query<T>(
+  source: QueryDescriptor<T> | (() => Promise<T>),
+  options: QueryOptions<T> = {},
+): QueryResult<T> {
+  if (isQueryDescriptor<T>(source)) {
+    return query(() => source._fetch(), { ...options, key: source._key });
+  }
+
+  const thunk = source;
   const {
     initialData,
     debounce: debounceMs,

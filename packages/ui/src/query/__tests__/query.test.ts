@@ -639,6 +639,78 @@ describe('query()', () => {
     q2.dispose();
   });
 
+  test('uses descriptor _key as cache key', async () => {
+    const descriptor = {
+      _tag: 'QueryDescriptor' as const,
+      _key: 'GET:/tasks',
+      _fetch: () => Promise.resolve([1, 2, 3]),
+      // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+      then(onFulfilled: any, onRejected: any) {
+        return this._fetch().then(onFulfilled, onRejected);
+      },
+    };
+
+    const result = query(descriptor);
+
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+
+    expect(result.data.value).toEqual([1, 2, 3]);
+    expect(result.loading.value).toBe(false);
+  });
+
+  test('calls descriptor _fetch function', async () => {
+    const fetchFn = vi.fn().mockResolvedValue('fetched-data');
+    const descriptor = {
+      _tag: 'QueryDescriptor' as const,
+      _key: 'GET:/tasks/1',
+      _fetch: fetchFn,
+      // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+      then(onFulfilled: any, onRejected: any) {
+        return this._fetch().then(onFulfilled, onRejected);
+      },
+    };
+
+    query(descriptor);
+
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+
+    expect(fetchFn).toHaveBeenCalled();
+  });
+
+  test('enabled: false does not fetch with descriptor', async () => {
+    const fetchFn = vi.fn().mockResolvedValue('data');
+    const descriptor = {
+      _tag: 'QueryDescriptor' as const,
+      _key: 'GET:/tasks',
+      _fetch: fetchFn,
+      // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+      then(onFulfilled: any, onRejected: any) {
+        return this._fetch().then(onFulfilled, onRejected);
+      },
+    };
+
+    const result = query(descriptor, { enabled: false });
+
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(result.data.value).toBeUndefined();
+    expect(result.loading.value).toBe(false);
+  });
+
+  test('backward compat: query(thunk) still works', async () => {
+    const result = query(() => Promise.resolve('thunk-data'), { key: 'compat-test' });
+
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+
+    expect(result.data.value).toBe('thunk-data');
+    expect(result.loading.value).toBe(false);
+  });
+
   test('debounce discard does not cause unhandled promise rejection', async () => {
     const filter = signal('a');
 

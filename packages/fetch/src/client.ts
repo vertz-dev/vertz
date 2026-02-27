@@ -25,7 +25,7 @@ export class FetchClient {
 
   constructor(config: FetchClientConfig) {
     this.config = config;
-    this.fetchFn = config.fetch ?? globalThis.fetch;
+    this.fetchFn = (config.fetch ?? globalThis.fetch).bind(globalThis);
   }
 
   async request<T>(
@@ -103,6 +103,11 @@ export class FetchClient {
         }
 
         await this.config.hooks?.afterResponse?.(response);
+
+        // Skip JSON parse for empty-body responses (204, 205)
+        if (response.status === 204 || response.status === 205) {
+          return ok({ data: undefined as T, status: response.status, headers: response.headers });
+        }
 
         let data: T;
         try {
@@ -334,7 +339,11 @@ export class FetchClient {
 
   private buildURL(path: string, query?: Record<string, unknown>): string {
     const base = this.config.baseURL;
-    const url = base ? new URL(path, base) : new URL(path);
+    // Strip leading slash so the path resolves relative to base, not the origin
+    const relativePath = path.startsWith('/') ? path.slice(1) : path;
+    // Ensure base has trailing slash for correct URL resolution
+    const normalizedBase = base && !base.endsWith('/') ? `${base}/` : base;
+    const url = normalizedBase ? new URL(relativePath, normalizedBase) : new URL(path);
 
     if (query) {
       for (const [key, value] of Object.entries(query)) {

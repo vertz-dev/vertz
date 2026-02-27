@@ -3,7 +3,7 @@
  *
  * Demonstrates:
  * - JSX for page layout and component composition
- * - query() for reactive data fetching with auto-unwrapped signal properties
+ * - query() with QueryDescriptor for zero-boilerplate data fetching
  * - Reactive JSX conditionals: {tasksQuery.loading && <el/>}
  * - Compiler `let` → signal transform for local filter state
  * - Compiler `const` → computed transform for derived values from query()
@@ -13,7 +13,7 @@
  */
 
 import { onCleanup, onMount, query } from '@vertz/ui';
-import { fetchTasks } from '../api/mock-data';
+import { api } from '../api/mock-data';
 import { TaskCard } from '../components/task-card';
 import type { Task, TaskStatus } from '../lib/types';
 import { useAppRouter } from '../router';
@@ -37,10 +37,8 @@ export function TaskListPage() {
   // Local state: compiler transforms `let` to signal()
   let statusFilter: TaskStatus | 'all' = 'all';
 
-  // query() returns auto-unwrapped signal properties (.data, .loading, .error)
-  const tasksQuery = query(() => fetchTasks(), {
-    key: 'task-list',
-  });
+  // query() with QueryDescriptor — key is auto-derived from the descriptor
+  const tasksQuery = query(api.tasks.list());
 
   // Derived values — the compiler classifies these as computed (they depend on
   // signal API properties) and wraps them in computed() automatically.

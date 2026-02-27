@@ -72,6 +72,7 @@ describe('EntitySdkGenerator', () => {
     expect(userFile?.content).toContain('create:');
     expect(userFile?.content).toContain('update:');
     expect(userFile?.content).toContain('delete:');
+    expect(userFile?.content).toContain('createDescriptor');
   });
 
   it('generates SDK with custom actions', () => {
@@ -311,7 +312,7 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const todosFile = files.find((f) => f.path === 'entities/todos.ts');
 
-      expect(todosFile?.content).not.toContain('Object.assign');
+      expect(todosFile?.content).toContain('Object.assign');
       expect(todosFile?.content).not.toContain('meta:');
     });
 
@@ -337,11 +338,12 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const todosFile = files.find((f) => f.path === 'entities/todos.ts');
 
-      // Update is multi-arg, doesn't fit SdkMethod
-      expect(todosFile?.content).not.toContain('Object.assign');
+      // Update uses Object.assign for url/method but NOT .meta
+      expect(todosFile?.content).toContain('Object.assign');
+      expect(todosFile?.content).not.toContain('meta:');
     });
 
-    it('keeps plain arrow function when no resolvedFields', () => {
+    it('uses Object.assign without .meta when no resolvedFields', () => {
       const ir = createBasicIR([
         {
           entityName: 'user',
@@ -363,8 +365,96 @@ describe('EntitySdkGenerator', () => {
       const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
       const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-      expect(userFile?.content).not.toContain('Object.assign');
+      expect(userFile?.content).toContain('Object.assign');
       expect(userFile?.content).toContain('create:');
+      expect(userFile?.content).toContain("url: '/user'");
+      expect(userFile?.content).toContain("method: 'POST' as const");
+      expect(userFile?.content).not.toContain('meta:');
     });
+  });
+
+  it('includes createDescriptor import in generated output', () => {
+    const ir = createBasicIR([
+      {
+        entityName: 'user',
+        operations: [
+          {
+            kind: 'list',
+            method: 'GET',
+            path: '/user',
+            operationId: 'listUser',
+            outputSchema: 'UserResponse',
+          },
+        ],
+        actions: [],
+      },
+    ]);
+
+    const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+    const userFile = files.find((f) => f.path === 'entities/user.ts');
+
+    expect(userFile?.content).toContain("import { createDescriptor } from '@vertz/fetch'");
+  });
+
+  it('all operations have .url and .method metadata', () => {
+    const ir = createBasicIR([
+      {
+        entityName: 'task',
+        operations: [
+          {
+            kind: 'list',
+            method: 'GET',
+            path: '/tasks',
+            operationId: 'listTask',
+            outputSchema: 'TaskResponse',
+          },
+          {
+            kind: 'get',
+            method: 'GET',
+            path: '/tasks/:id',
+            operationId: 'getTask',
+            outputSchema: 'TaskResponse',
+          },
+          {
+            kind: 'create',
+            method: 'POST',
+            path: '/tasks',
+            operationId: 'createTask',
+            inputSchema: 'CreateTaskInput',
+            outputSchema: 'TaskResponse',
+          },
+          {
+            kind: 'update',
+            method: 'PATCH',
+            path: '/tasks/:id',
+            operationId: 'updateTask',
+            inputSchema: 'UpdateTaskInput',
+            outputSchema: 'TaskResponse',
+          },
+          {
+            kind: 'delete',
+            method: 'DELETE',
+            path: '/tasks/:id',
+            operationId: 'deleteTask',
+            outputSchema: 'TaskResponse',
+          },
+        ],
+        actions: [],
+      },
+    ]);
+
+    const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+    const taskFile = files.find((f) => f.path === 'entities/task.ts');
+
+    // list
+    expect(taskFile?.content).toContain("url: '/tasks', method: 'GET' as const");
+    // get
+    expect(taskFile?.content).toContain("url: '/tasks/:id', method: 'GET' as const");
+    // create
+    expect(taskFile?.content).toContain("url: '/tasks', method: 'POST' as const");
+    // update
+    expect(taskFile?.content).toContain("url: '/tasks/:id', method: 'PATCH' as const");
+    // delete
+    expect(taskFile?.content).toContain("url: '/tasks/:id', method: 'DELETE' as const");
   });
 });

@@ -111,6 +111,24 @@ readonlyCheck.loading = null as unknown as boolean;
 // @ts-expect-error - error is readonly, cannot reassign
 readonlyCheck.error = null as unknown as unknown;
 
+// ─── query() — QueryDescriptor overload ──────────────────────────
+
+import type { QueryDescriptor } from '@vertz/fetch';
+
+// query() infers T from QueryDescriptor<T>
+declare const descriptor: QueryDescriptor<string[]>;
+const descriptorResult = query(descriptor);
+const _descriptorData: string[] | undefined = descriptorResult.data;
+void _descriptorData;
+
+// descriptor overload omits 'key' from options
+// @ts-expect-error - key is not allowed in descriptor overload
+query(descriptor, { key: 'manual-key' });
+
+// descriptor overload still allows other options
+query(descriptor, { enabled: false });
+query(descriptor, { debounce: 300 });
+
 // ─── QueryResult<T> — complex generic types ──────────────────────
 
 interface ApiResponse<T> {

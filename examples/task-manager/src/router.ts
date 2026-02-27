@@ -19,7 +19,7 @@ import {
   defineRoutes,
   useRouter,
 } from '@vertz/ui';
-import { fetchTask, fetchTasks } from './api/mock-data';
+import { api } from './api/mock-data';
 import { CreateTaskPage } from './pages/create-task';
 import { SettingsPage } from './pages/settings';
 import { TaskDetailPage } from './pages/task-detail';
@@ -39,8 +39,7 @@ export const routes = defineRoutes({
   '/': {
     component: () => TaskListPage(),
     loader: async () => {
-      const result = await fetchTasks();
-      return result;
+      return await api.tasks.list();
     },
   },
 
@@ -51,8 +50,7 @@ export const routes = defineRoutes({
   '/tasks/:id': {
     component: () => TaskDetailPage(),
     loader: async (ctx) => {
-      const task = await fetchTask(ctx.params.id);
-      return task;
+      return await api.tasks.get(ctx.params.id);
     },
   },
 

@@ -68,6 +68,7 @@ export class EntitySdkGenerator implements Generator {
       }
       lines.push(`import type { ${[...typeImports].join(', ')} } from '../types';`);
       lines.push(`import type { Client } from '../client';`);
+      lines.push(`import { createDescriptor } from '@vertz/fetch';`);
       lines.push('');
     }
 
@@ -82,14 +83,20 @@ export class EntitySdkGenerator implements Generator {
 
       switch (op.kind) {
         case 'list':
+          lines.push(`    list: Object.assign(`);
           lines.push(
-            `    list: (query?: Record<string, unknown>) => client.get<${arrayOutput}>('${op.path}', { query }),`,
+            `      (query?: Record<string, unknown>) => createDescriptor('GET', '${op.path}', () => client.get<${arrayOutput}>('${op.path}', { query }), query),`,
           );
+          lines.push(`      { url: '${op.path}', method: 'GET' as const },`);
+          lines.push(`    ),`);
           break;
         case 'get':
+          lines.push(`    get: Object.assign(`);
           lines.push(
-            `    get: (id: string) => client.get<${outputType}>(\`${op.path.replace(':id', '${id}')}\`),`,
+            `      (id: string) => createDescriptor('GET', \`${op.path.replace(':id', '${id}')}\`, () => client.get<${outputType}>(\`${op.path.replace(':id', '${id}')}\`)),`,
           );
+          lines.push(`      { url: '${op.path}', method: 'GET' as const },`);
+          lines.push(`    ),`);
           break;
         case 'create':
           if (op.resolvedFields && op.resolvedFields.length > 0) {
@@ -97,7 +104,7 @@ export class EntitySdkGenerator implements Generator {
             const schemaVarName = `${(op.inputSchema ?? 'createInput').charAt(0).toLowerCase()}${(op.inputSchema ?? 'createInput').slice(1)}Schema`;
             lines.push(`    create: Object.assign(`);
             lines.push(
-              `      (body: ${inputType}) => client.post<${outputType}>('${op.path}', body),`,
+              `      (body: ${inputType}) => createDescriptor('POST', '${op.path}', () => client.post<${outputType}>('${op.path}', body)),`,
             );
             lines.push(`      {`);
             lines.push(`        url: '${op.path}',`);
@@ -106,20 +113,29 @@ export class EntitySdkGenerator implements Generator {
             lines.push(`      },`);
             lines.push(`    ),`);
           } else {
+            lines.push(`    create: Object.assign(`);
             lines.push(
-              `    create: (body: ${inputType}) => client.post<${outputType}>('${op.path}', body),`,
+              `      (body: ${inputType}) => createDescriptor('POST', '${op.path}', () => client.post<${outputType}>('${op.path}', body)),`,
             );
+            lines.push(`      { url: '${op.path}', method: 'POST' as const },`);
+            lines.push(`    ),`);
           }
           break;
         case 'update':
+          lines.push(`    update: Object.assign(`);
           lines.push(
-            `    update: (id: string, body: ${inputType}) => client.patch<${outputType}>(\`${op.path.replace(':id', '${id}')}\`, body),`,
+            `      (id: string, body: ${inputType}) => createDescriptor('PATCH', \`${op.path.replace(':id', '${id}')}\`, () => client.patch<${outputType}>(\`${op.path.replace(':id', '${id}')}\`, body)),`,
           );
+          lines.push(`      { url: '${op.path}', method: 'PATCH' as const },`);
+          lines.push(`    ),`);
           break;
         case 'delete':
+          lines.push(`    delete: Object.assign(`);
           lines.push(
-            `    delete: (id: string) => client.delete<${outputType}>(\`${op.path.replace(':id', '${id}')}\`),`,
+            `      (id: string) => createDescriptor('DELETE', \`${op.path.replace(':id', '${id}')}\`, () => client.delete<${outputType}>(\`${op.path.replace(':id', '${id}')}\`)),`,
           );
+          lines.push(`      { url: '${op.path}', method: 'DELETE' as const },`);
+          lines.push(`    ),`);
           break;
       }
     }

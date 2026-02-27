@@ -18,6 +18,8 @@
     "e2e:headed": "npx playwright test --headed"
   },
   "dependencies": {
+    "@vertz/errors": "workspace:*",
+    "@vertz/fetch": "workspace:*",
     "@vertz/theme-shadcn": "workspace:*",
     "@vertz/ui": "workspace:*",
     "@vertz/ui-server": "workspace:*",
