@@ -12,7 +12,7 @@
 
 import type { FormSchema } from '@vertz/ui';
 import { form } from '@vertz/ui';
-import { taskApi } from '../api/mock-data';
+import { taskApi } from '../api/client';
 import type { CreateTaskBody, Task, TaskPriority } from '../lib/types';
 import { button, formStyles } from '../styles/components';
 

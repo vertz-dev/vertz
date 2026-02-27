@@ -1,34 +1,55 @@
 /**
- * Bun production server for the Task Manager SSR app.
+ * Bun production server for the Task Manager full-stack app.
  *
- * Serves static files from dist/client/ and delegates HTML/nav requests
- * to the SSR handler from @vertz/ui-server.
+ * Serves:
+ * - /api/* → @vertz/server entity API (SQLite for local prod)
+ * - Static files from dist/client/
+ * - /* → SSR HTML render via @vertz/ui-server
  */
 
+import { createServer } from '@vertz/server';
 import { createSSRHandler } from '@vertz/ui-server';
+import { createTasksDb } from './src/db';
+import { tasks } from './src/entities';
+
+// ── API Setup ──────────────────────────────────────────
+
+const tasksDbAdapter = createTasksDb();
+
+const apiApp = createServer({
+  basePath: '/api',
+  entities: [tasks],
+  db: tasksDbAdapter,
+});
+
+// ── SSR Setup ──────────────────────────────────────────
 
 const ssrModule = await import('./dist/server/index.js');
 const template = await Bun.file('./dist/client/index.html').text();
 
-// Read extracted CSS and inline it into the template to prevent FOUC.
-// Without inlining, the browser needs an extra request for the CSS file,
-// which causes unstyled content on slow connections.
 const vertzCssFile = Bun.file('./dist/client/assets/vertz.css');
 const inlineCSS: Record<string, string> = {};
 if (await vertzCssFile.exists()) {
   inlineCSS['/assets/vertz.css'] = await vertzCssFile.text();
 }
 
-const handler = createSSRHandler({
+const ssrHandler = createSSRHandler({
   module: ssrModule,
   template,
   inlineCSS,
 });
 
+// ── Server ─────────────────────────────────────────────
+
 const server = Bun.serve({
   port: 3000,
   async fetch(request) {
     const url = new URL(request.url);
+
+    // API routes → @vertz/server
+    if (url.pathname.startsWith('/api')) {
+      return apiApp.handler(request);
+    }
 
     // Serve static files from dist/client/
     if (url.pathname !== '/' && !url.pathname.endsWith('.html')) {
@@ -46,7 +67,7 @@ const server = Bun.serve({
     }
 
     // SSR handler for HTML and nav pre-fetch requests
-    return handler(request);
+    return ssrHandler(request);
   },
 });
 

@@ -54,7 +54,13 @@ test.describe('SSR — Server-Side Rendering', () => {
     });
 
     test('SSR renders task detail page with pre-fetched data', async ({ request }) => {
-      const response = await request.get('/tasks/1', {
+      // Get a real task ID from the API
+      const listRes = await request.get('/api/tasks');
+      const listBody = await listRes.json();
+      const task = listBody.data.find((t: { title: string }) => t.title.includes('CI/CD'));
+      expect(task).toBeDefined();
+
+      const response = await request.get(`/tasks/${task.id}`, {
         headers: { accept: 'text/html' },
       });
       const html = await response.text();
@@ -81,11 +87,16 @@ test.describe('SSR — Server-Side Rendering', () => {
       await context.close();
     });
 
-    test('task detail page renders with JavaScript disabled', async ({ browser }) => {
+    test('task detail page renders with JavaScript disabled', async ({ browser, request }) => {
+      // Get a real task ID from the API
+      const listRes = await request.get('/api/tasks');
+      const listBody = await listRes.json();
+      const taskId = listBody.data[0].id;
+
       const context = await browser.newContext({ javaScriptEnabled: false });
       const page = await context.newPage();
 
-      await page.goto('/tasks/1');
+      await page.goto(`/tasks/${taskId}`);
 
       await expect(page.getByTestId('task-detail-page')).toBeVisible();
       // Task title should be visible

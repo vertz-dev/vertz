@@ -1,8 +1,15 @@
 import { expect, test } from '@playwright/test';
 
+async function getFirstTaskId(page: import('@playwright/test').Page): Promise<string> {
+  const response = await page.request.get('/api/tasks');
+  const body = await response.json();
+  return body.data[0].id;
+}
+
 test.describe('Visual Verification — Bug Fixes', () => {
   test('dialog: opens centered with overlay, closes properly', async ({ page }) => {
-    await page.goto('/tasks/1');
+    const taskId = await getFirstTaskId(page);
+    await page.goto(`/tasks/${taskId}`);
     await expect(page.getByTestId('task-content')).toBeVisible();
     await page.screenshot({ path: 'e2e/screenshots/fix-01-before-dialog.png', fullPage: true });
 
@@ -21,7 +28,8 @@ test.describe('Visual Verification — Bug Fixes', () => {
   });
 
   test('tabs: only active panel visible', async ({ page }) => {
-    await page.goto('/tasks/1');
+    const taskId = await getFirstTaskId(page);
+    await page.goto(`/tasks/${taskId}`);
     await expect(page.getByTestId('task-content')).toBeVisible();
 
     // Details tab should be visible, Activity panel hidden

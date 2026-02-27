@@ -11,8 +11,13 @@ test.describe('Routing', () => {
     await expect(page.getByTestId('create-task-page')).toBeVisible();
   });
 
-  test('renders task detail page at /tasks/:id', async ({ page }) => {
-    await page.goto('/tasks/1');
+  test('renders task detail page at /tasks/:id', async ({ page, request }) => {
+    // Get a real task ID from the API
+    const listRes = await request.get('/api/tasks');
+    const listBody = await listRes.json();
+    const taskId = listBody.data[0].id;
+
+    await page.goto(`/tasks/${taskId}`);
     await expect(page.getByTestId('task-detail-page')).toBeVisible();
     await expect(page.getByTestId('task-content')).toBeVisible();
   });

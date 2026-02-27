@@ -13,7 +13,7 @@
  */
 
 import { onCleanup, onMount, query } from '@vertz/ui';
-import { api } from '../api/mock-data';
+import { api } from '../api/client';
 import { TaskCard } from '../components/task-card';
 import type { Task, TaskStatus } from '../lib/types';
 import { useAppRouter } from '../router';
@@ -46,11 +46,21 @@ export function TaskListPage() {
     ? `Failed to load tasks: ${tasksQuery.error instanceof Error ? tasksQuery.error.message : String(tasksQuery.error)}`
     : '';
 
-  const filteredTasks = !tasksQuery.data
+  // The SDK types list as TasksResponse[], but the server wraps list responses
+  // in { data: [...] }. Extract the array from whichever shape we get.
+  const allTasks: Task[] = !tasksQuery.data
     ? []
-    : statusFilter === 'all'
-      ? tasksQuery.data.tasks
-      : tasksQuery.data.tasks.filter((t: Task) => t.status === statusFilter);
+    : Array.isArray(tasksQuery.data)
+      ? tasksQuery.data
+      : 'data' in (tasksQuery.data as object)
+        ? (tasksQuery.data as unknown as { data: Task[] }).data
+        : 'tasks' in (tasksQuery.data as object)
+          ? (tasksQuery.data as unknown as { tasks: Task[] }).tasks
+          : [];
+
+  const filteredTasks = statusFilter === 'all'
+    ? allTasks
+    : allTasks.filter((t: Task) => t.status === statusFilter);
 
   // ── Filter options ──────────────────────────────────
 

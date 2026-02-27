@@ -1,32 +1,44 @@
 /**
- * Cloudflare Worker entry point for the Task Manager SSR app.
+ * Cloudflare Worker entry point for Task Manager.
  *
- * Uses createSSRHandler() from @vertz/ui-server to handle SSR HTML
- * and nav pre-fetch SSE requests. Static files are served by
- * Cloudflare's [site] configuration in wrangler.toml.
+ * Uses @vertz/cloudflare's createHandler for automatic route splitting:
+ * - /api/* → JSON API handler (auto-generated entity routes, D1 database)
+ * - /*     → SSR HTML render (zero-boilerplate via SSR module config)
  */
 
-import { createSSRHandler } from '@vertz/ui-server';
-import * as ssrModule from './app';
+import { createHandler } from '@vertz/cloudflare';
+import { createDb } from '@vertz/db';
+import { createServer, type ServerConfig } from '@vertz/server';
+import * as app from './app';
+import { tasks } from './entities';
+import { tasksModel } from './schema';
 
-// Template will be embedded during build or served from KV.
-// For now, a minimal template that matches the production build output.
-const template = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Task Manager — @vertz/ui demo</title>
-</head>
-<body>
-<div id="app"><!--ssr-outlet--></div>
-</body>
-</html>`;
+interface Env {
+  DB: D1Database;
+}
 
-const handler = createSSRHandler({ module: ssrModule, template });
+export default createHandler({
+  app: (env) => {
+    const typedEnv = env as Env;
+    const db = createDb({
+      models: { tasks: tasksModel },
+      dialect: 'sqlite',
+      // biome-ignore lint/suspicious/noExplicitAny: Cloudflare D1 binding → @vertz/db D1Database
+      d1: typedEnv.DB as any,
+    });
 
-export default {
-  async fetch(request: Request): Promise<Response> {
-    return handler(request);
+    return createServer({
+      basePath: '/api',
+      entities: [tasks],
+      // biome-ignore lint/suspicious/noExplicitAny: DatabaseClient variance — specific model → generic
+      db: db as any as ServerConfig['db'],
+    });
   },
-};
+  basePath: '/api',
+  ssr: {
+    module: app,
+    clientScript: '/assets/entry-client.js',
+    title: 'Task Manager — vertz full-stack demo',
+  },
+  securityHeaders: true,
+});

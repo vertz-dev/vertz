@@ -12,7 +12,7 @@
  */
 
 import { css, onCleanup, onMount, query, useParams } from '@vertz/ui';
-import { api } from '../api/mock-data';
+import { api } from '../api/client';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import type { TaskStatus } from '../lib/types';
 import { useAppRouter } from '../router';

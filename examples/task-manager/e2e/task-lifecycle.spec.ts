@@ -15,9 +15,14 @@ test.describe('Task Lifecycle', () => {
     await expect(page.getByTestId('task-description')).not.toBeEmpty();
   });
 
-  test('transition task status: todo → in-progress', async ({ page }) => {
-    // Task 3 (API docs) is "todo"
-    await page.goto('/tasks/3');
+  test('transition task status: todo → in-progress', async ({ page, request }) => {
+    // Find the "todo" task (API docs) by querying the API
+    const listRes = await request.get('/api/tasks');
+    const listBody = await listRes.json();
+    const todoTask = listBody.data.find((t: { status: string }) => t.status === 'todo');
+    expect(todoTask).toBeDefined();
+
+    await page.goto(`/tasks/${todoTask.id}`);
     await expect(page.getByTestId('task-content')).toBeVisible();
 
     // Status bar should show "To Do" badge and "Start" button
@@ -33,9 +38,16 @@ test.describe('Task Lifecycle', () => {
     await expect(statusBar.getByRole('button', { name: 'Complete' })).toBeVisible();
   });
 
-  test('transition task status: in-progress → done', async ({ page }) => {
-    // Task 2 (user auth) is "in-progress"
-    await page.goto('/tasks/2');
+  test('transition task status: in-progress → done', async ({ page, request }) => {
+    // Find an "in-progress" task by querying the API
+    const listRes = await request.get('/api/tasks');
+    const listBody = await listRes.json();
+    const inProgressTask = listBody.data.find(
+      (t: { status: string }) => t.status === 'in-progress',
+    );
+    expect(inProgressTask).toBeDefined();
+
+    await page.goto(`/tasks/${inProgressTask.id}`);
     await expect(page.getByTestId('task-content')).toBeVisible();
 
     const statusBar = page.getByTestId('status-bar');
@@ -66,8 +78,14 @@ test.describe('Task Lifecycle', () => {
     await expect(page.getByTestId('task-list')).toContainText('New E2E Task');
   });
 
-  test('delete a task with confirmation dialog', async ({ page }) => {
-    await page.goto('/tasks/1');
+  test('delete a task with confirmation dialog', async ({ page, request }) => {
+    // Find a task with "CI/CD" in the title
+    const listRes = await request.get('/api/tasks');
+    const listBody = await listRes.json();
+    const cicdTask = listBody.data.find((t: { title: string }) => t.title.includes('CI/CD'));
+    expect(cicdTask).toBeDefined();
+
+    await page.goto(`/tasks/${cicdTask.id}`);
     await expect(page.getByTestId('task-content')).toBeVisible();
     await expect(page.getByTestId('task-title')).toContainText('CI/CD');
 
@@ -90,7 +108,10 @@ test.describe('Task Lifecycle', () => {
   });
 
   test('cancel delete dialog does not delete the task', async ({ page }) => {
-    await page.goto('/tasks/1');
+    // Navigate from list to first task
+    await page.goto('/');
+    await expect(page.getByTestId('task-list')).toBeVisible();
+    await page.getByTestId('task-list').locator('[data-testid^="task-card-"]').first().click();
     await expect(page.getByTestId('task-content')).toBeVisible();
 
     // Open delete dialog
@@ -111,7 +132,10 @@ test.describe('Task Lifecycle', () => {
   });
 
   test('tabs on task detail page switch content', async ({ page }) => {
-    await page.goto('/tasks/1');
+    // Navigate from list to first task
+    await page.goto('/');
+    await expect(page.getByTestId('task-list')).toBeVisible();
+    await page.getByTestId('task-list').locator('[data-testid^="task-card-"]').first().click();
     await expect(page.getByTestId('task-content')).toBeVisible();
 
     // Details tab should be active by default

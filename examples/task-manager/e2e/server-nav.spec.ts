@@ -35,9 +35,14 @@ test.describe('Server Nav — Client-Side Navigation Pre-Fetch', () => {
     await expect(page.getByTestId('task-title')).toBeVisible();
   });
 
-  test('reverse navigation (detail → list) works with pre-fetch', async ({ page }) => {
+  test('reverse navigation (detail → list) works with pre-fetch', async ({ page, request }) => {
+    // Get a real task ID from the API
+    const listRes = await request.get('/api/tasks');
+    const listBody = await listRes.json();
+    const taskId = listBody.data[0].id;
+
     // Load detail page via SSR
-    await page.goto('/tasks/1');
+    await page.goto(`/tasks/${taskId}`);
     await expect(page.getByTestId('task-detail-page')).toBeVisible();
 
     // Click "Back to Tasks" to navigate client-side

@@ -19,7 +19,7 @@ import {
   defineRoutes,
   useRouter,
 } from '@vertz/ui';
-import { api } from './api/mock-data';
+import { api } from './api/client';
 import { CreateTaskPage } from './pages/create-task';
 import { SettingsPage } from './pages/settings';
 import { TaskDetailPage } from './pages/task-detail';

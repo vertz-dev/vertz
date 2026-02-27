@@ -63,9 +63,14 @@ test.describe('Production SSR', () => {
     await expect(page.getByTestId('task-title')).toBeVisible();
   });
 
-  test('reverse navigation works — detail to list', async ({ page }) => {
+  test('reverse navigation works — detail to list', async ({ page, request }) => {
+    // Get a real task ID from the API
+    const listRes = await request.get(`${PROD_BASE}/api/tasks`);
+    const listBody = await listRes.json();
+    const taskId = listBody.data[0].id;
+
     // Load detail page via SSR
-    await page.goto(`${PROD_BASE}/tasks/1`);
+    await page.goto(`${PROD_BASE}/tasks/${taskId}`);
     await expect(page.getByTestId('task-detail-page')).toBeVisible();
 
     // Click "Back to Tasks" to navigate client-side

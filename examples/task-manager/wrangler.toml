@@ -2,8 +2,22 @@ name = "task-manager-preview"
 main = "dist/worker.js"
 compatibility_date = "2024-01-01"
 
+# D1 database for task storage
+[[d1_databases]]
+binding = "DB"
+database_name = "task-manager-db"
+database_id = "your-database-id-here"
+
+# Serve static assets (client JS/CSS) automatically.
+# Cloudflare serves matching files from this directory before hitting the Worker.
+[assets]
+directory = "dist/client"
+
 [env.preview]
 route = { pattern = "task-manager-preview.*.workers.dev" }
 
 [env.preview.vars]
 ENVIRONMENT = "preview"
+
+[observability]
+enabled = true

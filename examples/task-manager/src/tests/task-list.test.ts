@@ -9,11 +9,19 @@
  * - RouterContext.Provider for page context
  */
 
-import { beforeEach, describe, expect, it } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { createRouter, defineRoutes, RouterContext } from '@vertz/ui';
 import { renderTest, waitFor } from '@vertz/ui/test';
-import { resetMockData } from '../api/mock-data';
-import { TaskListPage } from '../pages/task-list';
+import { resetMockData, api, taskApi } from '../api/mock-data';
+
+// Mock client.ts to use in-memory mock data instead of the generated SDK
+mock.module('../api/client', () => ({
+  api,
+  taskApi,
+}));
+
+// Import AFTER mock.module so the mock is applied
+const { TaskListPage } = await import('../pages/task-list');
 
 const testRoutes = defineRoutes({
   '/': { component: () => document.createElement('div') },
