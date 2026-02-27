@@ -464,6 +464,127 @@ describe('Signal Auto-Unwrap', () => {
     });
   });
 
+  it('should handle rest element in destructured signal API', () => {
+    const source = `
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const { data, ...rest } = query('/api/tasks');
+        return <div>{data}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // Should generate synthetic var and computed for data
+    expect(result.code).toContain('const __query_0 =');
+    expect(result.code).toContain('computed(() => __query_0.data.value)');
+    // Rest element should use spread, not access a literal property named 'rest'
+    expect(result.code).not.toContain('__query_0.rest');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('should avoid naming collision with user variable named __query_0', () => {
+    const source = `
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const __query_0 = 'collision';
+        const { data } = query('/api/tasks');
+        return <div>{data} {__query_0}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // Should NOT produce duplicate __query_0 declarations
+    expect(result.code).toContain('const __query_1 =');
+    expect(result.code).toContain('computed(() => __query_1.data.value)');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('should fall back to regular destructuring when defaults are present in signal API', () => {
+    const source = `
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const { data = [], loading } = query('/api/tasks');
+        return <div>{loading}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // When any binding has a default value, skip signal API destructuring path
+    // to avoid silently dropping the default
+    expect(result.code).not.toContain('__query_0');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('should fall back to regular destructuring for nested pattern in signal API', () => {
+    const source = `
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const { data: { items } } = query('/api/tasks');
+        return <div>{items}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // Nested destructuring should not trigger signal API path
+    expect(result.code).not.toContain('__query_0');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('should treat unknown destructured signal API property as static', () => {
+    const source = `
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const { data, unknownProp } = query('/api/tasks');
+        return <div>{data} {unknownProp}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // data is a known signal property — should be reactive
+    expect(result.code).toContain('computed(() => __query_0.data.value)');
+    // unknownProp is not in signalProperties or plainProperties — treat as static
+    expect(result.code).toContain('__query_0.unknownProp');
+    expect(result.code).not.toContain('unknownProp.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('should not produce invalid syntax for let destructuring', () => {
+    const source = `
+      function TaskList() {
+        let { name, age } = { name: 'Alice', age: 30 };
+        return <div>{name} {age}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // let destructuring should NOT produce { name.value } — that's invalid syntax
+    expect(result.code).not.toContain('{ name.value');
+    expect(result.code).not.toContain('{ age.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('should not treat local function named query as signal API', () => {
+    const source = `
+      function TaskList() {
+        const query = (url: string) => ({ data: [], loading: false });
+        const tasks = query('/api/tasks');
+        return <div>{tasks}</div>;
+      }
+    `;
+
+    const result = compile(source, 'test.tsx');
+
+    // Without @vertz/ui import, should not generate synthetic var
+    expect(result.code).not.toContain('__query_');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
   it('should NOT double-unwrap when .value already exists (migration case)', () => {
     const source = `
       import { query } from '@vertz/ui';

@@ -242,6 +242,28 @@ describe('ReactivityAnalyzer', () => {
     expect(findVar(result?.variables, 'refetch')?.kind).toBe('static');
   });
 
+  it('does not treat local function named query as signal API', () => {
+    const [result] = analyze(`
+      function TaskList() {
+        const query = (url: string) => ({ data: [], loading: false });
+        const tasks = query('/api/tasks');
+        return <div>{tasks}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'tasks')?.signalProperties).toBeUndefined();
+  });
+
+  it('does not treat local function named query as signal API in destructuring', () => {
+    const [result] = analyze(`
+      function TaskList() {
+        const query = (url: string) => ({ data: [], loading: false });
+        const { data } = query('/api/tasks');
+        return <div>{data}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, '__query_0')).toBeUndefined();
+  });
+
   it('analyzes multiple components independently', () => {
     const results = analyze(`
       function Counter() {

@@ -20,6 +20,9 @@ export class ReactivityAnalyzer {
     // Build import alias map for signal APIs
     const importAliases = buildImportAliasMap(sourceFile);
 
+    // Collect all declared variable names to avoid synthetic name collisions
+    const declaredNames = collectDeclaredNames(bodyNode);
+
     // Pass 1: Collect declarations
     const lets = new Map<string, { start: number; end: number; deps: string[] }>();
     const consts = new Map<string, { start: number; end: number; deps: string[] }>();
@@ -46,17 +49,28 @@ export class ReactivityAnalyzer {
           let signalApiConfig: SignalApiConfig | undefined;
           let syntheticName: string | undefined;
 
-          if (isConst && init?.isKind(SyntaxKind.CallExpression)) {
+          const hasUnsupportedBindings = nameNode
+            .getElements()
+            .some(
+              (el) =>
+                el.getInitializer() || el.getNameNode().isKind(SyntaxKind.ObjectBindingPattern),
+            );
+
+          if (isConst && !hasUnsupportedBindings && init?.isKind(SyntaxKind.CallExpression)) {
             const callExpr = init.asKindOrThrow(SyntaxKind.CallExpression);
             const callName = callExpr.getExpression();
             if (callName.isKind(SyntaxKind.Identifier)) {
               const fnName = callName.getText();
-              const originalName = importAliases.get(fnName) ?? fnName;
-              if (isSignalApi(originalName)) {
+              const originalName = importAliases.get(fnName);
+              if (originalName) {
                 signalApiConfig = getSignalApiConfig(originalName);
                 if (signalApiConfig) {
-                  const counter = syntheticCounters.get(originalName) ?? 0;
+                  let counter = syntheticCounters.get(originalName) ?? 0;
                   syntheticName = `__${originalName}_${counter}`;
+                  while (declaredNames.has(syntheticName)) {
+                    counter++;
+                    syntheticName = `__${originalName}_${counter}`;
+                  }
                   syntheticCounters.set(originalName, counter + 1);
 
                   // Register the synthetic variable with signal API config
@@ -76,9 +90,9 @@ export class ReactivityAnalyzer {
             const propName = element.getPropertyNameNode()?.getText() ?? bindingName;
 
             if (signalApiConfig && syntheticName) {
-              // Classify based on registry: plain props are static, everything else is computed
-              const isPlainProp = signalApiConfig.plainProperties.has(propName);
-              const deps = isPlainProp ? [] : [syntheticName];
+              // Classify based on registry: signal props are computed, everything else is static
+              const isSignalProp = signalApiConfig.signalProperties.has(propName);
+              const deps = isSignalProp ? [syntheticName] : [];
               const entry = { start: decl.getStart(), end: decl.getEnd(), deps };
               consts.set(bindingName, entry);
               destructuredFromMap.set(bindingName, syntheticName);
@@ -105,9 +119,8 @@ export class ReactivityAnalyzer {
           const callName = callExpr.getExpression();
           if (callName.isKind(SyntaxKind.Identifier)) {
             const fnName = callName.getText();
-            // Check both direct name and aliased name
-            const originalName = importAliases.get(fnName) ?? fnName;
-            if (isSignalApi(originalName)) {
+            const originalName = importAliases.get(fnName);
+            if (originalName) {
               const config = getSignalApiConfig(originalName);
               if (config) {
                 signalApiVars.set(name, config);
@@ -258,8 +271,9 @@ function collectIdentifierRefs(node: Node): string[] {
 }
 
 /**
- * Build a map of import aliases for signal APIs.
- * Maps local name → original name (e.g., 'q' → 'query')
+ * Build a map of signal API local names imported from @vertz/ui.
+ * Maps local name → original name (e.g., 'q' → 'query', 'query' → 'query').
+ * Only names that appear in this map should be treated as signal APIs.
  */
 function buildImportAliasMap(sourceFile: SourceFile): Map<string, string> {
   const aliases = new Map<string, string>();
@@ -272,16 +286,33 @@ function buildImportAliasMap(sourceFile: SourceFile): Map<string, string> {
     const namedImports = importDecl.getNamedImports();
     for (const namedImport of namedImports) {
       const originalName = namedImport.getName();
+      if (!isSignalApi(originalName)) continue;
+
       const aliasNode = namedImport.getAliasNode();
       if (aliasNode) {
-        const aliasName = aliasNode.getText();
-        // Only track if it's a signal API
-        if (isSignalApi(originalName)) {
-          aliases.set(aliasName, originalName);
-        }
+        aliases.set(aliasNode.getText(), originalName);
+      } else {
+        aliases.set(originalName, originalName);
       }
     }
   }
 
   return aliases;
+}
+
+/** Collect all declared variable names in a component body. */
+function collectDeclaredNames(bodyNode: Node): Set<string> {
+  const names = new Set<string>();
+  for (const stmt of bodyNode.getChildSyntaxList()?.getChildren() ?? []) {
+    if (!stmt.isKind(SyntaxKind.VariableStatement)) continue;
+    const declList = stmt.getChildrenOfKind(SyntaxKind.VariableDeclarationList)[0];
+    if (!declList) continue;
+    for (const decl of declList.getDeclarations()) {
+      const nameNode = decl.getNameNode();
+      if (nameNode.isKind(SyntaxKind.Identifier)) {
+        names.add(nameNode.getText());
+      }
+    }
+  }
+  return names;
 }

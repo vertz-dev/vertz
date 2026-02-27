@@ -67,6 +67,12 @@ export class ComputedTransformer {
             const lines: string[] = [];
             lines.push(`const ${syntheticName} = ${initText}`);
             for (const el of elements) {
+              // Skip rest elements — emit as spread destructuring
+              if (el.getDotDotDotToken()) {
+                const restName = el.getName();
+                lines.push(`const { ...${restName} } = ${syntheticName}`);
+                continue;
+              }
               const bindingName = el.getName();
               const propName = el.getPropertyNameNode()?.getText() ?? bindingName;
               if (computeds.has(bindingName) && signalProps.has(propName)) {
