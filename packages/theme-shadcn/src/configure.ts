@@ -20,6 +20,8 @@ import type {
   TooltipOptions,
   TooltipState,
 } from '@vertz/ui-primitives';
+import type { AlertComponents } from './components/alert';
+import { createAlertComponents } from './components/alert';
 import type { BadgeProps } from './components/badge';
 import { createBadgeComponent } from './components/badge';
 import type { ButtonProps } from './components/button';
@@ -45,9 +47,12 @@ import { createThemedTabs } from './components/primitives/tabs';
 import { createThemedTooltip } from './components/primitives/tooltip';
 import type { SeparatorProps } from './components/separator';
 import { createSeparatorComponent } from './components/separator';
+import type { TextareaProps } from './components/textarea';
+import { createTextareaComponent } from './components/textarea';
 import { deepMergeTokens } from './merge';
 import {
   createAccordionStyles,
+  createAlert,
   createBadge,
   createButton,
   createCard,
@@ -61,6 +66,7 @@ import {
   createSeparator,
   createSwitchStyles,
   createTabsStyles,
+  createTextarea,
   createTooltipStyles,
 } from './styles';
 import type { PaletteName } from './tokens';
@@ -88,6 +94,14 @@ export interface ThemeStyles {
     intent: Record<string, string[]>;
     size: Record<string, string[]>;
   }>;
+  /** Alert css() result with root, destructive, title, description. */
+  alert: {
+    readonly root: string;
+    readonly destructive: string;
+    readonly title: string;
+    readonly description: string;
+    readonly css: string;
+  };
   /** Badge variant function: `badge({ color: 'blue' })` */
   badge: VariantFunction<{
     color: Record<string, string[]>;
@@ -104,6 +118,8 @@ export interface ThemeStyles {
   };
   /** Input css() result. */
   input: { readonly base: string; readonly css: string };
+  /** Textarea css() result. */
+  textarea: { readonly base: string; readonly css: string };
   /** Label css() result. */
   label: { readonly base: string; readonly css: string };
   /** Separator css() result. */
@@ -190,6 +206,8 @@ export interface ThemedPrimitives {
 
 /** Component functions returned by configureTheme(). */
 export interface ThemeComponents {
+  /** Alert suite — Alert, AlertTitle, AlertDescription. */
+  Alert: AlertComponents;
   /** Button component — returns HTMLButtonElement with theme styles. */
   Button: (props: ButtonProps) => HTMLButtonElement;
   /** Badge component — returns HTMLSpanElement with theme styles. */
@@ -198,6 +216,8 @@ export interface ThemeComponents {
   Card: CardComponents;
   /** Input component — returns HTMLInputElement with theme styles. */
   Input: (props: InputProps) => HTMLInputElement;
+  /** Textarea component — returns HTMLTextAreaElement with theme styles. */
+  Textarea: (props: TextareaProps) => HTMLTextAreaElement;
   /** Label component — returns HTMLLabelElement with theme styles. */
   Label: (props: LabelProps) => HTMLLabelElement;
   /** Separator component — returns HTMLHRElement with theme styles. */
@@ -283,14 +303,18 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const checkboxStyles = createCheckboxStyles();
   const switchStyles = createSwitchStyles();
   const progressStyles = createProgressStyles();
+  const alertStyles = createAlert();
   const accordionStyles = createAccordionStyles();
+  const textareaStyles = createTextarea();
   const tooltipStyles = createTooltipStyles();
 
   const styles: ThemeStyles = {
+    alert: alertStyles,
     button: buttonStyles,
     badge: badgeStyles,
     card: cardStyles,
     input: inputStyles,
+    textarea: textareaStyles,
     label: labelStyles,
     separator: separatorStyles,
     formGroup: formGroupStyles,
@@ -306,10 +330,12 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
 
   // Build component functions
   const components: ThemeComponents = {
+    Alert: createAlertComponents(alertStyles),
     Button: createButtonComponent(buttonStyles),
     Badge: createBadgeComponent(badgeStyles),
     Card: createCardComponents(cardStyles),
     Input: createInputComponent(inputStyles),
+    Textarea: createTextareaComponent(textareaStyles),
     Label: createLabelComponent(labelStyles),
     Separator: createSeparatorComponent(separatorStyles),
     FormGroup: createFormGroupComponents(formGroupStyles),

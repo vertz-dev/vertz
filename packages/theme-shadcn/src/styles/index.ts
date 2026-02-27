@@ -1,4 +1,5 @@
 export { createAccordionStyles } from './accordion';
+export { createAlert } from './alert';
 export { badgeConfig, createBadge } from './badge';
 export { buttonConfig, createButton } from './button';
 export { createCard } from './card';
@@ -12,4 +13,5 @@ export { createSelectStyles } from './select';
 export { createSeparator } from './separator';
 export { createSwitchStyles } from './switch';
 export { createTabsStyles } from './tabs';
+export { createTextarea } from './textarea';
 export { createTooltipStyles } from './tooltip';

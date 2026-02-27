@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { variants } from '@vertz/ui';
+import { createAlert } from '../styles/alert';
 import { badgeConfig, createBadge } from '../styles/badge';
 import { buttonConfig, createButton } from '../styles/button';
 import { createCard } from '../styles/card';
@@ -7,6 +8,7 @@ import { createFormGroup } from '../styles/form-group';
 import { createInput } from '../styles/input';
 import { createLabel } from '../styles/label';
 import { createSeparator } from '../styles/separator';
+import { createTextarea } from '../styles/textarea';
 
 describe('button', () => {
   const button = createButton();
@@ -149,5 +151,32 @@ describe('formGroup', () => {
     expect(typeof formGroup.error).toBe('string');
     expect(formGroup.base.length).toBeGreaterThan(0);
     expect(formGroup.error.length).toBeGreaterThan(0);
+  });
+});
+
+describe('textarea', () => {
+  const textarea = createTextarea();
+
+  it('has a non-empty class name string', () => {
+    expect(typeof textarea.base).toBe('string');
+    expect(textarea.base.length).toBeGreaterThan(0);
+  });
+});
+
+describe('alert', () => {
+  const alert = createAlert();
+
+  it('has root, destructive, title, and description class names', () => {
+    expect(typeof alert.root).toBe('string');
+    expect(typeof alert.destructive).toBe('string');
+    expect(typeof alert.title).toBe('string');
+    expect(typeof alert.description).toBe('string');
+  });
+
+  it('all class names are non-empty', () => {
+    expect(alert.root.length).toBeGreaterThan(0);
+    expect(alert.destructive.length).toBeGreaterThan(0);
+    expect(alert.title.length).toBeGreaterThan(0);
+    expect(alert.description.length).toBeGreaterThan(0);
   });
 });

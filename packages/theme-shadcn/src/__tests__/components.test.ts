@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { createAlertComponents } from '../components/alert';
 import { createBadgeComponent } from '../components/badge';
 import { createButtonComponent } from '../components/button';
 import { createCardComponents } from '../components/card';
@@ -6,6 +7,8 @@ import { createFormGroupComponents } from '../components/form-group';
 import { createInputComponent } from '../components/input';
 import { createLabelComponent } from '../components/label';
 import { createSeparatorComponent } from '../components/separator';
+import { createTextareaComponent } from '../components/textarea';
+import { createAlert } from '../styles/alert';
 import { createBadge } from '../styles/badge';
 import { createButton } from '../styles/button';
 import { createCard } from '../styles/card';
@@ -13,6 +16,7 @@ import { createFormGroup } from '../styles/form-group';
 import { createInput } from '../styles/input';
 import { createLabel } from '../styles/label';
 import { createSeparator } from '../styles/separator';
+import { createTextarea } from '../styles/textarea';
 
 describe('Button component', () => {
   const buttonStyles = createButton();
@@ -291,5 +295,124 @@ describe('FormGroup components', () => {
   it('FormError resolves children', () => {
     const el = FormError({ children: 'Required field' });
     expect(el.textContent).toBe('Required field');
+  });
+});
+
+describe('Textarea component', () => {
+  const textareaStyles = createTextarea();
+  const Textarea = createTextareaComponent(textareaStyles);
+
+  it('returns an HTMLTextAreaElement', () => {
+    const el = Textarea({});
+    expect(el).toBeInstanceOf(HTMLTextAreaElement);
+  });
+
+  it('applies theme class', () => {
+    const el = Textarea({});
+    expect(el.className).toContain(textareaStyles.base);
+  });
+
+  it('appends user class', () => {
+    const el = Textarea({ class: 'extra' });
+    expect(el.className).toContain('extra');
+    expect(el.className).toContain(textareaStyles.base);
+  });
+
+  it('forwards name attribute', () => {
+    const el = Textarea({ name: 'bio' });
+    expect(el.name).toBe('bio');
+  });
+
+  it('forwards placeholder attribute', () => {
+    const el = Textarea({ placeholder: 'Enter bio' });
+    expect(el.placeholder).toBe('Enter bio');
+  });
+
+  it('forwards disabled attribute', () => {
+    const el = Textarea({ disabled: true });
+    expect(el.disabled).toBe(true);
+  });
+
+  it('forwards value attribute', () => {
+    const el = Textarea({ value: 'hello' });
+    expect(el.value).toBe('hello');
+  });
+
+  it('forwards rows attribute', () => {
+    const el = Textarea({ rows: 5 });
+    expect(String(el.rows)).toBe('5');
+  });
+
+  it('forwards extra HTML attributes', () => {
+    const el = Textarea({ 'aria-label': 'description' });
+    expect(el.getAttribute('aria-label')).toBe('description');
+  });
+});
+
+describe('Alert components', () => {
+  const alertStyles = createAlert();
+  const { Alert, AlertTitle, AlertDescription } = createAlertComponents(alertStyles);
+
+  it('Alert returns an HTMLDivElement with role="alert"', () => {
+    const el = Alert({});
+    expect(el).toBeInstanceOf(HTMLDivElement);
+    expect(el.getAttribute('role')).toBe('alert');
+  });
+
+  it('Alert applies root class by default', () => {
+    const el = Alert({});
+    expect(el.className).toContain(alertStyles.root);
+  });
+
+  it('Alert applies destructive class for destructive variant', () => {
+    const el = Alert({ variant: 'destructive' });
+    expect(el.className).toContain(alertStyles.root);
+    expect(el.className).toContain(alertStyles.destructive);
+  });
+
+  it('Alert appends user class', () => {
+    const el = Alert({ class: 'custom-alert' });
+    expect(el.className).toContain('custom-alert');
+    expect(el.className).toContain(alertStyles.root);
+  });
+
+  it('Alert resolves children', () => {
+    const el = Alert({ children: 'Warning message' });
+    expect(el.textContent).toBe('Warning message');
+  });
+
+  it('AlertTitle returns an HTMLHeadingElement (h5) with title class', () => {
+    const el = AlertTitle({});
+    expect(el).toBeInstanceOf(HTMLHeadingElement);
+    expect(el.tagName).toBe('H5');
+    expect(el.className).toContain(alertStyles.title);
+  });
+
+  it('AlertTitle appends user class', () => {
+    const el = AlertTitle({ class: 'custom-title' });
+    expect(el.className).toContain('custom-title');
+    expect(el.className).toContain(alertStyles.title);
+  });
+
+  it('AlertTitle resolves children', () => {
+    const el = AlertTitle({ children: 'Error' });
+    expect(el.textContent).toBe('Error');
+  });
+
+  it('AlertDescription returns an HTMLDivElement with description class', () => {
+    const el = AlertDescription({});
+    expect(el).toBeInstanceOf(HTMLDivElement);
+    expect(el.className).toContain(alertStyles.description);
+  });
+
+  it('AlertDescription appends user class', () => {
+    const el = AlertDescription({ class: 'custom-desc' });
+    expect(el.className).toContain('custom-desc');
+    expect(el.className).toContain(alertStyles.description);
+  });
+
+  it('AlertDescription resolves children', () => {
+    const el = AlertDescription({ children: 'Something went wrong.' });
+    expect(el.textContent).toBe('Something went wrong.');
   });
 });
