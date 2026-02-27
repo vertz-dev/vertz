@@ -14,6 +14,7 @@
 
 import { onCleanup, onMount, query } from '@vertz/ui';
 import { api } from '../api/mock-data';
+import { Icon } from '../components/icon';
 import { TaskCard } from '../components/task-card';
 import type { Task, TaskStatus } from '../lib/types';
 import { useAppRouter } from '../router';
@@ -80,10 +81,11 @@ export function TaskListPage() {
           data-testid="create-task-btn"
           onClick={() => navigate('/tasks/new')}
         >
-          + New Task
+          <Icon name="Plus" size={16} />
+          New Task
         </button>
       </div>
-      <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem">
+      <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem">
         {filters.map((filter) => (
           <button
             class={button({
@@ -107,6 +109,9 @@ export function TaskListPage() {
       )}
       {!tasksQuery.loading && !tasksQuery.error && filteredTasks.length === 0 && (
         <div class={emptyStateStyles.container}>
+          <div class={emptyStateStyles.icon}>
+            <Icon name="Inbox" size={48} />
+          </div>
           <h3 class={emptyStateStyles.title}>No tasks found</h3>
           <p class={emptyStateStyles.description}>Create your first task to get started.</p>
           <button

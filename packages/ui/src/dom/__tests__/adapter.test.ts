@@ -59,6 +59,9 @@ describe('getAdapter / setAdapter', () => {
       createElement: () => {
         throw new Error('custom');
       },
+      createElementNS: () => {
+        throw new Error('custom');
+      },
       createTextNode: () => {
         throw new Error('custom');
       },
@@ -78,6 +81,9 @@ describe('getAdapter / setAdapter', () => {
   it('getAdapter() returns the adapter set by setAdapter()', () => {
     const custom: RenderAdapter = {
       createElement: () => {
+        throw new Error('custom');
+      },
+      createElementNS: () => {
         throw new Error('custom');
       },
       createTextNode: () => {
@@ -102,6 +108,9 @@ describe('getAdapter / setAdapter', () => {
   it('setAdapter(null) resets to auto-detect', () => {
     const custom: RenderAdapter = {
       createElement: () => {
+        throw new Error('custom');
+      },
+      createElementNS: () => {
         throw new Error('custom');
       },
       createTextNode: () => {

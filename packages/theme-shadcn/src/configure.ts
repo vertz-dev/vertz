@@ -253,6 +253,10 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       borderStyle: 'solid',
       borderColor: 'currentColor',
     },
+    'button, input, select, textarea': {
+      font: 'inherit',
+      color: 'inherit',
+    },
     ':root': {
       '--radius': RADIUS_VALUES[radius] ?? '0.375rem',
     },

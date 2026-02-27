@@ -24,6 +24,7 @@ Object.defineProperty(SSRNode.prototype, BRAND, {
 export function createSSRAdapter(): RenderAdapter {
   return {
     createElement: (tag) => new SSRElement(tag),
+    createElementNS: (_ns, tag) => new SSRElement(tag),
     createTextNode: (text) => new SSRTextNode(text),
     createComment: (text) => new SSRComment(text),
     createDocumentFragment: () => new SSRDocumentFragment(),

@@ -35,6 +35,7 @@ export interface RenderText extends RenderNode {
 
 export interface RenderAdapter {
   createElement(tag: string): RenderElement;
+  createElementNS(ns: string, tag: string): RenderElement;
   createTextNode(text: string): RenderText;
   createComment(text: string): RenderNode;
   createDocumentFragment(): RenderNode;

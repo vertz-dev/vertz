@@ -14,7 +14,7 @@ import type { FormSchema } from '@vertz/ui';
 import { form } from '@vertz/ui';
 import { taskApi } from '../api/mock-data';
 import type { CreateTaskBody, Task, TaskPriority } from '../lib/types';
-import { button, formStyles } from '../styles/components';
+import { button, formStyles, inputStyles, labelStyles } from '../styles/components';
 
 /**
  * Schema for task creation.
@@ -85,11 +85,11 @@ export function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
       data-testid="create-task-form"
     >
       <div class={formStyles.formGroup}>
-        <label class={formStyles.label} for="task-title">
+        <label class={labelStyles.base} for="task-title">
           Title
         </label>
         <input
-          class={formStyles.input}
+          class={inputStyles.base}
           id="task-title"
           name="title"
           type="text"
@@ -101,7 +101,7 @@ export function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
       </div>
 
       <div class={formStyles.formGroup}>
-        <label class={formStyles.label} for="task-description">
+        <label class={labelStyles.base} for="task-description">
           Description
         </label>
         <textarea
@@ -116,7 +116,7 @@ export function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
       </div>
 
       <div class={formStyles.formGroup}>
-        <label class={formStyles.label} for="task-priority">
+        <label class={labelStyles.base} for="task-priority">
           Priority
         </label>
         <select class={formStyles.select} id="task-priority" name="priority">

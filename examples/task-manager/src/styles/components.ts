@@ -24,7 +24,7 @@ export const layoutStyles = css({
   shell: ['flex', 'min-h:screen', 'bg:background'],
   sidebar: ['w:64', 'bg:card', 'border-r:1', 'border:border', 'p:4'],
   main: ['flex-1', 'p:6'],
-  header: ['flex', 'justify:between', 'items:center', 'mb:6'],
+  header: ['flex', 'justify:between', 'items:center', 'mb:4'],
 });
 
 // ── Form styles (app-specific extensions) ───────────────────
@@ -81,7 +81,7 @@ export const formStyles = css({
 
 export const emptyStateStyles = css({
   container: ['flex', 'flex-col', 'items:center', 'justify:center', 'py:12', 'text:center'],
-  icon: ['text:4xl', 'text:muted', 'mb:3'],
+  icon: ['text:4xl', 'text:muted-foreground', 'mb:3'],
   title: ['font:lg', 'font:semibold', 'text:foreground', 'mb:1'],
-  description: ['text:sm', 'text:muted', 'mb:4'],
+  description: ['text:sm', 'text:muted-foreground', 'mb:4'],
 });

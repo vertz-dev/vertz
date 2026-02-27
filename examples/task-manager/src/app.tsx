@@ -19,15 +19,38 @@ import {
   RouterView,
   ThemeProvider,
 } from '@vertz/ui';
-import { createSettingsValue, SettingsContext } from './lib/settings-context';
+import { Icon } from './components/icon';
+import { createSettingsValue, SettingsContext, useSettings } from './lib/settings-context';
 import { appRouter, Link } from './router';
 import { layoutStyles } from './styles/components';
 import { taskManagerTheme, themeGlobals } from './styles/theme';
 
 const navStyles = css({
-  navItem: ['text:sm', 'text:muted', 'hover:text:foreground', 'transition:colors'],
+  navItem: [
+    'flex',
+    'items:center',
+    'gap:2',
+    'text:sm',
+    'text:muted-foreground',
+    'hover:text:foreground',
+    'transition:colors',
+  ],
   navList: ['flex', 'flex-col', 'gap:1'],
   navTitle: ['font:lg', 'font:bold', 'text:foreground', 'mb:6'],
+  themeToggle: [
+    'flex',
+    'items:center',
+    'gap:2',
+    'text:sm',
+    'text:muted-foreground',
+    'hover:text:foreground',
+    'transition:colors',
+    'cursor:pointer',
+    'mt:auto',
+    'pt:4',
+    'border-t:1',
+    'border:border',
+  ],
 });
 
 // ── App-specific global styles (extends theme globals) ─────
@@ -64,6 +87,61 @@ export { getInjectedCSS };
 export const theme = taskManagerTheme;
 export const styles = [themeGlobals.css, appGlobals.css, viewTransitionsCss];
 
+// ── Sidebar with theme toggle ────────────────────────────────
+
+function Sidebar() {
+  const settings = useSettings();
+  let currentTheme = settings.theme.peek();
+
+  function toggleTheme() {
+    const next = currentTheme === 'light' ? 'dark' : 'light';
+    currentTheme = next;
+    settings.setTheme(next);
+  }
+
+  return (
+    <nav class={layoutStyles.sidebar} aria-label="Main navigation" style="display: flex; flex-direction: column">
+      <div class={navStyles.navTitle}>Task Manager</div>
+      <div class={navStyles.navList}>
+        <div class={navStyles.navItem}>
+          <Icon name="ListTodo" size={16} />
+          <Link href="/" activeClass="font-bold">
+            All Tasks
+          </Link>
+        </div>
+        <div class={navStyles.navItem}>
+          <Icon name="PlusCircle" size={16} />
+          <Link href="/tasks/new" activeClass="font-bold">
+            Create Task
+          </Link>
+        </div>
+        <div class={navStyles.navItem}>
+          <Icon name="Settings" size={16} />
+          <Link href="/settings" activeClass="font-bold">
+            Settings
+          </Link>
+        </div>
+      </div>
+      <div
+        class={navStyles.themeToggle}
+        role="button"
+        tabindex="0"
+        data-testid="theme-toggle"
+        onClick={toggleTheme}
+        onKeyDown={(e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggleTheme();
+          }
+        }}
+      >
+        {currentTheme === 'light' ? <Icon name="Moon" size={16} /> : <Icon name="Sun" size={16} />}
+        {currentTheme === 'light' ? 'Dark Mode' : 'Light Mode'}
+      </div>
+    </nav>
+  );
+}
+
 // ── App component ──────────────────────────────────────────
 
 /**
@@ -83,20 +161,7 @@ export function App() {
         <RouterContext.Provider value={appRouter}>
           <ThemeProvider theme={settings.theme.peek()}>
             <div class={layoutStyles.shell}>
-              <nav class={layoutStyles.sidebar} aria-label="Main navigation">
-                <div class={navStyles.navTitle}>Task Manager</div>
-                <div class={navStyles.navList}>
-                  <Link href="/" activeClass="font-bold" className={navStyles.navItem}>
-                    All Tasks
-                  </Link>
-                  <Link href="/tasks/new" activeClass="font-bold" className={navStyles.navItem}>
-                    Create Task
-                  </Link>
-                  <Link href="/settings" activeClass="font-bold" className={navStyles.navItem}>
-                    Settings
-                  </Link>
-                </div>
-              </nav>
+              <Sidebar />
               <main class={layoutStyles.main} data-testid="main-content">
                 <RouterView
                   router={appRouter}

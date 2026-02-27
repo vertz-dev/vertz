@@ -12,6 +12,8 @@
  * - Fragment          — document fragment
  */
 
+import { isSVGTag, normalizeSVGAttr, SVG_NS } from './dom/svg-tags';
+
 type Tag = string | ((props: Record<string, unknown>) => Node | Node[] | null);
 
 /**
@@ -42,8 +44,9 @@ export function jsx(tag: Tag, props: Record<string, unknown>): Node | Node[] | n
     return tag(props);
   }
 
-  // HTML element
-  const el = document.createElement(tag);
+  // Create element — SVG tags need createElementNS
+  const svg = isSVGTag(tag);
+  const el = svg ? document.createElementNS(SVG_NS, tag) : document.createElement(tag);
   const { children, ...attrs } = props || {};
 
   for (const [key, value] of Object.entries(attrs)) {
@@ -59,7 +62,8 @@ export function jsx(tag: Tag, props: Record<string, unknown>): Node | Node[] | n
       // Boolean attribute (e.g., selected, disabled)
       el.setAttribute(key, '');
     } else if (value !== false && value != null) {
-      el.setAttribute(key, String(value));
+      const attrName = svg ? normalizeSVGAttr(key) : key;
+      el.setAttribute(attrName, String(value));
     }
   }
 

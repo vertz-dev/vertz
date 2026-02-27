@@ -14,6 +14,7 @@
 import { css, onCleanup, onMount, query, useParams } from '@vertz/ui';
 import { api } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
+import { Icon } from '../components/icon';
 import type { TaskStatus } from '../lib/types';
 import { useAppRouter } from '../router';
 import { badge, button } from '../styles/components';
@@ -23,10 +24,10 @@ const detailStyles = css({
   header: ['flex', 'justify:between', 'items:start', 'mb:6'],
   titleArea: ['flex-1'],
   title: ['font:2xl', 'font:bold', 'text:foreground', 'mb:1'],
-  meta: ['text:sm', 'text:muted'],
+  meta: ['text:sm', 'text:muted-foreground'],
   actions: ['flex', 'gap:2', 'items:start'],
   section: ['mb:6'],
-  sectionTitle: ['font:sm', 'font:semibold', 'text:muted', 'uppercase', 'tracking:wide', 'mb:2'],
+  sectionTitle: ['font:sm', 'font:semibold', 'text:muted-foreground', 'uppercase', 'tracking:wide', 'mb:2'],
   description: ['text:foreground', 'leading:relaxed'],
   statusBar: [
     'flex',
@@ -38,7 +39,7 @@ const detailStyles = css({
     'border:1',
     'border:border',
   ],
-  timeline: ['text:sm', 'text:muted'],
+  timeline: ['text:sm', 'text:muted-foreground'],
 });
 
 /**
@@ -113,6 +114,7 @@ export function TaskDetailPage() {
             style="margin-bottom: 1rem"
             onClick={() => navigate('/')}
           >
+            <Icon name="ArrowLeft" size={16} />
             Back to Tasks
           </button>
           <div class={detailStyles.header}>
