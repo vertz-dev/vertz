@@ -10,6 +10,12 @@ export function onAnimationsComplete(el: HTMLElement, callback: () => void): voi
     return;
   }
 
+  // Force style recalculation so animations triggered by recent
+  // attribute/class changes are registered before we snapshot.
+  // Without this, getAnimations() returns [] if called in the same
+  // microtask as the attribute change that triggers the CSS animation.
+  void el.offsetHeight;
+
   if (typeof el.getAnimations === 'function') {
     const animations = el.getAnimations();
     if (animations.length > 0) {
