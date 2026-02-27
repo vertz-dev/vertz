@@ -21,12 +21,5 @@ export function deepMergeTokens(
     }
   }
 
-  // Add override-only keys not present in the base palette
-  for (const [key, values] of Object.entries(overrides)) {
-    if (!(key in result) && values) {
-      result[key] = { ...values };
-    }
-  }
-
   return result;
 }

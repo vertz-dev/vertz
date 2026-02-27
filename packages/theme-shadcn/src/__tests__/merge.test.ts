@@ -33,17 +33,6 @@ describe('deepMergeTokens', () => {
     expect(result.border).toEqual({ DEFAULT: '#ccc', _dark: '#333' });
   });
 
-  it('adds new tokens not present in the base', () => {
-    const base = {
-      primary: { DEFAULT: '#000', _dark: '#fff' },
-    };
-    const result = deepMergeTokens(base, {
-      success: { DEFAULT: '#22c55e', _dark: '#16a34a' },
-    });
-    expect(result.primary).toEqual({ DEFAULT: '#000', _dark: '#fff' });
-    expect(result.success).toEqual({ DEFAULT: '#22c55e', _dark: '#16a34a' });
-  });
-
   it('does not mutate the base object', () => {
     const base = {
       primary: { DEFAULT: '#000', _dark: '#fff' },

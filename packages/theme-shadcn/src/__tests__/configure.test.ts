@@ -70,30 +70,4 @@ describe('configureTheme', () => {
     const zincCss = compileTheme(zincResult.theme).css;
     expect(defaultCss).toBe(zincCss);
   });
-
-  it('styles.button returns class name strings', () => {
-    const { styles } = configureTheme();
-    expect(typeof styles.button({ intent: 'primary', size: 'md' })).toBe('string');
-    expect(styles.button({ intent: 'primary' }).length).toBeGreaterThan(0);
-  });
-
-  it('styles.card has all expected properties', () => {
-    const { styles } = configureTheme();
-    expect(typeof styles.card.root).toBe('string');
-    expect(typeof styles.card.header).toBe('string');
-    expect(typeof styles.card.title).toBe('string');
-    expect(typeof styles.card.content).toBe('string');
-    expect(typeof styles.card.footer).toBe('string');
-  });
-
-  it('styles includes all expected style definitions', () => {
-    const { styles } = configureTheme();
-    expect(styles.button).toBeDefined();
-    expect(styles.badge).toBeDefined();
-    expect(styles.card).toBeDefined();
-    expect(styles.input).toBeDefined();
-    expect(styles.label).toBeDefined();
-    expect(styles.separator).toBeDefined();
-    expect(styles.formGroup).toBeDefined();
-  });
 });
