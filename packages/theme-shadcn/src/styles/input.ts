@@ -22,7 +22,7 @@ export function createInput(): CSSOutput<InputBlocks> {
       'focus-visible:ring:2',
       'focus-visible:ring:ring',
       'disabled:cursor:default',
-      'disabled:opacity:0.5',
+      'disabled:opacity:50',
     ],
   });
 }
