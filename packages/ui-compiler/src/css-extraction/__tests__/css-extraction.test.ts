@@ -182,7 +182,9 @@ const button = css({ root: ['m:2'] });`;
     const source = `const s = css({ btn: ['p:4', { '&:hover': [{ property: 'background-color', value: 'color-mix(in oklch, var(--color-primary) 90%, transparent)' }] }] });`;
     const result = extractor.extract(source, 'Button.tsx');
 
-    expect(result.css).toContain('background-color: color-mix(in oklch, var(--color-primary) 90%, transparent)');
+    expect(result.css).toContain(
+      'background-color: color-mix(in oklch, var(--color-primary) 90%, transparent)',
+    );
     expect(result.css).toContain(':hover');
   });
 
@@ -211,6 +213,68 @@ const button = css({ root: ['m:2'] });`;
 
     expect(result.css).not.toContain('&');
     expect(result.css).toContain('[data-theme="dark"]');
+    expect(result.css).toContain(':hover');
+  });
+
+  it('extracts nested selector with only raw declarations (no shorthands)', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ overlay: ['fixed', { '&': [{ property: 'background-color', value: 'oklch(0 0 0 / 50%)' }] }] });`;
+    const result = extractor.extract(source, 'Dialog.tsx');
+
+    expect(result.css).toContain('background-color: oklch(0 0 0 / 50%)');
+    expect(result.css).toContain('position: fixed');
+  });
+
+  it('extracts multiple raw declarations in a single nested selector', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ btn: [{ '&:focus-visible': [{ property: 'outline', value: '3px solid blue' }, { property: 'outline-offset', value: '2px' }] }] });`;
+    const result = extractor.extract(source, 'Button.tsx');
+
+    expect(result.css).toContain('outline: 3px solid blue');
+    expect(result.css).toContain('outline-offset: 2px');
+    expect(result.css).toContain(':focus-visible');
+  });
+
+  it('extracts new keyword utilities (whitespace-nowrap, shrink-0, etc.)', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ tag: ['whitespace-nowrap', 'shrink-0', 'select-none', 'pointer-events-none', 'overflow-hidden'] });`;
+    const result = extractor.extract(source, 'Tag.tsx');
+
+    expect(result.css).toContain('white-space: nowrap');
+    expect(result.css).toContain('flex-shrink: 0');
+    expect(result.css).toContain('user-select: none');
+    expect(result.css).toContain('pointer-events: none');
+    expect(result.css).toContain('overflow: hidden');
+  });
+
+  it('extracts shadow:xs shorthand', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ input: ['shadow:xs'] });`;
+    const result = extractor.extract(source, 'Input.tsx');
+
+    expect(result.css).toContain('box-shadow:');
+    expect(result.css).toContain('rgb(0 0 0 / 0.03)');
+  });
+
+  it('skips css() calls with invalid raw declarations as reactive', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ btn: ['p:4', { '&:hover': [{ property: 'color', value: someVar }] }] });`;
+    const result = extractor.extract(source, 'Button.tsx');
+
+    expect(result.css).toBe('');
+    expect(result.blockNames).toEqual([]);
+  });
+
+  it('extracts raw declarations alongside keywords in nested selectors', () => {
+    const extractor = new CSSExtractor();
+    const source = `const s = css({ btn: [{ '&:disabled': ['pointer-events-none', 'opacity:0.5'] }, { '&:hover': [{ property: 'background-color', value: 'color-mix(in oklch, var(--color-primary) 90%, transparent)' }] }] });`;
+    const result = extractor.extract(source, 'Button.tsx');
+
+    expect(result.css).toContain('pointer-events: none');
+    expect(result.css).toContain(':disabled');
+    expect(result.css).toContain(
+      'background-color: color-mix(in oklch, var(--color-primary) 90%, transparent)',
+    );
     expect(result.css).toContain(':hover');
   });
 });
