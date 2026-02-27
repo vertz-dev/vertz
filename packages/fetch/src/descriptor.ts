@@ -1,12 +1,7 @@
+import type { FetchError } from './errors';
 import type { FetchResponse } from './types';
 
-/** Extract the error type from a FetchResponse. */
-type FetchResponseError<T> = FetchResponse<T> extends { ok: false; error: infer E } ? E : never;
-
-/** The default error type for QueryDescriptor — derived from FetchResponse. */
-type DefaultFetchError = FetchResponseError<unknown>;
-
-export interface QueryDescriptor<T, E = DefaultFetchError> extends PromiseLike<T> {
+export interface QueryDescriptor<T, E = FetchError> extends PromiseLike<T> {
   readonly _tag: 'QueryDescriptor';
   readonly _key: string;
   readonly _fetch: () => Promise<T>;
@@ -14,7 +9,7 @@ export interface QueryDescriptor<T, E = DefaultFetchError> extends PromiseLike<T
   readonly _error?: E;
 }
 
-export function isQueryDescriptor<T, E = DefaultFetchError>(
+export function isQueryDescriptor<T, E = FetchError>(
   value: unknown,
 ): value is QueryDescriptor<T, E> {
   return (

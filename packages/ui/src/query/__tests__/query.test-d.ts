@@ -137,6 +137,12 @@ import type { FetchError } from '@vertz/fetch';
 const _descriptorError: FetchError | undefined = descriptorResult.error;
 void _descriptorError;
 
+// FetchError has .status (not the @vertz/errors FetchError)
+if (descriptorResult.error) {
+  const _status: number = descriptorResult.error.status;
+  void _status;
+}
+
 // Custom error type on descriptor flows through to QueryResult
 interface CustomError {
   code: string;
@@ -148,7 +154,15 @@ const customResult = query(customDescriptor);
 const _customError: CustomError | undefined = customResult.error;
 void _customError;
 
-// @ts-expect-error - error type mismatch: cannot assign FetchError | undefined to string
+// Custom error properties are accessible
+if (customResult.error) {
+  const _code: string = customResult.error.code;
+  const _detail: string = customResult.error.detail;
+  void _code;
+  void _detail;
+}
+
+// @ts-expect-error - error type mismatch: cannot assign CustomError | undefined to string
 const _wrongError: string = customResult.error;
 void _wrongError;
 
