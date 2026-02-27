@@ -59,5 +59,83 @@ describe('executor', () => {
 
       await expect(executeQuery(mockQueryFn, 'SELECT 1', [])).rejects.toThrow(TypeError);
     });
+
+    it('rethrows null error as-is (not a PG error)', async () => {
+      const mockQueryFn = async <T>(
+        _sql: string,
+        _params: readonly unknown[],
+      ): Promise<{ rows: readonly T[]; rowCount: number }> => {
+        throw null;
+      };
+
+      await expect(executeQuery(mockQueryFn, 'SELECT 1', [])).rejects.toBeNull();
+    });
+
+    it('rethrows string error as-is (not a PG error)', async () => {
+      const mockQueryFn = async <T>(
+        _sql: string,
+        _params: readonly unknown[],
+      ): Promise<{ rows: readonly T[]; rowCount: number }> => {
+        throw 'raw string error';
+      };
+
+      try {
+        await executeQuery(mockQueryFn, 'SELECT 1', []);
+        expect.unreachable();
+      } catch (e) {
+        expect(e).toBe('raw string error');
+      }
+    });
+
+    it('rethrows object without code property as-is', async () => {
+      const mockQueryFn = async <T>(
+        _sql: string,
+        _params: readonly unknown[],
+      ): Promise<{ rows: readonly T[]; rowCount: number }> => {
+        throw { message: 'no code field' };
+      };
+
+      try {
+        await executeQuery(mockQueryFn, 'SELECT 1', []);
+        expect.unreachable();
+      } catch (e) {
+        expect(e).toEqual({ message: 'no code field' });
+        expect(e).not.toBeInstanceOf(Error);
+      }
+    });
+
+    it('rethrows object with non-string code as-is', async () => {
+      const mockQueryFn = async <T>(
+        _sql: string,
+        _params: readonly unknown[],
+      ): Promise<{ rows: readonly T[]; rowCount: number }> => {
+        throw { code: 42, message: 'numeric code' };
+      };
+
+      try {
+        await executeQuery(mockQueryFn, 'SELECT 1', []);
+        expect.unreachable();
+      } catch (e) {
+        expect(e).toEqual({ code: 42, message: 'numeric code' });
+        expect(e).not.toBeInstanceOf(Error);
+      }
+    });
+
+    it('rethrows object with non-string message as-is', async () => {
+      const mockQueryFn = async <T>(
+        _sql: string,
+        _params: readonly unknown[],
+      ): Promise<{ rows: readonly T[]; rowCount: number }> => {
+        throw { code: '23505', message: 123 };
+      };
+
+      try {
+        await executeQuery(mockQueryFn, 'SELECT 1', []);
+        expect.unreachable();
+      } catch (e) {
+        expect(e).toEqual({ code: '23505', message: 123 });
+        expect(e).not.toBeInstanceOf(Error);
+      }
+    });
   });
 });

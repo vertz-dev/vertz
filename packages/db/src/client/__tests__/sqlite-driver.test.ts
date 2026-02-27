@@ -210,49 +210,128 @@ describe('sqlite-driver', () => {
     });
   });
 
-  describe('execute with different SQL types', () => {
-    it('extracts table name from INSERT statement', async () => {
-      // Arrange
-      mockPrepared.run.mockResolvedValue({ meta: { changes: 1 } });
+  describe('table name extraction for value conversion', () => {
+    it('converts values in INSERT INTO query results', async () => {
+      const mockResults = [{ id: 1, active: 1 }];
+      mockPrepared.all.mockResolvedValue({ results: mockResults });
 
       const tableSchema: TableSchemaRegistry = new Map([
-        ['users', { id: 'integer', name: 'text' }],
+        ['users', { id: 'integer', active: 'boolean' }],
       ]);
 
       const driver = createSqliteDriver(mockD1, tableSchema);
+      const result = await driver.query('INSERT INTO users (id, active) VALUES (?, ?) RETURNING *');
 
-      // Act - INSERT should use schema for value conversion
-      await driver.execute('INSERT INTO users (id, name) VALUES (?, ?)', [1, 'test']);
-
-      // Assert
-      expect(mockD1.prepare).toHaveBeenCalledWith('INSERT INTO users (id, name) VALUES (?, ?)');
-      expect(mockPrepared.bind).toHaveBeenCalledWith(1, 'test');
+      expect(result).toEqual([{ id: 1, active: true }]);
     });
 
-    it('extracts table name from UPDATE statement', async () => {
-      // Arrange
-      mockPrepared.run.mockResolvedValue({ meta: { changes: 1 } });
+    it('converts values in UPDATE query results', async () => {
+      const mockResults = [{ id: 1, active: 0 }];
+      mockPrepared.all.mockResolvedValue({ results: mockResults });
 
-      const driver = createSqliteDriver(mockD1);
+      const tableSchema: TableSchemaRegistry = new Map([
+        ['users', { id: 'integer', active: 'boolean' }],
+      ]);
 
-      // Act
-      await driver.execute('UPDATE users SET name = ? WHERE id = ?', ['updated', 1]);
+      const driver = createSqliteDriver(mockD1, tableSchema);
+      const result = await driver.query('UPDATE users SET active = ? WHERE id = ? RETURNING *');
 
-      // Assert
-      expect(mockD1.prepare).toHaveBeenCalledWith('UPDATE users SET name = ? WHERE id = ?');
+      expect(result).toEqual([{ id: 1, active: false }]);
     });
 
-    it('extracts table name from DELETE statement', async () => {
-      // Arrange
-      mockPrepared.run.mockResolvedValue({ meta: { changes: 1 } });
+    it('converts values in DELETE FROM query results', async () => {
+      const mockResults = [{ id: 1, active: 1 }];
+      mockPrepared.all.mockResolvedValue({ results: mockResults });
+
+      const tableSchema: TableSchemaRegistry = new Map([
+        ['users', { id: 'integer', active: 'boolean' }],
+      ]);
+
+      const driver = createSqliteDriver(mockD1, tableSchema);
+      const result = await driver.query('DELETE FROM users WHERE id = ? RETURNING *');
+
+      expect(result).toEqual([{ id: 1, active: true }]);
+    });
+
+    it('returns null when SQL does not match any known pattern', async () => {
+      const mockResults = [{ count: 5 }];
+      mockPrepared.all.mockResolvedValue({ results: mockResults });
+
+      const tableSchema: TableSchemaRegistry = new Map([['users', { id: 'integer' }]]);
+
+      const driver = createSqliteDriver(mockD1, tableSchema);
+      const result = await driver.query('PRAGMA table_info(users)');
+
+      // No table extraction → raw results returned
+      expect(result).toEqual([{ count: 5 }]);
+    });
+
+    it('skips conversion when table name is not in schema registry', async () => {
+      const mockResults = [{ id: 1, active: 1 }];
+      mockPrepared.all.mockResolvedValue({ results: mockResults });
+
+      const tableSchema: TableSchemaRegistry = new Map([
+        ['orders', { id: 'integer', total: 'decimal' }],
+      ]);
+
+      const driver = createSqliteDriver(mockD1, tableSchema);
+      const result = await driver.query('SELECT * FROM users');
+
+      // 'users' not in registry → raw results
+      expect(result).toEqual([{ id: 1, active: 1 }]);
+    });
+
+    it('skips conversion when results are empty', async () => {
+      mockPrepared.all.mockResolvedValue({ results: [] });
+
+      const tableSchema: TableSchemaRegistry = new Map([
+        ['users', { id: 'integer', active: 'boolean' }],
+      ]);
+
+      const driver = createSqliteDriver(mockD1, tableSchema);
+      const result = await driver.query('SELECT * FROM users');
+
+      expect(result).toEqual([]);
+    });
+
+    it('lowercases extracted table names for registry lookup', async () => {
+      const mockResults = [{ id: 1, active: 1 }];
+      mockPrepared.all.mockResolvedValue({ results: mockResults });
+
+      const tableSchema: TableSchemaRegistry = new Map([
+        ['users', { id: 'integer', active: 'boolean' }],
+      ]);
+
+      const driver = createSqliteDriver(mockD1, tableSchema);
+      const result = await driver.query('SELECT * FROM Users WHERE id = ?', [1]);
+
+      // Table name 'Users' should be lowercased to 'users' for registry lookup
+      expect(result).toEqual([{ id: 1, active: true }]);
+    });
+
+    it('handles quoted table names in FROM clause', async () => {
+      const mockResults = [{ id: 1, active: 1 }];
+      mockPrepared.all.mockResolvedValue({ results: mockResults });
+
+      const tableSchema: TableSchemaRegistry = new Map([
+        ['users', { id: 'integer', active: 'boolean' }],
+      ]);
+
+      const driver = createSqliteDriver(mockD1, tableSchema);
+      const result = await driver.query('SELECT * FROM "users" WHERE id = ?', [1]);
+
+      expect(result).toEqual([{ id: 1, active: true }]);
+    });
+  });
+
+  describe('isHealthy', () => {
+    it('calls query with SELECT 1', async () => {
+      mockPrepared.all.mockResolvedValue({ results: [] });
 
       const driver = createSqliteDriver(mockD1);
+      await driver.isHealthy();
 
-      // Act
-      await driver.execute('DELETE FROM users WHERE id = ?', [1]);
-
-      // Assert
-      expect(mockD1.prepare).toHaveBeenCalledWith('DELETE FROM users WHERE id = ?');
+      expect(mockD1.prepare).toHaveBeenCalledWith('SELECT 1');
     });
   });
 });
