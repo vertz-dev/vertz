@@ -9,9 +9,9 @@
  * In real Vite SSR, modules are invalidated per request via ssrLoadModule.
  */
 
-import { describe, expect, test, afterEach } from 'bun:test';
-import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { renderToStream, streamToString } from '@vertz/ui-server';
+import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
 
 /**
  * Helper: render the app at a given URL, mimicking what the virtual SSR entry does.
@@ -23,8 +23,8 @@ async function renderApp(url: string): Promise<string> {
   // Import the router module to update match before rendering
   const { appRouter, routes } = await import('../router');
   const { matchRoute } = await import('@vertz/ui/internals');
-  
-  // Update the router's current match for this URL  
+
+  // Update the router's current match for this URL
   const match = matchRoute(routes, url);
   appRouter.current.value = match;
 

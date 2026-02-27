@@ -3,7 +3,7 @@
  *
  * Demonstrates:
  * - JSX for declarative DOM construction
- * - css() for scoped styling
+ * - Theme styles from @vertz/theme-shadcn (card, badge)
  * - variants() for priority badges
  */
 
@@ -54,7 +54,7 @@ export interface TaskCardProps {
 export function TaskCard({ task, onClick }: TaskCardProps) {
   return (
     <article
-      class={cardStyles.card}
+      class={cardStyles.root}
       data-testid={`task-card-${task.id}`}
       role="button"
       tabindex="0"
@@ -66,14 +66,14 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
         }
       }}
     >
-      <div class={cardStyles.cardHeader}>
-        <h3 class={cardStyles.cardTitle}>{task.title}</h3>
+      <div class={cardStyles.header}>
+        <h3 class={cardStyles.title}>{task.title}</h3>
         <span class={badge({ color: priorityColor(task.priority) })}>{task.priority}</span>
       </div>
-      <p class={cardStyles.cardBody}>
+      <p class={cardStyles.description}>
         {task.description.length > 120 ? `${task.description.slice(0, 120)}...` : task.description}
       </p>
-      <div class={cardStyles.cardFooter}>
+      <div class={cardStyles.footer}>
         <span class={badge({ color: statusColor(task.status) })}>{statusLabel(task.status)}</span>
         <span style="font-size: 0.75rem; color: var(--color-muted)">
           {new Date(task.updatedAt).toLocaleDateString()}

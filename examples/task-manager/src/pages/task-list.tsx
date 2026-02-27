@@ -110,9 +110,7 @@ export function TaskListPage() {
       {!tasksQuery.loading && !tasksQuery.error && filteredTasks.length === 0 && (
         <div class={emptyStateStyles.container}>
           <h3 class={emptyStateStyles.title}>No tasks found</h3>
-          <p class={emptyStateStyles.description}>
-            Create your first task to get started.
-          </p>
+          <p class={emptyStateStyles.description}>Create your first task to get started.</p>
           <button
             class={button({ intent: 'primary', size: 'md' })}
             onClick={() => navigate('/tasks/new')}

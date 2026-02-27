@@ -97,7 +97,9 @@ describe('App Router', () => {
     // Store a reference that will be set after createTestRouter returns.
     // The component closure reads routerRef.current which is assigned
     // before renderCurrentRoute, avoiding the TDZ.
-    const routerRef: { current: Awaited<ReturnType<typeof createTestRouter>>['router'] | null } = { current: null };
+    const routerRef: { current: Awaited<ReturnType<typeof createTestRouter>>['router'] | null } = {
+      current: null,
+    };
 
     const { component, navigate, router } = await createTestRouter(
       {

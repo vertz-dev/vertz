@@ -83,6 +83,7 @@
       "name": "@vertz-examples/task-manager",
       "version": "0.0.2",
       "dependencies": {
+        "@vertz/theme-shadcn": "workspace:*",
         "@vertz/ui": "workspace:*",
         "@vertz/ui-primitives": "workspace:*",
         "@vertz/ui-server": "workspace:*",

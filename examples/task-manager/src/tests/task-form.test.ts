@@ -66,12 +66,8 @@ describe('TaskForm', () => {
     );
 
     // Fill in the form
-    const titleInput = findByTestId('create-task-form').querySelector(
-      '#task-title',
-    );
-    const descInput = findByTestId('create-task-form').querySelector(
-      '#task-description',
-    );
+    const titleInput = findByTestId('create-task-form').querySelector('#task-title');
+    const descInput = findByTestId('create-task-form').querySelector('#task-description');
 
     await type(titleInput!, 'New test task');
     await type(descInput!, 'A description for the test task');
@@ -120,12 +116,8 @@ describe('TaskForm', () => {
       TaskForm({ onSuccess: () => {}, onCancel: () => {} }),
     );
 
-    const titleInput = findByTestId('create-task-form').querySelector(
-      '#task-title',
-    );
-    const descInput = findByTestId('create-task-form').querySelector(
-      '#task-description',
-    );
+    const titleInput = findByTestId('create-task-form').querySelector('#task-title');
+    const descInput = findByTestId('create-task-form').querySelector('#task-description');
 
     await type(titleInput!, 'Test task');
     await type(descInput!, 'Description');

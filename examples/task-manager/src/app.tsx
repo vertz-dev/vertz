@@ -5,7 +5,7 @@
  * - ThemeProvider for theme context (CSS variable scoping)
  * - createContext / useContext for app-wide settings
  * - RouterContext + RouterView for declarative route rendering
- * - Full composition of all @vertz/ui features
+ * - @vertz/theme-shadcn for pre-built styles via configureTheme()
  *
  * Uses pure JSX — the compiler wraps component children in thunks,
  * ensuring elements are created top-down for hydration compatibility.
@@ -22,7 +22,7 @@ import {
 import { createSettingsValue, SettingsContext } from './lib/settings-context';
 import { appRouter, Link } from './router';
 import { layoutStyles } from './styles/components';
-import { taskManagerTheme } from './styles/theme';
+import { taskManagerTheme, themeGlobals } from './styles/theme';
 
 const navStyles = css({
   navItem: ['text:sm', 'text:muted', 'hover:text:foreground', 'transition:colors'],
@@ -30,21 +30,9 @@ const navStyles = css({
   navTitle: ['font:lg', 'font:bold', 'text:foreground', 'mb:6'],
 });
 
-// ── Global reset styles ────────────────────────────────────────
+// ── App-specific global styles (extends theme globals) ─────
 
-const globalStyles = globalCss({
-  '*, *::before, *::after': {
-    boxSizing: 'border-box',
-    margin: '0',
-    padding: '0',
-  },
-  body: {
-    fontFamily: 'system-ui, -apple-system, sans-serif',
-    backgroundColor: 'var(--color-background)',
-    color: 'var(--color-foreground)',
-    minHeight: '100vh',
-    lineHeight: '1.5',
-  },
+const appGlobals = globalCss({
   a: {
     textDecoration: 'none',
     color: 'inherit',
@@ -70,13 +58,13 @@ const viewTransitionsCss = `
 }
 `;
 
-// ── SSR module exports ─────────────────────────────────────────
+// ── SSR module exports ─────────────────────────────────────
 
 export { getInjectedCSS };
 export const theme = taskManagerTheme;
-export const styles = [globalStyles.css, viewTransitionsCss];
+export const styles = [themeGlobals.css, appGlobals.css, viewTransitionsCss];
 
-// ── App component ──────────────────────────────────────────────
+// ── App component ──────────────────────────────────────────
 
 /**
  * Create the root app element.
