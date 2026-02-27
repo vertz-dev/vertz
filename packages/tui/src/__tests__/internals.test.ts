@@ -1,5 +1,5 @@
-import { onCleanup, signal } from '@vertz/ui';
-import { popScope, pushScope, runCleanups } from '@vertz/ui/internals';
+import { signal } from '@vertz/ui';
+import { onCleanup, popScope, pushScope, runCleanups } from '@vertz/ui/internals';
 import { describe, expect, it } from 'vitest';
 import {
   __append,

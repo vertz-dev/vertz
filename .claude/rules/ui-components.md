@@ -173,7 +173,7 @@ Use inline `style` only for truly dynamic values or one-off layout (flex gaps, m
 const tasks = query(() => fetchTasks(), { key: 'task-list' });
 
 onMount(() => {
-  onCleanup(() => tasks.dispose());
+  return () => tasks.dispose();
 });
 ```
 

@@ -11,7 +11,7 @@
  * - Compiler conditional transform for loading/error/content visibility
  */
 
-import { css, onCleanup, onMount, query, useParams } from '@vertz/ui';
+import { css, onMount, query, useParams } from '@vertz/ui';
 import { api } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import { Icon } from '../components/icon';
@@ -92,9 +92,9 @@ export function TaskDetailPage() {
   // ── Cleanup ────────────────────────────────────────
 
   onMount(() => {
-    onCleanup(() => {
+    return () => {
       taskQuery.dispose();
-    });
+    };
   });
 
   // ── Page layout with declarative conditionals ──────

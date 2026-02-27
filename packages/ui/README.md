@@ -139,14 +139,14 @@ Returns a `MountHandle` with `unmount()` and `root`.
 Run code once when the component is created:
 
 ```tsx
-import { onMount, onCleanup } from '@vertz/ui';
+import { onMount } from '@vertz/ui';
 
 function Timer() {
   let seconds = 0;
 
   onMount(() => {
     const id = setInterval(() => seconds++, 1000);
-    onCleanup(() => clearInterval(id));
+    return () => clearInterval(id);
   });
 
   return <p>{seconds}s</p>;
@@ -501,21 +501,15 @@ onMount(() => {
 });
 ```
 
-### `onCleanup` requires a disposal scope
+### Cleanup uses the return-callback pattern
 
-Calling `onCleanup` outside of `onMount`, `watch`, or `effect` throws a `DisposalScopeError`. This is intentional — without a scope, the cleanup would be silently discarded:
+Register cleanup logic by returning a function from `onMount`. This runs when the component unmounts:
 
 ```tsx
-// Works — inside onMount
 onMount(() => {
   const id = setInterval(() => seconds++, 1000);
-  onCleanup(() => clearInterval(id));
+  return () => clearInterval(id);
 });
-
-// Throws DisposalScopeError — no scope
-function setup() {
-  onCleanup(() => {}); // Error!
-}
 ```
 
 ### Primitives are uncontrolled only
@@ -545,8 +539,7 @@ function setup() {
 
 | Export | Description |
 |---|---|
-| `onMount` | Run code once when a component mounts |
-| `onCleanup` | Register a cleanup callback |
+| `onMount` | Run code once when a component mounts (return a function for cleanup) |
 | `watch` | Watch a dependency and run a callback on change |
 
 ### Components

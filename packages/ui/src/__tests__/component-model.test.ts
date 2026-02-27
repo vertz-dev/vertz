@@ -3,21 +3,21 @@ import { createContext, useContext } from '../component/context';
 import { ErrorBoundary } from '../component/error-boundary';
 import { onMount } from '../component/lifecycle';
 import { ref } from '../component/refs';
-import { onCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
+import { popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { domEffect, signal } from '../runtime/signal';
 
 describe('Integration Tests — Component Model', () => {
-  // IT-1C-1: onMount runs once, onCleanup runs on unmount
-  test('onMount fires once, onCleanup fires on dispose', () => {
+  // IT-1C-1: onMount runs once, return-cleanup runs on unmount
+  test('onMount fires once, return-cleanup fires on dispose', () => {
     let mounted = false;
     let cleaned = false;
 
     const scope = pushScope();
     onMount(() => {
       mounted = true;
-      onCleanup(() => {
+      return () => {
         cleaned = true;
-      });
+      };
     });
     popScope();
 

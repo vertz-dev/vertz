@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { onMount } from '../../component/lifecycle';
-import { onCleanup } from '../../runtime/disposal';
 import { defineRoutes } from '../define-routes';
 import { createRouter } from '../navigate';
 import { RouterContext, useRouter } from '../router-context';
@@ -245,15 +244,15 @@ describe('RouterView', () => {
     router.dispose();
   });
 
-  test('page onCleanup runs when navigating away', async () => {
+  test('page cleanup runs when navigating away', async () => {
     let cleanedUp = false;
     const routes = defineRoutes({
       '/': {
         component: () => {
           onMount(() => {
-            onCleanup(() => {
+            return () => {
               cleanedUp = true;
-            });
+            };
           });
           return document.createElement('div');
         },
