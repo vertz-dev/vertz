@@ -14,7 +14,7 @@ The goal is to create a theme system where:
 ## Architecture Overview
 
 ```
-@vertz/ui                    (core: css, variants, defineTheme, compileTheme, ThemeProvider)
+@vertz/ui                    (core: css, variants, defineTheme, compileTheme, globalCss, ThemeProvider)
     |
 @vertz/theme-shadcn          (style definitions: configureTheme(), token palettes, variants/css configs)
 ```
@@ -52,7 +52,7 @@ This explicitly rejects the shadcn/ui "own the code" model because:
 import { compileTheme, ThemeProvider } from '@vertz/ui';
 import { configureTheme } from '@vertz/theme-shadcn';
 
-// 1. Configure theme (pure function, no side effects)
+// 1. Configure theme (globals auto-injected via globalCss())
 const { theme, globals, styles } = configureTheme({ palette: 'zinc' });
 
 // 2. Destructure style definitions
@@ -65,8 +65,6 @@ const compiled = compileTheme(theme);
 export function App() {
   return (
     <ThemeProvider theme="light">
-      <style>{globals}</style>
-      <style>{compiled.css}</style>
       <div class={card.root}>
         <div class={card.header}>
           <h3 class={card.title}>My App</h3>
@@ -80,6 +78,9 @@ export function App() {
     </ThemeProvider>
   );
 }
+
+// SSR: globals.css and compiled.css available as strings
+export const ssrStyles = [globals.css, compiled.css];
 ```
 
 ### With customization
@@ -147,6 +148,8 @@ Light/dark mode is runtime (handled by existing `ThemeProvider` + `data-theme` a
 ### Signature
 
 ```ts
+import type { GlobalCSSOutput } from '@vertz/ui';
+
 interface ThemeConfig {
   palette?: 'zinc' | 'slate' | 'stone' | 'neutral' | 'gray';  // default: 'zinc'
   radius?: 'sm' | 'md' | 'lg';                                  // default: 'md'
@@ -156,9 +159,9 @@ interface ThemeConfig {
 }
 
 interface ResolvedTheme {
-  theme: Theme;        // Pass to compileTheme() to generate CSS custom properties
-  globals: string;     // Raw CSS string: reset + base typography + radius custom property
-  styles: ThemeStyles; // Pre-built variant functions and css() results
+  theme: Theme;              // Pass to compileTheme() to generate CSS custom properties
+  globals: GlobalCSSOutput;  // Auto-injected via globalCss(); .css string available for SSR
+  styles: ThemeStyles;       // Pre-built variant functions and css() results
 }
 
 function configureTheme(config?: ThemeConfig): ResolvedTheme;
@@ -166,17 +169,17 @@ function configureTheme(config?: ThemeConfig): ResolvedTheme;
 
 ### Behavior
 
-- **Pure function** -- no side effects, no DOM injection, no mutation
 - **Palette selection** -- picks one of 5 pre-defined token sets
-- **Radius selection** -- injects `--radius` custom property into the globals CSS string
+- **Radius selection** -- injects `--radius` custom property via the globals
 - **Token overrides** -- deep-merges user overrides into the selected palette's token definitions
+- **Globals injection** -- calls `globalCss()` internally, which auto-injects the reset/typography CSS into the DOM (matching the established `globalCss()` behavior in `@vertz/ui`). The `.css` property on the returned `GlobalCSSOutput` is available for SSR extraction.
 - **Style construction** -- calls `variants()` and `css()` internally to build all style definitions
 - **Does NOT support variant extension** -- `configureTheme()` only handles tokens, palette, and radius
 
 ### Return values
 
 - **`theme`** -- a `Theme` object (from `defineTheme()`) for passing to `compileTheme()`
-- **`globals`** -- a raw CSS string containing the CSS reset, base typography, and radius custom property. The user controls injection (e.g., `<style>{globals}</style>` or SSR extraction). No auto-injection.
+- **`globals`** -- a `GlobalCSSOutput` from `globalCss()`. Auto-injected into the DOM (same behavior as `globalCss()` everywhere else in `@vertz/ui`). Contains CSS reset, base typography, and radius custom property. The `.css` string is available for SSR extraction.
 - **`styles`** -- an object of pre-built `VariantFunction` and `css()` results:
   - `button` -- `VariantFunction` with `intent` and `size` variants
   - `badge` -- `VariantFunction` with `color` variant
@@ -317,7 +320,7 @@ There's only `variants()` and `css()`. The theme provides pre-built definitions 
 
 ### "My LLM nailed it on the first try"
 
-LLMs already know `variants()` and `css()`. Direct imports from a single function. The config-object spread pattern is standard JavaScript object spread -- no framework-specific magic.
+LLMs already know `variants()` and `css()`. Single import, single function call. The config-object spread pattern is standard JavaScript -- no framework-specific magic.
 
 ### "If it builds, it works"
 
@@ -326,9 +329,9 @@ TypeScript types on `variants()` are battle-tested. `compileTheme()` validates t
 ### "Explicit over implicit"
 
 - No hidden class resolution or specificity magic
-- No auto-injection side effects -- `configureTheme()` is pure, user controls CSS injection
 - No opaque component wrapping -- users see and control their JSX
 - Variant customization is explicit spread, not hidden merge
+- `globalCss()` auto-injection follows the established pattern in `@vertz/ui` -- consistent, not surprising
 
 ### Tradeoffs accepted
 
@@ -344,7 +347,7 @@ TypeScript types on `variants()` are battle-tested. `compileTheme()` validates t
 - **CLI for theme scaffolding** -- no `vertz add button`. Themes are npm packages
 - **Visual theme builder/configurator** -- out of scope
 - **Component animation system** -- separate concern
-- **Extending `compileTheme()` with radius/typography** -- globals CSS string covers the gap
+- **Extending `compileTheme()` with radius/typography** -- globals CSS covers the gap
 - **Refactoring `@vertz/ui-primitives` to JSX** -- valuable but separate workstream
 - **Custom elements for form integration** -- separate architectural decision
 
@@ -357,6 +360,7 @@ No unknowns identified. All critical questions have been resolved through the ad
 3. Variant extension type safety -- resolved by using config-object spread instead of `configureTheme()` extension
 4. camelCase/kebab-case mismatch -- resolved by enforcing kebab-case with a hard error
 5. Two import paths -- resolved by making `configureTheme()` the single entry point
+6. Globals injection lifecycle -- resolved by using `GlobalCSSOutput` from `globalCss()` with auto-injection (established pattern) and `.css` for SSR
 
 ## Type Flow Map
 
@@ -413,9 +417,9 @@ describe('@vertz/theme-shadcn E2E', () => {
     expect(compiled.css).toContain('--color-primary');
     expect(compiled.css).toContain('--color-primary-foreground');
 
-    // Globals is a raw CSS string
-    expect(typeof globals).toBe('string');
-    expect(globals.length).toBeGreaterThan(0);
+    // Globals is a GlobalCSSOutput with .css string
+    expect(typeof globals.css).toBe('string');
+    expect(globals.css.length).toBeGreaterThan(0);
   });
 
   it('palette selection changes token values', () => {
@@ -456,12 +460,10 @@ describe('@vertz/theme-shadcn E2E', () => {
     expect(typeof myButton({ intent: 'brand' })).toBe('string');
   });
 
-  it('configureTheme is pure -- no side effects', () => {
-    // Calling configureTheme multiple times with different configs is safe
-    const a = configureTheme({ palette: 'zinc' });
-    const b = configureTheme({ palette: 'slate' });
-    expect(a.globals).not.toBe(b.globals);
-    expect(compileTheme(a.theme).css).not.toBe(compileTheme(b.theme).css);
+  it('globals contains reset CSS and radius custom property', () => {
+    const { globals } = configureTheme({ radius: 'lg' });
+    expect(globals.css).toContain('box-sizing');
+    expect(globals.css).toContain('--radius');
   });
 });
 ```
@@ -524,7 +526,7 @@ myButton({ intent: 'invalid' });
       separator.ts     -- separator css() definition
       form-group.ts    -- formGroup css() definition
       index.ts         -- Aggregates all style definitions
-    globals.ts         -- Builds reset CSS + base typography + radius as raw string
+    globals.ts         -- Builds reset CSS + base typography + radius via globalCss()
     configure.ts       -- configureTheme() implementation
     merge.ts           -- Deep partial token merge utility
     index.ts           -- Public API: configureTheme, ThemeConfig, ResolvedTheme
@@ -549,12 +551,12 @@ myButton({ intent: 'invalid' });
 - `packages/theme-shadcn/package.json` -- new package, depends on `@vertz/ui`
 - `packages/theme-shadcn/tsconfig.json` -- extends root, no JSX needed (style definitions only)
 - `packages/theme-shadcn/src/tokens/*.ts` -- 5 palette token sets
-- `packages/theme-shadcn/src/globals.ts` -- Reset CSS + base typography builder
+- `packages/theme-shadcn/src/globals.ts` -- Reset CSS + base typography builder via `globalCss()`
 - `packages/theme-shadcn/src/merge.ts` -- Deep partial token merge
 - `packages/theme-shadcn/src/configure.ts` -- `configureTheme()` returning theme + globals (styles empty initially)
 - `packages/theme-shadcn/src/index.ts` -- Public exports
 
-**Integration test:** `configureTheme()` returns a `Theme` that `compileTheme()` accepts. Palette selection changes CSS output. Token overrides appear in compiled CSS. `globals` is a non-empty CSS string.
+**Integration test:** `configureTheme()` returns a `Theme` that `compileTheme()` accepts. Palette selection changes CSS output. Token overrides appear in compiled CSS. `globals.css` is a non-empty CSS string.
 
 ### Phase 3: Style Definitions
 
@@ -575,7 +577,7 @@ myButton({ intent: 'invalid' });
 **Files to modify:**
 - `examples/task-manager/src/styles/theme.ts` -- replace with `configureTheme()` call
 - `examples/task-manager/src/styles/components.ts` -- remove hand-written variants, use theme styles
-- `examples/task-manager/src/app.tsx` -- inject globals + compiled theme CSS
+- `examples/task-manager/src/app.tsx` -- use theme globals + compiled theme CSS
 - `examples/task-manager/src/components/*.tsx` -- use destructured theme styles
 
 **Acceptance criteria:**
