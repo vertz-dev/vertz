@@ -5,6 +5,8 @@ import {
   ok,
   type Result,
 } from '@vertz/errors';
+import type { Dialect } from '../dialect';
+import { defaultPostgresDialect } from '../dialect';
 import { sha256Hex } from '../util/hash';
 
 /**
@@ -74,9 +76,28 @@ export interface MigrationRunner {
   detectOutOfOrder(files: MigrationFile[], applied: AppliedMigration[]): string[];
 }
 
+/**
+ * Options for creating a migration runner.
+ */
+export interface MigrationRunnerOptions {
+  dialect?: Dialect;
+}
+
 const HISTORY_TABLE = '_vertz_migrations';
 
-const CREATE_HISTORY_SQL = `
+function buildCreateHistorySql(dialect: Dialect): string {
+  if (dialect.name === 'sqlite') {
+    return `
+CREATE TABLE IF NOT EXISTS "${HISTORY_TABLE}" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "name" TEXT NOT NULL UNIQUE,
+  "checksum" TEXT NOT NULL,
+  "applied_at" TEXT NOT NULL DEFAULT (datetime('now'))
+);
+`;
+  }
+
+  return `
 CREATE TABLE IF NOT EXISTS "${HISTORY_TABLE}" (
   "id" serial PRIMARY KEY,
   "name" text NOT NULL UNIQUE,
@@ -84,6 +105,7 @@ CREATE TABLE IF NOT EXISTS "${HISTORY_TABLE}" (
   "applied_at" timestamp with time zone NOT NULL DEFAULT now()
 );
 `;
+}
 
 /**
  * Compute a SHA-256 checksum for migration SQL content.
@@ -108,16 +130,19 @@ export function parseMigrationName(filename: string): { timestamp: number; name:
 /**
  * Create a migration runner instance.
  */
-export function createMigrationRunner(): MigrationRunner {
+export function createMigrationRunner(options?: MigrationRunnerOptions): MigrationRunner {
+  const dialect = options?.dialect ?? defaultPostgresDialect;
+  const createHistorySql = buildCreateHistorySql(dialect);
+
   return {
     async createHistoryTable(queryFn: MigrationQueryFn): Promise<Result<void, MigrationError>> {
       try {
-        await queryFn(CREATE_HISTORY_SQL, []);
+        await queryFn(createHistorySql, []);
         return ok(undefined);
       } catch (cause) {
         return err(
           createMigrationQueryError('Failed to create migration history table', {
-            sql: CREATE_HISTORY_SQL,
+            sql: createHistorySql,
             cause,
           }),
         );
@@ -131,7 +156,7 @@ export function createMigrationRunner(): MigrationRunner {
       options?: ApplyOptions,
     ): Promise<Result<ApplyResult, MigrationError>> {
       const checksum = await computeChecksum(sql);
-      const recordSql = `INSERT INTO "${HISTORY_TABLE}" ("name", "checksum") VALUES ($1, $2)`;
+      const recordSql = `INSERT INTO "${HISTORY_TABLE}" ("name", "checksum") VALUES (${dialect.param(1)}, ${dialect.param(2)})`;
 
       // Collect all statements that would be executed
       const statements = [sql, recordSql];
