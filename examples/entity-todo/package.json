@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vertz dev",
+    "dev": "bun node_modules/@vertz/cli/dist/vertz.js dev",
     "dev:legacy": "bun run src/dev-server.ts",
-    "build": "vertz build",
+    "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
     "deploy": "bun run build && wrangler deploy",
     "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
     "test": "bun run codegen && bun test",

@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vertz dev",
-    "dev:ssr": "vertz dev --ssr",
+    "dev": "bun node_modules/@vertz/cli/dist/vertz.js dev",
+    "dev:ssr": "bun node_modules/@vertz/cli/dist/vertz.js dev --ssr",
     "dev:worker": "wrangler dev",
-    "build": "vertz build",
+    "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
     "build:worker": "esbuild src/worker.ts --bundle --format=esm --outfile=dist/worker.js --platform=neutral --target=es2022",
     "start": "bun run server.ts",
     "preview": "bun run build && bun run start",
