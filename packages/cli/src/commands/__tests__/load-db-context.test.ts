@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { extractTables, loadMigrationFiles } from '../load-db-context';
+import {
+  createConnection,
+  extractTables,
+  loadMigrationFiles,
+  parseSqliteUrl,
+} from '../load-db-context';
 
 // ---------------------------------------------------------------------------
 // extractTables
@@ -53,6 +58,56 @@ describe('extractTables', () => {
     const tables = extractTables(module as Record<string, unknown>);
 
     expect(tables).toHaveLength(0);
+  });
+
+  it('skips objects where _columns is not an object', () => {
+    const module = {
+      bad: { _name: 'bad', _columns: 'not-an-object' },
+    };
+
+    const tables = extractTables(module as Record<string, unknown>);
+
+    expect(tables).toHaveLength(0);
+  });
+
+  it('skips objects where _columns is null', () => {
+    const module = {
+      bad: { _name: 'bad', _columns: null },
+    };
+
+    const tables = extractTables(module as Record<string, unknown>);
+
+    expect(tables).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseSqliteUrl
+// ---------------------------------------------------------------------------
+
+describe('parseSqliteUrl', () => {
+  it('returns ./app.db when url is undefined', () => {
+    expect(parseSqliteUrl(undefined)).toBe('./app.db');
+  });
+
+  it('strips sqlite: prefix from simple path', () => {
+    expect(parseSqliteUrl('sqlite:./my.db')).toBe('./my.db');
+  });
+
+  it('strips sqlite:/// to produce absolute path', () => {
+    expect(parseSqliteUrl('sqlite:///tmp/data.db')).toBe('/tmp/data.db');
+  });
+
+  it('strips sqlite:// prefix gracefully', () => {
+    expect(parseSqliteUrl('sqlite://relative/path.db')).toBe('relative/path.db');
+  });
+
+  it('returns ./app.db when url is sqlite: with no path', () => {
+    expect(parseSqliteUrl('sqlite:')).toBe('./app.db');
+  });
+
+  it('returns bare path unchanged when no sqlite: prefix', () => {
+    expect(parseSqliteUrl('/absolute/path.db')).toBe('/absolute/path.db');
   });
 });
 
@@ -132,7 +187,7 @@ describe('loadMigrationFiles', () => {
 });
 
 // ---------------------------------------------------------------------------
-// loadDbContext — integration-style tests with mock config
+// loadDbContext — error-path tests
 // ---------------------------------------------------------------------------
 
 describe('loadDbContext', () => {
@@ -150,13 +205,13 @@ describe('loadDbContext', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it('throws when vertz.config.ts does not exist', async () => {
+  it('throws with helpful message when vertz.config.ts does not exist', async () => {
     const { loadDbContext } = await import('../load-db-context');
 
-    await expect(loadDbContext()).rejects.toThrow();
+    await expect(loadDbContext()).rejects.toThrow('Could not find vertz.config.ts');
   });
 
-  it('throws when config has no db export', async () => {
+  it('throws with example config when config has no db export', async () => {
     await writeFile(join(tempDir, 'vertz.config.ts'), 'export default { compiler: {} };');
 
     const { loadDbContext } = await import('../load-db-context');
@@ -187,10 +242,35 @@ export const db = { dialect: 'sqlite' };`,
 
     await expect(loadDbContext()).rejects.toThrow('Missing `schema`');
   });
+
+  it('throws when schema file does not exist', async () => {
+    await writeFile(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {};
+export const db = { dialect: 'sqlite', schema: './nonexistent.ts' };`,
+    );
+
+    const { loadDbContext } = await import('../load-db-context');
+
+    await expect(loadDbContext()).rejects.toThrow('Schema file not found');
+  });
+
+  it('throws when schema file exports no table definitions', async () => {
+    await writeFile(join(tempDir, 'schema.ts'), 'export const config = { setting: true };');
+    await writeFile(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {};
+export const db = { dialect: 'sqlite', schema: './schema.ts' };`,
+    );
+
+    const { loadDbContext } = await import('../load-db-context');
+
+    await expect(loadDbContext()).rejects.toThrow('No table definitions found');
+  });
 });
 
 // ---------------------------------------------------------------------------
-// loadDbContext — happy path (mock createQueryFn to avoid DB drivers)
+// loadDbContext — happy path with real SQLite
 // ---------------------------------------------------------------------------
 
 // Schema file content that exports duck-typed TableDef objects
@@ -246,10 +326,13 @@ export const db = { dialect: 'sqlite', url: 'sqlite:${join(tempDir, 'test.db')}'
     expect(ctx.migrationFiles).toHaveLength(1);
     expect(ctx.migrationFiles[0]?.name).toBe('0001_init.sql');
     expect(ctx.existingFiles).toEqual(['0001_init.sql']);
-    expect(ctx.dialect?.name).toBe('sqlite');
+    expect(ctx.dialect.name).toBe('sqlite');
     expect(typeof ctx.queryFn).toBe('function');
     expect(typeof ctx.writeFile).toBe('function');
     expect(typeof ctx.readFile).toBe('function');
+    expect(typeof ctx.close).toBe('function');
+
+    await ctx.close();
   });
 
   it('loads saved snapshot as previousSnapshot when present', async () => {
@@ -271,6 +354,8 @@ export const db = { dialect: 'sqlite', url: 'sqlite:${join(tempDir, 'test2.db')}
 
     expect(ctx.previousSnapshot).toEqual(savedSnap);
     expect(ctx.savedSnapshot).toEqual(savedSnap);
+
+    await ctx.close();
   });
 
   it('uses custom migrationsDir and snapshotPath when configured', async () => {
@@ -295,6 +380,8 @@ export const db = {
 
     expect(ctx.migrationsDir).toBe(customDir);
     expect(ctx.migrationFiles).toHaveLength(1);
+
+    await ctx.close();
   });
 
   it('writeFile creates directories and writes content', async () => {
@@ -313,6 +400,8 @@ export const db = { dialect: 'sqlite', url: 'sqlite:${join(tempDir, 'test4.db')}
 
     const content = await readFile(testPath, 'utf-8');
     expect(content).toBe('CREATE TABLE test;');
+
+    await ctx.close();
   });
 
   it('readFile reads file content', async () => {
@@ -327,22 +416,24 @@ export const db = { dialect: 'sqlite', url: 'sqlite:${join(tempDir, 'test5.db')}
     const { loadDbContext } = await import('../load-db-context');
     const ctx = await loadDbContext();
 
-    const content = await ctx.readFile?.(join(tempDir, 'test-read.txt'));
+    const content = await ctx.readFile(join(tempDir, 'test-read.txt'));
     expect(content).toBe('hello from readFile');
+
+    await ctx.close();
   });
 });
 
 // ---------------------------------------------------------------------------
-// createQueryFn — sqlite path (bun:sqlite is available in bun test)
+// createConnection — sqlite (bun:sqlite is available in bun test)
 // ---------------------------------------------------------------------------
 
-describe('createQueryFn', () => {
+describe('createConnection', () => {
   let tempDir: string;
 
   beforeEach(async () => {
     tempDir = join(
       tmpdir(),
-      `vertz-test-query-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      `vertz-test-conn-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     );
     await mkdir(tempDir, { recursive: true });
   });
@@ -351,31 +442,31 @@ describe('createQueryFn', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it('creates a working sqlite queryFn', async () => {
-    const { createQueryFn } = await import('../load-db-context');
+  it('creates a working sqlite connection with queryFn and close', async () => {
     const dbPath = join(tempDir, 'test.db');
 
-    const queryFn = await createQueryFn({ dialect: 'sqlite', url: `sqlite:${dbPath}`, schema: '' });
+    const conn = await createConnection({ dialect: 'sqlite', url: `sqlite:${dbPath}`, schema: '' });
 
-    await queryFn('CREATE TABLE test_tbl (id INTEGER PRIMARY KEY, name TEXT)', []);
-    await queryFn('INSERT INTO test_tbl (id, name) VALUES (?, ?)', [1, 'alice']);
-    const result = await queryFn('SELECT * FROM test_tbl', []);
+    await conn.queryFn('CREATE TABLE test_tbl (id INTEGER PRIMARY KEY, name TEXT)', []);
+    await conn.queryFn('INSERT INTO test_tbl (id, name) VALUES (?, ?)', [1, 'alice']);
+    const result = await conn.queryFn('SELECT * FROM test_tbl', []);
 
     expect(result.rows).toHaveLength(1);
     expect(result.rows[0]).toEqual({ id: 1, name: 'alice' });
     expect(result.rowCount).toBe(1);
+
+    // close should not throw
+    await conn.close();
   });
 
-  it('uses default path when url is not provided for sqlite', async () => {
-    const { createQueryFn } = await import('../load-db-context');
-    const dbPath = join(tempDir, 'app.db');
+  it('close prevents further queries on sqlite', async () => {
+    const dbPath = join(tempDir, 'close-test.db');
 
-    // Pre-create to ensure the default-path logic works with an explicit path
-    const queryFn = await createQueryFn({ dialect: 'sqlite', url: `sqlite:${dbPath}`, schema: '' });
-    await queryFn('CREATE TABLE t2 (id INTEGER)', []);
-    const result = await queryFn('SELECT * FROM t2', []);
+    const conn = await createConnection({ dialect: 'sqlite', url: `sqlite:${dbPath}`, schema: '' });
+    await conn.queryFn('CREATE TABLE t (id INTEGER)', []);
+    await conn.close();
 
-    expect(result.rows).toHaveLength(0);
-    expect(result.rowCount).toBe(0);
+    // After close, querying should throw
+    await expect(conn.queryFn('SELECT * FROM t', [])).rejects.toThrow();
   });
 });

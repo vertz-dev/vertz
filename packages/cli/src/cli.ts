@@ -4,6 +4,7 @@ import { createJiti } from 'jiti';
 import { buildAction } from './commands/build';
 import { codegenAction } from './commands/codegen';
 import { createAction } from './commands/create';
+import type { DbCommandContext } from './commands/db';
 import {
   dbBaselineAction,
   dbDeployAction,
