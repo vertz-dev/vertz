@@ -158,6 +158,50 @@ describe('compileTheme()', () => {
     expect(rootMatch?.[1]).toContain('--color-background: white');
   });
 
+  it('throws on camelCase color token keys', () => {
+    const theme = defineTheme({
+      colors: {
+        primaryForeground: { DEFAULT: '#fff', _dark: '#000' },
+      },
+    });
+    expect(() => compileTheme(theme)).toThrow(
+      "Color token 'primaryForeground' uses camelCase. Use kebab-case to match CSS custom property naming.",
+    );
+  });
+
+  it('throws on namespace+shade collision with compound namespace', () => {
+    const theme = defineTheme({
+      colors: {
+        primary: {
+          500: '#3b82f6',
+          foreground: '#ffffff',
+        },
+      },
+    });
+    expect(() => compileTheme(theme)).toThrow(
+      "Token collision: 'primary.foreground' produces CSS variable '--color-primary-foreground' " +
+        "which conflicts with semantic token 'primary-foreground'.",
+    );
+  });
+
+  it('does not throw when shade does not collide with compound namespace', () => {
+    const theme = defineTheme({
+      colors: {
+        primary: { 500: '#3b82f6', 600: '#2563eb' },
+      },
+    });
+    expect(() => compileTheme(theme)).not.toThrow();
+  });
+
+  it('accepts kebab-case color token keys', () => {
+    const theme = defineTheme({
+      colors: {
+        'primary-foreground': { DEFAULT: '#fff', _dark: '#000' },
+      },
+    });
+    expect(() => compileTheme(theme)).not.toThrow();
+  });
+
   it('returns token map with all flat token paths', () => {
     const theme = defineTheme({
       colors: {

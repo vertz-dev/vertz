@@ -5,9 +5,9 @@
  * server-side using the framework's zero-config SSR pipeline.
  */
 
-import { describe, expect, test, afterEach } from 'bun:test';
-import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { renderToStream, streamToString } from '@vertz/ui-server';
+import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
 
 async function renderApp(url: string): Promise<string> {
   (globalThis as any).__SSR_URL__ = url;
@@ -15,7 +15,7 @@ async function renderApp(url: string): Promise<string> {
 
   const { appRouter, routes } = await import('../router');
   const { matchRoute } = await import('@vertz/ui/internals');
-  
+
   const match = matchRoute(routes, url);
   appRouter.current.value = match;
 

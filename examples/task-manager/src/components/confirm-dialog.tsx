@@ -48,7 +48,7 @@ export function ConfirmDialog({
     <div>
       <button
         type="button"
-        class={button({ intent: 'danger', size: 'sm' })}
+        class={button({ intent: 'destructive', size: 'sm' })}
         data-testid="confirm-dialog-trigger"
         onClick={() => {
           isOpen = true;
@@ -91,7 +91,7 @@ export function ConfirmDialog({
             </button>
             <button
               type="button"
-              class={button({ intent: 'danger', size: 'sm' })}
+              class={button({ intent: 'destructive', size: 'sm' })}
               data-testid="confirm-action"
               onClick={() => {
                 onConfirm();

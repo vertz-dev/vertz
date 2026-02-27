@@ -314,6 +314,13 @@ export const COLOR_NAMESPACES: ReadonlySet<string> = new Set([
   'card',
   'popover',
   'gray',
+  'primary-foreground',
+  'secondary-foreground',
+  'accent-foreground',
+  'destructive-foreground',
+  'muted-foreground',
+  'card-foreground',
+  'popover-foreground',
 ]);
 
 /** CSS color keywords that pass through without token resolution. */

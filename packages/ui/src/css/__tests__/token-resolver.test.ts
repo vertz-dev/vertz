@@ -91,6 +91,28 @@ describe('resolveToken', () => {
       ]);
     });
 
+    it('resolves text:primary-foreground to compound namespace', () => {
+      const result = resolveToken({
+        property: 'text',
+        value: 'primary-foreground',
+        pseudo: null,
+      });
+      expect(result.declarations).toEqual([
+        { property: 'color', value: 'var(--color-primary-foreground)' },
+      ]);
+    });
+
+    it('resolves bg:muted-foreground to compound namespace', () => {
+      const result = resolveToken({
+        property: 'bg',
+        value: 'muted-foreground',
+        pseudo: null,
+      });
+      expect(result.declarations).toEqual([
+        { property: 'background-color', value: 'var(--color-muted-foreground)' },
+      ]);
+    });
+
     it('throws on unknown color token', () => {
       expect(() => resolveToken({ property: 'bg', value: 'potato', pseudo: null })).toThrow(
         TokenResolveError,

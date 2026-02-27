@@ -83,6 +83,7 @@
       "name": "@vertz-examples/task-manager",
       "version": "0.0.2",
       "dependencies": {
+        "@vertz/theme-shadcn": "workspace:*",
         "@vertz/ui": "workspace:*",
         "@vertz/ui-primitives": "workspace:*",
         "@vertz/ui-server": "workspace:*",
@@ -287,6 +288,7 @@
         "@vertz/fetch": "workspace:*",
         "@vertz/schema": "workspace:*",
         "@vertz/server": "workspace:*",
+        "@vertz/theme-shadcn": "workspace:*",
         "@vertz/ui": "workspace:*",
         "typescript": "^5.7.0",
         "vitest": "^4.0.18",
@@ -338,6 +340,17 @@
         "bunup": "latest",
         "typescript": "^5.7.0",
         "vitest": "^4.0.18",
+      },
+    },
+    "packages/theme-shadcn": {
+      "name": "@vertz/theme-shadcn",
+      "version": "0.1.0",
+      "dependencies": {
+        "@vertz/ui": "workspace:*",
+      },
+      "devDependencies": {
+        "bunup": "latest",
+        "typescript": "^5.7.0",
       },
     },
     "packages/tui": {
@@ -910,6 +923,8 @@
     "@vertz/server": ["@vertz/server@workspace:packages/server"],
 
     "@vertz/testing": ["@vertz/testing@workspace:packages/testing"],
+
+    "@vertz/theme-shadcn": ["@vertz/theme-shadcn@workspace:packages/theme-shadcn"],
 
     "@vertz/tui": ["@vertz/tui@workspace:packages/tui"],
 
