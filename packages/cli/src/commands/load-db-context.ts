@@ -25,6 +25,8 @@ export interface DbConfig {
   snapshotPath?: string;
 }
 
+const DEFAULT_SQLITE_PATH = './app.db';
+
 /** Adapter contract for bun:sqlite Database (runtime-only module). */
 interface SqliteDatabase {
   prepare: (sql: string) => { all: (...params: unknown[]) => unknown[] };
@@ -44,11 +46,11 @@ export interface DbConnection {
 
 export async function loadDbContext(): Promise<DbCommandContext> {
   const configPath = resolve(process.cwd(), 'vertz.config.ts');
+  const jiti = createJiti(import.meta.url, { interopDefault: true });
 
   // Load vertz.config.ts — catch missing file separately for a clear message
   let configModule: Record<string, unknown>;
   try {
-    const jiti = createJiti(import.meta.url, { interopDefault: true });
     configModule = (await jiti.import(configPath)) as Record<string, unknown>;
   } catch {
     try {
@@ -97,7 +99,6 @@ export async function loadDbContext(): Promise<DbCommandContext> {
   const schemaPath = resolve(cwd, dbConfig.schema);
   let schemaModule: Record<string, unknown>;
   try {
-    const jiti = createJiti(import.meta.url, { interopDefault: true });
     schemaModule = (await jiti.import(schemaPath)) as Record<string, unknown>;
   } catch {
     try {
@@ -126,6 +127,7 @@ export async function loadDbContext(): Promise<DbCommandContext> {
 
   const dialect: Dialect =
     dbConfig.dialect === 'sqlite' ? defaultSqliteDialect : defaultPostgresDialect;
+  // TODO: consider lazy connection — dry-run modes don't need a DB connection
   const connection = await createConnection(dbConfig);
 
   const migrationFiles = await loadMigrationFiles(migrationsDir);
@@ -136,14 +138,13 @@ export async function loadDbContext(): Promise<DbCommandContext> {
     await fsWriteFile(path, content, 'utf-8');
   };
 
-  const readFile = async (path: string) => {
-    return fsReadFile(path, 'utf-8');
-  };
+  const readFile = (path: string) => fsReadFile(path, 'utf-8');
 
   return {
     queryFn: connection.queryFn,
     currentSnapshot,
     previousSnapshot,
+    // Normalize null → undefined for stricter downstream typing
     savedSnapshot: savedSnapshot ?? undefined,
     migrationFiles,
     migrationsDir,
@@ -155,28 +156,33 @@ export async function loadDbContext(): Promise<DbCommandContext> {
   };
 }
 
-export function extractTables(module: Record<string, unknown>): TableDef[] {
-  return Object.values(module).filter(
-    (v): v is TableDef =>
-      v !== null &&
-      typeof v === 'object' &&
-      '_name' in v &&
-      '_columns' in v &&
-      typeof (v as Record<string, unknown>)._columns === 'object' &&
-      (v as Record<string, unknown>)._columns !== null,
+/** Check if a module export looks like a TableDef (duck-typing on _name + _columns). */
+function isTableDef(v: unknown): v is TableDef {
+  return (
+    v !== null &&
+    typeof v === 'object' &&
+    '_name' in v &&
+    '_columns' in v &&
+    typeof (v as Record<string, unknown>)._columns === 'object' &&
+    (v as Record<string, unknown>)._columns !== null
   );
+}
+
+export function extractTables(module: Record<string, unknown>): TableDef[] {
+  // TODO: consider tightening the duck-type check (e.g., Symbol brand) if false positives arise
+  return Object.values(module).filter(isTableDef);
 }
 
 /** Parse a sqlite: URL into a file path. Handles sqlite:path, sqlite:///path, and bare paths. */
 export function parseSqliteUrl(url: string | undefined): string {
-  if (!url) return './app.db';
+  if (!url) return DEFAULT_SQLITE_PATH;
   if (!url.startsWith('sqlite:')) return url;
   const stripped = url.slice('sqlite:'.length);
   // sqlite:///absolute/path -> /absolute/path
   if (stripped.startsWith('///')) return stripped.slice(2);
   // sqlite://relative is ambiguous but handle gracefully
-  if (stripped.startsWith('//')) return stripped.slice(2);
-  return stripped || './app.db';
+  if (stripped.startsWith('//')) return stripped.slice(2) || DEFAULT_SQLITE_PATH;
+  return stripped || DEFAULT_SQLITE_PATH;
 }
 
 export async function createConnection(config: DbConfig): Promise<DbConnection> {
@@ -187,10 +193,11 @@ export async function createConnection(config: DbConfig): Promise<DbConnection> 
       // @ts-expect-error — bun:sqlite is a runtime-only module (available when running under Bun)
       const { Database } = await import('bun:sqlite');
       db = new Database(dbPath) as SqliteDatabase;
-    } catch {
+    } catch (err) {
       throw new Error(
         'Failed to load bun:sqlite. The vertz CLI requires the Bun runtime for SQLite support.\n' +
           'Run your command with: bun vertz db <command>',
+        { cause: err },
       );
     }
     const queryFn: MigrationQueryFn = async (sql: string, params: readonly unknown[]) => {
@@ -209,8 +216,12 @@ export async function createConnection(config: DbConfig): Promise<DbConnection> 
   try {
     const pg = (await import('postgres')).default;
     client = pg(config.url ?? '') as PostgresClient;
-  } catch {
-    throw new Error('Failed to load the `postgres` package. Install it with:\n  bun add postgres');
+  } catch (err) {
+    throw new Error(
+      'Failed to load the `postgres` package. Install it in your project:\n' +
+        '  npm install postgres    # or: bun add postgres',
+      { cause: err },
+    );
   }
   const queryFn: MigrationQueryFn = async (query: string, params: readonly unknown[]) => {
     const result = await client.unsafe(query, params as unknown[]);
@@ -234,10 +245,9 @@ export async function loadMigrationFiles(dir: string): Promise<MigrationFile[]> 
     throw error;
   }
 
-  const sqlFiles = entries.filter((f) => f.endsWith('.sql')).sort();
   const files: MigrationFile[] = [];
 
-  for (const filename of sqlFiles) {
+  for (const filename of entries.filter((f) => f.endsWith('.sql'))) {
     const parsed = parseMigrationName(filename);
     if (!parsed) continue;
 

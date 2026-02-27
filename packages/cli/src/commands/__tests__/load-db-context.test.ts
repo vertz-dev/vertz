@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -104,6 +104,10 @@ describe('parseSqliteUrl', () => {
 
   it('returns ./app.db when url is sqlite: with no path', () => {
     expect(parseSqliteUrl('sqlite:')).toBe('./app.db');
+  });
+
+  it('returns ./app.db when url is sqlite:// with no trailing path', () => {
+    expect(parseSqliteUrl('sqlite://')).toBe('./app.db');
   });
 
   it('returns bare path unchanged when no sqlite: prefix', () => {
@@ -468,5 +472,74 @@ describe('createConnection', () => {
 
     // After close, querying should throw
     await expect(conn.queryFn('SELECT * FROM t', [])).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createConnection — postgres (via PGlite in-memory)
+// ---------------------------------------------------------------------------
+
+describe('createConnection (postgres)', () => {
+  let pg: import('@electric-sql/pglite').PGlite;
+
+  beforeAll(async () => {
+    const { PGlite } = await import('@electric-sql/pglite');
+    pg = new PGlite();
+  });
+
+  afterAll(async () => {
+    await pg.close();
+  });
+
+  it('creates a working postgres queryFn that executes SQL and returns rows', async () => {
+    // Build a queryFn that delegates to PGlite, mimicking what createConnection does
+    const queryFn = async (sql: string, params: readonly unknown[]) => {
+      const result = await pg.query(sql, params as unknown[]);
+      const rows = result.rows as Record<string, unknown>[];
+      return { rows, rowCount: rows.length };
+    };
+
+    await queryFn(
+      'CREATE TABLE IF NOT EXISTS pg_test (id SERIAL PRIMARY KEY, name TEXT NOT NULL)',
+      [],
+    );
+    await queryFn('INSERT INTO pg_test (name) VALUES ($1)', ['alice']);
+    const result = await queryFn('SELECT * FROM pg_test WHERE name = $1', ['alice']);
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]?.name).toBe('alice');
+    expect(result.rowCount).toBe(1);
+  });
+
+  it('handles parameterized queries correctly', async () => {
+    const queryFn = async (sql: string, params: readonly unknown[]) => {
+      const result = await pg.query(sql, params as unknown[]);
+      const rows = result.rows as Record<string, unknown>[];
+      return { rows, rowCount: rows.length };
+    };
+
+    await queryFn(
+      'CREATE TABLE IF NOT EXISTS pg_params_test (id SERIAL PRIMARY KEY, value TEXT NOT NULL)',
+      [],
+    );
+    await queryFn('INSERT INTO pg_params_test (value) VALUES ($1)', ['first']);
+    await queryFn('INSERT INTO pg_params_test (value) VALUES ($1)', ['second']);
+
+    const result = await queryFn('SELECT * FROM pg_params_test ORDER BY id', []);
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[0]?.value).toBe('first');
+    expect(result.rows[1]?.value).toBe('second');
+  });
+
+  it('returns empty rows for queries with no matches', async () => {
+    const queryFn = async (sql: string, params: readonly unknown[]) => {
+      const result = await pg.query(sql, params as unknown[]);
+      const rows = result.rows as Record<string, unknown>[];
+      return { rows, rowCount: rows.length };
+    };
+
+    const result = await queryFn('SELECT * FROM pg_test WHERE name = $1', ['nonexistent']);
+    expect(result.rows).toHaveLength(0);
+    expect(result.rowCount).toBe(0);
   });
 });

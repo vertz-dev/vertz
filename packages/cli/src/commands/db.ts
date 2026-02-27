@@ -18,8 +18,11 @@ import { baseline, migrateDeploy, migrateDev, migrateStatus, push, reset } from 
 
 export interface DbCommandContext {
   queryFn: MigrationQueryFn;
+  /** Snapshot derived from the current schema file exports. */
   currentSnapshot: SchemaSnapshot;
+  /** Previous snapshot — loaded from disk, or empty if no saved snapshot exists. */
   previousSnapshot: SchemaSnapshot;
+  /** Raw saved snapshot from disk (undefined when no _snapshot.json exists yet). */
   savedSnapshot?: SchemaSnapshot;
   migrationFiles: MigrationFile[];
   migrationsDir: string;
@@ -27,6 +30,7 @@ export interface DbCommandContext {
   dialect: Dialect;
   writeFile: (path: string, content: string) => Promise<void>;
   readFile: (path: string) => Promise<string>;
+  /** Close the database connection. Must be called when done. */
   close: () => Promise<void>;
 }
 
