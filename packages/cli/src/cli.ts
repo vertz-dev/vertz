@@ -203,22 +203,29 @@ export function createCLI(): Command {
   // Database commands
   const dbCommand = program.command('db').description('Database management commands');
 
+  // TODO: consider using Commander's exitOverride() to make process.exit testable
   /** Run a db action with proper error handling and connection cleanup. */
   async function withDbContext(fn: (ctx: DbCommandContext) => Promise<void>): Promise<void> {
     let ctx: DbCommandContext;
     try {
       ctx = await loadDbContext();
     } catch (error) {
-      console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(
+        `Configuration error: ${error instanceof Error ? error.message : String(error)}`,
+      );
       process.exit(1);
     }
     try {
       await fn(ctx);
     } catch (error) {
-      console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(`Command failed: ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
     } finally {
-      await ctx.close();
+      try {
+        await ctx.close();
+      } catch {
+        // Connection cleanup failed — not actionable for the user
+      }
     }
   }
 
@@ -235,10 +242,10 @@ export function createCLI(): Command {
           dryRun: opts.dryRun ?? false,
         });
         if (result.dryRun) {
-          console.log('[dry-run] Migration file:', result.migrationFile);
+          console.log(`[dry-run] Migration file: ${result.migrationFile}`);
           console.log(result.sql || '-- no changes');
         } else {
-          console.log('Migration applied:', result.migrationFile);
+          console.log(`Migration applied: ${result.migrationFile}`);
         }
       });
     });
@@ -252,7 +259,7 @@ export function createCLI(): Command {
         if (result.tablesAffected.length === 0) {
           console.log('No changes to push.');
         } else {
-          console.log('Pushed changes to:', result.tablesAffected.join(', '));
+          console.log(`Pushed changes to: ${result.tablesAffected.join(', ')}`);
         }
       });
     });
@@ -286,17 +293,23 @@ export function createCLI(): Command {
             console.log(`  - ${name}`);
           }
         }
+
         if (data.codeChanges.length > 0) {
-          console.log('Code changes:');
+          console.log('\nCode changes:');
           for (const c of data.codeChanges) {
             console.log(`  - ${c.description}`);
           }
         }
+
         if (data.drift.length > 0) {
-          console.log('Drift detected:');
+          console.log('\nDrift detected:');
           for (const d of data.drift) {
             console.log(`  - ${d.description}`);
           }
+        }
+
+        if (data.codeChanges.length === 0 && data.drift.length === 0) {
+          console.log('\nSchema is in sync.');
         }
       });
     });
@@ -304,7 +317,23 @@ export function createCLI(): Command {
   dbCommand
     .command('reset')
     .description('Drop all tables and re-apply migrations')
-    .action(async () => {
+    .option('-f, --force', 'Skip confirmation prompt')
+    .action(async (opts) => {
+      if (!opts.force) {
+        const readline = await import('node:readline');
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        const answer = await new Promise<string>((resolve) => {
+          rl.question(
+            'This will drop all tables and re-apply migrations. Continue? (y/N) ',
+            resolve,
+          );
+        });
+        rl.close();
+        if (answer.toLowerCase() !== 'y') {
+          console.log('Aborted.');
+          return;
+        }
+      }
       await withDbContext(async (ctx) => {
         const data = await dbResetAction({ ctx });
         console.log(`Dropped: ${data.tablesDropped.length} table(s)`);
