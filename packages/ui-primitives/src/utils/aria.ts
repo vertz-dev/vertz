@@ -3,7 +3,7 @@
  * Provides functions for setting and toggling ARIA attributes on DOM elements.
  */
 
-import { onAnimationsComplete } from './animation';
+import { onAnimationsComplete } from '@vertz/ui/internals';
 
 /**
  * Generation counter per element to invalidate stale hide callbacks.

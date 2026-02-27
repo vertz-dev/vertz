@@ -34,6 +34,8 @@ export {
 // Render adapter (used by SSR adapter and other rendering backends)
 export type { RenderAdapter, RenderElement, RenderNode, RenderText } from './dom/adapter';
 export { getAdapter, isRenderNode, RENDER_NODE_BRAND, setAdapter } from './dom/adapter';
+// Animation utilities (used by sibling packages like ui-primitives)
+export { onAnimationsComplete } from './dom/animation';
 // DOM helpers (used by compiler-generated JSX output)
 export { __attr, __classList, __show } from './dom/attributes';
 export { __conditional } from './dom/conditional';
