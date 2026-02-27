@@ -1,14 +1,67 @@
 import type { GlobalCSSOutput, Theme, VariantFunction } from '@vertz/ui';
 import { defineTheme, globalCss } from '@vertz/ui';
+import type {
+  AccordionOptions,
+  CheckboxElements,
+  CheckboxOptions,
+  CheckboxState,
+  DialogElements,
+  DialogOptions,
+  DialogState,
+  ProgressElements,
+  ProgressOptions,
+  ProgressState,
+  SelectOptions,
+  SwitchElements,
+  SwitchOptions,
+  SwitchState,
+  TabsOptions,
+  TooltipElements,
+  TooltipOptions,
+  TooltipState,
+} from '@vertz/ui-primitives';
+import type { BadgeProps } from './components/badge';
+import { createBadgeComponent } from './components/badge';
+import type { ButtonProps } from './components/button';
+import { createButtonComponent } from './components/button';
+import type { CardComponents } from './components/card';
+import { createCardComponents } from './components/card';
+import type { FormGroupComponents } from './components/form-group';
+import { createFormGroupComponents } from './components/form-group';
+import type { InputProps } from './components/input';
+import { createInputComponent } from './components/input';
+import type { LabelProps } from './components/label';
+import { createLabelComponent } from './components/label';
+import type { ThemedAccordionResult } from './components/primitives/accordion';
+import { createThemedAccordion } from './components/primitives/accordion';
+import { createThemedCheckbox } from './components/primitives/checkbox';
+import { createThemedDialog } from './components/primitives/dialog';
+import { createThemedProgress } from './components/primitives/progress';
+import type { ThemedSelectResult } from './components/primitives/select';
+import { createThemedSelect } from './components/primitives/select';
+import { createThemedSwitch } from './components/primitives/switch';
+import type { ThemedTabsResult } from './components/primitives/tabs';
+import { createThemedTabs } from './components/primitives/tabs';
+import { createThemedTooltip } from './components/primitives/tooltip';
+import type { SeparatorProps } from './components/separator';
+import { createSeparatorComponent } from './components/separator';
 import { deepMergeTokens } from './merge';
 import {
+  createAccordionStyles,
   createBadge,
   createButton,
   createCard,
+  createCheckboxStyles,
+  createDialogStyles,
   createFormGroup,
   createInput,
   createLabel,
+  createProgressStyles,
+  createSelectStyles,
   createSeparator,
+  createSwitchStyles,
+  createTabsStyles,
+  createTooltipStyles,
 } from './styles';
 import type { PaletteName } from './tokens';
 import { palettes } from './tokens';
@@ -57,6 +110,102 @@ export interface ThemeStyles {
   separator: { readonly base: string; readonly css: string };
   /** Form group css() result with base and error. */
   formGroup: { readonly base: string; readonly error: string; readonly css: string };
+  /** Dialog css() styles. */
+  dialog: {
+    readonly overlay: string;
+    readonly panel: string;
+    readonly title: string;
+    readonly description: string;
+    readonly close: string;
+    readonly footer: string;
+    readonly css: string;
+  };
+  /** Select css() styles. */
+  select: {
+    readonly trigger: string;
+    readonly content: string;
+    readonly item: string;
+    readonly css: string;
+  };
+  /** Tabs css() styles. */
+  tabs: {
+    readonly list: string;
+    readonly trigger: string;
+    readonly panel: string;
+    readonly css: string;
+  };
+  /** Checkbox css() styles. */
+  checkbox: {
+    readonly root: string;
+    readonly indicator: string;
+    readonly css: string;
+  };
+  /** Switch css() styles. */
+  switch: {
+    readonly root: string;
+    readonly thumb: string;
+    readonly css: string;
+  };
+  /** Progress css() styles. */
+  progress: {
+    readonly root: string;
+    readonly indicator: string;
+    readonly css: string;
+  };
+  /** Accordion css() styles. */
+  accordion: {
+    readonly item: string;
+    readonly trigger: string;
+    readonly content: string;
+    readonly css: string;
+  };
+  /** Tooltip css() styles. */
+  tooltip: {
+    readonly content: string;
+    readonly css: string;
+  };
+}
+
+/** Themed primitive factories returned by configureTheme(). */
+export interface ThemedPrimitives {
+  /** Themed Dialog — wraps @vertz/ui-primitives Dialog with shadcn styles. */
+  dialog: (options?: DialogOptions) => DialogElements & { state: DialogState };
+  /** Themed Select — wraps @vertz/ui-primitives Select with shadcn styles. */
+  select: (options?: SelectOptions) => ThemedSelectResult;
+  /** Themed Tabs — wraps @vertz/ui-primitives Tabs with shadcn styles. */
+  tabs: (options?: TabsOptions) => ThemedTabsResult;
+  /** Themed Checkbox — wraps @vertz/ui-primitives Checkbox with shadcn styles. */
+  checkbox: (options?: CheckboxOptions) => CheckboxElements & { state: CheckboxState };
+  /** Themed Switch — wraps @vertz/ui-primitives Switch with shadcn styles. */
+  switch: (options?: SwitchOptions) => SwitchElements & { state: SwitchState };
+  /** Themed Progress — wraps @vertz/ui-primitives Progress with shadcn styles. */
+  progress: (
+    options?: ProgressOptions,
+  ) => ProgressElements & { state: ProgressState; setValue: (value: number) => void };
+  /** Themed Accordion — wraps @vertz/ui-primitives Accordion with shadcn styles. */
+  accordion: (options?: AccordionOptions) => ThemedAccordionResult;
+  /** Themed Tooltip — wraps @vertz/ui-primitives Tooltip with shadcn styles. */
+  tooltip: (options?: TooltipOptions) => TooltipElements & { state: TooltipState };
+}
+
+/** Component functions returned by configureTheme(). */
+export interface ThemeComponents {
+  /** Button component — returns HTMLButtonElement with theme styles. */
+  Button: (props: ButtonProps) => HTMLButtonElement;
+  /** Badge component — returns HTMLSpanElement with theme styles. */
+  Badge: (props: BadgeProps) => HTMLSpanElement;
+  /** Card suite — Card, CardHeader, CardTitle, etc. */
+  Card: CardComponents;
+  /** Input component — returns HTMLInputElement with theme styles. */
+  Input: (props: InputProps) => HTMLInputElement;
+  /** Label component — returns HTMLLabelElement with theme styles. */
+  Label: (props: LabelProps) => HTMLLabelElement;
+  /** Separator component — returns HTMLHRElement with theme styles. */
+  Separator: (props: SeparatorProps) => HTMLHRElement;
+  /** FormGroup suite — FormGroup and FormError. */
+  FormGroup: FormGroupComponents;
+  /** Themed primitive factories. */
+  primitives: ThemedPrimitives;
 }
 
 /** Return type of configureTheme(). */
@@ -67,6 +216,8 @@ export interface ResolvedTheme {
   globals: GlobalCSSOutput;
   /** Pre-built style definitions. */
   styles: ThemeStyles;
+  /** Component functions — ready-to-use themed elements. */
+  components: ThemeComponents;
 }
 
 const RADIUS_VALUES: Record<string, string> = {
@@ -78,7 +229,7 @@ const RADIUS_VALUES: Record<string, string> = {
 /**
  * Configure the shadcn theme.
  *
- * Single entry point — selects palette, applies overrides, builds globals and styles.
+ * Single entry point — selects palette, applies overrides, builds globals, styles, and components.
  */
 export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const palette = config?.palette ?? 'zinc';
@@ -111,16 +262,61 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     },
   });
 
-  // Build style definitions
+  // Build style definitions (simple + primitive)
+  const buttonStyles = createButton();
+  const badgeStyles = createBadge();
+  const cardStyles = createCard();
+  const inputStyles = createInput();
+  const labelStyles = createLabel();
+  const separatorStyles = createSeparator();
+  const formGroupStyles = createFormGroup();
+  const dialogStyles = createDialogStyles();
+  const selectStyles = createSelectStyles();
+  const tabsStyles = createTabsStyles();
+  const checkboxStyles = createCheckboxStyles();
+  const switchStyles = createSwitchStyles();
+  const progressStyles = createProgressStyles();
+  const accordionStyles = createAccordionStyles();
+  const tooltipStyles = createTooltipStyles();
+
   const styles: ThemeStyles = {
-    button: createButton(),
-    badge: createBadge(),
-    card: createCard(),
-    input: createInput(),
-    label: createLabel(),
-    separator: createSeparator(),
-    formGroup: createFormGroup(),
+    button: buttonStyles,
+    badge: badgeStyles,
+    card: cardStyles,
+    input: inputStyles,
+    label: labelStyles,
+    separator: separatorStyles,
+    formGroup: formGroupStyles,
+    dialog: dialogStyles,
+    select: selectStyles,
+    tabs: tabsStyles,
+    checkbox: checkboxStyles,
+    switch: switchStyles,
+    progress: progressStyles,
+    accordion: accordionStyles,
+    tooltip: tooltipStyles,
   };
 
-  return { theme, globals, styles };
+  // Build component functions
+  const components: ThemeComponents = {
+    Button: createButtonComponent(buttonStyles),
+    Badge: createBadgeComponent(badgeStyles),
+    Card: createCardComponents(cardStyles),
+    Input: createInputComponent(inputStyles),
+    Label: createLabelComponent(labelStyles),
+    Separator: createSeparatorComponent(separatorStyles),
+    FormGroup: createFormGroupComponents(formGroupStyles),
+    primitives: {
+      dialog: createThemedDialog(dialogStyles),
+      select: createThemedSelect(selectStyles),
+      tabs: createThemedTabs(tabsStyles),
+      checkbox: createThemedCheckbox(checkboxStyles),
+      switch: createThemedSwitch(switchStyles),
+      progress: createThemedProgress(progressStyles),
+      accordion: createThemedAccordion(accordionStyles),
+      tooltip: createThemedTooltip(tooltipStyles),
+    },
+  };
+
+  return { theme, globals, styles, components };
 }

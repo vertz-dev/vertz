@@ -83,8 +83,6 @@
       "name": "@vertz-examples/task-manager",
       "version": "0.0.2",
       "dependencies": {
-        "@vertz/errors": "workspace:*",
-        "@vertz/fetch": "workspace:*",
         "@vertz/theme-shadcn": "workspace:*",
         "@vertz/ui": "workspace:*",
         "@vertz/ui-primitives": "workspace:*",
@@ -349,9 +347,12 @@
       "version": "0.1.0",
       "dependencies": {
         "@vertz/ui": "workspace:*",
+        "@vertz/ui-primitives": "workspace:*",
       },
       "devDependencies": {
+        "@happy-dom/global-registrator": "^20.7.0",
         "bunup": "latest",
+        "happy-dom": "^20.7.0",
         "typescript": "^5.7.0",
       },
     },
@@ -372,9 +373,6 @@
     "packages/ui": {
       "name": "@vertz/ui",
       "version": "0.2.0",
-      "dependencies": {
-        "@vertz/fetch": "workspace:*",
-      },
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.7.0",
         "@vertz/schema": "workspace:*",

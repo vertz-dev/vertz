@@ -5,20 +5,23 @@
  * - Fully declarative dialog with `let` signal for open/close state
  * - Reactive JSX attributes (aria-hidden, style) driven by signal
  * - WAI-ARIA dialog pattern (role, aria-modal, aria-labelledby)
+ * - Theme dialog styles from @vertz/theme-shadcn via configureTheme()
  * - No DOM manipulation — no effect(), no appendChild, no className assignment
  */
 
 import { css } from '@vertz/ui';
-import { button } from '../styles/components';
+import { button, dialogStyles as themeDialogStyles } from '../styles/components';
 
-const dialogStyles = css({
-  overlay: ['fixed', 'inset:0', 'bg:gray.900', 'opacity:50', 'z:40'],
-  wrapper: ['fixed', 'inset:0', 'flex', 'items:center', 'justify:center', 'z:50'],
-  panel: ['bg:background', 'rounded:lg', 'shadow:xl', 'p:6', 'max-w:md', 'w:full'],
-  title: ['font:lg', 'font:semibold', 'text:foreground', 'mb:2'],
-  description: ['text:sm', 'text:muted', 'mb:6'],
-  actions: ['flex', 'justify:end', 'gap:2'],
-});
+const dialogStyles = {
+  overlay: themeDialogStyles.overlay,
+  wrapper: css({
+    wrapper: ['fixed', 'inset:0', 'flex', 'items:center', 'justify:center', 'z:50'],
+  }).wrapper,
+  panel: themeDialogStyles.panel,
+  title: themeDialogStyles.title,
+  description: themeDialogStyles.description,
+  actions: themeDialogStyles.footer,
+};
 
 export interface ConfirmDialogProps {
   triggerLabel: string;
