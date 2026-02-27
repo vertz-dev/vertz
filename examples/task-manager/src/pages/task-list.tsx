@@ -12,7 +12,7 @@
  * - <TaskCard /> JSX component embedding
  */
 
-import { onMount, query } from '@vertz/ui';
+import { query } from '@vertz/ui';
 import { api } from '../api/mock-data';
 import { Icon } from '../components/icon';
 import { TaskCard } from '../components/task-card';
@@ -61,14 +61,6 @@ export function TaskListPage() {
     { label: 'In Progress', value: 'in-progress' },
     { label: 'Done', value: 'done' },
   ];
-
-  // ── Lifecycle ──────────────────────────────────────
-
-  onMount(() => {
-    return () => {
-      tasksQuery.dispose();
-    };
-  });
 
   // ── Page layout with declarative conditionals and list rendering ──
 

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
+import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { signal } from '../../runtime/signal';
+import type { DisposeFn } from '../../runtime/signal-types';
 import { MemoryCache } from '../cache';
 import { __inflightSize, query } from '../query';
 
@@ -749,5 +751,110 @@ describe('query()', () => {
     } finally {
       process.removeListener('unhandledRejection', processHandler);
     }
+  });
+
+  test('auto-disposes when parent disposal scope is cleaned up', async () => {
+    const dep = signal(1);
+    let fetchCount = 0;
+
+    const scope = pushScope();
+    const result = query(
+      () => {
+        dep.value;
+        fetchCount++;
+        return Promise.resolve(fetchCount);
+      },
+      { key: 'auto-dispose-test' },
+    );
+    popScope();
+
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(result.data.value).toBe(1);
+    const countAfterInit = fetchCount;
+
+    // Clean up the scope — should auto-dispose the query
+    runCleanups(scope);
+
+    // Change dep — should NOT trigger a re-fetch
+    dep.value = 2;
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+
+    expect(fetchCount).toBe(countAfterInit);
+    expect(result.data.value).toBe(1);
+  });
+
+  test('auto-dispose cleans up in-flight entries from the global map', async () => {
+    const resolvers: Array<(v: string) => void> = [];
+    const inflightBefore = __inflightSize();
+
+    const scope = pushScope();
+    const result = query(
+      () =>
+        new Promise<string>((resolve) => {
+          resolvers.push(resolve);
+        }),
+      { key: 'auto-dispose-inflight-test' },
+    );
+    popScope();
+
+    expect(result.loading.value).toBe(true);
+    expect(__inflightSize()).toBe(inflightBefore + 1);
+
+    // Clean up the scope — should remove in-flight entries
+    runCleanups(scope);
+    expect(__inflightSize()).toBe(inflightBefore);
+
+    // Resolve the pending promise — should be ignored (stale)
+    resolvers[0]?.('stale');
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(result.data.value).toBeUndefined();
+  });
+
+  test('auto-dispose preserves cache entries for future queries', async () => {
+    const cache = new MemoryCache<string>();
+
+    const scope = pushScope();
+    const q1 = query(() => Promise.resolve('cached-value'), {
+      key: 'auto-dispose-cache-test',
+      cache,
+    });
+    popScope();
+
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(q1.data.value).toBe('cached-value');
+
+    // Clean up scope — auto-disposes query but cache should survive
+    runCleanups(scope);
+
+    // Cache entry should still exist
+    expect(cache.get('auto-dispose-cache-test')).toBe('cached-value');
+
+    // A new query with the same key should serve from cache immediately
+    const q2 = query(() => Promise.resolve('fresh-value'), {
+      key: 'auto-dispose-cache-test',
+      cache,
+    });
+
+    expect(q2.data.value).toBe('cached-value');
+    expect(q2.loading.value).toBe(false);
+    q2.dispose();
+  });
+
+  test('no-op when query is created outside a disposal scope', async () => {
+    // No pushScope — query should still work without error
+    const result = query(() => Promise.resolve('standalone'), { key: 'no-scope-test' });
+
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+
+    expect(result.data.value).toBe('standalone');
+    expect(result.loading.value).toBe(false);
+
+    // Manual dispose still works
+    result.dispose();
   });
 });
