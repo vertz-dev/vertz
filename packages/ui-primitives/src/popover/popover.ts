@@ -5,7 +5,7 @@
 
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
-import { setDataState, setExpanded, setHidden } from '../utils/aria';
+import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
 import { focusFirst, saveFocus } from '../utils/focus';
 import { linkedIds } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
@@ -59,9 +59,10 @@ export const Popover = {
     function close(): void {
       state.open.value = false;
       setExpanded(trigger, false);
-      setHidden(content, true);
       setDataState(trigger, 'closed');
       setDataState(content, 'closed');
+      // Defer display:none until exit animations complete
+      setHiddenAnimated(content, true);
       restoreFocus?.();
       restoreFocus = null;
       onOpenChange?.(false);

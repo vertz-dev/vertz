@@ -3,6 +3,8 @@
  * Provides functions for setting and toggling ARIA attributes on DOM elements.
  */
 
+import { onAnimationsComplete } from './animation';
+
 /**
  * Set aria-expanded on an element.
  */
@@ -37,6 +39,29 @@ export function setSelected(el: HTMLElement, selected: boolean): void {
 export function setHidden(el: HTMLElement, hidden: boolean): void {
   el.setAttribute('aria-hidden', String(hidden));
   el.style.display = hidden ? 'none' : '';
+}
+
+/**
+ * Hide an element after its CSS exit animations complete.
+ * Sets aria-hidden immediately for screen readers, but defers
+ * style.display = 'none' until animations finish.
+ *
+ * For showing (hidden=false), the display is set immediately
+ * so enter animations can play.
+ */
+export function setHiddenAnimated(el: HTMLElement, hidden: boolean): void {
+  if (!hidden) {
+    // Show immediately so enter animation is visible
+    el.setAttribute('aria-hidden', 'false');
+    el.style.display = '';
+    return;
+  }
+
+  // Hide: set aria-hidden immediately, defer display:none
+  el.setAttribute('aria-hidden', 'true');
+  onAnimationsComplete(el, () => {
+    el.style.display = 'none';
+  });
 }
 
 /**

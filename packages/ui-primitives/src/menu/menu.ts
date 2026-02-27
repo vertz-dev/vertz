@@ -5,7 +5,7 @@
 
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
-import { setDataState, setExpanded, setHidden } from '../utils/aria';
+import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
 import { linkedIds } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
@@ -64,9 +64,10 @@ export const Menu = {
     function close(): void {
       state.open.value = false;
       setExpanded(trigger, false);
-      setHidden(content, true);
       setDataState(trigger, 'closed');
       setDataState(content, 'closed');
+      // Defer display:none until exit animations complete
+      setHiddenAnimated(content, true);
       trigger.focus();
     }
 

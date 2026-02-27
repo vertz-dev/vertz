@@ -1,6 +1,6 @@
 import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
 import { css } from '@vertz/ui';
-import { bgOpacity, DARK } from './_helpers';
+import { animationDecl, bgOpacity, DARK } from './_helpers';
 
 type SelectBlocks = {
   trigger: StyleEntry[];
@@ -53,7 +53,12 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       'border:border',
       'shadow:md',
       'py:1',
-      { '&[data-state="closed"]': ['hidden'] },
+      {
+        '&[data-state="open"]': [animationDecl('vz-zoom-in 150ms ease-out forwards')],
+      },
+      {
+        '&[data-state="closed"]': [animationDecl('vz-zoom-out 150ms ease-out forwards')],
+      },
     ],
     selectItem: [
       'flex',

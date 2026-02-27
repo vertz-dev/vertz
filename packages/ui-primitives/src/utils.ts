@@ -5,6 +5,9 @@
  * Most developers should use the pre-built primitives from '@vertz/ui-primitives' instead.
  */
 
+// Animation utilities
+export { onAnimationsComplete } from './utils/animation';
+
 // ARIA attribute helpers
 export {
   setChecked,
@@ -14,6 +17,7 @@ export {
   setDisabled,
   setExpanded,
   setHidden,
+  setHiddenAnimated,
   setLabelledBy,
   setSelected,
   setValueRange,

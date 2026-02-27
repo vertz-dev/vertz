@@ -8,7 +8,13 @@
 
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
-import { setDataState, setExpanded, setHidden, setLabelledBy } from '../utils/aria';
+import {
+  setDataState,
+  setExpanded,
+  setHidden,
+  setHiddenAnimated,
+  setLabelledBy,
+} from '../utils/aria';
 import { focusFirst, saveFocus, trapFocus } from '../utils/focus';
 import { linkedIds } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
@@ -102,11 +108,12 @@ export const Dialog = {
     function closeDialog(): void {
       state.open.value = false;
       setExpanded(trigger, false);
-      setHidden(overlay, true);
-      setHidden(content, true);
       setDataState(trigger, 'closed');
       setDataState(overlay, 'closed');
       setDataState(content, 'closed');
+      // Defer display:none until exit animations complete
+      setHiddenAnimated(overlay, true);
+      setHiddenAnimated(content, true);
 
       removeTrap?.();
       removeTrap = null;

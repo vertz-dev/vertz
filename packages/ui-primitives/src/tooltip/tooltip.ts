@@ -5,7 +5,7 @@
 
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
-import { setDataState, setDescribedBy, setHidden } from '../utils/aria';
+import { setDataState, setDescribedBy, setHidden, setHiddenAnimated } from '../utils/aria';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -56,8 +56,9 @@ export const Tooltip = {
         showTimeout = null;
       }
       state.open.value = false;
-      setHidden(content, true);
       setDataState(content, 'closed');
+      // Defer display:none until exit animations complete
+      setHiddenAnimated(content, true);
       onOpenChange?.(false);
     }
 

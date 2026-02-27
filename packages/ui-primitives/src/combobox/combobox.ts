@@ -5,7 +5,13 @@
 
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
-import { setDataState, setExpanded, setHidden, setSelected } from '../utils/aria';
+import {
+  setDataState,
+  setExpanded,
+  setHidden,
+  setHiddenAnimated,
+  setSelected,
+} from '../utils/aria';
 import { linkedIds } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -69,8 +75,9 @@ export const Combobox = {
       state.open.value = false;
       state.activeIndex.value = -1;
       setExpanded(input, false);
-      setHidden(listbox, true);
       setDataState(listbox, 'closed');
+      // Defer display:none until exit animations complete
+      setHiddenAnimated(listbox, true);
       updateActiveDescendant(-1);
     }
 

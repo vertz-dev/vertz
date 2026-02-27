@@ -1,5 +1,6 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
 import { css } from '@vertz/ui';
+import { animationDecl } from './_helpers';
 
 type AccordionBlocks = {
   item: StyleEntry[];
@@ -28,7 +29,12 @@ export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
       'overflow-hidden',
       'text:sm',
       'pb:4',
-      { '&[data-state="closed"]': ['hidden'] },
+      {
+        '&[data-state="open"]': [animationDecl('vz-accordion-down 200ms ease-out forwards')],
+      },
+      {
+        '&[data-state="closed"]': [animationDecl('vz-accordion-up 200ms ease-out forwards')],
+      },
     ],
   });
   return {

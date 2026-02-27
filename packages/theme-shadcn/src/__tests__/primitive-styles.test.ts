@@ -29,9 +29,19 @@ describe('dialog', () => {
     expect(dialog.footer.length).toBeGreaterThan(0);
   });
 
-  it('CSS contains data-state="closed" selectors for overlay and panel', () => {
-    expect(dialog.css).toContain('[data-state="closed"]');
-    expect(dialog.css).toContain('display: none');
+  it('CSS contains enter/exit animations for overlay', () => {
+    expect(dialog.css).toContain('vz-fade-in');
+    expect(dialog.css).toContain('vz-fade-out');
+  });
+
+  it('CSS contains enter/exit animations for panel', () => {
+    expect(dialog.css).toContain('vz-zoom-in');
+    expect(dialog.css).toContain('vz-zoom-out');
+  });
+
+  it('CSS does not use display:none for animated states', () => {
+    // Animated components rely on setHiddenAnimated, not CSS display:none
+    expect(dialog.css).not.toContain('display: none');
   });
 });
 
@@ -50,9 +60,13 @@ describe('select', () => {
     expect(select.item.length).toBeGreaterThan(0);
   });
 
-  it('CSS contains data-state="closed" selector for content', () => {
-    expect(select.css).toContain('[data-state="closed"]');
-    expect(select.css).toContain('display: none');
+  it('CSS contains enter/exit animations for content', () => {
+    expect(select.css).toContain('vz-zoom-in');
+    expect(select.css).toContain('vz-zoom-out');
+  });
+
+  it('CSS does not use display:none for animated states', () => {
+    expect(select.css).not.toContain('display: none');
   });
 });
 
@@ -153,9 +167,13 @@ describe('accordion', () => {
     expect(accordion.content.length).toBeGreaterThan(0);
   });
 
-  it('CSS contains data-state="closed" selector with display: none', () => {
-    expect(accordion.css).toContain('[data-state="closed"]');
-    expect(accordion.css).toContain('display: none');
+  it('CSS contains enter/exit animations for content', () => {
+    expect(accordion.css).toContain('vz-accordion-down');
+    expect(accordion.css).toContain('vz-accordion-up');
+  });
+
+  it('CSS does not use display:none for animated states', () => {
+    expect(accordion.css).not.toContain('display: none');
   });
 });
 
@@ -170,8 +188,12 @@ describe('tooltip', () => {
     expect(tooltip.content.length).toBeGreaterThan(0);
   });
 
-  it('CSS contains data-state="closed" selector with display: none', () => {
-    expect(tooltip.css).toContain('[data-state="closed"]');
-    expect(tooltip.css).toContain('display: none');
+  it('CSS contains enter/exit animations for content', () => {
+    expect(tooltip.css).toContain('vz-fade-in');
+    expect(tooltip.css).toContain('vz-fade-out');
+  });
+
+  it('CSS does not use display:none for animated states', () => {
+    expect(tooltip.css).not.toContain('display: none');
   });
 });

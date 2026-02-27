@@ -1,5 +1,6 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
 import { css } from '@vertz/ui';
+import { animationDecl } from './_helpers';
 
 type TooltipBlocks = {
   content: StyleEntry[];
@@ -18,7 +19,12 @@ export function createTooltipStyles(): CSSOutput<TooltipBlocks> {
       'px:3',
       'py:1.5',
       'text:xs',
-      { '&[data-state="closed"]': ['hidden'] },
+      {
+        '&[data-state="open"]': [animationDecl('vz-fade-in 100ms ease-out forwards')],
+      },
+      {
+        '&[data-state="closed"]': [animationDecl('vz-fade-out 100ms ease-out forwards')],
+      },
     ],
   });
   return {

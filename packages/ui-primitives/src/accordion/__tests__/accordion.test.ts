@@ -91,6 +91,17 @@ describe('Accordion', () => {
     expect(onValueChange).toHaveBeenCalledWith(['s1']);
   });
 
+  it('sets --accordion-content-height CSS variable on toggle', () => {
+    const { root, Item } = Accordion.Root();
+    container.appendChild(root);
+    const { trigger, content } = Item('section1');
+
+    // In happy-dom, scrollHeight defaults to 0, but the variable should still be set
+    trigger.click();
+    const heightVar = content.style.getPropertyValue('--accordion-content-height');
+    expect(heightVar).toMatch(/^\d+px$/);
+  });
+
   it('navigates with ArrowDown between triggers', () => {
     const { root, Item } = Accordion.Root();
     container.appendChild(root);

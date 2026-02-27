@@ -1,9 +1,25 @@
+// Animation keyframes
+export {
+  ANIMATION_DURATION,
+  ANIMATION_EASING,
+  accordionDown,
+  accordionUp,
+  fadeIn,
+  fadeOut,
+  slideInFromBottom,
+  slideInFromTop,
+  slideOutToBottom,
+  slideOutToTop,
+  zoomIn,
+  zoomOut,
+} from './animations';
 // Internal utilities — exported for compiler use
 export { generateClassName } from './class-generator';
 export type { CSSInput, CSSOutput, RawDeclaration, StyleEntry, StyleValue } from './css';
-export { css, getInjectedCSS, resetInjectedStyles } from './css';
+export { css, getInjectedCSS, injectCSS, resetInjectedStyles } from './css';
 export type { GlobalCSSInput, GlobalCSSOutput } from './global-css';
 export { globalCss } from './global-css';
+export { keyframes } from './keyframes';
 export { type ColorPalette, palettes } from './palettes';
 export { InlineStyleError, s } from './s';
 export type { ParsedShorthand } from './shorthand-parser';
