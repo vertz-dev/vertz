@@ -4,7 +4,6 @@ import { createJiti } from 'jiti';
 import { buildAction } from './commands/build';
 import { codegenAction } from './commands/codegen';
 import { createAction } from './commands/create';
-import type { DbCommandContext } from './commands/db';
 import {
   dbBaselineAction,
   dbDeployAction,
@@ -16,17 +15,7 @@ import {
 import { devAction } from './commands/dev';
 import { generateDomainAction } from './commands/domain-gen';
 import { generateAction } from './commands/generate';
-
-/**
- * Load the database context from the project configuration.
- * Resolves the database connection, schema snapshots, and migration files.
- */
-export async function loadDbContext(): Promise<DbCommandContext> {
-  // TODO: Phase 5 — wire to vertz.config.ts db settings
-  throw new Error(
-    'loadDbContext is not yet implemented. Wire to vertz.config.ts db settings in Phase 5.',
-  );
-}
+import { loadDbContext } from './commands/load-db-context';
 
 export function createCLI(): Command {
   const program = new Command();

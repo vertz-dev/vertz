@@ -128,7 +128,10 @@ export { generateId } from './id';
 // Migration types used by CLI consumers
 export type { MigrationError } from './migration/index';
 export type { MigrationFile, MigrationQueryFn } from './migration/runner';
+export { parseMigrationName } from './migration/runner';
 export type { SchemaSnapshot } from './migration/snapshot';
+export { createSnapshot } from './migration/snapshot';
+export { NodeSnapshotStorage } from './migration/snapshot-storage';
 // Schema types
 export type {
   ColumnBuilder,
