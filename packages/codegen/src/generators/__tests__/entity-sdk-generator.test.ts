@@ -393,7 +393,7 @@ describe('EntitySdkGenerator', () => {
     const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
     const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-    expect(userFile?.content).toContain("import { createDescriptor } from '@vertz/fetch'");
+    expect(userFile?.content).toContain("import { type FetchClient, createDescriptor } from '@vertz/fetch'");
   });
 
   it('all operations have .url and .method metadata', () => {

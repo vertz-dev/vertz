@@ -1,6 +1,4 @@
 export type {
-  CodegenCLIConfig,
-  CodegenCLIPublishableConfig,
   CodegenConfig,
   CodegenPublishableConfig,
   CodegenTypescriptConfig,
@@ -15,38 +13,9 @@ export {
 export { formatWithBiome } from './format';
 export type { GenerateResult } from './generate';
 export { generate } from './generate';
-export type { BinEntryPointOptions, CLIPackageOptions } from './generators/typescript/emit-cli';
-export {
-  emitBinEntryPoint,
-  emitCommandDefinition,
-  emitManifestFile,
-  emitModuleCommands,
-  scaffoldCLIPackageJson,
-  scaffoldCLIRootIndex,
-} from './generators/typescript/emit-cli';
-export {
-  emitAuthStrategyBuilder,
-  emitClientFile,
-  emitModuleFile,
-  emitOperationMethod,
-  emitSDKConfig,
-  emitStreamingMethod,
-} from './generators/typescript/emit-client';
-export { emitRouteMapType } from './generators/typescript/emit-routes';
-export type { PackageOptions } from './generators/typescript/emit-sdk';
-export {
-  emitBarrelIndex,
-  emitPackageJson,
-  emitSchemaReExports,
-} from './generators/typescript/emit-sdk';
-export {
-  emitInterfaceFromSchema,
-  emitModuleTypesFile,
-  emitOperationInputType,
-  emitOperationResponseType,
-  emitSharedTypesFile,
-  emitStreamingEventType,
-} from './generators/typescript/emit-types';
+export { EntitySchemaGenerator } from './generators/entity-schema-generator';
+export { EntitySdkGenerator } from './generators/entity-sdk-generator';
+export { EntityTypesGenerator } from './generators/entity-types-generator';
 export { hashContent } from './hasher';
 export type { IncrementalOptions, IncrementalResult } from './incremental';
 export { writeIncremental } from './incremental';
@@ -58,9 +27,13 @@ export { createCodegenPipeline } from './pipeline';
 export type {
   CodegenAuth,
   CodegenAuthScheme,
+  CodegenEntityAction,
+  CodegenEntityModule,
+  CodegenEntityOperation,
   CodegenIR,
   CodegenModule,
   CodegenOperation,
+  CodegenResolvedField,
   CodegenSchema,
   FileFragment,
   GeneratedFile,

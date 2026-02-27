@@ -5,21 +5,27 @@ import type { CodegenIR } from '../types';
 function makeIR(overrides: Partial<CodegenIR> = {}): CodegenIR {
   return {
     basePath: '/api/v1',
-    modules: [
+    modules: [],
+    schemas: [],
+    entities: [
       {
-        name: 'users',
+        entityName: 'tasks',
         operations: [
           {
-            operationId: 'listUsers',
+            kind: 'list',
             method: 'GET',
-            path: '/api/v1/users',
-            tags: [],
-            schemaRefs: {},
+            path: '/tasks',
+            operationId: 'listTasks',
+            outputSchema: 'TasksResponse',
+            responseFields: [
+              { name: 'id', tsType: 'string', optional: false },
+              { name: 'title', tsType: 'string', optional: false },
+            ],
           },
         ],
+        actions: [],
       },
     ],
-    schemas: [],
     auth: { schemes: [] },
     ...overrides,
   };

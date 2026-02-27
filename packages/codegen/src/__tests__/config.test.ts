@@ -21,10 +21,10 @@ describe('resolveCodegenConfig', () => {
 
   it('preserves user-specified generators', () => {
     const resolved = resolveCodegenConfig({
-      generators: ['typescript', 'cli'],
+      generators: ['typescript'],
     });
 
-    expect(resolved.generators).toEqual(['typescript', 'cli']);
+    expect(resolved.generators).toEqual(['typescript']);
   });
 
   it('preserves user-specified outputDir', () => {
@@ -48,17 +48,6 @@ describe('resolveCodegenConfig', () => {
     expect(resolved.typescript?.clientName).toBe('createAPI');
   });
 
-  it('preserves cli options', () => {
-    const resolved = resolveCodegenConfig({
-      generators: ['cli'],
-      cli: {
-        enabled: true,
-      },
-    });
-
-    expect(resolved.cli?.enabled).toBe(true);
-  });
-
   it('preserves typescript publishable config', () => {
     const resolved = resolveCodegenConfig({
       generators: ['typescript'],
@@ -74,22 +63,6 @@ describe('resolveCodegenConfig', () => {
     expect(resolved.typescript?.publishable?.name).toBe('@acme/sdk');
     expect(resolved.typescript?.publishable?.outputDir).toBe('packages/sdk');
     expect(resolved.typescript?.publishable?.version).toBe('1.0.0');
-  });
-
-  it('preserves cli publishable config', () => {
-    const resolved = resolveCodegenConfig({
-      generators: ['cli'],
-      cli: {
-        publishable: {
-          name: '@acme/cli',
-          outputDir: 'packages/cli',
-          binName: 'acme',
-        },
-      },
-    });
-
-    expect(resolved.cli?.publishable?.name).toBe('@acme/cli');
-    expect(resolved.cli?.publishable?.binName).toBe('acme');
   });
 });
 
@@ -120,14 +93,6 @@ describe('validateCodegenConfig', () => {
     expect(errors[0]).toContain('unknown');
   });
 
-  it('returns no errors for valid generator names', () => {
-    const errors = validateCodegenConfig({
-      generators: ['typescript', 'cli'],
-    });
-
-    expect(errors).toEqual([]);
-  });
-
   it('returns an error when typescript publishable is missing name', () => {
     const errors = validateCodegenConfig({
       generators: ['typescript'],
@@ -156,22 +121,6 @@ describe('validateCodegenConfig', () => {
 
     expect(errors).toHaveLength(1);
     expect(errors[0]).toContain('outputDir');
-  });
-
-  it('returns an error when cli publishable is missing binName', () => {
-    const errors = validateCodegenConfig({
-      generators: ['cli'],
-      cli: {
-        publishable: {
-          name: '@acme/cli',
-          outputDir: 'packages/cli',
-          binName: '',
-        },
-      },
-    });
-
-    expect(errors).toHaveLength(1);
-    expect(errors[0]).toContain('binName');
   });
 
   it('returns multiple errors when multiple fields are invalid', () => {

@@ -1,8 +1,8 @@
 // ── Codegen Config Types ────────────────────────────────────────
 
-export type GeneratorName = 'typescript' | 'cli';
+export type GeneratorName = 'typescript';
 
-const VALID_GENERATORS = new Set<string>(['typescript', 'cli']);
+const VALID_GENERATORS = new Set<string>(['typescript']);
 
 export interface CodegenPublishableConfig {
   /** Package name, e.g., '@myapp/sdk' */
@@ -24,18 +24,6 @@ export interface CodegenTypescriptConfig {
   augmentableTypes?: string[];
 }
 
-export interface CodegenCLIPublishableConfig extends CodegenPublishableConfig {
-  /** CLI binary name, e.g., 'myapp' */
-  binName: string;
-}
-
-export interface CodegenCLIConfig {
-  /** Include in generation. Default: false */
-  enabled?: boolean;
-  /** Generate as publishable npm package. Default: false */
-  publishable?: CodegenCLIPublishableConfig;
-}
-
 export interface CodegenConfig {
   /** Generators to run. Default: ['typescript'] */
   generators: GeneratorName[];
@@ -51,9 +39,6 @@ export interface CodegenConfig {
 
   /** TypeScript SDK options */
   typescript?: CodegenTypescriptConfig;
-
-  /** CLI options */
-  cli?: CodegenCLIConfig;
 }
 
 // ── Resolved Config ─────────────────────────────────────────────
@@ -64,7 +49,6 @@ export interface ResolvedCodegenConfig {
   format?: boolean;
   incremental?: boolean;
   typescript?: CodegenTypescriptConfig;
-  cli?: CodegenCLIConfig;
 }
 
 // ── defineCodegenConfig ─────────────────────────────────────────
@@ -82,7 +66,6 @@ export function resolveCodegenConfig(config?: CodegenConfig): ResolvedCodegenCon
     format: config?.format,
     incremental: config?.incremental,
     typescript: config?.typescript,
-    cli: config?.cli,
   };
 }
 
@@ -108,19 +91,6 @@ export function validateCodegenConfig(config: CodegenConfig): string[] {
     }
     if (!pub.outputDir) {
       errors.push('codegen.typescript.publishable.outputDir is required');
-    }
-  }
-
-  if (config.cli?.publishable) {
-    const pub = config.cli.publishable;
-    if (!pub.name) {
-      errors.push('codegen.cli.publishable.name is required');
-    }
-    if (!pub.outputDir) {
-      errors.push('codegen.cli.publishable.outputDir is required');
-    }
-    if (!pub.binName) {
-      errors.push('codegen.cli.publishable.binName is required');
     }
   }
 

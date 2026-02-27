@@ -1,120 +1,68 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AppIR } from '@vertz/compiler';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { createEmptyAppIR } from '@vertz/compiler';
 import type { ResolvedCodegenConfig } from '../config';
 import { resolveCodegenConfig } from '../config';
 import { generate } from '../generate';
 
-// ── Minimal AppIR fixture ──────────────────────────────────────────
+// ── Minimal entity-based AppIR fixture ──────────────────────────────
 
 function makeAppIR(overrides?: Partial<AppIR>): AppIR {
-  return {
-    app: {
-      basePath: '/api/v1',
-      version: '1.0.0',
-      globalMiddleware: [],
-      moduleRegistrations: [],
-      sourceFile: 'app.ts',
+  const appIR = createEmptyAppIR();
+  appIR.entities = [
+    {
+      name: 'tasks',
+      modelRef: {
+        variableName: 'tasksModel',
+        schemaRefs: {
+          resolved: true,
+          response: {
+            kind: 'inline',
+            sourceFile: 'tasks.ts',
+            resolvedFields: [
+              { name: 'id', tsType: 'string', optional: false },
+              { name: 'title', tsType: 'string', optional: false },
+              { name: 'done', tsType: 'boolean', optional: false },
+            ],
+          },
+          createInput: {
+            kind: 'inline',
+            sourceFile: 'tasks.ts',
+            resolvedFields: [
+              { name: 'title', tsType: 'string', optional: false },
+              { name: 'done', tsType: 'boolean', optional: true },
+            ],
+          },
+          updateInput: {
+            kind: 'inline',
+            sourceFile: 'tasks.ts',
+            resolvedFields: [
+              { name: 'title', tsType: 'string', optional: true },
+              { name: 'done', tsType: 'boolean', optional: true },
+            ],
+          },
+        },
+      },
+      access: {
+        list: 'none',
+        get: 'none',
+        create: 'none',
+        update: 'none',
+        delete: 'none',
+        custom: {},
+      },
+      hooks: { before: [], after: [] },
+      actions: [],
+      relations: [],
+      sourceFile: 'tasks.ts',
       sourceLine: 1,
       sourceColumn: 1,
     },
-    modules: [
-      {
-        name: 'users',
-        imports: [],
-        services: [],
-        exports: [],
-        routers: [
-          {
-            name: 'usersRouter',
-            moduleName: 'users',
-            prefix: '/users',
-            inject: [],
-            routes: [
-              {
-                method: 'GET',
-                path: '/',
-                fullPath: '/api/v1/users',
-                operationId: 'listUsers',
-                middleware: [],
-                tags: ['users'],
-                description: 'List all users',
-                query: {
-                  kind: 'inline',
-                  sourceFile: 'users.ts',
-                  jsonSchema: {
-                    type: 'object',
-                    properties: {
-                      page: { type: 'number' },
-                      limit: { type: 'number' },
-                    },
-                  },
-                },
-                sourceFile: 'users.ts',
-                sourceLine: 10,
-                sourceColumn: 1,
-              },
-              {
-                method: 'POST',
-                path: '/',
-                fullPath: '/api/v1/users',
-                operationId: 'createUser',
-                middleware: [],
-                tags: ['users'],
-                description: 'Create a user',
-                body: {
-                  kind: 'inline',
-                  sourceFile: 'users.ts',
-                  jsonSchema: {
-                    type: 'object',
-                    properties: {
-                      name: { type: 'string' },
-                      email: { type: 'string' },
-                    },
-                    required: ['name', 'email'],
-                  },
-                },
-                response: {
-                  kind: 'inline',
-                  sourceFile: 'users.ts',
-                  jsonSchema: {
-                    type: 'object',
-                    properties: {
-                      id: { type: 'string' },
-                      name: { type: 'string' },
-                      email: { type: 'string' },
-                    },
-                    required: ['id', 'name', 'email'],
-                  },
-                },
-                sourceFile: 'users.ts',
-                sourceLine: 20,
-                sourceColumn: 1,
-              },
-            ],
-            sourceFile: 'users.ts',
-            sourceLine: 5,
-            sourceColumn: 1,
-          },
-        ],
-        sourceFile: 'users.ts',
-        sourceLine: 1,
-        sourceColumn: 1,
-      },
-    ],
-    middleware: [],
-    schemas: [],
-    dependencyGraph: {
-      nodes: [],
-      edges: [],
-      initializationOrder: [],
-      circularDependencies: [],
-    },
-    diagnostics: [],
-    ...overrides,
-  };
+  ];
+  return { ...appIR, ...overrides };
 }
 
 describe('generate', () => {
@@ -128,47 +76,7 @@ describe('generate', () => {
     rmSync(outputDir, { recursive: true, force: true });
   });
 
-  it('generates TypeScript SDK files and writes them to disk', async () => {
-    const config: ResolvedCodegenConfig = resolveCodegenConfig({
-      outputDir,
-      generators: ['typescript'],
-      format: true,
-    });
-
-    const result = await generate(makeAppIR(), config);
-
-    // Should return the list of generated files
-    expect(result.files.length).toBeGreaterThan(0);
-
-    // index.ts barrel should exist
-    const indexPath = join(outputDir, 'index.ts');
-    expect(existsSync(indexPath)).toBe(true);
-
-    // client.ts should exist
-    const clientPath = join(outputDir, 'client.ts');
-    expect(existsSync(clientPath)).toBe(true);
-
-    // types files should exist
-    const usersTypesPath = join(outputDir, 'types', 'users.ts');
-    expect(existsSync(usersTypesPath)).toBe(true);
-  });
-
-  it('formats generated files with Biome when format is enabled', async () => {
-    const config: ResolvedCodegenConfig = resolveCodegenConfig({
-      outputDir,
-      generators: ['typescript'],
-      format: true,
-    });
-
-    await generate(makeAppIR(), config);
-
-    // Read a generated file and check it has proper formatting (spaces, not tabs)
-    const clientContent = readFileSync(join(outputDir, 'client.ts'), 'utf-8');
-    // Biome with our config uses 2-space indentation
-    expect(clientContent).not.toContain('\t');
-  });
-
-  it('skips formatting when format is false', async () => {
+  it('generates entity SDK files and writes them to disk', async () => {
     const config: ResolvedCodegenConfig = resolveCodegenConfig({
       outputDir,
       generators: ['typescript'],
@@ -177,9 +85,16 @@ describe('generate', () => {
 
     const result = await generate(makeAppIR(), config);
 
-    // Files should still be generated
+    // Should return the list of generated files
     expect(result.files.length).toBeGreaterThan(0);
-    expect(existsSync(join(outputDir, 'client.ts'))).toBe(true);
+
+    // Entity SDK files should exist
+    const entityFile = join(outputDir, 'entities', 'tasks.ts');
+    expect(existsSync(entityFile)).toBe(true);
+
+    // Entity types should exist
+    const typesFile = join(outputDir, 'types', 'tasks.ts');
+    expect(existsSync(typesFile)).toBe(true);
   });
 
   it('returns file paths relative to the output directory', async () => {
@@ -207,9 +122,9 @@ describe('generate', () => {
     const result = await generate(makeAppIR(), config);
 
     expect(result.ir).toBeDefined();
-    expect(result.ir.basePath).toBe('/api/v1');
-    expect(result.ir.modules.length).toBe(1);
-    expect(result.ir.modules[0].name).toBe('users');
+    expect(result.ir.basePath).toBe('');
+    expect(result.ir.entities.length).toBe(1);
+    expect(result.ir.entities[0]?.entityName).toBe('tasks');
   });
 
   it('includes generator names and file count in the result', async () => {
@@ -223,36 +138,6 @@ describe('generate', () => {
 
     expect(result.generators).toContain('typescript');
     expect(result.fileCount).toBe(result.files.length);
-  });
-
-  it('generates CLI manifest when cli generator is included', async () => {
-    const config: ResolvedCodegenConfig = resolveCodegenConfig({
-      outputDir,
-      generators: ['cli'],
-      format: false,
-    });
-
-    const result = await generate(makeAppIR(), config);
-    const paths = result.files.map((f) => f.path);
-
-    expect(paths).toContain('cli/manifest.ts');
-    expect(result.generators).toContain('cli');
-  });
-
-  it('generates both SDK and CLI files when both generators are configured', async () => {
-    const config: ResolvedCodegenConfig = resolveCodegenConfig({
-      outputDir,
-      generators: ['typescript', 'cli'],
-      format: false,
-    });
-
-    const result = await generate(makeAppIR(), config);
-    const paths = result.files.map((f) => f.path);
-
-    expect(paths).toContain('client.ts');
-    expect(paths).toContain('cli/manifest.ts');
-    expect(result.generators).toContain('typescript');
-    expect(result.generators).toContain('cli');
   });
 
   // ── Incremental mode tests ──────────────────────────────────────
