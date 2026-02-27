@@ -9,9 +9,9 @@ type TabsBlocks = {
 
 /** Create tabs css() styles. */
 export function createTabsStyles(): CSSOutput<TabsBlocks> {
-  return css({
-    list: ['flex', 'items:center', 'border-b:1', 'border:border', 'gap:1'],
-    trigger: [
+  const s = css({
+    tabsList: ['flex', 'items:center', 'border-b:1', 'border:border', 'gap:1'],
+    tabsTrigger: [
       'inline-flex',
       'items:center',
       'justify:center',
@@ -29,6 +29,12 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
         '&[data-state="inactive"]': ['border:transparent'],
       },
     ],
-    panel: ['pt:4'],
+    tabsPanel: ['pt:4'],
   });
+  return {
+    list: s.tabsList,
+    trigger: s.tabsTrigger,
+    panel: s.tabsPanel,
+    css: s.css,
+  } as CSSOutput<TabsBlocks>;
 }

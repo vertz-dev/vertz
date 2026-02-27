@@ -8,8 +8,8 @@ type CheckboxBlocks = {
 
 /** Create checkbox css() styles. */
 export function createCheckboxStyles(): CSSOutput<CheckboxBlocks> {
-  return css({
-    root: [
+  const s = css({
+    checkboxRoot: [
       'h:4',
       'w:4',
       'rounded:sm',
@@ -30,11 +30,16 @@ export function createCheckboxStyles(): CSSOutput<CheckboxBlocks> {
         ],
       },
     ],
-    indicator: [
+    checkboxIndicator: [
       'flex',
       'items:center',
       'justify:center',
       { '&[data-state="unchecked"]': ['hidden'] },
     ],
   });
+  return {
+    root: s.checkboxRoot,
+    indicator: s.checkboxIndicator,
+    css: s.css,
+  } as CSSOutput<CheckboxBlocks>;
 }

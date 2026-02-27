@@ -7,8 +7,8 @@ type TooltipBlocks = {
 
 /** Create tooltip css() styles. */
 export function createTooltipStyles(): CSSOutput<TooltipBlocks> {
-  return css({
-    content: [
+  const s = css({
+    tooltipContent: [
       'z:50',
       'bg:card',
       'text:card-foreground',
@@ -22,4 +22,8 @@ export function createTooltipStyles(): CSSOutput<TooltipBlocks> {
       { '&[data-state="closed"]': ['hidden'] },
     ],
   });
+  return {
+    content: s.tooltipContent,
+    css: s.css,
+  } as CSSOutput<TooltipBlocks>;
 }

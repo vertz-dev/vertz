@@ -8,8 +8,13 @@ type ProgressBlocks = {
 
 /** Create progress css() styles. */
 export function createProgressStyles(): CSSOutput<ProgressBlocks> {
-  return css({
-    root: ['relative', 'h:4', 'w:full', 'rounded:full', 'bg:secondary'],
-    indicator: ['h:full', 'w:full', 'bg:primary', 'transition:transform'],
+  const s = css({
+    progressRoot: ['relative', 'h:4', 'w:full', 'rounded:full', 'bg:secondary'],
+    progressIndicator: ['h:full', 'w:full', 'bg:primary', 'transition:transform'],
   });
+  return {
+    root: s.progressRoot,
+    indicator: s.progressIndicator,
+    css: s.css,
+  } as CSSOutput<ProgressBlocks>;
 }
