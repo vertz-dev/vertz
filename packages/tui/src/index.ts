@@ -6,7 +6,6 @@ export {
   batch,
   computed,
   createContext,
-  onCleanup,
   onMount,
   signal,
   useContext,

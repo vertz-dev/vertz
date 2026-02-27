@@ -1,4 +1,4 @@
-import { onCleanup, onMount, signal } from '@vertz/ui';
+import { onMount, signal } from '@vertz/ui';
 import { domEffect } from '@vertz/ui/internals';
 import { describe, expect, it } from 'vitest';
 import { tui } from '../app';
@@ -136,15 +136,15 @@ describe('persistent tree mount', () => {
     handle.unmount();
   });
 
-  it('cleanup works with onMount and onCleanup', () => {
+  it('cleanup works with onMount return-callback', () => {
     const adapter = new TestAdapter(40, 10);
     let cleaned = false;
 
     function App() {
       onMount(() => {
-        onCleanup(() => {
+        return () => {
           cleaned = true;
-        });
+        };
       });
       const el = __element('Text');
       __append(el, __staticText('Hello'));

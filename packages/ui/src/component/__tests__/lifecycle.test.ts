@@ -14,13 +14,13 @@ describe('onMount', () => {
     expect(mounted).toBe(true);
   });
 
-  test('onCleanup inside onMount runs on scope disposal', () => {
+  test('return-cleanup runs on scope disposal', () => {
     let cleaned = false;
     const scope = pushScope();
     onMount(() => {
-      onCleanup(() => {
+      return () => {
         cleaned = true;
-      });
+      };
     });
     popScope();
     expect(cleaned).toBe(false);
@@ -47,31 +47,19 @@ describe('onMount', () => {
 });
 
 describe('onMount edge cases', () => {
-  test('onCleanup inside onMount no longer throws DisposalScopeError (regression)', () => {
-    // Before the fix, onCleanup() inside onMount() would throw DisposalScopeError
-    // because onMount didn't push a disposal scope for the callback.
-    expect(() => {
-      pushScope();
-      onMount(() => {
-        onCleanup(() => {});
-      });
-      popScope();
-    }).not.toThrow();
-  });
-
-  test('nested onMount with onCleanup in both levels', () => {
+  test('nested onMount with return-cleanup in both levels', () => {
     const log: string[] = [];
     const scope = pushScope();
     onMount(() => {
-      onCleanup(() => log.push('outer cleanup'));
       onMount(() => {
-        onCleanup(() => log.push('inner cleanup'));
+        return () => log.push('inner cleanup');
       });
+      return () => log.push('outer cleanup');
     });
     popScope();
     expect(log).toEqual([]);
     runCleanups(scope);
-    // Both cleanups should run; inner registered first via inner onMount forwarding
+    // Both cleanups should run
     expect(log).toContain('outer cleanup');
     expect(log).toContain('inner cleanup');
   });
@@ -93,19 +81,6 @@ describe('onMount edge cases', () => {
     expect(cleaned).toBe(true);
   });
 
-  test('multiple onCleanup calls inside onMount execute in LIFO order', () => {
-    const order: number[] = [];
-    const scope = pushScope();
-    onMount(() => {
-      onCleanup(() => order.push(1));
-      onCleanup(() => order.push(2));
-      onCleanup(() => order.push(3));
-    });
-    popScope();
-    runCleanups(scope);
-    expect(order).toEqual([3, 2, 1]);
-  });
-
   test('onMount without parent scope silently discards cleanups', () => {
     // When onMount is called without a parent scope (no pushScope()),
     // _tryOnCleanup silently discards the forwarded cleanups.
@@ -113,9 +88,9 @@ describe('onMount edge cases', () => {
     let cleaned = false;
     expect(() => {
       onMount(() => {
-        onCleanup(() => {
+        return () => {
           cleaned = true;
-        });
+        };
       });
     }).not.toThrow();
     // Cleanup was discarded — no parent scope to attach to
@@ -151,17 +126,16 @@ describe('onMount return-cleanup', () => {
     expect(() => runCleanups(scope)).not.toThrow();
   });
 
-  test('return-cleanup and onCleanup inside both run on disposal', () => {
+  test('return-cleanup is the only cleanup mechanism for onMount', () => {
     const log: string[] = [];
     const scope = pushScope();
     onMount(() => {
-      onCleanup(() => log.push('explicit-cleanup'));
       return () => log.push('return-cleanup');
     });
     popScope();
+    expect(log).toEqual([]);
     runCleanups(scope);
-    expect(log).toContain('explicit-cleanup');
-    expect(log).toContain('return-cleanup');
+    expect(log).toEqual(['return-cleanup']);
   });
 });
 

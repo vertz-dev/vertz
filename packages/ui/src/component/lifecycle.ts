@@ -3,8 +3,14 @@ import { untrack } from '../runtime/tracking';
 
 /**
  * Runs callback once on mount. Never re-executes.
- * Supports `onCleanup` inside for teardown on unmount.
- * If the callback returns a function, it is registered as cleanup.
+ * Return a function to register cleanup that runs on unmount.
+ *
+ * ```tsx
+ * onMount(() => {
+ *   const id = setInterval(() => seconds++, 1000);
+ *   return () => clearInterval(id);
+ * });
+ * ```
  */
 export function onMount(callback: () => (() => void) | void): void {
   // SSR safety: skip onMount during server-side rendering.

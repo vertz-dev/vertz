@@ -60,8 +60,8 @@ export { matchRoute } from './router/define-routes';
 export { executeLoaders } from './router/loader';
 export type { MatchResult } from './router/matcher';
 export { matchPath } from './router/matcher';
-// Runtime scope management (used by component lifecycle internals)
-export { _tryOnCleanup, popScope, pushScope, runCleanups } from './runtime/disposal';
+// Runtime scope management (used by component lifecycle internals and sibling packages)
+export { _tryOnCleanup, onCleanup, popScope, pushScope, runCleanups } from './runtime/disposal';
 // Effect primitives (used by sibling packages that can't go through the compiler)
 // Signal collection (used by HMR Fast Refresh runtime for state preservation)
 export {

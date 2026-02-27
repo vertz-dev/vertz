@@ -94,7 +94,7 @@ export { RouterView } from './router/router-view';
 export { parseSearchParams, useSearchParams } from './router/search-params';
 
 // Reactivity runtime
-export { DisposalScopeError, onCleanup } from './runtime/disposal';
+export { DisposalScopeError } from './runtime/disposal';
 export { batch } from './runtime/scheduler';
 export { computed, signal } from './runtime/signal';
 export type {

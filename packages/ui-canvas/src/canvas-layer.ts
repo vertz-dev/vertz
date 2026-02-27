@@ -1,4 +1,5 @@
-import { type Context, createContext, onCleanup, useContext } from '@vertz/ui';
+import { type Context, createContext, useContext } from '@vertz/ui';
+import { onCleanup } from '@vertz/ui/internals';
 import { Application, Container } from 'pixi.js';
 import { createDebugOverlay } from './debug-overlay';
 
