@@ -3,8 +3,9 @@
  *
  * Demonstrates:
  * - JSX for page layout and component composition
- * - query() with QueryDescriptor for zero-boilerplate data fetching
- * - Reactive JSX conditionals: {tasksQuery.loading && <el/>}
+ * - Destructured query() — the compiler generates a synthetic variable,
+ *   wraps signal properties (data, loading, error) in computed(),
+ *   and inserts .value for auto-unwrapping
  * - Compiler `let` → signal transform for local filter state
  * - Compiler `const` → computed transform for derived values from query()
  * - Compiler conditional transform: {show && <el/>} → __conditional()
@@ -23,11 +24,11 @@ import { button, emptyStateStyles, layoutStyles } from '../styles/components';
 /**
  * Render the task list page.
  *
- * Uses query() to fetch tasks reactively. Signal properties like
- * tasksQuery.loading and tasksQuery.error are used directly in JSX —
- * the compiler auto-unwraps them and generates reactive subscriptions.
- * Derived values (errorMsg, filteredTasks) use const declarations —
- * the compiler classifies them as computed and wraps them automatically.
+ * Destructures query() to pull out data, loading, and error directly.
+ * The compiler detects this pattern and:
+ *   1. Creates a synthetic variable: const __query_0 = query(...)
+ *   2. Wraps signal properties: const data = computed(() => __query_0.data.value)
+ *   3. All downstream usage is reactive via computed() auto-wrapping.
  *
  * Navigation is accessed via useAppRouter() context — no props needed.
  */
@@ -38,20 +39,21 @@ export function TaskListPage() {
   // Local state: compiler transforms `let` to signal()
   let statusFilter: TaskStatus | 'all' = 'all';
 
-  // query() with QueryDescriptor — key is auto-derived from the descriptor
-  const tasksQuery = query(api.tasks.list());
+  // Destructured query() — the compiler generates a synthetic variable and
+  // wraps each signal property (data, loading, error) in computed() with .value
+  const { data, loading, error } = query(api.tasks.list());
 
   // Derived values — the compiler classifies these as computed (they depend on
   // signal API properties) and wraps them in computed() automatically.
-  const errorMsg = tasksQuery.error
-    ? `Failed to load tasks: ${tasksQuery.error instanceof Error ? tasksQuery.error.message : String(tasksQuery.error)}`
+  const errorMsg = error
+    ? `Failed to load tasks: ${error instanceof Error ? error.message : String(error)}`
     : '';
 
-  const filteredTasks = !tasksQuery.data
+  const filteredTasks = !data
     ? []
     : statusFilter === 'all'
-      ? tasksQuery.data.tasks
-      : tasksQuery.data.tasks.filter((t: Task) => t.status === statusFilter);
+      ? data.tasks
+      : data.tasks.filter((t: Task) => t.status === statusFilter);
 
   // ── Filter options ──────────────────────────────────
 
@@ -93,13 +95,13 @@ export function TaskListPage() {
           </button>
         ))}
       </div>
-      {tasksQuery.loading && <div data-testid="loading">Loading tasks...</div>}
-      {tasksQuery.error && (
+      {loading && <div data-testid="loading">Loading tasks...</div>}
+      {error && (
         <div style="color: var(--color-destructive)" data-testid="error">
           {errorMsg}
         </div>
       )}
-      {!tasksQuery.loading && !tasksQuery.error && filteredTasks.length === 0 && (
+      {!loading && !error && filteredTasks.length === 0 && (
         <div class={emptyStateStyles.container}>
           <div class={emptyStateStyles.icon}>
             <Icon name="Inbox" size={48} />

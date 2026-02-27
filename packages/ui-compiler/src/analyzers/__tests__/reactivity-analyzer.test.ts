@@ -150,6 +150,120 @@ describe('ReactivityAnalyzer', () => {
     expect(findVar(result?.variables, 'isDirty')?.kind).toBe('computed');
   });
 
+  it('classifies destructured query() signal properties as computed', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const { data, loading, error } = query('/api/tasks');
+        return <div>{data}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'data')?.kind).toBe('computed');
+    expect(findVar(result?.variables, 'loading')?.kind).toBe('computed');
+    expect(findVar(result?.variables, 'error')?.kind).toBe('computed');
+  });
+
+  it('registers synthetic variable with signal API config for destructured query()', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const { data } = query('/api/tasks');
+        return <div>{data}</div>;
+      }
+    `);
+    const syntheticVar = findVar(result?.variables, '__query_0');
+    expect(syntheticVar).toBeDefined();
+    expect(syntheticVar?.kind).toBe('static');
+    expect(syntheticVar?.signalProperties).toEqual(new Set(['data', 'loading', 'error']));
+    expect(syntheticVar?.plainProperties).toEqual(new Set(['refetch']));
+  });
+
+  it('sets destructuredFrom metadata on destructured signal API bindings', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const { data, refetch } = query('/api/tasks');
+        return <div>{data}</div>;
+      }
+    `);
+    const dataVar = findVar(result?.variables, 'data');
+    const refetchVar = findVar(result?.variables, 'refetch');
+    expect(dataVar?.destructuredFrom).toBe('__query_0');
+    expect(refetchVar?.destructuredFrom).toBe('__query_0');
+  });
+
+  it('classifies renamed destructured properties using original property name', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const { data: tasks, refetch: reload } = query('/api/tasks');
+        return <div>{tasks}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'tasks')?.kind).toBe('computed');
+    expect(findVar(result?.variables, 'tasks')?.destructuredFrom).toBe('__query_0');
+    expect(findVar(result?.variables, 'reload')?.kind).toBe('static');
+    expect(findVar(result?.variables, 'reload')?.destructuredFrom).toBe('__query_0');
+  });
+
+  it('classifies destructured form() properties per registry', () => {
+    const [result] = analyze(`
+      import { form } from '@vertz/ui';
+      function TaskForm() {
+        const { submitting, action } = form({ name: '' });
+        return <div>{submitting}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'submitting')?.kind).toBe('computed');
+    expect(findVar(result?.variables, 'action')?.kind).toBe('static');
+    expect(findVar(result?.variables, 'submitting')?.destructuredFrom).toBe('__form_0');
+  });
+
+  it('handles aliased signal API imports in destructuring', () => {
+    const [result] = analyze(`
+      import { query as fetchData } from '@vertz/ui';
+      function TaskList() {
+        const { data } = fetchData('/api/tasks');
+        return <div>{data}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'data')?.kind).toBe('computed');
+    expect(findVar(result?.variables, 'data')?.destructuredFrom).toBe('__query_0');
+  });
+
+  it('classifies destructured query() plain properties as static', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const { refetch } = query('/api/tasks');
+        return <button onClick={refetch}>Refetch</button>;
+      }
+    `);
+    expect(findVar(result?.variables, 'refetch')?.kind).toBe('static');
+  });
+
+  it('does not treat local function named query as signal API', () => {
+    const [result] = analyze(`
+      function TaskList() {
+        const query = (url: string) => ({ data: [], loading: false });
+        const tasks = query('/api/tasks');
+        return <div>{tasks}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'tasks')?.signalProperties).toBeUndefined();
+  });
+
+  it('does not treat local function named query as signal API in destructuring', () => {
+    const [result] = analyze(`
+      function TaskList() {
+        const query = (url: string) => ({ data: [], loading: false });
+        const { data } = query('/api/tasks');
+        return <div>{data}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, '__query_0')).toBeUndefined();
+  });
+
   it('analyzes multiple components independently', () => {
     const results = analyze(`
       function Counter() {

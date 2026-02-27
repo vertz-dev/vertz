@@ -68,6 +68,8 @@ export interface VariableInfo {
   plainProperties?: Set<string>;
   /** Per-field signal properties (e.g., form().title.error). */
   fieldSignalProperties?: Set<string>;
+  /** Synthetic variable name this binding was destructured from (e.g., `__query_0`). */
+  destructuredFrom?: string;
 }
 
 /** Information about a detected component function. */

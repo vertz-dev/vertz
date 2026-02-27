@@ -121,6 +121,11 @@ function transformReferences(
       return;
     }
 
+    // Skip binding elements in destructuring: let { name } = expr
+    if (parent.isKind(SyntaxKind.BindingElement)) {
+      return;
+    }
+
     // Skip identifiers inside mutation expression ranges (handled by MutationTransformer)
     if (isInsideMutationRange(node.getStart(), mutationRanges)) {
       return;

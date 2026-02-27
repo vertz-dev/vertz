@@ -57,6 +57,60 @@ describe('ComputedTransformer', () => {
     expect(result).toContain('const age = computed(() => user.age)');
   });
 
+  it('emits synthetic var + computed bindings with .value for destructured signal API', () => {
+    const code = `function TaskList() {\n  const { data, loading } = query('/api/tasks');\n  return <div>{data}</div>;\n}`;
+    const result = transform(code, [
+      {
+        name: '__query_0',
+        kind: 'static',
+        start: 0,
+        end: 0,
+        signalProperties: new Set(['data', 'loading', 'error']),
+        plainProperties: new Set(['refetch']),
+      },
+      { name: 'data', kind: 'computed', start: 0, end: 0, destructuredFrom: '__query_0' },
+      { name: 'loading', kind: 'computed', start: 0, end: 0, destructuredFrom: '__query_0' },
+    ]);
+    expect(result).toContain("const __query_0 = query('/api/tasks')");
+    expect(result).toContain('const data = computed(() => __query_0.data.value)');
+    expect(result).toContain('const loading = computed(() => __query_0.loading.value)');
+  });
+
+  it('emits plain bindings without computed or .value for destructured signal API', () => {
+    const code = `function TaskList() {\n  const { data, refetch } = query('/api/tasks');\n  return <div>{data}</div>;\n}`;
+    const result = transform(code, [
+      {
+        name: '__query_0',
+        kind: 'static',
+        start: 0,
+        end: 0,
+        signalProperties: new Set(['data', 'loading', 'error']),
+        plainProperties: new Set(['refetch']),
+      },
+      { name: 'data', kind: 'computed', start: 0, end: 0, destructuredFrom: '__query_0' },
+      { name: 'refetch', kind: 'static', start: 0, end: 0, destructuredFrom: '__query_0' },
+    ]);
+    expect(result).toContain('const data = computed(() => __query_0.data.value)');
+    expect(result).toContain('const refetch = __query_0.refetch');
+    expect(result).not.toContain('computed(() => __query_0.refetch');
+  });
+
+  it('uses original property name for access and binding name for variable on renamed props', () => {
+    const code = `function TaskList() {\n  const { data: tasks } = query('/api/tasks');\n  return <div>{tasks}</div>;\n}`;
+    const result = transform(code, [
+      {
+        name: '__query_0',
+        kind: 'static',
+        start: 0,
+        end: 0,
+        signalProperties: new Set(['data', 'loading', 'error']),
+        plainProperties: new Set(['refetch']),
+      },
+      { name: 'tasks', kind: 'computed', start: 0, end: 0, destructuredFrom: '__query_0' },
+    ]);
+    expect(result).toContain('const tasks = computed(() => __query_0.data.value)');
+  });
+
   it('transforms computed reads in expressions to .value', () => {
     const code = `function Pricing() {\n  const total = 10 * quantity;\n  return <div>{total}</div>;\n}`;
     const result = transform(code, [
