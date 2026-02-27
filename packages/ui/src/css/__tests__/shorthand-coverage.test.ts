@@ -152,6 +152,16 @@ const DEMO_SHORTHANDS = [
   'focus:ring:2',
   'focus:ring:primary.500',
   'focus:border:primary.500',
+
+  // New keywords for shadcn v4 alignment
+  'whitespace-nowrap',
+  'shrink-0',
+  'select-none',
+  'pointer-events-none',
+  'overflow-hidden',
+
+  // New shadow scale
+  'shadow:xs',
 ];
 
 describe('demo app shorthand coverage', () => {

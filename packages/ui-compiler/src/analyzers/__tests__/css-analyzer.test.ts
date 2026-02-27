@@ -145,4 +145,74 @@ const styles = css();
     const results = analyzer.analyze(sourceFile);
     expect(results).toHaveLength(0);
   });
+
+  it('classifies raw declaration objects in nested selectors as static', () => {
+    const sourceFile = createSourceFile(
+      `
+const styles = css({
+  btn: ['p:4', { '&:hover': [{ property: 'background-color', value: 'red' }] }],
+});
+    `.trim(),
+    );
+
+    const results = analyzer.analyze(sourceFile);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.kind).toBe('static');
+  });
+
+  it('classifies mixed raw declarations and shorthands in nested selectors as static', () => {
+    const sourceFile = createSourceFile(
+      `
+const styles = css({
+  btn: ['p:4', { '&:hover': ['text:foreground', { property: 'background-color', value: 'red' }] }],
+});
+    `.trim(),
+    );
+
+    const results = analyzer.analyze(sourceFile);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.kind).toBe('static');
+  });
+
+  it('classifies invalid raw declarations (missing value key) as reactive', () => {
+    const sourceFile = createSourceFile(
+      `
+const styles = css({
+  btn: ['p:4', { '&:hover': [{ property: 'background-color' }] }],
+});
+    `.trim(),
+    );
+
+    const results = analyzer.analyze(sourceFile);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.kind).toBe('reactive');
+  });
+
+  it('classifies raw declarations with non-string values as reactive', () => {
+    const sourceFile = createSourceFile(
+      `
+const styles = css({
+  btn: ['p:4', { '&:hover': [{ property: 'color', value: someVar }] }],
+});
+    `.trim(),
+    );
+
+    const results = analyzer.analyze(sourceFile);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.kind).toBe('reactive');
+  });
+
+  it('classifies raw declarations with extra keys as reactive', () => {
+    const sourceFile = createSourceFile(
+      `
+const styles = css({
+  btn: ['p:4', { '&:hover': [{ property: 'color', value: 'red', extra: 'bad' }] }],
+});
+    `.trim(),
+    );
+
+    const results = analyzer.analyze(sourceFile);
+    expect(results).toHaveLength(1);
+    expect(results[0]?.kind).toBe('reactive');
+  });
 });

@@ -117,11 +117,36 @@ export class CSSAnalyzer {
       if (!init || !init.isKind(SyntaxKind.ArrayLiteralExpression)) return false;
 
       for (const el of init.getElements()) {
-        if (!el.isKind(SyntaxKind.StringLiteral)) return false;
+        if (el.isKind(SyntaxKind.StringLiteral)) continue;
+        // Accept raw declaration objects: { property: '...', value: '...' }
+        if (el.isKind(SyntaxKind.ObjectLiteralExpression)) {
+          if (this.isStaticRawDeclaration(el)) continue;
+          return false;
+        }
+        return false;
       }
     }
 
     return true;
+  }
+
+  /** Check if a node is a static raw declaration: { property: '...', value: '...' } */
+  private isStaticRawDeclaration(node: Node): boolean {
+    if (!node.isKind(SyntaxKind.ObjectLiteralExpression)) return false;
+    const props = node.getProperties();
+    if (props.length !== 2) return false;
+
+    let hasProperty = false;
+    let hasValue = false;
+    for (const prop of props) {
+      if (!prop.isKind(SyntaxKind.PropertyAssignment)) return false;
+      const init = prop.getInitializer();
+      if (!init || !init.isKind(SyntaxKind.StringLiteral)) return false;
+      const name = prop.getName();
+      if (name === 'property') hasProperty = true;
+      else if (name === 'value') hasValue = true;
+    }
+    return hasProperty && hasValue;
   }
 
   /** Extract block names from a static css() argument. */

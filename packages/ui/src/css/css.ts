@@ -32,8 +32,17 @@ import { parseShorthand } from './shorthand-parser';
 import type { CSSDeclaration } from './token-resolver';
 import { resolveToken } from './token-resolver';
 
+/** A raw CSS declaration: { property, value } for styles that can't be expressed as shorthands. */
+export interface RawDeclaration {
+  property: string;
+  value: string;
+}
+
+/** A value within a nested selector array: shorthand string or raw declaration. */
+export type StyleValue = string | RawDeclaration;
+
 /** A style entry in the array: either a shorthand string or an object for nested selectors. */
-export type StyleEntry = string | Record<string, string[]>;
+export type StyleEntry = string | Record<string, StyleValue[]>;
 
 /** Input to css(): a record of named style blocks. */
 export type CSSInput = Record<string, StyleEntry[]>;
@@ -138,15 +147,19 @@ export function css<T extends CSSInput>(
           baseDeclarations.push(...resolved.declarations);
         }
       } else {
-        // Object form: { '&::after': ['content:empty', 'block'] }
+        // Object form: { '&::after': ['content:empty', 'block', { property: '...', value: '...' }] }
         for (const [selector, nestedEntries] of Object.entries(entry)) {
           const nestedDecls: CSSDeclaration[] = [];
           for (const nestedEntry of nestedEntries) {
-            const parsed = parseShorthand(nestedEntry);
-            const resolved = resolveToken(parsed);
-            nestedDecls.push(...resolved.declarations);
+            if (typeof nestedEntry === 'string') {
+              const parsed = parseShorthand(nestedEntry);
+              const resolved = resolveToken(parsed);
+              nestedDecls.push(...resolved.declarations);
+            } else if ('property' in nestedEntry && 'value' in nestedEntry) {
+              nestedDecls.push({ property: nestedEntry.property, value: nestedEntry.value });
+            }
           }
-          const resolvedSelector = selector.replace('&', `.${className}`);
+          const resolvedSelector = selector.replaceAll('&', `.${className}`);
           nestedRules.push(formatRule(resolvedSelector, nestedDecls));
         }
       }

@@ -1,16 +1,31 @@
-import type { CSSOutput } from '@vertz/ui';
+import type { CSSOutput, StyleEntry } from '@vertz/ui';
 import { css } from '@vertz/ui';
 
 type ProgressBlocks = {
-  root: string[];
-  indicator: string[];
+  root: StyleEntry[];
+  indicator: StyleEntry[];
 };
 
 /** Create progress css() styles. */
 export function createProgressStyles(): CSSOutput<ProgressBlocks> {
   const s = css({
-    progressRoot: ['relative', 'h:4', 'w:full', 'rounded:full', 'bg:secondary'],
-    progressIndicator: ['h:full', 'w:full', 'bg:primary', 'transition:transform'],
+    progressRoot: [
+      'relative',
+      'h:2',
+      'w:full',
+      'overflow-hidden',
+      'rounded:full',
+      'bg:primary',
+      'opacity:0.2',
+    ],
+    progressIndicator: [
+      'h:full',
+      'w:full',
+      'flex-col',
+      'bg:primary',
+      'transition:transform',
+      'rounded:full',
+    ],
   });
   return {
     root: s.progressRoot,

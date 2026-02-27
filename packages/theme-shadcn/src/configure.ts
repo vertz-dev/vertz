@@ -251,7 +251,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       padding: '0',
       borderWidth: '0',
       borderStyle: 'solid',
-      borderColor: 'currentColor',
+      borderColor: 'var(--color-border)',
     },
     'button, input, select, textarea': {
       font: 'inherit',

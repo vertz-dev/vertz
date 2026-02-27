@@ -1,4 +1,4 @@
-import type { CSSOutput, StyleEntry } from '@vertz/ui';
+import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
 import { css } from '@vertz/ui';
 
 type SwitchBlocks = {
@@ -6,11 +6,23 @@ type SwitchBlocks = {
   thumb: StyleEntry[];
 };
 
+const focusRing: Record<string, (string | RawDeclaration)[]> = {
+  '&:focus-visible': [
+    'outline-none',
+    {
+      property: 'outline',
+      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+    },
+    { property: 'outline-offset', value: '2px' },
+  ],
+};
+
 /** Create switch css() styles. */
 export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
   const s = css({
     switchRoot: [
       'inline-flex',
+      'shrink-0',
       'h:6',
       'w:11',
       'items:center',
@@ -19,12 +31,10 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'border:transparent',
       'cursor:pointer',
       'bg:input',
+      'shadow:xs',
       'transition:colors',
-      'focus-visible:outline-none',
-      'focus-visible:ring:2',
-      'focus-visible:ring:ring',
-      'disabled:opacity:0.5',
-      'disabled:cursor:default',
+      focusRing,
+      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
       {
         '&[data-state="checked"]': ['bg:primary'],
         '&[data-state="unchecked"]': ['bg:input'],

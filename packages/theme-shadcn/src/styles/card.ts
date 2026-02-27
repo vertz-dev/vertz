@@ -20,12 +20,14 @@ export function createCard(): CSSOutput<CardBlocks> {
       'border:1',
       'border:border',
       'shadow:sm',
+      'gap:6',
+      'py:6',
     ],
-    cardHeader: ['flex', 'flex-col', 'gap:1.5', 'p:6'],
-    cardTitle: ['text:2xl', 'font:semibold', 'leading:none', 'tracking:tight'],
+    cardHeader: ['flex', 'flex-col', 'gap:1.5', 'px:6'],
+    cardTitle: ['font:semibold', 'leading:none', 'tracking:tight'],
     cardDescription: ['text:sm', 'text:muted-foreground'],
-    cardContent: ['p:6', 'pt:0'],
-    cardFooter: ['flex', 'items:center', 'p:6', 'pt:0'],
+    cardContent: ['px:6'],
+    cardFooter: ['flex', 'items:center', 'px:6'],
   });
   return {
     root: s.cardRoot,
