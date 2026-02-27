@@ -84,8 +84,14 @@ export type { MountHandle, MountOptions } from './mount';
 // Mount API
 export { mount } from './mount';
 // Data fetching
-export type { CacheStore, QueryDescriptor, QueryOptions, QueryResult } from './query';
-export { isQueryDescriptor, query } from './query';
+export type {
+  CacheStore,
+  QueryDescriptor,
+  QueryMatchHandlers,
+  QueryOptions,
+  QueryResult,
+} from './query';
+export { isQueryDescriptor, query, queryMatch } from './query';
 // Router
 export type {
   CompiledRoute,

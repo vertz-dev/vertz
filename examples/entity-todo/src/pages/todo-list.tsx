@@ -3,13 +3,12 @@
  *
  * Demonstrates:
  * - query() with Result<T, FetchError> return types
- * - Compiler `const` → computed transform for derived values from query()
- * - matchError for compile-time exhaustiveness on error handling
- * - Declarative JSX conditionals for loading/error/content visibility
+ * - queryMatch() for exclusive-state pattern matching (loading/error/data)
+ * - matchError for compile-time exhaustiveness on Result error handling
  */
 
-import { query } from '@vertz/ui';
-import { isOk, matchError, type Result, type FetchErrorType } from '@vertz/fetch';
+import { type FetchErrorType, isOk, matchError, type Result } from '@vertz/fetch';
+import { query, queryMatch } from '@vertz/ui';
 import type { Todo } from '../api/client';
 import { fetchTodos } from '../api/client';
 import { TodoForm } from '../components/todo-form';
@@ -27,30 +26,6 @@ export function TodoListPage() {
     { key: 'todo-list' },
   );
 
-  // Derived values — the compiler classifies these as computed (they depend on
-  // signal API properties) and wraps them in computed() automatically.
-  const result = todosQuery.data ?? null;
-
-  const todoList: Todo[] = result && isOk(result) ? result.data.todos : [];
-
-  const errorMsg: string = result && !isOk(result) && result.error
-    ? matchError(result.error, {
-        NetworkError: (e) => `Network error: ${e.message}. Please check your connection.`,
-        HttpError: (e) => {
-          if (e.serverCode === 'NOT_FOUND') {
-            return 'Todos not found (404)';
-          }
-          if (e.status === 500) {
-            return 'Server error. Please try again later.';
-          }
-          return `Error ${e.status}: ${e.message}`;
-        },
-        TimeoutError: (e) => `Request timed out: ${e.message}`,
-        ParseError: (e) => `Failed to parse response: ${e.path || 'unknown'}`,
-        ValidationError: (e) => `Validation error: ${e.errors?.join(', ') || e.message}`,
-      })
-    : '';
-
   const handleToggle = (_id: string, _completed: boolean) => {
     todosQuery.refetch();
   };
@@ -63,6 +38,71 @@ export function TodoListPage() {
     todosQuery.refetch();
   };
 
+  // queryMatch handles loading/error/data exclusively.
+  // The data handler further matches the Result<T, FetchError> via matchError.
+  const todoContent = queryMatch(todosQuery, {
+    loading: () => <div data-testid="loading">Loading todos...</div>,
+    error: (err) => (
+      <div style="color: var(--color-danger-500)" data-testid="error">
+        {`Failed to load todos: ${err instanceof Error ? err.message : String(err)}`}
+      </div>
+    ),
+    data: (result) => {
+      if (!result) return <div data-testid="loading">Loading todos...</div>;
+
+      if (!isOk(result)) {
+        const errorMsg = result.error
+          ? matchError(result.error, {
+              NetworkError: (e) => `Network error: ${e.message}. Please check your connection.`,
+              HttpError: (e) => {
+                if (e.serverCode === 'NOT_FOUND') {
+                  return 'Todos not found (404)';
+                }
+                if (e.status === 500) {
+                  return 'Server error. Please try again later.';
+                }
+                return `Error ${e.status}: ${e.message}`;
+              },
+              TimeoutError: (e) => `Request timed out: ${e.message}`,
+              ParseError: (e) => `Failed to parse response: ${e.path || 'unknown'}`,
+              ValidationError: (e) => `Validation error: ${e.errors?.join(', ') || e.message}`,
+            })
+          : 'Unknown error';
+
+        return (
+          <div style="color: var(--color-danger-500)" data-testid="error">
+            {errorMsg}
+          </div>
+        );
+      }
+
+      const todoList: Todo[] = result.data.todos;
+
+      return (
+        <>
+          {todoList.length === 0 && (
+            <div class={emptyStateStyles.container}>
+              <h3 class={emptyStateStyles.title}>No todos yet</h3>
+              <p class={emptyStateStyles.description}>Add your first todo above to get started.</p>
+            </div>
+          )}
+          <div data-testid="todo-list" style="display: flex; flex-direction: column; gap: 0.5rem">
+            {todoList.map((todo) => (
+              <TodoItem
+                key={todo.id}
+                id={todo.id}
+                title={todo.title}
+                completed={todo.completed}
+                onToggle={handleToggle}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        </>
+      );
+    },
+  });
+
   return (
     <div class={layoutStyles.container} data-testid="todo-list-page">
       <div class={layoutStyles.header}>
@@ -74,34 +114,7 @@ export function TodoListPage() {
 
       <TodoForm onSuccess={handleCreate} />
 
-      <div style="margin-top: 1.5rem">
-        {todosQuery.loading && <div data-testid="loading">Loading todos...</div>}
-        {errorMsg && (
-          <div style="color: var(--color-danger-500)" data-testid="error">
-            {errorMsg}
-          </div>
-        )}
-        {!todosQuery.loading && !errorMsg && todoList.length === 0 && (
-          <div class={emptyStateStyles.container}>
-            <h3 class={emptyStateStyles.title}>No todos yet</h3>
-            <p class={emptyStateStyles.description}>
-              Add your first todo above to get started.
-            </p>
-          </div>
-        )}
-        <div data-testid="todo-list" style="display: flex; flex-direction: column; gap: 0.5rem">
-          {todoList.map((todo) => (
-            <TodoItem
-              key={todo.id}
-              id={todo.id}
-              title={todo.title}
-              completed={todo.completed}
-              onToggle={handleToggle}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
-      </div>
+      <div style="margin-top: 1.5rem">{todoContent}</div>
     </div>
   );
 }

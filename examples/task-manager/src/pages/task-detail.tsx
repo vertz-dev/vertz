@@ -4,14 +4,13 @@
  * Demonstrates:
  * - JSX for page layout and dynamic content
  * - query() with QueryDescriptor for zero-boilerplate data fetching
- * - Auto-unwrapped signal properties: taskQuery.loading, taskQuery.error
- * - Compiler `const` → computed transform for derived values from query()
+ * - queryMatch() for exclusive-state pattern matching (loading/error/data)
+ * - Compiler `const` → computed transform for derived values
  * - Dialog primitive for delete confirmation (<ConfirmDialog /> in JSX)
  * - Declarative tab switching with `let` signal state
- * - Compiler conditional transform for loading/error/content visibility
  */
 
-import { css, query, useParams } from '@vertz/ui';
+import { css, query, queryMatch, useParams } from '@vertz/ui';
 import { api } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import { Icon } from '../components/icon';
@@ -27,7 +26,14 @@ const detailStyles = css({
   meta: ['text:sm', 'text:muted-foreground'],
   actions: ['flex', 'gap:2', 'items:start'],
   section: ['mb:6'],
-  sectionTitle: ['font:sm', 'font:semibold', 'text:muted-foreground', 'uppercase', 'tracking:wide', 'mb:2'],
+  sectionTitle: [
+    'font:sm',
+    'font:semibold',
+    'text:muted-foreground',
+    'uppercase',
+    'tracking:wide',
+    'mb:2',
+  ],
   description: ['text:foreground', 'leading:relaxed'],
   statusBar: [
     'flex',
@@ -45,12 +51,9 @@ const detailStyles = css({
 /**
  * Render the task detail page.
  *
- * Fully declarative task detail page. Fetches a single task by ID
- * using query() and displays it with tabs for Details and Activity.
- * Signal properties (loading, error) are used directly in JSX —
- * the compiler auto-unwraps them. Derived values (errorMsg, task,
- * transitions) use const declarations — the compiler classifies them
- * as computed and wraps them automatically. No effect() needed.
+ * Fetches a single task by ID using query() and renders the result
+ * via queryMatch() — exclusive-state pattern matching replaces manual
+ * {loading && ...} / {error && ...} / {!loading && !error && ...} guards.
  *
  * Task ID is accessed via useParams<TPath>() for typed params.
  * Navigation is accessed via useAppRouter() for typed navigate().
@@ -63,43 +66,32 @@ export function TaskDetailPage() {
   // query() with QueryDescriptor — key auto-derived: "GET:/tasks/<id>"
   const taskQuery = query(api.tasks.get(taskId));
 
-  // Derived values — the compiler classifies these as computed (they depend on
-  // signal API properties) and wraps them in computed() automatically.
-  const errorMsg = taskQuery.error
-    ? `Failed to load task: ${taskQuery.error instanceof Error ? taskQuery.error.message : String(taskQuery.error)}`
-    : '';
-
-  const task = taskQuery.data ?? null;
-
-  // Status transitions — the compiler classifies this as computed since
-  // it depends on `task` (which depends on the signal API variable).
-  const transitions: Array<{ label: string; status: TaskStatus }> = !task
-    ? []
-    : task.status === 'todo'
-      ? [{ label: 'Start', status: 'in-progress' }]
-      : task.status === 'in-progress'
-        ? [
-            { label: 'Complete', status: 'done' },
-            { label: 'Back to Todo', status: 'todo' },
-          ]
-        : task.status === 'done'
-          ? [{ label: 'Reopen', status: 'in-progress' }]
-          : [];
-
   // Tab state — compiler transforms `let` to signal()
   let activeTab = 'details';
 
-  // ── Page layout with declarative conditionals ──────
+  // ── queryMatch for exclusive-state rendering ───────
 
-  return (
-    <div class={detailStyles.page} data-testid="task-detail-page">
-      {taskQuery.loading && <div data-testid="loading">Loading task...</div>}
-      {taskQuery.error && (
-        <div style="color: var(--color-destructive)" data-testid="error">
-          {errorMsg}
-        </div>
-      )}
-      {!taskQuery.loading && !taskQuery.error && task && (
+  const taskContent = queryMatch(taskQuery, {
+    loading: () => <div data-testid="loading">Loading task...</div>,
+    error: (err) => (
+      <div style="color: var(--color-destructive)" data-testid="error">
+        {`Failed to load task: ${err instanceof Error ? err.message : String(err)}`}
+      </div>
+    ),
+    data: (task) => {
+      const transitions: Array<{ label: string; status: TaskStatus }> =
+        task.status === 'todo'
+          ? [{ label: 'Start', status: 'in-progress' }]
+          : task.status === 'in-progress'
+            ? [
+                { label: 'Complete', status: 'done' },
+                { label: 'Back to Todo', status: 'todo' },
+              ]
+            : task.status === 'done'
+              ? [{ label: 'Reopen', status: 'in-progress' }]
+              : [];
+
+      return (
         <div data-testid="task-content">
           <button
             class={button({ intent: 'ghost', size: 'sm' })}
@@ -209,7 +201,13 @@ export function TaskDetailPage() {
             )}
           </div>
         </div>
-      )}
+      );
+    },
+  });
+
+  return (
+    <div class={detailStyles.page} data-testid="task-detail-page">
+      {taskContent}
     </div>
   );
 }
