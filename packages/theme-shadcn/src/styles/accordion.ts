@@ -9,9 +9,9 @@ type AccordionBlocks = {
 
 /** Create accordion css() styles. */
 export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
-  return css({
-    item: ['border-b:1', 'border:border'],
-    trigger: [
+  const s = css({
+    accordionItem: ['border-b:1', 'border:border'],
+    accordionTrigger: [
       'flex',
       'w:full',
       'items:center',
@@ -22,6 +22,12 @@ export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
       'cursor:pointer',
       { '&[data-state="open"]': ['font:semibold'] },
     ],
-    content: ['text:sm', 'pb:4', { '&[data-state="closed"]': ['hidden'] }],
+    accordionContent: ['text:sm', 'pb:4', { '&[data-state="closed"]': ['hidden'] }],
   });
+  return {
+    item: s.accordionItem,
+    trigger: s.accordionTrigger,
+    content: s.accordionContent,
+    css: s.css,
+  } as CSSOutput<AccordionBlocks>;
 }

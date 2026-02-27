@@ -5,8 +5,8 @@ type InputBlocks = { base: string[] };
 
 /** Create input css() styles. */
 export function createInput(): CSSOutput<InputBlocks> {
-  return css({
-    base: [
+  const s = css({
+    inputBase: [
       'flex',
       'h:10',
       'w:full',
@@ -25,4 +25,8 @@ export function createInput(): CSSOutput<InputBlocks> {
       'disabled:opacity:0.5',
     ],
   });
+  return {
+    base: s.inputBase,
+    css: s.css,
+  } as CSSOutput<InputBlocks>;
 }

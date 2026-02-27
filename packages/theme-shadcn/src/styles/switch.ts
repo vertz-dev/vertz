@@ -8,8 +8,8 @@ type SwitchBlocks = {
 
 /** Create switch css() styles. */
 export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
-  return css({
-    root: [
+  const s = css({
+    switchRoot: [
       'inline-flex',
       'h:6',
       'w:11',
@@ -30,7 +30,7 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
         '&[data-state="unchecked"]': ['bg:input'],
       },
     ],
-    thumb: [
+    switchThumb: [
       'block',
       'h:5',
       'w:5',
@@ -40,4 +40,9 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'transition:transform',
     ],
   });
+  return {
+    root: s.switchRoot,
+    thumb: s.switchThumb,
+    css: s.css,
+  } as CSSOutput<SwitchBlocks>;
 }

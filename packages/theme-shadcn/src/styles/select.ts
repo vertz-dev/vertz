@@ -9,8 +9,8 @@ type SelectBlocks = {
 
 /** Create select css() styles. */
 export function createSelectStyles(): CSSOutput<SelectBlocks> {
-  return css({
-    trigger: [
+  const s = css({
+    selectTrigger: [
       'flex',
       'h:10',
       'w:full',
@@ -31,7 +31,7 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       'disabled:cursor:default',
       { '&[data-state="open"]': ['border:ring'] },
     ],
-    content: [
+    selectContent: [
       'z:50',
       'bg:card',
       'text:card-foreground',
@@ -42,7 +42,7 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       'py:1',
       { '&[data-state="closed"]': ['hidden'] },
     ],
-    item: [
+    selectItem: [
       'flex',
       'items:center',
       'px:3',
@@ -53,4 +53,10 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       'hover:text:accent-foreground',
     ],
   });
+  return {
+    trigger: s.selectTrigger,
+    content: s.selectContent,
+    item: s.selectItem,
+    css: s.css,
+  } as CSSOutput<SelectBlocks>;
 }

@@ -249,6 +249,9 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       boxSizing: 'border-box',
       margin: '0',
       padding: '0',
+      borderWidth: '0',
+      borderStyle: 'solid',
+      borderColor: 'currentColor',
     },
     ':root': {
       '--radius': RADIUS_VALUES[radius] ?? '0.375rem',

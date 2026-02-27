@@ -5,7 +5,11 @@ type SeparatorBlocks = { base: string[] };
 
 /** Create separator css() styles. */
 export function createSeparator(): CSSOutput<SeparatorBlocks> {
-  return css({
-    base: ['bg:border', 'h:0.5', 'w:full'],
+  const s = css({
+    separatorBase: ['bg:border', 'h:0.5', 'w:full'],
   });
+  return {
+    base: s.separatorBase,
+    css: s.css,
+  } as CSSOutput<SeparatorBlocks>;
 }

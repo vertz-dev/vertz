@@ -12,8 +12,8 @@ type DialogBlocks = {
 
 /** Create dialog css() styles. */
 export function createDialogStyles(): CSSOutput<DialogBlocks> {
-  return css({
-    overlay: [
+  const s = css({
+    dialogOverlay: [
       'fixed',
       'inset:0',
       'z:40',
@@ -21,7 +21,7 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
       'opacity:0.8',
       { '&[data-state="closed"]': ['hidden'] },
     ],
-    panel: [
+    dialogPanel: [
       'fixed',
       'z:50',
       'bg:card',
@@ -33,9 +33,18 @@ export function createDialogStyles(): CSSOutput<DialogBlocks> {
       'p:6',
       { '&[data-state="closed"]': ['hidden'] },
     ],
-    title: ['text:lg', 'font:semibold', 'leading:none', 'tracking:tight'],
-    description: ['text:sm', 'text:muted-foreground'],
-    close: ['absolute', 'rounded:sm', 'opacity:0.7', 'hover:opacity:1', 'cursor:pointer'],
-    footer: ['flex', 'items:center', 'justify:end', 'gap:2', 'pt:4'],
+    dialogTitle: ['text:lg', 'font:semibold', 'leading:none', 'tracking:tight'],
+    dialogDescription: ['text:sm', 'text:muted-foreground'],
+    dialogClose: ['absolute', 'rounded:sm', 'opacity:0.7', 'hover:opacity:1', 'cursor:pointer'],
+    dialogFooter: ['flex', 'items:center', 'justify:end', 'gap:2', 'pt:4'],
   });
+  return {
+    overlay: s.dialogOverlay,
+    panel: s.dialogPanel,
+    title: s.dialogTitle,
+    description: s.dialogDescription,
+    close: s.dialogClose,
+    footer: s.dialogFooter,
+    css: s.css,
+  } as CSSOutput<DialogBlocks>;
 }
