@@ -1,133 +1,130 @@
-# Vertz Theme System — Architecture Plan
+# Vertz Theme System -- Architecture Plan
 
 ## Context
 
-Vertz has headless UI primitives (`@vertz/ui-primitives` — 14 accessible components) and a powerful style system (`css()`, `variants()`, `defineTheme()`, `compileTheme()`, `ThemeProvider`), but no reusable styled component layer. Every app must define its own button variants, card styles, form styles from scratch. This blocks adoption — developers want to start building immediately with a polished, professional look.
+Vertz has headless UI primitives (`@vertz/ui-primitives` -- 14 accessible components) and a powerful style system (`css()`, `variants()`, `defineTheme()`, `compileTheme()`, `ThemeProvider`), but no reusable style layer. Every app must define its own button variants, card styles, form styles from scratch. This blocks adoption -- developers want to start building immediately with a polished, professional look.
 
 The goal is to create a theme system where:
-- **Primitives are the foundation** — generic, headless, owned by Vertz
-- **Themes are a styling layer on top** — swappable without rewriting components
-- **First theme is shadcn-inspired** — battle-tested, widely loved design
-- **Users NEVER modify theme source** — customization through API, not source editing
-- **Multiple themes can coexist** — switching is a one-line import change
+- **Primitives are the foundation** -- generic, headless, owned by Vertz
+- **Themes are a style-definition layer** -- pre-built `variants()` and `css()` definitions, not components
+- **First theme is shadcn-inspired** -- battle-tested, widely loved design
+- **Users NEVER modify theme source** -- customization through token overrides and config-object spread
+- **One way to do things** -- `configureTheme()` is the single entry point; variant customization is via explicit config spread
 
 ## Architecture Overview
 
 ```
-@vertz/ui                    (core: css, variants, defineTheme, ThemeProvider, JSX, signals)
-    ↓
-@vertz/ui-primitives         (headless: Dialog, Select, Tabs, etc.)
-    ↓
-@vertz/ui-theme              (contract: ThemeComponents interface, component prop types)
-    ↓
-@vertz/theme-shadcn          (implementation: configureTheme(), styled components)
+@vertz/ui                    (core: css, variants, defineTheme, compileTheme, ThemeProvider)
+    |
+@vertz/theme-shadcn          (style definitions: configureTheme(), token palettes, variants/css configs)
 ```
 
-### Three new packages
+### One new package: `@vertz/theme-shadcn`
 
-1. **`@vertz/ui-theme`** — The theme contract. Defines the `ThemeComponents` interface and all component prop types (`ButtonProps`, `DialogProps`, etc.). Thin package, mostly types. This is what makes themes swappable — all themes implement the same interface.
+The theme package exports **style definitions** -- pre-built `variants()` and `css()` calls using the same primitives users already know. No JSX. No components. No separate contract package.
 
-2. **`@vertz/theme-shadcn`** — The first concrete theme. Contains styled component implementations, design tokens (5 palette variants: zinc, slate, stone, neutral, gray), and global styles. This is what users install.
+**Why no `@vertz/ui-theme` contract package?** It's YAGNI for a single theme. Pre-v1, breaking changes are encouraged. If a second theme is ever needed, the contract can be extracted then.
 
-3. Minor additions to **`@vertz/ui`** — Add missing color namespaces to `COLOR_NAMESPACES` (e.g., `primaryForeground`, `cardForeground`, `accentForeground`) so themed tokens resolve correctly in the shorthand syntax.
+**Why no JSX components?** The `jsx-runtime.ts` in `@vertz/ui` is a one-shot DOM factory. `signal()` attributes don't update after initial render in library packages (no compiler). Exporting style definitions eliminates this problem entirely -- users write their own JSX in app code where the compiler handles reactivity.
 
-### Why separate `@vertz/ui-theme` from `@vertz/theme-shadcn`?
+### Minor additions to `@vertz/ui`
 
-The contract package makes theme-switching type-safe. When users swap `@vertz/theme-shadcn` for `@vertz/theme-vertz`, the compiler verifies that every component they use exists in both themes with the same props. Without the contract, switching themes could silently break.
+- Add kebab-case compound foreground namespaces to `COLOR_NAMESPACES` in `token-tables.ts`
+- Add collision validation in `compileTheme()` -- throw if a namespace+shade produces the same CSS variable as a compound namespace
+- Add camelCase validation in `compileTheme()` -- throw if any color token key contains uppercase letters
 
 ## Distribution Model: NPM Package (not code-copy)
 
 **Themes are standard npm packages.** `bun add @vertz/theme-shadcn`. Done.
 
 This explicitly rejects the shadcn/ui "own the code" model because:
-- **"One way to do things"** — no CLI code-copy step, no ejection decisions, no "should I modify this?" ambiguity
-- **Upgradeable** — `bun update @vertz/theme-shadcn` gets you the latest. No merge conflicts
-- **"My LLM nailed it on the first try"** — an LLM reads the types, generates code. No registry protocol to understand
-- **Avoids shadcn's core problem** — users can't accidentally modify theme source and break upgrades
+- **"One way to do things"** -- no CLI code-copy step, no ejection decisions, no "should I modify this?" ambiguity
+- **Upgradeable** -- `bun update @vertz/theme-shadcn` gets you the latest. No merge conflicts
+- **"My LLM nailed it on the first try"** -- an LLM reads the types, generates code. No registry protocol to understand
+- **Avoids shadcn's core problem** -- users can't accidentally modify theme source and break upgrades
 
-## Customization: Three Ordered Layers
+## API Surface
 
-Users customize without ever touching theme source code:
-
-### Layer 1: Design token overrides (via `configureTheme()`)
-Change colors, spacing, radius globally. All components use CSS custom properties, so token changes cascade everywhere.
+### Single entry point: `configureTheme()`
 
 ```ts
-const { theme, globals, components } = configureTheme({
-  palette: 'zinc',
+// app.tsx
+import { compileTheme, ThemeProvider } from '@vertz/ui';
+import { configureTheme } from '@vertz/theme-shadcn';
+
+// 1. Configure theme (pure function, no side effects)
+const { theme, globals, styles } = configureTheme({ palette: 'zinc' });
+
+// 2. Destructure style definitions
+const { button, card, input, badge, label, separator } = styles;
+
+// 3. Compile tokens to CSS custom properties
+const compiled = compileTheme(theme);
+
+// 4. Use in JSX -- styles work exactly like hand-written variants()/css()
+export function App() {
+  return (
+    <ThemeProvider theme="light">
+      <style>{globals}</style>
+      <style>{compiled.css}</style>
+      <div class={card.root}>
+        <div class={card.header}>
+          <h3 class={card.title}>My App</h3>
+        </div>
+        <div class={card.content}>
+          <button class={button({ intent: 'primary', size: 'md' })}>
+            Click me
+          </button>
+        </div>
+      </div>
+    </ThemeProvider>
+  );
+}
+```
+
+### With customization
+
+```ts
+import { compileTheme } from '@vertz/ui';
+import { configureTheme } from '@vertz/theme-shadcn';
+
+const { theme, globals, styles } = configureTheme({
+  palette: 'slate',
   radius: 'lg',
   overrides: {
     tokens: {
       colors: {
-        primary: { DEFAULT: '#7c3aed', _dark: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9' },
+        primary: { DEFAULT: '#7c3aed', _dark: '#8b5cf6' },
       },
     },
   },
 });
-```
 
-### Layer 2: Variant extensions (via `configureTheme()`)
-Add new variant values (e.g., a `brand` intent) or override existing ones.
-
-```ts
-configureTheme({
-  overrides: {
-    variants: {
-      button: {
-        intent: {
-          brand: ['bg:primary', 'text:white', 'rounded:full'],
-        },
-      },
-    },
-  },
-});
-```
-
-### Layer 3: `class` prop (escape hatch)
-Every themed component accepts a `class` prop that appends to (never replaces) the theme's classes. For one-off tweaks.
-
-```tsx
-<Button intent="primary" class="my-extra-class">Custom</Button>
-```
-
-No "slot" system, no "parts" API, no `classNames` map. Three layers, ordered by scope. One way to do things.
-
-## API Surface
-
-### User-facing usage
-
-```ts
-// app.tsx
-import { compileTheme, ThemeProvider, globalCss } from '@vertz/ui';
-import { configureTheme } from '@vertz/theme-shadcn';
-
-// 1. Configure theme (once, at app root)
-const { theme, globals, components } = configureTheme({ palette: 'zinc' });
-
-// 2. Compile tokens to CSS custom properties
 const compiled = compileTheme(theme);
-// Inject compiled.css and globals into the page
+const { button, card, input } = styles;
 
-// 3. Destructure components
-const { Button, Card, CardHeader, CardTitle, CardContent, Input, Label, Dialog } = components;
+// Same usage pattern -- token overrides cascade via CSS custom properties
+```
 
-// 4. Use in JSX — identical API regardless of which theme is installed
-export function App() {
-  return (
-    <ThemeProvider theme="light">
-      <Card>
-        <CardHeader>
-          <CardTitle>My App</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Button intent="primary" size="md" onClick={() => console.log('clicked')}>
-            Click me
-          </Button>
-        </CardContent>
-      </Card>
-    </ThemeProvider>
-  );
-}
+### Variant customization via config-object spread
+
+For adding or overriding variant values, users import config objects and spread them into their own `variants()` call. This is the ONLY way to customize variants -- explicit, type-safe, works today with the existing `variants()` API.
+
+```ts
+import { buttonConfig } from '@vertz/theme-shadcn/configs';
+import { variants } from '@vertz/ui';
+
+const myButton = variants({
+  ...buttonConfig,
+  variants: {
+    ...buttonConfig.variants,
+    intent: {
+      ...buttonConfig.variants.intent,
+      brand: ['bg:primary', 'text:white', 'rounded:full'],
+    },
+  },
+});
+// TypeScript infers: intent has 'primary' | 'secondary' | 'danger' | 'ghost' | 'brand'
 ```
 
 ### Theme switching
@@ -140,223 +137,460 @@ import { configureTheme } from '@vertz/theme-shadcn';
 // After
 import { configureTheme } from '@vertz/theme-vertz';
 
-// Everything else is IDENTICAL — same configureTheme() signature, same component names
+// Everything else is IDENTICAL -- same configureTheme() signature, same style names
 ```
 
 Light/dark mode is runtime (handled by existing `ThemeProvider` + `data-theme` attribute). Theme-package switching is build-time (different import).
 
-### Theme contract types
+## `configureTheme()` Specification
+
+### Signature
 
 ```ts
-// @vertz/ui-theme — what all themes must implement
-
-export interface ResolvedTheme {
-  theme: Theme;           // For compileTheme()
-  globals: string;        // Reset CSS + base typography
-  components: ThemeComponents;
+interface ThemeConfig {
+  palette?: 'zinc' | 'slate' | 'stone' | 'neutral' | 'gray';  // default: 'zinc'
+  radius?: 'sm' | 'md' | 'lg';                                  // default: 'md'
+  overrides?: {
+    tokens?: DeepPartial<ColorTokens>;
+  };
 }
 
-export interface ThemeComponents {
-  // Simple components (pure JSX, no primitive needed)
-  Button: (props: ButtonProps) => HTMLElement;
-  Badge: (props: BadgeProps) => HTMLElement;
-  Card: (props: CardProps) => HTMLElement;
-  CardHeader: (props: CardSectionProps) => HTMLElement;
-  CardTitle: (props: CardSectionProps) => HTMLElement;
-  CardContent: (props: CardSectionProps) => HTMLElement;
-  CardFooter: (props: CardSectionProps) => HTMLElement;
-  Input: (props: InputProps) => HTMLInputElement;
-  Textarea: (props: TextareaProps) => HTMLTextAreaElement;
-  Label: (props: LabelProps) => HTMLLabelElement;
-  Separator: (props: SeparatorProps) => HTMLElement;
-  // Complex components (backed by @vertz/ui-primitives)
-  Dialog: (props: DialogProps) => HTMLElement;
-  Select: (props: SelectProps) => HTMLElement;
-  Checkbox: (props: CheckboxProps) => HTMLElement;
-  Switch: (props: SwitchProps) => HTMLElement;
-  Tabs: (props: TabsProps) => HTMLElement;
-  Progress: (props: ProgressProps) => HTMLElement;
-  Accordion: (props: AccordionProps) => HTMLElement;
-  Tooltip: (props: TooltipProps) => HTMLElement;
+interface ResolvedTheme {
+  theme: Theme;        // Pass to compileTheme() to generate CSS custom properties
+  globals: string;     // Raw CSS string: reset + base typography + radius custom property
+  styles: ThemeStyles; // Pre-built variant functions and css() results
+}
+
+function configureTheme(config?: ThemeConfig): ResolvedTheme;
+```
+
+### Behavior
+
+- **Pure function** -- no side effects, no DOM injection, no mutation
+- **Palette selection** -- picks one of 5 pre-defined token sets
+- **Radius selection** -- injects `--radius` custom property into the globals CSS string
+- **Token overrides** -- deep-merges user overrides into the selected palette's token definitions
+- **Style construction** -- calls `variants()` and `css()` internally to build all style definitions
+- **Does NOT support variant extension** -- `configureTheme()` only handles tokens, palette, and radius
+
+### Return values
+
+- **`theme`** -- a `Theme` object (from `defineTheme()`) for passing to `compileTheme()`
+- **`globals`** -- a raw CSS string containing the CSS reset, base typography, and radius custom property. The user controls injection (e.g., `<style>{globals}</style>` or SSR extraction). No auto-injection.
+- **`styles`** -- an object of pre-built `VariantFunction` and `css()` results:
+  - `button` -- `VariantFunction` with `intent` and `size` variants
+  - `badge` -- `VariantFunction` with `color` variant
+  - `card` -- `css()` result with `root`, `header`, `title`, `content`, `footer` class names
+  - `input` -- `css()` result or `VariantFunction`
+  - `label` -- `css()` result
+  - `separator` -- `css()` result
+  - `formGroup` -- `css()` result
+
+### Package exports
+
+- `configureTheme` -- the single entry point (function)
+- `type ThemeConfig` -- for TypeScript consumers
+- `type ResolvedTheme` -- for TypeScript consumers
+- Config objects via subpath `@vertz/theme-shadcn/configs`:
+  - `buttonConfig`, `badgeConfig` -- `VariantsConfig` objects for variant customization via spread
+
+## Customization: Two Layers
+
+### Layer 1: Token overrides (via `configureTheme()`)
+
+Change colors globally. All style definitions use CSS custom properties, so token changes cascade everywhere.
+
+```ts
+const { theme, globals, styles } = configureTheme({
+  palette: 'zinc',
+  radius: 'lg',
+  overrides: {
+    tokens: {
+      colors: {
+        primary: { DEFAULT: '#7c3aed', _dark: '#8b5cf6' },
+      },
+    },
+  },
+});
+```
+
+### Layer 2: Variant customization (via config-object spread)
+
+Import config objects and spread to add/override variant values:
+
+```ts
+import { buttonConfig } from '@vertz/theme-shadcn/configs';
+import { variants } from '@vertz/ui';
+
+const myButton = variants({
+  ...buttonConfig,
+  variants: {
+    ...buttonConfig.variants,
+    intent: {
+      ...buttonConfig.variants.intent,
+      brand: ['bg:primary', 'text:white', 'rounded:full'],
+    },
+  },
+});
+```
+
+No "slot" system, no "parts" API, no `classNames` map. Two layers, each with a single clear mechanism.
+
+## Token Architecture
+
+### `COLOR_NAMESPACES` extension
+
+The token resolver in `@vertz/ui` uses a hardcoded `COLOR_NAMESPACES` set. For shadcn-style semantic tokens, add compound foreground namespaces using kebab-case:
+
+**Current:** `primary`, `secondary`, `accent`, `background`, `foreground`, `muted`, `surface`, `destructive`, `danger`, `success`, `warning`, `info`, `border`, `ring`, `input`, `card`, `popover`, `gray`.
+
+**Additions:** `primary-foreground`, `secondary-foreground`, `accent-foreground`, `destructive-foreground`, `muted-foreground`, `card-foreground`, `popover-foreground`.
+
+Usage: `text:primary-foreground` resolves to `var(--color-primary-foreground)`.
+
+### Kebab-case keys enforced
+
+Token definitions use kebab-case keys: `'primary-foreground': { DEFAULT: '#fff', _dark: '#000' }`.
+
+`compileTheme()` generates `--color-primary-foreground` directly. No camelCase-to-kebab transform needed.
+
+**Validation:** `compileTheme()` throws if any color token key contains uppercase letters:
+
+```ts
+for (const name of Object.keys(theme.colors)) {
+  if (/[A-Z]/.test(name)) {
+    throw new Error(
+      `Color token '${name}' uses camelCase. Use kebab-case to match CSS custom property naming.`
+    );
+  }
 }
 ```
 
-## JSX in Library Packages — Key Architectural Finding
+### CSS variable collision prevention
 
-**The current state:** Primitives (`@vertz/ui-primitives`) use `document.createElement()` because the Vertz compiler only runs at app build time (via the Bun plugin). Library packages use `bunup`/tsc which has no JSX configured.
-
-**The solution:** `@vertz/ui` already ships a `jsx-runtime.ts` — a simple DOM factory implementing the React automatic JSX runtime. Library packages can use JSX by adding `jsx: "react-jsx"` + `jsxImportSource: "@vertz/ui"` to their `tsconfig.json`. The basic runtime handles element creation, attributes, event listeners, and children. The only thing lost without the compiler is the automatic `let` → signal transform — library code uses explicit `signal()` calls instead.
-
-**This applies to both `@vertz/ui-primitives` and `@vertz/theme-shadcn`** — both are npm packages that need JSX support without the compiler.
-
-### Theme component approach: All JSX, explicit signals for state
+`compileTheme()` validates that no namespace+shade combination collides with a compound namespace:
 
 ```ts
-// Simple component — pure JSX, no state needed
-function ThemedButton({ intent, size, class: className, children, onClick }: ButtonProps) {
-  const classes = [buttonVariants({ intent, size }), className].filter(Boolean).join(' ');
-  return (
-    <button type="button" class={classes} onClick={onClick}>
-      {children}
-    </button>
-  );
-}
-
-// Complex component — JSX with explicit signal() for state
-import { signal } from '@vertz/ui';
-
-function ThemedDialog({ modal = true, onOpenChange, children }: DialogProps) {
-  const isOpen = signal(false);
-  const titleId = `dialog-${uid()}`;
-
-  return (
-    <div>
-      <div
-        class={dialogStyles.overlay}
-        aria-hidden={isOpen.value ? 'false' : 'true'}
-        style={isOpen.value ? '' : 'display: none'}
-        onClick={() => { isOpen.value = false; onOpenChange?.(false); }}
-      />
-      <div
-        role="dialog"
-        aria-modal={modal ? 'true' : undefined}
-        aria-labelledby={titleId}
-        class={dialogStyles.content}
-        style={isOpen.value ? '' : 'display: none'}
-      >
-        {children}
-      </div>
-    </div>
-  );
+for (const [name, values] of Object.entries(theme.colors)) {
+  for (const key of Object.keys(values)) {
+    if (key === 'DEFAULT' || key.startsWith('_')) continue;
+    const compoundName = `${name}-${key}`;
+    if (COLOR_NAMESPACES.has(compoundName)) {
+      throw new Error(
+        `Token collision: '${name}.${key}' produces CSS variable '--color-${name}-${key}' ` +
+        `which conflicts with semantic token '${compoundName}'.`
+      );
+    }
+  }
 }
 ```
 
-### Evolving primitives to JSX — separate workstream
+Build-time error. "If it builds, it works."
 
-Refactoring `@vertz/ui-primitives` from imperative to declarative JSX is valuable but separate from the theme work. When done, themed components will compose primitives like `<Dialog.Overlay class={styles.overlay} />`. Until then, themed components implement their own declarative JSX with ARIA/keyboard support directly (following the same pattern as the existing `ConfirmDialog` example).
+## Complex Components (Dialog, Select, Tabs, etc.)
 
-### Custom elements for form integration — future consideration
+Complex interactive components are NOT in the theme package. Users compose them from `@vertz/ui-primitives` + theme styles in their app code, where the compiler handles reactivity:
 
-Components that interact with the native `<form>` API (Select, Checkbox, Switch returning non-string values) may need custom elements internally so they participate in `FormData`. The theme would wrap these in JSX components for DX. This is a separate architectural decision to explore when form integration is prioritized.
+```tsx
+// User's confirm-dialog.tsx
+import { Dialog } from '@vertz/ui-primitives';
+import { css } from '@vertz/ui';
 
-## Token Architecture: `COLOR_NAMESPACES` Extension
+const dialogStyles = css({
+  overlay: ['fixed', 'inset:0', 'bg:gray.900', 'opacity:50'],
+  panel: ['bg:background', 'rounded:lg', 'shadow:xl', 'p:6'],
+});
 
-**Critical finding:** The token resolver in `@vertz/ui` uses a hardcoded `COLOR_NAMESPACES` set to validate color references in shorthand syntax. For shadcn-style semantic tokens, we need to add compound foreground namespaces.
-
-Current `COLOR_NAMESPACES` includes: `primary`, `secondary`, `accent`, `background`, `foreground`, `muted`, `surface`, `destructive`, `danger`, `success`, `warning`, `info`, `border`, `ring`, `input`, `card`, `popover`, `gray`.
-
-**Needs addition:** `primary-foreground`, `secondary-foreground`, `accent-foreground`, `destructive-foreground`, `muted-foreground`, `card-foreground`, `popover-foreground` — using kebab-case to match CSS custom property conventions.
-
-Usage in shorthand: `text:primary-foreground` → resolves to `var(--color-primary-foreground)`.
-
-Token definition in JS uses camelCase keys (standard JS convention), but the `compileTheme()` output and shorthand resolution use kebab-case:
-```ts
-// In defineTheme()
-colors: {
-  primaryForeground: { DEFAULT: '#fff', _dark: '#000' },
+export function ConfirmDialog({ title, onConfirm }: Props) {
+  let isOpen = false;
+  // ... compose Dialog primitive with theme styles
 }
-// Generates: --color-primaryForeground (needs mapping to kebab)
 ```
 
-**Note:** `compileTheme()` currently generates var names by concatenating `--color-${name}`. For kebab-case resolution, we need to either:
-- Use kebab-case keys in the theme definition (`'primary-foreground'`), or
-- Add a camelCase-to-kebab transform in `compileTheme()`
+This is exactly what the task-manager example already does. The theme just replaces hand-written `button = variants({...})` with `const { button } = styles`.
 
-**Decision:** Use kebab-case keys directly in theme definitions (`'primary-foreground': { DEFAULT: '#fff', _dark: '#000' }`). This is valid JS, matches CSS conventions, and avoids transformation complexity.
+## Manifesto Alignment
 
-**Files to modify:**
-- `packages/ui/src/css/token-tables.ts` — add kebab-case foreground namespaces to `COLOR_NAMESPACES`
+### "One way to do things"
 
-For `radius` tokens (not in `compileTheme()` today), use `globalCss()` to inject CSS custom properties. Extending `compileTheme()` to support radius/typography is a natural follow-up but not required for Phase 1.
+There's only `variants()` and `css()`. The theme provides pre-built definitions using these same primitives. No new paradigm, no new API surface to learn. `configureTheme()` is the single entry point. Variant customization is via config-object spread -- one mechanism.
+
+### "My LLM nailed it on the first try"
+
+LLMs already know `variants()` and `css()`. Direct imports from a single function. The config-object spread pattern is standard JavaScript object spread -- no framework-specific magic.
+
+### "If it builds, it works"
+
+TypeScript types on `variants()` are battle-tested. `compileTheme()` validates token collisions and camelCase at build time. `@ts-expect-error` tests verify invalid usage is rejected.
+
+### "Explicit over implicit"
+
+- No hidden class resolution or specificity magic
+- No auto-injection side effects -- `configureTheme()` is pure, user controls CSS injection
+- No opaque component wrapping -- users see and control their JSX
+- Variant customization is explicit spread, not hidden merge
+
+### Tradeoffs accepted
+
+- **Convention over configuration** -- kebab-case token keys are enforced, not optional
+- **Predictability over convenience** -- variant customization requires manual spread rather than a convenient `configureTheme()` option, but it's always type-safe and never ambiguous
 
 ## Non-Goals
 
-- **Runtime switching between theme packages** — switching from shadcn to vertz-custom is a build-time import change, not runtime
-- **CLI for theme scaffolding** — no `vertz add button`. Themes are npm packages
-- **Visual theme builder/configurator** — out of scope
-- **Component animation system** — separate concern
-- **Extending `compileTheme()` with radius/typography** — `globalCss()` covers the gap for now
-- **Refactoring `@vertz/ui-primitives` to JSX** — valuable but separate workstream. Theme components implement their own declarative JSX for now
-- **Custom elements for form integration** — separate architectural decision for when form-interactive components (Select, Checkbox returning non-string values) need to participate in native `FormData`
+- **JSX components in the theme package** -- eliminated due to jsx-runtime reactivity limitations in library packages
+- **`@vertz/ui-theme` contract package** -- YAGNI for a single theme, extract if a second theme is needed
+- **Variant extension in `configureTheme()`** -- type-safe deep-merge of variant generics is complex; config-object spread is explicit and works today
+- **Runtime switching between theme packages** -- build-time import change, not runtime
+- **CLI for theme scaffolding** -- no `vertz add button`. Themes are npm packages
+- **Visual theme builder/configurator** -- out of scope
+- **Component animation system** -- separate concern
+- **Extending `compileTheme()` with radius/typography** -- globals CSS string covers the gap
+- **Refactoring `@vertz/ui-primitives` to JSX** -- valuable but separate workstream
+- **Custom elements for form integration** -- separate architectural decision
+
+## Unknowns
+
+No unknowns identified. All critical questions have been resolved through the adversarial review process:
+
+1. JSX reactivity in library packages -- resolved by exporting style definitions, not components
+2. CSS variable collision -- resolved by build-time validation in `compileTheme()`
+3. Variant extension type safety -- resolved by using config-object spread instead of `configureTheme()` extension
+4. camelCase/kebab-case mismatch -- resolved by enforcing kebab-case with a hard error
+5. Two import paths -- resolved by making `configureTheme()` the single entry point
+
+## Type Flow Map
+
+### Default usage (no generics)
+
+```
+buttonConfig (static const) -> variants(buttonConfig) -> VariantFunction<V> -> button({ intent: 'primary' })
+```
+
+`V` is inferred statically from the config literal. No generics flow to trace.
+
+### Token customization through configureTheme
+
+```
+ThemeConfig['overrides']['tokens'] -> deepMerge(paletteTokens, overrides) -> defineTheme(merged) -> Theme -> compileTheme(theme) -> CSS string
+```
+
+No generic type parameters -- `Theme` is a concrete type with `ColorTokens` (string records).
+
+### Variant customization (manual spread)
+
+```
+buttonConfig (exported const) -> user spreads with additions -> variants(spreadConfig) -> VariantFunction<MergedV> -> myButton({ intent: 'brand' })
+```
+
+`MergedV` is inferred by TypeScript from the spread object literal. The `variants()` function infers `V` from its argument -- no special generic machinery needed.
+
+## E2E Acceptance Test
+
+```ts
+// packages/integration-tests/src/theme-shadcn.test.ts
+import { describe, it, expect } from 'bun:test';
+import { compileTheme, variants } from '@vertz/ui';
+import { configureTheme } from '@vertz/theme-shadcn';
+import { buttonConfig } from '@vertz/theme-shadcn/configs';
+
+describe('@vertz/theme-shadcn E2E', () => {
+  it('zero-config produces valid styles and theme', () => {
+    const { theme, globals, styles } = configureTheme();
+    const { button, card, input } = styles;
+
+    // Styles produce class name strings
+    expect(typeof button({ intent: 'primary', size: 'md' })).toBe('string');
+    expect(button({ intent: 'primary' }).length).toBeGreaterThan(0);
+    expect(typeof card.root).toBe('string');
+    expect(typeof card.header).toBe('string');
+    expect(typeof card.title).toBe('string');
+    expect(typeof card.content).toBe('string');
+
+    // Theme compiles to CSS with light+dark tokens
+    const compiled = compileTheme(theme);
+    expect(compiled.css).toContain(':root');
+    expect(compiled.css).toContain('[data-theme="dark"]');
+    expect(compiled.css).toContain('--color-primary');
+    expect(compiled.css).toContain('--color-primary-foreground');
+
+    // Globals is a raw CSS string
+    expect(typeof globals).toBe('string');
+    expect(globals.length).toBeGreaterThan(0);
+  });
+
+  it('palette selection changes token values', () => {
+    const zinc = configureTheme({ palette: 'zinc' });
+    const slate = configureTheme({ palette: 'slate' });
+    const zincCss = compileTheme(zinc.theme).css;
+    const slateCss = compileTheme(slate.theme).css;
+    expect(zincCss).not.toBe(slateCss);
+  });
+
+  it('token overrides inject custom colors', () => {
+    const { theme } = configureTheme({
+      overrides: {
+        tokens: {
+          colors: { primary: { DEFAULT: '#7c3aed', _dark: '#8b5cf6' } },
+        },
+      },
+    });
+    const compiled = compileTheme(theme);
+    expect(compiled.css).toContain('#7c3aed');
+  });
+
+  it('variant customization via config spread is type-safe', () => {
+    const myButton = variants({
+      ...buttonConfig,
+      variants: {
+        ...buttonConfig.variants,
+        intent: {
+          ...buttonConfig.variants.intent,
+          brand: ['bg:primary', 'text:white', 'rounded:full'],
+        },
+      },
+    });
+
+    // Original intents still work
+    expect(typeof myButton({ intent: 'primary' })).toBe('string');
+    // New intent works
+    expect(typeof myButton({ intent: 'brand' })).toBe('string');
+  });
+
+  it('configureTheme is pure -- no side effects', () => {
+    // Calling configureTheme multiple times with different configs is safe
+    const a = configureTheme({ palette: 'zinc' });
+    const b = configureTheme({ palette: 'slate' });
+    expect(a.globals).not.toBe(b.globals);
+    expect(compileTheme(a.theme).css).not.toBe(compileTheme(b.theme).css);
+  });
+});
+```
+
+```ts
+// packages/integration-tests/src/theme-shadcn.test-d.ts
+import { configureTheme } from '@vertz/theme-shadcn';
+import { variants } from '@vertz/ui';
+import { buttonConfig } from '@vertz/theme-shadcn/configs';
+
+// Default styles are fully typed
+const { styles } = configureTheme();
+styles.button({ intent: 'primary' });
+styles.button({ size: 'sm' });
+styles.button(); // all optional, uses defaults
+
+// @ts-expect-error -- 'nonexistent' is not a valid intent
+styles.button({ intent: 'nonexistent' });
+
+// @ts-expect-error -- 'xl' is not a valid size
+styles.button({ size: 'xl' });
+
+// Config spread preserves type safety
+const myButton = variants({
+  ...buttonConfig,
+  variants: {
+    ...buttonConfig.variants,
+    intent: {
+      ...buttonConfig.variants.intent,
+      brand: ['bg:primary', 'text:white'],
+    },
+  },
+});
+
+myButton({ intent: 'brand' });   // OK -- new intent
+myButton({ intent: 'primary' }); // OK -- original intent
+
+// @ts-expect-error -- 'invalid' is still rejected
+myButton({ intent: 'invalid' });
+```
+
+## Package Structure
+
+```
+@vertz/theme-shadcn/
+  src/
+    tokens/
+      zinc.ts          -- Zinc palette token definitions (light + dark)
+      slate.ts         -- Slate palette
+      stone.ts         -- Stone palette
+      neutral.ts       -- Neutral palette
+      gray.ts          -- Gray palette
+      index.ts         -- Palette registry
+    styles/
+      button.ts        -- buttonConfig (VariantsConfig) + default button (VariantFunction)
+      badge.ts         -- badgeConfig + default badge
+      card.ts          -- card css() definition
+      input.ts         -- input css() definition
+      label.ts         -- label css() definition
+      separator.ts     -- separator css() definition
+      form-group.ts    -- formGroup css() definition
+      index.ts         -- Aggregates all style definitions
+    globals.ts         -- Builds reset CSS + base typography + radius as raw string
+    configure.ts       -- configureTheme() implementation
+    merge.ts           -- Deep partial token merge utility
+    index.ts           -- Public API: configureTheme, ThemeConfig, ResolvedTheme
+  configs.ts           -- Subpath export: buttonConfig, badgeConfig for variant customization
+  package.json
+  tsconfig.json
+```
 
 ## Implementation Phases
 
-### Phase 1: Contract Package (`@vertz/ui-theme`) + COLOR_NAMESPACES extension
+### Phase 1: `COLOR_NAMESPACES` Extension + Collision Validation
 
 **Files:**
-- `packages/ui-theme/package.json` — new package, depends on `@vertz/ui` and `@vertz/ui-primitives`
-- `packages/ui-theme/tsconfig.json` — extends root, no JSX needed (types-only package)
-- `packages/ui-theme/src/types.ts` — `ThemeTokens`, `ThemeOverrides`, `ResolvedTheme`, `ThemeComponents`
-- `packages/ui-theme/src/props.ts` — All component prop interfaces
-- `packages/ui-theme/src/index.ts` — Public barrel export
-- `packages/ui/src/css/token-tables.ts` — Add kebab-case foreground namespaces to `COLOR_NAMESPACES`
+- `packages/ui/src/css/token-tables.ts` -- add kebab-case compound foreground namespaces
+- `packages/ui/src/css/theme.ts` -- add collision validation and camelCase validation in `compileTheme()`
 
-**Integration test:** Type-level test verifying `ThemeComponents` can be implemented, destructured, and components called with correct props. `@ts-expect-error` on missing required components.
+**Integration test:** `compileTheme()` throws on `primary: { foreground: '...' }` when `primary-foreground` is in `COLOR_NAMESPACES`. Throws on camelCase token keys. Accepts kebab-case compound tokens.
 
-### Phase 2: Shadcn Theme — Tokens + Simple Components
+### Phase 2: Token Definitions + `configureTheme()` Scaffold
 
 **Files:**
-- `packages/theme-shadcn/package.json` — depends on `@vertz/ui-theme`, `@vertz/ui`, `@vertz/ui-primitives`
-- `packages/theme-shadcn/tsconfig.json` — extends root, adds `"jsx": "react-jsx"`, `"jsxImportSource": "@vertz/ui"` for JSX support via the basic runtime
-- `packages/theme-shadcn/src/tokens.ts` — Default tokens for 5 palettes with light/dark
-- `packages/theme-shadcn/src/globals.ts` — Reset CSS + base typography
-- `packages/theme-shadcn/src/configure.ts` — `configureTheme()` factory
-- `packages/theme-shadcn/src/utils/merge.ts` — Deep partial token merge utility
-- `packages/theme-shadcn/src/components/button.tsx` through `separator.tsx` — Simple components (pure JSX, no state)
+- `packages/theme-shadcn/package.json` -- new package, depends on `@vertz/ui`
+- `packages/theme-shadcn/tsconfig.json` -- extends root, no JSX needed (style definitions only)
+- `packages/theme-shadcn/src/tokens/*.ts` -- 5 palette token sets
+- `packages/theme-shadcn/src/globals.ts` -- Reset CSS + base typography builder
+- `packages/theme-shadcn/src/merge.ts` -- Deep partial token merge
+- `packages/theme-shadcn/src/configure.ts` -- `configureTheme()` returning theme + globals (styles empty initially)
+- `packages/theme-shadcn/src/index.ts` -- Public exports
 
-**Integration test:** `configureTheme({ palette: 'zinc' })` returns valid `ResolvedTheme`. Components render as `HTMLElement` with scoped class names. Token overrides produce different CSS custom property values.
+**Integration test:** `configureTheme()` returns a `Theme` that `compileTheme()` accepts. Palette selection changes CSS output. Token overrides appear in compiled CSS. `globals` is a non-empty CSS string.
 
-### Phase 3: Complex Components (JSX + explicit signals)
+### Phase 3: Style Definitions
 
 **Files:**
-- `packages/theme-shadcn/src/components/dialog.tsx` — declarative JSX with `signal()` for open/close state, ARIA attributes, focus trap, keyboard (Escape to close)
-- `packages/theme-shadcn/src/components/select.tsx` — JSX with keyboard navigation, ARIA listbox pattern
-- `packages/theme-shadcn/src/components/tabs.tsx` — JSX with arrow key navigation, ARIA tablist pattern
-- `packages/theme-shadcn/src/components/checkbox.tsx`, `switch.tsx`, `progress.tsx`, `accordion.tsx`, `tooltip.tsx`
+- `packages/theme-shadcn/src/styles/button.ts` -- `buttonConfig` + default `button` VariantFunction
+- `packages/theme-shadcn/src/styles/badge.ts` -- `badgeConfig` + default `badge`
+- `packages/theme-shadcn/src/styles/card.ts` -- `card` css() result
+- `packages/theme-shadcn/src/styles/input.ts` -- `input` css() result
+- `packages/theme-shadcn/src/styles/label.ts` -- `label` css() result
+- `packages/theme-shadcn/src/styles/separator.ts` -- `separator` css() result
+- `packages/theme-shadcn/src/styles/form-group.ts` -- `formGroup` css() result
+- `packages/theme-shadcn/src/configs.ts` -- Subpath export for config objects
 
-All complex components use explicit `signal()` calls (not `let`) since they're library code without the compiler. They implement ARIA and keyboard patterns directly in JSX (same approach as the existing `ConfirmDialog` example).
+**Integration test:** `configureTheme().styles.button({ intent: 'primary' })` returns a non-empty class name string. All style definitions produce valid class names. Config-object spread + `variants()` produces a typed function accepting new variant values.
 
-**Integration test:** Complex components render with correct ARIA attributes and keyboard navigation. Dialog opens/closes with Escape, Select handles arrow keys, Tabs switch on arrow key press.
-
-### Phase 4: Customization System + Developer Walkthrough
-
-**Deliverables:**
-- Deep-partial token merge tested end-to-end
-- Variant extension system tested (adding new `intent` values)
-- `class` prop append behavior on all components
-- Developer walkthrough: fresh app using theme with customizations
-
-**Integration test (walkthrough):**
-```ts
-import { configureTheme } from '@vertz/theme-shadcn';
-import { compileTheme, ThemeProvider } from '@vertz/ui';
-
-const { theme, globals, components } = configureTheme({
-  palette: 'slate',
-  overrides: { tokens: { colors: { primary: { DEFAULT: '#7c3aed', _dark: '#8b5cf6' } } } },
-});
-const { Button, Card } = components;
-const compiled = compileTheme(theme);
-// Verify: compiled.css contains '#7c3aed', components render, class prop appends
-```
-
-### Phase 5: Migrate Task-Manager Example
+### Phase 4: Migrate Task-Manager Example + Developer Walkthrough
 
 **Files to modify:**
-- `examples/task-manager/src/styles/theme.ts` — replace with `configureTheme()` call
-- `examples/task-manager/src/styles/components.ts` — remove (replaced by theme components)
-- `examples/task-manager/src/components/*.tsx` — use theme components instead of hand-written styles
+- `examples/task-manager/src/styles/theme.ts` -- replace with `configureTheme()` call
+- `examples/task-manager/src/styles/components.ts` -- remove hand-written variants, use theme styles
+- `examples/task-manager/src/app.tsx` -- inject globals + compiled theme CSS
+- `examples/task-manager/src/components/*.tsx` -- use destructured theme styles
 
 **Acceptance criteria:**
 - Task manager renders with shadcn-inspired styling
 - Dark mode toggle still works
 - No hand-written `variants()` calls for standard UI components remain
+- Developer walkthrough: fresh app using theme with customizations passes end-to-end
 
 ## Verification
 
-1. **Type safety:** `bun run typecheck` on all new packages + `@vertz/integration-tests`
-2. **Unit tests:** Each component renders correct HTML structure and CSS classes
-3. **Integration tests:** `configureTheme()` → `compileTheme()` → component rendering end-to-end
-4. **Theme switching:** Type-level test proving a second mock theme satisfies `ThemeComponents`
-5. **Customization:** Token overrides, variant extensions, and `class` prop all work without source modification
-6. **Example:** Task-manager runs with the new theme system
+1. **Type safety:** `bun run typecheck` on `@vertz/theme-shadcn` + `@vertz/integration-tests`
+2. **Unit tests:** Each style definition produces correct class names
+3. **Integration tests:** `configureTheme()` -> `compileTheme()` -> style usage end-to-end
+4. **Type-level tests:** `@ts-expect-error` on invalid variant values, config spread preserves types
+5. **Collision validation:** `compileTheme()` throws on namespace+shade collisions and camelCase keys
+6. **Customization:** Token overrides and config-object spread both work without source modification
+7. **Example:** Task-manager runs with the new theme system
+8. **Cross-package typecheck:** `bun run typecheck --filter @vertz/integration-tests` passes
