@@ -1,8 +1,7 @@
-import type { SelectElements, SelectOptions, SelectState } from '@vertz/ui-primitives';
-import { Select } from '@vertz/ui-primitives';
+import type { MenuElements, MenuOptions, MenuState } from '@vertz/ui-primitives';
+import { Menu } from '@vertz/ui-primitives';
 
-interface SelectStyleClasses {
-  readonly trigger: string;
+interface DropdownMenuStyleClasses {
   readonly content: string;
   readonly item: string;
   readonly group: string;
@@ -10,22 +9,22 @@ interface SelectStyleClasses {
   readonly separator: string;
 }
 
-export interface ThemedSelectResult extends SelectElements {
-  state: SelectState;
+export interface ThemedDropdownMenuResult extends MenuElements {
+  state: MenuState;
   Item: (value: string, label?: string) => HTMLDivElement;
   Group: (label: string) => {
     el: HTMLDivElement;
     Item: (value: string, label?: string) => HTMLDivElement;
   };
   Separator: () => HTMLHRElement;
+  Label: (text: string) => HTMLDivElement;
 }
 
-export function createThemedSelect(
-  styles: SelectStyleClasses,
-): (options?: SelectOptions) => ThemedSelectResult {
-  return function themedSelect(options?: SelectOptions): ThemedSelectResult {
-    const result = Select.Root(options);
-    result.trigger.classList.add(styles.trigger);
+export function createThemedDropdownMenu(
+  styles: DropdownMenuStyleClasses,
+): (options?: MenuOptions) => ThemedDropdownMenuResult {
+  return function themedDropdownMenu(options?: MenuOptions): ThemedDropdownMenuResult {
+    const result = Menu.Root(options);
     result.content.classList.add(styles.content);
 
     function themedItem(value: string, label?: string): HTMLDivElement {
@@ -42,7 +41,6 @@ export function createThemedSelect(
       Group: (label: string) => {
         const group = result.Group(label);
         group.el.classList.add(styles.group);
-        // Add a label element inside the group
         const labelEl = document.createElement('div');
         labelEl.textContent = label;
         labelEl.classList.add(styles.label);
@@ -60,6 +58,11 @@ export function createThemedSelect(
         const sep = result.Separator();
         sep.classList.add(styles.separator);
         return sep;
+      },
+      Label: (text: string) => {
+        const el = result.Label(text);
+        el.classList.add(styles.label);
+        return el;
       },
     };
   };

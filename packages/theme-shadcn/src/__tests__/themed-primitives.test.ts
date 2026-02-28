@@ -1,12 +1,149 @@
 import { describe, expect, it } from 'bun:test';
 import { createAccordionStyles } from '../styles/accordion';
+import { createAlertDialogStyles } from '../styles/alert-dialog';
 import { createCheckboxStyles } from '../styles/checkbox';
 import { createDialogStyles } from '../styles/dialog';
 import { createProgressStyles } from '../styles/progress';
 import { createSelectStyles } from '../styles/select';
 import { createSwitchStyles } from '../styles/switch';
 import { createTabsStyles } from '../styles/tabs';
+import { createToastStyles } from '../styles/toast';
+import { createPopoverStyles } from '../styles/popover';
 import { createTooltipStyles } from '../styles/tooltip';
+
+// ── Popover ───────────────────────────────────────────────
+
+describe('createThemedPopover', () => {
+  it('applies theme classes to popover content', async () => {
+    const { createThemedPopover } = await import('../components/primitives/popover');
+    const styles = createPopoverStyles();
+    const themedPopover = createThemedPopover(styles);
+    const popover = themedPopover();
+
+    expect(popover.content.classList.contains(styles.content)).toBe(true);
+  });
+
+  it('returns trigger, content, and state', async () => {
+    const { createThemedPopover } = await import('../components/primitives/popover');
+    const styles = createPopoverStyles();
+    const themedPopover = createThemedPopover(styles);
+    const popover = themedPopover();
+
+    expect(popover.trigger).toBeInstanceOf(HTMLButtonElement);
+    expect(popover.content).toBeInstanceOf(HTMLDivElement);
+    expect(popover.state).toBeDefined();
+  });
+
+  it('preserves primitive behavior — trigger opens popover', async () => {
+    const { createThemedPopover } = await import('../components/primitives/popover');
+    const styles = createPopoverStyles();
+    const themedPopover = createThemedPopover(styles);
+    const popover = themedPopover();
+
+    expect(popover.state.open.peek()).toBe(false);
+    popover.trigger.click();
+    expect(popover.state.open.peek()).toBe(true);
+  });
+
+  it('passes options through to primitive', async () => {
+    const { createThemedPopover } = await import('../components/primitives/popover');
+    const styles = createPopoverStyles();
+    const themedPopover = createThemedPopover(styles);
+    const popover = themedPopover({ defaultOpen: true });
+
+    expect(popover.state.open.peek()).toBe(true);
+  });
+});
+
+// ── AlertDialog ────────────────────────────────────────────
+
+describe('createThemedAlertDialog', () => {
+  it('applies theme classes to alert dialog elements', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog();
+
+    expect(ad.overlay.classList.contains(styles.overlay)).toBe(true);
+    expect(ad.content.classList.contains(styles.panel)).toBe(true);
+    expect(ad.title.classList.contains(styles.title)).toBe(true);
+  });
+
+  it('applies theme classes to footer, cancel, and action', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog();
+
+    expect(ad.footer.classList.contains(styles.footer)).toBe(true);
+    expect(ad.cancel.classList.contains(styles.cancel)).toBe(true);
+    expect(ad.action.classList.contains(styles.action)).toBe(true);
+  });
+
+  it('trigger opens the alert dialog', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog();
+
+    expect(ad.state.open.peek()).toBe(false);
+    ad.trigger.click();
+    expect(ad.state.open.peek()).toBe(true);
+  });
+
+  it('overlay click does NOT close the alert dialog', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog({ defaultOpen: true });
+
+    expect(ad.state.open.peek()).toBe(true);
+    ad.overlay.click();
+    expect(ad.state.open.peek()).toBe(true);
+  });
+
+  it('Escape key does NOT close the alert dialog', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog({ defaultOpen: true });
+
+    expect(ad.state.open.peek()).toBe(true);
+    const event = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    });
+    ad.content.dispatchEvent(event);
+    expect(ad.state.open.peek()).toBe(true);
+  });
+
+  it('returns all expected elements', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog();
+
+    expect(ad.trigger).toBeInstanceOf(HTMLButtonElement);
+    expect(ad.overlay).toBeInstanceOf(HTMLDivElement);
+    expect(ad.content).toBeInstanceOf(HTMLDivElement);
+    expect(ad.title).toBeInstanceOf(HTMLHeadingElement);
+    expect(ad.description).toBeInstanceOf(HTMLParagraphElement);
+    expect(ad.footer).toBeInstanceOf(HTMLDivElement);
+    expect(ad.cancel).toBeInstanceOf(HTMLButtonElement);
+    expect(ad.action).toBeInstanceOf(HTMLButtonElement);
+    expect(ad.state).toBeDefined();
+  });
+
+  it('passes defaultOpen option through', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog({ defaultOpen: true });
+
+    expect(ad.state.open.peek()).toBe(true);
+  });
+});
 
 // ── Dialog ─────────────────────────────────────────────────
 
@@ -101,6 +238,20 @@ describe('createThemedTabs', () => {
     expect(tabs.state).toBeDefined();
     expect(typeof tabs.Tab).toBe('function');
   });
+
+  it('applies line variant classes when variant is line', async () => {
+    const { createThemedTabs } = await import('../components/primitives/tabs');
+    const styles = createTabsStyles();
+    const themedTabs = createThemedTabs(styles);
+    const tabs = themedTabs({ variant: 'line', defaultValue: 'one' });
+
+    expect(tabs.list.classList.contains(styles.listLine)).toBe(true);
+    expect(tabs.list.classList.contains(styles.list)).toBe(false);
+
+    const tab = tabs.Tab('one', 'Tab One');
+    expect(tab.trigger.classList.contains(styles.triggerLine)).toBe(true);
+    expect(tab.trigger.classList.contains(styles.trigger)).toBe(false);
+  });
 });
 
 // ── Select ─────────────────────────────────────────────────
@@ -133,6 +284,144 @@ describe('createThemedSelect', () => {
     const select = themedSelect({ defaultValue: 'opt1' });
 
     expect(select.state.value.peek()).toBe('opt1');
+  });
+
+  it('Group applies group and label theme classes', async () => {
+    const { createThemedSelect } = await import('../components/primitives/select');
+    const styles = createSelectStyles();
+    const themedSelect = createThemedSelect(styles);
+    const select = themedSelect();
+
+    const group = select.Group('Fruits');
+    expect(group.el.classList.contains(styles.group)).toBe(true);
+    // Label element is prepended inside group
+    const labelEl = group.el.firstElementChild as HTMLElement;
+    expect(labelEl.textContent).toBe('Fruits');
+    expect(labelEl.classList.contains(styles.label)).toBe(true);
+  });
+
+  it('Group Item applies item theme class', async () => {
+    const { createThemedSelect } = await import('../components/primitives/select');
+    const styles = createSelectStyles();
+    const themedSelect = createThemedSelect(styles);
+    const select = themedSelect();
+
+    const group = select.Group('Fruits');
+    const item = group.Item('apple', 'Apple');
+    expect(item.classList.contains(styles.item)).toBe(true);
+  });
+
+  it('Separator applies separator theme class', async () => {
+    const { createThemedSelect } = await import('../components/primitives/select');
+    const styles = createSelectStyles();
+    const themedSelect = createThemedSelect(styles);
+    const select = themedSelect();
+
+    const sep = select.Separator();
+    expect(sep.classList.contains(styles.separator)).toBe(true);
+  });
+});
+
+// ── DropdownMenu ──────────────────────────────────────────
+
+describe('createThemedDropdownMenu', () => {
+  it('applies theme classes to dropdown menu content', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+
+    expect(menu.content.classList.contains(styles.content)).toBe(true);
+  });
+
+  it('Item factory applies theme classes', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+    const item = menu.Item('edit', 'Edit');
+
+    expect(item.classList.contains(styles.item)).toBe(true);
+  });
+
+  it('Group applies group and label theme classes', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+
+    const group = menu.Group('Actions');
+    expect(group.el.classList.contains(styles.group)).toBe(true);
+    const labelEl = group.el.firstElementChild as HTMLElement;
+    expect(labelEl.textContent).toBe('Actions');
+    expect(labelEl.classList.contains(styles.label)).toBe(true);
+  });
+
+  it('Group Item applies item theme class', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+
+    const group = menu.Group('Actions');
+    const item = group.Item('copy', 'Copy');
+    expect(item.classList.contains(styles.item)).toBe(true);
+  });
+
+  it('Separator applies separator theme class', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+
+    const sep = menu.Separator();
+    expect(sep.classList.contains(styles.separator)).toBe(true);
+  });
+
+  it('Label applies label theme class', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+
+    const label = menu.Label('My Account');
+    expect(label.classList.contains(styles.label)).toBe(true);
+    expect(label.textContent).toBe('My Account');
+  });
+
+  it('preserves primitive behavior — trigger opens menu', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+    menu.Item('a', 'A');
+
+    expect(menu.state.open.peek()).toBe(false);
+    menu.trigger.click();
+    expect(menu.state.open.peek()).toBe(true);
+  });
+
+  it('preserves primitive behavior — onSelect callback', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const { vi } = await import('bun:test');
+    const styles = createDropdownMenuStyles();
+    const onSelect = vi.fn();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu({ onSelect });
+
+    menu.trigger.click();
+    const item = menu.Item('edit', 'Edit');
+    item.click();
+
+    expect(onSelect).toHaveBeenCalledWith('edit');
   });
 });
 
@@ -190,6 +479,16 @@ describe('createThemedSwitch', () => {
     expect(sw.state.checked.peek()).toBe(false);
     sw.root.click();
     expect(sw.state.checked.peek()).toBe(true);
+  });
+
+  it('applies rootSm class when size is sm', async () => {
+    const { createThemedSwitch } = await import('../components/primitives/switch');
+    const styles = createSwitchStyles();
+    const themedSwitch = createThemedSwitch(styles);
+    const sw = themedSwitch({ size: 'sm' });
+
+    expect(sw.root.classList.contains(styles.rootSm)).toBe(true);
+    expect(sw.root.classList.contains(styles.root)).toBe(false);
   });
 });
 
@@ -254,6 +553,65 @@ describe('createThemedAccordion', () => {
   });
 });
 
+// ── Toast ──────────────────────────────────────────────────
+
+describe('createThemedToast', () => {
+  it('applies theme class to toast region (viewport)', async () => {
+    const { createThemedToast } = await import('../components/primitives/toast');
+    const styles = createToastStyles();
+    const themedToast = createThemedToast(styles);
+    const toast = themedToast();
+
+    expect(toast.region.classList.contains(styles.viewport)).toBe(true);
+  });
+
+  it('applies theme class to announced messages', async () => {
+    const { createThemedToast } = await import('../components/primitives/toast');
+    const styles = createToastStyles();
+    const themedToast = createThemedToast(styles);
+    const toast = themedToast({ duration: 0 });
+
+    const msg = toast.announce('Hello');
+    expect(msg.el.classList.contains(styles.root)).toBe(true);
+  });
+
+  it('preserves primitive behavior — announce and dismiss', async () => {
+    const { createThemedToast } = await import('../components/primitives/toast');
+    const styles = createToastStyles();
+    const themedToast = createThemedToast(styles);
+    const toast = themedToast({ duration: 0 });
+
+    expect(toast.state.messages.peek()).toHaveLength(0);
+    const msg = toast.announce('Test message');
+    expect(toast.state.messages.peek()).toHaveLength(1);
+    expect(msg.content).toBe('Test message');
+
+    toast.dismiss(msg.id);
+    expect(toast.state.messages.peek()).toHaveLength(0);
+  });
+
+  it('passes options through to primitive', async () => {
+    const { createThemedToast } = await import('../components/primitives/toast');
+    const styles = createToastStyles();
+    const themedToast = createThemedToast(styles);
+    const toast = themedToast({ politeness: 'assertive', duration: 0 });
+
+    expect(toast.region.getAttribute('aria-live')).toBe('assertive');
+  });
+
+  it('returns region, state, announce, and dismiss', async () => {
+    const { createThemedToast } = await import('../components/primitives/toast');
+    const styles = createToastStyles();
+    const themedToast = createThemedToast(styles);
+    const toast = themedToast();
+
+    expect(toast.region).toBeInstanceOf(HTMLDivElement);
+    expect(toast.state).toBeDefined();
+    expect(typeof toast.announce).toBe('function');
+    expect(typeof toast.dismiss).toBe('function');
+  });
+});
+
 // ── Tooltip ────────────────────────────────────────────────
 
 describe('createThemedTooltip', () => {
@@ -275,5 +633,90 @@ describe('createThemedTooltip', () => {
     expect(tooltip.trigger).toBeInstanceOf(HTMLElement);
     expect(tooltip.content).toBeInstanceOf(HTMLDivElement);
     expect(tooltip.state).toBeDefined();
+  });
+});
+
+// ── Slider ──────────────────────────────────────────────────
+
+describe('createThemedSlider', () => {
+  it('applies theme classes to slider elements', async () => {
+    const { createThemedSlider } = await import('../components/primitives/slider');
+    const { createSliderStyles } = await import('../styles/slider');
+    const styles = createSliderStyles();
+    const themedSlider = createThemedSlider(styles);
+    const slider = themedSlider();
+
+    expect(slider.root.classList.contains(styles.root)).toBe(true);
+    expect(slider.track.classList.contains(styles.track)).toBe(true);
+    expect(slider.thumb.classList.contains(styles.thumb)).toBe(true);
+  });
+
+  it('preserves primitive behavior — state tracks value', async () => {
+    const { createThemedSlider } = await import('../components/primitives/slider');
+    const { createSliderStyles } = await import('../styles/slider');
+    const styles = createSliderStyles();
+    const themedSlider = createThemedSlider(styles);
+    const slider = themedSlider({ defaultValue: 42, min: 0, max: 100 });
+
+    expect(slider.state.value.peek()).toBe(42);
+  });
+
+  it('passes defaultValue option through', async () => {
+    const { createThemedSlider } = await import('../components/primitives/slider');
+    const { createSliderStyles } = await import('../styles/slider');
+    const styles = createSliderStyles();
+    const themedSlider = createThemedSlider(styles);
+    const slider = themedSlider({ defaultValue: 75 });
+
+    expect(slider.state.value.peek()).toBe(75);
+  });
+});
+
+// ── RadioGroup ─────────────────────────────────────────────
+
+describe('createThemedRadioGroup', () => {
+  it('applies theme class to radio group root', async () => {
+    const { createThemedRadioGroup } = await import('../components/primitives/radio-group');
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const styles = createRadioGroupStyles();
+    const themedRadioGroup = createThemedRadioGroup(styles);
+    const radioGroup = themedRadioGroup();
+
+    expect(radioGroup.root.classList.contains(styles.root)).toBe(true);
+  });
+
+  it('Item factory applies theme class', async () => {
+    const { createThemedRadioGroup } = await import('../components/primitives/radio-group');
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const styles = createRadioGroupStyles();
+    const themedRadioGroup = createThemedRadioGroup(styles);
+    const radioGroup = themedRadioGroup();
+    const item = radioGroup.Item('option1', 'Option 1');
+
+    expect(item.classList.contains(styles.item)).toBe(true);
+  });
+
+  it('preserves primitive behavior — clicking item changes value', async () => {
+    const { createThemedRadioGroup } = await import('../components/primitives/radio-group');
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const styles = createRadioGroupStyles();
+    const themedRadioGroup = createThemedRadioGroup(styles);
+    const radioGroup = themedRadioGroup();
+    const item1 = radioGroup.Item('a', 'A');
+    radioGroup.Item('b', 'B');
+
+    expect(radioGroup.state.value.peek()).toBe('');
+    item1.click();
+    expect(radioGroup.state.value.peek()).toBe('a');
+  });
+
+  it('passes defaultValue option through', async () => {
+    const { createThemedRadioGroup } = await import('../components/primitives/radio-group');
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const styles = createRadioGroupStyles();
+    const themedRadioGroup = createThemedRadioGroup(styles);
+    const radioGroup = themedRadioGroup({ defaultValue: 'b' });
+
+    expect(radioGroup.state.value.peek()).toBe('b');
   });
 });

@@ -94,4 +94,31 @@ describe('Tabs', () => {
     expect(t1.getAttribute('aria-selected')).toBe('true');
     expect(t2.getAttribute('aria-selected')).toBe('false');
   });
+
+  it('sets aria-orientation on tablist when vertical', () => {
+    const { list } = Tabs.Root({ orientation: 'vertical' });
+    expect(list.getAttribute('aria-orientation')).toBe('vertical');
+  });
+
+  it('navigates with ArrowDown when vertical', () => {
+    const { root, list, Tab } = Tabs.Root({ defaultValue: 'tab1', orientation: 'vertical' });
+    container.appendChild(root);
+    const { trigger: t1 } = Tab('tab1', 'Tab 1');
+    const { trigger: t2 } = Tab('tab2', 'Tab 2');
+
+    t1.focus();
+    list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(document.activeElement).toBe(t2);
+  });
+
+  it('navigates with ArrowUp when vertical', () => {
+    const { root, list, Tab } = Tabs.Root({ defaultValue: 'tab2', orientation: 'vertical' });
+    container.appendChild(root);
+    const { trigger: t1 } = Tab('tab1', 'Tab 1');
+    const { trigger: t2 } = Tab('tab2', 'Tab 2');
+
+    t2.focus();
+    list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    expect(document.activeElement).toBe(t1);
+  });
 });

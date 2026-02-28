@@ -3,14 +3,20 @@ import { Switch } from '@vertz/ui-primitives';
 
 interface SwitchStyleClasses {
   readonly root: string;
+  readonly rootSm: string;
+}
+
+export interface ThemedSwitchOptions extends SwitchOptions {
+  size?: 'default' | 'sm';
 }
 
 export function createThemedSwitch(
   styles: SwitchStyleClasses,
-): (options?: SwitchOptions) => SwitchElements & { state: SwitchState } {
-  return function themedSwitch(options?: SwitchOptions) {
-    const result = Switch.Root(options);
-    result.root.classList.add(styles.root);
+): (options?: ThemedSwitchOptions) => SwitchElements & { state: SwitchState } {
+  return function themedSwitch(options?: ThemedSwitchOptions) {
+    const { size, ...primitiveOptions } = options ?? {};
+    const result = Switch.Root(primitiveOptions);
+    result.root.classList.add(size === 'sm' ? styles.rootSm : styles.root);
     return result;
   };
 }

@@ -1,12 +1,61 @@
 import { describe, expect, it } from 'bun:test';
 import { createAccordionStyles } from '../styles/accordion';
+import { createAlertDialogStyles } from '../styles/alert-dialog';
 import { createCheckboxStyles } from '../styles/checkbox';
 import { createDialogStyles } from '../styles/dialog';
 import { createProgressStyles } from '../styles/progress';
 import { createSelectStyles } from '../styles/select';
 import { createSwitchStyles } from '../styles/switch';
 import { createTabsStyles } from '../styles/tabs';
+import { createToastStyles } from '../styles/toast';
+import { createPopoverStyles } from '../styles/popover';
+import { createSliderStyles } from '../styles/slider';
 import { createTooltipStyles } from '../styles/tooltip';
+
+describe('popover', () => {
+  const popover = createPopoverStyles();
+
+  it('has content block', () => {
+    expect(typeof popover.content).toBe('string');
+  });
+
+  it('class name is non-empty', () => {
+    expect(popover.content.length).toBeGreaterThan(0);
+  });
+
+  it('CSS contains enter/exit animations for content', () => {
+    expect(popover.css).toContain('vz-zoom-in');
+    expect(popover.css).toContain('vz-zoom-out');
+  });
+
+  it('CSS does not use display:none for animated states', () => {
+    expect(popover.css).not.toContain('display: none');
+  });
+});
+
+describe('alert-dialog', () => {
+  const alertDialog = createAlertDialogStyles();
+
+  it('has overlay, panel, title, description, footer, cancel, and action blocks', () => {
+    expect(typeof alertDialog.overlay).toBe('string');
+    expect(typeof alertDialog.panel).toBe('string');
+    expect(typeof alertDialog.title).toBe('string');
+    expect(typeof alertDialog.description).toBe('string');
+    expect(typeof alertDialog.footer).toBe('string');
+    expect(typeof alertDialog.cancel).toBe('string');
+    expect(typeof alertDialog.action).toBe('string');
+  });
+
+  it('all class names are non-empty', () => {
+    expect(alertDialog.overlay.length).toBeGreaterThan(0);
+    expect(alertDialog.panel.length).toBeGreaterThan(0);
+    expect(alertDialog.title.length).toBeGreaterThan(0);
+    expect(alertDialog.description.length).toBeGreaterThan(0);
+    expect(alertDialog.footer.length).toBeGreaterThan(0);
+    expect(alertDialog.cancel.length).toBeGreaterThan(0);
+    expect(alertDialog.action.length).toBeGreaterThan(0);
+  });
+});
 
 describe('dialog', () => {
   const dialog = createDialogStyles();
@@ -68,6 +117,17 @@ describe('select', () => {
   it('CSS does not use display:none for animated states', () => {
     expect(select.css).not.toContain('display: none');
   });
+
+  it('has group, label, separator, and scrollButton blocks', () => {
+    expect(typeof select.group).toBe('string');
+    expect(typeof select.label).toBe('string');
+    expect(typeof select.separator).toBe('string');
+    expect(typeof select.scrollButton).toBe('string');
+    expect(select.group.length).toBeGreaterThan(0);
+    expect(select.label.length).toBeGreaterThan(0);
+    expect(select.separator.length).toBeGreaterThan(0);
+    expect(select.scrollButton.length).toBeGreaterThan(0);
+  });
 });
 
 describe('tabs', () => {
@@ -92,6 +152,13 @@ describe('tabs', () => {
 
   it('CSS contains dark mode selector for active trigger', () => {
     expect(tabs.css).toContain('[data-theme="dark"]');
+  });
+
+  it('has listLine and triggerLine blocks for line variant', () => {
+    expect(typeof tabs.listLine).toBe('string');
+    expect(typeof tabs.triggerLine).toBe('string');
+    expect(tabs.listLine.length).toBeGreaterThan(0);
+    expect(tabs.triggerLine.length).toBeGreaterThan(0);
   });
 });
 
@@ -136,6 +203,13 @@ describe('switch', () => {
     expect(switchStyles.css).toContain('[data-state="checked"]');
     expect(switchStyles.css).toContain('[data-state="unchecked"]');
   });
+
+  it('has rootSm and thumbSm blocks for sm size variant', () => {
+    expect(typeof switchStyles.rootSm).toBe('string');
+    expect(typeof switchStyles.thumbSm).toBe('string');
+    expect(switchStyles.rootSm.length).toBeGreaterThan(0);
+    expect(switchStyles.thumbSm.length).toBeGreaterThan(0);
+  });
 });
 
 describe('progress', () => {
@@ -177,6 +251,82 @@ describe('accordion', () => {
   });
 });
 
+describe('toast', () => {
+  const toast = createToastStyles();
+
+  it('has viewport, root, title, description, action, and close blocks', () => {
+    expect(typeof toast.viewport).toBe('string');
+    expect(typeof toast.root).toBe('string');
+    expect(typeof toast.title).toBe('string');
+    expect(typeof toast.description).toBe('string');
+    expect(typeof toast.action).toBe('string');
+    expect(typeof toast.close).toBe('string');
+  });
+
+  it('all class names are non-empty', () => {
+    expect(toast.viewport.length).toBeGreaterThan(0);
+    expect(toast.root.length).toBeGreaterThan(0);
+    expect(toast.title.length).toBeGreaterThan(0);
+    expect(toast.description.length).toBeGreaterThan(0);
+    expect(toast.action.length).toBeGreaterThan(0);
+    expect(toast.close.length).toBeGreaterThan(0);
+  });
+});
+
+describe('dropdown-menu', () => {
+  it('has content, item, group, label, and separator blocks', () => {
+    const { createDropdownMenuStyles } = require('../styles/dropdown-menu');
+    const dm = createDropdownMenuStyles();
+    expect(typeof dm.content).toBe('string');
+    expect(typeof dm.item).toBe('string');
+    expect(typeof dm.group).toBe('string');
+    expect(typeof dm.label).toBe('string');
+    expect(typeof dm.separator).toBe('string');
+  });
+
+  it('all class names are non-empty', () => {
+    const { createDropdownMenuStyles } = require('../styles/dropdown-menu');
+    const dm = createDropdownMenuStyles();
+    expect(dm.content.length).toBeGreaterThan(0);
+    expect(dm.item.length).toBeGreaterThan(0);
+    expect(dm.group.length).toBeGreaterThan(0);
+    expect(dm.label.length).toBeGreaterThan(0);
+    expect(dm.separator.length).toBeGreaterThan(0);
+  });
+
+  it('CSS contains enter/exit animations for content', () => {
+    const { createDropdownMenuStyles } = require('../styles/dropdown-menu');
+    const dm = createDropdownMenuStyles();
+    expect(dm.css).toContain('vz-zoom-in');
+    expect(dm.css).toContain('vz-zoom-out');
+  });
+});
+
+describe('radio-group', () => {
+  it('has root, item, and indicator blocks', async () => {
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const radioGroup = createRadioGroupStyles();
+    expect(typeof radioGroup.root).toBe('string');
+    expect(typeof radioGroup.item).toBe('string');
+    expect(typeof radioGroup.indicator).toBe('string');
+  });
+
+  it('all class names are non-empty', async () => {
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const radioGroup = createRadioGroupStyles();
+    expect(radioGroup.root.length).toBeGreaterThan(0);
+    expect(radioGroup.item.length).toBeGreaterThan(0);
+    expect(radioGroup.indicator.length).toBeGreaterThan(0);
+  });
+
+  it('CSS contains data-state="checked" and data-state="unchecked" selectors', async () => {
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const radioGroup = createRadioGroupStyles();
+    expect(radioGroup.css).toContain('[data-state="checked"]');
+    expect(radioGroup.css).toContain('[data-state="unchecked"]');
+  });
+});
+
 describe('tooltip', () => {
   const tooltip = createTooltipStyles();
 
@@ -195,5 +345,23 @@ describe('tooltip', () => {
 
   it('CSS does not use display:none for animated states', () => {
     expect(tooltip.css).not.toContain('display: none');
+  });
+});
+
+describe('slider', () => {
+  const slider = createSliderStyles();
+
+  it('has root, track, range, and thumb blocks', () => {
+    expect(typeof slider.root).toBe('string');
+    expect(typeof slider.track).toBe('string');
+    expect(typeof slider.range).toBe('string');
+    expect(typeof slider.thumb).toBe('string');
+  });
+
+  it('all class names are non-empty', () => {
+    expect(slider.root.length).toBeGreaterThan(0);
+    expect(slider.track.length).toBeGreaterThan(0);
+    expect(slider.range.length).toBeGreaterThan(0);
+    expect(slider.thumb.length).toBeGreaterThan(0);
   });
 });

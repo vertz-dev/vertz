@@ -4,6 +4,8 @@ import { css } from '@vertz/ui';
 type SwitchBlocks = {
   root: StyleEntry[];
   thumb: StyleEntry[];
+  rootSm: StyleEntry[];
+  thumbSm: StyleEntry[];
 };
 
 const focusRing: Record<string, (string | RawDeclaration)[]> = {
@@ -49,10 +51,41 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'shadow:sm',
       'transition:transform',
     ],
+    switchRootSm: [
+      'inline-flex',
+      'shrink-0',
+      'h:5',
+      'w:9',
+      'items:center',
+      'rounded:full',
+      'border:2',
+      'border:transparent',
+      'cursor:pointer',
+      'bg:input',
+      'shadow:xs',
+      'transition:colors',
+      focusRing,
+      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      {
+        '&[data-state="checked"]': ['bg:primary'],
+        '&[data-state="unchecked"]': ['bg:input'],
+      },
+    ],
+    switchThumbSm: [
+      'block',
+      'h:4',
+      'w:4',
+      'rounded:full',
+      'bg:background',
+      'shadow:sm',
+      'transition:transform',
+    ],
   });
   return {
     root: s.switchRoot,
     thumb: s.switchThumb,
+    rootSm: s.switchRootSm,
+    thumbSm: s.switchThumbSm,
     css: s.css,
   } as CSSOutput<SwitchBlocks>;
 }

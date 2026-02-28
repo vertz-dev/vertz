@@ -35,6 +35,11 @@ export const Select = {
   Root(options: SelectOptions = {}): SelectElements & {
     state: SelectState;
     Item: (value: string, label?: string) => HTMLDivElement;
+    Group: (label: string) => {
+      el: HTMLDivElement;
+      Item: (value: string, label?: string) => HTMLDivElement;
+    };
+    Separator: () => HTMLHRElement;
   } {
     const { defaultValue = '', onValueChange } = options;
     const ids = linkedIds('select');
@@ -144,10 +149,23 @@ export const Select = {
           state.activeIndex.value = idx;
           updateActiveItem(idx);
         }
+        return;
+      }
+
+      // Type-ahead: single printable character focuses matching item
+      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const char = event.key.toLowerCase();
+        const match = items.find((item) => item.textContent?.toLowerCase().startsWith(char));
+        if (match) {
+          const idx = items.indexOf(match);
+          state.activeIndex.value = idx;
+          updateActiveItem(idx);
+          match.focus();
+        }
       }
     });
 
-    function Item(value: string, label?: string): HTMLDivElement {
+    function createItem(value: string, label?: string, parent?: HTMLElement): HTMLDivElement {
       const item = document.createElement('div');
       item.setAttribute('role', 'option');
       item.setAttribute('data-value', value);
@@ -162,10 +180,35 @@ export const Select = {
       });
 
       items.push(item);
-      content.appendChild(item);
+      (parent ?? content).appendChild(item);
       return item;
     }
 
-    return { trigger, content, state, Item };
+    function Item(value: string, label?: string): HTMLDivElement {
+      return createItem(value, label);
+    }
+
+    function Group(label: string): {
+      el: HTMLDivElement;
+      Item: (value: string, label?: string) => HTMLDivElement;
+    } {
+      const el = document.createElement('div');
+      el.setAttribute('role', 'group');
+      el.setAttribute('aria-label', label);
+      content.appendChild(el);
+      return {
+        el,
+        Item: (value: string, itemLabel?: string) => createItem(value, itemLabel, el),
+      };
+    }
+
+    function Separator(): HTMLHRElement {
+      const hr = document.createElement('hr');
+      hr.setAttribute('role', 'separator');
+      content.appendChild(hr);
+      return hr;
+    }
+
+    return { trigger, content, state, Item, Group, Separator };
   },
 };

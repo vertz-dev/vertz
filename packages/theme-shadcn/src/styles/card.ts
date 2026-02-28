@@ -8,6 +8,7 @@ type CardBlocks = {
   description: string[];
   content: string[];
   footer: string[];
+  action: string[];
 };
 
 /** Create card css() styles. */
@@ -28,6 +29,7 @@ export function createCard(): CSSOutput<CardBlocks> {
     cardDescription: ['text:sm', 'text:muted-foreground'],
     cardContent: ['px:6'],
     cardFooter: ['flex', 'items:center', 'px:6'],
+    cardAction: ['ml:auto'],
   });
   return {
     root: s.cardRoot,
@@ -36,6 +38,7 @@ export function createCard(): CSSOutput<CardBlocks> {
     description: s.cardDescription,
     content: s.cardContent,
     footer: s.cardFooter,
+    action: s.cardAction,
     css: s.css,
   } as CSSOutput<CardBlocks>;
 }

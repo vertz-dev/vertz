@@ -6,6 +6,8 @@ type TabsBlocks = {
   list: StyleEntry[];
   trigger: StyleEntry[];
   panel: StyleEntry[];
+  listLine: StyleEntry[];
+  triggerLine: StyleEntry[];
 };
 
 /** Create tabs css() styles. */
@@ -43,11 +45,37 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
     ],
     tabsPanel: ['mt:2'],
+    tabsListLine: ['inline-flex', 'h:9', 'items:center', 'gap:4', 'border-b:1', 'border:border'],
+    tabsTriggerLine: [
+      'inline-flex',
+      'items:center',
+      'justify:center',
+      'whitespace-nowrap',
+      'px:1',
+      'pb:2',
+      'text:sm',
+      'font:medium',
+      'cursor:pointer',
+      'transition:colors',
+      { '&[data-state="inactive"]': [textOpacity('foreground', 60)] },
+      {
+        '&[data-state="active"]': [
+          'text:foreground',
+          {
+            property: 'box-shadow',
+            value: 'inset 0 -2px 0 0 currentColor',
+          },
+        ],
+      },
+      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+    ],
   });
   return {
     list: s.tabsList,
     trigger: s.tabsTrigger,
     panel: s.tabsPanel,
+    listLine: s.tabsListLine,
+    triggerLine: s.tabsTriggerLine,
     css: s.css,
   } as CSSOutput<TabsBlocks>;
 }

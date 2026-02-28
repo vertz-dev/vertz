@@ -6,6 +6,10 @@ type SelectBlocks = {
   trigger: StyleEntry[];
   content: StyleEntry[];
   item: StyleEntry[];
+  group: StyleEntry[];
+  label: StyleEntry[];
+  separator: StyleEntry[];
+  scrollButton: StyleEntry[];
 };
 
 const focusRing: Record<string, (string | RawDeclaration)[]> = {
@@ -72,11 +76,25 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       { '&:focus': ['bg:accent', 'text:accent-foreground'] },
       { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
     ],
+    selectGroup: ['py:1'],
+    selectLabel: ['px:2', 'py:1.5', 'text:sm', 'font:semibold', 'text:muted-foreground'],
+    selectSeparator: [
+      'mx:1',
+      'my:1',
+      'border-t:1',
+      'border:muted',
+      { '&': [{ property: 'height', value: '1px' }] },
+    ],
+    selectScrollButton: ['flex', 'items:center', 'justify:center', 'py:1', 'cursor:default'],
   });
   return {
     trigger: s.selectTrigger,
     content: s.selectContent,
     item: s.selectItem,
+    group: s.selectGroup,
+    label: s.selectLabel,
+    separator: s.selectSeparator,
+    scrollButton: s.selectScrollButton,
     css: s.css,
   } as CSSOutput<SelectBlocks>;
 }

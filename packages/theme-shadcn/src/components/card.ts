@@ -8,6 +8,7 @@ type CardBlocks = {
   description: string[];
   content: string[];
   footer: string[];
+  action: string[];
 };
 
 export interface CardProps {
@@ -22,6 +23,7 @@ export interface CardComponents {
   CardDescription: (props: CardProps) => HTMLParagraphElement;
   CardContent: (props: CardProps) => HTMLDivElement;
   CardFooter: (props: CardProps) => HTMLDivElement;
+  CardAction: (props: CardProps) => HTMLDivElement;
 }
 
 export function createCardComponents(cardStyles: CSSOutput<CardBlocks>): CardComponents {
@@ -79,12 +81,22 @@ export function createCardComponents(cardStyles: CSSOutput<CardBlocks>): CardCom
     return el;
   }
 
+  function CardAction({ class: className, children }: CardProps): HTMLDivElement {
+    const el = document.createElement('div');
+    el.className = [cardStyles.action, className].filter(Boolean).join(' ');
+    for (const node of resolveChildren(children)) {
+      el.appendChild(node);
+    }
+    return el;
+  }
+
   return {
-    Card: Card,
-    CardHeader: CardHeader,
-    CardTitle: CardTitle,
-    CardDescription: CardDescription,
-    CardContent: CardContent,
-    CardFooter: CardFooter,
+    Card,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+    CardContent,
+    CardFooter,
+    CardAction,
   };
 }
