@@ -13,6 +13,7 @@ export {
 export { formatWithBiome } from './format';
 export type { GenerateResult } from './generate';
 export { generate } from './generate';
+export { ClientGenerator } from './generators/client-generator';
 export { EntitySchemaGenerator } from './generators/entity-schema-generator';
 export { EntitySdkGenerator } from './generators/entity-sdk-generator';
 export { EntityTypesGenerator } from './generators/entity-types-generator';
