@@ -90,21 +90,55 @@ effect(() => {
 
 ## JSX
 
-### Fully declarative — no DOM manipulation
+### Fully declarative — no imperative DOM manipulation
 
-Components must be pure declarative JSX. No `appendChild`, `innerHTML`, `textContent` assignment, `className` assignment, or `setAttribute` in component code.
+**The rule:** All code that uses `@vertz/ui` must be fully declarative. No `appendChild`, `innerHTML`, `textContent` assignment, `className` assignment, `setAttribute`, `document.createElement`, or any other imperative DOM API. This applies to components, pages, the app shell, examples — everything.
 
 ```tsx
-// WRONG
+// WRONG — imperative
 const el = <div />;
 el.textContent = title;
 el.className = styles.panel;
 
-// RIGHT
+// RIGHT — declarative
 return <div class={styles.panel}>{title}</div>;
 ```
 
-The only acceptable DOM manipulation is in the app shell (router page swapping, ThemeProvider wiring) where framework infrastructure requires it.
+**The only exception:** `@vertz/ui-primitives`. Primitives are the lowest layer — they create and wire up raw DOM elements, ARIA attributes, and event listeners imperatively by design. That's their job. Imperative DOM code belongs there and nowhere else.
+
+**If you can't express something declaratively, it's a framework gap.** Do not work around it with imperative code. Stop, identify the missing abstraction in `@vertz/ui` or `@vertz/ui-primitives`, and fix the framework. A component author should never need `appendChild`, `setAttribute`, or `document.createElement` — if they do, the framework is incomplete.
+
+Examples of gaps that were caught this way:
+- Needed imperative route swapping → built `RouterView` (declarative)
+- Needed imperative theme wiring → built `ThemeProvider` context (declarative)
+
+**Review gate question:** Does any code outside `@vertz/ui-primitives` use imperative DOM APIs? If yes, either move that logic into a primitive, add a declarative abstraction to `@vertz/ui`, or fix the component to use existing declarative APIs.
+
+### Use JSX for custom components — never call them as functions
+
+Custom components must be rendered via JSX, not invoked as function calls. Calling a component as a function bypasses the declarative model — it's imperative execution disguised as composition.
+
+```tsx
+// WRONG — imperative function call
+const card = TaskCard({ task, onClick: handleClick });
+return <div>{card}</div>;
+
+// WRONG — inline function call
+return (
+  <div>
+    {TaskCard({ task, onClick: handleClick })}
+  </div>
+);
+
+// RIGHT — declarative JSX
+return (
+  <div>
+    <TaskCard task={task} onClick={handleClick} />
+  </div>
+);
+```
+
+This applies to all custom components. If a component can't be used via JSX, that's a framework gap — fix the component or the framework, don't fall back to function calls.
 
 ### Conditionals use `&&` or ternary
 
