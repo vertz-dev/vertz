@@ -71,6 +71,10 @@ export const Select = {
       setHidden(content, false);
       setDataState(trigger, 'open');
       setDataState(content, 'open');
+      // Determine which side to open based on available space
+      const rect = trigger.getBoundingClientRect();
+      const side = window.innerHeight - rect.bottom >= rect.top ? 'bottom' : 'top';
+      content.setAttribute('data-side', side);
       // Focus the first or selected item
       const selectedIdx = items.findIndex(
         (item) => item.getAttribute('data-value') === state.value.peek(),
