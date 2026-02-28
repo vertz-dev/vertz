@@ -134,7 +134,7 @@ function getHiddenColumns(table: TableDef): Set<string> {
   const hidden = new Set<string>();
   for (const key of Object.keys(table._columns)) {
     const col = table._columns[key] as ColumnBuilder<unknown, ColumnMetadata> | undefined;
-    if (col?._meta.hidden) {
+    if (col?._meta._annotations.hidden) {
       hidden.add(key);
     }
   }

@@ -238,21 +238,23 @@ describe('metadata type-level tracking', () => {
     void _noDefault;
   });
 
-  it('.sensitive() sets sensitive to true in metadata type', () => {
-    const col = d.email().sensitive();
-    const _sensitive: typeof col._meta.sensitive = true;
-    // @ts-expect-error -- sensitive is true after .sensitive(), false should not be assignable
-    const _notSensitive: typeof col._meta.sensitive = false;
+  it('.is() adds annotation to _annotations in metadata type', () => {
+    const col = d.email().is('sensitive');
+    const _sensitive: typeof col._meta._annotations.sensitive = true;
+    // @ts-expect-error -- sensitive is true after .is('sensitive'), false should not be assignable
+    const _notSensitive: typeof col._meta._annotations.sensitive = false;
     void _sensitive;
     void _notSensitive;
   });
 
-  it('.hidden() sets hidden to true in metadata type', () => {
-    const col = d.text().hidden();
-    const _hidden: typeof col._meta.hidden = true;
-    // @ts-expect-error -- hidden is true after .hidden(), false should not be assignable
-    const _notHidden: typeof col._meta.hidden = false;
+  it('.is() accumulates multiple annotations', () => {
+    const col = d.text().is('hidden').is('patchable');
+    const _hidden: typeof col._meta._annotations.hidden = true;
+    const _patchable: typeof col._meta._annotations.patchable = true;
+    // @ts-expect-error -- hidden is true after .is('hidden'), false should not be assignable
+    const _notHidden: typeof col._meta._annotations.hidden = false;
     void _hidden;
+    void _patchable;
     void _notHidden;
   });
 

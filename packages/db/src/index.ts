@@ -144,6 +144,7 @@ export type {
   TenantMeta,
   VarcharMeta,
 } from './schema/column';
+export { defineAnnotations } from './schema/define-annotations';
 export type { RegisteredEnum } from './schema/enum-registry';
 export { createEnumRegistry } from './schema/enum-registry';
 export type { FilterType, OrderByType } from './schema/filter';

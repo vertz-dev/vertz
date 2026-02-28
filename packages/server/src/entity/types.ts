@@ -87,7 +87,9 @@ export type EntityRelationsConfig<
 export type PublicColumnKeys<TTable extends TableDef> =
   TTable extends TableDef<infer TCols>
     ? {
-        [K in keyof TCols & string]: TCols[K] extends { _meta: { hidden: true } } ? never : K;
+        [K in keyof TCols & string]: TCols[K] extends { _meta: { _annotations: { hidden: true } } }
+          ? never
+          : K;
       }[keyof TCols & string]
     : string;
 

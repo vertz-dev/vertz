@@ -13,9 +13,8 @@ export { executeQuery } from './query/executor';
 // Query helpers
 export {
   getColumnNames,
+  getColumnsWithoutAnnotations,
   getDefaultColumns,
-  getNotHiddenColumns,
-  getNotSensitiveColumns,
   getPrimaryKeyColumns,
   getTimestampColumns,
   resolveSelectColumns,

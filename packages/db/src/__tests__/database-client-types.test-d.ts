@@ -11,7 +11,7 @@ const usersTable = d.table('users', {
   id: d.uuid().primary(),
   name: d.text(),
   email: d.email().unique(),
-  secret: d.text().hidden(),
+  secret: d.text().is('hidden'),
   createdAt: d.timestamp().default('now'),
 });
 

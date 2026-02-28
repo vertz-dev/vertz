@@ -17,7 +17,7 @@ const usersTable = d.table('users', {
   id: d.uuid().primary(),
   email: d.text().unique(),
   name: d.text(),
-  passwordHash: d.text().hidden(),
+  passwordHash: d.text().is('hidden'),
   role: d.enum('user_role', ['user', 'admin']).default('user'),
   createdAt: d.timestamp().default('now').readOnly(),
   updatedAt: d.timestamp().autoUpdate().readOnly(),

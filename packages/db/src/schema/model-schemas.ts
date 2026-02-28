@@ -32,7 +32,7 @@ export interface ModelSchemas<TTable extends TableDef<ColumnRecord>> {
 export function deriveSchemas<TTable extends TableDef<ColumnRecord>>(
   table: TTable,
 ): ModelSchemas<TTable> {
-  const hiddenCols = getColumnNamesWhere(table, 'hidden');
+  const hiddenCols = getColumnNamesWithAnnotation(table, 'hidden');
   const readOnlyCols = getColumnNamesWhere(table, 'isReadOnly');
   const primaryCols = getColumnNamesWhere(table, 'primary');
 
@@ -116,6 +116,19 @@ function getColumnNamesWhere(table: TableDef<ColumnRecord>, flag: BooleanMetaKey
   const result = new Set<string>();
   for (const [key, col] of Object.entries(table._columns)) {
     if ((col as ColumnBuilder<unknown, ColumnMetadata>)._meta[flag]) {
+      result.add(key);
+    }
+  }
+  return result;
+}
+
+function getColumnNamesWithAnnotation(
+  table: TableDef<ColumnRecord>,
+  annotation: string,
+): Set<string> {
+  const result = new Set<string>();
+  for (const [key, col] of Object.entries(table._columns)) {
+    if ((col as ColumnBuilder<unknown, ColumnMetadata>)._meta._annotations[annotation]) {
       result.add(key);
     }
   }

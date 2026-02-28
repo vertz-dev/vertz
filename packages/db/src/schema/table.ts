@@ -11,7 +11,10 @@ export interface IndexDef {
   readonly unique?: boolean;
 }
 
-export function createIndex(columns: string | string[], options?: { name?: string; unique?: boolean }): IndexDef {
+export function createIndex(
+  columns: string | string[],
+  options?: { name?: string; unique?: boolean },
+): IndexDef {
   return {
     columns: Array.isArray(columns) ? columns : [columns],
     ...options,
@@ -30,7 +33,7 @@ type InferColumns<T extends ColumnRecord> = {
   [K in keyof T]: InferColumnType<T[K]>;
 };
 
-/** Keys of columns where a given metadata flag is `true`. */
+/** Keys of columns where a given metadata property is `true`. */
 type ColumnKeysWhere<T extends ColumnRecord, Flag extends keyof ColumnMetadata> = {
   [K in keyof T]: T[K] extends ColumnBuilder<unknown, infer M>
     ? M extends Record<Flag, true>
@@ -39,12 +42,28 @@ type ColumnKeysWhere<T extends ColumnRecord, Flag extends keyof ColumnMetadata> 
     : never;
 }[keyof T];
 
-/** Keys of columns where a given metadata flag is NOT `true` (i.e., false). */
+/** Keys of columns where a given metadata property is NOT `true` (i.e., false). */
 type ColumnKeysWhereNot<T extends ColumnRecord, Flag extends keyof ColumnMetadata> = {
   [K in keyof T]: T[K] extends ColumnBuilder<unknown, infer M>
     ? M extends Record<Flag, true>
       ? never
       : K
+    : never;
+}[keyof T];
+
+/** Keys of columns that do NOT have ANY of the specified annotations in `_annotations`. */
+type ColumnKeysWithoutAnyAnnotation<T extends ColumnRecord, Annotations extends string> = {
+  [K in keyof T]: T[K] extends ColumnBuilder<unknown, infer M>
+    ? M['_annotations'] extends Record<Annotations, true>
+      ? never
+      : K
+    : never;
+}[keyof T];
+
+/** Extracts the union of all annotation names present across all columns in a record. */
+export type AllAnnotations<T extends ColumnRecord> = {
+  [K in keyof T]: T[K] extends ColumnBuilder<unknown, infer M>
+    ? keyof M['_annotations'] & string
     : never;
 }[keyof T];
 
@@ -54,10 +73,10 @@ type ColumnKeysWhereNot<T extends ColumnRecord, Flag extends keyof ColumnMetadat
 
 /**
  * $infer -- default SELECT type.
- * Excludes hidden columns. Includes everything else (including sensitive).
+ * Excludes columns annotated 'hidden'. Includes everything else.
  */
 type Infer<T extends ColumnRecord> = {
-  [K in ColumnKeysWhereNot<T, 'hidden'>]: InferColumnType<T[K]>;
+  [K in ColumnKeysWithoutAnyAnnotation<T, 'hidden'>]: InferColumnType<T[K]>;
 };
 
 /**
@@ -84,28 +103,10 @@ type Update<T extends ColumnRecord> = {
 };
 
 /**
- * $not_sensitive -- excludes columns marked .sensitive() OR .hidden().
- * (hidden implies sensitive for read purposes)
- */
-type NotSensitive<T extends ColumnRecord> = {
-  [K in ColumnKeysWhereNot<T, 'sensitive'> &
-    ColumnKeysWhereNot<T, 'hidden'> &
-    keyof T]: InferColumnType<T[K]>;
-};
-
-/**
- * $not_hidden -- excludes columns marked .hidden().
- * Same as $infer (excludes hidden, keeps sensitive).
- */
-type NotHidden<T extends ColumnRecord> = {
-  [K in ColumnKeysWhereNot<T, 'hidden'>]: InferColumnType<T[K]>;
-};
-
-/**
- * $response -- API response shape. Excludes hidden columns.
+ * $response -- API response shape. Excludes columns annotated 'hidden'.
  */
 type Response<T extends ColumnRecord> = {
-  [K in ColumnKeysWhereNot<T, 'hidden'>]: InferColumnType<T[K]>;
+  [K in ColumnKeysWithoutAnyAnnotation<T, 'hidden'>]: InferColumnType<T[K]>;
 };
 
 /**
@@ -145,7 +146,7 @@ export interface TableDef<TColumns extends ColumnRecord = ColumnRecord> {
   readonly _indexes: readonly IndexDef[];
   readonly _shared: boolean;
 
-  /** Default SELECT type -- excludes hidden columns. */
+  /** Default SELECT type -- excludes columns annotated 'hidden'. */
   readonly $infer: Infer<TColumns>;
   /** All columns including hidden. */
   readonly $infer_all: InferAll<TColumns>;
@@ -153,12 +154,8 @@ export interface TableDef<TColumns extends ColumnRecord = ColumnRecord> {
   readonly $insert: Insert<TColumns>;
   /** Update type -- all non-PK columns optional. ALL columns included. */
   readonly $update: Update<TColumns>;
-  /** Excludes sensitive and hidden columns. */
-  readonly $not_sensitive: NotSensitive<TColumns>;
-  /** Excludes hidden columns. */
-  readonly $not_hidden: NotHidden<TColumns>;
 
-  /** API response shape — excludes hidden columns. */
+  /** API response shape — excludes columns annotated 'hidden'. */
   readonly $response: Response<TColumns>;
   /** API create input — excludes readOnly + PK; defaulted columns optional. */
   readonly $create_input: ApiCreateInput<TColumns>;
@@ -215,12 +212,6 @@ function createTableInternal<TColumns extends ColumnRecord>(
       return undefined as never;
     },
     get $update(): Update<TColumns> {
-      return undefined as never;
-    },
-    get $not_sensitive(): NotSensitive<TColumns> {
-      return undefined as never;
-    },
-    get $not_hidden(): NotHidden<TColumns> {
       return undefined as never;
     },
     get $response(): Response<TColumns> {

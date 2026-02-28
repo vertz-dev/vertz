@@ -7,8 +7,8 @@ import { d } from '../../d';
 
 const users = d.table('users', {
   id: d.uuid().primary(),
-  email: d.email().unique().sensitive(),
-  passwordHash: d.text().hidden(),
+  email: d.email().unique().is('sensitive'),
+  passwordHash: d.text().is('hidden'),
   name: d.text(),
   role: d.enum('user_role', ['admin', 'editor', 'viewer']).default('viewer'),
   bio: d.text().nullable(),
@@ -188,83 +188,6 @@ describe('$update', () => {
 
     const _valid: UserUpdate = { email: 'updated@example.com' };
     void _valid;
-  });
-});
-
-// ---------------------------------------------------------------------------
-// $not_sensitive -- excludes sensitive and hidden columns
-// ---------------------------------------------------------------------------
-
-describe('$not_sensitive', () => {
-  it('excludes sensitive columns', () => {
-    type UserPublic = typeof users.$not_sensitive;
-
-    // email is .sensitive() -- should NOT appear
-    expectTypeOf<UserPublic>().not.toHaveProperty('email');
-  });
-
-  it('excludes hidden columns (hidden implies sensitive for reads)', () => {
-    type UserPublic = typeof users.$not_sensitive;
-
-    // passwordHash is .hidden() -- should NOT appear on $not_sensitive either
-    expectTypeOf<UserPublic>().not.toHaveProperty('passwordHash');
-  });
-
-  it('includes normal columns', () => {
-    type UserPublic = typeof users.$not_sensitive;
-
-    expectTypeOf<UserPublic>().toHaveProperty('id');
-    expectTypeOf<UserPublic>().toHaveProperty('name');
-    expectTypeOf<UserPublic>().toHaveProperty('role');
-    expectTypeOf<UserPublic>().toHaveProperty('bio');
-    expectTypeOf<UserPublic>().toHaveProperty('active');
-    expectTypeOf<UserPublic>().toHaveProperty('createdAt');
-  });
-
-  it('rejects assigning sensitive field to $not_sensitive type', () => {
-    type UserPublic = typeof users.$not_sensitive;
-
-    const _valid: UserPublic = {
-      id: 'uuid',
-      name: 'Alice',
-      role: 'admin',
-      bio: null,
-      active: true,
-      createdAt: new Date(),
-    };
-    void _valid;
-
-    // email is sensitive -- should not exist as a key on $not_sensitive
-    expectTypeOf<UserPublic>().not.toHaveProperty('email');
-
-    // passwordHash is hidden -- should not exist as a key on $not_sensitive
-    expectTypeOf<UserPublic>().not.toHaveProperty('passwordHash');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// $not_hidden -- excludes hidden columns only
-// ---------------------------------------------------------------------------
-
-describe('$not_hidden', () => {
-  it('excludes hidden columns', () => {
-    type UserSafe = typeof users.$not_hidden;
-
-    expectTypeOf<UserSafe>().not.toHaveProperty('passwordHash');
-  });
-
-  it('includes sensitive (non-hidden) columns', () => {
-    type UserSafe = typeof users.$not_hidden;
-
-    // email is .sensitive() but NOT .hidden() -- should be included
-    expectTypeOf<UserSafe>().toHaveProperty('email');
-  });
-
-  it('includes normal columns', () => {
-    type UserSafe = typeof users.$not_hidden;
-
-    expectTypeOf<UserSafe>().toHaveProperty('id');
-    expectTypeOf<UserSafe>().toHaveProperty('name');
   });
 });
 
