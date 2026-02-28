@@ -101,8 +101,6 @@ export type {
   CrudHandlers,
   CrudResult,
   EntityActionDef,
-  EntityAfterHooks,
-  EntityBeforeHooks,
   EntityConfig,
   EntityContext,
   EntityDbAdapter,

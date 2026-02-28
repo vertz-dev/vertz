@@ -10,8 +10,8 @@ export function entity<
   TInject extends Record<string, EntityDefinition> = {},
   TActions extends Record<
     string,
-    // biome-ignore lint/suspicious/noExplicitAny: generic constraint uses any to accept all action input/output/response combinations
-    EntityActionDef<any, any, any, EntityContext<TModel, TInject>>
+    // biome-ignore lint/suspicious/noExplicitAny: TInput/TOutput must remain any — TypeScript infers concrete types from SchemaLike per-action
+    EntityActionDef<any, any, TModel['table']['$response'], EntityContext<TModel, TInject>>
     // biome-ignore lint/complexity/noBannedTypes: {} represents an empty actions record
   > = {},
 >(name: string, config: EntityConfig<TModel, TActions, TInject>): EntityDefinition<TModel> {

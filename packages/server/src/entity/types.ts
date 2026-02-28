@@ -42,6 +42,10 @@ export interface EntityContext<
 // Access rules
 // ---------------------------------------------------------------------------
 
+// AccessRule uses bare EntityContext (no TInject) because access rules are
+// stored type-erased in EntityDefinition and checked at runtime where the
+// inject map isn't available. Access rules shouldn't need cross-entity
+// access — they check the current user/row only.
 export type AccessRule =
   | false
   | ((ctx: EntityContext, row: Record<string, unknown>) => boolean | Promise<boolean>);
@@ -50,7 +54,7 @@ export type AccessRule =
 // Before hooks — transform data before DB write
 // ---------------------------------------------------------------------------
 
-export interface EntityBeforeHooks<TCreateInput = unknown, TUpdateInput = unknown> {
+interface EntityBeforeHooks<TCreateInput = unknown, TUpdateInput = unknown> {
   readonly create?: (
     data: TCreateInput,
     ctx: EntityContext,
@@ -65,7 +69,7 @@ export interface EntityBeforeHooks<TCreateInput = unknown, TUpdateInput = unknow
 // After hooks — side effects after DB write (void return enforced)
 // ---------------------------------------------------------------------------
 
-export interface EntityAfterHooks<TResponse = unknown> {
+interface EntityAfterHooks<TResponse = unknown> {
   readonly create?: (result: TResponse, ctx: EntityContext) => void | Promise<void>;
   readonly update?: (prev: TResponse, next: TResponse, ctx: EntityContext) => void | Promise<void>;
   readonly delete?: (row: TResponse, ctx: EntityContext) => void | Promise<void>;

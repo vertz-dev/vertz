@@ -38,7 +38,9 @@ const usersEntity = entity('users', { model: usersModel });
 const productsEntity = entity('products', { model: productsModel });
 
 // Minimal schema for action tests
-const emptySchema = { parse: (v: unknown) => ({ ok: true as const, data: v as Record<string, never> }) };
+const emptySchema = {
+  parse: (v: unknown) => ({ ok: true as const, data: v as Record<string, never> }),
+};
 const okSchema = { parse: (v: unknown) => ({ ok: true as const, data: v as { ok: boolean } }) };
 
 // ---------------------------------------------------------------------------
@@ -214,6 +216,80 @@ describe('inject flows through hook ctx', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Action handler row param is typed from $response
+// ---------------------------------------------------------------------------
+
+describe('action handler row param typing', () => {
+  it('row param is typed as $response (not any)', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      actions: {
+        cancel: {
+          input: emptySchema,
+          output: okSchema,
+          handler: async (_input, _ctx, order) => {
+            // If row is `any`, this @ts-expect-error is unused and the test FAILS
+            // @ts-expect-error — nonExistentField does not exist on orders $response
+            void order.nonExistentField;
+            return { ok: true };
+          },
+        },
+      },
+      access: { cancel: (ctx) => ctx.authenticated() },
+    });
+  });
+
+  it('row param has entity fields', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      actions: {
+        cancel: {
+          input: emptySchema,
+          output: okSchema,
+          handler: async (_input, _ctx, order) => {
+            // Positive: order should have userId and status from orders table
+            expectTypeOf(order).toHaveProperty('userId');
+            expectTypeOf(order).toHaveProperty('status');
+            return { ok: true };
+          },
+        },
+      },
+      access: { cancel: (ctx) => ctx.authenticated() },
+    });
+  });
+
+  it('row param excludes hidden fields', () => {
+    entity('users', {
+      model: usersModel,
+      actions: {
+        deactivate: {
+          input: emptySchema,
+          output: okSchema,
+          handler: async (_input, _ctx, user) => {
+            // @ts-expect-error — passwordHash is hidden, excluded from $response
+            void user.passwordHash;
+            return { ok: true };
+          },
+        },
+      },
+      access: { deactivate: (ctx) => ctx.authenticated() },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Action handler input param typing
+// ---------------------------------------------------------------------------
+
+// TODO: action handler `input` is currently `any` because TActions constraint uses
+// `EntityActionDef<any, ...>` and the `any` in TInput position propagates to the
+// handler. Fixing this requires refactoring how TActions is inferred (e.g., a mapped
+// type on EntityConfig.actions that provides contextual handler typing per-action).
+// Tracked separately from the row/ctx fixes.
 
 // ---------------------------------------------------------------------------
 // entity() config with inject — type flow
