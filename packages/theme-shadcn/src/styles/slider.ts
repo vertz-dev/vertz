@@ -4,7 +4,6 @@ import { css } from '@vertz/ui';
 type SliderBlocks = {
   root: StyleEntry[];
   track: StyleEntry[];
-  range: StyleEntry[];
   thumb: StyleEntry[];
 };
 
@@ -35,7 +34,6 @@ export function createSliderStyles(): CSSOutput<SliderBlocks> {
       },
     ],
     sliderTrack: ['relative', 'h:1.5', 'w:full', 'overflow-hidden', 'rounded:full', 'bg:secondary'],
-    sliderRange: ['absolute', 'h:full', 'bg:primary'],
     sliderThumb: [
       'block',
       'h:5',
@@ -53,7 +51,6 @@ export function createSliderStyles(): CSSOutput<SliderBlocks> {
   return {
     root: s.sliderRoot,
     track: s.sliderTrack,
-    range: s.sliderRange,
     thumb: s.sliderThumb,
     css: s.css,
   } as CSSOutput<SliderBlocks>;

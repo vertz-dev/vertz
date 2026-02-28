@@ -9,7 +9,7 @@ type AlertBlocks = {
 };
 
 /** Create alert css() styles. */
-export function createAlert(): CSSOutput<AlertBlocks> {
+export function createAlertStyles(): CSSOutput<AlertBlocks> {
   const s = css({
     alertRoot: [
       'relative',

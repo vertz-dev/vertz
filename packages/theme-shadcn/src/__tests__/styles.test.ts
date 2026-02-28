@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { variants } from '@vertz/ui';
-import { createAlert } from '../styles/alert';
+import { createAlertStyles } from '../styles/alert';
 import { badgeConfig, createBadge } from '../styles/badge';
 import { buttonConfig, createButton } from '../styles/button';
 import { createCard } from '../styles/card';
@@ -184,7 +184,7 @@ describe('textarea', () => {
 });
 
 describe('alert', () => {
-  const alert = createAlert();
+  const alert = createAlertStyles();
 
   it('has root, destructive, title, and description class names', () => {
     expect(typeof alert.root).toBe('string');

@@ -3,13 +3,13 @@ import { createAccordionStyles } from '../styles/accordion';
 import { createAlertDialogStyles } from '../styles/alert-dialog';
 import { createCheckboxStyles } from '../styles/checkbox';
 import { createDialogStyles } from '../styles/dialog';
+import { createPopoverStyles } from '../styles/popover';
 import { createProgressStyles } from '../styles/progress';
 import { createSelectStyles } from '../styles/select';
+import { createSliderStyles } from '../styles/slider';
 import { createSwitchStyles } from '../styles/switch';
 import { createTabsStyles } from '../styles/tabs';
 import { createToastStyles } from '../styles/toast';
-import { createPopoverStyles } from '../styles/popover';
-import { createSliderStyles } from '../styles/slider';
 import { createTooltipStyles } from '../styles/tooltip';
 
 describe('popover', () => {
@@ -352,17 +352,15 @@ describe('tooltip', () => {
 describe('slider', () => {
   const slider = createSliderStyles();
 
-  it('has root, track, range, and thumb blocks', () => {
+  it('has root, track, and thumb blocks', () => {
     expect(typeof slider.root).toBe('string');
     expect(typeof slider.track).toBe('string');
-    expect(typeof slider.range).toBe('string');
     expect(typeof slider.thumb).toBe('string');
   });
 
   it('all class names are non-empty', () => {
     expect(slider.root.length).toBeGreaterThan(0);
     expect(slider.track.length).toBeGreaterThan(0);
-    expect(slider.range.length).toBeGreaterThan(0);
     expect(slider.thumb.length).toBeGreaterThan(0);
   });
 });
