@@ -64,7 +64,7 @@ describe('createServer', () => {
     const listResponse = await app.handler(new Request('http://localhost/api/users'));
     expect(listResponse.status).toBe(200);
     const listBody = await listResponse.json();
-    expect(listBody.data).toEqual([]);
+    expect(listBody.items).toEqual([]);
 
     // Exercise noop get (returns null → 404)
     const getResponse = await app.handler(new Request('http://localhost/api/users/123'));
@@ -158,8 +158,8 @@ describe('createServer', () => {
     const listResponse = await app.handler(new Request('http://localhost/api/users'));
     expect(listResponse.status).toBe(200);
     const listBody = await listResponse.json();
-    expect(listBody.data).toHaveLength(1);
-    expect(listBody.data[0].name).toBe('Alice');
+    expect(listBody.items).toHaveLength(1);
+    expect(listBody.items[0].name).toBe('Alice');
   });
 
   it('accepts a DatabaseClient via db and bridges it to EntityDbAdapter', async () => {
@@ -220,8 +220,8 @@ describe('createServer', () => {
     const listResponse = await app.handler(new Request('http://localhost/api/users'));
     expect(listResponse.status).toBe(200);
     const listBody = await listResponse.json();
-    expect(listBody.data).toHaveLength(1);
-    expect(listBody.data[0].name).toBe('Alice');
+    expect(listBody.items).toHaveLength(1);
+    expect(listBody.items[0].name).toBe('Alice');
     expect(listBody.total).toBe(1);
 
     // Get by ID should return the record

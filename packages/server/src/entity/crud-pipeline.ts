@@ -33,7 +33,7 @@ function resolvePrimaryKeyColumn(table: TableDef): string {
 // ListOptions is re-exported from @vertz/db above
 
 export interface ListResult<T = Record<string, unknown>> {
-  data: T[];
+  items: T[];
   total: number;
   limit: number;
   nextCursor: string | null;
@@ -111,7 +111,7 @@ export function createCrudHandlers(def: EntityDefinition, db: EntityDbAdapter): 
           : null;
       const hasNextPage = nextCursor !== null;
 
-      return ok({ status: 200, body: { data, total, limit, nextCursor, hasNextPage } });
+      return ok({ status: 200, body: { items: data, total, limit, nextCursor, hasNextPage } });
     },
 
     async get(ctx, id) {

@@ -181,9 +181,9 @@ describe('Entity Developer Walkthrough (public API only)', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(2);
-      expect(body.data[0].email).toBe('a@b.com');
-      for (const record of body.data) {
+      expect(body.items).toHaveLength(2);
+      expect(body.items[0].email).toBe('a@b.com');
+      for (const record of body.items) {
         expect(record.passwordHash).toBeUndefined();
       }
       expect(body.total).toBe(2);
@@ -283,9 +283,9 @@ describe('Entity Developer Walkthrough (public API only)', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(2);
-      expect(body.data[0].name).toBe('Alice');
-      expect(body.data[1].name).toBe('Bob');
+      expect(body.items).toHaveLength(2);
+      expect(body.items[0].name).toBe('Alice');
+      expect(body.items[1].name).toBe('Bob');
       expect(body.total).toBe(3);
       expect(body.limit).toBe(2);
       expect(body.hasNextPage).toBe(true);
@@ -306,8 +306,8 @@ describe('Entity Developer Walkthrough (public API only)', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe('Bob');
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].name).toBe('Bob');
       expect(body.total).toBe(1);
     });
 
@@ -326,8 +326,8 @@ describe('Entity Developer Walkthrough (public API only)', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe('Alice');
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].name).toBe('Alice');
       expect(body.nextCursor).toBe('u1');
     });
 
@@ -346,8 +346,8 @@ describe('Entity Developer Walkthrough (public API only)', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe('Bob');
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].name).toBe('Bob');
       expect(body.nextCursor).toBe('u2');
     });
 
@@ -366,8 +366,8 @@ describe('Entity Developer Walkthrough (public API only)', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe('Alice');
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].name).toBe('Alice');
       expect(body.total).toBe(2);
       expect(body.limit).toBe(1);
       expect(body.hasNextPage).toBe(true);
@@ -507,8 +507,8 @@ describe('Entity Developer Walkthrough (public API only)', () => {
       const listRes = await request(app, 'GET', '/api/users');
       expect(listRes.status).toBe(200);
       const listed = await listRes.json();
-      expect(listed.data).toHaveLength(1);
-      expect(listed.data[0].name).toBe('Alicia');
+      expect(listed.items).toHaveLength(1);
+      expect(listed.items[0].name).toBe('Alicia');
     });
   });
 });

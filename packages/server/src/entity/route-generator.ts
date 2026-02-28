@@ -136,8 +136,8 @@ export function generateEntityRoutes(
             }
 
             // Apply select narrowing if requested
-            if (parsed.select && result.data.body.data) {
-              result.data.body.data = result.data.body.data.map((row) =>
+            if (parsed.select && result.data.body.items) {
+              result.data.body.items = result.data.body.items.map((row) =>
                 applySelect(parsed.select, row as Record<string, unknown>),
               );
             }
@@ -188,8 +188,8 @@ export function generateEntityRoutes(
           }
 
           // Apply select narrowing if requested
-          if (parsed.select && result.data.body.data) {
-            result.data.body.data = result.data.body.data.map((row) =>
+          if (parsed.select && result.data.body.items) {
+            result.data.body.items = result.data.body.items.map((row) =>
               applySelect(parsed.select, row as Record<string, unknown>),
             );
           }

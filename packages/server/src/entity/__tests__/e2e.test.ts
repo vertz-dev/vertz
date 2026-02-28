@@ -233,9 +233,9 @@ describe('EDA v0.1.0 E2E', () => {
 
           expect(res.status).toBe(200);
           const body = await res.json();
-          expect(body.data).toHaveLength(2);
-          expect(body.data[0].email).toBe('a@b.com');
-          expect(body.data[1].email).toBe('b@b.com');
+          expect(body.items).toHaveLength(2);
+          expect(body.items[0].email).toBe('a@b.com');
+          expect(body.items[1].email).toBe('b@b.com');
           expect(body.total).toBe(2);
           expect(body.limit).toBe(20);
           expect(body.hasNextPage).toBe(false);
@@ -253,7 +253,7 @@ describe('EDA v0.1.0 E2E', () => {
           const res = await request(app, 'GET', '/api/users');
           const body = await res.json();
 
-          for (const record of body.data) {
+          for (const record of body.items) {
             expect(record.passwordHash).toBeUndefined();
           }
         });
@@ -582,14 +582,14 @@ describe('EDA v0.1.0 E2E', () => {
       // List users returns only users
       const usersListRes = await request(app, 'GET', '/api/users');
       const usersBody = await usersListRes.json();
-      expect(usersBody.data).toHaveLength(1);
-      expect(usersBody.data[0].email).toBe('a@b.com');
+      expect(usersBody.items).toHaveLength(1);
+      expect(usersBody.items[0].email).toBe('a@b.com');
 
       // List tasks returns only tasks
       const tasksListRes = await request(app, 'GET', '/api/tasks');
       const tasksBody = await tasksListRes.json();
-      expect(tasksBody.data).toHaveLength(1);
-      expect(tasksBody.data[0].title).toBe('Write tests');
+      expect(tasksBody.items).toHaveLength(1);
+      expect(tasksBody.items[0].title).toBe('Write tests');
     });
   });
 
@@ -618,9 +618,9 @@ describe('EDA v0.1.0 E2E', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(2);
-      expect(body.data[0].name).toBe('Alice');
-      expect(body.data[1].name).toBe('Bob');
+      expect(body.items).toHaveLength(2);
+      expect(body.items[0].name).toBe('Alice');
+      expect(body.items[1].name).toBe('Bob');
       expect(body.total).toBe(3);
       expect(body.limit).toBe(2);
       expect(body.hasNextPage).toBe(true);
@@ -642,8 +642,8 @@ describe('EDA v0.1.0 E2E', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe('Bob');
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].name).toBe('Bob');
       expect(body.total).toBe(1);
     });
 
@@ -662,8 +662,8 @@ describe('EDA v0.1.0 E2E', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe('Alice');
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].name).toBe('Alice');
       expect(body.nextCursor).toBe('u1');
     });
 
@@ -682,8 +682,8 @@ describe('EDA v0.1.0 E2E', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe('Bob');
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].name).toBe('Bob');
       expect(body.nextCursor).toBe('u2');
     });
 
@@ -702,7 +702,7 @@ describe('EDA v0.1.0 E2E', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(0);
+      expect(body.items).toHaveLength(0);
       expect(body.nextCursor).toBeNull();
     });
 
@@ -721,8 +721,8 @@ describe('EDA v0.1.0 E2E', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe('Alice');
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].name).toBe('Alice');
       expect(body.total).toBe(2);
       expect(body.limit).toBe(1);
       expect(body.hasNextPage).toBe(true);
@@ -750,8 +750,8 @@ describe('EDA v0.1.0 E2E', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe('Bob');
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].name).toBe('Bob');
     });
 
     it('GET /api/users?where[passwordHash]=x returns 400 for hidden field filter', async () => {
@@ -793,8 +793,8 @@ describe('EDA v0.1.0 E2E', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].role).toBe('admin');
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].role).toBe('admin');
       expect(body.limit).toBe(1);
     });
   });
@@ -820,9 +820,9 @@ describe('EDA v0.1.0 E2E', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data[0]).toEqual({ name: 'Alice', email: 'a@b.com' });
-      expect(body.data[0]).not.toHaveProperty('id');
-      expect(body.data[0]).not.toHaveProperty('role');
+      expect(body.items[0]).toEqual({ name: 'Alice', email: 'a@b.com' });
+      expect(body.items[0]).not.toHaveProperty('id');
+      expect(body.items[0]).not.toHaveProperty('role');
     });
 
     it('GET /api/users/:id?q=<select> narrows single record fields', async () => {
@@ -868,9 +868,9 @@ describe('EDA v0.1.0 E2E', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0]).toEqual({ name: 'Bob', email: 'b@b.com' });
-      expect(body.data[0]).not.toHaveProperty('id');
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0]).toEqual({ name: 'Bob', email: 'b@b.com' });
+      expect(body.items[0]).not.toHaveProperty('id');
     });
 
     it('GET /api/users?q=<invalid base64> returns 400', async () => {
@@ -1024,8 +1024,8 @@ describe('EDA v0.1.0 E2E', () => {
       const listRes = await request(app, 'GET', '/api/users');
       expect(listRes.status).toBe(200);
       const listed = await listRes.json();
-      expect(listed.data).toHaveLength(1);
-      expect(listed.data[0].name).toBe('Alicia');
+      expect(listed.items).toHaveLength(1);
+      expect(listed.items[0].name).toBe('Alicia');
     });
   });
 });
