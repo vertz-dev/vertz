@@ -139,7 +139,7 @@ export function resetMockData(): void {
 
     // GET /api/todos — list
     if (method === 'GET' && url.includes('/todos')) {
-      return new Response(JSON.stringify({ data: [...todos], total: todos.length }), {
+      return new Response(JSON.stringify([...todos]), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
