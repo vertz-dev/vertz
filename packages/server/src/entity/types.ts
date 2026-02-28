@@ -75,10 +75,15 @@ export interface EntityAfterHooks<TResponse = unknown> {
 // Custom action definition
 // ---------------------------------------------------------------------------
 
-export interface EntityActionDef<TInput = unknown, TOutput = unknown, TResponse = unknown> {
+export interface EntityActionDef<
+  TInput = unknown,
+  TOutput = unknown,
+  TResponse = unknown,
+  TCtx extends EntityContext = EntityContext,
+> {
   readonly input: SchemaLike<TInput>;
   readonly output: SchemaLike<TOutput>;
-  readonly handler: (input: TInput, ctx: EntityContext, row: TResponse) => Promise<TOutput>;
+  readonly handler: (input: TInput, ctx: TCtx, row: TResponse) => Promise<TOutput>;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,8 +169,9 @@ export interface TypedQueryOptions<
 
 export interface EntityConfig<
   TModel extends ModelDef = ModelDef,
+  // biome-ignore lint/suspicious/noExplicitAny: constraint uses any to accept all action type parameter combinations
   // biome-ignore lint/complexity/noBannedTypes: {} represents an empty actions record — the correct default for entities without custom actions
-  TActions extends Record<string, EntityActionDef> = {},
+  TActions extends Record<string, EntityActionDef<any, any, any, any>> = {},
   // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
   TInject extends Record<string, EntityDefinition> = {},
 > {
@@ -177,12 +183,32 @@ export interface EntityConfig<
       AccessRule
     >
   >;
-  readonly before?: EntityBeforeHooks<
-    TModel['table']['$create_input'],
-    TModel['table']['$update_input']
-  >;
-  readonly after?: EntityAfterHooks<TModel['table']['$response']>;
-  readonly actions?: TActions;
+  readonly before?: {
+    readonly create?: (
+      data: TModel['table']['$create_input'],
+      ctx: EntityContext<TModel, TInject>,
+    ) => TModel['table']['$create_input'] | Promise<TModel['table']['$create_input']>;
+    readonly update?: (
+      data: TModel['table']['$update_input'],
+      ctx: EntityContext<TModel, TInject>,
+    ) => TModel['table']['$update_input'] | Promise<TModel['table']['$update_input']>;
+  };
+  readonly after?: {
+    readonly create?: (
+      result: TModel['table']['$response'],
+      ctx: EntityContext<TModel, TInject>,
+    ) => void | Promise<void>;
+    readonly update?: (
+      prev: TModel['table']['$response'],
+      next: TModel['table']['$response'],
+      ctx: EntityContext<TModel, TInject>,
+    ) => void | Promise<void>;
+    readonly delete?: (
+      row: TModel['table']['$response'],
+      ctx: EntityContext<TModel, TInject>,
+    ) => void | Promise<void>;
+  };
+  readonly actions?: { readonly [K in keyof TActions]: TActions[K] };
   readonly relations?: EntityRelationsConfig<TModel['relations']>;
 }
 

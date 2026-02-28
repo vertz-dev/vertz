@@ -1,15 +1,19 @@
 import { deepFreeze } from '@vertz/core';
 import type { ModelDef } from '@vertz/db';
-import type { EntityActionDef, EntityConfig, EntityDefinition } from './types';
+import type { EntityActionDef, EntityConfig, EntityContext, EntityDefinition } from './types';
 
 const ENTITY_NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
 
 export function entity<
   TModel extends ModelDef,
-  // biome-ignore lint/complexity/noBannedTypes: {} represents an empty actions record
-  TActions extends Record<string, EntityActionDef> = {},
   // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities
   TInject extends Record<string, EntityDefinition> = {},
+  TActions extends Record<
+    string,
+    // biome-ignore lint/suspicious/noExplicitAny: generic constraint uses any to accept all action input/output/response combinations
+    EntityActionDef<any, any, any, EntityContext<TModel, TInject>>
+    // biome-ignore lint/complexity/noBannedTypes: {} represents an empty actions record
+  > = {},
 >(name: string, config: EntityConfig<TModel, TActions, TInject>): EntityDefinition<TModel> {
   if (!name || !ENTITY_NAME_PATTERN.test(name)) {
     throw new Error(

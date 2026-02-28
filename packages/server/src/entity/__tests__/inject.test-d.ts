@@ -37,6 +37,10 @@ const ordersModel = d.model(ordersTable);
 const usersEntity = entity('users', { model: usersModel });
 const productsEntity = entity('products', { model: productsModel });
 
+// Minimal schema for action tests
+const emptySchema = { parse: (v: unknown) => ({ ok: true as const, data: v as Record<string, never> }) };
+const okSchema = { parse: (v: unknown) => ({ ok: true as const, data: v as { ok: boolean } }) };
+
 // ---------------------------------------------------------------------------
 // EntityContext with inject — type flow
 // ---------------------------------------------------------------------------
@@ -111,6 +115,103 @@ describe('EntityContext inject type flow', () => {
     type ProductsGetReturn = Awaited<ReturnType<Ctx['entities']['products']['get']>>;
     expectTypeOf<ProductsGetReturn>().toHaveProperty('title');
     expectTypeOf<ProductsGetReturn>().toHaveProperty('price');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// entity() config with inject — type flow
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// TInject flows through action handlers — ctx.entities is typed
+// ---------------------------------------------------------------------------
+
+describe('inject flows through action handler ctx', () => {
+  it('action handler ctx.entities has typed injected entity', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      actions: {
+        cancel: {
+          input: emptySchema,
+          output: okSchema,
+          handler: async (_input, ctx, _order) => {
+            // ctx.entities.users should be typed — get() returns users $response
+            const user = await ctx.entities.users.get('id');
+            expectTypeOf(user).toHaveProperty('email');
+            expectTypeOf(user).toHaveProperty('name');
+            return { ok: true };
+          },
+        },
+      },
+      access: { cancel: (ctx) => ctx.authenticated() },
+    });
+  });
+
+  it('action handler ctx.entities rejects non-injected entity', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      actions: {
+        cancel: {
+          input: emptySchema,
+          output: okSchema,
+          handler: async (_input, ctx, _order) => {
+            // @ts-expect-error — products not in inject map
+            ctx.entities.products;
+            return { ok: true };
+          },
+        },
+      },
+      access: { cancel: (ctx) => ctx.authenticated() },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TInject flows through before/after hooks — ctx.entities is typed
+// ---------------------------------------------------------------------------
+
+describe('inject flows through hook ctx', () => {
+  it('before.create hook ctx.entities has typed injected entity', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      before: {
+        create: (data, ctx) => {
+          // ctx.entities.users should be typed
+          ctx.entities.users.get('id');
+          return data;
+        },
+      },
+    });
+  });
+
+  it('before hook ctx.entities rejects non-injected entity', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      before: {
+        create: (data, ctx) => {
+          // @ts-expect-error — products not in inject map
+          ctx.entities.products;
+          return data;
+        },
+      },
+    });
+  });
+
+  it('after.create hook ctx.entities has typed injected entity', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      after: {
+        create: (_result, ctx) => {
+          // ctx.entities.users should be typed
+          ctx.entities.users.get('id');
+        },
+      },
+    });
   });
 });
 
