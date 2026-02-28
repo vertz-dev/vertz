@@ -12,7 +12,7 @@ export {
 } from './config';
 export { formatWithBiome } from './format';
 export type { GenerateResult } from './generate';
-export { generate } from './generate';
+export { generate, mergeImportsToPackageJson } from './generate';
 export { ClientGenerator } from './generators/client-generator';
 export { EntitySchemaGenerator } from './generators/entity-schema-generator';
 export { EntitySdkGenerator } from './generators/entity-sdk-generator';
