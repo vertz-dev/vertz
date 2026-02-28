@@ -30,7 +30,12 @@ export function createThemedAccordion(
         item.item.classList.add(styles.item);
         item.trigger.classList.add(styles.trigger);
         item.content.classList.add(styles.content);
-        return item;
+        // Inner wrapper holds padding so it doesn't conflict with height animation.
+        // Consumers set textContent/append on the returned content div (the inner).
+        const inner = document.createElement('div');
+        inner.style.cssText = 'padding: 0.5rem 0.5rem 1rem;';
+        item.content.appendChild(inner);
+        return { item: item.item, trigger: item.trigger, content: inner as HTMLDivElement };
       },
     };
   };

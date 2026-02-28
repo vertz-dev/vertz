@@ -15,6 +15,8 @@ type CardBlocks = {
 export function createCard(): CSSOutput<CardBlocks> {
   const s = css({
     cardRoot: [
+      'flex',
+      'flex-col',
       'bg:card',
       'text:card-foreground',
       'rounded:xl',
@@ -28,7 +30,7 @@ export function createCard(): CSSOutput<CardBlocks> {
     cardTitle: ['font:semibold', 'leading:none', 'tracking:tight'],
     cardDescription: ['text:sm', 'text:muted-foreground'],
     cardContent: ['px:6'],
-    cardFooter: ['flex', 'items:center', 'px:6'],
+    cardFooter: ['flex', 'items:center', 'gap:2', 'px:6'],
     cardAction: ['ml:auto'],
   });
   return {

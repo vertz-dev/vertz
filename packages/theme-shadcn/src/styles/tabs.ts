@@ -35,7 +35,14 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
       'font:medium',
       'cursor:pointer',
       'transition:colors',
+      'border:0',
+      {
+        '&': [{ property: 'background', value: 'transparent' }],
+      },
       { '&[data-state="inactive"]': [textOpacity('foreground', 60)] },
+      {
+        '&[data-state="inactive"]:hover': [textOpacity('foreground', 80)],
+      },
       {
         '&[data-state="active"]': ['bg:background', 'text:foreground', 'shadow:sm'],
       },
@@ -45,7 +52,7 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
     ],
     tabsPanel: ['mt:2'],
-    tabsListLine: ['inline-flex', 'h:9', 'items:center', 'gap:4', 'border-b:1', 'border:border'],
+    tabsListLine: ['inline-flex', 'h:9', 'items:end', 'gap:4', 'border-b:1', 'border:border'],
     tabsTriggerLine: [
       'inline-flex',
       'items:center',
@@ -56,8 +63,16 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
       'text:sm',
       'font:medium',
       'cursor:pointer',
-      'transition:colors',
+      'border:0',
+      {
+        '&': [
+          { property: 'background', value: 'transparent' },
+          { property: 'margin-bottom', value: '-1px' },
+          { property: 'transition', value: 'color 150ms, box-shadow 150ms' },
+        ],
+      },
       { '&[data-state="inactive"]': [textOpacity('foreground', 60)] },
+      { '&[data-state="inactive"]:hover': [textOpacity('foreground', 80)] },
       {
         '&[data-state="active"]': [
           'text:foreground',

@@ -6,7 +6,7 @@ type SeparatorBlocks = { base: string[] };
 /** Create separator css() styles. */
 export function createSeparator(): CSSOutput<SeparatorBlocks> {
   const s = css({
-    separatorBase: ['bg:border', 'h:0.5', 'w:full'],
+    separatorBase: ['bg:border', 'w:full', { '&': [{ property: 'height', value: '1px' }] }],
   });
   return {
     base: s.separatorBase,

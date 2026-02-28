@@ -30,10 +30,21 @@ export function createSliderStyles(): CSSOutput<SliderBlocks> {
         '&': [
           { property: 'touch-action', value: 'none' },
           { property: 'user-select', value: 'none' },
+          { property: 'height', value: '20px' },
+          { property: 'cursor', value: 'pointer' },
         ],
       },
     ],
-    sliderTrack: ['relative', 'h:1.5', 'w:full', 'overflow-hidden', 'rounded:full', 'bg:secondary'],
+    sliderTrack: [
+      'relative',
+      'h:1.5',
+      'w:full',
+      'rounded:full',
+      'bg:secondary',
+      {
+        '&': [{ property: 'overflow', value: 'visible' }],
+      },
+    ],
     sliderThumb: [
       'block',
       'h:5',
@@ -46,6 +57,12 @@ export function createSliderStyles(): CSSOutput<SliderBlocks> {
       'cursor:pointer',
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      {
+        '&': [
+          { property: 'top', value: '50%' },
+          { property: 'margin-top', value: '-10px' },
+        ],
+      },
     ],
   });
   return {

@@ -66,16 +66,32 @@ export const Slider = {
       return Math.min(max, Math.max(min, val));
     }
 
+    // Fill element shows the active range
+    const fill = document.createElement('div');
+    fill.setAttribute('data-part', 'fill');
+    fill.style.cssText = 'position: absolute; height: 100%; border-radius: inherit;';
+
+    function updatePosition(pct: number): void {
+      thumb.style.left = `${pct}%`;
+      fill.style.width = `${pct}%`;
+    }
+
     function setValue(val: number): void {
       if (state.disabled.peek()) return;
       const clamped = clamp(val);
       state.value.value = clamped;
       setValueRange(thumb, clamped, min, max);
-      // Set percentage for styling
       const pct = ((clamped - min) / (max - min)) * 100;
-      thumb.style.left = `${pct}%`;
+      updatePosition(pct);
       setDataState(root, 'active');
       onValueChange?.(clamped);
+    }
+
+    function valueFromPointer(event: PointerEvent): number {
+      const rect = track.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+      const raw = min + pct * (max - min);
+      return Math.round(raw / step) * step;
     }
 
     thumb.addEventListener('keydown', (event) => {
@@ -97,12 +113,36 @@ export const Slider = {
       }
     });
 
+    // Pointer drag support
+    root.addEventListener('pointerdown', (event) => {
+      if (state.disabled.peek()) return;
+      event.preventDefault();
+      setValue(valueFromPointer(event));
+      thumb.focus();
+
+      function onMove(e: PointerEvent): void {
+        setValue(valueFromPointer(e));
+      }
+      function onUp(): void {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+      }
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+
+    // Position thumb absolutely within the track
+    thumb.style.position = 'absolute';
+    thumb.style.transform = 'translateX(-50%)';
+
+    track.style.position = 'relative';
+    track.appendChild(fill);
     track.appendChild(thumb);
     root.appendChild(track);
 
     // Initialize position
     const pct = ((defaultValue - min) / (max - min)) * 100;
-    thumb.style.left = `${pct}%`;
+    updatePosition(pct);
 
     return { root, thumb, track, state };
   },

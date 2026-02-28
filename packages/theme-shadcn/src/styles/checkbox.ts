@@ -22,6 +22,9 @@ export function createCheckboxStyles(): CSSOutput<CheckboxBlocks> {
   const s = css({
     checkboxRoot: [
       'shrink-0',
+      'flex',
+      'items:center',
+      'justify:center',
       'h:4',
       'w:4',
       'rounded:sm',
@@ -30,6 +33,8 @@ export function createCheckboxStyles(): CSSOutput<CheckboxBlocks> {
       'shadow:xs',
       'cursor:pointer',
       'transition:colors',
+      { '&': [{ property: 'padding', value: '0' }] },
+      { '&': [{ property: 'background', value: 'transparent' }] },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
       {

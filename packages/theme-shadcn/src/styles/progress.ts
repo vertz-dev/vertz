@@ -1,5 +1,6 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
 import { css } from '@vertz/ui';
+import { bgOpacity } from './_helpers';
 
 type ProgressBlocks = {
   root: StyleEntry[];
@@ -15,16 +16,13 @@ export function createProgressStyles(): CSSOutput<ProgressBlocks> {
       'w:full',
       'overflow-hidden',
       'rounded:full',
-      'bg:primary',
-      'opacity:0.2',
+      { '&': [bgOpacity('primary', 20)] },
     ],
     progressIndicator: [
       'h:full',
       'w:full',
-      'flex-col',
       'bg:primary',
-      'transition:transform',
-      'rounded:full',
+      { '&': [{ property: 'transition', value: 'all 150ms' }] },
     ],
   });
   return {

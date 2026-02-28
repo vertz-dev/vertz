@@ -24,6 +24,9 @@ export function createRadioGroupStyles(): CSSOutput<RadioGroupBlocks> {
   const s = css({
     radioGroupRoot: ['grid', 'gap:3'],
     radioGroupItem: [
+      'flex',
+      'items:center',
+      'justify:center',
       'h:4',
       'w:4',
       'shrink-0',
@@ -34,12 +37,16 @@ export function createRadioGroupStyles(): CSSOutput<RadioGroupBlocks> {
       'cursor:pointer',
       'transition:colors',
       {
-        '&': [{ property: 'aspect-ratio', value: '1 / 1' }],
+        '&': [
+          { property: 'aspect-ratio', value: '1 / 1' },
+          { property: 'padding', value: '0' },
+          { property: 'background', value: 'transparent' },
+        ],
       },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
       {
-        '&[data-state="checked"]': ['bg:primary', 'text:primary-foreground', 'border:primary'],
+        '&[data-state="checked"]': ['border:primary'],
       },
       {
         '&[data-state="unchecked"]': ['bg:transparent'],

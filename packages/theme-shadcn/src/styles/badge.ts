@@ -3,7 +3,7 @@ import { variants } from '@vertz/ui';
 
 const colorVariants: Record<string, StyleEntry[]> = {
   blue: ['bg:primary', 'text:primary-foreground'],
-  green: ['bg:accent', 'text:accent-foreground'],
+  green: ['bg:primary', 'text:primary-foreground'],
   yellow: ['bg:secondary', 'text:secondary-foreground'],
   red: ['bg:destructive', 'text:destructive-foreground'],
   gray: ['bg:muted', 'text:muted-foreground'],

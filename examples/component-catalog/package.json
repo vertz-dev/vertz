@@ -1,0 +1,23 @@
+{
+  "name": "@vertz-examples/component-catalog",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun node_modules/@vertz/cli/dist/vertz.js dev",
+    "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vertz/ui": "workspace:*",
+    "@vertz/theme-shadcn": "workspace:*",
+    "@vertz/ui-primitives": "workspace:*",
+    "@vertz/ui-server": "workspace:*"
+  },
+  "devDependencies": {
+    "@vertz/cli": "workspace:*",
+    "@vertz/ui-compiler": "workspace:*",
+    "bun-types": "^1.3.9",
+    "typescript": "^5.8.0"
+  }
+}

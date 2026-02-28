@@ -50,6 +50,10 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'bg:background',
       'shadow:sm',
       'transition:transform',
+      {
+        '&[data-state="unchecked"]': [{ property: 'transform', value: 'translateX(0)' }],
+        '&[data-state="checked"]': [{ property: 'transform', value: 'translateX(20px)' }],
+      },
     ],
     switchRootSm: [
       'inline-flex',
@@ -79,6 +83,10 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'bg:background',
       'shadow:sm',
       'transition:transform',
+      {
+        '&[data-state="unchecked"]': [{ property: 'transform', value: 'translateX(0)' }],
+        '&[data-state="checked"]': [{ property: 'transform', value: 'translateX(16px)' }],
+      },
     ],
   });
   return {

@@ -1,5 +1,5 @@
 import type { CSSOutput, StyleEntry } from '@vertz/ui';
-import { css } from '@vertz/ui';
+import { css, keyframes } from '@vertz/ui';
 import { animationDecl } from './_helpers';
 
 type AccordionBlocks = {
@@ -7,6 +7,16 @@ type AccordionBlocks = {
   trigger: StyleEntry[];
   content: StyleEntry[];
 };
+
+const accordionDown = keyframes('vz-accordion-down', {
+  from: { height: '0', opacity: '0' },
+  to: { height: 'var(--accordion-content-height)', opacity: '1' },
+});
+
+const accordionUp = keyframes('vz-accordion-up', {
+  from: { height: 'var(--accordion-content-height)', opacity: '1' },
+  to: { height: '0', opacity: '0' },
+});
 
 /** Create accordion css() styles. */
 export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
@@ -17,6 +27,7 @@ export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
       'w:full',
       'items:center',
       'justify:between',
+      'px:2',
       'py:4',
       'font:medium',
       'text:sm',
@@ -28,12 +39,15 @@ export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
     accordionContent: [
       'overflow-hidden',
       'text:sm',
-      'pb:4',
       {
-        '&[data-state="open"]': [animationDecl('vz-accordion-down 200ms ease-out forwards')],
+        '&[data-state="open"]': [
+          animationDecl(`${accordionDown} 200ms ease-out forwards`),
+        ],
       },
       {
-        '&[data-state="closed"]': [animationDecl('vz-accordion-up 200ms ease-out forwards')],
+        '&[data-state="closed"]': [
+          animationDecl(`${accordionUp} 200ms ease-out forwards`),
+        ],
       },
     ],
   });

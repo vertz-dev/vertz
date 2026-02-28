@@ -16,10 +16,21 @@ type TableBlocks = {
 /** Create table css() styles. */
 export function createTableStyles(): CSSOutput<TableBlocks> {
   const s = css({
-    tableRoot: ['w:full', 'text:sm', { '&': [{ property: 'caption-side', value: 'bottom' }] }],
-    tableHeader: ['border-b:1', 'border:border'],
-    tableBody: [{ '& > tr': ['border-b:1', 'border:border'] }],
+    tableRoot: [
+      'w:full',
+      'text:sm',
+      {
+        '&': [
+          { property: 'caption-side', value: 'bottom' },
+          { property: 'border-collapse', value: 'collapse' },
+        ],
+      },
+    ],
+    tableHeader: [{ '& tr': ['border-b:1', 'border:border'] }],
+    tableBody: [{ '& tr:last-child': [{ property: 'border-bottom', value: '0' }] }],
     tableRow: [
+      'border-b:1',
+      'border:border',
       'transition:colors',
       { '&:hover': [bgOpacity('muted', 50)] },
       { '&[data-state="selected"]': ['bg:muted'] },
@@ -28,7 +39,8 @@ export function createTableStyles(): CSSOutput<TableBlocks> {
       'px:2',
       'text:left',
       'font:medium',
-      'text:muted-foreground',
+      'text:foreground',
+      'whitespace-nowrap',
       {
         '&': [
           { property: 'vertical-align', value: 'middle' },
@@ -36,9 +48,19 @@ export function createTableStyles(): CSSOutput<TableBlocks> {
         ],
       },
     ],
-    tableCell: ['p:2', { '&': [{ property: 'vertical-align', value: 'middle' }] }],
+    tableCell: [
+      'p:2',
+      'whitespace-nowrap',
+      { '&': [{ property: 'vertical-align', value: 'middle' }] },
+    ],
     tableCaption: ['mt:4', 'text:sm', 'text:muted-foreground'],
-    tableFooter: ['border-t:1', 'border:border', 'font:medium', { '&': [bgOpacity('muted', 50)] }],
+    tableFooter: [
+      'border-t:1',
+      'border:border',
+      'font:medium',
+      { '&': [bgOpacity('muted', 50)] },
+      { '&>tr:last-child': [{ property: 'border-bottom', value: '0' }] },
+    ],
   });
   return {
     root: s.tableRoot,

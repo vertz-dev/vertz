@@ -14,6 +14,7 @@ export function createThemedProgress(
   return function themedProgress(options?: ProgressOptions) {
     const result = Progress.Root(options);
     result.root.classList.add(styles.root);
+    result.root.style.opacity = '1';
     result.indicator.classList.add(styles.indicator);
     return result;
   };
