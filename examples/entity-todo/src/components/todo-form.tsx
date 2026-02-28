@@ -9,8 +9,8 @@
 
 import { s } from '@vertz/schema';
 import { form } from '@vertz/ui';
-import type { TodosResponse } from '#generated/types';
 import { api } from '../api/client';
+import type { TodosResponse } from '../api/client';
 import { button, formStyles } from '../styles/components';
 
 const createTodoSchema = s.object({
