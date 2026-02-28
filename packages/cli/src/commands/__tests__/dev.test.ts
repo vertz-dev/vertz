@@ -10,11 +10,6 @@ import { type DevCommandOptions, registerDevCommand } from '../dev';
 
 describe('Pipeline Orchestrator', () => {
   describe('categorizeFileChange', () => {
-    it('should categorize .domain.ts files as domain', () => {
-      const category = categorizeFileChange('src/domains/auth.domain.ts');
-      expect(category).toBe('domain');
-    });
-
     it('should categorize .module.ts files as module', () => {
       const category = categorizeFileChange('src/modules/user.module.ts');
       expect(category).toBe('module');
@@ -52,14 +47,6 @@ describe('Pipeline Orchestrator', () => {
   });
 
   describe('stage determination', () => {
-    it('should return analyze + codegen for domain changes', () => {
-      const category = categorizeFileChange('src/domains/auth.domain.ts');
-      const stages = getAffectedStages(category);
-      expect(stages).toContain('analyze');
-      expect(stages).toContain('codegen');
-      expect(stages).not.toContain('build-ui');
-    });
-
     it('should return analyze + codegen for module changes', () => {
       const category = categorizeFileChange('src/modules/user.module.ts');
       const stages = getAffectedStages(category);
@@ -101,11 +88,11 @@ describe('Pipeline Orchestrator', () => {
       expect(stages).not.toContain('build-ui');
     });
 
-    it('should identify that domain changes trigger analyze and codegen', () => {
-      const category = categorizeFileChange('src/domains/auth.domain.ts');
+    it('should identify that module changes trigger analyze and codegen', () => {
+      const category = categorizeFileChange('src/modules/auth.module.ts');
       const stages = getAffectedStages(category);
 
-      // Domain changes affect the IR analysis and codegen
+      // Module changes affect the IR analysis and codegen
       expect(stages).toEqual(expect.arrayContaining(['analyze', 'codegen']));
     });
   });
@@ -138,14 +125,14 @@ describe('Pipeline Orchestrator', () => {
         it('then it should reuse the core logic from watcher.ts', () => {
           // This test verifies that the dev command uses getStagesForChanges from watcher.ts
           const changes: FileChange[] = [
-            { type: 'change', path: 'src/domains/auth.domain.ts' },
+            { type: 'change', path: 'src/modules/auth.module.ts' },
             { type: 'add', path: 'src/components/Button.tsx' },
           ];
 
           // The dev command should use getStagesForChanges from the pipeline watcher
           const stages = getStagesForChanges(changes);
 
-          // Should include analyze + codegen for domain changes
+          // Should include analyze + codegen for module changes
           expect(stages).toContain('analyze');
           expect(stages).toContain('codegen');
           // Should include build-ui for component changes
@@ -154,14 +141,14 @@ describe('Pipeline Orchestrator', () => {
 
         it('should handle multiple file changes correctly', () => {
           const changes: FileChange[] = [
-            { type: 'change', path: 'src/domains/user.domain.ts' },
+            { type: 'change', path: 'src/modules/user.module.ts' },
             { type: 'change', path: 'src/schemas/user.schema.ts' },
             { type: 'change', path: 'src/components/Header.tsx' },
           ];
 
           const stages = getStagesForChanges(changes);
 
-          // Domain changes need analyze + codegen
+          // Module changes need analyze + codegen
           expect(stages).toContain('analyze');
           expect(stages).toContain('codegen');
           // Schema changes need codegen (but analyze already added)
@@ -187,10 +174,10 @@ describe('Pipeline Orchestrator', () => {
         it('then they should pass without regression', () => {
           // This test ensures the refactor doesn't break existing functionality
           // The categorizeFileChange and getAffectedStages should work as before
-          const domainCategory = categorizeFileChange('src/domains/test.domain.ts');
-          expect(domainCategory).toBe('domain');
+          const moduleCategory = categorizeFileChange('src/modules/test.module.ts');
+          expect(moduleCategory).toBe('module');
 
-          const stages = getAffectedStages(domainCategory);
+          const stages = getAffectedStages(moduleCategory);
           expect(stages).toContain('analyze');
           expect(stages).toContain('codegen');
         });

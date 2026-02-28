@@ -81,13 +81,6 @@ export {
   PostgresDialect,
   SqliteDialect,
 } from './dialect';
-export type {
-  DomainDefinition,
-  DomainField,
-  DomainRelation,
-} from './domain';
-// Domain definitions for codegen
-export { defineDomain, generateClient, generateTypes } from './domain';
 // Errors - includes both original error classes and new Result error types
 export type {
   CheckConstraintErrorOptions,

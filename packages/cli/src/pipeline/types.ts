@@ -10,7 +10,15 @@ export type PipelineStage = 'analyze' | 'openapi' | 'codegen' | 'build-ui' | 'db
 /**
  * File categories for smart dispatch
  */
-export type FileCategory = 'domain' | 'module' | 'schema' | 'service' | 'route' | 'entity' | 'component' | 'config' | 'other';
+export type FileCategory =
+  | 'module'
+  | 'schema'
+  | 'service'
+  | 'route'
+  | 'entity'
+  | 'component'
+  | 'config'
+  | 'other';
 
 /**
  * A file change event from the watcher
