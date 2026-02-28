@@ -8,7 +8,30 @@ import { createSelectStyles } from '../styles/select';
 import { createSwitchStyles } from '../styles/switch';
 import { createTabsStyles } from '../styles/tabs';
 import { createToastStyles } from '../styles/toast';
+import { createPopoverStyles } from '../styles/popover';
+import { createSliderStyles } from '../styles/slider';
 import { createTooltipStyles } from '../styles/tooltip';
+
+describe('popover', () => {
+  const popover = createPopoverStyles();
+
+  it('has content block', () => {
+    expect(typeof popover.content).toBe('string');
+  });
+
+  it('class name is non-empty', () => {
+    expect(popover.content.length).toBeGreaterThan(0);
+  });
+
+  it('CSS contains enter/exit animations for content', () => {
+    expect(popover.css).toContain('vz-zoom-in');
+    expect(popover.css).toContain('vz-zoom-out');
+  });
+
+  it('CSS does not use display:none for animated states', () => {
+    expect(popover.css).not.toContain('display: none');
+  });
+});
 
 describe('alert-dialog', () => {
   const alertDialog = createAlertDialogStyles();
@@ -279,6 +302,31 @@ describe('dropdown-menu', () => {
   });
 });
 
+describe('radio-group', () => {
+  it('has root, item, and indicator blocks', async () => {
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const radioGroup = createRadioGroupStyles();
+    expect(typeof radioGroup.root).toBe('string');
+    expect(typeof radioGroup.item).toBe('string');
+    expect(typeof radioGroup.indicator).toBe('string');
+  });
+
+  it('all class names are non-empty', async () => {
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const radioGroup = createRadioGroupStyles();
+    expect(radioGroup.root.length).toBeGreaterThan(0);
+    expect(radioGroup.item.length).toBeGreaterThan(0);
+    expect(radioGroup.indicator.length).toBeGreaterThan(0);
+  });
+
+  it('CSS contains data-state="checked" and data-state="unchecked" selectors', async () => {
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const radioGroup = createRadioGroupStyles();
+    expect(radioGroup.css).toContain('[data-state="checked"]');
+    expect(radioGroup.css).toContain('[data-state="unchecked"]');
+  });
+});
+
 describe('tooltip', () => {
   const tooltip = createTooltipStyles();
 
@@ -297,5 +345,23 @@ describe('tooltip', () => {
 
   it('CSS does not use display:none for animated states', () => {
     expect(tooltip.css).not.toContain('display: none');
+  });
+});
+
+describe('slider', () => {
+  const slider = createSliderStyles();
+
+  it('has root, track, range, and thumb blocks', () => {
+    expect(typeof slider.root).toBe('string');
+    expect(typeof slider.track).toBe('string');
+    expect(typeof slider.range).toBe('string');
+    expect(typeof slider.thumb).toBe('string');
+  });
+
+  it('all class names are non-empty', () => {
+    expect(slider.root.length).toBeGreaterThan(0);
+    expect(slider.track.length).toBeGreaterThan(0);
+    expect(slider.range.length).toBeGreaterThan(0);
+    expect(slider.thumb.length).toBeGreaterThan(0);
   });
 });

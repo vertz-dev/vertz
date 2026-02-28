@@ -9,10 +9,17 @@ import type {
   DialogOptions,
   DialogState,
   MenuOptions,
+  PopoverElements,
+  PopoverOptions,
+  PopoverState,
   ProgressElements,
   ProgressOptions,
   ProgressState,
+  RadioOptions,
   SelectOptions,
+  SliderElements,
+  SliderOptions,
+  SliderState,
   SwitchElements,
   SwitchState,
   ToastOptions,
@@ -42,9 +49,13 @@ import { createThemedCheckbox } from './components/primitives/checkbox';
 import { createThemedDialog } from './components/primitives/dialog';
 import type { ThemedDropdownMenuResult } from './components/primitives/dropdown-menu';
 import { createThemedDropdownMenu } from './components/primitives/dropdown-menu';
+import { createThemedPopover } from './components/primitives/popover';
 import { createThemedProgress } from './components/primitives/progress';
+import type { ThemedRadioGroupResult } from './components/primitives/radio-group';
+import { createThemedRadioGroup } from './components/primitives/radio-group';
 import type { ThemedSelectResult } from './components/primitives/select';
 import { createThemedSelect } from './components/primitives/select';
+import { createThemedSlider } from './components/primitives/slider';
 import type { ThemedSwitchOptions } from './components/primitives/switch';
 import { createThemedSwitch } from './components/primitives/switch';
 import type { ThemedTabsOptions, ThemedTabsResult } from './components/primitives/tabs';
@@ -70,9 +81,12 @@ import {
   createFormGroup,
   createInput,
   createLabel,
+  createPopoverStyles,
   createProgressStyles,
+  createRadioGroupStyles,
   createSelectStyles,
   createSeparator,
+  createSliderStyles,
   createSwitchStyles,
   createTabsStyles,
   createTextarea,
@@ -190,10 +204,30 @@ export interface ThemeStyles {
     readonly thumbSm: string;
     readonly css: string;
   };
+  /** Popover css() styles. */
+  popover: {
+    readonly content: string;
+    readonly css: string;
+  };
   /** Progress css() styles. */
   progress: {
     readonly root: string;
     readonly indicator: string;
+    readonly css: string;
+  };
+  /** RadioGroup css() styles. */
+  radioGroup: {
+    readonly root: string;
+    readonly item: string;
+    readonly indicator: string;
+    readonly css: string;
+  };
+  /** Slider css() styles. */
+  slider: {
+    readonly root: string;
+    readonly track: string;
+    readonly range: string;
+    readonly thumb: string;
     readonly css: string;
   };
   /** AlertDialog css() styles. */
@@ -247,10 +281,16 @@ export interface ThemedPrimitives {
   checkbox: (options?: CheckboxOptions) => CheckboxElements & { state: CheckboxState };
   /** Themed Switch — wraps @vertz/ui-primitives Switch with shadcn styles. */
   switch: (options?: ThemedSwitchOptions) => SwitchElements & { state: SwitchState };
+  /** Themed Popover — wraps @vertz/ui-primitives Popover with shadcn styles. */
+  popover: (options?: PopoverOptions) => PopoverElements & { state: PopoverState };
   /** Themed Progress — wraps @vertz/ui-primitives Progress with shadcn styles. */
   progress: (
     options?: ProgressOptions,
   ) => ProgressElements & { state: ProgressState; setValue: (value: number) => void };
+  /** Themed RadioGroup — wraps @vertz/ui-primitives Radio with shadcn styles. */
+  radioGroup: (options?: RadioOptions) => ThemedRadioGroupResult;
+  /** Themed Slider — wraps @vertz/ui-primitives Slider with shadcn styles. */
+  slider: (options?: SliderOptions) => SliderElements & { state: SliderState };
   /** Themed Accordion — wraps @vertz/ui-primitives Accordion with shadcn styles. */
   accordion: (options?: AccordionOptions) => ThemedAccordionResult;
   /** Themed Toast — wraps @vertz/ui-primitives Toast with shadcn styles. */
@@ -358,7 +398,10 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const tabsStyles = createTabsStyles();
   const checkboxStyles = createCheckboxStyles();
   const switchStyles = createSwitchStyles();
+  const popoverStyles = createPopoverStyles();
   const progressStyles = createProgressStyles();
+  const radioGroupStyles = createRadioGroupStyles();
+  const sliderStyles = createSliderStyles();
   const alertStyles = createAlert();
   const alertDialogStyles = createAlertDialogStyles();
   const accordionStyles = createAccordionStyles();
@@ -383,7 +426,10 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     tabs: tabsStyles,
     checkbox: checkboxStyles,
     switch: switchStyles,
+    popover: popoverStyles,
     progress: progressStyles,
+    radioGroup: radioGroupStyles,
+    slider: sliderStyles,
     accordion: accordionStyles,
     toast: toastStyles,
     tooltip: tooltipStyles,
@@ -408,7 +454,10 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       tabs: createThemedTabs(tabsStyles),
       checkbox: createThemedCheckbox(checkboxStyles),
       switch: createThemedSwitch(switchStyles),
+      popover: createThemedPopover(popoverStyles),
       progress: createThemedProgress(progressStyles),
+      radioGroup: createThemedRadioGroup(radioGroupStyles),
+      slider: createThemedSlider(sliderStyles),
       accordion: createThemedAccordion(accordionStyles),
       toast: createThemedToast(toastStyles),
       tooltip: createThemedTooltip(tooltipStyles),

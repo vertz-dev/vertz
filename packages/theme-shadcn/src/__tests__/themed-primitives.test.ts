@@ -8,7 +8,52 @@ import { createSelectStyles } from '../styles/select';
 import { createSwitchStyles } from '../styles/switch';
 import { createTabsStyles } from '../styles/tabs';
 import { createToastStyles } from '../styles/toast';
+import { createPopoverStyles } from '../styles/popover';
 import { createTooltipStyles } from '../styles/tooltip';
+
+// ── Popover ───────────────────────────────────────────────
+
+describe('createThemedPopover', () => {
+  it('applies theme classes to popover content', async () => {
+    const { createThemedPopover } = await import('../components/primitives/popover');
+    const styles = createPopoverStyles();
+    const themedPopover = createThemedPopover(styles);
+    const popover = themedPopover();
+
+    expect(popover.content.classList.contains(styles.content)).toBe(true);
+  });
+
+  it('returns trigger, content, and state', async () => {
+    const { createThemedPopover } = await import('../components/primitives/popover');
+    const styles = createPopoverStyles();
+    const themedPopover = createThemedPopover(styles);
+    const popover = themedPopover();
+
+    expect(popover.trigger).toBeInstanceOf(HTMLButtonElement);
+    expect(popover.content).toBeInstanceOf(HTMLDivElement);
+    expect(popover.state).toBeDefined();
+  });
+
+  it('preserves primitive behavior — trigger opens popover', async () => {
+    const { createThemedPopover } = await import('../components/primitives/popover');
+    const styles = createPopoverStyles();
+    const themedPopover = createThemedPopover(styles);
+    const popover = themedPopover();
+
+    expect(popover.state.open.peek()).toBe(false);
+    popover.trigger.click();
+    expect(popover.state.open.peek()).toBe(true);
+  });
+
+  it('passes options through to primitive', async () => {
+    const { createThemedPopover } = await import('../components/primitives/popover');
+    const styles = createPopoverStyles();
+    const themedPopover = createThemedPopover(styles);
+    const popover = themedPopover({ defaultOpen: true });
+
+    expect(popover.state.open.peek()).toBe(true);
+  });
+});
 
 // ── AlertDialog ────────────────────────────────────────────
 
@@ -588,5 +633,90 @@ describe('createThemedTooltip', () => {
     expect(tooltip.trigger).toBeInstanceOf(HTMLElement);
     expect(tooltip.content).toBeInstanceOf(HTMLDivElement);
     expect(tooltip.state).toBeDefined();
+  });
+});
+
+// ── Slider ──────────────────────────────────────────────────
+
+describe('createThemedSlider', () => {
+  it('applies theme classes to slider elements', async () => {
+    const { createThemedSlider } = await import('../components/primitives/slider');
+    const { createSliderStyles } = await import('../styles/slider');
+    const styles = createSliderStyles();
+    const themedSlider = createThemedSlider(styles);
+    const slider = themedSlider();
+
+    expect(slider.root.classList.contains(styles.root)).toBe(true);
+    expect(slider.track.classList.contains(styles.track)).toBe(true);
+    expect(slider.thumb.classList.contains(styles.thumb)).toBe(true);
+  });
+
+  it('preserves primitive behavior — state tracks value', async () => {
+    const { createThemedSlider } = await import('../components/primitives/slider');
+    const { createSliderStyles } = await import('../styles/slider');
+    const styles = createSliderStyles();
+    const themedSlider = createThemedSlider(styles);
+    const slider = themedSlider({ defaultValue: 42, min: 0, max: 100 });
+
+    expect(slider.state.value.peek()).toBe(42);
+  });
+
+  it('passes defaultValue option through', async () => {
+    const { createThemedSlider } = await import('../components/primitives/slider');
+    const { createSliderStyles } = await import('../styles/slider');
+    const styles = createSliderStyles();
+    const themedSlider = createThemedSlider(styles);
+    const slider = themedSlider({ defaultValue: 75 });
+
+    expect(slider.state.value.peek()).toBe(75);
+  });
+});
+
+// ── RadioGroup ─────────────────────────────────────────────
+
+describe('createThemedRadioGroup', () => {
+  it('applies theme class to radio group root', async () => {
+    const { createThemedRadioGroup } = await import('../components/primitives/radio-group');
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const styles = createRadioGroupStyles();
+    const themedRadioGroup = createThemedRadioGroup(styles);
+    const radioGroup = themedRadioGroup();
+
+    expect(radioGroup.root.classList.contains(styles.root)).toBe(true);
+  });
+
+  it('Item factory applies theme class', async () => {
+    const { createThemedRadioGroup } = await import('../components/primitives/radio-group');
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const styles = createRadioGroupStyles();
+    const themedRadioGroup = createThemedRadioGroup(styles);
+    const radioGroup = themedRadioGroup();
+    const item = radioGroup.Item('option1', 'Option 1');
+
+    expect(item.classList.contains(styles.item)).toBe(true);
+  });
+
+  it('preserves primitive behavior — clicking item changes value', async () => {
+    const { createThemedRadioGroup } = await import('../components/primitives/radio-group');
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const styles = createRadioGroupStyles();
+    const themedRadioGroup = createThemedRadioGroup(styles);
+    const radioGroup = themedRadioGroup();
+    const item1 = radioGroup.Item('a', 'A');
+    radioGroup.Item('b', 'B');
+
+    expect(radioGroup.state.value.peek()).toBe('');
+    item1.click();
+    expect(radioGroup.state.value.peek()).toBe('a');
+  });
+
+  it('passes defaultValue option through', async () => {
+    const { createThemedRadioGroup } = await import('../components/primitives/radio-group');
+    const { createRadioGroupStyles } = await import('../styles/radio-group');
+    const styles = createRadioGroupStyles();
+    const themedRadioGroup = createThemedRadioGroup(styles);
+    const radioGroup = themedRadioGroup({ defaultValue: 'b' });
+
+    expect(radioGroup.state.value.peek()).toBe('b');
   });
 });
