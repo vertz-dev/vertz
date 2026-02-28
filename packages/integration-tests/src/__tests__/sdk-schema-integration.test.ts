@@ -7,6 +7,7 @@
  * Uses only public package imports — never relative imports.
  */
 
+import { ok } from '@vertz/errors';
 import { s } from '@vertz/schema';
 import { form } from '@vertz/ui/form';
 import { describe, expect, it, vi } from 'vitest';
@@ -14,7 +15,7 @@ import { describe, expect, it, vi } from 'vitest';
 describe('SDK Schema Integration', () => {
   // Mock SDK method with .meta.bodySchema (simulates generated SDK)
   const schema = s.object({ title: s.string().min(1) });
-  const createTodo = Object.assign(async (body: { title: string }) => ({ id: '1', ...body }), {
+  const createTodo = Object.assign(async (body: { title: string }) => ok({ id: '1', ...body }), {
     url: '/todos',
     method: 'POST',
     meta: { bodySchema: schema },
@@ -45,7 +46,7 @@ describe('SDK Schema Integration', () => {
   });
 
   it('form() requires explicit schema when SDK lacks meta', () => {
-    const plainSdk = Object.assign(async (body: { title: string }) => ({ id: '1', ...body }), {
+    const plainSdk = Object.assign(async (body: { title: string }) => ok({ id: '1', ...body }), {
       url: '/todos',
       method: 'POST',
     });
