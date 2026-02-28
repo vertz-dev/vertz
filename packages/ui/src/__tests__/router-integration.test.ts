@@ -128,8 +128,11 @@ describe('Router Integration Tests', () => {
           parse(data: unknown) {
             const raw = data as Record<string, string>;
             return {
-              page: raw.page ? Number(raw.page) : 1,
-              sort: raw.sort ?? 'name',
+              ok: true as const,
+              data: {
+                page: raw.page ? Number(raw.page) : 1,
+                sort: raw.sort ?? 'name',
+              },
             };
           },
         },

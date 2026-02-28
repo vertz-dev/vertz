@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { css, getInjectedCSS, injectCSS, resetInjectedStyles } from '../css';
 
+/** Read all CSS text from adopted stylesheets (used by injectCSS when available). */
+function getAdoptedCSSText(): string[] {
+  return Array.from(document.adoptedStyleSheets).map((sheet) =>
+    Array.from(sheet.cssRules)
+      .map((r) => r.cssText)
+      .join('\n'),
+  );
+}
+
 function cleanupStyles(): void {
   for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
     el.remove();
@@ -12,36 +21,37 @@ describe('css() runtime style injection', () => {
   beforeEach(cleanupStyles);
   afterEach(cleanupStyles);
 
-  it('injects generated CSS into document.head as a <style> tag', () => {
+  it('injects generated CSS into the document via adoptedStyleSheets', () => {
     css({ card: ['p:4', 'bg:background'] }, 'inject-test.tsx');
 
-    const styles = document.head.querySelectorAll('style[data-vertz-css]');
-    expect(styles.length).toBe(1);
-    expect(styles[0]?.textContent).toContain('padding: 1rem');
-    expect(styles[0]?.textContent).toContain('background-color: var(--color-background)');
+    const sheets = getAdoptedCSSText();
+    expect(sheets.length).toBe(1);
+    const cssText = sheets[0];
+    expect(cssText).toContain('padding: 1rem');
+    expect(cssText).toContain('background-color: var(--color-background)');
   });
 
   it('does not inject the same CSS twice (deduplication)', () => {
     css({ card: ['p:4'] }, 'dedup-test.tsx');
     css({ card: ['p:4'] }, 'dedup-test.tsx');
 
-    const styles = document.head.querySelectorAll('style[data-vertz-css]');
-    expect(styles.length).toBe(1);
+    const sheets = getAdoptedCSSText();
+    expect(sheets.length).toBe(1);
   });
 
-  it('injects separate <style> tags for different css() calls', () => {
+  it('injects separate stylesheets for different css() calls', () => {
     css({ a: ['p:4'] }, 'file-a.tsx');
     css({ b: ['m:4'] }, 'file-b.tsx');
 
-    const styles = document.head.querySelectorAll('style[data-vertz-css]');
-    expect(styles.length).toBe(2);
+    const sheets = getAdoptedCSSText();
+    expect(sheets.length).toBe(2);
   });
 
   it('does not inject when css produces empty output', () => {
     css({}, 'empty-test.tsx');
 
-    const styles = document.head.querySelectorAll('style[data-vertz-css]');
-    expect(styles.length).toBe(0);
+    const sheets = getAdoptedCSSText();
+    expect(sheets.length).toBe(0);
   });
 });
 
@@ -59,17 +69,20 @@ describe('injectCSS SSR behavior', () => {
 
     // First injection (browser mode) — populates dedup Set
     injectCSS(cssText);
-    expect(document.head.querySelectorAll('style[data-vertz-css]').length).toBe(1);
+    expect(getAdoptedCSSText().length).toBe(1);
 
-    // Clear document.head to simulate fresh SSR request
-    for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
-      el.remove();
-    }
+    // Reset to simulate fresh request (clears adopted sheets and dedup set)
+    resetInjectedStyles();
+
+    // Re-inject in browser mode first to populate dedup Set
+    injectCSS(cssText);
+    const countAfterBrowser = getAdoptedCSSText().length;
+    expect(countAfterBrowser).toBe(1);
 
     // Set SSR flag and inject same CSS — should bypass dedup
     globalThis.__SSR_URL__ = '/';
     injectCSS(cssText);
-    expect(document.head.querySelectorAll('style[data-vertz-css]').length).toBe(1);
+    expect(getAdoptedCSSText().length).toBe(2);
   });
 
   it('adds to dedup Set during SSR for collection via getInjectedCSS', () => {
@@ -88,17 +101,15 @@ describe('injectCSS SSR behavior', () => {
   it('produces styles on consecutive SSR requests with fresh document.head', () => {
     // Simulate two SSR "requests" using css() (which calls injectCSS internally)
     for (let req = 1; req <= 2; req++) {
-      // Fresh head per request (simulating installDomShim)
-      for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
-        el.remove();
-      }
+      // Reset per request (simulating installDomShim)
+      resetInjectedStyles();
       globalThis.__SSR_URL__ = `/page-${req}`;
 
       css({ card: ['p:4', 'bg:background'] }, 'ssr-multi.tsx');
 
-      const styles = document.head.querySelectorAll('style[data-vertz-css]');
-      expect(styles.length).toBe(1);
-      expect(styles[0]?.textContent).toContain('padding: 1rem');
+      const sheets = getAdoptedCSSText();
+      expect(sheets.length).toBe(1);
+      expect(sheets[0]).toContain('padding: 1rem');
     }
   });
 });
