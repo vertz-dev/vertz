@@ -20,6 +20,12 @@ export function createDropdownMenuStyles(): CSSOutput<DropdownMenuBlocks> {
       'text:popover-foreground',
       'rounded:lg',
       'p:1',
+      // Positioning: portaled to body, positioned via JS
+      {
+        '&': [
+          { property: 'position', value: 'fixed' },
+        ],
+      },
       // Nova: ring-1 ring-foreground/10 instead of border, shadow-md, min-w-32
       {
         '&': [

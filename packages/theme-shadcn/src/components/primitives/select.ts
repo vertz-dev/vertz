@@ -156,6 +156,30 @@ export function createThemedSelect(styles: SelectStyleClasses): ThemedSelectComp
     // Process items/groups/separators inside content
     processItems(contentNodes, primitive);
 
+    // Portal content to document.body so it escapes overflow:hidden containers
+    document.body.appendChild(primitive.content);
+
+    // Position content relative to trigger when opened
+    const positionContent = (): void => {
+      const rect = primitive.trigger.getBoundingClientRect();
+      const side = primitive.content.getAttribute('data-side');
+      if (side === 'top') {
+        primitive.content.style.bottom = `${window.innerHeight - rect.top + 4}px`;
+        primitive.content.style.top = 'auto';
+      } else {
+        primitive.content.style.top = `${rect.bottom + 4}px`;
+        primitive.content.style.bottom = 'auto';
+      }
+      primitive.content.style.left = `${rect.left}px`;
+      primitive.content.style.minWidth = `${rect.width}px`;
+    };
+
+    const observer = new MutationObserver(() => {
+      const isOpen = primitive.trigger.getAttribute('aria-expanded') === 'true';
+      if (isOpen) positionContent();
+    });
+    observer.observe(primitive.trigger, { attributes: true, attributeFilter: ['aria-expanded'] });
+
     return primitive.trigger;
   }
 

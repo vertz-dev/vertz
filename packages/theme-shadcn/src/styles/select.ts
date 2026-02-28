@@ -60,6 +60,12 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       'bg:popover',
       'text:popover-foreground',
       'rounded:lg',
+      // Positioning: portaled to body, positioned via JS
+      {
+        '&': [
+          { property: 'position', value: 'fixed' },
+        ],
+      },
       // Nova: ring-1 ring-foreground/10 instead of border, shadow-md, min-w-36
       {
         '&': [

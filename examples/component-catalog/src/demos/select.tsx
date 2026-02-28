@@ -9,7 +9,7 @@ export function SelectDemo() {
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>Basic select</div>
         <div>
-          <Select defaultValue="Select a fruit...">
+          <Select placeholder="Select a fruit...">
             <Select.Content>
               <Select.Item value="apple">Apple</Select.Item>
               <Select.Item value="banana">Banana</Select.Item>
@@ -22,7 +22,7 @@ export function SelectDemo() {
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>With groups</div>
         <div>
-          <Select defaultValue="Select a food...">
+          <Select placeholder="Select a food...">
             <Select.Content>
               <Select.Group label="Fruits">
                 <Select.Item value="apple">Apple</Select.Item>

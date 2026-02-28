@@ -68,6 +68,7 @@ export function createThemedPopover(styles: PopoverStyleClasses): ThemedPopoverC
           userTrigger.setAttribute('aria-expanded', String(isOpen));
           userTrigger.setAttribute('data-state', isOpen ? 'open' : 'closed');
         }
+        if (isOpen) positionContent();
         onOpenChangeOrig?.(isOpen);
       },
     });
@@ -80,6 +81,17 @@ export function createThemedPopover(styles: PopoverStyleClasses): ThemedPopoverC
       primitive.content.appendChild(node);
     }
 
+    // Portal content to document.body so it escapes overflow:hidden containers
+    document.body.appendChild(primitive.content);
+
+    // Position content below trigger when opened
+    const triggerRef = userTrigger ?? primitive.trigger;
+    const positionContent = (): void => {
+      const rect = triggerRef.getBoundingClientRect();
+      primitive.content.style.top = `${rect.bottom + 4}px`;
+      primitive.content.style.left = `${rect.left}px`;
+    };
+
     // Wire user's trigger
     if (userTrigger) {
       userTrigger.setAttribute('aria-haspopup', 'dialog');
@@ -87,7 +99,6 @@ export function createThemedPopover(styles: PopoverStyleClasses): ThemedPopoverC
       userTrigger.setAttribute('aria-expanded', String(options.defaultOpen ?? false));
       userTrigger.setAttribute('data-state', options.defaultOpen ? 'open' : 'closed');
       userTrigger.addEventListener('click', () => {
-        // Delegate to primitive trigger click which handles open/close
         primitive.trigger.click();
       });
       return userTrigger;

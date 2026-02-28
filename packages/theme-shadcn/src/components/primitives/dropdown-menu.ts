@@ -170,24 +170,33 @@ export function createThemedDropdownMenu(
 
     const primitive = Menu.Root(menuOptions);
 
-    // Sync user trigger attributes and fire onOpenChange callback
-    // by observing the primitive trigger's aria-expanded changes
-    const primitiveTrigger = primitive.trigger;
-    const observer = new MutationObserver(() => {
-      const isOpen = primitiveTrigger.getAttribute('aria-expanded') === 'true';
-      if (userTrigger) {
-        userTrigger.setAttribute('aria-expanded', String(isOpen));
-        userTrigger.setAttribute('data-state', isOpen ? 'open' : 'closed');
-      }
-      onOpenChangeOrig?.(isOpen);
-    });
-    observer.observe(primitiveTrigger, { attributes: true, attributeFilter: ['aria-expanded'] });
-
     // Apply theme class
     primitive.content.classList.add(styles.content);
 
     // Process items/groups/separators/labels
     processItems(contentNodes, primitive);
+
+    // Portal content to document.body so it escapes overflow:hidden containers
+    document.body.appendChild(primitive.content);
+
+    // Position content below trigger when opened, sync user trigger attributes
+    const triggerRef = userTrigger ?? primitive.trigger;
+    const positionContent = (): void => {
+      const rect = triggerRef.getBoundingClientRect();
+      primitive.content.style.top = `${rect.bottom + 4}px`;
+      primitive.content.style.left = `${rect.left}px`;
+    };
+
+    const observer = new MutationObserver(() => {
+      const isOpen = primitive.trigger.getAttribute('aria-expanded') === 'true';
+      if (userTrigger) {
+        userTrigger.setAttribute('aria-expanded', String(isOpen));
+        userTrigger.setAttribute('data-state', isOpen ? 'open' : 'closed');
+      }
+      if (isOpen) positionContent();
+      onOpenChangeOrig?.(isOpen);
+    });
+    observer.observe(primitive.trigger, { attributes: true, attributeFilter: ['aria-expanded'] });
 
     // Wire user's trigger
     if (userTrigger) {

@@ -17,6 +17,7 @@ import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
 export interface SelectOptions {
   defaultValue?: string;
+  placeholder?: string;
   onValueChange?: (value: string) => void;
 }
 
@@ -41,7 +42,7 @@ export const Select = {
     };
     Separator: () => HTMLHRElement;
   } {
-    const { defaultValue = '', onValueChange } = options;
+    const { defaultValue = '', placeholder = '', onValueChange } = options;
     const ids = linkedIds('select');
     const state: SelectState = {
       open: signal(false),
@@ -56,6 +57,7 @@ export const Select = {
     trigger.id = ids.triggerId;
     trigger.setAttribute('aria-controls', ids.contentId);
     trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.textContent = defaultValue || placeholder;
     setExpanded(trigger, false);
     setDataState(trigger, 'closed');
 
@@ -101,6 +103,9 @@ export const Select = {
         const isActive = item.getAttribute('data-value') === value;
         setSelected(item, isActive);
         setDataState(item, isActive ? 'active' : 'inactive');
+        if (isActive) {
+          trigger.textContent = item.textContent ?? value;
+        }
       }
       onValueChange?.(value);
       close();
@@ -178,6 +183,9 @@ export const Select = {
       const isSelected = value === defaultValue;
       setSelected(item, isSelected);
       setDataState(item, isSelected ? 'active' : 'inactive');
+      if (isSelected) {
+        trigger.textContent = item.textContent ?? value;
+      }
 
       item.addEventListener('click', () => {
         selectItem(value);

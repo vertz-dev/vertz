@@ -46,9 +46,11 @@ describe('createThemedPopover', () => {
 
     const result = Popover({ children: [triggerSlot, contentSlot] });
 
-    // The returned trigger has aria-controls pointing to the content
+    // Returns user trigger directly; content is portaled to document.body
     const contentId = result.getAttribute('aria-controls')!;
     expect(contentId).toBeTruthy();
+    const portaledContent = document.getElementById(contentId);
+    expect(portaledContent).toBeTruthy();
   });
 
   it('returns user trigger when Popover.Trigger is provided', async () => {
@@ -557,7 +559,7 @@ describe('createThemedSelect', () => {
 
     const result = Select({ children: contentSlot });
 
-    // Root returns the primitive trigger with theme class applied
+    // Root returns the primitive trigger directly; content is portaled to body
     expect(result).toBeInstanceOf(HTMLElement);
     expect(result.classList.contains(styles.trigger)).toBe(true);
   });
@@ -668,6 +670,7 @@ describe('createThemedDropdownMenu', () => {
 
     const result = DropdownMenu({ children: [triggerSlot, contentSlot] });
 
+    // Returns user trigger directly; content is portaled to body
     expect(result).toBe(btn);
     expect(btn.getAttribute('aria-haspopup')).toBe('menu');
     expect(btn.getAttribute('aria-controls')).toBeTruthy();
