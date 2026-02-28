@@ -33,6 +33,8 @@ import type { AvatarComponents } from './components/avatar';
 import { createAvatarComponents } from './components/avatar';
 import type { BadgeProps } from './components/badge';
 import { createBadgeComponent } from './components/badge';
+import type { BreadcrumbComponents } from './components/breadcrumb';
+import { createBreadcrumbComponent } from './components/breadcrumb';
 import type { ButtonProps } from './components/button';
 import { createButtonComponent } from './components/button';
 import type { CardComponents } from './components/card';
@@ -43,18 +45,32 @@ import type { InputProps } from './components/input';
 import { createInputComponent } from './components/input';
 import type { LabelProps } from './components/label';
 import { createLabelComponent } from './components/label';
+import type { PaginationComponents } from './components/pagination';
+import { createPaginationComponent } from './components/pagination';
 import type { ThemedAccordionResult } from './components/primitives/accordion';
 import { createThemedAccordion } from './components/primitives/accordion';
 import type { AlertDialogElements, AlertDialogOptions } from './components/primitives/alert-dialog';
 import { createThemedAlertDialog } from './components/primitives/alert-dialog';
+import { createThemedCalendar } from './components/primitives/calendar';
+import { createThemedCarousel } from './components/primitives/carousel';
 import { createThemedCheckbox } from './components/primitives/checkbox';
+import { createThemedCollapsible } from './components/primitives/collapsible';
+import { createThemedCommand } from './components/primitives/command';
+import { createThemedContextMenu } from './components/primitives/context-menu';
+import { createThemedDatePicker } from './components/primitives/date-picker';
 import { createThemedDialog } from './components/primitives/dialog';
+import { createThemedDrawer } from './components/primitives/drawer';
 import type { ThemedDropdownMenuResult } from './components/primitives/dropdown-menu';
 import { createThemedDropdownMenu } from './components/primitives/dropdown-menu';
+import { createThemedHoverCard } from './components/primitives/hover-card';
+import { createThemedMenubar } from './components/primitives/menubar';
+import { createThemedNavigationMenu } from './components/primitives/navigation-menu';
 import { createThemedPopover } from './components/primitives/popover';
 import { createThemedProgress } from './components/primitives/progress';
 import type { ThemedRadioGroupResult } from './components/primitives/radio-group';
 import { createThemedRadioGroup } from './components/primitives/radio-group';
+import { createThemedResizablePanel } from './components/primitives/resizable-panel';
+import { createThemedScrollArea } from './components/primitives/scroll-area';
 import type { ThemedSelectResult } from './components/primitives/select';
 import { createThemedSelect } from './components/primitives/select';
 import type { ThemedSheetOptions } from './components/primitives/sheet';
@@ -66,6 +82,8 @@ import type { ThemedTabsOptions, ThemedTabsResult } from './components/primitive
 import { createThemedTabs } from './components/primitives/tabs';
 import type { ThemedToastResult } from './components/primitives/toast';
 import { createThemedToast } from './components/primitives/toast';
+import { createThemedToggle } from './components/primitives/toggle';
+import { createThemedToggleGroup } from './components/primitives/toggle-group';
 import { createThemedTooltip } from './components/primitives/tooltip';
 import type { SeparatorProps } from './components/separator';
 import { createSeparatorComponent } from './components/separator';
@@ -82,17 +100,31 @@ import {
   createAlertStyles,
   createAvatarStyles,
   createBadge,
+  createBreadcrumbStyles,
   createButton,
+  createCalendarStyles,
   createCard,
+  createCarouselStyles,
   createCheckboxStyles,
+  createCollapsibleStyles,
+  createCommandStyles,
+  createContextMenuStyles,
+  createDatePickerStyles,
   createDialogStyles,
+  createDrawerStyles,
   createDropdownMenuStyles,
   createFormGroup,
+  createHoverCardStyles,
   createInput,
   createLabel,
+  createMenubarStyles,
+  createNavigationMenuStyles,
+  createPaginationStyles,
   createPopoverStyles,
   createProgressStyles,
   createRadioGroupStyles,
+  createResizablePanelStyles,
+  createScrollAreaStyles,
   createSelectStyles,
   createSeparator,
   createSheetStyles,
@@ -103,6 +135,8 @@ import {
   createTabsStyles,
   createTextarea,
   createToastStyles,
+  createToggleGroupStyles,
+  createToggleStyles,
   createTooltipStyles,
 } from './styles';
 import type { PaletteName } from './tokens';
@@ -316,6 +350,38 @@ export interface ThemeStyles {
     readonly close: string;
     readonly css: string;
   };
+  /** Breadcrumb css() styles. */
+  breadcrumb: ReturnType<typeof createBreadcrumbStyles>;
+  /** Calendar css() styles. */
+  calendar: ReturnType<typeof createCalendarStyles>;
+  /** Carousel css() styles. */
+  carousel: ReturnType<typeof createCarouselStyles>;
+  /** Collapsible css() styles. */
+  collapsible: ReturnType<typeof createCollapsibleStyles>;
+  /** Command css() styles. */
+  command: ReturnType<typeof createCommandStyles>;
+  /** ContextMenu css() styles. */
+  contextMenu: ReturnType<typeof createContextMenuStyles>;
+  /** DatePicker css() styles. */
+  datePicker: ReturnType<typeof createDatePickerStyles>;
+  /** Drawer css() styles. */
+  drawer: ReturnType<typeof createDrawerStyles>;
+  /** HoverCard css() styles. */
+  hoverCard: ReturnType<typeof createHoverCardStyles>;
+  /** Menubar css() styles. */
+  menubar: ReturnType<typeof createMenubarStyles>;
+  /** NavigationMenu css() styles. */
+  navigationMenu: ReturnType<typeof createNavigationMenuStyles>;
+  /** Pagination css() styles. */
+  pagination: ReturnType<typeof createPaginationStyles>;
+  /** ResizablePanel css() styles. */
+  resizablePanel: ReturnType<typeof createResizablePanelStyles>;
+  /** ScrollArea css() styles. */
+  scrollArea: ReturnType<typeof createScrollAreaStyles>;
+  /** Toggle css() styles. */
+  toggle: ReturnType<typeof createToggleStyles>;
+  /** ToggleGroup css() styles. */
+  toggleGroup: ReturnType<typeof createToggleGroupStyles>;
 }
 
 /** Themed primitive factories returned by configureTheme(). */
@@ -352,6 +418,34 @@ export interface ThemedPrimitives {
   tooltip: (options?: TooltipOptions) => TooltipElements & { state: TooltipState };
   /** Themed Sheet — side panel wrapping Dialog with directional slide animations. */
   sheet: (options?: ThemedSheetOptions) => DialogElements & { state: DialogState };
+  /** Themed Calendar — date grid with month navigation. */
+  calendar: ReturnType<typeof createThemedCalendar>;
+  /** Themed Carousel — slide navigation with prev/next controls. */
+  carousel: ReturnType<typeof createThemedCarousel>;
+  /** Themed Collapsible — expandable/collapsible content section. */
+  collapsible: ReturnType<typeof createThemedCollapsible>;
+  /** Themed Command — searchable command palette. */
+  command: ReturnType<typeof createThemedCommand>;
+  /** Themed ContextMenu — right-click context menu. */
+  contextMenu: ReturnType<typeof createThemedContextMenu>;
+  /** Themed DatePicker — date picker composing Calendar + Popover. */
+  datePicker: ReturnType<typeof createThemedDatePicker>;
+  /** Themed Drawer — bottom/side panel wrapping Dialog. */
+  drawer: ReturnType<typeof createThemedDrawer>;
+  /** Themed HoverCard — hover-triggered interactive card. */
+  hoverCard: ReturnType<typeof createThemedHoverCard>;
+  /** Themed Menubar — horizontal menu bar with dropdowns. */
+  menubar: ReturnType<typeof createThemedMenubar>;
+  /** Themed NavigationMenu — site navigation with hover dropdowns. */
+  navigationMenu: ReturnType<typeof createThemedNavigationMenu>;
+  /** Themed ResizablePanel — resizable panel layout with drag handles. */
+  resizablePanel: ReturnType<typeof createThemedResizablePanel>;
+  /** Themed ScrollArea — custom scrollbars. */
+  scrollArea: ReturnType<typeof createThemedScrollArea>;
+  /** Themed Toggle — toggle button with pressed state. */
+  toggle: ReturnType<typeof createThemedToggle>;
+  /** Themed ToggleGroup — group of toggle buttons. */
+  toggleGroup: ReturnType<typeof createThemedToggleGroup>;
 }
 
 /** Component functions returned by configureTheme(). */
@@ -362,6 +456,8 @@ export interface ThemeComponents {
   Button: (props: ButtonProps) => HTMLButtonElement;
   /** Badge component — returns HTMLSpanElement with theme styles. */
   Badge: (props: BadgeProps) => HTMLSpanElement;
+  /** Breadcrumb component — navigation breadcrumb trail. */
+  Breadcrumb: BreadcrumbComponents;
   /** Card suite — Card, CardHeader, CardTitle, etc. */
   Card: CardComponents;
   /** Input component — returns HTMLInputElement with theme styles. */
@@ -370,6 +466,8 @@ export interface ThemeComponents {
   Textarea: (props: TextareaProps) => HTMLTextAreaElement;
   /** Label component — returns HTMLLabelElement with theme styles. */
   Label: (props: LabelProps) => HTMLLabelElement;
+  /** Pagination component — page navigation controls. */
+  Pagination: PaginationComponents;
   /** Separator component — returns HTMLHRElement with theme styles. */
   Separator: (props: SeparatorProps) => HTMLHRElement;
   /** FormGroup suite — FormGroup and FormError. */
@@ -473,6 +571,22 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const skeletonStyles = createSkeletonStyles();
   const tableStyles = createTableStyles();
   const sheetStyles = createSheetStyles();
+  const breadcrumbStyles = createBreadcrumbStyles();
+  const calendarStyles = createCalendarStyles();
+  const carouselStyles = createCarouselStyles();
+  const collapsibleStyles = createCollapsibleStyles();
+  const commandStyles = createCommandStyles();
+  const contextMenuStyles = createContextMenuStyles();
+  const datePickerStyles = createDatePickerStyles();
+  const drawerStyles = createDrawerStyles();
+  const hoverCardStyles = createHoverCardStyles();
+  const menubarStyles = createMenubarStyles();
+  const navigationMenuStyles = createNavigationMenuStyles();
+  const paginationStyles = createPaginationStyles();
+  const resizablePanelStyles = createResizablePanelStyles();
+  const scrollAreaStyles = createScrollAreaStyles();
+  const toggleStyles = createToggleStyles();
+  const toggleGroupStyles = createToggleGroupStyles();
 
   const styles: ThemeStyles = {
     alert: alertStyles,
@@ -502,6 +616,22 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     skeleton: skeletonStyles,
     table: tableStyles,
     sheet: sheetStyles,
+    breadcrumb: breadcrumbStyles,
+    calendar: calendarStyles,
+    carousel: carouselStyles,
+    collapsible: collapsibleStyles,
+    command: commandStyles,
+    contextMenu: contextMenuStyles,
+    datePicker: datePickerStyles,
+    drawer: drawerStyles,
+    hoverCard: hoverCardStyles,
+    menubar: menubarStyles,
+    navigationMenu: navigationMenuStyles,
+    pagination: paginationStyles,
+    resizablePanel: resizablePanelStyles,
+    scrollArea: scrollAreaStyles,
+    toggle: toggleStyles,
+    toggleGroup: toggleGroupStyles,
   };
 
   // Build component functions
@@ -509,10 +639,12 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     Alert: createAlertComponents(alertStyles),
     Button: createButtonComponent(buttonStyles),
     Badge: createBadgeComponent(badgeStyles),
+    Breadcrumb: createBreadcrumbComponent(breadcrumbStyles),
     Card: createCardComponents(cardStyles),
     Input: createInputComponent(inputStyles),
     Textarea: createTextareaComponent(textareaStyles),
     Label: createLabelComponent(labelStyles),
+    Pagination: createPaginationComponent(paginationStyles),
     Separator: createSeparatorComponent(separatorStyles),
     FormGroup: createFormGroupComponents(formGroupStyles),
     Avatar: createAvatarComponents(avatarStyles),
@@ -534,6 +666,20 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       toast: createThemedToast(toastStyles),
       tooltip: createThemedTooltip(tooltipStyles),
       sheet: createThemedSheet(sheetStyles),
+      calendar: createThemedCalendar(calendarStyles),
+      carousel: createThemedCarousel(carouselStyles),
+      collapsible: createThemedCollapsible(collapsibleStyles),
+      command: createThemedCommand(commandStyles),
+      contextMenu: createThemedContextMenu(contextMenuStyles),
+      datePicker: createThemedDatePicker(datePickerStyles),
+      drawer: createThemedDrawer(drawerStyles),
+      hoverCard: createThemedHoverCard(hoverCardStyles),
+      menubar: createThemedMenubar(menubarStyles),
+      navigationMenu: createThemedNavigationMenu(navigationMenuStyles),
+      resizablePanel: createThemedResizablePanel(resizablePanelStyles),
+      scrollArea: createThemedScrollArea(scrollAreaStyles),
+      toggle: createThemedToggle(toggleStyles),
+      toggleGroup: createThemedToggleGroup(toggleGroupStyles),
     },
   };
 
