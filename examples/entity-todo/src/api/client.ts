@@ -1,33 +1,15 @@
 /**
  * API client for the Entity Todo demo.
  *
- * This module provides a typed SDK client that wraps the generated
- * @vertz/codegen output. All CRUD operations return Result<T, FetchError>
- * for compile-time exhaustiveness checking via matchError.
+ * Queries use createDescriptor() for use with query() + queryMatch().
+ * Mutations return Result<T, FetchError> for matchError exhaustiveness.
  */
 
-import { FetchClient, type FetchClientConfig, type Result, type FetchErrorType } from '@vertz/fetch';
-import { createTodosSdk } from '../generated/entities/todos';
+import { HttpError } from '@vertz/errors';
+import { createDescriptor, err, type FetchErrorType, ok, type Result } from '@vertz/fetch';
 
-// Base URL for the API (defaults to local dev server)
-const API_BASE = process.env.API_BASE_URL || 'http://localhost:3000/api';
+// ── Types ──────────────────────────────────────────
 
-/**
- * Create an SDK client instance.
- * In a real app, you'd configure auth strategies here.
- */
-function createClient(config: FetchClientConfig) {
-  const client = new FetchClient(config);
-  return createTodosSdk(client);
-}
-
-export const sdk = createClient({
-  baseURL: API_BASE,
-});
-
-/**
- * Todo type - matches the API response format.
- */
 export interface Todo {
   id: string;
   title: string;
@@ -36,129 +18,157 @@ export interface Todo {
   updatedAt: string;
 }
 
-/**
- * SDK input types (derived from generated schemas).
- */
 export type CreateTodoInput = { title: string; completed?: boolean };
 export type UpdateTodoInput = Partial<Pick<Todo, 'title' | 'completed'>>;
 
-/**
- * List todos - demonstrates Result handling from SDK.
- * The SDK returns Result<T, FetchError> where FetchError is the error type
- * from @vertz/errors with properties like code, status, serverCode.
- *
- * @returns Result containing array of todos or FetchError
- */
-export async function fetchTodos(): Promise<Result<{ todos: Todo[]; total: number }, FetchErrorType>> {
-  const result = await sdk.list();
+// ── In-memory store (simulates API) ────────────────
 
-  if (result.ok) {
-    // Result.ok = true → result.data is { data: T; status: number; headers: Headers }
-    const data = result.data.data as Todo[];
-    return {
-      ok: true,
-      data: {
-        todos: data,
-        total: data.length,
-      },
-    };
-  }
+let nextId = 4;
 
-  // Return the error as-is - components will use matchError to handle it
-  return {
-    ok: false,
-    error: result.error,
-  };
+const todos: Todo[] = [
+  {
+    id: '1',
+    title: 'Set up project structure',
+    completed: true,
+    createdAt: '2026-02-01T10:00:00Z',
+    updatedAt: '2026-02-01T10:00:00Z',
+  },
+  {
+    id: '2',
+    title: 'Add entity CRUD',
+    completed: false,
+    createdAt: '2026-02-02T09:00:00Z',
+    updatedAt: '2026-02-02T09:00:00Z',
+  },
+  {
+    id: '3',
+    title: 'Write tests',
+    completed: false,
+    createdAt: '2026-02-03T11:00:00Z',
+    updatedAt: '2026-02-03T11:00:00Z',
+  },
+];
+
+function delay(ms = 200): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Get a single todo by ID.
- */
-export async function fetchTodo(id: string): Promise<Result<Todo, FetchErrorType>> {
-  const result = await sdk.get(id);
+// ── Raw data functions ─────────────────────────────
 
-  if (result.ok) {
-    return {
-      ok: true,
-      data: result.data.data as Todo,
-    };
-  }
-
-  return {
-    ok: false,
-    error: result.error,
-  };
+async function fetchTodos(): Promise<{ todos: Todo[]; total: number }> {
+  await delay();
+  return { todos: [...todos], total: todos.length };
 }
 
-/**
- * Create a new todo.
- */
+async function fetchTodo(id: string): Promise<Todo> {
+  await delay();
+  const todo = todos.find((t) => t.id === id);
+  if (!todo) throw new Error(`Todo ${id} not found`);
+  return { ...todo };
+}
+
+// ── Descriptor-based queries (for query() + queryMatch) ──
+
+function mockFetchResponse<T>(fn: () => Promise<T>) {
+  return async () => ok({ data: await fn(), status: 200, headers: new Headers() });
+}
+
+export const api = {
+  todos: {
+    list: Object.assign(
+      () =>
+        createDescriptor<{ todos: Todo[]; total: number }>(
+          'GET',
+          '/todos',
+          mockFetchResponse(() => fetchTodos()),
+        ),
+      { url: '/todos', method: 'GET' as const },
+    ),
+    get: Object.assign(
+      (id: string) =>
+        createDescriptor<Todo>(
+          'GET',
+          `/todos/${id}`,
+          mockFetchResponse(() => fetchTodo(id)),
+        ),
+      { url: '/todos/:id', method: 'GET' as const },
+    ),
+  },
+};
+
+// ── Result-returning mutations (for matchError) ────
+
 export async function createTodo(input: CreateTodoInput): Promise<Result<Todo, FetchErrorType>> {
-  // The generated SDK expects { body: CreateTodoInput }
-  const result = await sdk.create({ body: input });
-
-  if (result.ok) {
-    return {
-      ok: true,
-      data: result.data.data as Todo,
+  try {
+    await delay(300);
+    const now = new Date().toISOString();
+    const todo: Todo = {
+      id: String(nextId++),
+      title: input.title,
+      completed: input.completed ?? false,
+      createdAt: now,
+      updatedAt: now,
     };
+    todos.push(todo);
+    return ok(todo);
+  } catch (e) {
+    return err(e as FetchErrorType);
   }
-
-  return {
-    ok: false,
-    error: result.error,
-  };
 }
 
-/**
- * Update an existing todo.
- */
 export async function updateTodo(
   id: string,
   input: UpdateTodoInput,
 ): Promise<Result<Todo, FetchErrorType>> {
-  // The generated SDK expects { params: { id }, body: UpdateTodoInput }
-  const result = await sdk.update(id, { body: input });
-
-  if (result.ok) {
-    return {
-      ok: true,
-      data: result.data.data as Todo,
+  try {
+    await delay(200);
+    const idx = todos.findIndex((t) => t.id === id);
+    if (idx === -1) {
+      return err(new HttpError(404, `Todo ${id} not found`, 'NOT_FOUND'));
+    }
+    const existing = todos[idx] as Todo;
+    const updated: Todo = {
+      ...existing,
+      ...input,
+      updatedAt: new Date().toISOString(),
     };
+    todos[idx] = updated;
+    return ok(updated);
+  } catch (e) {
+    return err(e as FetchErrorType);
   }
+}
 
-  return {
-    ok: false,
-    error: result.error,
-  };
+export async function deleteTodo(
+  id: string,
+): Promise<Result<{ success: boolean }, FetchErrorType>> {
+  try {
+    await delay(200);
+    const idx = todos.findIndex((t) => t.id === id);
+    if (idx === -1) {
+      return err(new HttpError(404, `Todo ${id} not found`, 'NOT_FOUND'));
+    }
+    todos.splice(idx, 1);
+    return ok({ success: true });
+  } catch (e) {
+    return err(e as FetchErrorType);
+  }
 }
 
 /**
- * Delete a todo.
- */
-export async function deleteTodo(id: string): Promise<Result<{ success: boolean }, FetchErrorType>> {
-  const result = await sdk.delete(id);
-
-  if (result.ok) {
-    return {
-      ok: true,
-      data: { success: true },
-    };
-  }
-
-  return {
-    ok: false,
-    error: result.error,
-  };
-}
-
-/**
- * SDK method metadata for form progressive enhancement.
- * This mirrors what @vertz/codegen generates.
+ * SDK methods for form() progressive enhancement.
+ *
+ * These unwrap the Result: return data on Ok, throw on Err.
+ * form() expects a function that returns data or throws — it handles
+ * errors via onError callback, not Result matching.
  */
 export const todoApi = {
   create: Object.assign(
-    (body: CreateTodoInput) => createTodo(body),
+    async (body: CreateTodoInput): Promise<Todo> => {
+      const result = await createTodo(body);
+      if (!result.ok) throw result.error;
+      return result.data;
+    },
     {
       url: '/todos',
       method: 'POST' as const,
@@ -166,7 +176,11 @@ export const todoApi = {
   ),
   update: (id: string) =>
     Object.assign(
-      (body: UpdateTodoInput) => updateTodo(id, body),
+      async (body: UpdateTodoInput): Promise<Todo> => {
+        const result = await updateTodo(id, body);
+        if (!result.ok) throw result.error;
+        return result.data;
+      },
       {
         url: `/todos/${id}`,
         method: 'PATCH' as const,
@@ -174,10 +188,36 @@ export const todoApi = {
     ),
   delete: (id: string) =>
     Object.assign(
-      () => deleteTodo(id),
+      async (): Promise<{ success: boolean }> => {
+        const result = await deleteTodo(id);
+        if (!result.ok) throw result.error;
+        return result.data;
+      },
       {
         url: `/todos/${id}`,
         method: 'DELETE' as const,
       },
     ),
 };
+
+/** Reset mock data to initial state (for tests). */
+export function resetMockData(): void {
+  todos.length = 0;
+  todos.push(
+    {
+      id: '1',
+      title: 'Set up project structure',
+      completed: true,
+      createdAt: '2026-02-01T10:00:00Z',
+      updatedAt: '2026-02-01T10:00:00Z',
+    },
+    {
+      id: '2',
+      title: 'Add entity CRUD',
+      completed: false,
+      createdAt: '2026-02-02T09:00:00Z',
+      updatedAt: '2026-02-02T09:00:00Z',
+    },
+  );
+  nextId = 3;
+}
