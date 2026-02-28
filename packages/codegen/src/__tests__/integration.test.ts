@@ -195,7 +195,12 @@ describe('Full pipeline integration', () => {
 
     const result = await generate(emptyAppIR, config);
 
-    // No entity files generated
-    expect(result.files).toHaveLength(0);
+    // Only client entry point files (no entity files)
+    expect(result.files).toHaveLength(3);
+    expect(result.files.map((f) => f.path).sort()).toEqual([
+      'README.md',
+      'client.ts',
+      'package.json',
+    ]);
   });
 });
