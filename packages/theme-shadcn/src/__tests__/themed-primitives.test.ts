@@ -240,6 +240,144 @@ describe('createThemedSelect', () => {
 
     expect(select.state.value.peek()).toBe('opt1');
   });
+
+  it('Group applies group and label theme classes', async () => {
+    const { createThemedSelect } = await import('../components/primitives/select');
+    const styles = createSelectStyles();
+    const themedSelect = createThemedSelect(styles);
+    const select = themedSelect();
+
+    const group = select.Group('Fruits');
+    expect(group.el.classList.contains(styles.group)).toBe(true);
+    // Label element is prepended inside group
+    const labelEl = group.el.firstElementChild as HTMLElement;
+    expect(labelEl.textContent).toBe('Fruits');
+    expect(labelEl.classList.contains(styles.label)).toBe(true);
+  });
+
+  it('Group Item applies item theme class', async () => {
+    const { createThemedSelect } = await import('../components/primitives/select');
+    const styles = createSelectStyles();
+    const themedSelect = createThemedSelect(styles);
+    const select = themedSelect();
+
+    const group = select.Group('Fruits');
+    const item = group.Item('apple', 'Apple');
+    expect(item.classList.contains(styles.item)).toBe(true);
+  });
+
+  it('Separator applies separator theme class', async () => {
+    const { createThemedSelect } = await import('../components/primitives/select');
+    const styles = createSelectStyles();
+    const themedSelect = createThemedSelect(styles);
+    const select = themedSelect();
+
+    const sep = select.Separator();
+    expect(sep.classList.contains(styles.separator)).toBe(true);
+  });
+});
+
+// ── DropdownMenu ──────────────────────────────────────────
+
+describe('createThemedDropdownMenu', () => {
+  it('applies theme classes to dropdown menu content', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+
+    expect(menu.content.classList.contains(styles.content)).toBe(true);
+  });
+
+  it('Item factory applies theme classes', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+    const item = menu.Item('edit', 'Edit');
+
+    expect(item.classList.contains(styles.item)).toBe(true);
+  });
+
+  it('Group applies group and label theme classes', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+
+    const group = menu.Group('Actions');
+    expect(group.el.classList.contains(styles.group)).toBe(true);
+    const labelEl = group.el.firstElementChild as HTMLElement;
+    expect(labelEl.textContent).toBe('Actions');
+    expect(labelEl.classList.contains(styles.label)).toBe(true);
+  });
+
+  it('Group Item applies item theme class', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+
+    const group = menu.Group('Actions');
+    const item = group.Item('copy', 'Copy');
+    expect(item.classList.contains(styles.item)).toBe(true);
+  });
+
+  it('Separator applies separator theme class', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+
+    const sep = menu.Separator();
+    expect(sep.classList.contains(styles.separator)).toBe(true);
+  });
+
+  it('Label applies label theme class', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+
+    const label = menu.Label('My Account');
+    expect(label.classList.contains(styles.label)).toBe(true);
+    expect(label.textContent).toBe('My Account');
+  });
+
+  it('preserves primitive behavior — trigger opens menu', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+    menu.Item('a', 'A');
+
+    expect(menu.state.open.peek()).toBe(false);
+    menu.trigger.click();
+    expect(menu.state.open.peek()).toBe(true);
+  });
+
+  it('preserves primitive behavior — onSelect callback', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const { vi } = await import('bun:test');
+    const styles = createDropdownMenuStyles();
+    const onSelect = vi.fn();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu({ onSelect });
+
+    menu.trigger.click();
+    const item = menu.Item('edit', 'Edit');
+    item.click();
+
+    expect(onSelect).toHaveBeenCalledWith('edit');
+  });
 });
 
 // ── Checkbox ───────────────────────────────────────────────

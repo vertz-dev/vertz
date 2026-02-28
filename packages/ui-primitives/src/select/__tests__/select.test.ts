@@ -120,4 +120,56 @@ describe('Select', () => {
     expect(itemA.getAttribute('data-state')).toBe('active');
     expect(itemB.getAttribute('data-state')).toBe('inactive');
   });
+
+  it('Group creates a group container with role="group" and label', () => {
+    const { trigger, content, Group } = Select.Root();
+    container.appendChild(trigger);
+    container.appendChild(content);
+
+    const group = Group('Fruits');
+    expect(group.el.getAttribute('role')).toBe('group');
+    expect(group.el.getAttribute('aria-label')).toBe('Fruits');
+    expect(content.contains(group.el)).toBe(true);
+  });
+
+  it('Group items are navigable with arrow keys', () => {
+    const { trigger, content, Group } = Select.Root();
+    container.appendChild(trigger);
+    container.appendChild(content);
+
+    const fruits = Group('Fruits');
+    const apple = fruits.Item('apple', 'Apple');
+    const banana = fruits.Item('banana', 'Banana');
+
+    trigger.click();
+    apple.focus();
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(document.activeElement).toBe(banana);
+  });
+
+  it('Separator creates an hr with role="separator"', () => {
+    const { trigger, content, Item, Separator } = Select.Root();
+    container.appendChild(trigger);
+    container.appendChild(content);
+    Item('a', 'A');
+    const sep = Separator();
+    Item('b', 'B');
+
+    expect(sep.getAttribute('role')).toBe('separator');
+    expect(content.contains(sep)).toBe(true);
+  });
+
+  it('type-ahead focuses matching item', () => {
+    const { trigger, content, Item } = Select.Root();
+    container.appendChild(trigger);
+    container.appendChild(content);
+    Item('apple', 'Apple');
+    const banana = Item('banana', 'Banana');
+    Item('cherry', 'Cherry');
+
+    trigger.click();
+
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', bubbles: true }));
+    expect(document.activeElement).toBe(banana);
+  });
 });

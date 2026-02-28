@@ -12,6 +12,7 @@ import { handleListNavigation } from '../utils/keyboard';
 
 export interface TabsOptions {
   defaultValue?: string;
+  orientation?: 'horizontal' | 'vertical';
   onValueChange?: (value: string) => void;
 }
 
@@ -35,7 +36,7 @@ export const Tabs = {
       panel: HTMLDivElement;
     };
   } {
-    const { defaultValue = '', onValueChange } = options;
+    const { defaultValue = '', orientation = 'horizontal', onValueChange } = options;
     const state: TabsState = { value: signal(defaultValue) };
     const triggers: HTMLButtonElement[] = [];
     const panels: HTMLDivElement[] = [];
@@ -44,6 +45,9 @@ export const Tabs = {
     const root = document.createElement('div');
     const list = document.createElement('div');
     list.setAttribute('role', 'tablist');
+    if (orientation === 'vertical') {
+      list.setAttribute('aria-orientation', 'vertical');
+    }
     root.appendChild(list);
 
     function selectTab(value: string): void {
@@ -66,7 +70,7 @@ export const Tabs = {
 
     list.addEventListener('keydown', (event) => {
       const result = handleListNavigation(event, triggers, {
-        orientation: 'horizontal',
+        orientation,
       });
       if (result) {
         const idx = triggers.indexOf(result as HTMLButtonElement);

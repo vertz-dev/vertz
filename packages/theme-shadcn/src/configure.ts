@@ -8,6 +8,7 @@ import type {
   DialogElements,
   DialogOptions,
   DialogState,
+  MenuOptions,
   ProgressElements,
   ProgressOptions,
   ProgressState,
@@ -39,6 +40,8 @@ import type { AlertDialogElements, AlertDialogOptions } from './components/primi
 import { createThemedAlertDialog } from './components/primitives/alert-dialog';
 import { createThemedCheckbox } from './components/primitives/checkbox';
 import { createThemedDialog } from './components/primitives/dialog';
+import type { ThemedDropdownMenuResult } from './components/primitives/dropdown-menu';
+import { createThemedDropdownMenu } from './components/primitives/dropdown-menu';
 import { createThemedProgress } from './components/primitives/progress';
 import type { ThemedSelectResult } from './components/primitives/select';
 import { createThemedSelect } from './components/primitives/select';
@@ -63,6 +66,7 @@ import {
   createCard,
   createCheckboxStyles,
   createDialogStyles,
+  createDropdownMenuStyles,
   createFormGroup,
   createInput,
   createLabel,
@@ -141,6 +145,15 @@ export interface ThemeStyles {
     readonly description: string;
     readonly close: string;
     readonly footer: string;
+    readonly css: string;
+  };
+  /** DropdownMenu css() styles. */
+  dropdownMenu: {
+    readonly content: string;
+    readonly item: string;
+    readonly group: string;
+    readonly label: string;
+    readonly separator: string;
     readonly css: string;
   };
   /** Select css() styles. */
@@ -224,6 +237,8 @@ export interface ThemedPrimitives {
   alertDialog: (options?: AlertDialogOptions) => AlertDialogElements;
   /** Themed Dialog — wraps @vertz/ui-primitives Dialog with shadcn styles. */
   dialog: (options?: DialogOptions) => DialogElements & { state: DialogState };
+  /** Themed DropdownMenu — wraps @vertz/ui-primitives Menu with shadcn styles. */
+  dropdownMenu: (options?: MenuOptions) => ThemedDropdownMenuResult;
   /** Themed Select — wraps @vertz/ui-primitives Select with shadcn styles. */
   select: (options?: SelectOptions) => ThemedSelectResult;
   /** Themed Tabs — wraps @vertz/ui-primitives Tabs with shadcn styles. */
@@ -338,6 +353,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const separatorStyles = createSeparator();
   const formGroupStyles = createFormGroup();
   const dialogStyles = createDialogStyles();
+  const dropdownMenuStyles = createDropdownMenuStyles();
   const selectStyles = createSelectStyles();
   const tabsStyles = createTabsStyles();
   const checkboxStyles = createCheckboxStyles();
@@ -362,6 +378,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     separator: separatorStyles,
     formGroup: formGroupStyles,
     dialog: dialogStyles,
+    dropdownMenu: dropdownMenuStyles,
     select: selectStyles,
     tabs: tabsStyles,
     checkbox: checkboxStyles,
@@ -386,6 +403,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     primitives: {
       alertDialog: createThemedAlertDialog(alertDialogStyles),
       dialog: createThemedDialog(dialogStyles),
+      dropdownMenu: createThemedDropdownMenu(dropdownMenuStyles),
       select: createThemedSelect(selectStyles),
       tabs: createThemedTabs(tabsStyles),
       checkbox: createThemedCheckbox(checkboxStyles),

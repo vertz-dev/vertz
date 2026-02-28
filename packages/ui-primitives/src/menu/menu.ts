@@ -27,6 +27,12 @@ export const Menu = {
   Root(options: MenuOptions = {}): MenuElements & {
     state: MenuState;
     Item: (value: string, label?: string) => HTMLDivElement;
+    Group: (label: string) => {
+      el: HTMLDivElement;
+      Item: (value: string, label?: string) => HTMLDivElement;
+    };
+    Separator: () => HTMLHRElement;
+    Label: (text: string) => HTMLDivElement;
   } {
     const { onSelect } = options;
     const ids = linkedIds('menu');
@@ -50,6 +56,13 @@ export const Menu = {
     setHidden(content, true);
     setDataState(content, 'closed');
 
+    function handleClickOutside(event: MouseEvent): void {
+      const target = event.target as Node;
+      if (!trigger.contains(target) && !content.contains(target)) {
+        close();
+      }
+    }
+
     function open(): void {
       state.open.value = true;
       setExpanded(trigger, true);
@@ -59,6 +72,7 @@ export const Menu = {
       state.activeIndex.value = 0;
       updateActiveItem(0);
       items[0]?.focus();
+      document.addEventListener('mousedown', handleClickOutside);
     }
 
     function close(): void {
@@ -68,6 +82,7 @@ export const Menu = {
       setDataState(content, 'closed');
       // Defer display:none until exit animations complete
       setHiddenAnimated(content, true);
+      document.removeEventListener('mousedown', handleClickOutside);
       trigger.focus();
     }
 
@@ -119,10 +134,23 @@ export const Menu = {
           state.activeIndex.value = idx;
           updateActiveItem(idx);
         }
+        return;
+      }
+
+      // Type-ahead: single printable character focuses matching item
+      if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const char = event.key.toLowerCase();
+        const match = items.find((item) => item.textContent?.toLowerCase().startsWith(char));
+        if (match) {
+          const idx = items.indexOf(match);
+          state.activeIndex.value = idx;
+          updateActiveItem(idx);
+          match.focus();
+        }
       }
     });
 
-    function Item(value: string, label?: string): HTMLDivElement {
+    function createItem(value: string, label?: string, parent?: HTMLElement): HTMLDivElement {
       const item = document.createElement('div');
       item.setAttribute('role', 'menuitem');
       item.setAttribute('data-value', value);
@@ -135,10 +163,42 @@ export const Menu = {
       });
 
       items.push(item);
-      content.appendChild(item);
+      (parent ?? content).appendChild(item);
       return item;
     }
 
-    return { trigger, content, state, Item };
+    function Item(value: string, label?: string): HTMLDivElement {
+      return createItem(value, label);
+    }
+
+    function Group(label: string): {
+      el: HTMLDivElement;
+      Item: (value: string, label?: string) => HTMLDivElement;
+    } {
+      const el = document.createElement('div');
+      el.setAttribute('role', 'group');
+      el.setAttribute('aria-label', label);
+      content.appendChild(el);
+      return {
+        el,
+        Item: (value: string, itemLabel?: string) => createItem(value, itemLabel, el),
+      };
+    }
+
+    function Separator(): HTMLHRElement {
+      const hr = document.createElement('hr');
+      hr.setAttribute('role', 'separator');
+      content.appendChild(hr);
+      return hr;
+    }
+
+    function Label(text: string): HTMLDivElement {
+      const el = document.createElement('div');
+      el.textContent = text;
+      content.appendChild(el);
+      return el;
+    }
+
+    return { trigger, content, state, Item, Group, Separator, Label };
   },
 };

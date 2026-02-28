@@ -4,6 +4,8 @@ export type { AlertDialogElements, AlertDialogOptions } from './alert-dialog';
 export { createThemedAlertDialog } from './alert-dialog';
 export { createThemedCheckbox } from './checkbox';
 export { createThemedDialog } from './dialog';
+export type { ThemedDropdownMenuResult } from './dropdown-menu';
+export { createThemedDropdownMenu } from './dropdown-menu';
 export { createThemedProgress } from './progress';
 export type { ThemedSelectResult } from './select';
 export { createThemedSelect } from './select';

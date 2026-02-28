@@ -250,6 +250,35 @@ describe('toast', () => {
   });
 });
 
+describe('dropdown-menu', () => {
+  it('has content, item, group, label, and separator blocks', () => {
+    const { createDropdownMenuStyles } = require('../styles/dropdown-menu');
+    const dm = createDropdownMenuStyles();
+    expect(typeof dm.content).toBe('string');
+    expect(typeof dm.item).toBe('string');
+    expect(typeof dm.group).toBe('string');
+    expect(typeof dm.label).toBe('string');
+    expect(typeof dm.separator).toBe('string');
+  });
+
+  it('all class names are non-empty', () => {
+    const { createDropdownMenuStyles } = require('../styles/dropdown-menu');
+    const dm = createDropdownMenuStyles();
+    expect(dm.content.length).toBeGreaterThan(0);
+    expect(dm.item.length).toBeGreaterThan(0);
+    expect(dm.group.length).toBeGreaterThan(0);
+    expect(dm.label.length).toBeGreaterThan(0);
+    expect(dm.separator.length).toBeGreaterThan(0);
+  });
+
+  it('CSS contains enter/exit animations for content', () => {
+    const { createDropdownMenuStyles } = require('../styles/dropdown-menu');
+    const dm = createDropdownMenuStyles();
+    expect(dm.css).toContain('vz-zoom-in');
+    expect(dm.css).toContain('vz-zoom-out');
+  });
+});
+
 describe('tooltip', () => {
   const tooltip = createTooltipStyles();
 

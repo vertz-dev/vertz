@@ -6,6 +6,7 @@ export { buttonConfig, createButton } from './button';
 export { createCard } from './card';
 export { createCheckboxStyles } from './checkbox';
 export { createDialogStyles } from './dialog';
+export { createDropdownMenuStyles } from './dropdown-menu';
 export { createFormGroup } from './form-group';
 export { createInput } from './input';
 export { createLabel } from './label';
