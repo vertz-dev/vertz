@@ -35,6 +35,8 @@ export interface DialogElements {
   overlay: HTMLDivElement;
   title: HTMLHeadingElement;
   close: HTMLButtonElement;
+  show: () => void;
+  hide: () => void;
 }
 
 export const Dialog = {
@@ -147,6 +149,6 @@ export const Dialog = {
       }
     });
 
-    return { trigger, overlay, content, title, close, state };
+    return { trigger, overlay, content, title, close, state, show: openDialog, hide: closeDialog };
   },
 };
