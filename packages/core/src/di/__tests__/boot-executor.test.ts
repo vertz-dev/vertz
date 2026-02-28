@@ -313,10 +313,10 @@ describe('BootExecutor', () => {
             options: {
               safeParse: (value: unknown) => {
                 if (typeof value === 'object' && value !== null && 'port' in value) {
-                  return { success: true as const, data: value };
+                  return { ok: true as const, data: value };
                 }
                 return {
-                  success: false as const,
+                  ok: false as const,
                   error: { issues: [{ message: 'port is required' }] },
                 };
               },
@@ -344,10 +344,10 @@ describe('BootExecutor', () => {
             env: {
               safeParse: (value: unknown) => {
                 if (typeof value === 'object' && value !== null && 'DATABASE_URL' in value) {
-                  return { success: true as const, data: value };
+                  return { ok: true as const, data: value };
                 }
                 return {
-                  success: false as const,
+                  ok: false as const,
                   error: { issues: [{ message: 'DATABASE_URL is required' }] },
                 };
               },
@@ -377,13 +377,13 @@ describe('BootExecutor', () => {
           factory: {
             options: {
               safeParse: (value: unknown) => ({
-                success: true as const,
+                ok: true as const,
                 data: value ?? { maxRetries: 3 },
               }),
             } as unknown,
             env: {
               safeParse: (value: unknown) => ({
-                success: true as const,
+                ok: true as const,
                 data: value ?? { NODE_ENV: 'development' },
               }),
             } as unknown,

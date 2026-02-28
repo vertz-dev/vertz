@@ -24,9 +24,9 @@ describe('s.fromDbEnum', () => {
 
     const schema = s.fromDbEnum(dbColumn);
     expect(schema).toBeInstanceOf(EnumSchema);
-    expect(schema.parse('todo')).toBe('todo');
-    expect(schema.parse('in_progress')).toBe('in_progress');
-    expect(schema.parse('done')).toBe('done');
+    expect(schema.parse('todo').data).toBe('todo');
+    expect(schema.parse('in_progress').data).toBe('in_progress');
+    expect(schema.parse('done').data).toBe('done');
   });
 
   it('rejects values not in the db enum', () => {
@@ -49,7 +49,7 @@ describe('s.fromDbEnum', () => {
 
     const schema = s.fromDbEnum(dbColumn);
     const result = schema.safeParse('critical');
-    expect(result.success).toBe(false);
+    expect(result.ok).toBe(false);
   });
 
   it('throws when column has no enumValues', () => {
@@ -92,7 +92,7 @@ describe('s.fromDbEnum', () => {
     const schema = s.fromDbEnum(dbColumn);
     // Should work with extract/exclude just like regular enum
     const activeOnly = schema.extract(['active']);
-    expect(activeOnly.parse('active')).toBe('active');
-    expect(activeOnly.safeParse('inactive').success).toBe(false);
+    expect(activeOnly.parse('active').data).toBe('active');
+    expect(activeOnly.safeParse('inactive').ok).toBe(false);
   });
 });

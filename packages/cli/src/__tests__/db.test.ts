@@ -71,7 +71,10 @@ describe('db command actions', () => {
         currentSnapshot: ctx.currentSnapshot,
         previousSnapshot: ctx.previousSnapshot,
       });
-      expect(result.tablesAffected).toEqual(['users']);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.tablesAffected).toEqual(['users']);
+      }
     });
   });
 
@@ -98,8 +101,11 @@ describe('db command actions', () => {
         readFile: undefined,
         dryRun: true,
       });
-      expect(result.migrationFile).toBe('0001_add-users-table.sql');
-      expect(result.dryRun).toBe(true);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.migrationFile).toBe('0001_add-users-table.sql');
+        expect(result.data.dryRun).toBe(true);
+      }
     });
 
     it('passes dryRun=false when not in dry-run mode', async () => {
@@ -137,7 +143,10 @@ describe('db command actions', () => {
         migrationFiles: ctx.migrationFiles,
         dryRun: false,
       });
-      expect(result.applied).toEqual(['0001_init.sql']);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.applied).toEqual(['0001_init.sql']);
+      }
     });
 
     it('passes dryRun flag to migrateDeploy', async () => {
@@ -152,14 +161,19 @@ describe('db command actions', () => {
       expect(migrateDeployMock).toHaveBeenCalledWith(expect.objectContaining({ dryRun: true }));
     });
 
-    it('throws when migrateDeploy returns an error', async () => {
+    it('returns err when migrateDeploy returns an error', async () => {
       const ctx = createMockContext();
       migrateDeployMock.mockResolvedValue({
         ok: false,
         error: { message: 'connection failed' },
       });
 
-      await expect(dbDeployAction({ ctx, dryRun: false })).rejects.toThrow('connection failed');
+      const result = await dbDeployAction({ ctx, dryRun: false });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toBe('connection failed');
+      }
     });
   });
 
@@ -187,17 +201,25 @@ describe('db command actions', () => {
         savedSnapshot: ctx.savedSnapshot,
         dialect: undefined,
       });
-      expect(result.pending).toEqual(['0002_add-posts.sql']);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.pending).toEqual(['0002_add-posts.sql']);
+      }
     });
 
-    it('throws when migrateStatus returns an error', async () => {
+    it('returns err when migrateStatus returns an error', async () => {
       const ctx = createMockContext();
       migrateStatusMock.mockResolvedValue({
         ok: false,
         error: { message: 'cannot read history' },
       });
 
-      await expect(dbStatusAction({ ctx })).rejects.toThrow('cannot read history');
+      const result = await dbStatusAction({ ctx });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toBe('cannot read history');
+      }
     });
   });
 
@@ -216,18 +238,26 @@ describe('db command actions', () => {
         migrationFiles: ctx.migrationFiles,
         dialect: undefined,
       });
-      expect(result.tablesDropped).toEqual(['users', 'posts']);
-      expect(result.migrationsApplied).toEqual(['0001_init.sql']);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.tablesDropped).toEqual(['users', 'posts']);
+        expect(result.data.migrationsApplied).toEqual(['0001_init.sql']);
+      }
     });
 
-    it('throws when reset returns an error', async () => {
+    it('returns err when reset returns an error', async () => {
       const ctx = createMockContext();
       resetMock.mockResolvedValue({
         ok: false,
         error: { message: 'drop failed' },
       });
 
-      await expect(dbResetAction({ ctx })).rejects.toThrow('drop failed');
+      const result = await dbResetAction({ ctx });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toBe('drop failed');
+      }
     });
   });
 
@@ -246,17 +276,25 @@ describe('db command actions', () => {
         migrationFiles: ctx.migrationFiles,
         dialect: undefined,
       });
-      expect(result.recorded).toEqual(['0001_init.sql', '0002_add-posts.sql']);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.recorded).toEqual(['0001_init.sql', '0002_add-posts.sql']);
+      }
     });
 
-    it('throws when baseline returns an error', async () => {
+    it('returns err when baseline returns an error', async () => {
       const ctx = createMockContext();
       baselineMock.mockResolvedValue({
         ok: false,
         error: { message: 'baseline failed' },
       });
 
-      await expect(dbBaselineAction({ ctx })).rejects.toThrow('baseline failed');
+      const result = await dbBaselineAction({ ctx });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toBe('baseline failed');
+      }
     });
   });
 });

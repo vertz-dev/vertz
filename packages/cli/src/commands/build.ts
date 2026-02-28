@@ -7,6 +7,7 @@
  * - Full-stack (both):        API build + UI build
  */
 
+import { err, ok, type Result } from '@vertz/errors';
 import { type DetectedApp, detectAppType } from '../dev-server/app-detector';
 import { type BuildConfig, BuildOrchestrator, buildUI } from '../production-build';
 import { formatDuration, formatFileSize } from '../utils/format';
@@ -24,9 +25,8 @@ export interface BuildCommandOptions {
 
 /**
  * Run the build command
- * @returns Exit code (0 for success, 1 for failure)
  */
-export async function buildAction(options: BuildCommandOptions = {}): Promise<number> {
+export async function buildAction(options: BuildCommandOptions = {}): Promise<Result<void, Error>> {
   const {
     strict: _strict = false,
     output,
@@ -40,8 +40,7 @@ export async function buildAction(options: BuildCommandOptions = {}): Promise<nu
   // Find project root
   const projectRoot = findProjectRoot(process.cwd());
   if (!projectRoot) {
-    console.error('Error: Could not find project root. Are you in a Vertz project?');
-    return 1;
+    return err(new Error('Could not find project root. Are you in a Vertz project?'));
   }
 
   // Detect app type
@@ -49,8 +48,7 @@ export async function buildAction(options: BuildCommandOptions = {}): Promise<nu
   try {
     detected = detectAppType(projectRoot);
   } catch (error) {
-    console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
-    return 1;
+    return err(new Error(error instanceof Error ? error.message : String(error)));
   }
 
   if (verbose) {
@@ -87,7 +85,7 @@ async function buildApiOnly(
     sourcemap?: boolean;
     verbose?: boolean;
   },
-): Promise<number> {
+): Promise<Result<void, Error>> {
   const {
     output,
     target = 'node',
@@ -99,8 +97,7 @@ async function buildApiOnly(
 
   // Derive entry point relative to project root
   if (!detected.serverEntry) {
-    console.error('Error: No server entry point found for API build.');
-    return 1;
+    return err(new Error('No server entry point found for API build.'));
   }
   const entryPoint = detected.serverEntry.replace(`${detected.projectRoot}/`, '');
 
@@ -133,10 +130,8 @@ async function buildApiOnly(
     const result = await orchestrator.build();
 
     if (!result.success) {
-      console.error('\n❌ Build failed:');
-      console.error(`   ${result.error}`);
       await orchestrator.dispose();
-      return 1;
+      return err(new Error(result.error));
     }
 
     console.log('\n📊 Build Summary:');
@@ -159,11 +154,10 @@ async function buildApiOnly(
     }
 
     await orchestrator.dispose();
-    return 0;
+    return ok(undefined);
   } catch (error) {
-    console.error('\n❌ Fatal error:', error instanceof Error ? error.message : String(error));
     await orchestrator.dispose();
-    return 1;
+    return err(new Error(error instanceof Error ? error.message : String(error)));
   }
 }
 
@@ -173,19 +167,20 @@ async function buildApiOnly(
 async function buildUIOnly(
   detected: DetectedApp,
   options: { noMinify?: boolean; sourcemap?: boolean; verbose?: boolean },
-): Promise<number> {
+): Promise<Result<void, Error>> {
   const { noMinify = false, sourcemap = false, verbose = false } = options;
 
   if (!detected.clientEntry) {
-    console.error('Error: No client entry point found (src/entry-client.ts).');
-    console.error('UI apps require a src/entry-client.ts file.');
-    return 1;
+    return err(
+      new Error(
+        'No client entry point found (src/entry-client.ts). UI apps require a src/entry-client.ts file.',
+      ),
+    );
   }
 
   const serverEntry = detected.uiEntry ?? detected.ssrEntry;
   if (!serverEntry) {
-    console.error('Error: No server entry point found (src/app.tsx or src/entry-server.ts).');
-    return 1;
+    return err(new Error('No server entry point found (src/app.tsx or src/entry-server.ts).'));
   }
 
   console.log('🚀 Starting Vertz UI production build...\n');
@@ -210,13 +205,11 @@ async function buildUIOnly(
   });
 
   if (!result.success) {
-    console.error('\n❌ Build failed:');
-    console.error(`   ${result.error}`);
-    return 1;
+    return err(new Error(result.error));
   }
 
   console.log(`\n📊 Build completed in ${formatDuration(result.durationMs)}`);
-  return 0;
+  return ok(undefined);
 }
 
 /**
@@ -232,7 +225,7 @@ async function buildFullStack(
     sourcemap?: boolean;
     verbose?: boolean;
   },
-): Promise<number> {
+): Promise<Result<void, Error>> {
   const { noMinify = false, sourcemap = false, verbose = false } = options;
 
   console.log('🚀 Starting Vertz full-stack production build...\n');
@@ -241,7 +234,7 @@ async function buildFullStack(
   if (detected.serverEntry) {
     console.log('── API Build ──────────────────────────────────────\n');
     const apiResult = await buildApiOnly(detected, options);
-    if (apiResult !== 0) {
+    if (!apiResult.ok) {
       return apiResult;
     }
     console.log('');
@@ -251,11 +244,11 @@ async function buildFullStack(
   if (detected.clientEntry && (detected.uiEntry ?? detected.ssrEntry)) {
     console.log('── UI Build ───────────────────────────────────────\n');
     const uiResult = await buildUIOnly(detected, { noMinify, sourcemap, verbose });
-    if (uiResult !== 0) {
+    if (!uiResult.ok) {
       return uiResult;
     }
   }
 
   console.log('\n✅ Full-stack build complete!');
-  return 0;
+  return ok(undefined);
 }

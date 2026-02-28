@@ -20,7 +20,7 @@ describe('Integration: Recursive Schemas', () => {
         children: null,
       },
     };
-    const result = treeSchema.parse(data);
+    const result = treeSchema.parse(data).data;
     expect(result.value).toBe('root');
   });
 
@@ -45,7 +45,7 @@ describe('Integration: Recursive Schemas', () => {
       },
     };
 
-    const result = treeSchema.parse(bst);
+    const result = treeSchema.parse(bst).data;
     expect(result.value).toBe(10);
   });
 

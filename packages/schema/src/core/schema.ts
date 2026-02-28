@@ -1,10 +1,11 @@
 import type { JSONSchemaObject } from '../introspection/json-schema';
 import { RefTracker } from '../introspection/json-schema';
+import { err, ok, type Result } from '../result';
 import { ErrorCode, ParseError } from './errors';
 import type { RefinementContext } from './parse-context';
 import { ParseContext } from './parse-context';
 import { SchemaRegistry } from './registry';
-import type { SafeParseResult, SchemaMetadata, SchemaType } from './types';
+import type { SchemaMetadata, SchemaType } from './types';
 
 // biome-ignore lint/suspicious/noExplicitAny: Schema is invariant; any is required for type-level bounds
 export type SchemaAny = Schema<any, any>;
@@ -36,26 +37,26 @@ export abstract class Schema<O, I = O> {
   abstract _toJSONSchema(tracker: RefTracker): JSONSchemaObject;
   abstract _clone(): Schema<O, I>;
 
-  parse(value: unknown): O {
+  parse(value: unknown): Result<O, ParseError> {
     const ctx = new ParseContext();
     const result = this._runPipeline(value, ctx);
     if (ctx.hasIssues()) {
-      throw new ParseError(ctx.issues);
+      return err(new ParseError(ctx.issues));
     }
-    return result;
+    return ok(result);
   }
 
-  safeParse(value: unknown): SafeParseResult<O> {
+  safeParse(value: unknown): Result<O, ParseError> {
     const ctx = new ParseContext();
     try {
       const data = this._runPipeline(value, ctx);
       if (ctx.hasIssues()) {
-        return { success: false, error: new ParseError(ctx.issues) };
+        return err(new ParseError(ctx.issues));
       }
-      return { success: true, data };
+      return ok(data);
     } catch (e) {
       if (e instanceof ParseError) {
-        return { success: false, error: e };
+        return err(e);
       }
       throw e;
     }

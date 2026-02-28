@@ -10,6 +10,7 @@
  */
 
 import { join } from 'node:path';
+import { err, ok, type Result } from '@vertz/errors';
 import type { Command } from 'commander';
 import { detectAppType } from '../dev-server/app-detector';
 import { startDevServer } from '../dev-server/fullstack-server';
@@ -36,7 +37,7 @@ export interface DevCommandOptions {
 /**
  * Run the dev command
  */
-export async function devAction(options: DevCommandOptions = {}): Promise<void> {
+export async function devAction(options: DevCommandOptions = {}): Promise<Result<void, Error>> {
   const {
     port = 3000,
     host = 'localhost',
@@ -49,19 +50,16 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
   // Find project root
   const projectRoot = findProjectRoot(process.cwd());
   if (!projectRoot) {
-    console.error('Error: Could not find project root. Are you in a Vertz project?');
-    process.exit(1);
+    return err(new Error('Could not find project root. Are you in a Vertz project?'));
   }
 
   // Detect app type from file conventions
-  const detected = (() => {
-    try {
-      return detectAppType(projectRoot);
-    } catch (err) {
-      console.error(err instanceof Error ? err.message : String(err));
-      process.exit(1);
-    }
-  })();
+  let detected: ReturnType<typeof detectAppType>;
+  try {
+    detected = detectAppType(projectRoot);
+  } catch (e) {
+    return err(new Error(e instanceof Error ? e.message : String(e)));
+  }
 
   if (verbose) {
     console.log(`Detected app type: ${detected.type}`);
@@ -147,10 +145,10 @@ export async function devAction(options: DevCommandOptions = {}): Promise<void> 
 
     // Step 3: Start dev server based on detected app type
     await startDevServer({ detected, port, host, ssr });
+    return ok(undefined);
   } catch (error) {
-    console.error('Fatal error:', error instanceof Error ? error.message : String(error));
-    await shutdown();
-    process.exit(1);
+    await orchestrator.dispose();
+    return err(new Error(error instanceof Error ? error.message : String(error)));
   }
 }
 
@@ -168,7 +166,7 @@ export function registerDevCommand(program: Command): void {
     .option('--no-typecheck', 'Disable background type checking')
     .option('-v, --verbose', 'Verbose output')
     .action(async (opts) => {
-      await devAction({
+      const result = await devAction({
         port: parseInt(opts.port, 10),
         host: opts.host,
         ssr: opts.ssr,
@@ -176,5 +174,9 @@ export function registerDevCommand(program: Command): void {
         typecheck: opts.typecheck !== false && !opts.noTypecheck,
         verbose: opts.verbose,
       });
+      if (!result.ok) {
+        console.error(result.error.message);
+        process.exit(1);
+      }
     });
 }

@@ -35,17 +35,15 @@ describe('mount()', () => {
       },
     };
 
-    // We need to test that compileTheme is called and injectCSS receives the CSS
-
-    // Since injectCSS is imported in mount.ts, we'll verify by checking
-    // that styles are actually injected (we can check document head)
     const app = () => document.createElement('div');
     mount(app, root, { theme });
 
-    // The theme CSS should be injected
-    const styleEl = document.querySelector('style[data-vertz-css]');
-    expect(styleEl?.textContent).toContain('--color-primary-500');
-    expect(styleEl?.textContent).toContain('--color-background');
+    // Theme CSS is injected via adoptedStyleSheets
+    const allText = Array.from(document.adoptedStyleSheets)
+      .flatMap((sheet) => Array.from(sheet.cssRules).map((r) => r.cssText))
+      .join('\n');
+    expect(allText).toContain('--color-primary-500');
+    expect(allText).toContain('--color-background');
   });
 
   // Test 3: mount with styles injects global styles
@@ -53,13 +51,12 @@ describe('mount()', () => {
     const app = () => document.createElement('div');
     mount(app, root, { styles: ['body { margin: 0; }', '.hidden { display: none; }'] });
 
-    // Check that global styles are injected
-    const styles = document.querySelectorAll('style[data-vertz-css]');
-    const allText = Array.from(styles)
-      .map((s) => s.textContent)
+    // Global styles are injected via adoptedStyleSheets
+    const allText = Array.from(document.adoptedStyleSheets)
+      .flatMap((sheet) => Array.from(sheet.cssRules).map((r) => r.cssText))
       .join('\n');
-    expect(allText).toContain('body { margin: 0; }');
-    expect(allText).toContain('.hidden { display: none; }');
+    expect(allText).toContain('margin: 0');
+    expect(allText).toContain('display: none');
   });
 
   // Test 4: mount with string selector finds root element

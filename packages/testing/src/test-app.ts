@@ -187,23 +187,22 @@ interface PerRequestMocks {
   middlewares: Map<MiddlewareKey, Record<string, unknown>>;
 }
 
-type SchemaLike = { parse(value: unknown): unknown };
+type SchemaLike = { parse(value: unknown): { ok: boolean; data?: unknown; error?: unknown } };
 
 function validateSchema(schema: SchemaLike, value: unknown, label: string): unknown {
-  try {
-    return schema.parse(value);
-  } catch (error) {
-    if (error instanceof BadRequestException) throw error;
-    const message = error instanceof Error ? error.message : `Invalid ${label}`;
+  const result = schema.parse(value);
+  if (!result.ok) {
+    const message = result.error instanceof Error ? result.error.message : `Invalid ${label}`;
     throw new BadRequestException(message);
   }
+  return result.data;
 }
 
 interface RouteEntry {
   handler: (ctx: HandlerCtx) => unknown;
   options: Record<string, unknown>;
   services: Record<string, unknown>;
-  responseSchema?: { safeParse(value: unknown): { success: boolean; error?: { message: string } } };
+  responseSchema?: { safeParse(value: unknown): { ok: boolean; error?: { message: string } } };
   bodySchema?: SchemaLike;
   querySchema?: SchemaLike;
   headersSchema?: SchemaLike;
@@ -244,7 +243,7 @@ export function createTestApp(): UntypedTestApp {
           let parsedOptions: Record<string, unknown> = {};
           if (service.options && options) {
             const parsed = service.options.safeParse(options);
-            if (parsed.success) {
+            if (parsed.ok) {
               parsedOptions = parsed.data;
             } else {
               throw new Error(
@@ -362,7 +361,7 @@ export function createTestApp(): UntypedTestApp {
 
         if (entry.responseSchema) {
           const validation = entry.responseSchema.safeParse(result);
-          if (!validation.success) {
+          if (!validation.ok) {
             throw new ResponseValidationError(
               validation.error?.message ?? 'Unknown validation error',
             );

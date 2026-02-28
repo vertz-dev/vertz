@@ -162,6 +162,47 @@ describe('createTestService', () => {
     expect(methods.getSecret()).toBe('my-secret');
   });
 
+  it('throws when options fail schema validation', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const service = moduleDef.service({
+      options: s.object({
+        maxLoginAttempts: s.number(),
+      }),
+      methods: (_deps, _state, opts) => {
+        return {
+          getMaxAttempts: () => opts.maxLoginAttempts,
+        };
+      },
+    });
+
+    await expect(
+      Promise.resolve(
+        createTestService(service).options({
+          maxLoginAttempts: 'not-a-number' as unknown as number,
+        }),
+      ),
+    ).rejects.toThrow('Invalid options:');
+  });
+
+  it('throws when env fails schema validation', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const service = moduleDef.service({
+      env: s.object({
+        JWT_SECRET: s.string(),
+        PORT: s.number(),
+      }),
+      methods: (_deps, _state, _opts, env) => {
+        return {
+          getSecret: () => env.JWT_SECRET,
+        };
+      },
+    });
+
+    await expect(
+      Promise.resolve(createTestService(service).env({ JWT_SECRET: 123 as unknown as string })),
+    ).rejects.toThrow('Invalid env:');
+  });
+
   it('combines mocks, options, and env', async () => {
     const moduleDef = createModuleDef({ name: 'test' });
     const dbService = moduleDef.service({

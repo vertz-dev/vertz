@@ -1,3 +1,4 @@
+import { err, ok, type Result } from '@vertz/errors';
 import type { GeneratedFile } from '../config/defaults';
 import { generateModule } from '../generators/module';
 import { generateRouter } from '../generators/router';
@@ -12,21 +13,15 @@ export interface GenerateOptions {
   dryRun?: boolean;
 }
 
-export type GenerateResult =
-  | { success: true; files: GeneratedFile[] }
-  | { success: false; files: GeneratedFile[]; error: string };
-
 const REQUIRES_MODULE = new Set(['service', 'router', 'schema']);
 
-export function generateAction(options: GenerateOptions): GenerateResult {
+export function generateAction(
+  options: GenerateOptions,
+): Result<{ files: GeneratedFile[] }, Error> {
   const { type, name, module: moduleName, sourceDir } = options;
 
   if (REQUIRES_MODULE.has(type) && !moduleName) {
-    return {
-      success: false,
-      files: [],
-      error: `Generator "${type}" requires a --module option`,
-    };
+    return err(new Error(`Generator "${type}" requires a --module option`));
   }
 
   // At this point, if type requires a module, moduleName is guaranteed to be defined
@@ -34,18 +29,14 @@ export function generateAction(options: GenerateOptions): GenerateResult {
 
   switch (type) {
     case 'module':
-      return { success: true, files: generateModule(name, sourceDir) };
+      return ok({ files: generateModule(name, sourceDir) });
     case 'service':
-      return { success: true, files: generateService(name, ensuredModuleName, sourceDir) };
+      return ok({ files: generateService(name, ensuredModuleName, sourceDir) });
     case 'router':
-      return { success: true, files: generateRouter(name, ensuredModuleName, sourceDir) };
+      return ok({ files: generateRouter(name, ensuredModuleName, sourceDir) });
     case 'schema':
-      return { success: true, files: generateSchema(name, ensuredModuleName, sourceDir) };
+      return ok({ files: generateSchema(name, ensuredModuleName, sourceDir) });
     default:
-      return {
-        success: false,
-        files: [],
-        error: `Unknown generator type: "${type}"`,
-      };
+      return err(new Error(`Unknown generator type: "${type}"`));
   }
 }

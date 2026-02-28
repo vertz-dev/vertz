@@ -14,7 +14,6 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { BadRequestException } from '../../exceptions';
 import { createModule } from '../../module/module';
 import { createModuleDef } from '../../module/module-def';
 import { err, ok } from '../../result';
@@ -86,6 +85,192 @@ describe('Result type response handling', () => {
     const res = await app.handler(new Request('http://localhost/items'));
 
     expect(res.headers.get('content-type')).toContain('application/json');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Result type — response validation with validateResponses
+// ---------------------------------------------------------------------------
+
+describe('Result type with validateResponses enabled', () => {
+  function makeModuleWithSchema(
+    prefix: string,
+    method: 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head',
+    path: string,
+    handler: (ctx: unknown) => unknown,
+    schemas: {
+      response?: unknown;
+      errors?: unknown;
+    },
+  ) {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix });
+    router[method](path, { handler: handler as never, ...schemas });
+    return createModule(moduleDef, { services: [], routers: [router], exports: [] });
+  }
+
+  it('validates ok() data against response schema when validateResponses is true', async () => {
+    const responseSchema = {
+      parse: (value: unknown) => {
+        const v = value as { id: unknown };
+        if (typeof v?.id !== 'number') {
+          return { ok: false as const, error: new Error('id must be a number') };
+        }
+        return { ok: true as const, data: value };
+      },
+    };
+
+    const mod = makeModuleWithSchema('/items', 'get', '/', () => ok({ id: 1, name: 'widget' }), {
+      response: responseSchema,
+    });
+    const app = createApp({ validateResponses: true }).register(mod);
+
+    const res = await app.handler(new Request('http://localhost/items'));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: 1, name: 'widget' });
+  });
+
+  it('logs warning when ok() data fails response schema validation', async () => {
+    const responseSchema = {
+      parse: (value: unknown) => {
+        const v = value as { id: unknown };
+        if (typeof v?.id !== 'number') {
+          return { ok: false as const, error: new Error('id must be a number') };
+        }
+        return { ok: true as const, data: value };
+      },
+    };
+
+    const mod = makeModuleWithSchema('/items', 'get', '/', () => ok({ id: 'not-a-number' }), {
+      response: responseSchema,
+    });
+    const app = createApp({ validateResponses: true }).register(mod);
+
+    // Response validation for Result types is a warning, not a rejection
+    const res = await app.handler(new Request('http://localhost/items'));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: 'not-a-number' });
+  });
+
+  it('validates err() body against errors schema when validateResponses is true', async () => {
+    const errorsSchema = {
+      403: {
+        parse: (value: unknown) => {
+          const v = value as { message: unknown };
+          if (typeof v?.message !== 'string') {
+            return { ok: false as const, error: new Error('message must be a string') };
+          }
+          return { ok: true as const, data: value };
+        },
+      },
+    };
+
+    const mod = makeModuleWithSchema(
+      '/items',
+      'get',
+      '/:id',
+      () => err(403, { message: 'Forbidden' }),
+      { errors: errorsSchema },
+    );
+    const app = createApp({ validateResponses: true }).register(mod);
+
+    const res = await app.handler(new Request('http://localhost/items/1'));
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ message: 'Forbidden' });
+  });
+
+  it('logs warning when err() body fails errors schema validation', async () => {
+    const errorsSchema = {
+      403: {
+        parse: (value: unknown) => {
+          const v = value as { message: unknown };
+          if (typeof v?.message !== 'string') {
+            return { ok: false as const, error: new Error('message must be a string') };
+          }
+          return { ok: true as const, data: value };
+        },
+      },
+    };
+
+    const mod = makeModuleWithSchema('/items', 'get', '/:id', () => err(403, { wrongField: 123 }), {
+      errors: errorsSchema,
+    });
+    const app = createApp({ validateResponses: true }).register(mod);
+
+    // Error schema validation is a warning, not a rejection
+    const res = await app.handler(new Request('http://localhost/items/1'));
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ wrongField: 123 });
+  });
+
+  it('uses fallback message when ok() response schema error is not an Error instance', async () => {
+    const responseSchema = {
+      parse: () => ({
+        ok: false as const,
+        error: 'plain string error',
+      }),
+    };
+
+    const mod = makeModuleWithSchema('/items', 'get', '/', () => ok({ id: 1 }), {
+      response: responseSchema,
+    });
+    const app = createApp({ validateResponses: true }).register(mod);
+
+    const res = await app.handler(new Request('http://localhost/items'));
+
+    // Falls back to generic message, still returns 200
+    expect(res.status).toBe(200);
+  });
+
+  it('uses fallback message when err() error schema error is not an Error instance', async () => {
+    const errorsSchema = {
+      403: {
+        parse: () => ({
+          ok: false as const,
+          error: 'plain string error',
+        }),
+      },
+    };
+
+    const mod = makeModuleWithSchema(
+      '/items',
+      'get',
+      '/:id',
+      () => err(403, { message: 'Forbidden' }),
+      { errors: errorsSchema },
+    );
+    const app = createApp({ validateResponses: true }).register(mod);
+
+    const res = await app.handler(new Request('http://localhost/items/1'));
+
+    // Falls back to generic message, still returns 403
+    expect(res.status).toBe(403);
+  });
+
+  it('skips error schema validation when status has no matching schema', async () => {
+    const errorsSchema = {
+      404: {
+        parse: (value: unknown) => ({ ok: true as const, data: value }),
+      },
+    };
+
+    const mod = makeModuleWithSchema(
+      '/items',
+      'get',
+      '/:id',
+      () => err(403, { message: 'Forbidden' }),
+      { errors: errorsSchema },
+    );
+    const app = createApp({ validateResponses: true }).register(mod);
+
+    const res = await app.handler(new Request('http://localhost/items/1'));
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ message: 'Forbidden' });
   });
 });
 
@@ -227,8 +412,8 @@ describe('Schema validation failure response body', () => {
 
     const paramsSchema = {
       parse: (_value: unknown) => {
-        // Simulate a schema lib that throws a plain Error (not BadRequestException)
-        throw new Error('id must be a positive integer');
+        // Simulate a schema lib that returns an error Result (not BadRequestException)
+        return { ok: false as const, error: new Error('id must be a positive integer') };
       },
     };
 

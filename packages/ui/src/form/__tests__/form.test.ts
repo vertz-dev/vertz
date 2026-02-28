@@ -25,7 +25,7 @@ function mockSdkMethod<TBody, TResult>(config: {
 function passingSchema<T>(): FormSchema<T> {
   return {
     parse(data: unknown) {
-      return data as T;
+      return { ok: true as const, data: data as T };
     },
   };
 }
@@ -34,9 +34,9 @@ function passingSchema<T>(): FormSchema<T> {
 function failingSchema<T>(fieldErrors: Record<string, string>): FormSchema<T> {
   return {
     parse(_data: unknown) {
-      const err = new Error('Validation failed');
-      (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = fieldErrors;
-      throw err;
+      const error = new Error('Validation failed');
+      (error as Error & { fieldErrors: Record<string, string> }).fieldErrors = fieldErrors;
+      return { ok: false as const, error };
     },
   };
 }
@@ -359,7 +359,7 @@ describe('form', () => {
       const handler = vi.fn().mockResolvedValue({ id: '1' });
       const metaSchema: FormSchema<{ title: string }> = {
         parse(data: unknown) {
-          return data as { title: string };
+          return { ok: true as const, data: data as { title: string } };
         },
       };
       const explicitSchema = s.object({ title: s.string().min(1) });

@@ -6,26 +6,26 @@ describe('SetSchema', () => {
   it('accepts Set instances with valid element types', () => {
     const schema = new SetSchema(new StringSchema());
     const input = new Set(['a', 'b', 'c']);
-    const result = schema.parse(input);
+    const result = schema.parse(input).data;
     expect(result).toBeInstanceOf(Set);
     expect(result.has('a')).toBe(true);
   });
 
   it('rejects non-Set values', () => {
     const schema = new SetSchema(new StringSchema());
-    expect(schema.safeParse([]).success).toBe(false);
-    expect(schema.safeParse('hello').success).toBe(false);
+    expect(schema.safeParse([]).ok).toBe(false);
+    expect(schema.safeParse('hello').ok).toBe(false);
   });
 
   it('validates element count with .min()/.max()/.size()', () => {
     const schema = new SetSchema(new StringSchema()).min(2).max(4);
-    expect(schema.safeParse(new Set(['a'])).success).toBe(false);
-    expect(schema.parse(new Set(['a', 'b']))).toBeInstanceOf(Set);
-    expect(schema.safeParse(new Set(['a', 'b', 'c', 'd', 'e'])).success).toBe(false);
+    expect(schema.safeParse(new Set(['a'])).ok).toBe(false);
+    expect(schema.parse(new Set(['a', 'b'])).data).toBeInstanceOf(Set);
+    expect(schema.safeParse(new Set(['a', 'b', 'c', 'd', 'e'])).ok).toBe(false);
 
     const exact = new SetSchema(new StringSchema()).size(3);
-    expect(exact.parse(new Set(['a', 'b', 'c']))).toBeInstanceOf(Set);
-    expect(exact.safeParse(new Set(['a', 'b'])).success).toBe(false);
+    expect(exact.parse(new Set(['a', 'b', 'c'])).data).toBeInstanceOf(Set);
+    expect(exact.safeParse(new Set(['a', 'b'])).ok).toBe(false);
   });
 
   it('toJSONSchema returns array with uniqueItems', () => {

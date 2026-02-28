@@ -137,8 +137,8 @@ describe('generateEntityRoutes', () => {
         },
         actions: {
           resetPassword: {
-            input: { parse: (v: unknown) => v },
-            output: { parse: (v: unknown) => v },
+            input: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            output: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
             handler: async () => ({ success: true }),
           },
         },
@@ -621,8 +621,8 @@ describe('generateEntityRoutes', () => {
         },
         actions: {
           resetPassword: {
-            input: { parse: (v: unknown) => v },
-            output: { parse: (v: unknown) => v },
+            input: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            output: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
             handler: async () => ({ success: true }),
           },
         },
@@ -768,8 +768,8 @@ describe('generateEntityRoutes', () => {
         },
         actions: {
           resetPassword: {
-            input: { parse: (v: unknown) => v },
-            output: { parse: (v: unknown) => v },
+            input: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            output: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
             handler: async () => {
               throw new Error('Action failed');
             },
@@ -834,8 +834,8 @@ describe('generateEntityRoutes', () => {
         },
         actions: {
           resetPassword: {
-            input: { parse: (v: unknown) => v },
-            output: { parse: (v: unknown) => v },
+            input: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            output: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
             handler,
           },
         },

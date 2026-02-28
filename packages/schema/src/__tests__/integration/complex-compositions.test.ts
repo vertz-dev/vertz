@@ -11,17 +11,17 @@ describe('Integration: Complex Compositions', () => {
     });
 
     const nameOnly = fullUser.pick(['name']);
-    expect(nameOnly.parse({ name: 'John' })).toEqual({ name: 'John' });
+    expect(nameOnly.parse({ name: 'John' }).data).toEqual({ name: 'John' });
 
     const extended = nameOnly.extend({ role: s.string() });
-    expect(extended.parse({ name: 'John', role: 'admin' })).toEqual({
+    expect(extended.parse({ name: 'John', role: 'admin' }).data).toEqual({
       name: 'John',
       role: 'admin',
     });
 
     const partial = extended.partial();
-    expect(partial.parse({})).toEqual({});
-    expect(partial.parse({ name: 'John' })).toEqual({ name: 'John' });
+    expect(partial.parse({}).data).toEqual({});
+    expect(partial.parse({ name: 'John' }).data).toEqual({ name: 'John' });
   });
 
   it('discriminated union with named schemas', () => {
@@ -35,15 +35,15 @@ describe('Integration: Complex Compositions', () => {
     });
     const responseSchema = s.discriminatedUnion('status', [successSchema, errorSchema]);
 
-    expect(responseSchema.parse({ status: 'success', data: 'hello' })).toEqual({
+    expect(responseSchema.parse({ status: 'success', data: 'hello' }).data).toEqual({
       status: 'success',
       data: 'hello',
     });
-    expect(responseSchema.parse({ status: 'error', message: 'fail' })).toEqual({
+    expect(responseSchema.parse({ status: 'error', message: 'fail' }).data).toEqual({
       status: 'error',
       message: 'fail',
     });
-    expect(responseSchema.safeParse({ status: 'pending' }).success).toBe(false);
+    expect(responseSchema.safeParse({ status: 'pending' }).ok).toBe(false);
   });
 
   it('transform pipeline: string → parse → number → validate', () => {
@@ -52,9 +52,9 @@ describe('Integration: Complex Compositions', () => {
       .transform((v) => parseInt(v, 10))
       .pipe(s.number().int().gte(0));
 
-    expect(stringToNumber.parse('42')).toBe(42);
-    expect(stringToNumber.safeParse('abc').success).toBe(false);
-    expect(stringToNumber.safeParse('-5').success).toBe(false);
+    expect(stringToNumber.parse('42').data).toBe(42);
+    expect(stringToNumber.safeParse('abc').ok).toBe(false);
+    expect(stringToNumber.safeParse('-5').ok).toBe(false);
   });
 
   it('intersection of two objects', () => {
@@ -62,8 +62,8 @@ describe('Integration: Complex Compositions', () => {
     const withAge = s.object({ age: s.number() });
     const combined = s.intersection(withName, withAge);
 
-    expect(combined.parse({ name: 'John', age: 30 })).toEqual({ name: 'John', age: 30 });
-    expect(combined.safeParse({ name: 'John' }).success).toBe(false);
+    expect(combined.parse({ name: 'John', age: 30 }).data).toEqual({ name: 'John', age: 30 });
+    expect(combined.safeParse({ name: 'John' }).ok).toBe(false);
   });
 
   it('array of discriminated union', () => {
@@ -75,7 +75,7 @@ describe('Integration: Complex Compositions', () => {
     const result = animalsSchema.parse([
       { type: 'cat', name: 'Whiskers' },
       { type: 'dog', breed: 'Labrador' },
-    ]);
+    ]).data;
     expect(result).toHaveLength(2);
   });
 });

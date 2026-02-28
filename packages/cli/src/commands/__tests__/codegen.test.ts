@@ -1,5 +1,5 @@
-import type { CodegenConfig, CodegenIR, CodegenPipeline, IncrementalResult } from '@vertz/codegen';
 import { describe, expect, it, vi } from 'bun:test';
+import type { CodegenConfig, CodegenIR, CodegenPipeline, IncrementalResult } from '@vertz/codegen';
 import { codegenAction } from '../codegen';
 
 // ── Fixture helpers ──────────────────────────────────────────────
@@ -55,7 +55,7 @@ function makeConfig(overrides: Partial<CodegenConfig> = {}): CodegenConfig {
 // ── Tests ────────────────────────────────────────────────────────
 
 describe('codegenAction', () => {
-  it('returns success when codegen config is valid and IR is provided', async () => {
+  it('returns ok when codegen config is valid and IR is provided', async () => {
     const result = await codegenAction({
       config: makeConfig(),
       ir: makeIR(),
@@ -63,10 +63,10 @@ describe('codegenAction', () => {
       pipeline: makePipeline(),
     });
 
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
   });
 
-  it('returns failure when codegen config is not provided', async () => {
+  it('returns err when codegen config is not provided', async () => {
     const result = await codegenAction({
       config: undefined,
       ir: makeIR(),
@@ -74,11 +74,13 @@ describe('codegenAction', () => {
       pipeline: makePipeline(),
     });
 
-    expect(result.success).toBe(false);
-    expect(result.output).toContain('codegen');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('codegen');
+    }
   });
 
-  it('returns failure when config validation fails', async () => {
+  it('returns err when config validation fails', async () => {
     const pipeline = makePipeline({
       validate: vi.fn().mockReturnValue(['codegen.generators must contain at least one generator']),
     });
@@ -90,8 +92,10 @@ describe('codegenAction', () => {
       pipeline,
     });
 
-    expect(result.success).toBe(false);
-    expect(result.output).toContain('generators');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('generators');
+    }
   });
 
   it('calls writeFile for each generated file', async () => {
@@ -133,7 +137,10 @@ describe('codegenAction', () => {
       pipeline: makePipeline(),
     });
 
-    expect(result.fileCount).toBe(3);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.fileCount).toBe(3);
+    }
   });
 
   it('includes success output message with file count', async () => {
@@ -144,7 +151,10 @@ describe('codegenAction', () => {
       pipeline: makePipeline(),
     });
 
-    expect(result.output).toContain('Generated 3 files');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.output).toContain('Generated 3 files');
+    }
   });
 
   it('includes generator names in success output', async () => {
@@ -155,7 +165,10 @@ describe('codegenAction', () => {
       pipeline: makePipeline(),
     });
 
-    expect(result.output).toContain('typescript');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.output).toContain('typescript');
+    }
   });
 
   it('supports dry-run mode without writing files', async () => {
@@ -168,11 +181,11 @@ describe('codegenAction', () => {
       dryRun: true,
     });
 
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
     expect(writeFile).not.toHaveBeenCalled();
   });
 
-  it('returns failure when writeFile throws an error', async () => {
+  it('returns err when writeFile throws an error', async () => {
     const writeFile = vi.fn().mockRejectedValue(new Error('disk full'));
     const result = await codegenAction({
       config: makeConfig(),
@@ -181,8 +194,10 @@ describe('codegenAction', () => {
       pipeline: makePipeline(),
     });
 
-    expect(result.success).toBe(false);
-    expect(result.output).toContain('disk full');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('disk full');
+    }
   });
 
   it('passes IR and config to pipeline.generate', async () => {
@@ -252,8 +267,11 @@ describe('codegenAction', () => {
       pipeline,
     });
 
-    expect(result.output).toContain('Generated 1 file');
-    expect(result.output).not.toContain('files');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.output).toContain('Generated 1 file');
+      expect(result.data.output).not.toContain('files');
+    }
   });
 
   // ── Incremental mode tests ──────────────────────────────────────
@@ -289,8 +307,11 @@ describe('codegenAction', () => {
         incremental: true,
       });
 
-      expect(result.output).toContain('1 written');
-      expect(result.output).toContain('2 skipped');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.output).toContain('1 written');
+        expect(result.data.output).toContain('2 skipped');
+      }
     });
 
     it('shows removed count when files are removed', async () => {
@@ -308,7 +329,10 @@ describe('codegenAction', () => {
         incremental: true,
       });
 
-      expect(result.output).toContain('1 removed');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.output).toContain('1 removed');
+      }
     });
 
     it('does not show incremental stats when incremental is false', async () => {
@@ -326,9 +350,12 @@ describe('codegenAction', () => {
         incremental: false,
       });
 
-      expect(result.output).not.toContain('written');
-      expect(result.output).not.toContain('skipped');
-      expect(result.output).toContain('Generated 3 files');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.output).not.toContain('written');
+        expect(result.data.output).not.toContain('skipped');
+        expect(result.data.output).toContain('Generated 3 files');
+      }
     });
 
     it('shows all files as written on first run', async () => {
@@ -346,8 +373,11 @@ describe('codegenAction', () => {
         incremental: true,
       });
 
-      expect(result.output).toContain('3 written');
-      expect(result.output).not.toContain('skipped');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.output).toContain('3 written');
+        expect(result.data.output).not.toContain('skipped');
+      }
     });
 
     it('defaults incremental to true', async () => {
@@ -365,8 +395,11 @@ describe('codegenAction', () => {
         pipeline,
       });
 
-      expect(result.output).toContain('1 written');
-      expect(result.output).toContain('2 skipped');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.output).toContain('1 written');
+        expect(result.data.output).toContain('2 skipped');
+      }
     });
   });
 });

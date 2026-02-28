@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
 import { Command } from 'commander';
 import type { FileChange } from '../../pipeline';
 import {
@@ -6,7 +6,7 @@ import {
   getAffectedStages,
   getStagesForChanges,
 } from '../../pipeline/watcher';
-import { registerDevCommand } from '../dev';
+import { type DevCommandOptions, registerDevCommand } from '../dev';
 
 describe('Pipeline Orchestrator', () => {
   describe('categorizeFileChange', () => {
@@ -270,5 +270,70 @@ describe('registerDevCommand', () => {
     const devCmd = program.commands.find((cmd) => cmd.name() === 'dev');
     const verboseOpt = devCmd?.options.find((o) => o.long === '--verbose');
     expect(verboseOpt).toBeDefined();
+  });
+});
+
+describe('devAction error paths', () => {
+  let pathsSpy: Mock<(...args: unknown[]) => unknown>;
+  let appDetectorSpy: Mock<(...args: unknown[]) => unknown>;
+
+  afterEach(() => {
+    pathsSpy?.mockRestore();
+    appDetectorSpy?.mockRestore();
+  });
+
+  it('returns err when findProjectRoot returns null', async () => {
+    const pathsMod = await import('../../utils/paths');
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue(null) as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const { devAction } = await import('../dev');
+    const result = await devAction();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('Could not find project root');
+    }
+  });
+
+  it('returns err when detectAppType throws', async () => {
+    const pathsMod = await import('../../utils/paths');
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const appDetector = await import('../../dev-server/app-detector');
+    appDetectorSpy = vi.spyOn(appDetector, 'detectAppType').mockImplementation(() => {
+      throw new Error('No app entry found');
+    }) as Mock<(...args: unknown[]) => unknown>;
+
+    const { devAction } = await import('../dev');
+    const result = await devAction();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('No app entry found');
+    }
+  });
+
+  it('returns err with stringified value when detectAppType throws non-Error', async () => {
+    const pathsMod = await import('../../utils/paths');
+    pathsSpy = vi.spyOn(pathsMod, 'findProjectRoot').mockReturnValue('/fake/root') as Mock<
+      (...args: unknown[]) => unknown
+    >;
+
+    const appDetector = await import('../../dev-server/app-detector');
+    appDetectorSpy = vi.spyOn(appDetector, 'detectAppType').mockImplementation(() => {
+      throw 'unexpected string error';
+    }) as Mock<(...args: unknown[]) => unknown>;
+
+    const { devAction } = await import('../dev');
+    const result = await devAction();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toBe('unexpected string error');
+    }
   });
 });

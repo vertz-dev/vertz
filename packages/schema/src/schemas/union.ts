@@ -22,7 +22,7 @@ export class UnionSchema<T extends UnionOptions> extends Schema<InferUnion<T>> {
   _parse(value: unknown, ctx: ParseContext): InferUnion<T> {
     for (const option of this._options) {
       const result = option.safeParse(value);
-      if (result.success) {
+      if (result.ok) {
         return result.data;
       }
     }

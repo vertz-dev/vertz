@@ -6,13 +6,13 @@ describe('SymbolSchema', () => {
   it('accepts symbols, rejects non-symbols', () => {
     const schema = new SymbolSchema();
     const sym = Symbol('test');
-    expect(schema.parse(sym)).toBe(sym);
-    expect(schema.parse(Symbol.iterator)).toBe(Symbol.iterator);
+    expect(schema.parse(sym).data).toBe(sym);
+    expect(schema.parse(Symbol.iterator).data).toBe(Symbol.iterator);
 
     for (const value of [42, 'hello', true, null, undefined, {}]) {
       const result = schema.safeParse(value);
-      expect(result.success).toBe(false);
-      if (!result.success) {
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
         expect(result.error).toBeInstanceOf(ParseError);
       }
     }

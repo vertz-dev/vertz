@@ -7,7 +7,7 @@ import type { ExtractParams } from './params';
 
 /** Simple schema interface for search param parsing. */
 export interface SearchParamSchema<T> {
-  parse(data: unknown): T;
+  parse(data: unknown): { ok: true; data: T } | { ok: false; error: unknown };
 }
 
 /** A route configuration for a single path. */
@@ -174,7 +174,10 @@ export function matchRoute(routes: CompiledRoute[], url: string): RouteMatch | n
       for (const [key, value] of searchParams.entries()) {
         raw[key] = value;
       }
-      search = m.route.searchParams.parse(raw) as Record<string, unknown>;
+      const parseResult = m.route.searchParams.parse(raw);
+      if (parseResult.ok) {
+        search = parseResult.data as Record<string, unknown>;
+      }
       break;
     }
   }

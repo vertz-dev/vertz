@@ -34,25 +34,31 @@ describe('Schema base class', () => {
     SchemaRegistry.clear();
   });
 
-  it('parse() returns the validated value on success', () => {
+  it('parse() returns Ok result on success', () => {
     const schema = new TestStringSchema();
-    expect(schema.parse('hello')).toBe('hello');
+    const result = schema.parse('hello');
+    expect(result.ok).toBe(true);
+    expect(result.data).toBe('hello');
   });
 
-  it('parse() throws ParseError on invalid input', () => {
+  it('parse() returns Err result on invalid input', () => {
     const schema = new TestStringSchema();
-    expect(() => schema.parse(42)).toThrow(ParseError);
+    const result = schema.parse(42);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBeInstanceOf(ParseError);
+    }
   });
 
-  it('safeParse() returns success on valid input and error on invalid', () => {
+  it('safeParse() returns Ok on valid input and Err on invalid', () => {
     const schema = new TestStringSchema();
 
     const success = schema.safeParse('hello');
-    expect(success).toEqual({ success: true, data: 'hello' });
+    expect(success).toEqual({ ok: true, data: 'hello' });
 
     const failure = schema.safeParse(42);
-    expect(failure.success).toBe(false);
-    if (!failure.success) {
+    expect(failure.ok).toBe(false);
+    if (!failure.ok) {
       expect(failure.error).toBeInstanceOf(ParseError);
       expect(failure.error.issues[0]?.code).toBe(ErrorCode.InvalidType);
     }

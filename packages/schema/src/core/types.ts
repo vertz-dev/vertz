@@ -1,5 +1,3 @@
-import type { ParseError } from './errors';
-
 export enum SchemaType {
   String = 'string',
   Number = 'number',
@@ -38,5 +36,3 @@ export interface SchemaMetadata {
   meta: Record<string, unknown> | undefined;
   examples: unknown[];
 }
-
-export type SafeParseResult<T> = { success: true; data: T } | { success: false; error: ParseError };

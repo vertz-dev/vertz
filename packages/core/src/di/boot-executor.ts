@@ -35,7 +35,7 @@ export class BootExecutor {
     let options: Record<string, unknown> = {};
     if (instr.factory.options) {
       const parsed = instr.factory.options.safeParse(instr.options ?? {});
-      if (parsed.success) {
+      if (parsed.ok) {
         options = parsed.data;
       } else {
         throw new Error(
@@ -48,7 +48,7 @@ export class BootExecutor {
     let env: Record<string, unknown> = {};
     if (instr.factory.env) {
       const parsed = instr.factory.env.safeParse(instr.env ?? {});
-      if (parsed.success) {
+      if (parsed.ok) {
         env = parsed.data;
       } else {
         throw new Error(

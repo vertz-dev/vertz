@@ -397,6 +397,56 @@ describe('createTestApp', () => {
     await expect(Promise.resolve(app.get('/api'))).rejects.toThrow('Response validation failed');
   });
 
+  it('throws ResponseValidationError with error message from safeParse', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix: '/api' });
+
+    const responseSchema = {
+      safeParse: (value: unknown) => {
+        const v = value as { name: unknown };
+        if (typeof v?.name !== 'string') {
+          return { ok: false as const, error: { message: 'name must be a string' } };
+        }
+        return { ok: true as const };
+      },
+    };
+
+    router.get('/', {
+      response: responseSchema,
+      handler: () => ({ name: 42 }),
+    });
+
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+    const app = createTestApp().register(mod);
+
+    await expect(Promise.resolve(app.get('/api'))).rejects.toThrow(
+      'Response validation failed: name must be a string',
+    );
+  });
+
+  it('throws ResponseValidationError with fallback message when error has no message', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix: '/api' });
+
+    const responseSchema = {
+      safeParse: () => {
+        return { ok: false as const };
+      },
+    };
+
+    router.get('/', {
+      response: responseSchema,
+      handler: () => ({ name: 42 }),
+    });
+
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+    const app = createTestApp().register(mod);
+
+    await expect(Promise.resolve(app.get('/api'))).rejects.toThrow(
+      'Response validation failed: Unknown validation error',
+    );
+  });
+
   it('validates body using schema and rejects invalid input', async () => {
     const moduleDef = createModuleDef({ name: 'test' });
     const router = moduleDef.router({ prefix: '/users' });
@@ -424,8 +474,9 @@ describe('createTestApp', () => {
       parse: (value: unknown) => {
         const query = value as Record<string, unknown>;
         const page = Number(query.page);
-        if (Number.isNaN(page)) throw new Error('page must be a number');
-        return { page };
+        if (Number.isNaN(page))
+          return { ok: false as const, error: new Error('page must be a number') };
+        return { ok: true as const, data: { page } };
       },
     };
 
@@ -449,8 +500,9 @@ describe('createTestApp', () => {
     const headersSchema = {
       parse: (value: unknown) => {
         const headers = value as Record<string, unknown>;
-        if (!headers['x-api-key']) throw new Error('x-api-key is required');
-        return headers;
+        if (!headers['x-api-key'])
+          return { ok: false as const, error: new Error('x-api-key is required') };
+        return { ok: true as const, data: headers };
       },
     };
 

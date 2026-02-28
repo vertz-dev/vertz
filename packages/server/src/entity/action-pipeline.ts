@@ -1,4 +1,11 @@
-import { type EntityError, EntityNotFoundError, err, ok, type Result } from '@vertz/errors';
+import {
+  BadRequestError,
+  type EntityError,
+  EntityNotFoundError,
+  err,
+  ok,
+  type Result,
+} from '@vertz/errors';
 import { enforceAccess } from './access-enforcer';
 import type { CrudResult, EntityDbAdapter } from './crud-pipeline';
 import type { EntityActionDef, EntityContext, EntityDefinition } from './types';
@@ -26,7 +33,11 @@ export function createActionHandler(
     if (!accessResult.ok) return err(accessResult.error);
 
     // 3. Validate input against schema
-    const input = actionDef.input.parse(rawInput);
+    const parseResult = actionDef.input.parse(rawInput);
+    if (!parseResult.ok) {
+      return err(new BadRequestError(parseResult.error.message));
+    }
+    const input = parseResult.data;
 
     // 4. Run the handler
     const result = await actionDef.handler(input, ctx, row);

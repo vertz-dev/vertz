@@ -1,4 +1,5 @@
 import type { Compiler, HttpMethod, MiddlewareRef } from '@vertz/compiler';
+import { ok, type Result } from '@vertz/errors';
 
 export interface FlatRoute {
   method: HttpMethod;
@@ -13,11 +14,6 @@ export interface RoutesOptions {
   compiler: Compiler;
   format: 'table' | 'json';
   module?: string;
-}
-
-export interface RoutesResult {
-  routes: FlatRoute[];
-  output: string;
 }
 
 function extractRoutes(ir: {
@@ -79,7 +75,9 @@ function formatTable(routes: FlatRoute[]): string {
   return lines.join('\n');
 }
 
-export async function routesAction(options: RoutesOptions): Promise<RoutesResult> {
+export async function routesAction(
+  options: RoutesOptions,
+): Promise<Result<{ routes: FlatRoute[]; output: string }, Error>> {
   const { compiler, format, module: moduleFilter } = options;
 
   const ir = await compiler.analyze();
@@ -96,5 +94,5 @@ export async function routesAction(options: RoutesOptions): Promise<RoutesResult
     output = formatTable(routes);
   }
 
-  return { routes, output };
+  return ok({ routes, output });
 }

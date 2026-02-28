@@ -7,7 +7,7 @@ describe('.pipe()', () => {
     const schema = new StringSchema()
       .transform((val) => parseInt(val, 10))
       .pipe(new NumberSchema().min(1));
-    expect(schema.parse('42')).toBe(42);
+    expect(schema.parse('42').data).toBe(42);
   });
 
   it('validation errors from either schema propagate', () => {
@@ -15,7 +15,7 @@ describe('.pipe()', () => {
       .transform((val) => parseInt(val, 10))
       .pipe(new NumberSchema().min(10));
     const result = schema.safeParse('5');
-    expect(result.success).toBe(false);
+    expect(result.ok).toBe(false);
   });
 
   it('validation errors from first schema propagate', () => {
@@ -24,6 +24,6 @@ describe('.pipe()', () => {
       .transform((val) => parseInt(val, 10))
       .pipe(new NumberSchema());
     const result = schema.safeParse('');
-    expect(result.success).toBe(false);
+    expect(result.ok).toBe(false);
   });
 });

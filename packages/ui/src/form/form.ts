@@ -74,7 +74,7 @@ export interface FormOptions<TBody, TResult> {
   /** Explicit schema for client-side validation before submission. */
   schema?: FormSchema<TBody>;
   /** Initial values for form fields. */
-  initial?: Partial<TBody>;
+  initial?: Partial<TBody> | (() => Partial<TBody>);
   /** Callback invoked after a successful submission. */
   onSuccess?: (result: TResult) => void;
   /** Callback invoked when validation or submission fails. */
@@ -129,7 +129,9 @@ export function form<TBody, TResult>(
   function getOrCreateField(name: string): FieldState {
     let field = fieldCache.get(name);
     if (!field) {
-      const initialValue = (options?.initial as Record<string, unknown> | undefined)?.[name];
+      const initialObj =
+        typeof options?.initial === 'function' ? options.initial() : options?.initial;
+      const initialValue = (initialObj as Record<string, unknown> | undefined)?.[name];
       field = createFieldState(name, initialValue);
       fieldCache.set(name, field);
       fieldGeneration.value++;

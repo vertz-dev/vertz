@@ -90,7 +90,7 @@ describe('tableToSchemas', () => {
         email: 'alice@example.com',
         passwordHash: 'hashed',
       });
-      expect(result.success).toBe(true);
+      expect(result.ok).toBe(true);
     });
 
     it('rejects a payload missing required fields', () => {
@@ -99,7 +99,7 @@ describe('tableToSchemas', () => {
         name: 'Alice',
         // missing email and passwordHash
       });
-      expect(result.success).toBe(false);
+      expect(result.ok).toBe(false);
     });
   });
 
@@ -118,7 +118,7 @@ describe('tableToSchemas', () => {
       const schemas = tableToSchemas(users);
       // An empty object should be valid for update
       const result = schemas.updateBody.safeParse({});
-      expect(result.success).toBe(true);
+      expect(result.ok).toBe(true);
     });
 
     it('includes columns that have defaults (they can be updated)', () => {
@@ -133,7 +133,7 @@ describe('tableToSchemas', () => {
       const result = schemas.updateBody.safeParse({
         name: 'Bob',
       });
-      expect(result.success).toBe(true);
+      expect(result.ok).toBe(true);
     });
   });
 
@@ -176,7 +176,7 @@ describe('tableToSchemas', () => {
         role: 'admin',
         createdAt: new Date(),
       });
-      expect(result.success).toBe(true);
+      expect(result.ok).toBe(true);
     });
   });
 
@@ -194,7 +194,7 @@ describe('tableToSchemas', () => {
         role: 'member',
         createdAt: new Date(),
       });
-      expect(result.success).toBe(false);
+      expect(result.ok).toBe(false);
     });
 
     it('maps varchar(n) with max length validation', () => {
@@ -209,7 +209,7 @@ describe('tableToSchemas', () => {
         scores: [],
         metadata: {},
       });
-      expect(result.success).toBe(false);
+      expect(result.ok).toBe(false);
     });
 
     it('maps email to s.email()', () => {
@@ -219,7 +219,7 @@ describe('tableToSchemas', () => {
         email: 'not-an-email',
         passwordHash: 'hash',
       });
-      expect(result.success).toBe(false);
+      expect(result.ok).toBe(false);
     });
 
     it('maps boolean correctly', () => {
@@ -237,7 +237,7 @@ describe('tableToSchemas', () => {
         scores: [],
         metadata: {},
       });
-      expect(result.success).toBe(false);
+      expect(result.ok).toBe(false);
     });
 
     it('maps integer to s.number().int()', () => {
@@ -252,7 +252,7 @@ describe('tableToSchemas', () => {
         scores: [],
         metadata: {},
       });
-      expect(result.success).toBe(false);
+      expect(result.ok).toBe(false);
     });
 
     it('maps real/doublePrecision to s.number()', () => {
@@ -267,7 +267,7 @@ describe('tableToSchemas', () => {
         scores: [],
         metadata: {},
       });
-      expect(validResult.success).toBe(true);
+      expect(validResult.ok).toBe(true);
     });
 
     it('maps bigint to s.bigint()', () => {
@@ -287,12 +287,12 @@ describe('tableToSchemas', () => {
       const result = schemas.updateBody.safeParse({
         role: 'invalid-role',
       });
-      expect(result.success).toBe(false);
+      expect(result.ok).toBe(false);
 
       const validResult = schemas.updateBody.safeParse({
         role: 'admin',
       });
-      expect(validResult.success).toBe(true);
+      expect(validResult.ok).toBe(true);
     });
 
     it('maps textArray to s.array(s.string())', () => {
@@ -307,7 +307,7 @@ describe('tableToSchemas', () => {
         scores: [],
         metadata: {},
       });
-      expect(result.success).toBe(true);
+      expect(result.ok).toBe(true);
     });
 
     it('maps integerArray to s.array(s.number().int())', () => {
@@ -322,7 +322,7 @@ describe('tableToSchemas', () => {
         scores: [1, 2, 3],
         metadata: {},
       });
-      expect(result.success).toBe(true);
+      expect(result.ok).toBe(true);
     });
 
     it('maps jsonb to s.unknown()', () => {
@@ -367,7 +367,7 @@ describe('tableToSchemas', () => {
         scores: [],
         metadata: {},
       });
-      expect(result.success).toBe(true);
+      expect(result.ok).toBe(true);
     });
 
     it('rejects null for non-nullable columns', () => {
@@ -382,7 +382,7 @@ describe('tableToSchemas', () => {
         scores: [],
         metadata: {},
       });
-      expect(result.success).toBe(false);
+      expect(result.ok).toBe(false);
     });
   });
 

@@ -8,30 +8,30 @@ import { TupleSchema } from '../tuple';
 describe('TupleSchema', () => {
   it('accepts a tuple with correct types at each position', () => {
     const schema = new TupleSchema([new StringSchema(), new NumberSchema(), new BooleanSchema()]);
-    expect(schema.parse(['hello', 42, true])).toEqual(['hello', 42, true]);
+    expect(schema.parse(['hello', 42, true]).data).toEqual(['hello', 42, true]);
   });
 
   it('rejects wrong type at any position with error path', () => {
     const schema = new TupleSchema([new StringSchema(), new NumberSchema()]);
     const result = schema.safeParse(['hello', 'not-a-number']);
-    expect(result.success).toBe(false);
-    if (!result.success) {
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(result.error.issues[0]?.path).toEqual([1]);
     }
   });
 
   it('rejects wrong length', () => {
     const schema = new TupleSchema([new StringSchema(), new NumberSchema()]);
-    expect(schema.safeParse(['a']).success).toBe(false);
-    expect(schema.safeParse(['a', 1, true]).success).toBe(false);
+    expect(schema.safeParse(['a']).ok).toBe(false);
+    expect(schema.safeParse(['a', 1, true]).ok).toBe(false);
   });
 
   it('.rest(schema) validates additional elements', () => {
     const schema = new TupleSchema([new StringSchema()]).rest(new NumberSchema());
-    expect(schema.parse(['hello', 1, 2, 3])).toEqual(['hello', 1, 2, 3]);
+    expect(schema.parse(['hello', 1, 2, 3]).data).toEqual(['hello', 1, 2, 3]);
     const result = schema.safeParse(['hello', 1, 'bad']);
-    expect(result.success).toBe(false);
-    if (!result.success) {
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(result.error.issues[0]?.path).toEqual([2]);
     }
   });
@@ -57,8 +57,8 @@ describe('TupleSchema', () => {
   it('rejects non-array values', () => {
     const schema = new TupleSchema([new StringSchema()]);
     const result = schema.safeParse('not-an-array');
-    expect(result.success).toBe(false);
-    if (!result.success) {
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidType);
     }
   });

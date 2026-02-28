@@ -23,7 +23,7 @@ import { button, formStyles, inputStyles, labelStyles } from '../styles/componen
  * client and server. Here we inline a minimal parse() implementation.
  */
 const createTaskSchema: FormSchema<CreateTaskBody> = {
-  parse(data: unknown): CreateTaskBody {
+  parse(data: unknown) {
     const obj = data as Record<string, unknown>;
     const errors: Record<string, string> = {};
 
@@ -45,13 +45,16 @@ const createTaskSchema: FormSchema<CreateTaskBody> = {
     if (Object.keys(errors).length > 0) {
       const err = new Error('Validation failed');
       (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = errors;
-      throw err;
+      return { ok: false as const, error: err };
     }
 
     return {
-      title: (obj.title as string).trim(),
-      description: (obj.description as string).trim(),
-      priority: obj.priority as TaskPriority,
+      ok: true as const,
+      data: {
+        title: (obj.title as string).trim(),
+        description: (obj.description as string).trim(),
+        priority: obj.priority as TaskPriority,
+      },
     };
   },
 };

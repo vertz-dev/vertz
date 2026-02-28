@@ -34,8 +34,8 @@ if (result.ok) {
   // TypeScript knows result.data exists here
   console.log('User:', result.data.name);
 } else {
-  // TypeScript here
-  console knows result.error exists.error('Error:', result.error.message);
+  // TypeScript knows result.error exists here
+  console.error('Error:', result.error.message);
 }
 ```
 
@@ -334,6 +334,109 @@ function GlobalErrorHandler({ error, reset }: { error: FetchErrorType; reset: ()
 }
 ```
 
+## Streaming Endpoints
+
+Streaming handlers **throw** instead of returning `Result`. Once a stream has started sending data to the client, there's no way to "take back" what was sent and return an error envelope. The stream is the response.
+
+```typescript
+// Streaming handler — throws on error, no Result wrapper
+app.get('/events', (ctx) => {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const event of subscribe(ctx)) {
+          controller.enqueue(JSON.stringify(event) + '\n');
+        }
+        controller.close();
+      } catch (error) {
+        // Error mid-stream — close the connection.
+        // The client sees the stream end unexpectedly.
+        controller.error(error);
+      }
+    },
+  });
+});
+```
+
+For endpoints that might fail **before** streaming starts, validate early and throw before creating the stream:
+
+```typescript
+app.get('/events/:channel', (ctx) => {
+  // Validate before streaming — this returns a proper error response
+  const channel = ctx.params.channel;
+  if (!isValidChannel(channel)) {
+    throw new BadRequestException('Invalid channel');
+  }
+
+  // From here on, we're committed to the stream
+  return new ReadableStream({ ... });
+});
+```
+
+> **Rule of thumb:** If an error can happen before the first byte is sent, use `Result`. If it can happen mid-stream, throw (or close the stream). Never wrap a streaming response in `Result`.
+
+## serverCode — Semantic Server Errors
+
+HTTP status codes are coarse — a 404 could mean "user not found", "post not found", or "route not found". The `serverCode` field on `HttpError` carries a **semantic error code** from the server, giving clients fine-grained control:
+
+```typescript
+const result = await userSdk.update(userId, data);
+
+if (!result.ok) {
+  matchError(result.error, {
+    HttpError: (e) => {
+      switch (e.serverCode) {
+        case 'NOT_FOUND':
+          return showToast('User not found');
+        case 'EMAIL_EXISTS':
+          form.setFieldError('email', 'Already in use');
+          return;
+        case 'FORBIDDEN':
+          return redirectTo('/login');
+        default:
+          return showToast(`Error: ${e.message}`);
+      }
+    },
+    NetworkError: () => showToast('Network error — check your connection'),
+    TimeoutError: () => showToast('Request timed out'),
+    ParseError: () => showToast('Unexpected server response'),
+    ValidationError: (e) => {
+      for (const { path, message } of e.errors) {
+        form.setFieldError(path, message);
+      }
+    },
+  });
+}
+```
+
+### How serverCode flows
+
+1. Server handler returns `err(status, { code: 'EMAIL_EXISTS', message: '...' })`
+2. Vertz serializes the error body as JSON with the status code
+3. Client SDK receives the response and creates an `HttpError`
+4. `HttpError.serverCode` is extracted from the response body's `code` field
+5. Client code matches on `e.serverCode` for specific handling
+
+### Defining server codes
+
+Server codes are just strings — there's no enum. Convention: use UPPER_SNAKE_CASE matching your entity error codes:
+
+```typescript
+// Server-side handler
+export function updateUser(ctx: HandlerCtx) {
+  const user = await db.findById(ctx.params.id);
+  if (!user) return err(404, { code: 'NOT_FOUND', message: 'User not found' });
+
+  const existing = await db.findByEmail(ctx.body.email);
+  if (existing && existing.id !== user.id) {
+    return err(409, { code: 'EMAIL_EXISTS', message: 'Email already in use' });
+  }
+
+  const updated = await db.update(user.id, ctx.body);
+  return ok(updated);
+}
+```
+
 ## Result Utility Functions
 
 ### map — Transform the Success Value
@@ -377,7 +480,7 @@ import { unwrap } from '@vertz/errors';
 const user = unwrap(result);
 
 // In scripts
-const config = unwarp(parseConfig());
+const config = unwrap(parseConfig());
 ```
 
 ## Type Safety

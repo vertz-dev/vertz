@@ -13,9 +13,9 @@ describe('Response Schema Validation', () => {
       parse: (value: unknown) => {
         const response = value as { id: unknown };
         if (typeof response.id !== 'number') {
-          throw new Error('id must be a number');
+          return { ok: false as const, error: new Error('id must be a number') };
         }
-        return response;
+        return { ok: true as const, data: response };
       },
     };
 
@@ -44,9 +44,9 @@ describe('Response Schema Validation', () => {
       parse: (value: unknown) => {
         const response = value as { id: unknown };
         if (typeof response.id !== 'number') {
-          throw new Error('id must be a number');
+          return { ok: false as const, error: new Error('id must be a number') };
         }
-        return response;
+        return { ok: true as const, data: response };
       },
     };
 
@@ -72,9 +72,9 @@ describe('Response Schema Validation', () => {
       parse: (value: unknown) => {
         const response = value as { id: unknown };
         if (typeof response.id !== 'number') {
-          throw new Error('id must be a number');
+          return { ok: false as const, error: new Error('id must be a number') };
         }
-        return response;
+        return { ok: true as const, data: response };
       },
     };
 
@@ -102,9 +102,9 @@ describe('Response Schema Validation', () => {
       parse: (value: unknown) => {
         const response = value as { id: unknown };
         if (typeof response.id !== 'number') {
-          throw new Error('id must be a number');
+          return { ok: false as const, error: new Error('id must be a number') };
         }
-        return response;
+        return { ok: true as const, data: response };
       },
     };
 
@@ -133,9 +133,9 @@ describe('Response Schema Validation', () => {
       parse: (value: unknown) => {
         const response = value as { user: { name: unknown } };
         if (typeof response.user?.name !== 'string') {
-          throw new Error('user.name must be a string');
+          return { ok: false as const, error: new Error('user.name must be a string') };
         }
-        return response;
+        return { ok: true as const, data: response };
       },
     };
 
@@ -163,10 +163,10 @@ describe('Response Schema Validation', () => {
         const arr = value as unknown[];
         for (const item of arr) {
           if (typeof item !== 'object' || item === null || !('id' in item)) {
-            throw new Error('each item must have id');
+            return { ok: false as const, error: new Error('each item must have id') };
           }
         }
-        return arr;
+        return { ok: true as const, data: arr };
       },
     };
 

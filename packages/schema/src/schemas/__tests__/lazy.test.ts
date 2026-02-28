@@ -29,7 +29,7 @@ describe('LazySchema', () => {
         children: null,
       },
     };
-    const result = treeSchema.parse(data);
+    const result = treeSchema.parse(data).data;
     expect(result.value).toBe('root');
     expect((result.children as TreeNode).value).toBe('child');
     expect((result.children as TreeNode).children).toBe(null);
@@ -66,7 +66,7 @@ describe('LazySchema', () => {
         },
       },
     };
-    const result = treeSchema.parse(deepData);
+    const result = treeSchema.parse(deepData).data;
     expect(((result.children as TreeNode).children as TreeNode).value).toBe('level3');
   });
 
@@ -84,8 +84,8 @@ describe('LazySchema', () => {
       },
     };
     const result = treeSchema.safeParse(badData);
-    expect(result.success).toBe(false);
-    if (!result.success) {
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(result.error.issues[0].path).toEqual(['children', 'value']);
     }
   });

@@ -1,5 +1,5 @@
-import type { AppIR, Compiler, ModuleIR, RouteIR, RouterIR } from '@vertz/compiler';
 import { describe, expect, it, vi } from 'bun:test';
+import type { AppIR, Compiler, ModuleIR, RouteIR, RouterIR } from '@vertz/compiler';
 import { routesAction } from '../routes';
 
 function makeRoute(overrides: Partial<RouteIR> = {}): RouteIR {
@@ -66,7 +66,10 @@ describe('routesAction', () => {
     const router = makeRouter([route]);
     const compiler = createMockCompiler([router]);
     const result = await routesAction({ compiler, format: 'json' });
-    expect(result.routes).toHaveLength(1);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.routes).toHaveLength(1);
+    }
   });
 
   it('calls compiler.analyze()', async () => {
@@ -78,7 +81,10 @@ describe('routesAction', () => {
   it('returns empty routes for empty IR', async () => {
     const compiler = createMockCompiler([]);
     const result = await routesAction({ compiler, format: 'json' });
-    expect(result.routes).toHaveLength(0);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.routes).toHaveLength(0);
+    }
   });
 
   it('outputs valid JSON for json format', async () => {
@@ -86,9 +92,12 @@ describe('routesAction', () => {
     const router = makeRouter([route]);
     const compiler = createMockCompiler([router]);
     const result = await routesAction({ compiler, format: 'json' });
-    const parsed = JSON.parse(result.output);
-    expect(parsed).toBeDefined();
-    expect(Array.isArray(parsed)).toBe(true);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const parsed = JSON.parse(result.data.output);
+      expect(parsed).toBeDefined();
+      expect(Array.isArray(parsed)).toBe(true);
+    }
   });
 
   it('json output includes route details', async () => {
@@ -96,9 +105,12 @@ describe('routesAction', () => {
     const router = makeRouter([route]);
     const compiler = createMockCompiler([router]);
     const result = await routesAction({ compiler, format: 'json' });
-    const parsed = JSON.parse(result.output);
-    expect(parsed[0].method).toBe('POST');
-    expect(parsed[0].path).toBe('/users');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const parsed = JSON.parse(result.data.output);
+      expect(parsed[0].method).toBe('POST');
+      expect(parsed[0].path).toBe('/users');
+    }
   });
 
   it('table output includes method and path', async () => {
@@ -106,8 +118,11 @@ describe('routesAction', () => {
     const router = makeRouter([route]);
     const compiler = createMockCompiler([router]);
     const result = await routesAction({ compiler, format: 'table' });
-    expect(result.output).toContain('GET');
-    expect(result.output).toContain('/api/users');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.output).toContain('GET');
+      expect(result.data.output).toContain('/api/users');
+    }
   });
 
   it('filters by module when specified', async () => {
@@ -115,7 +130,10 @@ describe('routesAction', () => {
     const router = makeRouter([route], 'user');
     const compiler = createMockCompiler([router]);
     const result = await routesAction({ compiler, format: 'json', module: 'order' });
-    expect(result.routes).toHaveLength(0);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.routes).toHaveLength(0);
+    }
   });
 
   it('shows all routes when no module filter', async () => {
@@ -123,6 +141,9 @@ describe('routesAction', () => {
     const router = makeRouter([route], 'user');
     const compiler = createMockCompiler([router]);
     const result = await routesAction({ compiler, format: 'json' });
-    expect(result.routes).toHaveLength(1);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.routes).toHaveLength(1);
+    }
   });
 });

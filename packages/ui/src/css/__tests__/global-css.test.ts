@@ -2,6 +2,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { resetInjectedStyles } from '../css';
 import { globalCss } from '../global-css';
 
+/** Read all CSS text from adopted stylesheets. */
+function getAdoptedCSSText(): string[] {
+  return Array.from(document.adoptedStyleSheets).map((sheet) =>
+    Array.from(sheet.cssRules)
+      .map((r) => r.cssText)
+      .join('\n'),
+  );
+}
+
 function cleanupStyles(): void {
   for (const el of document.head.querySelectorAll('style[data-vertz-css]')) {
     el.remove();
@@ -13,7 +22,7 @@ describe('globalCss() runtime style injection', () => {
   beforeEach(cleanupStyles);
   afterEach(cleanupStyles);
 
-  it('injects a <style data-vertz-css> tag into document.head', () => {
+  it('injects CSS into the document via adoptedStyleSheets', () => {
     globalCss({
       body: {
         margin: '0',
@@ -21,10 +30,10 @@ describe('globalCss() runtime style injection', () => {
       },
     });
 
-    const styles = document.head.querySelectorAll('style[data-vertz-css]');
-    expect(styles.length).toBe(1);
-    expect(styles[0]?.textContent).toContain('margin: 0;');
-    expect(styles[0]?.textContent).toContain('font-family: system-ui, sans-serif;');
+    const sheets = getAdoptedCSSText();
+    expect(sheets.length).toBe(1);
+    expect(sheets[0]).toContain('margin: 0');
+    expect(sheets[0]).toContain('font-family: system-ui, sans-serif');
   });
 
   it('does not inject the same CSS twice (deduplication)', () => {
@@ -35,8 +44,8 @@ describe('globalCss() runtime style injection', () => {
       body: { margin: '0' },
     });
 
-    const styles = document.head.querySelectorAll('style[data-vertz-css]');
-    expect(styles.length).toBe(1);
+    const sheets = getAdoptedCSSText();
+    expect(sheets.length).toBe(1);
   });
 });
 

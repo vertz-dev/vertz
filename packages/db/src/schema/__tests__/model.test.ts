@@ -30,7 +30,7 @@ describe('Feature: d.model() and derived schemas', () => {
     describe('When calling schemas.response.parse()', () => {
       it('Then strips hidden fields from data', () => {
         const model = d.model(usersTable);
-        const result = model.schemas.response.parse({
+        const parseResult = model.schemas.response.parse({
           id: '1',
           email: 'a@b.com',
           name: 'Alice',
@@ -40,6 +40,8 @@ describe('Feature: d.model() and derived schemas', () => {
           updatedAt: new Date(),
         });
 
+        expect(parseResult.ok).toBe(true);
+        const result = (parseResult as { ok: true; data: unknown }).data;
         expect(result).not.toHaveProperty('passwordHash');
         expect(result).toHaveProperty('id', '1');
         expect(result).toHaveProperty('email', 'a@b.com');
@@ -52,7 +54,7 @@ describe('Feature: d.model() and derived schemas', () => {
     describe('When calling schemas.createInput.parse()', () => {
       it('Then strips readOnly and primary key fields from data', () => {
         const model = d.model(usersTable);
-        const result = model.schemas.createInput.parse({
+        const parseResult = model.schemas.createInput.parse({
           email: 'a@b.com',
           name: 'Alice',
           passwordHash: 'hash',
@@ -62,6 +64,8 @@ describe('Feature: d.model() and derived schemas', () => {
           updatedAt: new Date('2020-01-01'),
         });
 
+        expect(parseResult.ok).toBe(true);
+        const result = (parseResult as { ok: true; data: unknown }).data;
         // readOnly columns stripped
         expect(result).not.toHaveProperty('createdAt');
         expect(result).not.toHaveProperty('updatedAt');
@@ -78,15 +82,14 @@ describe('Feature: d.model() and derived schemas', () => {
 
   describe('Given a model with required fields', () => {
     describe('When calling schemas.createInput.parse() with missing required field', () => {
-      it('Then throws a validation error', () => {
+      it('Then returns an error result', () => {
         const model = d.model(usersTable);
-        expect(() =>
-          model.schemas.createInput.parse({
-            // email is required (no default), omitting it
-            name: 'Alice',
-            passwordHash: 'hash',
-          }),
-        ).toThrow();
+        const result = model.schemas.createInput.parse({
+          // email is required (no default), omitting it
+          name: 'Alice',
+          passwordHash: 'hash',
+        });
+        expect(result.ok).toBe(false);
       });
     });
   });
@@ -95,13 +98,15 @@ describe('Feature: d.model() and derived schemas', () => {
     describe('When calling schemas.updateInput.parse()', () => {
       it('Then strips readOnly and primary key fields from data (partial update)', () => {
         const model = d.model(usersTable);
-        const result = model.schemas.updateInput.parse({
+        const parseResult = model.schemas.updateInput.parse({
           name: 'Bob',
           id: '1',
           createdAt: new Date('2020-01-01'),
           updatedAt: new Date('2020-01-01'),
         });
 
+        expect(parseResult.ok).toBe(true);
+        const result = (parseResult as { ok: true; data: unknown }).data;
         // readOnly columns stripped
         expect(result).not.toHaveProperty('createdAt');
         expect(result).not.toHaveProperty('updatedAt');
@@ -117,7 +122,7 @@ describe('Feature: d.model() and derived schemas', () => {
     describe('When calling parse() with unknown extra keys', () => {
       it('Then response.parse() strips unknown keys', () => {
         const model = d.model(usersTable);
-        const result = model.schemas.response.parse({
+        const parseResult = model.schemas.response.parse({
           id: '1',
           email: 'a@b.com',
           name: 'Alice',
@@ -127,30 +132,36 @@ describe('Feature: d.model() and derived schemas', () => {
           totallyBogus: 'should not appear',
         });
 
+        expect(parseResult.ok).toBe(true);
+        const result = (parseResult as { ok: true; data: unknown }).data;
         expect(result).not.toHaveProperty('totallyBogus');
         expect(result).toHaveProperty('email', 'a@b.com');
       });
 
       it('Then createInput.parse() strips unknown keys', () => {
         const model = d.model(usersTable);
-        const result = model.schemas.createInput.parse({
+        const parseResult = model.schemas.createInput.parse({
           email: 'a@b.com',
           name: 'Alice',
           passwordHash: 'hash',
           bogusField: 'oops',
         });
 
+        expect(parseResult.ok).toBe(true);
+        const result = (parseResult as { ok: true; data: unknown }).data;
         expect(result).not.toHaveProperty('bogusField');
         expect(result).toHaveProperty('email', 'a@b.com');
       });
 
       it('Then updateInput.parse() strips unknown keys', () => {
         const model = d.model(usersTable);
-        const result = model.schemas.updateInput.parse({
+        const parseResult = model.schemas.updateInput.parse({
           name: 'Bob',
           unknownKey: 42,
         });
 
+        expect(parseResult.ok).toBe(true);
+        const result = (parseResult as { ok: true; data: unknown }).data;
         expect(result).not.toHaveProperty('unknownKey');
         expect(result).toHaveProperty('name', 'Bob');
       });

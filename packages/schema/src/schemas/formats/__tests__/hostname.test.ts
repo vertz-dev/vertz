@@ -4,15 +4,15 @@ import { HostnameSchema } from '../hostname';
 describe('HostnameSchema', () => {
   it('accepts valid hostnames', () => {
     const schema = new HostnameSchema();
-    expect(schema.parse('example.com')).toBe('example.com');
-    expect(schema.parse('sub.domain.co.uk')).toBe('sub.domain.co.uk');
-    expect(schema.parse('localhost')).toBe('localhost');
+    expect(schema.parse('example.com').data).toBe('example.com');
+    expect(schema.parse('sub.domain.co.uk').data).toBe('sub.domain.co.uk');
+    expect(schema.parse('localhost').data).toBe('localhost');
   });
 
   it('rejects invalid hostnames', () => {
     const schema = new HostnameSchema();
-    expect(schema.safeParse('-invalid.com').success).toBe(false);
-    expect(schema.safeParse('').success).toBe(false);
+    expect(schema.safeParse('-invalid.com').ok).toBe(false);
+    expect(schema.safeParse('').ok).toBe(false);
   });
 
   it('toJSONSchema includes format', () => {

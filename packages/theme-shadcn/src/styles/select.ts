@@ -58,7 +58,19 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       'shadow:md',
       'py:1',
       {
-        '&[data-state="open"]': [animationDecl('vz-zoom-in 150ms ease-out forwards')],
+        '&[data-state="open"][data-side="bottom"]': [
+          animationDecl('vz-slide-down-in 150ms ease-out forwards'),
+        ],
+      },
+      {
+        '&[data-state="open"][data-side="top"]': [
+          animationDecl('vz-slide-up-in 150ms ease-out forwards'),
+        ],
+      },
+      {
+        '&[data-state="open"]:not([data-side])': [
+          animationDecl('vz-zoom-in 150ms ease-out forwards'),
+        ],
       },
       {
         '&[data-state="closed"]': [animationDecl('vz-zoom-out 150ms ease-out forwards')],

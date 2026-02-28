@@ -4,21 +4,21 @@ import { EmailSchema } from '../email';
 describe('EmailSchema', () => {
   it('accepts valid emails', () => {
     const schema = new EmailSchema();
-    expect(schema.parse('user@domain.com')).toBe('user@domain.com');
-    expect(schema.parse('user+tag@sub.domain.co')).toBe('user+tag@sub.domain.co');
+    expect(schema.parse('user@domain.com').data).toBe('user@domain.com');
+    expect(schema.parse('user+tag@sub.domain.co').data).toBe('user+tag@sub.domain.co');
   });
 
   it('rejects invalid emails', () => {
     const schema = new EmailSchema();
-    expect(schema.safeParse('no-at-sign').success).toBe(false);
-    expect(schema.safeParse('double@@domain.com').success).toBe(false);
-    expect(schema.safeParse('@domain.com').success).toBe(false);
+    expect(schema.safeParse('no-at-sign').ok).toBe(false);
+    expect(schema.safeParse('double@@domain.com').ok).toBe(false);
+    expect(schema.safeParse('@domain.com').ok).toBe(false);
   });
 
   it('inherits StringSchema methods', () => {
     const schema = new EmailSchema().min(10);
-    expect(schema.safeParse('a@b.co').success).toBe(false);
-    expect(schema.parse('user@domain.com')).toBe('user@domain.com');
+    expect(schema.safeParse('a@b.co').ok).toBe(false);
+    expect(schema.parse('user@domain.com').data).toBe('user@domain.com');
   });
 
   it('toJSONSchema includes format', () => {

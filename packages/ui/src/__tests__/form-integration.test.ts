@@ -31,7 +31,7 @@ describe('Integration Tests — Forms', () => {
     });
     const schema: FormSchema<{ name: string; role: string }> = {
       parse(data: unknown) {
-        return data as { name: string; role: string };
+        return { ok: true as const, data: data as { name: string; role: string } };
       },
     };
 
@@ -77,9 +77,9 @@ describe('Integration Tests — Forms', () => {
         if (Object.keys(errors).length > 0) {
           const err = new Error('Validation failed');
           (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = errors;
-          throw err;
+          return { ok: false as const, error: err };
         }
-        return obj;
+        return { ok: true as const, data: obj };
       },
     };
 

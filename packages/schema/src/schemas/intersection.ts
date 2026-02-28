@@ -20,7 +20,7 @@ export class IntersectionSchema<L extends SchemaAny, R extends SchemaAny> extend
     const leftResult = this._left.safeParse(value);
     const rightResult = this._right.safeParse(value);
 
-    if (!leftResult.success || !rightResult.success) {
+    if (!leftResult.ok || !rightResult.ok) {
       ctx.addIssue({
         code: ErrorCode.InvalidIntersection,
         message: 'Value does not satisfy intersection',

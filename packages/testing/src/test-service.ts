@@ -49,10 +49,12 @@ export function createTestService<
     let options: TOptions = {} as TOptions;
     if (serviceDef.options) {
       const parsed = serviceDef.options.safeParse(providedOptions);
-      if (parsed.success) {
+      if (parsed.ok) {
         options = parsed.data as TOptions;
       } else {
-        throw new Error(`Invalid options: ${parsed.error.issues.map((i) => i.message).join(', ')}`);
+        throw new Error(
+          `Invalid options: ${parsed.error.issues.map((i: { message: string }) => i.message).join(', ')}`,
+        );
       }
     }
 
@@ -60,10 +62,12 @@ export function createTestService<
     let env: TEnv = {} as TEnv;
     if (serviceDef.env) {
       const parsed = serviceDef.env.safeParse(providedEnv);
-      if (parsed.success) {
+      if (parsed.ok) {
         env = parsed.data as TEnv;
       } else {
-        throw new Error(`Invalid env: ${parsed.error.issues.map((i) => i.message).join(', ')}`);
+        throw new Error(
+          `Invalid env: ${parsed.error.issues.map((i: { message: string }) => i.message).join(', ')}`,
+        );
       }
     }
 
