@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { d } from '@vertz/db';
-import { EntityForbiddenError, EntityNotFoundError } from '@vertz/errors';
+import { BadRequestError, EntityForbiddenError, EntityNotFoundError } from '@vertz/errors';
 import { createActionHandler } from '../action-pipeline';
 import { createEntityContext } from '../context';
 import { entity } from '../entity';
@@ -123,6 +123,45 @@ describe('Feature: action pipeline', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error).toBeInstanceOf(EntityForbiddenError);
+        }
+      });
+    });
+  });
+
+  describe('Given an entity with action whose input schema rejects', () => {
+    const def = entity('tasks', {
+      model: tasksModel,
+      access: {
+        complete: () => true,
+      },
+      actions: {
+        complete: {
+          input: {
+            parse: () => ({
+              ok: false as const,
+              error: new Error('reason is required'),
+            }),
+          },
+          output: {
+            parse: (v: unknown) => ({ ok: true as const, data: v as { completedAt: string } }),
+          },
+          handler: mock(async () => ({ completedAt: '2024-01-01' })),
+        },
+      },
+    });
+
+    describe('When input validation fails', () => {
+      it('Then returns err(BadRequestError) with the parse error message', async () => {
+        const db = createStubDb();
+        const handler = createActionHandler(def, 'complete', def.actions.complete, db);
+        const ctx = makeCtx();
+
+        const result = await handler(ctx, 'task-1', {});
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toBeInstanceOf(BadRequestError);
+          expect(result.error.message).toBe('reason is required');
         }
       });
     });

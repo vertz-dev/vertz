@@ -135,4 +135,70 @@ describe('buildAction', () => {
 
     expect(result.ok).toBe(false);
   });
+
+  it('should return err when api-only build fails', async () => {
+    writeFileSync(join(tmpDir, 'src', 'server.ts'), 'export default {};');
+
+    orchestratorSpy.mockImplementation(
+      () =>
+        ({
+          build: vi.fn().mockResolvedValue({
+            success: false,
+            error: 'esbuild compilation error',
+          }),
+          dispose: vi.fn().mockResolvedValue(undefined),
+        }) as unknown,
+    );
+
+    const { buildAction } = await import('../build');
+    const result = await buildAction({ noTypecheck: true });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toBe('esbuild compilation error');
+    }
+  });
+
+  it('should return err when ui-only buildUI fails', async () => {
+    writeFileSync(join(tmpDir, 'src', 'app.tsx'), 'export default function App() {}');
+    writeFileSync(join(tmpDir, 'src', 'entry-client.ts'), 'console.log("client");');
+
+    buildUISpy.mockResolvedValue({
+      success: false,
+      error: 'UI build compilation failed',
+    });
+
+    const { buildAction } = await import('../build');
+    const result = await buildAction();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toBe('UI build compilation failed');
+    }
+  });
+
+  it('should return err when full-stack API build step fails', async () => {
+    writeFileSync(join(tmpDir, 'src', 'server.ts'), 'export default {};');
+    writeFileSync(join(tmpDir, 'src', 'app.tsx'), 'export default function App() {}');
+    writeFileSync(join(tmpDir, 'src', 'entry-client.ts'), 'console.log("client");');
+
+    orchestratorSpy.mockImplementation(
+      () =>
+        ({
+          build: vi.fn().mockResolvedValue({
+            success: false,
+            error: 'API stage failed in full-stack build',
+          }),
+          dispose: vi.fn().mockResolvedValue(undefined),
+        }) as unknown,
+    );
+
+    const { buildAction } = await import('../build');
+    const result = await buildAction();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toBe('API stage failed in full-stack build');
+    }
+  });
 });

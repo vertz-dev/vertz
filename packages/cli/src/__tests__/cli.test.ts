@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'bun:test';
 import { createCLI } from '../cli';
 
 describe('createCLI', () => {
@@ -130,6 +130,181 @@ describe('createCLI', () => {
       const db = getDbCommand();
       const sub = db?.commands.find((c) => c.name() === 'baseline');
       expect(sub).toBeDefined();
+    });
+  });
+
+  describe('command action error handling', () => {
+    let exitSpy: Mock<(...args: unknown[]) => unknown>;
+    let errorSpy: Mock<(...args: unknown[]) => unknown>;
+    let createSpy: Mock<(...args: unknown[]) => unknown>;
+    let buildSpy: Mock<(...args: unknown[]) => unknown>;
+    let devSpy: Mock<(...args: unknown[]) => unknown>;
+    let generateSpy: Mock<(...args: unknown[]) => unknown>;
+
+    beforeEach(async () => {
+      exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never) as Mock<
+        (...args: unknown[]) => unknown
+      >;
+      errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as Mock<
+        (...args: unknown[]) => unknown
+      >;
+    });
+
+    afterEach(async () => {
+      exitSpy.mockRestore();
+      errorSpy.mockRestore();
+      createSpy?.mockRestore();
+      buildSpy?.mockRestore();
+      devSpy?.mockRestore();
+      generateSpy?.mockRestore();
+    });
+
+    it('calls process.exit(1) when create action returns err', async () => {
+      const createMod = await import('../commands/create');
+      createSpy = vi.spyOn(createMod, 'createAction').mockResolvedValue({
+        ok: false,
+        error: new Error('create failed'),
+      }) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'create', 'my-app']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(errorSpy).toHaveBeenCalledWith('create failed');
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('does not call process.exit when create action returns ok', async () => {
+      const createMod = await import('../commands/create');
+      createSpy = vi.spyOn(createMod, 'createAction').mockResolvedValue({
+        ok: true,
+        data: undefined,
+      }) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'create', 'my-app']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(exitSpy).not.toHaveBeenCalled();
+    });
+
+    it('calls process.exit(1) when build action returns err', async () => {
+      const buildMod = await import('../commands/build');
+      buildSpy = vi.spyOn(buildMod, 'buildAction').mockResolvedValue({
+        ok: false,
+        error: new Error('build failed'),
+      }) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'build']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(errorSpy).toHaveBeenCalledWith('build failed');
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('does not call process.exit when build action returns ok', async () => {
+      const buildMod = await import('../commands/build');
+      buildSpy = vi.spyOn(buildMod, 'buildAction').mockResolvedValue({
+        ok: true,
+        data: undefined,
+      }) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'build']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(exitSpy).not.toHaveBeenCalled();
+    });
+
+    it('calls process.exit(1) when dev action returns err', async () => {
+      const devMod = await import('../commands/dev');
+      devSpy = vi.spyOn(devMod, 'devAction').mockResolvedValue({
+        ok: false,
+        error: new Error('dev failed'),
+      }) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'dev']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(errorSpy).toHaveBeenCalledWith('dev failed');
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('does not call process.exit when dev action returns ok', async () => {
+      const devMod = await import('../commands/dev');
+      devSpy = vi.spyOn(devMod, 'devAction').mockResolvedValue({
+        ok: true,
+        data: undefined,
+      }) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'dev']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(exitSpy).not.toHaveBeenCalled();
+    });
+
+    it('calls process.exit(1) when generate action returns err', async () => {
+      const genMod = await import('../commands/generate');
+      generateSpy = vi.spyOn(genMod, 'generateAction').mockReturnValue({
+        ok: false,
+        error: new Error('generate failed'),
+      }) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'generate', 'module', 'users']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(errorSpy).toHaveBeenCalledWith('generate failed');
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('does not call process.exit when generate action returns ok', async () => {
+      const genMod = await import('../commands/generate');
+      generateSpy = vi.spyOn(genMod, 'generateAction').mockReturnValue({
+        ok: true,
+        data: { files: [] },
+      }) as Mock<(...args: unknown[]) => unknown>;
+
+      const program = createCLI();
+      program.exitOverride();
+      try {
+        await program.parseAsync(['node', 'vertz', 'generate', 'module', 'users']);
+      } catch {
+        // Commander may throw on exitOverride
+      }
+
+      expect(exitSpy).not.toHaveBeenCalled();
     });
   });
 });
