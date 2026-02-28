@@ -9,7 +9,7 @@
 
 import { s } from '@vertz/schema';
 import { form } from '@vertz/ui';
-import type { Todo } from '../api/client';
+import type { TodosResponse } from '../api/client';
 import { todoApi } from '../api/client';
 import { button, formStyles } from '../styles/components';
 
@@ -18,7 +18,7 @@ const createTodoSchema = s.object({
 });
 
 export interface TodoFormProps {
-  onSuccess: (todo: Todo) => void;
+  onSuccess: (todo: TodosResponse) => void;
 }
 
 export function TodoForm({ onSuccess }: TodoFormProps) {

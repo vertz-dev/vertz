@@ -2,13 +2,12 @@
  * TodoItem - Single todo item component with toggle and delete actions.
  *
  * Demonstrates:
- * - Result-returning mutations with isOk + matchError
- * - matchError for compile-time exhaustive error handling
+ * - Generated SDK mutations (throw FetchError on failure)
  * - Optimistic updates with rollback on error
+ * - try/catch error handling for SDK calls
  */
 
-import { isOk, matchError } from '@vertz/fetch';
-import { deleteTodo, updateTodo } from '../api/client';
+import { todoApi } from '../api/client';
 import { todoItemStyles } from '../styles/components';
 
 export interface TodoItemProps {
@@ -26,47 +25,21 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
     const previousValue = isCompleted;
     isCompleted = !isCompleted;
 
-    const result = await updateTodo(id, { completed: isCompleted });
-
-    if (isOk(result)) {
+    try {
+      await todoApi.update(id, { completed: isCompleted });
       onToggle(id, isCompleted);
-    } else {
+    } catch (err) {
       isCompleted = previousValue;
-      const errorMessage = matchError(result.error, {
-        NetworkError: (e) => `Network error: ${e.message}`,
-        HttpError: (e) => {
-          if (e.serverCode === 'NOT_FOUND') {
-            return 'Todo not found';
-          }
-          return `Error: ${e.message}`;
-        },
-        TimeoutError: (e) => `Request timed out: ${e.message}`,
-        ParseError: (e) => `Parse error: ${e.path || 'unknown'}`,
-        ValidationError: (e) => `Validation error: ${e.message}`,
-      });
-      console.error('Failed to update todo:', errorMessage);
+      console.error('Failed to update todo:', err instanceof Error ? err.message : String(err));
     }
   };
 
   const handleDelete = async () => {
-    const result = await deleteTodo(id);
-
-    if (isOk(result)) {
+    try {
+      await todoApi.delete(id);
       onDelete(id);
-    } else {
-      const errorMessage = matchError(result.error, {
-        NetworkError: (e) => `Network error: ${e.message}`,
-        HttpError: (e) => {
-          if (e.serverCode === 'NOT_FOUND') {
-            return 'Todo not found';
-          }
-          return `Error: ${e.message}`;
-        },
-        TimeoutError: (e) => `Request timed out: ${e.message}`,
-        ParseError: (e) => `Parse error: ${e.path || 'unknown'}`,
-        ValidationError: (e) => `Validation error: ${e.message}`,
-      });
-      console.error('Failed to delete todo:', errorMessage);
+    } catch (err) {
+      console.error('Failed to delete todo:', err instanceof Error ? err.message : String(err));
     }
   };
 

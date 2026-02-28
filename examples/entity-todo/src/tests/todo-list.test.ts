@@ -7,7 +7,7 @@
  * - waitFor() for async assertions
  */
 
-import { describe, expect, test, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import { renderTest, waitFor } from '@vertz/ui/test';
 import { resetMockData } from '../api/mock-data';
 import { TodoListPage } from '../pages/todo-list';
@@ -46,10 +46,12 @@ describe('TodoListPage', () => {
     unmount();
   });
 
-  test('renders todo list container', () => {
+  test('renders todo list container', async () => {
     const { findByTestId, unmount } = renderTest(TodoListPage());
-    const list = findByTestId('todo-list');
-    expect(list).toBeDefined();
+    await waitFor(() => {
+      const list = findByTestId('todo-list');
+      expect(list).toBeDefined();
+    });
     unmount();
   });
 

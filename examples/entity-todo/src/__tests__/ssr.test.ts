@@ -5,9 +5,10 @@
  * framework's built-in SSR pipeline (@vertz/ui-server/dom-shim + renderToStream).
  */
 
-import { describe, expect, test, afterEach } from 'bun:test';
-import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { renderToStream, streamToString } from '@vertz/ui-server';
+import { installDomShim, removeDomShim, toVNode } from '@vertz/ui-server/dom-shim';
+import { resetMockData } from '../api/mock-data';
 
 /**
  * Helper: render the app at a given URL, mimicking what the virtual SSR entry does.
@@ -24,6 +25,10 @@ async function renderApp(): Promise<string> {
 }
 
 describe('SSR integration (zero-config)', () => {
+  beforeEach(() => {
+    resetMockData();
+  });
+
   afterEach(() => {
     removeDomShim();
     delete (globalThis as any).__SSR_URL__;

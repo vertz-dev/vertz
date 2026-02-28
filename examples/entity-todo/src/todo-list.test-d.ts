@@ -1,6 +1,6 @@
 /**
  * Type test: isOk should be exported from @vertz/fetch
- * 
+ *
  * This test verifies that todo-list.tsx can import isOk
  * from @vertz/fetch without type errors.
  */

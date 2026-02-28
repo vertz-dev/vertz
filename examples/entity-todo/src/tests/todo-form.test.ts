@@ -45,7 +45,7 @@ describe('TodoForm', () => {
   test('has progressive enhancement attributes', () => {
     const { findByTestId, unmount } = renderTest(TodoForm({ onSuccess: () => {} }));
     const form = findByTestId('create-todo-form');
-    expect(form.getAttribute('action')).toBe('/api/todos');
+    expect(form.getAttribute('action')).toBe('/todos');
     expect(form.getAttribute('method')).toBe('POST');
     unmount();
   });
