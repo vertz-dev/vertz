@@ -14,16 +14,27 @@ export function createPopoverStyles(): CSSOutput<PopoverBlocks> {
       'overflow-hidden',
       'bg:popover',
       'text:popover-foreground',
-      'rounded:md',
-      'border:1',
-      'border:border',
-      'shadow:md',
-      'p:4',
+      'rounded:lg',
+      'flex',
+      'flex-col',
+      'gap:2.5',
+      'p:2.5',
+      'text:sm',
+      // Nova: ring-1 ring-foreground/10 instead of border, shadow-md
       {
-        '&[data-state="open"]': [animationDecl('vz-zoom-in 150ms ease-out forwards')],
+        '&': [
+          {
+            property: 'box-shadow',
+            value:
+              '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent), 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+          },
+        ],
       },
       {
-        '&[data-state="closed"]': [animationDecl('vz-zoom-out 150ms ease-out forwards')],
+        '&[data-state="open"]': [animationDecl('vz-zoom-in 100ms ease-out forwards')],
+      },
+      {
+        '&[data-state="closed"]': [animationDecl('vz-zoom-out 100ms ease-out forwards')],
       },
     ],
   });

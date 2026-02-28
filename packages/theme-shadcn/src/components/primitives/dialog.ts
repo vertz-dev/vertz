@@ -6,6 +6,7 @@ import { Dialog } from '@vertz/ui-primitives';
 interface DialogStyleClasses {
   readonly overlay: string;
   readonly panel: string;
+  readonly header: string;
   readonly title: string;
   readonly description: string;
   readonly close: string;
@@ -29,6 +30,7 @@ export interface ThemedDialogComponent {
   (props: DialogRootProps): HTMLElement;
   Trigger: (props: DialogSlotProps) => HTMLElement;
   Content: (props: DialogSlotProps) => HTMLElement;
+  Header: (props: DialogSlotProps) => HTMLDivElement;
   Title: (props: DialogSlotProps) => HTMLHeadingElement;
   Description: (props: DialogSlotProps) => HTMLParagraphElement;
   Footer: (props: DialogSlotProps) => HTMLDivElement;
@@ -53,6 +55,16 @@ export function createThemedDialog(styles: DialogStyleClasses): ThemedDialogComp
     const el = document.createElement('div');
     el.dataset.slot = 'dialog-content';
     el.style.display = 'contents';
+    for (const node of resolveChildren(children)) {
+      el.appendChild(node);
+    }
+    return el;
+  }
+
+  function DialogHeader({ children, class: className }: DialogSlotProps): HTMLDivElement {
+    const el = document.createElement('div');
+    el.classList.add(styles.header);
+    if (className) el.classList.add(className);
     for (const node of resolveChildren(children)) {
       el.appendChild(node);
     }
@@ -124,7 +136,10 @@ export function createThemedDialog(styles: DialogStyleClasses): ThemedDialogComp
     primitive.overlay.classList.add(styles.overlay);
     primitive.content.classList.add(styles.panel);
     primitive.close.classList.add(styles.close);
-    primitive.close.textContent = '\u00d7';
+    // Use SVG X icon matching shadcn (Lucide X icon)
+    primitive.close.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+    primitive.close.setAttribute('aria-label', 'Close');
 
     // Move content children into the primitive's content panel
     for (const node of contentChildren) {
@@ -160,6 +175,7 @@ export function createThemedDialog(styles: DialogStyleClasses): ThemedDialogComp
   // Attach sub-components to Root
   DialogRoot.Trigger = DialogTrigger;
   DialogRoot.Content = DialogContent;
+  DialogRoot.Header = DialogHeader;
   DialogRoot.Title = DialogTitle;
   DialogRoot.Description = DialogDescription;
   DialogRoot.Footer = DialogFooter;

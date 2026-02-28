@@ -134,12 +134,24 @@ import type { PaletteName } from './tokens';
 import { palettes } from './tokens';
 import type { PaletteTokens } from './types';
 
+/**
+ * Visual style preset. Each style applies different spacing, border-radius,
+ * colors, and visual treatment to all components.
+ *
+ * Currently only 'nova' is implemented. The architecture supports adding
+ * additional styles (e.g., 'default', 'vega', 'maia', 'mira', 'lyra')
+ * in the future — each style factory accepts this parameter.
+ */
+export type ThemeStyle = 'nova';
+
 /** Configuration options for the shadcn theme. */
 export interface ThemeConfig {
   /** Color palette base. Default: 'zinc'. */
   palette?: PaletteName;
   /** Border radius preset. Default: 'md'. */
   radius?: 'sm' | 'md' | 'lg';
+  /** Visual style preset. Default: 'nova'. */
+  style?: ThemeStyle;
   /** Token overrides — deep-merged into the selected palette. */
   overrides?: {
     tokens?: {
@@ -257,12 +269,14 @@ export interface ThemeStyles {
     readonly root: string;
     readonly item: string;
     readonly indicator: string;
+    readonly indicatorIcon: string;
     readonly css: string;
   };
   /** Slider css() styles. */
   slider: {
     readonly root: string;
     readonly track: string;
+    readonly range: string;
     readonly thumb: string;
     readonly css: string;
   };

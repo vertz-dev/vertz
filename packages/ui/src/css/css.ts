@@ -176,8 +176,13 @@ export function css<T extends CSSInput>(
               nestedDecls.push({ property: nestedEntry.property, value: nestedEntry.value });
             }
           }
-          const resolvedSelector = selector.replaceAll('&', `.${className}`);
-          nestedRules.push(formatRule(resolvedSelector, nestedDecls));
+          if (selector.startsWith('@')) {
+            // At-rules (@media, @container, etc.) wrap the class selector inside
+            nestedRules.push(formatAtRule(selector, `.${className}`, nestedDecls));
+          } else {
+            const resolvedSelector = selector.replaceAll('&', `.${className}`);
+            nestedRules.push(formatRule(resolvedSelector, nestedDecls));
+          }
         }
       }
     }
@@ -216,4 +221,14 @@ export function css<T extends CSSInput>(
 function formatRule(selector: string, declarations: CSSDeclaration[]): string {
   const props = declarations.map((d) => `  ${d.property}: ${d.value};`).join('\n');
   return `${selector} {\n${props}\n}`;
+}
+
+/** Format an at-rule (@media, @container) wrapping a class selector. */
+function formatAtRule(
+  atRule: string,
+  classSelector: string,
+  declarations: CSSDeclaration[],
+): string {
+  const props = declarations.map((d) => `    ${d.property}: ${d.value};`).join('\n');
+  return `${atRule} {\n  ${classSelector} {\n${props}\n  }\n}`;
 }

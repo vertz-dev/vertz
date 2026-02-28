@@ -4,18 +4,13 @@ import { css } from '@vertz/ui';
 type SliderBlocks = {
   root: StyleEntry[];
   track: StyleEntry[];
+  range: StyleEntry[];
   thumb: StyleEntry[];
 };
 
-const focusRing: Record<string, (string | RawDeclaration)[]> = {
-  '&:focus-visible': [
-    'outline-none',
-    {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
-    },
-    { property: 'outline-offset', value: '2px' },
-  ],
+const ringStyle: RawDeclaration = {
+  property: 'box-shadow',
+  value: '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
 };
 
 /** Create slider css() styles following shadcn conventions. */
@@ -37,37 +32,55 @@ export function createSliderStyles(): CSSOutput<SliderBlocks> {
     ],
     sliderTrack: [
       'relative',
-      'h:1.5',
       'w:full',
       'rounded:full',
-      'bg:secondary',
-      {
-        '&': [{ property: 'overflow', value: 'visible' }],
-      },
-    ],
-    sliderThumb: [
-      'block',
-      'h:5',
-      'w:5',
-      'rounded:full',
-      'border:2',
-      'border:primary',
-      'bg:background',
-      'shadow:sm',
-      'cursor:pointer',
-      focusRing,
-      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
+      'bg:muted',
       {
         '&': [
-          { property: 'top', value: '50%' },
-          { property: 'margin-top', value: '-10px' },
+          { property: 'height', value: '0.25rem' },
+          { property: 'overflow', value: 'visible' },
         ],
       },
+    ],
+    sliderRange: ['bg:primary'],
+    sliderThumb: [
+      'block',
+      'h:3',
+      'w:3',
+      'rounded:full',
+      'border:1',
+      'border:ring',
+      'cursor:pointer',
+      {
+        '&': [
+          { property: 'background', value: 'white' },
+          { property: 'transition', value: 'color 150ms, box-shadow 150ms' },
+          { property: 'position', value: 'relative' },
+        ],
+      },
+      {
+        '&::after': [
+          { property: 'content', value: '""' },
+          { property: 'position', value: 'absolute' },
+          { property: 'inset', value: '-0.5rem' },
+        ],
+      },
+      {
+        '&:hover': ['outline-none', ringStyle],
+      },
+      {
+        '&:focus-visible': ['outline-none', ringStyle],
+      },
+      {
+        '&:active': [ringStyle],
+      },
+      { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
     ],
   });
   return {
     root: s.sliderRoot,
     track: s.sliderTrack,
+    range: s.sliderRange,
     thumb: s.sliderThumb,
     css: s.css,
   } as CSSOutput<SliderBlocks>;

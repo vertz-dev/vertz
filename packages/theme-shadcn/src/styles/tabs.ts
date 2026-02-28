@@ -15,13 +15,17 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
   const s = css({
     tabsList: [
       'inline-flex',
-      'h:9',
       'items:center',
       'justify:center',
       'rounded:lg',
       'bg:muted',
-      'p:1',
       'text:muted-foreground',
+      {
+        '&': [
+          { property: 'padding', value: '3px' },
+          { property: 'height', value: '2rem' },
+        ],
+      },
     ],
     tabsTrigger: [
       'inline-flex',
@@ -29,15 +33,16 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
       'justify:center',
       'whitespace-nowrap',
       'rounded:md',
-      'px:3',
-      'py:1',
       'text:sm',
       'font:medium',
       'cursor:pointer',
       'transition:colors',
-      'border:0',
       {
-        '&': [{ property: 'background', value: 'transparent' }],
+        '&': [
+          { property: 'background', value: 'transparent' },
+          { property: 'padding', value: '0.125rem 0.375rem' },
+          { property: 'border', value: '1px solid transparent' },
+        ],
       },
       { '&[data-state="inactive"]': [textOpacity('foreground', 60)] },
       {
@@ -51,7 +56,7 @@ export function createTabsStyles(): CSSOutput<TabsBlocks> {
       },
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
     ],
-    tabsPanel: ['mt:2'],
+    tabsPanel: ['text:sm', 'mt:2'],
     tabsListLine: ['inline-flex', 'h:9', 'items:end', 'gap:4', 'border-b:1', 'border:border'],
     tabsTriggerLine: [
       'inline-flex',

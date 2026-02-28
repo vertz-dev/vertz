@@ -1,11 +1,12 @@
 import type { StyleEntry, VariantFunction, VariantsConfig } from '@vertz/ui';
 import { variants } from '@vertz/ui';
+import { bgOpacity } from './_helpers';
 
 const colorVariants: Record<string, StyleEntry[]> = {
   blue: ['bg:primary', 'text:primary-foreground'],
   green: ['bg:primary', 'text:primary-foreground'],
   yellow: ['bg:secondary', 'text:secondary-foreground'],
-  red: ['bg:destructive', 'text:destructive-foreground'],
+  red: [{ '&': [bgOpacity('destructive', 10)] }, 'text:destructive'],
   gray: ['bg:muted', 'text:muted-foreground'],
 };
 
@@ -21,13 +22,14 @@ export const badgeConfig: VariantsConfig<BadgeVariants> = {
     'rounded:full',
     'text:xs',
     'font:medium',
-    'px:2.5',
+    'px:2',
     'py:0.5',
-    'transition:colors',
+    'transition:all',
     'border:1',
     'border:transparent',
     'whitespace-nowrap',
     'shrink-0',
+    { '&': [{ property: 'height', value: '1.25rem' }] },
   ],
   variants: {
     color: colorVariants,

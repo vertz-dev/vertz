@@ -35,6 +35,7 @@ export function createAvatarStyles(): CSSOutput<AvatarBlocks> {
       'justify:center',
       'rounded:full',
       'bg:muted',
+      'text:muted-foreground',
       'text:xs',
       'font:medium',
     ],

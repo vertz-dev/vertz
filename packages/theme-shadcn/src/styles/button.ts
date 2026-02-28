@@ -5,6 +5,7 @@ import { bgOpacity, DARK } from './_helpers';
 const focusRing: Record<string, (string | RawDeclaration)[]> = {
   '&:focus-visible': [
     'outline-none',
+    'border:ring',
     {
       property: 'outline',
       value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
@@ -25,48 +26,51 @@ const intentVariants: Record<string, StyleEntry[]> = {
   primary: [
     'bg:primary',
     'text:primary-foreground',
-    'shadow:xs',
-    { '&:hover': [bgOpacity('primary', 90)] },
+    { '&:hover': [bgOpacity('primary', 80)] },
   ],
   secondary: [
     'bg:secondary',
     'text:secondary-foreground',
-    'shadow:xs',
     { '&:hover': [bgOpacity('secondary', 80)] },
   ],
   destructive: [
-    'bg:destructive',
-    'text:destructive-foreground',
-    'shadow:xs',
-    { '&:hover': [bgOpacity('destructive', 90)] },
-    { [DARK]: ['text:white'] },
+    { '&': [bgOpacity('destructive', 10)] },
+    'text:destructive',
+    { '&:hover': [bgOpacity('destructive', 20)] },
+    {
+      '&:focus-visible': [
+        {
+          property: 'outline',
+          value: '3px solid color-mix(in oklch, var(--color-destructive) 20%, transparent)',
+        },
+        { property: 'border-color', value: 'color-mix(in oklch, var(--color-destructive) 40%, transparent)' },
+      ],
+    },
+    { [DARK]: [bgOpacity('destructive', 20), { '&:hover': [bgOpacity('destructive', 30)] }] },
   ],
   ghost: [
-    'hover:bg:accent',
-    'hover:text:accent-foreground',
-    { [`${DARK}:hover`]: [bgOpacity('accent', 50)] },
+    { '&:hover': ['bg:muted', 'text:foreground'] },
+    { [`${DARK}:hover`]: [bgOpacity('muted', 50)] },
   ],
   outline: [
-    'border:1',
-    'border:input',
+    'border:border',
     'bg:background',
-    'shadow:xs',
-    'hover:bg:accent',
-    'hover:text:accent-foreground',
-    { [DARK]: [bgOpacity('input', 30)] },
+    { '&:hover': ['bg:muted', 'text:foreground'] },
+    { [DARK]: [bgOpacity('input', 30), 'border:input'] },
+    { [`${DARK}:hover`]: [bgOpacity('input', 50)] },
   ],
   link: ['text:primary', { '&:hover': [{ property: 'text-decoration-line', value: 'underline' }] }],
 };
 
 const sizeVariants: Record<string, StyleEntry[]> = {
-  xs: ['h:7', 'rounded:md', 'px:2', 'gap:1'],
-  sm: ['h:8', 'rounded:md', 'px:3', 'gap:1.5'],
-  md: ['h:9', 'px:4', 'py:2'],
-  lg: ['h:10', 'rounded:md', 'px:6'],
-  icon: ['h:9', 'w:9'],
-  'icon-xs': ['h:7', 'w:7'],
-  'icon-sm': ['h:8', 'w:8'],
-  'icon-lg': ['h:10', 'w:10'],
+  xs: ['h:6', 'gap:1', 'px:2', { '&': [{ property: 'border-radius', value: 'min(var(--radius-md), 10px)' }] }],
+  sm: ['h:7', 'gap:1', { '&': [{ property: 'border-radius', value: 'min(var(--radius-md), 12px)' }, { property: 'padding-left', value: '0.625rem' }, { property: 'padding-right', value: '0.625rem' }] }],
+  md: ['h:8', 'gap:1.5', { '&': [{ property: 'padding-left', value: '0.625rem' }, { property: 'padding-right', value: '0.625rem' }] }],
+  lg: ['h:9', 'gap:1.5', { '&': [{ property: 'padding-left', value: '0.625rem' }, { property: 'padding-right', value: '0.625rem' }] }],
+  icon: ['h:8', 'w:8'],
+  'icon-xs': ['h:6', 'w:6', { '&': [{ property: 'border-radius', value: 'min(var(--radius-md), 10px)' }] }],
+  'icon-sm': ['h:7', 'w:7', { '&': [{ property: 'border-radius', value: 'min(var(--radius-md), 12px)' }] }],
+  'icon-lg': ['h:9', 'w:9'],
 };
 
 type ButtonVariants = {
@@ -83,7 +87,9 @@ export const buttonConfig: VariantsConfig<ButtonVariants> = {
     'whitespace-nowrap',
     'shrink-0',
     'gap:2',
-    'rounded:md',
+    'rounded:lg',
+    'border:1',
+    { '&': [{ property: 'border-color', value: 'transparent' }] },
     'text:sm',
     'font:medium',
     'transition:colors',

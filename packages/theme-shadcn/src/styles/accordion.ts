@@ -28,13 +28,17 @@ export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
       'items:center',
       'justify:between',
       'px:2',
-      'py:4',
-      'font:medium',
       'text:sm',
+      'font:medium',
       'cursor:pointer',
-      'transition:colors',
-      'hover:text:foreground',
-      { '&[data-state="open"]': ['font:semibold'] },
+      {
+        '&': [
+          { property: 'border-radius', value: '0.5rem' },
+          { property: 'padding-top', value: '0.625rem' },
+          { property: 'padding-bottom', value: '0.625rem' },
+        ],
+        '&:hover': [{ property: 'text-decoration', value: 'underline' }],
+      },
     ],
     accordionContent: [
       'overflow-hidden',

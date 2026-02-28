@@ -9,6 +9,7 @@ export function createInput(): CSSOutput<InputBlocks> {
   const focusRing: Record<string, (string | RawDeclaration)[]> = {
     '&:focus-visible': [
       'outline-none',
+      'border:ring',
       {
         property: 'outline',
         value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
@@ -20,17 +21,21 @@ export function createInput(): CSSOutput<InputBlocks> {
   const s = css({
     inputBase: [
       'flex',
-      'h:9',
       'w:full',
-      'rounded:md',
+      'rounded:lg',
       'border:1',
       'border:input',
       'bg:transparent',
-      'px:3',
       'py:1',
+      {
+        '&': [
+          { property: 'height', value: '2rem' },
+          { property: 'padding-left', value: '0.625rem' },
+          { property: 'padding-right', value: '0.625rem' },
+        ],
+      },
       'text:sm',
       'text:foreground',
-      'shadow:xs',
       'transition:colors',
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },

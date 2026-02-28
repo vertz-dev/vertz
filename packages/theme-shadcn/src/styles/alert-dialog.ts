@@ -23,7 +23,7 @@ const focusRing: Record<string, (string | RawDeclaration)[]> = {
   ],
 };
 
-/** Create alert-dialog css() styles matching shadcn v4 nova. */
+/** Create alert-dialog css() styles matching shadcn v4 Nova theme. */
 export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
   const s = css({
     alertDialogOverlay: [
@@ -31,6 +31,7 @@ export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
       'inset:0',
       'z:50',
       {
+        // Nova: bg-black/10 + backdrop-blur-xs
         '&': [
           { property: 'background-color', value: 'oklch(0 0 0 / 10%)' },
           { property: 'backdrop-filter', value: 'blur(4px)' },
@@ -48,23 +49,27 @@ export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
       'fixed',
       'z:50',
       'bg:background',
-      'text:foreground',
-      'rounded:xl',
-      'shadow:lg',
-      'p:4',
       'gap:4',
-      'text:sm',
       {
         '&': [
           { property: 'display', value: 'grid' },
           { property: 'width', value: '100%' },
           { property: 'max-width', value: 'calc(100% - 2rem)' },
-          { property: 'box-shadow', value: '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)' },
-          // Center via inset + margin:auto (avoids transform conflict with animations)
+          // Nova: ring-1 ring-foreground/10 instead of border
+          {
+            property: 'box-shadow',
+            value: '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
+          },
+          // Nova: rounded-xl p-4
+          { property: 'border-radius', value: '0.75rem' },
+          { property: 'padding', value: '1rem' },
+          // Center via inset + margin:auto
           { property: 'inset', value: '0' },
           { property: 'margin', value: 'auto' },
           { property: 'height', value: 'fit-content' },
+          { property: 'container-type', value: 'inline-size' },
         ],
+        // Nova: sm:max-w-sm
         '@media (min-width: 640px)': [{ property: 'max-width', value: '24rem' }],
       },
       {
@@ -76,6 +81,7 @@ export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
     ],
     alertDialogTitle: [
       {
+        // Nova: text-base font-medium
         '&': [
           { property: 'font-size', value: '1rem' },
           { property: 'font-weight', value: '500' },
@@ -88,11 +94,18 @@ export function createAlertDialogStyles(): CSSOutput<AlertDialogBlocks> {
       'gap:2',
       {
         '&': [
-          { property: 'background-color', value: 'color-mix(in oklch, var(--color-muted) 50%, transparent)' },
-          { property: 'margin', value: '0 -1rem -1rem' },
-          { property: 'padding', value: '1rem' },
+          { property: 'flex-direction', value: 'column-reverse' },
+          // Nova: bg-muted/50 -mx-4 -mb-4 rounded-b-xl border-t p-4
+          {
+            property: 'background-color',
+            value: 'color-mix(in oklch, var(--color-muted) 50%, transparent)',
+          },
+          { property: 'margin', value: '0 -1rem -1rem -1rem' },
+          { property: 'border-radius', value: '0 0 0.75rem 0.75rem' },
           { property: 'border-top', value: '1px solid var(--color-border)' },
-          { property: 'border-radius', value: '0 0 var(--radius-xl) var(--radius-xl)' },
+          { property: 'padding', value: '1rem' },
+        ],
+        '@container (min-width: 20rem)': [
           { property: 'flex-direction', value: 'row' },
           { property: 'justify-content', value: 'flex-end' },
         ],

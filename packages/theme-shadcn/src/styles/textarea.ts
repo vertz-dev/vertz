@@ -9,6 +9,7 @@ export function createTextarea(): CSSOutput<TextareaBlocks> {
   const focusRing: Record<string, (string | RawDeclaration)[]> = {
     '&:focus-visible': [
       'outline-none',
+      'border:ring',
       {
         property: 'outline',
         value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
@@ -21,15 +22,19 @@ export function createTextarea(): CSSOutput<TextareaBlocks> {
     textareaBase: [
       'flex',
       'w:full',
-      'rounded:md',
+      'rounded:lg',
       'border:1',
       'border:input',
       'bg:transparent',
-      'px:3',
       'py:2',
+      {
+        '&': [
+          { property: 'padding-left', value: '0.625rem' },
+          { property: 'padding-right', value: '0.625rem' },
+        ],
+      },
       'text:sm',
       'text:foreground',
-      'shadow:xs',
       'transition:colors',
       {
         '&': [
