@@ -35,14 +35,14 @@ describe('Factory Object', () => {
   it('s.int() returns NumberSchema with .int() applied', () => {
     const intSchema = s.int();
     expect(intSchema).toBeInstanceOf(NumberSchema);
-    expect(intSchema.safeParse(1.5).success).toBe(false);
-    expect(intSchema.parse(42)).toBe(42);
+    expect(intSchema.safeParse(1.5).ok).toBe(false);
+    expect(intSchema.parse(42).data).toBe(42);
   });
 
   it('s.coerce.string() returns CoercedStringSchema', () => {
     const coerced = s.coerce.string();
     expect(coerced).toBeInstanceOf(CoercedStringSchema);
-    expect(coerced.parse(42)).toBe('42');
+    expect(coerced.parse(42).data).toBe('42');
   });
 
   it('s.email() returns EmailSchema', () => {

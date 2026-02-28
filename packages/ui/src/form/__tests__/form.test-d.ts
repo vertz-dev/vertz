@@ -22,7 +22,7 @@ declare const userForm: FormInstance<UserBody, UserResult>;
 // ─── 1. FormOptions accepts all five option fields ─────────────────
 
 const _opts: FormOptions<UserBody, UserResult> = {
-  schema: { parse: (data: unknown) => data as UserBody },
+  schema: { parse: (data: unknown) => ({ ok: true as const, data: data as UserBody }) },
   initial: { name: 'Alice' },
   onSuccess: (result) => {
     const _id: number = result.id;
@@ -129,8 +129,8 @@ void _conflictReset;
 // ─── 13. SdkMethodWithMeta makes schema optional ──────────────────
 
 const metaSchema: FormSchema<UserBody> = {
-  parse(data: unknown): UserBody {
-    return data as UserBody;
+  parse(data: unknown) {
+    return { ok: true as const, data: data as UserBody };
   },
 };
 

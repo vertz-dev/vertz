@@ -20,7 +20,7 @@ export {
   SuperRefinedSchema,
   TransformSchema,
 } from './core/schema';
-export type { SafeParseResult, SchemaMetadata } from './core/types';
+export type { SchemaMetadata } from './core/types';
 export { SchemaType } from './core/types';
 export type { JSONSchemaObject } from './introspection/json-schema';
 // Introspection

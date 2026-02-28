@@ -13,8 +13,8 @@ describe('.superRefine()', () => {
       }
     });
     const result = schema.safeParse('ab');
-    expect(result.success).toBe(false);
-    if (!result.success) {
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(result.error.issues.length).toBe(2);
       expect(result.error.issues[0]?.message).toBe('Too short');
       expect(result.error.issues[1]?.message).toBe('Missing @');
@@ -28,8 +28,8 @@ describe('.superRefine()', () => {
       }
     });
     const result = schema.safeParse('user');
-    expect(result.success).toBe(false);
-    if (!result.success) {
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(result.error.issues[0]?.code).toBe(ErrorCode.Custom);
     }
   });
@@ -40,10 +40,10 @@ describe('.superRefine()', () => {
         ctx.addIssue({ code: ErrorCode.Custom, message: 'Empty' });
       }
     });
-    expect(schema.parse('hello')).toBe('hello');
+    expect(schema.parse('hello').data).toBe('hello');
     const result = schema.safeParse('');
-    expect(result.success).toBe(false);
-    if (!result.success) {
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(result.error.issues[0]?.message).toBe('Empty');
     }
   });

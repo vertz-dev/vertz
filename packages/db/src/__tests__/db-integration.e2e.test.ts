@@ -86,7 +86,7 @@ describe('db-integration e2e', () => {
 
   it('updateBody includes all non-PK, all optional', () => {
     const result = userSchemas.updateBody.safeParse({});
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
     expect(userSchemas.updateBody.shape).not.toHaveProperty('id');
     expect(userSchemas.updateBody.shape).toHaveProperty('name');
     expect(userSchemas.updateBody.shape).toHaveProperty('role');
@@ -114,7 +114,7 @@ describe('db-integration e2e', () => {
       passwordHash: 'hashed-password',
       bio: null,
     });
-    expect(valid.success).toBe(true);
+    expect(valid.ok).toBe(true);
   });
 
   it('rejects invalid email in create payload', () => {
@@ -124,12 +124,12 @@ describe('db-integration e2e', () => {
       passwordHash: 'hash',
       bio: null,
     });
-    expect(invalid.success).toBe(false);
+    expect(invalid.ok).toBe(false);
   });
 
   it('validates enum values in update payload', () => {
-    expect(userSchemas.updateBody.safeParse({ role: 'admin' }).success).toBe(true);
-    expect(userSchemas.updateBody.safeParse({ role: 'superadmin' }).success).toBe(false);
+    expect(userSchemas.updateBody.safeParse({ role: 'admin' }).ok).toBe(true);
+    expect(userSchemas.updateBody.safeParse({ role: 'superadmin' }).ok).toBe(false);
   });
 
   // -----------------------------------------------------------------------
@@ -167,7 +167,7 @@ describe('db-integration e2e', () => {
 
     // Validate the query result against the derived response schema
     const parseResult = userSchemas.responseSchema.safeParse(found[0]);
-    expect(parseResult.success).toBe(true);
+    expect(parseResult.ok).toBe(true);
 
     await db.close();
   });
@@ -217,7 +217,7 @@ describe('db-integration e2e', () => {
     // Validate result with derived schema
     for (const user of allUsers) {
       const result = userSchemas.responseSchema.safeParse(user);
-      expect(result.success).toBe(true);
+      expect(result.ok).toBe(true);
     }
 
     // Destroy

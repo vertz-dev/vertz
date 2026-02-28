@@ -15,8 +15,9 @@ describe('Schema Validation', () => {
       parse: (value: unknown) => {
         const params = value as Record<string, string>;
         const id = Number(params.id);
-        if (Number.isNaN(id)) throw new BadRequestException('Invalid id');
-        return { id };
+        if (Number.isNaN(id))
+          return { ok: false as const, error: new BadRequestException('Invalid id') };
+        return { ok: true as const, data: { id } };
       },
       _output: {} as { id: number },
     };
@@ -52,9 +53,9 @@ describe('Schema Validation', () => {
         const params = value as Record<string, string>;
         const id = Number(params.id);
         if (Number.isNaN(id)) {
-          throw new BadRequestException('Invalid id');
+          return { ok: false as const, error: new BadRequestException('Invalid id') };
         }
-        return { id };
+        return { ok: true as const, data: { id } };
       },
     };
 
@@ -85,9 +86,9 @@ describe('Schema Validation', () => {
       parse: (value: unknown) => {
         const body = value as Record<string, unknown>;
         if (typeof body.name !== 'string' || body.name.length === 0) {
-          throw new BadRequestException('name is required');
+          return { ok: false as const, error: new BadRequestException('name is required') };
         }
-        return { name: body.name };
+        return { ok: true as const, data: { name: body.name } };
       },
     };
 
@@ -122,9 +123,9 @@ describe('Schema Validation', () => {
       parse: (value: unknown) => {
         const body = value as Record<string, unknown>;
         if (typeof body.name !== 'string' || body.name.length === 0) {
-          throw new BadRequestException('name is required');
+          return { ok: false as const, error: new BadRequestException('name is required') };
         }
-        return { name: body.name };
+        return { ok: true as const, data: { name: body.name } };
       },
     };
 
@@ -156,11 +157,11 @@ describe('Schema Validation', () => {
         if (query.page !== undefined) {
           const page = Number(query.page);
           if (Number.isNaN(page)) {
-            throw new BadRequestException('page must be a number');
+            return { ok: false as const, error: new BadRequestException('page must be a number') };
           }
-          return { page };
+          return { ok: true as const, data: { page } };
         }
-        return {};
+        return { ok: true as const, data: {} };
       },
     };
 
@@ -185,7 +186,7 @@ describe('Schema Validation', () => {
     const querySchema = {
       parse: (value: unknown) => {
         const query = value as Record<string, unknown>;
-        return { page: Number(query.page ?? 1) };
+        return { ok: true as const, data: { page: Number(query.page ?? 1) } };
       },
     };
 
@@ -216,9 +217,9 @@ describe('Schema Validation', () => {
       parse: (value: unknown) => {
         const headers = value as Record<string, unknown>;
         if (!headers['x-api-key']) {
-          throw new BadRequestException('x-api-key is required');
+          return { ok: false as const, error: new BadRequestException('x-api-key is required') };
         }
-        return { 'x-api-key': headers['x-api-key'] };
+        return { ok: true as const, data: { 'x-api-key': headers['x-api-key'] } };
       },
     };
 
@@ -243,7 +244,7 @@ describe('Schema Validation', () => {
     const headersSchema = {
       parse: (value: unknown) => {
         const headers = value as Record<string, unknown>;
-        return { 'x-api-key': headers['x-api-key'] };
+        return { ok: true as const, data: { 'x-api-key': headers['x-api-key'] } };
       },
     };
 

@@ -9,9 +9,9 @@ describe('validate', () => {
       parse(data: unknown) {
         const obj = data as { name: string };
         if (typeof obj.name !== 'string' || obj.name.length === 0) {
-          throw new Error('Name is required');
+          return { ok: false, error: new Error('Name is required') };
         }
-        return obj;
+        return { ok: true, data: obj };
       },
     };
 
@@ -24,7 +24,7 @@ describe('validate', () => {
     expect(result.errors).toEqual({});
   });
 
-  it('returns failure with field errors when schema.parse throws a FieldError', () => {
+  it('returns failure with field errors when schema.parse returns error with fieldErrors', () => {
     const schema: FormSchema<{ name: string; email: string }> = {
       parse(data: unknown) {
         const obj = data as { name: string; email: string };
@@ -38,9 +38,9 @@ describe('validate', () => {
         if (Object.keys(errors).length > 0) {
           const err = new Error('Validation failed');
           (err as Error & { fieldErrors: Record<string, string> }).fieldErrors = errors;
-          throw err;
+          return { ok: false, error: err };
         }
-        return obj;
+        return { ok: true, data: obj };
       },
     };
 
@@ -53,10 +53,10 @@ describe('validate', () => {
     });
   });
 
-  it('returns a generic form error when schema.parse throws a plain Error', () => {
+  it('returns a generic form error when schema.parse returns a plain Error', () => {
     const schema: FormSchema<{ name: string }> = {
       parse(_data: unknown) {
-        throw new Error('Invalid input');
+        return { ok: false, error: new Error('Invalid input') };
       },
     };
 
@@ -66,10 +66,10 @@ describe('validate', () => {
     expect(result.errors).toEqual({ _form: 'Invalid input' });
   });
 
-  it('returns a generic form error when schema.parse throws a non-Error', () => {
+  it('returns a generic form error when schema.parse returns a non-Error', () => {
     const schema: FormSchema<{ name: string }> = {
       parse(_data: unknown) {
-        throw 'something went wrong';
+        return { ok: false, error: 'something went wrong' };
       },
     };
 
@@ -87,7 +87,7 @@ describe('validate', () => {
           (err as Error & { issues: { path: (string | number)[]; message: string }[] }).issues = [
             { path: ['title'], message: 'Required' },
           ];
-          throw err;
+          return { ok: false, error: err };
         },
       };
 
@@ -105,7 +105,7 @@ describe('validate', () => {
             { path: ['title'], message: 'Title is required' },
             { path: ['email'], message: 'Email is invalid' },
           ];
-          throw err;
+          return { ok: false, error: err };
         },
       };
 
@@ -126,7 +126,7 @@ describe('validate', () => {
             { path: ['title'], message: 'Too short' },
             { path: ['title'], message: 'Must start with uppercase' },
           ];
-          throw err;
+          return { ok: false, error: err };
         },
       };
 
@@ -143,7 +143,7 @@ describe('validate', () => {
           (err as Error & { issues: { path: (string | number)[]; message: string }[] }).issues = [
             { path: [], message: 'Invalid object' },
           ];
-          throw err;
+          return { ok: false, error: err };
         },
       };
 
@@ -160,7 +160,7 @@ describe('validate', () => {
           (err as Error & { issues: { path: (string | number)[]; message: string }[] }).issues = [
             { path: ['address', 'street'], message: 'Street is required' },
           ];
-          throw err;
+          return { ok: false, error: err };
         },
       };
 
@@ -198,7 +198,7 @@ describe('validate', () => {
               issues: { path: (string | number)[]; message: string }[];
             }
           ).issues = [{ path: ['title'], message: 'From issues' }];
-          throw err;
+          return { ok: false, error: err };
         },
       };
 

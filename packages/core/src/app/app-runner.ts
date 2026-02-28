@@ -33,16 +33,15 @@ export interface ModuleRegistration {
   options?: Record<string, unknown>;
 }
 
-type SchemaLike = { parse(value: unknown): unknown };
+type SchemaLike = { parse(value: unknown): { ok: boolean; data?: unknown; error?: unknown } };
 
 function validateSchema(schema: SchemaLike, value: unknown, label: string): unknown {
-  try {
-    return schema.parse(value);
-  } catch (error) {
-    if (error instanceof BadRequestException) throw error;
-    const message = error instanceof Error ? error.message : `Invalid ${label}`;
+  const result = schema.parse(value);
+  if (!result.ok) {
+    const message = result.error instanceof Error ? result.error.message : `Invalid ${label}`;
     throw new BadRequestException(message);
   }
+  return result.data;
 }
 
 interface RouteEntry {
@@ -68,7 +67,7 @@ function resolveServices(registrations: ModuleRegistration[]): Map<NamedServiceD
         let parsedOptions: Record<string, unknown> = {};
         if (service.options && options) {
           const parsed = service.options.safeParse(options);
-          if (parsed.success) {
+          if (parsed.ok) {
             parsedOptions = parsed.data;
           } else {
             throw new Error(
@@ -263,11 +262,12 @@ export function buildHandler(
           // Ok result - extract data and validate against response schema if enabled
           const data = result.data;
           if (config.validateResponses && entry.responseSchema) {
-            try {
-              entry.responseSchema.parse(data);
-            } catch (error) {
+            const validation = entry.responseSchema.parse(data);
+            if (!validation.ok) {
               const message =
-                error instanceof Error ? error.message : 'Response schema validation failed';
+                validation.error instanceof Error
+                  ? validation.error.message
+                  : 'Response schema validation failed';
               console.warn(`[vertz] Response validation warning: ${message}`);
             }
           }
@@ -281,12 +281,11 @@ export function buildHandler(
           if (config.validateResponses && entry.errorsSchema) {
             const errorSchema = entry.errorsSchema[errorStatus];
             if (errorSchema) {
-              try {
-                errorSchema.parse(errorBody);
-              } catch (error) {
+              const validation = errorSchema.parse(errorBody);
+              if (!validation.ok) {
                 const message =
-                  error instanceof Error
-                    ? `Error schema validation failed for status ${errorStatus}: ${error.message}`
+                  validation.error instanceof Error
+                    ? `Error schema validation failed for status ${errorStatus}: ${validation.error.message}`
                     : `Error schema validation failed for status ${errorStatus}`;
                 console.warn(`[vertz] Response validation warning: ${message}`);
               }
@@ -298,11 +297,12 @@ export function buildHandler(
 
       // Validate response against schema if enabled (backwards compat for plain objects)
       if (config.validateResponses && entry.responseSchema) {
-        try {
-          entry.responseSchema.parse(result);
-        } catch (error) {
+        const validation = entry.responseSchema.parse(result);
+        if (!validation.ok) {
           const message =
-            error instanceof Error ? error.message : 'Response schema validation failed';
+            validation.error instanceof Error
+              ? validation.error.message
+              : 'Response schema validation failed';
           console.warn(`[vertz] Response validation warning: ${message}`);
         }
       }

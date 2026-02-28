@@ -5,7 +5,7 @@ import type { Infer } from '../../utils/type-inference';
 describe('.brand()', () => {
   it('passes value through unchanged at runtime', () => {
     const schema = new StringSchema().brand<'UserId'>();
-    expect(schema.parse('abc')).toBe('abc');
+    expect(schema.parse('abc').data).toBe('abc');
   });
 
   it('infers branded type with __brand property', () => {

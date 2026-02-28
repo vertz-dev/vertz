@@ -5,13 +5,13 @@ import { preprocess } from '../preprocess';
 describe('preprocess()', () => {
   it('transforms input before validation', () => {
     const schema = preprocess((val) => Number(val), new NumberSchema());
-    expect(schema.parse('42')).toBe(42);
+    expect(schema.parse('42').data).toBe(42);
   });
 
   it('preprocessed value is what the schema validates', () => {
     const schema = preprocess((val) => Number(val), new NumberSchema().min(10));
     const result = schema.safeParse('5');
-    expect(result.success).toBe(false);
+    expect(result.ok).toBe(false);
   });
 
   it('safeParse catches exceptions thrown by preprocess function', () => {
@@ -19,6 +19,6 @@ describe('preprocess()', () => {
       throw new Error('Preprocess exploded');
     }, new NumberSchema());
     const result = schema.safeParse('hello');
-    expect(result.success).toBe(false);
+    expect(result.ok).toBe(false);
   });
 });

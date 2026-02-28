@@ -5,13 +5,13 @@ describe('FileSchema', () => {
   it('accepts Blob instances', () => {
     const schema = new FileSchema();
     const blob = new Blob(['hello'], { type: 'text/plain' });
-    expect(schema.parse(blob)).toBe(blob);
+    expect(schema.parse(blob).data).toBe(blob);
   });
 
   it('rejects non-Blob values', () => {
     const schema = new FileSchema();
-    expect(schema.safeParse('hello').success).toBe(false);
-    expect(schema.safeParse(42).success).toBe(false);
-    expect(schema.safeParse({}).success).toBe(false);
+    expect(schema.safeParse('hello').ok).toBe(false);
+    expect(schema.safeParse(42).ok).toBe(false);
+    expect(schema.safeParse({}).ok).toBe(false);
   });
 });

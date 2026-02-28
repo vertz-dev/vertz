@@ -11,8 +11,11 @@ describe('parseSearchParams', () => {
       parse(data: unknown) {
         const raw = data as Record<string, string>;
         return {
-          page: Number(raw.page ?? '1'),
-          sort: raw.sort ?? 'id',
+          ok: true as const,
+          data: {
+            page: Number(raw.page ?? '1'),
+            sort: raw.sort ?? 'id',
+          },
         };
       },
     };
@@ -37,7 +40,7 @@ describe('parseSearchParams', () => {
     const urlParams = new URLSearchParams('');
     const schema = {
       parse(_data: unknown) {
-        return { page: 1, sort: 'id' };
+        return { ok: true as const, data: { page: 1, sort: 'id' } };
       },
     };
     const result = parseSearchParams(urlParams, schema);
@@ -75,7 +78,7 @@ describe('router.searchParams signal', () => {
     const schema = {
       parse(data: unknown) {
         const raw = data as Record<string, string>;
-        return { page: Number(raw.page ?? '1') };
+        return { ok: true as const, data: { page: Number(raw.page ?? '1') } };
       },
     };
     const routes = defineRoutes({
@@ -93,7 +96,7 @@ describe('router.searchParams signal', () => {
     const schema = {
       parse(data: unknown) {
         const raw = data as Record<string, string>;
-        return { page: Number(raw.page ?? '1') };
+        return { ok: true as const, data: { page: Number(raw.page ?? '1') } };
       },
     };
     const routes = defineRoutes({
@@ -111,7 +114,7 @@ describe('router.searchParams signal', () => {
   test('search params schema.parse is called only once per navigation (no double parsing)', async () => {
     const parseSpy = vi.fn((data: unknown) => {
       const raw = data as Record<string, string>;
-      return { page: Number(raw.page ?? '1') };
+      return { ok: true as const, data: { page: Number(raw.page ?? '1') } };
     });
     const schema = { parse: parseSpy };
     const routes = defineRoutes({

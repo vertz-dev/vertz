@@ -10,7 +10,7 @@ describe('IntersectionSchema', () => {
     const left = new ObjectSchema({ name: new StringSchema() });
     const right = new ObjectSchema({ age: new NumberSchema() });
     const schema = new IntersectionSchema(left, right);
-    expect(schema.parse({ name: 'Alice', age: 30 })).toEqual({ name: 'Alice', age: 30 });
+    expect(schema.parse({ name: 'Alice', age: 30 }).data).toEqual({ name: 'Alice', age: 30 });
   });
 
   it('rejects values failing either schema with InvalidIntersection', () => {
@@ -18,8 +18,8 @@ describe('IntersectionSchema', () => {
     const right = new ObjectSchema({ age: new NumberSchema() });
     const schema = new IntersectionSchema(left, right);
     const result = schema.safeParse({ name: 'Alice' });
-    expect(result.success).toBe(false);
-    if (!result.success) {
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidIntersection);
     }
   });

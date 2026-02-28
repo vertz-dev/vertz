@@ -12,7 +12,7 @@ import type { ColumnRecord, TableDef } from './table';
 // ---------------------------------------------------------------------------
 
 export interface SchemaLike<T> {
-  parse(value: unknown): T;
+  parse(value: unknown): { ok: true; data: T } | { ok: false; error: Error };
 }
 
 // ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ export function deriveSchemas<TTable extends TableDef<ColumnRecord>>(
   return {
     response: {
       parse(value: unknown) {
-        return pickKeys(value, responseCols) as TTable['$response'];
+        return { ok: true as const, data: pickKeys(value, responseCols) as TTable['$response'] };
       },
     },
     createInput: {
@@ -56,14 +56,17 @@ export function deriveSchemas<TTable extends TableDef<ColumnRecord>>(
         const data = value as Record<string, unknown>;
         const missing = requiredCols.filter((col) => !(col in data) || data[col] === undefined);
         if (missing.length > 0) {
-          throw new Error(`Missing required fields: ${missing.join(', ')}`);
+          return {
+            ok: false as const,
+            error: new Error(`Missing required fields: ${missing.join(', ')}`),
+          };
         }
-        return pickKeys(value, inputCols) as TTable['$create_input'];
+        return { ok: true as const, data: pickKeys(value, inputCols) as TTable['$create_input'] };
       },
     },
     updateInput: {
       parse(value: unknown) {
-        return pickKeys(value, inputCols) as TTable['$update_input'];
+        return { ok: true as const, data: pickKeys(value, inputCols) as TTable['$update_input'] };
       },
     },
   };

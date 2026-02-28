@@ -22,7 +22,9 @@ export function parseSearchParams<T = Record<string, string>>(
   }
 
   if (schema) {
-    return schema.parse(raw);
+    const result = schema.parse(raw);
+    if (result.ok) return result.data;
+    return raw as T;
   }
 
   return raw as T;

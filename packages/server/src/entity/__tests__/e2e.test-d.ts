@@ -170,18 +170,20 @@ describe('E2E type safety: entity definition', () => {
 // ---------------------------------------------------------------------------
 
 describe('E2E type safety: model schemas', () => {
-  it('response schema parse returns type without hidden columns', () => {
-    const parsed = usersModel.schemas.response.parse({});
-    parsed.email satisfies string;
-    parsed.name satisfies string;
+  it('response schema parse returns Result type without hidden columns', () => {
+    const result = usersModel.schemas.response.parse({});
+    if (!result.ok) throw result.error;
+    result.data.email satisfies string;
+    result.data.name satisfies string;
     // @ts-expect-error — passwordHash is hidden, not in $response
-    void parsed.passwordHash;
+    void result.data.passwordHash;
   });
 
-  it('createInput schema parse returns type without readOnly columns', () => {
-    const parsed = usersModel.schemas.createInput.parse({});
-    parsed.email satisfies string;
+  it('createInput schema parse returns Result type without readOnly columns', () => {
+    const result = usersModel.schemas.createInput.parse({});
+    if (!result.ok) throw result.error;
+    result.data.email satisfies string;
     // @ts-expect-error — createdAt is readOnly, not in $create_input
-    void parsed.createdAt;
+    void result.data.createdAt;
   });
 });

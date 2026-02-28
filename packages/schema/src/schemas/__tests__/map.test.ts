@@ -10,23 +10,23 @@ describe('MapSchema', () => {
       ['a', 1],
       ['b', 2],
     ]);
-    const result = schema.parse(input);
+    const result = schema.parse(input).data;
     expect(result).toBeInstanceOf(Map);
     expect(result.get('a')).toBe(1);
   });
 
   it('rejects non-Map values', () => {
     const schema = new MapSchema(new StringSchema(), new NumberSchema());
-    expect(schema.safeParse({}).success).toBe(false);
-    expect(schema.safeParse([]).success).toBe(false);
-    expect(schema.safeParse('hello').success).toBe(false);
+    expect(schema.safeParse({}).ok).toBe(false);
+    expect(schema.safeParse([]).ok).toBe(false);
+    expect(schema.safeParse('hello').ok).toBe(false);
   });
 
   it('validates each key and value', () => {
     const schema = new MapSchema(new StringSchema(), new NumberSchema());
     const input = new Map<string, string>([['a', 'not-number']]);
     const result = schema.safeParse(input);
-    expect(result.success).toBe(false);
+    expect(result.ok).toBe(false);
   });
 
   it('toJSONSchema returns array of tuples', () => {

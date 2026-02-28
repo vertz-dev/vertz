@@ -67,8 +67,10 @@ describe('Feature: action pipeline', () => {
       },
       actions: {
         complete: {
-          input: { parse: (v: unknown) => v as { reason: string } },
-          output: { parse: (v: unknown) => v as { completedAt: string } },
+          input: { parse: (v: unknown) => ({ ok: true as const, data: v as { reason: string } }) },
+          output: {
+            parse: (v: unknown) => ({ ok: true as const, data: v as { completedAt: string } }),
+          },
           handler: completeSpy,
         },
       },
@@ -135,8 +137,8 @@ describe('Feature: action pipeline', () => {
       },
       actions: {
         complete: {
-          input: { parse: (v: unknown) => v as { reason: string } },
-          output: { parse: (v: unknown) => v as { done: boolean } },
+          input: { parse: (v: unknown) => ({ ok: true as const, data: v as { reason: string } }) },
+          output: { parse: (v: unknown) => ({ ok: true as const, data: v as { done: boolean } }) },
           handler: async () => ({ done: true }),
         },
       },

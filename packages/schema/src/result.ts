@@ -25,5 +25,16 @@
  */
 
 // Re-export all Result types and utilities from @vertz/errors
-export type { Ok, Err, Result } from '@vertz/errors';
-export { ok, err, unwrap, unwrapOr, map, flatMap, match, matchErr, isOk, isErr } from '@vertz/errors';
+export type { Err, Ok, Result } from '@vertz/errors';
+export {
+  err,
+  flatMap,
+  isErr,
+  isOk,
+  map,
+  match,
+  matchErr,
+  ok,
+  unwrap,
+  unwrapOr,
+} from '@vertz/errors';

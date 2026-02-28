@@ -11,7 +11,7 @@ describe('.readonly()', () => {
       name: new StringSchema(),
       age: new NumberSchema(),
     }).readonly();
-    const result = schema.parse({ name: 'Alice', age: 30 });
+    const result = schema.parse({ name: 'Alice', age: 30 }).data;
     expect(Object.isFrozen(result)).toBe(true);
   });
 
@@ -19,7 +19,7 @@ describe('.readonly()', () => {
     const schema = new ObjectSchema({
       name: new StringSchema(),
     }).readonly();
-    const result = schema.parse({ name: 'Alice' });
+    const result = schema.parse({ name: 'Alice' }).data;
     expect(() => {
       (result as Record<string, unknown>).name = 'Bob';
     }).toThrow();
@@ -36,7 +36,7 @@ describe('.readonly()', () => {
 
   it('freezes arrays', () => {
     const schema = new ArraySchema(new StringSchema()).readonly();
-    const result = schema.parse(['a', 'b']);
+    const result = schema.parse(['a', 'b']).data;
     expect(Object.isFrozen(result)).toBe(true);
     expect(() => {
       (result as unknown[]).push('c');
@@ -45,6 +45,6 @@ describe('.readonly()', () => {
 
   it('passes primitives through unchanged', () => {
     const schema = new NumberSchema().readonly();
-    expect(schema.parse(42)).toBe(42);
+    expect(schema.parse(42).data).toBe(42);
   });
 });

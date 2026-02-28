@@ -77,8 +77,10 @@ describe('entity() access rule types', () => {
       model: usersModel,
       actions: {
         resetPassword: {
-          input: { parse: (v: unknown) => v as { password: string } },
-          output: { parse: (v: unknown) => v as { ok: boolean } },
+          input: {
+            parse: (v: unknown) => ({ ok: true as const, data: v as { password: string } }),
+          },
+          output: { parse: (v: unknown) => ({ ok: true as const, data: v as { ok: boolean } }) },
           handler: async () => ({ ok: true }),
         },
       },
@@ -94,8 +96,10 @@ describe('entity() access rule types', () => {
       model: usersModel,
       actions: {
         resetPassword: {
-          input: { parse: (v: unknown) => v as { password: string } },
-          output: { parse: (v: unknown) => v as { ok: boolean } },
+          input: {
+            parse: (v: unknown) => ({ ok: true as const, data: v as { password: string } }),
+          },
+          output: { parse: (v: unknown) => ({ ok: true as const, data: v as { ok: boolean } }) },
           handler: async () => ({ ok: true }),
         },
       },
@@ -202,8 +206,10 @@ describe('entity() custom action types', () => {
       actions: {
         // @ts-expect-error — handler is missing
         resetPassword: {
-          input: { parse: (v: unknown) => v as { password: string } },
-          output: { parse: (v: unknown) => v as { ok: boolean } },
+          input: {
+            parse: (v: unknown) => ({ ok: true as const, data: v as { password: string } }),
+          },
+          output: { parse: (v: unknown) => ({ ok: true as const, data: v as { ok: boolean } }) },
         },
       },
     });

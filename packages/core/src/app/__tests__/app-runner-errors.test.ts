@@ -14,7 +14,6 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { BadRequestException } from '../../exceptions';
 import { createModule } from '../../module/module';
 import { createModuleDef } from '../../module/module-def';
 import { err, ok } from '../../result';
@@ -227,8 +226,8 @@ describe('Schema validation failure response body', () => {
 
     const paramsSchema = {
       parse: (_value: unknown) => {
-        // Simulate a schema lib that throws a plain Error (not BadRequestException)
-        throw new Error('id must be a positive integer');
+        // Simulate a schema lib that returns an error Result (not BadRequestException)
+        return { ok: false as const, error: new Error('id must be a positive integer') };
       },
     };
 

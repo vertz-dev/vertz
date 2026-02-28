@@ -5,20 +5,20 @@ import { LiteralSchema } from '../literal';
 describe('LiteralSchema', () => {
   it('accepts exact string value', () => {
     const schema = new LiteralSchema('hello');
-    expect(schema.parse('hello')).toBe('hello');
+    expect(schema.parse('hello').data).toBe('hello');
   });
 
   it('accepts exact number, boolean, and null values', () => {
-    expect(new LiteralSchema(42).parse(42)).toBe(42);
-    expect(new LiteralSchema(true).parse(true)).toBe(true);
-    expect(new LiteralSchema(null).parse(null)).toBe(null);
+    expect(new LiteralSchema(42).parse(42).data).toBe(42);
+    expect(new LiteralSchema(true).parse(true).data).toBe(true);
+    expect(new LiteralSchema(null).parse(null).data).toBe(null);
   });
 
   it('rejects non-matching values with InvalidLiteral', () => {
     const schema = new LiteralSchema('hello');
     const result = schema.safeParse('world');
-    expect(result.success).toBe(false);
-    if (!result.success) {
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(result.error.issues[0]?.code).toBe(ErrorCode.InvalidLiteral);
     }
   });

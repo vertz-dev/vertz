@@ -424,8 +424,9 @@ describe('createTestApp', () => {
       parse: (value: unknown) => {
         const query = value as Record<string, unknown>;
         const page = Number(query.page);
-        if (Number.isNaN(page)) throw new Error('page must be a number');
-        return { page };
+        if (Number.isNaN(page))
+          return { ok: false as const, error: new Error('page must be a number') };
+        return { ok: true as const, data: { page } };
       },
     };
 
@@ -449,8 +450,9 @@ describe('createTestApp', () => {
     const headersSchema = {
       parse: (value: unknown) => {
         const headers = value as Record<string, unknown>;
-        if (!headers['x-api-key']) throw new Error('x-api-key is required');
-        return headers;
+        if (!headers['x-api-key'])
+          return { ok: false as const, error: new Error('x-api-key is required') };
+        return { ok: true as const, data: headers };
       },
     };
 

@@ -18,7 +18,7 @@ describe('Integration: Schema Usage', () => {
       name: 'John',
       email: 'john@example.com',
       age: 30,
-    });
+    }).data;
     expect(result.name).toBe('John');
     expect(result.email).toBe('john@example.com');
     expect(result.age).toBe(30);
@@ -31,8 +31,8 @@ describe('Integration: Schema Usage', () => {
       email: 123,
       age: -1,
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(result.error.issues.length).toBeGreaterThanOrEqual(3);
       const paths = result.error.issues.map((i) => i.path?.join('.'));
       expect(paths).toContain('name');
@@ -54,8 +54,8 @@ describe('Integration: Schema Usage', () => {
       user: { name: 123 },
       address: { street: '', city: 'NYC' },
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       const paths = result.error.issues.map((i) => i.path?.join('.'));
       expect(paths).toContain('user.name');
       expect(paths).toContain('address.street');
