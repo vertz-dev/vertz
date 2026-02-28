@@ -11,6 +11,7 @@
 // Uses only public package imports — never relative imports.
 // ===========================================================================
 
+import { err, ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import type { FormOptions, SdkMethod, SdkMethodWithMeta } from '@vertz/ui/form';
 import { form, formDataToObject } from '@vertz/ui/form';
@@ -33,7 +34,7 @@ interface User {
 
 /** Mock SDK method with url/method metadata (no .meta). */
 function mockSdk(): SdkMethod<CreateUserBody, User> {
-  const fn = async (body: CreateUserBody): Promise<User> => ({
+  const fn = async (body: CreateUserBody) => ok<User>({
     id: 'u-1',
     ...body,
   });
@@ -46,7 +47,7 @@ function mockSdkWithMeta(): SdkMethodWithMeta<CreateUserBody, User> {
     name: s.string().min(1),
     email: s.string().min(1),
   });
-  const fn = async (body: CreateUserBody): Promise<User> => ({
+  const fn = async (body: CreateUserBody) => ok<User>({
     id: 'u-1',
     ...body,
   });
@@ -134,13 +135,11 @@ describe('Form API Developer Walkthrough', () => {
       expect(userForm.submitting.peek()).toBe(false);
     });
 
-    it('submit() calls onError when SDK method throws', async () => {
-      const failingSdk = Object.assign(
-        async () => {
-          throw new Error('Server error');
-        },
+    it('submit() calls onError when SDK method returns an error result', async () => {
+      const failingSdk: SdkMethod<CreateUserBody, User> = Object.assign(
+        async () => err(new Error('Server error')),
         { url: '/api/users', method: 'POST' },
-      ) as SdkMethod<CreateUserBody, User>;
+      );
 
       const onError = vi.fn();
       const userForm = form(failingSdk, {

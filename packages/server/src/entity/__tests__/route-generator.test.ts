@@ -215,9 +215,9 @@ describe('generateEntityRoutes', () => {
 
       expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.data).toHaveLength(1);
+      expect(body.items).toHaveLength(1);
       // Hidden field should be stripped
-      expect(body.data[0].passwordHash).toBeUndefined();
+      expect(body.items[0].passwordHash).toBeUndefined();
       // Pagination metadata
       expect(body.total).toBe(1);
       expect(body.limit).toBe(20);
@@ -244,8 +244,8 @@ describe('generateEntityRoutes', () => {
 
       expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.data).toHaveLength(2);
-      expect(body.data[0].name).toBe('Alice');
+      expect(body.items).toHaveLength(2);
+      expect(body.items[0].name).toBe('Alice');
       expect(body.total).toBe(3);
       expect(body.limit).toBe(2);
       expect(body.hasNextPage).toBe(true);
@@ -270,8 +270,8 @@ describe('generateEntityRoutes', () => {
 
       expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe('Alice');
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].name).toBe('Alice');
       expect(body.total).toBe(1);
     });
 
@@ -295,7 +295,7 @@ describe('generateEntityRoutes', () => {
       expect(response.status).toBe(200);
       const body = await response.json();
       // NaN value ignored — default limit=20 applied
-      expect(body.data).toHaveLength(2);
+      expect(body.items).toHaveLength(2);
       expect(body.limit).toBe(20);
       expect(body.hasNextPage).toBe(false);
     });
@@ -320,8 +320,8 @@ describe('generateEntityRoutes', () => {
 
       expect(response.status).toBe(200);
       const body = await response.json();
-      expect(body.data).toHaveLength(1);
-      expect(body.data[0].name).toBe('Bob');
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0].name).toBe('Bob');
       expect(body.nextCursor).toBe('2');
     });
 

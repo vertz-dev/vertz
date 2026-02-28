@@ -51,9 +51,9 @@ function delay(ms = 200): Promise<void> {
 }
 
 /** Fetch all tasks. */
-export async function fetchTasks(): Promise<{ tasks: Task[]; total: number }> {
+export async function fetchTasks(): Promise<{ items: Task[]; total: number }> {
   await delay();
-  return { tasks: [...tasks], total: tasks.length };
+  return { items: [...tasks], total: tasks.length };
 }
 
 /** Fetch a single task by ID. */
@@ -122,7 +122,7 @@ export const api = {
   tasks: {
     list: Object.assign(
       () =>
-        createDescriptor<{ tasks: Task[]; total: number }>(
+        createDescriptor<{ items: Task[]; total: number }>(
           'GET',
           '/tasks',
           mockFetchResponse(() => fetchTasks()),
@@ -175,19 +175,19 @@ export const api = {
  * with `.url` and `.method` metadata for progressive enhancement.
  */
 export const taskApi = {
-  create: Object.assign((body: CreateTaskBody) => createTask(body), {
+  create: Object.assign(async (body: CreateTaskBody) => ok(await createTask(body)), {
     url: '/api/tasks',
     method: 'POST',
   }),
 
   update: (id: string) =>
-    Object.assign((body: UpdateTaskBody) => updateTask(id, body), {
+    Object.assign(async (body: UpdateTaskBody) => ok(await updateTask(id, body)), {
       url: `/api/tasks/${id}`,
       method: 'PATCH',
     }),
 
   delete: (id: string) =>
-    Object.assign(() => deleteTask(id), { url: `/api/tasks/${id}`, method: 'DELETE' }),
+    Object.assign(async () => ok(await deleteTask(id)), { url: `/api/tasks/${id}`, method: 'DELETE' }),
 };
 
 /** Reset mock data to initial state (for tests). */

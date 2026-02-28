@@ -113,18 +113,27 @@ describe('ClientGenerator', () => {
   });
 
   describe('package.json', () => {
-    it('generates valid package.json with exports', () => {
+    it('generates package.json with imports for subpath resolution', () => {
       const ir = createBasicIR([]);
 
-      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const files = generator.generate(ir, { outputDir: 'src/generated', options: {} });
       const pkgFile = files.find((f) => f.path === 'package.json');
 
       expect(pkgFile).toBeDefined();
       const pkg = JSON.parse(pkgFile?.content);
-      expect(pkg.name).toBe('.vertz-generated');
-      expect(pkg.private).toBe(true);
-      expect(pkg.exports['.']).toBe('./client.ts');
-      expect(pkg.exports['./types']).toBe('./types/index.ts');
+      expect(pkg.imports['#generated']).toBe('./src/generated/client.ts');
+      expect(pkg.imports['#generated/types']).toBe('./src/generated/types/index.ts');
+    });
+
+    it('uses outputDir to compute import paths', () => {
+      const ir = createBasicIR([]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz/generated', options: {} });
+      const pkgFile = files.find((f) => f.path === 'package.json');
+
+      const pkg = JSON.parse(pkgFile?.content);
+      expect(pkg.imports['#generated']).toBe('./.vertz/generated/client.ts');
+      expect(pkg.imports['#generated/types']).toBe('./.vertz/generated/types/index.ts');
     });
   });
 
@@ -159,8 +168,8 @@ describe('ClientGenerator', () => {
 
       expect(readmeFile).toBeDefined();
       expect(readmeFile?.content).toContain('createClient');
-      expect(readmeFile?.content).toContain('.vertz/generated');
-      expect(readmeFile?.content).toContain('/types');
+      expect(readmeFile?.content).toContain('#generated');
+      expect(readmeFile?.content).toContain('#generated/types');
       expect(readmeFile?.content).toContain('todos');
     });
 

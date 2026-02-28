@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import type { AppIR } from '@vertz/compiler';
 import type { ResolvedCodegenConfig } from './config';
 import { formatWithBiome } from './format';
@@ -73,6 +73,58 @@ export function generateSync(ir: CodegenIR, config: ResolvedCodegenConfig): Gene
   };
 }
 
+// ── Package.json imports merge ────────────────────────────────────
+
+/**
+ * Merges the `imports` field from the generated package.json into the
+ * project's root package.json. This enables `#generated` and
+ * `#generated/types` subpath imports that enforce the public API surface.
+ */
+export async function mergeImportsToPackageJson(
+  files: GeneratedFile[],
+  outputDir: string,
+): Promise<boolean> {
+  const generatedPkg = files.find((f) => f.path === 'package.json');
+  if (!generatedPkg) return false;
+
+  const generated = JSON.parse(generatedPkg.content);
+  const imports = generated.imports as Record<string, string> | undefined;
+  if (!imports || Object.keys(imports).length === 0) return false;
+
+  // Walk up from outputDir to find the nearest package.json
+  const projectRoot = await findProjectRoot(resolve(outputDir));
+  if (!projectRoot) return false;
+
+  const pkgPath = join(projectRoot, 'package.json');
+  const raw = await readFile(pkgPath, 'utf-8');
+  const pkg = JSON.parse(raw);
+
+  // Check if imports already match — skip write if unchanged
+  const existing = pkg.imports as Record<string, string> | undefined;
+  if (existing && JSON.stringify(existing) === JSON.stringify(imports)) {
+    return false;
+  }
+
+  pkg.imports = imports;
+
+  await writeFile(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, 'utf-8');
+  return true;
+}
+
+async function findProjectRoot(startDir: string): Promise<string | null> {
+  let dir = startDir;
+  const root = dirname(dir);
+  while (dir !== root) {
+    try {
+      await readFile(join(dir, 'package.json'), 'utf-8');
+      return dir;
+    } catch {
+      dir = dirname(dir);
+    }
+  }
+  return null;
+}
+
 // ── Main orchestrator ──────────────────────────────────────────────
 
 /**
@@ -116,6 +168,9 @@ export async function generate(
       await writeFile(filePath, file.content, 'utf-8');
     }
   }
+
+  // Step 5: Merge #generated imports into project package.json
+  await mergeImportsToPackageJson(files, config.outputDir);
 
   return {
     files,

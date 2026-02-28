@@ -41,7 +41,7 @@ describe('createDescriptor', () => {
     expect(descriptor._key).toBe('GET:/tasks');
   });
 
-  it('await descriptor resolves to unwrapped T', async () => {
+  it('await descriptor resolves to Ok<T> on success', async () => {
     const fetchFn = vi
       .fn()
       .mockResolvedValue(
@@ -51,15 +51,21 @@ describe('createDescriptor', () => {
 
     const result = await descriptor;
 
-    expect(result).toEqual({ id: 1, title: 'Test' });
+    expect(result).toEqual({ ok: true, data: { id: 1, title: 'Test' } });
   });
 
-  it('await descriptor throws FetchError on error result', async () => {
+  it('await descriptor resolves to Err<FetchError> on error result', async () => {
     const error = new FetchNetworkError('Network failure');
     const fetchFn = vi.fn().mockResolvedValue({ ok: false, error });
     const descriptor = createDescriptor('GET', '/tasks/1', fetchFn);
 
-    await expect(descriptor).rejects.toBe(error);
+    const result = await descriptor;
+
+    expect(result).toEqual({ ok: false, error });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toBe(error);
+    }
   });
 
   it('Promise.all works with multiple descriptors', async () => {
@@ -74,17 +80,20 @@ describe('createDescriptor', () => {
     const d2 = createDescriptor('GET', '/b', fetchFn2);
 
     const results = await Promise.all([d1, d2]);
-    expect(results).toEqual(['result-1', 'result-2']);
+    expect(results).toEqual([
+      { ok: true, data: 'result-1' },
+      { ok: true, data: 'result-2' },
+    ]);
   });
 
-  it('204 DELETE resolves to undefined', async () => {
+  it('204 DELETE resolves to Ok<undefined>', async () => {
     const fetchFn = vi
       .fn()
       .mockResolvedValue(ok({ data: undefined, status: 204, headers: new Headers() }));
     const descriptor = createDescriptor<void>('DELETE', '/tasks/1', fetchFn);
 
     const result = await descriptor;
-    expect(result).toBeUndefined();
+    expect(result).toEqual({ ok: true, data: undefined });
   });
 });
 

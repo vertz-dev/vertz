@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from 'bun:test';
+import { ok } from '@vertz/fetch';
 import { form } from '../form/form';
 import { formDataToObject } from '../form/form-data';
 import type { FormSchema } from '../form/validation';
@@ -9,7 +10,8 @@ function mockSdkMethod<TBody, TResult>(config: {
   method: string;
   handler: (body: TBody) => Promise<TResult>;
 }) {
-  const fn = config.handler as ((body: TBody) => Promise<TResult>) & {
+  const wrappedHandler = async (body: TBody) => ok(await config.handler(body));
+  const fn = wrappedHandler as ((body: TBody) => Promise<{ ok: true; data: TResult }>) & {
     url: string;
     method: string;
   };

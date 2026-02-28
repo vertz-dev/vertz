@@ -117,7 +117,11 @@ export function TaskDetailPage() {
                 description={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
                 confirmLabel="Delete Task"
                 onConfirm={async () => {
-                  await api.tasks.delete(taskId);
+                  const result = await api.tasks.delete(taskId);
+                  if (!result.ok) {
+                    console.error('Failed to delete task:', result.error.message);
+                    return;
+                  }
                   navigate('/');
                 }}
               />
@@ -144,7 +148,11 @@ export function TaskDetailPage() {
               <button
                 class={button({ intent: 'secondary', size: 'sm' })}
                 onClick={async () => {
-                  await api.tasks.update(taskId, { status: tr.status });
+                  const result = await api.tasks.update(taskId, { status: tr.status });
+                  if (!result.ok) {
+                    console.error('Failed to update task:', result.error.message);
+                    return;
+                  }
                   taskQuery.revalidate();
                 }}
               >

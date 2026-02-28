@@ -9,18 +9,14 @@
  */
 
 import { query, queryMatch } from '@vertz/ui';
-import type { TodoListResponse, TodosResponse } from '../api/client';
 import { api } from '../api/client';
+import type { TodosResponse } from '../api/client';
 import { TodoForm } from '../components/todo-form';
 import { TodoItem } from '../components/todo-item';
 import { emptyStateStyles, layoutStyles } from '../styles/components';
 
 export function TodoListPage() {
-  // Cast needed: codegen types list() as TodosResponse[] but the server
-  // returns { data: TodosResponse[], total } — tracked as a known codegen issue.
-  const todosQuery = query(
-    api.todos.list() as unknown as import('@vertz/fetch').QueryDescriptor<TodoListResponse>,
-  );
+  const todosQuery = query(api.todos.list());
 
   const handleToggle = (_id: string, _completed: boolean) => {
     todosQuery.refetch();
@@ -53,9 +49,9 @@ export function TodoListPage() {
               {err instanceof Error ? err.message : String(err)}
             </div>
           ),
-          data: (result) => (
+          data: (todos) => (
             <>
-              {result.data.length === 0 && (
+              {todos.length === 0 && (
                 <div class={emptyStateStyles.container}>
                   <h3 class={emptyStateStyles.title}>No todos yet</h3>
                   <p class={emptyStateStyles.description}>
@@ -67,7 +63,7 @@ export function TodoListPage() {
                 data-testid="todo-list"
                 style="display: flex; flex-direction: column; gap: 0.5rem"
               >
-                {result.data.map((todo: TodosResponse) => (
+                {todos.map((todo: TodosResponse) => (
                   <TodoItem
                     key={todo.id}
                     id={todo.id}

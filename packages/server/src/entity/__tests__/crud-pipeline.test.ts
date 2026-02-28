@@ -123,13 +123,13 @@ describe('Feature: CRUD pipeline', () => {
         const result = unwrap(await handlers.list!(ctx));
 
         expect(result.status).toBe(200);
-        expect(result.body.data).toHaveLength(2);
+        expect(result.body.items).toHaveLength(2);
         // Hidden fields stripped
-        for (const record of result.body.data) {
+        for (const record of result.body.items) {
           expect(record).not.toHaveProperty('passwordHash');
         }
         // Non-hidden fields present
-        expect(result.body.data[0]).toHaveProperty('email');
+        expect(result.body.items[0]).toHaveProperty('email');
       });
     });
 
@@ -436,7 +436,7 @@ describe('Feature: CRUD pipeline', () => {
         const result = unwrap(await handlers.list(ctx));
 
         expect(result.status).toBe(200);
-        expect(result.body.data).toHaveLength(2);
+        expect(result.body.items).toHaveLength(2);
         expect(result.body.total).toBe(2);
         expect(result.body.limit).toBe(20);
         // All rows fit in one page → no next page
@@ -453,7 +453,7 @@ describe('Feature: CRUD pipeline', () => {
 
         const result = unwrap(await handlers.list(ctx, { limit: 1 }));
 
-        expect(result.body.data).toHaveLength(1);
+        expect(result.body.items).toHaveLength(1);
         expect(result.body.total).toBe(2);
         expect(result.body.limit).toBe(1);
         // Full page returned → nextCursor points to last row
@@ -479,7 +479,7 @@ describe('Feature: CRUD pipeline', () => {
 
         const result = unwrap(await handlers.list(ctx, { limit: -5 }));
 
-        expect(result.body.data).toHaveLength(0);
+        expect(result.body.items).toHaveLength(0);
         expect(result.body.limit).toBe(0);
         expect(result.body.total).toBe(2);
       });
@@ -493,7 +493,7 @@ describe('Feature: CRUD pipeline', () => {
 
         const result = unwrap(await handlers.list(ctx, { limit: 0 }));
 
-        expect(result.body.data).toHaveLength(0);
+        expect(result.body.items).toHaveLength(0);
         expect(result.body.limit).toBe(0);
         expect(result.body.total).toBe(2);
       });
@@ -509,7 +509,7 @@ describe('Feature: CRUD pipeline', () => {
         const result = unwrap(await handlers.list(ctx, { after: longCursor }));
 
         // Invalid cursor ignored — returns all rows as if no cursor
-        expect(result.body.data).toHaveLength(2);
+        expect(result.body.items).toHaveLength(2);
         expect(result.body.total).toBe(2);
       });
     });
@@ -523,7 +523,7 @@ describe('Feature: CRUD pipeline', () => {
         const result = unwrap(await handlers.list(ctx, { after: '' }));
 
         // Empty string is falsy — treated as no cursor
-        expect(result.body.data).toHaveLength(2);
+        expect(result.body.items).toHaveLength(2);
         expect(result.body.total).toBe(2);
       });
     });
@@ -545,7 +545,7 @@ describe('Feature: CRUD pipeline', () => {
 
         const result = unwrap(await handlers.list(ctx, { limit: 1 }));
 
-        expect(result.body.data).toHaveLength(1);
+        expect(result.body.items).toHaveLength(1);
         expect(result.body.nextCursor).toBe('user-1');
       });
     });
@@ -558,8 +558,8 @@ describe('Feature: CRUD pipeline', () => {
 
         const result = unwrap(await handlers.list(ctx, { after: 'user-1', limit: 1 }));
 
-        expect(result.body.data).toHaveLength(1);
-        expect(result.body.data[0]).toHaveProperty('email', 'bob@example.com');
+        expect(result.body.items).toHaveLength(1);
+        expect(result.body.items[0]).toHaveProperty('email', 'bob@example.com');
         expect(result.body.nextCursor).toBe('user-2');
         expect(result.body.hasNextPage).toBe(true);
       });
@@ -573,7 +573,7 @@ describe('Feature: CRUD pipeline', () => {
 
         const result = unwrap(await handlers.list(ctx, { after: 'user-2' }));
 
-        expect(result.body.data).toHaveLength(0);
+        expect(result.body.items).toHaveLength(0);
         expect(result.body.nextCursor).toBeNull();
         expect(result.body.hasNextPage).toBe(false);
       });
@@ -588,7 +588,7 @@ describe('Feature: CRUD pipeline', () => {
         const result = unwrap(await handlers.list(ctx));
 
         // Default limit=20 > 2 rows, so all rows returned
-        expect(result.body.data).toHaveLength(2);
+        expect(result.body.items).toHaveLength(2);
         expect(result.body.nextCursor).toBeNull();
         expect(result.body.hasNextPage).toBe(false);
       });
@@ -663,8 +663,8 @@ describe('Feature: CRUD pipeline', () => {
         );
 
         // user-2 filtered out (admin), user-1 is before cursor → only user-3
-        expect(result.body.data).toHaveLength(1);
-        expect(result.body.data[0]).toHaveProperty('name', 'Charlie');
+        expect(result.body.items).toHaveLength(1);
+        expect(result.body.items[0]).toHaveProperty('name', 'Charlie');
         expect(result.body.total).toBe(2); // 2 viewers total
         expect(result.body.nextCursor).toBeNull(); // only 1 row, limit=10
         expect(result.body.hasNextPage).toBe(false);
@@ -679,8 +679,8 @@ describe('Feature: CRUD pipeline', () => {
 
         // Page 1
         const page1 = unwrap(await handlers.list(ctx, { limit: 1 }));
-        expect(page1.body.data).toHaveLength(1);
-        expect(page1.body.data[0]).toHaveProperty('email', 'alice@example.com');
+        expect(page1.body.items).toHaveLength(1);
+        expect(page1.body.items[0]).toHaveProperty('email', 'alice@example.com');
         expect(page1.body.nextCursor).toBe('user-1');
         expect(page1.body.hasNextPage).toBe(true);
 
@@ -691,8 +691,8 @@ describe('Feature: CRUD pipeline', () => {
             limit: 1,
           }),
         );
-        expect(page2.body.data).toHaveLength(1);
-        expect(page2.body.data[0]).toHaveProperty('email', 'bob@example.com');
+        expect(page2.body.items).toHaveLength(1);
+        expect(page2.body.items[0]).toHaveProperty('email', 'bob@example.com');
         expect(page2.body.nextCursor).toBe('user-2');
         expect(page2.body.hasNextPage).toBe(true);
 
@@ -703,7 +703,7 @@ describe('Feature: CRUD pipeline', () => {
             limit: 1,
           }),
         );
-        expect(page3.body.data).toHaveLength(0);
+        expect(page3.body.items).toHaveLength(0);
         expect(page3.body.nextCursor).toBeNull();
         expect(page3.body.hasNextPage).toBe(false);
       });
@@ -726,8 +726,8 @@ describe('Feature: CRUD pipeline', () => {
 
         const result = unwrap(await handlers.list(ctx, { where: { role: 'admin' } }));
 
-        expect(result.body.data).toHaveLength(1);
-        expect(result.body.data[0]).toHaveProperty('role', 'admin');
+        expect(result.body.items).toHaveLength(1);
+        expect(result.body.items[0]).toHaveProperty('role', 'admin');
         expect(result.body.total).toBe(1);
       });
     });
@@ -741,7 +741,7 @@ describe('Feature: CRUD pipeline', () => {
         const result = unwrap(await handlers.list(ctx, { where: { passwordHash: 'hash123' } }));
 
         // Hidden field is stripped from where — no filtering occurs
-        expect(result.body.data).toHaveLength(2);
+        expect(result.body.items).toHaveLength(2);
         expect(result.body.total).toBe(2);
       });
     });
@@ -759,8 +759,8 @@ describe('Feature: CRUD pipeline', () => {
         );
 
         // passwordHash stripped, only role filter applied
-        expect(result.body.data).toHaveLength(1);
-        expect(result.body.data[0]).toHaveProperty('role', 'admin');
+        expect(result.body.items).toHaveLength(1);
+        expect(result.body.items[0]).toHaveProperty('role', 'admin');
         expect(result.body.total).toBe(1);
       });
     });
@@ -878,8 +878,8 @@ describe('Feature: CRUD pipeline', () => {
 
         const result = unwrap(await handlers.list(ctx));
 
-        expect(result.body.data[0]).toHaveProperty('title', 'Review PR');
-        const creator = result.body.data[0].creator as Record<string, unknown>;
+        expect(result.body.items[0]).toHaveProperty('title', 'Review PR');
+        const creator = result.body.items[0].creator as Record<string, unknown>;
         expect(creator).toEqual({ id: 'u1', name: 'Alice' });
         // email and role should be stripped
         expect(creator).not.toHaveProperty('email');
@@ -943,8 +943,8 @@ describe('Feature: CRUD pipeline', () => {
 
         const result = unwrap(await handlers.list(ctx));
 
-        expect(result.body.data[0]).toHaveProperty('title', 'Review PR');
-        expect(result.body.data[0]).not.toHaveProperty('project');
+        expect(result.body.items[0]).toHaveProperty('title', 'Review PR');
+        expect(result.body.items[0]).not.toHaveProperty('project');
       });
     });
 

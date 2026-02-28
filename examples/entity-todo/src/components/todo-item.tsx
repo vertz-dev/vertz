@@ -2,12 +2,12 @@
  * TodoItem - Single todo item component with toggle and delete actions.
  *
  * Demonstrates:
- * - Generated SDK mutations (throw FetchError on failure)
+ * - Generated SDK mutations returning Result (error-as-values)
  * - Optimistic updates with rollback on error
- * - try/catch error handling for SDK calls
+ * - Result-based error handling for SDK calls
  */
 
-import { todoApi } from '../api/client';
+import { api } from '../api/client';
 import { todoItemStyles } from '../styles/components';
 
 export interface TodoItemProps {
@@ -25,22 +25,24 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
     const previousValue = isCompleted;
     isCompleted = !isCompleted;
 
-    try {
-      await todoApi.update(id, { completed: isCompleted });
-      onToggle(id, isCompleted);
-    } catch (err) {
+    const result = await api.todos.update(id, { completed: isCompleted });
+    if (!result.ok) {
       isCompleted = previousValue;
-      console.error('Failed to update todo:', err instanceof Error ? err.message : String(err));
+      console.error('Failed to update todo:', result.error.message);
+      return;
     }
+    onToggle(id, isCompleted);
   };
 
   const handleDelete = async () => {
-    try {
-      await todoApi.delete(id);
-      onDelete(id);
-    } catch (err) {
-      console.error('Failed to delete todo:', err instanceof Error ? err.message : String(err));
+    const result = await api.todos.delete(id);
+    if (!result.ok) {
+      console.error('Failed to delete todo:', result.error.message);
+      return;
     }
+
+    
+    onDelete(id);
   };
 
   return (

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
+import { ok } from '@vertz/fetch';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { signal } from '../../runtime/signal';
 import type { DisposeFn } from '../../runtime/signal-types';
@@ -645,7 +646,7 @@ describe('query()', () => {
     const descriptor = {
       _tag: 'QueryDescriptor' as const,
       _key: 'GET:/tasks',
-      _fetch: () => Promise.resolve([1, 2, 3]),
+      _fetch: () => Promise.resolve(ok([1, 2, 3])),
       // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
       then(onFulfilled: any, onRejected: any) {
         return this._fetch().then(onFulfilled, onRejected);
@@ -656,13 +657,14 @@ describe('query()', () => {
 
     vi.advanceTimersByTime(0);
     await Promise.resolve();
+    await Promise.resolve();
 
     expect(result.data.value).toEqual([1, 2, 3]);
     expect(result.loading.value).toBe(false);
   });
 
   test('calls descriptor _fetch function', async () => {
-    const fetchFn = vi.fn().mockResolvedValue('fetched-data');
+    const fetchFn = vi.fn().mockResolvedValue(ok('fetched-data'));
     const descriptor = {
       _tag: 'QueryDescriptor' as const,
       _key: 'GET:/tasks/1',
@@ -677,12 +679,13 @@ describe('query()', () => {
 
     vi.advanceTimersByTime(0);
     await Promise.resolve();
+    await Promise.resolve();
 
     expect(fetchFn).toHaveBeenCalled();
   });
 
   test('enabled: false does not fetch with descriptor', async () => {
-    const fetchFn = vi.fn().mockResolvedValue('data');
+    const fetchFn = vi.fn().mockResolvedValue(ok('data'));
     const descriptor = {
       _tag: 'QueryDescriptor' as const,
       _key: 'GET:/tasks',

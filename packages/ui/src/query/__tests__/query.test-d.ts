@@ -131,16 +131,17 @@ query(descriptor, { debounce: 300 });
 
 // ─── query() — descriptor error type flows through ───────────────
 
-import type { FetchError } from '@vertz/fetch';
+// Extract the default error type from QueryDescriptor (FetchError from @vertz/errors)
+type DefaultDescriptorError = NonNullable<(typeof descriptor)['_error']>;
 
-// Default descriptor carries FetchError as error type
-const _descriptorError: FetchError | undefined = descriptorResult.error;
+// Default descriptor carries the descriptor's error type
+const _descriptorError: DefaultDescriptorError | undefined = descriptorResult.error;
 void _descriptorError;
 
-// FetchError has .status (not the @vertz/errors FetchError)
+// The default FetchError (from @vertz/errors) has .code and .message
 if (descriptorResult.error) {
-  const _status: number = descriptorResult.error.status;
-  void _status;
+  const _msg: string = descriptorResult.error.message;
+  void _msg;
 }
 
 // Custom error type on descriptor flows through to QueryResult

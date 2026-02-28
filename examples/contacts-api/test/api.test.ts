@@ -55,8 +55,8 @@ describe('Contacts API', () => {
     const res = await request('GET', '/api/contacts');
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.data).toBeInstanceOf(Array);
-    expect(body.data.length).toBe(2);
+    expect(body.items).toBeInstanceOf(Array);
+    expect(body.items.length).toBe(2);
   });
 
   it('gets a contact by ID via GET /api/contacts/:id', async () => {

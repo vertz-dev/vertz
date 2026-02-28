@@ -99,7 +99,7 @@ describe('Entity Todo API', () => {
     const res = await request(app, 'GET', '/api/todos');
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.data).toBeInstanceOf(Array);
+    expect(body.items).toBeInstanceOf(Array);
   });
 
   it('gets a todo by ID via GET /api/todos/:id', async () => {

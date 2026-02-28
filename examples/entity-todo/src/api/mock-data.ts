@@ -5,7 +5,7 @@
  * matching the real server API. Used by todo-form.test.ts and todo-list.test.ts.
  */
 
-import type { TodosResponse } from '../generated/types/todos';
+import type { TodosResponse } from './client';
 
 let nextId = 3;
 
@@ -139,7 +139,7 @@ export function resetMockData(): void {
 
     // GET /api/todos — list
     if (method === 'GET' && url.includes('/todos')) {
-      return new Response(JSON.stringify({ data: [...todos], total: todos.length }), {
+      return new Response(JSON.stringify([...todos]), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
