@@ -30,7 +30,7 @@ export interface UpdateTaskBody {
 }
 
 export interface TaskListResponse {
-  tasks: Task[];
+  items: Task[];
   total: number;
 }
 

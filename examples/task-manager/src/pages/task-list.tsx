@@ -41,8 +41,8 @@ export function TaskListPage() {
   const filteredTasks = !tasksQuery.data
     ? []
     : statusFilter === 'all'
-      ? tasksQuery.data.tasks
-      : tasksQuery.data.tasks.filter((t: Task) => t.status === statusFilter);
+      ? tasksQuery.data.items
+      : tasksQuery.data.items.filter((t: Task) => t.status === statusFilter);
 
   // ── Filter options ──────────────────────────────────
 
