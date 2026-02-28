@@ -11,7 +11,7 @@
 // Uses only public package imports — never relative imports.
 // ===========================================================================
 
-import { err, ok } from '@vertz/errors';
+import { err, ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import type { FormOptions, SdkMethod, SdkMethodWithMeta } from '@vertz/ui/form';
 import { form, formDataToObject } from '@vertz/ui/form';

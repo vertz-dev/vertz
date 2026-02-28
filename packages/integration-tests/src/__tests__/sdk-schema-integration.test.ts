@@ -7,7 +7,7 @@
  * Uses only public package imports — never relative imports.
  */
 
-import { ok } from '@vertz/errors';
+import { ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import { form } from '@vertz/ui/form';
 import { describe, expect, it, vi } from 'vitest';
