@@ -9,15 +9,15 @@ export function AvatarDemo() {
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>With fallback</div>
         <div class={demoStyles.row}>
-          {AvatarSuite.Avatar({
-            children: AvatarSuite.AvatarFallback({ children: 'JD' }),
-          })}
-          {AvatarSuite.Avatar({
-            children: AvatarSuite.AvatarFallback({ children: 'AB' }),
-          })}
-          {AvatarSuite.Avatar({
-            children: AvatarSuite.AvatarFallback({ children: 'CN' }),
-          })}
+          <AvatarSuite.Avatar>
+            <AvatarSuite.AvatarFallback>JD</AvatarSuite.AvatarFallback>
+          </AvatarSuite.Avatar>
+          <AvatarSuite.Avatar>
+            <AvatarSuite.AvatarFallback>AB</AvatarSuite.AvatarFallback>
+          </AvatarSuite.Avatar>
+          <AvatarSuite.Avatar>
+            <AvatarSuite.AvatarFallback>CN</AvatarSuite.AvatarFallback>
+          </AvatarSuite.Avatar>
         </div>
       </div>
     </div>

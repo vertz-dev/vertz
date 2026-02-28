@@ -8,22 +8,18 @@ export function FormGroupDemo() {
     <div class={demoStyles.col}>
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>Default form group</div>
-        {FormGroupSuite.FormGroup({
-          children: [
-            Label({ children: 'Username' }),
-            Input({ name: 'username', placeholder: 'Enter username' }),
-          ] as any,
-        })}
+        <FormGroupSuite.FormGroup>
+          <Label>Username</Label>
+          <Input name="username" placeholder="Enter username" />
+        </FormGroupSuite.FormGroup>
       </div>
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>With error</div>
-        {FormGroupSuite.FormGroup({
-          children: [
-            Label({ children: 'Email' }),
-            Input({ name: 'email', placeholder: 'Enter email' }),
-            FormGroupSuite.FormError({ children: 'Please enter a valid email address' }),
-          ] as any,
-        })}
+        <FormGroupSuite.FormGroup>
+          <Label>Email</Label>
+          <Input name="email" placeholder="Enter email" />
+          <FormGroupSuite.FormError>Please enter a valid email address</FormGroupSuite.FormError>
+        </FormGroupSuite.FormGroup>
       </div>
     </div>
   );

@@ -4,13 +4,9 @@ import { themeComponents } from '../styles/theme';
 const { slider } = themeComponents.primitives;
 
 export function SliderDemo() {
-  // Default slider
   const defaultSlider = slider({ defaultValue: 50 });
 
-  // Slider with value display and step snapping
-  const valueLabel = document.createElement('span');
-  valueLabel.textContent = '25';
-  valueLabel.style.cssText = 'font-size: 0.875rem; color: var(--color-muted-foreground); min-width: 2ch; text-align: right;';
+  const valueLabel = (<span style="font-size: 0.875rem; color: var(--color-muted-foreground); min-width: 2ch; text-align: right;">25</span>) as HTMLSpanElement;
 
   const steppedSlider = slider({
     defaultValue: 25,

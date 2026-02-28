@@ -1,4 +1,6 @@
-import type { MenuElements, MenuOptions, MenuState } from '@vertz/ui-primitives';
+import type { ChildValue } from '@vertz/ui';
+import { resolveChildren } from '@vertz/ui';
+import type { MenuOptions } from '@vertz/ui-primitives';
 import { Menu } from '@vertz/ui-primitives';
 
 let idCounter = 0;
@@ -11,64 +13,199 @@ interface DropdownMenuStyleClasses {
   readonly separator: string;
 }
 
-export interface ThemedDropdownMenuResult extends MenuElements {
-  state: MenuState;
-  Item: (value: string, label?: string) => HTMLDivElement;
-  Group: (label: string) => {
-    el: HTMLDivElement;
-    Item: (value: string, label?: string) => HTMLDivElement;
-  };
-  Separator: () => HTMLHRElement;
-  Label: (text: string) => HTMLDivElement;
+// ── Props ──────────────────────────────────────────────────
+
+export interface DropdownMenuRootProps extends MenuOptions {
+  children?: ChildValue;
 }
+
+export interface DropdownMenuSlotProps {
+  children?: ChildValue;
+  class?: string;
+}
+
+export interface DropdownMenuItemProps {
+  value: string;
+  children?: ChildValue;
+  class?: string;
+}
+
+export interface DropdownMenuGroupProps {
+  label: string;
+  children?: ChildValue;
+  class?: string;
+}
+
+export interface DropdownMenuLabelProps {
+  children?: ChildValue;
+  class?: string;
+}
+
+// ── Component type ─────────────────────────────────────────
+
+export interface ThemedDropdownMenuComponent {
+  (props: DropdownMenuRootProps): HTMLElement;
+  Trigger: (props: DropdownMenuSlotProps) => HTMLElement;
+  Content: (props: DropdownMenuSlotProps) => HTMLElement;
+  Item: (props: DropdownMenuItemProps) => HTMLDivElement;
+  Group: (props: DropdownMenuGroupProps) => HTMLDivElement;
+  Label: (props: DropdownMenuLabelProps) => HTMLDivElement;
+  Separator: () => HTMLHRElement;
+}
+
+// ── Factory ────────────────────────────────────────────────
 
 export function createThemedDropdownMenu(
   styles: DropdownMenuStyleClasses,
-): (options?: MenuOptions) => ThemedDropdownMenuResult {
-  return function themedDropdownMenu(options?: MenuOptions): ThemedDropdownMenuResult {
-    const result = Menu.Root(options);
-    result.content.classList.add(styles.content);
+): ThemedDropdownMenuComponent {
+  function MenuTrigger({ children }: DropdownMenuSlotProps): HTMLElement {
+    const el = document.createElement('span');
+    el.dataset.slot = 'menu-trigger';
+    el.style.display = 'contents';
+    for (const node of resolveChildren(children)) el.appendChild(node);
+    return el;
+  }
 
-    function themedItem(value: string, label?: string): HTMLDivElement {
-      const item = result.Item(value, label);
-      item.classList.add(styles.item);
-      return item;
-    }
+  function MenuContent({ children }: DropdownMenuSlotProps): HTMLElement {
+    const el = document.createElement('div');
+    el.dataset.slot = 'menu-content';
+    el.style.display = 'contents';
+    for (const node of resolveChildren(children)) el.appendChild(node);
+    return el;
+  }
 
-    return {
-      trigger: result.trigger,
-      content: result.content,
-      state: result.state,
-      Item: themedItem,
-      Group: (label: string) => {
-        const group = result.Group(label);
+  function MenuItem({ value, children, class: className }: DropdownMenuItemProps): HTMLDivElement {
+    const el = document.createElement('div');
+    el.dataset.slot = 'menu-item';
+    el.dataset.value = value;
+    el.style.display = 'contents';
+    if (className) el.classList.add(className);
+    for (const node of resolveChildren(children)) el.appendChild(node);
+    return el;
+  }
+
+  function MenuGroup({ label, children, class: className }: DropdownMenuGroupProps): HTMLDivElement {
+    const el = document.createElement('div');
+    el.dataset.slot = 'menu-group';
+    el.dataset.label = label;
+    el.style.display = 'contents';
+    if (className) el.classList.add(className);
+    for (const node of resolveChildren(children)) el.appendChild(node);
+    return el;
+  }
+
+  function MenuLabel({ children, class: className }: DropdownMenuLabelProps): HTMLDivElement {
+    const el = document.createElement('div');
+    el.dataset.slot = 'menu-label';
+    el.style.display = 'contents';
+    if (className) el.classList.add(className);
+    for (const node of resolveChildren(children)) el.appendChild(node);
+    return el;
+  }
+
+  function MenuSeparator(): HTMLHRElement {
+    const el = document.createElement('hr');
+    el.dataset.slot = 'menu-separator';
+    return el;
+  }
+
+  // ── Helpers ──
+
+  function processItems(
+    nodes: Node[],
+    primitive: ReturnType<typeof Menu.Root>,
+    parentGroup?: ReturnType<ReturnType<typeof Menu.Root>['Group']>,
+  ): void {
+    for (const node of nodes) {
+      if (!(node instanceof HTMLElement)) continue;
+      const slot = node.dataset.slot;
+
+      if (slot === 'menu-item') {
+        const value = node.dataset.value!;
+        const label = node.textContent ?? undefined;
+        const item = parentGroup
+          ? parentGroup.Item(value, label)
+          : primitive.Item(value, label);
+        item.classList.add(styles.item);
+      } else if (slot === 'menu-group') {
+        const groupLabel = node.dataset.label!;
+        const group = primitive.Group(groupLabel);
         group.el.classList.add(styles.group);
+
+        // Add styled label
         const labelEl = document.createElement('div');
         labelEl.id = `menu-group-label-${++idCounter}`;
-        labelEl.textContent = label;
+        labelEl.textContent = groupLabel;
         labelEl.classList.add(styles.label);
         group.el.removeAttribute('aria-label');
         group.el.setAttribute('aria-labelledby', labelEl.id);
         group.el.prepend(labelEl);
-        return {
-          el: group.el,
-          Item: (value: string, itemLabel?: string) => {
-            const item = group.Item(value, itemLabel);
-            item.classList.add(styles.item);
-            return item;
-          },
-        };
-      },
-      Separator: () => {
-        const sep = result.Separator();
+
+        // Process items inside the group
+        processItems(Array.from(node.childNodes), primitive, group);
+      } else if (slot === 'menu-label') {
+        const labelEl = primitive.Label(node.textContent ?? '');
+        labelEl.classList.add(styles.label);
+      } else if (slot === 'menu-separator') {
+        const sep = primitive.Separator();
         sep.classList.add(styles.separator);
-        return sep;
+      }
+    }
+  }
+
+  function DropdownMenuRoot({ children, ...options }: DropdownMenuRootProps): HTMLElement {
+    const onOpenChangeOrig = options.onOpenChange;
+    let userTrigger: HTMLElement | null = null;
+    let contentNodes: Node[] = [];
+
+    for (const node of resolveChildren(children)) {
+      if (!(node instanceof HTMLElement)) continue;
+      const slot = node.dataset.slot;
+      if (slot === 'menu-trigger') {
+        userTrigger = (node.firstElementChild as HTMLElement) ?? node;
+      } else if (slot === 'menu-content') {
+        contentNodes = Array.from(node.childNodes);
+      }
+    }
+
+    const primitive = Menu.Root({
+      ...options,
+      onOpenChange: (isOpen) => {
+        if (userTrigger) {
+          userTrigger.setAttribute('aria-expanded', String(isOpen));
+          userTrigger.setAttribute('data-state', isOpen ? 'open' : 'closed');
+        }
+        onOpenChangeOrig?.(isOpen);
       },
-      Label: (text: string) => {
-        const el = result.Label(text);
-        el.classList.add(styles.label);
-        return el;
-      },
-    };
-  };
+    });
+
+    // Apply theme class
+    primitive.content.classList.add(styles.content);
+
+    // Process items/groups/separators/labels
+    processItems(contentNodes, primitive);
+
+    // Wire user's trigger
+    if (userTrigger) {
+      userTrigger.setAttribute('aria-haspopup', 'menu');
+      userTrigger.setAttribute('aria-controls', primitive.content.id);
+      userTrigger.setAttribute('aria-expanded', 'false');
+      userTrigger.setAttribute('data-state', 'closed');
+      userTrigger.addEventListener('click', () => {
+        primitive.trigger.click();
+      });
+      return userTrigger;
+    }
+
+    return primitive.trigger;
+  }
+
+  DropdownMenuRoot.Trigger = MenuTrigger;
+  DropdownMenuRoot.Content = MenuContent;
+  DropdownMenuRoot.Item = MenuItem;
+  DropdownMenuRoot.Group = MenuGroup;
+  DropdownMenuRoot.Label = MenuLabel;
+  DropdownMenuRoot.Separator = MenuSeparator;
+
+  return DropdownMenuRoot as ThemedDropdownMenuComponent;
 }

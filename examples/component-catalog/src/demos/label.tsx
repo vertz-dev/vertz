@@ -8,13 +8,13 @@ export function LabelDemo() {
     <div class={demoStyles.col}>
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>Default</div>
-        {Label({ children: 'Email address' })}
+        <Label>Email address</Label>
       </div>
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>With input</div>
         <div class={demoStyles.col}>
-          {Label({ for: 'email', children: 'Email' })}
-          {Input({ name: 'email', placeholder: 'you@example.com' })}
+          <Label htmlFor="email">Email</Label>
+          <Input name="email" placeholder="you@example.com" />
         </div>
       </div>
     </div>

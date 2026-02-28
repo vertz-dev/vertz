@@ -8,15 +8,15 @@ export function TextareaDemo() {
     <div class={demoStyles.col}>
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>Default</div>
-        {Textarea({})}
+        <Textarea />
       </div>
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>With placeholder</div>
-        {Textarea({ placeholder: 'Type your message here...' })}
+        <Textarea placeholder="Type your message here..." />
       </div>
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>Disabled</div>
-        {Textarea({ placeholder: 'Disabled textarea', disabled: true })}
+        <Textarea placeholder="Disabled textarea" disabled />
       </div>
     </div>
   );

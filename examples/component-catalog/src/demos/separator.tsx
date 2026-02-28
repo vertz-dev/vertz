@@ -9,7 +9,7 @@ export function SeparatorDemo() {
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>Horizontal separator</div>
         <p style="color: var(--color-foreground); margin-bottom: 8px">Content above</p>
-        {Separator({})}
+        <Separator />
         <p style="color: var(--color-foreground); margin-top: 8px">Content below</p>
       </div>
     </div>

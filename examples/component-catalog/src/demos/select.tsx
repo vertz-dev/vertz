@@ -1,7 +1,7 @@
 import { demoStyles } from '../styles/catalog';
 import { themeComponents } from '../styles/theme';
 
-const { select } = themeComponents.primitives;
+const { Select } = themeComponents.primitives;
 
 export function SelectDemo() {
   return (
@@ -9,29 +9,32 @@ export function SelectDemo() {
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>Basic select</div>
         <div>
-          {(() => {
-            const s = select({ placeholder: 'Select a fruit...' });
-            s.Item('apple', 'Apple');
-            s.Item('banana', 'Banana');
-            s.Item('cherry', 'Cherry');
-            s.Item('grape', 'Grape');
-            return s.trigger;
-          })()}
+          <Select placeholder="Select a fruit...">
+            <Select.Content>
+              <Select.Item value="apple">Apple</Select.Item>
+              <Select.Item value="banana">Banana</Select.Item>
+              <Select.Item value="cherry">Cherry</Select.Item>
+              <Select.Item value="grape">Grape</Select.Item>
+            </Select.Content>
+          </Select>
         </div>
       </div>
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>With groups</div>
         <div>
-          {(() => {
-            const s = select({ placeholder: 'Select a food...' });
-            const fruits = s.Group('Fruits');
-            fruits.Item('apple', 'Apple');
-            fruits.Item('banana', 'Banana');
-            const veggies = s.Group('Vegetables');
-            veggies.Item('carrot', 'Carrot');
-            veggies.Item('broccoli', 'Broccoli');
-            return s.trigger;
-          })()}
+          <Select placeholder="Select a food...">
+            <Select.Content>
+              <Select.Group label="Fruits">
+                <Select.Item value="apple">Apple</Select.Item>
+                <Select.Item value="banana">Banana</Select.Item>
+              </Select.Group>
+              <Select.Separator />
+              <Select.Group label="Vegetables">
+                <Select.Item value="carrot">Carrot</Select.Item>
+                <Select.Item value="broccoli">Broccoli</Select.Item>
+              </Select.Group>
+            </Select.Content>
+          </Select>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@ import { demoStyles } from '../styles/catalog';
 import { themeComponents } from '../styles/theme';
 
 const { Button } = themeComponents;
-const { tooltip } = themeComponents.primitives;
+const { Tooltip } = themeComponents.primitives;
 
 export function TooltipDemo() {
   return (
@@ -10,12 +10,14 @@ export function TooltipDemo() {
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>Basic tooltip</div>
         <div class={demoStyles.row}>
-          {(() => {
-            const t = tooltip({ content: 'Add to library' });
-            t.trigger.textContent = '';
-            t.trigger.append(Button({ intent: 'outline', size: 'md', children: 'Hover me' }));
-            return t.trigger;
-          })()}
+          <Tooltip>
+            <Tooltip.Trigger>
+              <Button intent="outline" size="md">Hover me</Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content>
+              <p style="margin: 0;">Add to library</p>
+            </Tooltip.Content>
+          </Tooltip>
         </div>
       </div>
     </div>

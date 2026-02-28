@@ -8,44 +8,32 @@ export function TableDemo() {
     <div class={demoStyles.col}>
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>Basic table</div>
-        {T.Table({
-          children: [
-            T.TableHeader({
-              children: T.TableRow({
-                children: [
-                  T.TableHead({ children: 'Name' }),
-                  T.TableHead({ children: 'Status' }),
-                  T.TableHead({ children: 'Role' }),
-                ] as any,
-              }),
-            }),
-            T.TableBody({
-              children: [
-                T.TableRow({
-                  children: [
-                    T.TableCell({ children: 'Alice Johnson' }),
-                    T.TableCell({ children: 'Active' }),
-                    T.TableCell({ children: 'Admin' }),
-                  ] as any,
-                }),
-                T.TableRow({
-                  children: [
-                    T.TableCell({ children: 'Bob Smith' }),
-                    T.TableCell({ children: 'Inactive' }),
-                    T.TableCell({ children: 'User' }),
-                  ] as any,
-                }),
-                T.TableRow({
-                  children: [
-                    T.TableCell({ children: 'Carol White' }),
-                    T.TableCell({ children: 'Active' }),
-                    T.TableCell({ children: 'Editor' }),
-                  ] as any,
-                }),
-              ] as any,
-            }),
-          ] as any,
-        })}
+        <T.Table>
+          <T.TableHeader>
+            <T.TableRow>
+              <T.TableHead>Name</T.TableHead>
+              <T.TableHead>Status</T.TableHead>
+              <T.TableHead>Role</T.TableHead>
+            </T.TableRow>
+          </T.TableHeader>
+          <T.TableBody>
+            <T.TableRow>
+              <T.TableCell>Alice Johnson</T.TableCell>
+              <T.TableCell>Active</T.TableCell>
+              <T.TableCell>Admin</T.TableCell>
+            </T.TableRow>
+            <T.TableRow>
+              <T.TableCell>Bob Smith</T.TableCell>
+              <T.TableCell>Inactive</T.TableCell>
+              <T.TableCell>User</T.TableCell>
+            </T.TableRow>
+            <T.TableRow>
+              <T.TableCell>Carol White</T.TableCell>
+              <T.TableCell>Active</T.TableCell>
+              <T.TableCell>Editor</T.TableCell>
+            </T.TableRow>
+          </T.TableBody>
+        </T.Table>
       </div>
     </div>
   );
