@@ -8,7 +8,9 @@ export function entity<
   TModel extends ModelDef,
   // biome-ignore lint/complexity/noBannedTypes: {} represents an empty actions record
   TActions extends Record<string, EntityActionDef> = {},
->(name: string, config: EntityConfig<TModel, TActions>): EntityDefinition<TModel> {
+  // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities
+  TInject extends Record<string, EntityDefinition> = {},
+>(name: string, config: EntityConfig<TModel, TActions, TInject>): EntityDefinition<TModel> {
   if (!name || !ENTITY_NAME_PATTERN.test(name)) {
     throw new Error(
       `entity() name must be a non-empty lowercase string matching /^[a-z][a-z0-9-]*$/. Got: "${name}"`,
@@ -25,10 +27,11 @@ export function entity<
   const def: EntityDefinition<TModel> = {
     name,
     model: config.model,
+    inject: (config.inject ?? {}) as Record<string, EntityDefinition>,
     access: config.access ?? {},
     before: (config.before ?? {}) as EntityDefinition<TModel>['before'],
     after: (config.after ?? {}) as EntityDefinition<TModel>['after'],
-    actions: config.actions ?? {},
+    actions: (config.actions ?? {}) as Record<string, EntityActionDef>,
     relations: config.relations ?? {},
   };
   return deepFreeze(def);

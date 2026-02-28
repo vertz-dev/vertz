@@ -78,11 +78,11 @@ describe('EntityContext type flow', () => {
     type _Test = UpdateParam['createdAt'];
   });
 
-  it('ctx.entities is loosely typed (Record<string, EntityOperations>)', () => {
+  it('ctx.entities is empty when no inject is provided', () => {
     type EntitiesType = EntityContext<UsersModel>['entities'];
 
-    // Should accept any string key
-    expectTypeOf<EntitiesType>().toHaveProperty('anyEntity');
+    // @ts-expect-error — no entities available without inject
+    type _Test = EntitiesType['anyEntity'];
   });
 
   it('ctx with default ModelDef compiles (for access rules)', () => {

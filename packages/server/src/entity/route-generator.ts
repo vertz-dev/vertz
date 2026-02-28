@@ -73,9 +73,11 @@ export function generateEntityRoutes(
   const basePath = `${prefix}/${def.name}`;
 
   const crudHandlers = createCrudHandlers(def, db);
-  const registryProxy = registry.has(def.name)
-    ? registry.createProxy()
-    : ({} as Record<string, EntityOperations>);
+  const inject = def.inject ?? {};
+  const registryProxy =
+    Object.keys(inject).length > 0
+      ? registry.createScopedProxy(inject)
+      : ({} as Record<string, EntityOperations>);
 
   const routes: EntityRouteEntry[] = [];
 

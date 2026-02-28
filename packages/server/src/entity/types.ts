@@ -2,10 +2,30 @@ import type { ModelDef, RelationDef, SchemaLike, TableDef } from '@vertz/db';
 import type { EntityOperations } from './entity-operations';
 
 // ---------------------------------------------------------------------------
+// Inject map — maps local names to EntityDefinitions for typed cross-entity access
+// ---------------------------------------------------------------------------
+
+/** Extracts the model type from an EntityDefinition */
+type ExtractModel<T> = T extends EntityDefinition<infer M> ? M : ModelDef;
+
+/**
+ * Maps an inject config `{ key: EntityDefinition<TModel> }` to
+ * `{ key: EntityOperations<TModel> }` for typed ctx.entities access.
+ */
+// biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
+type InjectToOperations<TInject extends Record<string, EntityDefinition> = {}> = {
+  readonly [K in keyof TInject]: EntityOperations<ExtractModel<TInject[K]>>;
+};
+
+// ---------------------------------------------------------------------------
 // EntityContext — the runtime context for access rules, hooks, and actions
 // ---------------------------------------------------------------------------
 
-export interface EntityContext<TModel extends ModelDef = ModelDef> {
+export interface EntityContext<
+  TModel extends ModelDef = ModelDef,
+  // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
+  TInject extends Record<string, EntityDefinition> = {},
+> {
   readonly userId: string | null;
   authenticated(): boolean;
   tenant(): boolean;
@@ -14,8 +34,8 @@ export interface EntityContext<TModel extends ModelDef = ModelDef> {
   /** Typed CRUD on the current entity */
   readonly entity: EntityOperations<TModel>;
 
-  /** Loosely-typed access to all registered entities */
-  readonly entities: Record<string, EntityOperations>;
+  /** Typed access to injected entities only */
+  readonly entities: InjectToOperations<TInject>;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,11 +166,14 @@ export interface EntityConfig<
   TModel extends ModelDef = ModelDef,
   // biome-ignore lint/complexity/noBannedTypes: {} represents an empty actions record — the correct default for entities without custom actions
   TActions extends Record<string, EntityActionDef> = {},
+  // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
+  TInject extends Record<string, EntityDefinition> = {},
 > {
   readonly model: TModel;
+  readonly inject?: TInject;
   readonly access?: Partial<
     Record<
-      'list' | 'get' | 'create' | 'update' | 'delete' | Extract<keyof TActions, string>,
+      'list' | 'get' | 'create' | 'update' | 'delete' | Extract<keyof NoInfer<TActions>, string>,
       AccessRule
     >
   >;
@@ -170,6 +193,7 @@ export interface EntityConfig<
 export interface EntityDefinition<TModel extends ModelDef = ModelDef> {
   readonly name: string;
   readonly model: TModel;
+  readonly inject: Record<string, EntityDefinition>;
   readonly access: Partial<Record<string, AccessRule>>;
   readonly before: EntityBeforeHooks;
   readonly after: EntityAfterHooks;
