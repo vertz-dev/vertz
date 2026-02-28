@@ -5,9 +5,9 @@
  * createDescriptor and QueryDescriptor. Checked by `tsc --noEmit`.
  */
 
+import type { FetchError, Result } from '@vertz/errors';
 import type { QueryDescriptor } from './descriptor';
 import { createDescriptor } from './descriptor';
-import type { FetchError } from './errors';
 import type { FetchResponse } from './types';
 
 // ─── createDescriptor infers QueryDescriptor<T, FetchError> ─────
@@ -15,24 +15,24 @@ import type { FetchResponse } from './types';
 declare const fetchFn: () => Promise<FetchResponse<string>>;
 const descriptor = createDescriptor('GET', '/test', fetchFn);
 
-// Data type is string
-const _awaitResult: Promise<string> = descriptor.then((v) => v);
+// Await resolves to Result<string, FetchError>
+const _awaitResult: Promise<Result<string, FetchError>> = descriptor.then((v) => v);
 void _awaitResult;
 
-// Error type defaults to FetchError
+// Error type defaults to FetchError (from @vertz/errors)
 type DescriptorError = NonNullable<(typeof descriptor)['_error']>;
 
 const _err: DescriptorError = {} as FetchError;
 void _err;
 
-// FetchError has status and body
+// FetchError from @vertz/errors has .code
 declare const fetchErr: DescriptorError;
-const _status: number = fetchErr.status;
-void _status;
-
-// @ts-expect-error - FetchError does not have 'code' (that's @vertz/errors FetchError)
 const _code: string = fetchErr.code;
 void _code;
+
+// @ts-expect-error - @vertz/errors FetchError does not have 'status' (that's the local FetchError)
+const _status: number = fetchErr.status;
+void _status;
 
 // ─── QueryDescriptor with custom error type ─────────────────────
 
@@ -65,3 +65,13 @@ void _defaultErr;
 // Verify it's assignable from FetchError (same type)
 const _assignCheck: FetchError = {} as DefaultErr;
 void _assignCheck;
+
+// ─── _fetch returns Promise<Result<T, E>> ───────────────────────
+
+const _fetchResult: Promise<Result<string, FetchError>> = descriptor._fetch();
+void _fetchResult;
+
+// ─── then returns PromiseLike<Result<T, E>> ─────────────────────
+
+const _thenResult: PromiseLike<Result<string, FetchError>> = descriptor;
+void _thenResult;

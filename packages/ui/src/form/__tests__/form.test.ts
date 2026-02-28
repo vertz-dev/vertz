@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'bun:test';
+import { err, ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import type { SdkMethodWithMeta } from '../form';
 import { form } from '../form';
@@ -10,7 +11,8 @@ function mockSdkMethod<TBody, TResult>(config: {
   method: string;
   handler: (body: TBody) => Promise<TResult>;
 }) {
-  const fn = config.handler as ((body: TBody) => Promise<TResult>) & {
+  const wrappedHandler = async (body: TBody) => ok(await config.handler(body));
+  const fn = wrappedHandler as ((body: TBody) => Promise<{ ok: true; data: TResult }>) & {
     url: string;
     method: string;
   };
@@ -80,11 +82,12 @@ function mockSdkWithMeta<TBody, TResult>(config: {
   handler: (body: TBody) => Promise<TResult>;
   bodySchema: FormSchema<TBody>;
 }): SdkMethodWithMeta<TBody, TResult> {
-  return Object.assign(config.handler, {
+  const wrappedHandler = async (body: TBody) => ok(await config.handler(body));
+  return Object.assign(wrappedHandler, {
     url: config.url,
     method: config.method,
     meta: { bodySchema: config.bodySchema },
-  });
+  }) as SdkMethodWithMeta<TBody, TResult>;
 }
 
 describe('form', () => {
@@ -171,13 +174,15 @@ describe('form', () => {
     });
 
     it('calls onError callback on SDK error', async () => {
-      const handler = vi.fn().mockRejectedValue(new Error('Server error'));
-      const sdk = mockSdkMethod({ url: '/api/users', method: 'POST', handler });
+      const errorSdk = Object.assign(async () => err(new Error('Server error')), {
+        url: '/api/users',
+        method: 'POST',
+      });
       const onError = vi.fn();
       const { event, cleanup } = createSubmitEvent({ name: 'Alice' });
 
       try {
-        const f = form(sdk, { schema: passingSchema(), onError });
+        const f = form(errorSdk, { schema: passingSchema(), onError });
         await f.onSubmit(event);
         expect(onError).toHaveBeenCalledWith({ _form: 'Server error' });
       } finally {

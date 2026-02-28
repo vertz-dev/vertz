@@ -6,6 +6,7 @@
  * Checked by `tsc --noEmit` (typecheck), not by vitest at runtime.
  */
 
+import type { Result } from '@vertz/fetch';
 import type { ReadonlySignal, Signal } from '../../runtime/signal-types';
 import type { FormInstance, FormOptions, SdkMethod, SdkMethodWithMeta } from '../form';
 import { form } from '../form';
@@ -134,7 +135,10 @@ const metaSchema: FormSchema<UserBody> = {
 };
 
 const sdkWithMeta: SdkMethodWithMeta<UserBody, UserResult> = Object.assign(
-  async (_body: UserBody): Promise<UserResult> => ({ id: 1 }),
+  async (_body: UserBody): Promise<Result<UserResult, Error>> => ({
+    ok: true as const,
+    data: { id: 1 },
+  }),
   { url: '/api/users', method: 'POST', meta: { bodySchema: metaSchema } },
 );
 
@@ -148,7 +152,10 @@ void metaForm2;
 
 // form() with plain SdkMethod (no meta) — schema REQUIRED
 const mockSdk: SdkMethod<UserBody, UserResult> = Object.assign(
-  async (_body: UserBody): Promise<UserResult> => ({ id: 1 }),
+  async (_body: UserBody): Promise<Result<UserResult, Error>> => ({
+    ok: true as const,
+    data: { id: 1 },
+  }),
   { url: '/api/users', method: 'POST' },
 );
 
@@ -178,7 +185,10 @@ userForm.handleSubmit;
 
 declare const createUser: SdkMethod<UserBody, UserResult>;
 
-const _callResult: PromiseLike<UserResult> = createUser({ name: 'Alice', email: 'a@b.com' });
+const _callResult: PromiseLike<Result<UserResult, Error>> = createUser({
+  name: 'Alice',
+  email: 'a@b.com',
+});
 void _callResult;
 
 const _url: string = createUser.url;
@@ -197,7 +207,8 @@ createUser({ name: 123, email: 'a@b.com' });
 // A function returning PromiseLike (like QueryDescriptor) with .url/.method
 // should satisfy SdkMethod — generated SDK methods return QueryDescriptor.
 const sdkReturningPromiseLike: SdkMethod<UserBody, UserResult> = Object.assign(
-  (_body: UserBody): PromiseLike<UserResult> => Promise.resolve({ id: 1 }),
+  (_body: UserBody): PromiseLike<Result<UserResult, Error>> =>
+    Promise.resolve({ ok: true as const, data: { id: 1 } }),
   { url: '/api/users', method: 'POST' },
 );
 void sdkReturningPromiseLike;

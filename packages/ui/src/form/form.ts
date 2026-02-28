@@ -1,3 +1,4 @@
+import type { Result } from '@vertz/fetch';
 import { computed, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
 import { createFieldState, type FieldState } from './field-state';
@@ -10,7 +11,7 @@ import { validate } from './validation';
  * Generated SDK methods expose `.url` and `.method` for progressive enhancement.
  */
 export interface SdkMethod<TBody, TResult> {
-  (body: TBody): PromiseLike<TResult>;
+  (body: TBody): PromiseLike<Result<TResult, Error>>;
   url: string;
   method: string;
   meta?: { bodySchema?: FormSchema<TBody> };
@@ -158,19 +159,16 @@ export function form<TBody, TResult>(
     }
 
     submitting.value = true;
-    let response: TResult;
-    try {
-      response = await sdkMethod(data as TBody);
-    } catch (err: unknown) {
+    const result = await sdkMethod(data as TBody);
+    if (!result.ok) {
       submitting.value = false;
-      const message = err instanceof Error ? err.message : 'Submission failed';
-      const serverErrors = { _form: message };
+      const message = result.error.message;
       getOrCreateField('_form').error.value = message;
-      options?.onError?.(serverErrors);
+      options?.onError?.({ _form: message });
       return;
     }
     submitting.value = false;
-    options?.onSuccess?.(response);
+    options?.onSuccess?.(result.data);
 
     if (options?.resetOnSuccess) {
       resetForm();

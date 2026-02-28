@@ -1,4 +1,4 @@
-import { isQueryDescriptor, type QueryDescriptor } from '@vertz/fetch';
+import { isQueryDescriptor, type QueryDescriptor, type Result } from '@vertz/fetch';
 import { isNavPrefetchActive } from '../router/server-nav';
 import { _tryOnCleanup } from '../runtime/disposal';
 import { computed, lifecycleEffect, signal } from '../runtime/signal';
@@ -113,7 +113,14 @@ export function query<T, E = unknown>(
   options: QueryOptions<T> = {},
 ): QueryResult<T, E> {
   if (isQueryDescriptor<T, E>(source)) {
-    return query(() => source._fetch(), { ...options, key: source._key }) as QueryResult<T, E>;
+    return query(
+      async () => {
+        const result = (await source._fetch()) as Result<T, E>;
+        if (!result.ok) throw result.error;
+        return result.data;
+      },
+      { ...options, key: source._key },
+    ) as QueryResult<T, E>;
   }
 
   const thunk = source as () => Promise<T>;

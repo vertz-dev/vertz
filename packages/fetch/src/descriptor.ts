@@ -1,10 +1,11 @@
-import type { FetchError } from './errors';
+import type { FetchError, Result } from '@vertz/errors';
+import { ok } from '@vertz/errors';
 import type { FetchResponse } from './types';
 
-export interface QueryDescriptor<T, E = FetchError> extends PromiseLike<T> {
+export interface QueryDescriptor<T, E = FetchError> extends PromiseLike<Result<T, E>> {
   readonly _tag: 'QueryDescriptor';
   readonly _key: string;
-  readonly _fetch: () => Promise<T>;
+  readonly _fetch: () => Promise<Result<T, E>>;
   /** Phantom field to carry the error type through generics. Never set at runtime. */
   readonly _error?: E;
 }
@@ -28,19 +29,19 @@ export function createDescriptor<T>(
 ): QueryDescriptor<T> {
   const key = `${method}:${path}${serializeQuery(query)}`;
 
-  const unwrappedFetch = async (): Promise<T> => {
-    const result = await fetchFn();
-    if (!result.ok) throw result.error;
-    return result.data.data;
+  const fetchResult = async (): Promise<Result<T, FetchError>> => {
+    const response = await fetchFn();
+    if (!response.ok) return response;
+    return ok(response.data.data);
   };
 
   return {
     _tag: 'QueryDescriptor' as const,
     _key: key,
-    _fetch: unwrappedFetch,
+    _fetch: fetchResult,
     // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation
     then(onFulfilled, onRejected) {
-      return unwrappedFetch().then(onFulfilled, onRejected);
+      return fetchResult().then(onFulfilled, onRejected);
     },
   };
 }
