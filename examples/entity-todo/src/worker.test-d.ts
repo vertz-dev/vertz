@@ -1,6 +1,6 @@
 /**
  * Type test: D1Database should be imported from @cloudflare/workers-types
- * 
+ *
  * This test verifies that worker.ts can import D1Database
  * from @cloudflare/workers-types without type errors.
  */

@@ -10,7 +10,7 @@ import { validate } from './validation';
  * Generated SDK methods expose `.url` and `.method` for progressive enhancement.
  */
 export interface SdkMethod<TBody, TResult> {
-  (body: TBody): Promise<TResult>;
+  (body: TBody): PromiseLike<TResult>;
   url: string;
   method: string;
   meta?: { bodySchema?: FormSchema<TBody> };

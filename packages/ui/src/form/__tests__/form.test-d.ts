@@ -178,7 +178,7 @@ userForm.handleSubmit;
 
 declare const createUser: SdkMethod<UserBody, UserResult>;
 
-const _callResult: Promise<UserResult> = createUser({ name: 'Alice', email: 'a@b.com' });
+const _callResult: PromiseLike<UserResult> = createUser({ name: 'Alice', email: 'a@b.com' });
 void _callResult;
 
 const _url: string = createUser.url;
@@ -191,3 +191,13 @@ createUser({ name: 'Alice' });
 
 // @ts-expect-error - wrong type for 'name' property
 createUser({ name: 123, email: 'a@b.com' });
+
+// ─── 18. SdkMethod accepts PromiseLike return (QueryDescriptor compat) ──
+
+// A function returning PromiseLike (like QueryDescriptor) with .url/.method
+// should satisfy SdkMethod — generated SDK methods return QueryDescriptor.
+const sdkReturningPromiseLike: SdkMethod<UserBody, UserResult> = Object.assign(
+  (_body: UserBody): PromiseLike<UserResult> => Promise.resolve({ id: 1 }),
+  { url: '/api/users', method: 'POST' },
+);
+void sdkReturningPromiseLike;

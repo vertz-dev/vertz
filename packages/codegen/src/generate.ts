@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import type { AppIR } from '@vertz/compiler';
 import type { ResolvedCodegenConfig } from './config';
 import { formatWithBiome } from './format';
+import { ClientGenerator } from './generators/client-generator';
 import { EntitySchemaGenerator } from './generators/entity-schema-generator';
 import { EntitySdkGenerator } from './generators/entity-sdk-generator';
 import { EntityTypesGenerator } from './generators/entity-types-generator';
@@ -43,6 +44,10 @@ function runTypescriptGenerator(ir: CodegenIR, _config: ResolvedCodegenConfig): 
   // Entity SDK files (entities/tasks.ts, entities/index.ts)
   const entitySdkGen = new EntitySdkGenerator();
   files.push(...entitySdkGen.generate(ir, generatorConfig));
+
+  // Client entry point (client.ts, package.json, README.md)
+  const clientGen = new ClientGenerator();
+  files.push(...clientGen.generate(ir, generatorConfig));
 
   return files;
 }
