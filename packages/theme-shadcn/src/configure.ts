@@ -29,6 +29,8 @@ import type {
 } from '@vertz/ui-primitives';
 import type { AlertComponents } from './components/alert';
 import { createAlertComponents } from './components/alert';
+import type { AvatarComponents } from './components/avatar';
+import { createAvatarComponents } from './components/avatar';
 import type { BadgeProps } from './components/badge';
 import { createBadgeComponent } from './components/badge';
 import type { ButtonProps } from './components/button';
@@ -55,6 +57,8 @@ import type { ThemedRadioGroupResult } from './components/primitives/radio-group
 import { createThemedRadioGroup } from './components/primitives/radio-group';
 import type { ThemedSelectResult } from './components/primitives/select';
 import { createThemedSelect } from './components/primitives/select';
+import type { ThemedSheetOptions } from './components/primitives/sheet';
+import { createThemedSheet } from './components/primitives/sheet';
 import { createThemedSlider } from './components/primitives/slider';
 import type { ThemedSwitchOptions } from './components/primitives/switch';
 import { createThemedSwitch } from './components/primitives/switch';
@@ -65,13 +69,18 @@ import { createThemedToast } from './components/primitives/toast';
 import { createThemedTooltip } from './components/primitives/tooltip';
 import type { SeparatorProps } from './components/separator';
 import { createSeparatorComponent } from './components/separator';
+import type { SkeletonComponents } from './components/skeleton';
+import { createSkeletonComponents } from './components/skeleton';
+import type { TableComponents } from './components/table';
+import { createTableComponents } from './components/table';
 import type { TextareaProps } from './components/textarea';
 import { createTextareaComponent } from './components/textarea';
 import { deepMergeTokens } from './merge';
 import {
   createAccordionStyles,
-  createAlert,
   createAlertDialogStyles,
+  createAlertStyles,
+  createAvatarStyles,
   createBadge,
   createButton,
   createCard,
@@ -86,8 +95,11 @@ import {
   createRadioGroupStyles,
   createSelectStyles,
   createSeparator,
+  createSheetStyles,
+  createSkeletonStyles,
   createSliderStyles,
   createSwitchStyles,
+  createTableStyles,
   createTabsStyles,
   createTextarea,
   createToastStyles,
@@ -226,7 +238,6 @@ export interface ThemeStyles {
   slider: {
     readonly root: string;
     readonly track: string;
-    readonly range: string;
     readonly thumb: string;
     readonly css: string;
   };
@@ -263,6 +274,48 @@ export interface ThemeStyles {
     readonly content: string;
     readonly css: string;
   };
+  /** Avatar css() styles. */
+  avatar: {
+    readonly root: string;
+    readonly image: string;
+    readonly fallback: string;
+    readonly rootSm: string;
+    readonly rootLg: string;
+    readonly rootXl: string;
+    readonly fallbackSm: string;
+    readonly fallbackLg: string;
+    readonly fallbackXl: string;
+    readonly css: string;
+  };
+  /** Skeleton css() styles. */
+  skeleton: {
+    readonly base: string;
+    readonly css: string;
+  };
+  /** Table css() styles. */
+  table: {
+    readonly root: string;
+    readonly header: string;
+    readonly body: string;
+    readonly row: string;
+    readonly head: string;
+    readonly cell: string;
+    readonly caption: string;
+    readonly footer: string;
+    readonly css: string;
+  };
+  /** Sheet css() styles. */
+  sheet: {
+    readonly overlay: string;
+    readonly panelLeft: string;
+    readonly panelRight: string;
+    readonly panelTop: string;
+    readonly panelBottom: string;
+    readonly title: string;
+    readonly description: string;
+    readonly close: string;
+    readonly css: string;
+  };
 }
 
 /** Themed primitive factories returned by configureTheme(). */
@@ -297,6 +350,8 @@ export interface ThemedPrimitives {
   toast: (options?: ToastOptions) => ThemedToastResult;
   /** Themed Tooltip — wraps @vertz/ui-primitives Tooltip with shadcn styles. */
   tooltip: (options?: TooltipOptions) => TooltipElements & { state: TooltipState };
+  /** Themed Sheet — side panel wrapping Dialog with directional slide animations. */
+  sheet: (options?: ThemedSheetOptions) => DialogElements & { state: DialogState };
 }
 
 /** Component functions returned by configureTheme(). */
@@ -319,6 +374,12 @@ export interface ThemeComponents {
   Separator: (props: SeparatorProps) => HTMLHRElement;
   /** FormGroup suite — FormGroup and FormError. */
   FormGroup: FormGroupComponents;
+  /** Avatar suite — Avatar, AvatarImage, AvatarFallback. */
+  Avatar: AvatarComponents;
+  /** Skeleton component — loading placeholder with pulse animation. */
+  Skeleton: SkeletonComponents;
+  /** Table suite — Table, TableHeader, TableBody, TableRow, etc. */
+  Table: TableComponents;
   /** Themed primitive factories. */
   primitives: ThemedPrimitives;
 }
@@ -402,12 +463,16 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   const progressStyles = createProgressStyles();
   const radioGroupStyles = createRadioGroupStyles();
   const sliderStyles = createSliderStyles();
-  const alertStyles = createAlert();
+  const alertStyles = createAlertStyles();
   const alertDialogStyles = createAlertDialogStyles();
   const accordionStyles = createAccordionStyles();
   const textareaStyles = createTextarea();
   const toastStyles = createToastStyles();
   const tooltipStyles = createTooltipStyles();
+  const avatarStyles = createAvatarStyles();
+  const skeletonStyles = createSkeletonStyles();
+  const tableStyles = createTableStyles();
+  const sheetStyles = createSheetStyles();
 
   const styles: ThemeStyles = {
     alert: alertStyles,
@@ -433,6 +498,10 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     accordion: accordionStyles,
     toast: toastStyles,
     tooltip: tooltipStyles,
+    avatar: avatarStyles,
+    skeleton: skeletonStyles,
+    table: tableStyles,
+    sheet: sheetStyles,
   };
 
   // Build component functions
@@ -446,6 +515,9 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     Label: createLabelComponent(labelStyles),
     Separator: createSeparatorComponent(separatorStyles),
     FormGroup: createFormGroupComponents(formGroupStyles),
+    Avatar: createAvatarComponents(avatarStyles),
+    Skeleton: createSkeletonComponents(skeletonStyles),
+    Table: createTableComponents(tableStyles),
     primitives: {
       alertDialog: createThemedAlertDialog(alertDialogStyles),
       dialog: createThemedDialog(dialogStyles),
@@ -461,6 +533,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       accordion: createThemedAccordion(accordionStyles),
       toast: createThemedToast(toastStyles),
       tooltip: createThemedTooltip(tooltipStyles),
+      sheet: createThemedSheet(sheetStyles),
     },
   };
 

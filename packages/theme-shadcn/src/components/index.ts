@@ -1,3 +1,5 @@
+export type { AvatarComponents, AvatarImageProps, AvatarProps } from './avatar';
+export { createAvatarComponents } from './avatar';
 export type { BadgeProps } from './badge';
 export { createBadgeComponent } from './badge';
 export type { ButtonProps } from './button';
@@ -12,3 +14,7 @@ export type { LabelProps } from './label';
 export { createLabelComponent } from './label';
 export type { SeparatorProps } from './separator';
 export { createSeparatorComponent } from './separator';
+export type { SkeletonComponents, SkeletonProps } from './skeleton';
+export { createSkeletonComponents } from './skeleton';
+export type { TableComponents, TableProps } from './table';
+export { createTableComponents } from './table';
