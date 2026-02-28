@@ -15,7 +15,7 @@ export function createLabel(): CSSOutput<LabelBlocks> {
       'leading:none',
       'text:foreground',
       'select-none',
-      { '&:has(+ :disabled)': ['opacity:0.7', 'cursor:default'] },
+      { '&:has(~ :disabled)': ['opacity:0.7', 'cursor:default'] },
     ],
   });
   return {

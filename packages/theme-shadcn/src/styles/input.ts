@@ -35,6 +35,15 @@ export function createInput(): CSSOutput<InputBlocks> {
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
       { [DARK]: [bgOpacity('input', 30)] },
+      {
+        '&::file-selector-button': [
+          'border:0',
+          'bg:transparent',
+          'text:sm',
+          'font:medium',
+          'text:foreground',
+        ],
+      },
     ],
   });
   return {

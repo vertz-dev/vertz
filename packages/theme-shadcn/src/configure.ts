@@ -13,9 +13,7 @@ import type {
   ProgressState,
   SelectOptions,
   SwitchElements,
-  SwitchOptions,
   SwitchState,
-  TabsOptions,
   ToastOptions,
   TooltipElements,
   TooltipOptions,
@@ -44,8 +42,9 @@ import { createThemedDialog } from './components/primitives/dialog';
 import { createThemedProgress } from './components/primitives/progress';
 import type { ThemedSelectResult } from './components/primitives/select';
 import { createThemedSelect } from './components/primitives/select';
+import type { ThemedSwitchOptions } from './components/primitives/switch';
 import { createThemedSwitch } from './components/primitives/switch';
-import type { ThemedTabsResult } from './components/primitives/tabs';
+import type { ThemedTabsOptions, ThemedTabsResult } from './components/primitives/tabs';
 import { createThemedTabs } from './components/primitives/tabs';
 import type { ThemedToastResult } from './components/primitives/toast';
 import { createThemedToast } from './components/primitives/toast';
@@ -121,6 +120,7 @@ export interface ThemeStyles {
     readonly description: string;
     readonly content: string;
     readonly footer: string;
+    readonly action: string;
     readonly css: string;
   };
   /** Input css() result. */
@@ -148,6 +148,10 @@ export interface ThemeStyles {
     readonly trigger: string;
     readonly content: string;
     readonly item: string;
+    readonly group: string;
+    readonly label: string;
+    readonly separator: string;
+    readonly scrollButton: string;
     readonly css: string;
   };
   /** Tabs css() styles. */
@@ -155,6 +159,8 @@ export interface ThemeStyles {
     readonly list: string;
     readonly trigger: string;
     readonly panel: string;
+    readonly listLine: string;
+    readonly triggerLine: string;
     readonly css: string;
   };
   /** Checkbox css() styles. */
@@ -167,6 +173,8 @@ export interface ThemeStyles {
   switch: {
     readonly root: string;
     readonly thumb: string;
+    readonly rootSm: string;
+    readonly thumbSm: string;
     readonly css: string;
   };
   /** Progress css() styles. */
@@ -219,11 +227,11 @@ export interface ThemedPrimitives {
   /** Themed Select — wraps @vertz/ui-primitives Select with shadcn styles. */
   select: (options?: SelectOptions) => ThemedSelectResult;
   /** Themed Tabs — wraps @vertz/ui-primitives Tabs with shadcn styles. */
-  tabs: (options?: TabsOptions) => ThemedTabsResult;
+  tabs: (options?: ThemedTabsOptions) => ThemedTabsResult;
   /** Themed Checkbox — wraps @vertz/ui-primitives Checkbox with shadcn styles. */
   checkbox: (options?: CheckboxOptions) => CheckboxElements & { state: CheckboxState };
   /** Themed Switch — wraps @vertz/ui-primitives Switch with shadcn styles. */
-  switch: (options?: SwitchOptions) => SwitchElements & { state: SwitchState };
+  switch: (options?: ThemedSwitchOptions) => SwitchElements & { state: SwitchState };
   /** Themed Progress — wraps @vertz/ui-primitives Progress with shadcn styles. */
   progress: (
     options?: ProgressOptions,

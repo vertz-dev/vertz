@@ -151,6 +151,13 @@ describe('Card components', () => {
     const el = Card({ children: 'content' });
     expect(el.textContent).toBe('content');
   });
+
+  it('CardAction returns an HTMLDivElement with action class', () => {
+    const components = createCardComponents(cardStyles);
+    const el = components.CardAction({});
+    expect(el).toBeInstanceOf(HTMLDivElement);
+    expect(el.className).toContain(cardStyles.action);
+  });
 });
 
 describe('Input component', () => {

@@ -193,6 +193,20 @@ describe('createThemedTabs', () => {
     expect(tabs.state).toBeDefined();
     expect(typeof tabs.Tab).toBe('function');
   });
+
+  it('applies line variant classes when variant is line', async () => {
+    const { createThemedTabs } = await import('../components/primitives/tabs');
+    const styles = createTabsStyles();
+    const themedTabs = createThemedTabs(styles);
+    const tabs = themedTabs({ variant: 'line', defaultValue: 'one' });
+
+    expect(tabs.list.classList.contains(styles.listLine)).toBe(true);
+    expect(tabs.list.classList.contains(styles.list)).toBe(false);
+
+    const tab = tabs.Tab('one', 'Tab One');
+    expect(tab.trigger.classList.contains(styles.triggerLine)).toBe(true);
+    expect(tab.trigger.classList.contains(styles.trigger)).toBe(false);
+  });
 });
 
 // ── Select ─────────────────────────────────────────────────
@@ -282,6 +296,16 @@ describe('createThemedSwitch', () => {
     expect(sw.state.checked.peek()).toBe(false);
     sw.root.click();
     expect(sw.state.checked.peek()).toBe(true);
+  });
+
+  it('applies rootSm class when size is sm', async () => {
+    const { createThemedSwitch } = await import('../components/primitives/switch');
+    const styles = createSwitchStyles();
+    const themedSwitch = createThemedSwitch(styles);
+    const sw = themedSwitch({ size: 'sm' });
+
+    expect(sw.root.classList.contains(styles.rootSm)).toBe(true);
+    expect(sw.root.classList.contains(styles.root)).toBe(false);
   });
 });
 

@@ -94,6 +94,17 @@ describe('select', () => {
   it('CSS does not use display:none for animated states', () => {
     expect(select.css).not.toContain('display: none');
   });
+
+  it('has group, label, separator, and scrollButton blocks', () => {
+    expect(typeof select.group).toBe('string');
+    expect(typeof select.label).toBe('string');
+    expect(typeof select.separator).toBe('string');
+    expect(typeof select.scrollButton).toBe('string');
+    expect(select.group.length).toBeGreaterThan(0);
+    expect(select.label.length).toBeGreaterThan(0);
+    expect(select.separator.length).toBeGreaterThan(0);
+    expect(select.scrollButton.length).toBeGreaterThan(0);
+  });
 });
 
 describe('tabs', () => {
@@ -118,6 +129,13 @@ describe('tabs', () => {
 
   it('CSS contains dark mode selector for active trigger', () => {
     expect(tabs.css).toContain('[data-theme="dark"]');
+  });
+
+  it('has listLine and triggerLine blocks for line variant', () => {
+    expect(typeof tabs.listLine).toBe('string');
+    expect(typeof tabs.triggerLine).toBe('string');
+    expect(tabs.listLine.length).toBeGreaterThan(0);
+    expect(tabs.triggerLine.length).toBeGreaterThan(0);
   });
 });
 
@@ -161,6 +179,13 @@ describe('switch', () => {
   it('CSS contains data-state="checked" and data-state="unchecked" selectors', () => {
     expect(switchStyles.css).toContain('[data-state="checked"]');
     expect(switchStyles.css).toContain('[data-state="unchecked"]');
+  });
+
+  it('has rootSm and thumbSm blocks for sm size variant', () => {
+    expect(typeof switchStyles.rootSm).toBe('string');
+    expect(typeof switchStyles.thumbSm).toBe('string');
+    expect(switchStyles.rootSm.length).toBeGreaterThan(0);
+    expect(switchStyles.thumbSm.length).toBeGreaterThan(0);
   });
 });
 

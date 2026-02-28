@@ -5,6 +5,12 @@ interface TabsStyleClasses {
   readonly list: string;
   readonly trigger: string;
   readonly panel: string;
+  readonly listLine: string;
+  readonly triggerLine: string;
+}
+
+export interface ThemedTabsOptions extends TabsOptions {
+  variant?: 'default' | 'line';
 }
 
 export interface ThemedTabsResult extends TabsElements {
@@ -14,18 +20,20 @@ export interface ThemedTabsResult extends TabsElements {
 
 export function createThemedTabs(
   styles: TabsStyleClasses,
-): (options?: TabsOptions) => ThemedTabsResult {
-  return function themedTabs(options?: TabsOptions): ThemedTabsResult {
-    const result = Tabs.Root(options);
+): (options?: ThemedTabsOptions) => ThemedTabsResult {
+  return function themedTabs(options?: ThemedTabsOptions): ThemedTabsResult {
+    const { variant, ...primitiveOptions } = options ?? {};
+    const result = Tabs.Root(primitiveOptions);
     const originalTab = result.Tab;
-    result.list.classList.add(styles.list);
+    const isLine = variant === 'line';
+    result.list.classList.add(isLine ? styles.listLine : styles.list);
     return {
       root: result.root,
       list: result.list,
       state: result.state,
       Tab: (value: string, label?: string) => {
         const tab = originalTab(value, label);
-        tab.trigger.classList.add(styles.trigger);
+        tab.trigger.classList.add(isLine ? styles.triggerLine : styles.trigger);
         tab.panel.classList.add(styles.panel);
         return tab;
       },

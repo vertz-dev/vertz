@@ -59,10 +59,14 @@ const intentVariants: Record<string, StyleEntry[]> = {
 };
 
 const sizeVariants: Record<string, StyleEntry[]> = {
+  xs: ['h:7', 'rounded:md', 'px:2', 'gap:1'],
   sm: ['h:8', 'rounded:md', 'px:3', 'gap:1.5'],
   md: ['h:9', 'px:4', 'py:2'],
   lg: ['h:10', 'rounded:md', 'px:6'],
   icon: ['h:9', 'w:9'],
+  'icon-xs': ['h:7', 'w:7'],
+  'icon-sm': ['h:8', 'w:8'],
+  'icon-lg': ['h:10', 'w:10'],
 };
 
 type ButtonVariants = {
