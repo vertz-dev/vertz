@@ -45,4 +45,41 @@ export const slateTokens: PaletteTokens = {
   border: { DEFAULT: 'oklch(0.929 0.005 264.531)', _dark: 'oklch(1 0 0 / 10%)' },
   input: { DEFAULT: 'oklch(0.929 0.005 264.531)', _dark: 'oklch(1 0 0 / 15%)' },
   ring: { DEFAULT: 'oklch(0.708 0.02 264.434)', _dark: 'oklch(0.556 0.02 264.434)' },
+  'chart-1': { DEFAULT: 'oklch(0.646 0.222 41.116)', _dark: 'oklch(0.488 0.243 264.376)' },
+  'chart-2': { DEFAULT: 'oklch(0.6 0.118 184.714)', _dark: 'oklch(0.696 0.17 162.48)' },
+  'chart-3': { DEFAULT: 'oklch(0.398 0.07 227.392)', _dark: 'oklch(0.769 0.188 70.08)' },
+  'chart-4': { DEFAULT: 'oklch(0.828 0.189 84.429)', _dark: 'oklch(0.627 0.265 303.9)' },
+  'chart-5': { DEFAULT: 'oklch(0.769 0.188 70.08)', _dark: 'oklch(0.645 0.246 16.439)' },
+  sidebar: {
+    DEFAULT: 'oklch(0.984 0.003 247.858)',
+    _dark: 'oklch(0.208 0.042 265.755)',
+  },
+  'sidebar-foreground': {
+    DEFAULT: 'oklch(0.141 0.005 285.823)',
+    _dark: 'oklch(0.984 0.003 247.858)',
+  },
+  'sidebar-primary': {
+    DEFAULT: 'oklch(0.208 0.042 265.755)',
+    _dark: 'oklch(0.488 0.243 264.376)',
+  },
+  'sidebar-primary-foreground': {
+    DEFAULT: 'oklch(0.984 0.003 247.858)',
+    _dark: 'oklch(0.984 0.003 247.858)',
+  },
+  'sidebar-accent': {
+    DEFAULT: 'oklch(0.968 0.007 247.896)',
+    _dark: 'oklch(0.279 0.041 260.031)',
+  },
+  'sidebar-accent-foreground': {
+    DEFAULT: 'oklch(0.208 0.042 265.755)',
+    _dark: 'oklch(0.984 0.003 247.858)',
+  },
+  'sidebar-border': {
+    DEFAULT: 'oklch(0.929 0.013 255.508)',
+    _dark: 'oklch(1 0 0 / 10%)',
+  },
+  'sidebar-ring': {
+    DEFAULT: 'oklch(0.704 0.04 256.788)',
+    _dark: 'oklch(0.551 0.027 264.364)',
+  },
 };
