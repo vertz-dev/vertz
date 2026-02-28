@@ -1,6 +1,8 @@
 import type { MenuElements, MenuOptions, MenuState } from '@vertz/ui-primitives';
 import { Menu } from '@vertz/ui-primitives';
 
+let idCounter = 0;
+
 interface DropdownMenuStyleClasses {
   readonly content: string;
   readonly item: string;
@@ -42,8 +44,11 @@ export function createThemedDropdownMenu(
         const group = result.Group(label);
         group.el.classList.add(styles.group);
         const labelEl = document.createElement('div');
+        labelEl.id = `menu-group-label-${++idCounter}`;
         labelEl.textContent = label;
         labelEl.classList.add(styles.label);
+        group.el.removeAttribute('aria-label');
+        group.el.setAttribute('aria-labelledby', labelEl.id);
         group.el.prepend(labelEl);
         return {
           el: group.el,

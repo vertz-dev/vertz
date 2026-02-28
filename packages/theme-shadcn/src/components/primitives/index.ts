@@ -12,6 +12,8 @@ export type { ThemedRadioGroupResult } from './radio-group';
 export { createThemedRadioGroup } from './radio-group';
 export type { ThemedSelectResult } from './select';
 export { createThemedSelect } from './select';
+export type { SheetSide, ThemedSheetOptions } from './sheet';
+export { createThemedSheet } from './sheet';
 export { createThemedSlider } from './slider';
 export type { ThemedSwitchOptions } from './switch';
 export { createThemedSwitch } from './switch';

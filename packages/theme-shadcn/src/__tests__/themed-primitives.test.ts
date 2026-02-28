@@ -3,12 +3,12 @@ import { createAccordionStyles } from '../styles/accordion';
 import { createAlertDialogStyles } from '../styles/alert-dialog';
 import { createCheckboxStyles } from '../styles/checkbox';
 import { createDialogStyles } from '../styles/dialog';
+import { createPopoverStyles } from '../styles/popover';
 import { createProgressStyles } from '../styles/progress';
 import { createSelectStyles } from '../styles/select';
 import { createSwitchStyles } from '../styles/switch';
 import { createTabsStyles } from '../styles/tabs';
 import { createToastStyles } from '../styles/toast';
-import { createPopoverStyles } from '../styles/popover';
 import { createTooltipStyles } from '../styles/tooltip';
 
 // ── Popover ───────────────────────────────────────────────
@@ -55,6 +55,7 @@ describe('createThemedPopover', () => {
   });
 });
 
+
 // ── AlertDialog ────────────────────────────────────────────
 
 describe('createThemedAlertDialog', () => {
@@ -67,6 +68,36 @@ describe('createThemedAlertDialog', () => {
     expect(ad.overlay.classList.contains(styles.overlay)).toBe(true);
     expect(ad.content.classList.contains(styles.panel)).toBe(true);
     expect(ad.title.classList.contains(styles.title)).toBe(true);
+  });
+
+  it('links content to description via aria-describedby', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog();
+
+    const descriptionId = ad.description.id;
+    expect(descriptionId).toBeTruthy();
+    expect(ad.content.getAttribute('aria-describedby')).toBe(descriptionId);
+  });
+
+  it('sets role="alertdialog" on content element', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog();
+
+    expect(ad.content.getAttribute('role')).toBe('alertdialog');
+  });
+
+  it('applies description style class to description element', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog();
+
+    expect(ad.description.classList.contains(styles.description)).toBe(true);
+    expect(ad.description.classList.contains(styles.panel)).toBe(false);
   });
 
   it('applies theme classes to footer, cancel, and action', async () => {
@@ -102,6 +133,37 @@ describe('createThemedAlertDialog', () => {
     expect(ad.state.open.peek()).toBe(true);
   });
 
+  it('cancel button closes the dialog without double state mutation', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    let changeCount = 0;
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog({
+      defaultOpen: true,
+      onOpenChange: () => {
+        changeCount++;
+      },
+    });
+
+    expect(ad.state.open.peek()).toBe(true);
+    ad.cancel.click();
+    expect(ad.state.open.peek()).toBe(false);
+    // onOpenChange should fire exactly once, not twice
+    expect(changeCount).toBe(1);
+  });
+
+  it('overlay data-state updates when dialog closes via cancel', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog({ defaultOpen: true });
+
+    expect(ad.overlay.getAttribute('data-state')).toBe('open');
+    ad.cancel.click();
+    // The returned overlay must be the one Dialog updates — not a disconnected clone
+    expect(ad.overlay.getAttribute('data-state')).toBe('closed');
+  });
+
   it('Escape key does NOT close the alert dialog', async () => {
     const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
     const styles = createAlertDialogStyles();
@@ -116,6 +178,17 @@ describe('createThemedAlertDialog', () => {
     });
     ad.content.dispatchEvent(event);
     expect(ad.state.open.peek()).toBe(true);
+  });
+
+  it('action button closes the dialog', async () => {
+    const { createThemedAlertDialog } = await import('../components/primitives/alert-dialog');
+    const styles = createAlertDialogStyles();
+    const themedAlertDialog = createThemedAlertDialog(styles);
+    const ad = themedAlertDialog({ defaultOpen: true });
+
+    expect(ad.state.open.peek()).toBe(true);
+    ad.action.click();
+    expect(ad.state.open.peek()).toBe(false);
   });
 
   it('returns all expected elements', async () => {
@@ -300,6 +373,19 @@ describe('createThemedSelect', () => {
     expect(labelEl.classList.contains(styles.label)).toBe(true);
   });
 
+  it('Group uses aria-labelledby instead of aria-label to avoid double announcement', async () => {
+    const { createThemedSelect } = await import('../components/primitives/select');
+    const styles = createSelectStyles();
+    const themedSelect = createThemedSelect(styles);
+    const select = themedSelect();
+
+    const group = select.Group('Fruits');
+    const labelEl = group.el.firstElementChild as HTMLElement;
+    expect(group.el.getAttribute('aria-label')).toBeNull();
+    expect(group.el.getAttribute('aria-labelledby')).toBe(labelEl.id);
+    expect(labelEl.id).toBeTruthy();
+  });
+
   it('Group Item applies item theme class', async () => {
     const { createThemedSelect } = await import('../components/primitives/select');
     const styles = createSelectStyles();
@@ -358,6 +444,20 @@ describe('createThemedDropdownMenu', () => {
     const labelEl = group.el.firstElementChild as HTMLElement;
     expect(labelEl.textContent).toBe('Actions');
     expect(labelEl.classList.contains(styles.label)).toBe(true);
+  });
+
+  it('Group uses aria-labelledby instead of aria-label to avoid double announcement', async () => {
+    const { createThemedDropdownMenu } = await import('../components/primitives/dropdown-menu');
+    const { createDropdownMenuStyles } = await import('../styles/dropdown-menu');
+    const styles = createDropdownMenuStyles();
+    const themedMenu = createThemedDropdownMenu(styles);
+    const menu = themedMenu();
+
+    const group = menu.Group('Actions');
+    const labelEl = group.el.firstElementChild as HTMLElement;
+    expect(group.el.getAttribute('aria-label')).toBeNull();
+    expect(group.el.getAttribute('aria-labelledby')).toBe(labelEl.id);
+    expect(labelEl.id).toBeTruthy();
   });
 
   it('Group Item applies item theme class', async () => {
@@ -489,6 +589,29 @@ describe('createThemedSwitch', () => {
 
     expect(sw.root.classList.contains(styles.rootSm)).toBe(true);
     expect(sw.root.classList.contains(styles.root)).toBe(false);
+  });
+
+  it('creates thumb span with theme class', async () => {
+    const { createThemedSwitch } = await import('../components/primitives/switch');
+    const styles = createSwitchStyles();
+    const themedSwitch = createThemedSwitch(styles);
+    const sw = themedSwitch();
+
+    const thumb = sw.root.querySelector('span');
+    expect(thumb).not.toBeNull();
+    expect(thumb!.classList.contains(styles.thumb)).toBe(true);
+  });
+
+  it('thumb uses thumbSm class when size is sm', async () => {
+    const { createThemedSwitch } = await import('../components/primitives/switch');
+    const styles = createSwitchStyles();
+    const themedSwitch = createThemedSwitch(styles);
+    const sw = themedSwitch({ size: 'sm' });
+
+    const thumb = sw.root.querySelector('span');
+    expect(thumb).not.toBeNull();
+    expect(thumb!.classList.contains(styles.thumbSm)).toBe(true);
+    expect(thumb!.classList.contains(styles.thumb)).toBe(false);
   });
 });
 

@@ -194,6 +194,7 @@ export const Menu = {
 
     function Label(text: string): HTMLDivElement {
       const el = document.createElement('div');
+      el.setAttribute('role', 'none');
       el.textContent = text;
       content.appendChild(el);
       return el;

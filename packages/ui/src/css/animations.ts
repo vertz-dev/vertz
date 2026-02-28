@@ -43,6 +43,24 @@ export const slideOutToBottom: string = keyframes('vz-slide-out-to-bottom', {
   to: { opacity: '0', transform: 'translateY(0.5rem)' },
 });
 
+// Slide horizontal (full-width translate for sheet/drawer panels)
+export const slideInFromLeft: string = keyframes('vz-slide-in-from-left', {
+  from: { transform: 'translateX(-100%)' },
+  to: { transform: 'translateX(0)' },
+});
+export const slideInFromRight: string = keyframes('vz-slide-in-from-right', {
+  from: { transform: 'translateX(100%)' },
+  to: { transform: 'translateX(0)' },
+});
+export const slideOutToLeft: string = keyframes('vz-slide-out-to-left', {
+  from: { transform: 'translateX(0)' },
+  to: { transform: 'translateX(-100%)' },
+});
+export const slideOutToRight: string = keyframes('vz-slide-out-to-right', {
+  from: { transform: 'translateX(0)' },
+  to: { transform: 'translateX(100%)' },
+});
+
 // Accordion height (used with overflow-hidden)
 export const accordionDown: string = keyframes('vz-accordion-down', {
   from: { height: '0' },

@@ -8,8 +8,12 @@ import {
   fadeIn,
   fadeOut,
   slideInFromBottom,
+  slideInFromLeft,
+  slideInFromRight,
   slideInFromTop,
   slideOutToBottom,
+  slideOutToLeft,
+  slideOutToRight,
   slideOutToTop,
   zoomIn,
   zoomOut,
@@ -48,6 +52,22 @@ describe('predefined animation constants', () => {
     expect(slideOutToBottom).toBe('vz-slide-out-to-bottom');
   });
 
+  it('slideInFromLeft equals expected name', () => {
+    expect(slideInFromLeft).toBe('vz-slide-in-from-left');
+  });
+
+  it('slideInFromRight equals expected name', () => {
+    expect(slideInFromRight).toBe('vz-slide-in-from-right');
+  });
+
+  it('slideOutToLeft equals expected name', () => {
+    expect(slideOutToLeft).toBe('vz-slide-out-to-left');
+  });
+
+  it('slideOutToRight equals expected name', () => {
+    expect(slideOutToRight).toBe('vz-slide-out-to-right');
+  });
+
   it('accordionDown equals expected name', () => {
     expect(accordionDown).toBe('vz-accordion-down');
   });
@@ -60,7 +80,7 @@ describe('predefined animation constants', () => {
 describe('animation keyframes CSS content', () => {
   // Verify keyframes produce correct CSS by calling keyframes() directly
   // (the injection tracking tests in keyframes.test.ts cover injectCSS integration)
-  it('all 10 predefined animation names are strings', () => {
+  it('all 14 predefined animation names are strings', () => {
     const names = [
       fadeIn,
       fadeOut,
@@ -70,6 +90,10 @@ describe('animation keyframes CSS content', () => {
       slideInFromBottom,
       slideOutToTop,
       slideOutToBottom,
+      slideInFromLeft,
+      slideInFromRight,
+      slideOutToLeft,
+      slideOutToRight,
       accordionDown,
       accordionUp,
     ];

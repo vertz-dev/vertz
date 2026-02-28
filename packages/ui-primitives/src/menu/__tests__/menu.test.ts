@@ -146,13 +146,14 @@ describe('Menu', () => {
     expect(content.contains(sep)).toBe(true);
   });
 
-  it('Label creates a non-interactive label element', () => {
+  it('Label creates a non-interactive label element with role="none"', () => {
     const { trigger, content, Label } = Menu.Root();
     container.appendChild(trigger);
     container.appendChild(content);
 
     const label = Label('Section');
     expect(label.textContent).toBe('Section');
+    expect(label.getAttribute('role')).toBe('none');
     expect(content.contains(label)).toBe(true);
   });
 

@@ -1,6 +1,8 @@
 import type { SelectElements, SelectOptions, SelectState } from '@vertz/ui-primitives';
 import { Select } from '@vertz/ui-primitives';
 
+let idCounter = 0;
+
 interface SelectStyleClasses {
   readonly trigger: string;
   readonly content: string;
@@ -42,10 +44,12 @@ export function createThemedSelect(
       Group: (label: string) => {
         const group = result.Group(label);
         group.el.classList.add(styles.group);
-        // Add a label element inside the group
         const labelEl = document.createElement('div');
+        labelEl.id = `select-group-label-${++idCounter}`;
         labelEl.textContent = label;
         labelEl.classList.add(styles.label);
+        group.el.removeAttribute('aria-label');
+        group.el.setAttribute('aria-labelledby', labelEl.id);
         group.el.prepend(labelEl);
         return {
           el: group.el,

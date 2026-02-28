@@ -4,7 +4,6 @@ import { Slider } from '@vertz/ui-primitives';
 interface SliderStyleClasses {
   readonly root: string;
   readonly track: string;
-  readonly range: string;
   readonly thumb: string;
 }
 

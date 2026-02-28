@@ -8,7 +8,7 @@ import { createInputComponent } from '../components/input';
 import { createLabelComponent } from '../components/label';
 import { createSeparatorComponent } from '../components/separator';
 import { createTextareaComponent } from '../components/textarea';
-import { createAlert } from '../styles/alert';
+import { createAlertStyles } from '../styles/alert';
 import { createBadge } from '../styles/badge';
 import { createButton } from '../styles/button';
 import { createCard } from '../styles/card';
@@ -357,7 +357,7 @@ describe('Textarea component', () => {
 });
 
 describe('Alert components', () => {
-  const alertStyles = createAlert();
+  const alertStyles = createAlertStyles();
   const { Alert, AlertTitle, AlertDescription } = createAlertComponents(alertStyles);
 
   it('Alert returns an HTMLDivElement with role="alert"', () => {
