@@ -23,11 +23,6 @@ const DEFAULT_DEBOUNCE_MS = 100;
 export function categorizeFileChange(path: string): FileCategory {
   const normalizedPath = path.replace(/\\/g, '/').toLowerCase();
   
-  // Domain files
-  if (normalizedPath.includes('.domain.ts')) {
-    return 'domain';
-  }
-  
   // Module files
   if (normalizedPath.includes('.module.ts')) {
     return 'module';
@@ -75,7 +70,6 @@ export function categorizeFileChange(path: string): FileCategory {
  */
 export function getAffectedStages(category: FileCategory): PipelineStage[] {
   switch (category) {
-    case 'domain':
     case 'module':
     case 'service':
     case 'route':

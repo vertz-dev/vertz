@@ -14,7 +14,6 @@ import {
   dbStatusAction,
 } from './commands/db';
 import { devAction } from './commands/dev';
-import { generateDomainAction } from './commands/domain-gen';
 import { generateAction } from './commands/generate';
 import { loadDbContext } from './commands/load-db-context';
 
@@ -105,22 +104,17 @@ export function createCLI(): Command {
   // Generate command - supports both explicit type and auto-discovery mode
   program
     .command('generate [type] [name]')
-    .description('Generate a module, service, router, schema, or auto-discover domains')
+    .description('Generate a module, service, router, or schema')
     .option('--dry-run', 'Preview generated files without writing')
     .option('--source-dir <dir>', 'Source directory', 'src')
     .allowUnknownOption()
     .action(async (type, name, options) => {
-      // If no type provided or type is not recognized, try domain auto-discovery
-      if (!type) {
-        await generateDomainAction(options);
-        return;
-      }
-
       const validTypes = ['module', 'service', 'router', 'schema'];
-      if (!validTypes.includes(type)) {
-        // Try domain generation
-        await generateDomainAction(options);
-        return;
+      if (!type || !validTypes.includes(type)) {
+        console.error(
+          `Unknown generate type: ${type ?? '(none)'}. Valid types: ${validTypes.join(', ')}`,
+        );
+        process.exit(1);
       }
 
       // Handle traditional generate types
