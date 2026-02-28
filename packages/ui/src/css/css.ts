@@ -60,6 +60,9 @@ const DEFAULT_FILE_PATH = '__runtime__';
 /** Track which CSS strings have already been injected to avoid duplicates. */
 const injectedCSS = new Set<string>();
 
+/** Track CSSStyleSheet instances created by vertz for cleanup. */
+const vertzSheets = new Set<CSSStyleSheet>();
+
 /**
  * Inject CSS text into the document head via a <style> tag.
  * Only runs in browser environments. Deduplicates by CSS content.
@@ -86,6 +89,16 @@ export function injectCSS(cssText: string): void {
   // The CSS is still tracked in injectedCSS for getInjectedCSS().
   if (typeof document === 'undefined') return;
 
+  // Prefer adoptedStyleSheets when available (better perf, no DOM mutation)
+  if (typeof CSSStyleSheet !== 'undefined' && document.adoptedStyleSheets !== undefined) {
+    const sheet = new CSSStyleSheet();
+    sheet.replaceSync(cssText);
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+    vertzSheets.add(sheet);
+    return;
+  }
+
+  // Fallback to <style> tag for older browsers / SSR shim
   const style = document.createElement('style');
   style.setAttribute('data-vertz-css', '');
   style.textContent = cssText;
@@ -95,6 +108,10 @@ export function injectCSS(cssText: string): void {
 /** Reset injected styles tracking. Used in tests. */
 export function resetInjectedStyles(): void {
   injectedCSS.clear();
+  if (typeof document !== 'undefined' && document.adoptedStyleSheets !== undefined) {
+    document.adoptedStyleSheets = document.adoptedStyleSheets.filter((s) => !vertzSheets.has(s));
+  }
+  vertzSheets.clear();
 }
 
 /** Get all CSS strings that have been injected. Used by SSR to collect styles. */
