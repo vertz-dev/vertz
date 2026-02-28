@@ -19,8 +19,8 @@ import type {
 
 const users = d.table('users', {
   id: d.uuid().primary(),
-  email: d.email().unique().sensitive(),
-  passwordHash: d.text().hidden(),
+  email: d.email().unique().is('sensitive'),
+  passwordHash: d.text().is('hidden'),
   name: d.text(),
   role: d.enum('user_role', ['admin', 'editor', 'viewer']).default('viewer'),
   bio: d.text().nullable(),

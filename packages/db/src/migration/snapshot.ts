@@ -6,8 +6,7 @@ export interface ColumnSnapshot {
   primary: boolean;
   unique: boolean;
   default?: string;
-  sensitive?: boolean;
-  hidden?: boolean;
+  annotations?: string[];
 }
 
 export interface IndexSnapshot {
@@ -62,12 +61,9 @@ export function createSnapshot(tables: TableDef<ColumnRecord>[]): SchemaSnapshot
         colSnap.default = rawDefault === 'now' ? 'now()' : rawDefault;
       }
 
-      if (meta.sensitive) {
-        colSnap.sensitive = true;
-      }
-
-      if (meta.hidden) {
-        colSnap.hidden = true;
+      const annotationNames = meta._annotations ? Object.keys(meta._annotations) : [];
+      if (annotationNames.length > 0) {
+        colSnap.annotations = annotationNames;
       }
 
       columns[colName] = colSnap;

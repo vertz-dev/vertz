@@ -127,14 +127,14 @@ describe('chainable builders', () => {
     expect(col._meta.defaultValue).toBe(true);
   });
 
-  it('.sensitive() sets sensitive to true', () => {
-    const col = d.email().sensitive();
-    expect(col._meta.sensitive).toBe(true);
+  it('.is(\'sensitive\') adds sensitive to _annotations', () => {
+    const col = d.email().is('sensitive');
+    expect(col._meta._annotations.sensitive).toBe(true);
   });
 
-  it('.hidden() sets hidden to true', () => {
-    const col = d.text().hidden();
-    expect(col._meta.hidden).toBe(true);
+  it('.is(\'hidden\') adds hidden to _annotations', () => {
+    const col = d.text().is('hidden');
+    expect(col._meta._annotations.hidden).toBe(true);
   });
 
   it('.check(sql) stores the check constraint', () => {
@@ -235,8 +235,7 @@ describe('d.tenant()', () => {
     expect(col._meta.unique).toBe(false);
     expect(col._meta.nullable).toBe(false);
     expect(col._meta.hasDefault).toBe(false);
-    expect(col._meta.sensitive).toBe(false);
-    expect(col._meta.hidden).toBe(false);
+    expect(col._meta._annotations).toEqual({});
     expect(col._meta.check).toBeNull();
   });
 

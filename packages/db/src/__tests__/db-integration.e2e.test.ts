@@ -15,7 +15,7 @@ const users = d.table('users', {
   id: d.uuid().primary(),
   name: d.text(),
   email: d.email().unique(),
-  passwordHash: d.varchar(255).hidden(),
+  passwordHash: d.varchar(255).is('hidden'),
   role: d.enum('user_role', ['admin', 'member']).default('member'),
   bio: d.text().nullable(),
   createdAt: d.timestamp().default('now'),

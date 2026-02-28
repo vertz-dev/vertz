@@ -3,9 +3,8 @@ import { d } from '../../d';
 import {
   getAutoUpdateColumns,
   getColumnNames,
+  getColumnsWithoutAnnotations,
   getDefaultColumns,
-  getNotHiddenColumns,
-  getNotSensitiveColumns,
   getPrimaryKeyColumns,
   getReadOnlyColumns,
   getTimestampColumns,
@@ -17,8 +16,8 @@ describe('query helpers', () => {
     id: d.uuid().primary(),
     name: d.text(),
     email: d.text(),
-    password: d.text().sensitive(),
-    internalNote: d.text().hidden(),
+    password: d.text().is('sensitive'),
+    internalNote: d.text().is('hidden'),
     createdAt: d.timestamp().default('now'),
     age: d.integer().nullable(),
   });
@@ -40,19 +39,19 @@ describe('query helpers', () => {
     });
   });
 
-  describe('getNotSensitiveColumns', () => {
-    it('excludes sensitive and hidden columns', () => {
-      const cols = getNotSensitiveColumns(table);
+  describe('getColumnsWithoutAnnotations', () => {
+    it('excludes columns with any specified annotation plus hidden', () => {
+      const cols = getColumnsWithoutAnnotations(table, ['sensitive']);
       expect(cols).toContain('id');
       expect(cols).toContain('name');
       expect(cols).not.toContain('password');
       expect(cols).not.toContain('internalNote');
     });
-  });
 
-  describe('getNotHiddenColumns', () => {
-    it('excludes hidden columns', () => {
-      const cols = getNotHiddenColumns(table);
+    it('excludes only hidden when no additional annotations specified', () => {
+      const cols = getColumnsWithoutAnnotations(table, []);
+      expect(cols).toContain('id');
+      expect(cols).toContain('name');
       expect(cols).toContain('password');
       expect(cols).not.toContain('internalNote');
     });
@@ -86,7 +85,7 @@ describe('query helpers', () => {
       expect(cols).toContain('name');
     });
 
-    it('returns not-hidden columns when select is { not: "hidden" }', () => {
+    it('returns columns without hidden annotation when select is { not: "hidden" }', () => {
       const cols = resolveSelectColumns(table, { not: 'hidden' });
       expect(cols).toContain('password');
       expect(cols).not.toContain('internalNote');
@@ -103,7 +102,7 @@ describe('query helpers', () => {
       expect(cols).not.toContain('name');
     });
 
-    it('falls back to not-hidden when not key is present but not "sensitive"', () => {
+    it('falls back to columns without hidden annotation when not key is present but not "sensitive"', () => {
       const cols = resolveSelectColumns(table, { not: 'hidden' });
       expect(cols).toContain('password');
       expect(cols).toContain('name');

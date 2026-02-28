@@ -22,8 +22,8 @@ describe('createSnapshot', () => {
       email: d.text().unique(),
       bio: d.text().nullable(),
       active: d.boolean().default(true),
-      secret: d.text().sensitive(),
-      internal: d.text().hidden(),
+      secret: d.text().is('sensitive'),
+      internal: d.text().is('hidden'),
     });
 
     const snapshot = createSnapshot([users]);
@@ -63,7 +63,7 @@ describe('createSnapshot', () => {
       nullable: false,
       primary: false,
       unique: false,
-      sensitive: true,
+      annotations: ['sensitive'],
     });
 
     expect(cols.internal).toEqual({
@@ -71,7 +71,7 @@ describe('createSnapshot', () => {
       nullable: false,
       primary: false,
       unique: false,
-      hidden: true,
+      annotations: ['hidden'],
     });
   });
 
@@ -130,7 +130,7 @@ describe('createSnapshot', () => {
   it('serializes and deserializes snapshot as JSON', () => {
     const users = d.table('users', {
       id: d.uuid().primary(),
-      email: d.text().unique().sensitive(),
+      email: d.text().unique().is('sensitive'),
       role: d.enum('user_role', ['admin', 'editor', 'viewer']),
     });
 

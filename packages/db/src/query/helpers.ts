@@ -16,32 +16,26 @@ export function getColumnNames(table: TableDef<ColumnRecord>): string[] {
 }
 
 /**
- * Get column names excluding hidden columns (default SELECT behavior).
+ * Get column names excluding 'hidden'-annotated columns (default SELECT behavior).
  */
 export function getDefaultColumns(table: TableDef<ColumnRecord>): string[] {
-  return Object.keys(table._columns).filter((key) => {
-    const col = table._columns[key] as ColumnBuilder<unknown, ColumnMetadata> | undefined;
-    return col ? !col._meta.hidden : true;
-  });
+  return getColumnsWithoutAnnotations(table, []);
 }
 
 /**
- * Get column names excluding sensitive AND hidden columns.
+ * Get column names excluding columns with ANY of the specified annotations.
+ * Always excludes 'hidden'-annotated columns in addition to the specified annotations.
  */
-export function getNotSensitiveColumns(table: TableDef<ColumnRecord>): string[] {
+export function getColumnsWithoutAnnotations(
+  table: TableDef<ColumnRecord>,
+  annotations: string[],
+): string[] {
+  const allAnnotations = annotations.includes('hidden') ? annotations : [...annotations, 'hidden'];
   return Object.keys(table._columns).filter((key) => {
     const col = table._columns[key] as ColumnBuilder<unknown, ColumnMetadata> | undefined;
-    return col ? !col._meta.sensitive && !col._meta.hidden : true;
-  });
-}
-
-/**
- * Get column names excluding hidden columns.
- */
-export function getNotHiddenColumns(table: TableDef<ColumnRecord>): string[] {
-  return Object.keys(table._columns).filter((key) => {
-    const col = table._columns[key] as ColumnBuilder<unknown, ColumnMetadata> | undefined;
-    return col ? !col._meta.hidden : true;
+    if (!col) return true;
+    const colAnnotations = col._meta._annotations;
+    return !allAnnotations.some((f) => colAnnotations[f]);
   });
 }
 
@@ -50,7 +44,7 @@ export function getNotHiddenColumns(table: TableDef<ColumnRecord>): string[] {
  *
  * - undefined -> default columns (exclude hidden)
  * - { not: 'sensitive' } -> exclude sensitive + hidden
- * - { not: 'hidden' } -> exclude hidden
+ * - { not: ['sensitive', 'patchable'] } -> exclude columns with any listed flag + hidden
  * - { id: true, name: true } -> explicit pick
  */
 export function resolveSelectColumns(
@@ -62,10 +56,9 @@ export function resolveSelectColumns(
   }
 
   if ('not' in select && select.not !== undefined) {
-    if (select.not === 'sensitive') {
-      return getNotSensitiveColumns(table);
-    }
-    return getNotHiddenColumns(table);
+    const notValue = select.not;
+    const flags = Array.isArray(notValue) ? (notValue as string[]) : [notValue as string];
+    return getColumnsWithoutAnnotations(table, flags);
   }
 
   // Explicit pick — return keys set to true

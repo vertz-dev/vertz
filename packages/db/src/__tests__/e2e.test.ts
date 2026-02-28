@@ -21,8 +21,8 @@ const users = d.table('users', {
   id: d.uuid().primary(),
   organizationId: d.tenant(organizations),
   name: d.text(),
-  email: d.email().unique().sensitive(),
-  passwordHash: d.text().hidden(),
+  email: d.email().unique().is('sensitive'),
+  passwordHash: d.text().is('hidden'),
   role: d.enum('user_role', ['admin', 'editor', 'viewer']).default('viewer'),
   active: d.boolean().default(true),
   createdAt: d.timestamp().default('now'),
@@ -186,23 +186,6 @@ describe('E2E Acceptance Test (db-018)', () => {
       };
       // passwordHash is hidden and should not be in $infer
       // @ts-expect-error — passwordHash is hidden, not in $infer
-      _check.passwordHash;
-      void _check;
-    });
-
-    it('$not_sensitive excludes sensitive AND hidden columns', () => {
-      type UserPublic = typeof users.$not_sensitive;
-      const _check: UserPublic = {
-        id: '',
-        organizationId: '',
-        name: '',
-        role: 'admin',
-        active: true,
-        createdAt: new Date(),
-      };
-      // @ts-expect-error — email is sensitive, not in $not_sensitive
-      _check.email;
-      // @ts-expect-error — passwordHash is hidden, not in $not_sensitive
       _check.passwordHash;
       void _check;
     });

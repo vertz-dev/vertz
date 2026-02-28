@@ -36,9 +36,8 @@ export type { ExecutorResult, QueryFn } from './executor';
 export { executeQuery } from './executor';
 export {
   getColumnNames,
+  getColumnsWithoutAnnotations,
   getDefaultColumns,
-  getNotHiddenColumns,
-  getNotSensitiveColumns,
   getPrimaryKeyColumns,
   getTimestampColumns,
   resolveSelectColumns,

@@ -45,12 +45,9 @@ function extractSchemaSnapshot<TModels extends Record<string, ModelEntry>>(
           tables[name].columns[colName].default = rawDefault === 'now' ? 'now()' : rawDefault;
         }
 
-        if (meta.sensitive) {
-          tables[name].columns[colName].sensitive = true;
-        }
-
-        if (meta.hidden) {
-          tables[name].columns[colName].hidden = true;
+        const annotationNames = meta._annotations ? Object.keys(meta._annotations) : [];
+        if (annotationNames.length > 0) {
+          tables[name].columns[colName].annotations = annotationNames;
         }
 
         if (meta.enumName && meta.enumValues) {

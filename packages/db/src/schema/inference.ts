@@ -1,6 +1,6 @@
-import type { ColumnBuilder, ColumnMetadata, InferColumnType } from './column';
+import type { ColumnBuilder, InferColumnType } from './column';
 import type { RelationDef } from './relation';
-import type { ColumnRecord, TableDef } from './table';
+import type { AllAnnotations, ColumnRecord, TableDef } from './table';
 
 // ---------------------------------------------------------------------------
 // FilterType — typed where filters with operators
@@ -83,23 +83,25 @@ export type OrderByType<TColumns extends ColumnRecord> = {
  * SelectOption<TColumns> — the `select` field in query options.
  *
  * Either:
- * - `{ not: 'sensitive' | 'hidden' }` — exclude columns by visibility category
+ * - `{ not: Annotation | Annotation[] }` — exclude columns by annotation(s)
  * - `{ [column]: true }` — explicitly pick columns
  *
  * The two forms are mutually exclusive, enforced via `never` mapped keys.
  */
 export type SelectOption<TColumns extends ColumnRecord> =
-  | ({ readonly not: 'sensitive' | 'hidden' } & { readonly [K in keyof TColumns]?: never })
+  | ({
+      readonly not: AllAnnotations<TColumns> | readonly AllAnnotations<TColumns>[];
+    } & { readonly [K in keyof TColumns]?: never })
   | ({ readonly [K in keyof TColumns]?: true } & { readonly not?: never });
 
 // ---------------------------------------------------------------------------
 // SelectNarrow — narrows result to selected fields or excludes by visibility
 // ---------------------------------------------------------------------------
 
-/** Keys of columns where a given metadata flag is NOT `true`. */
-type ColumnKeysWhereNot<T extends ColumnRecord, Flag extends keyof ColumnMetadata> = {
+/** Keys of columns that do NOT have ANY of the specified annotations in `_annotations`. */
+type ColumnKeysWithoutAnyAnnotation<T extends ColumnRecord, Annotations extends string> = {
   [K in keyof T]: T[K] extends ColumnBuilder<unknown, infer M>
-    ? M extends Record<Flag, true>
+    ? M['_annotations'] extends Record<Annotations, true>
       ? never
       : K
     : never;
@@ -111,36 +113,42 @@ type SelectedKeys<TColumns extends ColumnRecord, TSelect> = {
 }[keyof TSelect];
 
 /**
+ * Normalize `not` value to a union of annotation strings.
+ * - `'annotation'` → `'annotation'`
+ * - `readonly ['a', 'b']` → `'a' | 'b'`
+ */
+type NormalizeAnnotations<T> = T extends readonly (infer F)[]
+  ? F extends string
+    ? F
+    : never
+  : T extends string
+    ? T
+    : never;
+
+/**
  * SelectNarrow<TColumns, TSelect> — applies a select clause to narrow the result type.
  *
- * - `{ not: 'sensitive' }` → excludes sensitive AND hidden columns
- * - `{ not: 'hidden' }` → excludes hidden columns
+ * - `{ not: 'sensitive' }` → excludes 'sensitive'-annotated AND 'hidden'-annotated columns
+ * - `{ not: ['sensitive', 'patchable'] }` → excludes columns with ANY listed annotation + 'hidden'
  * - `{ id: true, name: true }` → picks only id and name
- * - `undefined` → default: excludes hidden columns ($infer behavior)
+ * - `undefined` → default: excludes 'hidden'-annotated columns ($infer behavior)
  */
 export type SelectNarrow<TColumns extends ColumnRecord, TSelect> = TSelect extends {
-  not: 'sensitive';
+  not: infer TNot;
 }
   ? {
-      [K in ColumnKeysWhereNot<TColumns, 'sensitive'> &
-        ColumnKeysWhereNot<TColumns, 'hidden'> &
+      [K in ColumnKeysWithoutAnyAnnotation<TColumns, NormalizeAnnotations<TNot> | 'hidden'> &
         keyof TColumns]: InferColumnType<TColumns[K]>;
     }
-  : TSelect extends { not: 'hidden' }
+  : TSelect extends Record<string, true | undefined>
     ? {
-        [K in ColumnKeysWhereNot<TColumns, 'hidden'> & keyof TColumns]: InferColumnType<
+        [K in SelectedKeys<TColumns, TSelect> & keyof TColumns]: InferColumnType<TColumns[K]>;
+      }
+    : {
+        [K in ColumnKeysWithoutAnyAnnotation<TColumns, 'hidden'> & keyof TColumns]: InferColumnType<
           TColumns[K]
         >;
-      }
-    : TSelect extends Record<string, true | undefined>
-      ? {
-          [K in SelectedKeys<TColumns, TSelect> & keyof TColumns]: InferColumnType<TColumns[K]>;
-        }
-      : {
-          [K in ColumnKeysWhereNot<TColumns, 'hidden'> & keyof TColumns]: InferColumnType<
-            TColumns[K]
-          >;
-        };
+      };
 
 // ---------------------------------------------------------------------------
 // IncludeResolve — resolves relation includes with depth cap

@@ -10,7 +10,7 @@ const users = d.table('users', {
   id: d.uuid().primary(),
   name: d.text(),
   email: d.email().unique(),
-  passwordHash: d.varchar(255).hidden(),
+  passwordHash: d.varchar(255).is('hidden'),
   role: d.enum('user_role', ['admin', 'member']).default('member'),
   createdAt: d.timestamp().default('now'),
 });
@@ -36,7 +36,7 @@ const products = d.table('products', {
   count: d.bigint(),
   releaseDate: d.date(),
   availableAt: d.time(),
-  secret: d.text().sensitive(),
+  secret: d.text().is('sensitive'),
 });
 
 // ---------------------------------------------------------------------------
@@ -399,8 +399,7 @@ describe('tableToSchemas', () => {
             sqlType: 'geometry',
             primary: false,
             hasDefault: false,
-            hidden: false,
-            sensitive: false,
+            _annotations: {},
             nullable: false,
           },
         },

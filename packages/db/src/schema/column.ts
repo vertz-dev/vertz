@@ -8,8 +8,7 @@ export interface ColumnMetadata {
   readonly unique: boolean;
   readonly nullable: boolean;
   readonly hasDefault: boolean;
-  readonly sensitive: boolean;
-  readonly hidden: boolean;
+  readonly _annotations: Record<string, true>;
   readonly isReadOnly: boolean;
   readonly isAutoUpdate: boolean;
   readonly isTenant: boolean;
@@ -50,8 +49,14 @@ export interface ColumnBuilder<TType, TMeta extends ColumnMetadata = ColumnMetad
     TType,
     Omit<TMeta, 'hasDefault'> & { readonly hasDefault: true; readonly defaultValue: TType | 'now' }
   >;
-  sensitive(): ColumnBuilder<TType, Omit<TMeta, 'sensitive'> & { readonly sensitive: true }>;
-  hidden(): ColumnBuilder<TType, Omit<TMeta, 'hidden'> & { readonly hidden: true }>;
+  is<TFlag extends string>(
+    flag: TFlag,
+  ): ColumnBuilder<
+    TType,
+    Omit<TMeta, '_annotations'> & {
+      readonly _annotations: TMeta['_annotations'] & { readonly [K in TFlag]: true };
+    }
+  >;
   readOnly(): ColumnBuilder<TType, Omit<TMeta, 'isReadOnly'> & { readonly isReadOnly: true }>;
   autoUpdate(): ColumnBuilder<
     TType,
@@ -80,8 +85,7 @@ export type DefaultMeta<TSqlType extends string> = {
   readonly unique: false;
   readonly nullable: false;
   readonly hasDefault: false;
-  readonly sensitive: false;
-  readonly hidden: false;
+  readonly _annotations: {};
   readonly isReadOnly: false;
   readonly isAutoUpdate: false;
   readonly isTenant: false;
@@ -136,9 +140,7 @@ function createColumnWithMeta(meta: ColumnMetadata): ColumnBuilder<unknown, Colu
       if (options?.generate) {
         meta.generate = options.generate;
       }
-      return cloneWith(this, meta) as ReturnType<
-        ColumnBuilder<unknown, ColumnMetadata>['primary']
-      >;
+      return cloneWith(this, meta) as ReturnType<ColumnBuilder<unknown, ColumnMetadata>['primary']>;
     },
     unique() {
       return cloneWith(this, { unique: true }) as ReturnType<
@@ -155,15 +157,11 @@ function createColumnWithMeta(meta: ColumnMetadata): ColumnBuilder<unknown, Colu
         ColumnBuilder<unknown, ColumnMetadata>['default']
       >;
     },
-    sensitive() {
-      return cloneWith(this, { sensitive: true }) as ReturnType<
-        ColumnBuilder<unknown, ColumnMetadata>['sensitive']
-      >;
-    },
-    hidden() {
-      return cloneWith(this, { hidden: true }) as ReturnType<
-        ColumnBuilder<unknown, ColumnMetadata>['hidden']
-      >;
+    is(flag: string) {
+      return createColumnWithMeta({
+        ...this._meta,
+        _annotations: { ...this._meta._annotations, [flag]: true as const },
+      }) as ReturnType<ColumnBuilder<unknown, ColumnMetadata>['is']>;
     },
     readOnly() {
       return cloneWith(this, { isReadOnly: true }) as ReturnType<
@@ -196,8 +194,7 @@ function defaultMeta<TSqlType extends string>(sqlType: TSqlType): DefaultMeta<TS
     unique: false,
     nullable: false,
     hasDefault: false,
-    sensitive: false,
-    hidden: false,
+    _annotations: {},
     isReadOnly: false,
     isAutoUpdate: false,
     isTenant: false,
@@ -222,8 +219,7 @@ export type SerialMeta = {
   readonly unique: false;
   readonly nullable: false;
   readonly hasDefault: true;
-  readonly sensitive: false;
-  readonly hidden: false;
+  readonly _annotations: {};
   readonly isReadOnly: false;
   readonly isAutoUpdate: false;
   readonly isTenant: false;
@@ -238,8 +234,7 @@ export function createSerialColumn(): ColumnBuilder<number, SerialMeta> {
     unique: false,
     nullable: false,
     hasDefault: true,
-    sensitive: false,
-    hidden: false,
+    _annotations: {},
     isReadOnly: false,
     isAutoUpdate: false,
     isTenant: false,
@@ -254,8 +249,7 @@ export type TenantMeta = {
   readonly unique: false;
   readonly nullable: false;
   readonly hasDefault: false;
-  readonly sensitive: false;
-  readonly hidden: false;
+  readonly _annotations: {};
   readonly isReadOnly: false;
   readonly isAutoUpdate: false;
   readonly isTenant: true;
@@ -270,8 +264,7 @@ export function createTenantColumn(targetTableName: string): ColumnBuilder<strin
     unique: false,
     nullable: false,
     hasDefault: false,
-    sensitive: false,
-    hidden: false,
+    _annotations: {},
     isReadOnly: false,
     isAutoUpdate: false,
     isTenant: true,

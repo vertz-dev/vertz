@@ -32,7 +32,7 @@ export interface DerivedSchemas {
  *   id: d.uuid().primary(),
  *   name: d.text(),
  *   email: d.email().unique(),
- *   passwordHash: d.varchar(255).hidden(),
+ *   passwordHash: d.varchar(255).is('hidden'),
  *   role: d.enum('user_role', ['admin', 'member']).default('member'),
  *   createdAt: d.timestamp().default('now'),
  * });
@@ -62,7 +62,7 @@ export function tableToSchemas<TColumns extends ColumnRecord>(
     }
 
     // responseSchema: exclude hidden and sensitive columns
-    if (!meta.hidden && !meta.sensitive) {
+    if (!meta._annotations.hidden && !meta._annotations.sensitive) {
       responseShape[columnName] = baseSchema;
     }
   }

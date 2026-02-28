@@ -282,8 +282,8 @@ const SCHEMA_TS = `
 export const users = {
   _name: 'users',
   _columns: {
-    id: { _meta: { sqlType: 'uuid', nullable: false, primary: true, unique: false, hasDefault: false, sensitive: false, hidden: false } },
-    name: { _meta: { sqlType: 'text', nullable: false, primary: false, unique: false, hasDefault: false, sensitive: false, hidden: false } },
+    id: { _meta: { sqlType: 'uuid', nullable: false, primary: true, unique: false, hasDefault: false, _annotations: {} } },
+    name: { _meta: { sqlType: 'text', nullable: false, primary: false, unique: false, hasDefault: false, _annotations: {} } },
   },
   _indexes: [],
   _shared: false,
