@@ -9,8 +9,9 @@
  */
 
 import { query, queryMatch } from '@vertz/ui';
-import type { TodoListResponse, TodosResponse } from '../api/client';
+import type { TodoListResponse } from '../api/client';
 import { api } from '../api/client';
+import type { TodosResponse } from '#generated/types';
 import { TodoForm } from '../components/todo-form';
 import { TodoItem } from '../components/todo-item';
 import { emptyStateStyles, layoutStyles } from '../styles/components';

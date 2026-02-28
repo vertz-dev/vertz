@@ -7,7 +7,7 @@
  * - try/catch error handling for SDK calls
  */
 
-import { todoApi } from '../api/client';
+import { api } from '../api/client';
 import { todoItemStyles } from '../styles/components';
 
 export interface TodoItemProps {
@@ -26,7 +26,7 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
     isCompleted = !isCompleted;
 
     try {
-      await todoApi.update(id, { completed: isCompleted });
+      await api.todos.update(id, { completed: isCompleted });
       onToggle(id, isCompleted);
     } catch (err) {
       isCompleted = previousValue;
@@ -36,7 +36,7 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
 
   const handleDelete = async () => {
     try {
-      await todoApi.delete(id);
+      await api.todos.delete(id);
       onDelete(id);
     } catch (err) {
       console.error('Failed to delete todo:', err instanceof Error ? err.message : String(err));

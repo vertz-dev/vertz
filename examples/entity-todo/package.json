@@ -11,6 +11,10 @@
     "test": "bun run codegen && bun test",
     "typecheck": "tsc --noEmit"
   },
+  "imports": {
+    "#generated": "./src/generated/client.ts",
+    "#generated/types": "./src/generated/types/index.ts"
+  },
   "dependencies": {
     "@vertz/cloudflare": "workspace:*",
     "@vertz/db": "workspace:*",

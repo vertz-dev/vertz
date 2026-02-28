@@ -5,7 +5,7 @@
  * matching the real server API. Used by todo-form.test.ts and todo-list.test.ts.
  */
 
-import type { TodosResponse } from '../generated/types/todos';
+import type { TodosResponse } from '#generated/types';
 
 let nextId = 3;
 
