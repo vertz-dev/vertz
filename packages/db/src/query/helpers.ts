@@ -44,7 +44,7 @@ export function getColumnsWithoutAnnotations(
  *
  * - undefined -> default columns (exclude hidden)
  * - { not: 'sensitive' } -> exclude sensitive + hidden
- * - { not: ['sensitive', 'patchable'] } -> exclude columns with any listed flag + hidden
+ * - { not: ['sensitive', 'patchable'] } -> exclude columns with any listed annotation + hidden
  * - { id: true, name: true } -> explicit pick
  */
 export function resolveSelectColumns(

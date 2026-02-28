@@ -25,7 +25,7 @@ describe('ModelDef schemas.response type', () => {
   it('excludes hidden columns from the parsed result', () => {
     type ResponseType = ReturnType<typeof usersModel.schemas.response.parse>;
 
-    // passwordHash is .hidden() — should NOT appear
+    // passwordHash is .is('hidden') — should NOT appear
     expectTypeOf<ResponseType>().not.toHaveProperty('passwordHash');
   });
 
@@ -103,7 +103,10 @@ describe('ModelDef schemas.createInput required vs optional', () => {
     type CreateType = ReturnType<typeof usersModel.schemas.createInput.parse>;
 
     // Should compile: role is optional (has default 'viewer'), omitting it is valid
-    expectTypeOf<{ email: string; name: string; passwordHash: string }>()
-      .toMatchTypeOf<CreateType>();
+    expectTypeOf<{
+      email: string;
+      name: string;
+      passwordHash: string;
+    }>().toMatchTypeOf<CreateType>();
   });
 });
