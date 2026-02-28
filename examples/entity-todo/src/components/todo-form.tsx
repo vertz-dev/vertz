@@ -7,15 +7,10 @@
  * - Reactive disabled state during submission
  */
 
-import { s } from '@vertz/schema';
 import { form } from '@vertz/ui';
 import { api } from '../api/client';
 import type { TodosResponse } from '../api/client';
 import { button, formStyles } from '../styles/components';
-
-const createTodoSchema = s.object({
-  title: s.string().min(1),
-});
 
 export interface TodoFormProps {
   onSuccess: (todo: TodosResponse) => void;
@@ -23,7 +18,6 @@ export interface TodoFormProps {
 
 export function TodoForm({ onSuccess }: TodoFormProps) {
   const todoForm = form(api.todos.create, {
-    schema: createTodoSchema,
     onSuccess,
     resetOnSuccess: true,
   });
