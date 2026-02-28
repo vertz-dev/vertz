@@ -211,11 +211,16 @@ export async function createConnection(config: DbConfig): Promise<DbConnection> 
     return { queryFn, close };
   }
 
-  // Postgres
+  // Postgres — dynamic import because `postgres` is an optional peer dependency.
+  // The type assertion avoids TS2307 when the package is not installed.
   let client: PostgresClient;
   try {
-    const pg = (await import('postgres')).default;
-    client = pg(config.url ?? '') as PostgresClient;
+    const pg = (
+      (await import(/* webpackIgnore: true */ 'postgres' as string)) as {
+        default: (url: string) => PostgresClient;
+      }
+    ).default;
+    client = pg(config.url ?? '');
   } catch (err) {
     throw new Error(
       'Failed to load the `postgres` package. Install it in your project:\n' +
