@@ -1,4 +1,5 @@
 import type { Compiler, Diagnostic } from '@vertz/compiler';
+import { ok, type Result } from '@vertz/errors';
 import {
   formatDiagnostic,
   formatDiagnosticSummary,
@@ -11,26 +12,25 @@ export interface CheckOptions {
   format: 'text' | 'json' | 'github';
 }
 
-export interface CheckResult {
-  success: boolean;
+export interface CheckData {
   diagnostics: Diagnostic[];
   output: string;
+  hasErrors: boolean;
 }
 
-export async function checkAction(options: CheckOptions): Promise<CheckResult> {
+export async function checkAction(options: CheckOptions): Promise<Result<CheckData, Error>> {
   const { compiler, format } = options;
 
   const ir = await compiler.analyze();
   const diagnostics = await compiler.validate(ir);
 
   const hasErrors = diagnostics.some((d) => d.severity === 'error');
-  const success = !hasErrors;
 
   let output: string;
 
   switch (format) {
     case 'json':
-      output = formatDiagnosticsAsJSON(diagnostics, success);
+      output = formatDiagnosticsAsJSON(diagnostics, !hasErrors);
       break;
     case 'github':
       output = formatDiagnosticsAsGitHub(diagnostics);
@@ -47,5 +47,5 @@ export async function checkAction(options: CheckOptions): Promise<CheckResult> {
     }
   }
 
-  return { success, diagnostics, output };
+  return ok({ diagnostics, output, hasErrors });
 }

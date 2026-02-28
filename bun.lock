@@ -114,6 +114,7 @@
         "@vertz/compiler": "workspace:*",
         "@vertz/create-vertz-app": "workspace:*",
         "@vertz/db": "workspace:*",
+        "@vertz/errors": "workspace:*",
         "@vertz/tui": "workspace:*",
         "@vertz/ui-server": "workspace:*",
         "commander": "^14.0.0",

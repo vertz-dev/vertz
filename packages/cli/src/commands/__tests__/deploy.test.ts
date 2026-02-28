@@ -9,8 +9,10 @@ describe('deployAction', () => {
       port: 3000,
       projectRoot: '/project',
     });
-    expect(result.success).toBe(true);
-    expect(result.files.some((f) => f.path === 'railway.toml')).toBe(true);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.files.some((f) => f.path === 'railway.toml')).toBe(true);
+    }
   });
 
   it('generates fly config for target fly', () => {
@@ -20,8 +22,10 @@ describe('deployAction', () => {
       port: 3000,
       projectRoot: '/project',
     });
-    expect(result.success).toBe(true);
-    expect(result.files.some((f) => f.path === 'fly.toml')).toBe(true);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.files.some((f) => f.path === 'fly.toml')).toBe(true);
+    }
   });
 
   it('generates docker config for target docker', () => {
@@ -31,8 +35,10 @@ describe('deployAction', () => {
       port: 3000,
       projectRoot: '/project',
     });
-    expect(result.success).toBe(true);
-    expect(result.files.some((f) => f.path === 'Dockerfile')).toBe(true);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.files.some((f) => f.path === 'Dockerfile')).toBe(true);
+    }
   });
 
   it('fails for invalid target', () => {
@@ -42,9 +48,9 @@ describe('deployAction', () => {
       port: 3000,
       projectRoot: '/project',
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('Unknown deploy target');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('Unknown deploy target');
     }
   });
 
@@ -55,9 +61,11 @@ describe('deployAction', () => {
       port: 3000,
       projectRoot: '/project',
     });
-    expect(result.success).toBe(true);
-    const dockerfile = result.files.find((f) => f.path === 'Dockerfile');
-    expect(dockerfile?.content).toContain('node:');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const dockerfile = result.data.files.find((f) => f.path === 'Dockerfile');
+      expect(dockerfile?.content).toContain('node:');
+    }
   });
 
   it('uses custom port', () => {
@@ -67,8 +75,10 @@ describe('deployAction', () => {
       port: 8080,
       projectRoot: '/project',
     });
-    expect(result.success).toBe(true);
-    const dockerfile = result.files.find((f) => f.path === 'Dockerfile');
-    expect(dockerfile?.content).toContain('EXPOSE 8080');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const dockerfile = result.data.files.find((f) => f.path === 'Dockerfile');
+      expect(dockerfile?.content).toContain('EXPOSE 8080');
+    }
   });
 });

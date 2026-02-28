@@ -8,9 +8,11 @@ describe('generateAction', () => {
       name: 'order',
       sourceDir: 'src',
     });
-    expect(result.success).toBe(true);
-    expect(result.files.length).toBeGreaterThan(0);
-    expect(result.files.some((f) => f.path.includes('module-def'))).toBe(true);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.files.length).toBeGreaterThan(0);
+      expect(result.data.files.some((f) => f.path.includes('module-def'))).toBe(true);
+    }
   });
 
   it('generates service file for type service', () => {
@@ -20,8 +22,10 @@ describe('generateAction', () => {
       module: 'order',
       sourceDir: 'src',
     });
-    expect(result.success).toBe(true);
-    expect(result.files[0]?.path).toContain('.service.ts');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.files[0]?.path).toContain('.service.ts');
+    }
   });
 
   it('generates router file for type router', () => {
@@ -31,8 +35,10 @@ describe('generateAction', () => {
       module: 'order',
       sourceDir: 'src',
     });
-    expect(result.success).toBe(true);
-    expect(result.files[0]?.path).toContain('.router.ts');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.files[0]?.path).toContain('.router.ts');
+    }
   });
 
   it('generates schema file for type schema', () => {
@@ -42,8 +48,10 @@ describe('generateAction', () => {
       module: 'order',
       sourceDir: 'src',
     });
-    expect(result.success).toBe(true);
-    expect(result.files[0]?.path).toContain('.schema.ts');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.files[0]?.path).toContain('.schema.ts');
+    }
   });
 
   it('fails when service type is missing module', () => {
@@ -52,9 +60,9 @@ describe('generateAction', () => {
       name: 'order',
       sourceDir: 'src',
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('module');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('module');
     }
   });
 
@@ -64,9 +72,9 @@ describe('generateAction', () => {
       name: 'order',
       sourceDir: 'src',
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('module');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('module');
     }
   });
 
@@ -76,9 +84,9 @@ describe('generateAction', () => {
       name: 'order',
       sourceDir: 'src',
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('module');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('module');
     }
   });
 
@@ -88,9 +96,9 @@ describe('generateAction', () => {
       name: 'order',
       sourceDir: 'src',
     });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error).toContain('Unknown generator type');
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('Unknown generator type');
     }
   });
 });

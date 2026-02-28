@@ -11,6 +11,7 @@ import type {
   SchemaSnapshot,
 } from '@vertz/db';
 import { baseline, migrateDeploy, migrateDev, migrateStatus, push, reset } from '@vertz/db';
+import { err, ok, type Result } from '@vertz/errors';
 
 // ---------------------------------------------------------------------------
 // Shared context — assembled by loadDbContext() in cli.ts
@@ -42,12 +43,17 @@ export interface DbPushOptions {
   ctx: DbCommandContext;
 }
 
-export async function dbPushAction(options: DbPushOptions): Promise<PushResult> {
-  return push({
-    queryFn: options.ctx.queryFn,
-    currentSnapshot: options.ctx.currentSnapshot,
-    previousSnapshot: options.ctx.previousSnapshot,
-  });
+export async function dbPushAction(options: DbPushOptions): Promise<Result<PushResult, Error>> {
+  try {
+    const data = await push({
+      queryFn: options.ctx.queryFn,
+      currentSnapshot: options.ctx.currentSnapshot,
+      previousSnapshot: options.ctx.previousSnapshot,
+    });
+    return ok(data);
+  } catch (error) {
+    return err(new Error(error instanceof Error ? error.message : String(error)));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -60,18 +66,25 @@ export interface DbMigrateOptions {
   dryRun: boolean;
 }
 
-export async function dbMigrateAction(options: DbMigrateOptions): Promise<MigrateDevResult> {
-  return migrateDev({
-    queryFn: options.ctx.queryFn,
-    currentSnapshot: options.ctx.currentSnapshot,
-    previousSnapshot: options.ctx.previousSnapshot,
-    migrationName: options.name,
-    existingFiles: options.ctx.existingFiles,
-    migrationsDir: options.ctx.migrationsDir,
-    writeFile: options.ctx.writeFile,
-    readFile: options.ctx.readFile,
-    dryRun: options.dryRun,
-  });
+export async function dbMigrateAction(
+  options: DbMigrateOptions,
+): Promise<Result<MigrateDevResult, Error>> {
+  try {
+    const data = await migrateDev({
+      queryFn: options.ctx.queryFn,
+      currentSnapshot: options.ctx.currentSnapshot,
+      previousSnapshot: options.ctx.previousSnapshot,
+      migrationName: options.name,
+      existingFiles: options.ctx.existingFiles,
+      migrationsDir: options.ctx.migrationsDir,
+      writeFile: options.ctx.writeFile,
+      readFile: options.ctx.readFile,
+      dryRun: options.dryRun,
+    });
+    return ok(data);
+  } catch (error) {
+    return err(new Error(error instanceof Error ? error.message : String(error)));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -83,16 +96,18 @@ export interface DbDeployOptions {
   dryRun: boolean;
 }
 
-export async function dbDeployAction(options: DbDeployOptions): Promise<MigrateDeployResult> {
+export async function dbDeployAction(
+  options: DbDeployOptions,
+): Promise<Result<MigrateDeployResult, Error>> {
   const result = await migrateDeploy({
     queryFn: options.ctx.queryFn,
     migrationFiles: options.ctx.migrationFiles,
     dryRun: options.dryRun,
   });
   if (!result.ok) {
-    throw new Error(result.error.message);
+    return err(new Error(result.error.message));
   }
-  return result.data;
+  return ok(result.data);
 }
 
 // ---------------------------------------------------------------------------
@@ -103,7 +118,9 @@ export interface DbStatusOptions {
   ctx: DbCommandContext;
 }
 
-export async function dbStatusAction(options: DbStatusOptions): Promise<MigrateStatusResult> {
+export async function dbStatusAction(
+  options: DbStatusOptions,
+): Promise<Result<MigrateStatusResult, Error>> {
   const result = await migrateStatus({
     queryFn: options.ctx.queryFn,
     migrationFiles: options.ctx.migrationFiles,
@@ -112,9 +129,9 @@ export async function dbStatusAction(options: DbStatusOptions): Promise<MigrateS
     dialect: options.ctx.dialect,
   });
   if (!result.ok) {
-    throw new Error(result.error.message);
+    return err(new Error(result.error.message));
   }
-  return result.data;
+  return ok(result.data);
 }
 
 // ---------------------------------------------------------------------------
@@ -125,16 +142,16 @@ export interface DbResetOptions {
   ctx: DbCommandContext;
 }
 
-export async function dbResetAction(options: DbResetOptions): Promise<ResetResult> {
+export async function dbResetAction(options: DbResetOptions): Promise<Result<ResetResult, Error>> {
   const result = await reset({
     queryFn: options.ctx.queryFn,
     migrationFiles: options.ctx.migrationFiles,
     dialect: options.ctx.dialect,
   });
   if (!result.ok) {
-    throw new Error(result.error.message);
+    return err(new Error(result.error.message));
   }
-  return result.data;
+  return ok(result.data);
 }
 
 // ---------------------------------------------------------------------------
@@ -145,14 +162,16 @@ export interface DbBaselineOptions {
   ctx: DbCommandContext;
 }
 
-export async function dbBaselineAction(options: DbBaselineOptions): Promise<BaselineResult> {
+export async function dbBaselineAction(
+  options: DbBaselineOptions,
+): Promise<Result<BaselineResult, Error>> {
   const result = await baseline({
     queryFn: options.ctx.queryFn,
     migrationFiles: options.ctx.migrationFiles,
     dialect: options.ctx.dialect,
   });
   if (!result.ok) {
-    throw new Error(result.error.message);
+    return err(new Error(result.error.message));
   }
-  return result.data;
+  return ok(result.data);
 }

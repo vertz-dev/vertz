@@ -2,7 +2,7 @@
  * Build Command Tests
  *
  * Tests for the vertz build CLI command.
- * Verifies app type detection dispatch and proper exit codes.
+ * Verifies app type detection dispatch and proper Result returns.
  *
  * NOTE: This test file avoids vi.mock() for shared modules (production-build,
  * utils/paths) because Bun test runs all files in one process and vi.mock()
@@ -74,32 +74,32 @@ describe('buildAction', () => {
     expect(typeof buildAction).toBe('function');
   });
 
-  it('should be an async function that returns a number', async () => {
+  it('should be an async function that returns a Result', async () => {
     writeFileSync(join(tmpDir, 'src', 'server.ts'), 'export default {};');
 
     const { buildAction } = await import('../build');
-    const result = buildAction({ noTypecheck: true });
+    const resultPromise = buildAction({ noTypecheck: true });
 
-    expect(result).toBeInstanceOf(Promise);
+    expect(resultPromise).toBeInstanceOf(Promise);
 
-    const exitCode = await result;
-    expect(typeof exitCode).toBe('number');
+    const result = await resultPromise;
+    expect(result).toHaveProperty('ok');
   });
 
-  it('should return exit code 1 when no app entries are found', async () => {
+  it('should return err when no app entries are found', async () => {
     const { buildAction } = await import('../build');
-    const exitCode = await buildAction();
+    const result = await buildAction();
 
-    expect(exitCode).toBe(1);
+    expect(result.ok).toBe(false);
   });
 
   it('should dispatch to API build for api-only projects', async () => {
     writeFileSync(join(tmpDir, 'src', 'server.ts'), 'export default {};');
 
     const { buildAction } = await import('../build');
-    const exitCode = await buildAction({ noTypecheck: true });
+    const result = await buildAction({ noTypecheck: true });
 
-    expect(exitCode).toBe(0);
+    expect(result.ok).toBe(true);
     expect(orchestratorSpy).toHaveBeenCalled();
   });
 
@@ -108,9 +108,9 @@ describe('buildAction', () => {
     writeFileSync(join(tmpDir, 'src', 'entry-client.ts'), 'console.log("client");');
 
     const { buildAction } = await import('../build');
-    const exitCode = await buildAction();
+    const result = await buildAction();
 
-    expect(exitCode).toBe(0);
+    expect(result.ok).toBe(true);
     expect(buildUISpy).toHaveBeenCalled();
   });
 
@@ -120,19 +120,19 @@ describe('buildAction', () => {
     writeFileSync(join(tmpDir, 'src', 'entry-client.ts'), 'console.log("client");');
 
     const { buildAction } = await import('../build');
-    const exitCode = await buildAction();
+    const result = await buildAction();
 
-    expect(exitCode).toBe(0);
+    expect(result.ok).toBe(true);
     expect(orchestratorSpy).toHaveBeenCalled();
     expect(buildUISpy).toHaveBeenCalled();
   });
 
-  it('should return exit code 1 for ui-only project without client entry', async () => {
+  it('should return err for ui-only project without client entry', async () => {
     writeFileSync(join(tmpDir, 'src', 'app.tsx'), 'export default function App() {}');
 
     const { buildAction } = await import('../build');
-    const exitCode = await buildAction();
+    const result = await buildAction();
 
-    expect(exitCode).toBe(1);
+    expect(result.ok).toBe(false);
   });
 });

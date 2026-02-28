@@ -1,6 +1,6 @@
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { createAction } from '../create';
 
 describe('createAction', () => {
@@ -26,11 +26,13 @@ describe('createAction', () => {
     // Change to test directory
     process.chdir(testDir);
 
-    await createAction({
+    const result = await createAction({
       projectName: 'my-test-app',
       runtime: 'bun',
       example: false,
     });
+
+    expect(result.ok).toBe(true);
 
     // Verify project was created
     const projectPath = path.join(testDir, 'my-test-app');
@@ -50,11 +52,13 @@ describe('createAction', () => {
 
     process.chdir(testDir);
 
-    await createAction({
+    const result = await createAction({
       projectName: 'app-with-example',
       runtime: 'bun',
       example: true,
     });
+
+    expect(result.ok).toBe(true);
 
     // Verify example module was created
     const modulesPath = path.join(testDir, 'app-with-example', 'src', 'modules');
@@ -73,11 +77,13 @@ describe('createAction', () => {
 
     process.chdir(testDir);
 
-    await createAction({
+    const result = await createAction({
       projectName: 'node-app',
       runtime: 'node',
       example: false,
     });
+
+    expect(result.ok).toBe(true);
 
     const packageJsonPath = path.join(testDir, 'node-app', 'package.json');
     const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
@@ -94,11 +100,13 @@ describe('createAction', () => {
 
     process.chdir(testDir);
 
-    await createAction({
+    const result = await createAction({
       projectName: 'deno-app',
       runtime: 'deno',
       example: false,
     });
+
+    expect(result.ok).toBe(true);
 
     // Verify Deno-specific configuration
     const denoJsonPath = path.join(testDir, 'deno-app', 'deno.json');
@@ -110,84 +118,55 @@ describe('createAction', () => {
     process.chdir(originalCwd);
   });
 
-  it('fails when project name is missing', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit called');
-    });
-
+  it('returns err when project name is missing', async () => {
     const originalCwd = process.cwd();
     process.chdir(testDir);
 
-    try {
-      await createAction({} as any);
-      throw new Error('Expected process.exit to be called');
-    } catch (error) {
-      expect((error as Error).message).toBe('process.exit called');
+    const result = await createAction({} as any);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('Project name is required');
     }
 
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Project name is required'),
-    );
-
-    consoleErrorSpy.mockRestore();
-    processExitSpy.mockRestore();
     process.chdir(originalCwd);
   });
 
-  it('fails when project name is invalid', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit called');
-    });
-
+  it('returns err when project name is invalid', async () => {
     const originalCwd = process.cwd();
     process.chdir(testDir);
 
-    try {
-      await createAction({
-        projectName: 'Invalid_Project_Name!',
-        runtime: 'bun',
-      });
-      throw new Error('Expected process.exit to be called');
-    } catch (error) {
-      expect((error as Error).message).toBe('process.exit called');
+    const result = await createAction({
+      projectName: 'Invalid_Project_Name!',
+      runtime: 'bun',
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('must be lowercase');
     }
 
-    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('must be lowercase'));
-
-    consoleErrorSpy.mockRestore();
-    processExitSpy.mockRestore();
     process.chdir(originalCwd);
   });
 
-  it('fails when directory already exists', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit called');
-    });
-
+  it('returns err when directory already exists', async () => {
     const originalCwd = process.cwd();
     process.chdir(testDir);
 
     // Create the directory first
     await fs.mkdir(path.join(testDir, 'existing-app'));
 
-    try {
-      await createAction({
-        projectName: 'existing-app',
-        runtime: 'bun',
-        example: false, // Explicitly pass example to avoid prompts
-      });
-      throw new Error('Expected process.exit to be called');
-    } catch (error) {
-      expect((error as Error).message).toBe('process.exit called');
+    const result = await createAction({
+      projectName: 'existing-app',
+      runtime: 'bun',
+      example: false,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.message).toContain('already exists');
     }
 
-    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('already exists'));
-
-    consoleErrorSpy.mockRestore();
-    processExitSpy.mockRestore();
     process.chdir(originalCwd);
   });
 });

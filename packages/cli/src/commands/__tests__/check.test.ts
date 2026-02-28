@@ -1,5 +1,5 @@
-import type { AppIR, CompileResult, Compiler, Diagnostic } from '@vertz/compiler';
 import { describe, expect, it, vi } from 'bun:test';
+import type { AppIR, CompileResult, Compiler, Diagnostic } from '@vertz/compiler';
 import { checkAction } from '../check';
 
 function makeDiagnostic(overrides: Partial<Diagnostic> = {}): Diagnostic {
@@ -50,7 +50,10 @@ describe('checkAction', () => {
       compiler,
       format: 'json',
     });
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.hasErrors).toBe(false);
+    }
   });
 
   it('calls compiler.analyze()', async () => {
@@ -65,45 +68,63 @@ describe('checkAction', () => {
     expect(compiler.validate).toHaveBeenCalled();
   });
 
-  it('returns failure when there are error diagnostics', async () => {
+  it('returns hasErrors true when there are error diagnostics', async () => {
     const compiler = createMockCompiler([makeDiagnostic()]);
     const result = await checkAction({ compiler, format: 'json' });
-    expect(result.success).toBe(false);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.hasErrors).toBe(true);
+    }
   });
 
-  it('returns success when there are only warnings', async () => {
+  it('returns hasErrors false when there are only warnings', async () => {
     const compiler = createMockCompiler([makeDiagnostic({ severity: 'warning' })]);
     const result = await checkAction({ compiler, format: 'json' });
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.hasErrors).toBe(false);
+    }
   });
 
   it('includes diagnostics in the result', async () => {
     const diag = makeDiagnostic();
     const compiler = createMockCompiler([diag]);
     const result = await checkAction({ compiler, format: 'json' });
-    expect(result.diagnostics).toHaveLength(1);
-    expect(result.diagnostics[0]?.code).toBe('VERTZ_ROUTE_MISSING_RESPONSE');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.diagnostics).toHaveLength(1);
+      expect(result.data.diagnostics[0]?.code).toBe('VERTZ_ROUTE_MISSING_RESPONSE');
+    }
   });
 
   it('returns formatted output for json format', async () => {
     const compiler = createMockCompiler([makeDiagnostic()]);
     const result = await checkAction({ compiler, format: 'json' });
-    expect(result.output).toBeDefined();
-    const parsed = JSON.parse(result.output);
-    expect(parsed.success).toBe(false);
-    expect(parsed.diagnostics).toHaveLength(1);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.output).toBeDefined();
+      const parsed = JSON.parse(result.data.output);
+      expect(parsed.success).toBe(false);
+      expect(parsed.diagnostics).toHaveLength(1);
+    }
   });
 
   it('returns formatted output for github format', async () => {
     const compiler = createMockCompiler([makeDiagnostic()]);
     const result = await checkAction({ compiler, format: 'github' });
-    expect(result.output).toContain('::error file=src/user.router.ts');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.output).toContain('::error file=src/user.router.ts');
+    }
   });
 
   it('returns formatted output for text format', async () => {
     const compiler = createMockCompiler([makeDiagnostic()]);
     const result = await checkAction({ compiler, format: 'text' });
-    expect(result.output).toContain('VERTZ_ROUTE_MISSING_RESPONSE');
-    expect(result.output).toContain('Missing response schema');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.output).toContain('VERTZ_ROUTE_MISSING_RESPONSE');
+      expect(result.data.output).toContain('Missing response schema');
+    }
   });
 });

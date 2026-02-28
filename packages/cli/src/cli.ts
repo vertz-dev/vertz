@@ -34,11 +34,15 @@ export function createCLI(): Command {
     .option('-e, --example', 'Include example health module')
     .option('--no-example', 'Exclude example health module')
     .action(async (name: string, opts: { runtime: string; example?: boolean }) => {
-      await createAction({
+      const result = await createAction({
         projectName: name,
         runtime: opts.runtime,
         example: opts.example,
       });
+      if (!result.ok) {
+        console.error(result.error.message);
+        process.exit(1);
+      }
     });
 
   program
@@ -58,7 +62,7 @@ export function createCLI(): Command {
     .option('--sourcemap', 'Generate sourcemaps')
     .option('-v, --verbose', 'Verbose output')
     .action(async (opts) => {
-      const exitCode = await buildAction({
+      const result = await buildAction({
         strict: opts.strict,
         output: opts.output,
         target: opts.target,
@@ -67,7 +71,10 @@ export function createCLI(): Command {
         sourcemap: opts.sourcemap,
         verbose: opts.verbose,
       });
-      process.exit(exitCode);
+      if (!result.ok) {
+        console.error(result.error.message);
+        process.exit(1);
+      }
     });
 
   // Unified dev command - Phase 1 implementation
@@ -81,7 +88,7 @@ export function createCLI(): Command {
     .option('--ssr', 'Enable SSR mode (server-side rendering, no HMR)')
     .option('-v, --verbose', 'Verbose output')
     .action(async (opts) => {
-      await devAction({
+      const result = await devAction({
         port: parseInt(opts.port, 10),
         host: opts.host,
         ssr: opts.ssr,
@@ -89,6 +96,10 @@ export function createCLI(): Command {
         typecheck: opts.typecheck !== false && !opts.noTypecheck,
         verbose: opts.verbose,
       });
+      if (!result.ok) {
+        console.error(result.error.message);
+        process.exit(1);
+      }
     });
 
   // Generate command - supports both explicit type and auto-discovery mode
@@ -121,8 +132,8 @@ export function createCLI(): Command {
         dryRun: options.dryRun,
       });
 
-      if (!result.success) {
-        console.error(result.error);
+      if (!result.ok) {
+        console.error(result.error.message);
         process.exit(1);
       }
     });
@@ -189,10 +200,12 @@ export function createCLI(): Command {
         dryRun: opts.dryRun,
       });
 
-      console.log(result.output);
-      if (!result.success) {
+      if (!result.ok) {
+        console.error(result.error.message);
         process.exit(1);
       }
+
+      console.log(result.data.output);
     });
 
   program
@@ -203,9 +216,10 @@ export function createCLI(): Command {
   // Database commands
   const dbCommand = program.command('db').description('Database management commands');
 
-  // TODO: consider using Commander's exitOverride() to make process.exit testable
   /** Run a db action with proper error handling and connection cleanup. */
-  async function withDbContext(fn: (ctx: DbCommandContext) => Promise<void>): Promise<void> {
+  async function withDbContext<T>(
+    fn: (ctx: DbCommandContext) => Promise<{ ok: true; data: T } | { ok: false; error: Error }>,
+  ): Promise<T> {
     let ctx: DbCommandContext;
     try {
       ctx = await loadDbContext();
@@ -216,10 +230,12 @@ export function createCLI(): Command {
       process.exit(1);
     }
     try {
-      await fn(ctx);
-    } catch (error) {
-      console.error(`Command failed: ${error instanceof Error ? error.message : String(error)}`);
-      process.exit(1);
+      const result = await fn(ctx);
+      if (!result.ok) {
+        console.error(`Command failed: ${result.error.message}`);
+        process.exit(1);
+      }
+      return result.data;
     } finally {
       try {
         await ctx.close();
@@ -235,33 +251,31 @@ export function createCLI(): Command {
     .option('-n, --name <name>', 'Migration name')
     .option('--dry-run', 'Preview SQL without writing or applying')
     .action(async (opts) => {
-      await withDbContext(async (ctx) => {
-        const result = await dbMigrateAction({
+      const result = await withDbContext((ctx) =>
+        dbMigrateAction({
           ctx,
           name: opts.name ?? undefined,
           dryRun: opts.dryRun ?? false,
-        });
-        if (result.dryRun) {
-          console.log(`[dry-run] Migration file: ${result.migrationFile}`);
-          console.log(result.sql || '-- no changes');
-        } else {
-          console.log(`Migration applied: ${result.migrationFile}`);
-        }
-      });
+        }),
+      );
+      if (result.dryRun) {
+        console.log(`[dry-run] Migration file: ${result.migrationFile}`);
+        console.log(result.sql || '-- no changes');
+      } else {
+        console.log(`Migration applied: ${result.migrationFile}`);
+      }
     });
 
   dbCommand
     .command('push')
     .description('Push schema changes directly (no migration file)')
     .action(async () => {
-      await withDbContext(async (ctx) => {
-        const result = await dbPushAction({ ctx });
-        if (result.tablesAffected.length === 0) {
-          console.log('No changes to push.');
-        } else {
-          console.log(`Pushed changes to: ${result.tablesAffected.join(', ')}`);
-        }
-      });
+      const result = await withDbContext((ctx) => dbPushAction({ ctx }));
+      if (result.tablesAffected.length === 0) {
+        console.log('No changes to push.');
+      } else {
+        console.log(`Pushed changes to: ${result.tablesAffected.join(', ')}`);
+      }
     });
 
   dbCommand
@@ -269,49 +283,47 @@ export function createCLI(): Command {
     .description('Apply pending migration files (production)')
     .option('--dry-run', 'Preview SQL without applying')
     .action(async (opts) => {
-      await withDbContext(async (ctx) => {
-        const data = await dbDeployAction({ ctx, dryRun: opts.dryRun ?? false });
-        if (data.applied.length === 0) {
-          console.log('No pending migrations.');
-        } else {
-          const prefix = data.dryRun ? '[dry-run] Would apply' : 'Applied';
-          console.log(`${prefix}: ${data.applied.join(', ')}`);
-        }
-      });
+      const data = await withDbContext((ctx) =>
+        dbDeployAction({ ctx, dryRun: opts.dryRun ?? false }),
+      );
+      if (data.applied.length === 0) {
+        console.log('No pending migrations.');
+      } else {
+        const prefix = data.dryRun ? '[dry-run] Would apply' : 'Applied';
+        console.log(`${prefix}: ${data.applied.join(', ')}`);
+      }
     });
 
   dbCommand
     .command('status')
     .description('Show migration status and drift report')
     .action(async () => {
-      await withDbContext(async (ctx) => {
-        const data = await dbStatusAction({ ctx });
-        console.log(`Applied: ${data.applied.length}`);
-        console.log(`Pending: ${data.pending.length}`);
-        if (data.pending.length > 0) {
-          for (const name of data.pending) {
-            console.log(`  - ${name}`);
-          }
+      const data = await withDbContext((ctx) => dbStatusAction({ ctx }));
+      console.log(`Applied: ${data.applied.length}`);
+      console.log(`Pending: ${data.pending.length}`);
+      if (data.pending.length > 0) {
+        for (const name of data.pending) {
+          console.log(`  - ${name}`);
         }
+      }
 
-        if (data.codeChanges.length > 0) {
-          console.log('\nCode changes:');
-          for (const c of data.codeChanges) {
-            console.log(`  - ${c.description}`);
-          }
+      if (data.codeChanges.length > 0) {
+        console.log('\nCode changes:');
+        for (const c of data.codeChanges) {
+          console.log(`  - ${c.description}`);
         }
+      }
 
-        if (data.drift.length > 0) {
-          console.log('\nDrift detected:');
-          for (const d of data.drift) {
-            console.log(`  - ${d.description}`);
-          }
+      if (data.drift.length > 0) {
+        console.log('\nDrift detected:');
+        for (const d of data.drift) {
+          console.log(`  - ${d.description}`);
         }
+      }
 
-        if (data.codeChanges.length === 0 && data.drift.length === 0) {
-          console.log('\nSchema is in sync.');
-        }
-      });
+      if (data.codeChanges.length === 0 && data.drift.length === 0) {
+        console.log('\nSchema is in sync.');
+      }
     });
 
   dbCommand
@@ -334,25 +346,21 @@ export function createCLI(): Command {
           return;
         }
       }
-      await withDbContext(async (ctx) => {
-        const data = await dbResetAction({ ctx });
-        console.log(`Dropped: ${data.tablesDropped.length} table(s)`);
-        console.log(`Applied: ${data.migrationsApplied.length} migration(s)`);
-      });
+      const data = await withDbContext((ctx) => dbResetAction({ ctx }));
+      console.log(`Dropped: ${data.tablesDropped.length} table(s)`);
+      console.log(`Applied: ${data.migrationsApplied.length} migration(s)`);
     });
 
   dbCommand
     .command('baseline')
     .description('Mark existing database as migrated')
     .action(async () => {
-      await withDbContext(async (ctx) => {
-        const data = await dbBaselineAction({ ctx });
-        if (data.recorded.length === 0) {
-          console.log('All migrations already recorded.');
-        } else {
-          console.log(`Recorded: ${data.recorded.join(', ')}`);
-        }
-      });
+      const data = await withDbContext((ctx) => dbBaselineAction({ ctx }));
+      if (data.recorded.length === 0) {
+        console.log('All migrations already recorded.');
+      } else {
+        console.log(`Recorded: ${data.recorded.join(', ')}`);
+      }
     });
 
   return program;

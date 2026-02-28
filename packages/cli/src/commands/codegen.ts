@@ -1,4 +1,5 @@
 import type { CodegenConfig, CodegenIR, CodegenPipeline } from '@vertz/codegen';
+import { err, ok, type Result } from '@vertz/errors';
 
 export interface CodegenOptions {
   config: CodegenConfig | undefined;
@@ -10,32 +11,24 @@ export interface CodegenOptions {
   incremental?: boolean;
 }
 
-export interface CodegenResult {
-  success: boolean;
-  output: string;
-  fileCount: number;
-}
-
-export async function codegenAction(options: CodegenOptions): Promise<CodegenResult> {
+export async function codegenAction(
+  options: CodegenOptions,
+): Promise<Result<{ output: string; fileCount: number }, Error>> {
   const { config, ir, writeFile, pipeline, dryRun = false, incremental = true } = options;
 
   // No codegen config provided
   if (!config) {
-    return {
-      success: false,
-      output: 'No codegen configuration found. Add a codegen section to vertz.config.ts.',
-      fileCount: 0,
-    };
+    return err(
+      new Error('No codegen configuration found. Add a codegen section to vertz.config.ts.'),
+    );
   }
 
   // Validate config
   const errors = pipeline.validate(config);
   if (errors.length > 0) {
-    return {
-      success: false,
-      output: `Invalid codegen configuration:\n${errors.map((e) => `  - ${e}`).join('\n')}`,
-      fileCount: 0,
-    };
+    return err(
+      new Error(`Invalid codegen configuration:\n${errors.map((e) => `  - ${e}`).join('\n')}`),
+    );
   }
 
   // Generate files
@@ -51,11 +44,7 @@ export async function codegenAction(options: CodegenOptions): Promise<CodegenRes
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      return {
-        success: false,
-        output: `Failed to write generated files: ${message}`,
-        fileCount: 0,
-      };
+      return err(new Error(`Failed to write generated files: ${message}`));
     }
   }
 
@@ -80,9 +69,5 @@ export async function codegenAction(options: CodegenOptions): Promise<CodegenRes
     output = `Generated ${result.fileCount} file${result.fileCount === 1 ? '' : 's'} (${result.generators.join(', ')})`;
   }
 
-  return {
-    success: true,
-    output,
-    fileCount: result.fileCount,
-  };
+  return ok({ output, fileCount: result.fileCount });
 }

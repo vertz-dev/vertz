@@ -1,5 +1,6 @@
 import type { Runtime } from '@vertz/create-vertz-app';
 import { resolveOptions, scaffold } from '@vertz/create-vertz-app';
+import { err, ok, type Result } from '@vertz/errors';
 
 export interface CreateOptions {
   projectName?: string;
@@ -7,29 +8,25 @@ export interface CreateOptions {
   example?: boolean;
 }
 
-export async function createAction(options: CreateOptions): Promise<void> {
+export async function createAction(options: CreateOptions): Promise<Result<void, Error>> {
   const { projectName, runtime, example } = options;
 
   // Validate project name
   if (!projectName) {
-    console.error('Error: Project name is required');
-    console.error('Usage: vertz create <project-name>');
-    process.exit(1);
+    return err(new Error('Project name is required. Usage: vertz create <project-name>'));
   }
 
   // Validate project name format
   const validName = /^[a-z0-9-]+$/.test(projectName);
   if (!validName) {
-    console.error('Error: Project name must be lowercase alphanumeric with hyphens only');
-    process.exit(1);
+    return err(new Error('Project name must be lowercase alphanumeric with hyphens only'));
   }
 
   // Validate runtime
   const validRuntimes = ['bun', 'node', 'deno'];
   const runtimeValue = (runtime || 'bun').toLowerCase();
   if (!validRuntimes.includes(runtimeValue)) {
-    console.error(`Error: Invalid runtime. Must be one of: ${validRuntimes.join(', ')}`);
-    process.exit(1);
+    return err(new Error(`Invalid runtime. Must be one of: ${validRuntimes.join(', ')}`));
   }
 
   // Handle --example / --no-example
@@ -62,13 +59,15 @@ export async function createAction(options: CreateOptions): Promise<void> {
     console.log(`  cd ${resolved.projectName}`);
     console.log(`  bun install`);
     console.log(`  bun run dev`);
+    return ok(undefined);
   } catch (error) {
     if (error instanceof Error && error.message.includes('already exists')) {
-      console.error(`\nError: Directory "${projectName}" already exists.`);
-      console.error('Please choose a different project name or remove the existing directory.');
-    } else {
-      console.error('Error:', error instanceof Error ? error.message : error);
+      return err(
+        new Error(
+          `Directory "${projectName}" already exists. Please choose a different project name or remove the existing directory.`,
+        ),
+      );
     }
-    process.exit(1);
+    return err(new Error(error instanceof Error ? error.message : String(error)));
   }
 }
