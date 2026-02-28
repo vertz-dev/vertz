@@ -42,14 +42,14 @@ function createInMemoryDb(): EntityDbAdapter {
     },
     async update(id, data) {
       const existing = store.find((r) => r.id === id);
-      if (!existing) return null;
+      if (!existing) return null as unknown as Record<string, unknown>;
       Object.assign(existing, { ...data, updatedAt: new Date().toISOString() });
       return { ...existing };
     },
     async delete(id) {
       const idx = store.findIndex((r) => r.id === id);
-      if (idx === -1) return null;
-      return store.splice(idx, 1)[0] ?? null;
+      if (idx === -1) return null as unknown as Record<string, unknown>;
+      return store.splice(idx, 1)[0]!;
     },
   };
 }
@@ -84,7 +84,7 @@ describe('Entity Todo API', () => {
       completed: false,
     });
     expect(res.status).toBe(201);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.title).toBe('Buy milk');
     expect(body.id).toBeDefined();
   });
@@ -98,7 +98,7 @@ describe('Entity Todo API', () => {
     });
     const res = await request(app, 'GET', '/api/todos');
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.items).toBeInstanceOf(Array);
   });
 
@@ -108,10 +108,10 @@ describe('Entity Todo API', () => {
     const createRes = await request(app, 'POST', '/api/todos', {
       title: 'Get me',
     });
-    const created = await createRes.json();
+    const created = (await createRes.json()) as Record<string, unknown>;
     const res = await request(app, 'GET', `/api/todos/${created.id}`);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.title).toBe('Get me');
   });
 
@@ -122,12 +122,12 @@ describe('Entity Todo API', () => {
       title: 'Update me',
       completed: false,
     });
-    const created = await createRes.json();
+    const created = (await createRes.json()) as Record<string, unknown>;
     const res = await request(app, 'PATCH', `/api/todos/${created.id}`, {
       completed: true,
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as Record<string, unknown>;
     expect(body.completed).toBe(true);
   });
 
@@ -137,7 +137,7 @@ describe('Entity Todo API', () => {
     const createRes = await request(app, 'POST', '/api/todos', {
       title: 'Delete me',
     });
-    const created = await createRes.json();
+    const created = (await createRes.json()) as Record<string, unknown>;
     const res = await request(app, 'DELETE', `/api/todos/${created.id}`);
     expect(res.status).toBe(204);
   });

@@ -5,7 +5,7 @@ import { DemoPage } from './pages/demo';
 import { HomePage } from './pages/home';
 
 function buildRoutes() {
-  const map: Record<string, { component: () => HTMLElement }> = {
+  const map: Record<string, { component: () => Element }> = {
     '/': { component: () => HomePage() },
   };
 

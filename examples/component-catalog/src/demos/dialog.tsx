@@ -22,11 +22,11 @@ export function DialogDemo() {
             </Dialog.Header>
             <div style="display: grid; gap: 1rem;">
               <div style="display: grid; gap: 0.75rem;">
-                <Label htmlFor="dialog-name">Name</Label>
+                <Label for="dialog-name">Name</Label>
                 <Input id="dialog-name" name="name" defaultValue="Pedro Duarte" />
               </div>
               <div style="display: grid; gap: 0.75rem;">
-                <Label htmlFor="dialog-username">Username</Label>
+                <Label for="dialog-username">Username</Label>
                 <Input id="dialog-username" name="username" defaultValue="@peduarte" />
               </div>
             </div>

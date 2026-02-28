@@ -42,7 +42,7 @@ export function createUserMethods() {
       const limit = input.limit ?? 20;
       const offset = input.offset ?? 0;
 
-      const result = await db.listAndCount('users', {
+      const result = await db.users.listAndCount({
         limit,
         offset,
         orderBy: { createdAt: 'desc' },
@@ -58,7 +58,7 @@ export function createUserMethods() {
     },
 
     async getById(id: string) {
-      const result = await db.get('users', {
+      const result = await db.users.get({
         where: { id },
       });
       const user = unwrap(result);
@@ -72,7 +72,7 @@ export function createUserMethods() {
 
     async create(input: CreateUserInput) {
       try {
-        const result = await db.create('users', {
+        const result = await db.users.create({
           data: {
             id: crypto.randomUUID(),
             email: input.email,

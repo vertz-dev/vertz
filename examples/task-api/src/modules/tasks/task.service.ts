@@ -80,7 +80,7 @@ export function createTaskMethods() {
       if (input.priority) where.priority = input.priority;
       if (input.assigneeId) where.assigneeId = input.assigneeId;
 
-      const result = await db.listAndCount('tasks', {
+      const result = await db.tasks.listAndCount({
         where,
         limit,
         offset,
@@ -97,7 +97,7 @@ export function createTaskMethods() {
     },
 
     async getById(id: string) {
-      const result = await db.get('tasks', {
+      const result = await db.tasks.get({
         where: { id },
         include: { assignee: true },
       });
@@ -113,7 +113,7 @@ export function createTaskMethods() {
     async create(input: CreateTaskInput) {
       // If assigneeId is provided, verify the user exists
       if (input.assigneeId) {
-        const userResult = await db.get('users', {
+        const userResult = await db.users.get({
           where: { id: input.assigneeId },
         });
         const user = unwrap(userResult);
@@ -123,7 +123,7 @@ export function createTaskMethods() {
       }
 
       const now = new Date();
-      const result = await db.create('tasks', {
+      const result = await db.tasks.create({
         data: {
           id: crypto.randomUUID(),
           title: input.title,
@@ -143,7 +143,7 @@ export function createTaskMethods() {
     async update(id: string, input: UpdateTaskInput) {
       // If assigneeId is being set, verify the user exists
       if (input.assigneeId) {
-        const userResult = await db.get('users', {
+        const userResult = await db.users.get({
           where: { id: input.assigneeId },
         });
         const user = unwrap(userResult);
@@ -162,7 +162,7 @@ export function createTaskMethods() {
         ...(input.assigneeId !== undefined && { assigneeId: input.assigneeId }),
       };
 
-      const result = await db.update('tasks', {
+      const result = await db.tasks.update({
         where: { id },
         data,
       });
@@ -172,7 +172,7 @@ export function createTaskMethods() {
     },
 
     async remove(id: string) {
-      const result = await db.delete('tasks', {
+      const result = await db.tasks.delete({
         where: { id },
       });
       const task = unwrap(result);

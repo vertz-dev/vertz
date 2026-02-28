@@ -4,7 +4,7 @@ import { themeComponents } from '../styles/theme';
 const { radioGroup } = themeComponents.primitives;
 
 export function RadioGroupDemo() {
-  const radio = radioGroup({ name: 'plan', defaultValue: 'comfortable' });
+  const radio = radioGroup({ defaultValue: 'comfortable' });
   radio.Item('default', 'Default');
   radio.Item('comfortable', 'Comfortable');
   radio.Item('compact', 'Compact');

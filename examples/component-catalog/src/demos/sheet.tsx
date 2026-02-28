@@ -18,11 +18,11 @@ export function SheetDemo() {
             <Sheet.Description>Make changes to your profile here.</Sheet.Description>
             <div style="display: flex; flex-direction: column; gap: 1rem; padding: 1rem 0;">
               <div style="display: flex; flex-direction: column; gap: 0.375rem;">
-                <Label htmlFor="sheet-name">Name</Label>
+                <Label for="sheet-name">Name</Label>
                 <Input id="sheet-name" name="name" defaultValue="Pedro Duarte" />
               </div>
               <div style="display: flex; flex-direction: column; gap: 0.375rem;">
-                <Label htmlFor="sheet-username">Username</Label>
+                <Label for="sheet-username">Username</Label>
                 <Input id="sheet-username" name="username" defaultValue="@peduarte" />
               </div>
             </div>

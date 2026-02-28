@@ -21,15 +21,15 @@ export function PopoverDemo() {
               </p>
               <div style="display: grid; gap: 8px;">
                 <div style="display: grid; grid-template-columns: 80px 1fr; align-items: center; gap: 8px;">
-                  <Label htmlFor="pop-width">Width</Label>
+                  <Label for="pop-width">Width</Label>
                   <Input id="pop-width" name="width" defaultValue="100%" />
                 </div>
                 <div style="display: grid; grid-template-columns: 80px 1fr; align-items: center; gap: 8px;">
-                  <Label htmlFor="pop-maxw">Max. width</Label>
+                  <Label for="pop-maxw">Max. width</Label>
                   <Input id="pop-maxw" name="maxWidth" defaultValue="300px" />
                 </div>
                 <div style="display: grid; grid-template-columns: 80px 1fr; align-items: center; gap: 8px;">
-                  <Label htmlFor="pop-height">Height</Label>
+                  <Label for="pop-height">Height</Label>
                   <Input id="pop-height" name="height" defaultValue="25px" />
                 </div>
               </div>
