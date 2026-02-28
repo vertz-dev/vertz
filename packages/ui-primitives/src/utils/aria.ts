@@ -121,6 +121,13 @@ export function setDescribedBy(el: HTMLElement, descriptionId: string): void {
 }
 
 /**
+ * Set aria-pressed on an element.
+ */
+export function setPressed(el: HTMLElement, pressed: boolean): void {
+  el.setAttribute('aria-pressed', String(pressed));
+}
+
+/**
  * Set aria-valuenow, aria-valuemin, and aria-valuemax for range widgets.
  */
 export function setValueRange(el: HTMLElement, now: number, min: number, max: number): void {
