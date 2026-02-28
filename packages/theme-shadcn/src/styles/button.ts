@@ -46,7 +46,8 @@ const intentVariants: Record<string, StyleEntry[]> = {
         { property: 'border-color', value: 'color-mix(in oklch, var(--color-destructive) 40%, transparent)' },
       ],
     },
-    { [DARK]: [bgOpacity('destructive', 20), { '&:hover': [bgOpacity('destructive', 30)] }] },
+    { [DARK]: [bgOpacity('destructive', 20)] },
+    { [`${DARK}:hover`]: [bgOpacity('destructive', 30)] },
   ],
   ghost: [
     { '&:hover': ['bg:muted', 'text:foreground'] },

@@ -17,6 +17,7 @@ interface DropdownMenuStyleClasses {
 
 export interface DropdownMenuRootProps extends MenuOptions {
   children?: ChildValue;
+  onOpenChange?: (isOpen: boolean) => void;
 }
 
 export interface DropdownMenuSlotProps {
@@ -153,8 +154,7 @@ export function createThemedDropdownMenu(
     }
   }
 
-  function DropdownMenuRoot({ children, ...options }: DropdownMenuRootProps): HTMLElement {
-    const onOpenChangeOrig = options.onOpenChange;
+  function DropdownMenuRoot({ children, onOpenChange: onOpenChangeOrig, ...menuOptions }: DropdownMenuRootProps): HTMLElement {
     let userTrigger: HTMLElement | null = null;
     let contentNodes: Node[] = [];
 
@@ -168,16 +168,20 @@ export function createThemedDropdownMenu(
       }
     }
 
-    const primitive = Menu.Root({
-      ...options,
-      onOpenChange: (isOpen) => {
-        if (userTrigger) {
-          userTrigger.setAttribute('aria-expanded', String(isOpen));
-          userTrigger.setAttribute('data-state', isOpen ? 'open' : 'closed');
-        }
-        onOpenChangeOrig?.(isOpen);
-      },
+    const primitive = Menu.Root(menuOptions);
+
+    // Sync user trigger attributes and fire onOpenChange callback
+    // by observing the primitive trigger's aria-expanded changes
+    const primitiveTrigger = primitive.trigger;
+    const observer = new MutationObserver(() => {
+      const isOpen = primitiveTrigger.getAttribute('aria-expanded') === 'true';
+      if (userTrigger) {
+        userTrigger.setAttribute('aria-expanded', String(isOpen));
+        userTrigger.setAttribute('data-state', isOpen ? 'open' : 'closed');
+      }
+      onOpenChangeOrig?.(isOpen);
     });
+    observer.observe(primitiveTrigger, { attributes: true, attributeFilter: ['aria-expanded'] });
 
     // Apply theme class
     primitive.content.classList.add(styles.content);

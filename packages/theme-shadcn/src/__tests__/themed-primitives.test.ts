@@ -1040,9 +1040,11 @@ describe('createThemedRadioGroup', () => {
     const styles = createRadioGroupStyles();
     const themedRadioGroup = createThemedRadioGroup(styles);
     const radioGroup = themedRadioGroup();
-    const item = radioGroup.Item('option1', 'Option 1');
+    const wrapper = radioGroup.Item('option1', 'Option 1');
 
-    expect(item.classList.contains(styles.item)).toBe(true);
+    // Item returns a wrapper div; the actual radio element with styles.item is the first child
+    const radioEl = wrapper.firstElementChild!;
+    expect(radioEl.classList.contains(styles.item)).toBe(true);
   });
 
   it('preserves primitive behavior — clicking item changes value', async () => {
@@ -1051,11 +1053,13 @@ describe('createThemedRadioGroup', () => {
     const styles = createRadioGroupStyles();
     const themedRadioGroup = createThemedRadioGroup(styles);
     const radioGroup = themedRadioGroup();
-    const item1 = radioGroup.Item('a', 'A');
+    const wrapper1 = radioGroup.Item('a', 'A');
     radioGroup.Item('b', 'B');
 
+    // Click the actual radio element inside the wrapper
+    const radioEl = wrapper1.firstElementChild!;
     expect(radioGroup.state.value.peek()).toBe('');
-    item1.click();
+    (radioEl as HTMLElement).click();
     expect(radioGroup.state.value.peek()).toBe('a');
   });
 

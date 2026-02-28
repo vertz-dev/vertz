@@ -135,14 +135,13 @@ export function createThemedSelect(styles: SelectStyleClasses): ThemedSelectComp
   }
 
   function SelectRoot({ children, ...options }: SelectRootProps): HTMLElement {
-    let triggerChildren: Node[] = [];
     let contentNodes: Node[] = [];
 
     for (const node of resolveChildren(children)) {
       if (!(node instanceof HTMLElement)) continue;
       const slot = node.dataset.slot;
       if (slot === 'select-trigger') {
-        triggerChildren = Array.from(node.childNodes);
+        // Trigger children reserved for future label customization
       } else if (slot === 'select-content') {
         contentNodes = Array.from(node.childNodes);
       }
