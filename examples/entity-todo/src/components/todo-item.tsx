@@ -2,14 +2,13 @@
  * TodoItem - Single todo item component with toggle and delete actions.
  *
  * Demonstrates:
- * - Using SDK methods for mutations (update, delete)
- * - Handling Result<T, FetchError> from SDK calls
- * - Using matchError for proper error handling
+ * - Result-returning mutations with isOk + matchError
+ * - matchError for compile-time exhaustive error handling
  * - Optimistic updates with rollback on error
  */
 
-import { matchError, isOk, type Result, type FetchErrorType } from '@vertz/fetch';
-import { updateTodo, deleteTodo } from '../api/client';
+import { isOk, matchError } from '@vertz/fetch';
+import { deleteTodo, updateTodo } from '../api/client';
 import { todoItemStyles } from '../styles/components';
 
 export interface TodoItemProps {
@@ -26,13 +25,12 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
   const handleToggle = async () => {
     const previousValue = isCompleted;
     isCompleted = !isCompleted;
-    
-    const result: Result<any, FetchErrorType> = await updateTodo(id, { completed: isCompleted });
-    
+
+    const result = await updateTodo(id, { completed: isCompleted });
+
     if (isOk(result)) {
       onToggle(id, isCompleted);
     } else {
-      // Revert on failure
       isCompleted = previousValue;
       const errorMessage = matchError(result.error, {
         NetworkError: (e) => `Network error: ${e.message}`,
@@ -51,8 +49,8 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
   };
 
   const handleDelete = async () => {
-    const result: Result<any, FetchErrorType> = await deleteTodo(id);
-    
+    const result = await deleteTodo(id);
+
     if (isOk(result)) {
       onDelete(id);
     } else {
@@ -82,15 +80,14 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
         data-testid={`todo-checkbox-${id}`}
       />
       <span
-        class={
-          isCompleted ? todoItemStyles.titleCompleted : todoItemStyles.title
-        }
+        class={isCompleted ? todoItemStyles.titleCompleted : todoItemStyles.title}
         style={isCompleted ? 'text-decoration: line-through' : ''}
         data-testid={`todo-title-${id}`}
       >
         {title}
       </span>
       <button
+        type="button"
         class={todoItemStyles.deleteBtn}
         onClick={handleDelete}
         data-testid={`todo-delete-${id}`}

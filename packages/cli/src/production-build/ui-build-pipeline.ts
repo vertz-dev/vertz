@@ -195,10 +195,10 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
         ) => void;
       }) {
         build.onResolve({ filter: /^@vertz\/ui\/jsx-runtime$/ }, () => {
-          return { path: '@vertz/ui-server/jsx-runtime', external: false };
+          return { path: '@vertz/ui-server/jsx-runtime', external: true };
         });
         build.onResolve({ filter: /^@vertz\/ui\/jsx-dev-runtime$/ }, () => {
-          return { path: '@vertz/ui-server/jsx-runtime', external: false };
+          return { path: '@vertz/ui-server/jsx-runtime', external: true };
         });
       },
     };

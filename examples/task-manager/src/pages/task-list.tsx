@@ -3,17 +3,15 @@
  *
  * Demonstrates:
  * - JSX for page layout and component composition
- * - Destructured query() — the compiler generates a synthetic variable,
- *   wraps signal properties (data, loading, error) in computed(),
- *   and inserts .value for auto-unwrapping
+ * - query() for reactive data fetching
+ * - queryMatch() for exclusive-state pattern matching (loading/error/data)
  * - Compiler `let` → signal transform for local filter state
  * - Compiler `const` → computed transform for derived values from query()
- * - Compiler conditional transform: {show && <el/>} → __conditional()
  * - Compiler list transform: {items.map(...)} → __list()
  * - <TaskCard /> JSX component embedding
  */
 
-import { query } from '@vertz/ui';
+import { query, queryMatch } from '@vertz/ui';
 import { api } from '../api/mock-data';
 import { Icon } from '../components/icon';
 import { TaskCard } from '../components/task-card';
@@ -24,12 +22,8 @@ import { button, emptyStateStyles, layoutStyles } from '../styles/components';
 /**
  * Render the task list page.
  *
- * Destructures query() to pull out data, loading, and error directly.
- * The compiler detects this pattern and:
- *   1. Creates a synthetic variable: const __query_0 = query(...)
- *   2. Wraps signal properties: const data = computed(() => __query_0.data.value)
- *   3. All downstream usage is reactive via computed() auto-wrapping.
- *
+ * Uses queryMatch() for exclusive-state rendering of the task list
+ * content area. The filter bar and header remain outside the match.
  * Navigation is accessed via useAppRouter() context — no props needed.
  */
 export function TaskListPage() {
@@ -39,21 +33,16 @@ export function TaskListPage() {
   // Local state: compiler transforms `let` to signal()
   let statusFilter: TaskStatus | 'all' = 'all';
 
-  // Destructured query() — the compiler generates a synthetic variable and
-  // wraps each signal property (data, loading, error) in computed() with .value
-  const { data, loading, error } = query(api.tasks.list());
+  // query() — non-destructured form to pass the full QueryResult to queryMatch()
+  const tasksQuery = query(api.tasks.list());
 
-  // Derived values — the compiler classifies these as computed (they depend on
-  // signal API properties) and wraps them in computed() automatically.
-  const errorMsg = error
-    ? `Failed to load tasks: ${error instanceof Error ? error.message : String(error)}`
-    : '';
-
-  const filteredTasks = !data
+  // Derived value — the compiler classifies this as computed (depends on
+  // signal API properties) and wraps in computed() automatically.
+  const filteredTasks = !tasksQuery.data
     ? []
     : statusFilter === 'all'
-      ? data.tasks
-      : data.tasks.filter((t: Task) => t.status === statusFilter);
+      ? tasksQuery.data.tasks
+      : tasksQuery.data.tasks.filter((t: Task) => t.status === statusFilter);
 
   // ── Filter options ──────────────────────────────────
 
@@ -95,32 +84,41 @@ export function TaskListPage() {
           </button>
         ))}
       </div>
-      {loading && <div data-testid="loading">Loading tasks...</div>}
-      {error && (
-        <div style="color: var(--color-destructive)" data-testid="error">
-          {errorMsg}
-        </div>
-      )}
-      {!loading && !error && filteredTasks.length === 0 && (
-        <div class={emptyStateStyles.container}>
-          <div class={emptyStateStyles.icon}>
-            <Icon name="Inbox" size={48} />
+      {queryMatch(tasksQuery, {
+        loading: () => <div data-testid="loading">Loading tasks...</div>,
+        error: (err) => (
+          <div style="color: var(--color-destructive)" data-testid="error">
+            {`Failed to load tasks: ${err instanceof Error ? err.message : String(err)}`}
           </div>
-          <h3 class={emptyStateStyles.title}>No tasks found</h3>
-          <p class={emptyStateStyles.description}>Create your first task to get started.</p>
-          <button
-            class={button({ intent: 'primary', size: 'md' })}
-            onClick={() => navigate('/tasks/new')}
-          >
-            Create Task
-          </button>
-        </div>
-      )}
-      <div data-testid="task-list" style="display: flex; flex-direction: column; gap: 0.75rem">
-        {filteredTasks.map((task) => (
-          <TaskCard key={task.id} task={task} onClick={(id) => navigate(`/tasks/${id}`)} />
-        ))}
-      </div>
+        ),
+        data: () => (
+          <>
+            {filteredTasks.length === 0 && (
+              <div class={emptyStateStyles.container}>
+                <div class={emptyStateStyles.icon}>
+                  <Icon name="Inbox" size={48} />
+                </div>
+                <h3 class={emptyStateStyles.title}>No tasks found</h3>
+                <p class={emptyStateStyles.description}>Create your first task to get started.</p>
+                <button
+                  class={button({ intent: 'primary', size: 'md' })}
+                  onClick={() => navigate('/tasks/new')}
+                >
+                  Create Task
+                </button>
+              </div>
+            )}
+            <div
+              data-testid="task-list"
+              style="display: flex; flex-direction: column; gap: 0.75rem"
+            >
+              {filteredTasks.map((task) => (
+                <TaskCard key={task.id} task={task} onClick={(id) => navigate(`/tasks/${id}`)} />
+              ))}
+            </div>
+          </>
+        ),
+      })}
     </div>
   );
 }
