@@ -56,7 +56,7 @@ describe('$response', () => {
   it('excludes hidden columns', () => {
     type Response = typeof users.$response;
 
-    // passwordHash is .hidden() — should NOT appear on $response
+    // passwordHash is .is('hidden') — should NOT appear on $response
     expectTypeOf<Response>().not.toHaveProperty('passwordHash');
   });
 });

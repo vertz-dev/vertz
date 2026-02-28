@@ -1,6 +1,11 @@
 import type { ColumnBuilder, InferColumnType } from './column';
 import type { RelationDef } from './relation';
-import type { AllAnnotations, ColumnRecord, TableDef } from './table';
+import type {
+  AllAnnotations,
+  ColumnKeysWithoutAnyAnnotation,
+  ColumnRecord,
+  TableDef,
+} from './table';
 
 // ---------------------------------------------------------------------------
 // FilterType — typed where filters with operators
@@ -97,15 +102,6 @@ export type SelectOption<TColumns extends ColumnRecord> =
 // ---------------------------------------------------------------------------
 // SelectNarrow — narrows result to selected fields or excludes by visibility
 // ---------------------------------------------------------------------------
-
-/** Keys of columns that do NOT have ANY of the specified annotations in `_annotations`. */
-type ColumnKeysWithoutAnyAnnotation<T extends ColumnRecord, Annotations extends string> = {
-  [K in keyof T]: T[K] extends ColumnBuilder<unknown, infer M>
-    ? M['_annotations'] extends Record<Annotations, true>
-      ? never
-      : K
-    : never;
-}[keyof T];
 
 /** Extract selected keys from a select map (keys set to `true`). */
 type SelectedKeys<TColumns extends ColumnRecord, TSelect> = {

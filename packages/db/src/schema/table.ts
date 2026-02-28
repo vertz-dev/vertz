@@ -52,7 +52,7 @@ type ColumnKeysWhereNot<T extends ColumnRecord, Flag extends keyof ColumnMetadat
 }[keyof T];
 
 /** Keys of columns that do NOT have ANY of the specified annotations in `_annotations`. */
-type ColumnKeysWithoutAnyAnnotation<T extends ColumnRecord, Annotations extends string> = {
+export type ColumnKeysWithoutAnyAnnotation<T extends ColumnRecord, Annotations extends string> = {
   [K in keyof T]: T[K] extends ColumnBuilder<unknown, infer M>
     ? M['_annotations'] extends Record<Annotations, true>
       ? never

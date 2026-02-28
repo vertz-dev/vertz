@@ -36,7 +36,7 @@ describe('$infer', () => {
   it('excludes hidden columns from $infer', () => {
     type User = typeof users.$infer;
 
-    // passwordHash is .hidden() -- should NOT appear on $infer
+    // passwordHash is .is('hidden') -- should NOT appear on $infer
     expectTypeOf<User>().not.toHaveProperty('passwordHash');
   });
 
@@ -116,7 +116,7 @@ describe('$insert', () => {
   it('includes hidden columns (visibility is read-side only)', () => {
     type UserInsert = typeof users.$insert;
 
-    // passwordHash is .hidden() but MUST be included in $insert
+    // passwordHash is .is('hidden') but MUST be included in $insert
     const _valid: UserInsert = {
       email: 'e@x.com',
       passwordHash: 'hash123',
@@ -129,7 +129,7 @@ describe('$insert', () => {
   it('includes sensitive columns (visibility is read-side only)', () => {
     type UserInsert = typeof users.$insert;
 
-    // email is .sensitive() but MUST be included in $insert
+    // email is .is('sensitive') but MUST be included in $insert
     const _valid: UserInsert = {
       email: 'sensitive@example.com',
       passwordHash: 'hash',
