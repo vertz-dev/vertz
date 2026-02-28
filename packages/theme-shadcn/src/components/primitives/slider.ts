@@ -15,6 +15,11 @@ export function createThemedSlider(
     result.root.classList.add(styles.root);
     result.track.classList.add(styles.track);
     result.thumb.classList.add(styles.thumb);
+    // Style the fill element
+    const fill = result.track.querySelector('[data-part="fill"]') as HTMLElement | null;
+    if (fill) {
+      fill.style.backgroundColor = 'var(--color-primary)';
+    }
     return result;
   };
 }

@@ -187,14 +187,14 @@ describe('Theme Shadcn Walkthrough', () => {
 
   it('components.primitives has all themed primitive factories', () => {
     const { components } = configureTheme();
-    expect(typeof components.primitives.dialog).toBe('function');
-    expect(typeof components.primitives.select).toBe('function');
-    expect(typeof components.primitives.tabs).toBe('function');
+    expect(typeof components.primitives.Dialog).toBe('function');
+    expect(typeof components.primitives.Select).toBe('function');
+    expect(typeof components.primitives.Tabs).toBe('function');
     expect(typeof components.primitives.checkbox).toBe('function');
     expect(typeof components.primitives.switch).toBe('function');
     expect(typeof components.primitives.progress).toBe('function');
-    expect(typeof components.primitives.accordion).toBe('function');
-    expect(typeof components.primitives.tooltip).toBe('function');
+    expect(typeof components.primitives.Accordion).toBe('function');
+    expect(typeof components.primitives.Tooltip).toBe('function');
   });
 
   it('styles include primitive style definitions', () => {

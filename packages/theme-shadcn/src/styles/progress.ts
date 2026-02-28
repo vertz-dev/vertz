@@ -11,20 +11,17 @@ export function createProgressStyles(): CSSOutput<ProgressBlocks> {
   const s = css({
     progressRoot: [
       'relative',
-      'h:2',
       'w:full',
       'overflow-hidden',
       'rounded:full',
-      'bg:primary',
-      'opacity:0.2',
+      'bg:muted',
+      { '&': [{ property: 'height', value: '0.25rem' }] },
     ],
     progressIndicator: [
       'h:full',
       'w:full',
-      'flex-col',
       'bg:primary',
-      'transition:transform',
-      'rounded:full',
+      { '&': [{ property: 'transition', value: 'all 150ms' }] },
     ],
   });
   return {

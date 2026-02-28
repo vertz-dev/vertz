@@ -48,7 +48,7 @@ export function createToastStyles(): CSSOutput<ToastBlocks> {
       'items:center',
       'gap:4',
       'w:full',
-      'rounded:lg',
+      'rounded:2xl',
       'border:1',
       'border:border',
       'bg:background',

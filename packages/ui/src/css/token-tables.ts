@@ -211,10 +211,11 @@ export const SPACING_SCALE: Record<string, string> = {
   auto: 'auto',
 };
 
-/** Border radius scale. */
+/** Border radius scale — matches Tailwind v4 / shadcn. */
 export const RADIUS_SCALE: Record<string, string> = {
   none: '0',
-  sm: '0.125rem',
+  xs: '0.125rem',
+  sm: '0.25rem',
   md: '0.375rem',
   lg: '0.5rem',
   xl: '0.75rem',

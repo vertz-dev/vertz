@@ -35,6 +35,7 @@ export function createTableComponents(tableStyles: CSSOutput<TableBlocks>): Tabl
     wrapper.style.width = '100%';
     wrapper.style.overflowX = 'auto';
     const table = document.createElement('table');
+    table.style.borderCollapse = 'collapse';
     table.className = [tableStyles.root, className].filter(Boolean).join(' ');
     for (const node of resolveChildren(children)) {
       table.appendChild(node);

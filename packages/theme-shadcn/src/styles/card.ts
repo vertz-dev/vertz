@@ -15,20 +15,54 @@ type CardBlocks = {
 export function createCard(): CSSOutput<CardBlocks> {
   const s = css({
     cardRoot: [
+      'flex',
+      'flex-col',
       'bg:card',
       'text:card-foreground',
-      'rounded:xl',
-      'border:1',
-      'border:border',
-      'shadow:sm',
-      'gap:6',
-      'py:6',
+      'overflow-hidden',
+      'gap:4',
+      'py:4',
+      'text:sm',
+      {
+        '&': [
+          { property: 'border-radius', value: '0.75rem' },
+          {
+            property: 'box-shadow',
+            value:
+              '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
+          },
+        ],
+      },
     ],
-    cardHeader: ['flex', 'flex-col', 'gap:1.5', 'px:6'],
-    cardTitle: ['font:semibold', 'leading:none', 'tracking:tight'],
+    cardHeader: ['flex', 'flex-col', 'gap:1', 'px:4'],
+    cardTitle: [
+      'font:medium',
+      {
+        '&': [
+          { property: 'font-size', value: '1rem' },
+          { property: 'line-height', value: '1.375' },
+        ],
+      },
+    ],
     cardDescription: ['text:sm', 'text:muted-foreground'],
-    cardContent: ['px:6'],
-    cardFooter: ['flex', 'items:center', 'px:6'],
+    cardContent: ['px:4'],
+    cardFooter: [
+      'flex',
+      'items:center',
+      'gap:2',
+      'p:4',
+      'border-t:1',
+      'border:border',
+      {
+        '&': [
+          {
+            property: 'background-color',
+            value: 'color-mix(in oklch, var(--color-muted) 50%, transparent)',
+          },
+          { property: 'border-radius', value: '0 0 0.75rem 0.75rem' },
+        ],
+      },
+    ],
     cardAction: ['ml:auto'],
   });
   return {

@@ -9,13 +9,12 @@ type TooltipBlocks = {
 /** Create tooltip css() styles. */
 export function createTooltipStyles(): CSSOutput<TooltipBlocks> {
   const s = css({
+    // Nova: rounded-md px-3 py-1.5 text-xs
     tooltipContent: [
       'z:50',
-      'overflow-hidden',
       'bg:primary',
       'text:primary-foreground',
       'rounded:md',
-      'shadow:md',
       'px:3',
       'py:1.5',
       'text:xs',

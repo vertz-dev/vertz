@@ -58,11 +58,6 @@ export const Dialog = {
     // ── Overlay: covers the viewport behind the dialog ──
     const overlay = document.createElement('div');
     overlay.setAttribute('data-dialog-overlay', '');
-    if (modal) {
-      overlay.style.position = 'fixed';
-      overlay.style.inset = '0';
-      overlay.style.zIndex = '49';
-    }
     setHidden(overlay, !defaultOpen);
     setDataState(overlay, defaultOpen ? 'open' : 'closed');
 
@@ -71,12 +66,6 @@ export const Dialog = {
     content.id = ids.contentId;
     if (modal) {
       content.setAttribute('aria-modal', 'true');
-      // Center the dialog on screen
-      content.style.position = 'fixed';
-      content.style.top = '50%';
-      content.style.left = '50%';
-      content.style.transform = 'translate(-50%, -50%)';
-      content.style.zIndex = '50';
     }
     setLabelledBy(content, titleId);
     setHidden(content, !defaultOpen);

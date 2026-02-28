@@ -35,12 +35,32 @@ export const Accordion = {
     const { multiple = false, defaultValue = [], onValueChange } = options;
     const state: AccordionState = { value: signal([...defaultValue]) };
     const triggers: HTMLButtonElement[] = [];
+    // Track all items for cross-item state updates (single mode)
+    const itemMap = new Map<string, { trigger: HTMLButtonElement; content: HTMLDivElement }>();
 
     const root = document.createElement('div');
     root.setAttribute('data-orientation', 'vertical');
 
+    function updateItemState(val: string, open: boolean): void {
+      const entry = itemMap.get(val);
+      if (!entry) return;
+      const { trigger: t, content: c } = entry;
+      if (open) {
+        setHidden(c, false);
+      }
+      const height = c.scrollHeight;
+      c.style.setProperty('--accordion-content-height', `${height}px`);
+      setExpanded(t, open);
+      setDataState(t, open ? 'open' : 'closed');
+      setDataState(c, open ? 'open' : 'closed');
+      if (!open) {
+        setHiddenAnimated(c, true);
+      }
+    }
+
     function toggleItem(value: string): void {
-      const current = [...state.value.peek()];
+      const prev = [...state.value.peek()];
+      const current = [...prev];
       const idx = current.indexOf(value);
 
       if (idx >= 0) {
@@ -56,6 +76,19 @@ export const Accordion = {
 
       state.value.value = current;
       onValueChange?.(current);
+
+      // Close items that were open but are no longer
+      for (const v of prev) {
+        if (!current.includes(v)) {
+          updateItemState(v, false);
+        }
+      }
+      // Open items that are newly opened
+      for (const v of current) {
+        if (!prev.includes(v)) {
+          updateItemState(v, true);
+        }
+      }
     }
 
     root.addEventListener('keydown', (event) => {
@@ -94,27 +127,23 @@ export const Accordion = {
 
       trigger.addEventListener('click', () => {
         toggleItem(value);
-        const nowOpen = state.value.peek().includes(value);
-        if (nowOpen) {
-          // Show first so scrollHeight is measurable
-          setHidden(content, false);
-        }
-        // Measure content height for accordion animation
-        const height = content.scrollHeight;
-        content.style.setProperty('--accordion-content-height', `${height}px`);
-        setExpanded(trigger, nowOpen);
-        setDataState(trigger, nowOpen ? 'open' : 'closed');
-        setDataState(content, nowOpen ? 'open' : 'closed');
-        if (!nowOpen) {
-          // Defer display:none until exit animations complete
-          setHiddenAnimated(content, true);
-        }
       });
+
+      // Register for cross-item updates
+      itemMap.set(value, { trigger, content });
 
       triggers.push(trigger);
       item.appendChild(trigger);
       item.appendChild(content);
       root.appendChild(item);
+
+      // Set initial height for items that start open
+      if (isOpen) {
+        requestAnimationFrame(() => {
+          const height = content.scrollHeight;
+          content.style.setProperty('--accordion-content-height', `${height}px`);
+        });
+      }
 
       return { item, trigger, content };
     }

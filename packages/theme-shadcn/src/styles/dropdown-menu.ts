@@ -18,38 +18,54 @@ export function createDropdownMenuStyles(): CSSOutput<DropdownMenuBlocks> {
       'overflow-hidden',
       'bg:popover',
       'text:popover-foreground',
-      'rounded:md',
-      'border:1',
-      'border:border',
-      'shadow:md',
-      'py:1',
+      'rounded:lg',
+      'p:1',
+      // Nova: ring-1 ring-foreground/10 instead of border, shadow-md, min-w-32
       {
-        '&[data-state="open"]': [animationDecl('vz-zoom-in 150ms ease-out forwards')],
+        '&': [
+          {
+            property: 'box-shadow',
+            value:
+              '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent), 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+          },
+          { property: 'min-width', value: '8rem' },
+        ],
       },
       {
-        '&[data-state="closed"]': [animationDecl('vz-zoom-out 150ms ease-out forwards')],
+        '&[data-state="open"]': [animationDecl('vz-zoom-in 100ms ease-out forwards')],
+      },
+      {
+        '&[data-state="closed"]': [animationDecl('vz-zoom-out 100ms ease-out forwards')],
       },
     ],
+    // Nova: gap-1.5 rounded-md px-1.5 py-1 text-sm
     dmItem: [
       'flex',
       'items:center',
-      'px:2',
-      'py:1.5',
+      'gap:1.5',
+      'px:1.5',
+      'py:1',
       'text:sm',
       'cursor:pointer',
-      'rounded:sm',
+      'rounded:md',
       'outline-none',
       { '&:focus': ['bg:accent', 'text:accent-foreground'] },
       { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
     ],
     dmGroup: ['py:1'],
-    dmLabel: ['px:2', 'py:1.5', 'text:xs', 'font:semibold', 'text:muted-foreground'],
+    // Nova: px-1.5 py-1 text-xs font-medium
+    dmLabel: ['px:1.5', 'py:1', 'text:xs', 'font:medium', 'text:muted-foreground'],
+    // Nova: bg-border -mx-1 my-1 h-px
     dmSeparator: [
-      'mx:1',
       'my:1',
-      'border-t:1',
-      'border:muted',
-      { '&': [{ property: 'height', value: '1px' }] },
+      'bg:border',
+      {
+        '&': [
+          { property: 'margin-left', value: '-0.25rem' },
+          { property: 'margin-right', value: '-0.25rem' },
+          { property: 'height', value: '1px' },
+        ],
+      },
     ],
   });
   return {

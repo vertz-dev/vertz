@@ -40,41 +40,104 @@ describe('sheet styles', () => {
 
 describe('themed Sheet', () => {
   const styles = createSheetStyles();
-  const sheet = createThemedSheet(styles);
+  const Sheet = createThemedSheet(styles);
 
-  it('defaults to right side', () => {
-    const result = sheet();
-    expect(result.content.className).toContain(styles.panelRight);
+  it('has sub-components', () => {
+    expect(typeof Sheet.Trigger).toBe('function');
+    expect(typeof Sheet.Content).toBe('function');
+    expect(typeof Sheet.Title).toBe('function');
+    expect(typeof Sheet.Description).toBe('function');
+    expect(typeof Sheet.Close).toBe('function');
+  });
+
+  it('Title applies theme class', () => {
+    const title = Sheet.Title({ children: 'Sheet Title' });
+    expect(title).toBeInstanceOf(HTMLHeadingElement);
+    expect(title.classList.contains(styles.title)).toBe(true);
+    expect(title.textContent).toBe('Sheet Title');
+  });
+
+  it('Description applies theme class', () => {
+    const desc = Sheet.Description({ children: 'Description' });
+    expect(desc).toBeInstanceOf(HTMLParagraphElement);
+    expect(desc.classList.contains(styles.description)).toBe(true);
+  });
+
+  it('Close applies theme class', () => {
+    const close = Sheet.Close({ children: 'X' });
+    expect(close).toBeInstanceOf(HTMLButtonElement);
+    expect(close.classList.contains(styles.close)).toBe(true);
+  });
+
+  it('defaults to right side with overlay', () => {
+    const btn = document.createElement('button');
+    btn.textContent = 'Open';
+    const triggerSlot = Sheet.Trigger({ children: btn });
+    const contentSlot = Sheet.Content({
+      children: Sheet.Title({ children: 'Right Sheet' }),
+    });
+
+    Sheet({ children: [triggerSlot, contentSlot] });
+
+    // The primitive's content gets the panelRight class (default)
+    const panel = document.querySelector(`.${styles.panelRight}`);
+    expect(panel).toBeTruthy();
+
+    const overlay = document.querySelector(`.${styles.overlay}`);
+    expect(overlay).toBeTruthy();
   });
 
   it('applies left panel class', () => {
-    const result = sheet({ side: 'left' });
-    expect(result.content.className).toContain(styles.panelLeft);
-  });
+    const btn = document.createElement('button');
+    btn.textContent = 'Open';
+    const triggerSlot = Sheet.Trigger({ children: btn });
+    const contentSlot = Sheet.Content({
+      children: Sheet.Title({ children: 'Left Sheet' }),
+    });
 
-  it('applies right panel class', () => {
-    const result = sheet({ side: 'right' });
-    expect(result.content.className).toContain(styles.panelRight);
+    Sheet({ side: 'left', children: [triggerSlot, contentSlot] });
+
+    const panel = document.querySelector(`.${styles.panelLeft}`);
+    expect(panel).toBeTruthy();
   });
 
   it('applies top panel class', () => {
-    const result = sheet({ side: 'top' });
-    expect(result.content.className).toContain(styles.panelTop);
+    const btn = document.createElement('button');
+    btn.textContent = 'Open';
+    const triggerSlot = Sheet.Trigger({ children: btn });
+    const contentSlot = Sheet.Content({
+      children: Sheet.Title({ children: 'Top Sheet' }),
+    });
+
+    Sheet({ side: 'top', children: [triggerSlot, contentSlot] });
+
+    const panel = document.querySelector(`.${styles.panelTop}`);
+    expect(panel).toBeTruthy();
   });
 
   it('applies bottom panel class', () => {
-    const result = sheet({ side: 'bottom' });
-    expect(result.content.className).toContain(styles.panelBottom);
+    const btn = document.createElement('button');
+    btn.textContent = 'Open';
+    const triggerSlot = Sheet.Trigger({ children: btn });
+    const contentSlot = Sheet.Content({
+      children: Sheet.Title({ children: 'Bottom Sheet' }),
+    });
+
+    Sheet({ side: 'bottom', children: [triggerSlot, contentSlot] });
+
+    const panel = document.querySelector(`.${styles.panelBottom}`);
+    expect(panel).toBeTruthy();
   });
 
-  it('applies overlay class', () => {
-    const result = sheet();
-    expect(result.overlay.className).toContain(styles.overlay);
-  });
+  it('returns user trigger when Sheet.Trigger is provided', () => {
+    const btn = document.createElement('button');
+    btn.textContent = 'Open';
+    const triggerSlot = Sheet.Trigger({ children: btn });
+    const contentSlot = Sheet.Content({
+      children: Sheet.Title({ children: 'Test' }),
+    });
 
-  it('applies title and close classes', () => {
-    const result = sheet();
-    expect(result.title.className).toContain(styles.title);
-    expect(result.close.className).toContain(styles.close);
+    const result = Sheet({ children: [triggerSlot, contentSlot] });
+    expect(result).toBe(btn);
   });
 });

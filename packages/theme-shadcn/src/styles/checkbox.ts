@@ -1,5 +1,6 @@
 import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
 import { css } from '@vertz/ui';
+import { bgOpacity, DARK } from './_helpers';
 
 type CheckboxBlocks = {
   root: StyleEntry[];
@@ -9,11 +10,11 @@ type CheckboxBlocks = {
 const focusRing: Record<string, (string | RawDeclaration)[]> = {
   '&:focus-visible': [
     'outline-none',
+    'border:ring',
     {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      property: 'box-shadow',
+      value: '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
-    { property: 'outline-offset', value: '2px' },
   ],
 };
 
@@ -22,19 +23,32 @@ export function createCheckboxStyles(): CSSOutput<CheckboxBlocks> {
   const s = css({
     checkboxRoot: [
       'shrink-0',
+      'flex',
+      'items:center',
+      'justify:center',
       'h:4',
       'w:4',
-      'rounded:sm',
       'border:1',
-      'border:primary',
-      'shadow:xs',
+      'border:input',
       'cursor:pointer',
       'transition:colors',
+      { '&': [{ property: 'padding', value: '0' }] },
+      { '&': [{ property: 'background', value: 'transparent' }] },
+      { '&': [{ property: 'border-radius', value: '4px' }] },
+      { [DARK]: [bgOpacity('input', 30)] },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
       {
-        '&[data-state="checked"]': ['bg:primary', 'text:primary-foreground'],
-        '&[data-state="indeterminate"]': ['bg:primary', 'text:primary-foreground'],
+        '&[data-state="checked"]': [
+          'bg:primary',
+          'text:primary-foreground',
+          'border:primary',
+        ],
+        '&[data-state="indeterminate"]': [
+          'bg:primary',
+          'text:primary-foreground',
+          'border:primary',
+        ],
       },
     ],
     checkboxIndicator: [

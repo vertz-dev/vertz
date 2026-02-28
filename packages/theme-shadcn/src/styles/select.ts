@@ -28,20 +28,27 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
   const s = css({
     selectTrigger: [
       'flex',
-      'h:9',
       'w:full',
       'items:center',
       'justify:between',
       'whitespace-nowrap',
-      'rounded:md',
+      'gap:1.5',
+      'rounded:lg',
       'border:1',
       'border:input',
       'bg:transparent',
-      'px:3',
-      'py:2',
       'text:sm',
-      'shadow:xs',
       'cursor:pointer',
+      // Nova: h-8, py-2 pr-2 pl-2.5
+      {
+        '&': [
+          { property: 'height', value: '2rem' },
+          { property: 'padding-top', value: '0.5rem' },
+          { property: 'padding-bottom', value: '0.5rem' },
+          { property: 'padding-right', value: '0.5rem' },
+          { property: 'padding-left', value: '0.625rem' },
+        ],
+      },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
       { '&[data-state="open"]': ['border:ring'] },
@@ -52,50 +59,71 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       'overflow-hidden',
       'bg:popover',
       'text:popover-foreground',
-      'rounded:md',
-      'border:1',
-      'border:border',
-      'shadow:md',
-      'py:1',
+      'rounded:lg',
+      // Nova: ring-1 ring-foreground/10 instead of border, shadow-md, min-w-36
+      {
+        '&': [
+          {
+            property: 'box-shadow',
+            value:
+              '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent), 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+          },
+          { property: 'min-width', value: '9rem' },
+        ],
+      },
       {
         '&[data-state="open"][data-side="bottom"]': [
-          animationDecl('vz-slide-down-in 150ms ease-out forwards'),
+          animationDecl('vz-slide-down-in 100ms ease-out forwards'),
         ],
       },
       {
         '&[data-state="open"][data-side="top"]': [
-          animationDecl('vz-slide-up-in 150ms ease-out forwards'),
+          animationDecl('vz-slide-up-in 100ms ease-out forwards'),
         ],
       },
       {
         '&[data-state="open"]:not([data-side])': [
-          animationDecl('vz-zoom-in 150ms ease-out forwards'),
+          animationDecl('vz-zoom-in 100ms ease-out forwards'),
         ],
       },
       {
-        '&[data-state="closed"]': [animationDecl('vz-zoom-out 150ms ease-out forwards')],
+        '&[data-state="closed"]': [animationDecl('vz-zoom-out 100ms ease-out forwards')],
       },
     ],
     selectItem: [
       'flex',
       'items:center',
-      'px:2',
-      'py:1.5',
+      'gap:1.5',
+      'py:1',
       'text:sm',
       'cursor:pointer',
-      'rounded:sm',
+      'rounded:md',
       'outline-none',
+      // Nova: pr-8 pl-1.5
+      {
+        '&': [
+          { property: 'padding-right', value: '2rem' },
+          { property: 'padding-left', value: '0.375rem' },
+        ],
+      },
       { '&:focus': ['bg:accent', 'text:accent-foreground'] },
       { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
     ],
-    selectGroup: ['py:1'],
-    selectLabel: ['px:2', 'py:1.5', 'text:sm', 'font:semibold', 'text:muted-foreground'],
+    // Nova: scroll-my-1 p-1
+    selectGroup: ['p:1'],
+    // Nova: px-1.5 py-1 text-xs
+    selectLabel: ['px:1.5', 'py:1', 'text:xs', 'font:semibold', 'text:muted-foreground'],
+    // Nova: bg-border -mx-1 my-1 h-px
     selectSeparator: [
-      'mx:1',
       'my:1',
-      'border-t:1',
-      'border:muted',
-      { '&': [{ property: 'height', value: '1px' }] },
+      'bg:border',
+      {
+        '&': [
+          { property: 'margin-left', value: '-0.25rem' },
+          { property: 'margin-right', value: '-0.25rem' },
+          { property: 'height', value: '1px' },
+        ],
+      },
     ],
     selectScrollButton: ['flex', 'items:center', 'justify:center', 'py:1', 'cursor:default'],
   });

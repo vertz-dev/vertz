@@ -33,6 +33,7 @@ const PANEL_BASE = [
   'shadow:lg',
   'p:6',
   'gap:4',
+  'text:sm',
 ] as const;
 
 /** Create sheet css() styles. */
@@ -43,13 +44,17 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
       'inset:0',
       'z:50',
       {
-        '&': [{ property: 'background-color', value: 'oklch(0 0 0 / 50%)' }],
+        '&': [
+          { property: 'background-color', value: 'oklch(0 0 0 / 10%)' },
+          { property: 'backdrop-filter', value: 'blur(4px)' },
+          { property: '-webkit-backdrop-filter', value: 'blur(4px)' },
+        ],
       },
       {
-        '&[data-state="open"]': [animationDecl('vz-fade-in 150ms ease-out forwards')],
+        '&[data-state="open"]': [animationDecl('vz-fade-in 100ms ease-out forwards')],
       },
       {
-        '&[data-state="closed"]': [animationDecl('vz-fade-out 150ms ease-out forwards')],
+        '&[data-state="closed"]': [animationDecl('vz-fade-out 100ms ease-out forwards')],
       },
     ],
     sheetPanelLeft: [
@@ -112,7 +117,7 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
         '&[data-state="closed"]': [animationDecl('vz-slide-out-to-bottom 300ms ease-out forwards')],
       },
     ],
-    sheetTitle: ['text:lg', 'font:semibold', 'leading:none', 'tracking:tight'],
+    sheetTitle: ['text:base', 'font:medium', 'text:foreground'],
     sheetDescription: ['text:sm', 'text:muted-foreground'],
     sheetClose: [
       'absolute',
@@ -120,6 +125,12 @@ export function createSheetStyles(): CSSOutput<SheetBlocks> {
       'opacity:0.7',
       'cursor:pointer',
       'transition:colors',
+      {
+        '&': [
+          { property: 'top', value: '0.75rem' },
+          { property: 'right', value: '0.75rem' },
+        ],
+      },
       { '&:hover': ['opacity:1'] },
       focusRing,
     ],

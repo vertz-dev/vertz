@@ -6,8 +6,8 @@ type FormGroupBlocks = { base: string[]; error: string[] };
 /** Create formGroup css() styles. */
 export function createFormGroup(): CSSOutput<FormGroupBlocks> {
   const s = css({
-    formGroupBase: ['flex', 'flex-col', 'gap:1.5'],
-    formGroupError: ['text:xs', 'text:destructive'],
+    formGroupBase: ['flex', 'flex-col', 'gap:2'],
+    formGroupError: ['text:sm', 'text:destructive'],
   });
   return {
     base: s.formGroupBase,

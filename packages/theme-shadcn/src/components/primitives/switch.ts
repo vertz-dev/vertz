@@ -22,6 +22,18 @@ export function createThemedSwitch(
     // The primitive doesn't expose a thumb element — create one for visual styling
     const thumb = document.createElement('span');
     thumb.classList.add(size === 'sm' ? styles.thumbSm : styles.thumb);
+    // Sync data-state to thumb so CSS can animate it
+    const initialState = result.root.getAttribute('data-state') ?? 'unchecked';
+    thumb.setAttribute('data-state', initialState);
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.attributeName === 'data-state') {
+          const newState = result.root.getAttribute('data-state') ?? 'unchecked';
+          thumb.setAttribute('data-state', newState);
+        }
+      }
+    });
+    observer.observe(result.root, { attributes: true, attributeFilter: ['data-state'] });
     result.root.appendChild(thumb);
     return result;
   };

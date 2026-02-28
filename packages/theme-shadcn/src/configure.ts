@@ -1,31 +1,19 @@
 import type { GlobalCSSOutput, Theme, VariantFunction } from '@vertz/ui';
 import { defineTheme, globalCss } from '@vertz/ui';
 import type {
-  AccordionOptions,
   CheckboxElements,
   CheckboxOptions,
   CheckboxState,
-  DialogElements,
-  DialogOptions,
-  DialogState,
-  MenuOptions,
-  PopoverElements,
-  PopoverOptions,
-  PopoverState,
   ProgressElements,
   ProgressOptions,
   ProgressState,
   RadioOptions,
-  SelectOptions,
   SliderElements,
   SliderOptions,
   SliderState,
   SwitchElements,
   SwitchState,
   ToastOptions,
-  TooltipElements,
-  TooltipOptions,
-  TooltipState,
 } from '@vertz/ui-primitives';
 import type { AlertComponents } from './components/alert';
 import { createAlertComponents } from './components/alert';
@@ -47,9 +35,9 @@ import type { LabelProps } from './components/label';
 import { createLabelComponent } from './components/label';
 import type { PaginationComponents } from './components/pagination';
 import { createPaginationComponent } from './components/pagination';
-import type { ThemedAccordionResult } from './components/primitives/accordion';
+import type { ThemedAccordionComponent } from './components/primitives/accordion';
 import { createThemedAccordion } from './components/primitives/accordion';
-import type { AlertDialogElements, AlertDialogOptions } from './components/primitives/alert-dialog';
+import type { ThemedAlertDialogComponent } from './components/primitives/alert-dialog';
 import { createThemedAlertDialog } from './components/primitives/alert-dialog';
 import { createThemedCalendar } from './components/primitives/calendar';
 import { createThemedCarousel } from './components/primitives/carousel';
@@ -58,32 +46,35 @@ import { createThemedCollapsible } from './components/primitives/collapsible';
 import { createThemedCommand } from './components/primitives/command';
 import { createThemedContextMenu } from './components/primitives/context-menu';
 import { createThemedDatePicker } from './components/primitives/date-picker';
+import type { ThemedDialogComponent } from './components/primitives/dialog';
 import { createThemedDialog } from './components/primitives/dialog';
 import { createThemedDrawer } from './components/primitives/drawer';
-import type { ThemedDropdownMenuResult } from './components/primitives/dropdown-menu';
+import type { ThemedDropdownMenuComponent } from './components/primitives/dropdown-menu';
 import { createThemedDropdownMenu } from './components/primitives/dropdown-menu';
 import { createThemedHoverCard } from './components/primitives/hover-card';
 import { createThemedMenubar } from './components/primitives/menubar';
 import { createThemedNavigationMenu } from './components/primitives/navigation-menu';
+import type { ThemedPopoverComponent } from './components/primitives/popover';
 import { createThemedPopover } from './components/primitives/popover';
 import { createThemedProgress } from './components/primitives/progress';
 import type { ThemedRadioGroupResult } from './components/primitives/radio-group';
 import { createThemedRadioGroup } from './components/primitives/radio-group';
 import { createThemedResizablePanel } from './components/primitives/resizable-panel';
 import { createThemedScrollArea } from './components/primitives/scroll-area';
-import type { ThemedSelectResult } from './components/primitives/select';
+import type { ThemedSelectComponent } from './components/primitives/select';
 import { createThemedSelect } from './components/primitives/select';
-import type { ThemedSheetOptions } from './components/primitives/sheet';
+import type { ThemedSheetComponent } from './components/primitives/sheet';
 import { createThemedSheet } from './components/primitives/sheet';
 import { createThemedSlider } from './components/primitives/slider';
 import type { ThemedSwitchOptions } from './components/primitives/switch';
 import { createThemedSwitch } from './components/primitives/switch';
-import type { ThemedTabsOptions, ThemedTabsResult } from './components/primitives/tabs';
+import type { ThemedTabsComponent } from './components/primitives/tabs';
 import { createThemedTabs } from './components/primitives/tabs';
 import type { ThemedToastResult } from './components/primitives/toast';
 import { createThemedToast } from './components/primitives/toast';
 import { createThemedToggle } from './components/primitives/toggle';
 import { createThemedToggleGroup } from './components/primitives/toggle-group';
+import type { ThemedTooltipComponent } from './components/primitives/tooltip';
 import { createThemedTooltip } from './components/primitives/tooltip';
 import type { SeparatorProps } from './components/separator';
 import { createSeparatorComponent } from './components/separator';
@@ -143,12 +134,24 @@ import type { PaletteName } from './tokens';
 import { palettes } from './tokens';
 import type { PaletteTokens } from './types';
 
+/**
+ * Visual style preset. Each style applies different spacing, border-radius,
+ * colors, and visual treatment to all components.
+ *
+ * Currently only 'nova' is implemented. The architecture supports adding
+ * additional styles (e.g., 'default', 'vega', 'maia', 'mira', 'lyra')
+ * in the future — each style factory accepts this parameter.
+ */
+export type ThemeStyle = 'nova';
+
 /** Configuration options for the shadcn theme. */
 export interface ThemeConfig {
   /** Color palette base. Default: 'zinc'. */
   palette?: PaletteName;
   /** Border radius preset. Default: 'md'. */
   radius?: 'sm' | 'md' | 'lg';
+  /** Visual style preset. Default: 'nova'. */
+  style?: ThemeStyle;
   /** Token overrides — deep-merged into the selected palette. */
   overrides?: {
     tokens?: {
@@ -266,12 +269,14 @@ export interface ThemeStyles {
     readonly root: string;
     readonly item: string;
     readonly indicator: string;
+    readonly indicatorIcon: string;
     readonly css: string;
   };
   /** Slider css() styles. */
   slider: {
     readonly root: string;
     readonly track: string;
+    readonly range: string;
     readonly thumb: string;
     readonly css: string;
   };
@@ -386,22 +391,22 @@ export interface ThemeStyles {
 
 /** Themed primitive factories returned by configureTheme(). */
 export interface ThemedPrimitives {
-  /** Themed AlertDialog — modal dialog requiring explicit confirm/cancel action. */
-  alertDialog: (options?: AlertDialogOptions) => AlertDialogElements;
-  /** Themed Dialog — wraps @vertz/ui-primitives Dialog with shadcn styles. */
-  dialog: (options?: DialogOptions) => DialogElements & { state: DialogState };
-  /** Themed DropdownMenu — wraps @vertz/ui-primitives Menu with shadcn styles. */
-  dropdownMenu: (options?: MenuOptions) => ThemedDropdownMenuResult;
-  /** Themed Select — wraps @vertz/ui-primitives Select with shadcn styles. */
-  select: (options?: SelectOptions) => ThemedSelectResult;
-  /** Themed Tabs — wraps @vertz/ui-primitives Tabs with shadcn styles. */
-  tabs: (options?: ThemedTabsOptions) => ThemedTabsResult;
+  /** Themed AlertDialog — composable JSX component with AlertDialog.Trigger, AlertDialog.Content, etc. */
+  AlertDialog: ThemedAlertDialogComponent;
+  /** Themed Dialog — composable JSX component with Dialog.Trigger, Dialog.Content, Dialog.Title, Dialog.Description, Dialog.Footer. */
+  Dialog: ThemedDialogComponent;
+  /** Themed DropdownMenu — composable JSX component with DropdownMenu.Trigger, DropdownMenu.Content, etc. */
+  DropdownMenu: ThemedDropdownMenuComponent;
+  /** Themed Select — composable JSX component with Select.Content, Select.Item, etc. */
+  Select: ThemedSelectComponent;
+  /** Themed Tabs — composable JSX component with Tabs.List, Tabs.Trigger, Tabs.Content. */
+  Tabs: ThemedTabsComponent;
   /** Themed Checkbox — wraps @vertz/ui-primitives Checkbox with shadcn styles. */
   checkbox: (options?: CheckboxOptions) => CheckboxElements & { state: CheckboxState };
   /** Themed Switch — wraps @vertz/ui-primitives Switch with shadcn styles. */
   switch: (options?: ThemedSwitchOptions) => SwitchElements & { state: SwitchState };
-  /** Themed Popover — wraps @vertz/ui-primitives Popover with shadcn styles. */
-  popover: (options?: PopoverOptions) => PopoverElements & { state: PopoverState };
+  /** Themed Popover — composable JSX component with Popover.Trigger, Popover.Content. */
+  Popover: ThemedPopoverComponent;
   /** Themed Progress — wraps @vertz/ui-primitives Progress with shadcn styles. */
   progress: (
     options?: ProgressOptions,
@@ -410,14 +415,14 @@ export interface ThemedPrimitives {
   radioGroup: (options?: RadioOptions) => ThemedRadioGroupResult;
   /** Themed Slider — wraps @vertz/ui-primitives Slider with shadcn styles. */
   slider: (options?: SliderOptions) => SliderElements & { state: SliderState };
-  /** Themed Accordion — wraps @vertz/ui-primitives Accordion with shadcn styles. */
-  accordion: (options?: AccordionOptions) => ThemedAccordionResult;
+  /** Themed Accordion — composable JSX component with Accordion.Item, Accordion.Trigger, Accordion.Content. */
+  Accordion: ThemedAccordionComponent;
   /** Themed Toast — wraps @vertz/ui-primitives Toast with shadcn styles. */
   toast: (options?: ToastOptions) => ThemedToastResult;
-  /** Themed Tooltip — wraps @vertz/ui-primitives Tooltip with shadcn styles. */
-  tooltip: (options?: TooltipOptions) => TooltipElements & { state: TooltipState };
-  /** Themed Sheet — side panel wrapping Dialog with directional slide animations. */
-  sheet: (options?: ThemedSheetOptions) => DialogElements & { state: DialogState };
+  /** Themed Tooltip — composable JSX component with Tooltip.Trigger, Tooltip.Content. */
+  Tooltip: ThemedTooltipComponent;
+  /** Themed Sheet — composable JSX component with Sheet.Trigger, Sheet.Content, etc. */
+  Sheet: ThemedSheetComponent;
   /** Themed Calendar — date grid with month navigation. */
   calendar: ReturnType<typeof createThemedCalendar>;
   /** Themed Carousel — slide navigation with prev/next controls. */
@@ -651,21 +656,21 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
     Skeleton: createSkeletonComponents(skeletonStyles),
     Table: createTableComponents(tableStyles),
     primitives: {
-      alertDialog: createThemedAlertDialog(alertDialogStyles),
-      dialog: createThemedDialog(dialogStyles),
-      dropdownMenu: createThemedDropdownMenu(dropdownMenuStyles),
-      select: createThemedSelect(selectStyles),
-      tabs: createThemedTabs(tabsStyles),
+      AlertDialog: createThemedAlertDialog(alertDialogStyles),
+      Dialog: createThemedDialog(dialogStyles),
+      DropdownMenu: createThemedDropdownMenu(dropdownMenuStyles),
+      Select: createThemedSelect(selectStyles),
+      Tabs: createThemedTabs(tabsStyles),
       checkbox: createThemedCheckbox(checkboxStyles),
       switch: createThemedSwitch(switchStyles),
-      popover: createThemedPopover(popoverStyles),
+      Popover: createThemedPopover(popoverStyles),
       progress: createThemedProgress(progressStyles),
       radioGroup: createThemedRadioGroup(radioGroupStyles),
       slider: createThemedSlider(sliderStyles),
-      accordion: createThemedAccordion(accordionStyles),
+      Accordion: createThemedAccordion(accordionStyles),
       toast: createThemedToast(toastStyles),
-      tooltip: createThemedTooltip(tooltipStyles),
-      sheet: createThemedSheet(sheetStyles),
+      Tooltip: createThemedTooltip(tooltipStyles),
+      Sheet: createThemedSheet(sheetStyles),
       calendar: createThemedCalendar(calendarStyles),
       carousel: createThemedCarousel(carouselStyles),
       collapsible: createThemedCollapsible(collapsibleStyles),

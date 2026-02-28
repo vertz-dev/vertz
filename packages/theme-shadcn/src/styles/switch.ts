@@ -1,5 +1,6 @@
 import type { CSSOutput, RawDeclaration, StyleEntry } from '@vertz/ui';
 import { css } from '@vertz/ui';
+import { bgOpacity, DARK } from './_helpers';
 
 type SwitchBlocks = {
   root: StyleEntry[];
@@ -11,11 +12,11 @@ type SwitchBlocks = {
 const focusRing: Record<string, (string | RawDeclaration)[]> = {
   '&:focus-visible': [
     'outline-none',
+    'border:ring',
     {
-      property: 'outline',
-      value: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+      property: 'box-shadow',
+      value: '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
     },
-    { property: 'outline-offset', value: '2px' },
   ],
 };
 
@@ -25,16 +26,15 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
     switchRoot: [
       'inline-flex',
       'shrink-0',
-      'h:6',
-      'w:11',
       'items:center',
       'rounded:full',
-      'border:2',
+      'border:1',
       'border:transparent',
       'cursor:pointer',
       'bg:input',
-      'shadow:xs',
       'transition:colors',
+      { '&': [{ property: 'height', value: '18.4px' }, { property: 'width', value: '32px' }] },
+      { [DARK]: [bgOpacity('input', 80)] },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
       {
@@ -44,26 +44,32 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
     ],
     switchThumb: [
       'block',
-      'h:5',
-      'w:5',
+      'h:4',
+      'w:4',
       'rounded:full',
       'bg:background',
-      'shadow:sm',
       'transition:transform',
+      {
+        '&[data-state="unchecked"]': [{ property: 'transform', value: 'translateX(0)' }],
+        '&[data-state="checked"]': [
+          { property: 'transform', value: 'translateX(calc(100% - 2px))' },
+        ],
+      },
+      { [`${DARK}[data-state="unchecked"]`]: [{ property: 'background-color', value: 'var(--color-foreground)' }] },
+      { [`${DARK}[data-state="checked"]`]: [{ property: 'background-color', value: 'var(--color-primary-foreground)' }] },
     ],
     switchRootSm: [
       'inline-flex',
       'shrink-0',
-      'h:5',
-      'w:9',
       'items:center',
       'rounded:full',
-      'border:2',
+      'border:1',
       'border:transparent',
       'cursor:pointer',
       'bg:input',
-      'shadow:xs',
       'transition:colors',
+      { '&': [{ property: 'height', value: '14px' }, { property: 'width', value: '24px' }] },
+      { [DARK]: [bgOpacity('input', 80)] },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
       {
@@ -73,12 +79,19 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
     ],
     switchThumbSm: [
       'block',
-      'h:4',
-      'w:4',
+      'h:3',
+      'w:3',
       'rounded:full',
       'bg:background',
-      'shadow:sm',
       'transition:transform',
+      {
+        '&[data-state="unchecked"]': [{ property: 'transform', value: 'translateX(0)' }],
+        '&[data-state="checked"]': [
+          { property: 'transform', value: 'translateX(calc(100% - 2px))' },
+        ],
+      },
+      { [`${DARK}[data-state="unchecked"]`]: [{ property: 'background-color', value: 'var(--color-foreground)' }] },
+      { [`${DARK}[data-state="checked"]`]: [{ property: 'background-color', value: 'var(--color-primary-foreground)' }] },
     ],
   });
   return {
