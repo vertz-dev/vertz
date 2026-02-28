@@ -13,7 +13,7 @@ export function LabelDemo() {
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>With input</div>
         <div class={demoStyles.col}>
-          <Label htmlFor="email">Email</Label>
+          <Label for="email">Email</Label>
           <Input name="email" placeholder="you@example.com" />
         </div>
       </div>

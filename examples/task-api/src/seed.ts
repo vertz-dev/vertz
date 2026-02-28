@@ -108,13 +108,13 @@ async function seed() {
   // Insert users
   console.log(`  Creating ${USERS.length} users...`);
   for (const user of USERS) {
-    await db.create('users', { data: user });
+    await db.users.create({ data: user });
   }
 
   // Insert tasks
   console.log(`  Creating ${TASKS.length} tasks...`);
   for (const task of TASKS) {
-    await db.create('tasks', {
+    await db.tasks.create({
       data: {
         ...task,
         createdAt: new Date(),

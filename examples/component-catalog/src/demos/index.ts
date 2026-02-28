@@ -31,7 +31,7 @@ export interface ComponentEntry {
   slug: string;
   category: 'form' | 'layout' | 'data-display' | 'overlay' | 'navigation' | 'feedback';
   description: string;
-  demo: () => HTMLElement;
+  demo: () => Element;
 }
 
 export const componentRegistry: ComponentEntry[] = [
