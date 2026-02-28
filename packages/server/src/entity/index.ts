@@ -26,8 +26,6 @@ export { generateEntityRoutes } from './route-generator';
 export type {
   AccessRule,
   EntityActionDef,
-  EntityAfterHooks,
-  EntityBeforeHooks,
   EntityConfig,
   EntityContext,
   EntityDefinition,

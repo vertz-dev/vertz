@@ -2,10 +2,30 @@ import type { ModelDef, RelationDef, SchemaLike, TableDef } from '@vertz/db';
 import type { EntityOperations } from './entity-operations';
 
 // ---------------------------------------------------------------------------
+// Inject map — maps local names to EntityDefinitions for typed cross-entity access
+// ---------------------------------------------------------------------------
+
+/** Extracts the model type from an EntityDefinition */
+type ExtractModel<T> = T extends EntityDefinition<infer M> ? M : ModelDef;
+
+/**
+ * Maps an inject config `{ key: EntityDefinition<TModel> }` to
+ * `{ key: EntityOperations<TModel> }` for typed ctx.entities access.
+ */
+// biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
+type InjectToOperations<TInject extends Record<string, EntityDefinition> = {}> = {
+  readonly [K in keyof TInject]: EntityOperations<ExtractModel<TInject[K]>>;
+};
+
+// ---------------------------------------------------------------------------
 // EntityContext — the runtime context for access rules, hooks, and actions
 // ---------------------------------------------------------------------------
 
-export interface EntityContext<TModel extends ModelDef = ModelDef> {
+export interface EntityContext<
+  TModel extends ModelDef = ModelDef,
+  // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
+  TInject extends Record<string, EntityDefinition> = {},
+> {
   readonly userId: string | null;
   authenticated(): boolean;
   tenant(): boolean;
@@ -14,14 +34,18 @@ export interface EntityContext<TModel extends ModelDef = ModelDef> {
   /** Typed CRUD on the current entity */
   readonly entity: EntityOperations<TModel>;
 
-  /** Loosely-typed access to all registered entities */
-  readonly entities: Record<string, EntityOperations>;
+  /** Typed access to injected entities only */
+  readonly entities: InjectToOperations<TInject>;
 }
 
 // ---------------------------------------------------------------------------
 // Access rules
 // ---------------------------------------------------------------------------
 
+// AccessRule uses bare EntityContext (no TInject) because access rules are
+// stored type-erased in EntityDefinition and checked at runtime where the
+// inject map isn't available. Access rules shouldn't need cross-entity
+// access — they check the current user/row only.
 export type AccessRule =
   | false
   | ((ctx: EntityContext, row: Record<string, unknown>) => boolean | Promise<boolean>);
@@ -30,7 +54,7 @@ export type AccessRule =
 // Before hooks — transform data before DB write
 // ---------------------------------------------------------------------------
 
-export interface EntityBeforeHooks<TCreateInput = unknown, TUpdateInput = unknown> {
+interface EntityBeforeHooks<TCreateInput = unknown, TUpdateInput = unknown> {
   readonly create?: (
     data: TCreateInput,
     ctx: EntityContext,
@@ -45,7 +69,7 @@ export interface EntityBeforeHooks<TCreateInput = unknown, TUpdateInput = unknow
 // After hooks — side effects after DB write (void return enforced)
 // ---------------------------------------------------------------------------
 
-export interface EntityAfterHooks<TResponse = unknown> {
+interface EntityAfterHooks<TResponse = unknown> {
   readonly create?: (result: TResponse, ctx: EntityContext) => void | Promise<void>;
   readonly update?: (prev: TResponse, next: TResponse, ctx: EntityContext) => void | Promise<void>;
   readonly delete?: (row: TResponse, ctx: EntityContext) => void | Promise<void>;
@@ -55,10 +79,15 @@ export interface EntityAfterHooks<TResponse = unknown> {
 // Custom action definition
 // ---------------------------------------------------------------------------
 
-export interface EntityActionDef<TInput = unknown, TOutput = unknown, TResponse = unknown> {
+export interface EntityActionDef<
+  TInput = unknown,
+  TOutput = unknown,
+  TResponse = unknown,
+  TCtx extends EntityContext = EntityContext,
+> {
   readonly input: SchemaLike<TInput>;
   readonly output: SchemaLike<TOutput>;
-  readonly handler: (input: TInput, ctx: EntityContext, row: TResponse) => Promise<TOutput>;
+  readonly handler: (input: TInput, ctx: TCtx, row: TResponse) => Promise<TOutput>;
 }
 
 // ---------------------------------------------------------------------------
@@ -144,22 +173,46 @@ export interface TypedQueryOptions<
 
 export interface EntityConfig<
   TModel extends ModelDef = ModelDef,
+  // biome-ignore lint/suspicious/noExplicitAny: constraint uses any to accept all action type parameter combinations
   // biome-ignore lint/complexity/noBannedTypes: {} represents an empty actions record — the correct default for entities without custom actions
-  TActions extends Record<string, EntityActionDef> = {},
+  TActions extends Record<string, EntityActionDef<any, any, any, any>> = {},
+  // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
+  TInject extends Record<string, EntityDefinition> = {},
 > {
   readonly model: TModel;
+  readonly inject?: TInject;
   readonly access?: Partial<
     Record<
-      'list' | 'get' | 'create' | 'update' | 'delete' | Extract<keyof TActions, string>,
+      'list' | 'get' | 'create' | 'update' | 'delete' | Extract<keyof NoInfer<TActions>, string>,
       AccessRule
     >
   >;
-  readonly before?: EntityBeforeHooks<
-    TModel['table']['$create_input'],
-    TModel['table']['$update_input']
-  >;
-  readonly after?: EntityAfterHooks<TModel['table']['$response']>;
-  readonly actions?: TActions;
+  readonly before?: {
+    readonly create?: (
+      data: TModel['table']['$create_input'],
+      ctx: EntityContext<TModel, TInject>,
+    ) => TModel['table']['$create_input'] | Promise<TModel['table']['$create_input']>;
+    readonly update?: (
+      data: TModel['table']['$update_input'],
+      ctx: EntityContext<TModel, TInject>,
+    ) => TModel['table']['$update_input'] | Promise<TModel['table']['$update_input']>;
+  };
+  readonly after?: {
+    readonly create?: (
+      result: TModel['table']['$response'],
+      ctx: EntityContext<TModel, TInject>,
+    ) => void | Promise<void>;
+    readonly update?: (
+      prev: TModel['table']['$response'],
+      next: TModel['table']['$response'],
+      ctx: EntityContext<TModel, TInject>,
+    ) => void | Promise<void>;
+    readonly delete?: (
+      row: TModel['table']['$response'],
+      ctx: EntityContext<TModel, TInject>,
+    ) => void | Promise<void>;
+  };
+  readonly actions?: { readonly [K in keyof TActions]: TActions[K] };
   readonly relations?: EntityRelationsConfig<TModel['relations']>;
 }
 
@@ -170,6 +223,7 @@ export interface EntityConfig<
 export interface EntityDefinition<TModel extends ModelDef = ModelDef> {
   readonly name: string;
   readonly model: TModel;
+  readonly inject: Record<string, EntityDefinition>;
   readonly access: Partial<Record<string, AccessRule>>;
   readonly before: EntityBeforeHooks;
   readonly after: EntityAfterHooks;

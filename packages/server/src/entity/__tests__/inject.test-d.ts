@@ -1,0 +1,326 @@
+import { d } from '@vertz/db';
+import { describe, expectTypeOf, it } from 'vitest';
+import { entity } from '../entity';
+import type { EntityContext } from '../types';
+
+// ---------------------------------------------------------------------------
+// Fixtures
+// ---------------------------------------------------------------------------
+
+const usersTable = d.table('users', {
+  id: d.uuid().primary(),
+  email: d.text().unique(),
+  name: d.text(),
+  passwordHash: d.text().hidden(),
+  createdAt: d.timestamp().default('now').readOnly(),
+});
+
+const usersModel = d.model(usersTable);
+
+const productsTable = d.table('products', {
+  id: d.uuid().primary(),
+  title: d.text(),
+  price: d.integer(),
+});
+
+const productsModel = d.model(productsTable);
+
+const ordersTable = d.table('orders', {
+  id: d.uuid().primary(),
+  userId: d.uuid(),
+  status: d.text(),
+});
+
+const ordersModel = d.model(ordersTable);
+
+// Entity definitions for injection
+const usersEntity = entity('users', { model: usersModel });
+const productsEntity = entity('products', { model: productsModel });
+
+// Minimal schema for action tests
+const emptySchema = {
+  parse: (v: unknown) => ({ ok: true as const, data: v as Record<string, never> }),
+};
+const okSchema = { parse: (v: unknown) => ({ ok: true as const, data: v as { ok: boolean } }) };
+
+// ---------------------------------------------------------------------------
+// EntityContext with inject — type flow
+// ---------------------------------------------------------------------------
+
+describe('EntityContext inject type flow', () => {
+  it('injected entity gives typed EntityOperations', () => {
+    type Ctx = EntityContext<typeof ordersModel, { users: typeof usersEntity }>;
+    type UsersOps = Ctx['entities']['users'];
+
+    // get() returns the users $response type
+    type GetReturn = Awaited<ReturnType<UsersOps['get']>>;
+    expectTypeOf<GetReturn>().toHaveProperty('email');
+    expectTypeOf<GetReturn>().toHaveProperty('name');
+  });
+
+  it('injected entity create() accepts typed input', () => {
+    type Ctx = EntityContext<typeof ordersModel, { users: typeof usersEntity }>;
+    type CreateParam = Parameters<Ctx['entities']['users']['create']>[0];
+
+    // Should have email (required input field)
+    expectTypeOf<CreateParam>().toHaveProperty('email');
+    expectTypeOf<CreateParam>().toHaveProperty('name');
+  });
+
+  it('injected entity response excludes hidden fields', () => {
+    type Ctx = EntityContext<typeof ordersModel, { users: typeof usersEntity }>;
+    type GetReturn = Awaited<ReturnType<Ctx['entities']['users']['get']>>;
+
+    // @ts-expect-error — passwordHash is hidden, excluded from $response
+    type _Test = GetReturn['passwordHash'];
+  });
+
+  it('non-injected entity is compile error', () => {
+    type Ctx = EntityContext<typeof ordersModel, { users: typeof usersEntity }>;
+
+    // @ts-expect-error — products not in inject map
+    type _Test = Ctx['entities']['products'];
+  });
+
+  it('typo in entity name is compile error', () => {
+    type Ctx = EntityContext<typeof ordersModel, { users: typeof usersEntity }>;
+
+    // @ts-expect-error — 'user' is not 'users'
+    type _Test = Ctx['entities']['user'];
+  });
+
+  it('no inject = empty entities (no access)', () => {
+    type Ctx = EntityContext<typeof ordersModel>;
+
+    // @ts-expect-error — no entities available when no inject
+    type _Test = Ctx['entities']['anything'];
+  });
+
+  it('self-access via ctx.entity is always typed regardless of inject', () => {
+    type Ctx = EntityContext<typeof ordersModel, { users: typeof usersEntity }>;
+    type GetReturn = Awaited<ReturnType<Ctx['entity']['get']>>;
+
+    // Orders entity self-access
+    expectTypeOf<GetReturn>().toHaveProperty('userId');
+    expectTypeOf<GetReturn>().toHaveProperty('status');
+  });
+
+  it('multiple injected entities are all typed', () => {
+    type Ctx = EntityContext<
+      typeof ordersModel,
+      { users: typeof usersEntity; products: typeof productsEntity }
+    >;
+
+    type UsersGetReturn = Awaited<ReturnType<Ctx['entities']['users']['get']>>;
+    expectTypeOf<UsersGetReturn>().toHaveProperty('email');
+
+    type ProductsGetReturn = Awaited<ReturnType<Ctx['entities']['products']['get']>>;
+    expectTypeOf<ProductsGetReturn>().toHaveProperty('title');
+    expectTypeOf<ProductsGetReturn>().toHaveProperty('price');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// entity() config with inject — type flow
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// TInject flows through action handlers — ctx.entities is typed
+// ---------------------------------------------------------------------------
+
+describe('inject flows through action handler ctx', () => {
+  it('action handler ctx.entities has typed injected entity', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      actions: {
+        cancel: {
+          input: emptySchema,
+          output: okSchema,
+          handler: async (_input, ctx, _order) => {
+            // ctx.entities.users should be typed — get() returns users $response
+            const user = await ctx.entities.users.get('id');
+            expectTypeOf(user).toHaveProperty('email');
+            expectTypeOf(user).toHaveProperty('name');
+            return { ok: true };
+          },
+        },
+      },
+      access: { cancel: (ctx) => ctx.authenticated() },
+    });
+  });
+
+  it('action handler ctx.entities rejects non-injected entity', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      actions: {
+        cancel: {
+          input: emptySchema,
+          output: okSchema,
+          handler: async (_input, ctx, _order) => {
+            // @ts-expect-error — products not in inject map
+            ctx.entities.products;
+            return { ok: true };
+          },
+        },
+      },
+      access: { cancel: (ctx) => ctx.authenticated() },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TInject flows through before/after hooks — ctx.entities is typed
+// ---------------------------------------------------------------------------
+
+describe('inject flows through hook ctx', () => {
+  it('before.create hook ctx.entities has typed injected entity', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      before: {
+        create: (data, ctx) => {
+          // ctx.entities.users should be typed
+          ctx.entities.users.get('id');
+          return data;
+        },
+      },
+    });
+  });
+
+  it('before hook ctx.entities rejects non-injected entity', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      before: {
+        create: (data, ctx) => {
+          // @ts-expect-error — products not in inject map
+          ctx.entities.products;
+          return data;
+        },
+      },
+    });
+  });
+
+  it('after.create hook ctx.entities has typed injected entity', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      after: {
+        create: (_result, ctx) => {
+          // ctx.entities.users should be typed
+          ctx.entities.users.get('id');
+        },
+      },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Action handler row param is typed from $response
+// ---------------------------------------------------------------------------
+
+describe('action handler row param typing', () => {
+  it('row param is typed as $response (not any)', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      actions: {
+        cancel: {
+          input: emptySchema,
+          output: okSchema,
+          handler: async (_input, _ctx, order) => {
+            // If row is `any`, this @ts-expect-error is unused and the test FAILS
+            // @ts-expect-error — nonExistentField does not exist on orders $response
+            void order.nonExistentField;
+            return { ok: true };
+          },
+        },
+      },
+      access: { cancel: (ctx) => ctx.authenticated() },
+    });
+  });
+
+  it('row param has entity fields', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+      actions: {
+        cancel: {
+          input: emptySchema,
+          output: okSchema,
+          handler: async (_input, _ctx, order) => {
+            // Positive: order should have userId and status from orders table
+            expectTypeOf(order).toHaveProperty('userId');
+            expectTypeOf(order).toHaveProperty('status');
+            return { ok: true };
+          },
+        },
+      },
+      access: { cancel: (ctx) => ctx.authenticated() },
+    });
+  });
+
+  it('row param excludes hidden fields', () => {
+    entity('users', {
+      model: usersModel,
+      actions: {
+        deactivate: {
+          input: emptySchema,
+          output: okSchema,
+          handler: async (_input, _ctx, user) => {
+            // @ts-expect-error — passwordHash is hidden, excluded from $response
+            void user.passwordHash;
+            return { ok: true };
+          },
+        },
+      },
+      access: { deactivate: (ctx) => ctx.authenticated() },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Action handler input param typing
+// ---------------------------------------------------------------------------
+
+// TODO: action handler `input` is currently `any` because TActions constraint uses
+// `EntityActionDef<any, ...>` and the `any` in TInput position propagates to the
+// handler. Fixing this requires refactoring how TActions is inferred (e.g., a mapped
+// type on EntityConfig.actions that provides contextual handler typing per-action).
+// Tracked separately from the row/ctx fixes.
+
+// ---------------------------------------------------------------------------
+// entity() config with inject — type flow
+// ---------------------------------------------------------------------------
+
+describe('entity() inject config types', () => {
+  it('entity() accepts inject in config', () => {
+    entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity, products: productsEntity },
+    });
+  });
+
+  it('EntityDefinition stores inject for graph introspection', () => {
+    const orders = entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity },
+    });
+
+    // inject should be accessible on the definition for dependency graph building
+    expectTypeOf(orders.inject).toMatchTypeOf<Record<string, unknown>>();
+  });
+
+  it('inject map on definition contains the injected entity definitions', () => {
+    const orders = entity('orders', {
+      model: ordersModel,
+      inject: { users: usersEntity, products: productsEntity },
+    });
+
+    // Both injected entities accessible on the frozen definition
+    expectTypeOf(orders.inject).toHaveProperty('users');
+    expectTypeOf(orders.inject).toHaveProperty('products');
+  });
+});
