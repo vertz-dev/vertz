@@ -479,7 +479,18 @@ describe('createConnection', () => {
 // createConnection — postgres (via PGlite in-memory)
 // ---------------------------------------------------------------------------
 
-describe('createConnection (postgres)', () => {
+// PGlite is an optional devDependency — skip these tests when it's not installed.
+let hasPGlite = false;
+try {
+  await import('@electric-sql/pglite');
+  hasPGlite = true;
+} catch {
+  // not installed — tests will be skipped
+}
+
+const describePostgres = hasPGlite ? describe : describe.skip;
+
+describePostgres('createConnection (postgres)', () => {
   let pg: import('@electric-sql/pglite').PGlite;
 
   beforeAll(async () => {
@@ -488,7 +499,7 @@ describe('createConnection (postgres)', () => {
   });
 
   afterAll(async () => {
-    await pg.close();
+    await pg?.close();
   });
 
   it('creates a working postgres queryFn that executes SQL and returns rows', async () => {
