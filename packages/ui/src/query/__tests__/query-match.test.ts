@@ -8,9 +8,15 @@ import { queryMatch } from '../query-match';
  * At runtime, QueryResult properties are Signal objects with .value,
  * even though the TypeScript type erases .value via Unwrapped<>.
  */
-function fakeQueryResult<T>(opts: { loading: boolean; error?: unknown; data?: T }): QueryResult<T> {
+function fakeQueryResult<T>(opts: {
+  loading: boolean;
+  revalidating?: boolean;
+  error?: unknown;
+  data?: T;
+}): QueryResult<T> {
   return {
     loading: signal(opts.loading),
+    revalidating: signal(opts.revalidating ?? false),
     error: signal(opts.error),
     data: signal(opts.data),
     refetch: () => {},
@@ -121,5 +127,37 @@ describe('queryMatch()', () => {
     });
 
     expect(result).toBe('loading-state');
+  });
+
+  test('passes revalidating=false to data handler when not revalidating', () => {
+    const qr = fakeQueryResult<string>({
+      loading: false,
+      revalidating: false,
+      data: 'hello',
+    });
+
+    const result = queryMatch(qr, {
+      loading: () => null,
+      error: () => null,
+      data: (_data, revalidating) => revalidating,
+    });
+
+    expect(result).toBe(false);
+  });
+
+  test('passes revalidating=true to data handler when revalidating', () => {
+    const qr = fakeQueryResult<string>({
+      loading: false,
+      revalidating: true,
+      data: 'stale-data',
+    });
+
+    const result = queryMatch(qr, {
+      loading: () => null,
+      error: () => null,
+      data: (d, revalidating) => ({ d, revalidating }),
+    });
+
+    expect(result).toEqual({ d: 'stale-data', revalidating: true });
   });
 });

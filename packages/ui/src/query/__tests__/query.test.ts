@@ -847,6 +847,58 @@ describe('query()', () => {
     q2.dispose();
   });
 
+  test('revalidating is false on initial load', async () => {
+    const result = query(() => Promise.resolve('data'), { key: 'reval-init-test' });
+
+    // Initially loading, not revalidating
+    expect(result.loading.value).toBe(true);
+    expect(result.revalidating.value).toBe(false);
+
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+
+    expect(result.data.value).toBe('data');
+    expect(result.loading.value).toBe(false);
+    expect(result.revalidating.value).toBe(false);
+  });
+
+  test('revalidating is true when refetching with existing data', async () => {
+    const resolvers: Array<(v: string) => void> = [];
+    const result = query(
+      () =>
+        new Promise<string>((resolve) => {
+          resolvers.push(resolve);
+        }),
+      { key: 'reval-refetch-test' },
+    );
+
+    // Resolve initial fetch
+    expect(resolvers).toHaveLength(1);
+    resolvers[0]!('first');
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(result.data.value).toBe('first');
+    expect(result.loading.value).toBe(false);
+    expect(result.revalidating.value).toBe(false);
+
+    // Trigger refetch — data exists, so revalidating=true, loading=false
+    result.refetch();
+
+    expect(result.revalidating.value).toBe(true);
+    expect(result.loading.value).toBe(false);
+    // Stale data remains visible
+    expect(result.data.value).toBe('first');
+
+    // Resolve the refetch
+    resolvers[1]!('second');
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+
+    expect(result.data.value).toBe('second');
+    expect(result.revalidating.value).toBe(false);
+    expect(result.loading.value).toBe(false);
+  });
+
   test('no-op when query is created outside a disposal scope', async () => {
     // No pushScope — query should still work without error
     const result = query(() => Promise.resolve('standalone'), { key: 'no-scope-test' });
