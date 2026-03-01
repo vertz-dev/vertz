@@ -15,6 +15,7 @@ export const cardStyles = themeStyles.card;
 export const inputStyles = themeStyles.input;
 export const labelStyles = themeStyles.label;
 export const formGroupStyles = themeStyles.formGroup;
+export const alertDialogStyles = themeStyles.alertDialog;
 
 // ── Layout styles (app-specific) ────────────────────────────
 
