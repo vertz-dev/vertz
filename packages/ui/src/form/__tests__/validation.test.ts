@@ -183,6 +183,29 @@ describe('validate', () => {
       expect(result.errors.count).toBeDefined();
     });
 
+    it('succeeds end-to-end with real @vertz/schema on valid form data', () => {
+      const schema = s.object({
+        title: s.string(),
+        completed: s.unknown().optional(),
+      });
+
+      // Simulates FormData → object conversion: only `title` is present
+      const result = validate(schema, { title: 'Buy groceries' });
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({ title: 'Buy groceries' });
+    });
+
+    it('fails when schema shape does not match form data fields', () => {
+      // A schema expecting { ok: boolean } would fail against form data { title: "..." }
+      const wrongSchema = s.object({ ok: s.boolean() });
+
+      const result = validate(wrongSchema, { title: 'Buy groceries' });
+
+      expect(result.success).toBe(false);
+      expect(result.errors.ok).toBeDefined();
+    });
+
     it('fieldErrors convention takes precedence over .issues', () => {
       const schema: FormSchema<{ title: string }> = {
         parse(_data: unknown) {
