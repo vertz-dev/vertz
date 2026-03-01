@@ -70,6 +70,8 @@ export interface VariableInfo {
   fieldSignalProperties?: Set<string>;
   /** Synthetic variable name this binding was destructured from (e.g., `__query_0`). */
   destructuredFrom?: string;
+  /** Whether this variable is a reactive source (e.g., useContext result). */
+  isReactiveSource?: boolean;
 }
 
 /** Information about a detected component function. */

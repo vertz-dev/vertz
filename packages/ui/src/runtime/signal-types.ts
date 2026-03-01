@@ -33,6 +33,19 @@ export interface ReadonlySignal<T> {
 export type Unwrapped<T> = T extends ReadonlySignal<infer U> ? U : T;
 
 /**
+ * Unwraps all signal properties of an object type.
+ * Properties that are signals become their inner value type.
+ * Non-signal properties and primitive types pass through unchanged.
+ *
+ * Used by `useContext` to present context values without the Signal wrapper.
+ *
+ * @example
+ * type Settings = { theme: Signal<string>; setTheme: (t: string) => void };
+ * type Unwrapped = UnwrapSignals<Settings>; // { theme: string; setTheme: (t: string) => void }
+ */
+export type UnwrapSignals<T> = T extends object ? { [K in keyof T]: Unwrapped<T[K]> } : T;
+
+/**
  * A computed signal — lazily evaluated, cached, and automatically re-computed
  * when dependencies change.
  */

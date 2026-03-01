@@ -10,9 +10,9 @@
  * - Reactive class toggling via JSX expressions
  */
 
-import { css } from '@vertz/ui';
+import { css, useContext } from '@vertz/ui';
 import { Icon } from '../components/icon';
-import { useSettings } from '../lib/settings-context';
+import { SettingsContext } from '../lib/settings-context';
 import { formStyles } from '../styles/components';
 
 const settingsStyles = css({
@@ -33,12 +33,12 @@ const settingsStyles = css({
  * Render the settings page with theme switching.
  */
 export function SettingsPage() {
-  const settings = useSettings();
+  const settings = useContext(SettingsContext)!;
 
   // Local state: compiler transforms `let` to signal()
   let showSaved = false;
-  let currentTheme = settings.theme.peek();
-  let defaultPriority = settings.defaultPriority.peek();
+  let currentTheme = settings.theme;
+  let defaultPriority = settings.defaultPriority;
 
   function flashSaved(): void {
     showSaved = true;

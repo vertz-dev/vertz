@@ -17,10 +17,11 @@ export class JsxAnalyzer {
       variables.filter((v) => v.kind === 'signal' || v.kind === 'computed').map((v) => v.name),
     );
 
-    // Build maps of signal API variables
+    // Build maps of signal API variables and reactive source variables
     const signalApiVars = new Map<string, Set<string>>();
     const plainPropVars = new Map<string, Set<string>>();
     const fieldSignalPropVars = new Map<string, Set<string>>();
+    const reactiveSourceVars = new Set<string>();
     for (const v of variables) {
       if (v.signalProperties && v.signalProperties.size > 0) {
         signalApiVars.set(v.name, v.signalProperties);
@@ -30,6 +31,9 @@ export class JsxAnalyzer {
       }
       if (v.fieldSignalProperties && v.fieldSignalProperties.size > 0) {
         fieldSignalPropVars.set(v.name, v.fieldSignalProperties);
+      }
+      if (v.isReactiveSource) {
+        reactiveSourceVars.add(v.name);
       }
     }
 
@@ -50,11 +54,12 @@ export class JsxAnalyzer {
         plainPropVars,
         fieldSignalPropVars,
       );
+      const hasReactiveSourceAccess = containsReactiveSourceAccess(expr, reactiveSourceVars);
 
       results.push({
         start: expr.getStart(),
         end: expr.getEnd(),
-        reactive: uniqueDeps.length > 0 || hasSignalApiAccess,
+        reactive: uniqueDeps.length > 0 || hasSignalApiAccess || hasReactiveSourceAccess,
         deps: uniqueDeps,
       });
     }
@@ -116,6 +121,34 @@ function containsSignalApiPropertyAccess(
       }
     }
   }
+  return false;
+}
+
+/**
+ * Check if a node contains a property access or bare reference to a reactive source variable.
+ * Any property access on a reactive source (e.g., ctx.theme) is reactive.
+ * A bare reactive source identifier (e.g., {ctx}) is also reactive.
+ */
+function containsReactiveSourceAccess(node: Node, reactiveSourceVars: Set<string>): boolean {
+  if (reactiveSourceVars.size === 0) return false;
+
+  // Check for property access: ctx.theme
+  const propAccesses = node.getDescendantsOfKind(SyntaxKind.PropertyAccessExpression);
+  for (const pa of propAccesses) {
+    const obj = pa.getExpression();
+    if (obj.isKind(SyntaxKind.Identifier) && reactiveSourceVars.has(obj.getText())) {
+      return true;
+    }
+  }
+
+  // Check for bare identifier: {ctx}
+  const identifiers = node.getDescendantsOfKind(SyntaxKind.Identifier);
+  for (const id of identifiers) {
+    if (reactiveSourceVars.has(id.getText())) {
+      return true;
+    }
+  }
+
   return false;
 }
 

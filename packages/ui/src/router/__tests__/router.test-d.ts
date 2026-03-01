@@ -285,8 +285,8 @@ _plainRouter.navigate('/anything-goes');
 
 // ─── RouterContext + useRouter + RouterView type tests ──────────────────────
 
-// useRouter() returns Router
-const _routerResult: Router = useRouter();
+// useRouter() returns UnwrapSignals<Router> (signal properties auto-unwrapped)
+const _routerResult = useRouter();
 void _routerResult;
 
 // RouterView returns HTMLElement
@@ -348,11 +348,10 @@ _p4TypedRouter.navigate('/nonexistent');
 // @ts-expect-error - '/tasks' without param is not valid
 _p4TypedRouter.navigate('/tasks');
 
-// Phase 4 Cycle 4: useRouter() (no param) returns Router — backward compat
+// Phase 4 Cycle 4: useRouter() (no param) returns UnwrapSignals<Router> — backward compat
 const _p4UntypedRouter = useRouter();
 _p4UntypedRouter.navigate('/anything'); // OK — string accepted
-const _p4AsRouter: Router = _p4UntypedRouter;
-void _p4AsRouter;
+void _p4UntypedRouter;
 
 // Phase 4 Cycle 5: InferRouteMap extracts route map from TypedRoutes<T>
 type P4RouteMap = InferRouteMap<typeof _p4Routes>;

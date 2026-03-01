@@ -1,5 +1,6 @@
 import { Project, ts } from 'ts-morph';
 import { describe, expect, it } from 'vitest';
+import type { VariableInfo } from '../../types';
 import { ComponentAnalyzer } from '../component-analyzer';
 import { ReactivityAnalyzer } from '../reactivity-analyzer';
 
@@ -278,5 +279,55 @@ describe('ReactivityAnalyzer', () => {
     expect(results).toHaveLength(2);
     expect(findVar(results[0]?.variables, 'count')?.kind).toBe('signal');
     expect(findVar(results[1]?.variables, 'label')?.kind).toBe('static');
+  });
+
+  it('marks useContext result as reactive source', () => {
+    const [result] = analyze(`
+      import { useContext } from '@vertz/ui';
+      function App() {
+        const ctx = useContext(ThemeCtx);
+        return <div>{ctx.theme}</div>;
+      }
+    `);
+    const v = findVar(result?.variables, 'ctx') as VariableInfo;
+    expect(v).toBeDefined();
+    expect(v.isReactiveSource).toBe(true);
+  });
+
+  it('classifies const depending on reactive source as computed', () => {
+    const [result] = analyze(`
+      import { useContext } from '@vertz/ui';
+      function App() {
+        const ctx = useContext(ThemeCtx);
+        const label = ctx.theme;
+        return <div>{label}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('does not mark local useContext function as reactive source', () => {
+    const [result] = analyze(`
+      function App() {
+        const useContext = () => ({ theme: 'light' });
+        const ctx = useContext();
+        return <div>{ctx.theme}</div>;
+      }
+    `);
+    const v = findVar(result?.variables, 'ctx') as VariableInfo;
+    expect(v.isReactiveSource).toBeUndefined();
+  });
+
+  it('handles aliased import of useContext', () => {
+    const [result] = analyze(`
+      import { useContext as getCtx } from '@vertz/ui';
+      function App() {
+        const ctx = getCtx(ThemeCtx);
+        return <div>{ctx.theme}</div>;
+      }
+    `);
+    const v = findVar(result?.variables, 'ctx') as VariableInfo;
+    expect(v).toBeDefined();
+    expect(v.isReactiveSource).toBe(true);
   });
 });

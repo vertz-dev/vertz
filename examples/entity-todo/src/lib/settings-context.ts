@@ -4,7 +4,7 @@
  * Provides app-wide theme preference (light/dark) without prop drilling.
  */
 
-import type { Signal } from '@vertz/ui';
+import type { Signal, UnwrapSignals } from '@vertz/ui';
 import { createContext, signal, useContext } from '@vertz/ui';
 
 export type ThemeMode = 'light' | 'dark';
@@ -28,7 +28,7 @@ export function createSettingsValue(): SettingsContextValue {
   };
 }
 
-export function useSettings(): SettingsContextValue {
+export function useSettings(): UnwrapSignals<SettingsContextValue> {
   const ctx = useContext(SettingsContext);
   if (!ctx) {
     throw new Error('useSettings must be called within a SettingsContext.Provider');

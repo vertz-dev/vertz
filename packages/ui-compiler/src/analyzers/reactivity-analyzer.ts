@@ -1,5 +1,10 @@
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
-import { getSignalApiConfig, isSignalApi, type SignalApiConfig } from '../signal-api-registry';
+import {
+  getSignalApiConfig,
+  isReactiveSourceApi,
+  isSignalApi,
+  type SignalApiConfig,
+} from '../signal-api-registry';
 import type { ComponentInfo, VariableInfo } from '../types';
 import { findBodyNode } from '../utils';
 
@@ -17,8 +22,9 @@ export class ReactivityAnalyzer {
     const bodyNode = findBodyNode(sourceFile, component);
     if (!bodyNode) return [];
 
-    // Build import alias map for signal APIs
-    const importAliases = buildImportAliasMap(sourceFile);
+    // Build import alias maps for signal APIs and reactive source APIs
+    const { signalApiAliases: importAliases, reactiveSourceAliases } =
+      buildImportAliasMap(sourceFile);
 
     // Collect all declared variable names to avoid synthetic name collisions
     const declaredNames = collectDeclaredNames(bodyNode);
@@ -27,6 +33,7 @@ export class ReactivityAnalyzer {
     const lets = new Map<string, { start: number; end: number; deps: string[] }>();
     const consts = new Map<string, { start: number; end: number; deps: string[] }>();
     const signalApiVars = new Map<string, SignalApiConfig>(); // Track variables assigned from signal APIs
+    const reactiveSourceVars = new Set<string>(); // Track variables assigned from reactive source APIs (e.g., useContext)
     const destructuredFromMap = new Map<string, string>(); // binding name → synthetic var name
     const syntheticCounters = new Map<string, number>(); // API name → counter for unique naming
 
@@ -113,18 +120,23 @@ export class ReactivityAnalyzer {
         const deps = init ? collectIdentifierRefs(init) : [];
         const entry = { start: decl.getStart(), end: decl.getEnd(), deps };
 
-        // Check if this is assigned from a signal API call
+        // Check if this is assigned from a signal API call or reactive source API call
         if (init?.isKind(SyntaxKind.CallExpression)) {
           const callExpr = init.asKindOrThrow(SyntaxKind.CallExpression);
           const callName = callExpr.getExpression();
           if (callName.isKind(SyntaxKind.Identifier)) {
             const fnName = callName.getText();
+            // Signal API check
             const originalName = importAliases.get(fnName);
             if (originalName) {
               const config = getSignalApiConfig(originalName);
               if (config) {
                 signalApiVars.set(name, config);
               }
+            }
+            // Reactive source API check
+            if (reactiveSourceAliases.has(fnName)) {
+              reactiveSourceVars.add(name);
             }
           }
         }
@@ -183,7 +195,11 @@ export class ReactivityAnalyzer {
       for (const [name, info] of consts) {
         if (computeds.has(name)) continue;
         const dependsOnReactive = info.deps.some(
-          (dep) => signals.has(dep) || computeds.has(dep) || signalApiVars.has(dep),
+          (dep) =>
+            signals.has(dep) ||
+            computeds.has(dep) ||
+            signalApiVars.has(dep) ||
+            reactiveSourceVars.has(dep),
         );
         if (dependsOnReactive) {
           computeds.add(name);
@@ -223,6 +239,9 @@ export class ReactivityAnalyzer {
         varInfo.signalProperties = apiConfig.signalProperties;
         varInfo.plainProperties = apiConfig.plainProperties;
         varInfo.fieldSignalProperties = apiConfig.fieldSignalProperties;
+      }
+      if (reactiveSourceVars.has(name)) {
+        varInfo.isReactiveSource = true;
       }
       const syntheticSource = destructuredFromMap.get(name);
       if (syntheticSource) {
@@ -271,12 +290,16 @@ function collectIdentifierRefs(node: Node): string[] {
 }
 
 /**
- * Build a map of signal API local names imported from @vertz/ui.
- * Maps local name → original name (e.g., 'q' → 'query', 'query' → 'query').
- * Only names that appear in this map should be treated as signal APIs.
+ * Build maps of imported API names from @vertz/ui.
+ * - signalApiAliases: local name → original name for signal APIs (query, form, etc.)
+ * - reactiveSourceAliases: set of local names for reactive source APIs (useContext)
  */
-function buildImportAliasMap(sourceFile: SourceFile): Map<string, string> {
-  const aliases = new Map<string, string>();
+function buildImportAliasMap(sourceFile: SourceFile): {
+  signalApiAliases: Map<string, string>;
+  reactiveSourceAliases: Set<string>;
+} {
+  const signalApiAliases = new Map<string, string>();
+  const reactiveSourceAliases = new Set<string>();
 
   for (const importDecl of sourceFile.getImportDeclarations()) {
     const moduleSpecifier = importDecl.getModuleSpecifierValue();
@@ -286,18 +309,18 @@ function buildImportAliasMap(sourceFile: SourceFile): Map<string, string> {
     const namedImports = importDecl.getNamedImports();
     for (const namedImport of namedImports) {
       const originalName = namedImport.getName();
-      if (!isSignalApi(originalName)) continue;
+      const localName = namedImport.getAliasNode()?.getText() ?? originalName;
 
-      const aliasNode = namedImport.getAliasNode();
-      if (aliasNode) {
-        aliases.set(aliasNode.getText(), originalName);
-      } else {
-        aliases.set(originalName, originalName);
+      if (isSignalApi(originalName)) {
+        signalApiAliases.set(localName, originalName);
+      }
+      if (isReactiveSourceApi(originalName)) {
+        reactiveSourceAliases.add(localName);
       }
     }
   }
 
-  return aliases;
+  return { signalApiAliases, reactiveSourceAliases };
 }
 
 /** Collect all declared variable names in a component body. */

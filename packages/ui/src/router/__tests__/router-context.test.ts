@@ -21,7 +21,13 @@ describe('RouterContext + useRouter', () => {
       result = useRouter();
     });
 
-    expect(result).toBe(router);
+    // wrapSignalProps creates a new object with getters, so reference
+    // identity differs. Verify behaviour: functions are the same refs,
+    // signal props are auto-unwrapped to their current values.
+    expect(result).toBeDefined();
+    expect(result!.navigate).toBe(router.navigate);
+    expect(result!.dispose).toBe(router.dispose);
+    expect(result!.current).toEqual(router.current.value);
     router.dispose();
   });
 
@@ -60,7 +66,11 @@ describe('RouterContext + useRouter', () => {
       });
     });
 
-    expect(capturedRouter).toBe(router);
+    // wrapSignalProps creates a new object, so check behaviour not identity
+    expect(capturedRouter).toBeDefined();
+    expect(capturedRouter!.navigate).toBe(router.navigate);
+    expect(capturedRouter!.dispose).toBe(router.dispose);
+    expect(capturedRouter!.current).toEqual(router.current.value);
     router.dispose();
   });
 });

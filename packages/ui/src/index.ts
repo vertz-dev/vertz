@@ -130,6 +130,7 @@ export type {
   DisposeFn,
   ReadonlySignal,
   Signal,
+  UnwrapSignals,
 } from './runtime/signal-types';
 export { untrack } from './runtime/tracking';
 // Entity store

@@ -18,9 +18,10 @@ import {
   RouterContext,
   RouterView,
   ThemeProvider,
+  useContext,
 } from '@vertz/ui';
 import { Icon } from './components/icon';
-import { createSettingsValue, SettingsContext, useSettings } from './lib/settings-context';
+import { createSettingsValue, SettingsContext } from './lib/settings-context';
 import { appRouter, Link } from './router';
 import { layoutStyles } from './styles/components';
 import { taskManagerTheme, themeGlobals } from './styles/theme';
@@ -90,17 +91,19 @@ export const styles = [themeGlobals.css, appGlobals.css, viewTransitionsCss];
 // ── Sidebar with theme toggle ────────────────────────────────
 
 function Sidebar() {
-  const settings = useSettings();
-  let currentTheme = settings.theme.peek();
+  const settings = useContext(SettingsContext)!;
 
   function toggleTheme() {
-    const next = currentTheme === 'light' ? 'dark' : 'light';
-    currentTheme = next;
+    const next = settings.theme === 'light' ? 'dark' : 'light';
     settings.setTheme(next);
   }
 
   return (
-    <nav class={layoutStyles.sidebar} aria-label="Main navigation" style="display: flex; flex-direction: column">
+    <nav
+      class={layoutStyles.sidebar}
+      aria-label="Main navigation"
+      style="display: flex; flex-direction: column"
+    >
       <div class={navStyles.navTitle}>Task Manager</div>
       <div class={navStyles.navList}>
         <div class={navStyles.navItem}>
@@ -135,8 +138,12 @@ function Sidebar() {
           }
         }}
       >
-        {currentTheme === 'light' ? <Icon name="Moon" size={16} /> : <Icon name="Sun" size={16} />}
-        {currentTheme === 'light' ? 'Dark Mode' : 'Light Mode'}
+        {settings.theme === 'light' ? (
+          <Icon name="Moon" size={16} />
+        ) : (
+          <Icon name="Sun" size={16} />
+        )}
+        {settings.theme === 'light' ? 'Dark Mode' : 'Light Mode'}
       </div>
     </nav>
   );
