@@ -395,10 +395,16 @@ export function generateEntityRoutes(
     // Only register action route if it has an access rule
     if (def.access[actionName] === undefined) continue;
 
+    const method = (actionDef.method ?? 'POST').toUpperCase();
+    const actionPath = actionDef.path
+      ? `${basePath}/${actionDef.path}`
+      : `${basePath}/:id/${actionName}`;
+    const hasId = actionPath.includes(':id');
+
     if (def.access[actionName] === false) {
       routes.push({
-        method: 'POST',
-        path: `${basePath}/:id/${actionName}`,
+        method,
+        path: actionPath,
         handler: async () =>
           jsonResponse(
             {
@@ -411,15 +417,16 @@ export function generateEntityRoutes(
           ),
       });
     } else {
-      const actionHandler = createActionHandler(def, actionName, actionDef, db);
+      const actionHandler = createActionHandler(def, actionName, actionDef, db, hasId);
       routes.push({
-        method: 'POST',
-        path: `${basePath}/:id/${actionName}`,
+        method,
+        path: actionPath,
         handler: async (ctx) => {
           try {
             const entityCtx = makeEntityCtx(ctx);
-            const id = getParams(ctx).id as string;
-            const input = ctx.body;
+            const id = hasId ? (getParams(ctx).id as string) : null;
+            // For GET actions, input comes from query; for POST/PATCH/etc., from body
+            const input = method === 'GET' ? (ctx.query ?? {}) : ctx.body;
             const result = await actionHandler(entityCtx, id, input);
             if (!result.ok) {
               const { status, body } = entityErrorHandler(result.error);

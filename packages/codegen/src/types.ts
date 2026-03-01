@@ -136,10 +136,14 @@ export interface CodegenResolvedField {
 
 export interface CodegenEntityAction {
   name: string;
+  method: string;
   operationId: string;
   path: string;
+  hasId: boolean;
   inputSchema?: string;
   outputSchema?: string;
+  resolvedInputFields?: CodegenResolvedField[];
+  resolvedOutputFields?: CodegenResolvedField[];
 }
 
 // ── Generator ───────────────────────────────────────────────────

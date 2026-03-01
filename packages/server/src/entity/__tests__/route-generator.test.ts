@@ -137,8 +137,8 @@ describe('generateEntityRoutes', () => {
         },
         actions: {
           resetPassword: {
-            input: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
-            output: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
             handler: async () => ({ success: true }),
           },
         },
@@ -621,8 +621,8 @@ describe('generateEntityRoutes', () => {
         },
         actions: {
           resetPassword: {
-            input: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
-            output: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
             handler: async () => ({ success: true }),
           },
         },
@@ -768,8 +768,8 @@ describe('generateEntityRoutes', () => {
         },
         actions: {
           resetPassword: {
-            input: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
-            output: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
             handler: async () => {
               throw new Error('Action failed');
             },
@@ -834,8 +834,8 @@ describe('generateEntityRoutes', () => {
         },
         actions: {
           resetPassword: {
-            input: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
-            output: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
             handler,
           },
         },
@@ -857,6 +857,94 @@ describe('generateEntityRoutes', () => {
       expect(handler).toHaveBeenCalledTimes(1);
       const body = await response.json();
       expect(body.success).toBe(true);
+    });
+
+    it('generates GET route for action with method: "GET"', () => {
+      const def = buildEntityDef({
+        access: {
+          list: () => true,
+          stats: () => true,
+        },
+        actions: {
+          stats: {
+            method: 'GET',
+            path: 'stats',
+            body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            handler: async () => ({ count: 5 }),
+          },
+        },
+      } as unknown as Partial<EntityDefinition>);
+
+      const db = createMockDb();
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const statsRoute = routes.find((r) => r.path.includes('stats') && !r.path.includes('query'));
+      expect(statsRoute).toBeDefined();
+      expect(statsRoute?.method).toBe('GET');
+      expect(statsRoute?.path).toBe('/api/users/stats');
+    });
+
+    it('generates collection-level action path from actionDef.path', () => {
+      const def = buildEntityDef({
+        access: {
+          list: () => true,
+          bulkDelete: () => true,
+        },
+        actions: {
+          bulkDelete: {
+            method: 'POST',
+            path: 'bulk-delete',
+            body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            handler: async () => ({ deleted: 3 }),
+          },
+        },
+      } as unknown as Partial<EntityDefinition>);
+
+      const db = createMockDb();
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const bulkRoute = routes.find((r) => r.path.includes('bulk-delete'));
+      expect(bulkRoute).toBeDefined();
+      expect(bulkRoute?.method).toBe('POST');
+      expect(bulkRoute?.path).toBe('/api/users/bulk-delete');
+    });
+
+    it('GET action reads input from ctx.query instead of ctx.body', async () => {
+      const handler = mock(async () => ({ count: 5 }));
+      const def = buildEntityDef({
+        access: {
+          stats: () => true,
+        },
+        actions: {
+          stats: {
+            method: 'GET',
+            path: 'stats',
+            body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            response: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+            handler,
+          },
+        },
+      } as unknown as Partial<EntityDefinition>);
+
+      const db = createMockDb();
+      const registry = new EntityRegistry();
+      const routes = generateEntityRoutes(def, registry, db);
+
+      const statsRoute = routes.find((r) => r.path.includes('stats'));
+      const response = await statsRoute!.handler({
+        params: {},
+        body: { shouldNotBeUsed: true },
+        query: { status: 'completed' },
+        headers: {},
+      });
+
+      expect(response.status).toBe(200);
+      // The handler should have received query data, not body data
+      expect(handler).toHaveBeenCalledTimes(1);
     });
   });
 });

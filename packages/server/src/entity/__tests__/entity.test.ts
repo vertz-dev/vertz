@@ -1,5 +1,5 @@
-import { d } from '@vertz/db';
 import { describe, expect, it } from 'bun:test';
+import { d } from '@vertz/db';
 import { entity } from '../index';
 
 // ---------------------------------------------------------------------------
@@ -216,8 +216,8 @@ describe('Feature: entity() definition', () => {
           model: usersModel,
           actions: {
             resetPassword: {
-              input: { parse: (v: unknown) => v as { password: string } },
-              output: { parse: (v: unknown) => v as { ok: boolean } },
+              body: { parse: (v: unknown) => v as { password: string } },
+              response: { parse: (v: unknown) => v as { ok: boolean } },
               handler,
             },
           },

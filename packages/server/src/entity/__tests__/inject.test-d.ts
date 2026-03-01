@@ -135,8 +135,8 @@ describe('inject flows through action handler ctx', () => {
       inject: { users: usersEntity },
       actions: {
         cancel: {
-          input: emptySchema,
-          output: okSchema,
+          body: emptySchema,
+          response: okSchema,
           handler: async (_input, ctx, _order) => {
             // ctx.entities.users should be typed — get() returns users $response
             const user = await ctx.entities.users.get('id');
@@ -156,8 +156,8 @@ describe('inject flows through action handler ctx', () => {
       inject: { users: usersEntity },
       actions: {
         cancel: {
-          input: emptySchema,
-          output: okSchema,
+          body: emptySchema,
+          response: okSchema,
           handler: async (_input, ctx, _order) => {
             // @ts-expect-error — products not in inject map
             ctx.entities.products;
@@ -228,8 +228,8 @@ describe('action handler row param typing', () => {
       inject: { users: usersEntity },
       actions: {
         cancel: {
-          input: emptySchema,
-          output: okSchema,
+          body: emptySchema,
+          response: okSchema,
           handler: async (_input, _ctx, order) => {
             // If row is `any`, this @ts-expect-error is unused and the test FAILS
             // @ts-expect-error — nonExistentField does not exist on orders $response
@@ -248,12 +248,15 @@ describe('action handler row param typing', () => {
       inject: { users: usersEntity },
       actions: {
         cancel: {
-          input: emptySchema,
-          output: okSchema,
+          body: emptySchema,
+          response: okSchema,
           handler: async (_input, _ctx, order) => {
-            // Positive: order should have userId and status from orders table
-            expectTypeOf(order).toHaveProperty('userId');
-            expectTypeOf(order).toHaveProperty('status');
+            // row is TResponse | null for collection-level support
+            // Narrow to non-null for record-level action type checks
+            if (order) {
+              expectTypeOf(order).toHaveProperty('userId');
+              expectTypeOf(order).toHaveProperty('status');
+            }
             return { ok: true };
           },
         },
@@ -273,8 +276,8 @@ describe('action handler row param typing', () => {
   //     model: usersModel,
   //     actions: {
   //       deactivate: {
-  //         input: emptySchema,
-  //         output: okSchema,
+  //         body: emptySchema,
+  //         response: okSchema,
   //         handler: async (_input, _ctx, user) => {
   //           // @ts-expect-error — passwordHash is hidden, excluded from $response
   //           void user.passwordHash;

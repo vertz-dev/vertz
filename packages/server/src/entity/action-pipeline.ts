@@ -13,36 +13,46 @@ import type { EntityActionDef, EntityContext, EntityDefinition } from './types';
 /**
  * Creates a handler function for a custom entity action.
  *
- * Pipeline: fetch row → enforce access → validate input → run handler → fire after hook → return result
+ * Record-level (hasId: true): fetch row → enforce access → validate input → run handler → fire after hook
+ * Collection-level (hasId: false): enforce access with null row → validate input → run handler with null row
  */
 export function createActionHandler(
   def: EntityDefinition,
   actionName: string,
   actionDef: EntityActionDef,
   db: EntityDbAdapter,
-): (ctx: EntityContext, id: string, rawInput: unknown) => Promise<Result<CrudResult, EntityError>> {
+  hasId: boolean,
+): (
+  ctx: EntityContext,
+  id: string | null,
+  rawInput: unknown,
+) => Promise<Result<CrudResult, EntityError>> {
   return async (ctx, id, rawInput) => {
-    // 1. Fetch the row
-    const row = await db.get(id);
-    if (!row) {
-      return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
+    let row: Record<string, unknown> | null = null;
+
+    if (hasId) {
+      // Record-level: fetch the row
+      row = await db.get(id as string);
+      if (!row) {
+        return err(new EntityNotFoundError(`${def.name} with id "${id}" not found`));
+      }
     }
 
-    // 2. Enforce access
-    const accessResult = await enforceAccess(actionName, def.access, ctx, row);
+    // Enforce access (row is null for collection-level actions)
+    const accessResult = await enforceAccess(actionName, def.access, ctx, row ?? {});
     if (!accessResult.ok) return err(accessResult.error);
 
-    // 3. Validate input against schema
-    const parseResult = actionDef.input.parse(rawInput);
+    // Validate input against schema
+    const parseResult = actionDef.body.parse(rawInput);
     if (!parseResult.ok) {
       return err(new BadRequestError(parseResult.error.message));
     }
     const input = parseResult.data;
 
-    // 4. Run the handler
+    // Run the handler
     const result = await actionDef.handler(input, ctx, row);
 
-    // 5. Fire after hook (fire-and-forget)
+    // Fire after hook (fire-and-forget)
     const afterHooks = def.after as Record<string, ((...args: unknown[]) => void) | undefined>;
     const afterHook = afterHooks[actionName];
     if (afterHook) {

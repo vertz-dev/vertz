@@ -136,18 +136,31 @@ function generateActionRoutes(entity: EntityIR): RouteIR[] {
 
   return entity.actions
     .filter((action) => entity.access.custom[action.name] !== 'false')
-    .map((action) => ({
-      method: 'POST' as HttpMethod,
-      path: `/${entity.name}/:id/${action.name}`,
-      fullPath: `/${entity.name}/:id/${action.name}`,
-      operationId: `${action.name}${entityPascal}`,
-      body: action.inputSchemaRef,
-      response: action.outputSchemaRef,
-      middleware: [],
-      tags: [entity.name],
-      description: `${action.name} on ${entity.name}`,
-      ...action,
-    }));
+    .map((action) => {
+      const method = action.method;
+      const path = action.path
+        ? `/${entity.name}/${action.path}`
+        : `/${entity.name}/:id/${action.name}`;
+      const fullPath = path;
+
+      return {
+        method,
+        path,
+        fullPath,
+        operationId: `${action.name}${entityPascal}`,
+        params: action.params,
+        query: action.query,
+        headers: action.headers,
+        body: action.body,
+        response: action.response,
+        middleware: [],
+        tags: [entity.name],
+        description: `${action.name} on ${entity.name}`,
+        sourceFile: action.sourceFile,
+        sourceLine: action.sourceLine,
+        sourceColumn: action.sourceColumn,
+      };
+    });
 }
 
 export function detectRouteCollisions(ir: AppIR): Diagnostic[] {

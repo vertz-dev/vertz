@@ -221,8 +221,13 @@ export interface EntityHooksIR {
 
 export interface EntityActionIR extends SourceLocation {
   name: string;
-  inputSchemaRef: SchemaRef;
-  outputSchemaRef: SchemaRef;
+  method: HttpMethod;
+  path?: string;
+  params?: SchemaRef;
+  query?: SchemaRef;
+  headers?: SchemaRef;
+  body?: SchemaRef;
+  response?: SchemaRef;
 }
 
 export interface EntityRelationIR {
