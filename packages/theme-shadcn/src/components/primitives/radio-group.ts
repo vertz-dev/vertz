@@ -49,7 +49,6 @@ export function createThemedRadioGroup(
 
         // Style the item as the radio circle
         item.classList.add(styles.item);
-        item.style.cssText = 'display: flex; align-items: center; justify-content: center; padding: 0; background: transparent;';
 
         // Create indicator with circle icon
         const indicator = document.createElement('span');
@@ -81,7 +80,8 @@ export function createThemedRadioGroup(
         if (labelText) {
           const labelEl = document.createElement('label');
           labelEl.textContent = labelText;
-          labelEl.style.cssText = 'font-size: 0.875rem; color: var(--color-foreground); cursor: pointer;';
+          labelEl.style.cssText =
+            'font-size: 0.875rem; color: var(--color-foreground); cursor: pointer;';
           labelEl.addEventListener('click', () => item.click());
           wrapper.appendChild(labelEl);
         }
