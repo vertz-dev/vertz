@@ -680,7 +680,7 @@ describe('EntityAnalyzer', () => {
       createFile(
         '/models.ts',
         `
-        export interface SchemaLike<T> { parse(data: unknown): T; }
+        export interface SchemaLike<T> { parse(data: unknown): { ok: true; data: T } | { ok: false; error: Error }; }
         export interface TodoModel {
           schemas: {
             response: SchemaLike<{ id: string; title: string; completed: boolean; createdAt: Date; updatedAt: Date }>;
@@ -723,7 +723,7 @@ describe('EntityAnalyzer', () => {
       createFile(
         '/models.ts',
         `
-        export interface SchemaLike<T> { parse(data: unknown): T; }
+        export interface SchemaLike<T> { parse(data: unknown): { ok: true; data: T } | { ok: false; error: Error }; }
         export interface TodoModel {
           schemas: {
             response: SchemaLike<{ id: string; title: string }>;
@@ -759,7 +759,7 @@ describe('EntityAnalyzer', () => {
       createFile(
         '/models.ts',
         `
-        export interface SchemaLike<T> { parse(data: unknown): T; }
+        export interface SchemaLike<T> { parse(data: unknown): { ok: true; data: T } | { ok: false; error: Error }; }
         export interface TodoModel {
           schemas: {
             response: SchemaLike<{ id: string; title: string; createdAt: Date; updatedAt: Date }>;
@@ -817,7 +817,7 @@ describe('EntityAnalyzer', () => {
       createFile(
         '/models.ts',
         `
-        export interface SchemaLike<T> { parse(data: unknown): T; }
+        export interface SchemaLike<T> { parse(data: unknown): { ok: true; data: T } | { ok: false; error: Error }; }
         export interface TodoModel {
           schemas: {
             response: SchemaLike<{ id: string; title: string; completed: boolean; createdAt: Date }>;

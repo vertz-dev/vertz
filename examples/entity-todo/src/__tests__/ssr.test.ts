@@ -55,4 +55,9 @@ describe('SSR integration (zero-config)', () => {
     expect(html).toContain('data-testid="create-todo-form"');
     expect(html).toContain('What needs to be done?');
   });
+
+  test('renders theme toggle button', async () => {
+    const html = await renderApp();
+    expect(html).toContain('data-testid="theme-toggle"');
+  });
 });

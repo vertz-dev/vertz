@@ -8,7 +8,7 @@
  */
 
 import { api } from '../api/client';
-import { todoItemStyles } from '../styles/components';
+import { button, todoItemStyles } from '../styles/components';
 
 export interface TodoItemProps {
   id: string;
@@ -41,7 +41,6 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
       return;
     }
 
-    
     onDelete(id);
   };
 
@@ -63,7 +62,7 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
       </span>
       <button
         type="button"
-        class={todoItemStyles.deleteBtn}
+        class={button({ intent: 'ghost', size: 'sm' })}
         onClick={handleDelete}
         data-testid={`todo-delete-${id}`}
       >

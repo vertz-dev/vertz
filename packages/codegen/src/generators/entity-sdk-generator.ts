@@ -56,6 +56,7 @@ export class EntitySdkGenerator implements Generator {
 
     // Import types (when schema is resolved)
     const hasTypes = entity.operations.some((op) => op.outputSchema || op.inputSchema);
+    const hasListOp = entity.operations.some((op) => op.kind === 'list');
     if (hasTypes) {
       const typeImports = new Set<string>();
       for (const op of entity.operations) {
@@ -69,7 +70,10 @@ export class EntitySdkGenerator implements Generator {
       lines.push(
         `import type { ${[...typeImports].join(', ')} } from '../types/${entity.entityName}';`,
       );
-      lines.push(`import { type FetchClient, createDescriptor } from '@vertz/fetch';`);
+      const fetchImports = hasListOp
+        ? 'type FetchClient, type ListResponse, createDescriptor'
+        : 'type FetchClient, createDescriptor';
+      lines.push(`import { ${fetchImports} } from '@vertz/fetch';`);
       lines.push('');
     }
 
@@ -80,13 +84,13 @@ export class EntitySdkGenerator implements Generator {
     for (const op of entity.operations) {
       const inputType = op.inputSchema ?? 'unknown';
       const outputType = op.outputSchema ?? 'unknown';
-      const arrayOutput = op.kind === 'list' ? `${outputType}[]` : outputType;
+      const listOutput = op.kind === 'list' ? `ListResponse<${outputType}>` : outputType;
 
       switch (op.kind) {
         case 'list':
           lines.push(`    list: Object.assign(`);
           lines.push(
-            `      (query?: Record<string, unknown>) => createDescriptor('GET', '${op.path}', () => client.get<${arrayOutput}>('${op.path}', { query }), query),`,
+            `      (query?: Record<string, unknown>) => createDescriptor('GET', '${op.path}', () => client.get<${listOutput}>('${op.path}', { query }), query),`,
           );
           lines.push(`      { url: '${op.path}', method: 'GET' as const },`);
           lines.push(`    ),`);

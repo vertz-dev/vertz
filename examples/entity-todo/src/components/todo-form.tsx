@@ -8,9 +8,9 @@
  */
 
 import { form } from '@vertz/ui';
-import { api } from '../api/client';
 import type { TodosResponse } from '../api/client';
-import { button, formStyles } from '../styles/components';
+import { api } from '../api/client';
+import { button, formStyles, inputStyles } from '../styles/components';
 
 export interface TodoFormProps {
   onSuccess: (todo: TodosResponse) => void;
@@ -32,7 +32,7 @@ export function TodoForm({ onSuccess }: TodoFormProps) {
       <div style="display: flex; gap: 0.5rem; align-items: flex-start">
         <div style="flex: 1">
           <input
-            class={formStyles.input}
+            class={inputStyles.base}
             name="title"
             type="text"
             placeholder="What needs to be done?"

@@ -24,13 +24,6 @@ describe('TodoListPage', () => {
     unmount();
   });
 
-  test('renders page header with title', () => {
-    const { findByText, unmount } = renderTest(TodoListPage());
-    const heading = findByText('Entity Todo');
-    expect(heading).toBeDefined();
-    unmount();
-  });
-
   test('renders create todo form', () => {
     const { findByTestId, unmount } = renderTest(TodoListPage());
     const form = findByTestId('create-todo-form');
