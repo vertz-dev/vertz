@@ -396,14 +396,15 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
 
   /**
    * Navigate through SchemaLike<T> to extract T's field info.
-   * SchemaLike<T> has parse(data: unknown): T — we get T from parse's return type.
+   * SchemaLike<T>.parse() returns { ok: true; data: T } | { ok: false; error: Error }.
+   * We unwrap the Result union to get T from the success branch's `data` property.
    */
   private resolveFieldsFromSchemaType(
     schemaType: Type,
     location: Expression,
   ): ResolvedField[] | undefined {
     try {
-      // Navigate: SchemaLike<T> → parse property → call signature → return type → T
+      // Navigate: SchemaLike<T> → parse property → call signature → return type
       const parseProp = schemaType.getProperty('parse');
       if (!parseProp) return undefined;
 
@@ -414,7 +415,11 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
       const returnType = callSignatures[0]?.getReturnType();
       if (!returnType) return undefined;
 
-      const properties = returnType.getProperties();
+      // Unwrap Result type: { ok: true; data: T } | { ok: false; error: Error } → T
+      const dataType = this.unwrapResultType(returnType, location);
+      if (!dataType) return undefined;
+
+      const properties = dataType.getProperties();
       if (properties.length === 0) return undefined;
 
       const fields: ResolvedField[] = [];
@@ -430,6 +435,33 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
     } catch {
       return undefined;
     }
+  }
+
+  /**
+   * Unwrap a Result type to extract T from the success branch.
+   * Handles: { ok: true; data: T } | { ok: false; error: Error } → T
+   * Falls back to the type itself if it's not a Result union (backward compat).
+   */
+  private unwrapResultType(type: Type, location: Expression): Type | undefined {
+    // If it's a union, find the success branch ({ ok: true; data: T })
+    if (type.isUnion()) {
+      for (const member of type.getUnionTypes()) {
+        const dataProp = member.getProperty('data');
+        if (dataProp) {
+          return dataProp.getTypeAtLocation(location);
+        }
+      }
+      return undefined;
+    }
+
+    // If it has a `data` property directly (non-union success type), unwrap it
+    const dataProp = type.getProperty('data');
+    if (dataProp) {
+      return dataProp.getTypeAtLocation(location);
+    }
+
+    // Fallback: return as-is (backward compat with parse(): T)
+    return type;
   }
 
   private mapTsType(type: Type): ResolvedField['tsType'] {
