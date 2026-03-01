@@ -12,7 +12,14 @@ export function createSeparator(): CSSOutput<SeparatorBlocks> {
   const s = css({
     separatorBase: ['bg:border', 'shrink-0'],
     separatorHorizontal: ['w:full', { '&': [{ property: 'height', value: '1px' }] }],
-    separatorVertical: [{ '&': [{ property: 'height', value: '100%' }, { property: 'width', value: '1px' }] }],
+    separatorVertical: [
+      {
+        '&': [
+          { property: 'height', value: '100%' },
+          { property: 'width', value: '1px' },
+        ],
+      },
+    ],
   });
   return {
     base: s.separatorBase,

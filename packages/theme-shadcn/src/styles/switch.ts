@@ -33,7 +33,12 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'cursor:pointer',
       'bg:input',
       'transition:colors',
-      { '&': [{ property: 'height', value: '18.4px' }, { property: 'width', value: '32px' }] },
+      {
+        '&': [
+          { property: 'height', value: '18.4px' },
+          { property: 'width', value: '32px' },
+        ],
+      },
       { [DARK]: [bgOpacity('input', 80)] },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
@@ -55,8 +60,16 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
           { property: 'transform', value: 'translateX(calc(100% - 2px))' },
         ],
       },
-      { [`${DARK}[data-state="unchecked"]`]: [{ property: 'background-color', value: 'var(--color-foreground)' }] },
-      { [`${DARK}[data-state="checked"]`]: [{ property: 'background-color', value: 'var(--color-primary-foreground)' }] },
+      {
+        [`${DARK}[data-state="unchecked"]`]: [
+          { property: 'background-color', value: 'var(--color-foreground)' },
+        ],
+      },
+      {
+        [`${DARK}[data-state="checked"]`]: [
+          { property: 'background-color', value: 'var(--color-primary-foreground)' },
+        ],
+      },
     ],
     switchRootSm: [
       'inline-flex',
@@ -68,7 +81,12 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'cursor:pointer',
       'bg:input',
       'transition:colors',
-      { '&': [{ property: 'height', value: '14px' }, { property: 'width', value: '24px' }] },
+      {
+        '&': [
+          { property: 'height', value: '14px' },
+          { property: 'width', value: '24px' },
+        ],
+      },
       { [DARK]: [bgOpacity('input', 80)] },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
@@ -90,8 +108,16 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
           { property: 'transform', value: 'translateX(calc(100% - 2px))' },
         ],
       },
-      { [`${DARK}[data-state="unchecked"]`]: [{ property: 'background-color', value: 'var(--color-foreground)' }] },
-      { [`${DARK}[data-state="checked"]`]: [{ property: 'background-color', value: 'var(--color-primary-foreground)' }] },
+      {
+        [`${DARK}[data-state="unchecked"]`]: [
+          { property: 'background-color', value: 'var(--color-foreground)' },
+        ],
+      },
+      {
+        [`${DARK}[data-state="checked"]`]: [
+          { property: 'background-color', value: 'var(--color-primary-foreground)' },
+        ],
+      },
     ],
   });
   return {

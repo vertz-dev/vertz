@@ -47,11 +47,7 @@ export function createRadioGroupStyles(): CSSOutput<RadioGroupBlocks> {
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
       {
-        '&[data-state="checked"]': [
-          'bg:primary',
-          'text:primary-foreground',
-          'border:primary',
-        ],
+        '&[data-state="checked"]': ['bg:primary', 'text:primary-foreground', 'border:primary'],
       },
       {
         '&[data-state="unchecked"]': ['bg:transparent'],

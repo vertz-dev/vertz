@@ -81,7 +81,10 @@ export function createThemedDialog(styles: DialogStyleClasses): ThemedDialogComp
     return el;
   }
 
-  function DialogDescription({ children, class: className }: DialogSlotProps): HTMLParagraphElement {
+  function DialogDescription({
+    children,
+    class: className,
+  }: DialogSlotProps): HTMLParagraphElement {
     const el = document.createElement('p');
     el.classList.add(styles.description);
     if (className) el.classList.add(className);
