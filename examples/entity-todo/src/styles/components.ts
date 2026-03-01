@@ -54,8 +54,14 @@ export const todoItemStyles = css({
     'border:border',
   ],
   checkbox: ['w:5', 'h:5', 'cursor:pointer'],
-  title: ['flex-1', 'text:sm', 'font:normal', 'text:foreground'],
-  titleCompleted: ['flex-1', 'text:sm', 'font:normal', 'text:muted-foreground'],
+  label: ['flex-1', 'text:xs', 'font:normal', 'text:foreground'],
+  labelCompleted: [
+    'flex-1',
+    'text:xs',
+    'font:normal',
+    'text:muted-foreground',
+    'decoration:line-through',
+  ],
   deleteBtn: ['text:xs', 'text:muted-foreground', 'hover:text:destructive', 'cursor:pointer'],
 });
 
@@ -63,6 +69,6 @@ export const todoItemStyles = css({
 
 export const emptyStateStyles = css({
   container: ['flex', 'flex-col', 'items:center', 'justify:center', 'py:12', 'text:center'],
-  title: ['font:lg', 'font:semibold', 'text:foreground', 'mb:1'],
+  heading: ['font:lg', 'font:semibold', 'text:foreground', 'mb:1'],
   description: ['text:sm', 'text:muted-foreground', 'mb:4'],
 });

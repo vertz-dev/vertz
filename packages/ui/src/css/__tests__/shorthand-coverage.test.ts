@@ -117,6 +117,9 @@ const DEMO_SHORTHANDS = [
   'text:center',
   'leading:relaxed',
   'tracking:wide',
+  'decoration:line-through',
+  'decoration:underline',
+  'decoration:none',
   'uppercase',
 
   // Alignment
