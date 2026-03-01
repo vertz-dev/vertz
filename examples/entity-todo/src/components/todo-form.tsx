@@ -8,8 +8,8 @@
  */
 
 import { form } from '@vertz/ui';
-import { api } from '../api/client';
 import type { TodosResponse } from '../api/client';
+import { api } from '../api/client';
 import { button, formStyles } from '../styles/components';
 
 export interface TodoFormProps {

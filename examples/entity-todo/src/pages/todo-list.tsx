@@ -8,12 +8,17 @@
  * - Compiler list transform: {items.map(...)} → __list()
  */
 
-import { query, queryMatch } from '@vertz/ui';
-import { api } from '../api/client';
+import { css, query, queryMatch } from '@vertz/ui';
 import type { TodosResponse } from '../api/client';
+import { api } from '../api/client';
 import { TodoForm } from '../components/todo-form';
 import { TodoItem } from '../components/todo-item';
-import { emptyStateStyles, layoutStyles } from '../styles/components';
+import { emptyStateStyles } from '../styles/components';
+
+const pageStyles = css({
+  container: ['py:2'],
+  listContainer: ['flex', 'flex-col', 'gap:2', 'mt:6'],
+});
 
 export function TodoListPage() {
   const todosQuery = query(api.todos.list());
@@ -31,21 +36,18 @@ export function TodoListPage() {
   };
 
   return (
-    <div class={layoutStyles.container} data-testid="todo-list-page">
-      <div class={layoutStyles.header}>
-        <h1 style="font-size: 1.5rem; font-weight: 700">Entity Todo</h1>
-        <span style="font-size: 0.75rem; color: var(--color-muted)">
-          schema → entity → SDK → UI → SSR
-        </span>
-      </div>
-
+    <div class={pageStyles.container} data-testid="todo-list-page">
       <TodoForm onSuccess={handleCreate} />
 
-      <div style="margin-top: 1.5rem">
+      <div class={pageStyles.listContainer}>
         {queryMatch(todosQuery, {
-          loading: () => <div data-testid="loading">Loading todos...</div>,
+          loading: () => (
+            <div data-testid="loading" style="color: var(--color-muted-foreground)">
+              Loading todos...
+            </div>
+          ),
           error: (err) => (
-            <div style="color: var(--color-danger-500)" data-testid="error">
+            <div style="color: var(--color-destructive)" data-testid="error">
               {err instanceof Error ? err.message : String(err)}
             </div>
           ),

@@ -5,8 +5,7 @@
  */
 
 import { mount } from '@vertz/ui';
-import { App } from './app';
-import { globalStyles } from './styles/global';
+import { App, styles } from './app';
 import { todoTheme } from './styles/theme';
 
 // HMR self-accept — prevents Bun from triggering full page reloads when
@@ -16,5 +15,5 @@ import.meta.hot.accept();
 
 mount(App, '#app', {
   theme: todoTheme,
-  styles: [globalStyles.css],
+  styles,
 });
