@@ -17,7 +17,7 @@ import type {
 } from '../schema/inference';
 import type { RelationDef } from '../schema/relation';
 import type { SqlFragment } from '../sql/tagged';
-import { createPostgresDriver, type PostgresDriver } from './postgres-driver';
+import type { PostgresDriver } from './postgres-driver';
 import {
   buildTableSchema,
   createSqliteDriver,
@@ -529,20 +529,33 @@ export function createDb<TModels extends Record<string, ModelEntry>>(
       };
     }
 
-    // Otherwise, create a real postgres driver from the URL
+    // Otherwise, create a real postgres driver from the URL.
+    // The driver is initialized lazily on the first query to avoid pulling
+    // CJS require() (used by the postgres package loader) into the main
+    // bundle at module load time — Cloudflare Workers crash on
+    // createRequire(import.meta.url) at load time.
     if (options.url) {
-      driver = createPostgresDriver(options.url, options.pool);
+      let initialized = false;
 
-      // Create replica drivers if configured
-      const replicas = options.pool?.replicas;
-      if (replicas && replicas.length > 0) {
-        replicaDrivers = replicas.map((replicaUrl) =>
-          createPostgresDriver(replicaUrl, options.pool),
-        );
-      }
+      const initPostgres = async () => {
+        if (initialized) return;
+        const { createPostgresDriver } = await import('./postgres-driver');
+        driver = createPostgresDriver(options.url!, options.pool);
+
+        // Create replica drivers if configured
+        const replicas = options.pool?.replicas;
+        if (replicas && replicas.length > 0) {
+          replicaDrivers = replicas.map((replicaUrl) =>
+            createPostgresDriver(replicaUrl, options.pool),
+          );
+        }
+        initialized = true;
+      };
 
       // Return a routing-aware query function
       return async <T>(sqlStr: string, params: readonly unknown[]) => {
+        await initPostgres();
+
         // If no replicas configured, always use primary
         if (replicaDrivers.length === 0) {
           if (!driver) {

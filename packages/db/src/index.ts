@@ -66,8 +66,7 @@ export type {
   TenantGraph,
 } from './client';
 export { computeTenantGraph, createDb } from './client';
-export type { PostgresDriver } from './client/postgres-driver';
-export { createPostgresDriver } from './client/postgres-driver';
+export type { createPostgresDriver, PostgresDriver } from './client/postgres-driver';
 // Schema builder
 export { d } from './d';
 // Diagnostic
