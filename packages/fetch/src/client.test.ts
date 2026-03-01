@@ -845,3 +845,95 @@ describe('FetchClient parse and validation errors', () => {
     }
   });
 });
+
+describe('FetchClient relative URL handling', () => {
+  it('passes relative URL string to fetch instead of Request object', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const client = new FetchClient({ baseURL: '/api', fetch: mockFetch });
+    await client.get('/users');
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    // Relative URL path: first arg is the URL string, second is init object
+    const [urlArg, initArg] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(typeof urlArg).toBe('string');
+    expect(urlArg).toBe('/api/users');
+    expect(initArg.method).toBe('GET');
+  });
+
+  it('passes serialized body string (not ReadableStream) for POST with relative URL', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1, title: 'Test' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const client = new FetchClient({ baseURL: '/api', fetch: mockFetch });
+    await client.post('/todos', { title: 'Test' });
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const [urlArg, initArg] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(urlArg).toBe('/api/todos');
+    // Body must be a string, not a ReadableStream
+    expect(typeof initArg.body).toBe('string');
+    expect(JSON.parse(initArg.body as string)).toEqual({ title: 'Test' });
+  });
+
+  it('passes Request object for absolute URL (not decomposed)', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1 }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const client = new FetchClient({
+      baseURL: 'http://localhost:3000',
+      fetch: mockFetch,
+    });
+    await client.post('/api/todos', { title: 'Test' });
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    // Absolute URL path: first arg is a Request object
+    const [requestArg] = mockFetch.mock.calls[0] as [Request];
+    expect(requestArg).toBeInstanceOf(Request);
+    expect(requestArg.url).toBe('http://localhost:3000/api/todos');
+  });
+
+  it('sends correct Content-Type header for POST with relative URL', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 1 }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const client = new FetchClient({ baseURL: '/api', fetch: mockFetch });
+    await client.post('/todos', { title: 'Test' });
+
+    const [, initArg] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const headers = initArg.headers as Headers;
+    expect(headers.get('Content-Type')).toBe('application/json');
+  });
+
+  it('omits body for GET with relative URL', async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const client = new FetchClient({ baseURL: '/api', fetch: mockFetch });
+    await client.get('/todos');
+
+    const [, initArg] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(initArg.body).toBeUndefined();
+  });
+});

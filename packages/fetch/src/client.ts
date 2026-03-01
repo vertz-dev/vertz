@@ -21,11 +21,21 @@ const DEFAULT_RETRY_ON = [429, 500, 502, 503, 504];
 
 export class FetchClient {
   private readonly config: FetchClientConfig;
-  private readonly fetchFn: typeof fetch;
+  /**
+   * Custom fetch provided via config, bound to globalThis.
+   * When not provided, globalThis.fetch is read at call time — this allows
+   * SSR handlers to patch globalThis.fetch for relative URL resolution
+   * without the client capturing a stale reference at construction time.
+   */
+  private readonly customFetchFn: typeof fetch | null;
 
   constructor(config: FetchClientConfig) {
     this.config = config;
-    this.fetchFn = (config.fetch ?? globalThis.fetch).bind(globalThis);
+    this.customFetchFn = config.fetch ? config.fetch.bind(globalThis) : null;
+  }
+
+  private get fetchFn(): typeof fetch {
+    return this.customFetchFn ?? globalThis.fetch.bind(globalThis);
   }
 
   async request<T>(
@@ -53,11 +63,23 @@ export class FetchClient {
         }
 
         const signal = this.buildSignal(options?.signal);
+        const isRelativeUrl = url.startsWith('/');
 
-        const request = new Request(url, {
+        // Use a placeholder origin for relative URLs so `new Request()` doesn't
+        // throw in non-browser environments (Cloudflare Workers, Node.js).
+        // The original relative URL is passed to fetch() below.
+        const requestUrl = isRelativeUrl ? `http://localhost${url}` : url;
+
+        // Serialize body once — reused for both the Request constructor and
+        // the relative-URL fetch path. Reading body back from a Request gives
+        // a ReadableStream, which some environments reject without `duplex`.
+        const serializedBody =
+          options?.body !== undefined ? JSON.stringify(options.body) : undefined;
+
+        const request = new Request(requestUrl, {
           method,
           headers,
-          body: options?.body !== undefined ? JSON.stringify(options.body) : undefined,
+          body: serializedBody,
           signal,
         });
 
@@ -69,7 +91,18 @@ export class FetchClient {
 
         await this.config.hooks?.beforeRequest?.(authedRequest);
 
-        const response = await this.fetchFn(authedRequest);
+        // For relative URLs, pass the URL string to fetch so runtime-patched
+        // fetch (e.g. Cloudflare SSR) can intercept and resolve it.
+        // Use the serialized body string (not authedRequest.body which is a
+        // ReadableStream) to avoid duplex/streaming issues in browsers.
+        const response = isRelativeUrl
+          ? await this.fetchFn(url, {
+              method: authedRequest.method,
+              headers: authedRequest.headers,
+              body: serializedBody,
+              signal: authedRequest.signal,
+            })
+          : await this.fetchFn(authedRequest);
 
         if (!response.ok) {
           const body = await this.safeParseJSON(response);
@@ -184,11 +217,14 @@ export class FetchClient {
     }
 
     const signal = this.buildSignal(options.signal);
+    const isRelativeUrl = url.startsWith('/');
+    const requestUrl = isRelativeUrl ? `http://localhost${url}` : url;
+    const serializedBody = options.body !== undefined ? JSON.stringify(options.body) : undefined;
 
-    const request = new Request(url, {
+    const request = new Request(requestUrl, {
       method: options.method,
       headers,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      body: serializedBody,
       signal,
     });
 
@@ -196,7 +232,14 @@ export class FetchClient {
 
     await this.config.hooks?.beforeRequest?.(authedRequest);
 
-    const response = await this.fetchFn(authedRequest);
+    const response = isRelativeUrl
+      ? await this.fetchFn(url, {
+          method: authedRequest.method,
+          headers: authedRequest.headers,
+          body: serializedBody,
+          signal: authedRequest.signal,
+        })
+      : await this.fetchFn(authedRequest);
 
     if (!response.ok) {
       const body = await this.safeParseJSON(response);
