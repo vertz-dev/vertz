@@ -1,3 +1,7 @@
+import type { UnwrapSignals } from '../runtime/signal-types';
+
+export type { UnwrapSignals } from '../runtime/signal-types';
+
 /**
  * A snapshot of context values at a point in time.
  * Each Provider creates a new scope that inherits from the parent.
@@ -31,6 +35,61 @@ export interface Context<T> {
   _stack: T[];
   /** @internal — default value */
   _default: T | undefined;
+}
+
+/**
+ * Duck-type detection for signal-like objects (has `.peek` function).
+ * Used by Provider to auto-wrap signal properties in getters.
+ */
+export function isSignalLike(value: unknown): boolean {
+  return (
+    value != null &&
+    typeof value === 'object' &&
+    'peek' in value &&
+    typeof (value as Record<string, unknown>).peek === 'function'
+  );
+}
+
+/**
+ * Wrap an object's signal-like properties in getters that read `.value`.
+ * Non-signal properties are copied as-is. Primitives, null, undefined, and
+ * arrays pass through unchanged.
+ */
+export function wrapSignalProps<T>(value: T): T {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    return value;
+  }
+
+  const source = value as Record<string, unknown>;
+  const keys = Object.keys(source);
+
+  // Check if any property is signal-like; skip wrapping if none
+  let hasSignal = false;
+  for (const key of keys) {
+    if (isSignalLike(source[key])) {
+      hasSignal = true;
+      break;
+    }
+  }
+  if (!hasSignal) return value;
+
+  const wrapped = {} as Record<string, unknown>;
+  for (const key of keys) {
+    const propValue = source[key];
+    if (isSignalLike(propValue)) {
+      Object.defineProperty(wrapped, key, {
+        get() {
+          return (propValue as { value: unknown }).value;
+        },
+        enumerable: true,
+        configurable: true,
+      });
+    } else {
+      wrapped[key] = propValue;
+    }
+  }
+
+  return wrapped as T;
 }
 
 /** Erase a typed Context<T> to the untyped key used by ContextScope maps. */
@@ -80,7 +139,7 @@ export function createContext<T>(defaultValue?: T, __stableId?: string): Context
       // Disambiguate: 2 args = callback pattern, 1 arg = JSX pattern
       if (fn !== undefined) {
         // Callback pattern: Provider(value, fn)
-        const value = valueOrProps as T;
+        const value = wrapSignalProps(valueOrProps as T);
         const parentScope = currentScope;
         const scope: ContextScope = parentScope ? new Map(parentScope) : new Map();
         scope.set(asKey(ctx), value);
@@ -99,7 +158,8 @@ export function createContext<T>(defaultValue?: T, __stableId?: string): Context
 
       // JSX pattern: Provider({ value, children })
       const props = valueOrProps as ProviderJsxProps<T>;
-      const { value, children } = props;
+      const { value: rawValue, children } = props;
+      const value = wrapSignalProps(rawValue);
 
       const parentScope = currentScope;
       const scope: ContextScope = parentScope ? new Map(parentScope) : new Map();
@@ -146,17 +206,17 @@ export function createContext<T>(defaultValue?: T, __stableId?: string): Context
  * the captured context scope (for async callbacks like watch/effect).
  * Returns the default value if no Provider is active.
  */
-export function useContext<T>(ctx: Context<T>): T | undefined {
+export function useContext<T>(ctx: Context<T>): UnwrapSignals<T> | undefined {
   // Synchronous path: Provider is currently on the call stack
   if (ctx._stack.length > 0) {
-    return ctx._stack[ctx._stack.length - 1] as T;
+    return ctx._stack[ctx._stack.length - 1] as UnwrapSignals<T>;
   }
   // Async path: check the captured context scope
   const key = asKey(ctx);
   if (currentScope?.has(key)) {
-    return currentScope.get(key) as T;
+    return currentScope.get(key) as UnwrapSignals<T>;
   }
-  return ctx._default;
+  return ctx._default as UnwrapSignals<T> | undefined;
 }
 
 /**

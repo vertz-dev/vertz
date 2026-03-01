@@ -140,7 +140,9 @@ describe('RouterView', () => {
     RouterContext.Provider(router, () => {
       RouterView({ router });
     });
-    expect(capturedRouter).toBe(router);
+    // wrapSignalProps creates a new object, so check behaviour not identity
+    expect(capturedRouter).toBeDefined();
+    expect(capturedRouter!.navigate).toBe(router.navigate);
     router.dispose();
   });
 
@@ -162,7 +164,9 @@ describe('RouterView', () => {
       RouterView({ router });
     });
     await new Promise((r) => setTimeout(r, 0));
-    expect(capturedRouter).toBe(router);
+    // wrapSignalProps creates a new object, so check behaviour not identity
+    expect(capturedRouter).toBeDefined();
+    expect(capturedRouter!.navigate).toBe(router.navigate);
     router.dispose();
   });
 
@@ -209,7 +213,7 @@ describe('RouterView', () => {
       '/tasks/:id': {
         component: () => {
           const router = useRouter();
-          capturedId = router.current.value?.params.id;
+          capturedId = router.current?.params.id;
           return document.createElement('div');
         },
       },
@@ -240,7 +244,9 @@ describe('RouterView', () => {
       RouterView({ router });
     });
     await router.navigate('/about');
-    expect(capturedOnAbout).toBe(router);
+    // wrapSignalProps creates a new object, so check behaviour not identity
+    expect(capturedOnAbout).toBeDefined();
+    expect(capturedOnAbout!.navigate).toBe(router.navigate);
     router.dispose();
   });
 

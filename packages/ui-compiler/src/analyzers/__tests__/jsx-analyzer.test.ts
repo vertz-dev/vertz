@@ -76,4 +76,49 @@ describe('JsxAnalyzer', () => {
     expect(reactive[0]?.deps).toEqual(['count']);
     expect(staticExprs).toHaveLength(1);
   });
+
+  it('classifies reactive source property access as reactive', () => {
+    const code = `
+      function App() {
+        const ctx = useContext(ThemeCtx);
+        return <div>{ctx.theme}</div>;
+      }
+    `;
+    const variables: VariableInfo[] = [
+      { name: 'ctx', kind: 'static', start: 0, end: 0, isReactiveSource: true },
+    ];
+    const [result] = analyze(code, variables);
+    expect(result).toHaveLength(1);
+    expect(result?.[0]?.reactive).toBe(true);
+  });
+
+  it('classifies reactive source in JSX attribute as reactive', () => {
+    const code = `
+      function App() {
+        const ctx = useContext(ThemeCtx);
+        return <div data-theme={ctx.theme}>hello</div>;
+      }
+    `;
+    const variables: VariableInfo[] = [
+      { name: 'ctx', kind: 'static', start: 0, end: 0, isReactiveSource: true },
+    ];
+    const [result] = analyze(code, variables);
+    expect(result).toHaveLength(1);
+    expect(result?.[0]?.reactive).toBe(true);
+  });
+
+  it('classifies bare reactive source identifier as reactive', () => {
+    const code = `
+      function App() {
+        const ctx = useContext(ThemeCtx);
+        return <div>{ctx}</div>;
+      }
+    `;
+    const variables: VariableInfo[] = [
+      { name: 'ctx', kind: 'static', start: 0, end: 0, isReactiveSource: true },
+    ];
+    const [result] = analyze(code, variables);
+    expect(result).toHaveLength(1);
+    expect(result?.[0]?.reactive).toBe(true);
+  });
 });

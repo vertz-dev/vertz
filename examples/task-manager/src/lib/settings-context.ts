@@ -5,7 +5,7 @@
  * (theme, default priority) without prop drilling.
  */
 
-import type { Signal } from '@vertz/ui';
+import type { Signal, UnwrapSignals } from '@vertz/ui';
 import { createContext, signal, useContext } from '@vertz/ui';
 import type { Settings, TaskPriority } from './types';
 
@@ -49,7 +49,7 @@ export function createSettingsValue(): SettingsContextValue {
  * Convenience accessor for settings inside components.
  * Throws if called outside SettingsContext.Provider.
  */
-export function useSettings(): SettingsContextValue {
+export function useSettings(): UnwrapSignals<SettingsContextValue> {
   const ctx = useContext(SettingsContext);
   if (!ctx) {
     throw new Error('useSettings must be called within a SettingsContext.Provider');

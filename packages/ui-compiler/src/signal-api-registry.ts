@@ -31,10 +31,25 @@ export const SIGNAL_API_REGISTRY: Record<string, SignalApiConfig> = {
 };
 
 /**
+ * APIs that return objects whose properties are reactive sources.
+ * Unlike signal APIs (which have a static set of signal properties),
+ * reactive source APIs return objects where ALL property accesses
+ * should be treated as reactive (e.g., useContext returns getter-wrapped objects).
+ */
+export const REACTIVE_SOURCE_APIS = new Set(['useContext']);
+
+/**
  * Check if a function name is a registered signal API.
  */
 export function isSignalApi(functionName: string): boolean {
   return functionName in SIGNAL_API_REGISTRY;
+}
+
+/**
+ * Check if a function name is a reactive source API.
+ */
+export function isReactiveSourceApi(functionName: string): boolean {
+  return REACTIVE_SOURCE_APIS.has(functionName);
 }
 
 /**

@@ -8,8 +8,8 @@
  * - Minimal app shell without router (single page)
  */
 
-import { css, getInjectedCSS, globalCss, ThemeProvider } from '@vertz/ui';
-import { createSettingsValue, SettingsContext, useSettings } from './lib/settings-context';
+import { css, getInjectedCSS, globalCss, ThemeProvider, useContext } from '@vertz/ui';
+import { createSettingsValue, SettingsContext } from './lib/settings-context';
 import { TodoListPage } from './pages/todo-list';
 import { layoutStyles } from './styles/components';
 import { themeGlobals, todoTheme } from './styles/theme';
@@ -53,12 +53,10 @@ export const styles = [themeGlobals.css, appGlobals.css];
 // ── App header with theme toggle ────────────────────────────
 
 function AppHeader() {
-  const settings = useSettings();
-  let currentTheme = settings.theme.peek();
+  const settings = useContext(SettingsContext)!;
 
   function toggleTheme() {
-    const next = currentTheme === 'light' ? 'dark' : 'light';
-    currentTheme = next;
+    const next = settings.theme === 'light' ? 'dark' : 'light';
     settings.setTheme(next);
   }
 
@@ -72,10 +70,10 @@ function AppHeader() {
         type="button"
         class={headerStyles.themeToggle}
         data-testid="theme-toggle"
-        aria-label={currentTheme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+        aria-label={settings.theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
         onClick={toggleTheme}
       >
-        {currentTheme === 'light' ? '☽' : '☀'}
+        {settings.theme === 'light' ? '☽' : '☀'}
       </button>
     </header>
   );

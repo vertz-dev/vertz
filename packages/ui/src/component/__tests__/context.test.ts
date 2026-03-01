@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { query } from '../../query/query';
 import { domEffect, signal } from '../../runtime/signal';
-import { createContext, useContext } from '../context';
+import { createContext, isSignalLike, useContext, wrapSignalProps } from '../context';
 
 describe('createContext / useContext', () => {
   test('useContext returns default value when no Provider is set', () => {
@@ -217,6 +217,131 @@ describe('createContext / useContext', () => {
     expect(captured).toBe('dark');
   });
 
+  test('isSignalLike detects objects with .peek function', () => {
+    const sig = signal('hello');
+    expect(isSignalLike(sig)).toBe(true);
+  });
+
+  test('isSignalLike returns false for plain values', () => {
+    expect(isSignalLike('hello')).toBe(false);
+    expect(isSignalLike(42)).toBe(false);
+    expect(isSignalLike(null)).toBe(false);
+    expect(isSignalLike(undefined)).toBe(false);
+    expect(isSignalLike([])).toBe(false);
+    expect(isSignalLike({ name: 'test' })).toBe(false);
+  });
+
+  test('isSignalLike returns false for objects with non-function .peek', () => {
+    expect(isSignalLike({ peek: 'not a function' })).toBe(false);
+  });
+
+  test('wrapSignalProps creates getter-wrapped copy for signal props', () => {
+    const theme = signal<string>('light');
+    const setTheme = (t: string) => {
+      theme.value = t;
+    };
+    const wrapped = wrapSignalProps({ theme, setTheme });
+
+    // Signal property becomes a plain value via getter
+    expect(wrapped.theme).toBe('light');
+    // Plain property copied as-is
+    expect(wrapped.setTheme).toBe(setTheme);
+  });
+
+  test('wrapSignalProps passes through primitives unchanged', () => {
+    expect(wrapSignalProps('hello')).toBe('hello');
+    expect(wrapSignalProps(42)).toBe(42);
+    expect(wrapSignalProps(null)).toBe(null);
+    expect(wrapSignalProps(undefined)).toBe(undefined);
+  });
+
+  test('wrapSignalProps passes through arrays unchanged', () => {
+    const arr = [1, 2, 3];
+    expect(wrapSignalProps(arr)).toBe(arr);
+  });
+
+  test('wrapSignalProps getter reads signal.value (tracks reactively)', () => {
+    const theme = signal<string>('light');
+    const wrapped = wrapSignalProps({ theme });
+
+    expect(wrapped.theme).toBe('light');
+    theme.value = 'dark';
+    expect(wrapped.theme).toBe('dark');
+  });
+
+  test('wrapSignalProps copies plain object properties as-is', () => {
+    const obj = { name: 'test', count: 42 };
+    const wrapped = wrapSignalProps(obj);
+
+    expect(wrapped.name).toBe('test');
+    expect(wrapped.count).toBe(42);
+  });
+
+  test('Provider JSX pattern auto-unwraps signal properties', () => {
+    interface SettingsValue {
+      theme: string;
+      setTheme: (t: string) => void;
+    }
+    const theme = signal<string>('light');
+    const setTheme = (t: string) => {
+      theme.value = t;
+    };
+    const SettingsCtx = createContext<SettingsValue>();
+
+    SettingsCtx.Provider({
+      value: { theme, setTheme } as unknown as SettingsValue,
+      children: () => {
+        const ctx = useContext(SettingsCtx)!;
+        expect(ctx.theme).toBe('light');
+        expect(ctx.setTheme).toBe(setTheme);
+        return null;
+      },
+    });
+  });
+
+  test('Provider auto-unwrapped getter tracks signal reactively in domEffect', () => {
+    interface SettingsValue {
+      theme: string;
+    }
+    const theme = signal<string>('light');
+    const SettingsCtx = createContext<SettingsValue>();
+    const observed: string[] = [];
+
+    SettingsCtx.Provider({ theme } as unknown as SettingsValue, () => {
+      domEffect(() => {
+        const ctx = useContext(SettingsCtx)!;
+        observed.push(ctx.theme);
+      });
+    });
+
+    // Initial value
+    expect(observed).toEqual(['light']);
+
+    // Mutate signal — getter should read updated value
+    theme.value = 'dark';
+    expect(observed).toEqual(['light', 'dark']);
+  });
+
+  test('Provider callback pattern auto-unwraps signal properties', () => {
+    interface SettingsValue {
+      theme: string;
+      setTheme: (t: string) => void;
+    }
+    const theme = signal<string>('light');
+    const setTheme = (t: string) => {
+      theme.value = t;
+    };
+    const SettingsCtx = createContext<SettingsValue>();
+
+    SettingsCtx.Provider({ theme, setTheme } as unknown as SettingsValue, () => {
+      const ctx = useContext(SettingsCtx)!;
+      // Signal property should be auto-unwrapped by Provider
+      expect(ctx.theme).toBe('light');
+      // Function property should pass through
+      expect(ctx.setTheme).toBe(setTheme);
+    });
+  });
+
   test('disposed effect does not re-run on signal change', () => {
     const ThemeCtx = createContext('light');
     const count = signal(0);
@@ -242,5 +367,69 @@ describe('createContext / useContext', () => {
     count.value = 1;
     // Verify the non-disposed effect still works
     expect(observed).toEqual(['dark', 'dark']);
+  });
+
+  // ─── Edge cases: signal auto-unwrapping ──────────────────────────────
+
+  test('nested providers shadow correctly with signal wrapping', () => {
+    interface ThemeValue {
+      theme: string;
+    }
+    const outerTheme = signal<string>('light');
+    const innerTheme = signal<string>('dark');
+    const ThemeCtx = createContext<ThemeValue>();
+
+    ThemeCtx.Provider({ theme: outerTheme } as unknown as ThemeValue, () => {
+      expect(useContext(ThemeCtx)!.theme).toBe('light');
+
+      ThemeCtx.Provider({ theme: innerTheme } as unknown as ThemeValue, () => {
+        expect(useContext(ThemeCtx)!.theme).toBe('dark');
+      });
+
+      // After inner scope ends, outer value restored
+      expect(useContext(ThemeCtx)!.theme).toBe('light');
+    });
+  });
+
+  test('array context values pass through unchanged', () => {
+    const arr = [1, 2, 3];
+    const ArrCtx = createContext<number[]>();
+
+    ArrCtx.Provider(arr, () => {
+      expect(useContext(ArrCtx)).toBe(arr);
+    });
+  });
+
+  test('objects without signal properties work unchanged (same reference)', () => {
+    const plain = { name: 'test', count: 42 };
+    const PlainCtx = createContext<{ name: string; count: number }>();
+
+    PlainCtx.Provider(plain, () => {
+      expect(useContext(PlainCtx)).toBe(plain);
+    });
+  });
+
+  test('watch() tracks signal changes through auto-unwrapped getters', () => {
+    interface ThemeValue {
+      theme: string;
+    }
+    const theme = signal<string>('light');
+    const ThemeCtx = createContext<ThemeValue>();
+    const observed: string[] = [];
+
+    ThemeCtx.Provider({ theme } as unknown as ThemeValue, () => {
+      domEffect(() => {
+        const ctx = useContext(ThemeCtx)!;
+        observed.push(ctx.theme);
+      });
+    });
+
+    expect(observed).toEqual(['light']);
+
+    theme.value = 'dark';
+    expect(observed).toEqual(['light', 'dark']);
+
+    theme.value = 'blue';
+    expect(observed).toEqual(['light', 'dark', 'blue']);
   });
 });

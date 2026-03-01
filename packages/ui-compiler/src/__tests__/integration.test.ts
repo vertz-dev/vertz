@@ -259,4 +259,118 @@ function TaskList() {
     expect(result.code).toContain('computed(() => tasks.refetch)');
     expect(result.diagnostics).toHaveLength(0);
   });
+
+  // ─── Context signal auto-unwrap ──────────────────────────────────────
+
+  it('Context: signal transformer does NOT add .value to reactive source property access', () => {
+    const result = compile(
+      `
+import { useContext } from '@vertz/ui';
+function App() {
+  const ctx = useContext(ThemeCtx);
+  return <div>{ctx.theme}</div>;
+}
+    `.trim(),
+    );
+
+    // Signal transformer should NOT touch ctx.theme — no .value appended
+    expect(result.code).not.toContain('ctx.theme.value');
+    expect(result.code).not.toContain('ctx.value');
+  });
+
+  it('Context: JSX child with reactive source becomes __child thunk', () => {
+    const result = compile(
+      `
+import { useContext } from '@vertz/ui';
+function App() {
+  const ctx = useContext(ThemeCtx);
+  return <div>{ctx.theme}</div>;
+}
+    `.trim(),
+    );
+
+    // Should wrap in __child(() => ...) for reactive tracking
+    expect(result.code).toContain('__child(');
+    expect(result.code).toContain('ctx.theme');
+  });
+
+  it('Context: JSX attribute with reactive source becomes __attr', () => {
+    const result = compile(
+      `
+import { useContext } from '@vertz/ui';
+function App() {
+  const ctx = useContext(ThemeCtx);
+  return <div data-theme={ctx.theme}>hello</div>;
+}
+    `.trim(),
+    );
+
+    // Should use __attr for reactive attribute binding
+    expect(result.code).toContain('__attr(');
+    expect(result.code).toContain('ctx.theme');
+  });
+
+  it('Context: component prop with reactive source becomes getter', () => {
+    const result = compile(
+      `
+import { useContext } from '@vertz/ui';
+function App() {
+  const ctx = useContext(ThemeCtx);
+  return <ThemeLabel value={ctx.theme} />;
+}
+    `.trim(),
+    );
+
+    // Should generate getter for the reactive prop
+    expect(result.code).toContain('get value()');
+    expect(result.code).toContain('ctx.theme');
+  });
+
+  it('Context: aliased useContext import works', () => {
+    const result = compile(
+      `
+import { useContext as getCtx } from '@vertz/ui';
+function App() {
+  const ctx = getCtx(ThemeCtx);
+  return <div>{ctx.theme}</div>;
+}
+    `.trim(),
+    );
+
+    expect(result.code).toContain('__child(');
+    expect(result.code).toContain('ctx.theme');
+  });
+
+  it('Context: local function named useContext is not recognized', () => {
+    const result = compile(
+      `
+function App() {
+  const useContext = () => ({ theme: 'light' });
+  const ctx = useContext();
+  return <div>{ctx.theme}</div>;
+}
+    `.trim(),
+    );
+
+    // Without @vertz/ui import, this is NOT a reactive source
+    // ctx.theme should be static (no __child thunk wrapping)
+    expect(result.code).not.toContain('__child(');
+  });
+
+  it('Context: const depending on reactive source is computed', () => {
+    const result = compile(
+      `
+import { useContext } from '@vertz/ui';
+function App() {
+  const ctx = useContext(ThemeCtx);
+  const label = "Theme: " + ctx.theme;
+  return <div>{label}</div>;
+}
+    `.trim(),
+    );
+
+    // label should be classified as computed
+    expect(result.code).toContain('computed(() =>');
+    expect(result.code).toContain('ctx.theme');
+  });
 });

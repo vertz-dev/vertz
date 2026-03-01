@@ -129,3 +129,43 @@ StringCtx.Provider({ children: () => null });
 
 // @ts-expect-error - wrong type for value in JSX props
 StringCtx.Provider({ value: 123, children: () => null });
+
+// ─── UnwrapSignals<T> — context auto-unwrap ──────────────────────
+
+import type { Signal } from '../../runtime/signal-types';
+import type { UnwrapSignals } from '../context';
+
+// Context with signal properties should auto-unwrap
+interface SettingsContext {
+  theme: Signal<string>;
+  setTheme: (t: string) => void;
+}
+
+const SettingsCtx = createContext<SettingsContext>();
+const settings = useContext(SettingsCtx);
+
+if (settings) {
+  // Positive: theme should be string (unwrapped from Signal<string>)
+  const _theme: string = settings.theme;
+  void _theme;
+
+  // Positive: setTheme should remain a function
+  const _setTheme: (t: string) => void = settings.setTheme;
+  void _setTheme;
+
+  // @ts-expect-error - theme is string, not Signal<string>, so .peek() doesn't exist
+  settings.theme.peek();
+
+  // @ts-expect-error - theme is string, not Signal<string>, so .value doesn't exist
+  settings.theme.value;
+}
+
+// UnwrapSignals on primitives passes through
+type _CheckPrimString = UnwrapSignals<string>;
+const _primStr: _CheckPrimString = 'hello';
+void _primStr;
+
+// UnwrapSignals on plain object leaves it unchanged
+type _CheckPlainObj = UnwrapSignals<{ name: string; count: number }>;
+const _plainObj: _CheckPlainObj = { name: 'test', count: 42 };
+void _plainObj;
