@@ -63,9 +63,14 @@ export const Select = {
     trigger.id = ids.triggerId;
     trigger.setAttribute('aria-controls', ids.contentId);
     trigger.setAttribute('aria-haspopup', 'listbox');
-    trigger.textContent = defaultValue || placeholder;
     setExpanded(trigger, false);
     setDataState(trigger, 'closed');
+
+    // Dedicated text span so theme-appended elements (e.g. chevron) survive text updates
+    const triggerText = document.createElement('span');
+    triggerText.setAttribute('data-part', 'value');
+    triggerText.textContent = defaultValue || placeholder;
+    trigger.appendChild(triggerText);
 
     const content = document.createElement('div');
     content.setAttribute('role', 'listbox');
@@ -132,7 +137,7 @@ export const Select = {
         setSelected(item, isActive);
         setDataState(item, isActive ? 'active' : 'inactive');
         if (isActive) {
-          trigger.textContent = item.textContent ?? value;
+          triggerText.textContent = item.textContent ?? value;
         }
       }
       onValueChange?.(value);
@@ -231,7 +236,7 @@ export const Select = {
       setSelected(item, isSelected);
       setDataState(item, isSelected ? 'active' : 'inactive');
       if (isSelected) {
-        trigger.textContent = item.textContent ?? value;
+        triggerText.textContent = item.textContent ?? value;
       }
 
       item.addEventListener('click', () => {
