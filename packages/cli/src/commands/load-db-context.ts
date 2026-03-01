@@ -11,9 +11,9 @@ import {
   createSnapshot,
   defaultPostgresDialect,
   defaultSqliteDialect,
-  NodeSnapshotStorage,
   parseMigrationName,
 } from '@vertz/db';
+import { NodeSnapshotStorage } from '@vertz/db/internals';
 import { createJiti } from 'jiti';
 import type { DbCommandContext } from './db';
 

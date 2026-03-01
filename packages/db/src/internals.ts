@@ -5,6 +5,8 @@
 // Other @vertz packages may import from here; application code should not.
 // ---------------------------------------------------------------------------
 
+// Snapshot storage (Node.js — uses node:fs, node:path)
+export { NodeSnapshotStorage } from './migration/snapshot-storage';
 // Aggregate
 export type { AggregateArgs, CountArgs, GroupByArgs } from './query/aggregate';
 // Query executor
