@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { onMount } from '../../component/lifecycle';
+import { __element, __enterChildren, __exitChildren } from '../../dom/element';
+import { endHydration, startHydration } from '../../hydrate/hydration-context';
 import { defineRoutes } from '../define-routes';
 import { createRouter } from '../navigate';
 import { Outlet } from '../outlet';
@@ -678,6 +680,163 @@ describe('RouterView', () => {
     expect(parentRenderCount).toBe(1);
     expect(childRenderCount).toBe(1);
     router.dispose();
+  });
+
+  test('hydration does not clear Outlet container on first render', () => {
+    // Simulate SSR-rendered DOM:
+    // <div> (RouterView container)
+    //   <div class="dashboard-layout"> (parent layout)
+    //     <h1>Dashboard</h1>
+    //     <div> (Outlet container)
+    //       <div>Settings Page</div> (child)
+    //     </div>
+    //   </div>
+    // </div>
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<div>' +
+      '<div class="dashboard-layout">' +
+      '<h1>Dashboard</h1>' +
+      '<div><div>Settings Page</div></div>' +
+      '</div>' +
+      '</div>';
+
+    const routerViewContainer = root.firstChild as HTMLElement;
+    const layoutDiv = routerViewContainer.firstChild as HTMLElement;
+    const outletContainer = layoutDiv.querySelector('div > div') as HTMLElement;
+    const childDiv = outletContainer.firstChild as HTMLElement;
+
+    // Start hydration
+    startHydration(root);
+
+    const routes = defineRoutes({
+      '/dashboard': {
+        component: () => {
+          const layout = __element('div');
+          __enterChildren(layout);
+          __element('h1');
+          // Outlet should claim the outlet container div and NOT clear its children
+          const outlet = Outlet();
+          __exitChildren();
+          return layout;
+        },
+        children: {
+          '/settings': {
+            component: () => {
+              const page = __element('div');
+              return page;
+            },
+          },
+        },
+      },
+    });
+    const router = createRouter(routes, '/dashboard/settings');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({ router });
+    });
+
+    endHydration();
+
+    // The Outlet container should be the claimed SSR node (not cleared)
+    // The child should still be in the DOM
+    expect(view!.textContent).toContain('Dashboard');
+    expect(view!.textContent).toContain('Settings Page');
+    // The child div is the same SSR node, not a new one
+    expect(outletContainer.contains(childDiv)).toBe(true);
+    router.dispose();
+  });
+
+  test('navigation works after hydration of nested routes', async () => {
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<div>' +
+      '<div class="dashboard-layout">' +
+      '<h1>Dashboard</h1>' +
+      '<div><div>Settings Page</div></div>' +
+      '</div>' +
+      '</div>';
+
+    startHydration(root);
+
+    const routes = defineRoutes({
+      '/dashboard': {
+        component: () => {
+          const layout = __element('div');
+          __enterChildren(layout);
+          __element('h1');
+          const outlet = Outlet();
+          __exitChildren();
+          return layout;
+        },
+        children: {
+          '/settings': {
+            component: () => {
+              return __element('div');
+            },
+          },
+          '/profile': {
+            component: () => {
+              const page = document.createElement('div');
+              page.textContent = 'Profile Page';
+              return page;
+            },
+          },
+        },
+      },
+    });
+    const router = createRouter(routes, '/dashboard/settings');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({ router });
+    });
+
+    endHydration();
+
+    // After hydration, navigate to sibling — reactivity must work
+    await router.navigate('/dashboard/profile');
+    expect(view!.textContent).toContain('Profile Page');
+    router.dispose();
+  });
+
+  test('SSR renders nested route content in single pass', () => {
+    (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__ = () => true;
+    try {
+      const routes = defineRoutes({
+        '/dashboard': {
+          component: () => {
+            const layout = document.createElement('div');
+            layout.className = 'dashboard-layout';
+            const header = document.createElement('h1');
+            header.textContent = 'Dashboard';
+            layout.appendChild(header);
+            layout.appendChild(Outlet());
+            return layout;
+          },
+          children: {
+            '/settings': {
+              component: () => {
+                const page = document.createElement('div');
+                page.textContent = 'Settings Page';
+                return page;
+              },
+            },
+          },
+        },
+      });
+      const router = createRouter(routes, '/dashboard/settings');
+      let view: HTMLElement;
+      RouterContext.Provider(router, () => {
+        view = RouterView({ router });
+      });
+      // Both parent layout and child page rendered in single SSR pass
+      expect(view!.querySelector('.dashboard-layout')).not.toBeNull();
+      expect(view!.textContent).toContain('Dashboard');
+      expect(view!.textContent).toContain('Settings Page');
+      router.dispose();
+    } finally {
+      delete (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__;
+    }
   });
 
   test('renders matched route content during SSR (domEffect runs once)', () => {

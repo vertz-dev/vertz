@@ -8,6 +8,7 @@
 
 import { type Context, createContext, useContext } from '../component/context';
 import { __append, __element, __enterChildren, __exitChildren } from '../dom/element';
+import { getIsHydrating } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { domEffect } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
@@ -42,6 +43,7 @@ export function Outlet(): Node {
   const container = __element('div');
   let childCleanups: DisposeFn[] = [];
   let renderGen = 0;
+  let isFirstHydrationRender = getIsHydrating();
 
   __enterChildren(container);
 
@@ -51,8 +53,12 @@ export function Outlet(): Node {
     untrack(() => {
       runCleanups(childCleanups);
 
-      while (container.firstChild) {
-        container.removeChild(container.firstChild);
+      if (isFirstHydrationRender) {
+        isFirstHydrationRender = false;
+      } else {
+        while (container.firstChild) {
+          container.removeChild(container.firstChild);
+        }
       }
 
       const gen = ++renderGen;
