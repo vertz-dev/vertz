@@ -43,8 +43,10 @@ export interface QueryOptions<T> {
 export interface QueryResult<T, E = unknown> {
   /** The fetched data, or undefined while loading. */
   readonly data: Unwrapped<ReadonlySignal<T | undefined>>;
-  /** True while a fetch is in progress. */
+  /** True only on the initial load (no data yet). False during revalidation. */
   readonly loading: Unwrapped<ReadonlySignal<boolean>>;
+  /** True when refetching while stale data is already available. */
+  readonly revalidating: Unwrapped<ReadonlySignal<boolean>>;
   /** The error from the latest failed fetch, or undefined. */
   readonly error: Unwrapped<ReadonlySignal<E | undefined>>;
   /** Manually trigger a refetch (clears cache for this key). */
@@ -176,6 +178,7 @@ export function query<T, E = unknown>(
   // -- Reactive signals --
   const data: Signal<T | undefined> = signal<T | undefined>(initialData);
   const loading: Signal<boolean> = signal<boolean>(initialData === undefined && enabled);
+  const revalidating: Signal<boolean> = signal<boolean>(false);
   const error: Signal<unknown> = signal<unknown>(undefined);
 
   // If initialData was provided, seed the cache.
@@ -306,6 +309,7 @@ export function query<T, E = unknown>(
         cache.set(key, result);
         data.value = result;
         loading.value = false;
+        revalidating.value = false;
       },
       (err: unknown) => {
         inflight.delete(key);
@@ -313,6 +317,7 @@ export function query<T, E = unknown>(
         if (id !== fetchId) return; // stale
         error.value = err;
         loading.value = false;
+        revalidating.value = false;
       },
     );
   }
@@ -326,7 +331,12 @@ export function query<T, E = unknown>(
     const id = ++fetchId;
 
     untrack(() => {
-      loading.value = true;
+      if (data.value !== undefined) {
+        // Data already exists — this is a revalidation, not a first load
+        revalidating.value = true;
+      } else {
+        loading.value = true;
+      }
       error.value = undefined;
     });
 
@@ -405,7 +415,11 @@ export function query<T, E = unknown>(
         if (existing) {
           const id = ++fetchId;
           untrack(() => {
-            loading.value = true;
+            if (data.value !== undefined) {
+              revalidating.value = true;
+            } else {
+              loading.value = true;
+            }
             error.value = undefined;
           });
           handleFetchPromise(existing, id, customKey);
@@ -434,7 +448,11 @@ export function query<T, E = unknown>(
           promise.catch(() => {});
           const id = ++fetchId;
           untrack(() => {
-            loading.value = true;
+            if (data.value !== undefined) {
+              revalidating.value = true;
+            } else {
+              loading.value = true;
+            }
             error.value = undefined;
           });
           handleFetchPromise(existing, id, key);
@@ -525,6 +543,7 @@ export function query<T, E = unknown>(
   return {
     data: data as unknown as Unwrapped<ReadonlySignal<T | undefined>>,
     loading: loading as unknown as Unwrapped<ReadonlySignal<boolean>>,
+    revalidating: revalidating as unknown as Unwrapped<ReadonlySignal<boolean>>,
     error: error as unknown as Unwrapped<ReadonlySignal<E | undefined>>,
     refetch,
     revalidate: refetch,

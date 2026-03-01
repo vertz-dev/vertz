@@ -41,12 +41,15 @@ declare const userResult: QueryResult<User>;
 queryMatch(userResult, {
   loading: () => null,
   error: () => null,
-  data: (user) => {
+  data: (user, revalidating) => {
     // user should be User
     const _id: number = user.id;
     const _name: string = user.name;
     void _id;
     void _name;
+    // revalidating should be boolean
+    const _reval: boolean = revalidating;
+    void _reval;
     return null;
   },
 });

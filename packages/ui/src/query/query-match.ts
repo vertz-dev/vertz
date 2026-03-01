@@ -4,7 +4,7 @@ import type { QueryResult } from './query';
 export interface QueryMatchHandlers<T, E, L, Er, D> {
   loading: () => L;
   error: (error: E) => Er;
-  data: (data: T) => D;
+  data: (data: T, revalidating: boolean) => D;
 }
 
 /**
@@ -15,6 +15,10 @@ export interface QueryMatchHandlers<T, E, L, Er, D> {
  * runs per evaluation.
  *
  * Priority: loading → error → data.
+ *
+ * `loading` only fires on the initial load (no data yet).
+ * When revalidating with existing data, the `data` handler receives
+ * `revalidating: true` as its second argument.
  */
 export function queryMatch<T, E, L, Er, D>(
   queryResult: QueryResult<T, E>,
@@ -30,5 +34,9 @@ export function queryMatch<T, E, L, Er, D>(
   if (err !== undefined) {
     return handlers.error(err);
   }
-  return handlers.data((queryResult.data as unknown as Signal<T | undefined>).value as T);
+  const isRevalidating = (queryResult.revalidating as unknown as Signal<boolean>).value;
+  return handlers.data(
+    (queryResult.data as unknown as Signal<T | undefined>).value as T,
+    isRevalidating,
+  );
 }

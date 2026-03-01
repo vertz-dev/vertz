@@ -24,9 +24,9 @@ void _dataValue;
 const _loading: boolean = result.loading;
 void _loading;
 
-// Access directly (no .value needed)
-const _loadingValue: boolean = result.loading;
-void _loadingValue;
+// revalidating is Unwrapped<ReadonlySignal<boolean>> which equals boolean
+const _revalidating: boolean = result.revalidating;
+void _revalidating;
 
 // error is Unwrapped<ReadonlySignal<unknown | undefined>> which equals unknown
 const _error: unknown = result.error;
@@ -107,6 +107,9 @@ readonlyCheck.data = null as unknown as number | undefined;
 
 // @ts-expect-error - loading is readonly, cannot reassign
 readonlyCheck.loading = null as unknown as boolean;
+
+// @ts-expect-error - revalidating is readonly, cannot reassign
+readonlyCheck.revalidating = null as unknown as boolean;
 
 // @ts-expect-error - error is readonly, cannot reassign
 readonlyCheck.error = null as unknown as unknown;
