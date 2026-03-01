@@ -24,6 +24,7 @@ export type {
   FetchClientConfig,
   FetchResponse,
   HooksConfig,
+  ListResponse,
   RequestOptions,
   RetryConfig,
   StreamingFormat,

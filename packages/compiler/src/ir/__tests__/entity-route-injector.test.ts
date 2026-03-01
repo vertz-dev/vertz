@@ -173,6 +173,52 @@ describe('Entity Route Injector', () => {
       expect(getRoute?.response).toBeDefined();
     });
 
+    it('wraps list response in paginated envelope schema', () => {
+      const entity = createBasicEntity('user');
+      entity.modelRef.schemaRefs = {
+        response: {
+          kind: 'inline',
+          sourceFile: '/test.ts',
+          jsonSchema: {
+            type: 'object',
+            properties: { id: { type: 'string' }, name: { type: 'string' } },
+            required: ['id', 'name'],
+          },
+        },
+        resolved: true,
+      };
+      ir.entities = [entity];
+      injectEntityRoutes(ir);
+
+      const routes = ir.modules[0]?.routers[0]?.routes ?? [];
+      const listRoute = routes.find((r) => r.operationId === 'listUser');
+      const getRoute = routes.find((r) => r.operationId === 'getUser');
+
+      // list should have a paginated envelope with items array
+      expect(listRoute?.response).toBeDefined();
+      expect(listRoute?.response?.kind).toBe('inline');
+      const listSchema = (listRoute?.response as { jsonSchema?: Record<string, unknown> })?.jsonSchema;
+      expect(listSchema?.type).toBe('object');
+      expect(listSchema?.required).toContain('items');
+      expect(listSchema?.required).toContain('total');
+      expect(listSchema?.required).toContain('hasNextPage');
+      const props = listSchema?.properties as Record<string, unknown>;
+      expect(props.items).toEqual({
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { id: { type: 'string' }, name: { type: 'string' } },
+          required: ['id', 'name'],
+        },
+      });
+      expect(props.total).toEqual({ type: 'number' });
+      expect(props.limit).toEqual({ type: 'number' });
+      expect(props.hasNextPage).toEqual({ type: 'boolean' });
+
+      // get should still have the bare entity schema (not wrapped)
+      expect(getRoute?.response).toBe(entity.modelRef.schemaRefs.response);
+    });
+
     it('omits schema refs when model unresolved', () => {
       const entity = createBasicEntity('user');
       entity.modelRef.schemaRefs = { resolved: false };

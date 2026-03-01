@@ -106,6 +106,31 @@ describe('EntitySdkGenerator', () => {
     expect(userFile?.content).toContain('activate:');
   });
 
+  it('generates list method with ListResponse<T> instead of T[]', () => {
+    const ir = createBasicIR([
+      {
+        entityName: 'user',
+        operations: [
+          {
+            kind: 'list',
+            method: 'GET',
+            path: '/user',
+            operationId: 'listUser',
+            outputSchema: 'UserResponse',
+          },
+        ],
+        actions: [],
+      },
+    ]);
+
+    const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+    const userFile = files.find((f) => f.path === 'entities/user.ts');
+
+    expect(userFile?.content).toContain('client.get<ListResponse<UserResponse>>');
+    expect(userFile?.content).not.toContain('client.get<UserResponse[]>');
+    expect(userFile?.content).toContain("import { type FetchClient, type ListResponse, createDescriptor } from '@vertz/fetch'");
+  });
+
   it('generates SDK with unknown types when schemas unresolved', () => {
     const ir = createBasicIR([
       {
@@ -133,7 +158,7 @@ describe('EntitySdkGenerator', () => {
     const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
     const userFile = files.find((f) => f.path === 'entities/user.ts');
 
-    expect(userFile?.content).toContain('client.get<unknown[]>');
+    expect(userFile?.content).toContain('client.get<ListResponse<unknown>>');
     expect(userFile?.content).toContain('(body: unknown)');
   });
 
@@ -379,10 +404,10 @@ describe('EntitySdkGenerator', () => {
         entityName: 'user',
         operations: [
           {
-            kind: 'list',
+            kind: 'get',
             method: 'GET',
-            path: '/user',
-            operationId: 'listUser',
+            path: '/user/:id',
+            operationId: 'getUser',
             outputSchema: 'UserResponse',
           },
         ],

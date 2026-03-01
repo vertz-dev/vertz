@@ -3,9 +3,11 @@ import type {
   AppIR,
   EntityIR,
   HttpMethod,
+  InlineSchemaRef,
   ModuleIR,
   RouteIR,
   RouterIR,
+  SchemaRef,
   SourceLocation,
 } from './types';
 
@@ -91,6 +93,8 @@ function generateCrudRoutes(entity: EntityIR): RouteIR[] {
       } else if (op === 'update') {
         route.body = entity.modelRef.schemaRefs.updateInput;
         route.response = entity.modelRef.schemaRefs.response;
+      } else if (op === 'list') {
+        route.response = wrapInPaginatedEnvelope(entity.modelRef.schemaRefs.response);
       } else {
         route.response = entity.modelRef.schemaRefs.response;
       }
@@ -100,6 +104,31 @@ function generateCrudRoutes(entity: EntityIR): RouteIR[] {
   }
 
   return routes;
+}
+
+function wrapInPaginatedEnvelope(itemSchema: SchemaRef | undefined): InlineSchemaRef | undefined {
+  if (!itemSchema) return undefined;
+
+  const itemJsonSchema =
+    itemSchema.kind === 'named'
+      ? { $ref: `#/components/schemas/${itemSchema.schemaName}` }
+      : (itemSchema.jsonSchema ?? {});
+
+  return {
+    kind: 'inline',
+    sourceFile: itemSchema.sourceFile,
+    jsonSchema: {
+      type: 'object',
+      properties: {
+        items: { type: 'array', items: itemJsonSchema },
+        total: { type: 'number' },
+        limit: { type: 'number' },
+        nextCursor: { type: ['string', 'null'] },
+        hasNextPage: { type: 'boolean' },
+      },
+      required: ['items', 'total', 'limit', 'nextCursor', 'hasNextPage'],
+    },
+  };
 }
 
 function generateActionRoutes(entity: EntityIR): RouteIR[] {

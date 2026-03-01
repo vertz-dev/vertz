@@ -1,5 +1,4 @@
-import type { Result } from '@vertz/errors';
-import type { FetchError as BaseFetchError } from '@vertz/errors';
+import type { FetchError as BaseFetchError, Result } from '@vertz/errors';
 
 export type AuthStrategy =
   | { type: 'bearer'; token: string | (() => string | Promise<string>) }
@@ -50,8 +49,20 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
-export type FetchResponse<T> = Result<{ data: T; status: number; headers: Headers }, BaseFetchError>;
+export type FetchResponse<T> = Result<
+  { data: T; status: number; headers: Headers },
+  BaseFetchError
+>;
 
 export interface StreamingRequestOptions extends RequestOptions {
   format: StreamingFormat;
+}
+
+/** Paginated list response envelope returned by entity list endpoints. */
+export interface ListResponse<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  nextCursor: string | null;
+  hasNextPage: boolean;
 }
