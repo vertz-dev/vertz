@@ -12,6 +12,9 @@ import {
   setHiddenAnimated,
   setSelected,
 } from '../utils/aria';
+import { createDismiss } from '../utils/dismiss';
+import type { FloatingOptions } from '../utils/floating';
+import { createFloatingPosition } from '../utils/floating';
 import { linkedIds } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
@@ -19,6 +22,7 @@ export interface SelectOptions {
   defaultValue?: string;
   placeholder?: string;
   onValueChange?: (value: string) => void;
+  positioning?: FloatingOptions;
 }
 
 export interface SelectState {
@@ -42,7 +46,7 @@ export const Select = {
     };
     Separator: () => HTMLHRElement;
   } {
-    const { defaultValue = '', placeholder = '', onValueChange } = options;
+    const { defaultValue = '', placeholder = '', onValueChange, positioning } = options;
     const ids = linkedIds('select');
     const state: SelectState = {
       open: signal(false),
@@ -50,6 +54,8 @@ export const Select = {
       activeIndex: signal(-1),
     };
     const items: HTMLDivElement[] = [];
+    let floatingCleanup: (() => void) | null = null;
+    let dismissCleanup: (() => void) | null = null;
 
     const trigger = document.createElement('button');
     trigger.setAttribute('type', 'button');
@@ -73,10 +79,22 @@ export const Select = {
       setHidden(content, false);
       setDataState(trigger, 'open');
       setDataState(content, 'open');
-      // Determine which side to open based on available space
-      const rect = trigger.getBoundingClientRect();
-      const side = window.innerHeight - rect.bottom >= rect.top ? 'bottom' : 'top';
-      content.setAttribute('data-side', side);
+
+      if (positioning) {
+        const result = createFloatingPosition(trigger, content, positioning);
+        floatingCleanup = result.cleanup;
+        dismissCleanup = createDismiss({
+          onDismiss: close,
+          insideElements: [trigger, content],
+          escapeKey: false, // Escape already handled by content keydown
+        });
+      } else {
+        // Legacy: determine side from available space
+        const rect = trigger.getBoundingClientRect();
+        const side = window.innerHeight - rect.bottom >= rect.top ? 'bottom' : 'top';
+        content.setAttribute('data-side', side);
+      }
+
       // Focus the first or selected item
       const selectedIdx = items.findIndex(
         (item) => item.getAttribute('data-value') === state.value.peek(),
@@ -94,6 +112,10 @@ export const Select = {
       setDataState(content, 'closed');
       // Defer display:none until exit animations complete
       setHiddenAnimated(content, true);
+      floatingCleanup?.();
+      floatingCleanup = null;
+      dismissCleanup?.();
+      dismissCleanup = null;
       trigger.focus();
     }
 

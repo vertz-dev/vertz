@@ -60,20 +60,9 @@ export function createThemedTooltip(styles: TooltipStyleClasses): ThemedTooltipC
       }
     }
 
-    const onOpenChangeOrig = options.onOpenChange;
-    const positionContent = (): void => {
-      const rect = primitive.trigger.getBoundingClientRect();
-      primitive.content.style.left = `${rect.left + rect.width / 2}px`;
-      primitive.content.style.top = `${rect.top - 8}px`;
-      primitive.content.style.transform = 'translate(-50%, -100%)';
-    };
-
     const primitive = Tooltip.Root({
       ...options,
-      onOpenChange: (isOpen) => {
-        if (isOpen) positionContent();
-        onOpenChangeOrig?.(isOpen);
-      },
+      positioning: { placement: 'top', portal: true },
     });
 
     // Apply theme class
@@ -88,9 +77,6 @@ export function createThemedTooltip(styles: TooltipStyleClasses): ThemedTooltipC
     for (const node of contentChildren) {
       primitive.content.appendChild(node);
     }
-
-    // Portal content to document.body so it escapes overflow:hidden containers
-    document.body.appendChild(primitive.content);
 
     return primitive.trigger;
   }

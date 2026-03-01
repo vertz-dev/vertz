@@ -18,12 +18,8 @@ export function createTooltipStyles(): CSSOutput<TooltipBlocks> {
       'px:3',
       'py:1.5',
       'text:xs',
-      // Positioning: portaled to body, positioned via JS
       {
-        '&': [
-          { property: 'position', value: 'fixed' },
-          { property: 'white-space', value: 'nowrap' },
-        ],
+        '&': [{ property: 'white-space', value: 'nowrap' }],
       },
       {
         '&[data-state="open"]': [animationDecl('vz-fade-in 100ms ease-out forwards')],

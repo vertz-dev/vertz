@@ -9,7 +9,10 @@ export function createThemedHoverCard(
   styles: HoverCardStyleClasses,
 ): (options?: HoverCardOptions) => HoverCardElements & { state: HoverCardState } {
   return function themedHoverCard(options?: HoverCardOptions) {
-    const result = HoverCard.Root(options);
+    const result = HoverCard.Root({
+      ...options,
+      positioning: { placement: 'bottom', portal: true },
+    });
     result.content.classList.add(styles.content);
     return result;
   };

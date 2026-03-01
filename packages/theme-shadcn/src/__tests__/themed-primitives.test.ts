@@ -14,7 +14,9 @@ import { createTooltipStyles } from '../styles/tooltip';
 
 // Clean up portaled elements between tests to prevent cross-test pollution
 afterEach(() => {
-  for (const el of document.body.querySelectorAll('[data-dialog-overlay], [role="dialog"], [role="alertdialog"], [role="listbox"], [role="menu"]')) {
+  for (const el of document.body.querySelectorAll(
+    '[data-dialog-overlay], [role="dialog"], [role="alertdialog"], [role="listbox"], [role="menu"]',
+  )) {
     el.remove();
   }
   for (const el of document.body.querySelectorAll('[data-state]')) {
@@ -45,10 +47,14 @@ describe('createThemedPopover', () => {
     const contentSlot = Popover.Content({ children: 'Hello' });
 
     const result = Popover({ children: [triggerSlot, contentSlot] });
+    document.body.appendChild(result);
 
-    // Returns user trigger directly; content is portaled to document.body
+    // Content is portaled to document.body when popover opens
     const contentId = result.getAttribute('aria-controls')!;
     expect(contentId).toBeTruthy();
+
+    // Open the popover to trigger portal
+    trigger.click();
     const portaledContent = document.getElementById(contentId);
     expect(portaledContent).toBeTruthy();
   });
@@ -84,7 +90,6 @@ describe('createThemedPopover', () => {
     expect(btn.getAttribute('data-state')).toBe('open');
   });
 });
-
 
 // ── AlertDialog ────────────────────────────────────────────
 

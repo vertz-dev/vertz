@@ -6,12 +6,15 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setDescribedBy, setHidden, setHiddenAnimated } from '../utils/aria';
+import type { FloatingOptions } from '../utils/floating';
+import { createFloatingPosition } from '../utils/floating';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
 export interface TooltipOptions {
   delay?: number;
   onOpenChange?: (open: boolean) => void;
+  positioning?: FloatingOptions;
 }
 
 export interface TooltipState {
@@ -25,10 +28,11 @@ export interface TooltipElements {
 
 export const Tooltip = {
   Root(options: TooltipOptions = {}): TooltipElements & { state: TooltipState } {
-    const { delay = 300, onOpenChange } = options;
+    const { delay = 300, onOpenChange, positioning } = options;
     const contentId = uniqueId('tooltip');
     const state: TooltipState = { open: signal(false) };
     let showTimeout: ReturnType<typeof setTimeout> | null = null;
+    let floatingCleanup: (() => void) | null = null;
 
     const trigger = document.createElement('span');
     setDescribedBy(trigger, contentId);
@@ -45,6 +49,16 @@ export const Tooltip = {
         state.open.value = true;
         setHidden(content, false);
         setDataState(content, 'open');
+
+        if (positioning) {
+          const effectivePlacement = positioning.placement ?? 'top';
+          const result = createFloatingPosition(trigger, content, {
+            ...positioning,
+            placement: effectivePlacement,
+          });
+          floatingCleanup = result.cleanup;
+        }
+
         onOpenChange?.(true);
         showTimeout = null;
       }, delay);
@@ -59,6 +73,8 @@ export const Tooltip = {
       setDataState(content, 'closed');
       // Defer display:none until exit animations complete
       setHiddenAnimated(content, true);
+      floatingCleanup?.();
+      floatingCleanup = null;
       onOpenChange?.(false);
     }
 

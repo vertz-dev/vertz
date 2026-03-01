@@ -6,11 +6,15 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import { createDismiss } from '../utils/dismiss';
+import type { FloatingOptions } from '../utils/floating';
+import { createFloatingPosition } from '../utils/floating';
 import { linkedIds } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
 export interface MenuOptions {
   onSelect?: (value: string) => void;
+  positioning?: FloatingOptions;
 }
 
 export interface MenuState {
@@ -34,13 +38,15 @@ export const Menu = {
     Separator: () => HTMLHRElement;
     Label: (text: string) => HTMLDivElement;
   } {
-    const { onSelect } = options;
+    const { onSelect, positioning } = options;
     const ids = linkedIds('menu');
     const state: MenuState = {
       open: signal(false),
       activeIndex: signal(-1),
     };
     const items: HTMLDivElement[] = [];
+    let floatingCleanup: (() => void) | null = null;
+    let dismissCleanup: (() => void) | null = null;
 
     const trigger = document.createElement('button');
     trigger.setAttribute('type', 'button');
@@ -72,7 +78,18 @@ export const Menu = {
       state.activeIndex.value = 0;
       updateActiveItem(0);
       items[0]?.focus();
-      document.addEventListener('mousedown', handleClickOutside);
+
+      if (positioning) {
+        const result = createFloatingPosition(trigger, content, positioning);
+        floatingCleanup = result.cleanup;
+        dismissCleanup = createDismiss({
+          onDismiss: close,
+          insideElements: [trigger, content],
+          escapeKey: false, // Escape already handled by content keydown
+        });
+      } else {
+        document.addEventListener('mousedown', handleClickOutside);
+      }
     }
 
     function close(): void {
@@ -82,7 +99,15 @@ export const Menu = {
       setDataState(content, 'closed');
       // Defer display:none until exit animations complete
       setHiddenAnimated(content, true);
-      document.removeEventListener('mousedown', handleClickOutside);
+
+      if (positioning) {
+        floatingCleanup?.();
+        floatingCleanup = null;
+        dismissCleanup?.();
+        dismissCleanup = null;
+      } else {
+        document.removeEventListener('mousedown', handleClickOutside);
+      }
       trigger.focus();
     }
 

@@ -39,6 +39,7 @@ export function createContextMenuStyles(): CSSOutput<ContextMenuBlocks> {
       'cursor:pointer',
       'rounded:sm',
       'outline-none',
+      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
       { '&:focus': ['bg:accent', 'text:accent-foreground'] },
       { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
     ],

@@ -24,6 +24,14 @@ export {
   toggleExpanded,
 } from './utils/aria';
 
+// Dismiss (click-outside + Escape)
+export type { DismissOptions } from './utils/dismiss';
+export { createDismiss } from './utils/dismiss';
+
+// Floating positioning (wraps @floating-ui/dom)
+export type { FloatingOptions, FloatingResult } from './utils/floating';
+export { createFloatingPosition, virtualElement } from './utils/floating';
+
 // Focus management
 export {
   focusFirst,

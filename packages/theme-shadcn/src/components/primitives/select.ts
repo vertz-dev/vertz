@@ -9,6 +9,7 @@ interface SelectStyleClasses {
   readonly trigger: string;
   readonly content: string;
   readonly item: string;
+  readonly itemIndicator: string;
   readonly group: string;
   readonly label: string;
   readonly separator: string;
@@ -107,10 +108,15 @@ export function createThemedSelect(styles: SelectStyleClasses): ThemedSelectComp
       if (slot === 'select-item') {
         const value = node.dataset.value!;
         const label = node.textContent ?? undefined;
-        const item = parentGroup
-          ? parentGroup.Item(value, label)
-          : primitive.Item(value, label);
+        const item = parentGroup ? parentGroup.Item(value, label) : primitive.Item(value, label);
         item.classList.add(styles.item);
+
+        // Check indicator (visible only when aria-selected="true")
+        const indicator = document.createElement('span');
+        indicator.classList.add(styles.itemIndicator);
+        indicator.innerHTML =
+          '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        item.appendChild(indicator);
       } else if (slot === 'select-group') {
         const groupLabel = node.dataset.label!;
         const group = primitive.Group(groupLabel);
@@ -147,7 +153,10 @@ export function createThemedSelect(styles: SelectStyleClasses): ThemedSelectComp
       }
     }
 
-    const primitive = Select.Root(options);
+    const primitive = Select.Root({
+      ...options,
+      positioning: { placement: 'bottom-start', portal: true, matchReferenceWidth: true },
+    });
 
     // Apply theme classes
     primitive.trigger.classList.add(styles.trigger);
@@ -155,30 +164,6 @@ export function createThemedSelect(styles: SelectStyleClasses): ThemedSelectComp
 
     // Process items/groups/separators inside content
     processItems(contentNodes, primitive);
-
-    // Portal content to document.body so it escapes overflow:hidden containers
-    document.body.appendChild(primitive.content);
-
-    // Position content relative to trigger when opened
-    const positionContent = (): void => {
-      const rect = primitive.trigger.getBoundingClientRect();
-      const side = primitive.content.getAttribute('data-side');
-      if (side === 'top') {
-        primitive.content.style.bottom = `${window.innerHeight - rect.top + 4}px`;
-        primitive.content.style.top = 'auto';
-      } else {
-        primitive.content.style.top = `${rect.bottom + 4}px`;
-        primitive.content.style.bottom = 'auto';
-      }
-      primitive.content.style.left = `${rect.left}px`;
-      primitive.content.style.minWidth = `${rect.width}px`;
-    };
-
-    const observer = new MutationObserver(() => {
-      const isOpen = primitive.trigger.getAttribute('aria-expanded') === 'true';
-      if (isOpen) positionContent();
-    });
-    observer.observe(primitive.trigger, { attributes: true, attributeFilter: ['aria-expanded'] });
 
     return primitive.trigger;
   }

@@ -6,12 +6,16 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import { createDismiss } from '../utils/dismiss';
+import type { FloatingOptions } from '../utils/floating';
+import { createFloatingPosition } from '../utils/floating';
 import { setRovingTabindex } from '../utils/focus';
 import { linkedIds } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
 export interface MenubarOptions {
   onSelect?: (value: string) => void;
+  positioning?: FloatingOptions;
 }
 
 export interface MenubarState {
@@ -39,13 +43,15 @@ export const Menubar = {
       Separator: () => HTMLHRElement;
     };
   } {
-    const { onSelect } = options;
+    const { onSelect, positioning } = options;
     const state: MenubarState = { activeMenu: signal<string | null>(null) };
     const triggers: HTMLButtonElement[] = [];
     const menus: Map<
       string,
       { trigger: HTMLButtonElement; content: HTMLDivElement; items: HTMLDivElement[] }
     > = new Map();
+    let floatingCleanup: (() => void) | null = null;
+    let dismissCleanup: (() => void) | null = null;
 
     const root = document.createElement('div');
     root.setAttribute('role', 'menubar');
@@ -58,7 +64,15 @@ export const Menubar = {
         setHiddenAnimated(menu.content, true);
       }
       state.activeMenu.value = null;
-      document.removeEventListener('mousedown', handleClickOutside);
+
+      if (positioning) {
+        floatingCleanup?.();
+        floatingCleanup = null;
+        dismissCleanup?.();
+        dismissCleanup = null;
+      } else {
+        document.removeEventListener('mousedown', handleClickOutside);
+      }
     }
 
     function openMenu(value: string): void {
@@ -71,6 +85,11 @@ export const Menubar = {
           setDataState(prev.content, 'closed');
           setHiddenAnimated(prev.content, true);
         }
+        // Clean up previous floating if switching menus
+        if (positioning) {
+          floatingCleanup?.();
+          floatingCleanup = null;
+        }
       }
 
       const menu = menus.get(value);
@@ -80,12 +99,27 @@ export const Menubar = {
       setHidden(menu.content, false);
       setDataState(menu.trigger, 'open');
       setDataState(menu.content, 'open');
+
+      if (positioning) {
+        const result = createFloatingPosition(menu.trigger, menu.content, positioning);
+        floatingCleanup = result.cleanup;
+        // Only set up dismiss once for the menubar
+        if (!dismissCleanup) {
+          dismissCleanup = createDismiss({
+            onDismiss: closeAll,
+            insideElements: [root],
+            escapeKey: false, // Escape handled by content keydown
+          });
+        }
+      } else {
+        document.addEventListener('mousedown', handleClickOutside);
+      }
+
       const firstItem = menu.items[0];
       if (firstItem) {
         firstItem.setAttribute('tabindex', '0');
         firstItem.focus();
       }
-      document.addEventListener('mousedown', handleClickOutside);
     }
 
     function handleClickOutside(event: MouseEvent): void {

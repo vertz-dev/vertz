@@ -63,12 +63,12 @@ export function createThemedPopover(styles: PopoverStyleClasses): ThemedPopoverC
 
     const primitive = Popover.Root({
       ...options,
+      positioning: { placement: 'bottom-start', portal: true },
       onOpenChange: (isOpen) => {
         if (userTrigger) {
           userTrigger.setAttribute('aria-expanded', String(isOpen));
           userTrigger.setAttribute('data-state', isOpen ? 'open' : 'closed');
         }
-        if (isOpen) positionContent();
         onOpenChangeOrig?.(isOpen);
       },
     });
@@ -80,17 +80,6 @@ export function createThemedPopover(styles: PopoverStyleClasses): ThemedPopoverC
     for (const node of contentChildren) {
       primitive.content.appendChild(node);
     }
-
-    // Portal content to document.body so it escapes overflow:hidden containers
-    document.body.appendChild(primitive.content);
-
-    // Position content below trigger when opened
-    const triggerRef = userTrigger ?? primitive.trigger;
-    const positionContent = (): void => {
-      const rect = triggerRef.getBoundingClientRect();
-      primitive.content.style.top = `${rect.bottom + 4}px`;
-      primitive.content.style.left = `${rect.left}px`;
-    };
 
     // Wire user's trigger
     if (userTrigger) {

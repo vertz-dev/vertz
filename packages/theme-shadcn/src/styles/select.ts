@@ -6,6 +6,7 @@ type SelectBlocks = {
   trigger: StyleEntry[];
   content: StyleEntry[];
   item: StyleEntry[];
+  itemIndicator: StyleEntry[];
   group: StyleEntry[];
   label: StyleEntry[];
   separator: StyleEntry[];
@@ -60,12 +61,7 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
       'bg:popover',
       'text:popover-foreground',
       'rounded:lg',
-      // Positioning: portaled to body, positioned via JS
-      {
-        '&': [
-          { property: 'position', value: 'fixed' },
-        ],
-      },
+      'p:1',
       // Nova: ring-1 ring-foreground/10 instead of border, shadow-md, min-w-36
       {
         '&': [
@@ -99,21 +95,41 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
     selectItem: [
       'flex',
       'items:center',
-      'gap:1.5',
-      'py:1',
+      'gap:2',
+      'py:1.5',
       'text:sm',
       'cursor:pointer',
       'rounded:md',
       'outline-none',
-      // Nova: pr-8 pl-1.5
+      'relative',
+      // Nova: pr-8 pl-2
       {
         '&': [
           { property: 'padding-right', value: '2rem' },
-          { property: 'padding-left', value: '0.375rem' },
+          { property: 'padding-left', value: '0.5rem' },
         ],
       },
-      { '&:focus': ['bg:accent', 'text:accent-foreground'] },
+      { '&:hover:not([aria-selected="true"])': ['bg:accent', 'text:accent-foreground'] },
+      { '&:focus:not([aria-selected="true"])': ['bg:accent', 'text:accent-foreground'] },
       { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
+    ],
+    // Check indicator — absolutely positioned on the right side of the item
+    selectItemIndicator: [
+      'absolute',
+      'flex',
+      'items:center',
+      'justify:center',
+      {
+        '&': [
+          { property: 'right', value: '0.5rem' },
+          { property: 'width', value: '0.875rem' },
+          { property: 'height', value: '0.875rem' },
+          { property: 'display', value: 'none' },
+        ],
+      },
+      {
+        '[aria-selected="true"] > &': [{ property: 'display', value: 'flex' }],
+      },
     ],
     // Nova: scroll-my-1 p-1
     selectGroup: ['p:1'],
@@ -137,6 +153,7 @@ export function createSelectStyles(): CSSOutput<SelectBlocks> {
     trigger: s.selectTrigger,
     content: s.selectContent,
     item: s.selectItem,
+    itemIndicator: s.selectItemIndicator,
     group: s.selectGroup,
     label: s.selectLabel,
     separator: s.selectSeparator,

@@ -6,6 +6,9 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import { createDismiss } from '../utils/dismiss';
+import type { FloatingOptions } from '../utils/floating';
+import { createFloatingPosition } from '../utils/floating';
 import { focusFirst, saveFocus } from '../utils/focus';
 import { linkedIds } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
@@ -13,6 +16,7 @@ import { isKey, Keys } from '../utils/keyboard';
 export interface PopoverOptions {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  positioning?: FloatingOptions;
 }
 
 export interface PopoverState {
@@ -26,10 +30,12 @@ export interface PopoverElements {
 
 export const Popover = {
   Root(options: PopoverOptions = {}): PopoverElements & { state: PopoverState } {
-    const { defaultOpen = false, onOpenChange } = options;
+    const { defaultOpen = false, onOpenChange, positioning } = options;
     const ids = linkedIds('popover');
     const state: PopoverState = { open: signal(defaultOpen) };
     let restoreFocus: (() => void) | null = null;
+    let floatingCleanup: (() => void) | null = null;
+    let dismissCleanup: (() => void) | null = null;
 
     const trigger = document.createElement('button');
     trigger.setAttribute('type', 'button');
@@ -53,6 +59,17 @@ export const Popover = {
       setDataState(content, 'open');
       restoreFocus = saveFocus();
       queueMicrotask(() => focusFirst(content));
+
+      if (positioning) {
+        const result = createFloatingPosition(trigger, content, positioning);
+        floatingCleanup = result.cleanup;
+        dismissCleanup = createDismiss({
+          onDismiss: close,
+          insideElements: [trigger, content],
+          escapeKey: false, // Escape already handled by content keydown
+        });
+      }
+
       onOpenChange?.(true);
     }
 
@@ -63,6 +80,10 @@ export const Popover = {
       setDataState(content, 'closed');
       // Defer display:none until exit animations complete
       setHiddenAnimated(content, true);
+      floatingCleanup?.();
+      floatingCleanup = null;
+      dismissCleanup?.();
+      dismissCleanup = null;
       restoreFocus?.();
       restoreFocus = null;
       onOpenChange?.(false);

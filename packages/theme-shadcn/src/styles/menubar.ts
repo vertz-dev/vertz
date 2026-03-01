@@ -35,6 +35,7 @@ export function createMenubarStyles(): CSSOutput<MenubarBlocks> {
       'font:medium',
       'cursor:pointer',
       'outline-none',
+      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
       { '&:focus': ['bg:accent', 'text:accent-foreground'] },
       {
         '&[data-state="open"]': ['bg:accent', 'text:accent-foreground'],
@@ -66,6 +67,7 @@ export function createMenubarStyles(): CSSOutput<MenubarBlocks> {
       'text:sm',
       'cursor:pointer',
       'outline-none',
+      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
       { '&:focus': ['bg:accent', 'text:accent-foreground'] },
       { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
     ],

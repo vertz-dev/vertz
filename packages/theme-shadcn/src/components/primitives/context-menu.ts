@@ -30,7 +30,10 @@ export function createThemedContextMenu(
   styles: ContextMenuStyleClasses,
 ): (options?: ContextMenuOptions) => ThemedContextMenuResult {
   return function themedContextMenu(options?: ContextMenuOptions): ThemedContextMenuResult {
-    const result = ContextMenu.Root(options);
+    const result = ContextMenu.Root({
+      ...options,
+      positioning: { strategy: 'fixed' },
+    });
     result.content.classList.add(styles.content);
 
     function themedItem(value: string, label?: string): HTMLDivElement {
