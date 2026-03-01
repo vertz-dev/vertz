@@ -162,6 +162,13 @@ export function createThemedSelect(styles: SelectStyleClasses): ThemedSelectComp
     primitive.trigger.classList.add(styles.trigger);
     primitive.content.classList.add(styles.content);
 
+    // Add chevron-down icon to trigger
+    const chevron = document.createElement('span');
+    chevron.style.cssText = 'display:flex;align-items:center;opacity:0.5;flex-shrink:0;pointer-events:none;';
+    chevron.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+    primitive.trigger.appendChild(chevron);
+
     // Process items/groups/separators inside content
     processItems(contentNodes, primitive);
 
