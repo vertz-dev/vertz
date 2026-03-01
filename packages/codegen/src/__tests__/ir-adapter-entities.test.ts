@@ -65,8 +65,9 @@ describe('IR Adapter - Entities', () => {
     entity.actions = [
       {
         name: 'activate',
-        inputSchemaRef: { kind: 'inline', sourceFile: '/test.ts' },
-        outputSchemaRef: { kind: 'inline', sourceFile: '/test.ts' },
+        method: 'POST',
+        body: { kind: 'inline', sourceFile: '/test.ts' },
+        response: { kind: 'inline', sourceFile: '/test.ts' },
         sourceFile: '/test.ts',
         sourceLine: 1,
         sourceColumn: 1,
@@ -78,6 +79,56 @@ describe('IR Adapter - Entities', () => {
 
     expect(result.entities[0]?.actions).toHaveLength(1);
     expect(result.entities[0]?.actions[0]?.name).toBe('activate');
+    expect(result.entities[0]?.actions[0]?.method).toBe('POST');
+    expect(result.entities[0]?.actions[0]?.hasId).toBe(true);
+    expect(result.entities[0]?.actions[0]?.path).toBe('/user/:id/activate');
+  });
+
+  it('maps action method and custom path from IR', () => {
+    const appIR = createEmptyAppIR();
+    const entity = createBasicEntity('todo');
+    entity.actions = [
+      {
+        name: 'stats',
+        method: 'GET',
+        path: 'stats',
+        response: { kind: 'named', schemaName: 'StatsResponse', sourceFile: '/test.ts' },
+        sourceFile: '/test.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+    ];
+    appIR.entities = [entity];
+
+    const result = adaptIR(appIR);
+    const action = result.entities[0]?.actions[0];
+    expect(action?.method).toBe('GET');
+    expect(action?.path).toBe('/todo/stats');
+    expect(action?.hasId).toBe(false);
+    expect(action?.outputSchema).toBe('StatsTodoOutput');
+    expect(action?.inputSchema).toBeUndefined();
+  });
+
+  it('populates action inputSchema and outputSchema from body/response refs', () => {
+    const appIR = createEmptyAppIR();
+    const entity = createBasicEntity('user');
+    entity.actions = [
+      {
+        name: 'activate',
+        method: 'POST',
+        body: { kind: 'named', schemaName: 'ActivateBody', sourceFile: '/test.ts' },
+        response: { kind: 'named', schemaName: 'ActivateResponse', sourceFile: '/test.ts' },
+        sourceFile: '/test.ts',
+        sourceLine: 1,
+        sourceColumn: 1,
+      },
+    ];
+    appIR.entities = [entity];
+
+    const result = adaptIR(appIR);
+    const action = result.entities[0]?.actions[0];
+    expect(action?.inputSchema).toBe('ActivateUserInput');
+    expect(action?.outputSchema).toBe('ActivateUserOutput');
   });
 
   it('sets schema names when resolved', () => {

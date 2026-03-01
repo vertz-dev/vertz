@@ -27,8 +27,11 @@ export class EntityTypesGenerator implements Generator {
     const entitiesWithTypes: CodegenEntityModule[] = [];
 
     for (const entity of ir.entities) {
-      const hasTypes = entity.operations.some((op) => op.inputSchema || op.outputSchema);
-      if (!hasTypes) continue;
+      const hasOpTypes = entity.operations.some((op) => op.inputSchema || op.outputSchema);
+      const hasActionTypes = entity.actions.some(
+        (a) => a.resolvedInputFields?.length || a.resolvedOutputFields?.length,
+      );
+      if (!hasOpTypes && !hasActionTypes) continue;
 
       entitiesWithTypes.push(entity);
       files.push(this.generateEntityTypes(entity));
@@ -65,6 +68,27 @@ export class EntityTypesGenerator implements Generator {
           lines.push(outputType);
           lines.push('');
           emitted.add(op.outputSchema);
+        }
+      }
+    }
+
+    // Emit action input/output types
+    for (const action of entity.actions) {
+      if (action.inputSchema && !emitted.has(action.inputSchema)) {
+        const inputType = this.emitBodyType(action.inputSchema, action.resolvedInputFields);
+        if (inputType) {
+          lines.push(inputType);
+          lines.push('');
+          emitted.add(action.inputSchema);
+        }
+      }
+
+      if (action.outputSchema && !emitted.has(action.outputSchema)) {
+        const outputType = this.emitResponseType(action.outputSchema, action.resolvedOutputFields);
+        if (outputType) {
+          lines.push(outputType);
+          lines.push('');
+          emitted.add(action.outputSchema);
         }
       }
     }

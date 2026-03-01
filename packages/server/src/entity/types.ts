@@ -85,9 +85,11 @@ export interface EntityActionDef<
   TResponse = unknown,
   TCtx extends EntityContext = EntityContext,
 > {
-  readonly input: SchemaLike<TInput>;
-  readonly output: SchemaLike<TOutput>;
-  readonly handler: (input: TInput, ctx: TCtx, row: TResponse) => Promise<TOutput>;
+  readonly method?: string;
+  readonly path?: string;
+  readonly body: SchemaLike<TInput>;
+  readonly response: SchemaLike<TOutput>;
+  readonly handler: (input: TInput, ctx: TCtx, row: TResponse | null) => Promise<TOutput>;
 }
 
 // ---------------------------------------------------------------------------

@@ -38,10 +38,14 @@ export class EntitySchemaGenerator implements Generator {
           op.resolvedFields.length > 0,
       );
 
-      if (schemaOps.length === 0) continue;
+      const schemaActions = entity.actions.filter(
+        (a) => a.resolvedInputFields && a.resolvedInputFields.length > 0,
+      );
+
+      if (schemaOps.length === 0 && schemaActions.length === 0) continue;
 
       entitiesWithSchemas.push(entity);
-      files.push(this.generateEntitySchema(entity, schemaOps));
+      files.push(this.generateEntitySchema(entity, schemaOps, schemaActions));
     }
 
     if (entitiesWithSchemas.length > 0) {
@@ -54,6 +58,7 @@ export class EntitySchemaGenerator implements Generator {
   private generateEntitySchema(
     entity: CodegenEntityModule,
     schemaOps: CodegenEntityModule['operations'],
+    schemaActions: CodegenEntityModule['actions'],
   ): GeneratedFile {
     const lines: string[] = [FILE_HEADER];
     lines.push("import { s } from '@vertz/schema';");
@@ -77,6 +82,24 @@ export class EntitySchemaGenerator implements Generator {
       lines.push('');
     }
 
+    for (const action of schemaActions) {
+      if (!action.resolvedInputFields) continue;
+
+      const varName = `${toLowerFirst(action.inputSchema ?? `${action.name}Input`)}Schema`;
+      const fields = action.resolvedInputFields
+        .map((f) => {
+          const baseCall = TYPE_MAP[f.tsType] ?? 's.unknown()';
+          const call = f.optional ? `${baseCall}.optional()` : baseCall;
+          return `  ${f.name}: ${call}`;
+        })
+        .join(',\n');
+
+      lines.push(`export const ${varName} = s.object({`);
+      lines.push(`${fields},`);
+      lines.push('});');
+      lines.push('');
+    }
+
     return {
       path: `schemas/${entity.entityName}.ts`,
       content: lines.join('\n'),
@@ -87,16 +110,24 @@ export class EntitySchemaGenerator implements Generator {
     const lines: string[] = [FILE_HEADER];
 
     for (const entity of entities) {
+      const exports: string[] = [];
+
       const schemaOps = entity.operations.filter(
         (op) =>
           (op.kind === 'create' || op.kind === 'update') &&
           op.resolvedFields &&
           op.resolvedFields.length > 0,
       );
-
-      const exports: string[] = [];
       for (const op of schemaOps) {
         const varName = `${toLowerFirst(op.inputSchema ?? `${op.kind}Input`)}Schema`;
+        exports.push(varName);
+      }
+
+      const schemaActions = entity.actions.filter(
+        (a) => a.resolvedInputFields && a.resolvedInputFields.length > 0,
+      );
+      for (const action of schemaActions) {
+        const varName = `${toLowerFirst(action.inputSchema ?? `${action.name}Input`)}Schema`;
         exports.push(varName);
       }
 

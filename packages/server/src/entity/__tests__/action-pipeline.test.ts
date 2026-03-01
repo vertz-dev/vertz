@@ -67,8 +67,8 @@ describe('Feature: action pipeline', () => {
       },
       actions: {
         complete: {
-          input: { parse: (v: unknown) => ({ ok: true as const, data: v as { reason: string } }) },
-          output: {
+          body: { parse: (v: unknown) => ({ ok: true as const, data: v as { reason: string } }) },
+          response: {
             parse: (v: unknown) => ({ ok: true as const, data: v as { completedAt: string } }),
           },
           handler: completeSpy,
@@ -79,7 +79,7 @@ describe('Feature: action pipeline', () => {
     describe('When calling the action with valid input', () => {
       it('Then calls handler with (input, ctx, row) and returns ok Result with 200', async () => {
         const db = createStubDb();
-        const handler = createActionHandler(def, 'complete', def.actions.complete, db);
+        const handler = createActionHandler(def, 'complete', def.actions.complete, db, true);
         const ctx = makeCtx();
 
         const result = await handler(ctx, 'task-1', { reason: 'done' });
@@ -100,7 +100,7 @@ describe('Feature: action pipeline', () => {
     describe('When the row does not exist', () => {
       it('Then returns err(EntityNotFoundError)', async () => {
         const db = createStubDb();
-        const handler = createActionHandler(def, 'complete', def.actions.complete, db);
+        const handler = createActionHandler(def, 'complete', def.actions.complete, db, true);
         const ctx = makeCtx();
 
         const result = await handler(ctx, 'nonexistent', { reason: 'done' });
@@ -116,7 +116,7 @@ describe('Feature: action pipeline', () => {
     describe('When access is denied', () => {
       it('Then returns err(EntityForbiddenError)', async () => {
         const db = createStubDb();
-        const handler = createActionHandler(def, 'complete', def.actions.complete, db);
+        const handler = createActionHandler(def, 'complete', def.actions.complete, db, true);
         const ctx = makeCtx({ userId: null });
 
         const result = await handler(ctx, 'task-1', { reason: 'done' });
@@ -136,13 +136,13 @@ describe('Feature: action pipeline', () => {
       },
       actions: {
         complete: {
-          input: {
+          body: {
             parse: () => ({
               ok: false as const,
               error: new Error('reason is required'),
             }),
           },
-          output: {
+          response: {
             parse: (v: unknown) => ({ ok: true as const, data: v as { completedAt: string } }),
           },
           handler: mock(async () => ({ completedAt: '2024-01-01' })),
@@ -153,7 +153,7 @@ describe('Feature: action pipeline', () => {
     describe('When input validation fails', () => {
       it('Then returns err(BadRequestError) with the parse error message', async () => {
         const db = createStubDb();
-        const handler = createActionHandler(def, 'complete', def.actions.complete, db);
+        const handler = createActionHandler(def, 'complete', def.actions.complete, db, true);
         const ctx = makeCtx();
 
         const result = await handler(ctx, 'task-1', {});
@@ -176,8 +176,10 @@ describe('Feature: action pipeline', () => {
       },
       actions: {
         complete: {
-          input: { parse: (v: unknown) => ({ ok: true as const, data: v as { reason: string } }) },
-          output: { parse: (v: unknown) => ({ ok: true as const, data: v as { done: boolean } }) },
+          body: { parse: (v: unknown) => ({ ok: true as const, data: v as { reason: string } }) },
+          response: {
+            parse: (v: unknown) => ({ ok: true as const, data: v as { done: boolean } }),
+          },
           handler: async () => ({ done: true }),
         },
       },
@@ -190,12 +192,58 @@ describe('Feature: action pipeline', () => {
     describe('When the action completes', () => {
       it('Then after[actionName] fires', async () => {
         const db = createStubDb();
-        const handler = createActionHandler(def, 'complete', def.actions.complete, db);
+        const handler = createActionHandler(def, 'complete', def.actions.complete, db, true);
         const ctx = makeCtx();
 
         await handler(ctx, 'task-1', { reason: 'done' });
 
         expect(afterCompleteSpy).toHaveBeenCalledOnce();
+      });
+    });
+  });
+
+  describe('Given a collection-level action (hasId: false)', () => {
+    const statsSpy = mock(async () => ({ total: 5, completed: 3 }));
+    const def = entity('tasks', {
+      model: tasksModel,
+      access: {
+        stats: () => true,
+      },
+      actions: {
+        stats: {
+          method: 'GET',
+          path: 'stats',
+          body: { parse: (v: unknown) => ({ ok: true as const, data: v }) },
+          response: {
+            parse: (v: unknown) => ({
+              ok: true as const,
+              data: v as { total: number; completed: number },
+            }),
+          },
+          handler: statsSpy,
+        },
+      },
+    });
+
+    describe('When calling the action with hasId: false', () => {
+      it('Then does NOT fetch a row and passes null to handler', async () => {
+        const db = createStubDb();
+        const handler = createActionHandler(def, 'stats', def.actions.stats, db, false);
+        const ctx = makeCtx();
+
+        const result = await handler(ctx, null, { status: 'completed' });
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.data.status).toBe(200);
+          expect(result.data.body).toEqual({ total: 5, completed: 3 });
+        }
+        expect(statsSpy).toHaveBeenCalledOnce();
+        // Handler should receive null as the row
+        const [, , row] = statsSpy.mock.calls[0]!;
+        expect(row).toBeNull();
+        // DB.get should NOT have been called
+        expect(db.get).not.toHaveBeenCalled();
       });
     });
   });

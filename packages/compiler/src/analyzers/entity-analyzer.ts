@@ -16,6 +16,7 @@ import type {
   EntityModelRef,
   EntityModelSchemaRefs,
   EntityRelationIR,
+  HttpMethod,
   ResolvedField,
   SchemaRef,
   SourceLocation,
@@ -346,9 +347,7 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
    * Build JSON Schema from resolved fields.
    * Maps tsType ('string' | 'number' | 'boolean' | 'date' | 'unknown') to JSON Schema types.
    */
-  private buildJsonSchema(
-    resolvedFields: ResolvedField[] | undefined,
-  ): Record<string, unknown> {
+  private buildJsonSchema(resolvedFields: ResolvedField[] | undefined): Record<string, unknown> {
     if (!resolvedFields || resolvedFields.length === 0) {
       return {};
     }
@@ -376,9 +375,7 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
    * Handles column types like text → string, boolean → boolean, uuid → string with format,
    * timestamp with time zone → string with date-time format, integer → integer, real/float → number.
    */
-  private tsTypeToJsonSchema(
-    tsType: ResolvedField['tsType'],
-  ): Record<string, unknown> {
+  private tsTypeToJsonSchema(tsType: ResolvedField['tsType']): Record<string, unknown> {
     switch (tsType) {
       case 'string':
         return { type: 'string' };
@@ -551,27 +548,79 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
       const actionObj = value.isKind(SyntaxKind.ObjectLiteralExpression) ? value : null;
       const loc = getSourceLocation(value);
 
-      const inputExpr = actionObj ? getPropertyValue(actionObj, 'input') : null;
-      const outputExpr = actionObj ? getPropertyValue(actionObj, 'output') : null;
+      const bodyExpr = actionObj ? getPropertyValue(actionObj, 'body') : null;
+      const responseExpr = actionObj ? getPropertyValue(actionObj, 'response') : null;
 
-      if (!inputExpr || !outputExpr) {
+      if (!bodyExpr && !responseExpr) {
         this.addDiagnostic({
           code: 'ENTITY_ACTION_MISSING_SCHEMA',
           severity: 'warning',
-          message: `Custom action "${name}" is missing input or output schema`,
+          message: `Custom action "${name}" is missing body and response schema`,
           ...loc,
         });
       }
 
-      // Resolve actual schema types from the input/output expressions
-      const inputSchemaRef: SchemaRef = inputExpr
-        ? this.resolveSchemaFromExpression(inputExpr, loc)
-        : { kind: 'inline', sourceFile: loc.sourceFile };
-      const outputSchemaRef: SchemaRef = outputExpr
-        ? this.resolveSchemaFromExpression(outputExpr, loc)
-        : { kind: 'inline', sourceFile: loc.sourceFile };
+      // Resolve schema refs
+      const body: SchemaRef | undefined = bodyExpr
+        ? this.resolveSchemaFromExpression(bodyExpr, loc)
+        : undefined;
+      const response: SchemaRef | undefined = responseExpr
+        ? this.resolveSchemaFromExpression(responseExpr, loc)
+        : undefined;
 
-      return { name, inputSchemaRef, outputSchemaRef, ...loc };
+      // Extract method (defaults to 'POST')
+      const methodExpr = actionObj ? getPropertyValue(actionObj, 'method') : null;
+      let method: HttpMethod = 'POST';
+      if (methodExpr) {
+        const methodStr = getStringValue(methodExpr);
+        const validMethods: HttpMethod[] = [
+          'GET',
+          'POST',
+          'PUT',
+          'DELETE',
+          'PATCH',
+          'HEAD',
+          'OPTIONS',
+        ];
+        if (methodStr && validMethods.includes(methodStr as HttpMethod)) {
+          method = methodStr as HttpMethod;
+        } else {
+          this.addDiagnostic({
+            code: 'ENTITY_ACTION_INVALID_METHOD',
+            severity: 'error',
+            message: `Custom action "${name}" has invalid method "${methodStr ?? '(non-string)'}" — must be one of GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS`,
+            ...loc,
+          });
+        }
+      }
+
+      // Extract optional path
+      const pathExpr = actionObj ? getPropertyValue(actionObj, 'path') : null;
+      const path = pathExpr ? (getStringValue(pathExpr) ?? undefined) : undefined;
+
+      // Extract optional query/params/headers schema refs
+      const queryExpr = actionObj ? getPropertyValue(actionObj, 'query') : null;
+      const queryRef = queryExpr ? this.resolveSchemaFromExpression(queryExpr, loc) : undefined;
+
+      const paramsExpr = actionObj ? getPropertyValue(actionObj, 'params') : null;
+      const paramsRef = paramsExpr ? this.resolveSchemaFromExpression(paramsExpr, loc) : undefined;
+
+      const headersExpr = actionObj ? getPropertyValue(actionObj, 'headers') : null;
+      const headersRef = headersExpr
+        ? this.resolveSchemaFromExpression(headersExpr, loc)
+        : undefined;
+
+      return {
+        name,
+        method,
+        path,
+        params: paramsRef,
+        query: queryRef,
+        headers: headersRef,
+        body,
+        response,
+        ...loc,
+      };
     });
   }
 

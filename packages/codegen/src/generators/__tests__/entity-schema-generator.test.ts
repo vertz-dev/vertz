@@ -176,4 +176,63 @@ describe('EntitySchemaGenerator', () => {
 
     expect(files).toEqual([]);
   });
+
+  it('generates schema for action with resolvedInputFields', () => {
+    const ir = createBasicIR([
+      {
+        entityName: 'user',
+        operations: [],
+        actions: [
+          {
+            name: 'activate',
+            method: 'POST',
+            operationId: 'activateUser',
+            path: '/user/:id/activate',
+            hasId: true,
+            inputSchema: 'ActivateUserInput',
+            outputSchema: 'ActivateUserOutput',
+            resolvedInputFields: [
+              { name: 'reason', tsType: 'string', optional: false },
+              { name: 'force', tsType: 'boolean', optional: true },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+    const schemaFile = files.find((f) => f.path === 'schemas/user.ts');
+
+    expect(schemaFile).toBeDefined();
+    expect(schemaFile?.content).toContain("import { s } from '@vertz/schema'");
+    expect(schemaFile?.content).toContain('export const activateUserInputSchema');
+    expect(schemaFile?.content).toContain('reason: s.string()');
+    expect(schemaFile?.content).toContain('force: s.boolean().optional()');
+  });
+
+  it('includes action schema in barrel index', () => {
+    const ir = createBasicIR([
+      {
+        entityName: 'user',
+        operations: [],
+        actions: [
+          {
+            name: 'activate',
+            method: 'POST',
+            operationId: 'activateUser',
+            path: '/user/:id/activate',
+            hasId: true,
+            inputSchema: 'ActivateUserInput',
+            resolvedInputFields: [{ name: 'reason', tsType: 'string', optional: false }],
+          },
+        ],
+      },
+    ]);
+
+    const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+    const indexFile = files.find((f) => f.path === 'schemas/index.ts');
+
+    expect(indexFile).toBeDefined();
+    expect(indexFile?.content).toContain("export { activateUserInputSchema } from './user'");
+  });
 });

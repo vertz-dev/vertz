@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { createEmptyAppIR } from '../builder';
-import { injectEntityRoutes, detectRouteCollisions } from '../entity-route-injector';
-import type { AppIR, EntityIR, EntityAccessIR } from '../types';
+import { detectRouteCollisions, injectEntityRoutes } from '../entity-route-injector';
+import type { AppIR, EntityAccessIR, EntityIR } from '../types';
 
 describe('Entity Route Injector', () => {
   let ir: AppIR;
@@ -79,8 +79,9 @@ describe('Entity Route Injector', () => {
       entity.actions = [
         {
           name: 'activate',
-          inputSchemaRef: { kind: 'inline', sourceFile: '/test.ts' },
-          outputSchemaRef: { kind: 'inline', sourceFile: '/test.ts' },
+          method: 'POST',
+          body: { kind: 'inline', sourceFile: '/test.ts' },
+          response: { kind: 'inline', sourceFile: '/test.ts' },
           sourceFile: '/test.ts',
           sourceLine: 1,
           sourceColumn: 1,
@@ -101,8 +102,9 @@ describe('Entity Route Injector', () => {
       entity.actions = [
         {
           name: 'activate',
-          inputSchemaRef: { kind: 'inline', sourceFile: '/test.ts' },
-          outputSchemaRef: { kind: 'inline', sourceFile: '/test.ts' },
+          method: 'POST',
+          body: { kind: 'inline', sourceFile: '/test.ts' },
+          response: { kind: 'inline', sourceFile: '/test.ts' },
           sourceFile: '/test.ts',
           sourceLine: 1,
           sourceColumn: 1,
@@ -115,6 +117,123 @@ describe('Entity Route Injector', () => {
       const routes = ir.modules[0]?.routers[0]?.routes ?? [];
       const actionRoute = routes.find((r) => r.operationId === 'activateUser');
       expect(actionRoute).toBeUndefined();
+    });
+
+    it('generates GET action route with custom method', () => {
+      const entity = createBasicEntity('todo');
+      entity.actions = [
+        {
+          name: 'stats',
+          method: 'GET',
+          path: 'stats',
+          response: { kind: 'inline', sourceFile: '/test.ts' },
+          sourceFile: '/test.ts',
+          sourceLine: 1,
+          sourceColumn: 1,
+        },
+      ];
+      ir.entities = [entity];
+      injectEntityRoutes(ir);
+
+      const routes = ir.modules[0]?.routers[0]?.routes ?? [];
+      const actionRoute = routes.find((r) => r.operationId === 'statsTodo');
+      expect(actionRoute).toBeDefined();
+      expect(actionRoute?.method).toBe('GET');
+      expect(actionRoute?.path).toBe('/todo/stats');
+      expect(actionRoute?.fullPath).toBe('/todo/stats');
+    });
+
+    it('generates action route with custom path including :id', () => {
+      const entity = createBasicEntity('todo');
+      entity.actions = [
+        {
+          name: 'complete',
+          method: 'POST',
+          path: ':id/complete',
+          body: { kind: 'inline', sourceFile: '/test.ts' },
+          response: { kind: 'inline', sourceFile: '/test.ts' },
+          sourceFile: '/test.ts',
+          sourceLine: 1,
+          sourceColumn: 1,
+        },
+      ];
+      ir.entities = [entity];
+      injectEntityRoutes(ir);
+
+      const routes = ir.modules[0]?.routers[0]?.routes ?? [];
+      const actionRoute = routes.find((r) => r.operationId === 'completeTodo');
+      expect(actionRoute?.method).toBe('POST');
+      expect(actionRoute?.path).toBe('/todo/:id/complete');
+      expect(actionRoute?.fullPath).toBe('/todo/:id/complete');
+    });
+
+    it('defaults action path to /{entity}/:id/{name} when path omitted', () => {
+      const entity = createBasicEntity('todo');
+      entity.actions = [
+        {
+          name: 'archive',
+          method: 'POST',
+          body: { kind: 'inline', sourceFile: '/test.ts' },
+          response: { kind: 'inline', sourceFile: '/test.ts' },
+          sourceFile: '/test.ts',
+          sourceLine: 1,
+          sourceColumn: 1,
+        },
+      ];
+      ir.entities = [entity];
+      injectEntityRoutes(ir);
+
+      const routes = ir.modules[0]?.routers[0]?.routes ?? [];
+      const actionRoute = routes.find((r) => r.operationId === 'archiveTodo');
+      expect(actionRoute?.path).toBe('/todo/:id/archive');
+      expect(actionRoute?.fullPath).toBe('/todo/:id/archive');
+    });
+
+    it('flows query/params/headers/body/response schema refs to RouteIR', () => {
+      const queryRef = { kind: 'named' as const, schemaName: 'StatsQuery', sourceFile: '/test.ts' };
+      const paramsRef = {
+        kind: 'named' as const,
+        schemaName: 'StatsParams',
+        sourceFile: '/test.ts',
+      };
+      const headersRef = {
+        kind: 'named' as const,
+        schemaName: 'StatsHeaders',
+        sourceFile: '/test.ts',
+      };
+      const bodyRef = { kind: 'inline' as const, sourceFile: '/test.ts' };
+      const responseRef = {
+        kind: 'named' as const,
+        schemaName: 'StatsResponse',
+        sourceFile: '/test.ts',
+      };
+
+      const entity = createBasicEntity('todo');
+      entity.actions = [
+        {
+          name: 'transfer',
+          method: 'POST',
+          path: ':id/transfer',
+          params: paramsRef,
+          query: queryRef,
+          headers: headersRef,
+          body: bodyRef,
+          response: responseRef,
+          sourceFile: '/test.ts',
+          sourceLine: 1,
+          sourceColumn: 1,
+        },
+      ];
+      ir.entities = [entity];
+      injectEntityRoutes(ir);
+
+      const routes = ir.modules[0]?.routers[0]?.routes ?? [];
+      const actionRoute = routes.find((r) => r.operationId === 'transferTodo');
+      expect(actionRoute?.params).toBe(paramsRef);
+      expect(actionRoute?.query).toBe(queryRef);
+      expect(actionRoute?.headers).toBe(headersRef);
+      expect(actionRoute?.body).toBe(bodyRef);
+      expect(actionRoute?.response).toBe(responseRef);
     });
 
     it('sets correct operationId (camelCase with PascalCase entity)', () => {
@@ -197,7 +316,8 @@ describe('Entity Route Injector', () => {
       // list should have a paginated envelope with items array
       expect(listRoute?.response).toBeDefined();
       expect(listRoute?.response?.kind).toBe('inline');
-      const listSchema = (listRoute?.response as { jsonSchema?: Record<string, unknown> })?.jsonSchema;
+      const listSchema = (listRoute?.response as { jsonSchema?: Record<string, unknown> })
+        ?.jsonSchema;
       expect(listSchema?.type).toBe('object');
       expect(listSchema?.required).toContain('items');
       expect(listSchema?.required).toContain('total');

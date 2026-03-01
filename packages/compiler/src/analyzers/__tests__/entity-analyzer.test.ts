@@ -1,5 +1,5 @@
-import { Project } from 'ts-morph';
 import { beforeEach, describe, expect, it } from 'bun:test';
+import { Project } from 'ts-morph';
 import type { ResolvedConfig } from '../../config';
 import type { EntityIR } from '../../ir/types';
 import { EntityAnalyzer } from '../entity-analyzer';
@@ -491,20 +491,20 @@ describe('EntityAnalyzer', () => {
   });
 
   describe('Action Extraction', () => {
-    it('extracts custom actions with input/output schema refs', async () => {
+    it('extracts custom actions with body/response schema refs', async () => {
       createFile(
         '/entities.ts',
         `
         import { entity } from '@vertz/server';
         import { userModel } from './models';
-        import { activateInput, activateOutput } from './schemas';
+        import { activateBody, activateResponse } from './schemas';
 
         export const userEntity = entity('user', {
           model: userModel,
           actions: {
             activate: {
-              input: activateInput,
-              output: activateOutput,
+              body: activateBody,
+              response: activateResponse,
             },
           },
         });
@@ -515,6 +515,173 @@ describe('EntityAnalyzer', () => {
       const actions = result.entities[0]?.actions;
       expect(actions).toHaveLength(1);
       expect(actions?.[0]?.name).toBe('activate');
+      expect(actions?.[0]?.body).toBeDefined();
+      expect(actions?.[0]?.response).toBeDefined();
+      expect(actions?.[0]?.method).toBe('POST');
+    });
+
+    it('defaults method to POST when omitted', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+        import { activateBody, activateResponse } from './schemas';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+          actions: {
+            activate: {
+              body: activateBody,
+              response: activateResponse,
+            },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      const action = result.entities[0]?.actions[0];
+      expect(action?.method).toBe('POST');
+      expect(action?.path).toBeUndefined();
+    });
+
+    it('extracts explicit method from action', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+        import { statsResponse } from './schemas';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+          actions: {
+            stats: {
+              method: 'GET',
+              response: statsResponse,
+            },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      const action = result.entities[0]?.actions[0];
+      expect(action?.method).toBe('GET');
+    });
+
+    it('emits diagnostic for invalid method', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+        import { body, response } from './schemas';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+          actions: {
+            activate: {
+              method: 'INVALID',
+              body: body,
+              response: response,
+            },
+          },
+        });
+      `,
+      );
+
+      const analyzer = new EntityAnalyzer(project, config);
+      await analyzer.analyze();
+      const diagnostics = analyzer.getDiagnostics();
+      expect(diagnostics.some((d) => d.code === 'ENTITY_ACTION_INVALID_METHOD')).toBe(true);
+    });
+
+    it('extracts path from action', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+        import { statsResponse } from './schemas';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+          actions: {
+            stats: {
+              method: 'GET',
+              path: 'stats',
+              response: statsResponse,
+            },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      const action = result.entities[0]?.actions[0];
+      expect(action?.path).toBe('stats');
+    });
+
+    it('extracts query schema ref from action', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+        import { statsQuery, statsResponse } from './schemas';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+          actions: {
+            stats: {
+              method: 'GET',
+              path: 'stats',
+              query: statsQuery,
+              response: statsResponse,
+            },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      const action = result.entities[0]?.actions[0];
+      expect(action?.query).toBeDefined();
+      expect(action?.query?.kind).toBe('named');
+    });
+
+    it('extracts params and headers schema refs from action', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+        import { actionParams, actionHeaders, actionBody, actionResponse } from './schemas';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+          actions: {
+            transfer: {
+              method: 'POST',
+              path: ':id/transfer',
+              params: actionParams,
+              headers: actionHeaders,
+              body: actionBody,
+              response: actionResponse,
+            },
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      const action = result.entities[0]?.actions[0];
+      expect(action?.params).toBeDefined();
+      expect(action?.params?.kind).toBe('named');
+      expect(action?.headers).toBeDefined();
+      expect(action?.headers?.kind).toBe('named');
     });
 
     it('emits ENTITY_ACTION_NAME_COLLISION for action named create, update, etc.', async () => {
@@ -528,8 +695,8 @@ describe('EntityAnalyzer', () => {
           model: userModel,
           actions: {
             create: {
-              input: {},
-              output: {},
+              body: {},
+              response: {},
             },
           },
         });
@@ -542,7 +709,7 @@ describe('EntityAnalyzer', () => {
       expect(diagnostics.some((d) => d.code === 'ENTITY_ACTION_NAME_COLLISION')).toBe(true);
     });
 
-    it('emits ENTITY_ACTION_MISSING_SCHEMA for actions without input/output', async () => {
+    it('emits ENTITY_ACTION_MISSING_SCHEMA for actions without body and response', async () => {
       createFile(
         '/entities.ts',
         `
@@ -553,7 +720,7 @@ describe('EntityAnalyzer', () => {
           model: userModel,
           actions: {
             activate: {
-              input: {},
+              handler: () => {},
             },
           },
         });

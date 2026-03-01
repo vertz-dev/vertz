@@ -148,9 +148,28 @@ export class EntitySdkGenerator implements Generator {
     for (const action of entity.actions) {
       const inputType = action.inputSchema ?? 'unknown';
       const outputType = action.outputSchema ?? 'unknown';
+      const method = action.method ?? 'POST';
+      const methodLower = method.toLowerCase();
+      const hasId = action.hasId ?? action.path.includes(':id');
+      const pathExpr = hasId ? `\`${action.path.replace(':id', '${id}')}\`` : `'${action.path}'`;
+      const hasBody = method === 'POST' || method === 'PUT' || method === 'PATCH';
+
+      // Build parameters
+      const params: string[] = [];
+      if (hasId) params.push('id: string');
+      if (hasBody) params.push(`body: ${inputType}`);
+      const paramStr = params.join(', ');
+
+      // Build client call
+      const clientArgs = hasBody ? `${pathExpr}, body` : pathExpr;
+      const clientCall = `client.${methodLower}<${outputType}>(${clientArgs})`;
+
+      lines.push(`    ${action.name}: Object.assign(`);
       lines.push(
-        `    ${action.name}: (id: string, body: ${inputType}) => client.post<${outputType}>(\`${action.path.replace(':id', '${id}')}\`, body),`,
+        `      (${paramStr}) => createDescriptor('${method}', ${pathExpr}, () => ${clientCall}${hasBody ? ', body' : ''}),`,
       );
+      lines.push(`      { url: '${action.path}', method: '${method}' as const },`);
+      lines.push('    ),');
     }
 
     lines.push('  };');

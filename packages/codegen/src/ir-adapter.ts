@@ -98,11 +98,41 @@ export function adaptIR(appIR: AppIR): CodegenIR {
 
     const actions = entity.actions
       .filter((a) => entity.access.custom[a.name] !== 'false')
-      .map((a) => ({
-        name: a.name,
-        operationId: `${a.name}${entityPascal}`,
-        path: `/${entity.name}/:id/${a.name}`,
-      }));
+      .map((a) => {
+        const actionPascal = toPascalCase(a.name);
+        const path = a.path ? `/${entity.name}/${a.path}` : `/${entity.name}/:id/${a.name}`;
+
+        // Extract resolvedFields from inline body/response schema refs
+        let resolvedInputFields: CodegenResolvedField[] | undefined;
+        if (a.body?.kind === 'inline') {
+          resolvedInputFields = (a.body as InlineSchemaRef).resolvedFields?.map((f) => ({
+            name: f.name,
+            tsType: f.tsType,
+            optional: f.optional,
+          }));
+        }
+
+        let resolvedOutputFields: CodegenResolvedField[] | undefined;
+        if (a.response?.kind === 'inline') {
+          resolvedOutputFields = (a.response as InlineSchemaRef).resolvedFields?.map((f) => ({
+            name: f.name,
+            tsType: f.tsType,
+            optional: f.optional,
+          }));
+        }
+
+        return {
+          name: a.name,
+          method: a.method,
+          operationId: `${a.name}${entityPascal}`,
+          path,
+          hasId: path.includes(':id'),
+          inputSchema: a.body ? `${actionPascal}${entityPascal}Input` : undefined,
+          outputSchema: a.response ? `${actionPascal}${entityPascal}Output` : undefined,
+          resolvedInputFields,
+          resolvedOutputFields,
+        };
+      });
 
     return { entityName: entity.name, operations, actions };
   });
