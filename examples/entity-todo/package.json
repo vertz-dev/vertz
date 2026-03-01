@@ -6,7 +6,7 @@
     "dev": "bun node_modules/@vertz/cli/dist/vertz.js dev",
     "dev:legacy": "bun run src/dev-server.ts",
     "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
-    "deploy": "bun run build && wrangler deploy",
+    "deploy": "bun run build && cp dist/client/assets/entry-client-*.js dist/client/assets/entry-client.js && rm -f dist/client/index.html && wrangler deploy",
     "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
     "test": "bun run codegen && bun test",
     "typecheck": "tsc --noEmit"
@@ -24,6 +24,7 @@
     "@vertz/server": "workspace:*",
     "@vertz/theme-shadcn": "workspace:*",
     "@vertz/ui": "workspace:*",
+    "@vertz/ui-primitives": "workspace:*",
     "@vertz/ui-server": "workspace:*"
   },
   "devDependencies": {
