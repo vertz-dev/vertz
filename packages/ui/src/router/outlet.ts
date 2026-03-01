@@ -12,11 +12,15 @@ import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disp
 import { domEffect } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
 import { untrack } from '../runtime/tracking';
+import type { Router } from './navigate';
+import { RouterContext } from './router-context';
 
 /** Context value for the Outlet. */
 export interface OutletContextValue {
   /** Reactive child component factory (may return async module). */
   childComponent: Signal<(() => Node | Promise<{ default: () => Node }>) | undefined>;
+  /** Router instance for restoring context in async resolution. */
+  router: Router;
 }
 
 /** Shared context used by RouterView and Outlet. */
@@ -37,6 +41,7 @@ export function Outlet(): Node {
 
   const container = __element('div');
   let childCleanups: DisposeFn[] = [];
+  let renderGen = 0;
 
   __enterChildren(container);
 
@@ -50,21 +55,34 @@ export function Outlet(): Node {
         container.removeChild(container.firstChild);
       }
 
+      const gen = ++renderGen;
       childCleanups = pushScope();
 
       if (factory) {
         const result = factory();
         if (result instanceof Promise) {
+          // Capture the router for context restoration in the async callback.
+          const router = ctx.router;
+          popScope();
           result.then((mod) => {
-            const node = (mod as { default: () => Node }).default();
-            __append(container, node);
+            // Guard against stale resolution from rapid navigation.
+            if (gen !== renderGen) return;
+            // Re-enter a disposal scope so the async component's
+            // cleanups are captured and run on the next swap.
+            childCleanups = pushScope();
+            RouterContext.Provider(router, () => {
+              const node = (mod as { default: () => Node }).default();
+              __append(container, node);
+            });
+            popScope();
           });
         } else {
           __append(container, result);
+          popScope();
         }
+      } else {
+        popScope();
       }
-
-      popScope();
     });
   });
 

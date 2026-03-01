@@ -91,7 +91,7 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
         const newLevels = buildLevels(newMatched);
 
         // Get the new child factory starting from the divergence point
-        const newChildFactory = buildInsideOutFactory(newMatched, newLevels, divergeAt);
+        const newChildFactory = buildInsideOutFactory(newMatched, newLevels, divergeAt, router);
 
         // Update the parent's childSignal to swap in the new subtree
         const parentLevel = prevLevels[divergeAt - 1]!;
@@ -121,16 +121,16 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
 
       if (!match) {
         prevLevels = [];
-        popScope();
         if (fallback) {
           container.appendChild(fallback());
         }
+        popScope();
         return;
       }
 
       // Build the full inside-out chain
       const levels = buildLevels(newMatched);
-      const rootFactory = buildInsideOutFactory(newMatched, levels, 0);
+      const rootFactory = buildInsideOutFactory(newMatched, levels, 0, router);
 
       RouterContext.Provider(router, () => {
         const result = rootFactory();
@@ -185,6 +185,7 @@ function buildInsideOutFactory(
   matched: MatchedRoute[],
   levels: LevelState[],
   startAt: number,
+  router: Router,
 ): () => Node | Promise<{ default: () => Node }> {
   // Start from the leaf and build upward to startAt
   let factory: () => Node | Promise<{ default: () => Node }> =
@@ -198,7 +199,7 @@ function buildInsideOutFactory(
     const cs = level.childSignal!;
     factory = () => {
       let result!: Node;
-      OutletContext.Provider({ childComponent: cs }, () => {
+      OutletContext.Provider({ childComponent: cs, router }, () => {
         result = parentRoute.component() as Node;
       });
       return result;

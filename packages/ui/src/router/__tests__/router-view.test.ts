@@ -601,6 +601,85 @@ describe('RouterView', () => {
     router.dispose();
   });
 
+  test('navigate from flat route to nested route', async () => {
+    const routes = defineRoutes({
+      '/about': {
+        component: () => {
+          const page = document.createElement('div');
+          page.textContent = 'About';
+          return page;
+        },
+      },
+      '/dashboard': {
+        component: () => {
+          const layout = document.createElement('div');
+          layout.className = 'dashboard-layout';
+          layout.appendChild(Outlet());
+          return layout;
+        },
+        children: {
+          '/settings': {
+            component: () => {
+              const page = document.createElement('div');
+              page.textContent = 'Settings';
+              return page;
+            },
+          },
+        },
+      },
+    });
+    const router = createRouter(routes, '/about');
+    let view: HTMLElement;
+    RouterContext.Provider(router, () => {
+      view = RouterView({ router });
+    });
+    expect(view!.textContent).toContain('About');
+
+    // Navigate from flat to nested
+    await router.navigate('/dashboard/settings');
+    expect(view!.querySelector('.dashboard-layout')).not.toBeNull();
+    expect(view!.textContent).toContain('Settings');
+    expect(view!.textContent).not.toContain('About');
+    router.dispose();
+  });
+
+  test('navigate to same nested route is a no-op', async () => {
+    let parentRenderCount = 0;
+    let childRenderCount = 0;
+    const routes = defineRoutes({
+      '/dashboard': {
+        component: () => {
+          parentRenderCount++;
+          const layout = document.createElement('div');
+          layout.appendChild(Outlet());
+          return layout;
+        },
+        children: {
+          '/settings': {
+            component: () => {
+              childRenderCount++;
+              const page = document.createElement('div');
+              page.textContent = 'Settings';
+              return page;
+            },
+          },
+        },
+      },
+    });
+    const router = createRouter(routes, '/dashboard/settings');
+    RouterContext.Provider(router, () => {
+      RouterView({ router });
+    });
+    expect(parentRenderCount).toBe(1);
+    expect(childRenderCount).toBe(1);
+
+    // Navigate to the same route — should be a no-op
+    await router.navigate('/dashboard/settings');
+    expect(parentRenderCount).toBe(1);
+    expect(childRenderCount).toBe(1);
+    router.dispose();
+  });
+
   test('renders matched route content during SSR (domEffect runs once)', () => {
     // Install SSR context so isSSR() returns true
     (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__ = () => true;

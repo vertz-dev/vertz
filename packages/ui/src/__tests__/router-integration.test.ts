@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { defineRoutes, matchRoute } from '../router/define-routes';
 import { executeLoaders } from '../router/loader';
+import type { Router } from '../router/navigate';
 import { createRouter } from '../router/navigate';
 import { Outlet, OutletContext } from '../router/outlet';
 import { signal } from '../runtime/signal';
+
+// Minimal mock router for OutletContext
+const mockRouter = { current: signal(null) } as unknown as Router;
 
 describe('Router Integration Tests', () => {
   beforeEach(() => {
@@ -58,7 +62,7 @@ describe('Router Integration Tests', () => {
     parentLayout.className = 'layout';
 
     let outletResult: Node | undefined;
-    OutletContext.Provider({ childComponent }, () => {
+    OutletContext.Provider({ childComponent, router: mockRouter }, () => {
       outletResult = Outlet();
     });
 

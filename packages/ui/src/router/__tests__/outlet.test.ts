@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { onMount } from '../../component/lifecycle';
 import { signal } from '../../runtime/signal';
+import type { Router } from '../navigate';
 import { Outlet, OutletContext } from '../outlet';
+
+// Minimal mock router for OutletContext (only used for async context restoration)
+const mockRouter = { current: signal(null) } as unknown as Router;
 
 describe('Outlet', () => {
   test('returns empty comment when no OutletContext', () => {
@@ -15,7 +19,7 @@ describe('Outlet', () => {
     const childComponent = signal<(() => Node) | undefined>(() => child);
 
     let result: Node | undefined;
-    OutletContext.Provider({ childComponent }, () => {
+    OutletContext.Provider({ childComponent, router: mockRouter }, () => {
       result = Outlet();
     });
 
@@ -31,7 +35,7 @@ describe('Outlet', () => {
     const childComponent = signal<(() => Node) | undefined>(() => child1);
 
     let result: HTMLElement | undefined;
-    OutletContext.Provider({ childComponent }, () => {
+    OutletContext.Provider({ childComponent, router: mockRouter }, () => {
       result = Outlet() as HTMLElement;
     });
 
@@ -55,7 +59,7 @@ describe('Outlet', () => {
       return document.createElement('div');
     });
 
-    OutletContext.Provider({ childComponent }, () => {
+    OutletContext.Provider({ childComponent, router: mockRouter }, () => {
       Outlet();
     });
 
@@ -79,7 +83,7 @@ describe('Outlet', () => {
       return el;
     });
 
-    OutletContext.Provider({ childComponent }, () => {
+    OutletContext.Provider({ childComponent, router: mockRouter }, () => {
       Outlet();
     });
 
