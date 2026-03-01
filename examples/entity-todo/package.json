@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "imports": {
-    "#generated": "./src/generated/client.ts",
-    "#generated/types": "./src/generated/types/index.ts"
+    "#generated": "./.vertz/generated/client.ts",
+    "#generated/types": "./.vertz/generated/types/index.ts"
   },
   "dependencies": {
     "@vertz/cloudflare": "workspace:*",
