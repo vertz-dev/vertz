@@ -58,6 +58,23 @@ export function getIsHydrating(): boolean {
 }
 
 /**
+ * Temporarily pause hydration mode without losing cursor state.
+ * Used by __child() to force CSR rendering for reactive insert children
+ * while keeping the parent-level cursor intact.
+ */
+export function pauseHydration(): void {
+  isHydrating = false;
+}
+
+/**
+ * Resume hydration mode after a pause.
+ * Must only be called after pauseHydration().
+ */
+export function resumeHydration(): void {
+  isHydrating = true;
+}
+
+/**
  * Claim an element node matching `tag` at the current cursor position.
  * Skips non-matching nodes (browser extensions, whitespace text).
  * Returns null if no matching node is found among remaining siblings.

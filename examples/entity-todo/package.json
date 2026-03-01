@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "imports": {
-    "#generated": "./src/generated/client.ts",
-    "#generated/types": "./src/generated/types/index.ts"
+    "#generated": "./.vertz/generated/client.ts",
+    "#generated/types": "./.vertz/generated/types/index.ts"
   },
   "dependencies": {
     "@vertz/cloudflare": "workspace:*",
@@ -35,6 +35,6 @@
     "esbuild": "^0.27.3",
     "happy-dom": "^20.6.1",
     "typescript": "^5.8.0",
-    "wrangler": "^3.0.0"
+    "wrangler": "^4.69.0"
   }
 }

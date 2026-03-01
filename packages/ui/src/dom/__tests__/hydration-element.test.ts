@@ -182,6 +182,95 @@ describe('DOM helpers — hydration branches', () => {
       text.value = 'world';
       expect(wrapper.textContent).toBe('world');
     });
+
+    it('clears SSR children and re-renders via CSR during hydration', () => {
+      const root = document.createElement('div');
+      const span = document.createElement('span');
+      span.style.display = 'contents';
+      span.textContent = 'ssr-content';
+      root.appendChild(span);
+      startHydration(root);
+
+      const wrapper = __child(() => 'csr-content');
+      expect(wrapper).toBe(span);
+      // SSR content should be replaced with CSR-rendered content
+      expect(wrapper.textContent).toBe('csr-content');
+    });
+
+    it('renders Node children via CSR during hydration (not claimed from SSR)', () => {
+      const root = document.createElement('div');
+      const span = document.createElement('span');
+      span.style.display = 'contents';
+      const ssrChild = document.createElement('article');
+      ssrChild.textContent = 'ssr';
+      span.appendChild(ssrChild);
+      root.appendChild(span);
+      startHydration(root);
+
+      const csrChild = document.createElement('article');
+      csrChild.textContent = 'csr';
+      const wrapper = __child(() => csrChild);
+      expect(wrapper).toBe(span);
+      // Should contain the CSR-created node, not the SSR one
+      expect(wrapper.firstChild).toBe(csrChild);
+      expect(wrapper.textContent).toBe('csr');
+    });
+
+    it('event handlers on CSR-rendered children work during hydration', () => {
+      const root = document.createElement('div');
+      const span = document.createElement('span');
+      span.style.display = 'contents';
+      span.innerHTML = '<button>click me</button>';
+      root.appendChild(span);
+      startHydration(root);
+
+      let clicked = false;
+      const button = document.createElement('button');
+      button.textContent = 'click me';
+      button.addEventListener('click', () => {
+        clicked = true;
+      });
+      const wrapper = __child(() => button);
+      expect(wrapper).toBe(span);
+
+      // The button should be the CSR-created one with the event handler
+      const btn = wrapper.querySelector('button')!;
+      expect(btn).toBe(button);
+      btn.click();
+      expect(clicked).toBe(true);
+    });
+
+    it('hydration cursor advances past span for siblings after __child()', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<span style="display:contents">child</span><p>sibling</p>';
+      startHydration(root);
+
+      __child(() => 'child');
+
+      // Cursor should have advanced past the span — next claim should find <p>
+      const p = __element('p');
+      expect(p).not.toBeNull();
+      expect(p.tagName).toBe('P');
+    });
+
+    it('reactive updates work after hydration on CSR-rendered children', () => {
+      const root = document.createElement('div');
+      const span = document.createElement('span');
+      span.style.display = 'contents';
+      span.textContent = 'initial';
+      root.appendChild(span);
+      startHydration(root);
+
+      const text = signal('hello');
+      const wrapper = __child(() => text.value);
+      expect(wrapper).toBe(span);
+      expect(wrapper.textContent).toBe('hello');
+
+      // End hydration and trigger reactive update
+      endHydration();
+      text.value = 'updated';
+      expect(wrapper.textContent).toBe('updated');
+    });
   });
 
   describe('__insert', () => {

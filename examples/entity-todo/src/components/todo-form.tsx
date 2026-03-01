@@ -7,10 +7,15 @@
  * - Reactive disabled state during submission
  */
 
-import { form } from '@vertz/ui';
+import { css, form } from '@vertz/ui';
 import type { TodosResponse } from '../api/client';
 import { api } from '../api/client';
 import { button, formStyles, inputStyles } from '../styles/components';
+
+const styles = css({
+  row: ['flex', 'gap:2', 'items:start', 'w:full'],
+  inputWrap: ['flex-1'],
+});
 
 export interface TodoFormProps {
   onSuccess: (todo: TodosResponse) => void;
@@ -29,8 +34,8 @@ export function TodoForm({ onSuccess }: TodoFormProps) {
       onSubmit={todoForm.onSubmit}
       data-testid="create-todo-form"
     >
-      <div style="display: flex; gap: 0.5rem; align-items: flex-start">
-        <div style="flex: 1">
+      <div class={styles.row}>
+        <div class={styles.inputWrap}>
           <input
             class={inputStyles.base}
             name="title"

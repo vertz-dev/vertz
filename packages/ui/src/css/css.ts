@@ -144,7 +144,8 @@ export function css<T extends CSSInput>(
   const cssRules: string[] = [];
 
   for (const [blockName, entries] of Object.entries(input)) {
-    const className = generateClassName(filePath, blockName);
+    const styleFingerprint = serializeEntries(entries);
+    const className = generateClassName(filePath, blockName, styleFingerprint);
     classNames[blockName] = className;
 
     const baseDeclarations: CSSDeclaration[] = [];
@@ -215,6 +216,25 @@ export function css<T extends CSSInput>(
     writable: false,
   });
   return result as CSSOutput<T>;
+}
+
+/**
+ * Serialize style entries into a stable string for fingerprinting.
+ * Used to disambiguate blocks with the same name but different styles.
+ */
+function serializeEntries(entries: StyleEntry[]): string {
+  return entries
+    .map((entry) => {
+      if (typeof entry === 'string') return entry;
+      // Object form: serialize selector + values
+      return Object.entries(entry)
+        .map(
+          ([sel, vals]) =>
+            `${sel}:{${vals.map((v) => (typeof v === 'string' ? v : `${v.property}=${v.value}`)).join(',')}}`,
+        )
+        .join(';');
+    })
+    .join('|');
 }
 
 /** Format a CSS rule from selector + declarations. */

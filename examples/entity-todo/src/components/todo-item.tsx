@@ -62,8 +62,7 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
         data-testid={`todo-checkbox-${id}`}
       />
       <span
-        class={isCompleted ? todoItemStyles.titleCompleted : todoItemStyles.title}
-        style={isCompleted ? 'text-decoration: line-through' : ''}
+        class={isCompleted ? todoItemStyles.labelCompleted : todoItemStyles.label}
         data-testid={`todo-title-${id}`}
       >
         {title}

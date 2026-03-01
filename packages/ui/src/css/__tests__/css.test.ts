@@ -290,6 +290,22 @@ describe('css()', () => {
     expect(spread).not.toHaveProperty('css');
   });
 
+  it('produces different class names for same block name with different styles (no runtime collision)', () => {
+    // Two different css() calls with the same block name 'title' but different styles.
+    // Without a filePath, both use __runtime__ — this must NOT collide.
+    const a = css({ title: ['font:lg', 'font:bold', 'text:foreground'] });
+    const b = css({ title: ['flex-1', 'text:sm', 'font:normal', 'text:foreground'] });
+
+    expect(a.title).not.toBe(b.title);
+  });
+
+  it('still produces same class name for identical block name + styles (dedup)', () => {
+    const a = css({ card: ['p:4', 'bg:background'] });
+    const b = css({ card: ['p:4', 'bg:background'] });
+
+    expect(a.card).toBe(b.card);
+  });
+
   it('throws when block name is "css" (reserved)', () => {
     expect(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

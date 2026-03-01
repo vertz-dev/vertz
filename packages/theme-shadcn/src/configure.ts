@@ -522,7 +522,7 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
   // Build theme via defineTheme()
   const theme = defineTheme({ colors: mergedTokens });
 
-  // Build globals: CSS reset + base typography + radius
+  // Build globals: CSS reset + base typography + radius + native form elements
   const globals = globalCss({
     '*, *::before, *::after': {
       boxSizing: 'border-box',
@@ -546,6 +546,76 @@ export function configureTheme(config?: ThemeConfig): ResolvedTheme {
       color: 'var(--color-foreground)',
       backgroundColor: 'var(--color-background)',
     },
+    // Native checkbox — styled to match shadcn design tokens so
+    // <input type="checkbox"> looks correct without a custom component.
+    'input[type="checkbox"]': {
+      appearance: 'none',
+      width: '1rem',
+      height: '1rem',
+      borderWidth: '1px',
+      borderStyle: 'solid',
+      borderColor: 'var(--color-input)',
+      borderRadius: '4px',
+      backgroundColor: 'transparent',
+      cursor: 'pointer',
+      flexShrink: '0',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      transition: 'background-color 150ms, border-color 150ms',
+      verticalAlign: 'middle',
+    },
+    'input[type="checkbox"]:checked': {
+      backgroundColor: 'var(--color-primary)',
+      borderColor: 'var(--color-primary)',
+      backgroundImage:
+        "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e\")",
+      backgroundSize: '100% 100%',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+    },
+    'input[type="checkbox"]:focus-visible': {
+      outline: 'none',
+      borderColor: 'var(--color-ring)',
+      boxShadow: '0 0 0 3px color-mix(in oklch, var(--color-ring) 50%, transparent)',
+    },
+    'input[type="checkbox"]:disabled': {
+      pointerEvents: 'none',
+      opacity: '0.5',
+    },
+    // Native text inputs — styled to match shadcn design tokens so
+    // <input>, <input type="text">, <input type="number">, etc. look
+    // correct without applying a component class.
+    'input:not([type]), input[type="text"], input[type="number"], input[type="email"], input[type="password"], input[type="search"], input[type="tel"], input[type="url"]':
+      {
+        display: 'flex',
+        width: '100%',
+        borderWidth: '1px',
+        borderStyle: 'solid',
+        borderColor: 'var(--color-input)',
+        borderRadius: 'var(--radius)',
+        backgroundColor: 'transparent',
+        height: '2rem',
+        paddingLeft: '0.625rem',
+        paddingRight: '0.625rem',
+        paddingTop: '0.25rem',
+        paddingBottom: '0.25rem',
+        fontSize: '0.875rem',
+        lineHeight: '1.25rem',
+        color: 'var(--color-foreground)',
+        transition: 'border-color 150ms, box-shadow 150ms',
+      },
+    'input:not([type]):focus-visible, input[type="text"]:focus-visible, input[type="number"]:focus-visible, input[type="email"]:focus-visible, input[type="password"]:focus-visible, input[type="search"]:focus-visible, input[type="tel"]:focus-visible, input[type="url"]:focus-visible':
+      {
+        outline: '3px solid color-mix(in oklch, var(--color-ring) 50%, transparent)',
+        outlineOffset: '2px',
+        borderColor: 'var(--color-ring)',
+      },
+    'input:not([type]):disabled, input[type="text"]:disabled, input[type="number"]:disabled, input[type="email"]:disabled, input[type="password"]:disabled, input[type="search"]:disabled, input[type="tel"]:disabled, input[type="url"]:disabled':
+      {
+        pointerEvents: 'none',
+        opacity: '0.5',
+      },
   });
 
   // Build style definitions (simple + primitive)

@@ -16,8 +16,11 @@ import { TodoItem } from '../components/todo-item';
 import { emptyStateStyles } from '../styles/components';
 
 const pageStyles = css({
-  container: ['py:2'],
-  listContainer: ['flex', 'flex-col', 'gap:2', 'mt:6'],
+  container: ['py:2', 'w:full'],
+  listContainer: ['flex', 'flex-col', 'gap:2', 'mt:6', 'w:full'],
+  todoList: ['flex', 'flex-col', 'gap:2'],
+  loading: ['text:muted-foreground'],
+  error: ['text:destructive'],
 });
 
 export function TodoListPage() {
@@ -42,12 +45,12 @@ export function TodoListPage() {
       <div class={pageStyles.listContainer}>
         {queryMatch(todosQuery, {
           loading: () => (
-            <div data-testid="loading" style="color: var(--color-muted-foreground)">
+            <div data-testid="loading" class={pageStyles.loading}>
               Loading todos...
             </div>
           ),
           error: (err) => (
-            <div style="color: var(--color-destructive)" data-testid="error">
+            <div class={pageStyles.error} data-testid="error">
               {err instanceof Error ? err.message : String(err)}
             </div>
           ),
@@ -55,7 +58,7 @@ export function TodoListPage() {
             <>
               {response.items.length === 0 && (
                 <div class={emptyStateStyles.container}>
-                  <h3 class={emptyStateStyles.title}>No todos yet</h3>
+                  <h3 class={emptyStateStyles.heading}>No todos yet</h3>
                   <p class={emptyStateStyles.description}>
                     Add your first todo above to get started.
                   </p>
@@ -63,7 +66,8 @@ export function TodoListPage() {
               )}
               <div
                 data-testid="todo-list"
-                style={`display: flex; flex-direction: column; gap: 0.5rem;${revalidating ? ' opacity: 0.6;' : ''}`}
+                class={pageStyles.todoList}
+                style={revalidating ? 'opacity: 0.6' : ''}
               >
                 {response.items.map((todo: TodosResponse) => (
                   <TodoItem

@@ -248,6 +248,7 @@ describe('token-tables', () => {
       'weight',
       'leading',
       'tracking',
+      'decoration',
       'ring',
       'content',
       'cursor',

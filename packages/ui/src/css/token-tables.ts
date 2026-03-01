@@ -88,6 +88,7 @@ export const PROPERTY_MAP: Record<string, PropertyMapping> = {
   weight: { properties: ['font-weight'], valueType: 'font-weight' },
   leading: { properties: ['line-height'], valueType: 'line-height' },
   tracking: { properties: ['letter-spacing'], valueType: 'raw' },
+  decoration: { properties: ['text-decoration'], valueType: 'raw' },
 
   // Ring (outline)
   ring: { properties: ['outline'], valueType: 'ring' },
