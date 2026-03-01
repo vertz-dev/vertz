@@ -146,7 +146,10 @@ export function createThemedSheet(styles: SheetStyleClasses): ThemedSheetCompone
     primitive.overlay.classList.add(styles.overlay);
     primitive.content.classList.add(styles[PANEL_CLASS_MAP[resolvedSide]]);
     primitive.close.classList.add(styles.close);
-    primitive.close.textContent = '\u00d7';
+    // Use SVG X icon matching shadcn (Lucide X icon)
+    primitive.close.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+    primitive.close.setAttribute('aria-label', 'Close');
 
     // Clear Dialog primitive's centering inline styles so sheet CSS can position properly
     primitive.content.style.top = '';

@@ -35,6 +35,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@floating-ui/dom": "^1.7.5",
     "@vertz/ui": "workspace:*"
   },
   "devDependencies": {

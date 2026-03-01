@@ -6,11 +6,15 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import { createDismiss } from '../utils/dismiss';
+import type { FloatingOptions } from '../utils/floating';
+import { createFloatingPosition } from '../utils/floating';
 import { linkedIds } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
 export interface MenuOptions {
   onSelect?: (value: string) => void;
+  positioning?: FloatingOptions;
 }
 
 export interface MenuState {
@@ -34,13 +38,15 @@ export const Menu = {
     Separator: () => HTMLHRElement;
     Label: (text: string) => HTMLDivElement;
   } {
-    const { onSelect } = options;
+    const { onSelect, positioning } = options;
     const ids = linkedIds('menu');
     const state: MenuState = {
       open: signal(false),
       activeIndex: signal(-1),
     };
     const items: HTMLDivElement[] = [];
+    let floatingCleanup: (() => void) | null = null;
+    let dismissCleanup: (() => void) | null = null;
 
     const trigger = document.createElement('button');
     trigger.setAttribute('type', 'button');
@@ -52,6 +58,7 @@ export const Menu = {
 
     const content = document.createElement('div');
     content.setAttribute('role', 'menu');
+    content.setAttribute('tabindex', '-1');
     content.id = ids.contentId;
     setHidden(content, true);
     setDataState(content, 'closed');
@@ -63,16 +70,36 @@ export const Menu = {
       }
     }
 
-    function open(): void {
+    function open(activateFirst = false): void {
       state.open.value = true;
       setExpanded(trigger, true);
       setHidden(content, false);
       setDataState(trigger, 'open');
       setDataState(content, 'open');
-      state.activeIndex.value = 0;
-      updateActiveItem(0);
-      items[0]?.focus();
-      document.addEventListener('mousedown', handleClickOutside);
+
+      if (positioning) {
+        const ref = positioning.referenceElement ?? trigger;
+        const result = createFloatingPosition(ref, content, positioning);
+        floatingCleanup = result.cleanup;
+        dismissCleanup = createDismiss({
+          onDismiss: close,
+          insideElements: [ref, trigger, content],
+          escapeKey: false, // Escape already handled by content keydown
+        });
+      } else {
+        document.addEventListener('mousedown', handleClickOutside);
+      }
+
+      // Focus after positioning (content must be in DOM for focus to work)
+      if (activateFirst && items.length > 0) {
+        state.activeIndex.value = 0;
+        updateActiveItem(0);
+        items[0]?.focus();
+      } else {
+        state.activeIndex.value = -1;
+        updateActiveItem(-1);
+        content.focus();
+      }
     }
 
     function close(): void {
@@ -82,7 +109,15 @@ export const Menu = {
       setDataState(content, 'closed');
       // Defer display:none until exit animations complete
       setHiddenAnimated(content, true);
-      document.removeEventListener('mousedown', handleClickOutside);
+
+      if (positioning) {
+        floatingCleanup?.();
+        floatingCleanup = null;
+        dismissCleanup?.();
+        dismissCleanup = null;
+      } else {
+        document.removeEventListener('mousedown', handleClickOutside);
+      }
       trigger.focus();
     }
 
@@ -103,7 +138,7 @@ export const Menu = {
     trigger.addEventListener('keydown', (event) => {
       if (isKey(event, Keys.ArrowDown, Keys.Enter, Keys.Space)) {
         event.preventDefault();
-        if (!state.open.peek()) open();
+        if (!state.open.peek()) open(true);
       }
     });
 
@@ -125,6 +160,25 @@ export const Menu = {
           }
         }
         return;
+      }
+
+      // If no item is active yet, activate the first or last item on arrow key
+      if (state.activeIndex.peek() === -1) {
+        if (isKey(event, Keys.ArrowDown)) {
+          event.preventDefault();
+          state.activeIndex.value = 0;
+          updateActiveItem(0);
+          items[0]?.focus();
+          return;
+        }
+        if (isKey(event, Keys.ArrowUp)) {
+          event.preventDefault();
+          const last = items.length - 1;
+          state.activeIndex.value = last;
+          updateActiveItem(last);
+          items[last]?.focus();
+          return;
+        }
       }
 
       const result = handleListNavigation(event, items, { orientation: 'vertical' });

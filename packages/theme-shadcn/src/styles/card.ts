@@ -28,8 +28,7 @@ export function createCard(): CSSOutput<CardBlocks> {
           { property: 'border-radius', value: '0.75rem' },
           {
             property: 'box-shadow',
-            value:
-              '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
+            value: '0 0 0 1px color-mix(in oklch, var(--color-foreground) 10%, transparent)',
           },
         ],
       },
@@ -60,6 +59,7 @@ export function createCard(): CSSOutput<CardBlocks> {
             value: 'color-mix(in oklch, var(--color-muted) 50%, transparent)',
           },
           { property: 'border-radius', value: '0 0 0.75rem 0.75rem' },
+          { property: 'margin-bottom', value: '-1rem' },
         ],
       },
     ],

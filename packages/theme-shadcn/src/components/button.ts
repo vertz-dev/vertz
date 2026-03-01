@@ -33,7 +33,12 @@ export function createButtonComponent(
     el.className = [buttonStyles({ intent, size }), className].filter(Boolean).join(' ');
     if (disabled) el.disabled = true;
     for (const [key, value] of Object.entries(attrs)) {
-      if (value !== undefined && value !== null) {
+      if (value === undefined || value === null) continue;
+      // Wire event handler props as listeners
+      if (key.startsWith('on') && typeof value === 'function') {
+        const event = key[2]!.toLowerCase() + key.slice(3);
+        el.addEventListener(event, value as EventListener);
+      } else {
         el.setAttribute(key, String(value));
       }
     }

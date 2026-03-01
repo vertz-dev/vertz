@@ -14,7 +14,9 @@ import { createTooltipStyles } from '../styles/tooltip';
 
 // Clean up portaled elements between tests to prevent cross-test pollution
 afterEach(() => {
-  for (const el of document.body.querySelectorAll('[data-dialog-overlay], [role="dialog"], [role="alertdialog"], [role="listbox"], [role="menu"]')) {
+  for (const el of document.body.querySelectorAll(
+    '[data-dialog-overlay], [role="dialog"], [role="alertdialog"], [role="listbox"], [role="menu"]',
+  )) {
     el.remove();
   }
   for (const el of document.body.querySelectorAll('[data-state]')) {
@@ -45,10 +47,16 @@ describe('createThemedPopover', () => {
     const contentSlot = Popover.Content({ children: 'Hello' });
 
     const result = Popover({ children: [triggerSlot, contentSlot] });
+    document.body.appendChild(result);
 
-    // The returned trigger has aria-controls pointing to the content
+    // Content is portaled to document.body when popover opens
     const contentId = result.getAttribute('aria-controls')!;
     expect(contentId).toBeTruthy();
+
+    // Open the popover to trigger portal
+    trigger.click();
+    const portaledContent = document.getElementById(contentId);
+    expect(portaledContent).toBeTruthy();
   });
 
   it('returns user trigger when Popover.Trigger is provided', async () => {
@@ -82,7 +90,6 @@ describe('createThemedPopover', () => {
     expect(btn.getAttribute('data-state')).toBe('open');
   });
 });
-
 
 // ── AlertDialog ────────────────────────────────────────────
 
@@ -557,7 +564,7 @@ describe('createThemedSelect', () => {
 
     const result = Select({ children: contentSlot });
 
-    // Root returns the primitive trigger with theme class applied
+    // Root returns the primitive trigger directly; content is portaled to body
     expect(result).toBeInstanceOf(HTMLElement);
     expect(result.classList.contains(styles.trigger)).toBe(true);
   });
@@ -668,6 +675,7 @@ describe('createThemedDropdownMenu', () => {
 
     const result = DropdownMenu({ children: [triggerSlot, contentSlot] });
 
+    // Returns user trigger directly; content is portaled to body
     expect(result).toBe(btn);
     expect(btn.getAttribute('aria-haspopup')).toBe('menu');
     expect(btn.getAttribute('aria-controls')).toBeTruthy();

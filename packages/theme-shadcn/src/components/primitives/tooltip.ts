@@ -60,7 +60,10 @@ export function createThemedTooltip(styles: TooltipStyleClasses): ThemedTooltipC
       }
     }
 
-    const primitive = Tooltip.Root(options);
+    const primitive = Tooltip.Root({
+      ...options,
+      positioning: { placement: 'top', portal: true },
+    });
 
     // Apply theme class
     primitive.content.classList.add(styles.content);
@@ -75,8 +78,6 @@ export function createThemedTooltip(styles: TooltipStyleClasses): ThemedTooltipC
       primitive.content.appendChild(node);
     }
 
-    // The primitive trigger is the returned element — it has display:contents
-    // and handles mouseenter/leave/focus/blur events
     return primitive.trigger;
   }
 

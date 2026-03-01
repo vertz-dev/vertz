@@ -74,8 +74,12 @@ describe('Menu', () => {
     const itemB = Item('b', 'B');
 
     trigger.click();
-    itemA.focus();
 
+    // First ArrowDown activates first item (no item is active after click-open)
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(document.activeElement).toBe(itemA);
+
+    // Second ArrowDown moves to next item
     content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     expect(document.activeElement).toBe(itemB);
   });
@@ -90,6 +94,8 @@ describe('Menu', () => {
 
     trigger.click();
 
+    // First ArrowDown activates first item, then Enter selects it
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     content.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
     expect(onSelect).toHaveBeenCalledWith('a');

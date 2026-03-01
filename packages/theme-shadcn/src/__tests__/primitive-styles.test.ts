@@ -33,7 +33,6 @@ describe('popover', () => {
   });
 });
 
-
 describe('alert-dialog', () => {
   const alertDialog = createAlertDialogStyles();
 
@@ -115,8 +114,16 @@ describe('select', () => {
     expect(select.css).toContain('vz-zoom-out');
   });
 
-  it('CSS does not use display:none for animated states', () => {
-    expect(select.css).not.toContain('display: none');
+  it('CSS does not use display:none for animated content states', () => {
+    // display:none is allowed for the indicator (hidden until selected),
+    // but not for the content panel animated open/close states.
+    const contentClass = select.content;
+    const contentRules = select.css
+      .split('}')
+      .filter((rule) => rule.includes(contentClass));
+    for (const rule of contentRules) {
+      expect(rule).not.toContain('display: none');
+    }
   });
 
   it('has group, label, separator, and scrollButton blocks', () => {

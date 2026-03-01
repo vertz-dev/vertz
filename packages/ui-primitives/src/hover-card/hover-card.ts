@@ -1,6 +1,8 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setExpanded, setHidden, setHiddenAnimated } from '../utils/aria';
+import type { FloatingOptions } from '../utils/floating';
+import { createFloatingPosition } from '../utils/floating';
 import { uniqueId } from '../utils/id';
 import { isKey, Keys } from '../utils/keyboard';
 
@@ -8,6 +10,7 @@ export interface HoverCardOptions {
   openDelay?: number;
   closeDelay?: number;
   onOpenChange?: (open: boolean) => void;
+  positioning?: FloatingOptions;
 }
 
 export interface HoverCardState {
@@ -21,11 +24,12 @@ export interface HoverCardElements {
 
 export const HoverCard = {
   Root(options: HoverCardOptions = {}): HoverCardElements & { state: HoverCardState } {
-    const { openDelay = 700, closeDelay = 300, onOpenChange } = options;
+    const { openDelay = 700, closeDelay = 300, onOpenChange, positioning } = options;
     const contentId = uniqueId('hovercard');
     const state: HoverCardState = { open: signal(false) };
     let openTimeout: ReturnType<typeof setTimeout> | null = null;
     let closeTimeout: ReturnType<typeof setTimeout> | null = null;
+    let floatingCleanup: (() => void) | null = null;
 
     const trigger = document.createElement('span');
     trigger.setAttribute('aria-haspopup', 'dialog');
@@ -56,6 +60,16 @@ export const HoverCard = {
         setExpanded(trigger, true);
         setHidden(content, false);
         setDataState(content, 'open');
+
+        if (positioning) {
+          const effectivePlacement = positioning.placement ?? 'bottom';
+          const result = createFloatingPosition(trigger, content, {
+            ...positioning,
+            placement: effectivePlacement,
+          });
+          floatingCleanup = result.cleanup;
+        }
+
         onOpenChange?.(true);
         openTimeout = null;
       }, openDelay);
@@ -69,6 +83,8 @@ export const HoverCard = {
         setExpanded(trigger, false);
         setDataState(content, 'closed');
         setHiddenAnimated(content, true);
+        floatingCleanup?.();
+        floatingCleanup = null;
         onOpenChange?.(false);
         closeTimeout = null;
       }, closeDelay);
@@ -83,6 +99,17 @@ export const HoverCard = {
       setExpanded(trigger, true);
       setHidden(content, false);
       setDataState(content, 'open');
+
+      if (positioning) {
+        floatingCleanup?.();
+        const effectivePlacement = positioning.placement ?? 'bottom';
+        const result = createFloatingPosition(trigger, content, {
+          ...positioning,
+          placement: effectivePlacement,
+        });
+        floatingCleanup = result.cleanup;
+      }
+
       onOpenChange?.(true);
     });
     trigger.addEventListener('blur', (event) => {
@@ -117,6 +144,8 @@ export const HoverCard = {
       setExpanded(trigger, false);
       setDataState(content, 'closed');
       setHiddenAnimated(content, true);
+      floatingCleanup?.();
+      floatingCleanup = null;
       onOpenChange?.(false);
     }
 

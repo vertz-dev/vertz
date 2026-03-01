@@ -9,6 +9,7 @@ interface SelectStyleClasses {
   readonly trigger: string;
   readonly content: string;
   readonly item: string;
+  readonly itemIndicator: string;
   readonly group: string;
   readonly label: string;
   readonly separator: string;
@@ -107,10 +108,15 @@ export function createThemedSelect(styles: SelectStyleClasses): ThemedSelectComp
       if (slot === 'select-item') {
         const value = node.dataset.value!;
         const label = node.textContent ?? undefined;
-        const item = parentGroup
-          ? parentGroup.Item(value, label)
-          : primitive.Item(value, label);
+        const item = parentGroup ? parentGroup.Item(value, label) : primitive.Item(value, label);
         item.classList.add(styles.item);
+
+        // Check indicator (visible only when aria-selected="true")
+        const indicator = document.createElement('span');
+        indicator.classList.add(styles.itemIndicator);
+        indicator.innerHTML =
+          '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        item.appendChild(indicator);
       } else if (slot === 'select-group') {
         const groupLabel = node.dataset.label!;
         const group = primitive.Group(groupLabel);
@@ -147,11 +153,21 @@ export function createThemedSelect(styles: SelectStyleClasses): ThemedSelectComp
       }
     }
 
-    const primitive = Select.Root(options);
+    const primitive = Select.Root({
+      ...options,
+      positioning: { placement: 'bottom-start', portal: true, matchReferenceWidth: true },
+    });
 
     // Apply theme classes
     primitive.trigger.classList.add(styles.trigger);
     primitive.content.classList.add(styles.content);
+
+    // Add chevron-down icon to trigger
+    const chevron = document.createElement('span');
+    chevron.style.cssText = 'display:flex;align-items:center;opacity:0.5;flex-shrink:0;pointer-events:none;';
+    chevron.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+    primitive.trigger.appendChild(chevron);
 
     // Process items/groups/separators inside content
     processItems(contentNodes, primitive);

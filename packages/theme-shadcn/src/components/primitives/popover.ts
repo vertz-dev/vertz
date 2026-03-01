@@ -63,6 +63,7 @@ export function createThemedPopover(styles: PopoverStyleClasses): ThemedPopoverC
 
     const primitive = Popover.Root({
       ...options,
+      positioning: { placement: 'bottom-start', portal: true },
       onOpenChange: (isOpen) => {
         if (userTrigger) {
           userTrigger.setAttribute('aria-expanded', String(isOpen));
@@ -87,7 +88,6 @@ export function createThemedPopover(styles: PopoverStyleClasses): ThemedPopoverC
       userTrigger.setAttribute('aria-expanded', String(options.defaultOpen ?? false));
       userTrigger.setAttribute('data-state', options.defaultOpen ? 'open' : 'closed');
       userTrigger.addEventListener('click', () => {
-        // Delegate to primitive trigger click which handles open/close
         primitive.trigger.click();
       });
       return userTrigger;

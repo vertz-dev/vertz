@@ -12,12 +12,17 @@ import {
   setHiddenAnimated,
   setSelected,
 } from '../utils/aria';
+import { createDismiss } from '../utils/dismiss';
+import type { FloatingOptions } from '../utils/floating';
+import { createFloatingPosition } from '../utils/floating';
 import { linkedIds } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
 export interface SelectOptions {
   defaultValue?: string;
+  placeholder?: string;
   onValueChange?: (value: string) => void;
+  positioning?: FloatingOptions;
 }
 
 export interface SelectState {
@@ -41,7 +46,7 @@ export const Select = {
     };
     Separator: () => HTMLHRElement;
   } {
-    const { defaultValue = '', onValueChange } = options;
+    const { defaultValue = '', placeholder = '', onValueChange, positioning } = options;
     const ids = linkedIds('select');
     const state: SelectState = {
       open: signal(false),
@@ -49,6 +54,8 @@ export const Select = {
       activeIndex: signal(-1),
     };
     const items: HTMLDivElement[] = [];
+    let floatingCleanup: (() => void) | null = null;
+    let dismissCleanup: (() => void) | null = null;
 
     const trigger = document.createElement('button');
     trigger.setAttribute('type', 'button');
@@ -59,8 +66,15 @@ export const Select = {
     setExpanded(trigger, false);
     setDataState(trigger, 'closed');
 
+    // Dedicated text span so theme-appended elements (e.g. chevron) survive text updates
+    const triggerText = document.createElement('span');
+    triggerText.setAttribute('data-part', 'value');
+    triggerText.textContent = defaultValue || placeholder;
+    trigger.appendChild(triggerText);
+
     const content = document.createElement('div');
     content.setAttribute('role', 'listbox');
+    content.setAttribute('tabindex', '-1');
     content.id = ids.contentId;
     setHidden(content, true);
     setDataState(content, 'closed');
@@ -71,18 +85,35 @@ export const Select = {
       setHidden(content, false);
       setDataState(trigger, 'open');
       setDataState(content, 'open');
-      // Determine which side to open based on available space
-      const rect = trigger.getBoundingClientRect();
-      const side = window.innerHeight - rect.bottom >= rect.top ? 'bottom' : 'top';
-      content.setAttribute('data-side', side);
-      // Focus the first or selected item
+
+      if (positioning) {
+        const result = createFloatingPosition(trigger, content, positioning);
+        floatingCleanup = result.cleanup;
+        dismissCleanup = createDismiss({
+          onDismiss: close,
+          insideElements: [trigger, content],
+          escapeKey: false, // Escape already handled by content keydown
+        });
+      } else {
+        // Legacy: determine side from available space
+        const rect = trigger.getBoundingClientRect();
+        const side = window.innerHeight - rect.bottom >= rect.top ? 'bottom' : 'top';
+        content.setAttribute('data-side', side);
+      }
+
+      // If a value is already selected, focus that item; otherwise no highlight
       const selectedIdx = items.findIndex(
         (item) => item.getAttribute('data-value') === state.value.peek(),
       );
-      const focusIdx = selectedIdx >= 0 ? selectedIdx : 0;
-      state.activeIndex.value = focusIdx;
-      updateActiveItem(focusIdx);
-      items[focusIdx]?.focus();
+      if (selectedIdx >= 0) {
+        state.activeIndex.value = selectedIdx;
+        updateActiveItem(selectedIdx);
+        items[selectedIdx]?.focus();
+      } else {
+        state.activeIndex.value = -1;
+        updateActiveItem(-1);
+        content.focus();
+      }
     }
 
     function close(): void {
@@ -92,6 +123,10 @@ export const Select = {
       setDataState(content, 'closed');
       // Defer display:none until exit animations complete
       setHiddenAnimated(content, true);
+      floatingCleanup?.();
+      floatingCleanup = null;
+      dismissCleanup?.();
+      dismissCleanup = null;
       trigger.focus();
     }
 
@@ -101,6 +136,9 @@ export const Select = {
         const isActive = item.getAttribute('data-value') === value;
         setSelected(item, isActive);
         setDataState(item, isActive ? 'active' : 'inactive');
+        if (isActive) {
+          triggerText.textContent = item.textContent ?? value;
+        }
       }
       onValueChange?.(value);
       close();
@@ -146,6 +184,25 @@ export const Select = {
         return;
       }
 
+      // If no item is active yet, activate the first or last item on arrow key
+      if (state.activeIndex.peek() === -1) {
+        if (isKey(event, Keys.ArrowDown)) {
+          event.preventDefault();
+          state.activeIndex.value = 0;
+          updateActiveItem(0);
+          items[0]?.focus();
+          return;
+        }
+        if (isKey(event, Keys.ArrowUp)) {
+          event.preventDefault();
+          const last = items.length - 1;
+          state.activeIndex.value = last;
+          updateActiveItem(last);
+          items[last]?.focus();
+          return;
+        }
+      }
+
       const result = handleListNavigation(event, items, { orientation: 'vertical' });
       if (result) {
         const idx = items.indexOf(result as HTMLDivElement);
@@ -178,6 +235,9 @@ export const Select = {
       const isSelected = value === defaultValue;
       setSelected(item, isSelected);
       setDataState(item, isSelected ? 'active' : 'inactive');
+      if (isSelected) {
+        triggerText.textContent = item.textContent ?? value;
+      }
 
       item.addEventListener('click', () => {
         selectItem(value);

@@ -6,11 +6,15 @@
 import type { Signal } from '@vertz/ui';
 import { signal } from '@vertz/ui';
 import { setDataState, setHidden, setHiddenAnimated } from '../utils/aria';
+import { createDismiss } from '../utils/dismiss';
+import type { FloatingOptions } from '../utils/floating';
+import { createFloatingPosition, virtualElement } from '../utils/floating';
 import { uniqueId } from '../utils/id';
 import { handleListNavigation, isKey, Keys } from '../utils/keyboard';
 
 export interface ContextMenuOptions {
   onSelect?: (value: string) => void;
+  positioning?: FloatingOptions;
 }
 
 export interface ContextMenuState {
@@ -34,12 +38,14 @@ export const ContextMenu = {
     Separator: () => HTMLHRElement;
     Label: (text: string) => HTMLDivElement;
   } {
-    const { onSelect } = options;
+    const { onSelect, positioning } = options;
     const state: ContextMenuState = {
       open: signal(false),
       activeIndex: signal(-1),
     };
     const items: HTMLDivElement[] = [];
+    let floatingCleanup: (() => void) | null = null;
+    let dismissCleanup: (() => void) | null = null;
 
     const trigger = document.createElement('div');
     const contentId = uniqueId('ctx-menu');
@@ -60,21 +66,44 @@ export const ContextMenu = {
 
     function open(x: number, y: number): void {
       state.open.value = true;
-      content.style.left = `${x}px`;
-      content.style.top = `${y}px`;
       setHidden(content, false);
       setDataState(content, 'open');
+
+      if (positioning) {
+        const result = createFloatingPosition(virtualElement(x, y), content, {
+          strategy: 'fixed',
+          ...positioning,
+        });
+        floatingCleanup = result.cleanup;
+        dismissCleanup = createDismiss({
+          onDismiss: close,
+          insideElements: [trigger, content],
+          escapeKey: false, // Escape already handled by content keydown
+        });
+      } else {
+        content.style.left = `${x}px`;
+        content.style.top = `${y}px`;
+        document.addEventListener('mousedown', handleClickOutside);
+      }
+
       state.activeIndex.value = 0;
       updateActiveItem(0);
       items[0]?.focus();
-      document.addEventListener('mousedown', handleClickOutside);
     }
 
     function close(): void {
       state.open.value = false;
       setDataState(content, 'closed');
       setHiddenAnimated(content, true);
-      document.removeEventListener('mousedown', handleClickOutside);
+
+      if (positioning) {
+        floatingCleanup?.();
+        floatingCleanup = null;
+        dismissCleanup?.();
+        dismissCleanup = null;
+      } else {
+        document.removeEventListener('mousedown', handleClickOutside);
+      }
     }
 
     function updateActiveItem(index: number): void {

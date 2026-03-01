@@ -1,3 +1,5 @@
+// Shared types
+
 // Components
 export type { AccordionElements, AccordionOptions, AccordionState } from './accordion/accordion';
 export { Accordion } from './accordion/accordion';
@@ -93,3 +95,4 @@ export type {
 export { ToggleGroup } from './toggle-group/toggle-group';
 export type { TooltipElements, TooltipOptions, TooltipState } from './tooltip/tooltip';
 export { Tooltip } from './tooltip/tooltip';
+export type { FloatingOptions } from './utils/floating';

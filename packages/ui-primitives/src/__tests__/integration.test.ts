@@ -70,8 +70,11 @@ describe('Integration Tests', () => {
     trigger.click();
     expect(state.open.peek()).toBe(true);
 
-    // Navigate down
-    itemA.focus();
+    // First ArrowDown activates first item (no item active after click-open)
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(document.activeElement).toBe(itemA);
+
+    // Second ArrowDown moves to next item
     content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     expect(document.activeElement).toBe(itemB);
 

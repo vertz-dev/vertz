@@ -49,6 +49,7 @@ export function createDropdownMenuStyles(): CSSOutput<DropdownMenuBlocks> {
       'cursor:pointer',
       'rounded:md',
       'outline-none',
+      { '&:hover': ['bg:accent', 'text:accent-foreground'] },
       { '&:focus': ['bg:accent', 'text:accent-foreground'] },
       { '&[data-disabled]': ['pointer-events-none', 'opacity:0.5'] },
     ],
