@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { createContext } from '../component/context';
 import { defineRoutes, matchRoute } from '../router/define-routes';
 import { executeLoaders } from '../router/loader';
 import { createRouter } from '../router/navigate';
-import { createOutlet, type OutletContext } from '../router/outlet';
+import { Outlet, OutletContext } from '../router/outlet';
+import { signal } from '../runtime/signal';
 
 describe('Router Integration Tests', () => {
   beforeEach(() => {
@@ -48,32 +48,26 @@ describe('Router Integration Tests', () => {
 
   // IT-6-2: Nested layouts render children correctly
   test('nested layouts render children correctly via Outlet', () => {
-    const OutletCtx = createContext<OutletContext>();
-    const Outlet = createOutlet(OutletCtx);
-
     // Child component
     const childContent = document.createElement('span');
     childContent.textContent = 'User Detail';
-    const childComponent = () => childContent;
+    const childComponent = signal<(() => Node) | undefined>(() => childContent);
 
     // Parent layout that uses Outlet
     const parentLayout = document.createElement('div');
     parentLayout.className = 'layout';
 
     let outletResult: Node | undefined;
-    OutletCtx.Provider({ childComponent, depth: 0 }, () => {
+    OutletContext.Provider({ childComponent }, () => {
       outletResult = Outlet();
     });
 
     // biome-ignore lint/style/noNonNullAssertion: value is guaranteed set inside Provider callback
     parentLayout.appendChild(outletResult!);
 
-    // Parent layout contains the child
-    expect(parentLayout.querySelector('span')).toBe(childContent);
+    // Outlet container is a div, with the child content inside
+    expect(outletResult).toBeInstanceOf(HTMLDivElement);
     expect(parentLayout.textContent).toBe('User Detail');
-
-    // Outlet renders the child component
-    expect(outletResult).toBe(childContent);
   });
 
   // IT-6-3: Parent and child loaders execute in parallel

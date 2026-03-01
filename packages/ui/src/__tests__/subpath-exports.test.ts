@@ -12,10 +12,11 @@ import { describe, expect, test } from 'bun:test';
 
 describe('Subpath Exports — @vertz/ui/router', () => {
   const expectedExports = [
+    'Outlet',
+    'OutletContext',
     'RouterContext',
     'RouterView',
     'createLink',
-    'createOutlet',
     'createRouter',
     'defineRoutes',
     'parseSearchParams',
@@ -57,7 +58,8 @@ describe('Subpath Exports — @vertz/ui/router', () => {
     expect(subpath.defineRoutes).toBe(main.defineRoutes);
     expect(subpath.createRouter).toBe(main.createRouter);
     expect(subpath.createLink).toBe(main.createLink);
-    expect(subpath.createOutlet).toBe(main.createOutlet);
+    expect(subpath.Outlet).toBe(main.Outlet);
+    expect(subpath.OutletContext).toBe(main.OutletContext);
     expect(subpath.parseSearchParams).toBe(main.parseSearchParams);
     expect(subpath.useParams).toBe(main.useParams);
     expect(subpath.useRouter).toBe(main.useRouter);
@@ -206,7 +208,8 @@ describe('Subpath Exports — main barrel backward compat', () => {
     expect(main.defineRoutes).toBeTypeOf('function');
     expect(main.createRouter).toBeTypeOf('function');
     expect(main.createLink).toBeTypeOf('function');
-    expect(main.createOutlet).toBeTypeOf('function');
+    expect(main.Outlet).toBeTypeOf('function');
+    expect(main.OutletContext).toBeTypeOf('object');
     expect(main.RouterContext).toBeTypeOf('object');
     expect(main.RouterView).toBeTypeOf('function');
     expect(main.useParams).toBeTypeOf('function');

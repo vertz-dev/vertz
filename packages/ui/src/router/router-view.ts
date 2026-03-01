@@ -1,11 +1,19 @@
 import { __append, __element, __enterChildren, __exitChildren } from '../dom/element';
 import { getIsHydrating } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
-import { domEffect } from '../runtime/signal';
-import type { DisposeFn } from '../runtime/signal-types';
+import { domEffect, signal } from '../runtime/signal';
+import type { DisposeFn, Signal } from '../runtime/signal-types';
 import { untrack } from '../runtime/tracking';
+import type { CompiledRoute, MatchedRoute } from './define-routes';
 import type { Router } from './navigate';
+import { OutletContext } from './outlet';
 import { RouterContext } from './router-context';
+
+/** Per-level state for matched chain diffing. */
+interface LevelState {
+  route: CompiledRoute;
+  childSignal?: Signal<(() => Node | Promise<{ default: () => Node }>) | undefined>;
+}
 
 export interface RouterViewProps {
   router: Router;
@@ -45,6 +53,9 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
   let renderGen = 0;
   let pageCleanups: DisposeFn[] = [];
 
+  // Per-level state from previous render, used for matched chain diffing.
+  let prevLevels: LevelState[] = [];
+
   // Enter children scope for the container — during hydration this sets
   // the cursor to container.firstChild so the page component's own
   // __element() calls can claim SSR nodes inside.
@@ -54,18 +65,51 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
     const match = router.current.value;
 
     untrack(() => {
-      // Run cleanup from the previous page before rendering the new one
+      const gen = ++renderGen;
+      const newMatched: MatchedRoute[] = match?.matched ?? [];
+
+      // Find the divergence index — first index where old and new routes differ
+      const minLen = Math.min(prevLevels.length, newMatched.length);
+      let divergeAt = 0;
+      for (divergeAt = 0; divergeAt < minLen; divergeAt++) {
+        if (prevLevels[divergeAt]!.route !== newMatched[divergeAt]!.route) break;
+      }
+
+      // Check if the full chain is identical (no change needed)
+      if (
+        prevLevels.length > 0 &&
+        divergeAt === prevLevels.length &&
+        divergeAt === newMatched.length
+      ) {
+        return;
+      }
+
+      // If divergence is at index > 0, we can reuse parent layouts
+      // and just update the childSignal at the divergence point
+      if (divergeAt > 0 && newMatched.length > 0) {
+        // Build the new inside-out chain from divergeAt onward
+        const newLevels = buildLevels(newMatched);
+
+        // Get the new child factory starting from the divergence point
+        const newChildFactory = buildInsideOutFactory(newMatched, newLevels, divergeAt);
+
+        // Update the parent's childSignal to swap in the new subtree
+        const parentLevel = prevLevels[divergeAt - 1]!;
+        if (parentLevel.childSignal) {
+          parentLevel.childSignal.value = newChildFactory;
+        }
+
+        // Preserve parent levels, update from divergence point onward
+        prevLevels = [...prevLevels.slice(0, divergeAt), ...newLevels.slice(divergeAt)];
+        return;
+      }
+
+      // Full re-render: divergence at 0 or transition from/to no match
       runCleanups(pageCleanups);
 
-      const gen = ++renderGen;
-
       if (isFirstHydrationRender) {
-        // During hydration, SSR content is already in the container.
-        // Don't clear it — just run the component factory to attach
-        // reactivity and event handlers to the adopted SSR nodes.
         isFirstHydrationRender = false;
       } else {
-        // Subsequent navigations: clear previous page content with view transition
         withTransition(() => {
           while (container.firstChild) {
             container.removeChild(container.firstChild);
@@ -73,10 +117,10 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
         });
       }
 
-      // Push a new scope to capture page-level cleanups (onMount → onCleanup)
       pageCleanups = pushScope();
 
       if (!match) {
+        prevLevels = [];
         popScope();
         if (fallback) {
           container.appendChild(fallback());
@@ -84,8 +128,12 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
         return;
       }
 
+      // Build the full inside-out chain
+      const levels = buildLevels(newMatched);
+      const rootFactory = buildInsideOutFactory(newMatched, levels, 0);
+
       RouterContext.Provider(router, () => {
-        const result = match.route.component();
+        const result = rootFactory();
 
         if (result instanceof Promise) {
           result.then((mod) => {
@@ -100,6 +148,7 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
         }
       });
 
+      prevLevels = levels;
       popScope();
     });
   });
@@ -112,4 +161,49 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
   });
 
   return container;
+}
+
+/**
+ * Build LevelState entries for a matched chain.
+ * Each non-leaf level gets a childSignal.
+ */
+function buildLevels(matched: MatchedRoute[]): LevelState[] {
+  return matched.map((m, i) => ({
+    childSignal:
+      i < matched.length - 1
+        ? signal<(() => Node | Promise<{ default: () => Node }>) | undefined>(undefined)
+        : undefined,
+    route: m.route,
+  }));
+}
+
+/**
+ * Build the inside-out component factory chain starting from `startAt` index.
+ * Returns the factory for the component at `startAt` (which wraps all descendants).
+ */
+function buildInsideOutFactory(
+  matched: MatchedRoute[],
+  levels: LevelState[],
+  startAt: number,
+): () => Node | Promise<{ default: () => Node }> {
+  // Start from the leaf and build upward to startAt
+  let factory: () => Node | Promise<{ default: () => Node }> =
+    matched[matched.length - 1]!.route.component;
+
+  for (let i = matched.length - 2; i >= startAt; i--) {
+    const level = levels[i]!;
+    const childFactory = factory;
+    level.childSignal!.value = childFactory;
+    const parentRoute = level.route;
+    const cs = level.childSignal!;
+    factory = () => {
+      let result!: Node;
+      OutletContext.Provider({ childComponent: cs }, () => {
+        result = parentRoute.component() as Node;
+      });
+      return result;
+    };
+  }
+
+  return factory;
 }
