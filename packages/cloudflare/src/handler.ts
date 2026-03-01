@@ -22,6 +22,8 @@ export interface SSRModuleConfig {
   clientScript?: string;
   /** HTML document title. Default: 'Vertz App' */
   title?: string;
+  /** SSR query timeout in ms. Default: 5000 (generous for D1 cold starts). */
+  ssrTimeout?: number;
 }
 
 /**
@@ -206,10 +208,16 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
 
     if (isSSRModuleConfig(ssr)) {
       const { createSSRHandler } = await import('@vertz/ui-server/ssr');
-      const { module, clientScript = '/assets/entry-client.js', title = 'Vertz App' } = ssr;
+      const {
+        module,
+        clientScript = '/assets/entry-client.js',
+        title = 'Vertz App',
+        ssrTimeout = 5000,
+      } = ssr;
       ssrHandler = createSSRHandler({
         module,
         template: generateHTMLTemplate(clientScript, title),
+        ssrTimeout,
       });
     } else {
       ssrHandler = ssr;
@@ -240,12 +248,42 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
 
       // Non-API routes → SSR or 404
       if (ssrHandler) {
+        const app = getApp(env);
+        const origin = url.origin;
+        // Patch fetch during SSR so API requests (e.g. query() calling
+        // fetch('/api/todos')) are routed through the in-memory app handler
+        // instead of attempting a network self-fetch (which fails on Workers).
+        const originalFetch = globalThis.fetch;
+        globalThis.fetch = (input, init) => {
+          // Determine the pathname from the input (string, URL, or Request)
+          const rawUrl =
+            typeof input === 'string'
+              ? input
+              : input instanceof URL
+                ? input.href
+                : input.url;
+          const isRelative = rawUrl.startsWith('/');
+          const pathname = isRelative
+            ? rawUrl.split('?')[0]
+            : new URL(rawUrl).pathname;
+          const isLocal = isRelative || new URL(rawUrl).origin === origin;
+
+          if (isLocal && pathname.startsWith(basePath)) {
+            // Build an absolute URL so Request() doesn't reject relative URLs
+            const absoluteUrl = isRelative ? `${origin}${rawUrl}` : rawUrl;
+            const req = new Request(absoluteUrl, init);
+            return app.handler(req);
+          }
+          return originalFetch(input, init);
+        };
         try {
           const response = await ssrHandler(request);
           return applyHeaders(response);
         } catch (error) {
           console.error('Unhandled error in worker:', error);
           return applyHeaders(new Response('Internal Server Error', { status: 500 }));
+        } finally {
+          globalThis.fetch = originalFetch;
         }
       }
 
