@@ -41,7 +41,9 @@ export interface ThemedAlertDialogComponent {
 
 // ── Factory ────────────────────────────────────────────────
 
-export function createThemedAlertDialog(styles: AlertDialogStyleClasses): ThemedAlertDialogComponent {
+export function createThemedAlertDialog(
+  styles: AlertDialogStyleClasses,
+): ThemedAlertDialogComponent {
   // ── Sub-components (slot markers + styled elements) ──
 
   function AlertDialogTrigger({ children }: AlertDialogSlotProps): HTMLElement {
@@ -64,7 +66,10 @@ export function createThemedAlertDialog(styles: AlertDialogStyleClasses): Themed
     return el;
   }
 
-  function AlertDialogTitle({ children, class: className }: AlertDialogSlotProps): HTMLHeadingElement {
+  function AlertDialogTitle({
+    children,
+    class: className,
+  }: AlertDialogSlotProps): HTMLHeadingElement {
     const el = document.createElement('h2');
     el.classList.add(styles.title);
     if (className) el.classList.add(className);
@@ -74,7 +79,10 @@ export function createThemedAlertDialog(styles: AlertDialogStyleClasses): Themed
     return el;
   }
 
-  function AlertDialogDescription({ children, class: className }: AlertDialogSlotProps): HTMLParagraphElement {
+  function AlertDialogDescription({
+    children,
+    class: className,
+  }: AlertDialogSlotProps): HTMLParagraphElement {
     const el = document.createElement('p');
     el.classList.add(styles.description);
     if (className) el.classList.add(className);
@@ -94,7 +102,10 @@ export function createThemedAlertDialog(styles: AlertDialogStyleClasses): Themed
     return el;
   }
 
-  function AlertDialogCancel({ children, class: className }: AlertDialogSlotProps): HTMLButtonElement {
+  function AlertDialogCancel({
+    children,
+    class: className,
+  }: AlertDialogSlotProps): HTMLButtonElement {
     const el = document.createElement('button');
     el.setAttribute('type', 'button');
     el.classList.add(styles.cancel);
@@ -105,7 +116,10 @@ export function createThemedAlertDialog(styles: AlertDialogStyleClasses): Themed
     return el;
   }
 
-  function AlertDialogAction({ children, class: className }: AlertDialogSlotProps): HTMLButtonElement {
+  function AlertDialogAction({
+    children,
+    class: className,
+  }: AlertDialogSlotProps): HTMLButtonElement {
     const el = document.createElement('button');
     el.setAttribute('type', 'button');
     el.classList.add(styles.action);

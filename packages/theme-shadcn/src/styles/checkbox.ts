@@ -39,11 +39,7 @@ export function createCheckboxStyles(): CSSOutput<CheckboxBlocks> {
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
       {
-        '&[data-state="checked"]': [
-          'bg:primary',
-          'text:primary-foreground',
-          'border:primary',
-        ],
+        '&[data-state="checked"]': ['bg:primary', 'text:primary-foreground', 'border:primary'],
         '&[data-state="indeterminate"]': [
           'bg:primary',
           'text:primary-foreground',

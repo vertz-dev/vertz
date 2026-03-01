@@ -70,5 +70,5 @@ export type { ThemedToastResult } from './toast';
 export { createThemedToast } from './toast';
 export { createThemedToggle } from './toggle';
 export { createThemedToggleGroup } from './toggle-group';
-export type { TooltipRootProps, TooltipSlotProps, ThemedTooltipComponent } from './tooltip';
+export type { ThemedTooltipComponent, TooltipRootProps, TooltipSlotProps } from './tooltip';
 export { createThemedTooltip } from './tooltip';

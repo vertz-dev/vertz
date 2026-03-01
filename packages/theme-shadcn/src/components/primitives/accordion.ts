@@ -41,7 +41,11 @@ export interface ThemedAccordionComponent {
 export function createThemedAccordion(styles: AccordionStyleClasses): ThemedAccordionComponent {
   // ── Sub-components (slot markers) ──
 
-  function AccordionItem({ value, children, class: className }: AccordionItemProps): HTMLDivElement {
+  function AccordionItem({
+    value,
+    children,
+    class: className,
+  }: AccordionItemProps): HTMLDivElement {
     const el = document.createElement('div');
     el.dataset.slot = 'accordion-item';
     el.dataset.value = value;

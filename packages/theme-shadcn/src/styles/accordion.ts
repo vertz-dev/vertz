@@ -44,14 +44,10 @@ export function createAccordionStyles(): CSSOutput<AccordionBlocks> {
       'overflow-hidden',
       'text:sm',
       {
-        '&[data-state="open"]': [
-          animationDecl(`${accordionDown} 200ms ease-out forwards`),
-        ],
+        '&[data-state="open"]': [animationDecl(`${accordionDown} 200ms ease-out forwards`)],
       },
       {
-        '&[data-state="closed"]': [
-          animationDecl(`${accordionUp} 200ms ease-out forwards`),
-        ],
+        '&[data-state="closed"]': [animationDecl(`${accordionUp} 200ms ease-out forwards`)],
       },
     ],
   });
