@@ -22,6 +22,8 @@ export interface SSRModuleConfig {
   clientScript?: string;
   /** HTML document title. Default: 'Vertz App' */
   title?: string;
+  /** SSR query timeout in ms. Default: 5000 (accounts for D1 cold starts). */
+  ssrTimeout?: number;
 }
 
 /**
@@ -206,10 +208,16 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
 
     if (isSSRModuleConfig(ssr)) {
       const { createSSRHandler } = await import('@vertz/ui-server/ssr');
-      const { module, clientScript = '/assets/entry-client.js', title = 'Vertz App' } = ssr;
+      const {
+        module,
+        clientScript = '/assets/entry-client.js',
+        title = 'Vertz App',
+        ssrTimeout = 5000,
+      } = ssr;
       ssrHandler = createSSRHandler({
         module,
         template: generateHTMLTemplate(clientScript, title),
+        ssrTimeout,
       });
     } else {
       ssrHandler = ssr;
@@ -240,12 +248,40 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
 
       // Non-API routes → SSR or 404
       if (ssrHandler) {
+        // Patch globalThis.fetch during SSR to intercept API requests.
+        // Workers cannot fetch from themselves (infinite loop / relative URL failure).
+        // Route matching API requests through the in-memory app.handler() instead.
+        const app = getApp(env);
+        const originalFetch = globalThis.fetch;
+        globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+          // Extract the URL string from whatever form the input takes
+          let urlStr: string;
+          if (typeof input === 'string') {
+            urlStr = input;
+          } else if (input instanceof URL) {
+            urlStr = input.pathname;
+          } else {
+            urlStr = new URL(input.url).pathname;
+          }
+
+          if (urlStr.startsWith(basePath)) {
+            // Build a full Request for the app handler
+            const origin = new URL(request.url).origin;
+            const apiRequest = new Request(`${origin}${urlStr}`, init);
+            return app.handler(apiRequest);
+          }
+
+          return originalFetch(input, init);
+        }) as typeof globalThis.fetch;
+
         try {
           const response = await ssrHandler(request);
           return applyHeaders(response);
         } catch (error) {
           console.error('Unhandled error in worker:', error);
           return applyHeaders(new Response('Internal Server Error', { status: 500 }));
+        } finally {
+          globalThis.fetch = originalFetch;
         }
       }
 
