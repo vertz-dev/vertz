@@ -36,21 +36,6 @@ export const layoutStyles = css({
 // ── Form styles (app-specific extensions) ───────────────────
 
 export const formStyles = css({
-  input: [
-    'w:full',
-    'px:3',
-    'py:2',
-    'rounded:md',
-    'border:1',
-    'border:border',
-    'bg:background',
-    'text:foreground',
-    'text:sm',
-    'focus:outline-none',
-    'focus:ring:2',
-    'focus-visible:ring:ring',
-    'focus-visible:border:primary',
-  ],
   error: ['text:xs', 'text:destructive', 'mt:1'],
 });
 

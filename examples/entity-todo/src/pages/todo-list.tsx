@@ -51,9 +51,9 @@ export function TodoListPage() {
               {err instanceof Error ? err.message : String(err)}
             </div>
           ),
-          data: (todos) => (
+          data: (response) => (
             <>
-              {todos.length === 0 && (
+              {response.items.length === 0 && (
                 <div class={emptyStateStyles.container}>
                   <h3 class={emptyStateStyles.title}>No todos yet</h3>
                   <p class={emptyStateStyles.description}>
@@ -65,7 +65,7 @@ export function TodoListPage() {
                 data-testid="todo-list"
                 style="display: flex; flex-direction: column; gap: 0.5rem"
               >
-                {todos.map((todo: TodosResponse) => (
+                {response.items.map((todo: TodosResponse) => (
                   <TodoItem
                     key={todo.id}
                     id={todo.id}
