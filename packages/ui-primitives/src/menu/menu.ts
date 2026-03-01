@@ -58,6 +58,7 @@ export const Menu = {
 
     const content = document.createElement('div');
     content.setAttribute('role', 'menu');
+    content.setAttribute('tabindex', '-1');
     content.id = ids.contentId;
     setHidden(content, true);
     setDataState(content, 'closed');
@@ -69,26 +70,35 @@ export const Menu = {
       }
     }
 
-    function open(): void {
+    function open(activateFirst = false): void {
       state.open.value = true;
       setExpanded(trigger, true);
       setHidden(content, false);
       setDataState(trigger, 'open');
       setDataState(content, 'open');
-      state.activeIndex.value = 0;
-      updateActiveItem(0);
-      items[0]?.focus();
 
       if (positioning) {
-        const result = createFloatingPosition(trigger, content, positioning);
+        const ref = positioning.referenceElement ?? trigger;
+        const result = createFloatingPosition(ref, content, positioning);
         floatingCleanup = result.cleanup;
         dismissCleanup = createDismiss({
           onDismiss: close,
-          insideElements: [trigger, content],
+          insideElements: [ref, trigger, content],
           escapeKey: false, // Escape already handled by content keydown
         });
       } else {
         document.addEventListener('mousedown', handleClickOutside);
+      }
+
+      // Focus after positioning (content must be in DOM for focus to work)
+      if (activateFirst && items.length > 0) {
+        state.activeIndex.value = 0;
+        updateActiveItem(0);
+        items[0]?.focus();
+      } else {
+        state.activeIndex.value = -1;
+        updateActiveItem(-1);
+        content.focus();
       }
     }
 
@@ -128,7 +138,7 @@ export const Menu = {
     trigger.addEventListener('keydown', (event) => {
       if (isKey(event, Keys.ArrowDown, Keys.Enter, Keys.Space)) {
         event.preventDefault();
-        if (!state.open.peek()) open();
+        if (!state.open.peek()) open(true);
       }
     });
 
@@ -150,6 +160,25 @@ export const Menu = {
           }
         }
         return;
+      }
+
+      // If no item is active yet, activate the first or last item on arrow key
+      if (state.activeIndex.peek() === -1) {
+        if (isKey(event, Keys.ArrowDown)) {
+          event.preventDefault();
+          state.activeIndex.value = 0;
+          updateActiveItem(0);
+          items[0]?.focus();
+          return;
+        }
+        if (isKey(event, Keys.ArrowUp)) {
+          event.preventDefault();
+          const last = items.length - 1;
+          state.activeIndex.value = last;
+          updateActiveItem(last);
+          items[last]?.focus();
+          return;
+        }
       }
 
       const result = handleListNavigation(event, items, { orientation: 'vertical' });

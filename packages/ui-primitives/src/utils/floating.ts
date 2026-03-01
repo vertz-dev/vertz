@@ -17,6 +17,8 @@ export interface FloatingOptions {
   middleware?: Middleware[];
   matchReferenceWidth?: boolean;
   portal?: boolean;
+  /** Override the reference element used for positioning (e.g., a custom trigger wrapping the primitive trigger). */
+  referenceElement?: HTMLElement;
 }
 
 export interface FloatingResult {

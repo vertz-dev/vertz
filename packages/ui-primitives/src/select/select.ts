@@ -69,6 +69,7 @@ export const Select = {
 
     const content = document.createElement('div');
     content.setAttribute('role', 'listbox');
+    content.setAttribute('tabindex', '-1');
     content.id = ids.contentId;
     setHidden(content, true);
     setDataState(content, 'closed');
@@ -95,14 +96,19 @@ export const Select = {
         content.setAttribute('data-side', side);
       }
 
-      // Focus the first or selected item
+      // If a value is already selected, focus that item; otherwise no highlight
       const selectedIdx = items.findIndex(
         (item) => item.getAttribute('data-value') === state.value.peek(),
       );
-      const focusIdx = selectedIdx >= 0 ? selectedIdx : 0;
-      state.activeIndex.value = focusIdx;
-      updateActiveItem(focusIdx);
-      items[focusIdx]?.focus();
+      if (selectedIdx >= 0) {
+        state.activeIndex.value = selectedIdx;
+        updateActiveItem(selectedIdx);
+        items[selectedIdx]?.focus();
+      } else {
+        state.activeIndex.value = -1;
+        updateActiveItem(-1);
+        content.focus();
+      }
     }
 
     function close(): void {
@@ -171,6 +177,25 @@ export const Select = {
           if (val !== null) selectItem(val);
         }
         return;
+      }
+
+      // If no item is active yet, activate the first or last item on arrow key
+      if (state.activeIndex.peek() === -1) {
+        if (isKey(event, Keys.ArrowDown)) {
+          event.preventDefault();
+          state.activeIndex.value = 0;
+          updateActiveItem(0);
+          items[0]?.focus();
+          return;
+        }
+        if (isKey(event, Keys.ArrowUp)) {
+          event.preventDefault();
+          const last = items.length - 1;
+          state.activeIndex.value = last;
+          updateActiveItem(last);
+          items[last]?.focus();
+          return;
+        }
       }
 
       const result = handleListNavigation(event, items, { orientation: 'vertical' });

@@ -176,7 +176,11 @@ export function createThemedDropdownMenu(
 
     const primitive = Menu.Root({
       ...menuOptions,
-      positioning: { placement: 'bottom-start', portal: true },
+      positioning: {
+        placement: 'bottom-start',
+        portal: true,
+        ...(userTrigger ? { referenceElement: userTrigger } : {}),
+      },
     });
 
     // Apply theme class

@@ -23,11 +23,7 @@ const svgStyles: Record<string, (string | RawDeclaration)[]> = {
 };
 
 const intentVariants: Record<string, StyleEntry[]> = {
-  primary: [
-    'bg:primary',
-    'text:primary-foreground',
-    { '&:hover': [bgOpacity('primary', 80)] },
-  ],
+  primary: ['bg:primary', 'text:primary-foreground', { '&:hover': [bgOpacity('primary', 80)] }],
   secondary: [
     'bg:secondary',
     'text:secondary-foreground',
@@ -43,7 +39,10 @@ const intentVariants: Record<string, StyleEntry[]> = {
           property: 'outline',
           value: '3px solid color-mix(in oklch, var(--color-destructive) 20%, transparent)',
         },
-        { property: 'border-color', value: 'color-mix(in oklch, var(--color-destructive) 40%, transparent)' },
+        {
+          property: 'border-color',
+          value: 'color-mix(in oklch, var(--color-destructive) 40%, transparent)',
+        },
       ],
     },
     { [DARK]: [bgOpacity('destructive', 20)] },
@@ -64,13 +63,41 @@ const intentVariants: Record<string, StyleEntry[]> = {
 };
 
 const sizeVariants: Record<string, StyleEntry[]> = {
-  xs: ['h:6', 'gap:1', 'px:2', { '&': [{ property: 'border-radius', value: 'min(var(--radius-md), 10px)' }] }],
-  sm: ['h:7', 'gap:1', { '&': [{ property: 'border-radius', value: 'min(var(--radius-md), 12px)' }, { property: 'padding-left', value: '0.625rem' }, { property: 'padding-right', value: '0.625rem' }] }],
-  md: ['h:8', 'gap:1.5', { '&': [{ property: 'padding-left', value: '0.625rem' }, { property: 'padding-right', value: '0.625rem' }] }],
-  lg: ['h:9', 'gap:1.5', { '&': [{ property: 'padding-left', value: '0.625rem' }, { property: 'padding-right', value: '0.625rem' }] }],
+  xs: ['h:6', 'gap:1', 'px:2', 'rounded:md'],
+  sm: [
+    'h:7',
+    'gap:1',
+    'rounded:md',
+    {
+      '&': [
+        { property: 'padding-left', value: '0.625rem' },
+        { property: 'padding-right', value: '0.625rem' },
+      ],
+    },
+  ],
+  md: [
+    'h:8',
+    'gap:1.5',
+    {
+      '&': [
+        { property: 'padding-left', value: '0.625rem' },
+        { property: 'padding-right', value: '0.625rem' },
+      ],
+    },
+  ],
+  lg: [
+    'h:9',
+    'gap:1.5',
+    {
+      '&': [
+        { property: 'padding-left', value: '0.625rem' },
+        { property: 'padding-right', value: '0.625rem' },
+      ],
+    },
+  ],
   icon: ['h:8', 'w:8'],
-  'icon-xs': ['h:6', 'w:6', { '&': [{ property: 'border-radius', value: 'min(var(--radius-md), 10px)' }] }],
-  'icon-sm': ['h:7', 'w:7', { '&': [{ property: 'border-radius', value: 'min(var(--radius-md), 12px)' }] }],
+  'icon-xs': ['h:6', 'w:6', 'rounded:md'],
+  'icon-sm': ['h:7', 'w:7', 'rounded:md'],
   'icon-lg': ['h:9', 'w:9'],
 };
 
