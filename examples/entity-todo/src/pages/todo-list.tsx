@@ -51,7 +51,7 @@ export function TodoListPage() {
               {err instanceof Error ? err.message : String(err)}
             </div>
           ),
-          data: (response) => (
+          data: (response, revalidating) => (
             <>
               {response.items.length === 0 && (
                 <div class={emptyStateStyles.container}>
@@ -63,7 +63,7 @@ export function TodoListPage() {
               )}
               <div
                 data-testid="todo-list"
-                style="display: flex; flex-direction: column; gap: 0.5rem"
+                style={`display: flex; flex-direction: column; gap: 0.5rem;${revalidating ? ' opacity: 0.6;' : ''}`}
               >
                 {response.items.map((todo: TodosResponse) => (
                   <TodoItem
