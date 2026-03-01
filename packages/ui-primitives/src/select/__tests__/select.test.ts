@@ -74,8 +74,12 @@ describe('Select', () => {
     const itemB = Item('b', 'B');
 
     trigger.click();
-    itemA.focus();
 
+    // First ArrowDown activates first item (no item active after click-open)
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(document.activeElement).toBe(itemA);
+
+    // Second ArrowDown moves to next item
     content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     expect(document.activeElement).toBe(itemB);
   });
@@ -90,11 +94,11 @@ describe('Select', () => {
 
     trigger.click();
 
-    // Navigate down then press Enter
+    // First ArrowDown activates first item, then Enter selects it
     content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     content.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
-    expect(state.value.peek()).toBe('b');
+    expect(state.value.peek()).toBe('a');
   });
 
   it('closes on Escape', () => {
@@ -142,7 +146,12 @@ describe('Select', () => {
     const banana = fruits.Item('banana', 'Banana');
 
     trigger.click();
-    apple.focus();
+
+    // First ArrowDown activates first item
+    content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(document.activeElement).toBe(apple);
+
+    // Second ArrowDown moves to next item
     content.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     expect(document.activeElement).toBe(banana);
   });
