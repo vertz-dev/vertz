@@ -44,6 +44,12 @@ export type {
 export { DatePicker } from './date-picker/date-picker';
 export type { DialogElements, DialogOptions, DialogState } from './dialog/dialog';
 export { Dialog } from './dialog/dialog';
+export type {
+  DropdownMenuElements,
+  DropdownMenuOptions,
+  DropdownMenuState,
+} from './dropdown-menu/dropdown-menu';
+export { DropdownMenu } from './dropdown-menu/dropdown-menu';
 export type { HoverCardElements, HoverCardOptions, HoverCardState } from './hover-card/hover-card';
 export { HoverCard } from './hover-card/hover-card';
 export type { MenuElements, MenuOptions, MenuState } from './menu/menu';
