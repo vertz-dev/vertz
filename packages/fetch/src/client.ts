@@ -339,21 +339,37 @@ export class FetchClient {
 
   private buildURL(path: string, query?: Record<string, unknown>): string {
     const base = this.config.baseURL;
-    // Strip leading slash so the path resolves relative to base, not the origin
-    const relativePath = path.startsWith('/') ? path.slice(1) : path;
-    // Ensure base has trailing slash for correct URL resolution
-    const normalizedBase = base && !base.endsWith('/') ? `${base}/` : base;
-    const url = normalizedBase ? new URL(relativePath, normalizedBase) : new URL(path);
+    const isAbsoluteBase = base && /^https?:\/\//.test(base);
+
+    let urlString: string;
+    if (base && isAbsoluteBase) {
+      // Absolute base: use URL resolution
+      const relativePath = path.startsWith('/') ? path.slice(1) : path;
+      const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+      urlString = new URL(relativePath, normalizedBase).toString();
+    } else if (base) {
+      // Relative base (e.g. '/api'): use string concatenation
+      const normalizedBase = base.endsWith('/') ? base.slice(0, -1) : base;
+      const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+      urlString = `${normalizedBase}${normalizedPath}`;
+    } else {
+      urlString = path;
+    }
 
     if (query) {
+      const params = new URLSearchParams();
       for (const [key, value] of Object.entries(query)) {
         if (value !== undefined && value !== null) {
-          url.searchParams.set(key, String(value));
+          params.set(key, String(value));
         }
+      }
+      const qs = params.toString();
+      if (qs) {
+        urlString += `${urlString.includes('?') ? '&' : '?'}${qs}`;
       }
     }
 
-    return url.toString();
+    return urlString;
   }
 
   private async applyAuth(request: Request): Promise<Request> {
