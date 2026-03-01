@@ -142,6 +142,43 @@ describe('tolerant hydration e2e', () => {
     expect(root.textContent).toContain('visible');
   });
 
+  it('conditional with primitive string branches claims SSR text and switches cleanly', () => {
+    // SSR output: button with conditional comment anchor + text "Add Todo"
+    // This mirrors the entity-todo form button:
+    //   {submitting ? 'Adding...' : 'Add Todo'}
+    root.innerHTML = '<button><!--conditional-->Add Todo</button>';
+
+    const submitting = signal(false);
+    const App = () => {
+      const btn = __element('button');
+      __enterChildren(btn);
+
+      const cond = __conditional(
+        () => submitting.value,
+        () => 'Adding...' as unknown as Node,
+        () => 'Add Todo' as unknown as Node,
+      );
+      __append(btn, cond);
+
+      __exitChildren();
+      return btn;
+    };
+
+    mount(App, root);
+
+    // After hydration, button should show "Add Todo" (no duplication)
+    const btn = root.querySelector('button')!;
+    expect(btn.textContent).toBe('Add Todo');
+
+    // Switch to submitting — should replace, not duplicate
+    submitting.value = true;
+    expect(btn.textContent).toBe('Adding...');
+
+    // Switch back
+    submitting.value = false;
+    expect(btn.textContent).toBe('Add Todo');
+  });
+
   it('list items preserved and reactive after tolerant hydration', () => {
     // SSR output: ul with 3 li items
     root.innerHTML = '<ul><li>A</li><li>B</li><li>C</li></ul>';
