@@ -33,6 +33,7 @@ const headerStyles = css({
     'rounded:md',
     'w:9',
     'h:9',
+    'bg:transparent',
     'text:muted-foreground',
     'hover:text:foreground',
     'hover:bg:accent',

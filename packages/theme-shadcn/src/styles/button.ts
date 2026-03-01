@@ -49,7 +49,9 @@ const intentVariants: Record<string, StyleEntry[]> = {
     { [`${DARK}:hover`]: [bgOpacity('destructive', 30)] },
   ],
   ghost: [
-    { '&:hover': ['bg:muted', 'text:foreground'] },
+    'bg:transparent',
+    'text:foreground',
+    { '&:hover': ['bg:muted'] },
     { [`${DARK}:hover`]: [bgOpacity('muted', 50)] },
   ],
   outline: [
@@ -59,7 +61,11 @@ const intentVariants: Record<string, StyleEntry[]> = {
     { [DARK]: [bgOpacity('input', 30), 'border:input'] },
     { [`${DARK}:hover`]: [bgOpacity('input', 50)] },
   ],
-  link: ['text:primary', { '&:hover': [{ property: 'text-decoration-line', value: 'underline' }] }],
+  link: [
+    'bg:transparent',
+    'text:primary',
+    { '&:hover': [{ property: 'text-decoration-line', value: 'underline' }] },
+  ],
 };
 
 const sizeVariants: Record<string, StyleEntry[]> = {
