@@ -6,7 +6,7 @@
     "dev": "bun node_modules/@vertz/cli/dist/vertz.js dev",
     "dev:legacy": "bun run src/dev-server.ts",
     "build": "bun node_modules/@vertz/cli/dist/vertz.js build",
-    "deploy": "bun run build && cp dist/client/assets/entry-client-*.js dist/client/assets/entry-client.js && rm -f dist/client/index.html && wrangler deploy",
+    "deploy": "bash scripts/deploy.sh",
     "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
     "test": "bun run codegen && bun test",
     "typecheck": "tsc --noEmit"

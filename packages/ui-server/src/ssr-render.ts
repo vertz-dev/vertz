@@ -5,7 +5,7 @@
  * real TypeScript functions that can be imported directly.
  */
 
-import { compileTheme, resetInjectedStyles, type Theme } from '@vertz/ui';
+import { compileTheme, type Theme } from '@vertz/ui';
 import { installDomShim, removeDomShim, SSRElement, toVNode } from './dom-shim';
 import { renderToStream } from './render-to-stream';
 import {
@@ -232,7 +232,12 @@ async function ssrRenderToStringUnsafe(
       return { html, css, ssrData };
     } finally {
       clearGlobalSSRTimeout();
-      resetInjectedStyles();
+      // NOTE: Do NOT call resetInjectedStyles() here.
+      // In Cloudflare Workers, wrangler deduplicates @vertz/ui into a single
+      // module instance shared between the app and @vertz/ui-server. Clearing
+      // injectedCSS would permanently destroy component CSS from module-level
+      // css() calls (which only run once at import time). The injectedCSS Set
+      // naturally deduplicates, so CSS from previous renders doesn't leak.
       removeDomShim();
       // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
       delete (globalThis as any).__SSR_URL__;
@@ -311,7 +316,7 @@ async function ssrDiscoverQueriesUnsafe(
       };
     } finally {
       clearGlobalSSRTimeout();
-      resetInjectedStyles();
+      // NOTE: Do NOT call resetInjectedStyles() — same reason as ssrRenderToStringUnsafe.
       removeDomShim();
       // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
       delete (globalThis as any).__SSR_URL__;
