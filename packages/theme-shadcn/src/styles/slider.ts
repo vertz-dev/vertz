@@ -55,7 +55,7 @@ export function createSliderStyles(): CSSOutput<SliderBlocks> {
         '&': [
           { property: 'background', value: 'white' },
           { property: 'transition', value: 'color 150ms, box-shadow 150ms' },
-          { property: 'position', value: 'relative' },
+          { property: 'top', value: '50%' },
         ],
       },
       {

@@ -131,9 +131,9 @@ export const Slider = {
       document.addEventListener('pointerup', onUp);
     });
 
-    // Position thumb absolutely within the track
+    // Position thumb absolutely within the track, centered vertically
     thumb.style.position = 'absolute';
-    thumb.style.transform = 'translateX(-50%)';
+    thumb.style.transform = 'translate(-50%, -50%)';
 
     track.style.position = 'relative';
     track.appendChild(fill);
