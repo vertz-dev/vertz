@@ -1,4 +1,4 @@
-import { claimComment, getIsHydrating } from '../hydrate/hydration-context';
+import { claimComment, claimText, getIsHydrating } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
@@ -68,7 +68,12 @@ function hydrateConditional(
       } else if (isRenderNode(branchResult)) {
         currentNode = branchResult;
       } else {
-        currentNode = getAdapter().createTextNode(String(branchResult)) as unknown as Node;
+        // Branch returned a primitive (string/number). The SSR DOM contains
+        // a text node with this value — claim it so the cursor advances past
+        // it and we have a reference for future branch switches (replaceChild).
+        const claimed = claimText();
+        currentNode =
+          claimed ?? (getAdapter().createTextNode(String(branchResult)) as unknown as Node);
       }
       return;
     }

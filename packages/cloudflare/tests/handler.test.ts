@@ -416,14 +416,18 @@ describe('createHandler (SSR module config)', () => {
 
     await worker.fetch(new Request('https://example.com/'), mockEnv, mockCtx);
 
-    expect(mockCreateSSRHandler).toHaveBeenCalledWith({
-      module: ssrModule,
-      template: expect.stringContaining('/assets/entry-client.js'),
-    });
-    expect(mockCreateSSRHandler).toHaveBeenCalledWith({
-      module: ssrModule,
-      template: expect.stringContaining('<title>Vertz App</title>'),
-    });
+    expect(mockCreateSSRHandler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        module: ssrModule,
+        template: expect.stringContaining('/assets/entry-client.js'),
+      }),
+    );
+    expect(mockCreateSSRHandler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        module: ssrModule,
+        template: expect.stringContaining('<title>Vertz App</title>'),
+      }),
+    );
   });
 
   it('passes custom clientScript and title to createSSRHandler', async () => {
@@ -442,14 +446,18 @@ describe('createHandler (SSR module config)', () => {
 
     await worker.fetch(new Request('https://example.com/'), mockEnv, mockCtx);
 
-    expect(mockCreateSSRHandler).toHaveBeenCalledWith({
-      module: ssrModule,
-      template: expect.stringContaining('/custom/client.js'),
-    });
-    expect(mockCreateSSRHandler).toHaveBeenCalledWith({
-      module: ssrModule,
-      template: expect.stringContaining('<title>My Custom App</title>'),
-    });
+    expect(mockCreateSSRHandler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        module: ssrModule,
+        template: expect.stringContaining('/custom/client.js'),
+      }),
+    );
+    expect(mockCreateSSRHandler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        module: ssrModule,
+        template: expect.stringContaining('<title>My Custom App</title>'),
+      }),
+    );
   });
 
   it('still works with ssr callback (backward compat)', async () => {
