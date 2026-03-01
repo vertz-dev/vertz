@@ -75,5 +75,5 @@
   "engines": {
     "node": ">=22"
   },
-  "sideEffects": false
+  "sideEffects": ["dist/shared/*.js"]
 }

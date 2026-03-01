@@ -9,7 +9,7 @@
 import { createHandler } from '@vertz/cloudflare';
 import { createDb } from '@vertz/db';
 import { createServer, type ServerConfig } from '@vertz/server';
-import * as app from './app';
+import * as app from '../dist/server/app';
 import { todos } from './entities';
 import { todosModel } from './schema';
 

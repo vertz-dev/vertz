@@ -19,10 +19,13 @@ export type {
 export { createD1Adapter, createD1Driver } from './adapters/d1-adapter';
 // Database bridge adapter (dialect-agnostic — used by @vertz/server)
 export { createDatabaseBridgeAdapter } from './adapters/database-bridge-adapter';
-// Dialect-specific adapters — also available via @vertz/db/{sqlite,postgres,d1}
-// Re-exported here so sub-path types share the same PhantomType declaration.
-export type { SqliteAdapterOptions } from './adapters/sqlite-adapter';
-export { createSqliteAdapter, createSqliteDriver } from './adapters/sqlite-adapter';
+// Dialect-specific types — re-exported so sub-path type resolution (via dist/index.d.ts)
+// sees a single PhantomType symbol. Runtime functions live only in @vertz/db/sqlite.
+export type {
+  createSqliteAdapter,
+  createSqliteDriver,
+  SqliteAdapterOptions,
+} from './adapters/sqlite-adapter';
 // CLI / Migrations
 export type {
   BaselineOptions,
@@ -63,8 +66,7 @@ export type {
   TenantGraph,
 } from './client';
 export { computeTenantGraph, createDb } from './client';
-export type { PostgresDriver } from './client/postgres-driver';
-export { createPostgresDriver } from './client/postgres-driver';
+export type { createPostgresDriver, PostgresDriver } from './client/postgres-driver';
 // Schema builder
 export { d } from './d';
 // Diagnostic
@@ -124,7 +126,6 @@ export type { MigrationFile, MigrationQueryFn } from './migration/runner';
 export { parseMigrationName } from './migration/runner';
 export type { SchemaSnapshot } from './migration/snapshot';
 export { createSnapshot } from './migration/snapshot';
-export { NodeSnapshotStorage } from './migration/snapshot-storage';
 // Schema types
 export type {
   ColumnBuilder,

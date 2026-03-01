@@ -103,8 +103,3 @@ export async function createDbProvider<T extends ColumnRecord>(
 export type { D1AdapterOptions, D1DatabaseBinding, D1PreparedStatement } from './d1-adapter';
 export { createD1Adapter, createD1Driver } from './d1-adapter';
 export { createDatabaseBridgeAdapter } from './database-bridge-adapter';
-
-// Export types
-export type { SqliteAdapterOptions } from './sqlite-adapter';
-// Re-export types and functions from sub-modules
-export { createSqliteAdapter, createSqliteDriver } from './sqlite-adapter';
