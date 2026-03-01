@@ -19,6 +19,13 @@ export type {
 export { createD1Adapter, createD1Driver } from './adapters/d1-adapter';
 // Database bridge adapter (dialect-agnostic — used by @vertz/server)
 export { createDatabaseBridgeAdapter } from './adapters/database-bridge-adapter';
+// Dialect-specific types — re-exported so sub-path type resolution (via dist/index.d.ts)
+// sees a single PhantomType symbol. Runtime functions live only in @vertz/db/sqlite.
+export type {
+  createSqliteAdapter,
+  createSqliteDriver,
+  SqliteAdapterOptions,
+} from './adapters/sqlite-adapter';
 // CLI / Migrations
 export type {
   BaselineOptions,
