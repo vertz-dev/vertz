@@ -7,6 +7,8 @@ import {
   enterChildren,
   exitChildren,
   getIsHydrating,
+  pauseHydration,
+  resumeHydration,
   startHydration,
 } from '../hydration-context';
 
@@ -310,6 +312,45 @@ describe('hydration-context', () => {
       startHydration(root1);
 
       expect(() => startHydration(root2)).toThrow(/already active/);
+    });
+  });
+
+  describe('pauseHydration / resumeHydration', () => {
+    it('pauseHydration sets isHydrating to false', () => {
+      const root = document.createElement('div');
+      startHydration(root);
+      expect(getIsHydrating()).toBe(true);
+
+      pauseHydration();
+      expect(getIsHydrating()).toBe(false);
+    });
+
+    it('resumeHydration restores isHydrating to true', () => {
+      const root = document.createElement('div');
+      startHydration(root);
+
+      pauseHydration();
+      expect(getIsHydrating()).toBe(false);
+
+      resumeHydration();
+      expect(getIsHydrating()).toBe(true);
+    });
+
+    it('preserves cursor position across pause/resume', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<span></span><p></p>';
+      startHydration(root);
+
+      // Claim first element to advance cursor
+      claimElement('span');
+
+      // Pause and resume — cursor should stay at <p>
+      pauseHydration();
+      resumeHydration();
+
+      const p = claimElement('p');
+      expect(p).not.toBeNull();
+      expect(p?.tagName).toBe('P');
     });
   });
 });

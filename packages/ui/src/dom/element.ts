@@ -4,6 +4,8 @@ import {
   enterChildren,
   exitChildren,
   getIsHydrating,
+  pauseHydration,
+  resumeHydration,
 } from '../hydrate/hydration-context';
 import { domEffect } from '../runtime/signal';
 import type { DisposeFn } from '../runtime/signal-types';
@@ -63,34 +65,43 @@ export function __child(
     const claimed = claimElement('span');
     if (claimed) {
       wrapper = claimed as HTMLElement & { dispose: DisposeFn };
-      // Attach reactive effect to adopted wrapper — first run reads value
-      // without clearing (SSR content is already correct)
-      let isFirstRun = true;
-      wrapper.dispose = domEffect(() => {
-        const value = fn();
 
-        if (isFirstRun) {
-          isFirstRun = false;
-          return;
-        }
+      // Clear SSR children — they will be re-rendered via CSR below.
+      // The JSX runtime (used for JSX inside callbacks like queryMatch handlers)
+      // is not hydration-aware, so attempting to hydrate these children would
+      // create detached DOM nodes with dead event handlers. See #826.
+      while (wrapper.firstChild) {
+        wrapper.removeChild(wrapper.firstChild);
+      }
 
-        // Clear previous content
-        while (wrapper.firstChild) {
-          wrapper.removeChild(wrapper.firstChild);
-        }
+      // Pause hydration so fn() creates fresh DOM via CSR path.
+      // domEffect runs synchronously on first call, so this completes
+      // before any browser paint — no visual flash.
+      pauseHydration();
+      try {
+        wrapper.dispose = domEffect(() => {
+          const value = fn();
 
-        if (value == null || typeof value === 'boolean') {
-          return;
-        }
+          // Clear previous content
+          while (wrapper.firstChild) {
+            wrapper.removeChild(wrapper.firstChild);
+          }
 
-        if (isRenderNode(value)) {
-          wrapper.appendChild(value as Node);
-          return;
-        }
+          if (value == null || typeof value === 'boolean') {
+            return;
+          }
 
-        const textValue = typeof value === 'string' ? value : String(value);
-        wrapper.appendChild(getAdapter().createTextNode(textValue) as unknown as Node);
-      });
+          if (isRenderNode(value)) {
+            wrapper.appendChild(value as Node);
+            return;
+          }
+
+          const textValue = typeof value === 'string' ? value : String(value);
+          wrapper.appendChild(getAdapter().createTextNode(textValue) as unknown as Node);
+        });
+      } finally {
+        resumeHydration();
+      }
       return wrapper;
     }
   }
