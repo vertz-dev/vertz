@@ -31,7 +31,7 @@ export const layoutStyles = css({
     'border-b:1',
     'border:border',
   ],
-  main: ['flex-1', 'max-w:lg', 'mx:auto', 'w:full', 'p:6'],
+  main: ['flex-1', 'max-w:2xl', 'mx:auto', 'w:full', 'p:6'],
 });
 
 // ── Form styles (app-specific extensions) ───────────────────
@@ -54,8 +54,8 @@ export const todoItemStyles = css({
     'border:border',
   ],
   checkbox: ['w:5', 'h:5', 'cursor:pointer'],
-  title: ['flex-1', 'text:sm', 'text:foreground'],
-  titleCompleted: ['flex-1', 'text:sm', 'text:muted-foreground'],
+  title: ['flex-1', 'text:sm', 'font:normal', 'text:foreground'],
+  titleCompleted: ['flex-1', 'text:sm', 'font:normal', 'text:muted-foreground'],
   deleteBtn: ['text:xs', 'text:muted-foreground', 'hover:text:destructive', 'cursor:pointer'],
 });
 

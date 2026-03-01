@@ -16,8 +16,8 @@ import { TodoItem } from '../components/todo-item';
 import { emptyStateStyles } from '../styles/components';
 
 const pageStyles = css({
-  container: ['py:2'],
-  listContainer: ['flex', 'flex-col', 'gap:2', 'mt:6'],
+  container: ['py:2', 'w:full'],
+  listContainer: ['flex', 'flex-col', 'gap:2', 'mt:6', 'w:full'],
 });
 
 export function TodoListPage() {

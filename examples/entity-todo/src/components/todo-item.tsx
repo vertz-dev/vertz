@@ -63,7 +63,7 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
       />
       <span
         class={isCompleted ? todoItemStyles.titleCompleted : todoItemStyles.title}
-        style={isCompleted ? 'text-decoration: line-through' : ''}
+        style={isCompleted ? 'text-decoration: line-through; font-weight: 400' : 'font-weight: 400'}
         data-testid={`todo-title-${id}`}
       >
         {title}

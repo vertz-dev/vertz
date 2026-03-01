@@ -29,7 +29,7 @@ export function TodoForm({ onSuccess }: TodoFormProps) {
       onSubmit={todoForm.onSubmit}
       data-testid="create-todo-form"
     >
-      <div style="display: flex; gap: 0.5rem; align-items: flex-start">
+      <div style="display: flex; gap: 0.5rem; align-items: flex-start; width: 100%">
         <div style="flex: 1">
           <input
             class={inputStyles.base}
