@@ -1,19 +1,29 @@
 /**
  * Deterministic, hash-based class name generation.
  *
- * Produces CSS Modules-style names: `_<hash>` based on file path + block name.
- * The hash is stable across builds for the same input.
+ * Produces CSS Modules-style names: `_<hash>` based on file path + block name
+ * + style content. The hash is stable across builds for the same input.
  */
 
 /**
- * Generate a deterministic class name from a file path and block name.
+ * Generate a deterministic class name from a file path, block name, and style content.
  *
  * @param filePath - Source file path (used as part of the hash input).
  * @param blockName - The named block within css() (e.g. 'card', 'title').
+ * @param styleFingerprint - Serialized style entries for disambiguation.
+ *   At compile time this is empty (file paths are unique enough).
+ *   At runtime this prevents collisions when multiple css() calls share
+ *   the same default file path ('__runtime__') and block name.
  * @returns A scoped class name like `_a1b2c3d4`.
  */
-export function generateClassName(filePath: string, blockName: string): string {
-  const input = `${filePath}::${blockName}`;
+export function generateClassName(
+  filePath: string,
+  blockName: string,
+  styleFingerprint = '',
+): string {
+  const input = styleFingerprint
+    ? `${filePath}::${blockName}::${styleFingerprint}`
+    : `${filePath}::${blockName}`;
   const hash = djb2Hash(input);
   return `_${hash}`;
 }
