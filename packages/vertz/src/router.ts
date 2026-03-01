@@ -6,7 +6,7 @@ export type {
   MatchedRoute,
   MatchResult,
   NavigateOptions,
-  OutletContext,
+  OutletContextValue,
   RouteConfig,
   RouteDefinitionMap,
   RouteMatch,
@@ -15,7 +15,8 @@ export type {
 } from '@vertz/ui';
 export {
   createLink,
-  createOutlet,
+  Outlet,
+  OutletContext,
   createRouter,
   defineRoutes,
   executeLoaders,

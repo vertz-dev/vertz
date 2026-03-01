@@ -5,16 +5,16 @@
  * - defineRoutes() for route definition with loaders
  * - createRouter() for navigation state
  * - createLink() for client-side navigation with active state
- * - createOutlet() for nested route rendering
+ * - Outlet for nested route rendering
  * - Pages access navigation via useAppRouter() context (no prop threading)
  */
 
-import type { InferRouteMap, OutletContext } from '@vertz/ui';
+import type { InferRouteMap } from '@vertz/ui';
 import {
+  Outlet,
+  OutletContext,
   computed,
-  createContext,
   createLink,
-  createOutlet,
   createRouter,
   defineRoutes,
   useRouter,
@@ -103,14 +103,9 @@ export const Link = createLink(currentPath, (url: string) => {
 });
 
 /**
- * Create an Outlet context and component for nested route rendering.
+ * Re-export Outlet for convenience.
  *
- * This is set up even though we're using flat routes in this demo,
- * to demonstrate the API for layout patterns.
+ * The shared OutletContext is populated by RouterView when rendering
+ * nested routes. Layouts call Outlet() to render their child route.
  */
-export const outletContext = createContext<OutletContext>({
-  childComponent: undefined,
-  depth: 0,
-});
-
-export const Outlet = createOutlet(outletContext);
+export { Outlet, OutletContext };
