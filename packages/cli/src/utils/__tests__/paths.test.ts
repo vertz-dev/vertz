@@ -7,8 +7,9 @@ describe('findProjectRoot', () => {
     expect(root).toBeDefined();
   });
 
-  it('returns undefined for an empty temp directory', () => {
-    const root = findProjectRoot('/tmp/nonexistent-dir-abc123');
+  it('returns undefined for a path with no package.json in ancestors', () => {
+    // Use a path deep enough that no ancestor has package.json
+    const root = findProjectRoot('/nonexistent-dir-abc123/deeply/nested');
     expect(root).toBeUndefined();
   });
 
