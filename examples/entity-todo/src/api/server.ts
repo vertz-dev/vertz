@@ -1,6 +1,6 @@
 import { createServer } from '@vertz/server';
 import { createTodosDb } from './db';
-import { todos } from './entities';
+import { todos } from './entities/todos/todos.entity';
 
 const todosDbAdapter = createTodosDb();
 
