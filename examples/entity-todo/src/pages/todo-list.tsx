@@ -42,7 +42,10 @@ export function TodoListPage() {
     <div class={pageStyles.container} data-testid="todo-list-page">
       <TodoForm onSuccess={handleCreate} />
 
-      <div class={pageStyles.listContainer}>
+      <div
+        class={pageStyles.listContainer}
+        style={todosQuery.revalidating ? 'opacity: 0.6' : ''}
+      >
         {queryMatch(todosQuery, {
           loading: () => (
             <div data-testid="loading" class={pageStyles.loading}>
@@ -64,11 +67,7 @@ export function TodoListPage() {
                   </p>
                 </div>
               )}
-              <div
-                data-testid="todo-list"
-                class={pageStyles.todoList}
-                style={todosQuery.revalidating ? 'opacity: 0.6' : ''}
-              >
+              <div data-testid="todo-list" class={pageStyles.todoList}>
                 {response.items.map((todo: TodosResponse) => (
                   <TodoItem
                     key={todo.id}

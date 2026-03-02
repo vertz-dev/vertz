@@ -224,7 +224,7 @@ describe('queryMatch()', () => {
     second.dispose();
   });
 
-  test('does not re-run data handler when data signal changes within same branch', () => {
+  test('re-runs data handler when data signal changes within data branch', () => {
     const qr = fakeQueryResult<{ count: number }>({
       loading: false,
       data: { count: 1 },
@@ -243,10 +243,11 @@ describe('queryMatch()', () => {
 
     expect(handlerCallCount).toBe(1);
 
-    // Data changes but branch stays 'data' → handler should NOT re-run
+    // Data changes → handler re-runs (compiler doesn't yet generate __list()
+    // inside queryMatch callbacks, so .map() creates static DOM)
     qr._data.value = { count: 2 };
 
-    expect(handlerCallCount).toBe(1);
+    expect(handlerCallCount).toBe(2);
 
     wrapper.dispose();
   });
