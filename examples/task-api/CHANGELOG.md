@@ -1,5 +1,14 @@
 # task-api-example
 
+## 0.0.2
+
+### Patch Changes
+
+- Updated dependencies [[`023f1fc`](https://github.com/vertz-dev/vertz/commit/023f1fc4c6c8a121edf448bcd11421a3add7b9d2), [`023f1fc`](https://github.com/vertz-dev/vertz/commit/023f1fc4c6c8a121edf448bcd11421a3add7b9d2), [`869699d`](https://github.com/vertz-dev/vertz/commit/869699d52d9fa685996acb418b8f8fb1bb554f6f), [`e4c15ac`](https://github.com/vertz-dev/vertz/commit/e4c15ac37ec290bbde34bf27bfeae08287db0808)]:
+  - @vertz/core@0.2.1
+  - @vertz/db@0.2.1
+  - @vertz/schema@0.2.1
+
 ## 0.0.1
 
 ### Patch Changes

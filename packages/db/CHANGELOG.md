@@ -1,5 +1,23 @@
 # @vertz/db
 
+## 0.2.1
+
+### Patch Changes
+
+- [`023f1fc`](https://github.com/vertz-dev/vertz/commit/023f1fc4c6c8a121edf448bcd11421a3add7b9d2) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Entity-Driven Architecture (EDA) v0.1.0 — schema and model layer.
+
+  - Added `.readOnly()` and `.autoUpdate()` column annotations with `isReadOnly`/`isAutoUpdate` metadata
+  - Added `$response`, `$create_input`, `$update_input` phantom types on `TableDef`
+  - Added `d.model(table, relations?)` returning `ModelDef` with derived schemas
+  - Each schema has a `parse()` method compatible with `SchemaLike` duck type
+  - Runtime CRUD strips readOnly fields and auto-sets autoUpdate timestamps
+
+- [#808](https://github.com/vertz-dev/vertz/pull/808) [`e4c15ac`](https://github.com/vertz-dev/vertz/commit/e4c15ac37ec290bbde34bf27bfeae08287db0808) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove legacy domain codegen (defineDomain, generateTypes, generateClient) and domain-gen CLI command. This dead pre-EDA code is superseded by the domain() grouping primitive.
+
+- Updated dependencies [[`9dc2134`](https://github.com/vertz-dev/vertz/commit/9dc21349e18b35d2f254c12160c27ac89acd7f0a), [`c19527e`](https://github.com/vertz-dev/vertz/commit/c19527e815fde35bdeefad9d00ceafa35eae1b0a)]:
+  - @vertz/errors@0.1.1
+  - @vertz/schema@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
