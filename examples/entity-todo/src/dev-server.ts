@@ -39,6 +39,7 @@ const app = createServer({
 
 const devServer = createBunDevServer({
   entry: './src/app.tsx',
+  clientEntry: './src/entry-client.ts',
   port: PORT,
   ssrModule: true,
   title: 'Entity Todo — vertz full-stack demo',

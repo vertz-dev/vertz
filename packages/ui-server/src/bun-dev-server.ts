@@ -54,6 +54,153 @@ export interface BunDevServer {
   stop(): Promise<void>;
 }
 
+export interface IndexHtmlStasher {
+  stash(): void;
+  restore(): void;
+}
+
+/**
+ * Create a stasher that renames index.html during dev so Bun's built-in
+ * HMR server doesn't auto-serve it, bypassing our SSR fetch handler.
+ */
+export function createIndexHtmlStasher(projectRoot: string): IndexHtmlStasher {
+  const indexHtmlPath = resolve(projectRoot, 'index.html');
+  const indexHtmlBackupPath = resolve(projectRoot, '.vertz', 'dev', 'index.html.bak');
+  let stashed = false;
+
+  return {
+    stash() {
+      if (existsSync(indexHtmlPath)) {
+        mkdirSync(resolve(projectRoot, '.vertz', 'dev'), { recursive: true });
+        renameSync(indexHtmlPath, indexHtmlBackupPath);
+        stashed = true;
+      }
+    },
+    restore() {
+      if (stashed && existsSync(indexHtmlBackupPath)) {
+        renameSync(indexHtmlBackupPath, indexHtmlPath);
+        stashed = false;
+      }
+    },
+  };
+}
+
+export interface HMRAssets {
+  /** Discovered `/_bun/client/<hash>.js` URL, or null if not found */
+  scriptUrl: string | null;
+  /** HMR bootstrap `<script>` tag, or null if not found */
+  bootstrapScript: string | null;
+}
+
+/**
+ * Parse the HTML returned by the HMR shell route (`/__vertz_hmr`) to extract
+ * the bundled client script URL and HMR bootstrap snippet.
+ */
+export function parseHMRAssets(html: string): HMRAssets {
+  const srcMatch = html.match(/src="(\/_bun\/client\/[^"]+\.js)"/);
+  const bootstrapMatch = html.match(/<script>(\(\(a\)=>\{document\.addEventListener.*?)<\/script>/);
+
+  return {
+    scriptUrl: srcMatch?.[1] ?? null,
+    bootstrapScript: bootstrapMatch?.[1] ? `<script>${bootstrapMatch[1]}</script>` : null,
+  };
+}
+
+export interface SSRPageHtmlOptions {
+  title: string;
+  css: string;
+  bodyHtml: string;
+  ssrData: unknown[];
+  scriptTag: string;
+}
+
+/**
+ * Generate a full SSR HTML page with the given content, CSS, SSR data, and script tag.
+ */
+export function generateSSRPageHtml({
+  title,
+  css,
+  bodyHtml,
+  ssrData,
+  scriptTag,
+}: SSRPageHtmlOptions): string {
+  const ssrDataScript =
+    ssrData.length > 0
+      ? `<script>window.__VERTZ_SSR_DATA__=${safeSerialize(ssrData)};</script>`
+      : '';
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${title}</title>
+    ${css}
+  </head>
+  <body>
+    <div id="app">${bodyHtml}</div>
+    ${ssrDataScript}
+    ${scriptTag}
+  </body>
+</html>`;
+}
+
+export interface FetchInterceptorOptions {
+  apiHandler: (req: Request) => Promise<Response>;
+  origin: string;
+  skipSSRPaths: string[];
+  originalFetch: typeof fetch;
+}
+
+/**
+ * Create a fetch interceptor that routes local API requests through the
+ * in-memory apiHandler instead of making HTTP self-fetch calls.
+ * Matches production (Cloudflare) behavior where fetch('/api/...') during
+ * SSR goes through the same handler.
+ */
+export function createFetchInterceptor({
+  apiHandler,
+  origin,
+  skipSSRPaths,
+  originalFetch,
+}: FetchInterceptorOptions): typeof fetch {
+  const intercepted: typeof fetch = (input, init) => {
+    const rawUrl =
+      typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const isRelative = rawUrl.startsWith('/');
+    const fetchPath = isRelative ? (rawUrl.split('?')[0] ?? '/') : new URL(rawUrl).pathname;
+    const isLocal = isRelative || new URL(rawUrl).origin === origin;
+
+    if (isLocal && skipSSRPaths.some((p) => fetchPath.startsWith(p))) {
+      const absoluteUrl = isRelative ? `${origin}${rawUrl}` : rawUrl;
+      const req = new Request(absoluteUrl, init);
+      return apiHandler(req);
+    }
+    return originalFetch(input, init);
+  };
+  intercepted.preconnect = originalFetch.preconnect;
+  return intercepted;
+}
+
+/**
+ * Build the `<script>` tag for SSR HTML output.
+ *
+ * When `bundledScriptUrl` is available (HMR discovered), generates a tag with
+ * `data-bun-dev-server-script` attribute required by Bun's HMR lifecycle.
+ * Otherwise falls back to a plain module script pointing at the client source.
+ */
+export function buildScriptTag(
+  bundledScriptUrl: string | null,
+  hmrBootstrapScript: string | null,
+  clientSrc: string,
+): string {
+  if (bundledScriptUrl) {
+    const bootstrap = hmrBootstrapScript ? `\n    ${hmrBootstrapScript}` : '';
+    return `<script type="module" crossorigin src="${bundledScriptUrl}" data-bun-dev-server-script></script>${bootstrap}`;
+  }
+  return `<script type="module" src="${clientSrc}"></script>`;
+}
+
 /**
  * Create a unified Bun dev server with SSR + HMR.
  *
@@ -75,28 +222,11 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
   let server: ReturnType<typeof Bun.serve> | null = null;
   let srcWatcherRef: ReturnType<typeof watch> | null = null;
-  let stashedIndexHtml = false;
 
   // Bun's dev server auto-serves index.html from the project root when
   // development.hmr is true, bypassing the fetch() handler entirely.
   // We stash it during dev so all requests go through our SSR fetch handler.
-  const indexHtmlPath = resolve(projectRoot, 'index.html');
-  const indexHtmlBackupPath = resolve(projectRoot, '.vertz', 'dev', 'index.html.bak');
-
-  function stashIndexHtml(): void {
-    if (existsSync(indexHtmlPath)) {
-      mkdirSync(resolve(projectRoot, '.vertz', 'dev'), { recursive: true });
-      renameSync(indexHtmlPath, indexHtmlBackupPath);
-      stashedIndexHtml = true;
-    }
-  }
-
-  function restoreIndexHtml(): void {
-    if (stashedIndexHtml && existsSync(indexHtmlBackupPath)) {
-      renameSync(indexHtmlBackupPath, indexHtmlPath);
-      stashedIndexHtml = false;
-    }
-  }
+  const indexHtmlStasher = createIndexHtmlStasher(projectRoot);
 
   // OpenAPI spec caching
   let cachedSpec: object | null = null;
@@ -159,13 +289,16 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
   async function start(): Promise<void> {
     // Stash index.html so Bun's dev server doesn't auto-serve it
-    stashIndexHtml();
+    indexHtmlStasher.stash();
 
     const { plugin } = await import('bun');
     const { createVertzBunPlugin } = await import('./bun-plugin');
 
     const entryPath = resolve(projectRoot, entry);
-    const clientSrc = clientEntryOption ?? entry;
+    const rawClientSrc = clientEntryOption ?? entry;
+    // Normalize to absolute URL path (e.g., '/src/app.tsx') so it resolves
+    // from the project root regardless of where the HMR shell HTML lives.
+    const clientSrc = rawClientSrc.replace(/^\.\//, '/');
 
     // Register JSX runtime swap for SSR (server-side imports)
     plugin({
@@ -254,6 +387,11 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         const url = new URL(request.url);
         const pathname = url.pathname;
 
+        // Let Bun handle its internal /_bun/ routes (HMR client bundles, assets)
+        if (pathname.startsWith('/_bun/')) {
+          return undefined as unknown as Response;
+        }
+
         // OpenAPI spec (fallback for non-route match)
         if (openapi && request.method === 'GET' && pathname === '/api/openapi.json') {
           return serveOpenAPISpec();
@@ -323,57 +461,24 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           // instead of HTTP self-fetch. Matches production (Cloudflare) behavior.
           const originalFetch = globalThis.fetch;
           if (apiHandler) {
-            const origin = `http://${host}:${server!.port}`;
-            const interceptedFetch: typeof fetch = (input, init) => {
-              const rawUrl =
-                typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-              const isRelative = rawUrl.startsWith('/');
-              const fetchPath = isRelative
-                ? (rawUrl.split('?')[0] ?? '/')
-                : new URL(rawUrl).pathname;
-              const isLocal = isRelative || new URL(rawUrl).origin === origin;
-
-              if (isLocal && skipSSRPaths.some((p) => fetchPath.startsWith(p))) {
-                const absoluteUrl = isRelative ? `${origin}${rawUrl}` : rawUrl;
-                const req = new Request(absoluteUrl, init);
-                return apiHandler(req);
-              }
-              return originalFetch(input, init);
-            };
-            interceptedFetch.preconnect = originalFetch.preconnect;
-            globalThis.fetch = interceptedFetch;
+            globalThis.fetch = createFetchInterceptor({
+              apiHandler,
+              origin: `http://${host}:${server?.port}`,
+              skipSSRPaths,
+              originalFetch,
+            });
           }
 
           try {
             const result = await ssrRenderToString(ssrMod, pathname, { ssrTimeout: 300 });
-
-            // Generate HTML with discovered HMR script URL
-            const clientEntry = bundledScriptUrl ?? `/${clientSrc}`;
-
-            // Build the script tag with HMR attributes
-            const scriptTag = bundledScriptUrl
-              ? `<script type="module" crossorigin src="${bundledScriptUrl}" data-bun-dev-server-script></script>${hmrBootstrapScript ? `\n    ${hmrBootstrapScript}` : ''}`
-              : `<script type="module" src="${clientEntry}"></script>`;
-
-            const ssrDataScript =
-              result.ssrData.length > 0
-                ? `<script>window.__VERTZ_SSR_DATA__=${safeSerialize(result.ssrData)};</script>`
-                : '';
-
-            const html = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${title}</title>
-    ${result.css}
-  </head>
-  <body>
-    <div id="app">${result.html}</div>
-    ${ssrDataScript}
-    ${scriptTag}
-  </body>
-</html>`;
+            const scriptTag = buildScriptTag(bundledScriptUrl, hmrBootstrapScript, clientSrc);
+            const html = generateSSRPageHtml({
+              title,
+              css: result.css,
+              bodyHtml: result.html,
+              ssrData: result.ssrData,
+              scriptTag,
+            });
 
             return new Response(html, {
               status: 200,
@@ -386,24 +491,14 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           }
         } catch (err) {
           console.error('[Server] SSR error:', err);
-          // Graceful fallback: serve minimal client-only HTML
-          const clientEntry = bundledScriptUrl ?? `/${clientSrc}`;
-          const scriptTag = bundledScriptUrl
-            ? `<script type="module" crossorigin src="${bundledScriptUrl}" data-bun-dev-server-script></script>${hmrBootstrapScript ? `\n    ${hmrBootstrapScript}` : ''}`
-            : `<script type="module" src="${clientEntry}"></script>`;
-
-          const fallbackHtml = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${title}</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    ${scriptTag}
-  </body>
-</html>`;
+          const scriptTag = buildScriptTag(bundledScriptUrl, hmrBootstrapScript, clientSrc);
+          const fallbackHtml = generateSSRPageHtml({
+            title,
+            css: '',
+            bodyHtml: '',
+            ssrData: [],
+            scriptTag,
+          });
 
           return new Response(fallbackHtml, {
             status: 200,
@@ -427,24 +522,19 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
     async function discoverHMRAssets(): Promise<void> {
       try {
-        const res = await fetch(`http://${host}:${server!.port}/__vertz_hmr`);
+        const res = await fetch(`http://${host}:${server?.port}/__vertz_hmr`);
         const html = await res.text();
+        const assets = parseHMRAssets(html);
 
-        // Extract the bundled /_bun/client/... URL
-        const srcMatch = html.match(/src="(\/_bun\/client\/[^"]+\.js)"/);
-        if (srcMatch?.[1]) {
-          bundledScriptUrl = srcMatch[1];
+        if (assets.scriptUrl) {
+          bundledScriptUrl = assets.scriptUrl;
           if (logRequests) {
             console.log('[Server] Discovered bundled script URL:', bundledScriptUrl);
           }
         }
 
-        // Extract the HMR bootstrap script (the unref beacon script)
-        const bootstrapMatch = html.match(
-          /<script>(\(\(a\)=>\{document\.addEventListener.*?)<\/script>/,
-        );
-        if (bootstrapMatch?.[1]) {
-          hmrBootstrapScript = `<script>${bootstrapMatch[1]}</script>`;
+        if (assets.bootstrapScript) {
+          hmrBootstrapScript = assets.bootstrapScript;
           if (logRequests) {
             console.log('[Server] Extracted HMR bootstrap script');
           }
@@ -508,7 +598,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       }
 
       // Restore index.html if we stashed it
-      restoreIndexHtml();
+      indexHtmlStasher.restore();
     },
   };
 }
