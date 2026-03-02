@@ -183,9 +183,9 @@ describe('buildScriptTag', () => {
   });
 
   it('generates plain module script when no bundledScriptUrl', () => {
-    const tag = buildScriptTag(null, null, './src/app.tsx');
+    const tag = buildScriptTag(null, null, '/src/app.tsx');
 
-    expect(tag).toContain('src="/./src/app.tsx"');
+    expect(tag).toContain('src="/src/app.tsx"');
     expect(tag).not.toContain('data-bun-dev-server-script');
   });
 

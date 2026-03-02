@@ -198,7 +198,7 @@ export function buildScriptTag(
     const bootstrap = hmrBootstrapScript ? `\n    ${hmrBootstrapScript}` : '';
     return `<script type="module" crossorigin src="${bundledScriptUrl}" data-bun-dev-server-script></script>${bootstrap}`;
   }
-  return `<script type="module" src="/${clientSrc}"></script>`;
+  return `<script type="module" src="${clientSrc}"></script>`;
 }
 
 /**
@@ -295,7 +295,10 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     const { createVertzBunPlugin } = await import('./bun-plugin');
 
     const entryPath = resolve(projectRoot, entry);
-    const clientSrc = clientEntryOption ?? entry;
+    const rawClientSrc = clientEntryOption ?? entry;
+    // Normalize to absolute URL path (e.g., '/src/app.tsx') so it resolves
+    // from the project root regardless of where the HMR shell HTML lives.
+    const clientSrc = rawClientSrc.replace(/^\.\//, '/');
 
     // Register JSX runtime swap for SSR (server-side imports)
     plugin({
@@ -383,6 +386,11 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       async fetch(request) {
         const url = new URL(request.url);
         const pathname = url.pathname;
+
+        // Let Bun handle its internal /_bun/ routes (HMR client bundles, assets)
+        if (pathname.startsWith('/_bun/')) {
+          return undefined as unknown as Response;
+        }
 
         // OpenAPI spec (fallback for non-route match)
         if (openapi && request.method === 'GET' && pathname === '/api/openapi.json') {
