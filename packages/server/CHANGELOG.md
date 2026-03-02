@@ -1,5 +1,37 @@
 # @vertz/server
 
+## 0.2.1
+
+### Patch Changes
+
+- [#749](https://github.com/vertz-dev/vertz/pull/749) [`463e6f0`](https://github.com/vertz-dev/vertz/commit/463e6f0ea47041a953000471ef1f35708bd4b774) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Migrate action pipeline from throwing `NotFoundException` to returning `Result<CrudResult, EntityError>`, aligning custom entity actions with the CRUD pipeline's errors-as-values pattern.
+
+- [#751](https://github.com/vertz-dev/vertz/pull/751) [`9dc2134`](https://github.com/vertz-dev/vertz/commit/9dc21349e18b35d2f254c12160c27ac89acd7f0a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Migrate auth module and access enforcer to use Result from @vertz/errors instead of throwing exceptions or using custom result types.
+
+  - Add `AuthValidationError` to `@vertz/errors` with `field` + `constraint` discriminators, replacing per-code error types (`INVALID_EMAIL`, `PASSWORD_TOO_SHORT`, etc.)
+  - Access enforcer returns `Result<void, EntityForbiddenError>` instead of throwing `ForbiddenException`
+  - Auth API methods return `Result<T, AuthError>` from `@vertz/errors` instead of custom `AuthResult<T>`
+  - Remove `AuthResult` and local `AuthError` types from `@vertz/server` (consumers import `AuthError` from `@vertz/errors`)
+
+- [`023f1fc`](https://github.com/vertz-dev/vertz/commit/023f1fc4c6c8a121edf448bcd11421a3add7b9d2) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Entity-Driven Architecture (EDA) v0.1.0 — entity system and server integration.
+
+  - Added `entity(name, config)` function with full type-safe config (access, before, after, actions, relations)
+  - Added `EntityContext` with `authenticated()`, `role()`, `tenant()` guard methods
+  - Added `EntityRegistry` for cross-entity access
+  - Added CRUD pipeline with before/after lifecycle hooks
+  - Added custom action pipeline with input schema validation
+  - Added `enforceAccess()` with deny-by-default semantics
+  - Added `stripHiddenFields()` and `stripReadOnlyFields()` field filters
+  - Added `entityErrorHandler()` mapping exceptions to `{ error: { code, message } }`
+  - Added `generateEntityRoutes()` producing HTTP routes from entity definitions
+  - Added `createServer()` wrapper injecting entity routes into core
+  - Removed `domain()` and all `Domain*` types (full replacement)
+
+- Updated dependencies [[`9dc2134`](https://github.com/vertz-dev/vertz/commit/9dc21349e18b35d2f254c12160c27ac89acd7f0a), [`023f1fc`](https://github.com/vertz-dev/vertz/commit/023f1fc4c6c8a121edf448bcd11421a3add7b9d2), [`023f1fc`](https://github.com/vertz-dev/vertz/commit/023f1fc4c6c8a121edf448bcd11421a3add7b9d2), [`869699d`](https://github.com/vertz-dev/vertz/commit/869699d52d9fa685996acb418b8f8fb1bb554f6f), [`c19527e`](https://github.com/vertz-dev/vertz/commit/c19527e815fde35bdeefad9d00ceafa35eae1b0a), [`e4c15ac`](https://github.com/vertz-dev/vertz/commit/e4c15ac37ec290bbde34bf27bfeae08287db0808)]:
+  - @vertz/errors@0.1.1
+  - @vertz/core@0.2.1
+  - @vertz/db@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes

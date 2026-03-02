@@ -1,5 +1,12 @@
 # @vertz/schema
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`9dc2134`](https://github.com/vertz-dev/vertz/commit/9dc21349e18b35d2f254c12160c27ac89acd7f0a), [`c19527e`](https://github.com/vertz-dev/vertz/commit/c19527e815fde35bdeefad9d00ceafa35eae1b0a)]:
+  - @vertz/errors@0.1.1
+
 ## 0.2.0
 
 ### Minor Changes

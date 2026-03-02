@@ -1,5 +1,17 @@
 # vertz
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [[`463e6f0`](https://github.com/vertz-dev/vertz/commit/463e6f0ea47041a953000471ef1f35708bd4b774), [`9dc2134`](https://github.com/vertz-dev/vertz/commit/9dc21349e18b35d2f254c12160c27ac89acd7f0a), [`9348bbd`](https://github.com/vertz-dev/vertz/commit/9348bbd6933ca444531ba946921a23fa1580f152), [`023f1fc`](https://github.com/vertz-dev/vertz/commit/023f1fc4c6c8a121edf448bcd11421a3add7b9d2), [`023f1fc`](https://github.com/vertz-dev/vertz/commit/023f1fc4c6c8a121edf448bcd11421a3add7b9d2), [`ab344f9`](https://github.com/vertz-dev/vertz/commit/ab344f98a05ef89baf77ec8dc68d6021a3708d87), [`c997f18`](https://github.com/vertz-dev/vertz/commit/c997f1848d08c495feaaf4a7c191f7f98bb5477a), [`2f5dc00`](https://github.com/vertz-dev/vertz/commit/2f5dc000c487c80855373473153ce1e793c6de74), [`f4195b7`](https://github.com/vertz-dev/vertz/commit/f4195b7831b38c30e18c758d7fdd627cfb4a4269), [`c19527e`](https://github.com/vertz-dev/vertz/commit/c19527e815fde35bdeefad9d00ceafa35eae1b0a), [`344799e`](https://github.com/vertz-dev/vertz/commit/344799e618f1e5cc7b59a75cab9b4f7698cfa5d4), [`ff459df`](https://github.com/vertz-dev/vertz/commit/ff459df1d89fe877c1f3f22dc3f9a6e4a83f7322), [`e4c15ac`](https://github.com/vertz-dev/vertz/commit/e4c15ac37ec290bbde34bf27bfeae08287db0808), [`e6dd5dd`](https://github.com/vertz-dev/vertz/commit/e6dd5dd81343e5a0ed6c3b19e2ce6e4c5250a72a), [`8487104`](https://github.com/vertz-dev/vertz/commit/84871042c0b0e61a2a6bc06ca1f763b410136832), [`28399f1`](https://github.com/vertz-dev/vertz/commit/28399f13e43afbb3681421f99ff7c04b412b08cf), [`6c07cc7`](https://github.com/vertz-dev/vertz/commit/6c07cc70772243439bd6db889028a56f26245b5b), [`33d4337`](https://github.com/vertz-dev/vertz/commit/33d4337d3263d534c56b7516e46897cf17247792), [`339a3b7`](https://github.com/vertz-dev/vertz/commit/339a3b7d777136f8f39b516b434e92e1baf8da06), [`db24090`](https://github.com/vertz-dev/vertz/commit/db24090d13a945c8d1c0fbaa34b117128a9261a3), [`2711fac`](https://github.com/vertz-dev/vertz/commit/2711fac2d076a33603ef2152c883292b3a3de78e), [`28399f1`](https://github.com/vertz-dev/vertz/commit/28399f13e43afbb3681421f99ff7c04b412b08cf)]:
+  - @vertz/server@0.2.1
+  - @vertz/ui@0.2.1
+  - @vertz/db@0.2.1
+  - @vertz/ui-compiler@1.0.1
+  - @vertz/testing@0.2.1
+  - @vertz/schema@0.2.1
+
 ## 0.1.1
 
 ### Patch Changes

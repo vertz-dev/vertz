@@ -1,5 +1,24 @@
 # @vertz/core
 
+## 0.2.1
+
+### Patch Changes
+
+- [`023f1fc`](https://github.com/vertz-dev/vertz/commit/023f1fc4c6c8a121edf448bcd11421a3add7b9d2) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Entity-Driven Architecture (EDA) v0.1.0 — core integration.
+
+  - Added `EntityRouteEntry` interface and `_entityRoutes` hook in `AppConfig`
+  - Entity routes registered in Trie via `buildHandler()` alongside module routes
+  - `router.routes` uses `_entityRoutes` as source of truth when provided by `@vertz/server`
+
+- [#630](https://github.com/vertz-dev/vertz/pull/630) [`869699d`](https://github.com/vertz-dev/vertz/commit/869699d52d9fa685996acb418b8f8fb1bb554f6f) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Standardize error response codes across all exception classes.
+
+  - HTTP exceptions now use short codes (`NotFound`, `BadRequest`, `Unauthorized`, etc.) instead of class names (`NotFoundException`, `BadRequestException`, etc.) in `toJSON()` output
+  - `ValidationException.toJSON()` now returns `details` instead of `errors` for the validation array, consistent with the entity error handler format
+  - All framework error responses (`404 Not Found`, `405 Method Not Allowed`, `500 Internal Server Error`) use the same `{ error: { code, message } }` structure
+
+- Updated dependencies []:
+  - @vertz/schema@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
