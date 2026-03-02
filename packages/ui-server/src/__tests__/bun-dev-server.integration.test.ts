@@ -5,7 +5,9 @@
  * requests to verify the full request/response cycle.
  *
  * NOTE: These tests use `bun:test` (not vitest) because they need the real
- * Bun runtime with plugin registration and Bun.serve().
+ * Bun runtime with `Bun.serve()`, `Bun.file()`, and `plugin()`.
+ * They are excluded from vitest via vitest.config and run separately via
+ * `bun test src/__tests__/bun-dev-server.integration.test.ts`.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
