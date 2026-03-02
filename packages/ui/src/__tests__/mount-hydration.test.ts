@@ -2,15 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { resetInjectedStyles } from '../css/css';
 import {
   __append,
+  __child,
   __element,
   __enterChildren,
   __exitChildren,
+  __insert,
   __staticText,
   __text,
 } from '../dom/element';
 import { __on } from '../dom/events';
 import { mount } from '../mount';
-import { domEffect, signal } from '../runtime/signal';
+import { popScope, pushScope } from '../runtime/disposal';
+import { domEffect, signal, startSignalCollection, stopSignalCollection } from '../runtime/signal';
 
 describe('mount() — tolerant hydration', () => {
   let root: HTMLElement;
@@ -257,5 +260,232 @@ describe('mount() — tolerant hydration', () => {
     // Event handlers are attached to adopted nodes
     ssrButton.click();
     expect(clicked).toBe(true);
+  });
+
+  it('onClick works when button follows span with reactive children (Counter pattern)', () => {
+    // SSR HTML: span contains static text + reactive __child wrapper span, then sibling button
+    root.innerHTML =
+      '<div><span>Count: <span style="display: contents">0</span></span><button>+</button></div>';
+
+    const ssrDiv = root.firstChild as HTMLElement;
+    const ssrButton = ssrDiv.querySelector('button')!;
+
+    const count = signal(0);
+    let clicked = false;
+
+    const App = () => {
+      const el = __element('div');
+      __enterChildren(el);
+
+      // <span>{label}: {count}</span>
+      const span = __element('span');
+      __enterChildren(span);
+      __insert(span, 'Count');
+      __append(span, __staticText(': '));
+      const child = __child(() => count.value);
+      __append(span, child);
+      __exitChildren();
+      __append(el, span);
+
+      // <button onClick={handler}>+</button>
+      const btn = __element('button');
+      __on(btn, 'click', () => {
+        clicked = true;
+        count.value++;
+      });
+      __enterChildren(btn);
+      __append(btn, __staticText('+'));
+      __exitChildren();
+      __append(el, btn);
+
+      __exitChildren();
+      return el;
+    };
+
+    mount(App, root);
+
+    // Button should be the SSR button (adopted, not recreated)
+    expect(ssrDiv.querySelector('button')).toBe(ssrButton);
+
+    // Click handler must be attached to the SSR button
+    ssrButton.click();
+    expect(clicked).toBe(true);
+    expect(count.value).toBe(1);
+
+    // Reactive update works
+    expect(root.textContent).toContain('1');
+  });
+
+  it('onClick works when page content is passed as children function via __insert', () => {
+    // Reproduces the DashboardLayout/DashboardSettingsPage pattern:
+    // Layout receives children as a function prop, inserts via __insert.
+    // During hydration, __insert must call the function so inner elements
+    // (including buttons with __on) are claimed from SSR DOM.
+    root.innerHTML =
+      '<div class="layout"><div class="sidebar">Sidebar</div>' +
+      '<div class="content"><div class="page"><h1>Settings</h1>' +
+      '<div><span>Saves:<span style="display: contents">0</span></span>' +
+      '<button>+</button></div></div></div></div>';
+
+    const ssrButton = root.querySelector('button')!;
+    const count = signal(0);
+    let clicked = false;
+
+    // Counter component (compiled output pattern)
+    const Counter = () => {
+      const el = __element('div');
+      __enterChildren(el);
+
+      const span = __element('span');
+      __enterChildren(span);
+      __insert(span, 'Saves');
+      __append(span, __staticText(':'));
+      __append(
+        span,
+        __child(() => count.value),
+      );
+      __exitChildren();
+      __append(el, span);
+
+      const btn = __element('button');
+      __on(btn, 'click', () => {
+        clicked = true;
+        count.value++;
+      });
+      __enterChildren(btn);
+      __append(btn, __staticText('+'));
+      __exitChildren();
+      __append(el, btn);
+
+      __exitChildren();
+      return el;
+    };
+
+    // Page component (returns the page content element tree)
+    const PageContent = () => {
+      const el = __element('div');
+      el.setAttribute('class', 'page');
+      __enterChildren(el);
+      __append(
+        el,
+        (() => {
+          const h1 = __element('h1');
+          __enterChildren(h1);
+          __append(h1, __staticText('Settings'));
+          __exitChildren();
+          return h1;
+        })(),
+      );
+      __append(el, Counter());
+      __exitChildren();
+      return el;
+    };
+
+    // Layout component: receives children as function, inserts via __insert
+    const Layout = ({ children }: { children: () => Node }) => {
+      const el = __element('div');
+      el.setAttribute('class', 'layout');
+      __enterChildren(el);
+      __append(
+        el,
+        (() => {
+          const sidebar = __element('div');
+          sidebar.setAttribute('class', 'sidebar');
+          __enterChildren(sidebar);
+          __append(sidebar, __staticText('Sidebar'));
+          __exitChildren();
+          return sidebar;
+        })(),
+      );
+      __append(
+        el,
+        (() => {
+          const content = __element('div');
+          content.setAttribute('class', 'content');
+          __enterChildren(content);
+          __insert(content, children); // children is a function!
+          __exitChildren();
+          return content;
+        })(),
+      );
+      __exitChildren();
+      return el;
+    };
+
+    const App = () => Layout({ children: () => PageContent() });
+
+    mount(App, root);
+
+    // Button should be the SSR button (adopted, not recreated)
+    expect(root.querySelector('button')).toBe(ssrButton);
+
+    // Click handler must be attached to the SSR button
+    ssrButton.click();
+    expect(clicked).toBe(true);
+    expect(count.value).toBe(1);
+  });
+
+  it('onClick works with Fast Refresh wrapper on Counter pattern', () => {
+    // Same SSR HTML as Counter pattern test
+    root.innerHTML =
+      '<div><span>Count: <span style="display: contents">0</span></span><button>+</button></div>';
+
+    const ssrButton = (root.firstChild as HTMLElement).querySelector('button')!;
+
+    const count = signal(0);
+    let clicked = false;
+
+    // Original component factory (same as Counter pattern)
+    const OriginalApp = () => {
+      const el = __element('div');
+      __enterChildren(el);
+
+      const span = __element('span');
+      __enterChildren(span);
+      __insert(span, 'Count');
+      __append(span, __staticText(': '));
+      const child = __child(() => count.value);
+      __append(span, child);
+      __exitChildren();
+      __append(el, span);
+
+      const btn = __element('button');
+      __on(btn, 'click', () => {
+        clicked = true;
+        count.value++;
+      });
+      __enterChildren(btn);
+      __append(btn, __staticText('+'));
+      __exitChildren();
+      __append(el, btn);
+
+      __exitChildren();
+      return el;
+    };
+
+    // Fast Refresh wrapper (mirrors generateRefreshWrapper codegen)
+    const App = () => {
+      const scope = pushScope();
+      startSignalCollection();
+      const ret = OriginalApp();
+      stopSignalCollection();
+      popScope();
+      // Forward inner cleanups to parent scope (like the real wrapper does)
+      if (scope.length > 0) {
+        // _tryOnCleanup would register with mount's scope
+      }
+      // __$refreshTrack returns element unchanged
+      return ret;
+    };
+
+    mount(App, root);
+
+    // Button should be the SSR button (adopted, not recreated)
+    expect((root.firstChild as HTMLElement).querySelector('button')).toBe(ssrButton);
+
+    // Click handler must be attached to the SSR button
+    ssrButton.click();
+    expect(clicked).toBe(true);
+    expect(count.value).toBe(1);
   });
 });
