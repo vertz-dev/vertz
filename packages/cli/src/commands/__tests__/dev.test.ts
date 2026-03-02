@@ -223,13 +223,13 @@ describe('registerDevCommand', () => {
     expect(hostOpt?.defaultValue).toBe('localhost');
   });
 
-  it('supports --ssr flag', () => {
+  it('does not have --ssr flag (unified SSR+HMR is always on)', () => {
     const program = new Command();
     registerDevCommand(program);
 
     const devCmd = program.commands.find((cmd) => cmd.name() === 'dev');
     const ssrOpt = devCmd?.options.find((o) => o.long === '--ssr');
-    expect(ssrOpt).toBeDefined();
+    expect(ssrOpt).toBeUndefined();
   });
 
   it('supports --open flag', () => {

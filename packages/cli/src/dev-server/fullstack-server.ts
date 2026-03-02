@@ -112,11 +112,9 @@ export function formatBanner(
   appType: 'api-only' | 'full-stack' | 'ui-only',
   port: number,
   host: string,
-  ssr: boolean,
 ): string {
   const url = `http://${host}:${port}`;
-  const mode = ssr ? 'SSR' : 'HMR';
-  const lines = ['', `  Vertz Dev Server (${appType}, ${mode})`, '', `  Local:  ${url}`];
+  const lines = ['', `  Vertz Dev Server (${appType}, SSR+HMR)`, '', `  Local:  ${url}`];
 
   if (appType !== 'ui-only') {
     lines.push(`  API:    ${url}/api`);
@@ -130,7 +128,6 @@ export interface StartDevServerOptions {
   detected: DetectedApp;
   port: number;
   host: string;
-  ssr?: boolean;
 }
 
 /**
@@ -140,10 +137,10 @@ export interface StartDevServerOptions {
  * - full-stack / ui-only: Bun.serve() with HMR or SSR mode
  */
 export async function startDevServer(options: StartDevServerOptions): Promise<void> {
-  const { detected, port, host, ssr = false } = options;
+  const { detected, port, host } = options;
   const mode = resolveDevMode(detected);
 
-  console.log(formatBanner(mode.kind, port, host, ssr));
+  console.log(formatBanner(mode.kind, port, host));
 
   if (mode.kind === 'api-only') {
     return startApiOnlyServer(mode.serverEntry, port);
@@ -174,7 +171,6 @@ export async function startDevServer(options: StartDevServerOptions): Promise<vo
     ssrModule: mode.ssrModule,
     clientEntry,
     projectRoot: detected.projectRoot,
-    ssr,
   });
 
   await devServer.start();

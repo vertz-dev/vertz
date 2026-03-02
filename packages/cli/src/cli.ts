@@ -84,13 +84,11 @@ export function createCLI(): Command {
     .option('--host <host>', 'Server host', 'localhost')
     .option('--open', 'Open browser on start')
     .option('--no-typecheck', 'Disable background type checking')
-    .option('--ssr', 'Enable SSR mode (server-side rendering, no HMR)')
     .option('-v, --verbose', 'Verbose output')
     .action(async (opts) => {
       const result = await devAction({
         port: parseInt(opts.port, 10),
         host: opts.host,
-        ssr: opts.ssr,
         open: opts.open,
         typecheck: opts.typecheck !== false && !opts.noTypecheck,
         verbose: opts.verbose,
