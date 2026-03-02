@@ -175,8 +175,10 @@ describe('ReactivityAnalyzer', () => {
     const syntheticVar = findVar(result?.variables, '__query_0');
     expect(syntheticVar).toBeDefined();
     expect(syntheticVar?.kind).toBe('static');
-    expect(syntheticVar?.signalProperties).toEqual(new Set(['data', 'loading', 'error']));
-    expect(syntheticVar?.plainProperties).toEqual(new Set(['refetch']));
+    expect(syntheticVar?.signalProperties).toEqual(
+      new Set(['data', 'loading', 'error', 'revalidating']),
+    );
+    expect(syntheticVar?.plainProperties).toEqual(new Set(['refetch', 'revalidate', 'dispose']));
   });
 
   it('sets destructuredFrom metadata on destructured signal API bindings', () => {
