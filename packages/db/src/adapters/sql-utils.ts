@@ -11,9 +11,10 @@
  * identifier escaping must be added.
  */
 
-import type { TableDef, ColumnRecord } from '../schema/table';
-import type { ColumnMetadata } from '../schema/column';
 import type { DbDriver } from '../client/driver';
+import { generateId } from '../id/generators';
+import type { ColumnMetadata } from '../schema/column';
+import type { ColumnRecord, TableDef } from '../schema/table';
 import type { EntityDbAdapter, ListOptions } from '../types/adapter';
 
 // ---------------------------------------------------------------------------
@@ -37,9 +38,7 @@ export function getSqlType(meta: ColumnMetadata): string {
     case 'bigint':
       return 'BIGINT';
     case 'decimal':
-      return meta.precision && meta.scale
-        ? `DECIMAL(${meta.precision},${meta.scale})`
-        : 'REAL';
+      return meta.precision && meta.scale ? `DECIMAL(${meta.precision},${meta.scale})` : 'REAL';
     case 'boolean':
       return 'INTEGER';
     case 'timestamp':
@@ -124,7 +123,7 @@ export function generateIndexSql<T extends ColumnRecord>(schema: TableDef<T>): s
     const indexName = index.name || `idx_${tableName}_${index.columns.join('_')}`;
     const unique = index.unique ? 'UNIQUE ' : '';
     sqls.push(
-      `CREATE ${unique}INDEX IF NOT EXISTS ${indexName} ON ${tableName} (${index.columns.join(', ')})`
+      `CREATE ${unique}INDEX IF NOT EXISTS ${indexName} ON ${tableName} (${index.columns.join(', ')})`,
     );
   }
 
@@ -135,7 +134,9 @@ export function generateIndexSql<T extends ColumnRecord>(schema: TableDef<T>): s
 
     // Add index on boolean columns for filtering
     if (meta.sqlType === 'boolean') {
-      sqls.push(`CREATE INDEX IF NOT EXISTS idx_${tableName}_${colName} ON ${tableName}(${colName})`);
+      sqls.push(
+        `CREATE INDEX IF NOT EXISTS idx_${tableName}_${colName} ON ${tableName}(${colName})`,
+      );
     }
   }
 
@@ -163,7 +164,7 @@ export function convertValueForSql(value: unknown, sqlType?: string): unknown {
  */
 export function buildWhereClause<T extends ColumnRecord>(
   where: Record<string, unknown>,
-  columns: TableDef<T>['_columns']
+  columns: TableDef<T>['_columns'],
 ): { clauses: string[]; params: unknown[] } {
   const clauses: string[] = [];
   const params: unknown[] = [];
@@ -278,7 +279,10 @@ export abstract class BaseSqlAdapter<T extends ColumnRecord> implements EntityDb
       const params: unknown[] = [];
 
       if (options?.where && Object.keys(options.where).length > 0) {
-        const { clauses, params: whereParams } = buildWhereClause(options.where, this.schema._columns);
+        const { clauses, params: whereParams } = buildWhereClause(
+          options.where,
+          this.schema._columns,
+        );
         sql += ` WHERE ${clauses.join(' AND ')}`;
         params.push(...whereParams);
       }
@@ -321,12 +325,8 @@ export abstract class BaseSqlAdapter<T extends ColumnRecord> implements EntityDb
         if (meta.isReadOnly && !meta.isAutoUpdate) continue;
 
         // Generate ID if primary key and not provided
-        if (meta.primary && !data[colName]) {
-          if (meta.generate === 'uuid') {
-            data[colName] = crypto.randomUUID();
-          } else if (meta.generate === 'cuid') {
-            data[colName] = crypto.randomUUID(); // TODO: use actual cuid
-          }
+        if (meta.primary && !data[colName] && meta.generate) {
+          data[colName] = generateId(meta.generate);
         }
 
         // Handle auto-update columns
