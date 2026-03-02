@@ -13,6 +13,21 @@ let currentNode: Node | null = null;
 const cursorStack: (Node | null)[] = [];
 
 /**
+ * Returns true when browser-visible hydration debug logging is enabled.
+ * Activate by setting `window.__VERTZ_HYDRATION_DEBUG__ = true` before mount().
+ * This bypasses the `typeof process` guard that silences logs in browsers.
+ */
+function isDebug(): boolean {
+  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    return true;
+  }
+  return (
+    typeof globalThis !== 'undefined' &&
+    (globalThis as Record<string, unknown>).__VERTZ_HYDRATION_DEBUG__ === true
+  );
+}
+
+/**
  * Begin hydration mode. Sets the cursor to the first child of `root`.
  */
 export function startHydration(root: Element): void {
@@ -31,7 +46,7 @@ export function startHydration(root: Element): void {
  * End hydration mode. Resets all state.
  */
 export function endHydration(): void {
-  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  if (isDebug()) {
     if (currentNode) {
       console.debug(
         '[hydrate] Hydration ended with unclaimed nodes remaining. ' +
@@ -87,11 +102,18 @@ export function claimElement(tag: string): HTMLElement | null {
     if (currentNode.nodeType === Node.ELEMENT_NODE) {
       const el = currentNode as HTMLElement;
       if (el.tagName === upperTag) {
+        if (isDebug()) {
+          const id = el.id ? `#${el.id}` : '';
+          const cls = el.className ? `.${el.className.split(' ')[0]}` : '';
+          console.debug(
+            `[hydrate] claimElement(<${tag}${id}${cls}>) ✓ depth=${cursorStack.length}`,
+          );
+        }
         currentNode = el.nextSibling;
         return el;
       }
       // Non-matching element — skip (browser extension or SSR mismatch)
-      if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+      if (isDebug()) {
         console.debug(
           `[hydrate] Skipping non-matching node: <${el.tagName.toLowerCase()}> (expected <${tag}>)`,
         );
@@ -103,7 +125,7 @@ export function claimElement(tag: string): HTMLElement | null {
   }
 
   // No match found
-  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  if (isDebug()) {
     console.warn(
       `[hydrate] Expected <${tag}> but no matching SSR node found. Creating new element.`,
     );
@@ -120,6 +142,10 @@ export function claimText(): Text | null {
   while (currentNode) {
     if (currentNode.nodeType === Node.TEXT_NODE) {
       const text = currentNode as Text;
+      if (isDebug()) {
+        const preview = text.data.length > 30 ? text.data.slice(0, 30) + '...' : text.data;
+        console.debug(`[hydrate] claimText("${preview}") ✓ depth=${cursorStack.length}`);
+      }
       currentNode = text.nextSibling;
       return text;
     }
@@ -137,7 +163,7 @@ export function claimText(): Text | null {
     currentNode = currentNode.nextSibling;
   }
 
-  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  if (isDebug()) {
     console.warn('[hydrate] Expected text node but no matching SSR node found.');
   }
   return null;
@@ -160,7 +186,7 @@ export function claimComment(): Comment | null {
     currentNode = currentNode.nextSibling;
   }
 
-  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  if (isDebug()) {
     console.warn('[hydrate] Expected comment node but no matching SSR node found.');
   }
   return null;
@@ -181,7 +207,7 @@ export function enterChildren(el: Element): void {
  */
 export function exitChildren(): void {
   if (cursorStack.length === 0) {
-    if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    if (isDebug()) {
       console.warn(
         '[hydrate] exitChildren() called with empty stack. ' +
           'This likely means __exitChildren was called without a matching __enterChildren.',
