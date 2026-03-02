@@ -107,15 +107,27 @@ describe('hydration-context', () => {
       expect(text?.data).toBe('hello');
     });
 
-    it('skips element nodes', () => {
+    it('stops at element nodes instead of skipping past them', () => {
       const root = document.createElement('div');
       root.appendChild(document.createElement('span'));
       root.appendChild(document.createTextNode('world'));
       startHydration(root);
 
+      // claimText should NOT skip past the <span> to reach "world"
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const text = claimText();
-      expect(text).not.toBeNull();
-      expect(text?.data).toBe('world');
+      expect(text).toBeNull();
+      warnSpy.mockRestore();
+
+      // The <span> is still claimable
+      const span = claimElement('span');
+      expect(span).not.toBeNull();
+      expect(span?.tagName).toBe('SPAN');
+
+      // Now "world" text is claimable
+      const text2 = claimText();
+      expect(text2).not.toBeNull();
+      expect(text2?.data).toBe('world');
     });
 
     it('returns null when no text node found', () => {
@@ -127,6 +139,37 @@ describe('hydration-context', () => {
       const result = claimText();
       expect(result).toBeNull();
       warnSpy.mockRestore();
+    });
+
+    it('stops at element nodes so subsequent claimElement can find them', () => {
+      // Reproduces the Counter hydration bug:
+      // SSR: "Page Views:<span style='display:contents'>0</span>"
+      // Browser merges "Page Views" + ":" into one text node "Page Views:"
+      // Client hydration: claimText (for label), claimText (for ":"), claimElement('span')
+      // Bug: second claimText skipped past the <span>, making claimElement return null.
+      const root = document.createElement('div');
+      root.appendChild(document.createTextNode('Page Views:'));
+      const span = document.createElement('span');
+      span.style.display = 'contents';
+      span.textContent = '0';
+      root.appendChild(span);
+
+      startHydration(root);
+
+      // First claimText claims the merged text node
+      const text1 = claimText();
+      expect(text1).not.toBeNull();
+      expect(text1?.data).toBe('Page Views:');
+
+      // Second claimText for ":" — no text node at cursor, cursor is at <span>
+      // Should return null WITHOUT consuming the <span>
+      const text2 = claimText();
+      expect(text2).toBeNull();
+
+      // claimElement('span') must still find the <span> — cursor was NOT advanced past it
+      const claimed = claimElement('span');
+      expect(claimed).not.toBeNull();
+      expect(claimed).toBe(span);
     });
   });
 

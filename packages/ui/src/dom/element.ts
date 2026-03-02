@@ -12,6 +12,40 @@ import type { DisposeFn } from '../runtime/signal-types';
 import { getAdapter, isRenderNode } from './adapter';
 import { isSVGTag, normalizeSVGAttr, SVG_NS } from './svg-tags';
 
+const MAX_THUNK_DEPTH = 100;
+
+/**
+ * Resolve a value that may be a thunk (function), nested thunks, arrays,
+ * or a primitive into concrete Nodes and append them to a parent.
+ *
+ * Uses the DOM adapter (not raw `document`) for text node creation,
+ * consistent with the rest of element.ts.
+ */
+function resolveAndAppend(parent: Node, value: unknown, depth = 0): void {
+  if (depth >= MAX_THUNK_DEPTH) {
+    throw new Error('resolveAndAppend: max recursion depth exceeded — possible circular thunk');
+  }
+  if (value == null || typeof value === 'boolean') {
+    return;
+  }
+  if (typeof value === 'function') {
+    resolveAndAppend(parent, (value as () => unknown)(), depth + 1);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      resolveAndAppend(parent, item, depth);
+    }
+    return;
+  }
+  if (isRenderNode(value)) {
+    parent.appendChild(value as Node);
+    return;
+  }
+  const text = typeof value === 'string' ? value : String(value);
+  parent.appendChild(getAdapter().createTextNode(text) as unknown as Node);
+}
+
 /** A Text node that also carries a dispose function for cleanup. */
 export interface DisposableText extends Text {
   dispose: DisposeFn;
@@ -96,17 +130,8 @@ export function __child(
             wrapper.removeChild(wrapper.firstChild);
           }
 
-          if (value == null || typeof value === 'boolean') {
-            return;
-          }
-
-          if (isRenderNode(value)) {
-            wrapper.appendChild(value as Node);
-            return;
-          }
-
-          const textValue = typeof value === 'string' ? value : String(value);
-          wrapper.appendChild(getAdapter().createTextNode(textValue) as unknown as Node);
+          // Resolve any value: thunks, arrays, nodes, primitives, null/boolean
+          resolveAndAppend(wrapper, value);
         });
       } finally {
         resumeHydration();
@@ -136,20 +161,8 @@ export function __child(
       wrapper.removeChild(wrapper.firstChild);
     }
 
-    // Skip null, undefined, and booleans (consistent with __insert)
-    if (value == null || typeof value === 'boolean') {
-      return;
-    }
-
-    // If it's a Node, append it directly
-    if (isRenderNode(value)) {
-      wrapper.appendChild(value as Node);
-      return;
-    }
-
-    // Otherwise create a text node
-    const textValue = typeof value === 'string' ? value : String(value);
-    wrapper.appendChild(getAdapter().createTextNode(textValue) as unknown as Node);
+    // Resolve any value: thunks, arrays, nodes, primitives, null/boolean
+    resolveAndAppend(wrapper, value);
   });
 
   return wrapper;
@@ -165,7 +178,7 @@ export function __child(
  */
 export function __insert(
   parent: Node,
-  value: Node | string | number | boolean | null | undefined,
+  value: Node | string | number | boolean | null | undefined | (() => unknown) | unknown[],
 ): void {
   // Skip null, undefined, and booleans
   if (value == null || typeof value === 'boolean') {
@@ -173,12 +186,25 @@ export function __insert(
   }
 
   if (getIsHydrating()) {
+    // During hydration, static children are already in the DOM from SSR.
+    // Arrays (e.g. .map() results) and thunks (e.g. layout children)
+    // must not be re-appended — the SSR output already contains the
+    // correct content. Appending would duplicate nodes.
+    if (typeof value === 'function' || Array.isArray(value)) {
+      return;
+    }
     // During hydration, nodes are already in place
     if (isRenderNode(value)) {
       return; // No-op — node already in DOM
     }
     // For string/number values, claim the existing text node
     claimText();
+    return;
+  }
+
+  // Resolve thunks and arrays (e.g. component children thunks, .map() results)
+  if (typeof value === 'function' || Array.isArray(value)) {
+    resolveAndAppend(parent, value);
     return;
   }
 

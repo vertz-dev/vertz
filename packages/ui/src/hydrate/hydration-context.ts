@@ -124,7 +124,16 @@ export function claimText(): Text | null {
       return text;
     }
 
-    // Skip non-text nodes
+    // Stop at element nodes — don't consume them.
+    // Adjacent text content (e.g. "Page Views" + ":") merges into a single
+    // browser text node, so a subsequent claimText() may find nothing.
+    // If we skipped past element nodes here, a following claimElement() would
+    // miss the element (the Counter hydration bug).
+    if (currentNode.nodeType === Node.ELEMENT_NODE) {
+      break;
+    }
+
+    // Skip other node types (comments, processing instructions, etc.)
     currentNode = currentNode.nextSibling;
   }
 

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { endHydration, startHydration } from '../../hydrate/hydration-context';
 import { __insert } from '../element';
 
 describe('__insert (static child insertion)', () => {
@@ -61,5 +62,61 @@ describe('__insert (static child insertion)', () => {
     expect(parent.children.length).toBe(2);
     expect(parent.children[0]?.tagName).toBe('P');
     expect(parent.children[1]?.tagName).toBe('SPAN');
+  });
+
+  describe('hydration', () => {
+    test('does not duplicate array children during hydration', () => {
+      // Reproduces the dashboard card duplication bug:
+      // SSR renders a grid with 4 card divs. During hydration, the .map()
+      // callback uses jsxDEV (not __element), creating NEW elements.
+      // __insert receives the array and calls resolveAndAppend which
+      // appends the new elements — but the SSR cards are still there.
+      // Result: 8 cards instead of 4.
+      const parent = document.createElement('div');
+      parent.innerHTML =
+        '<div class="card">A</div>' +
+        '<div class="card">B</div>' +
+        '<div class="card">C</div>' +
+        '<div class="card">D</div>';
+
+      startHydration(parent);
+
+      // Simulate what .map() does during hydration: creates NEW elements
+      // (not claimed from SSR) because jsxDEV doesn't use __element.
+      const newCards = ['A', 'B', 'C', 'D'].map((text) => {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.textContent = text;
+        return div;
+      });
+
+      __insert(parent, newCards);
+
+      endHydration();
+
+      // Should NOT duplicate — SSR cards are already in place
+      expect(parent.children.length).toBe(4);
+    });
+
+    test('does not duplicate thunk children during hydration', () => {
+      // Children passed as thunks (e.g. layout {children} prop) should
+      // not be re-appended during hydration.
+      const parent = document.createElement('div');
+      parent.innerHTML = '<section>content</section>';
+
+      startHydration(parent);
+
+      const thunk = () => {
+        const section = document.createElement('section');
+        section.textContent = 'content';
+        return section;
+      };
+
+      __insert(parent, thunk);
+
+      endHydration();
+
+      expect(parent.children.length).toBe(1);
+    });
   });
 });
