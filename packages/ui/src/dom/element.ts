@@ -185,6 +185,12 @@ export function __insert(
     return;
   }
 
+  // Resolve thunks and arrays (e.g. component children thunks, .map() results)
+  if (typeof value === 'function' || Array.isArray(value)) {
+    resolveAndAppend(parent, value);
+    return;
+  }
+
   if (getIsHydrating()) {
     // During hydration, static children are already in the DOM from SSR.
     // We must NOT append nodes (they're already there), but we MUST resolve
