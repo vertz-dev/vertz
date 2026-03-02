@@ -9,6 +9,7 @@ export interface CorsConfig {
 
 // Forward declare EntityDefinition - actual type is in @vertz/server
 export interface EntityDefinition {
+  readonly kind?: string;
   readonly name: string;
   readonly model: unknown;
   readonly access: Record<string, unknown>;

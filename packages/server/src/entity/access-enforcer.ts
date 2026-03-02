@@ -1,9 +1,11 @@
 import { EntityForbiddenError, err, ok, type Result } from '@vertz/errors';
-import type { AccessRule, EntityContext } from './types';
+import type { AccessRule, BaseContext } from './types';
 
 /**
  * Evaluates an access rule for the given operation.
  * Returns err(EntityForbiddenError) if access is denied.
+ *
+ * Accepts BaseContext so both EntityContext and ActionContext can use it.
  *
  * - No rule defined → deny (deny by default)
  * - Rule is false → operation is disabled
@@ -12,7 +14,7 @@ import type { AccessRule, EntityContext } from './types';
 export async function enforceAccess(
   operation: string,
   accessRules: Partial<Record<string, AccessRule>>,
-  ctx: EntityContext,
+  ctx: BaseContext,
   row?: Record<string, unknown>,
 ): Promise<Result<void, EntityForbiddenError>> {
   const rule = accessRules[operation];

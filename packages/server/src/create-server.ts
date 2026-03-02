@@ -6,7 +6,11 @@ import {
   type EntityDbAdapter,
   type ModelEntry,
 } from '@vertz/db';
+import { generateActionRoutes } from './action/route-generator';
+import type { ActionDefinition } from './action/types';
+import type { EntityOperations } from './entity/entity-operations';
 import { EntityRegistry } from './entity/entity-registry';
+import { stripHiddenFields } from './entity/field-filter';
 import { generateEntityRoutes } from './entity/route-generator';
 import type { EntityDefinition } from './entity/types';
 
@@ -34,6 +38,8 @@ function isDatabaseClient(
 export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'entities'> {
   /** Entity definitions created via entity() from @vertz/server */
   entities?: EntityDefinition[];
+  /** Standalone action definitions created via action() from @vertz/server */
+  actions?: ActionDefinition[];
   /**
    * Database for entity CRUD operations.
    * Accepts either:
@@ -70,6 +76,51 @@ function createNoopDbAdapter(): EntityDbAdapter {
 }
 
 // ---------------------------------------------------------------------------
+// Entity operations wrapper — adapts EntityDbAdapter to EntityOperations
+// ---------------------------------------------------------------------------
+
+/**
+ * Wraps an EntityDbAdapter to produce an EntityOperations facade for the registry.
+ * This enables cross-entity and action DI — `ctx.entities.xxx` calls go through these ops.
+ */
+function createEntityOps(entityDef: EntityDefinition, db: EntityDbAdapter): EntityOperations {
+  const table = entityDef.model.table;
+  return {
+    async get(id: string) {
+      const row = await db.get(id);
+      if (!row)
+        return row as EntityOperations['get'] extends (...args: unknown[]) => Promise<infer R>
+          ? R
+          : never;
+      return stripHiddenFields(table, row as Record<string, unknown>);
+    },
+    async list(options?) {
+      const result = await db.list(options);
+      const items = Array.isArray(result) ? result : (result.data ?? []);
+      const total = Array.isArray(result) ? result.length : (result.total ?? items.length);
+      return {
+        items: items.map((row) => stripHiddenFields(table, row as Record<string, unknown>)),
+        total,
+        limit: options?.limit ?? 20,
+        nextCursor: null,
+        hasNextPage: false,
+      };
+    },
+    async create(data) {
+      const row = await db.create(data as Record<string, unknown>);
+      return stripHiddenFields(table, row as Record<string, unknown>);
+    },
+    async update(id: string, data) {
+      const row = await db.update(id, data as Record<string, unknown>);
+      return stripHiddenFields(table, row as Record<string, unknown>);
+    },
+    async delete(id: string) {
+      await db.delete(id);
+    },
+  } as EntityOperations;
+}
+
+// ---------------------------------------------------------------------------
 // createServer wrapper
 // ---------------------------------------------------------------------------
 
@@ -78,42 +129,54 @@ function createNoopDbAdapter(): EntityDbAdapter {
  * Wraps @vertz/core's createServer to inject entity CRUD handlers.
  */
 export function createServer(config: ServerConfig): AppBuilder {
-  let entityRoutes: EntityRouteEntry[] | undefined;
+  const allRoutes: EntityRouteEntry[] = [];
+  const registry = new EntityRegistry();
+  const apiPrefix = config.apiPrefix === undefined ? '/api' : config.apiPrefix;
 
+  // Process entities first (so registry has all entities registered for DI)
   if (config.entities && config.entities.length > 0) {
-    const registry = new EntityRegistry();
     const { db } = config;
     let dbFactory: (entityDef: EntityDefinition) => EntityDbAdapter;
 
     if (db && isDatabaseClient(db)) {
-      // DatabaseClient detected — create bridge adapters per entity
       dbFactory = (entityDef) =>
         createDatabaseBridgeAdapter(
           db as DatabaseClient<Record<string, ModelEntry>>,
           entityDef.name,
         );
     } else if (db) {
-      // Plain EntityDbAdapter — use directly
       dbFactory = () => db as EntityDbAdapter;
     } else {
       dbFactory = config._entityDbFactory ?? createNoopDbAdapter;
     }
 
-    const apiPrefix = config.apiPrefix === undefined ? '/api' : config.apiPrefix;
+    // Register entity operations into the registry first (for cross-entity DI)
+    for (const entityDef of config.entities) {
+      const entityDb = dbFactory(entityDef as EntityDefinition);
+      const ops = createEntityOps(entityDef as EntityDefinition, entityDb);
+      registry.register(entityDef.name, ops);
+    }
 
     // Generate routes for each entity
-    entityRoutes = [];
     for (const entityDef of config.entities) {
       const entityDb = dbFactory(entityDef as EntityDefinition);
       const routes = generateEntityRoutes(entityDef as EntityDefinition, registry, entityDb, {
         apiPrefix,
       });
-      entityRoutes.push(...routes);
+      allRoutes.push(...routes);
+    }
+  }
+
+  // Process actions after entities (actions use registry for entity DI)
+  if (config.actions && config.actions.length > 0) {
+    for (const actionDef of config.actions) {
+      const routes = generateActionRoutes(actionDef, registry, { apiPrefix });
+      allRoutes.push(...routes);
     }
   }
 
   return coreCreateServer({
     ...config,
-    _entityRoutes: entityRoutes,
+    _entityRoutes: allRoutes.length > 0 ? allRoutes : undefined,
   } as AppConfig);
 }
