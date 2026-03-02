@@ -12,8 +12,8 @@
 
 import { createServer } from '@vertz/server';
 import { createBunDevServer } from '@vertz/ui-server/bun-dev-server';
-import { createTodosDb } from './db';
-import { todos } from './entities';
+import { createTodosDb } from './api/db';
+import { todos } from './api/entities/todos/todos.entity';
 
 const PORT = Number(process.env.PORT) || 3000;
 

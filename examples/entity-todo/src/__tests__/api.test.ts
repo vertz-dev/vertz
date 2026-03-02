@@ -1,7 +1,7 @@
 import type { EntityDbAdapter } from '@vertz/server';
 import { createServer } from '@vertz/server';
 import { describe, expect, it } from 'vitest';
-import { todos } from '../entities';
+import { todos } from '../api/entities/todos/todos.entity';
 
 // In-memory DB adapter for testing
 function createInMemoryDb(): EntityDbAdapter {

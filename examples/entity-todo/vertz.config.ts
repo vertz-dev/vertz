@@ -1,7 +1,7 @@
 /** @type {import('@vertz/compiler').VertzConfig} */
 export default {
   compiler: {
-    entryFile: 'src/server.ts',
+    entryFile: 'src/api/server.ts',
   },
 };
 

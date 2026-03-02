@@ -1,5 +1,5 @@
 import { entity } from '@vertz/server';
-import { todosModel } from './schema';
+import { todosModel } from '../../schema';
 
 export const todos = entity('todos', {
   model: todosModel,
