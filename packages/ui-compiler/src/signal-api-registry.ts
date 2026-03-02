@@ -16,8 +16,8 @@ export interface SignalApiConfig {
  */
 export const SIGNAL_API_REGISTRY: Record<string, SignalApiConfig> = {
   query: {
-    signalProperties: new Set(['data', 'loading', 'error']),
-    plainProperties: new Set(['refetch']),
+    signalProperties: new Set(['data', 'loading', 'error', 'revalidating']),
+    plainProperties: new Set(['refetch', 'revalidate', 'dispose']),
   },
   form: {
     signalProperties: new Set(['submitting', 'dirty', 'valid']),

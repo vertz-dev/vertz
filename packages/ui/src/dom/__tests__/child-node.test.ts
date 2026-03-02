@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { signal } from '../../runtime/signal';
 import { __child, __text } from '../element';
 
 describe('Child node rendering', () => {
@@ -72,5 +73,37 @@ describe('Child node rendering', () => {
     expect(parent.textContent).toBe('');
 
     marker.dispose();
+  });
+
+  test('__child() skips DOM operations when fn() returns same Node reference', () => {
+    const s = signal(0);
+    const stableNode = document.createElement('div');
+    stableNode.textContent = 'stable';
+
+    const wrapper = __child(() => {
+      s.value; // subscribe to signal
+      return stableNode;
+    });
+
+    // Initial render: stableNode is inside wrapper
+    expect(wrapper.children[0]).toBe(stableNode);
+
+    // Spy on removeChild after initial render
+    let removeCount = 0;
+    const origRemoveChild = wrapper.removeChild.bind(wrapper);
+    wrapper.removeChild = <T extends Node>(child: T): T => {
+      removeCount++;
+      return origRemoveChild(child);
+    };
+
+    // Trigger re-evaluation — same node returned
+    s.value = 1;
+
+    // Should NOT have removed anything (stable-node optimization)
+    expect(removeCount).toBe(0);
+    expect(wrapper.children[0]).toBe(stableNode);
+    expect(wrapper.children.length).toBe(1);
+
+    wrapper.dispose();
   });
 });

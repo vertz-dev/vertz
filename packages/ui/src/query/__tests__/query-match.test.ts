@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { signal } from '../../runtime/signal';
+import type { Signal } from '../../runtime/signal-types';
 import type { QueryResult } from '../query';
 import { queryMatch } from '../query-match';
 
@@ -13,59 +14,261 @@ function fakeQueryResult<T>(opts: {
   revalidating?: boolean;
   error?: unknown;
   data?: T;
-}): QueryResult<T> {
+}): QueryResult<T> & {
+  _loading: Signal<boolean>;
+  _revalidating: Signal<boolean>;
+  _error: Signal<unknown>;
+  _data: Signal<T | undefined>;
+} {
+  const _loading = signal(opts.loading);
+  const _revalidating = signal(opts.revalidating ?? false);
+  const _error = signal<unknown>(opts.error);
+  const _data = signal<T | undefined>(opts.data);
   return {
-    loading: signal(opts.loading),
-    revalidating: signal(opts.revalidating ?? false),
-    error: signal(opts.error),
-    data: signal(opts.data),
+    loading: _loading,
+    revalidating: _revalidating,
+    error: _error,
+    data: _data,
     refetch: () => {},
     revalidate: () => {},
     dispose: () => {},
-  } as unknown as QueryResult<T>;
+    _loading,
+    _revalidating,
+    _error,
+    _data,
+  } as unknown as QueryResult<T> & {
+    _loading: Signal<boolean>;
+    _revalidating: Signal<boolean>;
+    _error: Signal<unknown>;
+    _data: Signal<T | undefined>;
+  };
 }
 
 describe('queryMatch()', () => {
-  test('returns loading handler result when loading is true', () => {
+  test('returns an HTMLElement wrapper with display:contents', () => {
     const qr = fakeQueryResult<string>({ loading: true });
 
     const result = queryMatch(qr, {
-      loading: () => 'loading-state',
-      error: () => 'error-state',
-      data: () => 'data-state',
+      loading: () => document.createElement('div'),
+      error: () => document.createElement('div'),
+      data: () => document.createElement('div'),
     });
 
-    expect(result).toBe('loading-state');
+    expect(result instanceof HTMLElement).toBe(true);
+    expect(result.style.display).toBe('contents');
   });
 
-  test('returns error handler result when error is defined and loading is false', () => {
-    const qr = fakeQueryResult<string>({
+  test('returns the same node for repeated calls with same queryResult', () => {
+    const qr = fakeQueryResult<string>({ loading: true });
+
+    const handlers = {
+      loading: () => document.createElement('div'),
+      error: () => document.createElement('div'),
+      data: () => document.createElement('div'),
+    };
+
+    const first = queryMatch(qr, handlers);
+    const second = queryMatch(qr, handlers);
+
+    expect(first).toBe(second);
+  });
+
+  test('renders loading handler content when loading is true', () => {
+    const qr = fakeQueryResult<string>({ loading: true });
+
+    const loadingEl = document.createElement('div');
+    loadingEl.textContent = 'Loading...';
+
+    const wrapper = queryMatch(qr, {
+      loading: () => loadingEl,
+      error: () => document.createElement('div'),
+      data: () => document.createElement('div'),
+    });
+
+    expect(wrapper.children.length).toBe(1);
+    expect(wrapper.children[0]).toBe(loadingEl);
+  });
+
+  test('renders error handler content when error is set', () => {
+    const qr = fakeQueryResult<string>({ loading: false, error: new Error('fail') });
+
+    const errorEl = document.createElement('div');
+    errorEl.textContent = 'Error!';
+
+    const wrapper = queryMatch(qr, {
+      loading: () => document.createElement('div'),
+      error: () => errorEl,
+      data: () => document.createElement('div'),
+    });
+
+    expect(wrapper.children[0]).toBe(errorEl);
+  });
+
+  test('renders data handler content when data is available', () => {
+    const qr = fakeQueryResult<string>({ loading: false, data: 'hello' });
+
+    const dataEl = document.createElement('div');
+    dataEl.textContent = 'Data';
+
+    const wrapper = queryMatch(qr, {
+      loading: () => document.createElement('div'),
+      error: () => document.createElement('div'),
+      data: () => dataEl,
+    });
+
+    expect(wrapper.children[0]).toBe(dataEl);
+  });
+
+  test('switches branch when state changes from loading to data', () => {
+    const qr = fakeQueryResult<string>({ loading: true });
+
+    const loadingEl = document.createElement('div');
+    loadingEl.textContent = 'Loading...';
+    const dataEl = document.createElement('div');
+    dataEl.textContent = 'Data';
+
+    const wrapper = queryMatch(qr, {
+      loading: () => loadingEl,
+      error: () => document.createElement('div'),
+      data: () => dataEl,
+    });
+
+    // Initially loading
+    expect(wrapper.children[0]).toBe(loadingEl);
+
+    // Transition: loading=false, data available
+    qr._data.value = 'hello';
+    qr._loading.value = false;
+
+    // Should now show data branch
+    expect(wrapper.children.length).toBe(1);
+    expect(wrapper.children[0]).toBe(dataEl);
+
+    wrapper.dispose();
+  });
+
+  test('proxy binds array methods to current data', () => {
+    const qr = fakeQueryResult<{ items: string[] }>({
       loading: false,
+      data: { items: ['a', 'b', 'c'] },
+    });
+
+    let mappedResult: string[] | undefined;
+
+    const wrapper = queryMatch(qr, {
+      loading: () => null,
+      error: () => null,
+      data: (response) => {
+        // .map() should work on the proxied array
+        mappedResult = response.items.map((item: string) => item.toUpperCase());
+        return document.createElement('div');
+      },
+    });
+
+    expect(mappedResult).toEqual(['A', 'B', 'C']);
+
+    wrapper.dispose();
+  });
+
+  test('data handler receives proxy — property access reads from data signal', () => {
+    const qr = fakeQueryResult<{ title: string }>({
+      loading: false,
+      data: { title: 'First' },
+    });
+
+    let proxyRef: { title: string } | undefined;
+
+    const wrapper = queryMatch(qr, {
+      loading: () => null,
+      error: () => null,
+      data: (response) => {
+        proxyRef = response; // capture the proxy reference
+        return document.createElement('div');
+      },
+    });
+
+    // Proxy initially reads from the current data signal value
+    expect(proxyRef?.title).toBe('First');
+
+    // Update data signal
+    qr._data.value = { title: 'Second' };
+
+    // Proxy should read the NEW value (live proxy, not a snapshot)
+    expect(proxyRef?.title).toBe('Second');
+
+    wrapper.dispose();
+  });
+
+  test('dispose creates fresh entry on next call', () => {
+    const qr = fakeQueryResult<string>({ loading: true });
+
+    const first = queryMatch(qr, {
+      loading: () => document.createElement('div'),
+      error: () => document.createElement('div'),
+      data: () => document.createElement('div'),
+    });
+
+    first.dispose();
+
+    // After dispose, next call should create a fresh wrapper
+    const second = queryMatch(qr, {
+      loading: () => document.createElement('div'),
+      error: () => document.createElement('div'),
+      data: () => document.createElement('div'),
+    });
+
+    expect(second).not.toBe(first);
+    expect(second instanceof HTMLElement).toBe(true);
+    expect(second.style.display).toBe('contents');
+
+    second.dispose();
+  });
+
+  test('re-runs data handler when data signal changes within data branch', () => {
+    const qr = fakeQueryResult<{ count: number }>({
+      loading: false,
+      data: { count: 1 },
+    });
+
+    let handlerCallCount = 0;
+
+    const wrapper = queryMatch(qr, {
+      loading: () => null,
+      error: () => null,
+      data: () => {
+        handlerCallCount++;
+        return document.createElement('div');
+      },
+    });
+
+    expect(handlerCallCount).toBe(1);
+
+    // Data changes → handler re-runs (compiler doesn't yet generate __list()
+    // inside queryMatch callbacks, so .map() creates static DOM)
+    qr._data.value = { count: 2 };
+
+    expect(handlerCallCount).toBe(2);
+
+    wrapper.dispose();
+  });
+
+  test('loading takes priority over error', () => {
+    const qr = fakeQueryResult<string>({
+      loading: true,
       error: new Error('fail'),
     });
 
-    const result = queryMatch(qr, {
-      loading: () => 'loading-state',
-      error: () => 'error-state',
-      data: () => 'data-state',
+    const loadingEl = document.createElement('div');
+
+    const wrapper = queryMatch(qr, {
+      loading: () => loadingEl,
+      error: () => document.createElement('span'),
+      data: () => document.createElement('div'),
     });
 
-    expect(result).toBe('error-state');
-  });
+    expect(wrapper.children[0]).toBe(loadingEl);
 
-  test('returns data handler result when data is available', () => {
-    const qr = fakeQueryResult<string>({
-      loading: false,
-      data: 'hello',
-    });
-
-    const result = queryMatch(qr, {
-      loading: () => 'loading-state',
-      error: () => 'error-state',
-      data: () => 'data-state',
-    });
-
-    expect(result).toBe('data-state');
+    wrapper.dispose();
   });
 
   test('passes error value to error handler', () => {
@@ -75,89 +278,70 @@ describe('queryMatch()', () => {
       error: err,
     });
 
-    const result = queryMatch(qr, {
+    let capturedError: unknown;
+
+    const wrapper = queryMatch(qr, {
       loading: () => null,
-      error: (e) => e,
+      error: (e) => {
+        capturedError = e;
+        return document.createElement('div');
+      },
       data: () => null,
     });
 
-    expect(result).toBe(err);
+    expect(capturedError).toBe(err);
+
+    wrapper.dispose();
   });
 
-  test('passes data value to data handler', () => {
-    const qr = fakeQueryResult<{ name: string }>({
+  test('shows loading when loading=false, error=undefined, data=undefined', () => {
+    // Edge case: query with no data yet but not technically loading
+    // (e.g., enabled:false or timing gap). Should show loading, not crash.
+    const qr = fakeQueryResult<{ items: string[] }>({
       loading: false,
-      data: { name: 'Alice' },
+      data: undefined,
     });
 
-    const result = queryMatch(qr, {
-      loading: () => null,
-      error: () => null,
-      data: (d) => d.name,
+    const loadingEl = document.createElement('div');
+    loadingEl.textContent = 'Loading...';
+
+    const wrapper = queryMatch(qr, {
+      loading: () => loadingEl,
+      error: () => document.createElement('div'),
+      data: () => document.createElement('div'),
     });
 
-    expect(result).toBe('Alice');
+    // Should fall back to loading when data is undefined
+    expect(wrapper.children[0]).toBe(loadingEl);
+
+    // When data becomes available, should switch to data branch
+    qr._data.value = { items: ['a'] };
+
+    expect(wrapper.children[0]).not.toBe(loadingEl);
+
+    wrapper.dispose();
   });
 
-  test('loading takes priority over error', () => {
+  test('data handler does not receive revalidating parameter', () => {
     const qr = fakeQueryResult<string>({
-      loading: true,
-      error: new Error('fail'),
-    });
-
-    const result = queryMatch(qr, {
-      loading: () => 'loading-state',
-      error: () => 'error-state',
-      data: () => 'data-state',
-    });
-
-    expect(result).toBe('loading-state');
-  });
-
-  test('loading takes priority over data', () => {
-    const qr = fakeQueryResult<string>({
-      loading: true,
+      loading: false,
       data: 'hello',
     });
 
-    const result = queryMatch(qr, {
-      loading: () => 'loading-state',
-      error: () => 'error-state',
-      data: () => 'data-state',
-    });
+    let handlerArgCount = 0;
 
-    expect(result).toBe('loading-state');
-  });
-
-  test('passes revalidating=false to data handler when not revalidating', () => {
-    const qr = fakeQueryResult<string>({
-      loading: false,
-      revalidating: false,
-      data: 'hello',
-    });
-
-    const result = queryMatch(qr, {
+    const wrapper = queryMatch(qr, {
       loading: () => null,
       error: () => null,
-      data: (_data, revalidating) => revalidating,
+      data: (...args: unknown[]) => {
+        handlerArgCount = args.length;
+        return document.createElement('div');
+      },
     });
 
-    expect(result).toBe(false);
-  });
+    // data handler should receive exactly 1 argument (data proxy)
+    expect(handlerArgCount).toBe(1);
 
-  test('passes revalidating=true to data handler when revalidating', () => {
-    const qr = fakeQueryResult<string>({
-      loading: false,
-      revalidating: true,
-      data: 'stale-data',
-    });
-
-    const result = queryMatch(qr, {
-      loading: () => null,
-      error: () => null,
-      data: (d, revalidating) => ({ d, revalidating }),
-    });
-
-    expect(result).toEqual({ d: 'stale-data', revalidating: true });
+    wrapper.dispose();
   });
 });
