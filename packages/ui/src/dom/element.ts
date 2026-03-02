@@ -185,19 +185,26 @@ export function __insert(
     return;
   }
 
-  // Resolve thunks and arrays (e.g. component children thunks, .map() results)
-  if (typeof value === 'function' || Array.isArray(value)) {
-    resolveAndAppend(parent, value);
-    return;
-  }
-
   if (getIsHydrating()) {
+    // During hydration, static children are already in the DOM from SSR.
+    // Arrays (e.g. .map() results) and thunks (e.g. layout children)
+    // must not be re-appended — the SSR output already contains the
+    // correct content. Appending would duplicate nodes.
+    if (typeof value === 'function' || Array.isArray(value)) {
+      return;
+    }
     // During hydration, nodes are already in place
     if (isRenderNode(value)) {
       return; // No-op — node already in DOM
     }
     // For string/number values, claim the existing text node
     claimText();
+    return;
+  }
+
+  // Resolve thunks and arrays (e.g. component children thunks, .map() results)
+  if (typeof value === 'function' || Array.isArray(value)) {
+    resolveAndAppend(parent, value);
     return;
   }
 
