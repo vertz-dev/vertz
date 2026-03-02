@@ -107,49 +107,57 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
       // Full re-render: divergence at 0 or transition from/to no match
       runCleanups(pageCleanups);
 
-      if (isFirstHydrationRender) {
-        isFirstHydrationRender = false;
-      } else {
-        withTransition(() => {
+      const doRender = () => {
+        if (!isFirstHydrationRender) {
           while (container.firstChild) {
             container.removeChild(container.firstChild);
           }
-        });
-      }
-
-      pageCleanups = pushScope();
-
-      if (!match) {
-        prevLevels = [];
-        if (fallback) {
-          container.appendChild(fallback());
         }
-        popScope();
-        return;
-      }
+        isFirstHydrationRender = false;
 
-      // Build the full inside-out chain
-      const levels = buildLevels(newMatched);
-      const rootFactory = buildInsideOutFactory(newMatched, levels, 0, router);
+        pageCleanups = pushScope();
 
-      RouterContext.Provider(router, () => {
-        const result = rootFactory();
+        if (!match) {
+          prevLevels = [];
+          if (fallback) {
+            container.appendChild(fallback());
+          }
+          popScope();
+          return;
+        }
 
-        if (result instanceof Promise) {
-          result.then((mod) => {
-            if (gen !== renderGen) return;
-            RouterContext.Provider(router, () => {
-              const node = (mod as { default: () => Node }).default();
-              container.appendChild(node);
+        // Build the full inside-out chain
+        const levels = buildLevels(newMatched);
+        const rootFactory = buildInsideOutFactory(newMatched, levels, 0, router);
+
+        RouterContext.Provider(router, () => {
+          const result = rootFactory();
+
+          if (result instanceof Promise) {
+            result.then((mod) => {
+              if (gen !== renderGen) return;
+              RouterContext.Provider(router, () => {
+                const node = (mod as { default: () => Node }).default();
+                container.appendChild(node);
+              });
             });
-          });
-        } else {
-          __append(container, result);
-        }
-      });
+          } else {
+            __append(container, result);
+          }
+        });
 
-      prevLevels = levels;
-      popScope();
+        prevLevels = levels;
+        popScope();
+      };
+
+      // View transition wraps the entire update (clear + render) so
+      // startViewTransition captures both old and new states correctly.
+      // During hydration, skip the transition — content is already in place.
+      if (isFirstHydrationRender) {
+        doRender();
+      } else {
+        withTransition(doRender);
+      }
     });
   });
 
