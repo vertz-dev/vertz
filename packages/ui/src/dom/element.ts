@@ -187,10 +187,20 @@ export function __insert(
 
   if (getIsHydrating()) {
     // During hydration, static children are already in the DOM from SSR.
-    // Arrays (e.g. .map() results) and thunks (e.g. layout children)
-    // must not be re-appended — the SSR output already contains the
-    // correct content. Appending would duplicate nodes.
-    if (typeof value === 'function' || Array.isArray(value)) {
+    // We must NOT append nodes (they're already there), but we MUST resolve
+    // functions and arrays so their internal __element/__on calls execute
+    // and claim elements / attach event handlers.
+    if (typeof value === 'function') {
+      // Resolve the thunk — this triggers hydration claims for elements inside.
+      // The returned value is already in the DOM (claimed), so no append needed.
+      const resolved = (value as () => unknown)();
+      __insert(parent, resolved as typeof value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        __insert(parent, item as typeof value);
+      }
       return;
     }
     // During hydration, nodes are already in place
