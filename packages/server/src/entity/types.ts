@@ -18,6 +18,17 @@ type InjectToOperations<TInject extends Record<string, EntityDefinition> = {}> =
 };
 
 // ---------------------------------------------------------------------------
+// BaseContext — shared by EntityContext and ActionContext
+// ---------------------------------------------------------------------------
+
+export interface BaseContext {
+  readonly userId: string | null;
+  authenticated(): boolean;
+  tenant(): boolean;
+  role(...roles: string[]): boolean;
+}
+
+// ---------------------------------------------------------------------------
 // EntityContext — the runtime context for access rules, hooks, and actions
 // ---------------------------------------------------------------------------
 
@@ -25,12 +36,7 @@ export interface EntityContext<
   TModel extends ModelDef = ModelDef,
   // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
   TInject extends Record<string, EntityDefinition> = {},
-> {
-  readonly userId: string | null;
-  authenticated(): boolean;
-  tenant(): boolean;
-  role(...roles: string[]): boolean;
-
+> extends BaseContext {
   /** Typed CRUD on the current entity */
   readonly entity: EntityOperations<TModel>;
 
@@ -42,13 +48,14 @@ export interface EntityContext<
 // Access rules
 // ---------------------------------------------------------------------------
 
-// AccessRule uses bare EntityContext (no TInject) because access rules are
-// stored type-erased in EntityDefinition and checked at runtime where the
+// AccessRule uses BaseContext (not EntityContext) because access rules are
+// stored type-erased in definitions and checked at runtime where the
 // inject map isn't available. Access rules shouldn't need cross-entity
-// access — they check the current user/row only.
+// access — they check the current user/row only. Using BaseContext also
+// allows actions to share the same AccessRule type.
 export type AccessRule =
   | false
-  | ((ctx: EntityContext, row: Record<string, unknown>) => boolean | Promise<boolean>);
+  | ((ctx: BaseContext, row: Record<string, unknown>) => boolean | Promise<boolean>);
 
 // ---------------------------------------------------------------------------
 // Before hooks — transform data before DB write
@@ -223,6 +230,7 @@ export interface EntityConfig<
 // ---------------------------------------------------------------------------
 
 export interface EntityDefinition<TModel extends ModelDef = ModelDef> {
+  readonly kind: 'entity';
   readonly name: string;
   readonly model: TModel;
   readonly inject: Record<string, EntityDefinition>;

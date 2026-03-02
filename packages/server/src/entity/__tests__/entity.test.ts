@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { d } from '@vertz/db';
 import { entity } from '../index';
+import type { EntityConfig } from '../types';
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -43,6 +44,15 @@ describe('Feature: entity() definition', () => {
         });
 
         expect(def.name).toBe('users');
+      });
+
+      it('Then returns an object with kind "entity"', () => {
+        const def = entity('users', {
+          model: usersModel,
+          access: { list: () => true },
+        });
+
+        expect(def.kind).toBe('entity');
       });
 
       it('Then the returned object is frozen', () => {
@@ -202,8 +212,7 @@ describe('Feature: entity() definition', () => {
   describe('Given an entity config without model', () => {
     describe('When calling entity() without model', () => {
       it('Then throws with a descriptive error', () => {
-        // biome-ignore lint/suspicious/noExplicitAny: testing runtime guard for JS consumers
-        expect(() => entity('users', {} as any)).toThrow(/entity\(\) requires a model/);
+        expect(() => entity('users', {} as EntityConfig)).toThrow(/entity\(\) requires a model/);
       });
     });
   });

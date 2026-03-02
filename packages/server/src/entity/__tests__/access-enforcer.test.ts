@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { EntityForbiddenError } from '@vertz/errors';
 import { enforceAccess } from '../access-enforcer';
-import type { EntityContext } from '../types';
+import type { BaseContext, EntityContext } from '../types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -13,8 +13,7 @@ function stubCtx(overrides: Partial<EntityContext> = {}): EntityContext {
     authenticated: () => true,
     tenant: () => false,
     role: () => false,
-    // biome-ignore lint/suspicious/noExplicitAny: stub for testing
-    entity: {} as any,
+    entity: {} as EntityContext['entity'],
     entities: {},
     ...overrides,
   };
@@ -105,6 +104,22 @@ describe('Feature: enforceAccess', () => {
         if (!result.ok) {
           expect(result.error).toBeInstanceOf(EntityForbiddenError);
         }
+      });
+    });
+  });
+
+  describe('Given a BaseContext (action context without entity/entities)', () => {
+    describe('When enforceAccess is called with a BaseContext', () => {
+      it('Then accepts BaseContext and evaluates the access rule', async () => {
+        const baseCtx: BaseContext = {
+          userId: 'user-1',
+          authenticated: () => true,
+          tenant: () => false,
+          role: () => false,
+        };
+
+        const result = await enforceAccess('login', { login: () => true }, baseCtx);
+        expect(result.ok).toBe(true);
       });
     });
   });

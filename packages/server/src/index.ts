@@ -59,6 +59,9 @@ export {
   VertzException,
   vertz,
 } from '@vertz/core';
+// Action API
+export type { ActionActionDef, ActionConfig, ActionContext, ActionDefinition } from './action';
+export { action } from './action';
 export type {
   AccessConfig,
   AccessInstance,
@@ -98,6 +101,7 @@ export { createServer } from './create-server';
 // Entity API
 export type {
   AccessRule,
+  BaseContext,
   CrudHandlers,
   CrudResult,
   EntityActionDef,

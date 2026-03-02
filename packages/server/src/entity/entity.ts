@@ -29,6 +29,7 @@ export function entity<
   // EntityDefinition stores hooks as EntityBeforeHooks/EntityAfterHooks (unknown)
   // so that definitions with different models can coexist in a single array.
   const def: EntityDefinition<TModel> = {
+    kind: 'entity',
     name,
     model: config.model,
     inject: (config.inject ?? {}) as Record<string, EntityDefinition>,
