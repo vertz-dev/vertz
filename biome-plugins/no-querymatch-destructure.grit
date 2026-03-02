@@ -1,0 +1,6 @@
+// Prevent destructuring the data parameter in queryMatch's data handler.
+// Destructuring captures a snapshot, breaking the reactive Proxy that
+// queryMatch provides. Use `response.xxx` for reactive property access.
+`data: ({$_}) => $_` as $handler where {
+  register_diagnostic(span=$handler, message="Do not destructure queryMatch data parameter — use `response.xxx` for reactive access.", severity="warn")
+}

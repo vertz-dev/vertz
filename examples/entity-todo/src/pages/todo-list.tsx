@@ -54,7 +54,7 @@ export function TodoListPage() {
               {err instanceof Error ? err.message : String(err)}
             </div>
           ),
-          data: (response, revalidating) => (
+          data: (response) => (
             <>
               {response.items.length === 0 && (
                 <div class={emptyStateStyles.container}>
@@ -67,7 +67,7 @@ export function TodoListPage() {
               <div
                 data-testid="todo-list"
                 class={pageStyles.todoList}
-                style={revalidating ? 'opacity: 0.6' : ''}
+                style={todosQuery.revalidating ? 'opacity: 0.6' : ''}
               >
                 {response.items.map((todo: TodosResponse) => (
                   <TodoItem

@@ -82,6 +82,15 @@ export function __child(
         wrapper.dispose = domEffect(() => {
           const value = fn();
 
+          // Stable-node optimization (same as CSR path)
+          if (
+            isRenderNode(value) &&
+            wrapper.childNodes.length === 1 &&
+            wrapper.firstChild === value
+          ) {
+            return;
+          }
+
           // Clear previous content
           while (wrapper.firstChild) {
             wrapper.removeChild(wrapper.firstChild);
@@ -112,6 +121,15 @@ export function __child(
 
   wrapper.dispose = domEffect(() => {
     const value = fn();
+
+    // Stable-node optimization: if fn() returns the same Node reference
+    // that's already the sole child, skip the nuke-and-replace cycle.
+    // This is critical for queryMatch, which returns a cached wrapper —
+    // without this check, __child would detach and re-attach it on every
+    // signal change, disrupting internal state (e.g., __list reconciliation).
+    if (isRenderNode(value) && wrapper.childNodes.length === 1 && wrapper.firstChild === value) {
+      return;
+    }
 
     // Clear previous content
     while (wrapper.firstChild) {

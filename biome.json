@@ -53,14 +53,14 @@
       "includes": ["**/package.json"]
     },
     {
+      "includes": ["**/__tests__/**/*.{ts,tsx}", "**/*.test.{ts,tsx}", "**/*.test-d.{ts,tsx}"],
       "linter": {
         "rules": {
           "suspicious": {
             "noExplicitAny": "off"
           }
         }
-      },
-      "includes": ["**/__tests__/**/*.{ts,tsx}", "**/*.test.{ts,tsx}", "**/*.test-d.{ts,tsx}"]
+      }
     }
   ],
   "plugins": [
@@ -68,7 +68,8 @@
     "./biome-plugins/no-ts-ignore.grit",
     "./biome-plugins/no-double-cast.grit",
     "./biome-plugins/no-throw-plain-error.grit",
-    "./biome-plugins/no-wrong-effect.grit"
+    "./biome-plugins/no-wrong-effect.grit",
+    "./biome-plugins/no-querymatch-destructure.grit"
   ],
   "vcs": {
     "clientKind": "git",
