@@ -9,7 +9,7 @@ const require = createRequire(import.meta.url);
 const playwrightPath = '/Users/viniciusdacal/.volta/tools/image/packages/playwright/lib/node_modules/playwright';
 const { chromium } = require(playwrightPath);
 
-const BASE = 'http://localhost:4201';
+const BASE = process.env.SMOKE_TEST_URL || 'http://localhost:4201';
 
 const routes = [
   '/',
