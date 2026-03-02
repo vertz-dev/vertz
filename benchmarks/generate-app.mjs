@@ -529,7 +529,8 @@ export const themeStyles = styles;
 import { css } from '@vertz/ui';
 
 export const layoutStyles = css({
-  shell: ['flex', 'flex-col', 'min-h:screen', 'bg:background'],
+  shell: ['flex', 'min-h:screen', 'bg:background'],
+  sidebar: ['w:64', 'bg:card', 'border-r:1', 'border:border', 'p:4'],
   main: ['flex-1', 'p:6'],
 });
 
@@ -677,19 +678,19 @@ import { Timer } from '../components/timer';
 import { css } from '@vertz/ui';
 
 const styles = css({
-  wrapper: ['flex'],
+  grid: ['grid', 'grid-cols:[200px_1fr]'],
   sidebar: ['p:4', 'border-r:1', 'border:border'],
   sidebarTitle: ['font:lg', 'font:semibold', 'mb:4'],
   nav: ['flex', 'flex-col', 'gap:2'],
   navLink: ['text:sm', 'text:muted-foreground', 'hover:text:foreground'],
   timerWrap: ['mt:4', 'text:xs', 'text:muted-foreground'],
-  content: ['flex-1', 'p:4'],
+  content: ['p:4'],
 });
 
 export function DashboardLayout({ children }: { children: any }) {
   return (
-    <div class={styles.wrapper}>
-      <aside class={styles.sidebar} style="width: 200px; flex-shrink: 0">
+    <div class={styles.grid}>
+      <aside class={styles.sidebar}>
         <h3 class={styles.sidebarTitle}>Dashboard</h3>
         <nav class={styles.nav}>
           <a href="/dashboard" class={styles.navLink}>Overview</a>
@@ -706,30 +707,18 @@ export function DashboardLayout({ children }: { children: any }) {
   `);
 
   w('layouts/settings-layout.tsx', `
-import { css } from '@vertz/ui';
-
-const styles = css({
-  wrapper: ['flex'],
-  sidebar: ['p:4', 'border-r:1', 'border:border'],
-  sidebarTitle: ['font:lg', 'font:semibold', 'mb:4'],
-  nav: ['flex', 'flex-col', 'gap:2'],
-  navLink: ['text:sm', 'text:muted-foreground', 'hover:text:foreground'],
-  content: ['flex-1', 'p:4'],
-});
+import { sectionStyles } from '../styles/components';
 
 export function SettingsLayout({ children }: { children: any }) {
   return (
-    <div class={styles.wrapper}>
-      <aside class={styles.sidebar} style="width: 200px; flex-shrink: 0">
-        <h3 class={styles.sidebarTitle}>Settings</h3>
-        <nav class={styles.nav}>
-          <a href="/settings" class={styles.navLink}>General</a>
-          <a href="/settings/profile" class={styles.navLink}>Profile</a>
-          <a href="/settings/notifications" class={styles.navLink}>Notifications</a>
-          <a href="/settings/billing" class={styles.navLink}>Billing</a>
-        </nav>
-      </aside>
-      <div class={styles.content}>{children}</div>
+    <div>
+      <div class={sectionStyles.tabNav}>
+        <a href="/settings" class={sectionStyles.headerLink}>General</a>
+        <a href="/settings/profile" class={sectionStyles.headerLink}>Profile</a>
+        <a href="/settings/notifications" class={sectionStyles.headerLink}>Notifications</a>
+        <a href="/settings/billing" class={sectionStyles.headerLink}>Billing</a>
+      </div>
+      {children}
     </div>
   );
 }
