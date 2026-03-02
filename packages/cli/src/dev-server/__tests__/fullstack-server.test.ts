@@ -164,40 +164,39 @@ describe('importServerModule', () => {
 });
 
 describe('formatBanner', () => {
-  it('includes app type and mode in banner', () => {
-    const banner = formatBanner('full-stack', 3000, 'localhost', false);
+  it('includes app type and SSR+HMR mode in banner', () => {
+    const banner = formatBanner('full-stack', 3000, 'localhost');
 
     expect(banner).toContain('full-stack');
-    expect(banner).toContain('HMR');
+    expect(banner).toContain('SSR+HMR');
   });
 
-  it('shows SSR mode when ssr is true', () => {
-    const banner = formatBanner('full-stack', 3000, 'localhost', true);
+  it('always shows SSR+HMR (unified mode)', () => {
+    const banner = formatBanner('full-stack', 3000, 'localhost');
 
-    expect(banner).toContain('SSR');
-    expect(banner).not.toContain('HMR');
+    expect(banner).toContain('SSR+HMR');
   });
 
   it('includes local URL', () => {
-    const banner = formatBanner('api-only', 4000, 'localhost', false);
+    const banner = formatBanner('api-only', 4000, 'localhost');
 
     expect(banner).toContain('http://localhost:4000');
   });
 
   it('includes API URL for full-stack apps', () => {
-    const banner = formatBanner('full-stack', 3000, 'localhost', false);
+    const banner = formatBanner('full-stack', 3000, 'localhost');
 
     expect(banner).toContain('/api');
   });
 
   it('includes API URL for api-only apps', () => {
-    const banner = formatBanner('api-only', 3000, 'localhost', false);
+    const banner = formatBanner('api-only', 3000, 'localhost');
 
     expect(banner).toContain('/api');
   });
 
   it('does not include API URL for ui-only apps', () => {
-    const banner = formatBanner('ui-only', 3000, 'localhost', false);
+    const banner = formatBanner('ui-only', 3000, 'localhost');
 
     expect(banner).not.toContain('/api');
   });

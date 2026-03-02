@@ -1,64 +1,28 @@
 /**
- * Dual-mode Bun development server.
+ * Unified Bun development server: SSR + HMR in a single Bun.serve().
  *
- * Two mutually exclusive modes:
+ * SSR is always on. HMR always works. One mode, one behavior — dev matches
+ * production. Bun's built-in HMR system handles client bundling; no manual
+ * Bun.build() needed.
  *
- * **HMR mode** (default): Bun.serve() + HTML import + routes.
- * Fast Refresh + CSS sidecar HMR. No SSR — client renders everything.
- * API routes via route-level handler functions.
+ * Architecture:
+ *   routes: { '/__vertz_hmr': hmrShell, '/api/*': apiHandler }
+ *   fetch:  static files → nav pre-fetch → fetch interception → SSR render
+ *   development: { hmr: true, console: true }
  *
- * **SSR mode**: Bun.serve() + fetch() handler.
- * SSR on every request + nav prefetch. Full page reload on changes (~400ms).
- * Module freshness via `bun --watch` (restarts the entire process).
+ * A hidden `/__vertz_hmr` route initializes Bun's HMR system. After startup,
+ * a self-fetch discovers the `/_bun/client/<hash>.js` URL and HMR bootstrap
+ * snippet. SSR responses reference this URL for hydration + HMR.
+ *
+ * A file watcher on `src/` re-discovers the hash and re-imports the SSR module
+ * on source changes, keeping SSR output fresh.
  */
 
-import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, watch, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type { SSRModule } from './ssr-render';
 import { ssrDiscoverQueries, ssrRenderToString } from './ssr-render';
 import { safeSerialize } from './ssr-streaming-runtime';
-
-/**
- * Inject SSR output into an HTML template string.
- *
- * - Replaces `<script type="module" src="...">` with an inlined client bundle
- * - Injects `appHtml` into `<div id="app">` or `<!--ssr-outlet-->`
- * - Injects CSS before `</head>`
- * - Injects `__VERTZ_SSR_DATA__` before `</body>`
- */
-export function injectIntoTemplate(
-  template: string,
-  clientBundle: string,
-  appHtml: string,
-  appCss: string,
-  ssrData: Array<{ key: string; data: unknown }>,
-): string {
-  // Replace script src with inline client bundle
-  let html = template.replace(
-    /<script type="module" src="[^"]+"><\/script>/,
-    `<script type="module">\n${clientBundle}\n</script>`,
-  );
-
-  // Inject app HTML into <div id="app"> or <!--ssr-outlet-->
-  if (html.includes('<!--ssr-outlet-->')) {
-    html = html.replace('<!--ssr-outlet-->', appHtml);
-  } else {
-    html = html.replace(/(<div[^>]*id="app"[^>]*>)([\s\S]*?)(<\/div>)/, `$1${appHtml}$3`);
-  }
-
-  // Inject CSS before </head>
-  if (appCss) {
-    html = html.replace('</head>', `${appCss}\n</head>`);
-  }
-
-  // Inject SSR data for client-side hydration before </body>
-  if (ssrData.length > 0) {
-    const ssrDataScript = `<script>window.__VERTZ_SSR_DATA__=${safeSerialize(ssrData)};</script>`;
-    html = html.replace('</body>', `${ssrDataScript}\n</body>`);
-  }
-
-  return html;
-}
 
 export interface BunDevServerOptions {
   /** SSR entry module (e.g., './src/app.tsx') */
@@ -83,8 +47,6 @@ export interface BunDevServerOptions {
   projectRoot?: string;
   /** Log requests. @default true */
   logRequests?: boolean;
-  /** Enable SSR mode. When false, uses HMR mode. @default false */
-  ssr?: boolean;
 }
 
 export interface BunDevServer {
@@ -93,7 +55,9 @@ export interface BunDevServer {
 }
 
 /**
- * Create a Bun-native dev server with two modes: HMR (default) and SSR.
+ * Create a unified Bun dev server with SSR + HMR.
+ *
+ * SSR is always on. HMR always works. No mode toggle needed.
  */
 export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   const {
@@ -103,16 +67,36 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     apiHandler,
     skipSSRPaths = ['/api/'],
     openapi,
-    ssrModule: useSSRModule = false,
     clientEntry: clientEntryOption,
     title = 'Vertz App',
     projectRoot = process.cwd(),
     logRequests = true,
-    ssr = false,
   } = options;
 
   let server: ReturnType<typeof Bun.serve> | null = null;
   let srcWatcherRef: ReturnType<typeof watch> | null = null;
+  let stashedIndexHtml = false;
+
+  // Bun's dev server auto-serves index.html from the project root when
+  // development.hmr is true, bypassing the fetch() handler entirely.
+  // We stash it during dev so all requests go through our SSR fetch handler.
+  const indexHtmlPath = resolve(projectRoot, 'index.html');
+  const indexHtmlBackupPath = resolve(projectRoot, '.vertz', 'dev', 'index.html.bak');
+
+  function stashIndexHtml(): void {
+    if (existsSync(indexHtmlPath)) {
+      mkdirSync(resolve(projectRoot, '.vertz', 'dev'), { recursive: true });
+      renameSync(indexHtmlPath, indexHtmlBackupPath);
+      stashedIndexHtml = true;
+    }
+  }
+
+  function restoreIndexHtml(): void {
+    if (stashedIndexHtml && existsSync(indexHtmlBackupPath)) {
+      renameSync(indexHtmlBackupPath, indexHtmlPath);
+      stashedIndexHtml = false;
+    }
+  }
 
   // OpenAPI spec caching
   let cachedSpec: object | null = null;
@@ -171,87 +155,19 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     return new Response('OpenAPI spec not found', { status: 404 });
   };
 
-  // ── HMR Mode ────────────────────────────────────────────────────
+  // ── Unified SSR + HMR ────────────────────────────────────────────
 
-  async function startHMR(): Promise<void> {
-    // Determine HTML entry path
-    let htmlEntryPath: string;
-    const indexHtmlPath = resolve(projectRoot, 'index.html');
+  async function start(): Promise<void> {
+    // Stash index.html so Bun's dev server doesn't auto-serve it
+    stashIndexHtml();
 
-    if (existsSync(indexHtmlPath)) {
-      htmlEntryPath = indexHtmlPath;
-    } else if (useSSRModule) {
-      // Generate a dev HTML shell for ssrModule mode
-      const devDir = resolve(projectRoot, '.vertz', 'dev');
-      mkdirSync(devDir, { recursive: true });
-
-      const clientSrc = clientEntryOption ?? entry;
-
-      // Fast Refresh runtime: resolve from generated HTML at .vertz/dev/index.html
-      // back to project root's node_modules
-      const frRuntimePath =
-        '../../node_modules/@vertz/ui-server/dist/bun-plugin/fast-refresh-runtime.js';
-
-      const html = `<!doctype html>
-<html lang="en"><head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${title}</title>
-</head><body>
-  <div id="app"></div>
-  <script type="module" src="${frRuntimePath}"></script>
-  <script type="module" src="${clientSrc}"></script>
-</body></html>`;
-
-      htmlEntryPath = resolve(devDir, 'index.html');
-      writeFileSync(htmlEntryPath, html);
-    } else {
-      throw new Error(
-        'HMR mode requires an index.html in the project root, or ssrModule: true to auto-generate one.',
-      );
-    }
-
-    const homepage = require(htmlEntryPath);
-
-    setupOpenAPIWatcher();
-
-    // Build routes object conditionally (Bun doesn't accept undefined route values).
-    // Use a plain object and cast to satisfy Bun's mapped route types.
-    // biome-ignore lint/suspicious/noExplicitAny: Bun routes are dynamically composed from user config
-    const routes: Record<string, any> = { '/*': homepage };
-
-    if (openapi) {
-      routes['/api/openapi.json'] = () => serveOpenAPISpec();
-    }
-
-    if (apiHandler) {
-      routes['/api/*'] = (req: Request) => apiHandler(req);
-    }
-
-    server = Bun.serve({
-      port,
-      hostname: host,
-      routes,
-      development: {
-        hmr: true,
-        console: true,
-      },
-    });
-
-    if (logRequests) {
-      console.log(`[Server] HMR dev server running at http://${host}:${server.port}`);
-    }
-  }
-
-  // ── SSR Mode ────────────────────────────────────────────────────
-
-  async function startSSR(): Promise<void> {
     const { plugin } = await import('bun');
     const { createVertzBunPlugin } = await import('./bun-plugin');
 
     const entryPath = resolve(projectRoot, entry);
+    const clientSrc = clientEntryOption ?? entry;
 
-    // Register JSX runtime swap for SSR
+    // Register JSX runtime swap for SSR (server-side imports)
     plugin({
       name: 'vertz-ssr-jsx-swap',
       setup(build) {
@@ -266,85 +182,12 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       },
     });
 
-    // Register the Vertz compiler plugin for SSR transforms
+    // Register the Vertz compiler plugin for SSR transforms (no HMR on server side)
     const { plugin: serverPlugin } = createVertzBunPlugin({
       hmr: false,
       fastRefresh: false,
     });
     plugin(serverPlugin);
-
-    // Build the client bundle
-    let clientBundle = '';
-
-    const { plugin: clientPlugin } = createVertzBunPlugin({
-      hmr: false,
-      fastRefresh: false,
-    });
-
-    async function buildClient(): Promise<boolean> {
-      const start = performance.now();
-      const result = await Bun.build({
-        entrypoints: [entryPath],
-        plugins: [clientPlugin],
-        target: 'browser',
-        minify: false,
-        sourcemap: 'inline',
-      });
-
-      if (!result.success) {
-        console.error('Client build failed:');
-        for (const log of result.logs) {
-          console.error(' ', log.message);
-        }
-        return false;
-      }
-
-      for (const output of result.outputs) {
-        clientBundle = await output.text();
-      }
-
-      const elapsed = performance.now() - start;
-      if (logRequests) {
-        console.log(`[Server] Client built in ${elapsed.toFixed(0)}ms`);
-      }
-      return true;
-    }
-
-    if (logRequests) {
-      console.log('[Server] Building client bundle...');
-    }
-
-    const clientOk = await buildClient();
-    if (!clientOk) {
-      console.error('[Server] Client build failed. Fix errors and restart.');
-      process.exit(1);
-    }
-
-    // Read HTML template
-    let indexHtml: string;
-    const indexHtmlPath = resolve(projectRoot, 'index.html');
-    if (existsSync(indexHtmlPath)) {
-      indexHtml = await Bun.file(indexHtmlPath).text();
-    } else if (useSSRModule) {
-      // Generate a minimal template for SSR module mode
-      const clientSrc = clientEntryOption ?? entry;
-      indexHtml = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${title}</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="${clientSrc}"></script>
-  </body>
-</html>`;
-    } else {
-      throw new Error(
-        'SSR mode requires an index.html in the project root, or ssrModule: true to auto-generate one.',
-      );
-    }
 
     // Load SSR module
     let ssrMod: SSRModule;
@@ -358,41 +201,60 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       process.exit(1);
     }
 
-    // Client-only fallback HTML
-    const clientOnlyHtml = indexHtml.replace(
-      /<script type="module" src="[^"]+"><\/script>/,
-      `<script type="module">\n${clientBundle}\n</script>`,
-    );
+    // Generate HMR shell HTML at .vertz/dev/hmr-shell.html
+    // This page initializes Bun's HMR system by importing the client entry
+    const devDir = resolve(projectRoot, '.vertz', 'dev');
+    mkdirSync(devDir, { recursive: true });
+
+    // Fast Refresh runtime: resolve from generated HTML at .vertz/dev/
+    // back to project root's node_modules
+    const frRuntimePath =
+      '../../node_modules/@vertz/ui-server/dist/bun-plugin/fast-refresh-runtime.js';
+
+    const hmrShellHtml = `<!doctype html>
+<html lang="en"><head>
+  <meta charset="UTF-8" />
+  <title>HMR Shell</title>
+</head><body>
+  <script type="module" src="${frRuntimePath}"></script>
+  <script type="module" src="${clientSrc}"></script>
+</body></html>`;
+
+    const hmrShellPath = resolve(devDir, 'hmr-shell.html');
+    writeFileSync(hmrShellPath, hmrShellHtml);
+
+    const hmrShellModule = require(hmrShellPath);
 
     setupOpenAPIWatcher();
 
-    // Watch for file changes and rebuild client bundle
-    const srcDir = resolve(projectRoot, 'src');
-    let rebuildTimeout: ReturnType<typeof setTimeout> | null = null;
+    // Discovered HMR assets (populated after self-fetch)
+    let bundledScriptUrl: string | null = null;
+    let hmrBootstrapScript: string | null = null;
 
-    if (existsSync(srcDir)) {
-      srcWatcherRef = watch(srcDir, { recursive: true }, (_event, filename) => {
-        if (!filename) return;
-        if (rebuildTimeout) clearTimeout(rebuildTimeout);
-        rebuildTimeout = setTimeout(async () => {
-          if (logRequests) {
-            console.log(`[Server] File changed: ${filename}`);
-          }
-          await buildClient();
-        }, 100);
-      });
+    // Build routes object conditionally (Bun doesn't accept undefined route values).
+    // biome-ignore lint/suspicious/noExplicitAny: Bun routes are dynamically composed from user config
+    const routes: Record<string, any> = {
+      '/__vertz_hmr': hmrShellModule,
+    };
+
+    if (openapi) {
+      routes['/api/openapi.json'] = () => serveOpenAPISpec();
     }
 
-    // Start server
+    if (apiHandler) {
+      routes['/api/*'] = (req: Request) => apiHandler(req);
+    }
+
     server = Bun.serve({
       port,
       hostname: host,
+      routes,
 
       async fetch(request) {
         const url = new URL(request.url);
         const pathname = url.pathname;
 
-        // OpenAPI spec
+        // OpenAPI spec (fallback for non-route match)
         if (openapi && request.method === 'GET' && pathname === '/api/openapi.json') {
           return serveOpenAPISpec();
         }
@@ -450,53 +312,184 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           return new Response('Not Found', { status: 404 });
         }
 
-        // SSR render
+        // SSR render with fetch interception
         if (logRequests) {
           console.log(`[Server] SSR: ${pathname}`);
         }
 
         try {
-          const result = await ssrRenderToString(ssrMod, pathname, { ssrTimeout: 300 });
-          const html = injectIntoTemplate(
-            indexHtml,
-            clientBundle,
-            result.html,
-            result.css,
-            result.ssrData,
-          );
+          // Patch globalThis.fetch during SSR so API requests (e.g. query()
+          // calling fetch('/api/todos')) route through the in-memory apiHandler
+          // instead of HTTP self-fetch. Matches production (Cloudflare) behavior.
+          const originalFetch = globalThis.fetch;
+          if (apiHandler) {
+            const origin = `http://${host}:${server!.port}`;
+            const interceptedFetch: typeof fetch = (input, init) => {
+              const rawUrl =
+                typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+              const isRelative = rawUrl.startsWith('/');
+              const fetchPath = isRelative
+                ? (rawUrl.split('?')[0] ?? '/')
+                : new URL(rawUrl).pathname;
+              const isLocal = isRelative || new URL(rawUrl).origin === origin;
 
-          return new Response(html, {
-            status: 200,
-            headers: { 'Content-Type': 'text/html; charset=utf-8' },
-          });
+              if (isLocal && skipSSRPaths.some((p) => fetchPath.startsWith(p))) {
+                const absoluteUrl = isRelative ? `${origin}${rawUrl}` : rawUrl;
+                const req = new Request(absoluteUrl, init);
+                return apiHandler(req);
+              }
+              return originalFetch(input, init);
+            };
+            interceptedFetch.preconnect = originalFetch.preconnect;
+            globalThis.fetch = interceptedFetch;
+          }
+
+          try {
+            const result = await ssrRenderToString(ssrMod, pathname, { ssrTimeout: 300 });
+
+            // Generate HTML with discovered HMR script URL
+            const clientEntry = bundledScriptUrl ?? `/${clientSrc}`;
+
+            // Build the script tag with HMR attributes
+            const scriptTag = bundledScriptUrl
+              ? `<script type="module" crossorigin src="${bundledScriptUrl}" data-bun-dev-server-script></script>${hmrBootstrapScript ? `\n    ${hmrBootstrapScript}` : ''}`
+              : `<script type="module" src="${clientEntry}"></script>`;
+
+            const ssrDataScript =
+              result.ssrData.length > 0
+                ? `<script>window.__VERTZ_SSR_DATA__=${safeSerialize(result.ssrData)};</script>`
+                : '';
+
+            const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${title}</title>
+    ${result.css}
+  </head>
+  <body>
+    <div id="app">${result.html}</div>
+    ${ssrDataScript}
+    ${scriptTag}
+  </body>
+</html>`;
+
+            return new Response(html, {
+              status: 200,
+              headers: { 'Content-Type': 'text/html; charset=utf-8' },
+            });
+          } finally {
+            if (apiHandler) {
+              globalThis.fetch = originalFetch;
+            }
+          }
         } catch (err) {
           console.error('[Server] SSR error:', err);
-          // Graceful fallback: serve client-only HTML
-          return new Response(clientOnlyHtml, {
+          // Graceful fallback: serve minimal client-only HTML
+          const clientEntry = bundledScriptUrl ?? `/${clientSrc}`;
+          const scriptTag = bundledScriptUrl
+            ? `<script type="module" crossorigin src="${bundledScriptUrl}" data-bun-dev-server-script></script>${hmrBootstrapScript ? `\n    ${hmrBootstrapScript}` : ''}`
+            : `<script type="module" src="${clientEntry}"></script>`;
+
+          const fallbackHtml = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${title}</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    ${scriptTag}
+  </body>
+</html>`;
+
+          return new Response(fallbackHtml, {
             status: 200,
             headers: { 'Content-Type': 'text/html; charset=utf-8' },
           });
         }
       },
+
+      development: {
+        hmr: true,
+        console: true,
+      },
     });
 
     if (logRequests) {
-      console.log(`[Server] SSR dev server running at http://${host}:${server.port}`);
+      console.log(`[Server] SSR+HMR dev server running at http://${host}:${server.port}`);
     }
 
-    // srcWatcherRef is set above and cleaned up in stop()
+    // Self-fetch /__vertz_hmr to discover the bundled script URL and HMR bootstrap
+    await discoverHMRAssets();
+
+    async function discoverHMRAssets(): Promise<void> {
+      try {
+        const res = await fetch(`http://${host}:${server!.port}/__vertz_hmr`);
+        const html = await res.text();
+
+        // Extract the bundled /_bun/client/... URL
+        const srcMatch = html.match(/src="(\/_bun\/client\/[^"]+\.js)"/);
+        if (srcMatch?.[1]) {
+          bundledScriptUrl = srcMatch[1];
+          if (logRequests) {
+            console.log('[Server] Discovered bundled script URL:', bundledScriptUrl);
+          }
+        }
+
+        // Extract the HMR bootstrap script (the unref beacon script)
+        const bootstrapMatch = html.match(
+          /<script>(\(\(a\)=>\{document\.addEventListener.*?)<\/script>/,
+        );
+        if (bootstrapMatch?.[1]) {
+          hmrBootstrapScript = `<script>${bootstrapMatch[1]}</script>`;
+          if (logRequests) {
+            console.log('[Server] Extracted HMR bootstrap script');
+          }
+        }
+      } catch (e) {
+        console.warn('[Server] Could not discover HMR bundled URL:', e);
+      }
+    }
+
+    // Watch for file changes — re-discover hash + re-import SSR module
+    const srcDir = resolve(projectRoot, 'src');
+    let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    if (existsSync(srcDir)) {
+      srcWatcherRef = watch(srcDir, { recursive: true }, (_event, filename) => {
+        if (!filename) return;
+        if (refreshTimeout) clearTimeout(refreshTimeout);
+        refreshTimeout = setTimeout(async () => {
+          if (logRequests) {
+            console.log(`[Server] File changed: ${filename}`);
+          }
+
+          // Re-discover HMR assets (hash changes on every edit)
+          await discoverHMRAssets();
+
+          // Re-import SSR module with cache busting
+          try {
+            const freshMod: SSRModule = await import(`${entryPath}?t=${Date.now()}`);
+            ssrMod = freshMod;
+            if (logRequests) {
+              console.log('[Server] SSR module refreshed');
+            }
+          } catch (e) {
+            console.error('[Server] Failed to refresh SSR module:', e);
+            // Keep using the old module — last known good
+          }
+        }, 100);
+      });
+    }
   }
 
   // ── Public API ──────────────────────────────────────────────────
 
   return {
-    async start() {
-      if (ssr) {
-        await startSSR();
-      } else {
-        await startHMR();
-      }
-    },
+    start,
 
     async stop() {
       if (specWatcher) {
@@ -513,6 +506,9 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         server.stop(true);
         server = null;
       }
+
+      // Restore index.html if we stashed it
+      restoreIndexHtml();
     },
   };
 }
