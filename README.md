@@ -193,7 +193,7 @@ This isn't a slogan. It's an architectural decision:
 
 ## Built by LLMs
 
-This entire codebase is written with [Claude Code](https://claude.ai/claude-code). Not scaffolded by AI and finished by hand — written, tested, and iterated by an LLM from first commit to last. Vertz is both the product and the proof that it works.
+This entire codebase is written with [Claude Code](https://claude.ai/claude-code). Not scaffolded by AI and finished by hand — written, tested, and iterated by an LLM from first commit to last.
 
 Strict TDD. Design docs before code. Every behavior has a failing test first. Read the [Manifesto](./MANIFESTO.md) and [Vision](./VISION.md) to understand the philosophy.
 
@@ -210,7 +210,7 @@ Pre-release. APIs will change. The architecture and philosophy are stable. We're
 
 Found a bug? [Open an issue](https://github.com/vertz-dev/vertz/issues) — we appreciate detailed bug reports with reproduction steps.
 
-We don't accept pull requests. The entire codebase is written by [Claude Code](https://claude.ai/claude-code) as part of the experiment — keeping it that way is the point. Issues are the best way to contribute.
+We don't accept pull requests. The entire codebase is written by [Claude Code](https://claude.ai/claude-code) — that's how we build vertz. Issues are the best way to contribute.
 
 ## License
 
