@@ -1,14 +1,8 @@
 import { describe, expect, it } from 'bun:test';
-import { createModule } from '../../module/module';
-import { createModuleDef } from '../../module/module-def';
 import { createApp } from '../app-builder';
 
 describe('Response Schema Validation', () => {
   it('does not validate response when validateResponses is not set', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/users' });
-
-    // Response schema that expects { id: number }
     const responseSchema = {
       parse: (value: unknown) => {
         const response = value as { id: unknown };
@@ -19,14 +13,16 @@ describe('Response Schema Validation', () => {
       },
     };
 
-    // Handler returns wrong type (string instead of number)
-    router.get('/', {
-      response: responseSchema,
-      handler: () => ({ id: 'not-a-number' }), // Wrong type!
+    const app = createApp({
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/users',
+          responseSchema,
+          handler: async () => ({ id: 'not-a-number' }) as unknown as Response,
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(module);
 
     const request = new Request('http://localhost/users');
     const response = await app.handler(request);
@@ -37,9 +33,6 @@ describe('Response Schema Validation', () => {
   });
 
   it('does not validate response when validateResponses is false', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/users' });
-
     const responseSchema = {
       parse: (value: unknown) => {
         const response = value as { id: unknown };
@@ -50,13 +43,17 @@ describe('Response Schema Validation', () => {
       },
     };
 
-    router.get('/', {
-      response: responseSchema,
-      handler: () => ({ id: 'wrong-type' }),
+    const app = createApp({
+      validateResponses: false,
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/users',
+          responseSchema,
+          handler: async () => ({ id: 'wrong-type' }) as unknown as Response,
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({ validateResponses: false }).register(module);
 
     const request = new Request('http://localhost/users');
     const response = await app.handler(request);
@@ -65,9 +62,6 @@ describe('Response Schema Validation', () => {
   });
 
   it('validates response against schema when validateResponses is true', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/users' });
-
     const responseSchema = {
       parse: (value: unknown) => {
         const response = value as { id: unknown };
@@ -78,14 +72,17 @@ describe('Response Schema Validation', () => {
       },
     };
 
-    // Handler returns correct type - should pass validation
-    router.get('/', {
-      response: responseSchema,
-      handler: () => ({ id: 42 }),
+    const app = createApp({
+      validateResponses: true,
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/users',
+          responseSchema,
+          handler: async () => ({ id: 42 }) as unknown as Response,
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({ validateResponses: true }).register(module);
 
     const request = new Request('http://localhost/users');
     const response = await app.handler(request);
@@ -95,9 +92,6 @@ describe('Response Schema Validation', () => {
   });
 
   it('logs warning but returns response when validation fails with validateResponses true', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/users' });
-
     const responseSchema = {
       parse: (value: unknown) => {
         const response = value as { id: unknown };
@@ -108,14 +102,17 @@ describe('Response Schema Validation', () => {
       },
     };
 
-    // Handler returns wrong type
-    router.get('/', {
-      response: responseSchema,
-      handler: () => ({ id: 'not-a-number' }),
+    const app = createApp({
+      validateResponses: true,
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/users',
+          responseSchema,
+          handler: async () => ({ id: 'not-a-number' }) as unknown as Response,
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({ validateResponses: true }).register(module);
 
     const request = new Request('http://localhost/users');
     const response = await app.handler(request);
@@ -126,9 +123,6 @@ describe('Response Schema Validation', () => {
   });
 
   it('validates nested response structure', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/users' });
-
     const responseSchema = {
       parse: (value: unknown) => {
         const response = value as { user: { name: unknown } };
@@ -139,13 +133,17 @@ describe('Response Schema Validation', () => {
       },
     };
 
-    router.get('/', {
-      response: responseSchema,
-      handler: () => ({ user: { name: 'Alice' } }),
+    const app = createApp({
+      validateResponses: true,
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/users',
+          responseSchema,
+          handler: async () => ({ user: { name: 'Alice' } }) as unknown as Response,
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({ validateResponses: true }).register(module);
 
     const request = new Request('http://localhost/users');
     const response = await app.handler(request);
@@ -155,9 +153,6 @@ describe('Response Schema Validation', () => {
   });
 
   it('handles array response validation', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/users' });
-
     const responseSchema = {
       parse: (value: unknown) => {
         const arr = value as unknown[];
@@ -170,13 +165,17 @@ describe('Response Schema Validation', () => {
       },
     };
 
-    router.get('/', {
-      response: responseSchema,
-      handler: () => [{ id: 1 }, { id: 2 }],
+    const app = createApp({
+      validateResponses: true,
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/users',
+          responseSchema,
+          handler: async () => [{ id: 1 }, { id: 2 }] as unknown as Response,
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({ validateResponses: true }).register(module);
 
     const request = new Request('http://localhost/users');
     const response = await app.handler(request);
@@ -186,16 +185,16 @@ describe('Response Schema Validation', () => {
   });
 
   it('skips validation when route has no response schema defined', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/users' });
-
-    // No response schema - should not fail even with validateResponses: true
-    router.get('/', {
-      handler: () => ({ id: 'any-type' }),
+    const app = createApp({
+      validateResponses: true,
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/users',
+          handler: async () => ({ id: 'any-type' }) as unknown as Response,
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({ validateResponses: true }).register(module);
 
     const request = new Request('http://localhost/users');
     const response = await app.handler(request);

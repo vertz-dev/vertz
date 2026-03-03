@@ -97,35 +97,25 @@ describe('@vertz/db dist type preservation', () => {
   // ---- DatabaseClient generic preservation ----
 
   it('DatabaseClient has a TModels generic parameter', () => {
-    expect(dts).toMatch(
-      /type DatabaseClient<\s*TModels\s+extends\s+Record<string,\s*ModelEntry>/,
-    );
+    expect(dts).toMatch(/type DatabaseClient<\s*TModels\s+extends\s+Record<string,\s*ModelEntry>/);
   });
 
   // ---- ModelDelegate generic preservation ----
 
   it('ModelDelegate has a TEntry generic parameter', () => {
-    expect(dts).toMatch(
-      /interface ModelDelegate<\s*TEntry\s+extends\s+ModelEntry/,
-    );
+    expect(dts).toMatch(/interface ModelDelegate<\s*TEntry\s+extends\s+ModelEntry/);
   });
 
   it('ModelDelegate.get has TOptions generic parameter', () => {
-    expect(dts).toMatch(
-      /get<\s*\n?\s*TOptions\s+extends\s+TypedGetOptions/,
-    );
+    expect(dts).toMatch(/get<\s*\n?\s*TOptions\s+extends\s+TypedGetOptions/);
   });
 
   it('ModelDelegate.list has TOptions generic parameter', () => {
-    expect(dts).toMatch(
-      /list<\s*\n?\s*TOptions\s+extends\s+TypedListOptions/,
-    );
+    expect(dts).toMatch(/list<\s*\n?\s*TOptions\s+extends\s+TypedListOptions/);
   });
 
   it('ModelDelegate.create has TOptions generic parameter', () => {
-    expect(dts).toMatch(
-      /create<\s*\n?\s*TOptions\s+extends\s+TypedCreateOptions/,
-    );
+    expect(dts).toMatch(/create<\s*\n?\s*TOptions\s+extends\s+TypedCreateOptions/);
   });
 
   // ---- ColumnBuilder generic preservation ----
@@ -260,67 +250,13 @@ describe('@vertz/db dist type preservation', () => {
 });
 
 // ---------------------------------------------------------------------------
-// @vertz/core — handler context and router generics
+// @vertz/core — middleware and app builder generics
 // ---------------------------------------------------------------------------
 describe('@vertz/core dist type preservation', () => {
   let dts: string;
 
   beforeAll(() => {
     dts = readDts('core');
-  });
-
-  // ---- TypedHandlerCtx generic parameters ----
-
-  it('TypedHandlerCtx has TParams, TQuery, THeaders, TBody, TMiddleware generics', () => {
-    expect(dts).toMatch(
-      /type TypedHandlerCtx<\s*\n?\s*TParams[\s\S]*?TQuery[\s\S]*?THeaders[\s\S]*?TBody[\s\S]*?TMiddleware/,
-    );
-  });
-
-  // ---- HttpMethodFn generic preservation ----
-
-  it('HttpMethodFn has TMiddleware and TInject generic parameters', () => {
-    expect(dts).toMatch(
-      /type HttpMethodFn<\s*\n?\s*TMiddleware\s+extends\s+Record<string,\s*unknown>/,
-    );
-    expect(dts).toMatch(/HttpMethodFn[\s\S]*?TInject\s+extends\s+Record<string,\s*unknown>/);
-  });
-
-  it('HttpMethodFn returns NamedRouterDef<TMiddleware, TInject>', () => {
-    expect(dts).toMatch(/HttpMethodFn[\s\S]*?NamedRouterDef<TMiddleware,\s*TInject>/);
-  });
-
-  // ---- NamedRouterDef generic preservation ----
-
-  it('NamedRouterDef has TMiddleware and TInject generic parameters', () => {
-    expect(dts).toMatch(
-      /interface NamedRouterDef<\s*\n?\s*TMiddleware\s+extends\s+Record<string,\s*unknown>/,
-    );
-    expect(dts).toMatch(/NamedRouterDef[\s\S]*?TInject\s+extends\s+Record<string,\s*unknown>/);
-  });
-
-  // ---- ExtractMethods and ResolveInjectMap utility types ----
-
-  it('ExtractMethods utility type is exported', () => {
-    expect(dts).toMatch(/type ExtractMethods<\s*T\s*>/);
-  });
-
-  it('ResolveInjectMap utility type is exported', () => {
-    expect(dts).toMatch(/type ResolveInjectMap<\s*T\s+extends\s+Record<string,\s*unknown>/);
-  });
-
-  // ---- RouterDef has TInject generic ----
-
-  it('RouterDef has TInject generic parameter', () => {
-    expect(dts).toMatch(/interface RouterDef<\s*TInject\s+extends\s+Record<string,\s*unknown>/);
-  });
-
-  // ---- RouteConfig generic parameters ----
-
-  it('RouteConfig has TParams, TQuery, THeaders, TBody, TMiddleware generics', () => {
-    expect(dts).toMatch(
-      /interface RouteConfig<\s*\n?\s*TParams[\s\S]*?TQuery[\s\S]*?THeaders[\s\S]*?TBody[\s\S]*?TMiddleware/,
-    );
   });
 
   // ---- MiddlewareDef generic preservation ----
@@ -349,31 +285,7 @@ describe('@vertz/core dist type preservation', () => {
 
   it('AppBuilder has TMiddlewareCtx generic parameter', () => {
     expect(dts).toMatch(
-      /interface AppBuilder<\s*TMiddlewareCtx\s+extends\s+Record<string,\s*unknown>/,
-    );
-  });
-
-  // ---- ModuleDef generic preservation ----
-
-  it('ModuleDef has TImports and TOptions generic parameters', () => {
-    expect(dts).toMatch(
-      /interface ModuleDef<\s*\n?\s*TImports\s+extends\s+Record<string,\s*unknown>[\s\S]*?TOptions\s+extends\s+Record<string,\s*unknown>/,
-    );
-  });
-
-  // ---- NamedModuleDef generic preservation ----
-
-  it('NamedModuleDef has TImports, TOptions, and TMiddleware generic parameters', () => {
-    expect(dts).toMatch(
-      /interface NamedModuleDef<\s*\n?\s*TImports\s+extends\s+Record<string,\s*unknown>[\s\S]*?TOptions\s+extends\s+Record<string,\s*unknown>[\s\S]*?TMiddleware\s+extends\s+Record<string,\s*unknown>/,
-    );
-  });
-
-  // ---- createModuleDef generic preservation ----
-
-  it('createModuleDef has TImports, TOptions, and TMiddleware generic parameters', () => {
-    expect(dts).toMatch(
-      /declare function createModuleDef<\s*\n?\s*TImports\s+extends\s+Record<string,\s*unknown>[\s\S]*?TOptions\s+extends\s+Record<string,\s*unknown>[\s\S]*?TMiddleware\s+extends\s+Record<string,\s*unknown>/,
+      /interface AppBuilder<\s*_?TMiddlewareCtx\s+extends\s+Record<string,\s*unknown>/,
     );
   });
 
@@ -381,12 +293,6 @@ describe('@vertz/core dist type preservation', () => {
 
   it('DeepReadonly type is present and generic', () => {
     expect(dts).toMatch(/type DeepReadonly<\s*T\s*>/);
-  });
-
-  // ---- ServiceDef generics preserved ----
-
-  it('ServiceDef has TDeps, TState, and TMethods generic parameters', () => {
-    expect(dts).toMatch(/interface ServiceDef<\s*\n?\s*TDeps[\s\S]*?TState[\s\S]*?TMethods/);
   });
 });
 

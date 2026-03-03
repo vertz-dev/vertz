@@ -2,8 +2,6 @@ import { buildCtx } from '../context/ctx-builder';
 import { BadRequestException } from '../exceptions';
 import type { NamedMiddlewareDef } from '../middleware/middleware-def';
 import { type ResolvedMiddleware, runMiddlewareChain } from '../middleware/middleware-runner';
-import type { NamedModule } from '../module/module';
-import type { NamedServiceDef } from '../module/service';
 import { isOk, isResult } from '../result';
 import { Trie } from '../router/trie';
 import { applyCorsHeaders, handleCors } from '../server/cors';
@@ -26,11 +24,6 @@ function createResponseWithCors(
     return applyCorsHeaders(config.cors, request, response);
   }
   return response;
-}
-
-export interface ModuleRegistration {
-  module: NamedModule;
-  options?: Record<string, unknown>;
 }
 
 type SchemaLike = { parse(value: unknown): { ok: boolean; data?: unknown; error?: unknown } };
@@ -111,36 +104,6 @@ interface RouteEntry {
   errorsSchema?: Record<number, SchemaLike>;
 }
 
-function resolveServices(registrations: ModuleRegistration[]): Map<NamedServiceDef, unknown> {
-  const serviceMap = new Map<NamedServiceDef, unknown>();
-
-  for (const { module, options } of registrations) {
-    for (const service of module.services) {
-      if (!serviceMap.has(service)) {
-        // Parse options from module registration against service schema
-        let parsedOptions: Record<string, unknown> = {};
-        if (service.options && options) {
-          const parsed = service.options.safeParse(options);
-          if (parsed.ok) {
-            parsedOptions = parsed.data;
-          } else {
-            throw new Error(
-              `Invalid options for service ${service.moduleName}: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
-            );
-          }
-        }
-
-        // For now, env is empty - could be extended to accept env from config
-        const env: Record<string, unknown> = {};
-
-        serviceMap.set(service, service.methods({}, undefined, parsedOptions, env));
-      }
-    }
-  }
-
-  return serviceMap;
-}
-
 function resolveMiddlewares(
   // biome-ignore lint/suspicious/noExplicitAny: runtime layer accepts any middleware generics
   globalMiddlewares: NamedMiddlewareDef<any, any>[],
@@ -152,72 +115,13 @@ function resolveMiddlewares(
   }));
 }
 
-function resolveRouterServices(
-  inject: Record<string, unknown> | undefined,
-  serviceMap: Map<NamedServiceDef, unknown>,
-): Record<string, unknown> {
-  if (!inject) return {};
-
-  const resolved: Record<string, unknown> = {};
-  for (const [name, serviceDef] of Object.entries(inject)) {
-    const methods = serviceMap.get(serviceDef as NamedServiceDef);
-    if (methods) resolved[name] = methods;
-  }
-  return resolved;
-}
-
-function registerRoutes(
-  trie: Trie,
-  basePath: string,
-  registrations: ModuleRegistration[],
-  serviceMap: Map<NamedServiceDef, unknown>,
-): void {
-  for (const { module, options } of registrations) {
-    for (const router of module.routers) {
-      const resolvedServices = resolveRouterServices(router.inject, serviceMap);
-
-      for (const route of router.routes) {
-        const fullPath = basePath + router.prefix + route.path;
-        const routeMiddlewares: ResolvedMiddleware[] = (
-          (route.config.middlewares ?? []) as NamedMiddlewareDef<
-            Record<string, unknown>,
-            Record<string, unknown>
-          >[]
-        ).map((mw) => ({
-          name: mw.name,
-          handler: mw.handler,
-          resolvedInject: {},
-        }));
-        const entry: RouteEntry = {
-          handler: route.config.handler,
-          options: options ?? {},
-          services: resolvedServices,
-          middlewares: routeMiddlewares,
-          paramsSchema: route.config.params as SchemaLike | undefined,
-          bodySchema: route.config.body as SchemaLike | undefined,
-          querySchema: route.config.query as SchemaLike | undefined,
-          headersSchema: route.config.headers as SchemaLike | undefined,
-          responseSchema: route.config.response as SchemaLike | undefined,
-          errorsSchema: route.config.errors as unknown as Record<number, SchemaLike> | undefined,
-        };
-        trie.add(route.method, fullPath, entry);
-      }
-    }
-  }
-}
-
 export function buildHandler(
   config: AppConfig,
-  registrations: ModuleRegistration[],
   // biome-ignore lint/suspicious/noExplicitAny: runtime layer accepts any middleware generics
   globalMiddlewares: NamedMiddlewareDef<any, any>[],
 ): (request: Request) => Promise<Response> {
   const trie = new Trie<RouteEntry>();
-  const basePath = config.basePath ?? '';
   const resolvedMiddlewares = resolveMiddlewares(globalMiddlewares);
-  const serviceMap = resolveServices(registrations);
-
-  registerRoutes(trie, basePath, registrations, serviceMap);
 
   // Register entity routes (injected by @vertz/server)
   if (config._entityRoutes) {
@@ -227,6 +131,12 @@ export function buildHandler(
         options: {},
         services: {},
         middlewares: [],
+        paramsSchema: route.paramsSchema,
+        bodySchema: route.bodySchema,
+        querySchema: route.querySchema,
+        headersSchema: route.headersSchema,
+        responseSchema: route.responseSchema,
+        errorsSchema: route.errorsSchema,
       };
       trie.add(route.method, route.path, entry);
     }

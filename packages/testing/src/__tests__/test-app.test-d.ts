@@ -1,31 +1,9 @@
-import { createMiddleware, createModuleDef } from '@vertz/server';
+import { createMiddleware } from '@vertz/server';
 import { describe, it } from 'vitest';
 
 import { createTestApp, type RouteMapEntry, type TestResponse } from '../test-app';
 
 describe('createTestApp type safety', () => {
-  it('rejects wrong service mock key', () => {
-    const moduleDef = createModuleDef({ name: 'typed' });
-    const service = moduleDef.service({
-      methods: () => ({ greet: (name: string) => `hello ${name}` }),
-    });
-
-    const app = createTestApp();
-    // @ts-expect-error — 'unknown' is not a key on the service methods
-    app.mock(service, { unknown: () => 'bad' });
-  });
-
-  it('accepts correct service mock shape', () => {
-    const moduleDef = createModuleDef({ name: 'typed' });
-    const service = moduleDef.service({
-      methods: () => ({ greet: (name: string) => `hello ${name}`, count: () => 42 }),
-    });
-
-    const app = createTestApp();
-    // Should compile — partial mock with correct method signature
-    app.mock(service, { greet: () => 'mocked' });
-  });
-
   it('accepts correct middleware mock shape', () => {
     const authMiddleware = createMiddleware({
       name: 'auth',

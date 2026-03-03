@@ -7,8 +7,6 @@
 
 import type { AccumulateProvides, NamedMiddlewareDef } from '../../middleware/middleware-def';
 import { createMiddleware } from '../../middleware/middleware-def';
-import { createModule } from '../../module/module';
-import { createModuleDef } from '../../module/module-def';
 import { createApp } from '../app-builder';
 
 // Test 1: Single middleware — handler return type infers TProvides
@@ -18,13 +16,8 @@ import { createApp } from '../app-builder';
     handler: async () => ({ user: { id: '1', role: 'admin' } }),
   });
 
-  const app = createApp({}).middlewares([authMiddleware]);
-
-  // Register a module — the builder should maintain middleware type
-  const moduleDef = createModuleDef({ name: 'test' });
-  const router = moduleDef.router({ prefix: '/users' });
-  const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-  app.register(mod);
+  // createApp().middlewares() should maintain middleware type
+  const _app = createApp({}).middlewares([authMiddleware]);
 }
 
 // Test 2: Multiple middleware accumulation via AccumulateProvides

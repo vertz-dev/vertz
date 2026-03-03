@@ -14,8 +14,6 @@
  */
 
 import { describe, expect, it } from 'bun:test';
-import { createModule } from '../../module/module';
-import { createModuleDef } from '../../module/module-def';
 import { err, ok } from '../../result';
 import { createApp } from '../app-builder';
 
@@ -23,16 +21,32 @@ import { createApp } from '../app-builder';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeModule(
-  prefix: string,
-  method: 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head',
+function makeApp(
+  method: string,
   path: string,
-  handler: (ctx: unknown) => unknown,
+  handler: (ctx: Record<string, unknown>) => unknown,
+  schemas?: {
+    paramsSchema?: { parse(value: unknown): { ok: boolean; data?: unknown; error?: unknown } };
+    bodySchema?: { parse(value: unknown): { ok: boolean; data?: unknown; error?: unknown } };
+    responseSchema?: { parse(value: unknown): { ok: boolean; data?: unknown; error?: unknown } };
+    errorsSchema?: Record<
+      number,
+      { parse(value: unknown): { ok: boolean; data?: unknown; error?: unknown } }
+    >;
+  },
+  config?: { validateResponses?: boolean },
 ) {
-  const moduleDef = createModuleDef({ name: 'test' });
-  const router = moduleDef.router({ prefix });
-  router[method](path, { handler: handler as never });
-  return createModule(moduleDef, { services: [], routers: [router], exports: [] });
+  return createApp({
+    ...config,
+    _entityRoutes: [
+      {
+        method: method.toUpperCase(),
+        path,
+        handler: handler as (ctx: Record<string, unknown>) => Promise<Response>,
+        ...schemas,
+      },
+    ],
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -41,8 +55,7 @@ function makeModule(
 
 describe('Result type response handling', () => {
   it('returns 200 with data when handler returns ok(data)', async () => {
-    const mod = makeModule('/items', 'get', '/', () => ok({ id: 1, name: 'widget' }));
-    const app = createApp({}).register(mod);
+    const app = makeApp('GET', '/items', () => ok({ id: 1, name: 'widget' }));
 
     const res = await app.handler(new Request('http://localhost/items'));
 
@@ -51,8 +64,7 @@ describe('Result type response handling', () => {
   });
 
   it('sets application/json content-type for ok() result', async () => {
-    const mod = makeModule('/items', 'get', '/', () => ok({ x: 1 }));
-    const app = createApp({}).register(mod);
+    const app = makeApp('GET', '/items', () => ok({ x: 1 }));
 
     const res = await app.handler(new Request('http://localhost/items'));
 
@@ -60,8 +72,7 @@ describe('Result type response handling', () => {
   });
 
   it('returns the exact status from err(status, body)', async () => {
-    const mod = makeModule('/items', 'get', '/:id', () => err(422, { code: 'Unprocessable' }));
-    const app = createApp({}).register(mod);
+    const app = makeApp('GET', '/items/:id', () => err(422, { code: 'Unprocessable' }));
 
     const res = await app.handler(new Request('http://localhost/items/99'));
 
@@ -70,8 +81,7 @@ describe('Result type response handling', () => {
 
   it('returns the exact body from err(status, body)', async () => {
     const errorBody = { code: 'NotReady', message: 'Item not ready' };
-    const mod = makeModule('/items', 'get', '/:id', () => err(409, errorBody));
-    const app = createApp({}).register(mod);
+    const app = makeApp('GET', '/items/:id', () => err(409, errorBody));
 
     const res = await app.handler(new Request('http://localhost/items/5'));
 
@@ -79,8 +89,7 @@ describe('Result type response handling', () => {
   });
 
   it('err() body is serialized as application/json', async () => {
-    const mod = makeModule('/items', 'get', '/', () => err(400, { field: 'name' }));
-    const app = createApp({}).register(mod);
+    const app = makeApp('GET', '/items', () => err(400, { field: 'name' }));
 
     const res = await app.handler(new Request('http://localhost/items'));
 
@@ -93,22 +102,6 @@ describe('Result type response handling', () => {
 // ---------------------------------------------------------------------------
 
 describe('Result type with validateResponses enabled', () => {
-  function makeModuleWithSchema(
-    prefix: string,
-    method: 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head',
-    path: string,
-    handler: (ctx: unknown) => unknown,
-    schemas: {
-      response?: unknown;
-      errors?: unknown;
-    },
-  ) {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix });
-    router[method](path, { handler: handler as never, ...schemas });
-    return createModule(moduleDef, { services: [], routers: [router], exports: [] });
-  }
-
   it('validates ok() data against response schema when validateResponses is true', async () => {
     const responseSchema = {
       parse: (value: unknown) => {
@@ -120,10 +113,13 @@ describe('Result type with validateResponses enabled', () => {
       },
     };
 
-    const mod = makeModuleWithSchema('/items', 'get', '/', () => ok({ id: 1, name: 'widget' }), {
-      response: responseSchema,
-    });
-    const app = createApp({ validateResponses: true }).register(mod);
+    const app = makeApp(
+      'GET',
+      '/items',
+      () => ok({ id: 1, name: 'widget' }),
+      { responseSchema },
+      { validateResponses: true },
+    );
 
     const res = await app.handler(new Request('http://localhost/items'));
 
@@ -142,10 +138,13 @@ describe('Result type with validateResponses enabled', () => {
       },
     };
 
-    const mod = makeModuleWithSchema('/items', 'get', '/', () => ok({ id: 'not-a-number' }), {
-      response: responseSchema,
-    });
-    const app = createApp({ validateResponses: true }).register(mod);
+    const app = makeApp(
+      'GET',
+      '/items',
+      () => ok({ id: 'not-a-number' }),
+      { responseSchema },
+      { validateResponses: true },
+    );
 
     // Response validation for Result types is a warning, not a rejection
     const res = await app.handler(new Request('http://localhost/items'));
@@ -167,14 +166,13 @@ describe('Result type with validateResponses enabled', () => {
       },
     };
 
-    const mod = makeModuleWithSchema(
-      '/items',
-      'get',
-      '/:id',
+    const app = makeApp(
+      'GET',
+      '/items/:id',
       () => err(403, { message: 'Forbidden' }),
-      { errors: errorsSchema },
+      { errorsSchema },
+      { validateResponses: true },
     );
-    const app = createApp({ validateResponses: true }).register(mod);
 
     const res = await app.handler(new Request('http://localhost/items/1'));
 
@@ -195,10 +193,13 @@ describe('Result type with validateResponses enabled', () => {
       },
     };
 
-    const mod = makeModuleWithSchema('/items', 'get', '/:id', () => err(403, { wrongField: 123 }), {
-      errors: errorsSchema,
-    });
-    const app = createApp({ validateResponses: true }).register(mod);
+    const app = makeApp(
+      'GET',
+      '/items/:id',
+      () => err(403, { wrongField: 123 }),
+      { errorsSchema },
+      { validateResponses: true },
+    );
 
     // Error schema validation is a warning, not a rejection
     const res = await app.handler(new Request('http://localhost/items/1'));
@@ -215,10 +216,13 @@ describe('Result type with validateResponses enabled', () => {
       }),
     };
 
-    const mod = makeModuleWithSchema('/items', 'get', '/', () => ok({ id: 1 }), {
-      response: responseSchema,
-    });
-    const app = createApp({ validateResponses: true }).register(mod);
+    const app = makeApp(
+      'GET',
+      '/items',
+      () => ok({ id: 1 }),
+      { responseSchema },
+      { validateResponses: true },
+    );
 
     const res = await app.handler(new Request('http://localhost/items'));
 
@@ -236,14 +240,13 @@ describe('Result type with validateResponses enabled', () => {
       },
     };
 
-    const mod = makeModuleWithSchema(
-      '/items',
-      'get',
-      '/:id',
+    const app = makeApp(
+      'GET',
+      '/items/:id',
       () => err(403, { message: 'Forbidden' }),
-      { errors: errorsSchema },
+      { errorsSchema },
+      { validateResponses: true },
     );
-    const app = createApp({ validateResponses: true }).register(mod);
 
     const res = await app.handler(new Request('http://localhost/items/1'));
 
@@ -258,14 +261,13 @@ describe('Result type with validateResponses enabled', () => {
       },
     };
 
-    const mod = makeModuleWithSchema(
-      '/items',
-      'get',
-      '/:id',
+    const app = makeApp(
+      'GET',
+      '/items/:id',
       () => err(403, { message: 'Forbidden' }),
-      { errors: errorsSchema },
+      { errorsSchema },
+      { validateResponses: true },
     );
-    const app = createApp({ validateResponses: true }).register(mod);
 
     const res = await app.handler(new Request('http://localhost/items/1'));
 
@@ -284,8 +286,7 @@ describe('Response instance passthrough', () => {
       status: 200,
       headers: { 'content-type': 'text/html' },
     });
-    const mod = makeModule('/page', 'get', '/', () => originalResponse);
-    const app = createApp({}).register(mod);
+    const app = makeApp('GET', '/page', () => originalResponse);
 
     const res = await app.handler(new Request('http://localhost/page'));
 
@@ -297,8 +298,7 @@ describe('Response instance passthrough', () => {
       status: 200,
       headers: { 'content-type': 'text/html' },
     });
-    const mod = makeModule('/page', 'get', '/', () => originalResponse);
-    const app = createApp({}).register(mod);
+    const app = makeApp('GET', '/page', () => originalResponse);
 
     const res = await app.handler(new Request('http://localhost/page'));
 
@@ -309,8 +309,7 @@ describe('Response instance passthrough', () => {
 
   it('preserves custom status code from returned Response', async () => {
     const originalResponse = new Response(null, { status: 202 });
-    const mod = makeModule('/files', 'get', '/', () => originalResponse);
-    const app = createApp({}).register(mod);
+    const app = makeApp('GET', '/files', () => originalResponse);
 
     const res = await app.handler(new Request('http://localhost/files'));
 
@@ -325,8 +324,7 @@ describe('Response instance passthrough', () => {
 
 describe('Plain object response', () => {
   it('sets application/json content-type for plain object handler returns', async () => {
-    const mod = makeModule('/users', 'get', '/', () => ({ users: [] }));
-    const app = createApp({}).register(mod);
+    const app = makeApp('GET', '/users', () => ({ users: [] }));
 
     const res = await app.handler(new Request('http://localhost/users'));
 
@@ -334,8 +332,7 @@ describe('Plain object response', () => {
   });
 
   it('returns 200 for plain object handler return', async () => {
-    const mod = makeModule('/users', 'get', '/', () => ({ id: 7 }));
-    const app = createApp({}).register(mod);
+    const app = makeApp('GET', '/users', () => ({ id: 7 }));
 
     const res = await app.handler(new Request('http://localhost/users'));
 
@@ -349,13 +346,12 @@ describe('Plain object response', () => {
 
 describe('405 Method Not Allowed', () => {
   it('includes all allowed methods in Allow header when multiple methods registered', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/items' });
-    router.get('/', { handler: () => [] });
-    router.post('/', { handler: () => ({}) });
-    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-
-    const app = createApp({}).register(mod);
+    const app = createApp({
+      _entityRoutes: [
+        { method: 'GET', path: '/items', handler: async () => new Response('[]') },
+        { method: 'POST', path: '/items', handler: async () => new Response('{}') },
+      ],
+    });
     const res = await app.handler(new Request('http://localhost/items', { method: 'DELETE' }));
 
     expect(res.status).toBe(405);
@@ -372,10 +368,9 @@ describe('405 Method Not Allowed', () => {
 
 describe('500 Internal Server Error response body', () => {
   it('does not leak the original error message in 500 response', async () => {
-    const mod = makeModule('/secret', 'get', '/', () => {
+    const app = makeApp('GET', '/secret', () => {
       throw new Error('db password: hunter2');
     });
-    const app = createApp({}).register(mod);
 
     const res = await app.handler(new Request('http://localhost/secret'));
     const body = await res.json();
@@ -385,11 +380,10 @@ describe('500 Internal Server Error response body', () => {
   });
 
   it('returns 500 when a non-Error value is thrown', async () => {
-    const mod = makeModule('/users', 'get', '/', () => {
+    const app = makeApp('GET', '/users', () => {
       // biome-ignore lint/suspicious/noExplicitAny: intentional non-Error throw for test
       throw 'string error' as any;
     });
-    const app = createApp({}).register(mod);
 
     const res = await app.handler(new Request('http://localhost/users'));
 
@@ -405,21 +399,13 @@ describe('500 Internal Server Error response body', () => {
 
 describe('Schema validation failure response body', () => {
   it('wraps generic Error from schema.parse into BadRequest (not 500)', async () => {
-    // validateSchema() catches generic Errors and re-throws as BadRequestException.
-    // This ensures a schema library throwing a plain Error still produces a 400.
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/data' });
-
     const paramsSchema = {
       parse: (_value: unknown) => {
-        // Simulate a schema lib that returns an error Result (not BadRequestException)
         return { ok: false as const, error: new Error('id must be a positive integer') };
       },
     };
 
-    router.get('/:id', { params: paramsSchema, handler: () => ({}) });
-    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(mod);
+    const app = makeApp('GET', '/data/:id', () => ({}), { paramsSchema });
 
     const res = await app.handler(new Request('http://localhost/data/bad'));
 
@@ -438,9 +424,6 @@ describe('Schema validation failure response body', () => {
 
 describe('Schema validation error message sanitization', () => {
   it('passes through a clean validation error message', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/data' });
-
     const bodySchema = {
       parse: (_value: unknown) => ({
         ok: false as const,
@@ -448,9 +431,7 @@ describe('Schema validation error message sanitization', () => {
       }),
     };
 
-    router.post('/', { body: bodySchema, handler: () => ({}) });
-    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(mod);
+    const app = makeApp('POST', '/data', () => ({}), { bodySchema });
 
     const res = await app.handler(
       new Request('http://localhost/data', {
@@ -466,9 +447,6 @@ describe('Schema validation error message sanitization', () => {
   });
 
   it('sanitizes an error message containing a Unix file path', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/data' });
-
     const bodySchema = {
       parse: (_value: unknown) => ({
         ok: false as const,
@@ -478,9 +456,7 @@ describe('Schema validation error message sanitization', () => {
       }),
     };
 
-    router.post('/', { body: bodySchema, handler: () => ({}) });
-    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(mod);
+    const app = makeApp('POST', '/data', () => ({}), { bodySchema });
 
     const res = await app.handler(
       new Request('http://localhost/data', {
@@ -499,9 +475,6 @@ describe('Schema validation error message sanitization', () => {
   });
 
   it('sanitizes an error message containing node_modules reference', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/data' });
-
     const bodySchema = {
       parse: (_value: unknown) => ({
         ok: false as const,
@@ -509,9 +482,7 @@ describe('Schema validation error message sanitization', () => {
       }),
     };
 
-    router.post('/', { body: bodySchema, handler: () => ({}) });
-    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(mod);
+    const app = makeApp('POST', '/data', () => ({}), { bodySchema });
 
     const res = await app.handler(
       new Request('http://localhost/data', {
@@ -528,9 +499,6 @@ describe('Schema validation error message sanitization', () => {
   });
 
   it('falls back to generic message when error is not an Error instance', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/data' });
-
     const paramsSchema = {
       parse: (_value: unknown) => ({
         ok: false as const,
@@ -538,9 +506,7 @@ describe('Schema validation error message sanitization', () => {
       }),
     };
 
-    router.get('/:id', { params: paramsSchema, handler: () => ({}) });
-    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(mod);
+    const app = makeApp('GET', '/data/:id', () => ({}), { paramsSchema });
 
     const res = await app.handler(new Request('http://localhost/data/bad'));
 
@@ -550,9 +516,6 @@ describe('Schema validation error message sanitization', () => {
   });
 
   it('extracts field messages from errors with an issues array', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/data' });
-
     const bodySchema = {
       parse: (_value: unknown) => ({
         ok: false as const,
@@ -562,9 +525,7 @@ describe('Schema validation error message sanitization', () => {
       }),
     };
 
-    router.post('/', { body: bodySchema, handler: () => ({}) });
-    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(mod);
+    const app = makeApp('POST', '/data', () => ({}), { bodySchema });
 
     const res = await app.handler(
       new Request('http://localhost/data', {
@@ -580,9 +541,6 @@ describe('Schema validation error message sanitization', () => {
   });
 
   it('sanitizes error messages containing stack trace patterns', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/data' });
-
     const bodySchema = {
       parse: (_value: unknown) => ({
         ok: false as const,
@@ -590,9 +548,7 @@ describe('Schema validation error message sanitization', () => {
       }),
     };
 
-    router.post('/', { body: bodySchema, handler: () => ({}) });
-    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(mod);
+    const app = makeApp('POST', '/data', () => ({}), { bodySchema });
 
     const res = await app.handler(
       new Request('http://localhost/data', {

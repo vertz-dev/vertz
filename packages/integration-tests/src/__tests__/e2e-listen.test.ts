@@ -1,8 +1,7 @@
-import { createServer, type ServerHandle } from '@vertz/server';
+import { createServer, type ServerHandle } from '@vertz/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createRoutes } from '../app/create-app';
 import { authMiddleware } from '../app/middleware/auth';
-import { createTodosModule } from '../app/modules/todos';
-import { createUsersModule } from '../app/modules/users';
 
 const AUTH = { authorization: 'Bearer user-1' };
 
@@ -10,13 +9,9 @@ let handle: ServerHandle;
 let baseUrl: string;
 
 beforeAll(async () => {
-  const { module: usersModule, userService } = createUsersModule();
-  const { module: todosModule } = createTodosModule(userService);
-
-  const app = createServer({ basePath: '/api', cors: { origins: true } })
-    .middlewares([authMiddleware])
-    .register(usersModule)
-    .register(todosModule);
+  const app = createServer({ cors: { origins: true }, _entityRoutes: createRoutes() }).middlewares([
+    authMiddleware,
+  ]);
 
   handle = await app.listen(0);
   baseUrl = `http://${handle.hostname}:${handle.port}`;

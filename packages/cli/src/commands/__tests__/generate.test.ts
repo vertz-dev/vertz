@@ -2,19 +2,6 @@ import { describe, expect, it } from 'bun:test';
 import { generateAction } from '../generate';
 
 describe('generateAction', () => {
-  it('generates module files for type module', () => {
-    const result = generateAction({
-      type: 'module',
-      name: 'order',
-      sourceDir: 'src',
-    });
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.data.files.length).toBeGreaterThan(0);
-      expect(result.data.files.some((f) => f.path.includes('module-def'))).toBe(true);
-    }
-  });
-
   it('generates service file for type service', () => {
     const result = generateAction({
       type: 'service',
