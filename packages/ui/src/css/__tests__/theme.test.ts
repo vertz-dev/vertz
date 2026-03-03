@@ -202,6 +202,82 @@ describe('compileTheme()', () => {
     expect(() => compileTheme(theme)).not.toThrow();
   });
 
+  it('strips semicolons from values to prevent CSS property injection', () => {
+    const theme = defineTheme({
+      colors: {
+        danger: { 500: 'red; } body { background: url(evil)' },
+      },
+    });
+    const { css } = compileTheme(theme);
+    // Extract the value portion — should not contain injected semicolons or braces
+    const valueMatch = css.match(/--color-danger-500:\s*([^;]+)/);
+    expect(valueMatch).not.toBeNull();
+    expect(valueMatch?.[1]?.trim()).not.toContain(';');
+    expect(valueMatch?.[1]?.trim()).not.toContain('}');
+    expect(valueMatch?.[1]?.trim()).toContain('red');
+  });
+
+  it('strips curly braces from values to prevent CSS rule breakout', () => {
+    const theme = defineTheme({
+      colors: {
+        danger: { 500: 'red } .evil { color: green' },
+      },
+    });
+    const { css } = compileTheme(theme);
+    // Only structural braces from :root { ... }, not injected ones
+    const valueMatch = css.match(/--color-danger-500:\s*([^;]+)/);
+    expect(valueMatch?.[1]?.trim()).not.toContain('}');
+    expect(valueMatch?.[1]?.trim()).not.toContain('{');
+  });
+
+  it('strips url( from values to prevent resource loading', () => {
+    const theme = defineTheme({
+      colors: {
+        background: { DEFAULT: 'url(https://evil.com/tracker.png)' },
+      },
+    });
+    const { css } = compileTheme(theme);
+    expect(css).not.toContain('url(');
+  });
+
+  it('strips expression( from values to prevent IE expression injection', () => {
+    const theme = defineTheme({
+      colors: {
+        background: { DEFAULT: 'expression(alert(1))' },
+      },
+    });
+    const { css } = compileTheme(theme);
+    expect(css).not.toContain('expression(');
+  });
+
+  it('strips @import from values to prevent stylesheet injection', () => {
+    const theme = defineTheme({
+      colors: {
+        background: { DEFAULT: '@import "https://evil.com/styles.css"' },
+      },
+    });
+    const { css } = compileTheme(theme);
+    expect(css).not.toContain('@import');
+  });
+
+  it('passes through normal CSS values unchanged', () => {
+    const theme = defineTheme({
+      colors: {
+        primary: { 500: '#ff0000' },
+        background: { DEFAULT: 'white' },
+      },
+      spacing: {
+        sm: '0.5rem',
+        scale: '1.5',
+      },
+    });
+    const { css } = compileTheme(theme);
+    expect(css).toContain('--color-primary-500: #ff0000');
+    expect(css).toContain('--color-background: white');
+    expect(css).toContain('--spacing-sm: 0.5rem');
+    expect(css).toContain('--spacing-scale: 1.5');
+  });
+
   it('returns token map with all flat token paths', () => {
     const theme = defineTheme({
       colors: {

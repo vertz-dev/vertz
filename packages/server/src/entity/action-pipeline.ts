@@ -8,6 +8,7 @@ import {
 } from '@vertz/errors';
 import { enforceAccess } from './access-enforcer';
 import type { CrudResult, EntityDbAdapter } from './crud-pipeline';
+import { stripHiddenFields } from './field-filter';
 import type { EntityActionDef, EntityContext, EntityDefinition } from './types';
 
 /**
@@ -50,7 +51,14 @@ export function createActionHandler(
     const input = parseResult.data;
 
     // Run the handler
-    const result = await actionDef.handler(input, ctx, row);
+    const rawResult = await actionDef.handler(input, ctx, row);
+
+    // Strip hidden fields from the result before exposing to hooks or response
+    const table = def.model.table;
+    const result =
+      rawResult && typeof rawResult === 'object' && !Array.isArray(rawResult)
+        ? stripHiddenFields(table, rawResult as Record<string, unknown>)
+        : rawResult;
 
     // Fire after hook (fire-and-forget)
     const afterHooks = def.after as Record<string, ((...args: unknown[]) => void) | undefined>;

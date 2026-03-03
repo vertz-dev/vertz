@@ -15,6 +15,7 @@ const tasksTable = d.table('tasks', {
   title: d.text(),
   status: d.text().default('pending'),
   assigneeId: d.uuid(),
+  passwordHash: d.text().is('hidden'),
   createdAt: d.timestamp().default('now').readOnly(),
 });
 
@@ -26,7 +27,13 @@ const tasksModel = d.model(tasksTable);
 
 function createStubDb() {
   const rows: Record<string, Record<string, unknown>> = {
-    'task-1': { id: 'task-1', title: 'Fix bug', status: 'pending', assigneeId: 'user-1' },
+    'task-1': {
+      id: 'task-1',
+      title: 'Fix bug',
+      status: 'pending',
+      assigneeId: 'user-1',
+      passwordHash: 'secret-hash',
+    },
   };
 
   return {
@@ -198,6 +205,69 @@ describe('Feature: action pipeline', () => {
         await handler(ctx, 'task-1', { reason: 'done' });
 
         expect(afterCompleteSpy).toHaveBeenCalledOnce();
+      });
+    });
+  });
+
+  describe('Given an entity with a hidden field and action with after hook', () => {
+    const afterCompleteSpy = mock();
+    const handlerSpy = mock(
+      async (_input: unknown, _ctx: unknown, row: Record<string, unknown> | null) => ({
+        done: true,
+        passwordHash: row?.passwordHash ?? 'leaked',
+      }),
+    );
+    const def = entity('tasks', {
+      model: tasksModel,
+      access: {
+        complete: () => true,
+      },
+      actions: {
+        complete: {
+          body: { parse: (v: unknown) => ({ ok: true as const, data: v as { reason: string } }) },
+          response: {
+            parse: (v: unknown) => ({
+              ok: true as const,
+              data: v as { done: boolean; passwordHash?: string },
+            }),
+          },
+          handler: handlerSpy,
+        },
+      },
+      after: {
+        complete: afterCompleteSpy,
+      } as any,
+    });
+
+    describe('When the action completes and handler returns hidden fields', () => {
+      it('Then after hook receives result with hidden fields stripped', async () => {
+        afterCompleteSpy.mockClear();
+        handlerSpy.mockClear();
+        const db = createStubDb();
+        const handler = createActionHandler(def, 'complete', def.actions.complete, db, true);
+        const ctx = makeCtx();
+
+        await handler(ctx, 'task-1', { reason: 'done' });
+
+        expect(afterCompleteSpy).toHaveBeenCalledOnce();
+        const [hookResult] = afterCompleteSpy.mock.calls[0]!;
+        expect(hookResult).not.toHaveProperty('passwordHash');
+        expect(hookResult).toHaveProperty('done', true);
+      });
+
+      it('Then response body does NOT contain the hidden field', async () => {
+        handlerSpy.mockClear();
+        const db = createStubDb();
+        const handler = createActionHandler(def, 'complete', def.actions.complete, db, true);
+        const ctx = makeCtx();
+
+        const result = await handler(ctx, 'task-1', { reason: 'done' });
+
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.data.body).not.toHaveProperty('passwordHash');
+          expect(result.data.body).toHaveProperty('done', true);
+        }
       });
     });
   });

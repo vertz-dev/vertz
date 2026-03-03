@@ -19,6 +19,13 @@ export class CoercedStringSchema extends StringSchema {
 
 export class CoercedNumberSchema extends NumberSchema {
   _parse(value: unknown, ctx: ParseContext): number {
+    if (typeof value === 'string' && value.trim() === '') {
+      ctx.addIssue({
+        code: ErrorCode.InvalidType,
+        message: 'Expected number, received empty string',
+      });
+      return 0;
+    }
     return super._parse(Number(value), ctx);
   }
 
