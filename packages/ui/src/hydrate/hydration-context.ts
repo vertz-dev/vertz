@@ -12,6 +12,10 @@ let isHydrating = false;
 let currentNode: Node | null = null;
 const cursorStack: (Node | null)[] = [];
 
+// Claim verification (dev-mode only)
+let hydrationRoot: Element | null = null;
+let claimedNodes: WeakSet<Node> | null = null;
+
 /**
  * Returns true when browser-visible hydration debug logging is enabled.
  * Activate by setting `window.__VERTZ_HYDRATION_DEBUG__ = true` before mount().
@@ -40,6 +44,10 @@ export function startHydration(root: Element): void {
   isHydrating = true;
   currentNode = root.firstChild;
   cursorStack.length = 0;
+  if (isDebug()) {
+    hydrationRoot = root;
+    claimedNodes = new WeakSet();
+  }
 }
 
 /**
@@ -60,6 +68,17 @@ export function endHydration(): void {
       );
     }
   }
+  if (hydrationRoot && claimedNodes) {
+    const unclaimed = findUnclaimedNodes(hydrationRoot, claimedNodes);
+    if (unclaimed.length > 0) {
+      console.warn(
+        `[hydrate] ${unclaimed.length} SSR node(s) not claimed during hydration:\n` +
+          unclaimed.map((n) => `  - ${describeNode(n)}`).join('\n'),
+      );
+    }
+  }
+  hydrationRoot = null;
+  claimedNodes = null;
   isHydrating = false;
   currentNode = null;
   cursorStack.length = 0;
@@ -109,6 +128,7 @@ export function claimElement(tag: string): HTMLElement | null {
             `[hydrate] claimElement(<${tag}${id}${cls}>) ✓ depth=${cursorStack.length}`,
           );
         }
+        if (claimedNodes) claimedNodes.add(el);
         currentNode = el.nextSibling;
         return el;
       }
@@ -146,6 +166,7 @@ export function claimText(): Text | null {
         const preview = text.data.length > 30 ? text.data.slice(0, 30) + '...' : text.data;
         console.debug(`[hydrate] claimText("${preview}") ✓ depth=${cursorStack.length}`);
       }
+      if (claimedNodes) claimedNodes.add(text);
       currentNode = text.nextSibling;
       return text;
     }
@@ -178,6 +199,7 @@ export function claimComment(): Comment | null {
   while (currentNode) {
     if (currentNode.nodeType === Node.COMMENT_NODE) {
       const comment = currentNode as Comment;
+      if (claimedNodes) claimedNodes.add(comment);
       currentNode = comment.nextSibling;
       return comment;
     }
@@ -217,4 +239,82 @@ export function exitChildren(): void {
     return;
   }
   currentNode = cursorStack.pop() ?? null;
+}
+
+/**
+ * Walk the DOM tree under `root` and collect nodes not present in `claimed`.
+ * Skips custom elements (tag contains `-`) and children of claimed
+ * `<span style="display: contents">` wrappers (__child CSR content).
+ */
+function findUnclaimedNodes(root: Element, claimed: WeakSet<Node>): Node[] {
+  const unclaimed: Node[] = [];
+
+  function walk(node: Node): void {
+    let child = node.firstChild;
+    while (child) {
+      // Skip custom elements entirely (browser extensions)
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        const el = child as HTMLElement;
+        if (el.tagName.includes('-')) {
+          child = child.nextSibling;
+          continue;
+        }
+      }
+
+      // Skip children of claimed <span style="display: contents"> wrappers
+      // These are __child wrappers whose inner content is CSR-rendered
+      if (
+        child.nodeType === Node.ELEMENT_NODE &&
+        claimed.has(child) &&
+        (child as HTMLElement).tagName === 'SPAN' &&
+        (child as HTMLElement).style.display === 'contents'
+      ) {
+        // Don't walk into this node's children — they are CSR content
+        child = child.nextSibling;
+        continue;
+      }
+
+      if (!claimed.has(child)) {
+        // Only report element, text, and comment nodes
+        if (
+          child.nodeType === Node.ELEMENT_NODE ||
+          child.nodeType === Node.TEXT_NODE ||
+          child.nodeType === Node.COMMENT_NODE
+        ) {
+          unclaimed.push(child);
+        }
+      }
+
+      // Recurse into children
+      if (child.nodeType === Node.ELEMENT_NODE) {
+        walk(child);
+      }
+
+      child = child.nextSibling;
+    }
+  }
+
+  walk(root);
+  return unclaimed;
+}
+
+/**
+ * Human-readable description of a DOM node for diagnostic messages.
+ */
+function describeNode(node: Node): string {
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    const el = node as HTMLElement;
+    const id = el.id ? `#${el.id}` : '';
+    const cls = el.className ? `.${String(el.className).split(' ')[0]}` : '';
+    return `<${el.tagName.toLowerCase()}${id}${cls}>`;
+  }
+  if (node.nodeType === Node.TEXT_NODE) {
+    const data = (node as Text).data;
+    const preview = data.length > 20 ? data.slice(0, 20) + '...' : data;
+    return `text("${preview}")`;
+  }
+  if (node.nodeType === Node.COMMENT_NODE) {
+    return `<!-- ${(node as Comment).data} -->`;
+  }
+  return `[node type=${node.nodeType}]`;
 }

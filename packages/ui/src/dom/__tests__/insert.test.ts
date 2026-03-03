@@ -64,6 +64,12 @@ describe('__insert (static child insertion)', () => {
     expect(parent.children[1]?.tagName).toBe('SPAN');
   });
 
+  test('depth limit prevents infinite recursion', () => {
+    const parent = document.createElement('div');
+    const circular: () => unknown = () => circular;
+    expect(() => __insert(parent, circular)).toThrow(/max.*depth/i);
+  });
+
   describe('hydration', () => {
     test('does not duplicate array children during hydration', () => {
       // Reproduces the dashboard card duplication bug:
@@ -96,6 +102,48 @@ describe('__insert (static child insertion)', () => {
 
       // Should NOT duplicate — SSR cards are already in place
       expect(parent.children.length).toBe(4);
+    });
+
+    test('resolves arrays of functions during hydration', () => {
+      const parent = document.createElement('div');
+      parent.innerHTML = '<p>one</p><p>two</p>';
+      startHydration(parent);
+
+      // Array of thunks — each creates a new element (simulating .map())
+      const items = [
+        () => {
+          const p = document.createElement('p');
+          p.textContent = 'one';
+          return p;
+        },
+        () => {
+          const p = document.createElement('p');
+          p.textContent = 'two';
+          return p;
+        },
+      ];
+      __insert(parent, items);
+
+      endHydration();
+
+      // No duplication — SSR elements are already in place
+      expect(parent.children.length).toBe(2);
+    });
+
+    test('resolves nested thunks during hydration', () => {
+      const parent = document.createElement('div');
+      parent.appendChild(document.createTextNode('hello'));
+      startHydration(parent);
+
+      // Nested thunk: () => () => "hello"
+      const nested = () => () => 'hello';
+      __insert(parent, nested);
+
+      endHydration();
+
+      // Text node should have been claimed (not duplicated)
+      expect(parent.childNodes.length).toBe(1);
+      expect(parent.textContent).toBe('hello');
     });
 
     test('does not duplicate thunk children during hydration', () => {
