@@ -1,6 +1,6 @@
 {
   "name": "@vertz/theme-shadcn",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "license": "MIT",
   "description": "Shadcn-inspired theme for Vertz — pre-built style definitions using variants() and css()",
