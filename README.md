@@ -125,6 +125,7 @@ Or clone the [entity-todo example](./examples/entity-todo) for a full-stack app 
 | **Deploy** | Cloudflare Workers adapter | `@vertz/cloudflare` |
 | **Testing** | `createTestApp()` with service mocking | `@vertz/testing` |
 | **HTTP** | Type-safe client with retries, streaming, auth strategies | `@vertz/fetch` |
+| **Terminal UI** | JSX components, prompts, wizards, spinners for CLI apps | `@vertz/tui` |
 
 Install everything with one dependency:
 
