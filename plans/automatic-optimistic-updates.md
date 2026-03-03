@@ -34,7 +34,95 @@ The manual pattern also **doesn't propagate**. If `TodoListPage` and `TodoDetail
 
 ## API Surface
 
-### Developer experience — before and after
+### App-level wiring — how EntityStore connects to the SDK
+
+Today, the developer's client setup is a one-liner:
+
+```typescript
+// src/api/client.ts (today)
+import { createClient } from '#generated';
+
+export const api = createClient();
+```
+
+The question: how does the module-level `api` singleton get connected to the EntityStore so that mutations trigger optimistic updates?
+
+**Phase 2-3 (opt-in):** The developer explicitly creates and passes the handler:
+
+```typescript
+// src/api/client.ts (Phase 2-3)
+import { createClient } from '#generated';
+import { getEntityStore, createOptimisticHandler } from '@vertz/ui';
+
+const store = getEntityStore();
+const handler = createOptimisticHandler(store);
+
+export const api = createClient({ optimistic: handler });
+```
+
+`getEntityStore()` returns the module-level singleton (same instance that `query()` uses internally to normalize entity data). `createOptimisticHandler(store)` wraps it in the `OptimisticHandler` interface that `@vertz/fetch` understands. The generated `createClient` threads the handler to each entity SDK factory.
+
+**Phase 4 (automatic — zero config):** The generated `createClient` does it internally:
+
+```typescript
+// src/api/client.ts (Phase 4) — unchanged from today
+import { createClient } from '#generated';
+
+export const api = createClient();
+```
+
+The generated `createClient` code changes to:
+
+```typescript
+// .vertz/generated/client.ts (generated — Phase 4)
+import { FetchClient } from '@vertz/fetch';
+import { getEntityStore, createOptimisticHandler } from '@vertz/ui';
+import { createTodosSdk } from './entities/todos';
+
+export function createClient(options: ClientOptions = {}) {
+  const client = new FetchClient({ baseURL: options.baseURL ?? '/api', ... });
+
+  // Auto-wired: EntityStore → OptimisticHandler → SDK factories
+  const store = getEntityStore();
+  const handler = createOptimisticHandler(store);
+
+  return {
+    todos: createTodosSdk(client, handler),
+  };
+}
+```
+
+The developer's `client.ts` stays the same one-liner. Optimistic updates just work because `createClient()` wires the handler internally. The `getEntityStore()` singleton is the same instance that `query()` reads from — so mutations through the SDK instantly update all active queries.
+
+**Component usage stays the same at every phase:**
+
+```typescript
+import { api } from '../api/client';
+
+const todosQuery = query(api.todos.list());
+// todosQuery.data is backed by EntityStore — updates automatically on any mutation
+```
+
+No context providers, no store setup, no configuration. The wiring is:
+
+```
+createClient()
+  → getEntityStore()           (module-level singleton in @vertz/ui)
+  → createOptimisticHandler()  (wraps store in OptimisticHandler interface)
+  → createTodosSdk(client, handler)
+      → api.todos.update(id, body)
+          → handler.apply()    (optimistic layer on EntityStore)
+          → fetch              (actual HTTP request)
+          → handler.commit()   (on success) / rollback() (on error)
+
+query(api.todos.list())
+  → detects _entity metadata   (entityType: 'todos', kind: 'list')
+  → normalizes into EntityStore (same singleton)
+  → data computed reads from EntityStore
+  → any EntityStore change → data recomputes → UI updates
+```
+
+### Component-level — before and after
 
 **Update mutation (Tier 1):**
 
@@ -194,7 +282,53 @@ export function createMutationDescriptor<T>(
 }
 ```
 
-### Generated SDK — what changes
+### Generated `createClient` — what changes
+
+```typescript
+// Generated: .vertz/generated/client.ts (Phase 2-3 — opt-in)
+import { type OptimisticHandler, FetchClient } from '@vertz/fetch';
+import { createTodosSdk } from './entities/todos';
+
+export interface ClientOptions {
+  baseURL?: string;
+  headers?: Record<string, string>;
+  timeoutMs?: number;
+  optimistic?: OptimisticHandler;  // NEW — opt-in wiring point
+}
+
+export function createClient(options: ClientOptions = {}) {
+  const client = new FetchClient({ baseURL: options.baseURL ?? '/api', ... });
+  return {
+    todos: createTodosSdk(client, options.optimistic),
+  };
+}
+```
+
+```typescript
+// Generated: .vertz/generated/client.ts (Phase 4 — automatic)
+import { FetchClient } from '@vertz/fetch';
+import { getEntityStore, createOptimisticHandler } from '@vertz/ui';
+import { createTodosSdk } from './entities/todos';
+
+export interface ClientOptions {
+  baseURL?: string;
+  headers?: Record<string, string>;
+  timeoutMs?: number;
+  optimistic?: false;  // Only settable to disable — enabled by default
+}
+
+export function createClient(options: ClientOptions = {}) {
+  const client = new FetchClient({ baseURL: options.baseURL ?? '/api', ... });
+  const handler = options.optimistic === false
+    ? undefined
+    : createOptimisticHandler(getEntityStore());
+  return {
+    todos: createTodosSdk(client, handler),
+  };
+}
+```
+
+### Generated entity SDK — what changes
 
 ```typescript
 // Generated: .vertz/generated/entities/todos.ts
