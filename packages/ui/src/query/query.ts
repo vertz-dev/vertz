@@ -302,11 +302,7 @@ export function query<T, E = unknown>(
    */
   const refetchTrigger: Signal<number> = signal(0);
 
-  /**
-   * Handle a fetch promise: update signals when it resolves/rejects.
-   * Ignores stale results if a newer fetch has been started.
-   * The key is captured at fetch-start time so cleanup targets the correct entry.
-   */
+  // -- Polling interval --
   let intervalPaused = false;
 
   function scheduleInterval(): void {
@@ -320,7 +316,7 @@ export function query<T, E = unknown>(
 
   // Visibility-based pause/resume for polling
   let visibilityHandler: (() => void) | undefined;
-  if (intervalMs > 0 && !isSSR() && typeof document !== 'undefined') {
+  if (intervalMs > 0 && enabled && !isSSR() && typeof document !== 'undefined') {
     visibilityHandler = () => {
       if (document.visibilityState === 'hidden') {
         intervalPaused = true;
@@ -334,6 +330,11 @@ export function query<T, E = unknown>(
     document.addEventListener('visibilitychange', visibilityHandler);
   }
 
+  /**
+   * Handle a fetch promise: update signals when it resolves/rejects.
+   * Ignores stale results if a newer fetch has been started.
+   * The key is captured at fetch-start time so cleanup targets the correct entry.
+   */
   function handleFetchPromise(promise: Promise<T>, id: number, key: string): void {
     promise.then(
       (result) => {
@@ -516,6 +517,8 @@ export function query<T, E = unknown>(
             error.value = undefined;
           });
           isFirst = false;
+          // Start polling if refetchInterval is configured.
+          scheduleInterval();
           return;
         }
       }
@@ -526,6 +529,8 @@ export function query<T, E = unknown>(
         // Suppress unhandled rejection on the discarded tracking promise.
         promise.catch(() => {});
         isFirst = false;
+        // Start polling if refetchInterval is configured.
+        scheduleInterval();
         return;
       }
       isFirst = false;

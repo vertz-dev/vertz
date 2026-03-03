@@ -1225,4 +1225,68 @@ describe('query()', () => {
 
     result.dispose();
   });
+
+  test('refetchInterval starts polling even with initialData', async () => {
+    let callCount = 0;
+    const result = query(
+      () => {
+        callCount++;
+        return Promise.resolve(`call-${callCount}`);
+      },
+      { key: 'interval-initial-data', refetchInterval: 1000, initialData: 'seed' },
+    );
+
+    // Initial data is served immediately, no fetch
+    expect(result.data.value).toBe('seed');
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+
+    // After 1s, should poll even though initialData was provided
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(callCount).toBeGreaterThanOrEqual(1);
+    expect(result.data.value).not.toBe('seed');
+
+    result.dispose();
+  });
+
+  test('reactive dep change resets the interval timer', async () => {
+    const dep = signal('a');
+    let callCount = 0;
+    const result = query(
+      () => {
+        const d = dep.value;
+        callCount++;
+        return Promise.resolve(`${d}-${callCount}`);
+      },
+      { refetchInterval: 2000 },
+    );
+
+    // Initial fetch
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(result.data.value).toBe('a-1');
+
+    // After 1s (halfway through interval), change the dep
+    vi.advanceTimersByTime(1000);
+    dep.value = 'b';
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(result.data.value).toBe('b-2');
+
+    // The old interval timer (from the 'a' fetch) should NOT fire at t=2s.
+    // Only the new interval timer (from the 'b' fetch) at t=1s+2s=3s should fire.
+    vi.advanceTimersByTime(1000); // t=2s
+    await Promise.resolve();
+    await Promise.resolve();
+    const countAt2s = callCount;
+
+    vi.advanceTimersByTime(1000); // t=3s — new interval should fire
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(callCount).toBe(countAt2s + 1);
+
+    result.dispose();
+  });
 });
