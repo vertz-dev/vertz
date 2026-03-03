@@ -1,5 +1,15 @@
 # @vertz/server
 
+## 0.2.2
+
+### Patch Changes
+
+- [#861](https://github.com/vertz-dev/vertz/pull/861) [`b6cb0a0`](https://github.com/vertz-dev/vertz/commit/b6cb0a0e3de68974ce1747063288aef7a199f084) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix: address second-pass security audit findings — hidden field stripping in action pipeline, CSS value sanitization, empty string coercion guard
+
+- Updated dependencies []:
+  - @vertz/core@0.2.2
+  - @vertz/db@0.2.2
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,5 +1,16 @@
 # @vertz/cli
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/tui@0.2.2
+  - @vertz/ui-server@0.2.2
+  - @vertz/db@0.2.2
+  - @vertz/compiler@0.2.2
+  - @vertz/codegen@0.2.2
+
 ## 0.2.0
 
 ### Minor Changes
