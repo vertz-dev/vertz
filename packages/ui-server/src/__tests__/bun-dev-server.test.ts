@@ -279,6 +279,51 @@ describe('generateSSRPageHtml', () => {
 
     expect(html).toContain('data-bun-dev-server-script');
   });
+
+  it('includes reload guard script in <head>', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    expect(html).toContain('__vertz_reload_count');
+    expect(html).toContain('__vertz_reload_ts');
+  });
+
+  it('places reload guard script before the closing </head> tag', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    const guardIndex = html.indexOf('__vertz_reload_count');
+    const headCloseIndex = html.indexOf('</head>');
+    expect(guardIndex).toBeGreaterThan(-1);
+    expect(headCloseIndex).toBeGreaterThan(-1);
+    expect(guardIndex).toBeLessThan(headCloseIndex);
+  });
+
+  it('places reload guard script before the main script tag in <body>', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script type="module" src="/app.js"></script>',
+    });
+
+    const guardIndex = html.indexOf('__vertz_reload_count');
+    const mainScriptIndex = html.indexOf('src="/app.js"');
+    expect(guardIndex).toBeGreaterThan(-1);
+    expect(mainScriptIndex).toBeGreaterThan(-1);
+    expect(guardIndex).toBeLessThan(mainScriptIndex);
+  });
 });
 
 describe('createFetchInterceptor', () => {
