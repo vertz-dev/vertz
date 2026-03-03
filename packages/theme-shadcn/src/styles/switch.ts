@@ -33,12 +33,8 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'cursor:pointer',
       'bg:input',
       'transition:colors',
-      {
-        '&': [
-          { property: 'height', value: '18.4px' },
-          { property: 'width', value: '32px' },
-        ],
-      },
+      'h:5',
+      'w:8',
       { [DARK]: [bgOpacity('input', 80)] },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
@@ -53,11 +49,28 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'w:4',
       'rounded:full',
       'bg:background',
-      'transition:transform',
+      {
+        '&': [
+          {
+            property: 'transition',
+            value: 'transform 150ms cubic-bezier(0.4, 0, 0.2, 1), width 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+          },
+        ],
+      },
       {
         '&[data-state="unchecked"]': [{ property: 'transform', value: 'translateX(0)' }],
         '&[data-state="checked"]': [
           { property: 'transform', value: 'translateX(calc(100% - 2px))' },
+        ],
+      },
+      {
+        'button:active > &[data-state="unchecked"]': [
+          'w:5',
+          { property: 'transform', value: 'translateX(0)' },
+        ],
+        'button:active > &[data-state="checked"]': [
+          'w:5',
+          { property: 'transform', value: 'translateX(0.625rem)' },
         ],
       },
       {
@@ -81,12 +94,8 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'cursor:pointer',
       'bg:input',
       'transition:colors',
-      {
-        '&': [
-          { property: 'height', value: '14px' },
-          { property: 'width', value: '24px' },
-        ],
-      },
+      'h:3.5',
+      'w:6',
       { [DARK]: [bgOpacity('input', 80)] },
       focusRing,
       { '&:disabled': ['pointer-events-none', 'opacity:0.5'] },
@@ -101,11 +110,28 @@ export function createSwitchStyles(): CSSOutput<SwitchBlocks> {
       'w:3',
       'rounded:full',
       'bg:background',
-      'transition:transform',
+      {
+        '&': [
+          {
+            property: 'transition',
+            value: 'transform 150ms cubic-bezier(0.4, 0, 0.2, 1), width 150ms cubic-bezier(0.4, 0, 0.2, 1)',
+          },
+        ],
+      },
       {
         '&[data-state="unchecked"]': [{ property: 'transform', value: 'translateX(0)' }],
         '&[data-state="checked"]': [
           { property: 'transform', value: 'translateX(calc(100% - 2px))' },
+        ],
+      },
+      {
+        'button:active > &[data-state="unchecked"]': [
+          'w:3.5',
+          { property: 'transform', value: 'translateX(0)' },
+        ],
+        'button:active > &[data-state="checked"]': [
+          'w:3.5',
+          { property: 'transform', value: 'translateX(0.5rem)' },
         ],
       },
       {
