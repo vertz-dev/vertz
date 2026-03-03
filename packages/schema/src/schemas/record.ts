@@ -40,6 +40,7 @@ export class RecordSchema<V> extends Schema<Record<string, V>> {
     const result: Record<string, V> = {};
 
     for (const key of Object.keys(obj)) {
+      if (key === '__proto__') continue;
       ctx.pushPath(key);
       if (this._keySchema) {
         this._keySchema._runPipeline(key, ctx);

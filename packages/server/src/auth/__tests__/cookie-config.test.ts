@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
+import { existsSync, rmSync } from 'node:fs';
 import { createAuth } from '../index';
 import type { AuthConfig } from '../types';
 
@@ -133,5 +134,73 @@ describe('cookie config security validations', () => {
         }),
       ),
     ).not.toThrow();
+  });
+});
+
+describe('JWT secret handling', () => {
+  const testSecretDir = '/tmp/vertz-test-jwt-secret';
+
+  beforeEach(() => {
+    if (existsSync(testSecretDir)) {
+      rmSync(testSecretDir, { recursive: true });
+    }
+  });
+
+  afterEach(() => {
+    if (existsSync(testSecretDir)) {
+      rmSync(testSecretDir, { recursive: true });
+    }
+  });
+
+  it('throws when jwtSecret is missing in production', () => {
+    expect(() =>
+      createAuth({
+        session: { strategy: 'jwt', ttl: '1h' },
+        isProduction: true,
+      }),
+    ).toThrow('jwtSecret is required in production');
+  });
+
+  it('auto-generates and persists a dev secret when jwtSecret is missing in dev mode', () => {
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    // Should not throw — generates a secret automatically
+    expect(() =>
+      createAuth({
+        session: { strategy: 'jwt', ttl: '1h' },
+        isProduction: false,
+        devSecretPath: testSecretDir,
+      }),
+    ).not.toThrow();
+
+    // Should have persisted the secret
+    expect(existsSync(`${testSecretDir}/jwt-secret`)).toBe(true);
+
+    warnSpy.mockRestore();
+    logSpy.mockRestore();
+  });
+
+  it('reuses persisted dev secret across createAuth calls', () => {
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+
+    // First call generates and persists
+    createAuth({
+      session: { strategy: 'jwt', ttl: '1h' },
+      isProduction: false,
+      devSecretPath: testSecretDir,
+    });
+
+    // Second call reads from file (no "Generated" message)
+    warnSpy.mockClear();
+    createAuth({
+      session: { strategy: 'jwt', ttl: '1h' },
+      isProduction: false,
+      devSecretPath: testSecretDir,
+    });
+
+    warnSpy.mockRestore();
+    logSpy.mockRestore();
   });
 });

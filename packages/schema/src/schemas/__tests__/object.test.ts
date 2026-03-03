@@ -187,6 +187,32 @@ describe('ObjectSchema', () => {
     }
   });
 
+  it('.passthrough() strips __proto__ key to prevent prototype pollution', () => {
+    const schema = new ObjectSchema({ name: new StringSchema() }).passthrough();
+    const malicious = JSON.parse('{"name":"Alice","__proto__":{"polluted":true},"extra":"kept"}');
+    const result = schema.parse(malicious);
+    // __proto__ assignment via bracket notation changes the result's prototype chain.
+    // The result should NOT inherit 'polluted' from a tampered prototype.
+    expect((result.data as Record<string, unknown>).polluted).toBeUndefined();
+    expect(Object.getPrototypeOf(result.data)).toBe(Object.prototype);
+  });
+
+  it('.passthrough() keeps constructor and prototype as legitimate string values', () => {
+    const schema = new ObjectSchema({ name: new StringSchema() }).passthrough();
+    const input = { name: 'Alice', constructor: 'MyClass', prototype: 'v1' };
+    const result = schema.parse(input);
+    expect(result.data).toEqual({ name: 'Alice', constructor: 'MyClass', prototype: 'v1' });
+  });
+
+  it('.catchall() strips __proto__ key to prevent prototype pollution', () => {
+    const schema = new ObjectSchema({ name: new StringSchema() }).catchall(new StringSchema());
+    const malicious = JSON.parse('{"name":"Alice","__proto__":"injected","extra":"kept"}');
+    const result = schema.parse(malicious);
+    // Even with a valid catchall value, __proto__ should be filtered
+    expect(Object.keys(result.data as object)).not.toContain('__proto__');
+    expect(result.data).toEqual({ name: 'Alice', extra: 'kept' });
+  });
+
   it('.catchall() overrides .strict() when chained', () => {
     const schema = new ObjectSchema({ name: new StringSchema() })
       .strict()
