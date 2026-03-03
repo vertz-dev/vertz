@@ -3,6 +3,13 @@ import type { ColumnSnapshot, ForeignKeySnapshot, IndexSnapshot, SchemaSnapshot 
 
 const SQLITE_EXCLUDED_TABLES = new Set(['sqlite_sequence', '_vertz_migrations']);
 
+function validateIdentifier(name: string): string {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+    throw new Error(`Invalid SQL identifier: "${name}"`);
+  }
+  return name;
+}
+
 function mapSqliteType(rawType: string): string {
   const upper = rawType.toUpperCase();
   if (upper === 'TEXT') return 'text';
@@ -30,7 +37,10 @@ export async function introspectSqlite(queryFn: MigrationQueryFn): Promise<Schem
 
     const columns: Record<string, ColumnSnapshot> = {};
 
-    const { rows: colRows } = await queryFn(`PRAGMA table_info("${tableName}")`, []);
+    const { rows: colRows } = await queryFn(
+      `PRAGMA table_info("${validateIdentifier(tableName)}")`,
+      [],
+    );
 
     for (const col of colRows) {
       const colName = col.name as string;
@@ -50,13 +60,19 @@ export async function introspectSqlite(queryFn: MigrationQueryFn): Promise<Schem
 
     // Detect indexes and unique constraints via index_list
     const indexes: IndexSnapshot[] = [];
-    const { rows: indexRows } = await queryFn(`PRAGMA index_list("${tableName}")`, []);
+    const { rows: indexRows } = await queryFn(
+      `PRAGMA index_list("${validateIdentifier(tableName)}")`,
+      [],
+    );
     for (const idx of indexRows) {
       const idxName = idx.name as string;
       const isUnique = (idx.unique as number) === 1;
       const origin = idx.origin as string; // 'c' = CREATE INDEX, 'u' = UNIQUE constraint
 
-      const { rows: idxInfoRows } = await queryFn(`PRAGMA index_info("${idxName}")`, []);
+      const { rows: idxInfoRows } = await queryFn(
+        `PRAGMA index_info("${validateIdentifier(idxName)}")`,
+        [],
+      );
       const idxColumns = idxInfoRows.map((r) => r.name as string);
 
       // For unique constraints on single columns, mark the column as unique
@@ -79,7 +95,10 @@ export async function introspectSqlite(queryFn: MigrationQueryFn): Promise<Schem
 
     // Detect foreign keys
     const foreignKeys: ForeignKeySnapshot[] = [];
-    const { rows: fkRows } = await queryFn(`PRAGMA foreign_key_list("${tableName}")`, []);
+    const { rows: fkRows } = await queryFn(
+      `PRAGMA foreign_key_list("${validateIdentifier(tableName)}")`,
+      [],
+    );
     for (const fk of fkRows) {
       foreignKeys.push({
         column: fk.from as string,

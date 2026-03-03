@@ -8,7 +8,7 @@ export function createJsonResponse(
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      'content-type': 'application/json',
+      'content-type': 'application/json; charset=utf-8',
       ...headers,
     },
   });

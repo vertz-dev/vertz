@@ -86,7 +86,8 @@ export function createSSRHandler(
     for (const [href, css] of Object.entries(inlineCSS)) {
       const escapedHref = href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const linkPattern = new RegExp(`<link[^>]*href=["']${escapedHref}["'][^>]*>`);
-      template = template.replace(linkPattern, `<style data-vertz-css>${css}</style>`);
+      const safeCss = css.replace(/<\//g, '<\\/');
+      template = template.replace(linkPattern, `<style data-vertz-css>${safeCss}</style>`);
     }
   }
 

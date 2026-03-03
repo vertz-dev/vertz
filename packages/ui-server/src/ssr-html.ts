@@ -5,6 +5,8 @@
  * to generate complete HTML documents from SSR render results.
  */
 
+import { escapeAttr, escapeHtml } from './html-serializer';
+
 export interface GenerateSSRHtmlOptions {
   appHtml: string;
   css: string;
@@ -29,13 +31,13 @@ export function generateSSRHtml(options: GenerateSSRHtmlOptions): string {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${title}</title>
+    <title>${escapeHtml(title)}</title>
     ${css}
   </head>
   <body>
     <div id="app">${appHtml}</div>
     ${ssrDataScript}
-    <script type="module" src="${clientEntry}"></script>
+    <script type="module" src="${escapeAttr(clientEntry)}"></script>
   </body>
 </html>`;
 }

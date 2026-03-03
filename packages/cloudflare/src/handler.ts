@@ -66,6 +66,7 @@ const SECURITY_HEADERS: Record<string, string> = {
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Content-Security-Policy':
     "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;",
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
 };
 
 function withSecurityHeaders(response: Response): Response {
@@ -257,15 +258,9 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
         globalThis.fetch = (input, init) => {
           // Determine the pathname from the input (string, URL, or Request)
           const rawUrl =
-            typeof input === 'string'
-              ? input
-              : input instanceof URL
-                ? input.href
-                : input.url;
+            typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
           const isRelative = rawUrl.startsWith('/');
-          const pathname = isRelative
-            ? rawUrl.split('?')[0]
-            : new URL(rawUrl).pathname;
+          const pathname = isRelative ? rawUrl.split('?')[0] : new URL(rawUrl).pathname;
           const isLocal = isRelative || new URL(rawUrl).origin === origin;
 
           if (isLocal && pathname.startsWith(basePath)) {

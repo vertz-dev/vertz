@@ -225,7 +225,11 @@ export function buildHandler(
       if (entry.middlewares.length > 0) {
         const routeCtx = { ...requestCtx, ...middlewareState };
         const routeState = await runMiddlewareChain(entry.middlewares, routeCtx);
-        Object.assign(middlewareState, routeState);
+        for (const key of Object.keys(routeState)) {
+          if (key !== '__proto__' && key !== 'constructor' && key !== 'prototype') {
+            middlewareState[key] = routeState[key];
+          }
+        }
       }
 
       // Validate schemas if provided
