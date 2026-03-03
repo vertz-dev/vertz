@@ -37,6 +37,8 @@ export interface QueryOptions<T> {
   cache?: CacheStore<T>;
   /** Timeout in ms for SSR data loading. Default: 300. Set to 0 to disable. */
   ssrTimeout?: number;
+  /** Polling interval in ms. When set, the query re-fetches automatically. 0 or false disables. */
+  refetchInterval?: number | false;
 }
 
 /** The reactive object returned by query(). */
@@ -286,6 +288,11 @@ export function query<T, E = unknown>(
   // Track the latest fetch id to ignore stale responses.
   let fetchId = 0;
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  let intervalTimer: ReturnType<typeof setTimeout> | undefined;
+  const intervalMs =
+    typeof options.refetchInterval === 'number' && options.refetchInterval > 0
+      ? options.refetchInterval
+      : 0;
 
   // Track all in-flight keys for this query instance so dispose() can clean them all.
   const inflightKeys = new Set<string>();
@@ -300,6 +307,33 @@ export function query<T, E = unknown>(
    * Ignores stale results if a newer fetch has been started.
    * The key is captured at fetch-start time so cleanup targets the correct entry.
    */
+  let intervalPaused = false;
+
+  function scheduleInterval(): void {
+    if (intervalMs > 0 && !isSSR() && !intervalPaused) {
+      clearTimeout(intervalTimer);
+      intervalTimer = setTimeout(() => {
+        refetch();
+      }, intervalMs);
+    }
+  }
+
+  // Visibility-based pause/resume for polling
+  let visibilityHandler: (() => void) | undefined;
+  if (intervalMs > 0 && !isSSR() && typeof document !== 'undefined') {
+    visibilityHandler = () => {
+      if (document.visibilityState === 'hidden') {
+        intervalPaused = true;
+        clearTimeout(intervalTimer);
+      } else {
+        intervalPaused = false;
+        // Immediately refetch when tab becomes visible again
+        refetch();
+      }
+    };
+    document.addEventListener('visibilitychange', visibilityHandler);
+  }
+
   function handleFetchPromise(promise: Promise<T>, id: number, key: string): void {
     promise.then(
       (result) => {
@@ -310,6 +344,7 @@ export function query<T, E = unknown>(
         data.value = result;
         loading.value = false;
         revalidating.value = false;
+        scheduleInterval();
       },
       (err: unknown) => {
         inflight.delete(key);
@@ -318,6 +353,7 @@ export function query<T, E = unknown>(
         error.value = err;
         loading.value = false;
         revalidating.value = false;
+        scheduleInterval();
       },
     );
   }
@@ -521,8 +557,13 @@ export function query<T, E = unknown>(
     disposeFn?.();
     // Clean up SSR hydration listener if still active.
     ssrHydrationCleanup?.();
-    // Clear any pending debounce timer.
+    // Clear any pending debounce or interval timer.
     clearTimeout(debounceTimer);
+    clearTimeout(intervalTimer);
+    // Remove visibility listener.
+    if (visibilityHandler && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', visibilityHandler);
+    }
     // Invalidate any pending fetch responses by bumping fetchId.
     fetchId++;
     // Clean up ALL in-flight entries for this query instance, not just the
