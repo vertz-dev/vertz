@@ -73,3 +73,7 @@ data/
 .wrangler/
 :memory:
 .vertz/
+
+# Claude Code
+.claude/worktrees/
+.mcp.json
