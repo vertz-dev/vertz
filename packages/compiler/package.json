@@ -1,9 +1,9 @@
 {
   "name": "@vertz/compiler",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "license": "MIT",
-  "description": "Vertz compiler \u2014 internal, no stability guarantee",
+  "description": "Vertz compiler — internal, no stability guarantee",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",

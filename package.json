@@ -1,7 +1,7 @@
 {
   "name": "vertz-monorepo",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "packageManager": "bun@1.3.9",
   "workspaces": [
     "packages/*",
@@ -18,7 +18,7 @@
     "ci:affected": "turbo run lint build typecheck test --filter=...[origin/main] --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!task-api-example' && turbo run build typecheck test --filter='@vertz-examples/task-manager'",
     "changeset": "changeset",
     "changeset:version": "changeset version",
-    "changeset:publish": "bun run build && changeset publish",
+    "changeset:publish": "bun run build && bash scripts/publish.sh",
     "postinstall": "if [ \"$(git rev-parse --git-dir 2>/dev/null)\" = \"$(git rev-parse --git-common-dir 2>/dev/null)\" ]; then lefthook install || true; fi",
     "test:tree-shaking": "npx vitest run --config tests/tree-shaking/vitest.config.ts --root tests/tree-shaking",
     "build": "turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --filter='!task-api-example'"

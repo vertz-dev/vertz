@@ -1,6 +1,6 @@
 {
   "name": "@vertz/db",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "license": "MIT",
   "description": "Database layer for Vertz — typed queries, migrations, codegen",
@@ -89,13 +89,9 @@
     "uuid": "^13.0.0"
   },
   "peerDependencies": {
-    "bun:sqlite": "*",
     "postgres": "^3.4.8"
   },
   "peerDependenciesMeta": {
-    "bun:sqlite": {
-      "optional": true
-    },
     "postgres": {
       "optional": true
     }
