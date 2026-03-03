@@ -201,6 +201,7 @@ Pre-release. APIs will change. The architecture and philosophy are stable. We're
 - [Manifesto](./MANIFESTO.md) — what we believe and why
 - [Design docs](./plans/) — how features are planned before they're built
 - [@viniciusdacal](https://x.com/viniciusdacal) on X — build-in-public updates
+- [@matheeuspoleza](https://x.com/matheeuspoleza) on X — build-in-public updates
 
 ## Contributing
 
