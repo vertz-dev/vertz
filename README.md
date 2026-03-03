@@ -29,40 +29,61 @@ d.table()  →  entity()  →  createServer()  →  vertz codegen  →  query() 
 
 ## See It in Action
 
-**1. Define the schema**
+**1. Define the schema** — `src/api/schema.ts`
+
+Table and model live together. The model is what you pass around — it carries the table's types everywhere.
 
 ```typescript
 import { d } from '@vertz/db';
 
-const todos = d.table('todos', {
+export const todosTable = d.table('todos', {
   id: d.uuid().primary({ generate: 'uuid' }),
   title: d.text(),
   completed: d.boolean().default(false),
   createdAt: d.timestamp().default('now').readOnly(),
 });
+
+export const todosModel = d.model(todosTable);
 ```
 
-**2. Create the entity — get a full CRUD API**
+**2. Create the entity** — `src/api/entities/todos.ts`
+
+One entity = a full CRUD API. Access control is required, not optional.
 
 ```typescript
-import { entity, createServer } from '@vertz/server';
+import { entity } from '@vertz/server';
+import { todosModel } from '../schema';
 
-const todosEntity = entity('todos', {
-  model: d.model(todos),
+export const todos = entity('todos', {
+  model: todosModel,
   access: { list: () => true, get: () => true, create: () => true },
 });
+```
 
-createServer({ entities: [todosEntity] }).listen(3000);
+**3. Wire up the database and serve** — `src/api/server.ts`
+
+```typescript
+import { createDb } from '@vertz/db';
+import { createServer } from '@vertz/server';
+import { todosModel } from './schema';
+import { todos } from './entities/todos';
+
+const db = createDb({
+  url: process.env.DATABASE_URL!,
+  models: { todos: todosModel },
+});
+
+createServer({ entities: [todos], db }).listen(3000);
 // POST /api/todos, GET /api/todos, GET /api/todos/:id — done.
 ```
 
-**3. Generate a typed SDK**
+**4. Generate a typed SDK**
 
 ```bash
 bun vertz codegen
 ```
 
-**4. Use it in the UI — fully typed, zero glue code**
+**5. Use it in the UI — fully typed, zero glue code**
 
 ```tsx
 import { query } from '@vertz/ui';
@@ -83,7 +104,7 @@ export function TodoApp() {
 }
 ```
 
-Change a column from `d.text()` to `d.integer()` — `tsc` lights up red in your entity, SDK, and UI. Across packages, in a single typecheck. That's the point.
+Change `d.text()` to `d.integer()` on a column — `tsc` lights up red in your entity, your server, your SDK, and your UI. Across packages, in a single typecheck. That's the point.
 
 ## Try It
 
