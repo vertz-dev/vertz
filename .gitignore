@@ -71,7 +71,7 @@ data/
 
 # Cloudflare Wrangler
 .wrangler/
-:memory:
+**/:memory:
 .vertz/
 
 # Claude Code
