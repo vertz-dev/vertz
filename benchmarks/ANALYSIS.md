@@ -4,11 +4,11 @@
 
 | Metric | vinext (our bench) | Vertz | vinext (their CI) |
 |--------|-------------------|-------|-------------------|
-| **Build Time** | 2.20s | 427ms (5.1x faster) | 3.78s (2-core CI) |
-| **Bundle Size (raw)** | 468 KB | 226 KB | 240 KB |
-| **Bundle Size (gzip)** | 142 KB | 53.7 KB (62% smaller) | 76 KB |
+| **Build Time** | 2.31s | 469ms (4.9x faster) | 3.78s (2-core CI) |
+| **Bundle Size (raw)** | 468 KB | 229 KB | 240 KB |
+| **Bundle Size (gzip)** | 142 KB | 54.3 KB (62% smaller) | 76 KB |
 | **Bundle Files** | 4 | 2 | 3 |
-| **Dev Cold Start** | 1.11s | 1.14s (~same) | 1.81s (2-core CI) |
+| **Dev Cold Start** | 1.12s | 1.07s (~same) | 1.81s (2-core CI) |
 
 ## Why Our vinext Bundle is Bigger Than Theirs (142 KB vs 76 KB gzip)
 
@@ -39,7 +39,7 @@ The framework chunk alone is **395 KB raw**. In vinext's CI (240 KB raw total fo
 
 **Key insight**: npm-published vinext produces a larger bundle than source-built vinext. This is a real packaging issue for vinext — users installing from npm will see worse numbers than their CI reports.
 
-### 3. Is Vertz's 53.7 KB honest? Yes.
+### 3. Is Vertz's 54.3 KB honest? Yes.
 
 A natural follow-up: does Vertz suffer the same source-vs-npm discrepancy? No — and here's why:
 
@@ -53,13 +53,13 @@ This means the benchmark bundler sees the same pre-built JavaScript that npm use
 
 Additionally, the Vertz client build pipeline (`ui-build-pipeline.ts`) has **no `external` option** — it bundles everything from `dist/` inline into the output. The bundler has no access to TypeScript source or un-published internals.
 
-Since `"files": ["dist"]` means npm publishes exactly the same pre-built JS files, Vertz's 53.7 KB gzip is what real npm users would see — unlike vinext where source-built and npm-installed produce different tree-shaking outcomes.
+Since `"files": ["dist"]` means npm publishes exactly the same pre-built JS files, Vertz's 54.3 KB gzip is what real npm users would see — unlike vinext where source-built and npm-installed produce different tree-shaking outcomes.
 
 ### 4. React is the elephant in the room
 
 Regardless of vinext vs vinext-CI differences, the fundamental fact remains: **React 19 + ReactDOM + RSC infrastructure = 80-120 KB gzip just for the framework**. This is the baseline cost before any application code runs.
 
-Vertz's entire bundle (app + framework + CSS) is **53.7 KB gzip** — less than React's framework chunk alone.
+Vertz's entire bundle (app + framework + CSS) is **54.3 KB gzip** — less than React's framework chunk alone.
 
 ## What's Being Measured: Both Are SSR Builds
 
@@ -84,7 +84,7 @@ Bundle size for both frameworks measures only `dist/client/` — the JS+CSS sent
 └──────────────────────────────────────────────┘
 ```
 
-### Vertz: 53.7 KB gzip
+### Vertz: 54.3 KB gzip
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -96,7 +96,7 @@ Bundle size for both frameworks measures only `dist/client/` — the JS+CSS sent
 
 Vertz ships no virtual DOM, no hooks runtime, no RSC deserialization layer. The signals-based reactivity engine is compiled away at build time — `let count = 0` becomes a `signal()` call with zero runtime cost beyond the ~3 KB signal library.
 
-## Build Time: Why Vertz is 5x Faster
+## Build Time: Why Vertz is ~5x Faster
 
 | Factor | vinext (Vite/Rollup) | Vertz (Bun.build) |
 |--------|---------------------|-------------------|
@@ -137,7 +137,7 @@ Bun's raw speed advantage (~3-5x faster process launch, faster I/O) is real but 
 
 ### Memory difference
 
-Vertz uses more memory: 486 MB peak RSS vs 392 MB for vinext. The pipeline orchestrator, compiler passes, and Bun's runtime are memory-heavier than Node + Vite's on-demand approach.
+Vertz uses more memory: 487 MB peak RSS vs 395 MB for vinext. The pipeline orchestrator, compiler passes, and Bun's runtime are memory-heavier than Node + Vite's on-demand approach.
 
 ### What this means
 
@@ -184,14 +184,14 @@ The Vertz CLI reads port from `--port` flag, not the `PORT` environment variable
 
 ### For Vertz positioning
 
-- **Build speed is the standout metric**: 5x faster than Vite/Rollup. This matters for CI pipelines, preview deployments, and developer iteration.
+- **Build speed is the standout metric**: ~5x faster than Vite/Rollup. This matters for CI pipelines, preview deployments, and developer iteration.
 - **Bundle size advantage is real but nuanced**: 62% smaller gzip, but the comparison is between fundamentally different architectures (signals vs React). A fairer comparison would be against a framework with similar architecture (Solid, Svelte).
 - **Dev experience is competitive**: Cold start parity with Vite despite doing more work (pipeline orchestration). Memory usage is higher.
 
 ### For the vinext team
 
 - **npm packaging appears to bloat bundles**: Their CI reports 76 KB gzip; users installing from npm will see ~142 KB. This is worth investigating.
-- **Build time is slow for Vite**: 2.2s for a 31-route app on a 10-core Mac. Their 2-core CI takes 3.8s. Vite 8 (Rolldown) should help significantly.
+- **Build time is slow for Vite**: 2.3s for a 31-route app on a 10-core Mac. Their 2-core CI takes 3.8s. Vite 8 (Rolldown) should help significantly.
 
 ### What's NOT measured (important caveats)
 
