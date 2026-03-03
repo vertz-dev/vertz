@@ -3,6 +3,12 @@
 // Components
 export type { AccordionElements, AccordionOptions, AccordionState } from './accordion/accordion';
 export { Accordion } from './accordion/accordion';
+export type {
+  AlertDialogElements,
+  AlertDialogOptions,
+  AlertDialogState,
+} from './alert-dialog/alert-dialog';
+export { AlertDialog } from './alert-dialog/alert-dialog';
 export type { BadgeElements, BadgeOptions } from './badge/badge';
 export { Badge } from './badge/badge';
 export type { ButtonElements, ButtonOptions, ButtonState } from './button/button';
