@@ -208,14 +208,9 @@ Pre-release. APIs will change. The architecture and philosophy are stable. We're
 
 ## Contributing
 
-> Requires [Bun](https://bun.sh).
+Found a bug? [Open an issue](https://github.com/vertz-dev/vertz/issues) — we appreciate detailed bug reports with reproduction steps.
 
-```bash
-git clone https://github.com/vertz-dev/vertz.git
-cd vertz
-bun install
-bun test
-```
+We don't accept pull requests. The entire codebase is written by [Claude Code](https://claude.ai/claude-code) as part of the experiment — keeping it that way is the point. Issues are the best way to contribute.
 
 ## License
 
