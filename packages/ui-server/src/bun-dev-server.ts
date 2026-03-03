@@ -18,6 +18,7 @@
  * on source changes, keeping SSR output fresh.
  */
 
+import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, watch, writeFileSync } from 'node:fs';
 import { dirname, normalize, resolve } from 'node:path';
 import type { SSRModule } from './ssr-render';
@@ -52,6 +53,32 @@ export interface BunDevServerOptions {
 export interface BunDevServer {
   start(): Promise<void>;
   stop(): Promise<void>;
+}
+
+/**
+ * Kill any process listening on the given port. Used on startup to clean up
+ * stale dev servers left behind by crashed sessions or orphaned processes.
+ */
+function killStaleProcess(targetPort: number): void {
+  try {
+    const output = execSync(`lsof -ti :${targetPort}`, { encoding: 'utf8' }).trim();
+    if (!output) return;
+
+    const pids = output.split('\n').filter(Boolean);
+    const myPid = String(process.pid);
+
+    for (const pid of pids) {
+      if (pid === myPid) continue;
+      try {
+        process.kill(Number(pid), 'SIGTERM');
+        console.log(`[Server] Killed stale process on port ${targetPort} (PID ${pid})`);
+      } catch {
+        // Process may have already exited
+      }
+    }
+  } catch {
+    // lsof exits non-zero when no process is found — expected
+  }
 }
 
 export interface IndexHtmlStasher {
@@ -392,6 +419,11 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     if (apiHandler) {
       routes['/api/*'] = (req: Request) => apiHandler(req);
     }
+
+    // Kill any stale dev server left on this port (e.g., from a crashed
+    // session or orphaned process). Without this, the user sees a confusing
+    // "connection lost" dialog from the old server instead of a clean start.
+    killStaleProcess(port);
 
     server = Bun.serve({
       port,

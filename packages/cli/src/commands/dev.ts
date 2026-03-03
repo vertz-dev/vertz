@@ -90,6 +90,7 @@ export async function devAction(options: DevCommandOptions = {}): Promise<Result
 
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+  process.on('SIGHUP', shutdown);
 
   try {
     // Step 1: Initial analysis and codegen
