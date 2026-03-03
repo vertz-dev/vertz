@@ -722,39 +722,39 @@ describe('createThemedSwitch', () => {
     const { createThemedSwitch } = await import('../components/primitives/switch');
     const styles = createSwitchStyles();
     const themedSwitch = createThemedSwitch(styles);
-    const sw = themedSwitch();
+    const root = themedSwitch();
 
-    expect(sw.root.classList.contains(styles.root)).toBe(true);
+    expect(root.classList.contains(styles.root)).toBe(true);
   });
 
   it('preserves primitive behavior — click toggles', async () => {
     const { createThemedSwitch } = await import('../components/primitives/switch');
     const styles = createSwitchStyles();
     const themedSwitch = createThemedSwitch(styles);
-    const sw = themedSwitch();
+    const root = themedSwitch();
 
-    expect(sw.state.checked.peek()).toBe(false);
-    sw.root.click();
-    expect(sw.state.checked.peek()).toBe(true);
+    expect(root.getAttribute('aria-checked')).toBe('false');
+    root.click();
+    expect(root.getAttribute('aria-checked')).toBe('true');
   });
 
   it('applies rootSm class when size is sm', async () => {
     const { createThemedSwitch } = await import('../components/primitives/switch');
     const styles = createSwitchStyles();
     const themedSwitch = createThemedSwitch(styles);
-    const sw = themedSwitch({ size: 'sm' });
+    const root = themedSwitch({ size: 'sm' });
 
-    expect(sw.root.classList.contains(styles.rootSm)).toBe(true);
-    expect(sw.root.classList.contains(styles.root)).toBe(false);
+    expect(root.classList.contains(styles.rootSm)).toBe(true);
+    expect(root.classList.contains(styles.root)).toBe(false);
   });
 
   it('creates thumb span with theme class', async () => {
     const { createThemedSwitch } = await import('../components/primitives/switch');
     const styles = createSwitchStyles();
     const themedSwitch = createThemedSwitch(styles);
-    const sw = themedSwitch();
+    const root = themedSwitch();
 
-    const thumb = sw.root.querySelector('span');
+    const thumb = root.querySelector('span');
     expect(thumb).not.toBeNull();
     expect(thumb!.classList.contains(styles.thumb)).toBe(true);
   });
@@ -763,9 +763,9 @@ describe('createThemedSwitch', () => {
     const { createThemedSwitch } = await import('../components/primitives/switch');
     const styles = createSwitchStyles();
     const themedSwitch = createThemedSwitch(styles);
-    const sw = themedSwitch({ size: 'sm' });
+    const root = themedSwitch({ size: 'sm' });
 
-    const thumb = sw.root.querySelector('span');
+    const thumb = root.querySelector('span');
     expect(thumb).not.toBeNull();
     expect(thumb!.classList.contains(styles.thumbSm)).toBe(true);
     expect(thumb!.classList.contains(styles.thumb)).toBe(false);

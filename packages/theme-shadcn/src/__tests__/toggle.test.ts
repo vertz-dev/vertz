@@ -22,28 +22,28 @@ describe('themed Toggle', () => {
     const { createThemedToggle } = await import('../components/primitives/toggle');
     const styles = createToggleStyles();
     const themedToggle = createThemedToggle(styles);
-    const toggle = themedToggle();
+    const root = themedToggle();
 
-    expect(toggle.root.classList.contains(styles.root)).toBe(true);
+    expect(root.classList.contains(styles.root)).toBe(true);
   });
 
   it('preserves primitive behavior — click toggles', async () => {
     const { createThemedToggle } = await import('../components/primitives/toggle');
     const styles = createToggleStyles();
     const themedToggle = createThemedToggle(styles);
-    const toggle = themedToggle();
+    const root = themedToggle();
 
-    expect(toggle.state.pressed.peek()).toBe(false);
-    toggle.root.click();
-    expect(toggle.state.pressed.peek()).toBe(true);
+    expect(root.getAttribute('aria-pressed')).toBe('false');
+    root.click();
+    expect(root.getAttribute('aria-pressed')).toBe('true');
   });
 
   it('passes options through to primitive', async () => {
     const { createThemedToggle } = await import('../components/primitives/toggle');
     const styles = createToggleStyles();
     const themedToggle = createThemedToggle(styles);
-    const toggle = themedToggle({ defaultPressed: true });
+    const root = themedToggle({ defaultPressed: true });
 
-    expect(toggle.state.pressed.peek()).toBe(true);
+    expect(root.getAttribute('aria-pressed')).toBe('true');
   });
 });

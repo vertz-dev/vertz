@@ -303,7 +303,11 @@ function processAttribute(
     if (exprInfo?.reactive) {
       return `__attr(${elVar}, ${JSON.stringify(attrName)}, () => ${exprText})`;
     }
-    return `${elVar}.setAttribute(${JSON.stringify(attrName)}, ${exprText})`;
+    // Guard static attributes against null/false/undefined so that boolean
+    // HTML attributes (disabled, checked, etc.) are not set when falsy.
+    // setAttribute stringifies all values, so disabled={false} would produce
+    // disabled="false" which still disables the element per HTML spec.
+    return `{ const __v = ${exprText}; if (__v != null && __v !== false) ${elVar}.setAttribute(${JSON.stringify(attrName)}, __v === true ? "" : __v); }`;
   }
 
   return null;

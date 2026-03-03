@@ -24,6 +24,7 @@ import { TableDemo } from './table';
 import { TabsDemo } from './tabs';
 import { TextareaDemo } from './textarea';
 import { ToastDemo } from './toast';
+import { ToggleDemo } from './toggle';
 import { TooltipDemo } from './tooltip';
 
 export interface ComponentEntry {
@@ -105,6 +106,13 @@ export const componentRegistry: ComponentEntry[] = [
     category: 'form',
     description: 'Range input with track and thumb.',
     demo: SliderDemo,
+  },
+  {
+    name: 'Toggle',
+    slug: 'toggle',
+    category: 'form',
+    description: 'Toggle button with pressed state.',
+    demo: ToggleDemo,
   },
 
   // ── Layout ────────────────────────────────────────────────

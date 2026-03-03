@@ -21,6 +21,9 @@ export { RouteCSSManifest } from './css-extraction/route-css-manifest';
 export { CSSDiagnostics } from './diagnostics/css-diagnostics';
 export { MutationDiagnostics } from './diagnostics/mutation-diagnostics';
 export { PropsDestructuringDiagnostics } from './diagnostics/props-destructuring';
+export type { VertzLibraryPluginOptions } from './library-plugin';
+// Library compilation plugin
+export { createVertzLibraryPlugin } from './library-plugin';
 export { ComputedTransformer } from './transformers/computed-transformer';
 export type { CSSTransformResult } from './transformers/css-transformer';
 export { CSSTransformer } from './transformers/css-transformer';
