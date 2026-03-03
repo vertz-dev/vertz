@@ -51,6 +51,20 @@ export interface CompiledTheme {
   tokens: string[];
 }
 
+// ─── Sanitization ──────────────────────────────────────────────
+
+/**
+ * Sanitize a CSS value to prevent injection attacks.
+ * Strips characters and patterns that could break out of a CSS property value.
+ */
+function sanitizeCssValue(value: string): string {
+  return value
+    .replace(/[;{}]/g, '')
+    .replace(/url\s*\(/gi, '')
+    .replace(/expression\s*\(/gi, '')
+    .replace(/@import/gi, '');
+}
+
 // ─── defineTheme ────────────────────────────────────────────────
 
 /**
@@ -112,19 +126,19 @@ export function compileTheme(theme: Theme): CompiledTheme {
       if (key === 'DEFAULT') {
         // Contextual token: default value goes in :root
         const varName = `--color-${name}`;
-        rootVars.push(`  ${varName}: ${value};`);
+        rootVars.push(`  ${varName}: ${sanitizeCssValue(value)};`);
         tokenPaths.push(name);
       } else if (key.startsWith('_')) {
         // Contextual variant (e.g., _dark)
         const variant = key.slice(1); // Remove leading underscore
         const varName = `--color-${name}`;
         if (variant === 'dark') {
-          darkVars.push(`  ${varName}: ${value};`);
+          darkVars.push(`  ${varName}: ${sanitizeCssValue(value)};`);
         }
       } else {
         // Raw token shade (e.g., 500, 600)
         const varName = `--color-${name}-${key}`;
-        rootVars.push(`  ${varName}: ${value};`);
+        rootVars.push(`  ${varName}: ${sanitizeCssValue(value)};`);
         tokenPaths.push(`${name}.${key}`);
       }
     }
@@ -134,7 +148,7 @@ export function compileTheme(theme: Theme): CompiledTheme {
   if (theme.spacing) {
     for (const [name, value] of Object.entries(theme.spacing)) {
       const varName = `--spacing-${name}`;
-      rootVars.push(`  ${varName}: ${value};`);
+      rootVars.push(`  ${varName}: ${sanitizeCssValue(value)};`);
       tokenPaths.push(`spacing.${name}`);
     }
   }

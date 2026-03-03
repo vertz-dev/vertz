@@ -32,6 +32,28 @@ describe('CoercedNumberSchema', () => {
     expect(schema.parse(true).data).toBe(1);
     expect(schema.parse(false).data).toBe(0);
   });
+
+  it('rejects empty string instead of coercing to 0', () => {
+    const schema = new CoercedNumberSchema();
+    const result = schema.safeParse('');
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects whitespace-only string instead of coercing to 0', () => {
+    const schema = new CoercedNumberSchema();
+    const result = schema.safeParse('  ');
+    expect(result.ok).toBe(false);
+  });
+
+  it('still coerces "0" to 0', () => {
+    const schema = new CoercedNumberSchema();
+    expect(schema.parse('0').data).toBe(0);
+  });
+
+  it('still coerces "3.14" to 3.14', () => {
+    const schema = new CoercedNumberSchema();
+    expect(schema.parse('3.14').data).toBe(3.14);
+  });
 });
 
 describe('CoercedBooleanSchema', () => {
