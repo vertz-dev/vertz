@@ -3,6 +3,14 @@
 // Components
 export type { AccordionElements, AccordionOptions, AccordionState } from './accordion/accordion';
 export { Accordion } from './accordion/accordion';
+export type {
+  AlertDialogElements,
+  AlertDialogOptions,
+  AlertDialogState,
+} from './alert-dialog/alert-dialog';
+export { AlertDialog } from './alert-dialog/alert-dialog';
+export type { BadgeElements, BadgeOptions } from './badge/badge';
+export { Badge } from './badge/badge';
 export type { ButtonElements, ButtonOptions, ButtonState } from './button/button';
 export { Button } from './button/button';
 export type { CalendarElements, CalendarOptions, CalendarState } from './calendar/calendar';
@@ -83,6 +91,8 @@ export type {
 export { ScrollArea } from './scroll-area/scroll-area';
 export type { SelectElements, SelectOptions, SelectState } from './select/select';
 export { Select } from './select/select';
+export type { SheetElements, SheetOptions, SheetSide, SheetState } from './sheet/sheet';
+export { Sheet } from './sheet/sheet';
 export type { SliderElements, SliderOptions, SliderState } from './slider/slider';
 export { Slider } from './slider/slider';
 export type { SwitchOptions } from './switch/switch';
