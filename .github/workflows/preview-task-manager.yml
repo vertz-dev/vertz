@@ -11,11 +11,6 @@ on:
       - main
 
   push:
-    paths:
-      - 'examples/task-manager/**'
-      - 'packages/ui-server/**'
-      - 'packages/ui/**'
-      - 'packages/core/**'
     branches:
       - main
 
