@@ -31,13 +31,14 @@ export function createModule(
     services: NamedServiceDef[];
     // biome-ignore lint/suspicious/noExplicitAny: variance boundary — must accept any NamedRouterDef generics
     routers: NamedRouterDef<any, any>[];
-    exports: NamedServiceDef[];
+    exports?: NamedServiceDef[];
   },
 ): NamedModule {
+  const exports = config.exports ?? [];
   validateOwnership(config.services, 'Service', definition.name);
   validateOwnership(config.routers, 'Router', definition.name);
 
-  for (const exp of config.exports) {
+  for (const exp of exports) {
     if (!config.services.includes(exp)) {
       throw new Error('exports must be a subset of services');
     }
@@ -45,6 +46,8 @@ export function createModule(
 
   return deepFreeze({
     definition,
-    ...config,
+    services: config.services,
+    routers: config.routers,
+    exports,
   });
 }

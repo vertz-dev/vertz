@@ -1,7 +1,7 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 import { Command } from 'commander';
-import { resolveOptions, scaffold } from '../src/index.js';
+import { resolveOptions, scaffold } from '../dist/index.js';
 
 const program = new Command();
 
