@@ -131,8 +131,8 @@ export function createAccess(config: AccessConfig): AccessInstance {
     // Phase 1: Check role -> entitlement mapping
     const allowedRoles = entitlementRoles.get(entitlement);
     if (!allowedRoles) {
-      // Entitlement not defined - allow for now (could be feature flag in Phase 2)
-      return true;
+      // Entitlement not defined in config — deny by default (secure posture)
+      return false;
     }
 
     return allowedRoles.has(user.role) || roleHasEntitlement(user.role, entitlement);
@@ -152,18 +152,18 @@ export function createAccess(config: AccessConfig): AccessInstance {
 
   async function canWithResource(
     entitlement: Entitlement,
-    _resource: Resource,
+    resource: Resource,
     user: AuthUser | null,
   ): Promise<boolean> {
-    // Phase 1: Basic RBAC only
-    // No resource hierarchy, no ownership checks
-
-    // Check if user has the entitlement
     const hasEntitlement = await checkEntitlement(entitlement, user);
     if (!hasEntitlement) return false;
 
-    // Phase 1 limitation: No ownership checks yet
-    // Phase 2 would add: return resource.ownerId === user?.id || hasEntitlement;
+    // Ownership check: if resource declares an owner, user must match.
+    // Uses nullish check (!=) so empty string ownerId is treated as "no owner".
+    // Admins who need to bypass ownership should use can() without resource.
+    if (resource.ownerId != null && resource.ownerId !== '' && resource.ownerId !== user?.id) {
+      return false;
+    }
 
     return true;
   }

@@ -67,6 +67,12 @@ export interface AuthConfig {
    * Defaults to true when process.env is unavailable (secure-by-default for edge runtimes).
    */
   isProduction?: boolean;
+  /**
+   * Directory to persist auto-generated dev JWT secret.
+   * Defaults to `.vertz` in the current working directory.
+   * Only used in non-production mode when jwtSecret is not provided.
+   */
+  devSecretPath?: string;
 }
 
 // ============================================================================
