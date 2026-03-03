@@ -193,6 +193,17 @@ describe('Link XSS prevention', () => {
     expect(el.getAttribute('href')).toBe('#');
   });
 
+  test('blocks javascript: with null byte injection', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    const el = Link({ children: 'XSS', href: '\0javascript:alert(1)' as any });
+
+    expect(el.getAttribute('href')).toBe('#');
+  });
+
   test('does not navigate to blocked URLs on click', () => {
     const currentPath = signal('/');
     const navigate = vi.fn();
