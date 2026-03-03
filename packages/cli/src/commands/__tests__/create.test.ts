@@ -36,15 +36,15 @@ describe('createAction', () => {
     expect(files).toContain('vertz.config.ts');
     expect(files).toContain('src');
 
-    // Verify api/ convention
+    // Verify api/ convention (server-only files)
     const apiFiles = await fs.readdir(path.join(projectPath, 'src', 'api'));
     expect(apiFiles).toContain('server.ts');
     expect(apiFiles).toContain('schema.ts');
     expect(apiFiles).toContain('db.ts');
-    expect(apiFiles).toContain('client.ts');
 
-    // Verify UI files
+    // Verify UI files (client.ts is a UI concern, lives in src/)
     const srcFiles = await fs.readdir(path.join(projectPath, 'src'));
+    expect(srcFiles).toContain('client.ts');
     expect(srcFiles).toContain('app.tsx');
     expect(srcFiles).toContain('entry-client.ts');
 
