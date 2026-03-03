@@ -37,8 +37,17 @@ export interface QueryOptions<T> {
   cache?: CacheStore<T>;
   /** Timeout in ms for SSR data loading. Default: 300. Set to 0 to disable. */
   ssrTimeout?: number;
-  /** Polling interval in ms. When set, the query re-fetches automatically. 0 or false disables. */
-  refetchInterval?: number | false;
+  /**
+   * Polling interval in ms, or a function for dynamic intervals.
+   *
+   * - `number` — fixed interval in ms
+   * - `false` or `0` — disabled
+   * - `(data, iteration) => number | false` — called after each fetch to
+   *   determine the next interval. Return `false` to stop polling.
+   *   `iteration` counts polls since the last start/restart (resets to 0
+   *   when the function returns `false`).
+   */
+  refetchInterval?: number | false | ((data: T | undefined, iteration: number) => number | false);
 }
 
 /** The reactive object returned by query(). */
@@ -289,10 +298,11 @@ export function query<T, E = unknown>(
   let fetchId = 0;
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
   let intervalTimer: ReturnType<typeof setTimeout> | undefined;
-  const intervalMs =
-    typeof options.refetchInterval === 'number' && options.refetchInterval > 0
-      ? options.refetchInterval
-      : 0;
+  const refetchIntervalOption = options.refetchInterval;
+  const hasInterval =
+    typeof refetchIntervalOption === 'function' ||
+    (typeof refetchIntervalOption === 'number' && refetchIntervalOption > 0);
+  let intervalIteration = 0;
 
   // Track all in-flight keys for this query instance so dispose() can clean them all.
   const inflightKeys = new Set<string>();
@@ -306,17 +316,31 @@ export function query<T, E = unknown>(
   let intervalPaused = false;
 
   function scheduleInterval(): void {
-    if (intervalMs > 0 && !isSSR() && !intervalPaused) {
-      clearTimeout(intervalTimer);
-      intervalTimer = setTimeout(() => {
-        refetch();
-      }, intervalMs);
+    if (!hasInterval || isSSR() || intervalPaused) return;
+
+    let ms: number | false;
+    if (typeof refetchIntervalOption === 'function') {
+      ms = refetchIntervalOption(data.peek() as T | undefined, intervalIteration);
+    } else {
+      ms = refetchIntervalOption as number;
     }
+
+    if (ms === false || ms <= 0) {
+      // Stop polling and reset iteration for next restart.
+      intervalIteration = 0;
+      return;
+    }
+
+    intervalIteration++;
+    clearTimeout(intervalTimer);
+    intervalTimer = setTimeout(() => {
+      refetch();
+    }, ms);
   }
 
   // Visibility-based pause/resume for polling
   let visibilityHandler: (() => void) | undefined;
-  if (intervalMs > 0 && enabled && !isSSR() && typeof document !== 'undefined') {
+  if (hasInterval && enabled && !isSSR() && typeof document !== 'undefined') {
     visibilityHandler = () => {
       if (document.visibilityState === 'hidden') {
         intervalPaused = true;

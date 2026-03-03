@@ -1289,4 +1289,136 @@ describe('query()', () => {
 
     result.dispose();
   });
+
+  test('refetchInterval function receives data and iteration count', async () => {
+    const intervals: Array<{ data: string | undefined; iteration: number }> = [];
+    let callCount = 0;
+
+    const result = query(
+      () => {
+        callCount++;
+        return Promise.resolve(`call-${callCount}`);
+      },
+      {
+        key: 'interval-fn',
+        refetchInterval: (data, iteration) => {
+          intervals.push({ data, iteration });
+          // Exponential backoff: 1s, 2s, 4s
+          return 1000 * 2 ** iteration;
+        },
+      },
+    );
+
+    // Initial fetch
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(result.data.value).toBe('call-1');
+    // First schedule: iteration=0, data='call-1' → 1000ms
+    expect(intervals[0]).toEqual({ data: 'call-1', iteration: 0 });
+
+    // After 1s, poll fires
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(result.data.value).toBe('call-2');
+    // Second schedule: iteration=1, data='call-2' → 2000ms
+    expect(intervals[1]).toEqual({ data: 'call-2', iteration: 1 });
+
+    // After 2s, poll fires
+    vi.advanceTimersByTime(2000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(result.data.value).toBe('call-3');
+    // Third schedule: iteration=2, data='call-3' → 4000ms
+    expect(intervals[2]).toEqual({ data: 'call-3', iteration: 2 });
+
+    result.dispose();
+  });
+
+  test('refetchInterval function returning false stops polling', async () => {
+    let callCount = 0;
+
+    const result = query(
+      () => {
+        callCount++;
+        return Promise.resolve(callCount >= 3 ? 'done' : 'pending');
+      },
+      {
+        key: 'interval-fn-stop',
+        refetchInterval: (data) => {
+          if (data === 'done') return false;
+          return 1000;
+        },
+      },
+    );
+
+    // Initial fetch → 'pending'
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(result.data.value).toBe('pending');
+
+    // Poll 1 → 'pending'
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(result.data.value).toBe('pending');
+
+    // Poll 2 → 'done' → function returns false → polling stops
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(result.data.value).toBe('done');
+
+    // No more polls
+    vi.advanceTimersByTime(10000);
+    await Promise.resolve();
+    expect(callCount).toBe(3);
+
+    result.dispose();
+  });
+
+  test('iteration resets to 0 after refetchInterval returns false', async () => {
+    let callCount = 0;
+    const iterations: number[] = [];
+
+    const result = query(
+      () => {
+        callCount++;
+        // Stop after 2 polls, then manual refetch restarts
+        return Promise.resolve(callCount === 2 ? 'done' : 'pending');
+      },
+      {
+        key: 'interval-fn-reset',
+        refetchInterval: (data, iteration) => {
+          iterations.push(iteration);
+          if (data === 'done') return false;
+          return 1000;
+        },
+      },
+    );
+
+    // Initial fetch
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(iterations).toEqual([0]); // iteration=0
+
+    // Poll → 'done' → false → stops
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(result.data.value).toBe('done');
+    expect(iterations).toEqual([0, 1]); // iteration=1, returned false
+
+    // Manual refetch → restarts polling
+    callCount = 0; // reset so next call returns 'pending'
+    result.refetch();
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Iteration should have reset to 0
+    expect(iterations[2]).toBe(0);
+
+    result.dispose();
+  });
 });
