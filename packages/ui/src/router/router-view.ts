@@ -105,9 +105,12 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
       }
 
       // Full re-render: divergence at 0 or transition from/to no match
-      runCleanups(pageCleanups);
-
       const doRender = () => {
+        // Run old page cleanups INSIDE the transition callback so the
+        // View Transitions API captures the fully-rendered old state
+        // before any cleanup mutations happen.
+        runCleanups(pageCleanups);
+
         if (!isFirstHydrationRender) {
           while (container.firstChild) {
             container.removeChild(container.firstChild);
