@@ -71,6 +71,20 @@ describe('createModule', () => {
     expect(mod.exports).toEqual([]);
   });
 
+  it('defaults exports to empty array when not provided', () => {
+    const moduleDef = createModuleDef({ name: 'simple' });
+    const service = moduleDef.service({
+      methods: () => ({ process: () => {} }),
+    });
+
+    const mod = createModule(moduleDef, {
+      services: [service],
+      routers: [],
+    });
+
+    expect(mod.exports).toEqual([]);
+  });
+
   it('freezes routers inside the module (no further route registration)', () => {
     const moduleDef = createModuleDef({ name: 'user' });
     const router = moduleDef.router({ prefix: '/users' });

@@ -3,7 +3,6 @@
   "version": "0.2.2",
   "type": "module",
   "license": "MIT",
-  "private": true,
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
@@ -54,5 +53,9 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
