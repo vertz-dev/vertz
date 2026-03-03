@@ -15,6 +15,24 @@ import type { EntityRelationsConfig } from './types';
 /** Maximum allowed limit to prevent DoS via large result sets. */
 export const MAX_LIMIT = 1000;
 
+/**
+ * Maximum allowed length of the base64-encoded `q` parameter string.
+ *
+ * Base64 encoding inflates data by ~1.33x, so a 10KB limit on the
+ * base64 string corresponds to ~7.5KB of decoded JSON payload.
+ */
+export const MAX_Q_BASE64_LENGTH = 10_240;
+
+/** Keys allowed in the decoded `q` parameter JSON object. */
+const ALLOWED_Q_KEYS = new Set([
+  'select',
+  'include',
+  'where',
+  'orderBy',
+  'limit',
+  'offset',
+]);
+
 export interface VertzQLOptions {
   where?: Record<string, unknown>;
   orderBy?: Record<string, 'asc' | 'desc'>;
@@ -94,9 +112,24 @@ export function parseVertzQL(query: Record<string, string>): VertzQLOptions {
       try {
         // URL-decode first, then convert base64url to standard base64
         const urlDecoded = decodeURIComponent(value);
+
+        // Reject oversized payloads before attempting decode
+        if (urlDecoded.length > MAX_Q_BASE64_LENGTH) {
+          result._qError = 'q= parameter exceeds maximum allowed size';
+          continue;
+        }
+
         const b64 = urlDecoded.replace(/-/g, '+').replace(/_/g, '/');
         const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
         const decoded = JSON.parse(atob(padded)) as Record<string, unknown>;
+
+        // Strip unknown keys — only allow expected structural query keys
+        for (const k of Object.keys(decoded)) {
+          if (!ALLOWED_Q_KEYS.has(k)) {
+            delete decoded[k];
+          }
+        }
+
         if (decoded.select && typeof decoded.select === 'object') {
           result.select = decoded.select as Record<string, true>;
         }

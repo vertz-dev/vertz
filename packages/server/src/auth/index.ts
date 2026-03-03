@@ -255,6 +255,22 @@ export function createAuth(config: AuthConfig): AuthInstance {
   }
 
   const cookieConfig = { ...DEFAULT_COOKIE_CONFIG, ...session.cookie };
+
+  // Validate cookie security configuration
+  if (cookieConfig.sameSite === 'none' && cookieConfig.secure !== true) {
+    throw new Error('SameSite=None requires secure=true');
+  }
+
+  if (isProduction && cookieConfig.secure === false) {
+    throw new Error("Cookie 'secure' flag cannot be disabled in production");
+  }
+
+  if (!isProduction && cookieConfig.secure === false) {
+    console.warn(
+      "Cookie 'secure' flag is disabled. This is allowed in development but must be enabled in production.",
+    );
+  }
+
   const ttlMs = parseDuration(session.ttl);
 
   // Rate limiters
@@ -532,16 +548,48 @@ export function createAuth(config: AuthConfig): AuthInstance {
     if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
       const origin = request.headers.get('origin');
       const referer = request.headers.get('referer');
+      const expectedOrigin = new URL(request.url).origin;
 
-      // In production, you'd validate these properly
-      // For Phase 1, we do a basic check
-      if (!origin && !referer) {
-        // Could be a CSRF attempt - but allow in development
+      // Validate Origin or Referer matches the expected origin
+      let originValid = false;
+
+      if (origin) {
+        originValid = origin === expectedOrigin;
+      } else if (referer) {
+        try {
+          const refererOrigin = new URL(referer).origin;
+          originValid = refererOrigin === expectedOrigin;
+        } catch {
+          originValid = false;
+        }
+      }
+
+      if (!originValid) {
         if (isProduction) {
           return new Response(JSON.stringify({ error: 'CSRF validation failed' }), {
             status: 403,
             headers: { 'Content-Type': 'application/json' },
           });
+        } else {
+          console.warn(
+            '[Auth] CSRF warning: Origin/Referer missing or mismatched (allowed in development)',
+          );
+        }
+      }
+
+      // Require X-VTZ-Request custom header for state-changing methods
+      const vtzHeader = request.headers.get('x-vtz-request');
+
+      if (vtzHeader !== '1') {
+        if (isProduction) {
+          return new Response(JSON.stringify({ error: 'Missing required X-VTZ-Request header' }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        } else {
+          console.warn(
+            '[Auth] CSRF warning: Missing X-VTZ-Request header (allowed in development)',
+          );
         }
       }
     }

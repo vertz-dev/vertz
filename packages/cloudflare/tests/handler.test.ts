@@ -1,6 +1,6 @@
 import type { AppBuilder } from '@vertz/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createHandler, generateHTMLTemplate } from '../src/handler.js';
+import { createHandler, generateHTMLTemplate, generateNonce } from '../src/handler.js';
 
 function mockApp(handler?: (...args: unknown[]) => Promise<Response>): AppBuilder {
   return {
@@ -507,5 +507,169 @@ describe('createHandler (SSR module config)', () => {
     expect(apiHandler).toHaveBeenCalled();
     expect(mockSSRRequestHandler).not.toHaveBeenCalled();
     expect(await response.text()).toBe('{"items":[]}');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Nonce-based CSP
+// ---------------------------------------------------------------------------
+
+describe('generateNonce', () => {
+  it('returns a base64-encoded string', () => {
+    const nonce = generateNonce();
+
+    expect(typeof nonce).toBe('string');
+    expect(nonce.length).toBeGreaterThan(0);
+    // Base64 alphabet: A-Z, a-z, 0-9, +, /, =
+    expect(nonce).toMatch(/^[A-Za-z0-9+/=]+$/);
+  });
+
+  it('generates different nonces on each call', () => {
+    const nonces = new Set<string>();
+    for (let i = 0; i < 50; i++) {
+      nonces.add(generateNonce());
+    }
+    // With 128-bit random values, collisions are astronomically unlikely
+    expect(nonces.size).toBe(50);
+  });
+});
+
+describe('nonce-based CSP headers', () => {
+  const mockEnv = { DB: {} };
+  const mockCtx = {} as ExecutionContext;
+
+  it('CSP header contains nonce (not unsafe-inline) for script-src', async () => {
+    const worker = createHandler({
+      app: () => mockApp(vi.fn().mockResolvedValue(new Response('OK'))),
+      basePath: '/api',
+      securityHeaders: true,
+    });
+
+    const response = await worker.fetch(
+      new Request('https://example.com/api/test'),
+      mockEnv,
+      mockCtx,
+    );
+
+    const csp = response.headers.get('Content-Security-Policy')!;
+    expect(csp).toBeTruthy();
+    // Extract the script-src directive and verify it uses nonce, not unsafe-inline
+    const scriptSrcMatch = csp.match(/script-src\s+([^;]+)/);
+    expect(scriptSrcMatch).toBeTruthy();
+    const scriptSrc = scriptSrcMatch![1];
+    expect(scriptSrc).not.toContain('unsafe-inline');
+    expect(scriptSrc).toMatch(/'nonce-[A-Za-z0-9+/=]+'/);
+  });
+
+  it('CSP header keeps unsafe-inline for style-src', async () => {
+    const worker = createHandler({
+      app: () => mockApp(vi.fn().mockResolvedValue(new Response('OK'))),
+      basePath: '/api',
+      securityHeaders: true,
+    });
+
+    const response = await worker.fetch(
+      new Request('https://example.com/api/test'),
+      mockEnv,
+      mockCtx,
+    );
+
+    const csp = response.headers.get('Content-Security-Policy');
+    expect(csp).toMatch(/style-src 'self' 'unsafe-inline'/);
+  });
+
+  it('each request gets a different nonce in the CSP header', async () => {
+    const worker = createHandler({
+      app: () => mockApp(vi.fn().mockResolvedValue(new Response('OK'))),
+      basePath: '/api',
+      securityHeaders: true,
+    });
+
+    const nonces: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      const response = await worker.fetch(
+        new Request('https://example.com/api/test'),
+        mockEnv,
+        mockCtx,
+      );
+      const csp = response.headers.get('Content-Security-Policy')!;
+      const match = csp.match(/nonce-([A-Za-z0-9+/=]+)/);
+      expect(match).toBeTruthy();
+      nonces.push(match![1]);
+    }
+
+    // All nonces should be unique
+    expect(new Set(nonces).size).toBe(10);
+  });
+
+  it('applies nonce-based CSP to SSR responses', async () => {
+    const worker = createHandler({
+      app: () => mockApp(),
+      basePath: '/api',
+      ssr: () => Promise.resolve(new Response('<html></html>')),
+      securityHeaders: true,
+    });
+
+    const response = await worker.fetch(new Request('https://example.com/'), mockEnv, mockCtx);
+
+    const csp = response.headers.get('Content-Security-Policy');
+    expect(csp).toBeTruthy();
+    expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+'/);
+  });
+
+  it('applies nonce-based CSP to 404 responses', async () => {
+    const worker = createHandler({
+      app: () => mockApp(),
+      basePath: '/api',
+      securityHeaders: true,
+    });
+
+    const response = await worker.fetch(
+      new Request('https://example.com/some-page'),
+      mockEnv,
+      mockCtx,
+    );
+
+    expect(response.status).toBe(404);
+    const csp = response.headers.get('Content-Security-Policy');
+    expect(csp).toBeTruthy();
+    expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+'/);
+  });
+
+  it('applies nonce-based CSP to 500 error responses', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const worker = createHandler({
+      app: () => mockApp(vi.fn().mockRejectedValue(new Error('fail'))),
+      basePath: '/api',
+      securityHeaders: true,
+    });
+
+    const response = await worker.fetch(
+      new Request('https://example.com/api/test'),
+      mockEnv,
+      mockCtx,
+    );
+
+    expect(response.status).toBe(500);
+    const csp = response.headers.get('Content-Security-Policy');
+    expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+'/);
+
+    consoleErrorSpy.mockRestore();
+  });
+});
+
+describe('generateHTMLTemplate with nonce', () => {
+  it('adds nonce attribute to script tag when nonce is provided', () => {
+    const html = generateHTMLTemplate('/assets/client.js', 'My App', 'abc123');
+
+    expect(html).toContain('<script type="module" src="/assets/client.js" nonce="abc123"></script>');
+  });
+
+  it('omits nonce attribute when nonce is not provided', () => {
+    const html = generateHTMLTemplate('/assets/client.js', 'My App');
+
+    expect(html).toContain('<script type="module" src="/assets/client.js"></script>');
+    expect(html).not.toContain('nonce');
   });
 });

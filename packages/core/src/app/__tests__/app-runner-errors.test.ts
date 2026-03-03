@@ -431,3 +431,180 @@ describe('Schema validation failure response body', () => {
     expect(body.error.code).toBe('BadRequest');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Schema validation — error message sanitization
+// ---------------------------------------------------------------------------
+
+describe('Schema validation error message sanitization', () => {
+  it('passes through a clean validation error message', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix: '/data' });
+
+    const bodySchema = {
+      parse: (_value: unknown) => ({
+        ok: false as const,
+        error: new Error('name is required'),
+      }),
+    };
+
+    router.post('/', { body: bodySchema, handler: () => ({}) });
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+    const app = createApp({}).register(mod);
+
+    const res = await app.handler(
+      new Request('http://localhost/data', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.message).toBe('name is required');
+  });
+
+  it('sanitizes an error message containing a Unix file path', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix: '/data' });
+
+    const bodySchema = {
+      parse: (_value: unknown) => ({
+        ok: false as const,
+        error: new Error(
+          'Schema compilation failed at /usr/src/app/node_modules/@vertz/schema/dist/index.js:42',
+        ),
+      }),
+    };
+
+    router.post('/', { body: bodySchema, handler: () => ({}) });
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+    const app = createApp({}).register(mod);
+
+    const res = await app.handler(
+      new Request('http://localhost/data', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    // File paths must not leak to the client
+    expect(body.error.message).not.toContain('/usr/src');
+    expect(body.error.message).not.toContain('node_modules');
+    expect(body.error.message).toBe('Invalid body');
+  });
+
+  it('sanitizes an error message containing node_modules reference', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix: '/data' });
+
+    const bodySchema = {
+      parse: (_value: unknown) => ({
+        ok: false as const,
+        error: new Error('TypeError in node_modules/@vertz/schema/src/parse.ts:10:5'),
+      }),
+    };
+
+    router.post('/', { body: bodySchema, handler: () => ({}) });
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+    const app = createApp({}).register(mod);
+
+    const res = await app.handler(
+      new Request('http://localhost/data', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.message).not.toContain('node_modules');
+    expect(body.error.message).toBe('Invalid body');
+  });
+
+  it('falls back to generic message when error is not an Error instance', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix: '/data' });
+
+    const paramsSchema = {
+      parse: (_value: unknown) => ({
+        ok: false as const,
+        error: 'just a string, not an Error',
+      }),
+    };
+
+    router.get('/:id', { params: paramsSchema, handler: () => ({}) });
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+    const app = createApp({}).register(mod);
+
+    const res = await app.handler(new Request('http://localhost/data/bad'));
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.message).toBe('Invalid params');
+  });
+
+  it('extracts field messages from errors with an issues array', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix: '/data' });
+
+    const bodySchema = {
+      parse: (_value: unknown) => ({
+        ok: false as const,
+        error: {
+          issues: [{ message: 'name is required' }, { message: 'email must be valid' }],
+        },
+      }),
+    };
+
+    router.post('/', { body: bodySchema, handler: () => ({}) });
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+    const app = createApp({}).register(mod);
+
+    const res = await app.handler(
+      new Request('http://localhost/data', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.message).toBe('name is required, email must be valid');
+  });
+
+  it('sanitizes error messages containing stack trace patterns', async () => {
+    const moduleDef = createModuleDef({ name: 'test' });
+    const router = moduleDef.router({ prefix: '/data' });
+
+    const bodySchema = {
+      parse: (_value: unknown) => ({
+        ok: false as const,
+        error: new Error('at Function (/app/src/validator.ts:12:3)'),
+      }),
+    };
+
+    router.post('/', { body: bodySchema, handler: () => ({}) });
+    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
+    const app = createApp({}).register(mod);
+
+    const res = await app.handler(
+      new Request('http://localhost/data', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.message).not.toContain('validator.ts');
+    expect(body.error.message).toBe('Invalid body');
+  });
+});

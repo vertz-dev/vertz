@@ -59,21 +59,36 @@ export interface CloudflareHandlerConfig {
 // Security headers
 // ---------------------------------------------------------------------------
 
-const SECURITY_HEADERS: Record<string, string> = {
+/** Generate a cryptographically random nonce for CSP. */
+export function generateNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  // Base64-encode without padding for a compact, URL-safe nonce
+  let binary = '';
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
+const STATIC_SECURITY_HEADERS: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'X-XSS-Protection': '1; mode=block',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Content-Security-Policy':
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;",
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
 };
 
-function withSecurityHeaders(response: Response): Response {
+function buildCSPHeader(nonce: string): string {
+  return `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;`;
+}
+
+function withSecurityHeaders(response: Response, nonce: string): Response {
   const headers = new Headers(response.headers);
-  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+  for (const [key, value] of Object.entries(STATIC_SECURITY_HEADERS)) {
     headers.set(key, value);
   }
+  headers.set('Content-Security-Policy', buildCSPHeader(nonce));
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -163,7 +178,8 @@ function createSimpleHandler(
 // HTML template generation
 // ---------------------------------------------------------------------------
 
-export function generateHTMLTemplate(clientScript: string, title: string): string {
+export function generateHTMLTemplate(clientScript: string, title: string, nonce?: string): string {
+  const nonceAttr = nonce != null ? ` nonce="${nonce}"` : '';
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -173,7 +189,7 @@ export function generateHTMLTemplate(clientScript: string, title: string): strin
 </head>
 <body>
 <div id="app"><!--ssr-outlet--></div>
-<script type="module" src="${clientScript}"></script>
+<script type="module" src="${clientScript}"${nonceAttr}></script>
 </body>
 </html>`;
 }
@@ -191,7 +207,11 @@ function isSSRModuleConfig(
 function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWorkerModule {
   const { basePath, ssr, securityHeaders } = config;
   let cachedApp: AppBuilder | null = null;
-  let ssrHandler: ((request: Request) => Promise<Response>) | null = null;
+  // SSR handler factory: when using SSRModuleConfig with nonce support, this
+  // is called per-request with the current nonce. For custom callbacks it
+  // is set once and always returns the same handler.
+  let ssrHandlerFactory: ((nonce?: string) => (request: Request) => Promise<Response>) | null =
+    null;
   let ssrResolved = false;
 
   function getApp(env: unknown): AppBuilder {
@@ -215,24 +235,29 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
         title = 'Vertz App',
         ssrTimeout = 5000,
       } = ssr;
-      ssrHandler = createSSRHandler({
-        module,
-        template: generateHTMLTemplate(clientScript, title),
-        ssrTimeout,
-      });
+      // Return a factory that creates an SSR handler with the per-request nonce
+      ssrHandlerFactory = (nonce?: string) =>
+        createSSRHandler({
+          module,
+          template: generateHTMLTemplate(clientScript, title, nonce),
+          ssrTimeout,
+          nonce,
+        });
     } else {
-      ssrHandler = ssr;
+      // Custom callback — wrap it in a factory that ignores the nonce
+      ssrHandlerFactory = () => ssr;
     }
   }
 
-  function applyHeaders(response: Response): Response {
-    return securityHeaders ? withSecurityHeaders(response) : response;
+  function applyHeaders(response: Response, nonce: string): Response {
+    return securityHeaders ? withSecurityHeaders(response, nonce) : response;
   }
 
   return {
     async fetch(request: Request, env: unknown, _ctx: ExecutionContext): Promise<Response> {
       await resolveSSR();
       const url = new URL(request.url);
+      const nonce = generateNonce();
 
       // Route splitting: basePath/* → API handler (no URL rewriting — the
       // app's own basePath/apiPrefix handles prefix matching internally)
@@ -240,16 +265,17 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
         try {
           const app = getApp(env);
           const response = await app.handler(request);
-          return applyHeaders(response);
+          return applyHeaders(response, nonce);
         } catch (error) {
           console.error('Unhandled error in worker:', error);
-          return applyHeaders(new Response('Internal Server Error', { status: 500 }));
+          return applyHeaders(new Response('Internal Server Error', { status: 500 }), nonce);
         }
       }
 
       // Non-API routes → SSR or 404
-      if (ssrHandler) {
+      if (ssrHandlerFactory) {
         const app = getApp(env);
+        const ssrHandler = ssrHandlerFactory(nonce);
         const origin = url.origin;
         // Patch fetch during SSR so API requests (e.g. query() calling
         // fetch('/api/todos')) are routed through the in-memory app handler
@@ -273,16 +299,16 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
         };
         try {
           const response = await ssrHandler(request);
-          return applyHeaders(response);
+          return applyHeaders(response, nonce);
         } catch (error) {
           console.error('Unhandled error in worker:', error);
-          return applyHeaders(new Response('Internal Server Error', { status: 500 }));
+          return applyHeaders(new Response('Internal Server Error', { status: 500 }), nonce);
         } finally {
           globalThis.fetch = originalFetch;
         }
       }
 
-      return applyHeaders(new Response('Not Found', { status: 404 }));
+      return applyHeaders(new Response('Not Found', { status: 404 }), nonce);
     },
   };
 }
