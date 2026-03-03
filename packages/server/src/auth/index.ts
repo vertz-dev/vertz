@@ -259,7 +259,16 @@ export function createAuth(config: AuthConfig): AuthInstance {
     } else {
       jwtSecret = crypto.randomUUID() + crypto.randomUUID();
       mkdirSync(secretDir, { recursive: true });
-      writeFileSync(secretFile, jwtSecret, 'utf-8');
+      try {
+        writeFileSync(secretFile, jwtSecret, { encoding: 'utf-8', mode: 0o600, flag: 'wx' });
+      } catch (err: unknown) {
+        // Another process created the file first (race) — read theirs
+        if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+          jwtSecret = readFileSync(secretFile, 'utf-8').trim();
+        } else {
+          throw err;
+        }
+      }
       console.warn(
         `[Auth] Auto-generated dev JWT secret at ${secretFile}. Add this path to .gitignore.`,
       );

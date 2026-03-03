@@ -3,6 +3,7 @@ import { ErrorCode, ParseError } from '../../core/errors';
 import { SchemaRegistry } from '../../core/registry';
 import { NumberSchema } from '../number';
 import { ObjectSchema } from '../object';
+import { AnySchema } from '../special';
 import { StringSchema } from '../string';
 
 describe('ObjectSchema', () => {
@@ -205,12 +206,12 @@ describe('ObjectSchema', () => {
   });
 
   it('.catchall() strips __proto__ key to prevent prototype pollution', () => {
-    const schema = new ObjectSchema({ name: new StringSchema() }).catchall(new StringSchema());
-    const malicious = JSON.parse('{"name":"Alice","__proto__":"injected","extra":"kept"}');
+    const schema = new ObjectSchema({ name: new StringSchema() }).catchall(new AnySchema());
+    const malicious = JSON.parse('{"name":"Alice","__proto__":{"polluted":true},"extra":"kept"}');
     const result = schema.parse(malicious);
-    // Even with a valid catchall value, __proto__ should be filtered
-    expect(Object.keys(result.data as object)).not.toContain('__proto__');
-    expect(result.data).toEqual({ name: 'Alice', extra: 'kept' });
+    // Without the filter, result["__proto__"] = {polluted:true} would change the prototype chain
+    expect((result.data as Record<string, unknown>).polluted).toBeUndefined();
+    expect(Object.getPrototypeOf(result.data)).toBe(Object.prototype);
   });
 
   it('.catchall() overrides .strict() when chained', () => {

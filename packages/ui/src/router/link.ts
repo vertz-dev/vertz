@@ -24,7 +24,7 @@ const DANGEROUS_SCHEMES = ['javascript:', 'data:', 'vbscript:'];
  * Blocks javascript:, data:, vbscript: schemes and protocol-relative URLs.
  */
 function isSafeUrl(url: string): boolean {
-  const normalized = url.replace(/\s/g, '').toLowerCase();
+  const normalized = url.replace(/[\s\0]/g, '').toLowerCase();
   if (normalized.startsWith('//')) return false;
   for (const scheme of DANGEROUS_SCHEMES) {
     if (normalized.startsWith(scheme)) return false;
