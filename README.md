@@ -23,8 +23,8 @@
 Define your schema. Get a typed API, a typed SDK, and a typed UI — no glue code, no type duplication, no runtime surprises.
 
 ```
-d.table()  →  entity()  →  createServer()  →  vertz codegen  →  query() / form()
- schema        CRUD API       serve it          typed SDK          use it in UI
+d.table()  →  entity()  →  createServer()  →  query() / form()
+ schema        CRUD API       serve it          use it in UI
 ```
 
 ## See It in Action
@@ -77,13 +77,7 @@ createServer({ entities: [todos], db }).listen(3000);
 // POST /api/todos, GET /api/todos, GET /api/todos/:id — done.
 ```
 
-**4. Generate a typed SDK**
-
-```bash
-bun vertz codegen
-```
-
-**5. Use it in the UI — fully typed, zero glue code**
+**4. Use it in the UI — fully typed, zero glue code**
 
 ```tsx
 import { query } from '@vertz/ui';
@@ -168,7 +162,7 @@ const reports = action('reports', {
 createServer({ entities: [todosEntity], actions: [reports] }).listen(3000);
 ```
 
-Entities and actions compose. Types flow. The codegen picks up everything.
+Entities and actions compose. Types flow. The dev server picks up everything automatically.
 
 ## Deploy Anywhere
 
