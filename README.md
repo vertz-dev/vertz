@@ -75,6 +75,7 @@ const db = createDb({
 
 createServer({ entities: [todos], db }).listen(3000);
 // POST /api/todos, GET /api/todos, GET /api/todos/:id — done.
+// OpenAPI spec auto-generated at /api/openapi.json — your API is discoverable by LLMs out of the box.
 ```
 
 **4. Use it in the UI — fully typed, zero glue code**
