@@ -7,9 +7,8 @@
 <h1 align="center">Vertz</h1>
 
 <p align="center">
-  <strong>The TypeScript stack for LLMs.</strong><br />
-  Built by LLMs, for LLMs. Designed by humans (so far...).
-
+  <strong>If it builds, it works.</strong><br />
+  The TypeScript stack where types flow from database to browser — and LLMs get it right on the first try.
 </p>
 
 <p align="center">
@@ -21,19 +20,22 @@
 
 ---
 
-We watched LLMs get NestJS wrong for months. Decorators in the wrong order. OpenAPI specs that didn't match the types. DTOs that looked right but broke at runtime. Every mistake meant more tokens, more iterations, more "actually, that's not quite right."
+Define your schema. Get a typed API, a typed SDK, and a typed UI — no glue code, no type duplication, no runtime surprises.
 
-So we built Vertz — a TypeScript stack designed so that an LLM can nail it on the first try. Server, database, UI, compiler, CLI — everything you need, one philosophy.
+```
+d.table()  →  entity()  →  createServer()  →  vertz codegen  →  query() / form()
+ schema        CRUD API       serve it          typed SDK          use it in UI
+```
 
-**This entire codebase is written with [Claude Code](https://claude.ai/claude-code).** Not scaffolded by AI and finished by hand — written, tested, and iterated by an LLM from first commit to last. Vertz is both the product and the experiment.
+## See It in Action
 
-**1. Define your model**
+**1. Define the schema**
 
 ```typescript
-import { d } from 'vertz/db';
+import { d } from '@vertz/db';
 
 const todos = d.table('todos', {
-  id: d.uuid().primary(),
+  id: d.uuid().primary({ generate: 'uuid' }),
   title: d.text(),
   completed: d.boolean().default(false),
   createdAt: d.timestamp().default('now').readOnly(),
@@ -43,8 +45,7 @@ const todos = d.table('todos', {
 **2. Create the entity — get a full CRUD API**
 
 ```typescript
-import { entity, createServer } from 'vertz/server';
-// d and todos from step 1
+import { entity, createServer } from '@vertz/server';
 
 const todosEntity = entity('todos', {
   model: d.model(todos),
@@ -61,28 +62,20 @@ createServer({ entities: [todosEntity] }).listen(3000);
 bun vertz codegen
 ```
 
-**4. Use it in the UI — fully typed, no glue code**
+**4. Use it in the UI — fully typed, zero glue code**
 
 ```tsx
-import { query, form } from 'vertz/ui';
+import { query } from '@vertz/ui';
 import { api } from './generated/client';
 
 export function TodoApp() {
-  const todos = query(() => api.todos.list(), { key: 'todos' });
-
-  const todoForm = form(api.todos.create, {
-    onSuccess: () => todos.refetch(),
-  });
+  const todos = query(api.todos.list());
 
   return (
     <div>
-      <form onSubmit={todoForm.onSubmit}>
-        <input name="title" placeholder="What needs to be done?" />
-        <button type="submit" disabled={todoForm.submitting}>Add</button>
-      </form>
       <ul>
-        {todos.data?.map((todo) => (
-          <li>{todo.title}</li>
+        {todos.data?.items.map((todo) => (
+          <li key={todo.id}>{todo.title}</li>
         ))}
       </ul>
     </div>
@@ -90,113 +83,118 @@ export function TodoApp() {
 }
 ```
 
-Types flow from the database column definition through the server, SDK, and into the UI component — no manual wiring, no type duplication. The compiler catches the rest.
+Change a column from `d.text()` to `d.integer()` — `tsc` lights up red in your entity, SDK, and UI. Across packages, in a single typecheck. That's the point.
 
-## Quickstart
+## Try It
 
 ```bash
-npx create-vertz-app my-app --example
+bunx @vertz/create-vertz-app my-app
 cd my-app
 bun install
 bun run dev
 ```
 
-Install `vertz` to get all packages via subpath imports (`vertz/server`, `vertz/db`, `vertz/ui`), or install individual `@vertz/*` packages if you prefer.
+Or clone the [entity-todo example](./examples/entity-todo) for a full-stack app with SSR, dark mode, and a shadcn-style theme.
+
+## What You Get
+
+| Layer | What | Package |
+|-------|------|---------|
+| **Schema** | 40+ column types, runtime validation, JSON Schema output | `@vertz/schema` |
+| **Database** | Typed queries, migrations, PostgreSQL + SQLite + D1 | `@vertz/db` |
+| **Server** | Entity CRUD, actions, access control, CORS, env validation | `@vertz/server` |
+| **UI** | Signals, JSX, router, `query()`, `form()`, scoped CSS, SSR | `@vertz/ui` |
+| **Primitives** | Headless a11y components — Dialog, Select, Tabs, Menu, etc. | `@vertz/ui-primitives` |
+| **Tooling** | Dev server, build, codegen, static analysis | `@vertz/cli` |
+| **Deploy** | Cloudflare Workers adapter | `@vertz/cloudflare` |
+| **Testing** | `createTestApp()` with service mocking | `@vertz/testing` |
+| **HTTP** | Type-safe client with retries, streaming, auth strategies | `@vertz/fetch` |
+
+Install everything with one dependency:
+
+```bash
+bun add vertz
+```
+
+Then import what you need: `vertz/server`, `vertz/db`, `vertz/ui`, `vertz/schema`, `vertz/testing`.
+
+## Custom Endpoints
+
+Need business logic beyond CRUD? Use `action()`:
+
+```typescript
+import { action, createServer } from '@vertz/server';
+import { s } from '@vertz/schema';
+
+const reports = action('reports', {
+  inject: { todos: todosEntity },
+  actions: {
+    summary: {
+      method: 'GET',
+      path: '/reports/summary',
+      response: s.object({ total: s.integer(), completed: s.integer() }),
+      handler: async (ctx) => {
+        const all = await ctx.entities.todos.list({});
+        return {
+          total: all.items.length,
+          completed: all.items.filter((t) => t.completed).length,
+        };
+      },
+    },
+  },
+});
+
+createServer({ entities: [todosEntity], actions: [reports] }).listen(3000);
+```
+
+Entities and actions compose. Types flow. The codegen picks up everything.
+
+## Deploy Anywhere
+
+```typescript
+app.listen(3000);                           // Bun, Node
+export default { fetch: app.handler };      // Cloudflare Workers
+Deno.serve(app.handler);                    // Deno
+```
 
 ## Why Vertz?
 
-### Designed for how software is actually written now
+**The problem:** LLMs write code fast — but they can't run it. They can't see the runtime error. They can't know the DI container will fail until you tell them. Every wrong guess costs tokens, time, and patience.
 
-LLMs write code alongside us. They're fast and capable — but they can't run your code. They can't see that runtime error. They can't know the DI container will fail until you tell them.
+**The fix:** Move failures to compile time. If the types are right, the code works. One way to do things, so the LLM (and your team) never guesses wrong.
 
-Vertz moves those failures to compile time. If the LLM writes code that builds, it works. That's not a slogan — it's an architectural decision baked into every layer.
+This isn't a slogan. It's an architectural decision:
 
-### One way to do things
+- **Functions over decorators** — types flow through functions. Decorators break inference.
+- **One way to do things** — ambiguity is a tax on LLMs and teams alike.
+- **Compile-time over runtime** — if `tsc` says it's good, it runs.
+- **Explicit over implicit** — dependencies are declared, never discovered.
 
-Ambiguity is the enemy of LLMs — and of teams. When there are three ways to do something, you'll find all three in your codebase. Vertz has strong opinions. Not because we think we're always right, but because predictability matters more than flexibility.
+## Built by LLMs
 
-### Type safety that actually flows
+This entire codebase is written with [Claude Code](https://claude.ai/claude-code). Not scaffolded by AI and finished by hand — written, tested, and iterated by an LLM from first commit to last. Vertz is both the product and the proof that it works.
 
-Define a column as `d.text()` — it's `string` in your entity, `string` in the generated SDK, `string` in the UI form. Change it to `d.integer()` and `tsc` lights up red everywhere that still expects a string — across server, SDK, and UI in a single typecheck. No manual type duplication, no runtime surprises.
+Strict TDD. Design docs before code. Every behavior has a failing test first. Read the [Manifesto](./MANIFESTO.md) and [Vision](./VISION.md) to understand the philosophy.
 
-### Production-ready by default
+## Status
 
-OpenAPI generation isn't a plugin — it's built in. Environment validation isn't an afterthought — it's required. CORS isn't a middleware you install — it's a config option.
+Pre-release. APIs will change. The architecture and philosophy are stable. We're building in public.
 
-## The Architecture
-
-```
-d.table()        →  Define the schema once
-entity()         →  Get a typed CRUD API
-createServer()   →  Serve it
-vertz codegen    →  Generate a typed SDK
-query() / form() →  Use it in the UI
-```
-
-Everything is explicit. Dependencies are declared, not discovered. The compiler knows the full dependency graph at build time.
-
-For custom business logic, Vertz also has a module system with services, routers, middleware, and dependency injection — but the entity path gets you from zero to full-stack CRUD in minutes.
-
-### Server-agnostic
-
-`app.listen()` auto-detects your runtime. Need more control? `app.handler` gives you a raw `(request: Request) => Promise<Response>` function:
-
-```typescript
-app.listen(3000);                           // Auto-detect (Bun, Node)
-export default { fetch: app.handler };      // Cloudflare Workers
-Deno.serve(app.handler);                    // Deno Deploy
-```
-
-## The Experiment
-
-Vertz is an experiment in a question: **Can an LLM build a production-ready stack?**
-
-Every design decision is evaluated through one lens: "Does this make the LLM more correct on the first try?" Functions over decorators — because type inference flows through functions. One way to do things — because ambiguity causes wrong guesses. Compile-time over runtime — because LLMs can't run your code.
-
-The answer so far: yes — when you have strong conventions, explicit-over-implicit APIs, and compile-time guarantees. The codebase follows strict TDD (every behavior has a test), every feature goes through design docs before implementation, and the LLM writes the tests first.
-
-We're building this in public. Follow the journey:
-
-- [Vision](./VISION.md) — Where we're going and the 8 principles that guide every decision
-- [Manifesto](./MANIFESTO.md) — What we believe and why
-- [Design docs](./plans/) — How every feature is planned before it's built
-- [@viniciusdacal](https://x.com/viniciusdacal) on X/Twitter — Build-in-public updates
-
-## Current Status
-
-Vertz is in active development. Here's where things stand:
-
-| Layer | Package | Description |
-|-------|---------|-------------|
-| **Server** | `@vertz/server` | App factory, modules, services, routers, middleware, DI, CORS, env validation |
-| | `@vertz/core` | Framework primitives shared across packages |
-| | `@vertz/schema` | 40+ schema types, runtime validation, type inference, JSON Schema / OpenAPI output |
-| | `@vertz/errors` | Result types, domain errors, and mapping utilities |
-| | `@vertz/fetch` | Type-safe HTTP client |
-| **Database** | `@vertz/db` | Typed queries, migrations, codegen (PostgreSQL, SQLite) |
-| **UI** | `@vertz/ui` | Signals, components, JSX runtime, router, forms, queries, scoped CSS |
-| | `@vertz/ui-primitives` | Headless UI primitives (Accordion, Dialog, Select, etc.) |
-| **Tooling** | `@vertz/compiler` | Static analysis, OpenAPI gen, route tables, app manifests |
-| | `@vertz/cli` | Dev server, build, create, and deploy commands |
-| | `create-vertz-app` | Project scaffolding |
-| | `@vertz/testing` | `createTestApp()` with service/middleware mocking |
-| **Deploy** | `@vertz/cloudflare` | Cloudflare Workers adapter |
-
-This is pre-release software. APIs will change. But the architecture and philosophy are stable — and that's the part that matters most right now.
+- [Vision](./VISION.md) — the 8 principles behind every decision
+- [Manifesto](./MANIFESTO.md) — what we believe and why
+- [Design docs](./plans/) — how features are planned before they're built
+- [@viniciusdacal](https://x.com/viniciusdacal) on X — build-in-public updates
 
 ## Contributing
 
-> Vertz requires [Bun](https://bun.sh) for development.
+> Requires [Bun](https://bun.sh).
 
 ```bash
 git clone https://github.com/vertz-dev/vertz.git
 cd vertz
 bun install
 bun test
-bun run typecheck
 ```
-
-The codebase follows strict TDD — every behavior needs a failing test first. Check the [plans/](./plans/) directory to see what's being worked on and what's coming next.
 
 ## License
 
