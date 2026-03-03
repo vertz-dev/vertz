@@ -1,4 +1,4 @@
-import type { ToggleElements, ToggleOptions, ToggleState } from '@vertz/ui-primitives';
+import type { ToggleOptions } from '@vertz/ui-primitives';
 import { Toggle } from '@vertz/ui-primitives';
 
 interface ToggleStyleClasses {
@@ -7,10 +7,10 @@ interface ToggleStyleClasses {
 
 export function createThemedToggle(
   styles: ToggleStyleClasses,
-): (options?: ToggleOptions) => ToggleElements & { state: ToggleState } {
+): (options?: ToggleOptions) => HTMLElement {
   return function themedToggle(options?: ToggleOptions) {
-    const result = Toggle.Root(options);
-    result.root.classList.add(styles.root);
-    return result;
+    const root = Toggle.Root(options);
+    root.classList.add(styles.root);
+    return root;
   };
 }

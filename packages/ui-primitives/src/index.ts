@@ -91,7 +91,7 @@ export type { TabsElements, TabsOptions, TabsState } from './tabs/tabs';
 export { Tabs } from './tabs/tabs';
 export type { ToastElements, ToastMessage, ToastOptions, ToastState } from './toast/toast';
 export { Toast } from './toast/toast';
-export type { ToggleElements, ToggleOptions, ToggleState } from './toggle/toggle';
+export type { ToggleOptions } from './toggle/toggle';
 export { Toggle } from './toggle/toggle';
 export type {
   ToggleGroupElements,
