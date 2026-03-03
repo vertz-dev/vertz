@@ -11,8 +11,6 @@ import type {
   SliderElements,
   SliderOptions,
   SliderState,
-  SwitchElements,
-  SwitchState,
   ToastOptions,
 } from '@vertz/ui-primitives';
 import type { AlertComponents } from './components/alert';
@@ -404,7 +402,7 @@ export interface ThemedPrimitives {
   /** Themed Checkbox — wraps @vertz/ui-primitives Checkbox with shadcn styles. */
   checkbox: (options?: CheckboxOptions) => CheckboxElements & { state: CheckboxState };
   /** Themed Switch — wraps @vertz/ui-primitives Switch with shadcn styles. */
-  switch: (options?: ThemedSwitchOptions) => SwitchElements & { state: SwitchState };
+  switch: (options?: ThemedSwitchOptions) => HTMLElement;
   /** Themed Popover — composable JSX component with Popover.Trigger, Popover.Content. */
   Popover: ThemedPopoverComponent;
   /** Themed Progress — wraps @vertz/ui-primitives Progress with shadcn styles. */

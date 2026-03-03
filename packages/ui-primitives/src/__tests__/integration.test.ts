@@ -158,7 +158,7 @@ describe('Integration Tests', () => {
 
     // Switch
     const sw = Switch.Root();
-    expect(sw.root.getAttribute('role')).toBe('switch');
+    expect(sw.getAttribute('role')).toBe('switch');
 
     // Checkbox
     const checkbox = Checkbox.Root();

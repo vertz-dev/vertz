@@ -10,21 +10,21 @@ export function SwitchDemo() {
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>Default</div>
         <div class={demoStyles.row}>
-          {createSwitch({}).root}
+          {createSwitch({})}
           <Label>Airplane mode</Label>
         </div>
       </div>
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>Checked by default</div>
         <div class={demoStyles.row}>
-          {createSwitch({ defaultChecked: true }).root}
+          {createSwitch({ defaultChecked: true })}
           <Label>Dark mode</Label>
         </div>
       </div>
       <div class={demoStyles.section}>
         <div class={demoStyles.sectionTitle}>Small size</div>
         <div class={demoStyles.row}>
-          {createSwitch({ size: 'sm' } as any).root}
+          {createSwitch({ size: 'sm' })}
           <Label>Compact</Label>
         </div>
       </div>

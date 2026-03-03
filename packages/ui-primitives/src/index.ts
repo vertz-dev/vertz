@@ -85,7 +85,7 @@ export type { SelectElements, SelectOptions, SelectState } from './select/select
 export { Select } from './select/select';
 export type { SliderElements, SliderOptions, SliderState } from './slider/slider';
 export { Slider } from './slider/slider';
-export type { SwitchElements, SwitchOptions, SwitchState } from './switch/switch';
+export type { SwitchOptions } from './switch/switch';
 export { Switch } from './switch/switch';
 export type { TabsElements, TabsOptions, TabsState } from './tabs/tabs';
 export { Tabs } from './tabs/tabs';
