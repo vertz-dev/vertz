@@ -208,9 +208,9 @@ export const tasks = entity('tasks', {
 }
 
 /**
- * src/api/client.ts — #generated imports + type re-export
+ * src/client.ts — #generated imports + type re-export
  */
-export function apiClientTemplate(): string {
+export function clientTemplate(): string {
   return `import { createClient } from '#generated';
 
 export type * from '#generated/types';
@@ -309,7 +309,7 @@ export const themeGlobals = globals;
  */
 export function homePageTemplate(): string {
   return `import { css, query, queryMatch } from '@vertz/ui';
-import { api } from '../api/client';
+import { api } from '../client';
 
 const pageStyles = css({
   container: ['py:2', 'w:full'],

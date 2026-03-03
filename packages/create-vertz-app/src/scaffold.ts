@@ -1,8 +1,8 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import {
-  apiClientTemplate,
   appComponentTemplate,
+  clientTemplate,
   dbTemplate,
   entryClientTemplate,
   envExampleTemplate,
@@ -76,10 +76,10 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
     writeFile(apiDir, 'server.ts', serverTemplate()),
     writeFile(apiDir, 'schema.ts', schemaTemplate()),
     writeFile(apiDir, 'db.ts', dbTemplate()),
-    writeFile(apiDir, 'client.ts', apiClientTemplate()),
     writeFile(entitiesDir, 'tasks.entity.ts', tasksEntityTemplate()),
 
     // UI source files
+    writeFile(srcDir, 'client.ts', clientTemplate()),
     writeFile(srcDir, 'app.tsx', appComponentTemplate()),
     writeFile(srcDir, 'entry-client.ts', entryClientTemplate()),
     writeFile(pagesDir, 'home.tsx', homePageTemplate()),

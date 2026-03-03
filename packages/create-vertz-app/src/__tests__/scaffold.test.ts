@@ -206,13 +206,10 @@ describe('scaffold', () => {
       expect(content).toContain('autoApply: true');
     });
 
-    it('generates src/api/client.ts with #generated imports', async () => {
+    it('does NOT generate client.ts inside api/ (client is a UI concern)', async () => {
       await scaffold(tempDir, defaultOptions);
 
-      const content = await fs.readFile(projectPath('src', 'api', 'client.ts'), 'utf-8');
-      expect(content).toContain("from '#generated'");
-      expect(content).toContain("from '#generated/types'");
-      expect(content).toContain('createClient');
+      expect(await exists(projectPath('src', 'api', 'client.ts'))).toBe(false);
     });
 
     it('generates src/api/entities/tasks.entity.ts', async () => {
@@ -231,6 +228,15 @@ describe('scaffold', () => {
   // ── UI source files ───────────────────────────────────────
 
   describe('UI source files', () => {
+    it('generates src/client.ts with #generated imports', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      const content = await fs.readFile(projectPath('src', 'client.ts'), 'utf-8');
+      expect(content).toContain("from '#generated'");
+      expect(content).toContain("from '#generated/types'");
+      expect(content).toContain('createClient');
+    });
+
     it('generates src/app.tsx with SSR exports and App component', async () => {
       await scaffold(tempDir, defaultOptions);
 

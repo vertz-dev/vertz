@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  apiClientTemplate,
   appComponentTemplate,
+  clientTemplate,
   dbTemplate,
   entryClientTemplate,
   envExampleTemplate,
@@ -166,9 +166,9 @@ describe('templates', () => {
     });
   });
 
-  describe('apiClientTemplate', () => {
+  describe('clientTemplate', () => {
     it('uses #generated imports', () => {
-      const result = apiClientTemplate();
+      const result = clientTemplate();
       expect(result).toContain("from '#generated'");
       expect(result).toContain("from '#generated/types'");
       expect(result).toContain('createClient');
@@ -236,7 +236,7 @@ describe('templates', () => {
         schemaTemplate,
         dbTemplate,
         tasksEntityTemplate,
-        apiClientTemplate,
+        clientTemplate,
         appComponentTemplate,
         entryClientTemplate,
         themeTemplate,
