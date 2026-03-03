@@ -91,6 +91,8 @@ export type {
 export { ScrollArea } from './scroll-area/scroll-area';
 export type { SelectElements, SelectOptions, SelectState } from './select/select';
 export { Select } from './select/select';
+export type { SheetElements, SheetOptions, SheetSide, SheetState } from './sheet/sheet';
+export { Sheet } from './sheet/sheet';
 export type { SliderElements, SliderOptions, SliderState } from './slider/slider';
 export { Slider } from './slider/slider';
 export type { SwitchOptions } from './switch/switch';
