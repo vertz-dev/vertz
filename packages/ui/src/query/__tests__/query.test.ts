@@ -912,4 +912,513 @@ describe('query()', () => {
     // Manual dispose still works
     result.dispose();
   });
+
+  // ── refetchInterval ─────────────────────────────────────────
+
+  test('refetchInterval polls at the specified interval', async () => {
+    let callCount = 0;
+    const result = query(
+      () => {
+        callCount++;
+        return Promise.resolve(`call-${callCount}`);
+      },
+      { key: 'interval-basic', refetchInterval: 3000 },
+    );
+
+    // Initial fetch
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(result.data.value).toBe('call-1');
+    expect(callCount).toBe(1);
+
+    // After 3s, should poll again
+    vi.advanceTimersByTime(3000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(callCount).toBe(2);
+    expect(result.data.value).toBe('call-2');
+
+    // After another 3s, should poll again
+    vi.advanceTimersByTime(3000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(callCount).toBe(3);
+    expect(result.data.value).toBe('call-3');
+
+    result.dispose();
+  });
+
+  test('refetchInterval: false disables polling', async () => {
+    let callCount = 0;
+    const result = query(
+      () => {
+        callCount++;
+        return Promise.resolve(callCount);
+      },
+      { key: 'interval-false', refetchInterval: false },
+    );
+
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(callCount).toBe(1);
+
+    // Wait a long time — should NOT poll
+    vi.advanceTimersByTime(30000);
+    await Promise.resolve();
+    expect(callCount).toBe(1);
+
+    result.dispose();
+  });
+
+  test('refetchInterval: 0 disables polling', async () => {
+    let callCount = 0;
+    const result = query(
+      () => {
+        callCount++;
+        return Promise.resolve(callCount);
+      },
+      { key: 'interval-zero', refetchInterval: 0 },
+    );
+
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(callCount).toBe(1);
+
+    vi.advanceTimersByTime(30000);
+    await Promise.resolve();
+    expect(callCount).toBe(1);
+
+    result.dispose();
+  });
+
+  test('dispose stops polling', async () => {
+    let callCount = 0;
+    const result = query(
+      () => {
+        callCount++;
+        return Promise.resolve(callCount);
+      },
+      { key: 'interval-dispose', refetchInterval: 1000 },
+    );
+
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(callCount).toBe(1);
+
+    // Dispose before the interval fires
+    result.dispose();
+
+    // Advance past multiple intervals — should NOT poll
+    vi.advanceTimersByTime(5000);
+    await Promise.resolve();
+    expect(callCount).toBe(1);
+  });
+
+  test('polling does not stack when fetch takes longer than interval', async () => {
+    let callCount = 0;
+    const resolvers: Array<(v: string) => void> = [];
+
+    const result = query(
+      () => {
+        callCount++;
+        return new Promise<string>((resolve) => {
+          resolvers.push(resolve);
+        });
+      },
+      { key: 'interval-no-stack', refetchInterval: 1000 },
+    );
+
+    // Initial fetch is in-flight (unresolved)
+    expect(callCount).toBe(1);
+
+    // Advance past multiple intervals — should NOT poll while in-flight
+    vi.advanceTimersByTime(5000);
+    await Promise.resolve();
+    expect(callCount).toBe(1); // Still only the initial fetch
+
+    // Resolve the initial fetch — NOW the interval should start
+    resolvers[0]!('first');
+    await Promise.resolve();
+    expect(result.data.value).toBe('first');
+
+    // After 1s, should poll
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    expect(callCount).toBe(2);
+
+    // Resolve the poll
+    resolvers[1]!('second');
+    await Promise.resolve();
+    expect(result.data.value).toBe('second');
+
+    result.dispose();
+  });
+
+  test('polling pauses when tab is hidden and resumes when visible', async () => {
+    // Mock document.visibilityState
+    let visibilityState = 'visible';
+    const listeners: Array<() => void> = [];
+    const origDocument = globalThis.document;
+
+    Object.defineProperty(globalThis, 'document', {
+      value: {
+        visibilityState: 'visible',
+        addEventListener: (event: string, handler: () => void) => {
+          if (event === 'visibilitychange') listeners.push(handler);
+        },
+        removeEventListener: (event: string, handler: () => void) => {
+          if (event === 'visibilitychange') {
+            const idx = listeners.indexOf(handler);
+            if (idx >= 0) listeners.splice(idx, 1);
+          }
+        },
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    let callCount = 0;
+    const result = query(
+      () => {
+        callCount++;
+        return Promise.resolve(`call-${callCount}`);
+      },
+      { key: 'interval-visibility', refetchInterval: 1000 },
+    );
+
+    // Initial fetch
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(callCount).toBe(1);
+
+    // Hide the tab
+    visibilityState = 'hidden';
+    (globalThis.document as any).visibilityState = 'hidden';
+    for (const fn of listeners) fn();
+
+    // Advance past multiple intervals — should NOT poll
+    vi.advanceTimersByTime(5000);
+    await Promise.resolve();
+    expect(callCount).toBe(1);
+
+    // Show the tab
+    visibilityState = 'visible';
+    (globalThis.document as any).visibilityState = 'visible';
+    for (const fn of listeners) fn();
+
+    // Should immediately refetch on becoming visible
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(callCount).toBe(2);
+
+    result.dispose();
+
+    // Restore document
+    Object.defineProperty(globalThis, 'document', {
+      value: origDocument,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  test('auto-dispose via scope cleanup stops polling', async () => {
+    let callCount = 0;
+
+    const scope = pushScope();
+    const result = query(
+      () => {
+        callCount++;
+        return Promise.resolve(callCount);
+      },
+      { key: 'interval-auto-dispose', refetchInterval: 1000 },
+    );
+    popScope();
+
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(callCount).toBe(1);
+
+    // Clean up the scope — should stop polling
+    runCleanups(scope);
+
+    vi.advanceTimersByTime(5000);
+    await Promise.resolve();
+    expect(callCount).toBe(1);
+  });
+
+  test('in-flight poll does not cause errors when disposed', async () => {
+    const resolvers: Array<(v: string) => void> = [];
+
+    const result = query(
+      () =>
+        new Promise<string>((resolve) => {
+          resolvers.push(resolve);
+        }),
+      { key: 'interval-inflight-dispose', refetchInterval: 1000 },
+    );
+
+    // Resolve initial fetch to start the interval
+    resolvers[0]!('first');
+    await Promise.resolve();
+    expect(result.data.value).toBe('first');
+
+    // Trigger the interval poll
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    // Poll is now in-flight (unresolved)
+
+    // Dispose while poll is in-flight — should not throw
+    result.dispose();
+
+    // Resolve the in-flight poll — should be silently ignored (stale)
+    resolvers[1]!('stale');
+    await Promise.resolve();
+    expect(result.data.value).toBe('first');
+  });
+
+  test('polling continues after a failed fetch', async () => {
+    let callCount = 0;
+    const result = query(
+      () => {
+        callCount++;
+        if (callCount === 2) return Promise.reject(new Error('transient'));
+        return Promise.resolve(`call-${callCount}`);
+      },
+      { key: 'interval-error-recovery', refetchInterval: 1000 },
+    );
+
+    // Initial fetch succeeds
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(result.data.value).toBe('call-1');
+
+    // Second fetch (poll) fails
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(result.error.value).toBeInstanceOf(Error);
+
+    // Third fetch (poll) should still happen — polling continues
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(callCount).toBe(3);
+    expect(result.data.value).toBe('call-3');
+
+    result.dispose();
+  });
+
+  test('enabled: false with refetchInterval does not poll', async () => {
+    let callCount = 0;
+    const result = query(
+      () => {
+        callCount++;
+        return Promise.resolve(callCount);
+      },
+      { key: 'interval-disabled', refetchInterval: 1000, enabled: false },
+    );
+
+    vi.advanceTimersByTime(10000);
+    await Promise.resolve();
+    expect(callCount).toBe(0);
+
+    result.dispose();
+  });
+
+  test('refetchInterval starts polling even with initialData', async () => {
+    let callCount = 0;
+    const result = query(
+      () => {
+        callCount++;
+        return Promise.resolve(`call-${callCount}`);
+      },
+      { key: 'interval-initial-data', refetchInterval: 1000, initialData: 'seed' },
+    );
+
+    // Initial data is served immediately, no fetch
+    expect(result.data.value).toBe('seed');
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+
+    // After 1s, should poll even though initialData was provided
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(callCount).toBeGreaterThanOrEqual(1);
+    expect(result.data.value).not.toBe('seed');
+
+    result.dispose();
+  });
+
+  test('reactive dep change resets the interval timer', async () => {
+    const dep = signal('a');
+    let callCount = 0;
+    const result = query(
+      () => {
+        const d = dep.value;
+        callCount++;
+        return Promise.resolve(`${d}-${callCount}`);
+      },
+      { refetchInterval: 2000 },
+    );
+
+    // Initial fetch
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(result.data.value).toBe('a-1');
+
+    // After 1s (halfway through interval), change the dep
+    vi.advanceTimersByTime(1000);
+    dep.value = 'b';
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(result.data.value).toBe('b-2');
+
+    // The old interval timer (from the 'a' fetch) should NOT fire at t=2s.
+    // Only the new interval timer (from the 'b' fetch) at t=1s+2s=3s should fire.
+    vi.advanceTimersByTime(1000); // t=2s
+    await Promise.resolve();
+    await Promise.resolve();
+    const countAt2s = callCount;
+
+    vi.advanceTimersByTime(1000); // t=3s — new interval should fire
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(callCount).toBe(countAt2s + 1);
+
+    result.dispose();
+  });
+
+  test('refetchInterval function receives data and iteration count', async () => {
+    const intervals: Array<{ data: string | undefined; iteration: number }> = [];
+    let callCount = 0;
+
+    const result = query(
+      () => {
+        callCount++;
+        return Promise.resolve(`call-${callCount}`);
+      },
+      {
+        key: 'interval-fn',
+        refetchInterval: (data, iteration) => {
+          intervals.push({ data, iteration });
+          // Exponential backoff: 1s, 2s, 4s
+          return 1000 * 2 ** iteration;
+        },
+      },
+    );
+
+    // Initial fetch
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(result.data.value).toBe('call-1');
+    // First schedule: iteration=0, data='call-1' → 1000ms
+    expect(intervals[0]).toEqual({ data: 'call-1', iteration: 0 });
+
+    // After 1s, poll fires
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(result.data.value).toBe('call-2');
+    // Second schedule: iteration=1, data='call-2' → 2000ms
+    expect(intervals[1]).toEqual({ data: 'call-2', iteration: 1 });
+
+    // After 2s, poll fires
+    vi.advanceTimersByTime(2000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(result.data.value).toBe('call-3');
+    // Third schedule: iteration=2, data='call-3' → 4000ms
+    expect(intervals[2]).toEqual({ data: 'call-3', iteration: 2 });
+
+    result.dispose();
+  });
+
+  test('refetchInterval function returning false stops polling', async () => {
+    let callCount = 0;
+
+    const result = query(
+      () => {
+        callCount++;
+        return Promise.resolve(callCount >= 3 ? 'done' : 'pending');
+      },
+      {
+        key: 'interval-fn-stop',
+        refetchInterval: (data) => {
+          if (data === 'done') return false;
+          return 1000;
+        },
+      },
+    );
+
+    // Initial fetch → 'pending'
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(result.data.value).toBe('pending');
+
+    // Poll 1 → 'pending'
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(result.data.value).toBe('pending');
+
+    // Poll 2 → 'done' → function returns false → polling stops
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(result.data.value).toBe('done');
+
+    // No more polls
+    vi.advanceTimersByTime(10000);
+    await Promise.resolve();
+    expect(callCount).toBe(3);
+
+    result.dispose();
+  });
+
+  test('iteration resets to 0 after refetchInterval returns false', async () => {
+    let callCount = 0;
+    const iterations: number[] = [];
+
+    const result = query(
+      () => {
+        callCount++;
+        // Stop after 2 polls, then manual refetch restarts
+        return Promise.resolve(callCount === 2 ? 'done' : 'pending');
+      },
+      {
+        key: 'interval-fn-reset',
+        refetchInterval: (data, iteration) => {
+          iterations.push(iteration);
+          if (data === 'done') return false;
+          return 1000;
+        },
+      },
+    );
+
+    // Initial fetch
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    expect(iterations).toEqual([0]); // iteration=0
+
+    // Poll → 'done' → false → stops
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(result.data.value).toBe('done');
+    expect(iterations).toEqual([0, 1]); // iteration=1, returned false
+
+    // Manual refetch → restarts polling
+    callCount = 0; // reset so next call returns 'pending'
+    result.refetch();
+    vi.advanceTimersByTime(0);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Iteration should have reset to 0
+    expect(iterations[2]).toBe(0);
+
+    result.dispose();
+  });
 });

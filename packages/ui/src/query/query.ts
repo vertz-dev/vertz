@@ -37,6 +37,17 @@ export interface QueryOptions<T> {
   cache?: CacheStore<T>;
   /** Timeout in ms for SSR data loading. Default: 300. Set to 0 to disable. */
   ssrTimeout?: number;
+  /**
+   * Polling interval in ms, or a function for dynamic intervals.
+   *
+   * - `number` — fixed interval in ms
+   * - `false` or `0` — disabled
+   * - `(data, iteration) => number | false` — called after each fetch to
+   *   determine the next interval. Return `false` to stop polling.
+   *   `iteration` counts polls since the last start/restart (resets to 0
+   *   when the function returns `false`).
+   */
+  refetchInterval?: number | false | ((data: T | undefined, iteration: number) => number | false);
 }
 
 /** The reactive object returned by query(). */
@@ -286,6 +297,12 @@ export function query<T, E = unknown>(
   // Track the latest fetch id to ignore stale responses.
   let fetchId = 0;
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  let intervalTimer: ReturnType<typeof setTimeout> | undefined;
+  const refetchIntervalOption = options.refetchInterval;
+  const hasInterval =
+    typeof refetchIntervalOption === 'function' ||
+    (typeof refetchIntervalOption === 'number' && refetchIntervalOption > 0);
+  let intervalIteration = 0;
 
   // Track all in-flight keys for this query instance so dispose() can clean them all.
   const inflightKeys = new Set<string>();
@@ -294,6 +311,48 @@ export function query<T, E = unknown>(
    * Trigger signal to force the effect to re-run on manual refetch.
    */
   const refetchTrigger: Signal<number> = signal(0);
+
+  // -- Polling interval --
+  let intervalPaused = false;
+
+  function scheduleInterval(): void {
+    if (!hasInterval || isSSR() || intervalPaused) return;
+
+    let ms: number | false;
+    if (typeof refetchIntervalOption === 'function') {
+      ms = refetchIntervalOption(data.peek() as T | undefined, intervalIteration);
+    } else {
+      ms = refetchIntervalOption as number;
+    }
+
+    if (ms === false || ms <= 0) {
+      // Stop polling and reset iteration for next restart.
+      intervalIteration = 0;
+      return;
+    }
+
+    intervalIteration++;
+    clearTimeout(intervalTimer);
+    intervalTimer = setTimeout(() => {
+      refetch();
+    }, ms);
+  }
+
+  // Visibility-based pause/resume for polling
+  let visibilityHandler: (() => void) | undefined;
+  if (hasInterval && enabled && !isSSR() && typeof document !== 'undefined') {
+    visibilityHandler = () => {
+      if (document.visibilityState === 'hidden') {
+        intervalPaused = true;
+        clearTimeout(intervalTimer);
+      } else {
+        intervalPaused = false;
+        // Immediately refetch when tab becomes visible again
+        refetch();
+      }
+    };
+    document.addEventListener('visibilitychange', visibilityHandler);
+  }
 
   /**
    * Handle a fetch promise: update signals when it resolves/rejects.
@@ -310,6 +369,7 @@ export function query<T, E = unknown>(
         data.value = result;
         loading.value = false;
         revalidating.value = false;
+        scheduleInterval();
       },
       (err: unknown) => {
         inflight.delete(key);
@@ -318,6 +378,7 @@ export function query<T, E = unknown>(
         error.value = err;
         loading.value = false;
         revalidating.value = false;
+        scheduleInterval();
       },
     );
   }
@@ -480,6 +541,8 @@ export function query<T, E = unknown>(
             error.value = undefined;
           });
           isFirst = false;
+          // Start polling if refetchInterval is configured.
+          scheduleInterval();
           return;
         }
       }
@@ -490,6 +553,8 @@ export function query<T, E = unknown>(
         // Suppress unhandled rejection on the discarded tracking promise.
         promise.catch(() => {});
         isFirst = false;
+        // Start polling if refetchInterval is configured.
+        scheduleInterval();
         return;
       }
       isFirst = false;
@@ -521,8 +586,13 @@ export function query<T, E = unknown>(
     disposeFn?.();
     // Clean up SSR hydration listener if still active.
     ssrHydrationCleanup?.();
-    // Clear any pending debounce timer.
+    // Clear any pending debounce or interval timer.
     clearTimeout(debounceTimer);
+    clearTimeout(intervalTimer);
+    // Remove visibility listener.
+    if (visibilityHandler && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', visibilityHandler);
+    }
     // Invalidate any pending fetch responses by bumping fetchId.
     fetchId++;
     // Clean up ALL in-flight entries for this query instance, not just the
