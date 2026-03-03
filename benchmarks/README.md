@@ -101,6 +101,40 @@ benchmarks/
     └── src/               # Generated Vertz pages
 ```
 
+## E2E Tests (Vertz)
+
+The Vertz benchmark app has Playwright e2e tests that validate SSR, hydration, client-side navigation, and component reactivity.
+
+### Prerequisites
+
+The benchmark app source is **generated** — it does not exist by default. You must generate it before running e2e tests:
+
+```bash
+# 1. Generate the benchmark app (creates benchmarks/vertz/src/)
+node benchmarks/generate-app.mjs
+
+# 2. Run e2e tests
+cd benchmarks/vertz
+npx playwright test
+
+# Or run headed (with browser visible)
+npx playwright test --headed
+```
+
+If `src/` doesn't exist or is stale, the dev server will fail with "no app entry found". Always re-generate after changes to `generate-app.mjs`.
+
+### Test Suites
+
+| File | What it tests |
+|------|---------------|
+| `ssr.spec.ts` | Pre-rendered HTML contains expected content, theme CSS |
+| `hydration.spec.ts` | Dashboard stat cards render correctly, counter works after hydration |
+| `navigation.spec.ts` | Client-side nav (top nav + sidebar) without full page reloads |
+| `counter.spec.ts` | Counter components increment on click |
+| `timer.spec.ts` | Timer auto-increments in sidebar |
+| `search.spec.ts` | Search input shows/hides hint text |
+| `route-smoke.spec.ts` | All 31 routes respond with 200 |
+
 ## Notes
 
 - The `vinext/` directory uses **npm** (not bun) intentionally to avoid workspace resolution conflicts. Never run `bun install` inside `benchmarks/vinext/`.

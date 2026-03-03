@@ -1,6 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
-import { createModule } from '../../module/module';
-import { createModuleDef } from '../../module/module-def';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import type { ServerHandle } from '../../types/server-adapter';
 import { createApp } from '../app-builder';
 
@@ -38,12 +36,18 @@ describe.skipIf(!hasBun)('app.listen', () => {
   });
 
   it('serves registered routes through the running server', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/greet' });
-    router.get('/', { handler: () => ({ message: 'hello' }) });
-    const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-
-    const app = createApp({}).register(mod);
+    const app = createApp({
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/greet',
+          handler: async () =>
+            new Response(JSON.stringify({ message: 'hello' }), {
+              headers: { 'content-type': 'application/json' },
+            }),
+        },
+      ],
+    });
     handle = await app.listen(0);
 
     const res = await fetch(`http://localhost:${handle.port}/greet`);
@@ -94,14 +98,13 @@ describe.skipIf(!hasBun)('app.listen', () => {
     });
 
     it('prints the listening URL and registered routes on startup', async () => {
-      const moduleDef = createModuleDef({ name: 'users' });
-      const router = moduleDef.router({ prefix: '/users' });
-      router.get('/', { handler: () => [] });
-      router.post('/', { handler: () => ({}) });
-      router.get('/:id', { handler: () => ({}) });
-      const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-
-      const app = createApp({}).register(mod);
+      const app = createApp({
+        _entityRoutes: [
+          { method: 'GET', path: '/users', handler: async () => new Response('[]') },
+          { method: 'POST', path: '/users', handler: async () => new Response('{}') },
+          { method: 'GET', path: '/users/:id', handler: async () => new Response('{}') },
+        ],
+      });
       handle = await app.listen(0);
 
       const output = logSpy.mock.calls.map((args) => args[0]).join('\n');
@@ -112,33 +115,14 @@ describe.skipIf(!hasBun)('app.listen', () => {
       expect(output).toContain('GET    /users/:id');
     });
 
-    it('includes basePath in logged routes', async () => {
-      const moduleDef = createModuleDef({ name: 'tasks' });
-      const router = moduleDef.router({ prefix: '/tasks' });
-      router.get('/', { handler: () => [] });
-      const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-
-      const app = createApp({ basePath: '/api' }).register(mod);
-      handle = await app.listen(0);
-
-      const output = logSpy.mock.calls.map((args) => args[0]).join('\n');
-
-      expect(output).toContain('GET    /api/tasks');
-    });
-
     it('sorts routes by path then method', async () => {
-      const taskDef = createModuleDef({ name: 'tasks' });
-      const taskRouter = taskDef.router({ prefix: '/tasks' });
-      taskRouter.post('/', { handler: () => ({}) });
-      taskRouter.get('/', { handler: () => [] });
-      const taskMod = createModule(taskDef, { services: [], routers: [taskRouter], exports: [] });
-
-      const userDef = createModuleDef({ name: 'users' });
-      const userRouter = userDef.router({ prefix: '/users' });
-      userRouter.get('/', { handler: () => [] });
-      const userMod = createModule(userDef, { services: [], routers: [userRouter], exports: [] });
-
-      const app = createApp({}).register(taskMod).register(userMod);
+      const app = createApp({
+        _entityRoutes: [
+          { method: 'POST', path: '/tasks', handler: async () => new Response('{}') },
+          { method: 'GET', path: '/tasks', handler: async () => new Response('[]') },
+          { method: 'GET', path: '/users', handler: async () => new Response('[]') },
+        ],
+      });
       handle = await app.listen(0);
 
       const output = logSpy.mock.calls.map((args) => args[0]).join('\n');
@@ -151,12 +135,9 @@ describe.skipIf(!hasBun)('app.listen', () => {
     });
 
     it('suppresses route log when logRoutes is false', async () => {
-      const moduleDef = createModuleDef({ name: 'test' });
-      const router = moduleDef.router({ prefix: '/test' });
-      router.get('/', { handler: () => [] });
-      const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-
-      const app = createApp({}).register(mod);
+      const app = createApp({
+        _entityRoutes: [{ method: 'GET', path: '/test', handler: async () => new Response('[]') }],
+      });
       handle = await app.listen(0, { logRoutes: false });
 
       const output = logSpy.mock.calls.map((args) => args[0]).join('\n');
@@ -166,12 +147,9 @@ describe.skipIf(!hasBun)('app.listen', () => {
     });
 
     it('prints routes by default (logRoutes not specified)', async () => {
-      const moduleDef = createModuleDef({ name: 'test' });
-      const router = moduleDef.router({ prefix: '/items' });
-      router.get('/', { handler: () => [] });
-      const mod = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-
-      const app = createApp({}).register(mod);
+      const app = createApp({
+        _entityRoutes: [{ method: 'GET', path: '/items', handler: async () => new Response('[]') }],
+      });
       handle = await app.listen(0);
 
       const output = logSpy.mock.calls.map((args) => args[0]).join('\n');

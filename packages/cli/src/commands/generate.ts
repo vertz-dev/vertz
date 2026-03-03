@@ -1,6 +1,5 @@
 import { err, ok, type Result } from '@vertz/errors';
 import type { GeneratedFile } from '../config/defaults';
-import { generateModule } from '../generators/module';
 import { generateRouter } from '../generators/router';
 import { generateSchema } from '../generators/schema';
 import { generateService } from '../generators/service';
@@ -28,8 +27,6 @@ export function generateAction(
   const ensuredModuleName = moduleName as string;
 
   switch (type) {
-    case 'module':
-      return ok({ files: generateModule(name, sourceDir) });
     case 'service':
       return ok({ files: generateService(name, ensuredModuleName, sourceDir) });
     case 'router':

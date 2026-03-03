@@ -637,6 +637,7 @@ export function Search({ placeholder = 'Search...' }: SearchProps) {
   // ── Layouts ───────────────────────────────────────────────────────────────
 
   w('layouts/products-layout.tsx', `
+import { Link } from '../router';
 import { sectionStyles } from '../styles/components';
 
 export function ProductsLayout({ children }: { children: any }) {
@@ -645,7 +646,7 @@ export function ProductsLayout({ children }: { children: any }) {
       <div class={sectionStyles.header}>
         <span class={sectionStyles.headerTitle}>Products</span>
         {' — '}
-        <a href="/products" class={sectionStyles.headerLink}>All</a>
+        <Link href="/products" className={sectionStyles.headerLink}>All</Link>
       </div>
       {children}
     </div>
@@ -655,6 +656,7 @@ export function ProductsLayout({ children }: { children: any }) {
 
   w('layouts/blog-layout.tsx', `
 import { Search } from '../components/search';
+import { Link } from '../router';
 import { sectionStyles } from '../styles/components';
 
 export function BlogLayout({ children }: { children: any }) {
@@ -663,7 +665,7 @@ export function BlogLayout({ children }: { children: any }) {
       <div class={sectionStyles.header}>
         <span class={sectionStyles.headerTitle}>Blog</span>
         {' — '}
-        <a href="/blog" class={sectionStyles.headerLink}>All Posts</a>
+        <Link href="/blog" className={sectionStyles.headerLink}>All Posts</Link>
       </div>
       <Search placeholder="Search posts..." />
       {children}
@@ -673,8 +675,9 @@ export function BlogLayout({ children }: { children: any }) {
   `);
 
   w('layouts/dashboard-layout.tsx', `
-import { Timer } from '../components/timer';
 import { css } from '@vertz/ui';
+import { Timer } from '../components/timer';
+import { Link } from '../router';
 
 const styles = css({
   wrapper: ['flex'],
@@ -692,10 +695,10 @@ export function DashboardLayout({ children }: { children: any }) {
       <aside class={styles.sidebar} style="width: 200px; flex-shrink: 0">
         <h3 class={styles.sidebarTitle}>Dashboard</h3>
         <nav class={styles.nav}>
-          <a href="/dashboard" class={styles.navLink}>Overview</a>
-          <a href="/dashboard/analytics" class={styles.navLink}>Analytics</a>
-          <a href="/dashboard/users" class={styles.navLink}>Users</a>
-          <a href="/dashboard/settings" class={styles.navLink}>Settings</a>
+          <Link href="/dashboard" className={styles.navLink}>Overview</Link>
+          <Link href="/dashboard/analytics" className={styles.navLink}>Analytics</Link>
+          <Link href="/dashboard/users" className={styles.navLink}>Users</Link>
+          <Link href="/dashboard/settings" className={styles.navLink}>Settings</Link>
         </nav>
         <div class={styles.timerWrap}><Timer /></div>
       </aside>
@@ -707,6 +710,7 @@ export function DashboardLayout({ children }: { children: any }) {
 
   w('layouts/settings-layout.tsx', `
 import { css } from '@vertz/ui';
+import { Link } from '../router';
 
 const styles = css({
   wrapper: ['flex'],
@@ -723,10 +727,10 @@ export function SettingsLayout({ children }: { children: any }) {
       <aside class={styles.sidebar} style="width: 200px; flex-shrink: 0">
         <h3 class={styles.sidebarTitle}>Settings</h3>
         <nav class={styles.nav}>
-          <a href="/settings" class={styles.navLink}>General</a>
-          <a href="/settings/profile" class={styles.navLink}>Profile</a>
-          <a href="/settings/notifications" class={styles.navLink}>Notifications</a>
-          <a href="/settings/billing" class={styles.navLink}>Billing</a>
+          <Link href="/settings" className={styles.navLink}>General</Link>
+          <Link href="/settings/profile" className={styles.navLink}>Profile</Link>
+          <Link href="/settings/notifications" className={styles.navLink}>Notifications</Link>
+          <Link href="/settings/billing" className={styles.navLink}>Billing</Link>
         </nav>
       </aside>
       <div class={styles.content}>{children}</div>

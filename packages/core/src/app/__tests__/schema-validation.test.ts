@@ -1,16 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 import { BadRequestException } from '../../exceptions';
-import { createModule } from '../../module/module';
-import { createModuleDef } from '../../module/module-def';
-import type { HandlerCtx } from '../../types/context';
 import { createApp } from '../app-builder';
 
 describe('Schema Validation', () => {
   it('validates and infers types from schema', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/users' });
-
-    // Schema with _output type for inference
     const paramsSchema = {
       parse: (value: unknown) => {
         const params = value as Record<string, string>;
@@ -19,22 +12,24 @@ describe('Schema Validation', () => {
           return { ok: false as const, error: new BadRequestException('Invalid id') };
         return { ok: true as const, data: { id } };
       },
-      _output: {} as { id: number },
     };
 
     let receivedParams: unknown;
-    router.get('/:id', {
-      params: paramsSchema,
-      handler: (ctx) => {
-        receivedParams = ctx.params;
-        // ✅ Type inference: ctx.params.id is number, not string
-        const id: number = ctx.params.id;
-        return { id };
-      },
+    const app = createApp({
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/users/:id',
+          paramsSchema,
+          handler: async (ctx) => {
+            receivedParams = ctx.params;
+            return new Response(JSON.stringify({ id: (ctx.params as { id: number }).id }), {
+              headers: { 'content-type': 'application/json' },
+            });
+          },
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(module);
 
     const request = new Request('http://localhost/users/42');
     const response = await app.handler(request);
@@ -45,9 +40,6 @@ describe('Schema Validation', () => {
   });
 
   it('validates params using schema when provided', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/users' });
-
     const paramsSchema = {
       parse: (value: unknown) => {
         const params = value as Record<string, string>;
@@ -60,16 +52,21 @@ describe('Schema Validation', () => {
     };
 
     let receivedParams: unknown;
-    router.get('/:id', {
-      params: paramsSchema,
-      handler: (ctx: HandlerCtx) => {
-        receivedParams = ctx.params;
-        return { success: true };
-      },
+    const app = createApp({
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/users/:id',
+          paramsSchema,
+          handler: async (ctx) => {
+            receivedParams = ctx.params;
+            return new Response(JSON.stringify({ success: true }), {
+              headers: { 'content-type': 'application/json' },
+            });
+          },
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(module);
 
     const request = new Request('http://localhost/users/123');
     const response = await app.handler(request);
@@ -79,9 +76,6 @@ describe('Schema Validation', () => {
   });
 
   it('validates body using schema when provided', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/users' });
-
     const bodySchema = {
       parse: (value: unknown) => {
         const body = value as Record<string, unknown>;
@@ -93,16 +87,21 @@ describe('Schema Validation', () => {
     };
 
     let receivedBody: unknown;
-    router.post('/', {
-      body: bodySchema,
-      handler: (ctx: HandlerCtx) => {
-        receivedBody = ctx.body;
-        return { created: true };
-      },
+    const app = createApp({
+      _entityRoutes: [
+        {
+          method: 'POST',
+          path: '/users',
+          bodySchema,
+          handler: async (ctx) => {
+            receivedBody = ctx.body;
+            return new Response(JSON.stringify({ created: true }), {
+              headers: { 'content-type': 'application/json' },
+            });
+          },
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(module);
 
     const request = new Request('http://localhost/users', {
       method: 'POST',
@@ -116,9 +115,6 @@ describe('Schema Validation', () => {
   });
 
   it('rejects request when body fails schema validation', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/users' });
-
     const bodySchema = {
       parse: (value: unknown) => {
         const body = value as Record<string, unknown>;
@@ -129,13 +125,19 @@ describe('Schema Validation', () => {
       },
     };
 
-    router.post('/', {
-      body: bodySchema,
-      handler: () => ({ created: true }),
+    const app = createApp({
+      _entityRoutes: [
+        {
+          method: 'POST',
+          path: '/users',
+          bodySchema,
+          handler: async () =>
+            new Response(JSON.stringify({ created: true }), {
+              headers: { 'content-type': 'application/json' },
+            }),
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(module);
 
     const request = new Request('http://localhost/users', {
       method: 'POST',
@@ -148,9 +150,6 @@ describe('Schema Validation', () => {
   });
 
   it('validates query using schema when provided', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/users' });
-
     const querySchema = {
       parse: (value: unknown) => {
         const query = value as Record<string, unknown>;
@@ -165,13 +164,19 @@ describe('Schema Validation', () => {
       },
     };
 
-    router.get('/', {
-      query: querySchema,
-      handler: () => ({ users: [] }),
+    const app = createApp({
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/users',
+          querySchema,
+          handler: async () =>
+            new Response(JSON.stringify({ users: [] }), {
+              headers: { 'content-type': 'application/json' },
+            }),
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(module);
 
     const request = new Request('http://localhost/users?page=abc');
     const response = await app.handler(request);
@@ -180,9 +185,6 @@ describe('Schema Validation', () => {
   });
 
   it('passes validated query to handler', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/users' });
-
     const querySchema = {
       parse: (value: unknown) => {
         const query = value as Record<string, unknown>;
@@ -191,16 +193,21 @@ describe('Schema Validation', () => {
     };
 
     let receivedQuery: unknown;
-    router.get('/', {
-      query: querySchema,
-      handler: (ctx: HandlerCtx) => {
-        receivedQuery = ctx.query;
-        return { users: [] };
-      },
+    const app = createApp({
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/users',
+          querySchema,
+          handler: async (ctx) => {
+            receivedQuery = ctx.query;
+            return new Response(JSON.stringify({ users: [] }), {
+              headers: { 'content-type': 'application/json' },
+            });
+          },
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(module);
 
     const request = new Request('http://localhost/users?page=3');
     const response = await app.handler(request);
@@ -210,9 +217,6 @@ describe('Schema Validation', () => {
   });
 
   it('validates headers using schema when provided', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/data' });
-
     const headersSchema = {
       parse: (value: unknown) => {
         const headers = value as Record<string, unknown>;
@@ -223,13 +227,19 @@ describe('Schema Validation', () => {
       },
     };
 
-    router.get('/', {
-      headers: headersSchema,
-      handler: () => ({ data: [] }),
+    const app = createApp({
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/data',
+          headersSchema,
+          handler: async () =>
+            new Response(JSON.stringify({ data: [] }), {
+              headers: { 'content-type': 'application/json' },
+            }),
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(module);
 
     const request = new Request('http://localhost/data');
     const response = await app.handler(request);
@@ -238,9 +248,6 @@ describe('Schema Validation', () => {
   });
 
   it('passes validated headers to handler', async () => {
-    const moduleDef = createModuleDef({ name: 'test' });
-    const router = moduleDef.router({ prefix: '/data' });
-
     const headersSchema = {
       parse: (value: unknown) => {
         const headers = value as Record<string, unknown>;
@@ -249,16 +256,21 @@ describe('Schema Validation', () => {
     };
 
     let receivedHeaders: unknown;
-    router.get('/', {
-      headers: headersSchema,
-      handler: (ctx: HandlerCtx) => {
-        receivedHeaders = ctx.headers;
-        return { data: [] };
-      },
+    const app = createApp({
+      _entityRoutes: [
+        {
+          method: 'GET',
+          path: '/data',
+          headersSchema,
+          handler: async (ctx) => {
+            receivedHeaders = ctx.headers;
+            return new Response(JSON.stringify({ data: [] }), {
+              headers: { 'content-type': 'application/json' },
+            });
+          },
+        },
+      ],
     });
-
-    const module = createModule(moduleDef, { services: [], routers: [router], exports: [] });
-    const app = createApp({}).register(module);
 
     const request = new Request('http://localhost/data', {
       headers: { 'x-api-key': 'secret123' },

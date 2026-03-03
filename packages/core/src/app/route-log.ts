@@ -1,35 +1,6 @@
-import type { ModuleRegistration } from './app-runner';
-
 export interface RouteInfo {
   method: string;
   path: string;
-}
-
-function normalizePath(path: string): string {
-  // Collapse consecutive slashes (e.g. "//users/" → "/users/")
-  let normalized = path.replace(/\/+/g, '/');
-  // Remove trailing slash unless path is just "/"
-  if (normalized.length > 1 && normalized.endsWith('/')) {
-    normalized = normalized.slice(0, -1);
-  }
-  return normalized || '/';
-}
-
-export function collectRoutes(basePath: string, registrations: ModuleRegistration[]): RouteInfo[] {
-  const routes: RouteInfo[] = [];
-
-  for (const { module } of registrations) {
-    for (const router of module.routers) {
-      for (const route of router.routes) {
-        routes.push({
-          method: route.method,
-          path: normalizePath(basePath + router.prefix + route.path),
-        });
-      }
-    }
-  }
-
-  return routes;
 }
 
 export function formatRouteLog(listenUrl: string, routes: RouteInfo[]): string {

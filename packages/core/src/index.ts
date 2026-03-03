@@ -41,24 +41,12 @@ export type { AccumulateProvides, NamedMiddlewareDef } from './middleware';
 // Middleware
 export { createMiddleware } from './middleware';
 export type {
-  ExtractMethods,
-  NamedModule,
-  NamedModuleDef,
-  NamedRouterDef,
-  NamedServiceDef,
-  ResolveInjectMap,
-} from './module';
-// Module
-export { createModule, createModuleDef } from './module';
-export type {
   AppConfig,
-  EntityRouteEntry,
-  BootInstruction,
-  BootSequence,
   CorsConfig,
   Ctx,
   DeepReadonly,
   Deps,
+  EntityRouteEntry,
   EnvConfig,
   HandlerCtx,
   HttpMethod,
@@ -67,16 +55,9 @@ export type {
   InferSchema,
   ListenOptions,
   MiddlewareDef,
-  Module,
-  ModuleBootInstruction,
-  ModuleDef,
   RawRequest,
-  RouterDef,
   ServerAdapter,
   ServerHandle,
-  ServiceBootInstruction,
-  ServiceDef,
-  ServiceFactory,
 } from './types';
 // Namespace
 export { vertz } from './vertz';

@@ -8,15 +8,7 @@ import {
   runMiddlewareChain,
   Trie,
 } from '@vertz/core/internals';
-import {
-  BadRequestException,
-  type HandlerCtx,
-  type NamedMiddlewareDef,
-  type NamedModule,
-  type NamedServiceDef,
-} from '@vertz/server';
-
-import type { DeepPartial } from './types';
+import { BadRequestException, type HandlerCtx, type NamedMiddlewareDef } from '@vertz/server';
 
 /**
  * Route map entry shape that each route in AppRouteMap must follow.
@@ -41,10 +33,6 @@ export interface TestResponse<TResponse = unknown> {
 
 export interface TestRequestBuilder<TResponse = unknown>
   extends PromiseLike<TestResponse<TResponse>> {
-  mock<TDeps, TState, TMethods>(
-    service: NamedServiceDef<TDeps, TState, TMethods>,
-    impl: DeepPartial<TMethods>,
-  ): TestRequestBuilder<TResponse>;
   mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
     middleware: NamedMiddlewareDef<TReq, TProv>,
     result: TProv,
@@ -59,15 +47,32 @@ export interface RequestOptions<TBody = unknown> {
   headers?: Record<string, string>;
 }
 
+type SchemaLike = { parse(value: unknown): { ok: boolean; data?: unknown; error?: unknown } };
+
 /**
- * Untyped test app interface for backwards compatibility.
+ * Route entry for configuring test app routes.
+ */
+export interface TestRouteEntry {
+  method: string;
+  path: string;
+  handler: (ctx: HandlerCtx) => unknown;
+  bodySchema?: SchemaLike;
+  querySchema?: SchemaLike;
+  headersSchema?: SchemaLike;
+  responseSchema?: { safeParse(value: unknown): { ok: boolean; error?: { message: string } } };
+}
+
+/**
+ * Configuration for creating a test app.
+ */
+export interface TestAppConfig {
+  routes?: TestRouteEntry[];
+}
+
+/**
+ * Test app interface.
  */
 export interface TestApp {
-  register(module: NamedModule, options?: Record<string, unknown>): TestApp;
-  mock<TDeps, TState, TMethods>(
-    service: NamedServiceDef<TDeps, TState, TMethods>,
-    impl: DeepPartial<TMethods>,
-  ): TestApp;
   mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
     middleware: NamedMiddlewareDef<TReq, TProv>,
     result: TProv,
@@ -86,11 +91,6 @@ export interface TestApp {
  * @template TRouteMap - Route map interface mapping route keys (e.g., 'GET /users') to their types.
  */
 export interface TestAppWithRoutes<TRouteMap extends RouteMapEntry> {
-  register(module: NamedModule, options?: Record<string, unknown>): TestAppWithRoutes<TRouteMap>;
-  mock<TDeps, TState, TMethods>(
-    service: NamedServiceDef<TDeps, TState, TMethods>,
-    impl: DeepPartial<TMethods>,
-  ): TestAppWithRoutes<TRouteMap>;
   mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
     middleware: NamedMiddlewareDef<TReq, TProv>,
     result: TProv,
@@ -134,7 +134,7 @@ export interface TestAppWithRoutes<TRouteMap extends RouteMapEntry> {
   >;
 }
 
-// Type for untyped HTTP methods (backwards compatibility)
+// Internal types
 interface UntypedRequestOptions {
   body?: unknown;
   headers?: Record<string, string>;
@@ -148,10 +148,6 @@ interface UntypedTestResponse {
 }
 
 interface UntypedTestRequestBuilder extends PromiseLike<UntypedTestResponse> {
-  mock<TDeps, TState, TMethods>(
-    service: NamedServiceDef<TDeps, TState, TMethods>,
-    impl: DeepPartial<TMethods>,
-  ): UntypedTestRequestBuilder;
   mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
     middleware: NamedMiddlewareDef<TReq, TProv>,
     result: TProv,
@@ -159,11 +155,6 @@ interface UntypedTestRequestBuilder extends PromiseLike<UntypedTestResponse> {
 }
 
 interface UntypedTestApp {
-  register(module: NamedModule, options?: Record<string, unknown>): UntypedTestApp;
-  mock<TDeps, TState, TMethods>(
-    service: NamedServiceDef<TDeps, TState, TMethods>,
-    impl: DeepPartial<TMethods>,
-  ): UntypedTestApp;
   mockMiddleware<TReq extends Record<string, unknown>, TProv extends Record<string, unknown>>(
     middleware: NamedMiddlewareDef<TReq, TProv>,
     result: TProv,
@@ -177,17 +168,11 @@ interface UntypedTestApp {
   head(path: string, options?: UntypedRequestOptions): UntypedTestRequestBuilder;
 }
 
-// Use `object` key type since we compare service/middleware defs by reference identity
-// Use `{ name: string }` key type because NamedMiddlewareDef is invariant
-// in its generic params (due to Schema<TReq>), and we only need the name.
 type MiddlewareKey = { name: string };
 
 interface PerRequestMocks {
-  services: Map<object, unknown>;
   middlewares: Map<MiddlewareKey, Record<string, unknown>>;
 }
-
-type SchemaLike = { parse(value: unknown): { ok: boolean; data?: unknown; error?: unknown } };
 
 function validateSchema(schema: SchemaLike, value: unknown, label: string): unknown {
   const result = schema.parse(value);
@@ -198,10 +183,8 @@ function validateSchema(schema: SchemaLike, value: unknown, label: string): unkn
   return result.data;
 }
 
-interface RouteEntry {
+interface InternalRouteEntry {
   handler: (ctx: HandlerCtx) => unknown;
-  options: Record<string, unknown>;
-  services: Record<string, unknown>;
   responseSchema?: { safeParse(value: unknown): { ok: boolean; error?: { message: string } } };
   bodySchema?: SchemaLike;
   querySchema?: SchemaLike;
@@ -212,78 +195,37 @@ type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
 const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
 
 /**
- * Creates a test app for making HTTP requests against registered modules.
- * Returns an untyped app for backwards compatibility.
- * @returns A test app instance for registering modules and making requests.
+ * Creates a test app for making HTTP requests against registered routes.
+ * @returns A test app instance for making requests.
  */
-export function createTestApp(): TestApp;
+export function createTestApp(config?: TestAppConfig): TestApp;
 
 /**
  * Creates a typed test app with route map for type-safe requests.
  * @template TRouteMap - Route map interface mapping route keys to their types.
  * @returns A typed test app instance.
  */
-export function createTestApp<TRouteMap extends RouteMapEntry>(): TestAppWithRoutes<TRouteMap>;
+export function createTestApp<TRouteMap extends RouteMapEntry>(
+  config?: TestAppConfig,
+): TestAppWithRoutes<TRouteMap>;
 
-export function createTestApp(): UntypedTestApp {
-  const serviceMocks = new Map<object, unknown>();
+export function createTestApp(config?: TestAppConfig): UntypedTestApp {
   const middlewareMocks = new Map<MiddlewareKey, Record<string, unknown>>();
-  const registrations: { module: NamedModule; options?: Record<string, unknown> }[] = [];
+  const routes = config?.routes ?? [];
   let envOverrides: Record<string, unknown> = {};
 
   function buildHandler(perRequest: PerRequestMocks): (request: Request) => Promise<Response> {
-    const trie = new Trie<RouteEntry>();
+    const trie = new Trie<InternalRouteEntry>();
 
-    // Resolve services: real -> app-level -> per-request (last wins)
-    const realServices = new Map<object, unknown>();
-    for (const { module, options } of registrations) {
-      for (const service of module.services) {
-        if (!realServices.has(service)) {
-          // Parse options from module registration against service schema
-          let parsedOptions: Record<string, unknown> = {};
-          if (service.options && options) {
-            const parsed = service.options.safeParse(options);
-            if (parsed.ok) {
-              parsedOptions = parsed.data;
-            } else {
-              throw new Error(
-                `Invalid options for service ${service.moduleName}: ${parsed.error.issues.map((i: { message: string }) => i.message).join(', ')}`,
-              );
-            }
-          }
-
-          // For test apps, env is empty
-          const env: Record<string, unknown> = {};
-
-          realServices.set(service, service.methods({}, undefined, parsedOptions, env));
-        }
-      }
-    }
-    const serviceMap = new Map([...realServices, ...serviceMocks, ...perRequest.services]);
-
-    for (const { module, options } of registrations) {
-      for (const router of module.routers) {
-        const resolvedServices: Record<string, unknown> = {};
-        if (router.inject) {
-          for (const [name, serviceDef] of Object.entries(router.inject)) {
-            resolvedServices[name] = serviceMap.get(serviceDef as NamedServiceDef);
-          }
-        }
-
-        for (const route of router.routes) {
-          const fullPath = router.prefix + route.path;
-          const entry: RouteEntry = {
-            handler: route.config.handler,
-            options: options ?? {},
-            services: resolvedServices,
-            responseSchema: route.config.response as RouteEntry['responseSchema'],
-            bodySchema: route.config.body as SchemaLike | undefined,
-            querySchema: route.config.query as SchemaLike | undefined,
-            headersSchema: route.config.headers as SchemaLike | undefined,
-          };
-          trie.add(route.method, fullPath, entry);
-        }
-      }
+    for (const route of routes) {
+      const entry: InternalRouteEntry = {
+        handler: route.handler,
+        responseSchema: route.responseSchema,
+        bodySchema: route.bodySchema,
+        querySchema: route.querySchema,
+        headersSchema: route.headersSchema,
+      };
+      trie.add(route.method, route.path, entry);
     }
 
     const effectiveMiddlewareMocks = new Map([...middlewareMocks, ...perRequest.middlewares]);
@@ -352,8 +294,8 @@ export function createTestApp(): UntypedTestApp {
           headers: validatedHeaders as Record<string, unknown>,
           raw,
           middlewareState,
-          services: entry.services,
-          options: entry.options,
+          services: {},
+          options: {},
           env: envOverrides,
         });
 
@@ -416,15 +358,10 @@ export function createTestApp(): UntypedTestApp {
     options?: UntypedRequestOptions,
   ): UntypedTestRequestBuilder {
     const perRequest: PerRequestMocks = {
-      services: new Map<NamedServiceDef, unknown>(),
       middlewares: new Map<NamedMiddlewareDef, Record<string, unknown>>(),
     };
 
     const builder: UntypedTestRequestBuilder = {
-      mock(service, impl) {
-        perRequest.services.set(service, impl);
-        return builder;
-      },
       mockMiddleware(middleware, result) {
         perRequest.middlewares.set(middleware, result);
         return builder;
@@ -446,14 +383,6 @@ export function createTestApp(): UntypedTestApp {
   ) as Pick<UntypedTestApp, 'get' | 'post' | 'put' | 'patch' | 'delete' | 'head'>;
 
   const app: UntypedTestApp = {
-    register(module, options) {
-      registrations.push({ module, options });
-      return app;
-    },
-    mock(service, impl) {
-      serviceMocks.set(service, impl);
-      return app;
-    },
     mockMiddleware(middleware, result) {
       middlewareMocks.set(middleware, result);
       return app;
