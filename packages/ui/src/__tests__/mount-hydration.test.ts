@@ -425,6 +425,203 @@ describe('mount() — tolerant hydration', () => {
     expect(count.value).toBe(1);
   });
 
+  it('Counter pattern produces no claim verification warnings', () => {
+    root.innerHTML =
+      '<div><span>Count: <span style="display: contents">0</span></span><button>+</button></div>';
+
+    const count = signal(0);
+
+    const App = () => {
+      const el = __element('div');
+      __enterChildren(el);
+
+      const span = __element('span');
+      __enterChildren(span);
+      __insert(span, 'Count');
+      __append(span, __staticText(': '));
+      const child = __child(() => count.value);
+      __append(span, child);
+      __exitChildren();
+      __append(el, span);
+
+      const btn = __element('button');
+      __on(btn, 'click', () => {
+        count.value++;
+      });
+      __enterChildren(btn);
+      __append(btn, __staticText('+'));
+      __exitChildren();
+      __append(el, btn);
+
+      __exitChildren();
+      return el;
+    };
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mount(App, root);
+
+    // No claim verification warnings (no false positives)
+    const claimWarns = warnSpy.mock.calls.filter(
+      (args) => typeof args[0] === 'string' && args[0].includes('not claimed'),
+    );
+    expect(claimWarns).toHaveLength(0);
+
+    warnSpy.mockRestore();
+  });
+
+  it('children-as-function pattern produces no claim verification warnings', () => {
+    root.innerHTML =
+      '<div class="layout"><div class="sidebar">Sidebar</div>' +
+      '<div class="content"><div class="page"><h1>Settings</h1>' +
+      '<div><span>Saves:<span style="display: contents">0</span></span>' +
+      '<button>+</button></div></div></div></div>';
+
+    const count = signal(0);
+
+    const Counter = () => {
+      const el = __element('div');
+      __enterChildren(el);
+      const span = __element('span');
+      __enterChildren(span);
+      __insert(span, 'Saves');
+      __append(span, __staticText(':'));
+      __append(
+        span,
+        __child(() => count.value),
+      );
+      __exitChildren();
+      __append(el, span);
+      const btn = __element('button');
+      __on(btn, 'click', () => {
+        count.value++;
+      });
+      __enterChildren(btn);
+      __append(btn, __staticText('+'));
+      __exitChildren();
+      __append(el, btn);
+      __exitChildren();
+      return el;
+    };
+
+    const PageContent = () => {
+      const el = __element('div');
+      el.setAttribute('class', 'page');
+      __enterChildren(el);
+      __append(
+        el,
+        (() => {
+          const h1 = __element('h1');
+          __enterChildren(h1);
+          __append(h1, __staticText('Settings'));
+          __exitChildren();
+          return h1;
+        })(),
+      );
+      __append(el, Counter());
+      __exitChildren();
+      return el;
+    };
+
+    const Layout = ({ children }: { children: () => Node }) => {
+      const el = __element('div');
+      el.setAttribute('class', 'layout');
+      __enterChildren(el);
+      __append(
+        el,
+        (() => {
+          const sidebar = __element('div');
+          sidebar.setAttribute('class', 'sidebar');
+          __enterChildren(sidebar);
+          __append(sidebar, __staticText('Sidebar'));
+          __exitChildren();
+          return sidebar;
+        })(),
+      );
+      __append(
+        el,
+        (() => {
+          const content = __element('div');
+          content.setAttribute('class', 'content');
+          __enterChildren(content);
+          __insert(content, children);
+          __exitChildren();
+          return content;
+        })(),
+      );
+      __exitChildren();
+      return el;
+    };
+
+    const App = () => Layout({ children: () => PageContent() });
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mount(App, root);
+
+    const claimWarns = warnSpy.mock.calls.filter(
+      (args) => typeof args[0] === 'string' && args[0].includes('not claimed'),
+    );
+    expect(claimWarns).toHaveLength(0);
+
+    warnSpy.mockRestore();
+  });
+
+  it('deeply nested children wrappers attach events through two function layers', () => {
+    // Layout wraps children through TWO function layers:
+    // OuterLayout receives children as fn → InnerLayout receives children as fn → content
+    root.innerHTML =
+      '<div class="outer"><div class="inner"><div><button>click</button></div></div></div>';
+
+    const ssrButton = root.querySelector('button')!;
+    let clicked = false;
+
+    const Content = () => {
+      const el = __element('div');
+      __enterChildren(el);
+      const btn = __element('button');
+      __on(btn, 'click', () => {
+        clicked = true;
+      });
+      __enterChildren(btn);
+      __append(btn, __staticText('click'));
+      __exitChildren();
+      __append(el, btn);
+      __exitChildren();
+      return el;
+    };
+
+    const InnerLayout = ({ children }: { children: () => Node }) => {
+      const el = __element('div');
+      el.setAttribute('class', 'inner');
+      __enterChildren(el);
+      __insert(el, children);
+      __exitChildren();
+      return el;
+    };
+
+    const OuterLayout = ({ children }: { children: () => Node }) => {
+      const el = __element('div');
+      el.setAttribute('class', 'outer');
+      __enterChildren(el);
+      __insert(el, children);
+      __exitChildren();
+      return el;
+    };
+
+    const App = () =>
+      OuterLayout({
+        children: () => InnerLayout({ children: () => Content() }),
+      });
+
+    mount(App, root);
+
+    // Button should be the SSR button (adopted via claim)
+    expect(root.querySelector('button')).toBe(ssrButton);
+
+    // Click handler must be attached through two function layers
+    ssrButton.click();
+    expect(clicked).toBe(true);
+  });
+
   it('onClick works with Fast Refresh wrapper on Counter pattern', () => {
     // Same SSR HTML as Counter pattern test
     root.innerHTML =

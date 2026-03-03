@@ -308,12 +308,14 @@ describe('hydration-context', () => {
       claimElement('span');
 
       const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       endHydration();
       expect(debugSpy).toHaveBeenCalledWith(
         '[hydrate] Hydration ended with unclaimed nodes remaining. ' +
           'This may indicate SSR/client tree mismatch or browser extension nodes.',
       );
       debugSpy.mockRestore();
+      warnSpy.mockRestore();
     });
 
     it('emits debug when cursor stack is unbalanced', () => {
@@ -345,6 +347,92 @@ describe('hydration-context', () => {
       endHydration();
       expect(debugSpy).not.toHaveBeenCalled();
       debugSpy.mockRestore();
+    });
+  });
+
+  describe('claim verification', () => {
+    it('no warning when all nodes claimed', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<span></span><p></p>';
+      startHydration(root);
+
+      claimElement('span');
+      claimElement('p');
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      endHydration();
+
+      // No unclaimed-node warnings
+      const claimWarns = warnSpy.mock.calls.filter(
+        (args) => typeof args[0] === 'string' && args[0].includes('not claimed'),
+      );
+      expect(claimWarns).toHaveLength(0);
+
+      warnSpy.mockRestore();
+    });
+
+    it('reports unclaimed element nodes', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<span></span><p></p>';
+      startHydration(root);
+
+      // Claim only <span>, leave <p> unclaimed
+      claimElement('span');
+
+      const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      endHydration();
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringMatching(/1 SSR node\(s\) not claimed/));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('<p>'));
+
+      debugSpy.mockRestore();
+      warnSpy.mockRestore();
+    });
+
+    it('skips __child wrapper children (span display:contents)', () => {
+      const root = document.createElement('div');
+      // Simulate SSR with a __child wrapper: <span style="display: contents"><p>inner</p></span>
+      const wrapper = document.createElement('span');
+      wrapper.style.display = 'contents';
+      wrapper.innerHTML = '<p>inner</p>';
+      root.appendChild(wrapper);
+      startHydration(root);
+
+      // Claim the wrapper span (as __child would)
+      claimElement('span');
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      endHydration();
+
+      // Inner <p> should NOT trigger an unclaimed warning — it's CSR content
+      const claimWarns = warnSpy.mock.calls.filter(
+        (args) => typeof args[0] === 'string' && args[0].includes('not claimed'),
+      );
+      expect(claimWarns).toHaveLength(0);
+
+      warnSpy.mockRestore();
+    });
+
+    it('skips browser extension nodes (custom elements)', () => {
+      const root = document.createElement('div');
+      root.innerHTML = '<span></span>';
+      // Inject a browser extension node
+      root.appendChild(document.createElement('grammarly-extension'));
+      startHydration(root);
+
+      claimElement('span');
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      endHydration();
+
+      // grammarly-extension should NOT trigger an unclaimed warning
+      const claimWarns = warnSpy.mock.calls.filter(
+        (args) => typeof args[0] === 'string' && args[0].includes('not claimed'),
+      );
+      expect(claimWarns).toHaveLength(0);
+
+      warnSpy.mockRestore();
     });
   });
 

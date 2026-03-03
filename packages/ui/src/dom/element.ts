@@ -169,41 +169,42 @@ export function __child(
 }
 
 /**
- * Insert a static (non-reactive) child value into a parent node.
- * This is used for static JSX expression children to avoid the performance
- * overhead of effect() when reactivity isn't needed.
+ * Resolve a value that may be a thunk (function), nested thunks, or arrays
+ * into leaf values, then insert each leaf. Resolution is unconditional —
+ * functions and arrays are always unwrapped regardless of hydration state.
+ * Only leaf insertion (node or text) branches on hydration.
  *
- * Handles Node values (appended directly), primitives (converted to text),
- * and nullish/boolean values (skipped).
+ * This structure makes the #842 bug class (function values silently skipped
+ * during hydration) structurally impossible.
  */
-export function __insert(
-  parent: Node,
-  value: Node | string | number | boolean | null | undefined | (() => unknown) | unknown[],
-): void {
-  // Skip null, undefined, and booleans
+function resolveAndInsert(parent: Node, value: unknown, depth = 0): void {
+  if (depth >= MAX_THUNK_DEPTH) {
+    throw new Error('__insert: max recursion depth exceeded — possible circular thunk');
+  }
   if (value == null || typeof value === 'boolean') {
     return;
   }
+  if (typeof value === 'function') {
+    resolveAndInsert(parent, (value as () => unknown)(), depth + 1);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      resolveAndInsert(parent, item, depth);
+    }
+    return;
+  }
+  insertLeaf(parent, value);
+}
 
+/**
+ * Insert a resolved leaf value (node or text) into a parent.
+ * During hydration, nodes are already in the DOM (no-op) and text nodes
+ * are claimed from SSR output. During CSR, nodes are appended and text
+ * nodes are created.
+ */
+function insertLeaf(parent: Node, value: unknown): void {
   if (getIsHydrating()) {
-    // During hydration, static children are already in the DOM from SSR.
-    // We must NOT append nodes (they're already there), but we MUST resolve
-    // functions and arrays so their internal __element/__on calls execute
-    // and claim elements / attach event handlers.
-    if (typeof value === 'function') {
-      // Resolve the thunk — this triggers hydration claims for elements inside.
-      // The returned value is already in the DOM (claimed), so no append needed.
-      const resolved = (value as () => unknown)();
-      __insert(parent, resolved as typeof value);
-      return;
-    }
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        __insert(parent, item as typeof value);
-      }
-      return;
-    }
-    // During hydration, nodes are already in place
     if (isRenderNode(value)) {
       return; // No-op — node already in DOM
     }
@@ -212,21 +213,32 @@ export function __insert(
     return;
   }
 
-  // Resolve thunks and arrays (e.g. component children thunks, .map() results)
-  if (typeof value === 'function' || Array.isArray(value)) {
-    resolveAndAppend(parent, value);
-    return;
-  }
-
-  // If it's a Node, append it directly
+  // CSR path
   if (isRenderNode(value)) {
     parent.appendChild(value as Node);
     return;
   }
+  const text = typeof value === 'string' ? value : String(value);
+  parent.appendChild(getAdapter().createTextNode(text) as unknown as Node);
+}
 
-  // Otherwise create a text node
-  const textValue = typeof value === 'string' ? value : String(value);
-  parent.appendChild(getAdapter().createTextNode(textValue) as unknown as Node);
+/**
+ * Insert a static (non-reactive) child value into a parent node.
+ * This is used for static JSX expression children to avoid the performance
+ * overhead of effect() when reactivity isn't needed.
+ *
+ * Functions and arrays are resolved unconditionally before branching on
+ * hydration state, ensuring all inner __element/__on calls execute
+ * regardless of mode.
+ */
+export function __insert(
+  parent: Node,
+  value: Node | string | number | boolean | null | undefined | (() => unknown) | unknown[],
+): void {
+  if (value == null || typeof value === 'boolean') {
+    return;
+  }
+  resolveAndInsert(parent, value);
 }
 
 /**

@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 /**
+ * @deprecated Use the Playwright E2E suite instead: cd benchmarks/vertz && bunx playwright test
+ * This script is kept for backwards compatibility but the new suite at
+ * benchmarks/vertz/e2e/ covers all routes plus interactivity, hydration, and SSR tests.
+ *
  * Quick Playwright smoke test for the Vertz benchmark app.
  * Checks each route renders real content (not function source or [object Object]).
  */
