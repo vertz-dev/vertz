@@ -32,9 +32,10 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
-          publish: bunx changeset publish
+          publish: bash scripts/publish.sh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          BUN_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
           LEFTHOOK: '0'
