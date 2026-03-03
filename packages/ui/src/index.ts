@@ -12,7 +12,6 @@ export type { Ref } from './component/refs';
 export { ref } from './component/refs';
 export type { SuspenseProps } from './component/suspense';
 export { Suspense } from './component/suspense';
-
 // CSS & Theming
 export type {
   ColorPalette,
@@ -61,6 +60,14 @@ export {
   zoomIn,
   zoomOut,
 } from './css';
+// Dialog stack
+export type { DialogComponent, DialogHandle, DialogStack } from './dialog';
+export {
+  createDialogStack,
+  DialogDismissedError,
+  DialogStackContext,
+  useDialogStack,
+} from './dialog';
 // Render adapter
 export type { RenderAdapter, RenderElement, RenderNode, RenderText } from './dom/adapter';
 export { getAdapter, isRenderNode, RENDER_NODE_BRAND, setAdapter } from './dom/adapter';
