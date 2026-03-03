@@ -1,6 +1,6 @@
 {
   "name": "vertz",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "license": "MIT",
   "description": "The first TypeScript stack built for LLMs",
@@ -39,13 +39,25 @@
       "import": "./src/ui-compiler.ts",
       "types": "./src/ui-compiler.ts"
     },
-    "./router": {
-      "import": "./src/router.ts",
-      "types": "./src/router.ts"
+    "./fetch": {
+      "import": "./src/fetch.ts",
+      "types": "./src/fetch.ts"
     },
-    "./signal": {
-      "import": "./src/signal.ts",
-      "types": "./src/signal.ts"
+    "./errors": {
+      "import": "./src/errors.ts",
+      "types": "./src/errors.ts"
+    },
+    "./cloudflare": {
+      "import": "./src/cloudflare.ts",
+      "types": "./src/cloudflare.ts"
+    },
+    "./tui": {
+      "import": "./src/tui.ts",
+      "types": "./src/tui.ts"
+    },
+    "./ui-primitives": {
+      "import": "./src/ui-primitives.ts",
+      "types": "./src/ui-primitives.ts"
     }
   },
   "scripts": {
@@ -59,7 +71,12 @@
     "@vertz/db": "workspace:*",
     "@vertz/testing": "workspace:*",
     "@vertz/ui": "workspace:*",
-    "@vertz/ui-compiler": "workspace:*"
+    "@vertz/ui-compiler": "workspace:*",
+    "@vertz/fetch": "workspace:*",
+    "@vertz/errors": "workspace:*",
+    "@vertz/cloudflare": "workspace:*",
+    "@vertz/tui": "workspace:*",
+    "@vertz/ui-primitives": "workspace:*"
   },
   "devDependencies": {
     "vitest": "^4.0.18"

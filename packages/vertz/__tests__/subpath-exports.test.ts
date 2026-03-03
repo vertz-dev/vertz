@@ -54,15 +54,28 @@ describe('vertz meta-package subpath exports', () => {
     expect(pkg.main).toBeUndefined();
   });
 
-  it('vertz/router re-exports @vertz/ui', async () => {
-    const mod = await import('vertz/router');
-    // Should have router-related exports
+  it('vertz/fetch re-exports @vertz/fetch', async () => {
+    const mod = await import('vertz/fetch');
     expect(Object.keys(mod).length).toBeGreaterThan(0);
   });
 
-  it('vertz/signal re-exports @vertz/ui', async () => {
-    const mod = await import('vertz/signal');
-    // Should have signal-related exports
+  it('vertz/errors re-exports @vertz/errors', async () => {
+    const mod = await import('vertz/errors');
+    expect(Object.keys(mod).length).toBeGreaterThan(0);
+  });
+
+  it('vertz/cloudflare re-exports @vertz/cloudflare', async () => {
+    const mod = await import('vertz/cloudflare');
+    expect(Object.keys(mod).length).toBeGreaterThan(0);
+  });
+
+  it('vertz/tui re-exports @vertz/tui', async () => {
+    const mod = await import('vertz/tui');
+    expect(Object.keys(mod).length).toBeGreaterThan(0);
+  });
+
+  it('vertz/ui-primitives re-exports @vertz/ui-primitives', async () => {
+    const mod = await import('vertz/ui-primitives');
     expect(Object.keys(mod).length).toBeGreaterThan(0);
   });
 });
