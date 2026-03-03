@@ -1,18 +1,19 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import {
-  appTemplate,
-  denoConfigTemplate,
+  appComponentTemplate,
+  clientTemplate,
+  dbTemplate,
+  entryClientTemplate,
   envExampleTemplate,
-  envSrcTemplate,
   envTemplate,
   gitignoreTemplate,
-  healthModuleDefTemplate,
-  healthModuleTemplate,
-  healthRouterTemplate,
-  healthServiceTemplate,
-  mainTemplate,
+  homePageTemplate,
   packageJsonTemplate,
+  schemaTemplate,
+  serverTemplate,
+  tasksEntityTemplate,
+  themeTemplate,
   tsconfigTemplate,
   vertzConfigTemplate,
 } from './templates/index.js';
@@ -34,7 +35,7 @@ export class DirectoryExistsError extends Error {
  * @param options - Scaffold options
  */
 export async function scaffold(parentDir: string, options: ScaffoldOptions): Promise<void> {
-  const { projectName, runtime, includeExample } = options;
+  const { projectName } = options;
   const projectDir = path.join(parentDir, projectName);
 
   // Check if directory already exists
@@ -48,45 +49,42 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
     // Directory doesn't exist, which is what we want
   }
 
-  // Create project directory
-  await fs.mkdir(projectDir, { recursive: true });
-
-  // Create subdirectories
+  // Create project directory and subdirectories
   const srcDir = path.join(projectDir, 'src');
-  const modulesDir = path.join(srcDir, 'modules');
+  const apiDir = path.join(srcDir, 'api');
+  const entitiesDir = path.join(apiDir, 'entities');
+  const pagesDir = path.join(srcDir, 'pages');
+  const stylesDir = path.join(srcDir, 'styles');
 
-  await fs.mkdir(srcDir, { recursive: true });
-  await fs.mkdir(modulesDir, { recursive: true });
+  await Promise.all([
+    fs.mkdir(entitiesDir, { recursive: true }),
+    fs.mkdir(pagesDir, { recursive: true }),
+    fs.mkdir(stylesDir, { recursive: true }),
+  ]);
 
-  // Generate and write core config files
-  await writeFile(
-    projectDir,
-    'package.json',
-    packageJsonTemplate({ projectName, runtime, includeExample }),
-  );
-  await writeFile(projectDir, 'tsconfig.json', tsconfigTemplate(runtime));
-  await writeFile(projectDir, 'vertz.config.ts', vertzConfigTemplate());
-  await writeFile(projectDir, '.env', envTemplate());
-  await writeFile(projectDir, '.env.example', envExampleTemplate());
-  await writeFile(projectDir, '.gitignore', gitignoreTemplate());
+  // Write all files in parallel
+  await Promise.all([
+    // Config files
+    writeFile(projectDir, 'package.json', packageJsonTemplate(projectName)),
+    writeFile(projectDir, 'tsconfig.json', tsconfigTemplate()),
+    writeFile(projectDir, 'vertz.config.ts', vertzConfigTemplate()),
+    writeFile(projectDir, '.env', envTemplate()),
+    writeFile(projectDir, '.env.example', envExampleTemplate()),
+    writeFile(projectDir, '.gitignore', gitignoreTemplate()),
 
-  // Generate Deno-specific config if needed
-  if (runtime === 'deno') {
-    await writeFile(projectDir, 'deno.json', denoConfigTemplate());
-  }
+    // API source files
+    writeFile(apiDir, 'server.ts', serverTemplate()),
+    writeFile(apiDir, 'schema.ts', schemaTemplate()),
+    writeFile(apiDir, 'db.ts', dbTemplate()),
+    writeFile(entitiesDir, 'tasks.entity.ts', tasksEntityTemplate()),
 
-  // Generate source files
-  await writeFile(srcDir, 'env.ts', envSrcTemplate());
-  await writeFile(srcDir, 'app.ts', appTemplate(includeExample));
-  await writeFile(srcDir, 'main.ts', mainTemplate());
-
-  // Generate example health module if requested
-  if (includeExample) {
-    await writeFile(modulesDir, 'health.module-def.ts', healthModuleDefTemplate());
-    await writeFile(modulesDir, 'health.service.ts', healthServiceTemplate());
-    await writeFile(modulesDir, 'health.router.ts', healthRouterTemplate());
-    await writeFile(modulesDir, 'health.module.ts', healthModuleTemplate());
-  }
+    // UI source files
+    writeFile(srcDir, 'client.ts', clientTemplate()),
+    writeFile(srcDir, 'app.tsx', appComponentTemplate()),
+    writeFile(srcDir, 'entry-client.ts', entryClientTemplate()),
+    writeFile(pagesDir, 'home.tsx', homePageTemplate()),
+    writeFile(stylesDir, 'theme.ts', themeTemplate()),
+  ]);
 }
 
 /**

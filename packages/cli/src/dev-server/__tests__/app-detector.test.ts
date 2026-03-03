@@ -101,6 +101,38 @@ describe('detectAppType', () => {
     expect(() => detectAppType(projectRoot)).toThrow('No app entry found');
   });
 
+  it('detects api-only when src/api/server.ts exists (api/ convention)', () => {
+    mkdirSync(join(projectRoot, 'src/api'), { recursive: true });
+    writeFileSync(join(projectRoot, 'src/api/server.ts'), 'export default {}');
+
+    const result = detectAppType(projectRoot);
+
+    expect(result.type).toBe('api-only');
+    expect(result.serverEntry).toBe(join(projectRoot, 'src/api/server.ts'));
+  });
+
+  it('detects full-stack when src/api/server.ts and src/app.tsx exist', () => {
+    mkdirSync(join(projectRoot, 'src/api'), { recursive: true });
+    writeFileSync(join(projectRoot, 'src/api/server.ts'), 'export default {}');
+    writeFileSync(join(projectRoot, 'src/app.tsx'), 'export default {}');
+
+    const result = detectAppType(projectRoot);
+
+    expect(result.type).toBe('full-stack');
+    expect(result.serverEntry).toBe(join(projectRoot, 'src/api/server.ts'));
+    expect(result.uiEntry).toBe(join(projectRoot, 'src/app.tsx'));
+  });
+
+  it('prefers src/server.ts over src/api/server.ts when both exist', () => {
+    mkdirSync(join(projectRoot, 'src/api'), { recursive: true });
+    writeFileSync(join(projectRoot, 'src/server.ts'), 'export default {}');
+    writeFileSync(join(projectRoot, 'src/api/server.ts'), 'export default {}');
+
+    const result = detectAppType(projectRoot);
+
+    expect(result.serverEntry).toBe(join(projectRoot, 'src/server.ts'));
+  });
+
   it('detects src/server.js as server entry', () => {
     writeFileSync(join(projectRoot, 'src/server.js'), 'module.exports = {}');
 

@@ -11,538 +11,266 @@ describe('scaffold', () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'vertz-scaffold-'));
   });
 
+  const defaultOptions: ScaffoldOptions = { projectName: 'test-app' };
+
+  function projectPath(...segments: string[]): string {
+    return path.join(tempDir, 'test-app', ...segments);
+  }
+
+  async function exists(filePath: string): Promise<boolean> {
+    try {
+      await fs.access(filePath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ── Directory structure ───────────────────────────────────
+
   describe('directory structure', () => {
     it('creates the project directory with the given name', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'my-vertz-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+      await scaffold(tempDir, { projectName: 'my-vertz-app' });
 
-      await scaffold(tempDir, options);
-
-      const projectPath = path.join(tempDir, 'my-vertz-app');
-      const stat = await fs.stat(projectPath);
+      const stat = await fs.stat(path.join(tempDir, 'my-vertz-app'));
       expect(stat.isDirectory()).toBe(true);
     });
 
-    it('creates src/ subdirectory', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+    it('creates src/api/ subdirectory', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const srcPath = path.join(tempDir, 'test-app', 'src');
-      const stat = await fs.stat(srcPath);
+      const stat = await fs.stat(projectPath('src', 'api'));
       expect(stat.isDirectory()).toBe(true);
     });
 
-    it('creates src/modules/ subdirectory', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+    it('creates src/api/entities/ subdirectory', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const modulesPath = path.join(tempDir, 'test-app', 'src', 'modules');
-      const stat = await fs.stat(modulesPath);
+      const stat = await fs.stat(projectPath('src', 'api', 'entities'));
       expect(stat.isDirectory()).toBe(true);
     });
 
-    it('creates src/middlewares/ subdirectory', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+    it('creates src/pages/ subdirectory', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const middlewaresPath = path.join(tempDir, 'test-app', 'src', 'middlewares');
-      const stat = await fs.stat(middlewaresPath);
+      const stat = await fs.stat(projectPath('src', 'pages'));
       expect(stat.isDirectory()).toBe(true);
+    });
+
+    it('creates src/styles/ subdirectory', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      const stat = await fs.stat(projectPath('src', 'styles'));
+      expect(stat.isDirectory()).toBe(true);
+    });
+
+    it('does NOT create src/modules/ (removed)', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      expect(await exists(projectPath('src', 'modules'))).toBe(false);
     });
 
     it('throws error if project directory already exists', async () => {
-      const projectPath = path.join(tempDir, 'existing-app');
-      await fs.mkdir(projectPath);
+      await fs.mkdir(path.join(tempDir, 'existing-app'));
 
-      const options: ScaffoldOptions = {
-        projectName: 'existing-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
-
-      await expect(scaffold(tempDir, options)).rejects.toThrow('already exists');
+      await expect(scaffold(tempDir, { projectName: 'existing-app' })).rejects.toThrow(
+        'already exists',
+      );
     });
   });
 
-  describe('core files', () => {
+  // ── Config files ──────────────────────────────────────────
+
+  describe('config files', () => {
     it('generates package.json with project name', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'my-awesome-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+      await scaffold(tempDir, { projectName: 'my-awesome-app' });
 
-      await scaffold(tempDir, options);
-
-      const pkgJsonPath = path.join(tempDir, 'my-awesome-app', 'package.json');
-      const content = await fs.readFile(pkgJsonPath, 'utf-8');
+      const content = await fs.readFile(
+        path.join(tempDir, 'my-awesome-app', 'package.json'),
+        'utf-8',
+      );
       const pkg = JSON.parse(content);
       expect(pkg.name).toBe('my-awesome-app');
     });
 
-    it('package.json includes @vertz/server as dependency', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+    it('package.json includes full-stack dependencies', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const pkgJsonPath = path.join(tempDir, 'test-app', 'package.json');
-      const content = await fs.readFile(pkgJsonPath, 'utf-8');
+      const content = await fs.readFile(projectPath('package.json'), 'utf-8');
       const pkg = JSON.parse(content);
       expect(pkg.dependencies['@vertz/server']).toBeDefined();
+      expect(pkg.dependencies['@vertz/db']).toBeDefined();
+      expect(pkg.dependencies['@vertz/ui']).toBeDefined();
+      expect(pkg.dependencies['@vertz/theme-shadcn']).toBeDefined();
     });
 
-    it('package.json includes @vertz/cli as dev dependency', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+    it('package.json includes dev dependencies', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const pkgJsonPath = path.join(tempDir, 'test-app', 'package.json');
-      const content = await fs.readFile(pkgJsonPath, 'utf-8');
+      const content = await fs.readFile(projectPath('package.json'), 'utf-8');
       const pkg = JSON.parse(content);
       expect(pkg.devDependencies['@vertz/cli']).toBeDefined();
+      expect(pkg.devDependencies['@vertz/ui-compiler']).toBeDefined();
+      expect(pkg.devDependencies['bun-types']).toBeDefined();
     });
 
-    it('package.json includes scripts: dev, build, check', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+    it('package.json includes #generated imports map', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const pkgJsonPath = path.join(tempDir, 'test-app', 'package.json');
-      const content = await fs.readFile(pkgJsonPath, 'utf-8');
+      const content = await fs.readFile(projectPath('package.json'), 'utf-8');
       const pkg = JSON.parse(content);
-      expect(pkg.scripts.dev).toBeDefined();
-      expect(pkg.scripts.build).toBeDefined();
-      expect(pkg.scripts.check).toBeDefined();
+      expect(pkg.imports['#generated']).toBe('./.vertz/generated/client.ts');
+      expect(pkg.imports['#generated/types']).toBe('./.vertz/generated/types/index.ts');
     });
 
-    it('generates tsconfig.json with strict TypeScript config', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+    it('package.json includes vertz dev/build/codegen scripts', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
+      const content = await fs.readFile(projectPath('package.json'), 'utf-8');
+      const pkg = JSON.parse(content);
+      expect(pkg.scripts.dev).toBe('vertz dev');
+      expect(pkg.scripts.build).toBe('vertz build');
+      expect(pkg.scripts.codegen).toBe('vertz codegen');
+    });
 
-      const tsconfigPath = path.join(tempDir, 'test-app', 'tsconfig.json');
-      const content = await fs.readFile(tsconfigPath, 'utf-8');
+    it('tsconfig.json includes JSX config for @vertz/ui', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      const content = await fs.readFile(projectPath('tsconfig.json'), 'utf-8');
       const tsconfig = JSON.parse(content);
+      expect(tsconfig.compilerOptions.jsx).toBe('react-jsx');
+      expect(tsconfig.compilerOptions.jsxImportSource).toBe('@vertz/ui');
       expect(tsconfig.compilerOptions.strict).toBe(true);
+      expect(tsconfig.compilerOptions.types).toContain('bun-types');
     });
 
-    it('generates vertz.config.ts with default config', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+    it('vertz.config.ts includes compiler entry and codegen config', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const configPath = path.join(tempDir, 'test-app', 'vertz.config.ts');
-      const content = await fs.readFile(configPath, 'utf-8');
-      expect(content).toContain('export default');
+      const content = await fs.readFile(projectPath('vertz.config.ts'), 'utf-8');
+      expect(content).toContain("entryFile: 'src/api/server.ts'");
+      expect(content).toContain('export const codegen');
+      expect(content).toContain("generators: ['typescript']");
     });
 
-    it('generates .env file with placeholder values', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+    it('.env contains PORT=3000', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const envPath = path.join(tempDir, 'test-app', '.env');
-      const content = await fs.readFile(envPath, 'utf-8');
-      expect(content).toContain('DATABASE_URL=');
+      const content = await fs.readFile(projectPath('.env'), 'utf-8');
+      expect(content).toContain('PORT=3000');
     });
 
-    it('generates .env.example matching .env structure', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+    it('.env.example matches .env', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const envPath = path.join(tempDir, 'test-app', '.env.example');
-      const content = await fs.readFile(envPath, 'utf-8');
-      expect(content).toContain('DATABASE_URL=');
+      const content = await fs.readFile(projectPath('.env.example'), 'utf-8');
+      expect(content).toContain('PORT=3000');
     });
 
-    it('generates .gitignore with standard entries', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+    it('.gitignore includes .vertz/ and *.db', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const gitignorePath = path.join(tempDir, 'test-app', '.gitignore');
-      const content = await fs.readFile(gitignorePath, 'utf-8');
+      const content = await fs.readFile(projectPath('.gitignore'), 'utf-8');
+      expect(content).toContain('.vertz/');
+      expect(content).toContain('*.db');
       expect(content).toContain('node_modules');
-      expect(content).toContain('dist/');
     });
   });
 
-  describe('source files', () => {
-    it('generates src/env.ts with environment variable validation', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+  // ── API source files ──────────────────────────────────────
 
-      await scaffold(tempDir, options);
+  describe('API source files', () => {
+    it('generates src/api/server.ts with createServer', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      const envPath = path.join(tempDir, 'test-app', 'src', 'env.ts');
-      const content = await fs.readFile(envPath, 'utf-8');
-      expect(content).toContain('envsafe');
-    });
-
-    it('generates src/app.ts with app creation', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
-
-      await scaffold(tempDir, options);
-
-      const appPath = path.join(tempDir, 'test-app', 'src', 'app.ts');
-      const content = await fs.readFile(appPath, 'utf-8');
+      const content = await fs.readFile(projectPath('src', 'api', 'server.ts'), 'utf-8');
       expect(content).toContain('createServer');
+      expect(content).toContain("from '@vertz/server'");
+      expect(content).toContain('export default app');
+      expect(content).toContain('import.meta.main');
     });
 
-    it('generates src/main.ts as the entry point', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+    it('generates src/api/schema.ts with tasks table + model', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const mainPath = path.join(tempDir, 'test-app', 'src', 'main.ts');
-      const content = await fs.readFile(mainPath, 'utf-8');
-      expect(content).toContain('app.start');
+      const content = await fs.readFile(projectPath('src', 'api', 'schema.ts'), 'utf-8');
+      expect(content).toContain("d.table('tasks'");
+      expect(content).toContain('d.model(tasksTable)');
     });
 
-    it('generates src/middlewares/request-id.middleware.ts', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
+    it('generates src/api/db.ts with createSqliteAdapter', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
+      const content = await fs.readFile(projectPath('src', 'api', 'db.ts'), 'utf-8');
+      expect(content).toContain('createSqliteAdapter');
+      expect(content).toContain('autoApply: true');
+    });
 
-      const middlewarePath = path.join(
-        tempDir,
-        'test-app',
-        'src',
-        'middlewares',
-        'request-id.middleware.ts',
+    it('does NOT generate client.ts inside api/ (client is a UI concern)', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      expect(await exists(projectPath('src', 'api', 'client.ts'))).toBe(false);
+    });
+
+    it('generates src/api/entities/tasks.entity.ts', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      const content = await fs.readFile(
+        projectPath('src', 'api', 'entities', 'tasks.entity.ts'),
+        'utf-8',
       );
-      const content = await fs.readFile(middlewarePath, 'utf-8');
-      expect(content).toContain('requestId');
+      expect(content).toContain("entity('tasks'");
+      expect(content).toContain("from '@vertz/server'");
+      expect(content).toContain('tasksModel');
     });
   });
 
-  describe('example module (opt-in)', () => {
-    it('when example is enabled: generates health module files', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: true,
-      };
+  // ── UI source files ───────────────────────────────────────
 
-      await scaffold(tempDir, options);
+  describe('UI source files', () => {
+    it('generates src/client.ts with #generated imports', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      const moduleDefPath = path.join(
-        tempDir,
-        'test-app',
-        'src',
-        'modules',
-        'health.module-def.ts',
-      );
-      const content = await fs.readFile(moduleDefPath, 'utf-8');
-      expect(content).toContain('health');
+      const content = await fs.readFile(projectPath('src', 'client.ts'), 'utf-8');
+      expect(content).toContain("from '#generated'");
+      expect(content).toContain("from '#generated/types'");
+      expect(content).toContain('createClient');
     });
 
-    it('Health module includes health.module-def.ts', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: true,
-      };
+    it('generates src/app.tsx with SSR exports and App component', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const pathExists = await exists(
-        path.join(tempDir, 'test-app', 'src', 'modules', 'health.module-def.ts'),
-      );
-      expect(pathExists).toBe(true);
+      const content = await fs.readFile(projectPath('src', 'app.tsx'), 'utf-8');
+      expect(content).toContain('getInjectedCSS');
+      expect(content).toContain('ThemeProvider');
+      expect(content).toContain('export function App()');
+      expect(content).toContain('HomePage');
     });
 
-    it('Health module includes health.module.ts', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: true,
-      };
+    it('generates src/entry-client.ts with mount + HMR', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const pathExists = await exists(
-        path.join(tempDir, 'test-app', 'src', 'modules', 'health.module.ts'),
-      );
-      expect(pathExists).toBe(true);
+      const content = await fs.readFile(projectPath('src', 'entry-client.ts'), 'utf-8');
+      expect(content).toContain('mount');
+      expect(content).toContain('import.meta.hot.accept()');
     });
 
-    it('Health module includes health.service.ts', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: true,
-      };
+    it('generates src/styles/theme.ts with configureTheme', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const pathExists = await exists(
-        path.join(tempDir, 'test-app', 'src', 'modules', 'health.service.ts'),
-      );
-      expect(pathExists).toBe(true);
+      const content = await fs.readFile(projectPath('src', 'styles', 'theme.ts'), 'utf-8');
+      expect(content).toContain('configureTheme');
+      expect(content).toContain("from '@vertz/theme-shadcn'");
     });
 
-    it('Health module includes health.router.ts', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: true,
-      };
+    it('generates src/pages/home.tsx with query + form', async () => {
+      await scaffold(tempDir, defaultOptions);
 
-      await scaffold(tempDir, options);
-
-      const pathExists = await exists(
-        path.join(tempDir, 'test-app', 'src', 'modules', 'health.router.ts'),
-      );
-      expect(pathExists).toBe(true);
-    });
-
-    it('Health module includes schemas/health-check.schema.ts', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: true,
-      };
-
-      await scaffold(tempDir, options);
-
-      const pathExists = await exists(
-        path.join(tempDir, 'test-app', 'src', 'modules', 'schemas', 'health-check.schema.ts'),
-      );
-      expect(pathExists).toBe(true);
-    });
-
-    it('when example is disabled: src/modules/ exists but is empty', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
-
-      await scaffold(tempDir, options);
-
-      const modulesPath = path.join(tempDir, 'test-app', 'src', 'modules');
-      const files = await fs.readdir(modulesPath);
-      expect(files.length).toBe(0);
-    });
-  });
-
-  describe('runtime configuration', () => {
-    it('Bun runtime: package.json uses Bun-appropriate scripts', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'bun',
-        includeExample: false,
-      };
-
-      await scaffold(tempDir, options);
-
-      const pkgJsonPath = path.join(tempDir, 'test-app', 'package.json');
-      const content = await fs.readFile(pkgJsonPath, 'utf-8');
-      const pkg = JSON.parse(content);
-      expect(pkg.scripts.dev).toContain('bun');
-      expect(pkg.scripts.build).toContain('bun');
-    });
-
-    it('Node runtime: package.json uses Node-appropriate scripts (tsx for dev)', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'node',
-        includeExample: false,
-      };
-
-      await scaffold(tempDir, options);
-
-      const pkgJsonPath = path.join(tempDir, 'test-app', 'package.json');
-      const content = await fs.readFile(pkgJsonPath, 'utf-8');
-      const pkg = JSON.parse(content);
-      expect(pkg.scripts.dev).toContain('tsx');
-      expect(pkg.dependencies).toHaveProperty('tsx');
-    });
-
-    it('Deno runtime: generates deno.json instead of some Node-specific configs', async () => {
-      const options: ScaffoldOptions = {
-        projectName: 'test-app',
-        runtime: 'deno',
-        includeExample: false,
-      };
-
-      await scaffold(tempDir, options);
-
-      const denoJsonPath = path.join(tempDir, 'test-app', 'deno.json');
-      const content = await fs.readFile(denoJsonPath, 'utf-8');
-      const denoConfig = JSON.parse(content);
-      expect(denoConfig.imports).toBeDefined();
-    });
-
-    // Tests for runtime-specific type dependencies in scaffolded project
-    describe('runtime-specific type dependencies', () => {
-      it('Bun runtime: scaffolded package.json includes bun-types', async () => {
-        const options: ScaffoldOptions = {
-          projectName: 'test-app',
-          runtime: 'bun',
-          includeExample: false,
-        };
-
-        await scaffold(tempDir, options);
-
-        const pkgJsonPath = path.join(tempDir, 'test-app', 'package.json');
-        const content = await fs.readFile(pkgJsonPath, 'utf-8');
-        const pkg = JSON.parse(content);
-        expect(pkg.devDependencies['bun-types']).toBeDefined();
-      });
-
-      it('Node runtime: scaffolded package.json includes @types/node', async () => {
-        const options: ScaffoldOptions = {
-          projectName: 'test-app',
-          runtime: 'node',
-          includeExample: false,
-        };
-
-        await scaffold(tempDir, options);
-
-        const pkgJsonPath = path.join(tempDir, 'test-app', 'package.json');
-        const content = await fs.readFile(pkgJsonPath, 'utf-8');
-        const pkg = JSON.parse(content);
-        expect(pkg.devDependencies['@types/node']).toBeDefined();
-      });
-
-      it('Deno runtime: scaffolded package.json does not include type packages', async () => {
-        const options: ScaffoldOptions = {
-          projectName: 'test-app',
-          runtime: 'deno',
-          includeExample: false,
-        };
-
-        await scaffold(tempDir, options);
-
-        const pkgJsonPath = path.join(tempDir, 'test-app', 'package.json');
-        const content = await fs.readFile(pkgJsonPath, 'utf-8');
-        const pkg = JSON.parse(content);
-        expect(pkg.devDependencies['bun-types']).toBeUndefined();
-        expect(pkg.devDependencies['@types/node']).toBeUndefined();
-      });
-
-      it('Bun runtime: tsconfig.json includes bun-types', async () => {
-        const options: ScaffoldOptions = {
-          projectName: 'test-app',
-          runtime: 'bun',
-          includeExample: false,
-        };
-
-        await scaffold(tempDir, options);
-
-        const tsconfigPath = path.join(tempDir, 'test-app', 'tsconfig.json');
-        const content = await fs.readFile(tsconfigPath, 'utf-8');
-        const tsconfig = JSON.parse(content);
-        expect(tsconfig.compilerOptions.types).toContain('bun-types');
-      });
-
-      it('Node runtime: tsconfig.json includes node types', async () => {
-        const options: ScaffoldOptions = {
-          projectName: 'test-app',
-          runtime: 'node',
-          includeExample: false,
-        };
-
-        await scaffold(tempDir, options);
-
-        const tsconfigPath = path.join(tempDir, 'test-app', 'tsconfig.json');
-        const content = await fs.readFile(tsconfigPath, 'utf-8');
-        const tsconfig = JSON.parse(content);
-        expect(tsconfig.compilerOptions.types).toContain('node');
-        expect(tsconfig.compilerOptions.types).not.toContain('bun-types');
-      });
-
-      it('Deno runtime: tsconfig.json has empty types array', async () => {
-        const options: ScaffoldOptions = {
-          projectName: 'test-app',
-          runtime: 'deno',
-          includeExample: false,
-        };
-
-        await scaffold(tempDir, options);
-
-        const tsconfigPath = path.join(tempDir, 'test-app', 'tsconfig.json');
-        const content = await fs.readFile(tsconfigPath, 'utf-8');
-        const tsconfig = JSON.parse(content);
-        expect(tsconfig.compilerOptions.types).toEqual([]);
-      });
+      const content = await fs.readFile(projectPath('src', 'pages', 'home.tsx'), 'utf-8');
+      expect(content).toContain('query');
+      expect(content).toContain('queryMatch');
+      expect(content).toContain('api.tasks');
+      expect(content).toContain('export function HomePage()');
     });
   });
 });
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await fs.access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}

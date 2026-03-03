@@ -34,7 +34,9 @@ function findFile(dir: string, base: string, extensions: readonly string[]): str
 export function detectAppType(projectRoot: string): DetectedApp {
   const srcDir = join(projectRoot, 'src');
 
-  const serverEntry = findFile(srcDir, 'server', SERVER_EXTENSIONS);
+  const serverEntry =
+    findFile(srcDir, 'server', SERVER_EXTENSIONS) ??
+    findFile(join(srcDir, 'api'), 'server', SERVER_EXTENSIONS);
   const uiEntry = findFile(srcDir, 'app', APP_EXTENSIONS);
   const ssrEntry = existsSync(join(srcDir, 'entry-server.ts'))
     ? join(srcDir, 'entry-server.ts')

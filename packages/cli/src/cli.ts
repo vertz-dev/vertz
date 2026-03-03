@@ -29,15 +29,8 @@ export function createCLI(): Command {
   program
     .command('create <name>')
     .description('Scaffold a new Vertz project')
-    .option('-r, --runtime <runtime>', 'Runtime to use (bun, node, deno)', 'bun')
-    .option('-e, --example', 'Include example health module')
-    .option('--no-example', 'Exclude example health module')
-    .action(async (name: string, opts: { runtime: string; example?: boolean }) => {
-      const result = await createAction({
-        projectName: name,
-        runtime: opts.runtime,
-        example: opts.example,
-      });
+    .action(async (name: string) => {
+      const result = await createAction({ projectName: name });
       if (!result.ok) {
         console.error(result.error.message);
         process.exit(1);

@@ -7,12 +7,10 @@ describe('createAction', () => {
   const testDir = '/tmp/vertz-create-test';
 
   beforeEach(async () => {
-    // Set up test environment
     await fs.mkdir(testDir, { recursive: true });
   });
 
   afterEach(async () => {
-    // Clean up test directory
     try {
       await fs.rm(testDir, { recursive: true, force: true });
     } catch {
@@ -20,21 +18,16 @@ describe('createAction', () => {
     }
   });
 
-  it('creates a new Vertz project with bun runtime', async () => {
+  it('creates a new full-stack Vertz project', async () => {
     const originalCwd = process.cwd();
 
-    // Change to test directory
     process.chdir(testDir);
 
-    const result = await createAction({
-      projectName: 'my-test-app',
-      runtime: 'bun',
-      example: false,
-    });
+    const result = await createAction({ projectName: 'my-test-app' });
 
     expect(result.ok).toBe(true);
 
-    // Verify project was created
+    // Verify project was created with full-stack structure
     const projectPath = path.join(testDir, 'my-test-app');
     const files = await fs.readdir(projectPath);
 
@@ -43,77 +36,17 @@ describe('createAction', () => {
     expect(files).toContain('vertz.config.ts');
     expect(files).toContain('src');
 
-    // Restore original directory
-    process.chdir(originalCwd);
-  });
+    // Verify api/ convention (server-only files)
+    const apiFiles = await fs.readdir(path.join(projectPath, 'src', 'api'));
+    expect(apiFiles).toContain('server.ts');
+    expect(apiFiles).toContain('schema.ts');
+    expect(apiFiles).toContain('db.ts');
 
-  it('creates a new Vertz project with example module', async () => {
-    const originalCwd = process.cwd();
-
-    process.chdir(testDir);
-
-    const result = await createAction({
-      projectName: 'app-with-example',
-      runtime: 'bun',
-      example: true,
-    });
-
-    expect(result.ok).toBe(true);
-
-    // Verify example module was created
-    const modulesPath = path.join(testDir, 'app-with-example', 'src', 'modules');
-    const moduleFiles = await fs.readdir(modulesPath);
-
-    expect(moduleFiles).toContain('health.module.ts');
-    expect(moduleFiles).toContain('health.router.ts');
-    expect(moduleFiles).toContain('health.service.ts');
-    expect(moduleFiles).toContain('health.module-def.ts');
-
-    process.chdir(originalCwd);
-  });
-
-  it('creates a new Vertz project with node runtime', async () => {
-    const originalCwd = process.cwd();
-
-    process.chdir(testDir);
-
-    const result = await createAction({
-      projectName: 'node-app',
-      runtime: 'node',
-      example: false,
-    });
-
-    expect(result.ok).toBe(true);
-
-    const packageJsonPath = path.join(testDir, 'node-app', 'package.json');
-    const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
-
-    // Verify Node-specific configuration
-    expect(packageJson.scripts.dev).toContain('tsx');
-    expect(packageJson.devDependencies).toHaveProperty('@types/node');
-
-    process.chdir(originalCwd);
-  });
-
-  it('creates a new Vertz project with deno runtime', async () => {
-    const originalCwd = process.cwd();
-
-    process.chdir(testDir);
-
-    const result = await createAction({
-      projectName: 'deno-app',
-      runtime: 'deno',
-      example: false,
-    });
-
-    expect(result.ok).toBe(true);
-
-    // Verify Deno-specific configuration
-    const denoJsonPath = path.join(testDir, 'deno-app', 'deno.json');
-    const denoJson = JSON.parse(await fs.readFile(denoJsonPath, 'utf-8'));
-
-    expect(denoJson.imports).toBeDefined();
-    expect(denoJson.tasks).toBeDefined();
+    // Verify UI files (client.ts is a UI concern, lives in src/)
+    const srcFiles = await fs.readdir(path.join(projectPath, 'src'));
+    expect(srcFiles).toContain('client.ts');
+    expect(srcFiles).toContain('app.tsx');
+    expect(srcFiles).toContain('entry-client.ts');
 
     process.chdir(originalCwd);
   });
@@ -122,7 +55,7 @@ describe('createAction', () => {
     const originalCwd = process.cwd();
     process.chdir(testDir);
 
-    const result = await createAction({} as any);
+    const result = await createAction({});
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -136,10 +69,7 @@ describe('createAction', () => {
     const originalCwd = process.cwd();
     process.chdir(testDir);
 
-    const result = await createAction({
-      projectName: 'Invalid_Project_Name!',
-      runtime: 'bun',
-    });
+    const result = await createAction({ projectName: 'Invalid_Project_Name!' });
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -153,14 +83,9 @@ describe('createAction', () => {
     const originalCwd = process.cwd();
     process.chdir(testDir);
 
-    // Create the directory first
     await fs.mkdir(path.join(testDir, 'existing-app'));
 
-    const result = await createAction({
-      projectName: 'existing-app',
-      runtime: 'bun',
-      example: false,
-    });
+    const result = await createAction({ projectName: 'existing-app' });
 
     expect(result.ok).toBe(false);
     if (!result.ok) {

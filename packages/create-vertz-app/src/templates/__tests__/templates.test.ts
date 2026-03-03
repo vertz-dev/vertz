@@ -1,19 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
-  appTemplate,
-  denoConfigTemplate,
+  appComponentTemplate,
+  clientTemplate,
+  dbTemplate,
+  entryClientTemplate,
   envExampleTemplate,
-  envSrcTemplate,
   envTemplate,
   gitignoreTemplate,
-  healthCheckSchemaTemplate,
-  healthModuleDefTemplate,
-  healthModuleTemplate,
-  healthRouterTemplate,
-  healthServiceTemplate,
-  mainTemplate,
+  homePageTemplate,
   packageJsonTemplate,
-  requestIdMiddlewareTemplate,
+  schemaTemplate,
+  serverTemplate,
+  tasksEntityTemplate,
+  themeTemplate,
   tsconfigTemplate,
   vertzConfigTemplate,
 } from '../index.js';
@@ -21,275 +20,227 @@ import {
 describe('templates', () => {
   describe('packageJsonTemplate', () => {
     it('returns valid JSON', () => {
-      const result = packageJsonTemplate({ projectName: 'test-app', runtime: 'bun' });
+      const result = packageJsonTemplate('test-app');
       expect(() => JSON.parse(result)).not.toThrow();
     });
 
     it('includes project name', () => {
-      const result = packageJsonTemplate({ projectName: 'my-app', runtime: 'bun' });
+      const result = packageJsonTemplate('my-app');
       const pkg = JSON.parse(result);
       expect(pkg.name).toBe('my-app');
     });
 
-    it('includes @vertz/server dependency', () => {
-      const result = packageJsonTemplate({ projectName: 'test-app', runtime: 'bun' });
+    it('includes full-stack dependencies', () => {
+      const result = packageJsonTemplate('test-app');
       const pkg = JSON.parse(result);
       expect(pkg.dependencies['@vertz/server']).toBeDefined();
+      expect(pkg.dependencies['@vertz/db']).toBeDefined();
+      expect(pkg.dependencies['@vertz/ui']).toBeDefined();
+      expect(pkg.dependencies['@vertz/theme-shadcn']).toBeDefined();
     });
 
-    it('includes @vertz/cli as dev dependency', () => {
-      const result = packageJsonTemplate({ projectName: 'test-app', runtime: 'bun' });
+    it('includes dev dependencies', () => {
+      const result = packageJsonTemplate('test-app');
       const pkg = JSON.parse(result);
       expect(pkg.devDependencies['@vertz/cli']).toBeDefined();
+      expect(pkg.devDependencies['@vertz/ui-compiler']).toBeDefined();
+      expect(pkg.devDependencies['bun-types']).toBeDefined();
     });
 
-    it('includes required scripts', () => {
-      const result = packageJsonTemplate({ projectName: 'test-app', runtime: 'bun' });
+    it('includes #generated imports map', () => {
+      const result = packageJsonTemplate('test-app');
       const pkg = JSON.parse(result);
-      expect(pkg.scripts.dev).toBeDefined();
-      expect(pkg.scripts.build).toBeDefined();
-      expect(pkg.scripts.check).toBeDefined();
+      expect(pkg.imports['#generated']).toBe('./.vertz/generated/client.ts');
+      expect(pkg.imports['#generated/types']).toBe('./.vertz/generated/types/index.ts');
     });
 
-    it('uses bun scripts for bun runtime', () => {
-      const result = packageJsonTemplate({ projectName: 'test-app', runtime: 'bun' });
+    it('includes vertz dev/build/codegen scripts', () => {
+      const result = packageJsonTemplate('test-app');
       const pkg = JSON.parse(result);
-      expect(pkg.scripts.dev).toContain('bun');
-    });
-
-    it('uses tsx for node runtime', () => {
-      const result = packageJsonTemplate({ projectName: 'test-app', runtime: 'node' });
-      const pkg = JSON.parse(result);
-      expect(pkg.scripts.dev).toContain('tsx');
-      expect(pkg.dependencies.tsx).toBeDefined();
-    });
-
-    // Tests for runtime-specific type dependencies
-    describe('runtime-specific type dependencies', () => {
-      it('adds bun-types to devDependencies for bun runtime', () => {
-        const result = packageJsonTemplate({ projectName: 'test-app', runtime: 'bun' });
-        const pkg = JSON.parse(result);
-        expect(pkg.devDependencies['bun-types']).toBeDefined();
-        expect(pkg.devDependencies['bun-types']).toMatch(/^\^1\./);
-      });
-
-      it('adds @types/node to devDependencies for node runtime', () => {
-        const result = packageJsonTemplate({ projectName: 'test-app', runtime: 'node' });
-        const pkg = JSON.parse(result);
-        expect(pkg.devDependencies['@types/node']).toBeDefined();
-        expect(pkg.devDependencies['@types/node']).toMatch(/^\^20\./);
-      });
-
-      it('does not add type packages for deno runtime', () => {
-        const result = packageJsonTemplate({ projectName: 'test-app', runtime: 'deno' });
-        const pkg = JSON.parse(result);
-        expect(pkg.devDependencies['bun-types']).toBeUndefined();
-        expect(pkg.devDependencies['@types/node']).toBeUndefined();
-      });
+      expect(pkg.scripts.dev).toBe('vertz dev');
+      expect(pkg.scripts.build).toBe('vertz build');
+      expect(pkg.scripts.codegen).toBe('vertz codegen');
     });
   });
 
   describe('tsconfigTemplate', () => {
     it('returns valid JSON', () => {
-      const result = tsconfigTemplate('bun');
+      const result = tsconfigTemplate();
       expect(() => JSON.parse(result)).not.toThrow();
     });
 
     it('has strict mode enabled', () => {
-      const result = tsconfigTemplate('bun');
+      const result = tsconfigTemplate();
       const tsconfig = JSON.parse(result);
       expect(tsconfig.compilerOptions.strict).toBe(true);
     });
 
-    // Tests for runtime-specific types in tsconfig
-    describe('runtime-specific types', () => {
-      it('includes bun-types in tsconfig for bun runtime', () => {
-        const result = tsconfigTemplate('bun');
-        const tsconfig = JSON.parse(result);
-        expect(tsconfig.compilerOptions.types).toContain('bun-types');
-      });
+    it('includes JSX config for @vertz/ui', () => {
+      const result = tsconfigTemplate();
+      const tsconfig = JSON.parse(result);
+      expect(tsconfig.compilerOptions.jsx).toBe('react-jsx');
+      expect(tsconfig.compilerOptions.jsxImportSource).toBe('@vertz/ui');
+    });
 
-      it('includes node types in tsconfig for node runtime', () => {
-        const result = tsconfigTemplate('node');
-        const tsconfig = JSON.parse(result);
-        expect(tsconfig.compilerOptions.types).toContain('node');
-        expect(tsconfig.compilerOptions.types).not.toContain('bun-types');
-      });
-
-      it('has empty types array for deno runtime', () => {
-        const result = tsconfigTemplate('deno');
-        const tsconfig = JSON.parse(result);
-        // Deno has built-in types, so types should be empty or undefined
-        expect(tsconfig.compilerOptions.types).toEqual([]);
-      });
+    it('includes bun-types', () => {
+      const result = tsconfigTemplate();
+      const tsconfig = JSON.parse(result);
+      expect(tsconfig.compilerOptions.types).toContain('bun-types');
     });
   });
 
   describe('vertzConfigTemplate', () => {
-    it('returns non-empty string', () => {
-      const result = vertzConfigTemplate();
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('exports a default config', () => {
+    it('exports a default config with compiler entry', () => {
       const result = vertzConfigTemplate();
       expect(result).toContain('export default');
+      expect(result).toContain("entryFile: 'src/api/server.ts'");
+    });
+
+    it('exports codegen config', () => {
+      const result = vertzConfigTemplate();
+      expect(result).toContain('export const codegen');
+      expect(result).toContain("generators: ['typescript']");
     });
   });
 
   describe('envTemplate', () => {
-    it('returns non-empty string', () => {
-      const result = envTemplate();
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('includes DATABASE_URL placeholder', () => {
-      const result = envTemplate();
-      expect(result).toContain('DATABASE_URL=');
+    it('contains PORT=3000', () => {
+      expect(envTemplate()).toContain('PORT=3000');
     });
   });
 
   describe('envExampleTemplate', () => {
-    it('returns non-empty string', () => {
-      const result = envExampleTemplate();
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('matches env template structure', () => {
-      const result = envExampleTemplate();
-      expect(result).toContain('DATABASE_URL=');
+    it('contains PORT=3000', () => {
+      expect(envExampleTemplate()).toContain('PORT=3000');
     });
   });
 
   describe('gitignoreTemplate', () => {
-    it('returns non-empty string', () => {
-      const result = gitignoreTemplate();
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('includes node_modules', () => {
+    it('includes standard entries', () => {
       const result = gitignoreTemplate();
       expect(result).toContain('node_modules');
-    });
-
-    it('includes dist/', () => {
-      const result = gitignoreTemplate();
       expect(result).toContain('dist/');
+      expect(result).toContain('.vertz/');
+      expect(result).toContain('*.db');
     });
   });
 
-  describe('envSrcTemplate', () => {
-    it('returns non-empty string', () => {
-      const result = envSrcTemplate();
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('uses envsafe for validation', () => {
-      const result = envSrcTemplate();
-      expect(result).toContain('envsafe');
-    });
-  });
-
-  describe('appTemplate', () => {
-    it('returns non-empty string', () => {
-      const result = appTemplate(true);
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('exports createServer', () => {
-      const result = appTemplate(false);
+  describe('serverTemplate', () => {
+    it('uses createServer from @vertz/server', () => {
+      const result = serverTemplate();
+      expect(result).toContain("from '@vertz/server'");
       expect(result).toContain('createServer');
     });
-  });
 
-  describe('mainTemplate', () => {
-    it('returns non-empty string', () => {
-      const result = mainTemplate();
-      expect(result.length).toBeGreaterThan(0);
+    it('exports default app', () => {
+      expect(serverTemplate()).toContain('export default app');
     });
 
-    it('starts the app', () => {
-      const result = mainTemplate();
-      expect(result).toContain('app.start');
+    it('includes import.meta.main guard', () => {
+      expect(serverTemplate()).toContain('import.meta.main');
     });
   });
 
-  describe('requestIdMiddlewareTemplate', () => {
-    it('returns non-empty string', () => {
-      const result = requestIdMiddlewareTemplate();
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('handles requestId', () => {
-      const result = requestIdMiddlewareTemplate();
-      expect(result).toContain('requestId');
+  describe('schemaTemplate', () => {
+    it('defines tasks table with d.table', () => {
+      const result = schemaTemplate();
+      expect(result).toContain("d.table('tasks'");
+      expect(result).toContain('d.model(tasksTable)');
     });
   });
 
-  describe('health module templates', () => {
-    it('healthModuleDefTemplate returns non-empty string', () => {
-      const result = healthModuleDefTemplate();
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('healthModuleTemplate returns non-empty string', () => {
-      const result = healthModuleTemplate();
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('healthServiceTemplate returns non-empty string', () => {
-      const result = healthServiceTemplate();
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('healthRouterTemplate returns non-empty string', () => {
-      const result = healthRouterTemplate();
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('healthCheckSchemaTemplate returns non-empty string', () => {
-      const result = healthCheckSchemaTemplate();
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it('templates include helpful comments for new users', () => {
-      const serviceResult = healthServiceTemplate();
-      expect(serviceResult).toContain('In a real app');
+  describe('dbTemplate', () => {
+    it('uses createSqliteAdapter', () => {
+      const result = dbTemplate();
+      expect(result).toContain('createSqliteAdapter');
+      expect(result).toContain('autoApply: true');
     });
   });
 
-  describe('denoConfigTemplate', () => {
-    it('returns valid JSON', () => {
-      const result = denoConfigTemplate();
-      expect(() => JSON.parse(result)).not.toThrow();
+  describe('tasksEntityTemplate', () => {
+    it('defines tasks entity with model and access', () => {
+      const result = tasksEntityTemplate();
+      expect(result).toContain("entity('tasks'");
+      expect(result).toContain('tasksModel');
+      expect(result).toContain('list: () => true');
+    });
+  });
+
+  describe('clientTemplate', () => {
+    it('uses #generated imports', () => {
+      const result = clientTemplate();
+      expect(result).toContain("from '#generated'");
+      expect(result).toContain("from '#generated/types'");
+      expect(result).toContain('createClient');
+    });
+  });
+
+  describe('appComponentTemplate', () => {
+    it('exports getInjectedCSS for SSR', () => {
+      expect(appComponentTemplate()).toContain('getInjectedCSS');
     });
 
-    it('includes imports', () => {
-      const result = denoConfigTemplate();
-      const config = JSON.parse(result);
-      expect(config.imports).toBeDefined();
+    it('uses ThemeProvider', () => {
+      expect(appComponentTemplate()).toContain('ThemeProvider');
+    });
+
+    it('renders HomePage', () => {
+      expect(appComponentTemplate()).toContain('HomePage');
+    });
+  });
+
+  describe('entryClientTemplate', () => {
+    it('uses mount from @vertz/ui', () => {
+      expect(entryClientTemplate()).toContain('mount');
+    });
+
+    it('includes HMR self-accept', () => {
+      expect(entryClientTemplate()).toContain('import.meta.hot.accept()');
+    });
+  });
+
+  describe('themeTemplate', () => {
+    it('uses configureTheme from @vertz/theme-shadcn', () => {
+      const result = themeTemplate();
+      expect(result).toContain('configureTheme');
+      expect(result).toContain("from '@vertz/theme-shadcn'");
+    });
+  });
+
+  describe('homePageTemplate', () => {
+    it('uses query and queryMatch', () => {
+      const result = homePageTemplate();
+      expect(result).toContain('query');
+      expect(result).toContain('queryMatch');
+    });
+
+    it('uses api.tasks', () => {
+      expect(homePageTemplate()).toContain('api.tasks');
+    });
+
+    it('exports HomePage component', () => {
+      expect(homePageTemplate()).toContain('export function HomePage()');
     });
   });
 
   describe('all templates return non-empty strings', () => {
     it('every template function returns a non-empty string', () => {
       const templates = [
-        () => packageJsonTemplate({ projectName: 'test', runtime: 'bun' }),
-        () => tsconfigTemplate('bun'),
+        () => packageJsonTemplate('test'),
+        tsconfigTemplate,
         vertzConfigTemplate,
         envTemplate,
         envExampleTemplate,
         gitignoreTemplate,
-        envSrcTemplate,
-        () => appTemplate(true),
-        mainTemplate,
-        requestIdMiddlewareTemplate,
-        healthModuleDefTemplate,
-        healthModuleTemplate,
-        healthServiceTemplate,
-        healthRouterTemplate,
-        healthCheckSchemaTemplate,
-        denoConfigTemplate,
+        serverTemplate,
+        schemaTemplate,
+        dbTemplate,
+        tasksEntityTemplate,
+        clientTemplate,
+        appComponentTemplate,
+        entryClientTemplate,
+        themeTemplate,
+        homePageTemplate,
       ];
 
       for (const template of templates) {
