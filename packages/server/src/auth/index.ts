@@ -3,6 +3,8 @@
  * JWT sessions, email/password authentication
  */
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   type AuthError,
   type AuthValidationError,
@@ -238,7 +240,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     (typeof process === 'undefined' ||
       (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test'));
 
-  // Validate JWT secret - throw in production, warn in development
+  // Validate JWT secret - throw in production, auto-generate in development
   let jwtSecret: string;
 
   if (configJwtSecret) {
@@ -248,10 +250,20 @@ export function createAuth(config: AuthConfig): AuthInstance {
       'jwtSecret is required in production. Provide it via createAuth({ jwtSecret: "..." }).',
     );
   } else {
-    console.warn(
-      'Using insecure default JWT secret. Provide jwtSecret in createAuth() config for production.',
-    );
-    jwtSecret = 'dev-secret-change-in-production';
+    // Auto-generate a stable dev secret, persisted to disk so it survives restarts
+    const secretDir = config.devSecretPath ?? join(process.cwd(), '.vertz');
+    const secretFile = join(secretDir, 'jwt-secret');
+
+    if (existsSync(secretFile)) {
+      jwtSecret = readFileSync(secretFile, 'utf-8').trim();
+    } else {
+      jwtSecret = crypto.randomUUID() + crypto.randomUUID();
+      mkdirSync(secretDir, { recursive: true });
+      writeFileSync(secretFile, jwtSecret, 'utf-8');
+      console.warn(
+        `[Auth] Auto-generated dev JWT secret at ${secretFile}. Add this path to .gitignore.`,
+      );
+    }
   }
 
   const cookieConfig = { ...DEFAULT_COOKIE_CONFIG, ...session.cookie };

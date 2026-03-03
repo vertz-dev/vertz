@@ -16,6 +16,22 @@ import type { ReadonlySignal } from '../runtime/signal-types';
 import type { RouteConfigLike, RouteDefinitionMap } from './define-routes';
 import type { RoutePaths } from './params';
 
+/** Dangerous URL schemes that must never appear in href attributes. */
+const DANGEROUS_SCHEMES = ['javascript:', 'data:', 'vbscript:'];
+
+/**
+ * Validate that a URL is safe for use as an href attribute.
+ * Blocks javascript:, data:, vbscript: schemes and protocol-relative URLs.
+ */
+function isSafeUrl(url: string): boolean {
+  const normalized = url.replace(/\s/g, '').toLowerCase();
+  if (normalized.startsWith('//')) return false;
+  for (const scheme of DANGEROUS_SCHEMES) {
+    if (normalized.startsWith(scheme)) return false;
+  }
+  return true;
+}
+
 /**
  * Props for the Link component.
  *
@@ -61,6 +77,9 @@ export function createLink(
     className,
     prefetch,
   }: LinkProps): HTMLAnchorElement {
+    // Sanitize href to prevent XSS via javascript:, data:, vbscript: schemes
+    const safeHref = isSafeUrl(href) ? href : '#';
+
     const handleClick = (event: Event) => {
       const mouseEvent = event as MouseEvent;
       // Allow modifier-key clicks to open in new tab
@@ -68,11 +87,11 @@ export function createLink(
         return;
       }
       mouseEvent.preventDefault();
-      navigate(href);
+      navigate(safeHref);
     };
 
     // Build static props for the anchor element
-    const props: Record<string, string> = { href };
+    const props: Record<string, string> = { href: safeHref };
     if (className) {
       props.class = className;
     }
@@ -98,7 +117,7 @@ export function createLink(
     // Reactive active state — re-evaluates whenever currentPath changes.
     if (activeClass) {
       __classList(el, {
-        [activeClass]: () => currentPath.value === href,
+        [activeClass]: () => currentPath.value === safeHref,
       });
     }
 
@@ -108,7 +127,7 @@ export function createLink(
       const triggerPrefetch = () => {
         if (prefetched) return;
         prefetched = true;
-        factoryOptions.onPrefetch?.(href);
+        factoryOptions.onPrefetch?.(safeHref);
       };
       __on(el, 'mouseenter', triggerPrefetch);
       __on(el, 'focus', triggerPrefetch);

@@ -4,7 +4,25 @@ export interface RawHtml {
   html: string;
 }
 
-/** Create a raw HTML string that will not be escaped during serialization. */
+/**
+ * Create a raw HTML string that will NOT be escaped during SSR serialization.
+ *
+ * **WARNING: XSS RISK** — This function bypasses all HTML escaping. Never pass
+ * user-controlled input directly. Always sanitize with a trusted library (e.g.
+ * DOMPurify) before wrapping in `rawHtml()`.
+ *
+ * @example Safe usage
+ * ```ts
+ * rawHtml('<svg>...</svg>') // static markup — OK
+ * rawHtml(DOMPurify.sanitize(userInput)) // sanitized — OK
+ * ```
+ *
+ * @example Unsafe usage — NEVER do this
+ * ```ts
+ * rawHtml(userInput) // XSS vulnerability
+ * rawHtml(`<div>${userInput}</div>`) // XSS via interpolation
+ * ```
+ */
 export function rawHtml(html: string): RawHtml {
   return { __raw: true, html };
 }

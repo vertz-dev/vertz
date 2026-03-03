@@ -67,6 +67,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
     if (unknownKeys.length > 0) {
       if (this._catchall) {
         for (const key of unknownKeys) {
+          if (key === '__proto__') continue;
           ctx.pushPath(key);
           result[key] = this._catchall._runPipeline(obj[key], ctx);
           ctx.popPath();
@@ -78,6 +79,7 @@ export class ObjectSchema<S extends Shape = Shape> extends Schema<InferShape<S>>
         });
       } else if (this._unknownKeys === 'passthrough') {
         for (const key of unknownKeys) {
+          if (key === '__proto__') continue;
           result[key] = obj[key];
         }
       }

@@ -35,6 +35,25 @@ describe('RecordSchema', () => {
     }
   });
 
+  it('strips __proto__ key to prevent prototype pollution', () => {
+    const schema = new RecordSchema(new NumberSchema());
+    const malicious = JSON.parse('{"a":1,"__proto__":{"polluted":true},"b":2}');
+    const result = schema.parse(malicious);
+    // __proto__ with object value pollutes the result's prototype chain.
+    // The result should NOT inherit 'polluted' from a tampered prototype.
+    expect((result.data as Record<string, unknown>).polluted).toBeUndefined();
+    expect(Object.getPrototypeOf(result.data)).toBe(Object.prototype);
+    expect(result.data?.a).toBe(1);
+    expect(result.data?.b).toBe(2);
+  });
+
+  it('keeps constructor and prototype as legitimate keys', () => {
+    const schema = new RecordSchema(new NumberSchema());
+    const input = { a: 1, constructor: 2, prototype: 3 };
+    const result = schema.parse(input);
+    expect(result.data).toEqual({ a: 1, constructor: 2, prototype: 3 });
+  });
+
   it('.toJSONSchema() returns { type: "object", additionalProperties: { ... } }', () => {
     const schema = new RecordSchema(new NumberSchema());
     expect(schema.toJSONSchema()).toEqual({

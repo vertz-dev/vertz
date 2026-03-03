@@ -121,6 +121,107 @@ describe('Link component', () => {
   });
 });
 
+// ─── XSS Prevention ──────────────────────────────────────────
+
+describe('Link XSS prevention', () => {
+  test('blocks javascript: href', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    const el = Link({ children: 'XSS', href: 'javascript:alert(1)' as any });
+
+    expect(el.getAttribute('href')).toBe('#');
+  });
+
+  test('blocks JAVASCRIPT: href (case insensitive)', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    const el = Link({ children: 'XSS', href: 'JAVASCRIPT:alert(1)' as any });
+
+    expect(el.getAttribute('href')).toBe('#');
+  });
+
+  test('blocks data: href', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    const el = Link({
+      children: 'XSS',
+      href: 'data:text/html,<script>alert(1)</script>' as any,
+    });
+
+    expect(el.getAttribute('href')).toBe('#');
+  });
+
+  test('blocks vbscript: href', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    const el = Link({ children: 'XSS', href: 'vbscript:msgbox' as any });
+
+    expect(el.getAttribute('href')).toBe('#');
+  });
+
+  test('blocks protocol-relative URLs', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    const el = Link({ children: 'XSS', href: '//evil.com/phishing' as any });
+
+    expect(el.getAttribute('href')).toBe('#');
+  });
+
+  test('blocks javascript: with whitespace injection', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    const el = Link({ children: 'XSS', href: ' javascript:alert(1)' as any });
+
+    expect(el.getAttribute('href')).toBe('#');
+  });
+
+  test('does not navigate to blocked URLs on click', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety against untyped input
+    const el = Link({ children: 'XSS', href: 'javascript:alert(1)' as any });
+
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+    el.dispatchEvent(event);
+
+    expect(navigate).toHaveBeenCalledWith('#');
+  });
+
+  test('allows safe URLs', () => {
+    const currentPath = signal('/');
+    const navigate = vi.fn();
+    const Link = createLink(currentPath, navigate);
+
+    const safeHrefs = ['/about', '#section', 'https://example.com', 'http://example.com'];
+
+    for (const href of safeHrefs) {
+      // biome-ignore lint/suspicious/noExplicitAny: testing runtime safety with external URLs
+      const el = Link({ children: 'Link', href: href as any });
+      expect(el.getAttribute('href')).toBe(href);
+    }
+  });
+});
+
 // ─── Hover Prefetch ──────────────────────────────────────────
 
 describe('Link hover prefetch', () => {
