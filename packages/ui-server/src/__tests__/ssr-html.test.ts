@@ -75,4 +75,35 @@ describe('generateSSRHtml', () => {
     expect(html).toContain('charset="UTF-8"');
     expect(html).toContain('lang="en"');
   });
+
+  describe('XSS escaping', () => {
+    it('escapes title to prevent tag injection', () => {
+      const html = generateSSRHtml({
+        appHtml: '',
+        css: '',
+        ssrData: [],
+        clientEntry: '/app.js',
+        title: '</title><script>alert(1)</script>',
+      });
+
+      // The raw </title> breakout must not appear in output
+      expect(html).not.toContain('</title><script>');
+      // The escaped version should be present inside <title>
+      expect(html).toContain('&lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt;');
+    });
+
+    it('escapes clientEntry to prevent attribute injection', () => {
+      const html = generateSSRHtml({
+        appHtml: '',
+        css: '',
+        ssrData: [],
+        clientEntry: '" onload="alert(1)',
+      });
+
+      // The raw double-quote must not break out of the src attribute
+      expect(html).not.toContain('src="" onload="alert(1)"');
+      // The escaped version should be present
+      expect(html).toContain('src="&quot; onload=&quot;alert(1)"');
+    });
+  });
 });

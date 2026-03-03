@@ -236,6 +236,96 @@ describe('bun-dev-server integration', () => {
     expect(html).toContain('<script');
   });
 
+  // ── Path traversal protection ────────────────────────────────────
+
+  describe('path traversal protection', () => {
+    it('does not serve files outside project root via ../ traversal', async () => {
+      writeSSRFixture();
+      // Place a sensitive file OUTSIDE the project root (in its parent directory)
+      const parentDir = join(tmpDir, '..');
+      const secretPath = join(parentDir, `vertz-secret-${Date.now()}.txt`);
+      writeFileSync(secretPath, 'top-secret-data');
+      const port = randomPort();
+
+      try {
+        devServer = createBunDevServer({
+          entry: './src/app.js',
+          port,
+          host: 'localhost',
+          projectRoot: tmpDir,
+          logRequests: false,
+          ssrModule: true,
+        });
+
+        await devServer.start();
+
+        // Attempt path traversal to escape project root.
+        // The normalize() + startsWith() guard in bun-dev-server.ts should
+        // prevent resolving to a path outside projectRoot.
+        const filename = secretPath.split('/').pop();
+        const res = await fetch(
+          `http://localhost:${port}/../${filename}`,
+          { headers: { Accept: 'text/plain' } },
+        );
+        const body = await res.text();
+
+        // Should NOT contain the secret content
+        expect(body).not.toContain('top-secret-data');
+      } finally {
+        rmSync(secretPath, { force: true });
+      }
+    });
+
+    it('does not serve /etc/passwd via encoded path traversal', async () => {
+      writeSSRFixture();
+      const port = randomPort();
+
+      devServer = createBunDevServer({
+        entry: './src/app.js',
+        port,
+        host: 'localhost',
+        projectRoot: tmpDir,
+        logRequests: false,
+        ssrModule: true,
+      });
+
+      await devServer.start();
+
+      // Attempt to read /etc/passwd via deep path traversal
+      const res = await fetch(
+        `http://localhost:${port}/..%2F..%2F..%2F..%2F..%2Fetc%2Fpasswd`,
+        { headers: { Accept: 'text/plain' } },
+      );
+      const body = await res.text();
+
+      // Should NOT contain passwd-style content
+      expect(body).not.toContain('root:');
+    });
+
+    it('still serves legitimate files from public/', async () => {
+      writeSSRFixture();
+      writeFileSync(join(tmpDir, 'public', 'style.css'), 'body { margin: 0 }');
+      const port = randomPort();
+
+      devServer = createBunDevServer({
+        entry: './src/app.js',
+        port,
+        host: 'localhost',
+        projectRoot: tmpDir,
+        logRequests: false,
+        ssrModule: true,
+      });
+
+      await devServer.start();
+
+      const res = await fetch(`http://localhost:${port}/style.css`);
+      const body = await res.text();
+
+      expect(res.status).toBe(200);
+      expect(body).toContain('body { margin: 0 }');
+    });
+  });
+
   it('stop() cleans up the server', async () => {
     writeSSRFixture();
     const port = randomPort();

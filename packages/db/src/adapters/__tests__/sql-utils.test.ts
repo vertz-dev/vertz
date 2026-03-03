@@ -530,3 +530,175 @@ describe('BaseSqlAdapter cuid generate', () => {
     expect((result.id as string).length).toBeGreaterThan(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// SQL security — string default escaping
+// ---------------------------------------------------------------------------
+
+describe('generateCreateTableSql — string default escaping', () => {
+  it('escapes single quotes in string defaultValue to prevent SQL injection', () => {
+    const table = d.table('users', {
+      id: d.uuid().primary(),
+      bio: d.text().default("'; DROP TABLE users; --"),
+    });
+    const sql = generateCreateTableSql(table);
+    // The leading single quote in the value gets doubled to '' (SQL escaping).
+    // Result: DEFAULT '''; DROP TABLE users; --'
+    // In SQL this is a single string literal containing: '; DROP TABLE users; --
+    // The injection is neutralized because the quote does not break out of the string.
+    expect(sql).toContain("DEFAULT '''; DROP TABLE users; --'");
+  });
+
+  it('escapes multiple single quotes in string defaultValue', () => {
+    const table = d.table('config', {
+      id: d.uuid().primary(),
+      value: d.text().default("it's a test's value"),
+    });
+    const sql = generateCreateTableSql(table);
+    expect(sql).toContain("DEFAULT 'it''s a test''s value'");
+  });
+
+  it('handles string default with no special characters', () => {
+    const table = d.table('users', {
+      id: d.uuid().primary(),
+      role: d.text().default('admin'),
+    });
+    const sql = generateCreateTableSql(table);
+    expect(sql).toContain("DEFAULT 'admin'");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SQL security — CHECK constraint validation
+// ---------------------------------------------------------------------------
+
+describe('generateCreateTableSql — CHECK constraint security', () => {
+  describe('rejects dangerous CHECK expressions', () => {
+    it('rejects CHECK with semicolon (SQL injection)', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        age: d.integer().check('; DROP TABLE users'),
+      });
+      expect(() => generateCreateTableSql(table)).toThrow('Unsafe CHECK constraint expression');
+    });
+
+    it('rejects CHECK with DROP keyword', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        age: d.integer().check('1=1 DROP TABLE users'),
+      });
+      expect(() => generateCreateTableSql(table)).toThrow('Unsafe CHECK constraint expression');
+    });
+
+    it('rejects CHECK with DELETE keyword', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        age: d.integer().check('DELETE FROM users'),
+      });
+      expect(() => generateCreateTableSql(table)).toThrow('Unsafe CHECK constraint expression');
+    });
+
+    it('rejects CHECK with INSERT keyword', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        age: d.integer().check('INSERT INTO users'),
+      });
+      expect(() => generateCreateTableSql(table)).toThrow('Unsafe CHECK constraint expression');
+    });
+
+    it('rejects CHECK with UPDATE keyword', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        age: d.integer().check('UPDATE users SET'),
+      });
+      expect(() => generateCreateTableSql(table)).toThrow('Unsafe CHECK constraint expression');
+    });
+
+    it('rejects CHECK with ALTER keyword', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        age: d.integer().check('ALTER TABLE users'),
+      });
+      expect(() => generateCreateTableSql(table)).toThrow('Unsafe CHECK constraint expression');
+    });
+
+    it('rejects CHECK with CREATE keyword', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        age: d.integer().check('CREATE TABLE evil'),
+      });
+      expect(() => generateCreateTableSql(table)).toThrow('Unsafe CHECK constraint expression');
+    });
+
+    it('rejects CHECK with EXEC keyword', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        age: d.integer().check('EXEC xp_cmdshell'),
+      });
+      expect(() => generateCreateTableSql(table)).toThrow('Unsafe CHECK constraint expression');
+    });
+
+    it('rejects CHECK with SQL comment (--)', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        age: d.integer().check('age > 0 -- ignore rest'),
+      });
+      expect(() => generateCreateTableSql(table)).toThrow('Unsafe CHECK constraint expression');
+    });
+
+    it('rejects dangerous keywords regardless of case', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        age: d.integer().check('drop table users'),
+      });
+      expect(() => generateCreateTableSql(table)).toThrow('Unsafe CHECK constraint expression');
+    });
+  });
+
+  describe('accepts safe CHECK expressions', () => {
+    it('accepts simple comparison', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        age: d.integer().check('age > 0'),
+      });
+      const sql = generateCreateTableSql(table);
+      expect(sql).toContain('CHECK (age > 0)');
+    });
+
+    it('accepts range check', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        age: d.integer().check('age >= 0 AND age <= 150'),
+      });
+      const sql = generateCreateTableSql(table);
+      expect(sql).toContain('CHECK (age >= 0 AND age <= 150)');
+    });
+
+    it('accepts IN clause with string literals', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        status: d.text().check("status IN ('active','inactive')"),
+      });
+      const sql = generateCreateTableSql(table);
+      expect(sql).toContain("CHECK (status IN ('active','inactive'))");
+    });
+
+    it('accepts LENGTH check', () => {
+      const table = d.table('users', {
+        id: d.uuid().primary(),
+        name: d.text().check('LENGTH(name) > 0'),
+      });
+      const sql = generateCreateTableSql(table);
+      expect(sql).toContain('CHECK (LENGTH(name) > 0)');
+    });
+
+    it('accepts compound boolean expression', () => {
+      const table = d.table('products', {
+        id: d.uuid().primary(),
+        price: d.integer().check('price > 0 OR price IS NULL'),
+      });
+      const sql = generateCreateTableSql(table);
+      expect(sql).toContain('CHECK (price > 0 OR price IS NULL)');
+    });
+  });
+});

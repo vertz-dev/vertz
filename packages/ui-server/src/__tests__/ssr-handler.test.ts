@@ -217,4 +217,35 @@ describe('createSSRHandler', () => {
     expect(body).toContain('event: done');
     expect(body).toContain('data: {}');
   });
+
+  describe('XSS escaping', () => {
+    it('escapes </ in inlined CSS to prevent style tag breakout', async () => {
+      const templateWithLink = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Test</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body><div id="app"><!--ssr-outlet--></div></body>
+</html>`;
+
+      const maliciousCSS = 'body { color: red; } </style><script>alert(1)</script>';
+
+      const handler = createSSRHandler({
+        module: simpleModule,
+        template: templateWithLink,
+        inlineCSS: { '/assets/app.css': maliciousCSS },
+      });
+
+      const response = await handler(new Request('http://localhost/'));
+      const html = await response.text();
+
+      // The raw </style> breakout must not appear in the output
+      expect(html).not.toContain('</style><script>alert(1)</script>');
+      // The escaped version should use <\/ to neutralize the closing tag
+      expect(html).toContain('<\\/style>');
+      // The inlined style tag should still be present
+      expect(html).toContain('<style data-vertz-css>');
+    });
+  });
 });
