@@ -38,6 +38,9 @@ import {
   stopSignalCollection,
 } from '@vertz/ui/internals';
 
+import type { DOMStateSnapshot } from './fast-refresh-dom-state';
+import { captureDOMState, restoreDOMState } from './fast-refresh-dom-state';
+
 /** Disposal cleanup function. */
 type DisposeFn = () => void;
 
@@ -259,8 +262,23 @@ export function __$refreshPerform(moduleId: string): void {
 
       setContextScope(prevScope);
 
-      // 6. Replace DOM node
+      // 6. Capture DOM state, replace node, restore state
+      let domSnapshot: DOMStateSnapshot | null = null;
+      try {
+        domSnapshot = captureDOMState(element);
+      } catch (_) {
+        /* capture failed — proceed without state preservation */
+      }
+
       parent.replaceChild(newElement, element);
+
+      if (domSnapshot) {
+        try {
+          restoreDOMState(newElement, domSnapshot);
+        } catch (_) {
+          console.warn('[vertz-hmr] Failed to restore DOM state');
+        }
+      }
 
       // 7. Track new instance with new context and signals
       updatedInstances.push({
