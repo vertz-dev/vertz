@@ -1,5 +1,4 @@
-// @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { captureDOMState, restoreDOMState } from '../bun-plugin/fast-refresh-dom-state';
 
 describe('fast-refresh-dom-state', () => {
