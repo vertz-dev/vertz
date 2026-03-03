@@ -7,7 +7,7 @@ describe('createJsonResponse', () => {
     const response = createJsonResponse({ message: 'hello' });
 
     expect(response.status).toBe(200);
-    expect(response.headers.get('content-type')).toBe('application/json');
+    expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8');
   });
 
   it('creates a JSON response with custom status', async () => {
@@ -24,7 +24,7 @@ describe('createJsonResponse', () => {
     });
 
     expect(response.headers.get('x-request-id')).toBe('abc');
-    expect(response.headers.get('content-type')).toBe('application/json');
+    expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8');
   });
 });
 

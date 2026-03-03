@@ -44,8 +44,12 @@ describe('handleCors', () => {
     expect(response!.headers.get('access-control-allow-origin')).toBe('http://app.com');
   });
 
-  it('includes credentials and max-age headers', () => {
-    const config: CorsConfig = { origins: true, credentials: true, maxAge: 86400 };
+  it('includes credentials and max-age headers with explicit origin', () => {
+    const config: CorsConfig = {
+      origins: ['http://example.com'],
+      credentials: true,
+      maxAge: 86400,
+    };
     const request = new Request('http://localhost:3000/api', {
       method: 'OPTIONS',
       headers: { origin: 'http://example.com', 'access-control-request-method': 'POST' },
@@ -56,6 +60,26 @@ describe('handleCors', () => {
     expect(response).not.toBeNull();
     expect(response!.headers.get('access-control-allow-credentials')).toBe('true');
     expect(response!.headers.get('access-control-max-age')).toBe('86400');
+  });
+
+  it('throws when credentials is true with wildcard string origins', () => {
+    const config: CorsConfig = { origins: '*', credentials: true };
+    const request = new Request('http://localhost:3000/api', {
+      method: 'OPTIONS',
+      headers: { origin: 'http://example.com', 'access-control-request-method': 'POST' },
+    });
+
+    expect(() => handleCors(config, request)).toThrow('CORS misconfiguration');
+  });
+
+  it('throws when credentials is true with boolean wildcard origins', () => {
+    const config: CorsConfig = { origins: true, credentials: true };
+    const request = new Request('http://localhost:3000/api', {
+      method: 'OPTIONS',
+      headers: { origin: 'http://example.com', 'access-control-request-method': 'POST' },
+    });
+
+    expect(() => handleCors(config, request)).toThrow('CORS misconfiguration');
   });
 
   it('uses exact default methods in preflight when none are configured', () => {
@@ -114,7 +138,7 @@ describe('handleCors', () => {
     expect(response!.headers.get('access-control-allow-credentials')).toBeNull();
   });
 
-  it('omits access-control-allow-origin in preflight when origin is not in allowlist', () => {
+  it('omits all CORS headers in preflight when origin is not in allowlist', () => {
     const config: CorsConfig = { origins: ['http://allowed.com'] };
     const request = new Request('http://localhost:3000/api', {
       method: 'OPTIONS',
@@ -123,16 +147,11 @@ describe('handleCors', () => {
 
     const response = handleCors(config, request);
 
-    // Blocked origin: allow-origin is omitted, but allow-methods and allow-headers
-    // are still set unconditionally — this documents the current behavior.
+    // Blocked origin: no CORS headers are set — the browser will reject the request.
     expect(response).not.toBeNull();
     expect(response!.headers.get('access-control-allow-origin')).toBeNull();
-    expect(response!.headers.get('access-control-allow-methods')).toBe(
-      'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    );
-    expect(response!.headers.get('access-control-allow-headers')).toBe(
-      'Content-Type, Authorization',
-    );
+    expect(response!.headers.get('access-control-allow-methods')).toBeNull();
+    expect(response!.headers.get('access-control-allow-headers')).toBeNull();
   });
 
   it('matches single string origin exactly and reflects it', () => {
@@ -205,9 +224,7 @@ describe('handleCors', () => {
 
     expect(response).not.toBeNull();
     expect(response!.headers.get('access-control-allow-methods')).toBe('GET, POST');
-    expect(response!.headers.get('access-control-allow-headers')).toBe(
-      'X-Api-Key, X-Request-Id',
-    );
+    expect(response!.headers.get('access-control-allow-headers')).toBe('X-Api-Key, X-Request-Id');
   });
 });
 
@@ -344,5 +361,25 @@ describe('applyCorsHeaders', () => {
     const response = applyCorsHeaders(config, request, original);
 
     expect(response.headers.get('access-control-allow-origin')).toBe('http://admin.com');
+  });
+
+  it('throws when credentials is true with wildcard string origins', () => {
+    const config: CorsConfig = { origins: '*', credentials: true };
+    const request = new Request('http://localhost:3000/api', {
+      headers: { origin: 'http://example.com' },
+    });
+    const original = new Response('ok');
+
+    expect(() => applyCorsHeaders(config, request, original)).toThrow('CORS misconfiguration');
+  });
+
+  it('throws when credentials is true with boolean wildcard origins', () => {
+    const config: CorsConfig = { origins: true, credentials: true };
+    const request = new Request('http://localhost:3000/api', {
+      headers: { origin: 'http://example.com' },
+    });
+    const original = new Response('ok');
+
+    expect(() => applyCorsHeaders(config, request, original)).toThrow('CORS misconfiguration');
   });
 });

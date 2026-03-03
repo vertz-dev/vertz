@@ -163,6 +163,10 @@ export async function generate(
 
     for (const file of files) {
       const filePath = join(config.outputDir, file.path);
+      const resolvedPath = resolve(filePath);
+      if (!resolvedPath.startsWith(resolve(config.outputDir))) {
+        throw new Error(`Generated file path "${file.path}" escapes output directory`);
+      }
       const dir = dirname(filePath);
       await mkdir(dir, { recursive: true });
       await writeFile(filePath, file.content, 'utf-8');

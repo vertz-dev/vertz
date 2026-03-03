@@ -153,4 +153,90 @@ describe('runMiddlewareChain', () => {
 
     expect(result).toEqual({ valid: true });
   });
+
+  describe('prototype pollution prevention', () => {
+    it('filters out __proto__ keys from middleware contributions', async () => {
+      const middlewares: ResolvedMiddleware[] = [
+        {
+          name: 'malicious',
+          resolvedInject: {},
+          handler: () => ({ __proto__: { admin: true }, safe: 'value' }),
+        },
+      ];
+
+      const result = await runMiddlewareChain(middlewares, {});
+
+      // The safe key should be preserved
+      expect(result.safe).toBe('value');
+      // The __proto__ payload must NOT pollute the prototype
+      expect((result as Record<string, unknown>).admin).toBeUndefined();
+      // Verify Object.prototype was not polluted
+      expect(({} as Record<string, unknown>).admin).toBeUndefined();
+    });
+
+    it('filters out constructor keys from middleware contributions', async () => {
+      const middlewares: ResolvedMiddleware[] = [
+        {
+          name: 'malicious',
+          resolvedInject: {},
+          handler: () => ({
+            constructor: { prototype: { role: 'admin' } },
+            legitimate: true,
+          }),
+        },
+      ];
+
+      const result = await runMiddlewareChain(middlewares, {});
+
+      // The legitimate key should be preserved
+      expect(result.legitimate).toBe(true);
+      // The constructor key must be filtered out
+      expect(result.constructor).toBeUndefined();
+    });
+
+    it('filters out prototype keys from middleware contributions', async () => {
+      const middlewares: ResolvedMiddleware[] = [
+        {
+          name: 'malicious',
+          resolvedInject: {},
+          handler: () => ({ prototype: { isAdmin: true }, data: 'ok' }),
+        },
+      ];
+
+      const result = await runMiddlewareChain(middlewares, {});
+
+      expect(result.data).toBe('ok');
+      expect(result.prototype).toBeUndefined();
+    });
+
+    it('still accumulates normal keys alongside filtered dangerous keys', async () => {
+      const middlewares: ResolvedMiddleware[] = [
+        {
+          name: 'mixed',
+          resolvedInject: {},
+          handler: () => ({
+            __proto__: { injected: true },
+            constructor: { prototype: {} },
+            prototype: { bad: true },
+            userId: '42',
+            role: 'user',
+          }),
+        },
+        {
+          name: 'second',
+          resolvedInject: {},
+          handler: () => ({ permissions: ['read'] }),
+        },
+      ];
+
+      const result = await runMiddlewareChain(middlewares, {});
+
+      // Normal keys from both middlewares are accumulated
+      expect(result.userId).toBe('42');
+      expect(result.role).toBe('user');
+      expect(result.permissions).toEqual(['read']);
+      // All dangerous keys are filtered
+      expect(Object.keys(result)).toEqual(['userId', 'role', 'permissions']);
+    });
+  });
 });

@@ -15,12 +15,22 @@ export function parseRequest(request: Request): ParsedRequest {
     method: request.method,
     path: url.pathname,
     query: Object.fromEntries(url.searchParams),
-    headers: Object.fromEntries(request.headers),
+    headers: Object.fromEntries([...request.headers].map(([k, v]) => [k.toLowerCase(), v])),
     raw: request,
   };
 }
 
-export async function parseBody(request: Request): Promise<unknown> {
+const DEFAULT_MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB
+
+export async function parseBody(
+  request: Request,
+  maxBodySize: number = DEFAULT_MAX_BODY_SIZE,
+): Promise<unknown> {
+  const contentLength = parseInt(request.headers.get('content-length') ?? '0', 10);
+  if (maxBodySize && contentLength > maxBodySize) {
+    throw new BadRequestException('Request body too large');
+  }
+
   const contentType = request.headers.get('content-type') ?? '';
 
   if (contentType.includes('application/json')) {

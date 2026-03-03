@@ -1,4 +1,5 @@
 import { renderHeadToHtml } from './head';
+import { escapeAttr } from './html-serializer';
 import { renderToStream } from './render-to-stream';
 import { encodeChunk } from './streaming';
 import type { HeadEntry, VNode } from './types';
@@ -163,7 +164,9 @@ export function renderPage(vnode: VNode, options?: PageOptions): Response {
   // Build scripts HTML
   const scriptsHtml = options?.scripts
     ? '\n' +
-      options.scripts.map((src) => `  <script type="module" src="${src}"></script>`).join('\n')
+      options.scripts
+        .map((src) => `  <script type="module" src="${escapeAttr(src)}"></script>`)
+        .join('\n')
     : '';
 
   // Create a stream that emits the full HTML document
@@ -171,7 +174,7 @@ export function renderPage(vnode: VNode, options?: PageOptions): Response {
     async start(controller) {
       // Emit doctype and html opening
       controller.enqueue(encodeChunk('<!DOCTYPE html>\n'));
-      controller.enqueue(encodeChunk(`<html lang="${lang}">\n`));
+      controller.enqueue(encodeChunk(`<html lang="${escapeAttr(lang)}">\n`));
 
       // Emit head
       controller.enqueue(encodeChunk('<head>\n'));

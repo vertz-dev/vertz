@@ -1,7 +1,7 @@
 import { Database } from 'bun:sqlite';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
-import { introspectPostgres, introspectSqlite } from '../introspect';
+import { introspectPostgres, introspectSqlite, validateIdentifier } from '../introspect';
 import type { MigrationQueryFn } from '../runner';
 
 function createSqliteQueryFn(db: Database): MigrationQueryFn {
@@ -300,5 +300,75 @@ describe('introspectPostgres', () => {
 
     expect(snapshot.enums.status).toEqual(['active', 'inactive', 'pending']);
     expect(snapshot.tables.tasks?.columns?.status?.type).toBe('USER-DEFINED');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validateIdentifier — SQL injection prevention
+// ---------------------------------------------------------------------------
+
+describe('validateIdentifier', () => {
+  describe('accepts valid SQL identifiers', () => {
+    it('accepts simple lowercase name', () => {
+      expect(validateIdentifier('users')).toBe('users');
+    });
+
+    it('accepts name with underscore', () => {
+      expect(validateIdentifier('user_profile')).toBe('user_profile');
+    });
+
+    it('accepts name starting with underscore', () => {
+      expect(validateIdentifier('_private')).toBe('_private');
+    });
+
+    it('accepts name with digits', () => {
+      expect(validateIdentifier('table2')).toBe('table2');
+    });
+
+    it('accepts uppercase name', () => {
+      expect(validateIdentifier('Users')).toBe('Users');
+    });
+
+    it('accepts mixed case with underscores and digits', () => {
+      expect(validateIdentifier('User_Profile_v2')).toBe('User_Profile_v2');
+    });
+  });
+
+  describe('rejects dangerous identifiers', () => {
+    it('rejects SQL injection with semicolon', () => {
+      expect(() => validateIdentifier('users; DROP TABLE')).toThrow('Invalid SQL identifier');
+    });
+
+    it('rejects name with double quotes', () => {
+      expect(() => validateIdentifier('table"name')).toThrow('Invalid SQL identifier');
+    });
+
+    it('rejects path traversal attempt', () => {
+      expect(() => validateIdentifier('../etc')).toThrow('Invalid SQL identifier');
+    });
+
+    it('rejects name with spaces', () => {
+      expect(() => validateIdentifier('table name')).toThrow('Invalid SQL identifier');
+    });
+
+    it('rejects empty string', () => {
+      expect(() => validateIdentifier('')).toThrow('Invalid SQL identifier');
+    });
+
+    it('rejects name starting with a digit', () => {
+      expect(() => validateIdentifier('1table')).toThrow('Invalid SQL identifier');
+    });
+
+    it('rejects name with single quotes', () => {
+      expect(() => validateIdentifier("table'name")).toThrow('Invalid SQL identifier');
+    });
+
+    it('rejects name with parentheses', () => {
+      expect(() => validateIdentifier('table(name)')).toThrow('Invalid SQL identifier');
+    });
+
+    it('rejects name with dashes', () => {
+      expect(() => validateIdentifier('table-name')).toThrow('Invalid SQL identifier');
+    });
   });
 });

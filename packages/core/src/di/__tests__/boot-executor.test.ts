@@ -35,7 +35,8 @@ describe('BootExecutor', () => {
 
   it('resolves linear dependency chain', async () => {
     const dbMethods = {
-      query: (sql: string) => `result of ${sql}`,
+      query: (sql: string, params?: unknown[]) =>
+        `result of ${sql} with params [${(params ?? []).join(', ')}]`,
     };
 
     const sequence: BootSequence = {
@@ -54,7 +55,7 @@ describe('BootExecutor', () => {
             methods: (deps) => {
               const { db } = deps as { db: typeof dbMethods };
               return {
-                findById: (id: string) => db.query(`SELECT * FROM users WHERE id = '${id}'`),
+                findById: (id: string) => db.query('SELECT * FROM users WHERE id = ?', [id]),
               };
             },
           },
@@ -67,7 +68,9 @@ describe('BootExecutor', () => {
     const serviceMap = await executor.execute(sequence);
 
     const userService = serviceMap.get('userService') as { findById: (id: string) => string };
-    expect(userService.findById('123')).toBe("result of SELECT * FROM users WHERE id = '123'");
+    expect(userService.findById('123')).toBe(
+      'result of SELECT * FROM users WHERE id = ? with params [123]',
+    );
   });
 
   it('resolves diamond dependency (shared dependency instantiated once)', async () => {

@@ -35,10 +35,64 @@ export interface ModuleRegistration {
 
 type SchemaLike = { parse(value: unknown): { ok: boolean; data?: unknown; error?: unknown } };
 
+/**
+ * Patterns that indicate the error message contains internal details
+ * that should not be exposed to the client (file paths, stack traces, etc.).
+ */
+const INTERNAL_DETAIL_PATTERNS = [
+  /(?:^|[\s:])\/[\w./-]+/, // Unix file paths (e.g., /usr/src/app/...)
+  /[A-Z]:\\[\w\\.-]+/, // Windows file paths (e.g., C:\Users\...)
+  /node_modules/, // Node module paths
+  /at\s+\w+\s+\(/, // Stack trace frames (e.g., "at Function (file:line)")
+  /\.ts:\d+:\d+/, // TypeScript source locations (e.g., file.ts:10:5)
+  /\.js:\d+:\d+/, // JavaScript source locations
+];
+
+/**
+ * Sanitizes a schema validation error message to prevent leaking internal details.
+ *
+ * Returns the original message if it looks like a clean validation message,
+ * or a generic fallback if it contains file paths, stack traces, or other
+ * internal information.
+ */
+export function sanitizeValidationMessage(error: unknown, label: string): string {
+  // If the error has an `issues` array (schema library convention), extract field messages
+  if (
+    error != null &&
+    typeof error === 'object' &&
+    'issues' in error &&
+    Array.isArray((error as { issues: unknown[] }).issues)
+  ) {
+    const issues = (error as { issues: Array<{ message?: string }> }).issues;
+    const messages = issues
+      .map((issue) => (typeof issue.message === 'string' ? issue.message : ''))
+      .filter(Boolean);
+    if (messages.length > 0) {
+      return messages.join(', ');
+    }
+  }
+
+  // Extract message from Error instances
+  const message = error instanceof Error ? error.message : '';
+
+  if (!message) {
+    return `Invalid ${label}`;
+  }
+
+  // Check for internal detail patterns
+  for (const pattern of INTERNAL_DETAIL_PATTERNS) {
+    if (pattern.test(message)) {
+      return `Invalid ${label}`;
+    }
+  }
+
+  return message;
+}
+
 function validateSchema(schema: SchemaLike, value: unknown, label: string): unknown {
   const result = schema.parse(value);
   if (!result.ok) {
-    const message = result.error instanceof Error ? result.error.message : `Invalid ${label}`;
+    const message = sanitizeValidationMessage(result.error, label);
     throw new BadRequestException(message);
   }
   return result.data;
@@ -225,7 +279,11 @@ export function buildHandler(
       if (entry.middlewares.length > 0) {
         const routeCtx = { ...requestCtx, ...middlewareState };
         const routeState = await runMiddlewareChain(entry.middlewares, routeCtx);
-        Object.assign(middlewareState, routeState);
+        for (const key of Object.keys(routeState)) {
+          if (key !== '__proto__' && key !== 'constructor' && key !== 'prototype') {
+            middlewareState[key] = routeState[key];
+          }
+        }
       }
 
       // Validate schemas if provided

@@ -4,4 +4,4 @@ export type {
   CloudflareWorkerModule,
   SSRModuleConfig,
 } from './handler.js';
-export { createHandler, generateHTMLTemplate } from './handler.js';
+export { createHandler, generateHTMLTemplate, generateNonce } from './handler.js';

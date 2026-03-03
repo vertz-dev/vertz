@@ -92,7 +92,7 @@ export function generateCreateTableSql<T extends ColumnRecord>(schema: TableDef<
       if (meta.defaultValue === 'now') {
         colDef += " DEFAULT (datetime('now'))";
       } else if (typeof meta.defaultValue === 'string') {
-        colDef += ` DEFAULT '${meta.defaultValue}'`;
+        colDef += ` DEFAULT '${meta.defaultValue.replace(/'/g, "''")}'`;
       } else if (typeof meta.defaultValue === 'number') {
         colDef += ` DEFAULT ${meta.defaultValue}`;
       } else if (typeof meta.defaultValue === 'boolean') {
@@ -101,6 +101,10 @@ export function generateCreateTableSql<T extends ColumnRecord>(schema: TableDef<
     }
 
     if (meta.check) {
+      const DANGEROUS_PATTERN = /;|--|\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|EXEC)\b/i;
+      if (DANGEROUS_PATTERN.test(meta.check)) {
+        throw new Error(`Unsafe CHECK constraint expression: "${meta.check}"`);
+      }
       colDef += ` CHECK (${meta.check})`;
     }
 

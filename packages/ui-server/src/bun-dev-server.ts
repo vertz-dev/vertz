@@ -19,7 +19,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, renameSync, watch, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, normalize, resolve } from 'node:path';
 import type { SSRModule } from './ssr-render';
 import { ssrDiscoverQueries, ssrRenderToString } from './ssr-render';
 import { safeSerialize } from './ssr-streaming-runtime';
@@ -431,13 +431,22 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
         // Serve static files from public/
         if (pathname !== '/' && !pathname.endsWith('.html')) {
-          const publicFile = Bun.file(resolve(projectRoot, `public${pathname}`));
-          if (await publicFile.exists()) {
-            return new Response(publicFile);
+          // Normalize path to prevent directory traversal attacks
+          const safePath = normalize(pathname).replace(/^(\.\.(\/|\\|$))+/, '');
+          const publicDir = resolve(projectRoot, 'public');
+          const resolvedPublic = resolve(publicDir, safePath.slice(1));
+          if (resolvedPublic.startsWith(publicDir)) {
+            const publicFile = Bun.file(resolvedPublic);
+            if (await publicFile.exists()) {
+              return new Response(publicFile);
+            }
           }
-          const rootFile = Bun.file(resolve(projectRoot, pathname.slice(1)));
-          if (await rootFile.exists()) {
-            return new Response(rootFile);
+          const resolvedRoot = resolve(projectRoot, safePath.slice(1));
+          if (resolvedRoot.startsWith(projectRoot)) {
+            const rootFile = Bun.file(resolvedRoot);
+            if (await rootFile.exists()) {
+              return new Response(rootFile);
+            }
           }
         }
 

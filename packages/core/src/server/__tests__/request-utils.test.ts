@@ -43,6 +43,27 @@ describe('parseRequest', () => {
     expect(parsed.path).toBe('/api/v1/users');
     expect(parsed.query).toEqual({});
   });
+
+  it('normalizes mixed-case header names to lowercase', () => {
+    const request = new Request('http://localhost:3000/api', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer token123',
+        'Content-Type': 'application/json',
+        'X-Custom-Header': 'custom-value',
+      },
+    });
+
+    const parsed = parseRequest(request);
+
+    expect(parsed.headers.authorization).toBe('Bearer token123');
+    expect(parsed.headers['content-type']).toBe('application/json');
+    expect(parsed.headers['x-custom-header']).toBe('custom-value');
+    // Verify uppercase keys do not exist
+    expect(parsed.headers.Authorization).toBeUndefined();
+    expect(parsed.headers['Content-Type']).toBeUndefined();
+    expect(parsed.headers['X-Custom-Header']).toBeUndefined();
+  });
 });
 
 describe('parseBody', () => {
@@ -109,5 +130,49 @@ describe('parseBody', () => {
     const body = await parseBody(request);
 
     expect(body).toBeUndefined();
+  });
+
+  it('throws BadRequestException when Content-Length exceeds maxBodySize', async () => {
+    const request = new Request('http://localhost:3000/api', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': '2000',
+      },
+      body: JSON.stringify({ data: 'x'.repeat(100) }),
+    });
+
+    await expect(parseBody(request, 1024)).rejects.toThrow(BadRequestException);
+    await expect(parseBody(request, 1024)).rejects.toThrow('Request body too large');
+  });
+
+  it('parses body normally when Content-Length is within maxBodySize', async () => {
+    const payload = { name: 'Alice' };
+    const jsonBody = JSON.stringify(payload);
+    const request = new Request('http://localhost:3000/api', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': String(jsonBody.length),
+      },
+      body: jsonBody,
+    });
+
+    const body = await parseBody(request, 10 * 1024 * 1024);
+
+    expect(body).toEqual(payload);
+  });
+
+  it('uses default 10MB maxBodySize when no limit is specified', async () => {
+    const request = new Request('http://localhost:3000/api', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': String(11 * 1024 * 1024),
+      },
+      body: JSON.stringify({ data: 'test' }),
+    });
+
+    await expect(parseBody(request)).rejects.toThrow(BadRequestException);
   });
 });

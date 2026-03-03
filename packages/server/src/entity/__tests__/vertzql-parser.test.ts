@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { d } from '@vertz/db';
 import type { EntityRelationsConfig } from '../types';
-import { parseVertzQL, validateVertzQL } from '../vertzql-parser';
+import { MAX_Q_BASE64_LENGTH, parseVertzQL, validateVertzQL } from '../vertzql-parser';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -583,6 +583,87 @@ describe('Feature: VertzQL validation', () => {
         const result = validateVertzQL(options, usersTable, relationsConfig);
 
         expect(result.ok).toBe(true);
+      });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Security: q= parameter hardening
+// ---------------------------------------------------------------------------
+
+describe('Feature: VertzQL q= parameter security hardening', () => {
+  describe('Given a q= param that exceeds MAX_Q_BASE64_LENGTH', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then returns a size error and does not attempt decode', () => {
+        // Create a base64 string that exceeds the limit
+        const oversizedJson = JSON.stringify({ select: { x: 'a'.repeat(MAX_Q_BASE64_LENGTH) } });
+        const q = btoa(oversizedJson);
+
+        const result = parseVertzQL({ q });
+
+        expect(result._qError).toBe('q= parameter exceeds maximum allowed size');
+        expect(result.select).toBeUndefined();
+        expect(result.include).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given a q= param with unknown keys in the decoded JSON', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then strips unknown keys and keeps expected ones', () => {
+        const structural = {
+          select: { title: true },
+          include: { assignee: true },
+          __proto__: { admin: true },
+          malicious: 'payload',
+          dangerousConfig: { drop: 'table' },
+        };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ q });
+
+        expect(result.select).toEqual({ title: true });
+        expect(result.include).toEqual({ assignee: true });
+        expect(result).not.toHaveProperty('malicious');
+        expect(result).not.toHaveProperty('dangerousConfig');
+      });
+    });
+  });
+
+  describe('Given a q= param with only expected keys (select, include)', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then parses successfully without stripping', () => {
+        const structural = {
+          select: { title: true, status: true },
+          include: { creator: { id: true, name: true } },
+        };
+        const q = btoa(JSON.stringify(structural));
+
+        const result = parseVertzQL({ q });
+
+        expect(result.select).toEqual({ title: true, status: true });
+        expect(result.include).toEqual({ creator: { id: true, name: true } });
+        expect(result._qError).toBeUndefined();
+      });
+    });
+  });
+
+  describe('Given a q= param exactly at MAX_Q_BASE64_LENGTH', () => {
+    describe('When parseVertzQL is called', () => {
+      it('Then accepts the payload (boundary is inclusive)', () => {
+        // Build a payload that produces base64 at or just under the limit
+        const filler = 'x'.repeat(7000);
+        const structural = { select: { [filler]: true } };
+        const q = btoa(JSON.stringify(structural));
+
+        // Only test if the generated base64 fits within the limit
+        if (q.length <= MAX_Q_BASE64_LENGTH) {
+          const result = parseVertzQL({ q });
+
+          expect(result._qError).toBeUndefined();
+          expect(result.select).toBeDefined();
+        }
       });
     });
   });

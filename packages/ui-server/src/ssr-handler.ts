@@ -30,6 +30,13 @@ export interface SSRHandlerOptions {
    * ```
    */
   inlineCSS?: Record<string, string>;
+  /**
+   * CSP nonce to inject on all inline `<script>` tags emitted during SSR.
+   *
+   * When set, the SSR data hydration script will include `nonce="<value>"`
+   * so that strict Content-Security-Policy headers do not block it.
+   */
+  nonce?: string;
 }
 
 /**
@@ -43,6 +50,7 @@ function injectIntoTemplate(
   appHtml: string,
   appCss: string,
   ssrData: Array<{ key: string; data: unknown }>,
+  nonce?: string,
 ): string {
   // Inject app HTML: try <!--ssr-outlet--> first, then <div id="app">
   let html: string;
@@ -59,7 +67,8 @@ function injectIntoTemplate(
 
   // Inject SSR data for client-side hydration before </body>
   if (ssrData.length > 0) {
-    const ssrDataScript = `<script>window.__VERTZ_SSR_DATA__=${safeSerialize(ssrData)};</script>`;
+    const nonceAttr = nonce != null ? ` nonce="${nonce}"` : '';
+    const ssrDataScript = `<script${nonceAttr}>window.__VERTZ_SSR_DATA__=${safeSerialize(ssrData)};</script>`;
     html = html.replace('</body>', `${ssrDataScript}\n</body>`);
   }
 
@@ -78,7 +87,7 @@ function injectIntoTemplate(
 export function createSSRHandler(
   options: SSRHandlerOptions,
 ): (request: Request) => Promise<Response> {
-  const { module, ssrTimeout, inlineCSS } = options;
+  const { module, ssrTimeout, inlineCSS, nonce } = options;
 
   // Pre-process template: inline CSS assets to eliminate extra requests
   let template = options.template;
@@ -86,7 +95,8 @@ export function createSSRHandler(
     for (const [href, css] of Object.entries(inlineCSS)) {
       const escapedHref = href.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const linkPattern = new RegExp(`<link[^>]*href=["']${escapedHref}["'][^>]*>`);
-      template = template.replace(linkPattern, `<style data-vertz-css>${css}</style>`);
+      const safeCss = css.replace(/<\//g, '<\\/');
+      template = template.replace(linkPattern, `<style data-vertz-css>${safeCss}</style>`);
     }
   }
 
@@ -100,7 +110,7 @@ export function createSSRHandler(
     }
 
     // Normal HTML request: SSR render
-    return handleHTMLRequest(module, template, pathname, ssrTimeout);
+    return handleHTMLRequest(module, template, pathname, ssrTimeout, nonce);
   };
 }
 
@@ -151,10 +161,11 @@ async function handleHTMLRequest(
   template: string,
   url: string,
   ssrTimeout?: number,
+  nonce?: string,
 ): Promise<Response> {
   try {
     const result = await ssrRenderToString(module, url, { ssrTimeout });
-    const html = injectIntoTemplate(template, result.html, result.css, result.ssrData);
+    const html = injectIntoTemplate(template, result.html, result.css, result.ssrData, nonce);
 
     return new Response(html, {
       status: 200,

@@ -16,26 +16,35 @@ function resolveOrigin(config: CorsConfig, requestOrigin: string | null): string
 }
 
 export function handleCors(config: CorsConfig, request: Request): Response | null {
+  if (config.credentials && (config.origins === true || config.origins === '*')) {
+    throw new Error(
+      'CORS misconfiguration: credentials cannot be used with wildcard origins. ' +
+        'Browsers will reject the response. Use an explicit origin allowlist instead.',
+    );
+  }
+
   const requestOrigin = request.headers.get('origin');
   const origin = resolveOrigin(config, requestOrigin);
 
   if (request.method === 'OPTIONS') {
     const headers: Record<string, string> = {};
 
-    if (origin) headers['access-control-allow-origin'] = origin;
+    if (origin) {
+      headers['access-control-allow-origin'] = origin;
 
-    const methods = config.methods ?? DEFAULT_METHODS;
-    headers['access-control-allow-methods'] = methods.join(', ');
+      const methods = config.methods ?? DEFAULT_METHODS;
+      headers['access-control-allow-methods'] = methods.join(', ');
 
-    const allowHeaders = config.headers ?? DEFAULT_HEADERS;
-    headers['access-control-allow-headers'] = allowHeaders.join(', ');
+      const allowHeaders = config.headers ?? DEFAULT_HEADERS;
+      headers['access-control-allow-headers'] = allowHeaders.join(', ');
 
-    if (config.maxAge !== undefined) {
-      headers['access-control-max-age'] = String(config.maxAge);
-    }
+      if (config.maxAge !== undefined) {
+        headers['access-control-max-age'] = String(config.maxAge);
+      }
 
-    if (config.credentials) {
-      headers['access-control-allow-credentials'] = 'true';
+      if (config.credentials) {
+        headers['access-control-allow-credentials'] = 'true';
+      }
     }
 
     return new Response(null, { status: 204, headers });
@@ -49,6 +58,13 @@ export function applyCorsHeaders(
   request: Request,
   response: Response,
 ): Response {
+  if (config.credentials && (config.origins === true || config.origins === '*')) {
+    throw new Error(
+      'CORS misconfiguration: credentials cannot be used with wildcard origins. ' +
+        'Browsers will reject the response. Use an explicit origin allowlist instead.',
+    );
+  }
+
   const requestOrigin = request.headers.get('origin');
   const origin = resolveOrigin(config, requestOrigin);
 

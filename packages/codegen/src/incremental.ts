@@ -1,6 +1,6 @@
 import type { Dirent } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { hashContent } from './hasher';
 import type { GeneratedFile } from './types';
 
@@ -72,6 +72,10 @@ export async function writeIncremental(
   // Write or skip each generated file
   for (const file of files) {
     const filePath = join(outputDir, file.path);
+    const resolvedPath = resolve(filePath);
+    if (!resolvedPath.startsWith(resolve(outputDir))) {
+      throw new Error(`Generated file path "${file.path}" escapes output directory`);
+    }
     const dir = dirname(filePath);
     await mkdir(dir, { recursive: true });
 

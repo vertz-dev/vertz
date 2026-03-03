@@ -137,4 +137,30 @@ describe('renderPage', () => {
     const html = await response.text();
     expect(html).toContain('og:description" content="My description"');
   });
+
+  describe('XSS escaping', () => {
+    it('escapes lang attribute to prevent attribute injection', async () => {
+      const vnode = createVNode(['Hello']);
+      const response = renderPage(vnode, { lang: '" onload="alert(1)' });
+      const html = await response.text();
+
+      // The raw double-quote must not break out of the lang attribute
+      expect(html).not.toContain('lang="" onload="alert(1)"');
+      // The escaped version should be present
+      expect(html).toContain('lang="&quot; onload=&quot;alert(1)"');
+    });
+
+    it('escapes script src attributes to prevent attribute injection', async () => {
+      const vnode = createVNode(['Hello']);
+      const response = renderPage(vnode, {
+        scripts: ['" onload="alert(1)'],
+      });
+      const html = await response.text();
+
+      // The raw double-quote must not break out of the src attribute
+      expect(html).not.toContain('src="" onload="alert(1)"');
+      // The escaped version should be present
+      expect(html).toContain('src="&quot; onload=&quot;alert(1)"');
+    });
+  });
 });
