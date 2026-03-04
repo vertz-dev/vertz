@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { EntityStore } from '../entity-store';
 import type { SerializedStore } from '../types';
 
@@ -17,11 +17,11 @@ describe('EntityStore - hydration', () => {
   it('dehydrate returns entities as plain objects (not signals)', () => {
     const store = new EntityStore();
     store.merge('User', { id: '1', name: 'Alice', age: 30 });
-    
+
     const serialized = store.dehydrate();
-    
+
     expect(serialized.entities.User).toEqual({
-      '1': { id: '1', name: 'Alice', age: 30 }
+      '1': { id: '1', name: 'Alice', age: 30 },
     });
     expect(typeof serialized.entities.User?.['1']).toBe('object');
   });
@@ -30,16 +30,16 @@ describe('EntityStore - hydration', () => {
     const store = new EntityStore();
     store.merge('User', [
       { id: '1', name: 'Alice' },
-      { id: '2', name: 'Bob' }
+      { id: '2', name: 'Bob' },
     ]);
-    
+
     // Access internal query index for testing
     (store as any)._queryIndices.set('users:all', ['1', '2']);
-    
+
     const serialized = store.dehydrate();
-    
+
     expect(serialized.queries).toEqual({
-      'users:all': { ids: ['1', '2'] }
+      'users:all': { ids: ['1', '2'] },
     });
   });
 
@@ -49,13 +49,13 @@ describe('EntityStore - hydration', () => {
       entities: {
         User: {
           '1': { id: '1', name: 'Alice' },
-          '2': { id: '2', name: 'Bob' }
-        }
-      }
+          '2': { id: '2', name: 'Bob' },
+        },
+      },
     };
-    
+
     store.hydrate(data);
-    
+
     expect(store.get<User>('User', '1').value).toEqual({ id: '1', name: 'Alice' });
     expect(store.get<User>('User', '2').value).toEqual({ id: '2', name: 'Bob' });
   });
@@ -65,14 +65,14 @@ describe('EntityStore - hydration', () => {
     const data: SerializedStore = {
       entities: {
         User: {
-          '1': { id: '1', name: 'Alice', age: 30 }
-        }
-      }
+          '1': { id: '1', name: 'Alice', age: 30 },
+        },
+      },
     };
-    
+
     store.hydrate(data);
     const signal = store.get<User>('User', '1');
-    
+
     expect(signal.value).toEqual({ id: '1', name: 'Alice', age: 30 });
   });
 
@@ -81,18 +81,18 @@ describe('EntityStore - hydration', () => {
     const data: SerializedStore = {
       entities: {
         User: {
-          '1': { id: '1', name: 'Alice' }
-        }
-      }
+          '1': { id: '1', name: 'Alice' },
+        },
+      },
     };
-    
+
     store.hydrate(data);
     store.merge('User', { id: '1', age: 30 });
-    
-    expect(store.get<User>('User', '1').value).toEqual({ 
-      id: '1', 
-      name: 'Alice', 
-      age: 30 
+
+    expect(store.get<User>('User', '1').value).toEqual({
+      id: '1',
+      name: 'Alice',
+      age: 30,
     });
   });
 
@@ -100,18 +100,18 @@ describe('EntityStore - hydration', () => {
     const store1 = new EntityStore();
     store1.merge('User', [
       { id: '1', name: 'Alice', age: 30 },
-      { id: '2', name: 'Bob', age: 25 }
+      { id: '2', name: 'Bob', age: 25 },
     ]);
     store1.merge('Post', [
       { id: 'p1', title: 'Hello' },
-      { id: 'p2', title: 'World' }
+      { id: 'p2', title: 'World' },
     ]);
-    
+
     const serialized = store1.dehydrate();
-    
+
     const store2 = new EntityStore();
     store2.hydrate(serialized);
-    
+
     expect(store2.get<User>('User', '1').value).toEqual({ id: '1', name: 'Alice', age: 30 });
     expect(store2.get<User>('User', '2').value).toEqual({ id: '2', name: 'Bob', age: 25 });
     expect(store2.get<Post>('Post', 'p1').value).toEqual({ id: 'p1', title: 'Hello' });
@@ -121,27 +121,27 @@ describe('EntityStore - hydration', () => {
   it('hydrate with empty data is no-op', () => {
     const store = new EntityStore();
     store.merge('User', { id: '1', name: 'Alice' });
-    
+
     store.hydrate({ entities: {} });
-    
+
     expect(store.get<User>('User', '1').value).toEqual({ id: '1', name: 'Alice' });
   });
 
-  it('hydrate into non-empty store merges (doesn\'t replace)', () => {
+  it("hydrate into non-empty store merges (doesn't replace)", () => {
     const store = new EntityStore();
     store.merge('User', { id: '1', name: 'Alice' });
     store.merge('Post', { id: 'p1', title: 'Existing' });
-    
+
     const data: SerializedStore = {
       entities: {
         User: {
-          '2': { id: '2', name: 'Bob' }
-        }
-      }
+          '2': { id: '2', name: 'Bob' },
+        },
+      },
     };
-    
+
     store.hydrate(data);
-    
+
     // Original entities still there
     expect(store.get<User>('User', '1').value).toEqual({ id: '1', name: 'Alice' });
     expect(store.get<Post>('Post', 'p1').value).toEqual({ id: 'p1', title: 'Existing' });
@@ -154,16 +154,16 @@ describe('EntityStore - hydration', () => {
     const data: SerializedStore = {
       entities: {
         User: {
-          '1': { id: '1', name: 'Alice' }
+          '1': { id: '1', name: 'Alice' },
         },
         Post: {
-          'p1': { id: 'p1', title: 'Hello' }
-        }
-      }
+          p1: { id: 'p1', title: 'Hello' },
+        },
+      },
     };
-    
+
     store.hydrate(data);
-    
+
     expect(store.get<User>('User', '1').value).toEqual({ id: '1', name: 'Alice' });
     expect(store.get<Post>('Post', 'p1').value).toEqual({ id: 'p1', title: 'Hello' });
   });
@@ -172,15 +172,15 @@ describe('EntityStore - hydration', () => {
     const store1 = new EntityStore();
     store1.merge('User', [
       { id: '1', name: 'Alice' },
-      { id: '2', name: 'Bob' }
+      { id: '2', name: 'Bob' },
     ]);
     (store1 as any)._queryIndices.set('users:all', ['1', '2']);
-    
+
     const serialized = store1.dehydrate();
-    
+
     const store2 = new EntityStore();
     store2.hydrate(serialized);
-    
+
     expect((store2 as any)._queryIndices.get('users:all')).toEqual(['1', '2']);
   });
 
@@ -188,13 +188,13 @@ describe('EntityStore - hydration', () => {
     const data: SerializedStore = {
       entities: {
         User: {
-          '1': { id: '1', name: 'Alice' }
-        }
-      }
+          '1': { id: '1', name: 'Alice' },
+        },
+      },
     };
-    
+
     const store = new EntityStore({ initialData: data });
-    
+
     expect(store.get<User>('User', '1').value).toEqual({ id: '1', name: 'Alice' });
   });
 });

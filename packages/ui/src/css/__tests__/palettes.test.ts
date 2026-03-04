@@ -1,9 +1,21 @@
 import { describe, expect, it } from 'bun:test';
+import { type ColorPalette, palettes } from '../palettes';
 import { compileTheme, defineTheme } from '../theme';
-import { palettes, type ColorPalette } from '../palettes';
 
 const OKLCH_PATTERN = /^oklch\([^)]+\)$/;
-const SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'] as const;
+const SHADES = [
+  '50',
+  '100',
+  '200',
+  '300',
+  '400',
+  '500',
+  '600',
+  '700',
+  '800',
+  '900',
+  '950',
+] as const;
 
 describe('palettes', () => {
   // Palettes should exist
@@ -84,7 +96,7 @@ describe('palettes', () => {
 
 describe('defineTheme with palette objects', () => {
   it('should accept a palette object for color namespace', () => {
-    // This tests that when we pass a palette object (like palettes.blue) 
+    // This tests that when we pass a palette object (like palettes.blue)
     // to defineTheme, it expands into the shade map
     const theme = defineTheme({
       colors: {

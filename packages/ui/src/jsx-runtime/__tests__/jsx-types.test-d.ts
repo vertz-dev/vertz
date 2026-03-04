@@ -1,7 +1,7 @@
 // Type tests for JSX runtime - compile-time assertions
 // These should compile without errors if types are correct
 
-import { jsx, Fragment, jsxDEV } from '../index';
+import { Fragment, jsx, jsxDEV } from '../index';
 
 // Test that jsx returns the correct element types for intrinsic elements
 // Using void to avoid unused variable warnings

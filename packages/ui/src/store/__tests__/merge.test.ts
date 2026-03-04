@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'bun:test';
-import { shallowMerge, shallowEqual } from '../merge';
+import { describe, expect, it } from 'bun:test';
+import { shallowEqual, shallowMerge } from '../merge';
 
 describe('shallowMerge', () => {
   it('adds new fields', () => {

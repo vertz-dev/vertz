@@ -263,10 +263,9 @@ describe('bun-dev-server integration', () => {
         // The normalize() + startsWith() guard in bun-dev-server.ts should
         // prevent resolving to a path outside projectRoot.
         const filename = secretPath.split('/').pop();
-        const res = await fetch(
-          `http://localhost:${port}/../${filename}`,
-          { headers: { Accept: 'text/plain' } },
-        );
+        const res = await fetch(`http://localhost:${port}/../${filename}`, {
+          headers: { Accept: 'text/plain' },
+        });
         const body = await res.text();
 
         // Should NOT contain the secret content
@@ -292,10 +291,9 @@ describe('bun-dev-server integration', () => {
       await devServer.start();
 
       // Attempt to read /etc/passwd via deep path traversal
-      const res = await fetch(
-        `http://localhost:${port}/..%2F..%2F..%2F..%2F..%2Fetc%2Fpasswd`,
-        { headers: { Accept: 'text/plain' } },
-      );
+      const res = await fetch(`http://localhost:${port}/..%2F..%2F..%2F..%2F..%2Fetc%2Fpasswd`, {
+        headers: { Accept: 'text/plain' },
+      });
       const body = await res.text();
 
       // Should NOT contain passwd-style content

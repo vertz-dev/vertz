@@ -4,7 +4,7 @@
 export interface SerializedStore {
   /** Entity data keyed by type → id → entity */
   entities: Record<string, Record<string, unknown>>;
-  
+
   /** Query result indices (optional) */
   queries?: Record<string, { ids: string[]; nextCursor?: string | null }>;
 }

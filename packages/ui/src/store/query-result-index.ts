@@ -24,7 +24,7 @@ export class QueryResultIndex {
    */
   removeEntity(entityId: string): void {
     for (const [queryKey, ids] of this._indices.entries()) {
-      const filtered = ids.filter(id => id !== entityId);
+      const filtered = ids.filter((id) => id !== entityId);
       if (filtered.length !== ids.length) {
         this._indices.set(queryKey, filtered);
       }
