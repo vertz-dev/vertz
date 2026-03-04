@@ -21,6 +21,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, watch, writeFileSync } from 'node:fs';
 import { dirname, normalize, resolve } from 'node:path';
+import { createSourceMapResolver, readLineText } from './source-map-resolver';
 import type { SSRModule } from './ssr-render';
 import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
 import { safeSerialize } from './ssr-streaming-runtime';
@@ -67,8 +68,13 @@ export interface BunDevServer {
   stop(): Promise<void>;
   /** Broadcast an error to all connected WebSocket clients. */
   broadcastError(category: ErrorCategory, errors: ErrorDetail[]): void;
-  /** Clear current error and notify all connected WebSocket clients. */
+  /** Clear current error and notify all connected WebSocket clients.
+   *  Sets a 5s grace period that suppresses stale runtime errors. */
   clearError(): void;
+  /** Clear error for a file change — no grace period, since HMR may trigger new errors. */
+  clearErrorForFileChange(): void;
+  /** Set the last changed file path (for testing). */
+  setLastChangedFile(file: string): void;
 }
 
 /**
@@ -179,6 +185,9 @@ const ERROR_CHANNEL_SCRIPT = [
   '<script>(function(){',
   // Shared overlay namespace
   'var V=window.__vertz_overlay={};',
+  // _ws: reference to the current WebSocket, used by error handlers to send
+  // resolve-stack messages for source map resolution.
+  'V._ws=null;',
   // _src tracks who created the current overlay: "ws" or "client"
   'V._src=null;',
   // _hadClientError: set when a client-side runtime error is detected. WS clear
@@ -224,6 +233,26 @@ const ERROR_CHANNEL_SCRIPT = [
   "g.msgs.forEach(function(m){h+='<div style=\"color:var(--ve-error);font-size:12px;margin:2px 0\">'+V.esc(m.message)+'</div>'});",
   "if(g.lineText){h+='<pre style=\"margin:4px 0 0;color:var(--ve-code);font-size:11px;background:var(--ve-code-bg);border-radius:4px;padding:6px 8px;overflow-x:auto;border:1px solid var(--ve-border)\">'+V.esc(g.lineText)+'</pre>'}",
   "return'<div style=\"margin-bottom:10px\">'+h+'</div>'}).join('')};",
+  // formatStack(): render parsedStack frames as clickable links
+  'V.formatStack=function(frames){',
+  "if(!frames||!frames.length)return'';",
+  'var h=\'<div style="margin-top:8px;border-top:1px solid var(--ve-border);padding-top:8px">\';',
+  // Show first 3 frames, rest collapsible
+  'var visible=frames.slice(0,3);var hidden=frames.slice(3);',
+  'visible.forEach(function(f){h+=V._renderFrame(f)});',
+  'if(hidden.length){h+=\'<details style="margin-top:2px"><summary style="color:var(--ve-muted);font-size:11px;cursor:pointer;list-style:none">\'',
+  "+hidden.length+' more frame'+(hidden.length>1?'s':'')+'</summary>';",
+  "hidden.forEach(function(f){h+=V._renderFrame(f)});h+='</details>'}",
+  "return h+'</div>'};",
+  // _renderFrame(): single stack frame
+  'V._renderFrame=function(f){',
+  "var name=f.functionName||'(anonymous)';",
+  "var loc=V.esc(f.file)+(f.line?':'+f.line:'');",
+  "var isSrc=f.file&&f.file.indexOf('src/')!==-1&&f.file.indexOf('node_modules')===-1;",
+  "var color=isSrc?'var(--ve-fg)':'var(--ve-muted)';",
+  "var href=f.absFile?'vscode://file/'+encodeURI(f.absFile)+(f.line?':'+f.line:''):'';",
+  "var link=href?'<a href=\"'+href+'\" style=\"color:var(--ve-link);text-decoration:underline;text-underline-offset:2px\">'+loc+'</a>':'<span>'+loc+'</span>';",
+  "return'<div style=\"font-size:11px;color:'+color+';margin:1px 0;font-family:ui-monospace,monospace\">'+V.esc(name)+' '+link+'</div>'};",
   // removeOverlay(): remove card + data element
   "V.removeOverlay=function(){V._src=null;var e=document.getElementById('__vertz_error');if(e)e.remove();" +
     "var d=document.getElementById('__vertz_error_data');if(d)d.remove()};",
@@ -261,6 +290,7 @@ const ERROR_CHANNEL_SCRIPT = [
   'function connect(){',
   "var p=location.protocol==='https:'?'wss:':'ws:';",
   "var ws=new WebSocket(p+'//'+location.host+'/__vertz_errors');",
+  'V._ws=ws;',
   'ws.onmessage=function(e){',
   'try{var m=JSON.parse(e.data);',
   // WS error → show overlay (source: "ws").
@@ -269,7 +299,7 @@ const ERROR_CHANNEL_SCRIPT = [
   // arriving now are stale (Bun frontend forwarding, module cache lag).
   "if(m.type==='error'){",
   'if(V._recovering)return;',
-  "V.showOverlay(m.category==='build'?'Build failed':m.category==='ssr'?'SSR error':m.category==='resolve'?'Module not found':'Runtime error',V.formatErrors(m.errors),m,'ws')}",
+  "V.showOverlay(m.category==='build'?'Build failed':m.category==='ssr'?'SSR error':m.category==='resolve'?'Module not found':'Runtime error',V.formatErrors(m.errors)+V.formatStack(m.parsedStack),m,'ws')}",
   // WS clear → error is resolved server-side.
   // Priority: (1) _needsReload → controlled reload immediately
   //           (2) #app empty → page never rendered, reload for recovery
@@ -283,9 +313,13 @@ const ERROR_CHANNEL_SCRIPT = [
   'V.removeOverlay()}',
   "else if(m.type==='connected'){delay=1000}",
   '}catch(ex){}};',
-  'ws.onclose=function(){setTimeout(function(){delay=Math.min(delay*2,maxDelay);connect()},delay)};',
+  'ws.onclose=function(){V._ws=null;setTimeout(function(){delay=Math.min(delay*2,maxDelay);connect()},delay)};',
   'ws.onerror=function(){ws.close()}}',
   'connect();',
+  // sendResolveStack: if WS is connected, ask server to resolve the stack
+  // trace via source maps. The server will broadcast the enriched error back.
+  'V._sendResolveStack=function(stack,msg){',
+  'if(V._ws&&V._ws.readyState===1){try{V._ws.send(JSON.stringify({type:"resolve-stack",stack:stack,message:msg}))}catch(e){}}};',
   // Runtime error capture — source: "client".
   // During recovery (_recovering), suppress runtime errors if #app already has
   // content. Bun's HMR may send stale module updates after a controlled reload.
@@ -298,9 +332,18 @@ const ERROR_CHANNEL_SCRIPT = [
   // Auto-clear recovery mode after 5s in case no errors fire
   'if(V._recovering){setTimeout(function(){V._recovering=false},5000)}',
   "window.addEventListener('error',function(e){",
-  "showRuntimeError('Runtime error',[{message:e.message||String(e.error),file:e.filename,line:e.lineno,column:e.colno}],{type:'error',category:'runtime',errors:[{message:e.message||String(e.error),file:e.filename,line:e.lineno,column:e.colno}]})});",
+  'var msg=e.message||String(e.error);',
+  'var stk=e.error&&e.error.stack;',
+  'if(stk){V._sendResolveStack(stk,msg)}',
+  // Don't show bundled /_bun/ URLs in the overlay — they're not useful.
+  // Show just the message; the server's resolve-stack response will provide source file info.
+  "var f=e.filename,isBundled=f&&(f.indexOf('/_bun/')!==-1||f.indexOf('blob:')!==-1);",
+  'var errInfo=isBundled?{message:msg}:{message:msg,file:f,line:e.lineno,column:e.colno};',
+  "showRuntimeError('Runtime error',[errInfo],{type:'error',category:'runtime',errors:[errInfo]})});",
   "window.addEventListener('unhandledrejection',function(e){",
   'var m=e.reason instanceof Error?e.reason.message:String(e.reason);',
+  'var stk=e.reason&&e.reason.stack;',
+  'if(stk){V._sendResolveStack(stk,m)}',
   "showRuntimeError('Runtime error',[{message:m}],{type:'error',category:'runtime',errors:[{message:m}]})});",
   // HMR error/success tracking — Bun's fast-refresh catches errors in try/catch,
   // so they never reach window.onerror. Intercept console to detect them.
@@ -312,7 +355,11 @@ const ERROR_CHANNEL_SCRIPT = [
   'console.error=function(){',
   "var t=Array.prototype.join.call(arguments,' ');",
   'var hmr=t.match(/\\[vertz-hmr\\] Error re-mounting (\\w+): ([\\s\\S]*?)(?:\\n\\s+at |$)/);',
-  "if(hmr){hmrErr=true;V._hadClientError=true;V.showOverlay('Runtime error',V.formatErrors([{message:hmr[2].split('\\n')[0]}]),{type:'error',category:'runtime',errors:[{message:hmr[2].split('\\n')[0]}]},'client')}",
+  'if(hmr){hmrErr=true;V._hadClientError=true;',
+  // Don't send resolve-stack for HMR errors — the server-side console.error
+  // intercept handles these with lastChangedFile context and lineText.
+  // Client just shows a minimal placeholder overlay; the server broadcast replaces it.
+  "V.showOverlay('Runtime error',V.formatErrors([{message:hmr[2].split('\\n')[0]}]),{type:'error',category:'runtime',errors:[{message:hmr[2].split('\\n')[0]}]},'client')}",
   'origCE.apply(console,arguments)};',
   'console.log=function(){',
   "var t=Array.prototype.join.call(arguments,' ');",
@@ -506,16 +553,21 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
   let server: ReturnType<typeof Bun.serve> | null = null;
   let srcWatcherRef: ReturnType<typeof watch> | null = null;
-  let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
-  let stopped = false;
 
   // ── WebSocket error channel state ────────────────────────────
   const wsClients = new Set<import('bun').ServerWebSocket<unknown>>();
   let currentError: { category: ErrorCategory; errors: ErrorDetail[] } | null = null;
+  const sourceMapResolver = createSourceMapResolver(projectRoot);
   // Grace period after clearError — suppresses stale runtime/frontend errors
   // that Bun forwards from the browser console after the error source is fixed.
   // Only affects 'runtime' category; build/resolve/ssr errors are always broadcast.
   let clearGraceUntil = 0;
+
+  // Debounce timer for runtime errors — HMR cascades fire multiple errors
+  // (TaskCard → TaskListPage → App) in rapid succession. We collect them
+  // over a short window and only broadcast the most informative one.
+  let runtimeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let pendingRuntimeError: ErrorDetail[] | null = null;
 
   function broadcastError(category: ErrorCategory, errors: ErrorDetail[]): void {
     // Build errors are root cause — don't let SSR/runtime errors overwrite them
@@ -526,6 +578,28 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     if (category === 'runtime' && Date.now() < clearGraceUntil) {
       return;
     }
+    // Debounce runtime errors to avoid cascading overlays
+    if (category === 'runtime') {
+      // Keep the most informative error (one with file info)
+      if (!pendingRuntimeError || errors.some((e) => e.file)) {
+        pendingRuntimeError = errors;
+      }
+      if (!runtimeDebounceTimer) {
+        runtimeDebounceTimer = setTimeout(() => {
+          runtimeDebounceTimer = null;
+          const errs = pendingRuntimeError;
+          pendingRuntimeError = null;
+          if (errs) {
+            currentError = { category: 'runtime', errors: errs };
+            const msg = JSON.stringify({ type: 'error', category: 'runtime', errors: errs });
+            for (const ws of wsClients) {
+              ws.sendText(msg);
+            }
+          }
+        }, 100);
+      }
+      return;
+    }
     currentError = { category, errors };
     const msg = JSON.stringify({ type: 'error', category, errors });
     for (const ws of wsClients) {
@@ -534,9 +608,32 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   }
 
   function clearError(): void {
-    if (currentError === null) return;
+    if (currentError === null && !pendingRuntimeError) return;
     currentError = null;
+    // Cancel any pending debounced runtime error
+    if (runtimeDebounceTimer) {
+      clearTimeout(runtimeDebounceTimer);
+      runtimeDebounceTimer = null;
+      pendingRuntimeError = null;
+    }
     clearGraceUntil = Date.now() + 5000;
+    const msg = JSON.stringify({ type: 'clear' });
+    for (const ws of wsClients) {
+      ws.sendText(msg);
+    }
+  }
+
+  /** Clear error for a file change — no grace period, since new errors are expected. */
+  function clearErrorForFileChange(): void {
+    if (currentError === null && !pendingRuntimeError) return;
+    currentError = null;
+    if (runtimeDebounceTimer) {
+      clearTimeout(runtimeDebounceTimer);
+      runtimeDebounceTimer = null;
+      pendingRuntimeError = null;
+    }
+    // No grace period — HMR errors from this save cycle are legitimate
+    clearGraceUntil = 0;
     const msg = JSON.stringify({ type: 'clear' });
     for (const ws of wsClients) {
       ws.sendText(msg);
@@ -566,12 +663,15 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       const locMatch = srcLine.match(/(?:at .+? \(|at )(.+?):(\d+):(\d+)/);
       if (locMatch) {
         const absFile = locMatch[1];
+        const line = Number(locMatch[2]);
+        const lineText = absFile ? readLineText(absFile, line) : undefined;
         return {
           message: '',
           file: absFile?.replace(projectRoot, '').replace(/^\//, ''),
           absFile,
-          line: Number(locMatch[2]),
+          line,
           column: Number(locMatch[3]),
+          lineText,
         };
       }
     }
@@ -612,6 +712,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               absFile: loc.absFile,
               line: loc.line,
               column: loc.column,
+              lineText: loc.lineText,
             },
           ]);
         }
@@ -633,6 +734,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
                 absFile: loc.absFile,
                 line: loc.line,
                 column: loc.column,
+                lineText: loc.lineText,
               },
             ]);
           }
@@ -707,8 +809,6 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   // ── Unified SSR + HMR ────────────────────────────────────────────
 
   async function start(): Promise<void> {
-    stopped = false;
-
     // Stash index.html so Bun's dev server doesn't auto-serve it
     indexHtmlStasher.stash();
 
@@ -1024,6 +1124,90 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             const data = JSON.parse(typeof msg === 'string' ? msg : new TextDecoder().decode(msg));
             if (data.type === 'ping') {
               ws.sendText(JSON.stringify({ type: 'pong' }));
+            } else if (data.type === 'resolve-stack' && data.stack) {
+              // Client sent an Error.stack for source map resolution
+              const selfFetch = async (url: string) => {
+                // Convert relative /_bun/ URL to absolute for self-fetch
+                const absUrl = url.startsWith('http')
+                  ? url
+                  : `http://${host}:${server?.port}${url}`;
+                return fetch(absUrl);
+              };
+              sourceMapResolver
+                .resolveStack(data.stack, data.message ?? '', selfFetch)
+                .then((result) => {
+                  const hasFileInfo = result.errors.some((e) => e.file);
+                  // If resolution couldn't find source files, enrich the
+                  // response with the best available file context:
+                  // 1. currentError (from server-side HMR handler)
+                  // 2. lastChangedFile (always set by the file watcher)
+                  if (!hasFileInfo) {
+                    const msg = result.errors[0]?.message ?? '';
+                    let enrichedErrors: ErrorDetail[] | null = null;
+
+                    if (currentError?.errors.some((e) => e.file)) {
+                      enrichedErrors = currentError.errors.map((e) => ({
+                        ...e,
+                        message: msg || e.message,
+                      }));
+                    } else if (lastChangedFile) {
+                      const absFile = resolve(projectRoot, lastChangedFile);
+                      enrichedErrors = [{ message: msg, file: lastChangedFile, absFile }];
+                    }
+
+                    if (enrichedErrors) {
+                      const payload = {
+                        type: 'error',
+                        category: 'runtime' as ErrorCategory,
+                        errors: enrichedErrors,
+                        parsedStack: result.parsedStack,
+                      };
+                      currentError = { category: 'runtime', errors: enrichedErrors };
+                      const text = JSON.stringify(payload);
+                      for (const client of wsClients) {
+                        client.sendText(text);
+                      }
+                      return;
+                    }
+                  }
+                  const payload = {
+                    type: 'error',
+                    category: 'runtime' as ErrorCategory,
+                    errors: result.errors,
+                    parsedStack: result.parsedStack,
+                  };
+                  currentError = { category: 'runtime', errors: result.errors };
+                  const text = JSON.stringify(payload);
+                  for (const client of wsClients) {
+                    client.sendText(text);
+                  }
+                })
+                .catch(() => {
+                  // Resolution failed — use currentError or lastChangedFile
+                  let errors: ErrorDetail[] | undefined;
+                  if (currentError?.errors.some((e) => e.file)) {
+                    errors = currentError.errors;
+                  } else if (lastChangedFile) {
+                    const absFile = resolve(projectRoot, lastChangedFile);
+                    errors = [
+                      { message: data.message ?? 'Unknown error', file: lastChangedFile, absFile },
+                    ];
+                  }
+                  if (errors) {
+                    const payload = {
+                      type: 'error',
+                      category: 'runtime' as ErrorCategory,
+                      errors,
+                    };
+                    currentError = { category: 'runtime', errors };
+                    const text = JSON.stringify(payload);
+                    for (const client of wsClients) {
+                      client.sendText(text);
+                    }
+                  } else {
+                    broadcastError('runtime', [{ message: data.message ?? 'Unknown error' }]);
+                  }
+                });
             }
           } catch {
             // Ignore malformed messages
@@ -1073,24 +1257,25 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
     // Watch for file changes — re-discover hash + re-import SSR module
     const srcDir = resolve(projectRoot, 'src');
+    let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
 
     if (existsSync(srcDir)) {
       srcWatcherRef = watch(srcDir, { recursive: true }, (_event, filename) => {
         if (!filename) return;
         if (refreshTimeout) clearTimeout(refreshTimeout);
         refreshTimeout = setTimeout(async () => {
-          if (stopped) return;
           // Track last changed file for runtime error context
           lastChangedFile = `src/${filename}`;
           // Reset broadcast dedup so a new file change can re-broadcast
           lastBroadcastedError = '';
+          // Invalidate source map cache — bundle hashes change on every edit
+          sourceMapResolver.invalidate();
           if (logRequests) {
             console.log(`[Server] File changed: ${filename}`);
           }
 
           // Re-discover HMR assets (hash changes on every edit)
           await discoverHMRAssets();
-          if (stopped) return;
 
           // Proactive build check — detect errors before the client fetches
           try {
@@ -1101,7 +1286,6 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               target: 'browser',
               throw: false,
             });
-            if (stopped) return;
             if (!result.success && result.logs.length > 0) {
               const errors = result.logs
                 .filter((l) => l.level === 'error')
@@ -1126,19 +1310,19 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               // Poll until the hash changes or timeout (Bun typically updates in ~500ms).
               const prevUrl = bundledScriptUrl;
               for (let attempt = 0; attempt < 5; attempt++) {
-                if (stopped) return;
                 await new Promise((r) => setTimeout(r, 200));
                 await discoverHMRAssets();
                 if (bundledScriptUrl !== prevUrl) break;
               }
-              if (!stopped) clearError();
+              // Clear optimistically — if HMR fails, new errors will come in.
+              // Don't set grace period: errors from this save cycle are
+              // legitimate, not stale leftovers.
+              clearErrorForFileChange();
             }
           } catch {
             // Bun.build() itself failed — ignore, the fetch-validate loader
             // will catch this on next page load
           }
-
-          if (stopped) return;
 
           // Re-import SSR module — clear require cache for all project source
           // files so transitive dependencies (e.g., mock-data.ts) are re-evaluated.
@@ -1156,12 +1340,10 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               console.log('[Server] SSR module refreshed');
             }
           } catch (e) {
-            if (stopped) return;
             // First import may fail due to stale Bun module cache (race between
             // file watcher and Bun's dev bundler recompilation). Retry once after
             // a delay to let Bun's module graph settle.
             await new Promise((r) => setTimeout(r, 500));
-            if (stopped) return;
             for (const key of Object.keys(require.cache)) {
               if (key.startsWith(srcDir) || key.startsWith(entryPath)) {
                 delete require.cache[key];
@@ -1192,15 +1374,12 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     start,
     broadcastError,
     clearError,
+    clearErrorForFileChange,
+    setLastChangedFile(file: string) {
+      lastChangedFile = file;
+    },
 
     async stop() {
-      stopped = true;
-
-      if (refreshTimeout) {
-        clearTimeout(refreshTimeout);
-        refreshTimeout = null;
-      }
-
       if (specWatcher) {
         specWatcher.close();
         specWatcher = null;

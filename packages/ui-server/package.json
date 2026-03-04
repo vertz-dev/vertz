@@ -47,11 +47,11 @@
   "scripts": {
     "build": "bunup",
     "test": "bun test",
-    "test:integration": "bun test src/__tests__/bun-dev-server.integration.local.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@ampproject/remapping": "^2.3.0",
+    "@jridgewell/trace-mapping": "^0.3.31",
     "@vertz/core": "workspace:*",
     "@vertz/ui": "workspace:*",
     "@vertz/ui-compiler": "workspace:*",
