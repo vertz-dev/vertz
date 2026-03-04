@@ -204,10 +204,9 @@ describe('buildScriptTag', () => {
     const tag = buildScriptTag('/_bun/client/abc123.js', null, './src/app.tsx');
 
     expect(tag).toContain('/__vertz_build_check');
-    // Should render file, line, and lineText from structured errors
-    expect(tag).toContain('e.file');
-    expect(tag).toContain('e.line');
-    expect(tag).toContain('e.lineText');
+    // Should use shared overlay namespace for formatting
+    expect(tag).toContain('__vertz_overlay');
+    expect(tag).toContain('formatErrors');
   });
 
   it('generates plain module script when no bundledScriptUrl', () => {
@@ -360,6 +359,74 @@ describe('generateSSRPageHtml', () => {
     expect(guardIndex).toBeGreaterThan(-1);
     expect(mainScriptIndex).toBeGreaterThan(-1);
     expect(guardIndex).toBeLessThan(mainScriptIndex);
+  });
+
+  it('includes error channel script in <head> before reload guard', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    const errorChannelIdx = html.indexOf('__vertz_errors');
+    const reloadGuardIdx = html.indexOf('__vertz_reload_count');
+    expect(errorChannelIdx).toBeGreaterThan(-1);
+    expect(reloadGuardIdx).toBeGreaterThan(-1);
+    expect(errorChannelIdx).toBeLessThan(reloadGuardIdx);
+  });
+
+  it('error channel script contains WebSocket URL', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    expect(html).toContain('__vertz_errors');
+    expect(html).toContain('WebSocket');
+  });
+
+  it('error channel script contains __vertz_error_data for MCP access', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    expect(html).toContain('__vertz_error_data');
+  });
+
+  it('error channel script includes window error listener for runtime errors', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    expect(html).toContain('addEventListener');
+    expect(html).toContain('error');
+    expect(html).toContain('unhandledrejection');
+  });
+
+  it('shared overlay functions are accessible by both error channel and build error loader', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // The shared overlay namespace should be set by the error channel script
+    expect(html).toContain('__vertz_overlay');
   });
 
   it('does not embed build error data element (errors fetched via /__vertz_build_check)', () => {
