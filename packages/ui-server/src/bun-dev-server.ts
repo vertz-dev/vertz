@@ -1126,10 +1126,13 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         } catch (err) {
           console.error('[Server] SSR error:', err);
 
-          // Broadcast SSR error to connected WebSocket clients
+          // Broadcast SSR error to connected WebSocket clients with source location
           const errMsg = err instanceof Error ? err.message : String(err);
           const errStack = err instanceof Error ? err.stack : undefined;
-          broadcastError('ssr', [{ message: errMsg, stack: errStack }]);
+          const { message: _, ...loc } = errStack
+            ? parseSourceFromStack(errStack)
+            : { message: '' };
+          broadcastError('ssr', [{ message: errMsg, ...loc, stack: errStack }]);
 
           const scriptTag = buildScriptTag(bundledScriptUrl, hmrBootstrapScript, clientSrc);
           const fallbackHtml = generateSSRPageHtml({
@@ -1412,7 +1415,10 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               console.error('[Server] Failed to refresh SSR module:', e2);
               const errMsg = e2 instanceof Error ? e2.message : String(e2);
               const errStack = e2 instanceof Error ? e2.stack : undefined;
-              broadcastError('ssr', [{ message: errMsg, stack: errStack }]);
+              const { message: _m, ...loc2 } = errStack
+                ? parseSourceFromStack(errStack)
+                : { message: '' };
+              broadcastError('ssr', [{ message: errMsg, ...loc2, stack: errStack }]);
               // Keep using the old module — last known good
             }
           }
