@@ -18,10 +18,9 @@ import {
   RouterContext,
   RouterView,
   ThemeProvider,
-  useContext,
 } from '@vertz/ui';
 import { Icon } from './components/icon';
-import { createSettingsValue, SettingsContext } from './lib/settings-context';
+import { createSettingsValue, SettingsContext, useSettings } from './lib/settings-context';
 import { appRouter, Link } from './router';
 import { layoutStyles } from './styles/components';
 import { taskManagerTheme, themeGlobals } from './styles/theme';
@@ -91,7 +90,7 @@ export const styles = [themeGlobals.css, appGlobals.css, viewTransitionsCss];
 // ── Sidebar with theme toggle ────────────────────────────────
 
 function Sidebar() {
-  const settings = useContext(SettingsContext)!;
+  const settings = useSettings();
 
   function toggleTheme() {
     const next = settings.theme === 'light' ? 'dark' : 'light';
