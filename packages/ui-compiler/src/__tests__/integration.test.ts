@@ -373,4 +373,48 @@ function App() {
     expect(result.code).toContain('computed(() =>');
     expect(result.code).toContain('ctx.theme');
   });
+
+  it('preserves inline whitespace between text and JSX expressions', () => {
+    const result = compile(
+      `
+function Greeting({ name }: { name: string }) {
+  return <h3>AHOY {name}</h3>;
+}
+    `.trim(),
+    );
+
+    // The space between "AHOY" and {name} must be preserved.
+    // __staticText("AHOY ") — trailing space kept.
+    expect(result.code).toContain('__staticText("AHOY ")');
+  });
+
+  it('preserves leading whitespace after JSX expression', () => {
+    const result = compile(
+      `
+function ItemCount({ count }: { count: number }) {
+  return <span>{count} items</span>;
+}
+    `.trim(),
+    );
+
+    // The space between {count} and "items" must be preserved.
+    expect(result.code).toContain('__staticText(" items")');
+  });
+
+  it('collapses multi-line JSX text whitespace', () => {
+    const result = compile(
+      `
+function Card() {
+  return <div>
+    Hello World
+  </div>;
+}
+    `.trim(),
+    );
+
+    // Multi-line: indentation/newlines collapsed, content preserved.
+    expect(result.code).toContain('__staticText("Hello World")');
+    // Should NOT have leading/trailing spaces from indentation.
+    expect(result.code).not.toContain('__staticText("\\n');
+  });
 });
