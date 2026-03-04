@@ -97,6 +97,11 @@ export function createIndexHtmlStasher(projectRoot: string): IndexHtmlStasher {
 
   return {
     stash() {
+      // Recover from a previous crashed session that left index.html stashed
+      if (!existsSync(indexHtmlPath) && existsSync(indexHtmlBackupPath)) {
+        renameSync(indexHtmlBackupPath, indexHtmlPath);
+      }
+
       if (existsSync(indexHtmlPath)) {
         mkdirSync(resolve(projectRoot, '.vertz', 'dev'), { recursive: true });
         renameSync(indexHtmlPath, indexHtmlBackupPath);

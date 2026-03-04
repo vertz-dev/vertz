@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -452,6 +452,25 @@ describe('createIndexHtmlStasher', () => {
 
     // Should not throw
     stasher.restore();
+  });
+
+  it('stash() recovers index.html left stashed by a crashed session', () => {
+    // Simulate a previous crashed session: index.html is gone, backup exists
+    mkdirSync(join(tmpDir, '.vertz', 'dev'), { recursive: true });
+    writeFileSync(join(tmpDir, '.vertz', 'dev', 'index.html.bak'), '<html></html>');
+    // No index.html in project root
+
+    const stasher = createIndexHtmlStasher(tmpDir);
+    stasher.stash();
+
+    // Should have recovered the backup, then re-stashed it
+    expect(existsSync(join(tmpDir, 'index.html'))).toBe(false);
+    expect(existsSync(join(tmpDir, '.vertz', 'dev', 'index.html.bak'))).toBe(true);
+
+    // Restore should bring it back
+    stasher.restore();
+    expect(existsSync(join(tmpDir, 'index.html'))).toBe(true);
+    expect(readFileSync(join(tmpDir, 'index.html'), 'utf-8')).toBe('<html></html>');
   });
 
   it('restore() is a no-op when called twice', () => {

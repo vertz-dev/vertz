@@ -23,7 +23,8 @@
 // Self-accept HMR updates to prevent Bun from propagating changes through
 // @vertz/ui/dist chunks to the root HTML (which would trigger a full reload).
 // This is safe because all runtime state lives on globalThis, not module scope.
-import.meta.hot.accept();
+// Guard: import.meta.hot is unavailable in test environments (bun test).
+if (import.meta.hot) import.meta.hot.accept();
 
 // Import from @vertz/ui/internals to share the SAME module instance as the
 // app code. This ensures currentScope / disposal stack variables are shared.
