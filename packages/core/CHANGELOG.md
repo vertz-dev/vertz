@@ -1,5 +1,16 @@
 # @vertz/core
 
+## 0.2.3
+
+### Patch Changes
+
+- [#878](https://github.com/vertz-dev/vertz/pull/878) [`62dddcb`](https://github.com/vertz-dev/vertz/commit/62dddcbcb4943b12a04bca8466b09ae21901070b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Make `exports` optional in `createModule()` with default `[]`. Previously, omitting `exports` caused a `TypeError: undefined is not an object` crash.
+
+- [#882](https://github.com/vertz-dev/vertz/pull/882) [`b0b6115`](https://github.com/vertz-dev/vertz/commit/b0b6115e0389447ffb951e875b5ce224e4ace51c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove deprecated module system (`createModule`, `createModuleDef`, services, routers) from public API. The entity + action pattern is now the only supported way to define routes. Internal infrastructure (Trie router, middleware runner, schema validation, CORS, error handling) is preserved.
+
+- Updated dependencies []:
+  - @vertz/schema@0.2.3
+
 ## 0.2.2
 
 ### Patch Changes

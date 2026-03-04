@@ -553,6 +553,8 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
   let server: ReturnType<typeof Bun.serve> | null = null;
   let srcWatcherRef: ReturnType<typeof watch> | null = null;
+  let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+  let stopped = false;
 
   // ── WebSocket error channel state ────────────────────────────
   const wsClients = new Set<import('bun').ServerWebSocket<unknown>>();
@@ -1257,7 +1259,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
     // Watch for file changes — re-discover hash + re-import SSR module
     const srcDir = resolve(projectRoot, 'src');
-    let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+    stopped = false;
 
     if (existsSync(srcDir)) {
       srcWatcherRef = watch(srcDir, { recursive: true }, (_event, filename) => {
@@ -1275,9 +1277,11 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           }
 
           // Re-discover HMR assets (hash changes on every edit)
+          if (stopped) return;
           await discoverHMRAssets();
 
           // Proactive build check — detect errors before the client fetches
+          if (stopped) return;
           try {
             const clientRelative = rawClientSrc.replace(/^\//, '');
             const result = await Bun.build({
@@ -1310,7 +1314,9 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               // Poll until the hash changes or timeout (Bun typically updates in ~500ms).
               const prevUrl = bundledScriptUrl;
               for (let attempt = 0; attempt < 5; attempt++) {
+                if (stopped) return;
                 await new Promise((r) => setTimeout(r, 200));
+                if (stopped) return;
                 await discoverHMRAssets();
                 if (bundledScriptUrl !== prevUrl) break;
               }
@@ -1326,6 +1332,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
           // Re-import SSR module — clear require cache for all project source
           // files so transitive dependencies (e.g., mock-data.ts) are re-evaluated.
+          if (stopped) return;
           // Bun's `import()` with `?t=...` only busts the entry module cache;
           // require.cache clearing forces the full dependency tree to reload.
           for (const key of Object.keys(require.cache)) {
@@ -1343,7 +1350,9 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             // First import may fail due to stale Bun module cache (race between
             // file watcher and Bun's dev bundler recompilation). Retry once after
             // a delay to let Bun's module graph settle.
+            if (stopped) return;
             await new Promise((r) => setTimeout(r, 500));
+            if (stopped) return;
             for (const key of Object.keys(require.cache)) {
               if (key.startsWith(srcDir) || key.startsWith(entryPath)) {
                 delete require.cache[key];
@@ -1380,6 +1389,13 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     },
 
     async stop() {
+      stopped = true;
+
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+        refreshTimeout = null;
+      }
+
       if (specWatcher) {
         specWatcher.close();
         specWatcher = null;
