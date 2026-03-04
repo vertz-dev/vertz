@@ -245,7 +245,65 @@ export function createFetchInterceptor({
  * when client modules fail to compile. Zero reloads — the error is shown
  * immediately.
  */
-const BUILD_ERROR_LOADER = `(function(){var el=document.querySelector('[data-bun-dev-server-script]');if(!el)return;var src=el.src;function showOverlay(t,m){el.remove();var d=document,o=d.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:#1a1a2e';var c=d.createElement('div');c.style.cssText='background:#16213e;color:#e2e8f0;border-radius:12px;padding:32px;max-width:520px;width:90%;font-family:ui-monospace,monospace;box-shadow:0 20px 60px rgba(0,0,0,0.5)';c.innerHTML='<h2 style="margin:0 0 8px;font-size:18px;color:#f87171">'+t+'</h2><p style="margin:0 0 20px;color:#94a3b8;font-size:14px;line-height:1.5">'+m+'</p><button id="__vertz_retry" style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;cursor:pointer">Retry</button>';o.appendChild(c);(d.body||d.documentElement).appendChild(o);d.getElementById('__vertz_retry').onclick=function(){location.reload()}}fetch(src).then(function(r){return r.text()}).then(function(t){if(t.trimStart().startsWith('try{location.reload()}')){showOverlay('Build failed','Check your terminal for the compilation error.')}else{var s=document.createElement('script');s.type='module';s.crossOrigin='';s.src=src;document.body.appendChild(s)}}).catch(function(){showOverlay('Dev server unreachable','Could not connect to the dev server. Is it still running?')})})()`;
+const BUILD_ERROR_LOADER = [
+  '(function(){',
+  "var el=document.querySelector('[data-bun-dev-server-script]');if(!el)return;var src=el.src;",
+  "function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}",
+  // formatErrors(): group errors by file:line, deduplicate lineText
+  'function formatErrors(errs){',
+  'if(!errs||!errs.length)return\'<p style="margin:0;color:var(--ve-muted);font-size:12px">Check your terminal for details.</p>\';',
+  'var groups=[],seen={};',
+  'errs.forEach(function(e){',
+  "var k=(e.file||'')+'|'+(e.line||0);",
+  'if(!seen[k]){seen[k]={file:e.file,absFile:e.absFile,line:e.line,lineText:e.lineText,msgs:[]};groups.push(seen[k])}',
+  'seen[k].msgs.push({message:e.message,column:e.column})});',
+  "return groups.map(function(g){var h='';",
+  'if(g.file){',
+  "var loc=esc(g.file)+(g.line?':'+g.line:'');",
+  "var href=g.absFile?'vscode://file/'+encodeURI(g.absFile)+(g.line?':'+g.line:''):'';",
+  "h+=href?'<a href=\"'+href+'\" style=\"color:var(--ve-link);font-size:12px;text-decoration:underline;text-underline-offset:2px\">'+loc+'</a>'" +
+    ":'<span style=\"color:var(--ve-link);font-size:12px\">'+loc+'</span>';",
+  "h+='<br>'}",
+  "g.msgs.forEach(function(m){h+='<div style=\"color:var(--ve-error);font-size:12px;margin:2px 0\">'+esc(m.message)+'</div>'});",
+  "if(g.lineText){h+='<pre style=\"margin:4px 0 0;color:var(--ve-code);font-size:11px;background:var(--ve-code-bg);border-radius:4px;padding:6px 8px;overflow-x:auto;border:1px solid var(--ve-border)\">'+esc(g.lineText)+'</pre>'}",
+  "return'<div style=\"margin-bottom:10px\">'+h+'</div>'}).join('')}",
+  // showOverlay(): floating card, no backdrop
+  'function showOverlay(t,body){el.remove();',
+  "var d=document,c=d.createElement('div');",
+  "c.id='__vertz_error';",
+  // CSS custom properties for theming + card styles
+  "c.style.cssText='",
+  '--ve-bg:hsl(0 0% 100%);--ve-fg:hsl(0 0% 9%);--ve-muted:hsl(0 0% 45%);',
+  '--ve-error:hsl(0 72% 51%);--ve-link:hsl(221 83% 53%);--ve-border:hsl(0 0% 90%);',
+  '--ve-code:hsl(24 70% 45%);--ve-code-bg:hsl(0 0% 97%);--ve-btn:hsl(0 0% 9%);--ve-btn-fg:hsl(0 0% 100%);',
+  'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:2147483647;',
+  'background:var(--ve-bg);color:var(--ve-fg);border-radius:8px;padding:14px 16px;',
+  'max-width:480px;width:calc(100% - 32px);font-family:ui-sans-serif,system-ui,sans-serif;',
+  "box-shadow:0 4px 24px rgba(0,0,0,0.12),0 1px 3px rgba(0,0,0,0.08);border:1px solid var(--ve-border)';",
+  // Dark mode via media query: inject a <style> tag
+  "var st=d.createElement('style');",
+  "st.textContent='@media(prefers-color-scheme:dark){#__vertz_error{",
+  '--ve-bg:hsl(0 0% 7%);--ve-fg:hsl(0 0% 93%);--ve-muted:hsl(0 0% 55%);',
+  '--ve-error:hsl(0 72% 65%);--ve-link:hsl(217 91% 70%);--ve-border:hsl(0 0% 18%);',
+  "--ve-code:hsl(36 80% 65%);--ve-code-bg:hsl(0 0% 11%);--ve-btn:hsl(0 0% 93%);--ve-btn-fg:hsl(0 0% 7%)}}';",
+  'd.head.appendChild(st);',
+  // Content
+  'c.innerHTML=\'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">\'',
+  "+'<span style=\"font-size:13px;font-weight:600;color:var(--ve-error)\">'+esc(t)+'</span>'",
+  '+\'<button id="__vertz_retry" style="background:var(--ve-btn);color:var(--ve-btn-fg);border:none;border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;font-weight:500">Retry</button>\'',
+  "+'</div>'+body;",
+  '(d.body||d.documentElement).appendChild(c);',
+  "d.getElementById('__vertz_retry').onclick=function(){location.reload()}}",
+  // Main: fetch bundle, detect stub, fetch errors or load
+  'fetch(src).then(function(r){return r.text()}).then(function(t){',
+  "if(t.trimStart().startsWith('try{location.reload()}')){",
+  "fetch('/__vertz_build_check').then(function(r){return r.json()}).then(function(j){",
+  "showOverlay('Build failed',formatErrors(j.errors))}).catch(function(){",
+  "showOverlay('Build failed','<p style=\"margin:0;color:var(--ve-muted);font-size:12px\">Check your terminal for details.</p>')})}",
+  "else{var s=document.createElement('script');s.type='module';s.crossOrigin='';s.src=src;document.body.appendChild(s)}",
+  "}).catch(function(){showOverlay('Dev server unreachable','<p style=\"margin:0;color:var(--ve-muted);font-size:12px\">Could not connect. Is it still running?</p>')})",
+  '})()',
+].join('');
 
 /**
  * Build the `<script>` tag for SSR HTML output.
@@ -296,6 +354,21 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
   let server: ReturnType<typeof Bun.serve> | null = null;
   let srcWatcherRef: ReturnType<typeof watch> | null = null;
+
+  // Capture recent console.error output — Bun's internal bundler logs
+  // build failures here (module resolution, syntax errors, etc.).
+  // The /__vertz_build_check endpoint reads this when Bun.build() can't
+  // reproduce the error (e.g. missing plugin-resolved modules).
+  let lastBuildError = '';
+  const origConsoleError = console.error;
+  console.error = (...args: unknown[]) => {
+    const text = args.map((a) => (typeof a === 'string' ? a : String(a))).join(' ');
+    // Only capture bundler/resolve errors, not our own [Server] logs
+    if (!text.startsWith('[Server]')) {
+      lastBuildError = text;
+    }
+    origConsoleError.apply(console, args);
+  };
 
   // Bun's dev server auto-serves index.html from the project root when
   // development.hmr is true, bypassing the fetch() handler entirely.
@@ -469,6 +542,50 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         // Let Bun handle its internal /_bun/ routes (HMR client bundles, assets)
         if (pathname.startsWith('/_bun/')) {
           return undefined as unknown as Response;
+        }
+
+        // Build check endpoint — the client loader fetches this when it
+        // detects Bun's reload stub to get the actual compilation error.
+        if (pathname === '/__vertz_build_check') {
+          try {
+            // rawClientSrc may be a URL path ("/src/app.tsx") or relative ("./src/app.tsx").
+            // Strip leading "/" so resolve() treats it relative to projectRoot.
+            const clientRelative = rawClientSrc.replace(/^\//, '');
+            const result = await Bun.build({
+              entrypoints: [resolve(projectRoot, clientRelative)],
+              root: projectRoot,
+              target: 'browser',
+              throw: false,
+            });
+            if (!result.success && result.logs.length > 0) {
+              const errors = result.logs
+                .filter((l) => l.level === 'error')
+                .map((l) => {
+                  const pos = l.position;
+                  const file = pos?.file
+                    ? pos.file.replace(projectRoot, '').replace(/^\//, '')
+                    : undefined;
+                  return {
+                    message: l.message,
+                    file,
+                    absFile: pos?.file,
+                    line: pos?.line,
+                    column: pos?.column,
+                    lineText: pos?.lineText,
+                  };
+                });
+              return Response.json({ errors });
+            }
+            // Bun.build() succeeded but the dev bundler failed — fall back
+            // to the last captured console.error from Bun's internal bundler.
+            if (lastBuildError) {
+              return Response.json({ errors: [{ message: lastBuildError }] });
+            }
+            return Response.json({ errors: [] });
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            return Response.json({ errors: [{ message: msg }] });
+          }
         }
 
         // OpenAPI spec (fallback for non-route match)

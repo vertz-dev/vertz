@@ -200,6 +200,16 @@ describe('buildScriptTag', () => {
     expect(tag).toContain('Dev server unreachable');
   });
 
+  it('loader fetches /__vertz_build_check for error details on stub detection', () => {
+    const tag = buildScriptTag('/_bun/client/abc123.js', null, './src/app.tsx');
+
+    expect(tag).toContain('/__vertz_build_check');
+    // Should render file, line, and lineText from structured errors
+    expect(tag).toContain('e.file');
+    expect(tag).toContain('e.line');
+    expect(tag).toContain('e.lineText');
+  });
+
   it('generates plain module script when no bundledScriptUrl', () => {
     const tag = buildScriptTag(null, null, '/src/app.tsx');
 
@@ -350,6 +360,18 @@ describe('generateSSRPageHtml', () => {
     expect(guardIndex).toBeGreaterThan(-1);
     expect(mainScriptIndex).toBeGreaterThan(-1);
     expect(guardIndex).toBeLessThan(mainScriptIndex);
+  });
+
+  it('does not embed build error data element (errors fetched via /__vertz_build_check)', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    expect(html).not.toContain('__vertz_build_error');
   });
 });
 
