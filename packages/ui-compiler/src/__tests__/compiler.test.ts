@@ -170,4 +170,19 @@ function App() {
     expect(internalsImport).toContain('__show');
     expect(internalsImport).toContain('__classList');
   });
+
+  it('returns ssr-unsafe-api diagnostics through compile()', () => {
+    const result = compile(
+      `
+function App() {
+  localStorage.getItem('key');
+  return <div>ok</div>;
+}
+      `.trim(),
+    );
+    const ssrDiags = result.diagnostics.filter((d) => d.code === 'ssr-unsafe-api');
+    expect(ssrDiags).toHaveLength(1);
+    expect(ssrDiags[0]?.message).toContain('localStorage');
+    expect(ssrDiags[0]?.severity).toBe('warning');
+  });
 });

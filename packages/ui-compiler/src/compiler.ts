@@ -6,6 +6,7 @@ import { MutationAnalyzer } from './analyzers/mutation-analyzer';
 import { ReactivityAnalyzer } from './analyzers/reactivity-analyzer';
 import { MutationDiagnostics } from './diagnostics/mutation-diagnostics';
 import { PropsDestructuringDiagnostics } from './diagnostics/props-destructuring';
+import { SSRSafetyDiagnostics } from './diagnostics/ssr-safety-diagnostics';
 import { ComputedTransformer } from './transformers/computed-transformer';
 import { JsxTransformer } from './transformers/jsx-transformer';
 import { MutationTransformer } from './transformers/mutation-transformer';
@@ -122,6 +123,9 @@ export function compile(
     // 11. Diagnostics
     const mutationDiags = new MutationDiagnostics();
     allDiagnostics.push(...mutationDiags.analyze(sourceFile, component, variables));
+
+    const ssrDiags = new SSRSafetyDiagnostics();
+    allDiagnostics.push(...ssrDiags.analyze(sourceFile, component));
   }
 
   // Props destructuring diagnostics (across all components)
