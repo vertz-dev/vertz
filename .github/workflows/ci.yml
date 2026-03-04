@@ -137,6 +137,9 @@ jobs:
       - name: Build packages
         run: bunx turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example'
 
+      - name: Build task-manager example
+        run: cd examples/task-manager && bun run build
+
       - name: Install Playwright Chromium
         run: cd examples/task-manager && bunx playwright install chromium --with-deps
 
