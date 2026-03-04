@@ -248,4 +248,179 @@ describe('SSRSafetyDiagnostics', () => {
     expect(diags[0]?.message).toContain('localStorage');
     expect(diags[1]?.message).toContain('navigator');
   });
+
+  it('flags browser API in else branch of typeof guard', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.getItem('key');
+        } else {
+          localStorage.getItem('fallback');
+        }
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    // then-branch is safe (suppressed), else-branch is unsafe (flagged)
+    expect(diags).toHaveLength(1);
+    expect(diags[0]?.message).toContain('localStorage');
+  });
+
+  it('does NOT flag browser API in logical AND typeof guard', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        typeof localStorage !== 'undefined' && localStorage.setItem('key', 'val');
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(0);
+  });
+
+  it('does NOT flag browser API inside a class getter', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        class Store {
+          get value() { return localStorage.getItem('key'); }
+        }
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(0);
+  });
+
+  it('does NOT flag browser API inside a class setter', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        class Store {
+          set value(v: string) { localStorage.setItem('key', v); }
+        }
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(0);
+  });
+
+  it('flags browser API in ternary typeof guard false branch', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        const val = typeof localStorage !== 'undefined' ? null : localStorage.getItem('key');
+        return <div>{val}</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(1);
+    expect(diags[0]?.message).toContain('localStorage');
+  });
+
+  it('does NOT flag browser API inside a function expression', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        const handler = function() {
+          localStorage.setItem('key', 'val');
+        };
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(0);
+  });
+
+  it('flags cancelAnimationFrame at top level', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        cancelAnimationFrame(1);
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(1);
+    expect(diags[0]?.message).toContain('cancelAnimationFrame');
+  });
+
+  it('flags ResizeObserver at top level', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        const obs = new ResizeObserver(() => {});
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(1);
+    expect(diags[0]?.message).toContain('ResizeObserver');
+  });
+
+  it('flags MutationObserver at top level', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        const obs = new MutationObserver(() => {});
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(1);
+    expect(diags[0]?.message).toContain('MutationObserver');
+  });
+
+  it('flags requestIdleCallback at top level', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        requestIdleCallback(() => {});
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(1);
+    expect(diags[0]?.message).toContain('requestIdleCallback');
+  });
+
+  it('flags cancelIdleCallback at top level', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        cancelIdleCallback(1);
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(1);
+    expect(diags[0]?.message).toContain('cancelIdleCallback');
+  });
+
+  it('flags document.querySelectorAll at top level', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        const els = document.querySelectorAll('.foo');
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(1);
+    expect(diags[0]?.message).toContain('document.querySelectorAll');
+  });
+
+  it('flags document.getElementById at top level', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        const el = document.getElementById('app');
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(1);
+    expect(diags[0]?.message).toContain('document.getElementById');
+  });
+
+  it('flags document.cookie at top level', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        const c = document.cookie;
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(1);
+    expect(diags[0]?.message).toContain('document.cookie');
+  });
 });

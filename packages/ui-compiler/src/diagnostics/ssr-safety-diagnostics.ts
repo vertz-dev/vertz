@@ -99,7 +99,9 @@ function isInNestedFunction(node: Node, bodyNode: Node): boolean {
       current.isKind(SyntaxKind.ArrowFunction) ||
       current.isKind(SyntaxKind.FunctionExpression) ||
       current.isKind(SyntaxKind.FunctionDeclaration) ||
-      current.isKind(SyntaxKind.MethodDeclaration)
+      current.isKind(SyntaxKind.MethodDeclaration) ||
+      current.isKind(SyntaxKind.GetAccessor) ||
+      current.isKind(SyntaxKind.SetAccessor)
     ) {
       return true;
     }
@@ -111,38 +113,59 @@ function isInNestedFunction(node: Node, bodyNode: Node): boolean {
 /**
  * Check if the node is guarded by a typeof check.
  *
- * Covers three patterns:
+ * Covers four patterns:
  * 1. Direct operand: `typeof localStorage`
  * 2. If-block guard: `if (typeof localStorage !== 'undefined') { localStorage.getItem(...) }`
  * 3. Ternary guard: `typeof localStorage !== 'undefined' ? localStorage.getItem(...) : null`
+ * 4. Logical AND guard: `typeof localStorage !== 'undefined' && localStorage.setItem(...)`
  */
 function isInTypeofGuard(node: Node): boolean {
   // Pattern 1: direct typeof operand
   const parent = node.getParent();
   if (parent?.isKind(SyntaxKind.TypeOfExpression)) return true;
 
-  // Walk up to find an enclosing IfStatement or ConditionalExpression
+  const name = node.getText();
+
+  // Walk up to find an enclosing guard construct
   let current: Node | undefined = node.getParent();
   while (current) {
     // Pattern 2: if (typeof X !== 'undefined') { ...X... }
+    // Only suppress the then-branch, not the else-branch
     if (current.isKind(SyntaxKind.IfStatement)) {
       const condition = current.getExpression();
-      if (conditionContainsTypeofFor(condition, node.getText())) return true;
-      // Also check for `typeof window` guarding any browser API
-      if (conditionContainsTypeofFor(condition, 'window')) return true;
+      const thenStatement = current.getThenStatement();
+      if (conditionContainsTypeofFor(condition, name)) {
+        if (isDescendantOf(node, thenStatement)) return true;
+      }
+      if (conditionContainsTypeofFor(condition, 'window')) {
+        if (isDescendantOf(node, thenStatement)) return true;
+      }
     }
 
     // Pattern 3: typeof X !== 'undefined' ? X : fallback
     if (current.isKind(SyntaxKind.ConditionalExpression)) {
       const condition = current.getCondition();
-      if (conditionContainsTypeofFor(condition, node.getText())) {
-        // Only suppress if the node is in the "when true" branch
+      if (conditionContainsTypeofFor(condition, name)) {
         const whenTrue = current.getWhenTrue();
         if (isDescendantOf(node, whenTrue)) return true;
       }
       if (conditionContainsTypeofFor(condition, 'window')) {
         const whenTrue = current.getWhenTrue();
         if (isDescendantOf(node, whenTrue)) return true;
+      }
+    }
+
+    // Pattern 4: typeof X !== 'undefined' && X.method()
+    if (current.isKind(SyntaxKind.BinaryExpression)) {
+      const op = current.getOperatorToken();
+      if (op.getKind() === SyntaxKind.AmpersandAmpersandToken) {
+        const left = current.getLeft();
+        if (conditionContainsTypeofFor(left, name)) {
+          if (isDescendantOf(node, current.getRight())) return true;
+        }
+        if (conditionContainsTypeofFor(left, 'window')) {
+          if (isDescendantOf(node, current.getRight())) return true;
+        }
       }
     }
 

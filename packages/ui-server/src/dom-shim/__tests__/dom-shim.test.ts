@@ -417,6 +417,18 @@ describe('DOM Shim', () => {
     });
   });
 
+  describe('double install / remove idempotency', () => {
+    it('should handle installDomShim called twice without removeDomShim', () => {
+      installDomShim();
+      installDomShim(); // second call should not throw or leak
+      expect(document.createElement).toBeDefined();
+      expect(localStorage.getItem('key')).toBeNull();
+      removeDomShim();
+      expect(globalThis).not.toHaveProperty('document');
+      expect(globalThis).not.toHaveProperty('localStorage');
+    });
+  });
+
   describe('removeDomShim cleans up browser-only stubs', () => {
     it('should remove globals that were installed by the shim', () => {
       installDomShim();
