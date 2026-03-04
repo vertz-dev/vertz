@@ -230,11 +230,36 @@ export function createFetchInterceptor({
 }
 
 /**
+ * Inline loader that fetch-validates the bundle before executing it.
+ *
+ * Instead of a direct `<script type="module" src="...">` (which auto-loads),
+ * the placeholder uses `type="text/plain"` so the browser ignores it. This
+ * loader then:
+ *   1. Reads the `src` from the placeholder (`[data-bun-dev-server-script]`)
+ *   2. Fetches the bundle URL (localhost, < 1ms)
+ *   3. If the response is Bun's reload stub → shows a build error overlay
+ *   4. If valid → creates a real `<script type="module">` and appends it
+ *   5. On fetch error (server down) → shows "Dev server unreachable" overlay
+ *
+ * This prevents the infinite-reload loop caused by Bun serving a reload stub
+ * when client modules fail to compile. Zero reloads — the error is shown
+ * immediately.
+ */
+const BUILD_ERROR_LOADER = `(function(){var el=document.querySelector('[data-bun-dev-server-script]');if(!el)return;var src=el.src;function showOverlay(t,m){el.remove();var d=document,o=d.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:#1a1a2e';var c=d.createElement('div');c.style.cssText='background:#16213e;color:#e2e8f0;border-radius:12px;padding:32px;max-width:520px;width:90%;font-family:ui-monospace,monospace;box-shadow:0 20px 60px rgba(0,0,0,0.5)';c.innerHTML='<h2 style="margin:0 0 8px;font-size:18px;color:#f87171">'+t+'</h2><p style="margin:0 0 20px;color:#94a3b8;font-size:14px;line-height:1.5">'+m+'</p><button id="__vertz_retry" style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:10px 24px;font-size:14px;cursor:pointer">Retry</button>';o.appendChild(c);(d.body||d.documentElement).appendChild(o);d.getElementById('__vertz_retry').onclick=function(){location.reload()}}fetch(src).then(function(r){return r.text()}).then(function(t){if(t.trimStart().startsWith('try{location.reload()}')){showOverlay('Build failed','Check your terminal for the compilation error.')}else{var s=document.createElement('script');s.type='module';s.crossOrigin='';s.src=src;document.body.appendChild(s)}}).catch(function(){showOverlay('Dev server unreachable','Could not connect to the dev server. Is it still running?')})})()`;
+
+/**
  * Build the `<script>` tag for SSR HTML output.
  *
- * When `bundledScriptUrl` is available (HMR discovered), generates a tag with
- * `data-bun-dev-server-script` attribute required by Bun's HMR lifecycle.
- * Otherwise falls back to a plain module script pointing at the client source.
+ * When `bundledScriptUrl` is available (HMR discovered), generates a
+ * non-executing placeholder (`type="text/plain"`) plus a loader script that
+ * fetch-validates the bundle before loading it. This prevents the infinite
+ * reload loop when Bun serves its reload stub for a failed compilation.
+ *
+ * The placeholder preserves `data-bun-dev-server-script` and `src` attributes
+ * so Bun's HMR bootstrap (which reads `.src` via IDL) still works.
+ *
+ * Falls back to a plain `<script type="module">` when no bundled URL is
+ * available (source-only mode, no Bun compilation).
  */
 export function buildScriptTag(
   bundledScriptUrl: string | null,
@@ -242,8 +267,10 @@ export function buildScriptTag(
   clientSrc: string,
 ): string {
   if (bundledScriptUrl) {
+    const placeholder = `<script type="text/plain" crossorigin src="${bundledScriptUrl}" data-bun-dev-server-script></script>`;
     const bootstrap = hmrBootstrapScript ? `\n    ${hmrBootstrapScript}` : '';
-    return `<script type="module" crossorigin src="${bundledScriptUrl}" data-bun-dev-server-script></script>${bootstrap}`;
+    const loader = `<script>${BUILD_ERROR_LOADER}</script>`;
+    return `${placeholder}${bootstrap}\n    ${loader}`;
   }
   return `<script type="module" src="${clientSrc}"></script>`;
 }

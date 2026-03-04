@@ -1,7 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildScriptTag,
   createBunDevServer,
@@ -76,7 +76,7 @@ describe('createBunDevServer', () => {
   });
 
   it('defaults logRequests to true', () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = spyOn(console, 'log').mockImplementation(() => {});
 
     const server = createBunDevServer({
       entry: './src/app.tsx',
@@ -174,7 +174,15 @@ describe('parseHMRAssets', () => {
 });
 
 describe('buildScriptTag', () => {
-  it('generates HMR script tag with data-bun-dev-server-script when bundledScriptUrl provided', () => {
+  it('uses type="text/plain" placeholder when bundledScriptUrl provided', () => {
+    const tag = buildScriptTag('/_bun/client/abc123.js', null, './src/app.tsx');
+
+    expect(tag).toContain('type="text/plain"');
+    // The placeholder itself must NOT be type="module" — only the loader creates that at runtime
+    expect(tag).not.toMatch(/type="module"[^>]*data-bun-dev-server-script/);
+  });
+
+  it('includes data-bun-dev-server-script and crossorigin on placeholder', () => {
     const tag = buildScriptTag('/_bun/client/abc123.js', null, './src/app.tsx');
 
     expect(tag).toContain('src="/_bun/client/abc123.js"');
@@ -182,20 +190,39 @@ describe('buildScriptTag', () => {
     expect(tag).toContain('crossorigin');
   });
 
+  it('includes loader script with stub detection when bundledScriptUrl provided', () => {
+    const tag = buildScriptTag('/_bun/client/abc123.js', null, './src/app.tsx');
+
+    // Loader must detect the reload stub signature
+    expect(tag).toContain('try{location.reload()}');
+    expect(tag).toContain('showOverlay');
+    expect(tag).toContain('Build failed');
+    expect(tag).toContain('Dev server unreachable');
+  });
+
   it('generates plain module script when no bundledScriptUrl', () => {
     const tag = buildScriptTag(null, null, '/src/app.tsx');
 
+    expect(tag).toContain('type="module"');
     expect(tag).toContain('src="/src/app.tsx"');
     expect(tag).not.toContain('data-bun-dev-server-script');
+    expect(tag).not.toContain('showOverlay');
   });
 
-  it('appends bootstrap script when provided', () => {
+  it('appends bootstrap script between placeholder and loader when provided', () => {
     const bootstrap =
       '<script>((a)=>{document.addEventListener("DOMContentLoaded",()=>{a.unref()})})</script>';
     const tag = buildScriptTag('/_bun/client/abc.js', bootstrap, './src/app.tsx');
 
     expect(tag).toContain('data-bun-dev-server-script');
     expect(tag).toContain(bootstrap);
+
+    // Bootstrap should appear between placeholder and loader
+    const placeholderIdx = tag.indexOf('type="text/plain"');
+    const bootstrapIdx = tag.indexOf(bootstrap);
+    const loaderIdx = tag.indexOf('showOverlay');
+    expect(placeholderIdx).toBeLessThan(bootstrapIdx);
+    expect(bootstrapIdx).toBeLessThan(loaderIdx);
   });
 
   it('does not append bootstrap when bundledScriptUrl is null', () => {
@@ -327,12 +354,14 @@ describe('generateSSRPageHtml', () => {
 });
 
 describe('createFetchInterceptor', () => {
-  const mockOriginalFetch = vi.fn(async () => new Response('original'));
-  mockOriginalFetch.preconnect = vi.fn();
-  const mockApiHandler = vi.fn(async () => new Response('api'));
+  const mockOriginalFetch = mock(async () => new Response('original'));
+  mockOriginalFetch.preconnect = mock();
+  const mockApiHandler = mock(async () => new Response('api'));
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockOriginalFetch.mockClear();
+    (mockOriginalFetch.preconnect as ReturnType<typeof mock>).mockClear();
+    mockApiHandler.mockClear();
   });
 
   it('routes relative API paths to apiHandler', async () => {

@@ -4,10 +4,9 @@
  * These tests actually start a Bun.serve() instance and make real HTTP
  * requests to verify the full request/response cycle.
  *
- * NOTE: These tests use `bun:test` (not vitest) because they need the real
- * Bun runtime with `Bun.serve()`, `Bun.file()`, and `plugin()`.
- * They are excluded from vitest via vitest.config and run separately via
- * `bun test src/__tests__/bun-dev-server.integration.test.ts`.
+ * NOTE: These tests need the real Bun runtime with `Bun.serve()`,
+ * `Bun.file()`, and `plugin()`. They require a built dist to resolve
+ * the HMR shell's module imports.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -177,9 +176,10 @@ describe('bun-dev-server integration', () => {
     const res = await fetch(`http://localhost:${port}/`);
     const html = await res.text();
 
-    // Should have either the discovered HMR script or fallback module script
+    // Should have either the discovered HMR placeholder (type="text/plain" + loader)
+    // or fallback module script (type="module") when HMR discovery fails
     expect(html).toContain('<script');
-    expect(html).toContain('type="module"');
+    expect(html.includes('type="text/plain"') || html.includes('type="module"')).toBe(true);
   });
 
   it('includes page title in SSR HTML', async () => {
