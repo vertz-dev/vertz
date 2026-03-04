@@ -147,10 +147,16 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     typeof options?.serverNav === 'object' ? options.serverNav.timeout : undefined;
   const prefetchFn = options?._prefetchNavData ?? (serverNavEnabled ? realPrefetchNavData : null);
   let activePrefetch: PrefetchHandle | null = null;
+  let activePrefetchUrl: string | null = null;
 
   function startPrefetch(navUrl: string): PrefetchHandle | null {
     if (!serverNavEnabled || !prefetchFn) return null;
-    // Abort previous prefetch
+    // Reuse existing prefetch when navigating to the same URL (re-click)
+    const normalized = normalizeUrl(navUrl);
+    if (activePrefetch && activePrefetchUrl === normalized) {
+      return activePrefetch;
+    }
+    // Abort previous prefetch for a different URL
     if (activePrefetch) {
       activePrefetch.abort();
     }
@@ -159,6 +165,7 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
       prefetchOpts.timeout = serverNavTimeout;
     }
     activePrefetch = prefetchFn(navUrl, prefetchOpts);
+    activePrefetchUrl = normalized;
     return activePrefetch;
   }
 
@@ -309,6 +316,7 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     if (activePrefetch) {
       activePrefetch.abort();
       activePrefetch = null;
+      activePrefetchUrl = null;
     }
   }
 

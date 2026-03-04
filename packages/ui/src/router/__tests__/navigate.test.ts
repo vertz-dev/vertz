@@ -663,6 +663,126 @@ describe('createRouter serverNav', () => {
     router.dispose();
   });
 
+  test('re-clicking same link does not restart prefetch timer', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/tasks/2': { component: () => document.createElement('div') },
+    });
+
+    let resolveFirstEvent!: () => void;
+    const firstEvent = new Promise<void>((r) => {
+      resolveFirstEvent = r;
+    });
+    const abortFn = vi.fn();
+    const mockPrefetch = vi.fn(() => {
+      return {
+        abort: abortFn,
+        done: new Promise<void>(() => {}),
+        firstEvent,
+      };
+    });
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Click 1: navigate to /tasks/2 (first visit, will wait for prefetch)
+    const nav1 = router.navigate('/tasks/2');
+
+    // Give a tick — should be waiting for prefetch
+    await new Promise((r) => setTimeout(r, 5));
+    expect(router.current.value?.route.pattern).toBe('/');
+
+    // Click 2: same URL — should NOT restart the prefetch
+    const nav2 = router.navigate('/tasks/2');
+
+    // Prefetch should NOT have been aborted and re-created
+    // (only 1 prefetch call, not 2)
+    expect(mockPrefetch).toHaveBeenCalledTimes(1);
+    expect(abortFn).not.toHaveBeenCalled();
+
+    // Resolve the original firstEvent
+    resolveFirstEvent();
+    await nav1;
+    await nav2;
+
+    // Page should show /tasks/2
+    expect(router.current.value?.route.pattern).toBe('/tasks/2');
+    router.dispose();
+  });
+
+  test('navigate A → navigate A again → page renders without double wait', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/detail': { component: () => document.createElement('div') },
+    });
+
+    // Simulate a slow prefetch that takes 300ms to send first event
+    let resolveFirstEvent!: () => void;
+    const firstEvent = new Promise<void>((r) => {
+      resolveFirstEvent = r;
+    });
+    // After 300ms, resolve firstEvent
+    setTimeout(() => resolveFirstEvent(), 300);
+
+    const mockPrefetch = vi.fn(() => ({
+      abort: () => {},
+      done: new Promise<void>(() => {}),
+      firstEvent,
+    }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Click 1 at t=0
+    router.navigate('/detail');
+
+    // Click 2 at t=100ms (user re-clicks, thinking nothing happened)
+    await new Promise((r) => setTimeout(r, 100));
+    const start = Date.now();
+    await router.navigate('/detail');
+    const elapsed = Date.now() - start;
+
+    // Should complete within ~200ms (remaining time on original firstEvent),
+    // NOT restart a new 300ms timer
+    expect(elapsed).toBeLessThan(400);
+    expect(router.current.value?.route.pattern).toBe('/detail');
+    router.dispose();
+  });
+
+  test('list → detail → list → detail2: all navigations complete correctly', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/tasks/1': { component: () => document.createElement('div') },
+      '/tasks/2': { component: () => document.createElement('div') },
+    });
+
+    const mockPrefetch = vi.fn(() => ({
+      abort: () => {},
+      done: Promise.resolve(),
+      firstEvent: Promise.resolve(),
+    }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Step 1: list → detail 1
+    await router.navigate('/tasks/1');
+    expect(router.current.value?.route.pattern).toBe('/tasks/1');
+
+    // Step 2: detail 1 → list (cached — visited before)
+    await router.navigate('/');
+    expect(router.current.value?.route.pattern).toBe('/');
+
+    // Step 3: list → detail 2 (first visit)
+    await router.navigate('/tasks/2');
+    expect(router.current.value?.route.pattern).toBe('/tasks/2');
+
+    router.dispose();
+  });
+
   test('popstate triggers prefetch', async () => {
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },
