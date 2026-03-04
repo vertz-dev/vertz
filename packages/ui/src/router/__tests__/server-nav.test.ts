@@ -225,4 +225,77 @@ describe('prefetchNavData', () => {
     // Both calls should initiate fetches — the caller (router) manages aborting
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
+
+  it('ignores unknown event types without crashing', async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: unknown\ndata: {"key":"mystery"}\n\n'));
+        controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'));
+        controller.close();
+      },
+    });
+    globalThis.fetch = mock(() => Promise.resolve(new Response(stream, { status: 200 })));
+
+    const handle = prefetchNavData('/tasks');
+    await handle.done;
+
+    expect(isNavPrefetchActive()).toBe(false);
+  });
+
+  it('firstEvent resolves on first SSE event before done', async () => {
+    const encoder = new TextEncoder();
+    let enqueueFn: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        enqueueFn = controller;
+      },
+    });
+    globalThis.fetch = mock(() => Promise.resolve(new Response(stream, { status: 200 })));
+
+    const handle = prefetchNavData('/tasks');
+    expect(handle.firstEvent).toBeInstanceOf(Promise);
+
+    let firstEventResolved = false;
+    const firstEvent = handle.firstEvent as Promise<void>;
+    firstEvent.then(() => {
+      firstEventResolved = true;
+    });
+
+    // No events yet — firstEvent should not have resolved
+    await new Promise((r) => setTimeout(r, 10));
+    expect(firstEventResolved).toBe(false);
+
+    // Send first event
+    const ctrl = enqueueFn as ReadableStreamDefaultController<Uint8Array>;
+    ctrl.enqueue(encoder.encode('event: data\ndata: {"key":"q1","data":1}\n\n'));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(firstEventResolved).toBe(true);
+
+    // Clean up
+    ctrl.enqueue(encoder.encode('event: done\ndata: {}\n\n'));
+    ctrl.close();
+    await handle.done;
+  });
+
+  it('firstEvent resolves on done when no data events arrive', async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'));
+        controller.close();
+      },
+    });
+    globalThis.fetch = mock(() => Promise.resolve(new Response(stream, { status: 200 })));
+
+    const handle = prefetchNavData('/tasks');
+    let firstEventResolved = false;
+    const firstEvent = handle.firstEvent as Promise<void>;
+    firstEvent.then(() => {
+      firstEventResolved = true;
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(firstEventResolved).toBe(true);
+  });
 });

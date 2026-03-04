@@ -114,7 +114,7 @@ function dispatchPrefetchDone(): void {
 export function prefetchNavData(
   url: string,
   options?: { timeout?: number },
-): { abort: () => void; done: Promise<void> } {
+): { abort: () => void; done: Promise<void>; firstEvent: Promise<void> } {
   const controller = new AbortController();
   const timeout = options?.timeout ?? 5000;
 
@@ -125,6 +125,19 @@ export function prefetchNavData(
   // Set up timeout
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+  // firstEvent promise — resolves when the first SSE event of any type arrives
+  let resolveFirstEvent: (() => void) | null = null;
+  const firstEvent = new Promise<void>((r) => {
+    resolveFirstEvent = r;
+  });
+
+  function onFirstEvent(): void {
+    if (resolveFirstEvent) {
+      resolveFirstEvent();
+      resolveFirstEvent = null;
+    }
+  }
+
   // Start the SSE fetch — the done promise resolves when the stream completes
   const done = fetch(url, {
     headers: { 'X-Vertz-Nav': '1' },
@@ -132,6 +145,7 @@ export function prefetchNavData(
   })
     .then(async (response) => {
       if (!response.body) {
+        onFirstEvent();
         dispatchPrefetchDone();
         return;
       }
@@ -149,6 +163,8 @@ export function prefetchNavData(
         buffer = parsed.remaining;
 
         for (const event of parsed.events) {
+          onFirstEvent();
+
           if (event.type === 'data') {
             try {
               const { key, data } = JSON.parse(event.data) as { key: string; data: unknown };
@@ -165,10 +181,12 @@ export function prefetchNavData(
       }
 
       // Stream ended without done event — still finish
+      onFirstEvent();
       dispatchPrefetchDone();
     })
     .catch(() => {
       // Network error, abort, etc. — graceful degradation
+      onFirstEvent();
       dispatchPrefetchDone();
     })
     .finally(() => {
@@ -181,5 +199,6 @@ export function prefetchNavData(
       clearTimeout(timeoutId);
     },
     done,
+    firstEvent,
   };
 }

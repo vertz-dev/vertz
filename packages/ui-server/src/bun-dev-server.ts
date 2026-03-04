@@ -22,7 +22,7 @@ import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, watch, writeFileSync } from 'node:fs';
 import { dirname, normalize, resolve } from 'node:path';
 import type { SSRModule } from './ssr-render';
-import { ssrDiscoverQueries, ssrRenderToString } from './ssr-render';
+import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
 import { safeSerialize } from './ssr-streaming-runtime';
 
 export interface BunDevServerOptions {
@@ -449,16 +449,11 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           return apiHandler(request);
         }
 
-        // Nav pre-fetch (X-Vertz-Nav: 1)
+        // Nav pre-fetch (X-Vertz-Nav: 1) — stream SSE events as queries settle
         if (request.headers.get('x-vertz-nav') === '1') {
           try {
-            const result = await ssrDiscoverQueries(ssrMod, pathname, { ssrTimeout: 300 });
-            let body = '';
-            for (const qEntry of result.resolved) {
-              body += `event: data\ndata: ${safeSerialize(qEntry)}\n\n`;
-            }
-            body += 'event: done\ndata: {}\n\n';
-            return new Response(body, {
+            const stream = await ssrStreamNavQueries(ssrMod, pathname, { navSsrTimeout: 5000 });
+            return new Response(stream, {
               status: 200,
               headers: {
                 'Content-Type': 'text/event-stream',
@@ -616,7 +611,15 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           // Re-discover HMR assets (hash changes on every edit)
           await discoverHMRAssets();
 
-          // Re-import SSR module with cache busting
+          // Re-import SSR module — clear require cache for all project source
+          // files so transitive dependencies (e.g., mock-data.ts) are re-evaluated.
+          // Bun's `import()` with `?t=...` only busts the entry module cache;
+          // require.cache clearing forces the full dependency tree to reload.
+          for (const key of Object.keys(require.cache)) {
+            if (key.startsWith(srcDir) || key.startsWith(entryPath)) {
+              delete require.cache[key];
+            }
+          }
           try {
             const freshMod: SSRModule = await import(`${entryPath}?t=${Date.now()}`);
             ssrMod = freshMod;

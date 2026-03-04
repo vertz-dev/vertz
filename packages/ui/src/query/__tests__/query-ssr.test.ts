@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
+import { signal } from '../../runtime/signal';
+import { MemoryCache } from '../cache';
 import { query } from '../query';
 
 describe('query() SSR behavior', () => {
@@ -284,6 +286,84 @@ describe('query() nav prefetch integration', () => {
     expect(result.data.value).toBe('streamed');
     expect(result.loading.value).toBe(false);
     expect(fetchFn).not.toHaveBeenCalled();
+
+    result.dispose();
+  });
+
+  it('serves cached data for derived-key query during navigation', async () => {
+    // Pre-populate cache with data from a previous visit
+    const cache = new MemoryCache<string>();
+    const dep = signal('value-1');
+
+    // Shared thunk — must be the same function reference so deriveKey
+    // produces the same base key for both query instances.
+    const fetchFn = () => {
+      dep.value;
+      return Promise.resolve('fresh-data');
+    };
+
+    // First visit: NOT a navigation — populate the cache normally
+    delete (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__;
+    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__;
+    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__;
+
+    const result = query(fetchFn, { cache });
+
+    // Wait for the effect to complete and cache to populate
+    await new Promise((r) => setTimeout(r, 50));
+    expect(result.data.value).toBe('fresh-data');
+    result.dispose();
+
+    // Second visit: simulate navigation context with same dep values
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
+    (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = true;
+
+    const result2 = query(fetchFn, { cache });
+
+    // Wait for the effect to run
+    await new Promise((r) => setTimeout(r, 50));
+
+    // With Phase 4 fix: derived-key queries check cache during navigation
+    // The data should be served from cache (no loading flash)
+    expect(result2.data.value).toBe('fresh-data');
+    expect(result2.loading.value).toBe(false);
+
+    result2.dispose();
+  });
+
+  it('late prefetch done does not double-fetch when SSR data arrived via stream', async () => {
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_PUSH__ = () => {};
+    (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = true;
+
+    let fetchCount = 0;
+    const fetchFn = vi.fn(() => {
+      fetchCount++;
+      return Promise.resolve(`data-${fetchCount}`);
+    });
+    const result = query(fetchFn, { key: 'late-done-ssr-test' });
+
+    // Data arrives via SSR stream
+    document.dispatchEvent(
+      new CustomEvent('vertz:ssr-data', {
+        detail: { key: 'late-done-ssr-test', data: 'ssr-data' },
+      }),
+    );
+
+    // SSR hydration set the data
+    expect(result.data.value).toBe('ssr-data');
+
+    // Now the doneHandler fires (late prefetch completion)
+    (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__ = false;
+    document.dispatchEvent(new CustomEvent('vertz:nav-prefetch-done'));
+
+    // Wait to ensure no redundant fetch was triggered
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Should NOT have fetched — data already arrived via SSR stream
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(result.data.value).toBe('ssr-data');
 
     result.dispose();
   });

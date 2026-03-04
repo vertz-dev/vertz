@@ -18,6 +18,17 @@ interface SSRDataEntry {
   data: unknown;
 }
 
+/** Options for hydrateQueryFromSSR. */
+interface HydrateOptions {
+  /**
+   * When true, the `vertz:ssr-data` listener stays active after the first
+   * match instead of auto-removing. Used during nav prefetch so that SWR
+   * revalidation data (fresh data arriving after a cache hit) updates the
+   * query. The cleanup function still removes the listener on dispose.
+   */
+  persistent?: boolean;
+}
+
 /**
  * Attempt to hydrate a query from SSR-streamed data.
  *
@@ -28,6 +39,7 @@ interface SSRDataEntry {
 export function hydrateQueryFromSSR(
   key: string,
   resolve: (data: unknown) => void,
+  options?: HydrateOptions,
 ): (() => void) | null {
   // biome-ignore lint/suspicious/noExplicitAny: SSR global requires globalThis augmentation
   const ssrData = (globalThis as any).__VERTZ_SSR_DATA__ as SSRDataEntry[] | undefined;
@@ -35,11 +47,14 @@ export function hydrateQueryFromSSR(
   // Not an SSR-rendered page — no data to hydrate
   if (!ssrData) return null;
 
+  const persistent = options?.persistent ?? false;
+
   // Check buffered array first (data arrived before listener)
   const existing = ssrData.find((entry) => entry.key === key);
   if (existing) {
     resolve(existing.data);
-    return () => {};
+    if (!persistent) return () => {};
+    // Fall through to register listener for SWR updates
   }
 
   // Listen for streamed data that arrives later
@@ -47,7 +62,9 @@ export function hydrateQueryFromSSR(
     const detail = (event as CustomEvent<SSRDataEntry>).detail;
     if (detail.key === key) {
       resolve(detail.data);
-      document.removeEventListener('vertz:ssr-data', handler);
+      if (!persistent) {
+        document.removeEventListener('vertz:ssr-data', handler);
+      }
     }
   };
 

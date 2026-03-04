@@ -418,6 +418,251 @@ describe('createRouter serverNav', () => {
     router.dispose();
   });
 
+  test('navigate resolves when firstEvent resolves (before done)', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+
+    let resolveFirstEvent!: () => void;
+    const firstEvent = new Promise<void>((r) => {
+      resolveFirstEvent = r;
+    });
+    const mockPrefetch = vi.fn(() => ({
+      abort: () => {},
+      done: new Promise<void>(() => {}), // never resolves
+      firstEvent,
+    }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    let navigated = false;
+    const navPromise = router.navigate('/about').then(() => {
+      navigated = true;
+    });
+
+    // Not navigated yet — firstEvent pending
+    await new Promise((r) => setTimeout(r, 5));
+    expect(navigated).toBe(false);
+
+    // Resolve firstEvent — navigation should proceed
+    resolveFirstEvent();
+    await navPromise;
+
+    expect(navigated).toBe(true);
+    expect(router.current.value?.route.pattern).toBe('/about');
+    router.dispose();
+  });
+
+  test('rapid nav1 → nav2: nav1 applyNavigation is skipped after awaitPrefetch', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/a': { component: () => document.createElement('div') },
+      '/b': { component: () => document.createElement('div') },
+    });
+
+    let resolveDone1!: () => void;
+    const done1 = new Promise<void>((r) => {
+      resolveDone1 = r;
+    });
+    let callCount = 0;
+    const mockPrefetch = vi.fn(() => {
+      callCount++;
+      if (callCount === 1) {
+        // First nav: slow prefetch
+        return { abort: () => {}, done: done1, firstEvent: done1 };
+      }
+      // Second nav: instant
+      return { abort: () => {}, done: Promise.resolve(), firstEvent: Promise.resolve() };
+    });
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Start nav1 (slow) — will wait on awaitPrefetch
+    const nav1 = router.navigate('/a');
+    // Start nav2 (instant) — should supersede nav1
+    const nav2 = router.navigate('/b');
+
+    // Resolve nav1's prefetch after nav2 started
+    resolveDone1();
+    await nav1;
+    await nav2;
+
+    // Only nav2's route should be active
+    expect(router.current.value?.route.pattern).toBe('/b');
+    router.dispose();
+  });
+
+  test('rapid nav1 → nav2 → nav3: only nav3 applyNavigation runs', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/a': { component: () => document.createElement('div') },
+      '/b': { component: () => document.createElement('div') },
+      '/c': { component: () => document.createElement('div') },
+    });
+
+    let resolveDone1!: () => void;
+    const done1 = new Promise<void>((r) => {
+      resolveDone1 = r;
+    });
+    let resolveDone2!: () => void;
+    const done2 = new Promise<void>((r) => {
+      resolveDone2 = r;
+    });
+    let callCount = 0;
+    const mockPrefetch = vi.fn(() => {
+      callCount++;
+      if (callCount === 1) {
+        return { abort: () => {}, done: done1, firstEvent: done1 };
+      }
+      if (callCount === 2) {
+        return { abort: () => {}, done: done2, firstEvent: done2 };
+      }
+      return { abort: () => {}, done: Promise.resolve(), firstEvent: Promise.resolve() };
+    });
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    const nav1 = router.navigate('/a');
+    const nav2 = router.navigate('/b');
+    const nav3 = router.navigate('/c');
+
+    resolveDone1();
+    resolveDone2();
+    await nav1;
+    await nav2;
+    await nav3;
+
+    // Only nav3's route should be active
+    expect(router.current.value?.route.pattern).toBe('/c');
+    router.dispose();
+  });
+
+  test('skips SSE wait for previously visited URLs', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/tasks': { component: () => document.createElement('div') },
+    });
+
+    let resolveFirstEvent!: () => void;
+    const firstEvent = new Promise<void>((r) => {
+      resolveFirstEvent = r;
+    });
+    let callCount = 0;
+    const mockPrefetch = vi.fn(() => {
+      callCount++;
+      if (callCount === 1) {
+        // First nav to /tasks: slow prefetch
+        return { abort: () => {}, done: new Promise<void>(() => {}), firstEvent };
+      }
+      // Second nav to /tasks: should skip wait entirely, but still fire prefetch
+      return {
+        abort: () => {},
+        done: new Promise<void>(() => {}),
+        firstEvent: new Promise<void>(() => {}),
+      };
+    });
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // First visit to /tasks — should wait for firstEvent
+    let firstNavDone = false;
+    const nav1 = router.navigate('/tasks').then(() => {
+      firstNavDone = true;
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    expect(firstNavDone).toBe(false); // Waiting for prefetch
+    resolveFirstEvent();
+    await nav1;
+    expect(firstNavDone).toBe(true);
+    expect(router.current.value?.route.pattern).toBe('/tasks');
+
+    // Navigate away
+    await router.navigate('/');
+
+    // Revisit /tasks — should NOT wait for prefetch (visited before)
+    const start = Date.now();
+    await router.navigate('/tasks');
+    const elapsed = Date.now() - start;
+
+    expect(router.current.value?.route.pattern).toBe('/tasks');
+    // Should have been near-instant (no 500ms wait)
+    expect(elapsed).toBeLessThan(50);
+    // Prefetch was still called (for SWR revalidation)
+    expect(mockPrefetch).toHaveBeenCalledTimes(3);
+
+    router.dispose();
+  });
+
+  test('waits for SSE data on first-visit URLs', async () => {
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+
+    let resolveFirstEvent!: () => void;
+    const firstEvent = new Promise<void>((r) => {
+      resolveFirstEvent = r;
+    });
+    const mockPrefetch = vi.fn(() => ({
+      abort: () => {},
+      done: new Promise<void>(() => {}),
+      firstEvent,
+    }));
+    const router = createRouter(routes, '/', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // First visit to /about — should wait for firstEvent
+    let navigated = false;
+    const navPromise = router.navigate('/about').then(() => {
+      navigated = true;
+    });
+
+    await new Promise((r) => setTimeout(r, 5));
+    expect(navigated).toBe(false);
+
+    resolveFirstEvent();
+    await navPromise;
+    expect(navigated).toBe(true);
+    expect(router.current.value?.route.pattern).toBe('/about');
+
+    router.dispose();
+  });
+
+  test('normalizes URL query params for visited URL matching', async () => {
+    const routes = defineRoutes({
+      '/tasks': { component: () => document.createElement('div') },
+    });
+
+    const mockPrefetch = vi.fn(() => ({
+      abort: () => {},
+      done: Promise.resolve(),
+      firstEvent: Promise.resolve(),
+    }));
+    const router = createRouter(routes, '/tasks?b=2&a=1', {
+      serverNav: true,
+      _prefetchNavData: mockPrefetch,
+    });
+
+    // Navigate to same URL with different param order — should skip wait
+    const start = Date.now();
+    await router.navigate('/tasks?a=1&b=2');
+    const elapsed = Date.now() - start;
+
+    expect(elapsed).toBeLessThan(50);
+    router.dispose();
+  });
+
   test('popstate triggers prefetch', async () => {
     const routes = defineRoutes({
       '/': { component: () => document.createElement('div') },

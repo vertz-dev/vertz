@@ -24,6 +24,8 @@ interface PrefetchHandle {
   abort: () => void;
   /** Resolves when SSE stream completes (data or done event). */
   done?: Promise<void>;
+  /** Resolves when the first SSE event of any type arrives. */
+  firstEvent?: Promise<void>;
 }
 
 /**
@@ -110,13 +112,32 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
 
   const initialMatch = matchRoute(routes, url);
 
+  // ── Visited URL tracking for cache-first navigation ──
+  // When navigating to a URL that was already visited, skip the SSE
+  // wait entirely so cached query data renders instantly. The SSE
+  // prefetch still fires in the background for SWR revalidation.
+  function normalizeUrl(rawUrl: string): string {
+    const qIdx = rawUrl.indexOf('?');
+    if (qIdx === -1) return rawUrl;
+    const pathname = rawUrl.slice(0, qIdx);
+    const params = new URLSearchParams(rawUrl.slice(qIdx + 1));
+    params.sort();
+    const sorted = params.toString();
+    return sorted ? `${pathname}?${sorted}` : pathname;
+  }
+
+  const visitedUrls = new Set<string>();
+  if (initialMatch) visitedUrls.add(normalizeUrl(url));
+
   const current = signal<RouteMatch | null>(initialMatch);
   const loaderData = signal<unknown[]>([]);
   const loaderError = signal<Error | null>(null);
   const searchParams = signal<Record<string, unknown>>(initialMatch?.search ?? {});
 
-  /** Navigation generation counter for stale-loader detection. */
+  /** Navigation generation counter for stale-loader detection (inside applyNavigation). */
   let navigationGen = 0;
+  /** Separate counter for the outer navigate() race (awaitPrefetch → applyNavigation). */
+  let navigateGen = 0;
   /** AbortController for the current in-flight navigation. */
   let currentAbort: AbortController | null = null;
 
@@ -141,13 +162,11 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     return activePrefetch;
   }
 
-  /** Wait for prefetch to complete, with a threshold timeout. */
+  /** Wait for first prefetch event (or full completion), with a threshold timeout. */
   async function awaitPrefetch(handle: PrefetchHandle | null): Promise<void> {
-    if (!handle?.done) return;
-    await Promise.race([
-      handle.done,
-      new Promise<void>((r) => setTimeout(r, DEFAULT_NAV_THRESHOLD_MS)),
-    ]);
+    const target = handle?.firstEvent ?? handle?.done;
+    if (!target) return;
+    await Promise.race([target, new Promise<void>((r) => setTimeout(r, DEFAULT_NAV_THRESHOLD_MS))]);
   }
 
   // In SSR, register a sync hook so the SSR pipeline can navigate
@@ -210,6 +229,7 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     current.value = match;
 
     if (match) {
+      visitedUrls.add(normalizeUrl(url));
       searchParams.value = match.search;
       await runLoaders(match, gen, abort.signal);
     } else {
@@ -222,6 +242,10 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   }
 
   async function navigate(navUrl: string, navOptions?: NavigateOptions): Promise<void> {
+    // Capture generation at start — if a newer navigate() starts while we
+    // await prefetch, this navigate should skip applyNavigation.
+    const gen = ++navigateGen;
+
     // Start server nav prefetch before navigation
     const handle = startPrefetch(navUrl);
 
@@ -234,16 +258,15 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
       }
     }
 
-    // Wait briefly for SSE data to arrive before rendering the page.
-    // If data resolves within the threshold, the page renders with data
-    // immediately (no loading flash). Otherwise, render proceeds and
-    // data arrives later via the hydration bus.
-    // Note: only await when there's a done promise — avoid yielding to
-    // the microtask queue unnecessarily (changes execution order of
-    // concurrent navigations).
-    if (handle?.done) {
+    // Skip SSE wait for previously visited URLs — query cache will
+    // serve data instantly. SSE prefetch still fires for SWR revalidation.
+    const isCachedNav = visitedUrls.has(normalizeUrl(navUrl));
+    if (!isCachedNav && (handle?.firstEvent || handle?.done)) {
       await awaitPrefetch(handle);
     }
+
+    // Guard: skip if a newer navigation started while we waited
+    if (gen !== navigateGen) return;
 
     await applyNavigation(navUrl);
   }

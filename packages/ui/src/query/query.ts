@@ -249,12 +249,19 @@ export function query<T, E = unknown>(
     // to call the thunk once to capture deps and compute the key.
     const hydrationKey = customKey ?? baseKey;
 
-    ssrHydrationCleanup = hydrateQueryFromSSR(hydrationKey, (result: unknown) => {
-      data.value = result as T;
-      loading.value = false;
-      cache.set(hydrationKey, result as T);
-      ssrHydrated = true;
-    });
+    // During nav prefetch, use persistent: true so the listener stays active
+    // for SWR revalidation (fresh data arriving after a cache hit).
+    const isNavigation = isNavPrefetchActive();
+    ssrHydrationCleanup = hydrateQueryFromSSR(
+      hydrationKey,
+      (result: unknown) => {
+        data.value = result as T;
+        loading.value = false;
+        cache.set(hydrationKey, result as T);
+        ssrHydrated = true;
+      },
+      { persistent: isNavigation },
+    );
 
     // If SSR hydration didn't find data in the buffer but a nav prefetch is
     // active, defer the client-side fetch. Wait for the SSE stream to complete
@@ -277,15 +284,14 @@ export function query<T, E = unknown>(
       navPrefetchDeferred = true;
       const doneHandler = () => {
         document.removeEventListener('vertz:nav-prefetch-done', doneHandler);
-        // If still no data after prefetch completed, trigger client-side fetch
-        if (data.peek() === undefined) {
+        // Only trigger refetch if no data arrived yet (from cache, SSE, or client fetch)
+        if (data.peek() === undefined && !ssrHydrated) {
           refetchTrigger.value = refetchTrigger.peek() + 1;
         }
       };
       document.addEventListener('vertz:nav-prefetch-done', doneHandler);
 
-      // Chain cleanup: both the SSR hydration listener AND the done listener
-      // must be removed on dispose/abort.
+      // Chain cleanup: SSR hydration + done listener
       const prevCleanup = ssrHydrationCleanup;
       ssrHydrationCleanup = () => {
         prevCleanup?.();
@@ -463,6 +469,20 @@ export function query<T, E = unknown>(
             isFirst = false;
             return;
           }
+        } else {
+          // Derived key: call thunk to discover the key, then check cache.
+          const trackPromise = callThunkWithCapture();
+          trackPromise.catch(() => {});
+          const derivedKey = untrack(() => getCacheKey());
+          const cached = untrack(() => cache.get(derivedKey));
+          if (cached !== undefined) {
+            untrack(() => {
+              data.value = cached;
+              loading.value = false;
+            });
+            isFirst = false;
+            return;
+          }
         }
         // No cache hit — defer to the SSE stream / doneHandler fallback.
         isFirst = false;
@@ -523,14 +543,18 @@ export function query<T, E = unknown>(
       }
 
       // Cache hit: serve data from cache without re-fetching.
-      // - On first run with a custom key: check cache to support remounting
-      //   a query whose data was previously fetched and is still in the
-      //   shared cache (avoids loading flash on page re-navigation).
+      // - During navigation (ssrHydrationCleanup !== null): always check cache
+      //   on first run — cached data from a previous visit should render
+      //   immediately (SWR pattern). This covers derived-key queries that
+      //   were previously skipped because the key wasn't known until thunk ran.
+      // - On first run with a custom key (non-nav): check cache to support
+      //   remounting a query still in the shared cache.
       // - On subsequent runs with derived keys: check cache when deps change
       //   back to previously-seen values.
       // - On subsequent runs with custom keys: skip — the key is static, so
       //   a cache hit would prevent re-fetching when deps change.
-      const shouldCheckCache = isFirst ? !!customKey : !customKey;
+      const isNavigation = ssrHydrationCleanup !== null;
+      const shouldCheckCache = isNavigation || (isFirst ? !!customKey : !customKey);
       if (shouldCheckCache) {
         const cached = untrack(() => cache.get(key));
         if (cached !== undefined) {

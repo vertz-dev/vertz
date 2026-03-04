@@ -108,6 +108,67 @@ describe('hydrateQueryFromSSR', () => {
     expect(resolve).not.toHaveBeenCalled();
   });
 
+  it('removes listener after first match by default (non-persistent)', () => {
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
+
+    const resolve = vi.fn();
+    hydrateQueryFromSSR('key', resolve);
+
+    const doc = (globalThis as Record<string, unknown>).document as {
+      dispatchEvent: (e: unknown) => void;
+    };
+    doc.dispatchEvent({
+      type: 'vertz:ssr-data',
+      detail: { key: 'key', data: 'first' },
+    });
+
+    expect(resolve).toHaveBeenCalledTimes(1);
+
+    // Second dispatch — listener already removed
+    doc.dispatchEvent({
+      type: 'vertz:ssr-data',
+      detail: { key: 'key', data: 'second' },
+    });
+
+    expect(resolve).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps listener active when persistent is true (SWR)', () => {
+    (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__ = [];
+
+    const resolve = vi.fn();
+    const cleanup = hydrateQueryFromSSR('key', resolve, { persistent: true });
+
+    const doc = (globalThis as Record<string, unknown>).document as {
+      dispatchEvent: (e: unknown) => void;
+    };
+    doc.dispatchEvent({
+      type: 'vertz:ssr-data',
+      detail: { key: 'key', data: 'first' },
+    });
+
+    expect(resolve).toHaveBeenCalledTimes(1);
+
+    // Second dispatch — listener should STILL be active
+    doc.dispatchEvent({
+      type: 'vertz:ssr-data',
+      detail: { key: 'key', data: 'second' },
+    });
+
+    expect(resolve).toHaveBeenCalledTimes(2);
+    expect(resolve).toHaveBeenLastCalledWith('second');
+
+    // Cleanup removes it
+    cleanup?.();
+
+    doc.dispatchEvent({
+      type: 'vertz:ssr-data',
+      detail: { key: 'key', data: 'third' },
+    });
+
+    expect(resolve).toHaveBeenCalledTimes(2);
+  });
+
   it('returns null cleanup when no SSR data exists', () => {
     // No __VERTZ_SSR_DATA__ — not an SSR page
     const resolve = vi.fn();

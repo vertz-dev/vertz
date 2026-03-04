@@ -1,7 +1,7 @@
 import { createRouter, defineRoutes, defineTheme, RouterContext, RouterView } from '@vertz/ui';
 import { describe, expect, it } from 'vitest';
 import { registerSSRQuery } from '../ssr-context';
-import { ssrDiscoverQueries, ssrRenderToString } from '../ssr-render';
+import { ssrDiscoverQueries, ssrRenderToString, ssrStreamNavQueries } from '../ssr-render';
 
 describe('ssrRenderToString', () => {
   it('returns { html, css, ssrData } shape', async () => {
@@ -128,6 +128,179 @@ describe('ssrDiscoverQueries', () => {
     expect(result.resolved).toHaveLength(1);
     expect(result.resolved[0].key).toBe('tasks');
     expect(result.resolved[0].data).toEqual({ items: ['a', 'b'] });
+  });
+});
+
+/** Helper: read a ReadableStream<Uint8Array> to a string. */
+async function streamToText(stream: ReadableStream<Uint8Array>): Promise<string> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let result = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    result += decoder.decode(value, { stream: true });
+  }
+  return result;
+}
+
+describe('ssrStreamNavQueries', () => {
+  it('returns a ReadableStream with individual SSE events for resolved queries', async () => {
+    const module = {
+      default: () => {
+        registerSSRQuery({
+          key: 'tasks',
+          promise: Promise.resolve({ items: ['a', 'b'] }),
+          timeout: 300,
+          resolve: () => {},
+        });
+        const el = document.createElement('div');
+        el.textContent = 'App';
+        return el;
+      },
+    };
+
+    const stream = await ssrStreamNavQueries(module, '/tasks');
+    expect(stream).toBeInstanceOf(ReadableStream);
+
+    const text = await streamToText(stream);
+    // Should contain individual data event
+    expect(text).toContain('event: data\n');
+    expect(text).toContain('"key":"tasks"');
+    // Should end with done event
+    expect(text).toContain('event: done\ndata: {}\n\n');
+  });
+
+  it('silently closes timed-out queries (no pending event)', async () => {
+    const module = {
+      default: () => {
+        registerSSRQuery({
+          key: 'slow-query',
+          promise: new Promise((resolve) => setTimeout(() => resolve({ data: 'late' }), 5000)),
+          timeout: 50,
+          resolve: () => {},
+        });
+        const el = document.createElement('div');
+        el.textContent = 'App';
+        return el;
+      },
+    };
+
+    const stream = await ssrStreamNavQueries(module, '/', { navSsrTimeout: 50 });
+    const text = await streamToText(stream);
+
+    // No pending event — just closes with done
+    expect(text).not.toContain('event: pending');
+    expect(text).not.toContain('event: data');
+    expect(text).toContain('event: done\ndata: {}\n\n');
+  });
+
+  it('emits data for fast query, silently drops slow query', async () => {
+    const module = {
+      default: () => {
+        registerSSRQuery({
+          key: 'fast-query',
+          promise: Promise.resolve({ items: [1] }),
+          timeout: 300,
+          resolve: () => {},
+        });
+        registerSSRQuery({
+          key: 'slow-query',
+          promise: new Promise((resolve) => setTimeout(() => resolve('late'), 5000)),
+          timeout: 50,
+          resolve: () => {},
+        });
+        const el = document.createElement('div');
+        el.textContent = 'App';
+        return el;
+      },
+    };
+
+    const stream = await ssrStreamNavQueries(module, '/', { navSsrTimeout: 50 });
+    const text = await streamToText(stream);
+
+    expect(text).toContain('event: data\n');
+    expect(text).toContain('"key":"fast-query"');
+    // No pending event for slow query
+    expect(text).not.toContain('event: pending');
+    expect(text).toContain('event: done\ndata: {}\n\n');
+  });
+
+  it('uses navSsrTimeout (default 5000ms) for streaming nav queries', async () => {
+    // A query that takes 100ms should resolve within default 5000ms timeout
+    const module = {
+      default: () => {
+        registerSSRQuery({
+          key: 'medium-query',
+          promise: new Promise((resolve) => setTimeout(() => resolve({ data: 'ok' }), 100)),
+          timeout: 5000,
+          resolve: () => {},
+        });
+        const el = document.createElement('div');
+        el.textContent = 'App';
+        return el;
+      },
+    };
+
+    const stream = await ssrStreamNavQueries(module, '/');
+    const text = await streamToText(stream);
+
+    // Should resolve as data, not timeout
+    expect(text).toContain('event: data\n');
+    expect(text).toContain('"key":"medium-query"');
+    expect(text).not.toContain('event: pending');
+  });
+
+  it('emits done event when no queries are registered', async () => {
+    const module = {
+      default: () => {
+        const el = document.createElement('div');
+        el.textContent = 'No queries';
+        return el;
+      },
+    };
+
+    const stream = await ssrStreamNavQueries(module, '/');
+    const text = await streamToText(stream);
+
+    expect(text).toBe('event: done\ndata: {}\n\n');
+  });
+
+  it('releases render lock before streaming begins', async () => {
+    const module = {
+      default: () => {
+        registerSSRQuery({
+          key: 'q1',
+          promise: new Promise((r) => setTimeout(() => r({ data: 1 }), 50)),
+          timeout: 300,
+          resolve: () => {},
+        });
+        const el = document.createElement('div');
+        el.textContent = 'App';
+        return el;
+      },
+    };
+
+    // Start streaming — should release lock after discovery
+    const streamPromise = ssrStreamNavQueries(module, '/');
+
+    // A concurrent render should succeed (not blocked by the stream)
+    const renderModule = {
+      default: () => {
+        const el = document.createElement('div');
+        el.textContent = 'Concurrent';
+        return el;
+      },
+    };
+
+    const [stream, renderResult] = await Promise.all([
+      streamPromise,
+      ssrRenderToString(renderModule, '/concurrent'),
+    ]);
+
+    expect(renderResult.html).toContain('Concurrent');
+    // Clean up the stream
+    await streamToText(stream);
   });
 });
 
