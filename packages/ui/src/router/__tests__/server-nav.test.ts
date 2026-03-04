@@ -298,4 +298,73 @@ describe('prefetchNavData', () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(firstEventResolved).toBe(true);
   });
+
+  it('aborted prefetch does not clear active flag when a newer prefetch exists', async () => {
+    // Simulate: prefetch A starts, then prefetch B starts (aborting A).
+    // A's .catch() must NOT dispatch done or clear the active flag.
+    // Mock fetch that rejects on abort (like real fetch does).
+    const abortAwareFetch = mock(
+      (_url: string, opts?: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          opts?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        }),
+    );
+    globalThis.fetch = abortAwareFetch;
+
+    const handleA = prefetchNavData('/page-a');
+    expect(isNavPrefetchActive()).toBe(true);
+
+    // Start a second prefetch — this increments the generation counter
+    const handleB = prefetchNavData('/page-b');
+    expect(isNavPrefetchActive()).toBe(true);
+
+    // Abort A (simulates startPrefetch aborting the previous one)
+    handleA.abort();
+
+    // Wait for abort's async .catch() to fire
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Active flag must still be true — B is still running
+    expect(isNavPrefetchActive()).toBe(true);
+
+    // Clean up
+    handleB.abort();
+    await new Promise((r) => setTimeout(r, 50));
+    // Now B was the latest prefetch AND it's aborted — flag should be cleared
+    expect(isNavPrefetchActive()).toBe(false);
+  });
+
+  it('aborted prefetch does not dispatch vertz:nav-prefetch-done when superseded', async () => {
+    const abortAwareFetch = mock(
+      (_url: string, opts?: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          opts?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        }),
+    );
+    globalThis.fetch = abortAwareFetch;
+
+    const doneHandler = mock(() => {});
+    document.addEventListener('vertz:nav-prefetch-done', doneHandler);
+
+    const handleA = prefetchNavData('/page-a');
+    const handleB = prefetchNavData('/page-b');
+
+    // Abort A
+    handleA.abort();
+    await new Promise((r) => setTimeout(r, 50));
+
+    // done event must NOT have fired — B is still active
+    expect(doneHandler).not.toHaveBeenCalled();
+
+    // Abort B — now the done event should fire
+    handleB.abort();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(doneHandler).toHaveBeenCalledTimes(1);
+
+    document.removeEventListener('vertz:nav-prefetch-done', doneHandler);
+  });
 });

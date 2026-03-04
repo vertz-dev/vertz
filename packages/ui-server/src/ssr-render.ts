@@ -414,16 +414,42 @@ export async function ssrStreamNavQueries(
     });
   }
 
-  // Stream individual SSE events as each query settles
+  // Stream individual SSE events as each query settles.
+  //
+  // The controller can be closed externally when the client aborts the request
+  // (e.g., navigating again before the stream completes). Our scheduled
+  // callbacks (.then, setTimeout) may still fire after the abort, so all
+  // controller operations are wrapped in try/catch to prevent crashes.
   const encoder = new TextEncoder();
   let remaining = queries.length;
 
   return new ReadableStream({
     start(controller) {
+      let closed = false;
+
+      function safeEnqueue(chunk: Uint8Array): void {
+        if (closed) return;
+        try {
+          controller.enqueue(chunk);
+        } catch {
+          closed = true;
+        }
+      }
+
+      function safeClose(): void {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          /* already closed by abort */
+        }
+      }
+
       function checkDone(): void {
         if (remaining === 0) {
-          controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'));
-          controller.close();
+          safeEnqueue(encoder.encode('event: done\ndata: {}\n\n'));
+          safeClose();
         }
       }
 
@@ -437,7 +463,7 @@ export async function ssrStreamNavQueries(
             settled = true;
             resolve(data);
             const entry = { key, data: JSON.parse(JSON.stringify(data)) };
-            controller.enqueue(encoder.encode(`event: data\ndata: ${safeSerialize(entry)}\n\n`));
+            safeEnqueue(encoder.encode(`event: data\ndata: ${safeSerialize(entry)}\n\n`));
             remaining--;
             checkDone();
           },

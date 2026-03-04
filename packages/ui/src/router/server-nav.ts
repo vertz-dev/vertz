@@ -100,6 +100,15 @@ function dispatchPrefetchDone(): void {
 }
 
 /**
+ * Generation counter for prefetch calls.
+ * When a new prefetch starts, the generation increments. An aborted
+ * prefetch's .catch() handler only dispatches "done" if its generation
+ * still matches the current one — preventing a stale abort from
+ * stomping on the new prefetch's active state.
+ */
+let prefetchGen = 0;
+
+/**
  * Start pre-fetching query data for a navigation target.
  *
  * Sends a request with X-Vertz-Nav: 1 header to the dev server,
@@ -117,6 +126,9 @@ export function prefetchNavData(
 ): { abort: () => void; done: Promise<void>; firstEvent: Promise<void> } {
   const controller = new AbortController();
   const timeout = options?.timeout ?? 5000;
+
+  // Capture generation — only the most recent prefetch dispatches "done".
+  const gen = ++prefetchGen;
 
   // Set up the hydration bus and active flag before fetch
   ensureSSRDataBus();
@@ -138,6 +150,18 @@ export function prefetchNavData(
     }
   }
 
+  /**
+   * Only dispatch "prefetch done" if this is still the active prefetch.
+   * When a newer prefetch starts (incrementing prefetchGen), an aborted
+   * prefetch's async callbacks must NOT clear the active flag or dispatch
+   * the done event — that would stomp on the new prefetch's state.
+   */
+  function finishIfCurrent(): void {
+    if (gen === prefetchGen) {
+      dispatchPrefetchDone();
+    }
+  }
+
   // Start the SSE fetch — the done promise resolves when the stream completes
   const done = fetch(url, {
     headers: { 'X-Vertz-Nav': '1' },
@@ -146,7 +170,7 @@ export function prefetchNavData(
     .then(async (response) => {
       if (!response.body) {
         onFirstEvent();
-        dispatchPrefetchDone();
+        finishIfCurrent();
         return;
       }
 
@@ -173,7 +197,7 @@ export function prefetchNavData(
               // Malformed event data — skip
             }
           } else if (event.type === 'done') {
-            dispatchPrefetchDone();
+            finishIfCurrent();
             clearTimeout(timeoutId);
             return;
           }
@@ -182,12 +206,12 @@ export function prefetchNavData(
 
       // Stream ended without done event — still finish
       onFirstEvent();
-      dispatchPrefetchDone();
+      finishIfCurrent();
     })
     .catch(() => {
       // Network error, abort, etc. — graceful degradation
       onFirstEvent();
-      dispatchPrefetchDone();
+      finishIfCurrent();
     })
     .finally(() => {
       clearTimeout(timeoutId);

@@ -304,6 +304,37 @@ describe('ssrStreamNavQueries', () => {
   });
 });
 
+describe('ssrStreamNavQueries abort safety', () => {
+  it('does not crash when stream is cancelled before queries settle', async () => {
+    const module = {
+      default: () => {
+        registerSSRQuery({
+          key: 'slow-q',
+          // This promise resolves AFTER we cancel the stream
+          promise: new Promise((r) => setTimeout(() => r({ data: 'late' }), 100)),
+          timeout: 300,
+          resolve: () => {},
+        });
+        const el = document.createElement('div');
+        el.textContent = 'App';
+        return el;
+      },
+    };
+
+    const stream = await ssrStreamNavQueries(module, '/');
+    const reader = stream.getReader();
+
+    // Cancel the stream immediately (simulates client navigating away)
+    await reader.cancel();
+
+    // Wait for the query promise and timeout to fire
+    await new Promise((r) => setTimeout(r, 200));
+
+    // If we got here without throwing, the abort-safety works
+    expect(true).toBe(true);
+  });
+});
+
 describe('per-request isolation', () => {
   it('concurrent ssrRenderToString calls do not interfere', async () => {
     const makeModule = (label: string) => ({
