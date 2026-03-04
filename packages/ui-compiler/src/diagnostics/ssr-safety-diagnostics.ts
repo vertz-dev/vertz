@@ -100,6 +100,7 @@ function isInNestedFunction(node: Node, bodyNode: Node): boolean {
       current.isKind(SyntaxKind.FunctionExpression) ||
       current.isKind(SyntaxKind.FunctionDeclaration) ||
       current.isKind(SyntaxKind.MethodDeclaration) ||
+      current.isKind(SyntaxKind.Constructor) ||
       current.isKind(SyntaxKind.GetAccessor) ||
       current.isKind(SyntaxKind.SetAccessor)
     ) {

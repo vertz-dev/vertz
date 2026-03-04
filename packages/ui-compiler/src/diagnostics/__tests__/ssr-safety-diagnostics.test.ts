@@ -290,6 +290,19 @@ describe('SSRSafetyDiagnostics', () => {
     expect(diags).toHaveLength(0);
   });
 
+  it('does NOT flag browser API inside a class constructor', () => {
+    const [sf, comp] = firstComponent(`
+      function App() {
+        class Store {
+          constructor() { localStorage.setItem('init', 'true'); }
+        }
+        return <div>ok</div>;
+      }
+    `);
+    const diags = new SSRSafetyDiagnostics().analyze(sf, comp);
+    expect(diags).toHaveLength(0);
+  });
+
   it('does NOT flag browser API inside a class setter', () => {
     const [sf, comp] = firstComponent(`
       function App() {
