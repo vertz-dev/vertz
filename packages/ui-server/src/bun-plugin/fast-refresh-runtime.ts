@@ -167,10 +167,9 @@ export function __$refreshTrack(
   const record = mod.get(name);
   if (!record) return element;
 
-  // Prune instances whose elements are no longer in the DOM
-  record.instances = record.instances.filter((inst) => inst.element.isConnected);
-
-  // Track this instance
+  // Track this instance — don't prune here! Elements created inside __list
+  // or other batched renderers may not be connected yet (appended to DOM
+  // after all renderFn calls). Pruning is done lazily in __$refreshPerform.
   record.instances.push({ element, args, cleanups, contextScope, signals });
 
   return element;

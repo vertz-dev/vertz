@@ -468,6 +468,7 @@
       "version": "0.2.2",
       "dependencies": {
         "@ampproject/remapping": "^2.3.0",
+        "@jridgewell/trace-mapping": "^0.3.31",
         "@vertz/core": "workspace:*",
         "@vertz/ui": "workspace:*",
         "@vertz/ui-compiler": "workspace:*",
@@ -476,12 +477,10 @@
       },
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.8.3",
-        "@vitest/coverage-v8": "^4.0.18",
         "bun-types": "^1.3.10",
         "bunup": "^0.16.31",
         "happy-dom": "^18.0.1",
         "typescript": "^5.7.0",
-        "vitest": "^4.0.18",
       },
     },
     "packages/vertz": {

@@ -141,7 +141,7 @@ describe('Fast Refresh Runtime', () => {
       expect(record?.instances[0]?.element).toBe(el);
     });
 
-    it('prunes disconnected instances on track', () => {
+    it('keeps disconnected instances on track (pruning deferred to perform)', () => {
       const factory = createFactory('Hello');
       __$refreshReg('mod1', 'App', factory);
 
@@ -162,21 +162,50 @@ describe('Fast Refresh Runtime', () => {
         >
       )[REGISTRY_KEY];
       const record = reg.get('mod1')?.get('App');
-      // Only the connected + new disconnected should remain
-      // (prune removes old disconnected, but the new one is added after prune)
-      // Actually: prune happens first (keeps connected), then new is pushed
-      expect(record?.instances.length).toBe(2);
-
-      // Now track another — this triggers prune again, which removes disconnected
-      const connected2 = document.createElement('div');
-      mount(connected2);
-      __$refreshTrack('mod1', 'App', connected2, [], [], null);
-
-      // After prune: connected (in DOM) + connected2 (in DOM)
-      // disconnected was pruned
+      // Both should be tracked — no eager pruning in __$refreshTrack.
+      // Disconnected instances are pruned lazily in __$refreshPerform.
       expect(record?.instances.length).toBe(2);
       expect(record?.instances[0]?.element).toBe(connected);
-      expect(record?.instances[1]?.element).toBe(connected2);
+      expect(record?.instances[1]?.element).toBe(disconnected);
+    });
+
+    it('tracks all instances created in a batch before DOM append (like __list)', () => {
+      // Simulates __list behavior: renderFn creates elements via component wrappers
+      // which call __$refreshTrack, THEN __list appends them to the DOM.
+      // All instances must survive tracking even though they're not connected yet.
+      const factory = createFactory('Item');
+      __$refreshReg('mod1', 'Item', factory);
+
+      // Create 3 elements WITHOUT mounting (simulating __list batch creation)
+      const el1 = document.createElement('div');
+      const el2 = document.createElement('div');
+      const el3 = document.createElement('div');
+
+      // Track all 3 before any are in the DOM
+      __$refreshTrack('mod1', 'Item', el1, [{ id: '1' }], [], null);
+      __$refreshTrack('mod1', 'Item', el2, [{ id: '2' }], [], null);
+      __$refreshTrack('mod1', 'Item', el3, [{ id: '3' }], [], null);
+
+      // Now append to DOM (like __list reconciliation does)
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      container.appendChild(el1);
+      container.appendChild(el2);
+      container.appendChild(el3);
+
+      const reg = (
+        globalThis as Record<
+          symbol,
+          Map<string, Map<string, { instances: Array<{ element: HTMLElement }> }>>
+        >
+      )[REGISTRY_KEY];
+      const record = reg.get('mod1')?.get('Item');
+
+      // ALL 3 instances must be tracked
+      expect(record?.instances.length).toBe(3);
+      expect(record?.instances[0]?.element).toBe(el1);
+      expect(record?.instances[1]?.element).toBe(el2);
+      expect(record?.instances[2]?.element).toBe(el3);
     });
 
     it('returns element unchanged for unknown module', () => {
@@ -351,6 +380,52 @@ describe('Fast Refresh Runtime', () => {
       expect(document.body.children.length).toBe(2);
       expect(document.body.children[0]?.textContent).toBe('Updated Item');
       expect(document.body.children[1]?.textContent).toBe('Updated Item');
+    });
+
+    it('updates all instances with different args inside a container (like .map())', () => {
+      // Simulates: tasks.map(t => <TaskCard task={t} />) where testid uses task.id
+      // Factory v1: data-testid="task-card-{id}"
+      const factoryV1 = (props: { id: string }) => {
+        const el = document.createElement('article');
+        el.setAttribute('data-testid', `task-card-${props.id}`);
+        el.textContent = `Card ${props.id}`;
+        return el;
+      };
+      __$refreshReg('mod1', 'TaskCard', factoryV1 as (...args: unknown[]) => HTMLElement);
+
+      // Mount 3 instances inside a container (like a list)
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+
+      const el1 = factoryV1({ id: '1' });
+      const el2 = factoryV1({ id: '2' });
+      const el3 = factoryV1({ id: '3' });
+      container.appendChild(el1);
+      container.appendChild(el2);
+      container.appendChild(el3);
+
+      __$refreshTrack('mod1', 'TaskCard', el1, [{ id: '1' }], [], null);
+      __$refreshTrack('mod1', 'TaskCard', el2, [{ id: '2' }], [], null);
+      __$refreshTrack('mod1', 'TaskCard', el3, [{ id: '3' }], [], null);
+
+      // HMR update: change testid prefix from "task-card-" to "card-"
+      const factoryV2 = (props: { id: string }) => {
+        const el = document.createElement('article');
+        el.setAttribute('data-testid', `card-${props.id}`);
+        el.textContent = `Updated Card ${props.id}`;
+        return el;
+      };
+      __$refreshReg('mod1', 'TaskCard', factoryV2 as (...args: unknown[]) => HTMLElement);
+      __$refreshPerform('mod1');
+
+      // ALL 3 instances should be updated
+      expect(container.children.length).toBe(3);
+      expect(container.children[0]?.getAttribute('data-testid')).toBe('card-1');
+      expect(container.children[1]?.getAttribute('data-testid')).toBe('card-2');
+      expect(container.children[2]?.getAttribute('data-testid')).toBe('card-3');
+      expect(container.children[0]?.textContent).toBe('Updated Card 1');
+      expect(container.children[1]?.textContent).toBe('Updated Card 2');
+      expect(container.children[2]?.textContent).toBe('Updated Card 3');
     });
   });
 });

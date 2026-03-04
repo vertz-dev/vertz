@@ -416,6 +416,81 @@ describe('generateSSRPageHtml', () => {
     expect(html).toContain('unhandledrejection');
   });
 
+  it('error channel script sends resolve-stack message for runtime errors', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // Client should send resolve-stack to server for source map resolution
+    expect(html).toContain('resolve-stack');
+  });
+
+  it('error channel script renders parsedStack frames in formatErrors', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // formatErrors should check for parsedStack and render stack frames
+    expect(html).toContain('parsedStack');
+    // Should contain vscode:// link generation for stack frames
+    expect(html).toContain('vscode://file/');
+  });
+
+  it('error channel script stores WebSocket reference for runtime error handlers', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // WS ref must be stored so error handlers can send resolve-stack
+    expect(html).toContain('V._ws');
+  });
+
+  it('HMR console.error handler does not send resolve-stack (server handles HMR errors)', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // Extract the console.error handler for HMR errors
+    // The HMR handler matches [vertz-hmr] and should NOT call _sendResolveStack
+    // because the server-side console.error intercept handles these with lastChangedFile context
+    const hmrHandlerMatch = html.match(/console\.error=function\(\)\{([\s\S]*?)origCE\.apply/);
+    expect(hmrHandlerMatch).not.toBeNull();
+    const hmrHandler = hmrHandlerMatch![1];
+    // HMR handler should NOT reference _sendResolveStack
+    expect(hmrHandler).not.toContain('_sendResolveStack');
+  });
+
+  it('window.onerror handler filters out bundled /_bun/ and blob: URLs from overlay', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // The window error handler should detect bundled URLs and exclude them from the overlay
+    expect(html).toContain('/_bun/');
+    expect(html).toContain('blob:');
+    expect(html).toContain('isBundled');
+  });
+
   it('shared overlay functions are accessible by both error channel and build error loader', () => {
     const html = generateSSRPageHtml({
       title: 'App',
