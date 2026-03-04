@@ -4,3 +4,5 @@ pre-push:
       run: bash scripts/check-unicode.sh
     quality-gates:
       run: turbo run lint typecheck test build --filter='!@vertz-examples/*' --filter='!entity-todo-example' --output-logs=errors-only
+    e2e:
+      run: cd examples/task-manager && bunx playwright test --reporter=line
