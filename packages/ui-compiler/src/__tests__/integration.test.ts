@@ -401,6 +401,26 @@ function ItemCount({ count }: { count: number }) {
     expect(result.code).toContain('__staticText(" items")');
   });
 
+  it('Context: non-null assertion on useContext preserves reactive classification', () => {
+    const result = compile(
+      `
+import { useContext } from '@vertz/ui';
+function Sidebar() {
+  const settings = useContext(ThemeCtx)!;
+  return <div>{settings.theme === 'light' ? <span>Moon</span> : <span>Sun</span>}</div>;
+}
+    `.trim(),
+    );
+
+    // settings should be classified as a reactive source despite the ! operator
+    // JSX inside the ternary branches must be fully transformed (no raw JSX remnants)
+    expect(result.code).not.toContain('<span>');
+    expect(result.code).not.toContain('<Icon');
+    // The ternary should use __conditional (reactive), not __insert (static)
+    expect(result.code).toContain('__conditional(');
+    expect(result.code).toContain('settings.theme');
+  });
+
   it('collapses multi-line JSX text whitespace', () => {
     const result = compile(
       `

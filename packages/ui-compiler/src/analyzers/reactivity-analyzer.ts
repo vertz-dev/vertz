@@ -120,9 +120,15 @@ export class ReactivityAnalyzer {
         const deps = init ? collectIdentifierRefs(init) : [];
         const entry = { start: decl.getStart(), end: decl.getEnd(), deps };
 
-        // Check if this is assigned from a signal API call or reactive source API call
-        if (init?.isKind(SyntaxKind.CallExpression)) {
-          const callExpr = init.asKindOrThrow(SyntaxKind.CallExpression);
+        // Check if this is assigned from a signal API call or reactive source API call.
+        // Unwrap NonNullExpression (the ! operator) to handle patterns like:
+        //   const ctx = useContext(SomeCtx)!;
+        let callInit = init;
+        if (callInit?.isKind(SyntaxKind.NonNullExpression)) {
+          callInit = callInit.getExpression();
+        }
+        if (callInit?.isKind(SyntaxKind.CallExpression)) {
+          const callExpr = callInit.asKindOrThrow(SyntaxKind.CallExpression);
           const callName = callExpr.getExpression();
           if (callName.isKind(SyntaxKind.Identifier)) {
             const fnName = callName.getText();
