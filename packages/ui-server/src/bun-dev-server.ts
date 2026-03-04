@@ -209,6 +209,8 @@ function editorHrefJs(editor: string): string {
 
 function buildErrorChannelScript(editor: string): string {
   return [
+    // Hide Bun's built-in <bun-hmr> error overlay — Vertz has its own.
+    '<style>bun-hmr{display:none!important}</style>',
     '<script>(function(){',
     // Shared overlay namespace
     'var V=window.__vertz_overlay={};',
@@ -904,17 +906,22 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     // runtime and self-accepts, creating an HMR boundary. Without this,
     // updates to @vertz/ui dist chunks propagate through the runtime to the
     // HTML entry point, causing Bun to trigger a full page reload.
-    const frRuntimePath =
-      '../../node_modules/@vertz/ui-server/dist/bun-plugin/fast-refresh-runtime.js';
-    const frInitPath = resolve(devDir, 'fast-refresh-init.js');
-    writeFileSync(frInitPath, `import '${frRuntimePath}';\nimport.meta.hot.accept();\n`);
+    // The fast-refresh runtime must be loaded before component modules.
+    // We generate a .ts wrapper so Bun's dev bundler processes it (resolves
+    // bare specifiers like @vertz/ui/internals). Plain .js files in .vertz/dev/
+    // are served raw without bundling, and inline scripts aren't bundled either.
+    const frInitPath = resolve(devDir, 'fast-refresh-init.ts');
+    writeFileSync(
+      frInitPath,
+      `import '@vertz/ui-server/fast-refresh-runtime';\nif (import.meta.hot) import.meta.hot.accept();\n`,
+    );
 
     const hmrShellHtml = `<!doctype html>
 <html lang="en"><head>
   <meta charset="UTF-8" />
   <title>HMR Shell</title>
 </head><body>
-  <script type="module" src="./fast-refresh-init.js"></script>
+  <script type="module" src="./fast-refresh-init.ts"></script>
   <script type="module" src="${clientSrc}"></script>
 </body></html>`;
 
