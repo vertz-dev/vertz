@@ -1387,20 +1387,31 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           // Re-import SSR module — clear require cache for all project source
           // files so transitive dependencies (e.g., mock-data.ts) are re-evaluated.
           if (stopped) return;
-          // Bun's `import()` with `?t=...` only busts the entry module cache;
-          // require.cache clearing forces the full dependency tree to reload.
+          //
+          // IMPORTANT: We import through a thin .ts wrapper instead of appending
+          // `?t=...` directly to the entry path. Bun's plugin system matches the
+          // `onLoad` filter against the full module specifier. Appending `?t=...`
+          // to a `.tsx` entry causes the filter `/\.tsx$/` to NOT match, so Bun
+          // loads the entry with native JSX support instead of the Vertz compiler.
+          // Native JSX evaluates children eagerly (no thunks), breaking the
+          // synchronous context stack used by Provider/useContext. The wrapper
+          // is a `.ts` file (no plugin needed) that re-exports from the real
+          // entry, keeping the `.tsx` import path clean for the plugin.
           for (const key of Object.keys(require.cache)) {
             if (key.startsWith(srcDir) || key.startsWith(entryPath)) {
               delete require.cache[key];
             }
           }
+          const ssrWrapperPath = resolve(devDir, 'ssr-reload-entry.ts');
+          mkdirSync(devDir, { recursive: true });
+          writeFileSync(ssrWrapperPath, `export * from '${entryPath}';\n`);
           try {
-            const freshMod: SSRModule = await import(`${entryPath}?t=${Date.now()}`);
+            const freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
             ssrMod = freshMod;
             if (logRequests) {
               console.log('[Server] SSR module refreshed');
             }
-          } catch (e) {
+          } catch {
             // First import may fail due to stale Bun module cache (race between
             // file watcher and Bun's dev bundler recompilation). Retry once after
             // a delay to let Bun's module graph settle.
@@ -1412,8 +1423,10 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
                 delete require.cache[key];
               }
             }
+            mkdirSync(devDir, { recursive: true });
+            writeFileSync(ssrWrapperPath, `export * from '${entryPath}';\n`);
             try {
-              const freshMod: SSRModule = await import(`${entryPath}?t=${Date.now()}`);
+              const freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
               ssrMod = freshMod;
               if (logRequests) {
                 console.log('[Server] SSR module refreshed (retry)');
