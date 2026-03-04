@@ -38,6 +38,23 @@ const SHIM_GLOBALS = [
 let savedGlobals: Map<string, unknown> | null = null;
 let shimInstalled = false;
 
+/** Track which additional globals we installed so removeDomShim only cleans up our own. */
+let installedGlobals: string[] = [];
+
+/** Install a global only if it doesn't already exist. */
+function installGlobal(name: string, value: unknown): void {
+  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+  if ((globalThis as any)[name] === undefined) {
+    // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
+    Object.defineProperty(globalThis, name, {
+      value,
+      writable: true,
+      configurable: true,
+    });
+    installedGlobals.push(name);
+  }
+}
+
 /**
  * Create and install the DOM shim.
  *
@@ -47,6 +64,14 @@ let shimInstalled = false;
  * directly via `setAdapter()`.
  */
 export function installDomShim(): void {
+  // Clean up any previously tracked globals from a prior install
+  // to prevent leaking if installDomShim is called twice without removeDomShim.
+  for (const g of installedGlobals) {
+    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+    delete (globalThis as any)[g];
+  }
+  installedGlobals = [];
+
   // Also install the SSR adapter for backward compat
   setAdapter(createSSRAdapter());
 
@@ -55,22 +80,24 @@ export function installDomShim(): void {
   // If __SSR_URL__ is set, we ALWAYS want to install our shim, even if document exists
   const isSSRContext = typeof globalThis.__SSR_URL__ !== 'undefined';
 
-  if (typeof document !== 'undefined' && !isSSRContext) {
-    shimInstalled = false;
+  if (typeof document !== 'undefined' && !isSSRContext && !shimInstalled) {
     return; // Already in a real browser, don't override
   }
 
-  shimInstalled = true;
-
   // Save existing globals so removeDomShim() can restore them
   // (prevents wiping happydom or other DOM environments in single-process test runners)
-  savedGlobals = new Map();
-  for (const g of SHIM_GLOBALS) {
-    if (g in globalThis) {
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
-      savedGlobals.set(g, (globalThis as any)[g]);
+  // Only save on first install — re-installs should keep the original pre-shim state.
+  if (!shimInstalled) {
+    savedGlobals = new Map();
+    for (const g of SHIM_GLOBALS) {
+      if (g in globalThis) {
+        // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+        savedGlobals.set(g, (globalThis as any)[g]);
+      }
     }
   }
+
+  shimInstalled = true;
 
   const fakeDocument = {
     createElement(tag: string): SSRElement {
@@ -89,6 +116,10 @@ export function installDomShim(): void {
     head: new SSRElement('head'),
     body: new SSRElement('body'),
     // Note: do NOT include startViewTransition — code checks 'in' operator
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    getElementById: () => null,
+    cookie: '',
   };
 
   // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
@@ -98,7 +129,7 @@ export function installDomShim(): void {
   if (typeof window === 'undefined') {
     // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
     (globalThis as any).window = {
-      location: { pathname: globalThis.__SSR_URL__ || '/' },
+      location: { pathname: globalThis.__SSR_URL__ || '/', search: '', hash: '' },
       addEventListener: () => {},
       removeEventListener: () => {},
       history: {
@@ -141,6 +172,66 @@ export function installDomShim(): void {
   (globalThis as any).MouseEvent = class MockMouseEvent {};
   // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
   (globalThis as any).Event = class MockEvent {};
+
+  // Storage stubs
+  const storageStub = {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+    clear: () => {},
+    key: () => null,
+    length: 0,
+  };
+  installGlobal('localStorage', storageStub);
+  installGlobal('sessionStorage', { ...storageStub });
+
+  // Navigator stub
+  installGlobal('navigator', {
+    userAgent: '',
+    language: 'en',
+    languages: ['en'],
+    onLine: true,
+    cookieEnabled: false,
+    hardwareConcurrency: 1,
+    maxTouchPoints: 0,
+    platform: '',
+    vendor: '',
+  });
+
+  // Observer stubs
+  const NoopObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+    takeRecords() {
+      return [];
+    }
+  };
+  installGlobal('IntersectionObserver', NoopObserver);
+  installGlobal('ResizeObserver', NoopObserver);
+  installGlobal('MutationObserver', NoopObserver);
+
+  // Timing stubs — pure no-ops that return numeric IDs.
+  // Callbacks are NOT scheduled during SSR to avoid async work leaking
+  // after the render completes and the DOM shim is removed.
+  let nextFrameId = 1;
+  installGlobal('requestAnimationFrame', () => nextFrameId++);
+  installGlobal('cancelAnimationFrame', () => {});
+  installGlobal('requestIdleCallback', () => nextFrameId++);
+  installGlobal('cancelIdleCallback', () => {});
+
+  // CustomEvent stub
+  installGlobal(
+    'CustomEvent',
+    class MockCustomEvent {
+      type: string;
+      detail: unknown;
+      constructor(type: string, init?: { detail?: unknown }) {
+        this.type = type;
+        this.detail = init?.detail ?? null;
+      }
+    },
+  );
 }
 
 /**
@@ -182,6 +273,13 @@ export function removeDomShim(): void {
       delete (globalThis as any)[g];
     }
   }
+
+  // Clean up browser-only stubs that we installed (skip runtime-provided ones)
+  for (const g of installedGlobals) {
+    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+    delete (globalThis as any)[g];
+  }
+  installedGlobals = [];
 }
 
 /**

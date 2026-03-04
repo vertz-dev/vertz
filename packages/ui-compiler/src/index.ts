@@ -21,6 +21,7 @@ export { RouteCSSManifest } from './css-extraction/route-css-manifest';
 export { CSSDiagnostics } from './diagnostics/css-diagnostics';
 export { MutationDiagnostics } from './diagnostics/mutation-diagnostics';
 export { PropsDestructuringDiagnostics } from './diagnostics/props-destructuring';
+export { SSRSafetyDiagnostics } from './diagnostics/ssr-safety-diagnostics';
 export type { VertzLibraryPluginOptions } from './library-plugin';
 // Library compilation plugin
 export { createVertzLibraryPlugin } from './library-plugin';

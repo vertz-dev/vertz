@@ -331,6 +331,121 @@ describe('DOM Shim', () => {
     });
   });
 
+  describe('browser-only API stubs', () => {
+    beforeEach(() => {
+      installDomShim();
+    });
+
+    it('should stub localStorage with no-op methods', () => {
+      expect(localStorage.getItem('key')).toBeNull();
+      expect(() => localStorage.setItem('key', 'val')).not.toThrow();
+      expect(() => localStorage.removeItem('key')).not.toThrow();
+      expect(() => localStorage.clear()).not.toThrow();
+      expect(localStorage.key(0)).toBeNull();
+      expect(localStorage.length).toBe(0);
+    });
+
+    it('should stub sessionStorage with no-op methods', () => {
+      expect(sessionStorage.getItem('key')).toBeNull();
+      expect(() => sessionStorage.setItem('key', 'val')).not.toThrow();
+      expect(() => sessionStorage.removeItem('key')).not.toThrow();
+      expect(() => sessionStorage.clear()).not.toThrow();
+      expect(sessionStorage.key(0)).toBeNull();
+      expect(sessionStorage.length).toBe(0);
+    });
+
+    it('should provide navigator (stub if absent, existing if present)', () => {
+      // navigator may already exist in the runtime (e.g. Bun provides it) —
+      // the shim only installs if navigator is undefined.
+      expect(navigator).toBeDefined();
+      expect(typeof navigator.userAgent).toBe('string');
+    });
+
+    it('should stub IntersectionObserver with no-op methods', () => {
+      const observer = new IntersectionObserver(() => {});
+      expect(() => observer.observe(document.createElement('div'))).not.toThrow();
+      expect(() => observer.unobserve(document.createElement('div'))).not.toThrow();
+      expect(() => observer.disconnect()).not.toThrow();
+      expect(observer.takeRecords()).toEqual([]);
+    });
+
+    it('should stub ResizeObserver with no-op methods', () => {
+      const observer = new ResizeObserver(() => {});
+      expect(() => observer.observe(document.createElement('div'))).not.toThrow();
+      expect(() => observer.unobserve(document.createElement('div'))).not.toThrow();
+      expect(() => observer.disconnect()).not.toThrow();
+    });
+
+    it('should stub MutationObserver with no-op methods', () => {
+      const observer = new MutationObserver(() => {});
+      expect(() => observer.disconnect()).not.toThrow();
+      expect(observer.takeRecords()).toEqual([]);
+    });
+
+    it('should stub requestAnimationFrame returning a number', () => {
+      const id = requestAnimationFrame(() => {});
+      expect(typeof id).toBe('number');
+    });
+
+    it('should stub requestIdleCallback returning a number', () => {
+      const id = requestIdleCallback(() => {});
+      expect(typeof id).toBe('number');
+    });
+
+    it('should provide CustomEvent with type and detail', () => {
+      // CustomEvent may already exist in the runtime — either way it should work
+      const event = new CustomEvent('test', { detail: 42 });
+      expect(event.type).toBe('test');
+      expect(event.detail).toBe(42);
+    });
+
+    it('should stub document.querySelector returning null', () => {
+      expect(document.querySelector('.foo')).toBeNull();
+    });
+
+    it('should stub document.querySelectorAll returning empty array', () => {
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      expect((document as any).querySelectorAll('.foo')).toEqual([]);
+    });
+
+    it('should stub document.getElementById returning null', () => {
+      expect(document.getElementById('test')).toBeNull();
+    });
+
+    it('should stub document.cookie as empty string', () => {
+      expect(document.cookie).toBe('');
+    });
+  });
+
+  describe('removeDomShim cleans up browser-only stubs', () => {
+    it('should remove globals that were installed by the shim', () => {
+      installDomShim();
+      // These are always installed by the shim (not present in Bun runtime)
+      expect(globalThis).toHaveProperty('localStorage');
+      expect(globalThis).toHaveProperty('sessionStorage');
+      expect(globalThis).toHaveProperty('IntersectionObserver');
+      expect(globalThis).toHaveProperty('ResizeObserver');
+      expect(globalThis).toHaveProperty('MutationObserver');
+      expect(globalThis).toHaveProperty('requestAnimationFrame');
+      expect(globalThis).toHaveProperty('cancelAnimationFrame');
+      expect(globalThis).toHaveProperty('requestIdleCallback');
+      expect(globalThis).toHaveProperty('cancelIdleCallback');
+
+      removeDomShim();
+
+      // Shim-installed globals should be removed
+      expect(globalThis).not.toHaveProperty('localStorage');
+      expect(globalThis).not.toHaveProperty('sessionStorage');
+      expect(globalThis).not.toHaveProperty('IntersectionObserver');
+      expect(globalThis).not.toHaveProperty('ResizeObserver');
+      expect(globalThis).not.toHaveProperty('MutationObserver');
+      expect(globalThis).not.toHaveProperty('requestAnimationFrame');
+      expect(globalThis).not.toHaveProperty('cancelAnimationFrame');
+      expect(globalThis).not.toHaveProperty('requestIdleCallback');
+      expect(globalThis).not.toHaveProperty('cancelIdleCallback');
+    });
+  });
+
   describe('style property', () => {
     beforeEach(() => {
       installDomShim();
