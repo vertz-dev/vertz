@@ -857,6 +857,444 @@ describe('bun-dev-server integration', () => {
       ws.close();
     });
 
+    it('resolve-stack message broadcasts enriched error to all clients', async () => {
+      writeSSRFixture();
+      const port = randomPort();
+
+      devServer = createBunDevServer({
+        entry: './src/app.js',
+        port,
+        host: 'localhost',
+        projectRoot: tmpDir,
+        logRequests: false,
+        ssrModule: true,
+      });
+
+      await devServer.start();
+
+      // Connect two clients
+      const connectAndWait = () =>
+        new Promise<WebSocket>((resolve, reject) => {
+          const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
+          ws.onmessage = () => resolve(ws); // connected msg
+          ws.onerror = () => reject(new Error('WebSocket error'));
+          setTimeout(() => reject(new Error('Timeout')), 5000);
+        });
+
+      const [ws1, ws2] = await Promise.all([connectAndWait(), connectAndWait()]);
+
+      // Listen for next messages on both clients
+      const msg1 = new Promise<string>((resolve) => {
+        ws1.onmessage = (e) => resolve(typeof e.data === 'string' ? e.data : '');
+      });
+      const msg2 = new Promise<string>((resolve) => {
+        ws2.onmessage = (e) => resolve(typeof e.data === 'string' ? e.data : '');
+      });
+
+      // Send resolve-stack from ws1
+      ws1.send(
+        JSON.stringify({
+          type: 'resolve-stack',
+          stack: 'Error: test\n    at http://localhost:' + port + '/_bun/client/abc.js:1:0',
+          message: 'test error',
+        }),
+      );
+
+      // Both clients should receive an error broadcast
+      const [data1, data2] = await Promise.all([msg1, msg2]);
+      const parsed1 = JSON.parse(data1);
+      const parsed2 = JSON.parse(data2);
+
+      expect(parsed1.type).toBe('error');
+      expect(parsed1.category).toBe('runtime');
+      expect(parsed1.errors).toBeArray();
+      expect(parsed1.errors[0].message).toBe('test error');
+      // parsedStack should be present
+      expect(parsed1.parsedStack).toBeArray();
+
+      expect(parsed2).toEqual(parsed1);
+
+      ws1.close();
+      ws2.close();
+    });
+
+    it('resolve-stack does not overwrite error that already has file info', async () => {
+      writeSSRFixture();
+      const port = randomPort();
+
+      devServer = createBunDevServer({
+        entry: './src/app.js',
+        port,
+        host: 'localhost',
+        projectRoot: tmpDir,
+        logRequests: false,
+        ssrModule: true,
+      });
+
+      await devServer.start();
+
+      const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
+      await new Promise<void>((resolve) => {
+        ws.onmessage = () => resolve(); // connected
+      });
+
+      // First, set up a message collector
+      const messages: string[] = [];
+      ws.onmessage = (e) => {
+        if (typeof e.data === 'string') messages.push(e.data);
+      };
+
+      // Broadcast an error WITH file info (simulating server-side HMR handler)
+      devServer.broadcastError('runtime', [
+        { message: 'ReferenceError: bad', file: 'src/task-card.tsx', line: 10 },
+      ]);
+
+      // Wait for debounce to flush (runtime errors are debounced with 100ms)
+      await new Promise((r) => setTimeout(r, 150));
+
+      // Now send resolve-stack with blob: URLs that won't resolve to anything useful
+      ws.send(
+        JSON.stringify({
+          type: 'resolve-stack',
+          stack: 'Error: bad\n    at TaskCard (blob:http://localhost:' + port + '/abc:39:23)',
+          message: 'ReferenceError: bad',
+        }),
+      );
+
+      // Wait for potential response
+      await new Promise((r) => setTimeout(r, 200));
+
+      // The first message should have file info
+      const firstError = JSON.parse(messages[0]!);
+      expect(firstError.errors[0].file).toBe('src/task-card.tsx');
+
+      // If a second message exists (resolve-stack response), it should NOT
+      // have replaced the file info with a less informative error
+      if (messages.length > 1) {
+        const lastError = JSON.parse(messages[messages.length - 1]!);
+        // The resolve-stack response should still have file info
+        // (i.e., it shouldn't broadcast a less-informative error)
+        expect(lastError.errors[0].file).toBeDefined();
+      }
+
+      ws.close();
+    });
+
+    it('resolve-stack merges currentError file info when resolution fails', async () => {
+      writeSSRFixture();
+      const port = randomPort();
+
+      devServer = createBunDevServer({
+        entry: './src/app.js',
+        port,
+        host: 'localhost',
+        projectRoot: tmpDir,
+        logRequests: false,
+        ssrModule: true,
+      });
+
+      await devServer.start();
+
+      const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
+      await new Promise<void>((resolve) => {
+        ws.onmessage = () => resolve(); // connected
+      });
+
+      const messages: string[] = [];
+      ws.onmessage = (e) => {
+        if (typeof e.data === 'string') messages.push(e.data);
+      };
+
+      // Simulate server-side HMR handler broadcasting with file info
+      devServer.broadcastError('runtime', [
+        {
+          message: 'ReferenceError: NonExistentComponent is not defined (in TaskCard)',
+          file: 'src/task-card.tsx',
+          line: 10,
+        },
+      ]);
+
+      // Wait for debounce to flush
+      await new Promise((r) => setTimeout(r, 150));
+
+      // Clear collected messages (we only care about the resolve-stack response)
+      messages.length = 0;
+
+      // Now send resolve-stack with /_bun/ URLs that have no inline source maps
+      // (simulates the post-reload window.onerror → resolve-stack flow)
+      ws.send(
+        JSON.stringify({
+          type: 'resolve-stack',
+          stack:
+            'ReferenceError: NonExistentComponent is not defined\n' +
+            `    at TaskCard (http://localhost:${port}/_bun/client/hmr-shell-abc.js:18165:23)\n` +
+            `    at jsxImpl (http://localhost:${port}/_bun/client/hmr-shell-abc.js:200:10)`,
+          message: 'NonExistentComponent is not defined',
+        }),
+      );
+
+      // Wait for resolution + broadcast
+      await new Promise((r) => setTimeout(r, 500));
+
+      // The resolve-stack response MUST include file info from currentError
+      expect(messages.length).toBeGreaterThan(0);
+      const lastMsg = JSON.parse(messages[messages.length - 1]!);
+      expect(lastMsg.type).toBe('error');
+      expect(lastMsg.errors[0].file).toBe('src/task-card.tsx');
+      // Should also include parsed stack frames
+      expect(lastMsg.parsedStack).toBeDefined();
+
+      ws.close();
+    });
+
+    it('resolve-stack falls back to lastChangedFile when currentError is cleared', async () => {
+      writeSSRFixture();
+      const port = randomPort();
+
+      devServer = createBunDevServer({
+        entry: './src/app.js',
+        port,
+        host: 'localhost',
+        projectRoot: tmpDir,
+        logRequests: false,
+        ssrModule: true,
+      });
+
+      await devServer.start();
+
+      const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
+      await new Promise<void>((resolve) => {
+        ws.onmessage = () => resolve(); // connected
+      });
+
+      const messages: string[] = [];
+      ws.onmessage = (e) => {
+        if (typeof e.data === 'string') messages.push(e.data);
+      };
+
+      // Set lastChangedFile (simulating the file watcher)
+      devServer.setLastChangedFile('src/components/task-card.tsx');
+
+      // Don't set any currentError — simulates the watcher's clearErrorForFileChange
+      // having already cleared it (runtime error build race)
+
+      // Send resolve-stack with /_bun/ URLs
+      ws.send(
+        JSON.stringify({
+          type: 'resolve-stack',
+          stack:
+            'ReferenceError: NonExistentComponent is not defined\n' +
+            `    at TaskCard (http://localhost:${port}/_bun/client/hmr-shell-abc.js:18165:23)`,
+          message: 'NonExistentComponent is not defined',
+        }),
+      );
+
+      // Wait for resolution + broadcast
+      await new Promise((r) => setTimeout(r, 500));
+
+      // Should use lastChangedFile as fallback
+      expect(messages.length).toBeGreaterThan(0);
+      const lastMsg = JSON.parse(messages[messages.length - 1]!);
+      expect(lastMsg.type).toBe('error');
+      expect(lastMsg.errors[0].file).toBe('src/components/task-card.tsx');
+
+      ws.close();
+    });
+
+    it('debounces rapid HMR error cascade into a single broadcast', async () => {
+      writeSSRFixture();
+      const srcContent = 'const x = 1;\nconst broken = bad;\nconst y = 2;\n';
+      writeFileSync(join(tmpDir, 'src', 'comp.ts'), srcContent);
+      const port = randomPort();
+
+      devServer = createBunDevServer({
+        entry: './src/app.js',
+        port,
+        host: 'localhost',
+        projectRoot: tmpDir,
+        logRequests: false,
+        ssrModule: true,
+      });
+
+      await devServer.start();
+
+      const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
+      await new Promise<void>((resolve) => {
+        ws.onmessage = () => resolve(); // connected
+      });
+
+      const messages: string[] = [];
+      ws.onmessage = (e) => {
+        if (typeof e.data === 'string') messages.push(e.data);
+      };
+
+      // Simulate the cascade: TaskCard, TaskListPage, App all fail rapidly
+      console.error(
+        `[browser] [vertz-hmr] Error re-mounting TaskCard: ReferenceError: bad\n    at ${join(tmpDir, 'src', 'comp.ts')}:2:5`,
+      );
+      console.error(
+        `[browser] [vertz-hmr] Error re-mounting TaskListPage: ReferenceError: bad\n    at ${join(tmpDir, 'src', 'comp.ts')}:2:5`,
+      );
+      console.error(
+        `[browser] [vertz-hmr] Error re-mounting App: ReferenceError: bad\n    at ${join(tmpDir, 'src', 'comp.ts')}:2:5`,
+      );
+
+      // Wait for debounce to flush (should be ~150ms)
+      await new Promise((r) => setTimeout(r, 300));
+
+      // Should receive only ONE broadcast, not three
+      const errorMessages = messages.filter((m) => {
+        const parsed = JSON.parse(m);
+        return parsed.type === 'error';
+      });
+      expect(errorMessages).toHaveLength(1);
+
+      // The single broadcast should have the first error's info
+      const error = JSON.parse(errorMessages[0]!);
+      expect(error.errors[0].message).toContain('ReferenceError: bad');
+      expect(error.errors[0].file).toBe('src/comp.ts');
+
+      ws.close();
+    });
+
+    it('parseSourceFromStack adds lineText when source file exists', async () => {
+      writeSSRFixture();
+      const srcContent = 'const x = 1;\nconst badLine = undefined;\nconst y = 2;\n';
+      writeFileSync(join(tmpDir, 'src', 'test-file.ts'), srcContent);
+      const port = randomPort();
+
+      devServer = createBunDevServer({
+        entry: './src/app.js',
+        port,
+        host: 'localhost',
+        projectRoot: tmpDir,
+        logRequests: false,
+        ssrModule: true,
+      });
+
+      await devServer.start();
+
+      const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
+      await new Promise<void>((resolve) => {
+        ws.onmessage = () => resolve(); // connected
+      });
+
+      const errorMsg = new Promise<string>((resolve, reject) => {
+        ws.onmessage = (e) => resolve(typeof e.data === 'string' ? e.data : '');
+        setTimeout(() => reject(new Error('Timeout')), 5000);
+      });
+
+      // Simulate Bun forwarding an HMR error with a /src/ stack trace
+      console.error(
+        `[browser] [vertz-hmr] Error re-mounting TestComp: ReferenceError: bad\n    at ${join(tmpDir, 'src', 'test-file.ts')}:2:5`,
+      );
+
+      const parsed = JSON.parse(await errorMsg);
+      expect(parsed.type).toBe('error');
+      expect(parsed.category).toBe('runtime');
+      expect(parsed.errors[0].lineText).toBe('const badLine = undefined;');
+
+      ws.close();
+    });
+
+    it('HMR error after clearError is not suppressed by grace period', async () => {
+      writeSSRFixture();
+      const srcContent = 'const ok = 1;\nconst broken = bad;\nconst end = 2;\n';
+      writeFileSync(join(tmpDir, 'src', 'card.ts'), srcContent);
+      const port = randomPort();
+
+      devServer = createBunDevServer({
+        entry: './src/app.js',
+        port,
+        host: 'localhost',
+        projectRoot: tmpDir,
+        logRequests: false,
+        ssrModule: true,
+      });
+
+      await devServer.start();
+
+      const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
+      await new Promise<void>((resolve) => {
+        ws.onmessage = () => resolve(); // connected
+      });
+
+      // Simulate the real watcher sequence:
+      // 1. First, broadcast an error (as if a previous save had an error)
+      devServer.broadcastError('runtime', [{ message: 'old error' }]);
+      await new Promise((r) => setTimeout(r, 150)); // wait for debounce
+
+      // 2. Now simulate a new file save: clearErrorForFileChange + HMR error
+      // The watcher uses clearErrorForFileChange() which does NOT set a grace
+      // period, allowing new HMR errors through.
+      devServer.clearErrorForFileChange();
+
+      const errorMsg = new Promise<string>((resolve, reject) => {
+        ws.onmessage = (e) => {
+          const data = typeof e.data === 'string' ? e.data : '';
+          const parsed = JSON.parse(data);
+          // Skip the 'clear' message, wait for the error
+          if (parsed.type === 'error') resolve(data);
+        };
+        setTimeout(() => reject(new Error('Timeout - HMR error was suppressed')), 3000);
+      });
+
+      // 3. HMR error fires shortly after clearError (simulating Bun's forwarding)
+      console.error(
+        `[browser] [vertz-hmr] Error re-mounting Card: ReferenceError: bad\n    at ${join(tmpDir, 'src', 'card.ts')}:2:5`,
+      );
+
+      // The error should NOT be suppressed by the grace period
+      const parsed = JSON.parse(await errorMsg);
+      expect(parsed.type).toBe('error');
+      expect(parsed.category).toBe('runtime');
+      expect(parsed.errors[0].message).toContain('ReferenceError: bad');
+      expect(parsed.errors[0].file).toBe('src/card.ts');
+
+      ws.close();
+    });
+
+    it('frontend error includes lineText when source file exists', async () => {
+      writeSSRFixture();
+      const srcContent =
+        'import React from "react";\nconst broken = foo.bar;\nexport default broken;\n';
+      writeFileSync(join(tmpDir, 'src', 'component.tsx'), srcContent);
+      const port = randomPort();
+
+      devServer = createBunDevServer({
+        entry: './src/app.js',
+        port,
+        host: 'localhost',
+        projectRoot: tmpDir,
+        logRequests: false,
+        ssrModule: true,
+      });
+
+      await devServer.start();
+
+      const ws = new WebSocket(`ws://localhost:${port}/__vertz_errors`);
+      await new Promise<void>((resolve) => {
+        ws.onmessage = () => resolve(); // connected
+      });
+
+      const errorMsg = new Promise<string>((resolve, reject) => {
+        ws.onmessage = (e) => resolve(typeof e.data === 'string' ? e.data : '');
+        setTimeout(() => reject(new Error('Timeout')), 5000);
+      });
+
+      // Simulate Bun's frontend error with ANSI color codes and stack trace
+      console.error(
+        `\x1b[31mfrontend\x1b[0m ReferenceError: foo is not defined\n    at ${join(tmpDir, 'src', 'component.tsx')}:2:20\n    from browser`,
+      );
+
+      const parsed = JSON.parse(await errorMsg);
+      expect(parsed.type).toBe('error');
+      expect(parsed.category).toBe('runtime');
+      expect(parsed.errors[0].lineText).toBe('const broken = foo.bar;');
+
+      ws.close();
+    });
+
     it('responds to ping with pong', async () => {
       writeSSRFixture();
       const port = randomPort();
