@@ -863,16 +863,24 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     mkdirSync(devDir, { recursive: true });
 
     // Fast Refresh runtime: resolve from generated HTML at .vertz/dev/
-    // back to project root's node_modules
+    // back to project root's node_modules.
+    // CRITICAL: The dist build of fast-refresh-runtime.js has its
+    // import.meta.hot.accept() DCE'd by bunup (import.meta.hot is undefined
+    // at library build time). We generate a thin wrapper that re-imports the
+    // runtime and self-accepts, creating an HMR boundary. Without this,
+    // updates to @vertz/ui dist chunks propagate through the runtime to the
+    // HTML entry point, causing Bun to trigger a full page reload.
     const frRuntimePath =
       '../../node_modules/@vertz/ui-server/dist/bun-plugin/fast-refresh-runtime.js';
+    const frInitPath = resolve(devDir, 'fast-refresh-init.js');
+    writeFileSync(frInitPath, `import '${frRuntimePath}';\nimport.meta.hot.accept();\n`);
 
     const hmrShellHtml = `<!doctype html>
 <html lang="en"><head>
   <meta charset="UTF-8" />
   <title>HMR Shell</title>
 </head><body>
-  <script type="module" src="${frRuntimePath}"></script>
+  <script type="module" src="./fast-refresh-init.js"></script>
   <script type="module" src="${clientSrc}"></script>
 </body></html>`;
 
