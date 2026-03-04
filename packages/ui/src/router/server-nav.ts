@@ -100,6 +100,15 @@ function dispatchPrefetchDone(): void {
 }
 
 /**
+ * Generation counter for prefetch calls.
+ * When a new prefetch starts, the generation increments. An aborted
+ * prefetch's .catch() handler only dispatches "done" if its generation
+ * still matches the current one — preventing a stale abort from
+ * stomping on the new prefetch's active state.
+ */
+let prefetchGen = 0;
+
+/**
  * Start pre-fetching query data for a navigation target.
  *
  * Sends a request with X-Vertz-Nav: 1 header to the dev server,
@@ -114,9 +123,12 @@ function dispatchPrefetchDone(): void {
 export function prefetchNavData(
   url: string,
   options?: { timeout?: number },
-): { abort: () => void; done: Promise<void> } {
+): { abort: () => void; done: Promise<void>; firstEvent: Promise<void> } {
   const controller = new AbortController();
   const timeout = options?.timeout ?? 5000;
+
+  // Capture generation — only the most recent prefetch dispatches "done".
+  const gen = ++prefetchGen;
 
   // Set up the hydration bus and active flag before fetch
   ensureSSRDataBus();
@@ -125,6 +137,31 @@ export function prefetchNavData(
   // Set up timeout
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+  // firstEvent promise — resolves when the first SSE event of any type arrives
+  let resolveFirstEvent: (() => void) | null = null;
+  const firstEvent = new Promise<void>((r) => {
+    resolveFirstEvent = r;
+  });
+
+  function onFirstEvent(): void {
+    if (resolveFirstEvent) {
+      resolveFirstEvent();
+      resolveFirstEvent = null;
+    }
+  }
+
+  /**
+   * Only dispatch "prefetch done" if this is still the active prefetch.
+   * When a newer prefetch starts (incrementing prefetchGen), an aborted
+   * prefetch's async callbacks must NOT clear the active flag or dispatch
+   * the done event — that would stomp on the new prefetch's state.
+   */
+  function finishIfCurrent(): void {
+    if (gen === prefetchGen) {
+      dispatchPrefetchDone();
+    }
+  }
+
   // Start the SSE fetch — the done promise resolves when the stream completes
   const done = fetch(url, {
     headers: { 'X-Vertz-Nav': '1' },
@@ -132,7 +169,8 @@ export function prefetchNavData(
   })
     .then(async (response) => {
       if (!response.body) {
-        dispatchPrefetchDone();
+        onFirstEvent();
+        finishIfCurrent();
         return;
       }
 
@@ -149,6 +187,8 @@ export function prefetchNavData(
         buffer = parsed.remaining;
 
         for (const event of parsed.events) {
+          onFirstEvent();
+
           if (event.type === 'data') {
             try {
               const { key, data } = JSON.parse(event.data) as { key: string; data: unknown };
@@ -157,7 +197,7 @@ export function prefetchNavData(
               // Malformed event data — skip
             }
           } else if (event.type === 'done') {
-            dispatchPrefetchDone();
+            finishIfCurrent();
             clearTimeout(timeoutId);
             return;
           }
@@ -165,11 +205,13 @@ export function prefetchNavData(
       }
 
       // Stream ended without done event — still finish
-      dispatchPrefetchDone();
+      onFirstEvent();
+      finishIfCurrent();
     })
     .catch(() => {
       // Network error, abort, etc. — graceful degradation
-      dispatchPrefetchDone();
+      onFirstEvent();
+      finishIfCurrent();
     })
     .finally(() => {
       clearTimeout(timeoutId);
@@ -181,5 +223,6 @@ export function prefetchNavData(
       clearTimeout(timeoutId);
     },
     done,
+    firstEvent,
   };
 }

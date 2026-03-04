@@ -9,7 +9,7 @@
  */
 
 import type { SSRModule } from './ssr-render';
-import { ssrDiscoverQueries, ssrRenderToString } from './ssr-render';
+import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
 import { safeSerialize } from './ssr-streaming-runtime';
 
 export interface SSRHandlerOptions {
@@ -116,7 +116,7 @@ export function createSSRHandler(
 
 /**
  * Handle a nav pre-fetch request.
- * Discovers queries and streams them as SSE events.
+ * Streams SSE events as each query settles (data or pending).
  */
 async function handleNavRequest(
   module: SSRModule,
@@ -124,16 +124,9 @@ async function handleNavRequest(
   ssrTimeout?: number,
 ): Promise<Response> {
   try {
-    const result = await ssrDiscoverQueries(module, url, { ssrTimeout });
+    const stream = await ssrStreamNavQueries(module, url, { ssrTimeout });
 
-    // Build SSE body
-    let body = '';
-    for (const entry of result.resolved) {
-      body += `event: data\ndata: ${safeSerialize(entry)}\n\n`;
-    }
-    body += 'event: done\ndata: {}\n\n';
-
-    return new Response(body, {
+    return new Response(stream, {
       status: 200,
       headers: {
         'Content-Type': 'text/event-stream',

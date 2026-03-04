@@ -59,7 +59,7 @@ test.describe('Server Nav — Client-Side Navigation Pre-Fetch', () => {
     // queue up navigations. Use Promise.all to fire both clicks without waiting.
     await page.getByRole('link', { name: 'Settings' }).click();
     // Wait for first navigation to complete before second click
-    await expect(page.getByText('Settings')).toBeVisible({ timeout: 3000 });
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 3000 });
     await page.getByRole('link', { name: 'All Tasks' }).click();
 
     // Should end up on the correct page without errors

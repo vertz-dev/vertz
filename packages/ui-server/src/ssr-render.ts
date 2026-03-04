@@ -14,6 +14,7 @@ import {
   setGlobalSSRTimeout,
   ssrStorage,
 } from './ssr-context';
+import { safeSerialize } from './ssr-streaming-runtime';
 import { streamToString } from './streaming';
 
 /**
@@ -59,6 +60,7 @@ export interface SSRRenderResult {
 
 export interface SSRDiscoverResult {
   resolved: Array<{ key: string; data: unknown }>;
+  pending: string[];
 }
 
 /**
@@ -293,18 +295,27 @@ async function ssrDiscoverQueriesUnsafe(
       // Await registered SSR queries with per-query timeouts
       const queries = getSSRQueries();
       const resolvedQueries: Array<{ key: string; data: unknown }> = [];
+      const pendingKeys: string[] = [];
       if (queries.length > 0) {
         await Promise.allSettled(
-          queries.map(({ promise, timeout, resolve, key }) =>
-            Promise.race([
+          queries.map(({ promise, timeout, resolve, key }) => {
+            let settled = false;
+            return Promise.race([
               promise.then((data) => {
+                if (settled) return 'late';
+                settled = true;
                 resolve(data);
                 resolvedQueries.push({ key, data });
                 return 'resolved';
               }),
-              new Promise((r) => setTimeout(r, timeout || ssrTimeout)).then(() => 'timeout'),
-            ]),
-          ),
+              new Promise((r) => setTimeout(r, timeout || ssrTimeout)).then(() => {
+                if (settled) return 'already-resolved';
+                settled = true;
+                pendingKeys.push(key);
+                return 'timeout';
+              }),
+            ]);
+          }),
         );
       }
 
@@ -313,6 +324,7 @@ async function ssrDiscoverQueriesUnsafe(
           key,
           data: JSON.parse(JSON.stringify(data)),
         })),
+        pending: pendingKeys,
       };
     } finally {
       clearGlobalSSRTimeout();
@@ -321,5 +333,157 @@ async function ssrDiscoverQueriesUnsafe(
       // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
       delete (globalThis as any).__SSR_URL__;
     }
+  });
+}
+
+/**
+ * Stream nav query results as individual SSE events.
+ *
+ * Unlike `ssrDiscoverQueries` which buffers all results, this function
+ * returns a `ReadableStream` that emits each query result as it settles:
+ * - `event: data` for resolved queries (with key + data)
+ * - `event: done` when all queries have settled
+ *
+ * Timed-out or rejected queries are silently dropped (no event sent).
+ * The client's `doneHandler` detects missing data and falls back to
+ * client-side fetch.
+ *
+ * The render lock is released after query discovery (Pass 1), before
+ * streaming begins. This allows concurrent SSR renders while queries
+ * are still resolving.
+ */
+export async function ssrStreamNavQueries(
+  module: SSRModule,
+  url: string,
+  options?: { ssrTimeout?: number; navSsrTimeout?: number },
+): Promise<ReadableStream<Uint8Array>> {
+  const normalizedUrl = url.endsWith('/index.html')
+    ? url.slice(0, -'/index.html'.length) || '/'
+    : url;
+
+  const ssrTimeout = options?.ssrTimeout ?? 300;
+  const navTimeout = options?.navSsrTimeout ?? 5000;
+
+  // Acquire the render lock for query discovery only.
+  // We run Pass 1 inside the lock, then release it before streaming.
+  const queries = await withRenderLock(() =>
+    ssrStorage.run({ url: normalizedUrl, errors: [], queries: [] }, async () => {
+      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+      (globalThis as any).__SSR_URL__ = normalizedUrl;
+      installDomShim();
+
+      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+      (globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__?.();
+
+      try {
+        setGlobalSSRTimeout(ssrTimeout);
+
+        const createApp = resolveAppFactory(module);
+
+        // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+        (globalThis as any).__VERTZ_SSR_SYNC_ROUTER__?.(normalizedUrl);
+
+        // Pass 1 only: Discovery
+        createApp();
+
+        const discovered = getSSRQueries();
+
+        return discovered.map((q) => ({
+          promise: q.promise,
+          timeout: q.timeout || ssrTimeout,
+          resolve: q.resolve,
+          key: q.key,
+        }));
+      } finally {
+        clearGlobalSSRTimeout();
+        removeDomShim();
+        // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+        delete (globalThis as any).__SSR_URL__;
+      }
+    }),
+  );
+
+  // No queries — return a stream with just the done event
+  if (queries.length === 0) {
+    const encoder = new TextEncoder();
+    return new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'));
+        controller.close();
+      },
+    });
+  }
+
+  // Stream individual SSE events as each query settles.
+  //
+  // The controller can be closed externally when the client aborts the request
+  // (e.g., navigating again before the stream completes). Our scheduled
+  // callbacks (.then, setTimeout) may still fire after the abort, so all
+  // controller operations are wrapped in try/catch to prevent crashes.
+  const encoder = new TextEncoder();
+  let remaining = queries.length;
+
+  return new ReadableStream({
+    start(controller) {
+      let closed = false;
+
+      function safeEnqueue(chunk: Uint8Array): void {
+        if (closed) return;
+        try {
+          controller.enqueue(chunk);
+        } catch {
+          closed = true;
+        }
+      }
+
+      function safeClose(): void {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          /* already closed by abort */
+        }
+      }
+
+      function checkDone(): void {
+        if (remaining === 0) {
+          safeEnqueue(encoder.encode('event: done\ndata: {}\n\n'));
+          safeClose();
+        }
+      }
+
+      for (const { promise, resolve, key } of queries) {
+        let settled = false;
+
+        // Race: query promise vs navTimeout
+        promise.then(
+          (data) => {
+            if (settled) return;
+            settled = true;
+            resolve(data);
+            const entry = { key, data: JSON.parse(JSON.stringify(data)) };
+            safeEnqueue(encoder.encode(`event: data\ndata: ${safeSerialize(entry)}\n\n`));
+            remaining--;
+            checkDone();
+          },
+          () => {
+            // Query rejected — silently drop (client doneHandler will fallback)
+            if (settled) return;
+            settled = true;
+            remaining--;
+            checkDone();
+          },
+        );
+
+        setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          // Hard timeout — silently close without event
+          remaining--;
+          checkDone();
+        }, navTimeout);
+      }
+    },
   });
 }

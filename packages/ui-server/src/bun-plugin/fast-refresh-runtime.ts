@@ -23,7 +23,8 @@
 // Self-accept HMR updates to prevent Bun from propagating changes through
 // @vertz/ui/dist chunks to the root HTML (which would trigger a full reload).
 // This is safe because all runtime state lives on globalThis, not module scope.
-import.meta.hot.accept();
+// Guard: import.meta.hot is unavailable in test environments (bun test).
+if (import.meta.hot) import.meta.hot.accept();
 
 // Import from @vertz/ui/internals to share the SAME module instance as the
 // app code. This ensures currentScope / disposal stack variables are shared.
@@ -37,6 +38,9 @@ import {
   startSignalCollection,
   stopSignalCollection,
 } from '@vertz/ui/internals';
+
+import type { DOMStateSnapshot } from './fast-refresh-dom-state';
+import { captureDOMState, restoreDOMState } from './fast-refresh-dom-state';
 
 /** Disposal cleanup function. */
 type DisposeFn = () => void;
@@ -259,8 +263,23 @@ export function __$refreshPerform(moduleId: string): void {
 
       setContextScope(prevScope);
 
-      // 6. Replace DOM node
+      // 6. Capture DOM state, replace node, restore state
+      let domSnapshot: DOMStateSnapshot | null = null;
+      try {
+        domSnapshot = captureDOMState(element);
+      } catch (_) {
+        /* capture failed — proceed without state preservation */
+      }
+
       parent.replaceChild(newElement, element);
+
+      if (domSnapshot) {
+        try {
+          restoreDOMState(newElement, domSnapshot);
+        } catch (_) {
+          console.warn('[vertz-hmr] Failed to restore DOM state');
+        }
+      }
 
       // 7. Track new instance with new context and signals
       updatedInstances.push({

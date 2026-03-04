@@ -1,7 +1,7 @@
 /**
  * Tests for renderToHTMLStream() — the streaming SSR API.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { query } from '../../../ui/src/query/query';
 import { installDomShim, removeDomShim } from '../dom-shim';
 import type { RenderToHTMLStreamOptions } from '../render-to-html';

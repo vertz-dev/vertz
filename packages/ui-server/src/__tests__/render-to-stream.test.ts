@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { jsx } from '../jsx-runtime';
 import { renderToStream } from '../render-to-stream';
 import { resetSlotCounter } from '../slot-placeholder';

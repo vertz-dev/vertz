@@ -31,20 +31,6 @@ export interface RouterViewProps {
  * domEffect runs the component factory (to attach reactivity/event handlers)
  * but skips clearing the container.
  */
-function hasViewTransition(
-  doc: Document,
-): doc is Document & { startViewTransition: (cb: () => void) => void } {
-  return 'startViewTransition' in doc;
-}
-
-function withTransition(fn: () => void): void {
-  if (typeof document !== 'undefined' && hasViewTransition(document)) {
-    document.startViewTransition(fn);
-  } else {
-    fn();
-  }
-}
-
 export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
   const container = __element('div');
   // Track whether the first render is during hydration — if so, don't
@@ -150,14 +136,7 @@ export function RouterView({ router, fallback }: RouterViewProps): HTMLElement {
         popScope();
       };
 
-      // View transition wraps the entire update (clear + render) so
-      // startViewTransition captures both old and new states correctly.
-      // During hydration, skip the transition — content is already in place.
-      if (isFirstHydrationRender) {
-        doRender();
-      } else {
-        withTransition(doRender);
-      }
+      doRender();
     });
   });
 

@@ -19,6 +19,25 @@ import { SSRTextNode } from './ssr-text-node';
 
 export { SSRNode, SSRElement, SSRTextNode, SSRComment, SSRDocumentFragment };
 
+/** Saved globals from before installDomShim(), restored by removeDomShim(). */
+const SHIM_GLOBALS = [
+  'document',
+  'window',
+  'Node',
+  'HTMLElement',
+  'HTMLAnchorElement',
+  'HTMLDivElement',
+  'HTMLInputElement',
+  'HTMLButtonElement',
+  'HTMLSelectElement',
+  'HTMLTextAreaElement',
+  'DocumentFragment',
+  'MouseEvent',
+  'Event',
+] as const;
+let savedGlobals: Map<string, unknown> | null = null;
+let shimInstalled = false;
+
 /**
  * Create and install the DOM shim.
  *
@@ -37,7 +56,20 @@ export function installDomShim(): void {
   const isSSRContext = typeof globalThis.__SSR_URL__ !== 'undefined';
 
   if (typeof document !== 'undefined' && !isSSRContext) {
+    shimInstalled = false;
     return; // Already in a real browser, don't override
+  }
+
+  shimInstalled = true;
+
+  // Save existing globals so removeDomShim() can restore them
+  // (prevents wiping happydom or other DOM environments in single-process test runners)
+  savedGlobals = new Map();
+  for (const g of SHIM_GLOBALS) {
+    if (g in globalThis) {
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      savedGlobals.set(g, (globalThis as any)[g]);
+    }
   }
 
   const fakeDocument = {
@@ -116,28 +148,39 @@ export function installDomShim(): void {
  *
  * @deprecated Use `setAdapter(null)` instead.
  * This function is kept for backward compatibility.
+ *
+ * If globals existed before installDomShim() (e.g., happydom in a test runner),
+ * they are restored instead of deleted. This prevents contamination in
+ * single-process test runners like `bun test`.
  */
 export function removeDomShim(): void {
   // Reset the adapter to auto-detect (DOMAdapter)
   setAdapter(null);
-  const globals = [
-    'document',
-    'window',
-    'Node',
-    'HTMLElement',
-    'HTMLAnchorElement',
-    'HTMLDivElement',
-    'HTMLInputElement',
-    'HTMLButtonElement',
-    'HTMLSelectElement',
-    'HTMLTextAreaElement',
-    'DocumentFragment',
-    'MouseEvent',
-    'Event',
-  ];
-  for (const g of globals) {
-    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
-    delete (globalThis as any)[g];
+
+  // If the shim was never installed (e.g., a real DOM or happydom was already
+  // present), don't touch the globals — we didn't put them there.
+  if (!shimInstalled) {
+    return;
+  }
+  shimInstalled = false;
+
+  if (savedGlobals) {
+    // Restore globals that existed before install
+    for (const g of SHIM_GLOBALS) {
+      if (savedGlobals.has(g)) {
+        // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+        (globalThis as any)[g] = savedGlobals.get(g);
+      } else {
+        // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+        delete (globalThis as any)[g];
+      }
+    }
+    savedGlobals = null;
+  } else {
+    for (const g of SHIM_GLOBALS) {
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+      delete (globalThis as any)[g];
+    }
   }
 }
 

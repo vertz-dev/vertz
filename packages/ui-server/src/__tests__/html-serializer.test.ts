@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { serializeToHtml } from '../html-serializer';
 import type { VNode } from '../types';
 

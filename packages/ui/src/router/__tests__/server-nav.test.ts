@@ -225,4 +225,146 @@ describe('prefetchNavData', () => {
     // Both calls should initiate fetches — the caller (router) manages aborting
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
+
+  it('ignores unknown event types without crashing', async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: unknown\ndata: {"key":"mystery"}\n\n'));
+        controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'));
+        controller.close();
+      },
+    });
+    globalThis.fetch = mock(() => Promise.resolve(new Response(stream, { status: 200 })));
+
+    const handle = prefetchNavData('/tasks');
+    await handle.done;
+
+    expect(isNavPrefetchActive()).toBe(false);
+  });
+
+  it('firstEvent resolves on first SSE event before done', async () => {
+    const encoder = new TextEncoder();
+    let enqueueFn: ReadableStreamDefaultController<Uint8Array> | undefined;
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        enqueueFn = controller;
+      },
+    });
+    globalThis.fetch = mock(() => Promise.resolve(new Response(stream, { status: 200 })));
+
+    const handle = prefetchNavData('/tasks');
+    expect(handle.firstEvent).toBeInstanceOf(Promise);
+
+    let firstEventResolved = false;
+    const firstEvent = handle.firstEvent as Promise<void>;
+    firstEvent.then(() => {
+      firstEventResolved = true;
+    });
+
+    // No events yet — firstEvent should not have resolved
+    await new Promise((r) => setTimeout(r, 10));
+    expect(firstEventResolved).toBe(false);
+
+    // Send first event
+    const ctrl = enqueueFn as ReadableStreamDefaultController<Uint8Array>;
+    ctrl.enqueue(encoder.encode('event: data\ndata: {"key":"q1","data":1}\n\n'));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(firstEventResolved).toBe(true);
+
+    // Clean up
+    ctrl.enqueue(encoder.encode('event: done\ndata: {}\n\n'));
+    ctrl.close();
+    await handle.done;
+  });
+
+  it('firstEvent resolves on done when no data events arrive', async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'));
+        controller.close();
+      },
+    });
+    globalThis.fetch = mock(() => Promise.resolve(new Response(stream, { status: 200 })));
+
+    const handle = prefetchNavData('/tasks');
+    let firstEventResolved = false;
+    const firstEvent = handle.firstEvent as Promise<void>;
+    firstEvent.then(() => {
+      firstEventResolved = true;
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(firstEventResolved).toBe(true);
+  });
+
+  it('aborted prefetch does not clear active flag when a newer prefetch exists', async () => {
+    // Simulate: prefetch A starts, then prefetch B starts (aborting A).
+    // A's .catch() must NOT dispatch done or clear the active flag.
+    // Mock fetch that rejects on abort (like real fetch does).
+    const abortAwareFetch = mock(
+      (_url: string, opts?: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          opts?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        }),
+    );
+    globalThis.fetch = abortAwareFetch;
+
+    const handleA = prefetchNavData('/page-a');
+    expect(isNavPrefetchActive()).toBe(true);
+
+    // Start a second prefetch — this increments the generation counter
+    const handleB = prefetchNavData('/page-b');
+    expect(isNavPrefetchActive()).toBe(true);
+
+    // Abort A (simulates startPrefetch aborting the previous one)
+    handleA.abort();
+
+    // Wait for abort's async .catch() to fire
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Active flag must still be true — B is still running
+    expect(isNavPrefetchActive()).toBe(true);
+
+    // Clean up
+    handleB.abort();
+    await new Promise((r) => setTimeout(r, 50));
+    // Now B was the latest prefetch AND it's aborted — flag should be cleared
+    expect(isNavPrefetchActive()).toBe(false);
+  });
+
+  it('aborted prefetch does not dispatch vertz:nav-prefetch-done when superseded', async () => {
+    const abortAwareFetch = mock(
+      (_url: string, opts?: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          opts?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('Aborted', 'AbortError'));
+          });
+        }),
+    );
+    globalThis.fetch = abortAwareFetch;
+
+    const doneHandler = mock(() => {});
+    document.addEventListener('vertz:nav-prefetch-done', doneHandler);
+
+    const handleA = prefetchNavData('/page-a');
+    const handleB = prefetchNavData('/page-b');
+
+    // Abort A
+    handleA.abort();
+    await new Promise((r) => setTimeout(r, 50));
+
+    // done event must NOT have fired — B is still active
+    expect(doneHandler).not.toHaveBeenCalled();
+
+    // Abort B — now the done event should fire
+    handleB.abort();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(doneHandler).toHaveBeenCalledTimes(1);
+
+    document.removeEventListener('vertz:nav-prefetch-done', doneHandler);
+  });
 });

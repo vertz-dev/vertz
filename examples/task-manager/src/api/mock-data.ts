@@ -46,7 +46,7 @@ const tasks: Task[] = [
 ];
 
 /** Simulate network latency. */
-function delay(ms = 200): Promise<void> {
+function delay(ms = 1000): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -187,7 +187,10 @@ export const taskApi = {
     }),
 
   delete: (id: string) =>
-    Object.assign(async () => ok(await deleteTask(id)), { url: `/api/tasks/${id}`, method: 'DELETE' }),
+    Object.assign(async () => ok(await deleteTask(id)), {
+      url: `/api/tasks/${id}`,
+      method: 'DELETE',
+    }),
 };
 
 /** Reset mock data to initial state (for tests). */

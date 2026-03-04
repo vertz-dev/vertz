@@ -1,5 +1,5 @@
 import { defineTheme } from '@vertz/ui';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { renderToHTML } from '../render-to-html';
 import type { VNode } from '../types';
 

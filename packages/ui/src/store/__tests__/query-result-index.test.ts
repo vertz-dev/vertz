@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, expect, it } from 'bun:test';
 import { QueryResultIndex } from '../query-result-index';
 
 describe('QueryResultIndex', () => {
@@ -25,9 +25,9 @@ describe('QueryResultIndex', () => {
     index.set('query1', ['1', '2', '3']);
     index.set('query2', ['2', '4', '5']);
     index.set('query3', ['6', '7']);
-    
+
     index.removeEntity('2');
-    
+
     expect(index.get('query1')).toEqual(['1', '3']);
     expect(index.get('query2')).toEqual(['4', '5']);
     expect(index.get('query3')).toEqual(['6', '7']); // untouched
@@ -36,9 +36,9 @@ describe('QueryResultIndex', () => {
   it('removeEntity: no-op if ID not in any index', () => {
     const index = new QueryResultIndex();
     index.set('query1', ['1', '2']);
-    
+
     index.removeEntity('999'); // doesn't exist
-    
+
     expect(index.get('query1')).toEqual(['1', '2']); // unchanged
   });
 
@@ -46,9 +46,9 @@ describe('QueryResultIndex', () => {
     const index = new QueryResultIndex();
     index.set('query1', ['1', '2']);
     index.set('query2', ['3', '4']);
-    
+
     index.clear('query1');
-    
+
     expect(index.get('query1')).toBeUndefined();
     expect(index.get('query2')).toEqual(['3', '4']); // still there
   });

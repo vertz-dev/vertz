@@ -175,13 +175,15 @@ export async function startDevServer(options: StartDevServerOptions): Promise<vo
 
   await devServer.start();
 
-  // Graceful shutdown
+  // Graceful shutdown — SIGHUP fires when the parent terminal dies
+  // (e.g. SSH disconnect, Claude session ending), preventing orphan servers.
   const shutdown = async () => {
     await devServer.stop();
     process.exit(0);
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+  process.on('SIGHUP', shutdown);
 }
 
 function startApiOnlyServer(serverEntry: string, port: number): Promise<void> {
@@ -202,5 +204,6 @@ function startApiOnlyServer(serverEntry: string, port: number): Promise<void> {
 
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
+    process.on('SIGHUP', shutdown);
   });
 }

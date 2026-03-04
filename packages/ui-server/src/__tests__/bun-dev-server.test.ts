@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildScriptTag,
   createBunDevServer,
@@ -76,7 +76,7 @@ describe('createBunDevServer', () => {
   });
 
   it('defaults logRequests to true', () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = spyOn(console, 'log').mockImplementation(() => {});
 
     const server = createBunDevServer({
       entry: './src/app.tsx',
@@ -174,7 +174,15 @@ describe('parseHMRAssets', () => {
 });
 
 describe('buildScriptTag', () => {
-  it('generates HMR script tag with data-bun-dev-server-script when bundledScriptUrl provided', () => {
+  it('uses type="text/plain" placeholder when bundledScriptUrl provided', () => {
+    const tag = buildScriptTag('/_bun/client/abc123.js', null, './src/app.tsx');
+
+    expect(tag).toContain('type="text/plain"');
+    // The placeholder itself must NOT be type="module" — only the loader creates that at runtime
+    expect(tag).not.toMatch(/type="module"[^>]*data-bun-dev-server-script/);
+  });
+
+  it('includes data-bun-dev-server-script and crossorigin on placeholder', () => {
     const tag = buildScriptTag('/_bun/client/abc123.js', null, './src/app.tsx');
 
     expect(tag).toContain('src="/_bun/client/abc123.js"');
@@ -182,20 +190,48 @@ describe('buildScriptTag', () => {
     expect(tag).toContain('crossorigin');
   });
 
+  it('includes loader script with stub detection when bundledScriptUrl provided', () => {
+    const tag = buildScriptTag('/_bun/client/abc123.js', null, './src/app.tsx');
+
+    // Loader must detect the reload stub signature
+    expect(tag).toContain('try{location.reload()}');
+    expect(tag).toContain('showOverlay');
+    expect(tag).toContain('Build failed');
+    expect(tag).toContain('Dev server unreachable');
+  });
+
+  it('loader fetches /__vertz_build_check for error details on stub detection', () => {
+    const tag = buildScriptTag('/_bun/client/abc123.js', null, './src/app.tsx');
+
+    expect(tag).toContain('/__vertz_build_check');
+    // Should use shared overlay namespace for formatting
+    expect(tag).toContain('__vertz_overlay');
+    expect(tag).toContain('formatErrors');
+  });
+
   it('generates plain module script when no bundledScriptUrl', () => {
     const tag = buildScriptTag(null, null, '/src/app.tsx');
 
+    expect(tag).toContain('type="module"');
     expect(tag).toContain('src="/src/app.tsx"');
     expect(tag).not.toContain('data-bun-dev-server-script');
+    expect(tag).not.toContain('showOverlay');
   });
 
-  it('appends bootstrap script when provided', () => {
+  it('appends bootstrap script between placeholder and loader when provided', () => {
     const bootstrap =
       '<script>((a)=>{document.addEventListener("DOMContentLoaded",()=>{a.unref()})})</script>';
     const tag = buildScriptTag('/_bun/client/abc.js', bootstrap, './src/app.tsx');
 
     expect(tag).toContain('data-bun-dev-server-script');
     expect(tag).toContain(bootstrap);
+
+    // Bootstrap should appear between placeholder and loader
+    const placeholderIdx = tag.indexOf('type="text/plain"');
+    const bootstrapIdx = tag.indexOf(bootstrap);
+    const loaderIdx = tag.indexOf('showOverlay');
+    expect(placeholderIdx).toBeLessThan(bootstrapIdx);
+    expect(bootstrapIdx).toBeLessThan(loaderIdx);
   });
 
   it('does not append bootstrap when bundledScriptUrl is null', () => {
@@ -324,15 +360,97 @@ describe('generateSSRPageHtml', () => {
     expect(mainScriptIndex).toBeGreaterThan(-1);
     expect(guardIndex).toBeLessThan(mainScriptIndex);
   });
+
+  it('includes error channel script in <head> before reload guard', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    const errorChannelIdx = html.indexOf('__vertz_errors');
+    const reloadGuardIdx = html.indexOf('__vertz_reload_count');
+    expect(errorChannelIdx).toBeGreaterThan(-1);
+    expect(reloadGuardIdx).toBeGreaterThan(-1);
+    expect(errorChannelIdx).toBeLessThan(reloadGuardIdx);
+  });
+
+  it('error channel script contains WebSocket URL', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    expect(html).toContain('__vertz_errors');
+    expect(html).toContain('WebSocket');
+  });
+
+  it('error channel script contains __vertz_error_data for MCP access', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    expect(html).toContain('__vertz_error_data');
+  });
+
+  it('error channel script includes window error listener for runtime errors', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    expect(html).toContain('addEventListener');
+    expect(html).toContain('error');
+    expect(html).toContain('unhandledrejection');
+  });
+
+  it('shared overlay functions are accessible by both error channel and build error loader', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    // The shared overlay namespace should be set by the error channel script
+    expect(html).toContain('__vertz_overlay');
+  });
+
+  it('does not embed build error data element (errors fetched via /__vertz_build_check)', () => {
+    const html = generateSSRPageHtml({
+      title: 'App',
+      css: '',
+      bodyHtml: '',
+      ssrData: [],
+      scriptTag: '<script src="/app.js"></script>',
+    });
+
+    expect(html).not.toContain('__vertz_build_error');
+  });
 });
 
 describe('createFetchInterceptor', () => {
-  const mockOriginalFetch = vi.fn(async () => new Response('original'));
-  mockOriginalFetch.preconnect = vi.fn();
-  const mockApiHandler = vi.fn(async () => new Response('api'));
+  const mockOriginalFetch = mock(async () => new Response('original'));
+  mockOriginalFetch.preconnect = mock();
+  const mockApiHandler = mock(async () => new Response('api'));
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockOriginalFetch.mockClear();
+    (mockOriginalFetch.preconnect as ReturnType<typeof mock>).mockClear();
+    mockApiHandler.mockClear();
   });
 
   it('routes relative API paths to apiHandler', async () => {
@@ -452,6 +570,25 @@ describe('createIndexHtmlStasher', () => {
 
     // Should not throw
     stasher.restore();
+  });
+
+  it('stash() recovers index.html left stashed by a crashed session', () => {
+    // Simulate a previous crashed session: index.html is gone, backup exists
+    mkdirSync(join(tmpDir, '.vertz', 'dev'), { recursive: true });
+    writeFileSync(join(tmpDir, '.vertz', 'dev', 'index.html.bak'), '<html></html>');
+    // No index.html in project root
+
+    const stasher = createIndexHtmlStasher(tmpDir);
+    stasher.stash();
+
+    // Should have recovered the backup, then re-stashed it
+    expect(existsSync(join(tmpDir, 'index.html'))).toBe(false);
+    expect(existsSync(join(tmpDir, '.vertz', 'dev', 'index.html.bak'))).toBe(true);
+
+    // Restore should bring it back
+    stasher.restore();
+    expect(existsSync(join(tmpDir, 'index.html'))).toBe(true);
+    expect(readFileSync(join(tmpDir, 'index.html'), 'utf-8')).toBe('<html></html>');
   });
 
   it('restore() is a no-op when called twice', () => {

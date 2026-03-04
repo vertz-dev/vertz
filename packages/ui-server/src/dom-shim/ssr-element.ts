@@ -254,7 +254,10 @@ export class SSRElement extends SSRNode {
       tag: this.tag,
       attrs: { ...this.attrs },
       children: this.children.map((child) => {
-        if (typeof child === 'string') return child;
+        // innerHTML content is trusted markup — emit as raw HTML to avoid escaping
+        if (typeof child === 'string') {
+          return this._innerHTML != null ? rawHtml(child) : child;
+        }
         if (child instanceof SSRComment) return rawHtml(`<!--${child.text}-->`);
         if (typeof child.toVNode === 'function') return child.toVNode();
         // Fallback: stringify non-SSRElement children (e.g. plain objects)
