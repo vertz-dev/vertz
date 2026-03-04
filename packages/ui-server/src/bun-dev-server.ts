@@ -506,6 +506,8 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
   let server: ReturnType<typeof Bun.serve> | null = null;
   let srcWatcherRef: ReturnType<typeof watch> | null = null;
+  let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+  let stopped = false;
 
   // ── WebSocket error channel state ────────────────────────────
   const wsClients = new Set<import('bun').ServerWebSocket<unknown>>();
@@ -705,6 +707,8 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   // ── Unified SSR + HMR ────────────────────────────────────────────
 
   async function start(): Promise<void> {
+    stopped = false;
+
     // Stash index.html so Bun's dev server doesn't auto-serve it
     indexHtmlStasher.stash();
 
@@ -1069,13 +1073,13 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
     // Watch for file changes — re-discover hash + re-import SSR module
     const srcDir = resolve(projectRoot, 'src');
-    let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
 
     if (existsSync(srcDir)) {
       srcWatcherRef = watch(srcDir, { recursive: true }, (_event, filename) => {
         if (!filename) return;
         if (refreshTimeout) clearTimeout(refreshTimeout);
         refreshTimeout = setTimeout(async () => {
+          if (stopped) return;
           // Track last changed file for runtime error context
           lastChangedFile = `src/${filename}`;
           // Reset broadcast dedup so a new file change can re-broadcast
@@ -1086,6 +1090,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
           // Re-discover HMR assets (hash changes on every edit)
           await discoverHMRAssets();
+          if (stopped) return;
 
           // Proactive build check — detect errors before the client fetches
           try {
@@ -1096,6 +1101,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               target: 'browser',
               throw: false,
             });
+            if (stopped) return;
             if (!result.success && result.logs.length > 0) {
               const errors = result.logs
                 .filter((l) => l.level === 'error')
@@ -1120,16 +1126,19 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               // Poll until the hash changes or timeout (Bun typically updates in ~500ms).
               const prevUrl = bundledScriptUrl;
               for (let attempt = 0; attempt < 5; attempt++) {
+                if (stopped) return;
                 await new Promise((r) => setTimeout(r, 200));
                 await discoverHMRAssets();
                 if (bundledScriptUrl !== prevUrl) break;
               }
-              clearError();
+              if (!stopped) clearError();
             }
           } catch {
             // Bun.build() itself failed — ignore, the fetch-validate loader
             // will catch this on next page load
           }
+
+          if (stopped) return;
 
           // Re-import SSR module — clear require cache for all project source
           // files so transitive dependencies (e.g., mock-data.ts) are re-evaluated.
@@ -1147,10 +1156,12 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               console.log('[Server] SSR module refreshed');
             }
           } catch (e) {
+            if (stopped) return;
             // First import may fail due to stale Bun module cache (race between
             // file watcher and Bun's dev bundler recompilation). Retry once after
             // a delay to let Bun's module graph settle.
             await new Promise((r) => setTimeout(r, 500));
+            if (stopped) return;
             for (const key of Object.keys(require.cache)) {
               if (key.startsWith(srcDir) || key.startsWith(entryPath)) {
                 delete require.cache[key];
@@ -1183,6 +1194,13 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     clearError,
 
     async stop() {
+      stopped = true;
+
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout);
+        refreshTimeout = null;
+      }
+
       if (specWatcher) {
         specWatcher.close();
         specWatcher = null;
