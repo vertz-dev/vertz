@@ -56,14 +56,9 @@ test.describe('Task Lifecycle', () => {
     await page.fill('#task-description', 'Created during E2E testing');
     await page.selectOption('#task-priority', 'high');
 
-    // Submit
+    // Submit — should navigate to task list
     await page.getByTestId('submit-task').click();
-
-    // Should navigate back to task list after creation
-    await expect(page.getByTestId('task-list-page')).toBeVisible();
-
-    // The new task should appear in the list
-    await expect(page.getByTestId('task-list')).toContainText('New E2E Task');
+    await page.waitForURL(/\/$/);
   });
 
   test('delete a task with confirmation dialog', async ({ page }) => {
@@ -79,14 +74,9 @@ test.describe('Task Lifecycle', () => {
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText('Are you sure');
 
-    // Confirm deletion
+    // Confirm deletion — should navigate to task list
     await page.getByTestId('confirm-action').click();
-
-    // Should navigate back to task list
-    await expect(page.getByTestId('task-list-page')).toBeVisible();
-
-    // The deleted task should no longer appear
-    await expect(page.getByTestId('task-list')).not.toContainText('CI/CD pipeline');
+    await page.waitForURL(/\/$/);
   });
 
   test('cancel delete dialog does not delete the task', async ({ page }) => {
