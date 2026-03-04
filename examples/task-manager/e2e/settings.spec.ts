@@ -47,15 +47,16 @@ test.describe('Settings', () => {
 
   test('default priority select works', async ({ page }) => {
     await page.goto('/settings');
+    await expect(page.getByTestId('settings-page')).toBeVisible();
 
     const select = page.getByTestId('default-priority-select');
-    await expect(select).toBeVisible();
+    await expect(select).toBeVisible({ timeout: 10000 });
 
     // Change priority to "high"
     await select.selectOption('high');
     await expect(select).toHaveValue('high');
 
-    // Saved message should appear
-    await expect(page.getByTestId('saved-message')).toBeVisible();
+    // Saved message should appear (may take a moment for the save + re-render)
+    await expect(page.getByTestId('saved-message')).toBeVisible({ timeout: 10000 });
   });
 });

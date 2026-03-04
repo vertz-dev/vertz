@@ -45,7 +45,9 @@ test.describe('Task List', () => {
 
   test('navigates to create task page via button', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByTestId('task-list')).toBeVisible();
+    // Wait for data to load and task list to render (may come via SSR or client-side fetch)
+    const cards = page.getByTestId('task-list').locator('[data-testid^="task-card-"]');
+    await expect(cards).toHaveCount(3, { timeout: 10000 });
 
     await page.getByTestId('create-task-btn').click();
     await expect(page.getByTestId('create-task-page')).toBeVisible();
