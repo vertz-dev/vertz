@@ -1,5 +1,5 @@
 import { defineTheme } from '@vertz/ui';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { registerSSRQuery } from '../ssr-context';
 import { createSSRHandler } from '../ssr-handler';
 import type { SSRModule } from '../ssr-render';

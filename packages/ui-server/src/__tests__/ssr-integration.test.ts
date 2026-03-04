@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { installDomShim, removeDomShim } from '../dom-shim';
+import { describe, expect, it } from 'bun:test';
+import { SSRComment, SSRElement } from '../dom-shim';
 import { renderHeadToHtml } from '../head';
 import { wrapWithHydrationMarkers } from '../hydration-markers';
 import { renderToStream } from '../render-to-stream';
@@ -174,25 +174,19 @@ describe('SSR Integration Tests', () => {
 
   /** Comments must serialize as HTML comments for hydration cursor tracking */
   it('createComment produces SSRComment that serializes as HTML comment', () => {
-    installDomShim();
-    try {
-      const doc = (globalThis as any).document;
-      const comment = doc.createComment('conditional');
+    const comment = new SSRComment('conditional');
 
-      // SSRComment preserves the text for HTML serialization
-      expect(comment.text).toBe('conditional');
+    // SSRComment preserves the text for HTML serialization
+    expect(comment.text).toBe('conditional');
 
-      // When appended to an SSRElement, it appears in the VNode as a RawHtml comment
-      const parent = doc.createElement('div');
-      parent.appendChild(comment);
-      const vnode = parent.toVNode();
-      expect(vnode.children).toHaveLength(1);
-      const child = vnode.children[0];
-      expect(child).toHaveProperty('__raw', true);
-      expect(child).toHaveProperty('html', '<!--conditional-->');
-    } finally {
-      removeDomShim();
-    }
+    // When appended to an SSRElement, it appears in the VNode as a RawHtml comment
+    const parent = new SSRElement('div');
+    parent.appendChild(comment);
+    const vnode = parent.toVNode();
+    expect(vnode.children).toHaveLength(1);
+    const child = vnode.children[0];
+    expect(child).toHaveProperty('__raw', true);
+    expect(child).toHaveProperty('html', '<!--conditional-->');
   });
 
   /** IT-5A-5: Head component injects <title> into HTML head */

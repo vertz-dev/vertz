@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import { captureDOMState, restoreDOMState } from '../bun-plugin/fast-refresh-dom-state';
+
+beforeAll(() => {
+  GlobalRegistrator.register({ url: 'http://localhost/' });
+});
+afterAll(() => {
+  GlobalRegistrator.unregister();
+});
 
 describe('fast-refresh-dom-state', () => {
   describe('infrastructure', () => {

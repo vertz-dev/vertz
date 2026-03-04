@@ -1,4 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
+import { GlobalRegistrator } from '@happy-dom/global-registrator';
+
+beforeAll(() => {
+  GlobalRegistrator.register({ url: 'http://localhost/' });
+});
+afterAll(() => {
+  GlobalRegistrator.unregister();
+});
+
 import {
   __$refreshPerform,
   __$refreshReg,

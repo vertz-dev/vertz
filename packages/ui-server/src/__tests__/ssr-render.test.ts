@@ -1,5 +1,5 @@
 import { createRouter, defineRoutes, defineTheme, RouterContext, RouterView } from '@vertz/ui';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { registerSSRQuery } from '../ssr-context';
 import { ssrDiscoverQueries, ssrRenderToString, ssrStreamNavQueries } from '../ssr-render';
 

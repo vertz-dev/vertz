@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import type { VNode } from '../../types';
 import { Fragment, jsx, jsxDEV, jsxs } from '../index';
 

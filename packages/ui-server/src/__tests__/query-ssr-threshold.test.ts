@@ -9,7 +9,7 @@
  * is not available in the worktree. Public API validation tests in
  * packages/integration-tests/ will use package imports.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { query } from '../../../ui/src/query/query';
 import { installDomShim, removeDomShim } from '../dom-shim';
 import { renderPage } from '../render-page';

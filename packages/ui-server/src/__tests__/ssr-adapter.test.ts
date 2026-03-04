@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { SSRComment } from '../dom-shim/ssr-comment';
 import { SSRElement } from '../dom-shim/ssr-element';
 import { SSRDocumentFragment } from '../dom-shim/ssr-fragment';

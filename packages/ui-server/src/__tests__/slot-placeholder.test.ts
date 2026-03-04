@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { serializeToHtml } from '../html-serializer';
 import { createSlotPlaceholder, resetSlotCounter } from '../slot-placeholder';
 
