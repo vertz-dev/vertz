@@ -1,5 +1,12 @@
 # @vertz/db
 
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/schema@0.2.3
+
 ## 0.2.2
 
 ### Patch Changes

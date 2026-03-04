@@ -1,5 +1,18 @@
 # @vertz/ui-server
 
+## 0.2.3
+
+### Patch Changes
+
+- [#880](https://github.com/vertz-dev/vertz/pull/880) [`2e86c55`](https://github.com/vertz-dev/vertz/commit/2e86c55e3c04f3c534bf0dc124d18dcdc5d9eefc) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Preserve DOM state (form values, focus, scroll positions) across fast refresh hot updates. Previously, `replaceChild` created an entirely new DOM tree, losing transient state like input values, cursor position, and scroll offsets. Now captures state by `name`/`id` attributes before replacement and restores it after.
+
+- [#878](https://github.com/vertz-dev/vertz/pull/878) [`62dddcb`](https://github.com/vertz-dev/vertz/commit/62dddcbcb4943b12a04bca8466b09ae21901070b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove `private: true` so the package is published to npm. Required by `@vertz/cli` at runtime.
+
+- Updated dependencies [[`62dddcb`](https://github.com/vertz-dev/vertz/commit/62dddcbcb4943b12a04bca8466b09ae21901070b), [`62dddcb`](https://github.com/vertz-dev/vertz/commit/62dddcbcb4943b12a04bca8466b09ae21901070b), [`b0b6115`](https://github.com/vertz-dev/vertz/commit/b0b6115e0389447ffb951e875b5ce224e4ace51c)]:
+  - @vertz/core@0.2.3
+  - @vertz/ui-compiler@0.2.3
+  - @vertz/ui@0.2.2
+
 ## 0.2.2
 
 ### Patch Changes
