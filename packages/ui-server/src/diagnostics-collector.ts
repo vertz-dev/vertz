@@ -1,5 +1,11 @@
 import type { ErrorCategory } from './bun-dev-server';
 
+export interface RuntimeErrorEntry {
+  message: string;
+  source: string | null;
+  timestamp: string;
+}
+
 export interface DiagnosticsSnapshot {
   status: 'ok';
   uptime: number;
@@ -34,6 +40,7 @@ export interface DiagnosticsSnapshot {
     lastChangedFile: string | null;
     lastChangeTime: string | null;
   };
+  runtimeErrors: RuntimeErrorEntry[];
 }
 
 export class DiagnosticsCollector {
@@ -69,6 +76,10 @@ export class DiagnosticsCollector {
   // Watcher state
   private watcherLastChangedFile: string | null = null;
   private watcherLastChangeTime: string | null = null;
+
+  // Runtime errors ring buffer
+  private static readonly MAX_RUNTIME_ERRORS = 10;
+  private runtimeErrorsBuffer: RuntimeErrorEntry[] = [];
 
   recordPluginConfig(filter: string, hmr: boolean, fastRefresh: boolean): void {
     this.pluginFilter = filter;
@@ -119,6 +130,23 @@ export class DiagnosticsCollector {
     this.watcherLastChangeTime = new Date().toISOString();
   }
 
+  recordRuntimeError(message: string, source: string | null): void {
+    this.runtimeErrorsBuffer.push({
+      message,
+      source,
+      timestamp: new Date().toISOString(),
+    });
+    if (this.runtimeErrorsBuffer.length > DiagnosticsCollector.MAX_RUNTIME_ERRORS) {
+      this.runtimeErrorsBuffer = this.runtimeErrorsBuffer.slice(
+        this.runtimeErrorsBuffer.length - DiagnosticsCollector.MAX_RUNTIME_ERRORS,
+      );
+    }
+  }
+
+  clearRuntimeErrors(): void {
+    this.runtimeErrorsBuffer = [];
+  }
+
   getSnapshot(): DiagnosticsSnapshot {
     return {
       status: 'ok',
@@ -154,6 +182,7 @@ export class DiagnosticsCollector {
         lastChangedFile: this.watcherLastChangedFile,
         lastChangeTime: this.watcherLastChangeTime,
       },
+      runtimeErrors: [...this.runtimeErrorsBuffer],
     };
   }
 }

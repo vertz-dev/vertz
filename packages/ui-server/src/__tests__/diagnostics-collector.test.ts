@@ -133,4 +133,57 @@ describe('DiagnosticsCollector', () => {
     expect(typeof snapshot.uptime).toBe('number');
     expect(snapshot.uptime).toBeGreaterThanOrEqual(0);
   });
+
+  it('starts with empty runtimeErrors', () => {
+    const collector = new DiagnosticsCollector();
+    const snapshot = collector.getSnapshot();
+
+    expect(snapshot.runtimeErrors).toEqual([]);
+  });
+
+  it('recordRuntimeError() adds to ring buffer', () => {
+    const collector = new DiagnosticsCollector();
+
+    collector.recordRuntimeError('ReferenceError: foo is not defined', 'src/app.tsx');
+
+    const snapshot = collector.getSnapshot();
+    expect(snapshot.runtimeErrors).toHaveLength(1);
+    expect(snapshot.runtimeErrors[0].message).toBe('ReferenceError: foo is not defined');
+    expect(snapshot.runtimeErrors[0].source).toBe('src/app.tsx');
+    expect(snapshot.runtimeErrors[0].timestamp).toBeDefined();
+  });
+
+  it('ring buffer caps at 10 entries', () => {
+    const collector = new DiagnosticsCollector();
+
+    for (let i = 0; i < 15; i++) {
+      collector.recordRuntimeError(`Error ${i}`, null);
+    }
+
+    const snapshot = collector.getSnapshot();
+    expect(snapshot.runtimeErrors).toHaveLength(10);
+    // Oldest entries should be evicted — first entry is Error 5
+    expect(snapshot.runtimeErrors[0].message).toBe('Error 5');
+    expect(snapshot.runtimeErrors[9].message).toBe('Error 14');
+  });
+
+  it('clearRuntimeErrors() empties the buffer', () => {
+    const collector = new DiagnosticsCollector();
+
+    collector.recordRuntimeError('Error 1', 'src/a.tsx');
+    collector.recordRuntimeError('Error 2', 'src/b.tsx');
+    collector.clearRuntimeErrors();
+
+    const snapshot = collector.getSnapshot();
+    expect(snapshot.runtimeErrors).toEqual([]);
+  });
+
+  it('recordRuntimeError() with null source', () => {
+    const collector = new DiagnosticsCollector();
+
+    collector.recordRuntimeError('Unknown error', null);
+
+    const snapshot = collector.getSnapshot();
+    expect(snapshot.runtimeErrors[0].source).toBeNull();
+  });
 });
