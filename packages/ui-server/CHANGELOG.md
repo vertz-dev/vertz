@@ -1,5 +1,16 @@
 # @vertz/ui-server
 
+## 0.2.4
+
+### Patch Changes
+
+- [#894](https://github.com/vertz-dev/vertz/pull/894) [`a986d07`](https://github.com/vertz-dev/vertz/commit/a986d0788ca0210dfa4f624153d4bda72257a78c) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix HMR fast-refresh stability: SSR module reload now uses .ts wrapper to preserve plugin processing, compiler unwraps NonNullExpression in reactivity analyzer, and dev server includes diagnostic logging (VERTZ_DEBUG) and health check endpoint (/\_\_vertz_diagnostics).
+
+- Updated dependencies [[`a986d07`](https://github.com/vertz-dev/vertz/commit/a986d0788ca0210dfa4f624153d4bda72257a78c)]:
+  - @vertz/ui-compiler@0.2.4
+  - @vertz/core@0.2.4
+  - @vertz/ui@0.2.2
+
 ## 0.2.3
 
 ### Patch Changes
