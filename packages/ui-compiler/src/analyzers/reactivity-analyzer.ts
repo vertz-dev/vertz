@@ -30,8 +30,14 @@ export class ReactivityAnalyzer {
     const declaredNames = collectDeclaredNames(bodyNode);
 
     // Pass 1: Collect declarations
-    const lets = new Map<string, { start: number; end: number; deps: string[] }>();
-    const consts = new Map<string, { start: number; end: number; deps: string[] }>();
+    const lets = new Map<
+      string,
+      { start: number; end: number; deps: string[]; propertyAccesses: Map<string, Set<string>> }
+    >();
+    const consts = new Map<
+      string,
+      { start: number; end: number; deps: string[]; propertyAccesses: Map<string, Set<string>> }
+    >();
     const signalApiVars = new Map<string, SignalApiConfig>(); // Track variables assigned from signal APIs
     const reactiveSourceVars = new Set<string>(); // Track variables assigned from reactive source APIs (e.g., useContext)
     const destructuredFromMap = new Map<string, string>(); // binding name → synthetic var name
@@ -86,6 +92,7 @@ export class ReactivityAnalyzer {
                     start: decl.getStart(),
                     end: decl.getEnd(),
                     deps: [],
+                    propertyAccesses: new Map(),
                   });
                 }
               }
@@ -100,12 +107,23 @@ export class ReactivityAnalyzer {
               // Classify based on registry: signal props are computed, everything else is static
               const isSignalProp = signalApiConfig.signalProperties.has(propName);
               const deps = isSignalProp ? [syntheticName] : [];
-              const entry = { start: decl.getStart(), end: decl.getEnd(), deps };
+              const propAccesses = new Map<string, Set<string>>();
+              if (isSignalProp) {
+                propAccesses.set(syntheticName, new Set([propName]));
+              }
+              const entry = {
+                start: decl.getStart(),
+                end: decl.getEnd(),
+                deps,
+                propertyAccesses: propAccesses,
+              };
               consts.set(bindingName, entry);
               destructuredFromMap.set(bindingName, syntheticName);
             } else {
-              const deps = init ? collectIdentifierRefs(init) : [];
-              const entry = { start: decl.getStart(), end: decl.getEnd(), deps };
+              const { refs: deps, propertyAccesses } = init
+                ? collectDeps(init)
+                : { refs: [] as string[], propertyAccesses: new Map<string, Set<string>>() };
+              const entry = { start: decl.getStart(), end: decl.getEnd(), deps, propertyAccesses };
               if (isLet) {
                 lets.set(bindingName, entry);
               } else if (isConst) {
@@ -117,8 +135,10 @@ export class ReactivityAnalyzer {
         }
 
         const name = decl.getName();
-        const deps = init ? collectIdentifierRefs(init) : [];
-        const entry = { start: decl.getStart(), end: decl.getEnd(), deps };
+        const { refs: deps, propertyAccesses } = init
+          ? collectDeps(init)
+          : { refs: [] as string[], propertyAccesses: new Map<string, Set<string>>() };
+        const entry = { start: decl.getStart(), end: decl.getEnd(), deps, propertyAccesses };
 
         // Check if this is assigned from a signal API call or reactive source API call.
         // Unwrap NonNullExpression (the ! operator) to handle patterns like:
@@ -204,13 +224,16 @@ export class ReactivityAnalyzer {
       for (const [name, info] of consts) {
         if (computeds.has(name)) continue;
         if (signalApiVars.has(name)) continue;
-        const dependsOnReactive = info.deps.some(
-          (dep) =>
-            signals.has(dep) ||
-            computeds.has(dep) ||
-            signalApiVars.has(dep) ||
-            reactiveSourceVars.has(dep),
-        );
+        const dependsOnReactive = info.deps.some((dep) => {
+          if (signals.has(dep) || computeds.has(dep) || reactiveSourceVars.has(dep)) return true;
+          const apiConfig = signalApiVars.get(dep);
+          if (apiConfig) {
+            const accessed = info.propertyAccesses.get(dep);
+            if (!accessed || accessed.size === 0) return false;
+            return [...accessed].some((prop) => apiConfig.signalProperties.has(prop));
+          }
+          return false;
+        });
         if (dependsOnReactive) {
           computeds.add(name);
           changed = true;
@@ -284,10 +307,35 @@ function addIdentifiers(node: Node, refs: Set<string>): void {
   }
 }
 
-/** Collect identifier refs from an initializer expression. */
-function collectIdentifierRefs(node: Node): string[] {
+/**
+ * Collect identifier refs and property accesses from an initializer expression.
+ * For PropertyAccessExpressions like `q.error`, records that `q` accesses property `error`.
+ * This enables distinguishing reactive reads (signal properties) from stable references (plain methods).
+ */
+function collectDeps(node: Node): {
+  refs: string[];
+  propertyAccesses: Map<string, Set<string>>;
+} {
   const refs: string[] = [];
+  const propertyAccesses = new Map<string, Set<string>>();
   const walk = (n: Node): void => {
+    if (n.isKind(SyntaxKind.PropertyAccessExpression)) {
+      const expr = n.getExpression();
+      const propName = n.getName();
+      if (expr.isKind(SyntaxKind.Identifier)) {
+        const varName = expr.getText();
+        refs.push(varName);
+        let props = propertyAccesses.get(varName);
+        if (!props) {
+          props = new Set();
+          propertyAccesses.set(varName, props);
+        }
+        props.add(propName);
+      } else {
+        walk(expr);
+      }
+      return;
+    }
     if (n.isKind(SyntaxKind.Identifier)) {
       refs.push(n.getText());
     }
@@ -296,7 +344,7 @@ function collectIdentifierRefs(node: Node): string[] {
     }
   };
   walk(node);
-  return refs;
+  return { refs, propertyAccesses };
 }
 
 /**
