@@ -375,6 +375,48 @@ function App() {
     expect(result.code).toContain('ctx.theme');
   });
 
+  it('IT-1B-15: queryMatch with signal API variable as function argument → __child', () => {
+    const result = compile(
+      `
+import { query, queryMatch } from '@vertz/ui';
+
+function TodoList() {
+  const todosQuery = query('/api/todos');
+  return <div>{queryMatch(todosQuery, {
+    loading: () => <span>Loading...</span>,
+    error: (err) => <span>Error</span>,
+    data: (items) => <ul>{items.map(i => <li>{i}</li>)}</ul>,
+  })}</div>;
+}
+    `.trim(),
+    );
+
+    // queryMatch receives a signal API variable — top-level expression must be reactive (__child)
+    // Note: __insert may still appear inside nested callbacks (e.g., items.map) where
+    // the variables are callback parameters, not signal API variables.
+    expect(result.code).toContain('__child(() => queryMatch(todosQuery');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('IT-1B-16: signal API variable only in property access — no false __child from ref check', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query('/api/tasks');
+  return <div>{tasks.data}</div>;
+}
+    `.trim(),
+    );
+
+    // tasks.data is a signal property access — should still be __child (reactive)
+    // but via containsSignalApiPropertyAccess, not containsSignalApiReference
+    expect(result.code).toContain('__child(');
+    expect(result.code).toContain('tasks.data.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
   it('preserves inline whitespace between text and JSX expressions', () => {
     const result = compile(
       `
