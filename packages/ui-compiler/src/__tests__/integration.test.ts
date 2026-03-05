@@ -375,6 +375,25 @@ function App() {
     expect(result.code).toContain('ctx.theme');
   });
 
+  it('IT-1B-16: signal API variable only in property access — no false __child from ref check', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query('/api/tasks');
+  return <div>{tasks.data}</div>;
+}
+    `.trim(),
+    );
+
+    // tasks.data is a signal property access — should still be __child (reactive)
+    // but via containsSignalApiPropertyAccess, not containsSignalApiReference
+    expect(result.code).toContain('__child(');
+    expect(result.code).toContain('tasks.data.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
   it('preserves inline whitespace between text and JSX expressions', () => {
     const result = compile(
       `
