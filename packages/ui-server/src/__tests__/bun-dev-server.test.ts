@@ -1,10 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import {
   buildScriptTag,
   createBunDevServer,
   createFetchInterceptor,
+  createRuntimeErrorDeduplicator,
+  formatTerminalRuntimeError,
   generateSSRPageHtml,
   parseHMRAssets,
 } from '../bun-dev-server';
@@ -594,3 +594,108 @@ describe('createFetchInterceptor', () => {
   });
 });
 
+describe('formatTerminalRuntimeError', () => {
+  it('formats error with [Browser] prefix and file location', () => {
+    const result = formatTerminalRuntimeError([
+      {
+        message: 'ReferenceError: foo is not defined',
+        file: 'src/pages/home.tsx',
+        line: 42,
+        column: 5,
+      },
+    ]);
+
+    expect(result).toContain('[Browser] ReferenceError: foo is not defined');
+    expect(result).toContain('at src/pages/home.tsx:42:5');
+  });
+
+  it('includes line text snippet when available', () => {
+    const result = formatTerminalRuntimeError([
+      {
+        message: 'ReferenceError: foo is not defined',
+        file: 'src/pages/home.tsx',
+        line: 42,
+        column: 5,
+        lineText: 'const result = foo.bar();',
+      },
+    ]);
+
+    expect(result).toContain('\u2502 const result = foo.bar();');
+  });
+
+  it('formats error without file info', () => {
+    const result = formatTerminalRuntimeError([
+      { message: 'TypeError: Cannot read property of null' },
+    ]);
+
+    expect(result).toContain('[Browser] TypeError: Cannot read property of null');
+    expect(result).not.toContain('at ');
+  });
+
+  it('includes resolved stack frames (first 5)', () => {
+    const frames = Array.from({ length: 7 }, (_, i) => ({
+      functionName: `fn${i}`,
+      file: `src/file${i}.tsx`,
+      absFile: `/project/src/file${i}.tsx`,
+      line: i + 1,
+      column: 0,
+    }));
+
+    const result = formatTerminalRuntimeError([{ message: 'Error: test' }], frames);
+
+    expect(result).toContain('fn0');
+    expect(result).toContain('fn4');
+    expect(result).not.toContain('fn5');
+  });
+
+  it('handles stack frame with null functionName', () => {
+    const result = formatTerminalRuntimeError(
+      [{ message: 'Error: test' }],
+      [
+        {
+          functionName: null,
+          file: 'src/app.tsx',
+          absFile: '/project/src/app.tsx',
+          line: 10,
+          column: 3,
+        },
+      ],
+    );
+
+    expect(result).toContain('at src/app.tsx:10:3');
+    expect(result).not.toContain('null');
+  });
+});
+
+describe('createRuntimeErrorDeduplicator', () => {
+  it('shouldLog returns true for first error', () => {
+    const dedup = createRuntimeErrorDeduplicator();
+
+    expect(dedup.shouldLog('Error: foo', 'src/a.tsx', 10)).toBe(true);
+  });
+
+  it('shouldLog returns false for duplicate error', () => {
+    const dedup = createRuntimeErrorDeduplicator();
+
+    dedup.shouldLog('Error: foo', 'src/a.tsx', 10);
+
+    expect(dedup.shouldLog('Error: foo', 'src/a.tsx', 10)).toBe(false);
+  });
+
+  it('shouldLog returns true for different error', () => {
+    const dedup = createRuntimeErrorDeduplicator();
+
+    dedup.shouldLog('Error: foo', 'src/a.tsx', 10);
+
+    expect(dedup.shouldLog('Error: bar', 'src/a.tsx', 10)).toBe(true);
+  });
+
+  it('reset allows same error to log again', () => {
+    const dedup = createRuntimeErrorDeduplicator();
+
+    dedup.shouldLog('Error: foo', 'src/a.tsx', 10);
+    dedup.reset();
+
+    expect(dedup.shouldLog('Error: foo', 'src/a.tsx', 10)).toBe(true);
+  });
+});
