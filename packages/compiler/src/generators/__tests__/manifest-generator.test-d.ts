@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
 import type { Generator } from '../base-generator';
 import type {
   AppManifest,
@@ -25,10 +25,13 @@ describe('ManifestGenerator type-level tests', () => {
   });
 
   it('ManifestGenerator satisfies Generator interface', () => {
-    expectTypeOf<ManifestGenerator>().toMatchTypeOf<Generator>();
+    const _check: Generator = {} as ManifestGenerator;
+    void _check;
   });
 
   it('ManifestDiagnostic severity is union type', () => {
-    expectTypeOf<ManifestDiagnostic['severity']>().toEqualTypeOf<'error' | 'warning' | 'info'>();
+    const _check1: 'error' | 'warning' | 'info' = {} as ManifestDiagnostic['severity'];
+    const _check2: ManifestDiagnostic['severity'] = {} as 'error' | 'warning' | 'info';
+    void _check1; void _check2;
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
 import type { Generator } from '../base-generator';
 import type { SchemaRegistryEntry, SchemaRegistryGenerator } from '../schema-registry-generator';
 
@@ -14,10 +14,12 @@ describe('SchemaRegistryGenerator type-level tests', () => {
       importPath: 'src/test.ts',
       variableName: 'testSchema',
     };
-    expectTypeOf(_ok).toMatchTypeOf<SchemaRegistryEntry>();
+    const _check: SchemaRegistryEntry = _ok;
+    void _check;
   });
 
   it('SchemaRegistryGenerator satisfies Generator interface', () => {
-    expectTypeOf<SchemaRegistryGenerator>().toMatchTypeOf<Generator>();
+    const _check: Generator = {} as SchemaRegistryGenerator;
+    void _check;
   });
 });

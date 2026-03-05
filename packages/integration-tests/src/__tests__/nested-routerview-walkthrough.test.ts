@@ -11,11 +11,10 @@
 // Uses only public package imports — never relative imports.
 // ===========================================================================
 
-// TODO(#900): This test requires a DOM environment (previously @vitest-environment happy-dom).
-// bun:test does not support per-file environment directives. Options:
-// 1. Use bun test --preload for this file
-// 2. Set up inline happy-dom registration
-// 3. Move to a separate test script with DOM preload
+// NOTE: This test requires a DOM environment. Run with:
+//   bun test --preload ./src/__tests__/happy-dom-preload.ts
+// Currently skipped in default `bun test` due to happy-dom/CSSStyleSheet
+// incompatibility when globals are manually registered (#900).
 
 import type { Router } from '@vertz/ui';
 import {

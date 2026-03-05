@@ -1,5 +1,5 @@
 import { d } from '@vertz/db';
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
 import { createEntityContext } from '../context';
 import type { EntityOperations } from '../entity-operations';
 import type { EntityContext } from '../types';
@@ -31,8 +31,10 @@ describe('EntityContext type flow', () => {
     type CreateParam = Parameters<EntityContext<UsersModel>['entity']['create']>[0];
 
     // email and name should be present (required input fields)
-    expectTypeOf<CreateParam>().toHaveProperty('email');
-    expectTypeOf<CreateParam>().toHaveProperty('name');
+    const _check1: CreateParam['email'] = {} as CreateParam['email'];
+    void _check1;
+    const _check2: CreateParam['name'] = {} as CreateParam['name'];
+    void _check2;
   });
 
   it('ctx.entity.create() data excludes readOnly columns', () => {
@@ -53,8 +55,10 @@ describe('EntityContext type flow', () => {
     type GetReturn = Awaited<ReturnType<EntityContext<UsersModel>['entity']['get']>>;
 
     // email and name should be present in response
-    expectTypeOf<GetReturn>().toHaveProperty('email');
-    expectTypeOf<GetReturn>().toHaveProperty('name');
+    const _check1: GetReturn['email'] = {} as GetReturn['email'];
+    void _check1;
+    const _check2: GetReturn['name'] = {} as GetReturn['name'];
+    void _check2;
   });
 
   it('ctx.entity.get() response excludes hidden columns', () => {
@@ -68,7 +72,8 @@ describe('EntityContext type flow', () => {
     type UpdateParam = Parameters<EntityContext<UsersModel>['entity']['update']>[1];
 
     // All fields should be optional (partial update)
-    expectTypeOf<UpdateParam>().toMatchTypeOf<{ email?: string }>();
+    const _check: { email?: string } = {} as UpdateParam;
+    void _check;
   });
 
   it('ctx.entity.update() data excludes readOnly columns', () => {
@@ -88,7 +93,9 @@ describe('EntityContext type flow', () => {
   it('ctx with default ModelDef compiles (for access rules)', () => {
     // EntityContext without generic arg should compile
     type Ctx = EntityContext;
-    expectTypeOf<Ctx['userId']>().toEqualTypeOf<string | null>();
+    const _check1: string | null = {} as Ctx['userId'];
+    const _check2: Ctx['userId'] = {} as string | null;
+    void _check1; void _check2;
   });
 
   it('createEntityContext() return type preserves TModel generic', () => {
@@ -103,7 +110,8 @@ describe('EntityContext type flow', () => {
     type CreateParam = Parameters<typeof ctx.entity.create>[0];
 
     // email should be present
-    expectTypeOf<CreateParam>().toHaveProperty('email');
+    const _check: CreateParam['email'] = {} as CreateParam['email'];
+    void _check;
 
     // @ts-expect-error — createdAt is readOnly, excluded from $create_input
     type _Test = CreateParam['createdAt'];

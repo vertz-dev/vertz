@@ -146,10 +146,8 @@
       "devDependencies": {
         "@electric-sql/pglite": "^0.3.14",
         "@types/node": "^25.3.1",
-        "@vitest/coverage-v8": "^4.0.18",
         "bunup": "^0.16.23",
         "typescript": "^5.9.3",
-        "vitest": "^4.0.18",
       },
       "optionalDependencies": {
         "postgres": "^3.4.0",
@@ -159,14 +157,12 @@
       "name": "@vertz/cli-runtime",
       "version": "0.2.1",
       "dependencies": {
-        "@vertz/fetch": "workspace:*",
+        "@vertz/fetch": "workspace:^",
       },
       "devDependencies": {
         "@types/node": "^25.3.1",
-        "@vitest/coverage-v8": "^4.0.18",
         "bunup": "^0.16.31",
         "typescript": "^5.7.0",
-        "vitest": "^4.0.18",
       },
     },
     "packages/cloudflare": {
@@ -178,7 +174,6 @@
       "devDependencies": {
         "@cloudflare/workers-types": "^4.20260305.0",
         "@vertz/ui-server": "workspace:^",
-        "@vitest/coverage-v8": "^4.0.18",
         "typescript": "^5.7.3",
       },
       "peerDependencies": {
@@ -196,10 +191,8 @@
       },
       "devDependencies": {
         "@types/node": "^25.3.1",
-        "@vitest/coverage-v8": "^4.0.18",
         "bunup": "^0.16.31",
         "typescript": "^5.7.0",
-        "vitest": "^4.0.18",
       },
     },
     "packages/compiler": {
@@ -210,10 +203,9 @@
       },
       "devDependencies": {
         "@types/node": "^25.3.1",
-        "@vitest/coverage-v8": "^4.0.18",
+        "bun-types": "^1.3.10",
         "bunup": "^0.16.31",
         "typescript": "^5.7.0",
-        "vitest": "^4.0.18",
       },
     },
     "packages/core": {
@@ -224,7 +216,7 @@
       },
       "devDependencies": {
         "@types/node": "^25.3.1",
-        "@vitest/coverage-v8": "^4.0.18",
+        "bun-types": "^1.3.10",
         "bunup": "^0.16.31",
         "typescript": "^5.7.0",
         "vitest": "^4.0.18",
@@ -281,10 +273,9 @@
       "name": "@vertz/errors",
       "version": "0.2.10",
       "devDependencies": {
-        "@vitest/coverage-v8": "^4.0.18",
+        "bun-types": "^1.3.10",
         "bunup": "^0.16.31",
         "typescript": "^5.7.0",
-        "vitest": "^4.0.18",
       },
     },
     "packages/fetch": {
@@ -295,10 +286,8 @@
       },
       "devDependencies": {
         "@types/node": "^25.3.1",
-        "@vitest/coverage-v8": "^4.0.18",
         "bunup": "^0.16.31",
         "typescript": "^5.7.0",
-        "vitest": "^4.0.18",
       },
     },
     "packages/integration-tests": {
@@ -307,17 +296,16 @@
       "devDependencies": {
         "@mjackson/node-fetch-server": "^0.7.0",
         "@types/node": "^25.3.1",
-        "@vertz/core": "workspace:*",
-        "@vertz/db": "workspace:*",
-        "@vertz/errors": "workspace:*",
-        "@vertz/fetch": "workspace:*",
-        "@vertz/schema": "workspace:*",
-        "@vertz/server": "workspace:*",
-        "@vertz/theme-shadcn": "workspace:*",
-        "@vertz/ui": "workspace:*",
+        "@vertz/core": "workspace:^",
+        "@vertz/db": "workspace:^",
+        "@vertz/errors": "workspace:^",
+        "@vertz/fetch": "workspace:^",
+        "@vertz/schema": "workspace:^",
+        "@vertz/server": "workspace:^",
+        "@vertz/theme-shadcn": "workspace:^",
+        "@vertz/ui": "workspace:^",
         "happy-dom": "^20.7.0",
         "typescript": "^5.7.0",
-        "vitest": "^4.0.18",
         "yaml": "^2.3.0",
       },
     },
@@ -346,26 +334,23 @@
       },
       "devDependencies": {
         "@types/node": "^25.3.1",
-        "@vitest/coverage-v8": "^4.0.18",
+        "bun-types": "^1.3.10",
         "bunup": "^0.16.31",
         "typescript": "^5.7.0",
-        "vitest": "^4.0.18",
       },
     },
     "packages/testing": {
       "name": "@vertz/testing",
       "version": "0.2.10",
       "dependencies": {
-        "@vertz/core": "workspace:*",
-        "@vertz/server": "workspace:*",
+        "@vertz/core": "workspace:^",
+        "@vertz/server": "workspace:^",
       },
       "devDependencies": {
         "@types/node": "^25.3.1",
-        "@vertz/schema": "workspace:*",
-        "@vitest/coverage-v8": "^4.0.18",
+        "@vertz/schema": "workspace:^",
         "bunup": "^0.16.31",
         "typescript": "^5.7.0",
-        "vitest": "^4.0.18",
       },
     },
     "packages/theme-shadcn": {
@@ -390,10 +375,8 @@
       },
       "devDependencies": {
         "@types/node": "^25.3.1",
-        "@vitest/coverage-v8": "^4.0.18",
         "bunup": "^0.16.23",
         "typescript": "^5.9.3",
-        "vitest": "^4.0.18",
       },
     },
     "packages/ui": {
@@ -439,11 +422,9 @@
       "devDependencies": {
         "@jridgewell/trace-mapping": "^0.3.31",
         "@types/node": "^25.3.1",
-        "@vitest/coverage-v8": "^4.0.18",
         "bun-types": "^1.3.10",
         "bunup": "^0.16.31",
         "typescript": "^5.7.0",
-        "vitest": "^4.0.18",
       },
     },
     "packages/ui-primitives": {
@@ -485,20 +466,17 @@
       "name": "vertz",
       "version": "0.2.10",
       "dependencies": {
-        "@vertz/cloudflare": "workspace:*",
-        "@vertz/db": "workspace:*",
-        "@vertz/errors": "workspace:*",
-        "@vertz/fetch": "workspace:*",
-        "@vertz/schema": "workspace:*",
-        "@vertz/server": "workspace:*",
-        "@vertz/testing": "workspace:*",
-        "@vertz/tui": "workspace:*",
-        "@vertz/ui": "workspace:*",
-        "@vertz/ui-compiler": "workspace:*",
-        "@vertz/ui-primitives": "workspace:*",
-      },
-      "devDependencies": {
-        "vitest": "^4.0.18",
+        "@vertz/cloudflare": "workspace:^",
+        "@vertz/db": "workspace:^",
+        "@vertz/errors": "workspace:^",
+        "@vertz/fetch": "workspace:^",
+        "@vertz/schema": "workspace:^",
+        "@vertz/server": "workspace:^",
+        "@vertz/testing": "workspace:^",
+        "@vertz/tui": "workspace:^",
+        "@vertz/ui": "workspace:^",
+        "@vertz/ui-compiler": "workspace:^",
+        "@vertz/ui-primitives": "workspace:^",
       },
     },
   },
@@ -1009,7 +987,7 @@
 
     "assertion-error": ["assertion-error@2.0.1", "", {}, "sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA=="],
 
-    "ast-v8-to-istanbul": ["ast-v8-to-istanbul@0.3.11", "", { "dependencies": { "@jridgewell/trace-mapping": "^0.3.31", "estree-walker": "^3.0.3", "js-tokens": "^10.0.0" } }, "sha512-Qya9fkoofMjCBNVdWINMjB5KZvkYfaO9/anwkWnjxibpWUxo5iHl2sOdP7/uAqaRuUYuoo8rDwnbaaKVFxoUvw=="],
+    "ast-v8-to-istanbul": ["ast-v8-to-istanbul@0.3.12", "", { "dependencies": { "@jridgewell/trace-mapping": "^0.3.31", "estree-walker": "^3.0.3", "js-tokens": "^10.0.0" } }, "sha512-BRRC8VRZY2R4Z4lFIL35MwNXmwVqBityvOIwETtsCSwvjl0IdgFsy9NhdaA6j74nUdtJJlIypeRhpDam19Wq3g=="],
 
     "balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
 
@@ -1504,6 +1482,8 @@
     "@types/ws/@types/node": ["@types/node@25.3.0", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-4K3bqJpXpqfg2XKGK9bpDTc6xO/xoUP/RBWS7AtRMug6zZFaRekiLzjVtAoZMquxoAbzBvy5nxQ7veS5eYzf8A=="],
 
     "@vertz/cli/esbuild": ["esbuild@0.25.12", "", { "optionalDependencies": { "@esbuild/aix-ppc64": "0.25.12", "@esbuild/android-arm": "0.25.12", "@esbuild/android-arm64": "0.25.12", "@esbuild/android-x64": "0.25.12", "@esbuild/darwin-arm64": "0.25.12", "@esbuild/darwin-x64": "0.25.12", "@esbuild/freebsd-arm64": "0.25.12", "@esbuild/freebsd-x64": "0.25.12", "@esbuild/linux-arm": "0.25.12", "@esbuild/linux-arm64": "0.25.12", "@esbuild/linux-ia32": "0.25.12", "@esbuild/linux-loong64": "0.25.12", "@esbuild/linux-mips64el": "0.25.12", "@esbuild/linux-ppc64": "0.25.12", "@esbuild/linux-riscv64": "0.25.12", "@esbuild/linux-s390x": "0.25.12", "@esbuild/linux-x64": "0.25.12", "@esbuild/netbsd-arm64": "0.25.12", "@esbuild/netbsd-x64": "0.25.12", "@esbuild/openbsd-arm64": "0.25.12", "@esbuild/openbsd-x64": "0.25.12", "@esbuild/openharmony-arm64": "0.25.12", "@esbuild/sunos-x64": "0.25.12", "@esbuild/win32-arm64": "0.25.12", "@esbuild/win32-ia32": "0.25.12", "@esbuild/win32-x64": "0.25.12" }, "bin": { "esbuild": "bin/esbuild" } }, "sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg=="],
+
+    "@vertz/integration-tests/happy-dom": ["happy-dom@20.8.3", "", { "dependencies": { "@types/node": ">=20.0.0", "@types/whatwg-mimetype": "^3.0.2", "@types/ws": "^8.18.1", "entities": "^7.0.1", "whatwg-mimetype": "^3.0.0", "ws": "^8.18.3" } }, "sha512-lMHQRRwIPyJ70HV0kkFT7jH/gXzSI7yDkQFe07E2flwmNDFoWUTRMKpW2sglsnpeA7b6S2TJPp98EbQxai8eaQ=="],
 
     "@vertz/theme-shadcn/happy-dom": ["happy-dom@20.8.3", "", { "dependencies": { "@types/node": ">=20.0.0", "@types/whatwg-mimetype": "^3.0.2", "@types/ws": "^8.18.1", "entities": "^7.0.1", "whatwg-mimetype": "^3.0.0", "ws": "^8.18.3" } }, "sha512-lMHQRRwIPyJ70HV0kkFT7jH/gXzSI7yDkQFe07E2flwmNDFoWUTRMKpW2sglsnpeA7b6S2TJPp98EbQxai8eaQ=="],
 

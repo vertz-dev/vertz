@@ -1,5 +1,5 @@
 import { d } from '@vertz/db';
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
 import { entity } from '../entity';
 import type { EntityContext } from '../types';
 
@@ -54,8 +54,10 @@ describe('EntityContext inject type flow', () => {
 
     // get() returns the users $response type
     type GetReturn = Awaited<ReturnType<UsersOps['get']>>;
-    expectTypeOf<GetReturn>().toHaveProperty('email');
-    expectTypeOf<GetReturn>().toHaveProperty('name');
+    const _check1: GetReturn['email'] = {} as GetReturn['email'];
+    void _check1;
+    const _check2: GetReturn['name'] = {} as GetReturn['name'];
+    void _check2;
   });
 
   it('injected entity create() accepts typed input', () => {
@@ -63,8 +65,10 @@ describe('EntityContext inject type flow', () => {
     type CreateParam = Parameters<Ctx['entities']['users']['create']>[0];
 
     // Should have email (required input field)
-    expectTypeOf<CreateParam>().toHaveProperty('email');
-    expectTypeOf<CreateParam>().toHaveProperty('name');
+    const _check1: CreateParam['email'] = {} as CreateParam['email'];
+    void _check1;
+    const _check2: CreateParam['name'] = {} as CreateParam['name'];
+    void _check2;
   });
 
   it('injected entity response excludes hidden fields', () => {
@@ -101,8 +105,10 @@ describe('EntityContext inject type flow', () => {
     type GetReturn = Awaited<ReturnType<Ctx['entity']['get']>>;
 
     // Orders entity self-access
-    expectTypeOf<GetReturn>().toHaveProperty('userId');
-    expectTypeOf<GetReturn>().toHaveProperty('status');
+    const _check1: GetReturn['userId'] = {} as GetReturn['userId'];
+    void _check1;
+    const _check2: GetReturn['status'] = {} as GetReturn['status'];
+    void _check2;
   });
 
   it('multiple injected entities are all typed', () => {
@@ -112,11 +118,14 @@ describe('EntityContext inject type flow', () => {
     >;
 
     type UsersGetReturn = Awaited<ReturnType<Ctx['entities']['users']['get']>>;
-    expectTypeOf<UsersGetReturn>().toHaveProperty('email');
+    const _check1: UsersGetReturn['email'] = {} as UsersGetReturn['email'];
+    void _check1;
 
     type ProductsGetReturn = Awaited<ReturnType<Ctx['entities']['products']['get']>>;
-    expectTypeOf<ProductsGetReturn>().toHaveProperty('title');
-    expectTypeOf<ProductsGetReturn>().toHaveProperty('price');
+    const _check2: ProductsGetReturn['title'] = {} as ProductsGetReturn['title'];
+    void _check2;
+    const _check3: ProductsGetReturn['price'] = {} as ProductsGetReturn['price'];
+    void _check3;
   });
 });
 
@@ -140,8 +149,10 @@ describe('inject flows through action handler ctx', () => {
           handler: async (_input, ctx, _order) => {
             // ctx.entities.users should be typed — get() returns users $response
             const user = await ctx.entities.users.get('id');
-            expectTypeOf(user).toHaveProperty('email');
-            expectTypeOf(user).toHaveProperty('name');
+            const _check1: typeof user['email'] = user.email;
+            void _check1;
+            const _check2: typeof user['name'] = user.name;
+            void _check2;
             return { ok: true };
           },
         },
@@ -254,8 +265,10 @@ describe('action handler row param typing', () => {
             // row is TResponse | null for collection-level support
             // Narrow to non-null for record-level action type checks
             if (order) {
-              expectTypeOf(order).toHaveProperty('userId');
-              expectTypeOf(order).toHaveProperty('status');
+              const _check1: typeof order['userId'] = order.userId;
+              void _check1;
+              const _check2: typeof order['status'] = order.status;
+              void _check2;
             }
             return { ok: true };
           },
@@ -319,7 +332,8 @@ describe('entity() inject config types', () => {
     });
 
     // inject should be accessible on the definition for dependency graph building
-    expectTypeOf(orders.inject).toMatchTypeOf<Record<string, unknown>>();
+    const _check1: Record<string, unknown> = orders.inject;
+    void _check1;
   });
 
   it('inject map on definition contains the injected entity definitions', () => {
@@ -329,7 +343,9 @@ describe('entity() inject config types', () => {
     });
 
     // Both injected entities accessible on the frozen definition
-    expectTypeOf(orders.inject).toHaveProperty('users');
-    expectTypeOf(orders.inject).toHaveProperty('products');
+    const _check1: typeof orders.inject['users'] = orders.inject.users;
+    void _check1;
+    const _check2: typeof orders.inject['products'] = orders.inject.products;
+    void _check2;
   });
 });

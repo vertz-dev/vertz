@@ -1,5 +1,5 @@
 import { d } from '@vertz/db';
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
 import { entity } from '../index';
 
 // ---------------------------------------------------------------------------
@@ -191,7 +191,8 @@ describe('entity() after hook types', () => {
     >;
     type ReturnT = ReturnType<AfterCreateFn>;
 
-    expectTypeOf<ReturnT>().toMatchTypeOf<void | Promise<void>>();
+    const _check: void | Promise<void> = {} as ReturnT;
+    void _check;
   });
 });
 

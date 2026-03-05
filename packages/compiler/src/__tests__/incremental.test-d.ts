@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
 import type { Compiler } from '../compiler';
 import type {
   FileCategory,
@@ -10,7 +10,9 @@ import type { TypecheckResult } from '../typecheck';
 
 describe('FileChange', () => {
   it('kind is a union type', () => {
-    expectTypeOf<FileChange['kind']>().toEqualTypeOf<'added' | 'modified' | 'deleted'>();
+    const _check1: 'added' | 'modified' | 'deleted' = {} as FileChange['kind'];
+    const _check2: FileChange['kind'] = {} as 'added' | 'modified' | 'deleted';
+    void _check1; void _check2;
   });
 });
 
@@ -23,28 +25,32 @@ describe('FileCategory', () => {
 
 describe('IncrementalResult', () => {
   it('is a discriminated union on kind', () => {
-    expectTypeOf<IncrementalResult>().toMatchTypeOf<{ kind: string }>();
+    const _check: { kind: string } = {} as IncrementalResult;
+    void _check;
   });
 });
 
 describe('IncrementalCompiler', () => {
   it('constructor requires Compiler', () => {
-    expectTypeOf<ConstructorParameters<typeof IncrementalCompiler>>().toEqualTypeOf<[Compiler]>();
+    const _check1: [Compiler] = {} as ConstructorParameters<typeof IncrementalCompiler>;
+    const _check2: ConstructorParameters<typeof IncrementalCompiler> = {} as [Compiler];
+    void _check1; void _check2;
   });
 
   it('handleChanges returns Promise<IncrementalResult>', () => {
-    expectTypeOf<
-      IncrementalCompiler['handleChanges']
-    >().returns.resolves.toMatchTypeOf<IncrementalResult>();
+    const _check: IncrementalResult = {} as Awaited<ReturnType<IncrementalCompiler['handleChanges']>>;
+    void _check;
   });
 });
 
 describe('TypecheckResult', () => {
   it('includes diagnostics array', () => {
-    expectTypeOf<TypecheckResult['diagnostics']>().toBeArray();
+    const _check: unknown[] = {} as TypecheckResult['diagnostics'];
+    void _check;
   });
 
   it('includes success boolean', () => {
-    expectTypeOf<TypecheckResult['success']>().toBeBoolean();
+    const _check: boolean = {} as TypecheckResult['success'];
+    void _check;
   });
 });
