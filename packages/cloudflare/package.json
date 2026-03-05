@@ -1,6 +1,6 @@
 {
   "name": "@vertz/cloudflare",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Cloudflare Workers adapter for vertz",
   "type": "module",
   "main": "dist/index.js",
