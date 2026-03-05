@@ -125,6 +125,21 @@ export function createIndexHtmlStasher(projectRoot: string): IndexHtmlStasher {
   const indexHtmlBackupPath = resolve(projectRoot, '.vertz', 'dev', 'index.html.bak');
   let stashed = false;
 
+  // Best-effort restore on process exit (covers crashes, uncaught exceptions,
+  // and signal handlers that call process.exit). renameSync is synchronous,
+  // which is required for 'exit' handlers. The only unrecoverable scenario
+  // is SIGKILL, which the crash recovery in stash() already handles.
+  const exitHandler = () => {
+    if (stashed && existsSync(indexHtmlBackupPath)) {
+      try {
+        renameSync(indexHtmlBackupPath, indexHtmlPath);
+        stashed = false;
+      } catch {
+        // Best effort — process is exiting
+      }
+    }
+  };
+
   return {
     stash() {
       // Recover from a previous crashed session that left index.html stashed
@@ -135,6 +150,9 @@ export function createIndexHtmlStasher(projectRoot: string): IndexHtmlStasher {
       if (existsSync(indexHtmlPath)) {
         mkdirSync(resolve(projectRoot, '.vertz', 'dev'), { recursive: true });
         renameSync(indexHtmlPath, indexHtmlBackupPath);
+        if (!stashed) {
+          process.on('exit', exitHandler);
+        }
         stashed = true;
       }
     },
@@ -142,6 +160,7 @@ export function createIndexHtmlStasher(projectRoot: string): IndexHtmlStasher {
       if (stashed && existsSync(indexHtmlBackupPath)) {
         renameSync(indexHtmlBackupPath, indexHtmlPath);
         stashed = false;
+        process.removeListener('exit', exitHandler);
       }
     },
   };

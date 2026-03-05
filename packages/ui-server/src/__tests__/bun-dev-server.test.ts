@@ -666,6 +666,33 @@ describe('createIndexHtmlStasher', () => {
     expect(readFileSync(join(tmpDir, 'index.html'), 'utf-8')).toBe('<html></html>');
   });
 
+  it('process exit restores index.html when stashed', () => {
+    writeFileSync(join(tmpDir, 'index.html'), '<html></html>');
+    const stasher = createIndexHtmlStasher(tmpDir);
+
+    stasher.stash();
+    expect(existsSync(join(tmpDir, 'index.html'))).toBe(false);
+
+    // Simulate process exit — fires 'exit' event listeners
+    process.emit('exit', 0);
+
+    expect(existsSync(join(tmpDir, 'index.html'))).toBe(true);
+    expect(existsSync(join(tmpDir, '.vertz', 'dev', 'index.html.bak'))).toBe(false);
+  });
+
+  it('process exit is a no-op after clean restore', () => {
+    writeFileSync(join(tmpDir, 'index.html'), '<html></html>');
+    const stasher = createIndexHtmlStasher(tmpDir);
+
+    stasher.stash();
+    stasher.restore();
+
+    // Should not throw or re-rename
+    process.emit('exit', 0);
+
+    expect(existsSync(join(tmpDir, 'index.html'))).toBe(true);
+  });
+
   it('restore() is a no-op when called twice', () => {
     writeFileSync(join(tmpDir, 'index.html'), '<html></html>');
     const stasher = createIndexHtmlStasher(tmpDir);
