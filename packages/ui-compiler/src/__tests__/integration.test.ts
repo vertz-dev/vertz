@@ -242,7 +242,7 @@ function TaskList() {
     expect(result.diagnostics).toHaveLength(0);
   });
 
-  it('IT-1B-14: plain property over-classification (documents known trade-off)', () => {
+  it('IT-1B-14: plain property access stays static (not over-classified)', () => {
     const result = compile(
       `
 import { query } from '@vertz/ui';
@@ -255,8 +255,9 @@ function TaskList() {
     `.trim(),
     );
 
-    // fn becomes computed (over-classified but harmless)
-    expect(result.code).toContain('computed(() => tasks.refetch)');
+    // fn stays static — refetch is a plain property, not a signal property
+    expect(result.code).not.toContain('computed(');
+    expect(result.code).toContain('const fn = tasks.refetch');
     expect(result.diagnostics).toHaveLength(0);
   });
 

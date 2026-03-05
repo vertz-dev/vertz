@@ -338,6 +338,95 @@ describe('ReactivityAnalyzer', () => {
     expect(v.isReactiveSource).toBeUndefined();
   });
 
+  // ─── Signal API property access classification (#907) ──────────────
+
+  it('classifies callback calling plain method on signal API var as static', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const tasksQuery = query('/api/tasks');
+        const handleSuccess = () => tasksQuery.refetch();
+        return <div>{handleSuccess}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'tasksQuery')?.kind).toBe('static');
+    expect(findVar(result?.variables, 'handleSuccess')?.kind).toBe('static');
+  });
+
+  it('classifies object with closure referencing plain method as static', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const tasksQuery = query('/api/tasks');
+        const opts = { onSuccess: () => tasksQuery.refetch() };
+        return <div>{opts}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'opts')?.kind).toBe('static');
+  });
+
+  it('classifies const reading signal property via optional chaining as computed', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const tasks = query('/api/tasks');
+        const items = tasks.data?.items ?? [];
+        return <div>{items}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'items')?.kind).toBe('computed');
+  });
+
+  it('classifies mixed signal+plain property access as computed', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const tasks = query('/api/tasks');
+        const x = tasks.error ? tasks.refetch : null;
+        return <div>{x}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'x')?.kind).toBe('computed');
+  });
+
+  it('classifies nested closure reading signal property as computed', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const tasks = query('/api/tasks');
+        const fn = () => { if (tasks.loading) return; tasks.refetch(); };
+        return <div>{fn}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'fn')?.kind).toBe('computed');
+  });
+
+  it('classifies identity reference to signal API var as static', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const tasks = query('/api/tasks');
+        const ref = tasks;
+        return <div>{ref}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'ref')?.kind).toBe('static');
+  });
+
+  it('classifies transitive plain method reference as static', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const tasks = query('/api/tasks');
+        const reload = () => tasks.refetch();
+        const handler = reload;
+        return <div>{handler}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'reload')?.kind).toBe('static');
+    expect(findVar(result?.variables, 'handler')?.kind).toBe('static');
+  });
+
   it('handles aliased import of useContext', () => {
     const [result] = analyze(`
       import { useContext as getCtx } from '@vertz/ui';
