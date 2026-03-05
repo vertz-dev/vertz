@@ -1,4 +1,5 @@
 import { createServer } from '@vertz/server';
+import { webhooks } from './actions/webhooks/webhooks.action';
 import { createTodosDb } from './db';
 import { todos } from './entities/todos/todos.entity';
 
@@ -7,6 +8,7 @@ const todosDbAdapter = createTodosDb();
 const app = createServer({
   basePath: '/api',
   entities: [todos],
+  actions: [webhooks],
   db: todosDbAdapter,
 });
 
