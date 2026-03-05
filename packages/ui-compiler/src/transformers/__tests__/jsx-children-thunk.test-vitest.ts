@@ -130,6 +130,99 @@ describe('JSX children thunks — pipeline integration', () => {
   });
 });
 
+describe('JSX inside function call arguments (child expressions)', () => {
+  it('transforms JSX in arrow function args to a function call (child expression)', () => {
+    const result = transform(
+      `function App() {
+  return <div>{queryMatch(query, { loading: () => <div>Loading</div> })}</div>;
+}`,
+    );
+    expect(result).toContain('__element("div")');
+    // The inner <div>Loading</div> must be transformed — no raw JSX
+    expect(result).not.toContain('<div>Loading</div>');
+  });
+
+  it('transforms JSX in object literal arrow values inside function call', () => {
+    const result = transform(
+      `function App() {
+  return <div>{renderContent({ header: () => <h1>Title</h1>, body: () => <p>Text</p> })}</div>;
+}`,
+    );
+    expect(result).toContain('__element("h1")');
+    expect(result).toContain('__element("p")');
+    expect(result).not.toContain('<h1>');
+    expect(result).not.toContain('<p>');
+  });
+
+  it('pipeline: signal transforms + JSX transforms work together in function call args', () => {
+    const result = compile(
+      `function App() {
+  let count = 0;
+  return <div>{queryMatch(query, { data: () => <span>{count}</span> })}</div>;
+}`,
+    );
+    expect(result.code).toContain('__element("span")');
+    expect(result.code).not.toContain('<span>');
+    expect(result.code).toContain('.value');
+  });
+
+  it('transforms JSX passed directly as a function argument (not in arrow)', () => {
+    const result = transform(
+      `function App() {
+  return <div>{wrap(<span>hello</span>)}</div>;
+}`,
+    );
+    expect(result).toContain('__element("span")');
+    expect(result).not.toContain('<span>');
+  });
+
+  it('transforms JSX in ternary inside function call args', () => {
+    const result = transform(
+      `function App() {
+  return <div>{pick(flag ? <span>a</span> : <em>b</em>)}</div>;
+}`,
+    );
+    expect(result).toContain('__element("span")');
+    expect(result).toContain('__element("em")');
+    expect(result).not.toContain('<span>');
+    expect(result).not.toContain('<em>');
+  });
+
+  it('transforms component JSX inside function call args', () => {
+    const result = transform(
+      `function App() {
+  return <div>{renderSlot(() => <Card title="hi" />)}</div>;
+}`,
+    );
+    expect(result).toContain('Card(');
+    expect(result).not.toContain('<Card');
+  });
+
+  it('transforms deeply nested function calls with JSX', () => {
+    const result = transform(
+      `function App() {
+  return <div>{outer(inner(() => <p>deep</p>))}</div>;
+}`,
+    );
+    expect(result).toContain('__element("p")');
+    expect(result).not.toContain('<p>');
+  });
+});
+
+describe('JSX inside function call arguments (component children / transformChildAsValue)', () => {
+  it('transforms JSX in function call args inside component children', () => {
+    const result = transform(
+      `function App() {
+  return <Wrapper>{queryMatch(query, { loading: () => <div>Loading</div> })}</Wrapper>;
+}`,
+    );
+    expect(result).toContain('Wrapper(');
+    expect(result).toContain('children: () =>');
+    expect(result).toContain('__element("div")');
+    expect(result).not.toContain('<div>Loading</div>');
+  });
+});
+
 describe('JSX inside arrow function props', () => {
   it('transforms JSX inside an arrow function prop value', () => {
     const result = transform(

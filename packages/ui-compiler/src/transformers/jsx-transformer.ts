@@ -376,7 +376,8 @@ function transformChild(
     }
 
     // Read from MagicString to pick up signal/computed .value transforms
-    const exprText = source.slice(exprNode.getStart(), exprNode.getEnd());
+    // and transform any JSX nodes nested inside the expression (e.g., in arrow function args)
+    const exprText = sliceWithTransformedJsx(exprNode, reactiveNames, jsxMap, source, formVarNames);
 
     // Use __child() for reactive expressions (wraps in effect)
     // Use __insert() for static expressions (direct insertion, no effect overhead)
@@ -431,7 +432,7 @@ function transformChildAsValue(
       }
     }
 
-    const exprText = source.slice(exprNode.getStart(), exprNode.getEnd());
+    const exprText = sliceWithTransformedJsx(exprNode, reactiveNames, jsxMap, source, formVarNames);
 
     if (exprInfo?.reactive) {
       return `__child(() => ${exprText})`;
