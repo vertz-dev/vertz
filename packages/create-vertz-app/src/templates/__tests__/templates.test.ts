@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   appComponentTemplate,
+  bunfigTemplate,
+  bunPluginShimTemplate,
   clientTemplate,
   dbTemplate,
   entryClientTemplate,
@@ -44,6 +46,7 @@ describe('templates', () => {
       const pkg = JSON.parse(result);
       expect(pkg.devDependencies['@vertz/cli']).toBeDefined();
       expect(pkg.devDependencies['@vertz/ui-compiler']).toBeDefined();
+      expect(pkg.devDependencies['@vertz/ui-server']).toBeDefined();
       expect(pkg.devDependencies['bun-types']).toBeDefined();
     });
 
@@ -112,6 +115,26 @@ describe('templates', () => {
   describe('envExampleTemplate', () => {
     it('contains PORT=3000', () => {
       expect(envExampleTemplate()).toContain('PORT=3000');
+    });
+  });
+
+  describe('bunfigTemplate', () => {
+    it('registers bun-plugin-shim.ts under [serve.static]', () => {
+      const result = bunfigTemplate();
+      expect(result).toContain('[serve.static]');
+      expect(result).toContain('bun-plugin-shim.ts');
+    });
+  });
+
+  describe('bunPluginShimTemplate', () => {
+    it('imports createVertzBunPlugin from @vertz/ui-server/bun-plugin', () => {
+      const result = bunPluginShimTemplate();
+      expect(result).toContain("from '@vertz/ui-server/bun-plugin'");
+      expect(result).toContain('createVertzBunPlugin');
+    });
+
+    it('exports plugin as default', () => {
+      expect(bunPluginShimTemplate()).toContain('export default plugin');
     });
   });
 
@@ -232,6 +255,8 @@ describe('templates', () => {
         envTemplate,
         envExampleTemplate,
         gitignoreTemplate,
+        bunfigTemplate,
+        bunPluginShimTemplate,
         serverTemplate,
         schemaTemplate,
         dbTemplate,
