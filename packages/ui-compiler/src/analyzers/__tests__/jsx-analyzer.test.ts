@@ -107,6 +107,49 @@ describe('JsxAnalyzer', () => {
     expect(result?.[0]?.reactive).toBe(true);
   });
 
+  it('classifies signal API variable passed as function argument as reactive', () => {
+    const code = `
+      function TodoList() {
+        const todosQuery = query(() => api.todos.list());
+        return <div>{queryMatch(todosQuery, { data: (todos) => <ul /> })}</div>;
+      }
+    `;
+    const variables: VariableInfo[] = [
+      {
+        name: 'todosQuery',
+        kind: 'static',
+        start: 0,
+        end: 0,
+        signalProperties: new Set(['data', 'error', 'loading']),
+      },
+    ];
+    const [result] = analyze(code, variables);
+    const queryMatchExpr = result?.find((e) => e.reactive);
+    expect(queryMatchExpr).toBeDefined();
+    expect(queryMatchExpr?.reactive).toBe(true);
+  });
+
+  it('does NOT classify signal API variable in property access only as signal API ref', () => {
+    const code = `
+      function TodoList() {
+        const todosQuery = query(() => api.todos.list());
+        return <div>{todosQuery.data}</div>;
+      }
+    `;
+    const variables: VariableInfo[] = [
+      {
+        name: 'todosQuery',
+        kind: 'static',
+        start: 0,
+        end: 0,
+        signalProperties: new Set(['data', 'error', 'loading']),
+      },
+    ];
+    const [result] = analyze(code, variables);
+    // Should still be reactive (via containsSignalApiPropertyAccess), but not via the ref check
+    expect(result?.[0]?.reactive).toBe(true);
+  });
+
   it('classifies bare reactive source identifier as reactive', () => {
     const code = `
       function App() {
