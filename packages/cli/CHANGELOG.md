@@ -1,5 +1,24 @@
 # @vertz/cli
 
+## 0.2.6
+
+### Patch Changes
+
+- [#899](https://github.com/vertz-dev/vertz/pull/899) [`ecbc594`](https://github.com/vertz-dev/vertz/commit/ecbc594830c8fcb2dea2e7b66d8b04aa2d58a47d) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(cli): add esbuild dependency, use bun shebang, remove dead ink/react deps
+
+  - Added missing `esbuild` to dependencies (externalized in bundle but not declared)
+  - Changed CLI shebang from `#!/usr/bin/env node` to `#!/usr/bin/env bun` so the framework's Bun-dependent features (bun:sqlite, Bun.serve) work correctly
+  - Removed unused ink-based components (Banner, DiagnosticDisplay, DiagnosticSummary) and their ink/react dependencies
+
+- Updated dependencies []:
+  - @vertz/codegen@0.2.6
+  - @vertz/compiler@0.2.6
+  - @vertz/create-vertz-app@0.2.6
+  - @vertz/db@0.2.6
+  - @vertz/errors@0.2.6
+  - @vertz/tui@0.2.6
+  - @vertz/ui-server@0.2.6
+
 ## 0.2.5
 
 ### Patch Changes
