@@ -9,7 +9,9 @@
     "deploy": "bash scripts/deploy.sh",
     "codegen": "bun node_modules/@vertz/cli/dist/vertz.js codegen",
     "test": "bun run codegen && bun test",
-    "typecheck": "bun run codegen && tsc --noEmit"
+    "typecheck": "bun run codegen && tsc --noEmit",
+    "e2e": "npx playwright test",
+    "e2e:headed": "npx playwright test --headed"
   },
   "imports": {
     "#generated": "./.vertz/generated/client.ts",
@@ -35,6 +37,7 @@
     "esbuild": "^0.27.3",
     "happy-dom": "^20.6.1",
     "typescript": "^5.8.0",
+    "@playwright/test": "^1.58.2",
     "wrangler": "^4.69.0"
   }
 }
