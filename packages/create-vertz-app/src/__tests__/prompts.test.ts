@@ -1,16 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { type CliOptions, resolveOptions } from '../index.js';
 
 // Mock the readline module
-vi.mock('readline', () => {
+mock.module('readline', () => {
   const mockRl = {
-    question: vi.fn((_: string, callback: (answer: string) => void) => callback('test-project')),
-    close: vi.fn(),
+    question: mock((_: string, callback: (answer: string) => void) => callback('test-project')),
+    close: mock(),
   };
 
   return {
-    createInterface: vi.fn(() => mockRl),
-    default: { createInterface: vi.fn(() => mockRl) },
+    createInterface: mock(() => mockRl),
+    default: { createInterface: mock(() => mockRl) },
   };
 });
 
@@ -19,7 +19,7 @@ describe('prompts', () => {
 
   beforeEach(() => {
     Object.assign(process.env, originalEnv);
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   describe('interactive mode', () => {

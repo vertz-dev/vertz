@@ -1,4 +1,4 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import type { Infer } from '../..';
 import { s } from '../..';
 
@@ -63,9 +63,10 @@ describe('Integration: Schema Usage', () => {
   });
 
   it('type inference matches expected type', () => {
-    expectTypeOf<User>().toHaveProperty('name');
-    expectTypeOf<User>().toHaveProperty('email');
-    expectTypeOf<User>().toHaveProperty('age');
-    expectTypeOf<User>().toHaveProperty('role');
+    // Type-level assertion — verified by the TypeScript compiler
+    type _NameCheck = User['name'];
+    type _EmailCheck = User['email'];
+    type _AgeCheck = User['age'];
+    type _RoleCheck = User['role'];
   });
 });

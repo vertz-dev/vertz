@@ -1,6 +1,6 @@
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { HydrationTransformer } from '../hydration-transformer';
 
 function transform(code: string): string {

@@ -20,7 +20,7 @@
     "changeset:version": "changeset version",
     "changeset:publish": "bun run build && bash scripts/publish.sh",
     "postinstall": "if [ \"$(git rev-parse --git-dir 2>/dev/null)\" = \"$(git rev-parse --git-common-dir 2>/dev/null)\" ]; then lefthook install || true; fi",
-    "test:tree-shaking": "npx vitest run --config tests/tree-shaking/vitest.config.ts --root tests/tree-shaking",
+    "test:tree-shaking": "bun test tests/tree-shaking/tree-shaking.test.ts",
     "build": "turbo run build --filter='!@vertz-examples/*' --filter='!entity-todo-example'"
   },
   "devDependencies": {

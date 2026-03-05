@@ -1,5 +1,5 @@
 import { d } from '@vertz/db';
-import { describe, it } from 'vitest';
+import { describe, it } from 'bun:test';
 import { entity } from '../entity';
 
 // ===========================================================================

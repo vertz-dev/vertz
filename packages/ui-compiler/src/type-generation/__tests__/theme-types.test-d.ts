@@ -5,7 +5,7 @@
  * and that the generator functions have proper type signatures.
  */
 
-import { describe, it } from 'vitest';
+import { describe, it } from 'bun:test';
 import type { CSSPropertiesInput } from '../css-properties';
 import { generateCSSProperties } from '../css-properties';
 import type { ThemeTypeInput } from '../theme-types';

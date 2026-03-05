@@ -1,6 +1,6 @@
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { ComponentAnalyzer } from '../../analyzers/component-analyzer';
 import type { VariableInfo } from '../../types';
 import { SignalTransformer } from '../signal-transformer';

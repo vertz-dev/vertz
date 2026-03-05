@@ -11,9 +11,7 @@ export default defineConfig({
     },
   },
   test: {
-    // Run type tests (.test-d.ts) and Bun-specific tests (.test-vitest.ts) with Vitest
-    // - Bun doesn't support type-level testing (.test-d.ts)
-    // - Bun global mocking doesn't work in bun:test (.test-vitest.ts)
+    // Bun-adapter test must run under vitest (needs to mock globalThis.Bun)
     include: ['src/**/*.test-d.ts', 'src/**/*.test-vitest.ts'],
     environment: 'node',
     typecheck: {

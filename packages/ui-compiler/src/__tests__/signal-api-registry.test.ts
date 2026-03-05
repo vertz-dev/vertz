@@ -1,7 +1,7 @@
 /**
  * @file Tests for signal-api-registry configuration
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { getSignalApiConfig, isReactiveSourceApi } from '../signal-api-registry';
 
 describe('signal-api-registry', () => {

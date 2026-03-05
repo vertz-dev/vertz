@@ -1,5 +1,5 @@
 import { Project, ts } from 'ts-morph';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { ComponentAnalyzer } from '../../analyzers/component-analyzer';
 import type { ComponentInfo } from '../../types';
 import { SSRSafetyDiagnostics } from '../ssr-safety-diagnostics';
