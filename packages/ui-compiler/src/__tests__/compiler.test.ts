@@ -171,6 +171,35 @@ function App() {
     expect(internalsImport).toContain('__classList');
   });
 
+  it('does not wrap form() in computed() when it references a query() variable', () => {
+    const result = compile(
+      `
+import { query, form } from '@vertz/ui';
+
+function TaskPage() {
+  const tasksQuery = query(api.tasks.list());
+  const taskForm = form(api.tasks.create, {
+    onSuccess: () => tasksQuery.refetch(),
+    resetOnSuccess: true,
+  });
+  return (
+    <form onSubmit={taskForm.onSubmit}>
+      <input name="title" />
+      <button disabled={taskForm.submitting}>Add</button>
+    </form>
+  );
+}
+      `.trim(),
+    );
+
+    // form() should NOT be wrapped in computed()
+    expect(result.code).not.toMatch(/computed\(\(\) => form\(/);
+    // form() should remain as a direct call
+    expect(result.code).toContain('form(api.tasks.create');
+    // __bindElement should be generated for the form element
+    expect(result.code).toContain('taskForm.__bindElement(');
+  });
+
   it('returns ssr-unsafe-api diagnostics through compile()', () => {
     const result = compile(
       `

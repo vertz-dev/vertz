@@ -193,13 +193,17 @@ export class ReactivityAnalyzer {
     }
 
     // Computeds: `const` vars that depend (directly or transitively) on a signal,
-    // a computed, or a signal API variable (query, form, createLoader)
+    // a computed, or a signal API variable (query, form, createLoader).
+    // Signal API vars themselves are excluded — they are constructor calls (form(), query()),
+    // not pure derivations. Wrapping them in computed() would re-create them on every
+    // evaluation, losing internal state (form fields, query cache, etc.).
     const computeds = new Set<string>();
     changed = true;
     while (changed) {
       changed = false;
       for (const [name, info] of consts) {
         if (computeds.has(name)) continue;
+        if (signalApiVars.has(name)) continue;
         const dependsOnReactive = info.deps.some(
           (dep) =>
             signals.has(dep) ||
