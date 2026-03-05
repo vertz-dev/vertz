@@ -2,6 +2,8 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import {
   appComponentTemplate,
+  bunfigTemplate,
+  bunPluginShimTemplate,
   clientTemplate,
   dbTemplate,
   entryClientTemplate,
@@ -71,6 +73,8 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
     writeFile(projectDir, '.env', envTemplate()),
     writeFile(projectDir, '.env.example', envExampleTemplate()),
     writeFile(projectDir, '.gitignore', gitignoreTemplate()),
+    writeFile(projectDir, 'bunfig.toml', bunfigTemplate()),
+    writeFile(projectDir, 'bun-plugin-shim.ts', bunPluginShimTemplate()),
 
     // API source files
     writeFile(apiDir, 'server.ts', serverTemplate()),

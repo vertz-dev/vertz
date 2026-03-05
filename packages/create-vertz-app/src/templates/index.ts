@@ -27,6 +27,7 @@ export function packageJsonTemplate(projectName: string): string {
     devDependencies: {
       '@vertz/cli': '^0.2.0',
       '@vertz/ui-compiler': '^0.2.0',
+      '@vertz/ui-server': '^0.2.0',
       'bun-types': '^1.0.0',
       typescript: '^5.8.0',
     },
@@ -91,6 +92,34 @@ export function envTemplate(): string {
  */
 export function envExampleTemplate(): string {
   return `PORT=3000
+`;
+}
+
+/**
+ * bunfig.toml template — registers Vertz compiler plugin for Bun's dev server
+ */
+export function bunfigTemplate(): string {
+  return `[serve.static]
+plugins = ["./bun-plugin-shim.ts"]
+`;
+}
+
+/**
+ * bun-plugin-shim.ts — bridges bunfig.toml plugin format with createVertzBunPlugin
+ */
+export function bunPluginShimTemplate(): string {
+  return `/**
+ * Thin shim that wraps @vertz/ui-server/bun-plugin for bunfig.toml consumption.
+ *
+ * bunfig.toml \`[serve.static] plugins\` requires a default export of type BunPlugin.
+ * The @vertz/ui-server/bun-plugin package exports a factory function (createVertzBunPlugin)
+ * as a named export — this shim bridges the two.
+ */
+import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
+
+const { plugin } = createVertzBunPlugin();
+
+export default plugin;
 `;
 }
 

@@ -167,6 +167,31 @@ describe('scaffold', () => {
       expect(content).toContain('PORT=3000');
     });
 
+    it('bunfig.toml registers Vertz compiler plugin for dev server', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      const content = await fs.readFile(projectPath('bunfig.toml'), 'utf-8');
+      expect(content).toContain('[serve.static]');
+      expect(content).toContain('bun-plugin-shim.ts');
+    });
+
+    it('bun-plugin-shim.ts bridges createVertzBunPlugin for bunfig.toml', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      const content = await fs.readFile(projectPath('bun-plugin-shim.ts'), 'utf-8');
+      expect(content).toContain('createVertzBunPlugin');
+      expect(content).toContain("from '@vertz/ui-server/bun-plugin'");
+      expect(content).toContain('export default plugin');
+    });
+
+    it('package.json includes @vertz/ui-server in devDependencies', async () => {
+      await scaffold(tempDir, defaultOptions);
+
+      const content = await fs.readFile(projectPath('package.json'), 'utf-8');
+      const pkg = JSON.parse(content);
+      expect(pkg.devDependencies['@vertz/ui-server']).toBeDefined();
+    });
+
     it('.gitignore includes .vertz/ and *.db', async () => {
       await scaffold(tempDir, defaultOptions);
 
