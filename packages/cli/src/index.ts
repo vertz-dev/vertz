@@ -42,9 +42,6 @@ export {
   getAffectedStages,
   PipelineOrchestrator,
 } from './pipeline';
-export { Banner } from './ui/components/Banner';
-export { DiagnosticDisplay } from './ui/components/DiagnosticDisplay';
-export { DiagnosticSummary } from './ui/components/DiagnosticSummary';
 export { formatDiagnostic, formatDiagnosticSummary } from './ui/diagnostic-formatter';
 export { formatDuration, formatFileSize, formatPath } from './utils/format';
 export { findProjectRoot } from './utils/paths';

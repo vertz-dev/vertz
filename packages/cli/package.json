@@ -41,18 +41,15 @@
     "@vertz/create-vertz-app": "workspace:^",
     "@vertz/db": "workspace:^",
     "@vertz/ui-server": "workspace:^",
+    "esbuild": "^0.25.0",
     "commander": "^14.0.0",
-    "ink": "^6.6.0",
-    "jiti": "^2.4.2",
-    "react": "^19.2.4"
+    "jiti": "^2.4.2"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",
     "@types/node": "^25.3.1",
-    "@types/react": "^19.2.13",
     "@vitest/coverage-v8": "^4.0.18",
     "bunup": "^0.16.23",
-    "ink-testing-library": "^4.0.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
