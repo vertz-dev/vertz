@@ -28,7 +28,7 @@
     "build": "bunup",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
   },
   "devDependencies": {
     "bun-types": "^1.3.10",
