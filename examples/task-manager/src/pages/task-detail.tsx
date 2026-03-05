@@ -98,7 +98,7 @@ export function TaskDetailPage() {
             style="margin-bottom: 1rem"
             onClick={() => navigate('/')}
           >
-            <Icon name="ArrowLeft" size={16} />
+            <Icon name="ArrowLeft" size={14} />
             Back to Tasks
           </button>
           <div class={detailStyles.header}>
