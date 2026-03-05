@@ -31,9 +31,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vertz/core": "workspace:*",
-    "@vertz/db": "workspace:*",
-    "@vertz/errors": "workspace:*",
+    "@vertz/core": "workspace:^",
+    "@vertz/db": "workspace:^",
+    "@vertz/errors": "workspace:^",
     "bcryptjs": "^3.0.3",
     "jose": "^6.0.11"
   },

@@ -66,17 +66,17 @@
     "build": "echo 'meta-package: no build needed'"
   },
   "dependencies": {
-    "@vertz/server": "workspace:*",
-    "@vertz/schema": "workspace:*",
-    "@vertz/db": "workspace:*",
-    "@vertz/testing": "workspace:*",
-    "@vertz/ui": "workspace:*",
-    "@vertz/ui-compiler": "workspace:*",
-    "@vertz/fetch": "workspace:*",
-    "@vertz/errors": "workspace:*",
-    "@vertz/cloudflare": "workspace:*",
-    "@vertz/tui": "workspace:*",
-    "@vertz/ui-primitives": "workspace:*"
+    "@vertz/server": "workspace:^",
+    "@vertz/schema": "workspace:^",
+    "@vertz/db": "workspace:^",
+    "@vertz/testing": "workspace:^",
+    "@vertz/ui": "workspace:^",
+    "@vertz/ui-compiler": "workspace:^",
+    "@vertz/fetch": "workspace:^",
+    "@vertz/errors": "workspace:^",
+    "@vertz/cloudflare": "workspace:^",
+    "@vertz/tui": "workspace:^",
+    "@vertz/ui-primitives": "workspace:^"
   },
   "devDependencies": {
     "vitest": "^4.0.18"

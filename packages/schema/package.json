@@ -32,7 +32,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vertz/errors": "workspace:*"
+    "@vertz/errors": "workspace:^"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",

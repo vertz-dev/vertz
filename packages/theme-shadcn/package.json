@@ -35,8 +35,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vertz/ui": "workspace:*",
-    "@vertz/ui-primitives": "workspace:*"
+    "@vertz/ui": "workspace:^",
+    "@vertz/ui-primitives": "workspace:^"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.7.0",
