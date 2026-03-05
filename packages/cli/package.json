@@ -41,6 +41,7 @@
     "@vertz/create-vertz-app": "workspace:^",
     "@vertz/db": "workspace:^",
     "@vertz/ui-server": "workspace:^",
+    "esbuild": "^0.25.0",
     "commander": "^14.0.0",
     "ink": "^6.6.0",
     "jiti": "^2.4.2",
