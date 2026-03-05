@@ -31,12 +31,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vertz/core": "workspace:*",
-    "@vertz/server": "workspace:*"
+    "@vertz/core": "workspace:^",
+    "@vertz/server": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "^25.3.1",
-    "@vertz/schema": "workspace:*",
+    "@vertz/schema": "workspace:^",
     "@vitest/coverage-v8": "^4.0.18",
     "bunup": "^0.16.31",
     "typescript": "^5.7.0",

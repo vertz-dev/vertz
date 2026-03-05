@@ -25,7 +25,7 @@
     "dist"
   ],
   "dependencies": {
-    "@vertz/errors": "workspace:*"
+    "@vertz/errors": "workspace:^"
   },
   "scripts": {
     "build": "bunup",

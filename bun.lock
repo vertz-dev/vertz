@@ -20,7 +20,7 @@
     },
     "benchmarks/vertz": {
       "name": "@vertz-benchmarks/vertz-app",
-      "version": "0.0.2",
+      "version": "0.0.4",
       "dependencies": {
         "@vertz/theme-shadcn": "workspace:*",
         "@vertz/ui": "workspace:*",
@@ -36,7 +36,7 @@
     },
     "examples/component-catalog": {
       "name": "@vertz-examples/component-catalog",
-      "version": "0.0.2",
+      "version": "0.0.4",
       "dependencies": {
         "@vertz/theme-shadcn": "workspace:*",
         "@vertz/ui": "workspace:*",
@@ -103,7 +103,7 @@
     },
     "examples/task-manager": {
       "name": "@vertz-examples/task-manager",
-      "version": "0.0.3",
+      "version": "0.0.5",
       "dependencies": {
         "@vertz/errors": "workspace:*",
         "@vertz/fetch": "workspace:*",
@@ -126,7 +126,7 @@
     },
     "packages/cli": {
       "name": "@vertz/cli",
-      "version": "0.2.2",
+      "version": "0.2.4",
       "bin": {
         "vertz": "./dist/vertz.js",
       },
@@ -173,18 +173,18 @@
     },
     "packages/cloudflare": {
       "name": "@vertz/cloudflare",
-      "version": "0.2.2",
+      "version": "0.2.4",
       "dependencies": {
-        "@vertz/core": "workspace:*",
+        "@vertz/core": "workspace:^",
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^4.20260305.0",
-        "@vertz/ui-server": "workspace:*",
+        "@vertz/ui-server": "workspace:^",
         "@vitest/coverage-v8": "^4.0.18",
         "typescript": "^5.7.3",
       },
       "peerDependencies": {
-        "@vertz/ui-server": "workspace:*",
+        "@vertz/ui-server": "workspace:^",
       },
       "optionalPeers": [
         "@vertz/ui-server",
@@ -192,7 +192,7 @@
     },
     "packages/codegen": {
       "name": "@vertz/codegen",
-      "version": "0.2.2",
+      "version": "0.2.4",
       "dependencies": {
         "@vertz/compiler": "workspace:*",
       },
@@ -206,7 +206,7 @@
     },
     "packages/compiler": {
       "name": "@vertz/compiler",
-      "version": "0.2.2",
+      "version": "0.2.4",
       "dependencies": {
         "ts-morph": "^27.0.2",
       },
@@ -220,9 +220,9 @@
     },
     "packages/core": {
       "name": "@vertz/core",
-      "version": "0.2.2",
+      "version": "0.2.4",
       "dependencies": {
-        "@vertz/schema": "workspace:*",
+        "@vertz/schema": "workspace:^",
       },
       "devDependencies": {
         "@types/node": "^25.3.1",
@@ -234,7 +234,7 @@
     },
     "packages/create-vertz-app": {
       "name": "@vertz/create-vertz-app",
-      "version": "0.2.1",
+      "version": "0.2.2",
       "bin": {
         "create-vertz-app": "./bin/create-vertz-app.ts",
       },
@@ -248,7 +248,7 @@
     },
     "packages/db": {
       "name": "@vertz/db",
-      "version": "0.2.2",
+      "version": "0.2.4",
       "dependencies": {
         "@paralleldrive/cuid2": "^3.3.0",
         "@vertz/errors": "workspace:*",
@@ -293,7 +293,7 @@
       "name": "@vertz/fetch",
       "version": "0.2.1",
       "dependencies": {
-        "@vertz/errors": "workspace:*",
+        "@vertz/errors": "workspace:^",
       },
       "devDependencies": {
         "@types/node": "^25.3.1",
@@ -325,9 +325,9 @@
     },
     "packages/schema": {
       "name": "@vertz/schema",
-      "version": "0.2.2",
+      "version": "0.2.4",
       "dependencies": {
-        "@vertz/errors": "workspace:*",
+        "@vertz/errors": "workspace:^",
       },
       "devDependencies": {
         "@vitest/coverage-v8": "^4.0.18",
@@ -338,7 +338,7 @@
     },
     "packages/server": {
       "name": "@vertz/server",
-      "version": "0.2.2",
+      "version": "0.2.4",
       "dependencies": {
         "@vertz/core": "workspace:*",
         "@vertz/db": "workspace:*",
@@ -356,7 +356,7 @@
     },
     "packages/testing": {
       "name": "@vertz/testing",
-      "version": "0.2.2",
+      "version": "0.2.4",
       "dependencies": {
         "@vertz/core": "workspace:*",
         "@vertz/server": "workspace:*",
@@ -386,7 +386,7 @@
     },
     "packages/tui": {
       "name": "@vertz/tui",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "dependencies": {
         "@vertz/ui": "workspace:*",
       },
@@ -402,11 +402,11 @@
       "name": "@vertz/ui",
       "version": "0.2.2",
       "dependencies": {
-        "@vertz/fetch": "workspace:*",
+        "@vertz/fetch": "workspace:^",
       },
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.7.0",
-        "@vertz/schema": "workspace:*",
+        "@vertz/schema": "workspace:^",
         "bunup": "^0.16.31",
         "happy-dom": "^20.7.0",
         "typescript": "^5.7.0",
@@ -420,21 +420,21 @@
       },
       "devDependencies": {
         "@happy-dom/global-registrator": "^20.7.0",
-        "@vertz/ui": "workspace:*",
+        "@vertz/ui": "workspace:^",
         "bunup": "^0.16.31",
         "happy-dom": "^20.7.0",
         "typescript": "^5.7.0",
       },
       "peerDependencies": {
-        "@vertz/ui": "workspace:*",
+        "@vertz/ui": "workspace:^",
       },
     },
     "packages/ui-compiler": {
       "name": "@vertz/ui-compiler",
-      "version": "0.2.2",
+      "version": "0.2.4",
       "dependencies": {
         "@ampproject/remapping": "^2.3.0",
-        "@vertz/ui": "workspace:*",
+        "@vertz/ui": "workspace:^",
         "magic-string": "^0.30.0",
         "ts-morph": "^27.0.2",
       },
@@ -465,13 +465,13 @@
     },
     "packages/ui-server": {
       "name": "@vertz/ui-server",
-      "version": "0.2.2",
+      "version": "0.2.4",
       "dependencies": {
         "@ampproject/remapping": "^2.3.0",
         "@jridgewell/trace-mapping": "^0.3.31",
-        "@vertz/core": "workspace:*",
-        "@vertz/ui": "workspace:*",
-        "@vertz/ui-compiler": "workspace:*",
+        "@vertz/core": "workspace:^",
+        "@vertz/ui": "workspace:^",
+        "@vertz/ui-compiler": "workspace:^",
         "magic-string": "^0.30.0",
         "ts-morph": "^27.0.2",
       },
@@ -485,7 +485,7 @@
     },
     "packages/vertz": {
       "name": "vertz",
-      "version": "0.2.2",
+      "version": "0.2.4",
       "dependencies": {
         "@vertz/cloudflare": "workspace:*",
         "@vertz/db": "workspace:*",

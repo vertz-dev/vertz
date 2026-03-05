@@ -82,8 +82,8 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@vertz/errors": "workspace:*",
-    "@vertz/schema": "workspace:*",
+    "@vertz/errors": "workspace:^",
+    "@vertz/schema": "workspace:^",
     "@paralleldrive/cuid2": "^3.3.0",
     "nanoid": "^5.1.5",
     "uuid": "^13.0.0"

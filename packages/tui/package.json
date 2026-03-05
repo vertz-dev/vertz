@@ -42,7 +42,7 @@
     "lint": "biome check src/"
   },
   "dependencies": {
-    "@vertz/ui": "workspace:*"
+    "@vertz/ui": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "^25.3.1",
