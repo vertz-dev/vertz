@@ -19,7 +19,7 @@
  */
 
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, renameSync, watch, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
 import { dirname, normalize, resolve } from 'node:path';
 import { createDebugLogger } from './debug-logger';
 import { DiagnosticsCollector } from './diagnostics-collector';
@@ -109,61 +109,6 @@ function killStaleProcess(targetPort: number): void {
   } catch {
     // lsof exits non-zero when no process is found — expected
   }
-}
-
-export interface IndexHtmlStasher {
-  stash(): void;
-  restore(): void;
-}
-
-/**
- * Create a stasher that renames index.html during dev so Bun's built-in
- * HMR server doesn't auto-serve it, bypassing our SSR fetch handler.
- */
-export function createIndexHtmlStasher(projectRoot: string): IndexHtmlStasher {
-  const indexHtmlPath = resolve(projectRoot, 'index.html');
-  const indexHtmlBackupPath = resolve(projectRoot, '.vertz', 'dev', 'index.html.bak');
-  let stashed = false;
-
-  // Best-effort restore on process exit (covers crashes, uncaught exceptions,
-  // and signal handlers that call process.exit). renameSync is synchronous,
-  // which is required for 'exit' handlers. The only unrecoverable scenario
-  // is SIGKILL, which the crash recovery in stash() already handles.
-  const exitHandler = () => {
-    if (stashed && existsSync(indexHtmlBackupPath)) {
-      try {
-        renameSync(indexHtmlBackupPath, indexHtmlPath);
-        stashed = false;
-      } catch {
-        // Best effort — process is exiting
-      }
-    }
-  };
-
-  return {
-    stash() {
-      // Recover from a previous crashed session that left index.html stashed
-      if (!existsSync(indexHtmlPath) && existsSync(indexHtmlBackupPath)) {
-        renameSync(indexHtmlBackupPath, indexHtmlPath);
-      }
-
-      if (existsSync(indexHtmlPath)) {
-        mkdirSync(resolve(projectRoot, '.vertz', 'dev'), { recursive: true });
-        renameSync(indexHtmlPath, indexHtmlBackupPath);
-        if (!stashed) {
-          process.on('exit', exitHandler);
-        }
-        stashed = true;
-      }
-    },
-    restore() {
-      if (stashed && existsSync(indexHtmlBackupPath)) {
-        renameSync(indexHtmlBackupPath, indexHtmlPath);
-        stashed = false;
-        process.removeListener('exit', exitHandler);
-      }
-    },
-  };
 }
 
 export interface HMRAssets {
@@ -813,11 +758,6 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     origConsoleError.apply(console, args);
   };
 
-  // Bun's dev server auto-serves index.html from the project root when
-  // development.hmr is true, bypassing the fetch() handler entirely.
-  // We stash it during dev so all requests go through our SSR fetch handler.
-  const indexHtmlStasher = createIndexHtmlStasher(projectRoot);
-
   // OpenAPI spec caching
   let cachedSpec: object | null = null;
   let specWatcher: ReturnType<typeof watch> | null = null;
@@ -878,9 +818,6 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   // ── Unified SSR + HMR ────────────────────────────────────────────
 
   async function start(): Promise<void> {
-    // Stash index.html so Bun's dev server doesn't auto-serve it
-    indexHtmlStasher.stash();
-
     const { plugin } = await import('bun');
     const { createVertzBunPlugin } = await import('./bun-plugin');
 
@@ -1548,8 +1485,6 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         server = null;
       }
 
-      // Restore index.html if we stashed it
-      indexHtmlStasher.restore();
     },
   };
 }

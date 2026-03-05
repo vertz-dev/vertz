@@ -1,12 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   buildScriptTag,
   createBunDevServer,
   createFetchInterceptor,
-  createIndexHtmlStasher,
   generateSSRPageHtml,
   parseHMRAssets,
 } from '../bun-dev-server';
@@ -596,111 +594,3 @@ describe('createFetchInterceptor', () => {
   });
 });
 
-describe('createIndexHtmlStasher', () => {
-  let tmpDir: string;
-
-  beforeEach(() => {
-    tmpDir = join(
-      tmpdir(),
-      `vertz-stash-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    );
-    mkdirSync(tmpDir, { recursive: true });
-  });
-
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it('stash() renames index.html to backup path', () => {
-    writeFileSync(join(tmpDir, 'index.html'), '<html></html>');
-    const stasher = createIndexHtmlStasher(tmpDir);
-
-    stasher.stash();
-
-    expect(existsSync(join(tmpDir, 'index.html'))).toBe(false);
-    expect(existsSync(join(tmpDir, '.vertz', 'dev', 'index.html.bak'))).toBe(true);
-  });
-
-  it('restore() renames backup back to index.html', () => {
-    writeFileSync(join(tmpDir, 'index.html'), '<html></html>');
-    const stasher = createIndexHtmlStasher(tmpDir);
-
-    stasher.stash();
-    stasher.restore();
-
-    expect(existsSync(join(tmpDir, 'index.html'))).toBe(true);
-    expect(existsSync(join(tmpDir, '.vertz', 'dev', 'index.html.bak'))).toBe(false);
-  });
-
-  it('stash() is a no-op when index.html does not exist', () => {
-    const stasher = createIndexHtmlStasher(tmpDir);
-
-    stasher.stash();
-
-    expect(existsSync(join(tmpDir, '.vertz', 'dev', 'index.html.bak'))).toBe(false);
-  });
-
-  it('restore() is a no-op when nothing was stashed', () => {
-    const stasher = createIndexHtmlStasher(tmpDir);
-
-    // Should not throw
-    stasher.restore();
-  });
-
-  it('stash() recovers index.html left stashed by a crashed session', () => {
-    // Simulate a previous crashed session: index.html is gone, backup exists
-    mkdirSync(join(tmpDir, '.vertz', 'dev'), { recursive: true });
-    writeFileSync(join(tmpDir, '.vertz', 'dev', 'index.html.bak'), '<html></html>');
-    // No index.html in project root
-
-    const stasher = createIndexHtmlStasher(tmpDir);
-    stasher.stash();
-
-    // Should have recovered the backup, then re-stashed it
-    expect(existsSync(join(tmpDir, 'index.html'))).toBe(false);
-    expect(existsSync(join(tmpDir, '.vertz', 'dev', 'index.html.bak'))).toBe(true);
-
-    // Restore should bring it back
-    stasher.restore();
-    expect(existsSync(join(tmpDir, 'index.html'))).toBe(true);
-    expect(readFileSync(join(tmpDir, 'index.html'), 'utf-8')).toBe('<html></html>');
-  });
-
-  it('process exit restores index.html when stashed', () => {
-    writeFileSync(join(tmpDir, 'index.html'), '<html></html>');
-    const stasher = createIndexHtmlStasher(tmpDir);
-
-    stasher.stash();
-    expect(existsSync(join(tmpDir, 'index.html'))).toBe(false);
-
-    // Simulate process exit — fires 'exit' event listeners
-    process.emit('exit', 0);
-
-    expect(existsSync(join(tmpDir, 'index.html'))).toBe(true);
-    expect(existsSync(join(tmpDir, '.vertz', 'dev', 'index.html.bak'))).toBe(false);
-  });
-
-  it('process exit is a no-op after clean restore', () => {
-    writeFileSync(join(tmpDir, 'index.html'), '<html></html>');
-    const stasher = createIndexHtmlStasher(tmpDir);
-
-    stasher.stash();
-    stasher.restore();
-
-    // Should not throw or re-rename
-    process.emit('exit', 0);
-
-    expect(existsSync(join(tmpDir, 'index.html'))).toBe(true);
-  });
-
-  it('restore() is a no-op when called twice', () => {
-    writeFileSync(join(tmpDir, 'index.html'), '<html></html>');
-    const stasher = createIndexHtmlStasher(tmpDir);
-
-    stasher.stash();
-    stasher.restore();
-    stasher.restore(); // second call should not throw
-
-    expect(existsSync(join(tmpDir, 'index.html'))).toBe(true);
-  });
-});
