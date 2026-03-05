@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "bun test",
+    "test:vitest": "vitest run",
     "test:bun": "RUNTIME=bun bun test",
     "test:node": "RUNTIME=node bun test",
     "test:deno": "RUNTIME=deno bun test",
@@ -23,6 +24,7 @@
     "@vertz/ui": "workspace:^",
     "happy-dom": "^20.7.0",
     "typescript": "^5.7.0",
+    "vitest": "^4.0.18",
     "yaml": "^2.3.0"
   },
   "repository": {
