@@ -45,6 +45,8 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
   const cssOutDir = options?.cssOutDir ?? resolve(projectRoot, '.vertz', 'css');
   const cssExtractor = new CSSExtractor();
   const componentAnalyzer = new ComponentAnalyzer();
+  const logger = options?.logger;
+  const diagnostics = options?.diagnostics;
 
   const fileExtractions: FileExtractionsMap = new Map();
   const cssSidecarMap: CSSSidecarMap = new Map();
@@ -57,7 +59,11 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
     setup(build) {
       build.onLoad({ filter }, async (args) => {
         try {
+          const startMs = logger?.isEnabled('plugin') ? performance.now() : 0;
           const source = await Bun.file(args.path).text();
+          const relPath = relative(projectRoot, args.path);
+
+          logger?.log('plugin', 'onLoad', { file: relPath, bytes: source.length });
 
           // ── 1. Hydration transform ─────────────────────────────
           const hydrationS = new MagicString(source);
@@ -156,6 +162,23 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           }
 
           contents += sourceMapComment;
+
+          if (logger?.isEnabled('plugin')) {
+            const durationMs = Math.round(performance.now() - startMs);
+            const stages = [
+              'hydration',
+              fastRefresh ? 'stableIds' : null,
+              'compile',
+              'sourceMap',
+              extraction.css.length > 0 ? 'css' : null,
+              fastRefresh && refreshPreamble ? 'fastRefresh' : null,
+              hmr ? 'hmr' : null,
+            ]
+              .filter(Boolean)
+              .join(',');
+            logger.log('plugin', 'done', { file: relPath, durationMs, stages });
+          }
+          diagnostics?.recordPluginProcess(relPath);
 
           return { contents, loader: 'tsx' };
         } catch (err) {

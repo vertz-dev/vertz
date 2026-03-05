@@ -26,10 +26,10 @@ export function Icon({ name, size = 16, class: className }: IconProps) {
   if (className) {
     (wrapper as Element).setAttribute('class', className);
   }
-  // lucide-static provides complete <svg> strings — render via innerHTML
-  (wrapper as HTMLElement).innerHTML = svgString.replace(
-    '<svg ',
-    `<svg width="${size}" height="${size}" `,
-  );
+  // lucide-static provides complete <svg> strings — render via innerHTML.
+  // Replace existing width/height attributes (lucide defaults to 24x24).
+  (wrapper as HTMLElement).innerHTML = svgString
+    .replace(/width="\d+"/, `width="${size}"`)
+    .replace(/height="\d+"/, `height="${size}"`);
   return wrapper;
 }

@@ -1,4 +1,6 @@
 import type { CSSExtractionResult } from '@vertz/ui-compiler';
+import type { DebugLogger } from '../debug-logger';
+import type { DiagnosticsCollector } from '../diagnostics-collector';
 
 export interface VertzBunPluginOptions {
   /** Regex filter for files to transform. Defaults to .tsx files. */
@@ -21,6 +23,10 @@ export interface VertzBunPluginOptions {
   fastRefresh?: boolean;
   /** Project root for computing relative paths. */
   projectRoot?: string;
+  /** Debug logger for opt-in diagnostic logging. */
+  logger?: DebugLogger;
+  /** Diagnostics collector for the health check endpoint. */
+  diagnostics?: DiagnosticsCollector;
 }
 
 /** CSS extractions tracked across all transformed files (for dead CSS elimination). */

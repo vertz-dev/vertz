@@ -11,13 +11,13 @@
  * - <TaskCard /> JSX component embedding
  */
 
-import { query, queryMatch } from '@vertz/ui';
-import { api } from '../api/mock-data';
-import { Icon } from '../components/icon';
-import { TaskCard } from '../components/task-card';
-import type { Task, TaskStatus } from '../lib/types';
-import { useAppRouter } from '../router';
-import { button, emptyStateStyles, layoutStyles } from '../styles/components';
+import { query, queryMatch } from "@vertz/ui";
+import { api } from "../api/mock-data";
+import { Icon } from "../components/icon";
+import { TaskCard } from "../components/task-card";
+import type { Task, TaskStatus } from "../lib/types";
+import { useAppRouter } from "../router";
+import { button, emptyStateStyles, layoutStyles } from "../styles/components";
 
 /**
  * Render the task list page.
@@ -31,7 +31,7 @@ export function TaskListPage() {
   // ── Reactive state ─────────────────────────────────
 
   // Local state: compiler transforms `let` to signal()
-  let statusFilter: TaskStatus | 'all' = 'all';
+  let statusFilter: TaskStatus | "all" = "all";
 
   // query() — non-destructured form to pass the full QueryResult to queryMatch()
   const tasksQuery = query(api.tasks.list());
@@ -40,17 +40,17 @@ export function TaskListPage() {
   // signal API properties) and wraps in computed() automatically.
   const filteredTasks = !tasksQuery.data
     ? []
-    : statusFilter === 'all'
+    : statusFilter === "all"
       ? tasksQuery.data.items
       : tasksQuery.data.items.filter((t: Task) => t.status === statusFilter);
 
   // ── Filter options ──────────────────────────────────
 
-  const filters: Array<{ label: string; value: TaskStatus | 'all' }> = [
-    { label: 'All', value: 'all' },
-    { label: 'To Do', value: 'todo' },
-    { label: 'In Progress', value: 'in-progress' },
-    { label: 'Done', value: 'done' },
+  const filters: Array<{ label: string; value: TaskStatus | "all" }> = [
+    { label: "All", value: "all" },
+    { label: "To Do", value: "todo" },
+    { label: "In Progress", value: "in-progress" },
+    { label: "Done", value: "done" },
   ];
 
   // ── Page layout with declarative conditionals and list rendering ──
@@ -59,12 +59,13 @@ export function TaskListPage() {
     <div data-testid="task-list-page">
       <div class={layoutStyles.header}>
         <h1 style="font-size: 1.5rem; font-weight: 700">Tasks</h1>
+
         <button
-          class={button({ intent: 'primary', size: 'md' })}
+          class={button({ intent: "primary", size: "md" })}
           data-testid="create-task-btn"
-          onClick={() => navigate('/tasks/new')}
+          onClick={() => navigate("/tasks/new")}
         >
-          <Icon name="Plus" size={16} />
+          <Icon name="Plus" size={14} />
           New Task
         </button>
       </div>
@@ -72,8 +73,8 @@ export function TaskListPage() {
         {filters.map((filter) => (
           <button
             class={button({
-              intent: statusFilter === filter.value ? 'primary' : 'ghost',
-              size: 'sm',
+              intent: statusFilter === filter.value ? "primary" : "ghost",
+              size: "sm",
             })}
             data-testid={`filter-${filter.value}`}
             onClick={() => {
@@ -99,10 +100,12 @@ export function TaskListPage() {
                   <Icon name="Inbox" size={48} />
                 </div>
                 <h3 class={emptyStateStyles.title}>No tasks found</h3>
-                <p class={emptyStateStyles.description}>Create your first task to get started.</p>
+                <p class={emptyStateStyles.description}>
+                  Create your first task to get started.
+                </p>
                 <button
-                  class={button({ intent: 'primary', size: 'md' })}
-                  onClick={() => navigate('/tasks/new')}
+                  class={button({ intent: "primary", size: "md" })}
+                  onClick={() => navigate("/tasks/new")}
                 >
                   Create Task
                 </button>
@@ -113,7 +116,11 @@ export function TaskListPage() {
               style="display: flex; flex-direction: column; gap: 0.75rem"
             >
               {filteredTasks.map((task) => (
-                <TaskCard key={task.id} task={task} onClick={(id) => navigate(`/tasks/${id}`)} />
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onClick={(id) => navigate(`/tasks/${id}`)}
+                />
               ))}
             </div>
           </>

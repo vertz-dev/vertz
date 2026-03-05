@@ -3,6 +3,35 @@ import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
 import type { ComponentInfo, JsxExpressionInfo, VariableInfo } from '../types';
 import { findBodyNode } from '../utils';
 
+/**
+ * JSX whitespace handling: collapse newline-related whitespace (indentation,
+ * trailing whitespace around line breaks) while preserving inline spaces
+ * within a single line.  This matches the React/Babel JSX text algorithm.
+ *
+ * Examples:
+ *   "AHOY "           → "AHOY "       (inline space preserved)
+ *   " items"          → " items"       (inline space preserved)
+ *   "\n  Hello\n"     → "Hello"        (indentation/newlines collapsed)
+ *   "\n  A\n  B\n"    → "A B"          (lines joined with single space)
+ */
+function cleanJsxText(raw: string): string {
+  if (!raw.includes('\n') && !raw.includes('\r')) {
+    return raw;
+  }
+
+  const lines = raw.split(/\r\n|\n|\r/);
+  const cleaned: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = (lines[i] as string).replace(/\t/g, ' ');
+    if (i > 0) line = line.trimStart();
+    if (i < lines.length - 1) line = line.trimEnd();
+    if (line) cleaned.push(line);
+  }
+
+  return cleaned.join(' ');
+}
+
 let varCounter = 0;
 
 function genVar(): string {
@@ -112,7 +141,7 @@ function transformJsxNode(
     return transformFragment(node, reactiveNames, jsxMap, source, formVarNames);
   }
   if (node.isKind(SyntaxKind.JsxText)) {
-    const text = node.getText().trim();
+    const text = cleanJsxText(node.getFullText());
     if (!text) return '';
     return `__staticText(${JSON.stringify(text)})`;
   }
@@ -322,7 +351,7 @@ function transformChild(
   formVarNames: Set<string> = new Set(),
 ): string | null {
   if (child.isKind(SyntaxKind.JsxText)) {
-    const text = child.getText().trim();
+    const text = cleanJsxText(child.getFullText());
     if (!text) return null;
     return `__append(${parentVar}, __staticText(${JSON.stringify(text)}))`;
   }
@@ -385,7 +414,7 @@ function transformChildAsValue(
   formVarNames: Set<string> = new Set(),
 ): string | null {
   if (child.isKind(SyntaxKind.JsxText)) {
-    const text = child.getText().trim();
+    const text = cleanJsxText(child.getFullText());
     if (!text) return null;
     return `__staticText(${JSON.stringify(text)})`;
   }

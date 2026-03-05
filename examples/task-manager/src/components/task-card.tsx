@@ -7,16 +7,18 @@
  * - variants() for priority badges
  */
 
-import type { Task, TaskPriority, TaskStatus } from '../lib/types';
-import { badge, cardStyles } from '../styles/components';
+import type { Task, TaskPriority, TaskStatus } from "../lib/types";
+import { badge, cardStyles } from "../styles/components";
 
 /** Map priority to badge color. */
-function priorityColor(priority: TaskPriority): 'blue' | 'green' | 'yellow' | 'red' {
-  const map: Record<TaskPriority, 'blue' | 'green' | 'yellow' | 'red'> = {
-    low: 'blue',
-    medium: 'yellow',
-    high: 'red',
-    urgent: 'red',
+function priorityColor(
+  priority: TaskPriority,
+): "blue" | "green" | "yellow" | "red" {
+  const map: Record<TaskPriority, "blue" | "green" | "yellow" | "red"> = {
+    low: "blue",
+    medium: "yellow",
+    high: "red",
+    urgent: "red",
   };
   return map[priority];
 }
@@ -24,19 +26,19 @@ function priorityColor(priority: TaskPriority): 'blue' | 'green' | 'yellow' | 'r
 /** Map status to display label. */
 function statusLabel(status: TaskStatus): string {
   const map: Record<TaskStatus, string> = {
-    todo: 'To Do',
-    'in-progress': 'In Progress',
-    done: 'Done',
+    todo: "To Do",
+    "in-progress": "In Progress",
+    done: "Done",
   };
   return map[status];
 }
 
 /** Map status to badge color. */
-function statusColor(status: TaskStatus): 'gray' | 'blue' | 'green' {
-  const map: Record<TaskStatus, 'gray' | 'blue' | 'green'> = {
-    todo: 'gray',
-    'in-progress': 'blue',
-    done: 'green',
+function statusColor(status: TaskStatus): "gray" | "blue" | "green" {
+  const map: Record<TaskStatus, "gray" | "blue" | "green"> = {
+    todo: "gray",
+    "in-progress": "blue",
+    done: "green",
   };
   return map[status];
 }
@@ -61,7 +63,7 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
       style="cursor: pointer; transition: box-shadow 150ms, border-color 150ms"
       onClick={() => onClick(task.id)}
       onKeyDown={(e: KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           onClick(task.id);
         }
@@ -74,7 +76,9 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
         <h3 class={cardStyles.title} style="font-size: 1rem">
           {task.title}
         </h3>
-        <span class={badge({ color: priorityColor(task.priority) })}>{task.priority}</span>
+        <span class={badge({ color: priorityColor(task.priority) })}>
+          {task.priority}
+        </span>
       </div>
       <div class={cardStyles.content}>
         <p class={cardStyles.description}>
@@ -84,7 +88,9 @@ export function TaskCard({ task, onClick }: TaskCardProps) {
         </p>
       </div>
       <div class={cardStyles.footer} style="justify-content: space-between">
-        <span class={badge({ color: statusColor(task.status) })}>{statusLabel(task.status)}</span>
+        <span class={badge({ color: statusColor(task.status) })}>
+          {statusLabel(task.status)}
+        </span>
         <span style="font-size: 0.75rem; color: var(--color-muted-foreground)">
           {new Date(task.updatedAt).toLocaleDateString()}
         </span>
