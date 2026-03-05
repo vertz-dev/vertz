@@ -71,6 +71,76 @@ export interface ErrorDetail {
 
 export type ErrorCategory = 'build' | 'resolve' | 'runtime' | 'ssr';
 
+/** A resolved stack frame for terminal logging. */
+interface TerminalStackFrame {
+  functionName: string | null;
+  file: string;
+  line: number;
+  column: number;
+}
+
+const MAX_TERMINAL_STACK_FRAMES = 5;
+
+/**
+ * Format a runtime error for terminal output.
+ * Produces a [Browser]-prefixed message with optional file location,
+ * line text snippet, and resolved stack frames.
+ */
+export function formatTerminalRuntimeError(
+  errors: ErrorDetail[],
+  parsedStack?: TerminalStackFrame[],
+): string {
+  const primary = errors[0];
+  if (!primary) return '';
+
+  const lines: string[] = [];
+  lines.push(`[Browser] ${primary.message}`);
+
+  if (primary.file) {
+    const loc = primary.line
+      ? `${primary.file}:${primary.line}${primary.column != null ? `:${primary.column}` : ''}`
+      : primary.file;
+    lines.push(`  at ${loc}`);
+  }
+
+  if (primary.lineText) {
+    lines.push(`  \u2502 ${primary.lineText}`);
+  }
+
+  if (parsedStack?.length) {
+    const frames = parsedStack.slice(0, MAX_TERMINAL_STACK_FRAMES);
+    for (const frame of frames) {
+      const fn = frame.functionName ? `${frame.functionName} ` : '';
+      lines.push(`  at ${fn}${frame.file}:${frame.line}:${frame.column}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Create a deduplicator for terminal runtime error logs.
+ * Returns `shouldLog` (true if this error hasn't been logged recently)
+ * and `reset` (to clear on file change).
+ */
+export function createRuntimeErrorDeduplicator(): {
+  shouldLog: (message: string, file?: string, line?: number) => boolean;
+  reset: () => void;
+} {
+  let lastKey = '';
+  return {
+    shouldLog(message: string, file?: string, line?: number): boolean {
+      const key = `${message}::${file ?? ''}::${line ?? ''}`;
+      if (key === lastKey) return false;
+      lastKey = key;
+      return true;
+    },
+    reset(): void {
+      lastKey = '';
+    },
+  };
+}
+
 export interface BunDevServer {
   start(): Promise<void>;
   stop(): Promise<void>;
@@ -662,6 +732,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   let lastBuildError = '';
   let lastBroadcastedError = '';
   let lastChangedFile = '';
+  const terminalDedup = createRuntimeErrorDeduplicator();
   const resolvePatterns = ['Could not resolve', 'Module not found', 'Cannot find module'];
   // HMR re-mount error: "[browser] [vertz-hmr] Error re-mounting <Component>: <Error>"
   const hmrErrorPattern = /\[vertz-hmr\] Error re-mounting (\w+): ([\s\S]*?)(?:\n\s+at |$)/;
@@ -693,6 +764,23 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   }
 
   const origConsoleError = console.error;
+
+  /** Log a runtime error to terminal (with dedup) and record in diagnostics. */
+  function logRuntimeErrorToTerminal(
+    errors: ErrorDetail[],
+    parsedStack?: TerminalStackFrame[],
+  ): void {
+    const primary = errors[0];
+    if (!primary) return;
+    if (!terminalDedup.shouldLog(primary.message, primary.file, primary.line)) return;
+    const formatted = formatTerminalRuntimeError(errors, parsedStack);
+    if (formatted) {
+      origConsoleError(formatted);
+    }
+    diagnostics.recordRuntimeError(primary.message, primary.file ?? null);
+    diagnostics.recordError('runtime', primary.message);
+  }
+
   console.error = (...args: unknown[]) => {
     const text = args.map((a) => (typeof a === 'string' ? a : String(a))).join(' ');
     // Only capture bundler/resolve errors, not our own [Server] logs
@@ -1202,6 +1290,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
                         parsedStack: result.parsedStack,
                       };
                       currentError = { category: 'runtime', errors: enrichedErrors };
+                      logRuntimeErrorToTerminal(enrichedErrors, result.parsedStack);
                       const text = JSON.stringify(payload);
                       for (const client of wsClients) {
                         client.sendText(text);
@@ -1216,6 +1305,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
                     parsedStack: result.parsedStack,
                   };
                   currentError = { category: 'runtime', errors: result.errors };
+                  logRuntimeErrorToTerminal(result.errors, result.parsedStack);
                   const text = JSON.stringify(payload);
                   for (const client of wsClients) {
                     client.sendText(text);
@@ -1239,12 +1329,17 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
                       errors,
                     };
                     currentError = { category: 'runtime', errors };
+                    logRuntimeErrorToTerminal(errors);
                     const text = JSON.stringify(payload);
                     for (const client of wsClients) {
                       client.sendText(text);
                     }
                   } else {
-                    broadcastError('runtime', [{ message: data.message ?? 'Unknown error' }]);
+                    const fallbackErrors: ErrorDetail[] = [
+                      { message: data.message ?? 'Unknown error' },
+                    ];
+                    logRuntimeErrorToTerminal(fallbackErrors);
+                    broadcastError('runtime', fallbackErrors);
                   }
                 });
             }
@@ -1312,6 +1407,8 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           logger.log('watcher', 'file-changed', { file: lastChangedFile });
           // Reset broadcast dedup so a new file change can re-broadcast
           lastBroadcastedError = '';
+          terminalDedup.reset();
+          diagnostics.clearRuntimeErrors();
           // Invalidate source map cache — bundle hashes change on every edit
           sourceMapResolver.invalidate();
           if (logRequests) {
