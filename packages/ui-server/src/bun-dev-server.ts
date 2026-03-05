@@ -21,6 +21,8 @@
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, renameSync, watch, writeFileSync } from 'node:fs';
 import { dirname, normalize, resolve } from 'node:path';
+import { createDebugLogger } from './debug-logger';
+import { DiagnosticsCollector } from './diagnostics-collector';
 import { createSourceMapResolver, readLineText } from './source-map-resolver';
 import type { SSRModule } from './ssr-render';
 import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
@@ -587,6 +589,12 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
   const editor = detectEditor(editorOption);
 
+  // ── Debug logger & diagnostics ──────────────────────────────
+  const devDir = resolve(projectRoot, '.vertz', 'dev');
+  mkdirSync(devDir, { recursive: true });
+  const logger = createDebugLogger(devDir);
+  const diagnostics = new DiagnosticsCollector();
+
   let server: ReturnType<typeof Bun.serve> | null = null;
   let srcWatcherRef: ReturnType<typeof watch> | null = null;
   let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -639,6 +647,8 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       return;
     }
     currentError = { category, errors };
+    diagnostics.recordError(category, errors[0]?.message ?? '');
+    logger.log('ws', 'broadcast-error', { category, errorCount: errors.length });
     const msg = JSON.stringify({ type: 'error', category, errors });
     for (const ws of wsClients) {
       ws.sendText(msg);
@@ -648,6 +658,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   function clearError(): void {
     if (currentError === null && !pendingRuntimeError) return;
     currentError = null;
+    diagnostics.recordErrorClear();
     // Cancel any pending debounced runtime error
     if (runtimeDebounceTimer) {
       clearTimeout(runtimeDebounceTimer);
@@ -665,6 +676,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
   function clearErrorForFileChange(): void {
     if (currentError === null && !pendingRuntimeError) return;
     currentError = null;
+    diagnostics.recordErrorClear();
     if (runtimeDebounceTimer) {
       clearTimeout(runtimeDebounceTimer);
       runtimeDebounceTimer = null;
@@ -878,6 +890,8 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
     const { plugin: serverPlugin } = createVertzBunPlugin({
       hmr: false,
       fastRefresh: false,
+      logger,
+      diagnostics,
     });
     plugin(serverPlugin);
 
@@ -895,7 +909,6 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
     // Generate HMR shell HTML at .vertz/dev/hmr-shell.html
     // This page initializes Bun's HMR system by importing the client entry
-    const devDir = resolve(projectRoot, '.vertz', 'dev');
     mkdirSync(devDir, { recursive: true });
 
     // Fast Refresh runtime: resolve from generated HTML at .vertz/dev/
@@ -1025,6 +1038,11 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           }
         }
 
+        // Diagnostics endpoint — JSON snapshot of server state
+        if (pathname === '/__vertz_diagnostics') {
+          return Response.json(diagnostics.getSnapshot());
+        }
+
         // OpenAPI spec (fallback for non-route match)
         if (openapi && request.method === 'GET' && pathname === '/api/openapi.json') {
           return serveOpenAPISpec();
@@ -1107,7 +1125,14 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           }
 
           try {
+            logger.log('ssr', 'render-start', { url: pathname });
+            const ssrStart = performance.now();
             const result = await ssrRenderToString(ssrMod, pathname, { ssrTimeout: 300 });
+            logger.log('ssr', 'render-done', {
+              url: pathname,
+              durationMs: Math.round(performance.now() - ssrStart),
+              htmlBytes: result.html.length,
+            });
             const scriptTag = buildScriptTag(bundledScriptUrl, hmrBootstrapScript, clientSrc);
             const html = generateSSRPageHtml({
               title,
@@ -1164,6 +1189,8 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
       websocket: {
         open(ws) {
           wsClients.add(ws);
+          diagnostics.recordWebSocketChange(wsClients.size);
+          logger.log('ws', 'client-connected', { total: wsClients.size });
           ws.sendText(JSON.stringify({ type: 'connected' }));
           if (currentError) {
             ws.sendText(
@@ -1271,6 +1298,7 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         },
         close(ws) {
           wsClients.delete(ws);
+          diagnostics.recordWebSocketChange(wsClients.size);
         },
       },
 
@@ -1306,6 +1334,8 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             console.log('[Server] Extracted HMR bootstrap script');
           }
         }
+
+        diagnostics.recordHMRAssets(bundledScriptUrl, hmrBootstrapScript !== null);
       } catch (e) {
         console.warn('[Server] Could not discover HMR bundled URL:', e);
       }
@@ -1322,6 +1352,8 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         refreshTimeout = setTimeout(async () => {
           // Track last changed file for runtime error context
           lastChangedFile = `src/${filename}`;
+          diagnostics.recordFileChange(lastChangedFile);
+          logger.log('watcher', 'file-changed', { file: lastChangedFile });
           // Reset broadcast dedup so a new file change can re-broadcast
           lastBroadcastedError = '';
           // Invalidate source map cache — bundle hashes change on every edit
@@ -1397,28 +1429,38 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
           // synchronous context stack used by Provider/useContext. The wrapper
           // is a `.ts` file (no plugin needed) that re-exports from the real
           // entry, keeping the `.tsx` import path clean for the plugin.
-          for (const key of Object.keys(require.cache)) {
+          const cacheKeys = Object.keys(require.cache);
+          let cacheCleared = 0;
+          for (const key of cacheKeys) {
             if (key.startsWith(srcDir) || key.startsWith(entryPath)) {
               delete require.cache[key];
+              cacheCleared++;
             }
           }
+          logger.log('watcher', 'cache-cleared', { entries: cacheCleared });
           const ssrWrapperPath = resolve(devDir, 'ssr-reload-entry.ts');
           mkdirSync(devDir, { recursive: true });
           writeFileSync(ssrWrapperPath, `export * from '${entryPath}';\n`);
+          const ssrReloadStart = performance.now();
           try {
             const freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
             ssrMod = freshMod;
+            const durationMs = Math.round(performance.now() - ssrReloadStart);
+            diagnostics.recordSSRReload(true, durationMs);
+            logger.log('watcher', 'ssr-reload', { status: 'ok', durationMs });
             if (logRequests) {
               console.log('[Server] SSR module refreshed');
             }
           } catch {
+            logger.log('watcher', 'ssr-reload', { status: 'retry' });
             // First import may fail due to stale Bun module cache (race between
             // file watcher and Bun's dev bundler recompilation). Retry once after
             // a delay to let Bun's module graph settle.
             if (stopped) return;
             await new Promise((r) => setTimeout(r, 500));
             if (stopped) return;
-            for (const key of Object.keys(require.cache)) {
+            const retryKeys = Object.keys(require.cache);
+            for (const key of retryKeys) {
               if (key.startsWith(srcDir) || key.startsWith(entryPath)) {
                 delete require.cache[key];
               }
@@ -1428,6 +1470,9 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
             try {
               const freshMod: SSRModule = await import(`${ssrWrapperPath}?t=${Date.now()}`);
               ssrMod = freshMod;
+              const durationMs = Math.round(performance.now() - ssrReloadStart);
+              diagnostics.recordSSRReload(true, durationMs);
+              logger.log('watcher', 'ssr-reload', { status: 'ok', durationMs, retry: true });
               if (logRequests) {
                 console.log('[Server] SSR module refreshed (retry)');
               }
@@ -1435,6 +1480,9 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
               console.error('[Server] Failed to refresh SSR module:', e2);
               const errMsg = e2 instanceof Error ? e2.message : String(e2);
               const errStack = e2 instanceof Error ? e2.stack : undefined;
+              const durationMs = Math.round(performance.now() - ssrReloadStart);
+              diagnostics.recordSSRReload(false, durationMs, errMsg);
+              logger.log('watcher', 'ssr-reload', { status: 'failed', error: errMsg });
               const { message: _m, ...loc2 } = errStack
                 ? parseSourceFromStack(errStack)
                 : { message: '' };
