@@ -1,5 +1,11 @@
 # @vertz/create-vertz-app
 
+## 0.2.8
+
+### Patch Changes
+
+- [#903](https://github.com/vertz-dev/vertz/pull/903) [`2a2cadc`](https://github.com/vertz-dev/vertz/commit/2a2cadcaf6dee9eee9c4f869bb387f7bff67a123) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add bunfig.toml and bun-plugin-shim.ts to scaffolded projects. Without these, Bun's dev server client bundler skips the Vertz compiler plugin, causing SSR content to vanish after hydration.
+
 ## 0.2.7
 
 ## 0.2.6
