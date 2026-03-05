@@ -1,6 +1,6 @@
+import { describe, expect, it, spyOn } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { signal } from '@vertz/ui';
-import { describe, expect, it, spyOn } from 'bun:test';
 import { tui } from '../app';
 import { useKeyboard } from '../input/hooks';
 import { jsx } from '../jsx-runtime/index';

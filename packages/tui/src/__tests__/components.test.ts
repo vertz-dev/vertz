@@ -1,5 +1,5 @@
-import { signal } from '@vertz/ui';
 import { describe, expect, it, jest, spyOn } from 'bun:test';
+import { signal } from '@vertz/ui';
 import { tui } from '../app';
 import { Confirm } from '../components/Confirm';
 import { MultiSelect } from '../components/MultiSelect';

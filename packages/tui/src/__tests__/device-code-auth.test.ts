@@ -1,5 +1,5 @@
-import { signal } from '@vertz/ui';
 import { afterEach, describe, expect, it, mock } from 'bun:test';
+import { signal } from '@vertz/ui';
 import { tui } from '../app';
 import type { AuthConfig, AuthStatus, DeviceCodeResponse } from '../auth/index';
 import {
