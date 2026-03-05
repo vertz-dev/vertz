@@ -151,6 +151,24 @@ describe('ReactivityAnalyzer', () => {
     expect(findVar(result?.variables, 'isDirty')?.kind).toBe('computed');
   });
 
+  it('does not classify signal API var as computed when it depends on another signal API var', () => {
+    const [result] = analyze(`
+      import { query, form } from '@vertz/ui';
+      function TaskForm() {
+        const tasksQuery = query('/api/tasks');
+        const taskForm = form(api.tasks.create, {
+          onSuccess: () => tasksQuery.refetch(),
+        });
+        return <form onSubmit={taskForm.onSubmit}><button disabled={taskForm.submitting}>Add</button></form>;
+      }
+    `);
+    expect(findVar(result?.variables, 'tasksQuery')?.kind).toBe('static');
+    expect(findVar(result?.variables, 'taskForm')?.kind).toBe('static');
+    expect(findVar(result?.variables, 'taskForm')?.signalProperties).toEqual(
+      new Set(['submitting', 'dirty', 'valid']),
+    );
+  });
+
   it('classifies destructured query() signal properties as computed', () => {
     const [result] = analyze(`
       import { query } from '@vertz/ui';
