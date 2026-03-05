@@ -14,6 +14,6 @@ export default defineConfig([
     dts: false,
     clean: false,
     external: ['@vertz/compiler', '@vertz/tui', 'bun:sqlite', 'commander', 'esbuild', 'jiti', 'postgres'],
-    banner: '#!/usr/bin/env node',
+    banner: '#!/usr/bin/env bun',
   },
 ]);
