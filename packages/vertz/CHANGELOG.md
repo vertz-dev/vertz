@@ -1,5 +1,22 @@
 # vertz
 
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @vertz/cloudflare@0.2.5
+  - @vertz/db@0.2.5
+  - @vertz/errors@0.2.5
+  - @vertz/fetch@0.2.5
+  - @vertz/schema@0.2.5
+  - @vertz/server@0.2.5
+  - @vertz/testing@0.2.5
+  - @vertz/tui@0.2.5
+  - @vertz/ui@0.2.5
+  - @vertz/ui-compiler@0.2.5
+  - @vertz/ui-primitives@0.2.5
+
 ## 0.2.4
 
 ### Patch Changes
