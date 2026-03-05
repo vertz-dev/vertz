@@ -4,11 +4,10 @@
   "version": "0.2.1",
   "type": "module",
   "scripts": {
-    "test": "vitest run",
-    "test:bun": "RUNTIME=bun vitest run",
-    "test:node": "RUNTIME=node vitest run",
-    "test:deno": "RUNTIME=deno vitest run",
-    "test:watch": "vitest",
+    "test": "bun test",
+    "test:bun": "RUNTIME=bun bun test",
+    "test:node": "RUNTIME=node bun test",
+    "test:deno": "RUNTIME=deno bun test",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -24,7 +23,6 @@
     "@vertz/ui": "workspace:^",
     "happy-dom": "^20.7.0",
     "typescript": "^5.7.0",
-    "vitest": "^4.0.18",
     "yaml": "^2.3.0"
   },
   "repository": {

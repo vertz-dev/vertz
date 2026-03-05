@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import type { PromptAdapter } from '../resolver';
 import { CliRuntimeError, resolveParameters } from '../resolver';
 import type { CommandDefinition, ParameterResolver } from '../types';
@@ -12,8 +12,8 @@ function createMockContext() {
 
 function createMockPromptAdapter(overrides: Partial<PromptAdapter> = {}): PromptAdapter {
   return {
-    select: overrides.select ?? vi.fn().mockResolvedValue('selected'),
-    text: overrides.text ?? vi.fn().mockResolvedValue('entered'),
+    select: overrides.select ?? mock().mockResolvedValue('selected'),
+    text: overrides.text ?? mock().mockResolvedValue('entered'),
   };
 }
 
@@ -80,7 +80,7 @@ describe('resolveParameters', () => {
 
     const resolver: ParameterResolver = {
       param: 'id',
-      fetchOptions: vi.fn().mockResolvedValue([
+      fetchOptions: mock().mockResolvedValue([
         { label: 'Alice', value: 'user-1' },
         { label: 'Bob', value: 'user-2' },
       ]),
@@ -88,7 +88,7 @@ describe('resolveParameters', () => {
     };
 
     const promptAdapter = createMockPromptAdapter({
-      select: vi.fn().mockResolvedValue('user-1'),
+      select: mock().mockResolvedValue('user-1'),
     });
 
     const result = await resolveParameters(
@@ -121,7 +121,7 @@ describe('resolveParameters', () => {
     };
 
     const promptAdapter = createMockPromptAdapter({
-      select: vi.fn().mockResolvedValue('admin'),
+      select: mock().mockResolvedValue('admin'),
     });
 
     const result = await resolveParameters(definition, {}, {}, createMockContext(), promptAdapter);
@@ -147,7 +147,7 @@ describe('resolveParameters', () => {
     };
 
     const promptAdapter = createMockPromptAdapter({
-      text: vi.fn().mockResolvedValue('Alice'),
+      text: mock().mockResolvedValue('Alice'),
     });
 
     const result = await resolveParameters(definition, {}, {}, createMockContext(), promptAdapter);

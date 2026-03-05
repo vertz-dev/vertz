@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, spyOn } from 'bun:test';
 import { prompt } from '../prompt';
 import { TestAdapter } from '../test/test-adapter';
 import { TestStdin } from '../test/test-stdin';
@@ -6,7 +6,7 @@ import { symbols } from '../theme';
 
 describe('prompt.intro', () => {
   it('writes intro title to stdout', () => {
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
     prompt.intro('my-app');
     const output = writeSpy.mock.calls.map((c) => c[0]).join('');
     expect(output).toContain('my-app');
@@ -16,7 +16,7 @@ describe('prompt.intro', () => {
 
 describe('prompt.outro', () => {
   it('writes outro message to stdout', () => {
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
     prompt.outro('Done!');
     const output = writeSpy.mock.calls.map((c) => c[0]).join('');
     expect(output).toContain('Done!');
@@ -26,7 +26,7 @@ describe('prompt.outro', () => {
 
 describe('prompt.log', () => {
   it('log.info writes info symbol', () => {
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
     prompt.log.info('info message');
     const output = writeSpy.mock.calls.map((c) => c[0]).join('');
     expect(output).toContain(symbols.info);
@@ -35,7 +35,7 @@ describe('prompt.log', () => {
   });
 
   it('log.warn writes warning symbol', () => {
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
     prompt.log.warn('warning message');
     const output = writeSpy.mock.calls.map((c) => c[0]).join('');
     expect(output).toContain(symbols.warning);
@@ -43,7 +43,7 @@ describe('prompt.log', () => {
   });
 
   it('log.error writes error symbol', () => {
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
     prompt.log.error('error message');
     const output = writeSpy.mock.calls.map((c) => c[0]).join('');
     expect(output).toContain(symbols.error);
@@ -51,7 +51,7 @@ describe('prompt.log', () => {
   });
 
   it('log.success writes success symbol', () => {
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
     prompt.log.success('success message');
     const output = writeSpy.mock.calls.map((c) => c[0]).join('');
     expect(output).toContain(symbols.success);
@@ -61,7 +61,7 @@ describe('prompt.log', () => {
 
 describe('prompt.spinner', () => {
   it('start writes message and stop writes completion', () => {
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
     const s = prompt.spinner();
     s.start('Installing...');
     s.stop('Installed');

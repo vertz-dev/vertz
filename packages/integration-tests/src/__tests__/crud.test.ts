@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { createIntegrationApp, type TestServer } from '../app/create-app';
 
 const AUTH = { authorization: 'Bearer user-1' };
@@ -27,7 +27,7 @@ describe('Users CRUD', () => {
     const body = await res.json();
     expect(body.name).toBe('Alice');
     expect(body.email).toBe('alice@test.com');
-    expect(body.id).toBeTypeOf('string');
+    expect(typeof body.id).toBe('string');
     userId = body.id;
   });
 
@@ -108,7 +108,7 @@ describe('Todos CRUD', () => {
     expect(body.title).toBe('Write tests');
     expect(body.userId).toBe(todoUserId);
     expect(body.done).toBe(false);
-    expect(body.id).toBeTypeOf('string');
+    expect(typeof body.id).toBe('string');
     todoId = body.id;
   });
 

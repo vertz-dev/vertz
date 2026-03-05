@@ -10,7 +10,7 @@
 import { ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import { form } from '@vertz/ui/form';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 describe('SDK Schema Integration', () => {
   // Mock SDK method with .meta.bodySchema (simulates generated SDK)
@@ -22,7 +22,7 @@ describe('SDK Schema Integration', () => {
   });
 
   it('form() auto-validates from SDK meta.bodySchema', async () => {
-    const onError = vi.fn();
+    const onError = mock();
     const f = form(createTodo, { onError });
 
     const fd = new FormData();
@@ -34,7 +34,7 @@ describe('SDK Schema Integration', () => {
   });
 
   it('form() passes valid data through to SDK method', async () => {
-    const onSuccess = vi.fn();
+    const onSuccess = mock();
     const f = form(createTodo, { onSuccess });
 
     const fd = new FormData();
@@ -58,7 +58,7 @@ describe('SDK Schema Integration', () => {
   it('form() allows explicit schema to override meta.bodySchema', async () => {
     // Custom schema that rejects titles shorter than 5 chars
     const strictSchema = s.object({ title: s.string().min(5) });
-    const onError = vi.fn();
+    const onError = mock();
     const f = form(createTodo, { schema: strictSchema, onError });
 
     const fd = new FormData();

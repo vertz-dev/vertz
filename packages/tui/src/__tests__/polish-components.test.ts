@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { tui } from '../app';
 import { Banner } from '../components/Banner';
 import type { DiagnosticItem } from '../components/DiagnosticView';

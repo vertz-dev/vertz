@@ -1,6 +1,6 @@
 import { onMount, signal } from '@vertz/ui';
 import { domEffect } from '@vertz/ui/internals';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { tui } from '../app';
 import { useKeyboard } from '../input/hooks';
 import { __append, __attr, __child, __element, __staticText } from '../internals';

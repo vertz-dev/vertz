@@ -1,5 +1,5 @@
 import { createServer, type ServerHandle } from '@vertz/core';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { createRoutes } from '../app/create-app';
 import { authMiddleware } from '../app/middleware/auth';
 
@@ -43,7 +43,7 @@ describe('E2E listen', () => {
     const body = await res.json();
     expect(body.name).toBe('Alice');
     expect(body.email).toBe('alice@e2e.com');
-    expect(body.id).toBeTypeOf('string');
+    expect(typeof body.id).toBe('string');
   });
 
   it('resolves route params in GET requests', async () => {

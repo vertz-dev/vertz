@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { TerminalBuffer } from '../buffer/terminal-buffer';
 import { jsx } from '../jsx-runtime/index';
 import { computeLayout } from '../layout/compute';

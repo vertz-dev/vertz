@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { createIntegrationApp, type TestServer } from '../app/create-app';
 
 const AUTH = { authorization: 'Bearer user-1' };
@@ -70,7 +70,7 @@ describe('Exception handling', () => {
     // For non-VertzException errors, the framework returns a generic 500
     // We verify VertzException errors have the expected structure
     expect(body.error.code).toBe('NotFound');
-    expect(body.error.message).toBeTypeOf('string');
+    expect(typeof body.error.message).toBe('string');
     // No stack trace or internal details exposed
     expect(body.error.stack).toBeUndefined();
     expect(body.stack).toBeUndefined();

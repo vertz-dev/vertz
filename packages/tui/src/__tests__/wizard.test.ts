@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { symbols } from '../theme';
 import type { WizardStep } from '../wizard';
 import { wizard } from '../wizard';
@@ -31,7 +31,7 @@ describe('wizard', () => {
       },
     ] as const satisfies readonly WizardStep[];
 
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const result = await wizard({ steps });
 
@@ -61,7 +61,7 @@ describe('wizard', () => {
       },
     ] as const satisfies readonly WizardStep[];
 
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     await wizard({ steps });
 
@@ -83,7 +83,7 @@ describe('wizard', () => {
       },
     ] as const satisfies readonly WizardStep[];
 
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     await wizard({ steps });
 
@@ -96,7 +96,7 @@ describe('wizard', () => {
   });
 
   it('calls custom onStep callback instead of default indicator', async () => {
-    const onStep = vi.fn();
+    const onStep = mock();
 
     const steps = [
       {
@@ -109,7 +109,7 @@ describe('wizard', () => {
       },
     ] as const satisfies readonly WizardStep[];
 
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     await wizard({ steps, onStep });
 
@@ -134,7 +134,7 @@ describe('wizard', () => {
       },
     ] as const satisfies readonly WizardStep[];
 
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const result = await wizard({ steps });
 

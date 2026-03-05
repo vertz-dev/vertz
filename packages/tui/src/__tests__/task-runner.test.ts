@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { tui } from '../app';
 import { TaskRunner, type TaskRunnerConfig } from '../components/TaskRunner';
 import { renderToString } from '../render-to-string';

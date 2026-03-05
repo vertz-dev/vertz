@@ -1,15 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import type { ConfigStore, TokenResponse } from '../auth';
 import { AuthError, createAuthManager } from '../auth';
 
 function createMockStore(data: Record<string, string> = {}): ConfigStore {
   const store = new Map(Object.entries(data));
   return {
-    read: vi.fn(async (path: string) => store.get(path) ?? null),
-    write: vi.fn(async (path: string, content: string) => {
+    read: mock(async (path: string) => store.get(path) ?? null),
+    write: mock(async (path: string, content: string) => {
       store.set(path, content);
     }),
-    remove: vi.fn(async (path: string) => {
+    remove: mock(async (path: string) => {
       store.delete(path);
     }),
   };
@@ -96,7 +96,7 @@ describe('createAuthManager', () => {
       const auth = createAuthManager({ configDir: '/tmp/test' }, store);
 
       const mockClient = {
-        request: vi.fn().mockResolvedValue({
+        request: mock().mockResolvedValue({
           ok: true,
           data: {
             data: {
@@ -145,7 +145,7 @@ describe('createAuthManager', () => {
       });
 
       const mockClient = {
-        request: vi.fn().mockResolvedValue({
+        request: mock().mockResolvedValue({
           ok: true,
           data: {
             data: {
@@ -178,7 +178,7 @@ describe('createAuthManager', () => {
       const store = createMockStore();
       const auth = createAuthManager({ configDir: '/tmp/test' }, store);
 
-      const mockClient = { request: vi.fn() };
+      const mockClient = { request: mock() };
 
       const result = await auth.refreshAccessToken(
         mockClient as never,
@@ -202,7 +202,7 @@ describe('createAuthManager', () => {
       });
 
       const mockClient = {
-        request: vi.fn().mockResolvedValue({
+        request: mock().mockResolvedValue({
           ok: false,
           error: new Error('Token expired'),
         }),
@@ -225,7 +225,7 @@ describe('createAuthManager', () => {
 
       let callCount = 0;
       const mockClient = {
-        request: vi.fn().mockImplementation(async () => {
+        request: mock().mockImplementation(async () => {
           callCount++;
           if (callCount < 3) {
             return {
@@ -266,7 +266,7 @@ describe('createAuthManager', () => {
       const auth = createAuthManager({ configDir: '/tmp/test' }, store);
 
       const mockClient = {
-        request: vi.fn().mockResolvedValue({
+        request: mock().mockResolvedValue({
           ok: false,
           error: { body: { error: 'authorization_pending' } },
         }),

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { signal } from '@vertz/ui';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, spyOn } from 'bun:test';
 import { tui } from '../app';
 import { useKeyboard } from '../input/hooks';
 import { jsx } from '../jsx-runtime/index';
@@ -139,7 +139,7 @@ describe('useKeyboard', () => {
   it('exits process on Ctrl+C when using StdinReader', () => {
     const adapter = new TestAdapter(40, 10);
     const mockStdin = createMockStdin();
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    const exitSpy = spyOn(process, 'exit').mockImplementation(() => undefined as never);
 
     const handler = () => {};
 
@@ -162,7 +162,7 @@ describe('useKeyboard', () => {
     const adapter = new TestAdapter(40, 10);
     const mockStdin = createMockStdin();
     const events: string[] = [];
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+    const exitSpy = spyOn(process, 'exit').mockImplementation(() => {
       events.push('exit');
       return undefined as never;
     });

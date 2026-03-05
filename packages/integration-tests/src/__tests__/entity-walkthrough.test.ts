@@ -14,7 +14,7 @@
 import { d } from '@vertz/db';
 import type { EntityDbAdapter } from '@vertz/server';
 import { createServer, entity } from '@vertz/server';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // 1. Schema definition — using only public @vertz/db API
@@ -110,7 +110,7 @@ describe('Entity Developer Walkthrough (public API only)', () => {
   // Entity definition — uses only public @vertz/server API
   // -------------------------------------------------------------------------
 
-  const afterCreateSpy = vi.fn();
+  const afterCreateSpy = mock();
 
   const usersEntity = entity('users', {
     model: usersModel,

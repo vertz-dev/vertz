@@ -13,7 +13,7 @@
 import { d } from '@vertz/db';
 import type { EntityDbAdapter } from '@vertz/server';
 import { action, createServer, entity } from '@vertz/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // 1. Schema + entity definition — same as entity walkthrough

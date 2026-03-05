@@ -1,6 +1,6 @@
 import { s } from '@vertz/schema';
 import { createMiddleware } from '@vertz/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { createTestApp } from '../test-app';
 
@@ -8,13 +8,13 @@ describe('createTestApp', () => {
   it('returns a builder with mockMiddleware and HTTP methods', () => {
     const app = createTestApp();
 
-    expect(app.mockMiddleware).toBeTypeOf('function');
-    expect(app.get).toBeTypeOf('function');
-    expect(app.post).toBeTypeOf('function');
-    expect(app.put).toBeTypeOf('function');
-    expect(app.patch).toBeTypeOf('function');
-    expect(app.delete).toBeTypeOf('function');
-    expect(app.head).toBeTypeOf('function');
+    expect(app.mockMiddleware).toBeFunction();
+    expect(app.get).toBeFunction();
+    expect(app.post).toBeFunction();
+    expect(app.put).toBeFunction();
+    expect(app.patch).toBeFunction();
+    expect(app.delete).toBeFunction();
+    expect(app.head).toBeFunction();
   });
 
   it('executes a GET request and returns response', async () => {

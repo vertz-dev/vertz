@@ -7,7 +7,7 @@ import {
   ParseError,
   unwrap,
 } from '@vertz/errors';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { FetchClient } from './client';
 
 describe('FetchClient', () => {
@@ -20,7 +20,7 @@ describe('FetchClient', () => {
 
 describe('FetchClient.request', () => {
   it('makes a GET request to the correct URL', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
+    const mockFetch = mock().mockResolvedValue(
       new Response(JSON.stringify({ id: 1 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -44,7 +44,7 @@ describe('FetchClient.request', () => {
   });
 
   it('sends JSON body with POST request', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
+    const mockFetch = mock().mockResolvedValue(
       new Response(JSON.stringify({ id: 1, name: 'Alice' }), {
         status: 201,
         headers: { 'Content-Type': 'application/json' },
@@ -71,7 +71,7 @@ describe('FetchClient.request', () => {
   });
 
   it('appends query parameters to the URL', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
+    const mockFetch = mock().mockResolvedValue(
       new Response(JSON.stringify({ items: [] }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -95,7 +95,7 @@ describe('FetchClient.request', () => {
   });
 
   it('returns FetchNotFoundError for 404 response', async () => {
-    const mockFetch = vi.fn().mockImplementation(() =>
+    const mockFetch = mock().mockImplementation(() =>
       Promise.resolve(
         new Response(JSON.stringify({ error: 'not_found' }), {
           status: 404,
@@ -119,7 +119,7 @@ describe('FetchClient.request', () => {
   });
 
   it('merges config headers with per-request headers', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -138,7 +138,7 @@ describe('FetchClient.request', () => {
   });
 
   it('applies bearer auth strategy with static token', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -153,8 +153,8 @@ describe('FetchClient.request', () => {
   });
 
   it('applies bearer auth with dynamic token function', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
-    const tokenFn = vi.fn().mockResolvedValue('dynamic-token');
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const tokenFn = mock().mockResolvedValue('dynamic-token');
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -170,7 +170,7 @@ describe('FetchClient.request', () => {
   });
 
   it('applies basic auth strategy', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -186,7 +186,7 @@ describe('FetchClient.request', () => {
   });
 
   it('applies apiKey strategy to header', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -203,7 +203,7 @@ describe('FetchClient.request', () => {
   });
 
   it('applies apiKey strategy to query', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -219,7 +219,7 @@ describe('FetchClient.request', () => {
   });
 
   it('applies custom auth strategy', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -243,7 +243,7 @@ describe('FetchClient.request', () => {
 
   it('retries on 503 with exponential backoff', async () => {
     let callCount = 0;
-    const mockFetch = vi.fn().mockImplementation(() => {
+    const mockFetch = mock().mockImplementation(() => {
       callCount++;
       if (callCount < 3) {
         return Promise.resolve(
@@ -272,7 +272,7 @@ describe('FetchClient.request', () => {
   });
 
   it('throws after exhausting all retries', async () => {
-    const mockFetch = vi.fn(() =>
+    const mockFetch = mock(() =>
       Promise.resolve(
         new Response('Service Unavailable', { status: 503, statusText: 'Service Unavailable' }),
       ),
@@ -293,7 +293,7 @@ describe('FetchClient.request', () => {
   });
 
   it('does not retry non-retryable status codes', async () => {
-    const mockFetch = vi.fn().mockImplementation(() =>
+    const mockFetch = mock().mockImplementation(() =>
       Promise.resolve(
         new Response(JSON.stringify({ error: 'bad request' }), {
           status: 400,
@@ -319,7 +319,7 @@ describe('FetchClient.request', () => {
 
   it('uses custom backoff function', async () => {
     let callCount = 0;
-    const mockFetch = vi.fn().mockImplementation(() => {
+    const mockFetch = mock().mockImplementation(() => {
       callCount++;
       if (callCount < 2) {
         return Promise.resolve(
@@ -329,7 +329,7 @@ describe('FetchClient.request', () => {
       return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     });
 
-    const customBackoff = vi.fn().mockReturnValue(1);
+    const customBackoff = mock().mockReturnValue(1);
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -347,11 +347,11 @@ describe('FetchClient.request', () => {
 describe('FetchClient hooks', () => {
   it('calls beforeRequest hook before making the request', async () => {
     const callOrder: string[] = [];
-    const mockFetch = vi.fn(() => {
+    const mockFetch = mock(() => {
       callOrder.push('fetch');
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
     });
-    const beforeRequest = vi.fn(() => {
+    const beforeRequest = mock(() => {
       callOrder.push('beforeRequest');
     });
 
@@ -370,8 +370,8 @@ describe('FetchClient hooks', () => {
   });
 
   it('calls afterResponse hook after successful response', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
-    const afterResponse = vi.fn();
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const afterResponse = mock();
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -387,10 +387,10 @@ describe('FetchClient hooks', () => {
   });
 
   it('calls onError hook when request fails', async () => {
-    const mockFetch = vi.fn(() =>
+    const mockFetch = mock(() =>
       Promise.resolve(new Response('Not Found', { status: 404, statusText: 'Not Found' })),
     );
-    const onError = vi.fn();
+    const onError = mock();
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -408,14 +408,14 @@ describe('FetchClient hooks', () => {
 
   it('calls beforeRetry hook before each retry attempt', async () => {
     let callCount = 0;
-    const mockFetch = vi.fn().mockImplementation(() => {
+    const mockFetch = mock().mockImplementation(() => {
       callCount++;
       if (callCount < 3) {
         return Promise.resolve(new Response('Error', { status: 500, statusText: 'Error' }));
       }
       return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     });
-    const beforeRetry = vi.fn();
+    const beforeRetry = mock();
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -434,7 +434,7 @@ describe('FetchClient hooks', () => {
 
 describe('FetchClient timeout', () => {
   it('aborts request after configured timeout', async () => {
-    const mockFetch = vi.fn().mockImplementation(
+    const mockFetch = mock().mockImplementation(
       (request: Request) =>
         new Promise((_resolve, reject) => {
           const timer = setTimeout(() => reject(new Error('should not resolve')), 5000);
@@ -466,7 +466,7 @@ describe('FetchClient timeout', () => {
 
 describe('FetchClient edge cases', () => {
   it('skips null and undefined query values', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -485,7 +485,7 @@ describe('FetchClient edge cases', () => {
   });
 
   it('does not set Content-Type when body is not provided', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -499,8 +499,8 @@ describe('FetchClient edge cases', () => {
   });
 
   it('applies apiKey strategy with dynamic key function', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
-    const keyFn = vi.fn().mockResolvedValue('dynamic-key');
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const keyFn = mock().mockResolvedValue('dynamic-key');
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -516,7 +516,7 @@ describe('FetchClient edge cases', () => {
   });
 
   it('applies multiple auth strategies in order', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -535,7 +535,7 @@ describe('FetchClient edge cases', () => {
   });
 
   it('handles non-JSON error responses gracefully', async () => {
-    const mockFetch = vi.fn().mockImplementation(() =>
+    const mockFetch = mock().mockImplementation(() =>
       Promise.resolve(
         new Response('Internal Server Error', {
           status: 500,
@@ -558,7 +558,7 @@ describe('FetchClient edge cases', () => {
   });
 
   it('works without baseURL when full URL is provided', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
 
     const client = new FetchClient({ fetch: mockFetch });
 
@@ -569,7 +569,7 @@ describe('FetchClient edge cases', () => {
   });
 
   it('does not retry when retries is 0', async () => {
-    const mockFetch = vi.fn(() =>
+    const mockFetch = mock(() =>
       Promise.resolve(new Response('Error', { status: 500, statusText: 'Error' })),
     );
 
@@ -584,7 +584,7 @@ describe('FetchClient edge cases', () => {
   });
 
   it('passes response headers in the result', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
+    const mockFetch = mock().mockResolvedValue(
       new Response(JSON.stringify({}), {
         status: 200,
         headers: { 'X-Request-Id': 'req-123', 'X-RateLimit-Remaining': '99' },
@@ -606,8 +606,7 @@ describe('FetchClient edge cases', () => {
 
 describe('FetchClient convenience methods', () => {
   it('get() delegates to request with GET method', async () => {
-    const mockFetch = vi
-      .fn()
+    const mockFetch = mock()
       .mockResolvedValue(new Response(JSON.stringify({ users: [] }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -624,8 +623,7 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('post() sends body with POST method', async () => {
-    const mockFetch = vi
-      .fn()
+    const mockFetch = mock()
       .mockResolvedValue(new Response(JSON.stringify({ id: 1 }), { status: 201 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -643,8 +641,7 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('patch() sends body with PATCH method', async () => {
-    const mockFetch = vi
-      .fn()
+    const mockFetch = mock()
       .mockResolvedValue(new Response(JSON.stringify({ id: 1, name: 'Bob' }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -662,8 +659,7 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('put() sends body with PUT method', async () => {
-    const mockFetch = vi
-      .fn()
+    const mockFetch = mock()
       .mockResolvedValue(new Response(JSON.stringify({ id: 1 }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -681,8 +677,7 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('delete() delegates to request with DELETE method', async () => {
-    const mockFetch = vi
-      .fn()
+    const mockFetch = mock()
       .mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -699,7 +694,7 @@ describe('FetchClient convenience methods', () => {
   });
 
   it('post() passes options like headers through', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({}), { status: 201 }));
+    const mockFetch = mock().mockResolvedValue(new Response(JSON.stringify({}), { status: 201 }));
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
       fetch: mockFetch,
@@ -715,7 +710,7 @@ describe('FetchClient convenience methods', () => {
 
 describe('FetchClient network error handling', () => {
   it('should return FetchNetworkError when network fails', async () => {
-    const mockFetch = vi.fn().mockRejectedValue(new Error('Network failure'));
+    const mockFetch = mock().mockRejectedValue(new Error('Network failure'));
     const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
     const result = await client.get('/test');
     expect(result.ok).toBe(false);
@@ -725,8 +720,7 @@ describe('FetchClient network error handling', () => {
   });
 
   it('should parse serverCode from error response', async () => {
-    const mockFetch = vi
-      .fn()
+    const mockFetch = mock()
       .mockResolvedValue(
         new Response(JSON.stringify({ error: { code: 'USER_NOT_FOUND' } }), { status: 404 }),
       );
@@ -742,8 +736,7 @@ describe('FetchClient network error handling', () => {
 
 describe('FetchClient buildURL', () => {
   it('preserves base path when path starts with /', async () => {
-    const mockFetch = vi
-      .fn()
+    const mockFetch = mock()
       .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
 
     const client = new FetchClient({
@@ -758,8 +751,7 @@ describe('FetchClient buildURL', () => {
   });
 
   it('preserves base path when path has no leading /', async () => {
-    const mockFetch = vi
-      .fn()
+    const mockFetch = mock()
       .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
 
     const client = new FetchClient({
@@ -776,7 +768,7 @@ describe('FetchClient buildURL', () => {
 
 describe('FetchClient 204 No Content', () => {
   it('returns ok with undefined data for 204 response', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const mockFetch = mock().mockResolvedValue(new Response(null, { status: 204 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -792,7 +784,7 @@ describe('FetchClient 204 No Content', () => {
   });
 
   it('returns ok with undefined data for 205 response', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response(null, { status: 205 }));
+    const mockFetch = mock().mockResolvedValue(new Response(null, { status: 205 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -820,7 +812,7 @@ describe('FetchClient fetch binding', () => {
 
 describe('FetchClient parse and validation errors', () => {
   it('should return ParseError for invalid JSON', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response('not json', { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response('not json', { status: 200 }));
     const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
     const result = await client.get('/test');
     expect(result.ok).toBe(false);
@@ -833,8 +825,7 @@ describe('FetchClient parse and validation errors', () => {
     const body = {
       error: { code: 'ValidationError', errors: [{ path: 'email', message: 'Invalid email' }] },
     };
-    const mockFetch = vi
-      .fn()
+    const mockFetch = mock()
       .mockResolvedValue(new Response(JSON.stringify(body), { status: 422 }));
     const client = new FetchClient({ baseURL: 'http://localhost', fetch: mockFetch });
     const result = await client.get('/test');
@@ -848,7 +839,7 @@ describe('FetchClient parse and validation errors', () => {
 
 describe('FetchClient relative URL handling', () => {
   it('passes relative URL string to fetch instead of Request object', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
+    const mockFetch = mock().mockResolvedValue(
       new Response(JSON.stringify({ id: 1 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -867,7 +858,7 @@ describe('FetchClient relative URL handling', () => {
   });
 
   it('passes serialized body string (not ReadableStream) for POST with relative URL', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
+    const mockFetch = mock().mockResolvedValue(
       new Response(JSON.stringify({ id: 1, title: 'Test' }), {
         status: 201,
         headers: { 'Content-Type': 'application/json' },
@@ -886,7 +877,7 @@ describe('FetchClient relative URL handling', () => {
   });
 
   it('passes Request object for absolute URL (not decomposed)', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
+    const mockFetch = mock().mockResolvedValue(
       new Response(JSON.stringify({ id: 1 }), {
         status: 201,
         headers: { 'Content-Type': 'application/json' },
@@ -907,7 +898,7 @@ describe('FetchClient relative URL handling', () => {
   });
 
   it('sends correct Content-Type header for POST with relative URL', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
+    const mockFetch = mock().mockResolvedValue(
       new Response(JSON.stringify({ id: 1 }), {
         status: 201,
         headers: { 'Content-Type': 'application/json' },
@@ -923,7 +914,7 @@ describe('FetchClient relative URL handling', () => {
   });
 
   it('omits body for GET with relative URL', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
+    const mockFetch = mock().mockResolvedValue(
       new Response(JSON.stringify([]), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },

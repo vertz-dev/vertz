@@ -1,6 +1,6 @@
 import { signal } from '@vertz/ui';
 import { onCleanup, popScope, pushScope, runCleanups } from '@vertz/ui/internals';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   __append,
   __attr,

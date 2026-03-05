@@ -1,5 +1,5 @@
 import { signal } from '@vertz/ui';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { tui } from '../app';
 import { Dashboard } from '../components/Dashboard';
 import { LogStream } from '../components/LogStream';

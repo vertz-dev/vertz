@@ -61,8 +61,7 @@
     }
   },
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "bun test",
     "build": "echo 'meta-package: no build needed'"
   },
   "dependencies": {
@@ -78,7 +77,5 @@
     "@vertz/tui": "workspace:^",
     "@vertz/ui-primitives": "workspace:^"
   },
-  "devDependencies": {
-    "vitest": "^4.0.18"
-  }
+  "devDependencies": {}
 }
