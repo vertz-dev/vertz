@@ -139,9 +139,10 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           }
 
           // ── 7. Assemble output ─────────────────────────────────
-          const mapBase64 = Buffer.from(remapped.toString()).toString('base64');
-          const sourceMapComment = `\n//# sourceMappingURL=data:application/json;base64,${mapBase64}`;
 
+          // Count lines prepended before compileResult.code so we can
+          // offset the source map. Without this, breakpoints land on
+          // the wrong line in browser DevTools.
           let contents = '';
           if (cssImportLine) {
             contents += cssImportLine;
@@ -149,6 +150,19 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           if (refreshPreamble) {
             contents += refreshPreamble;
           }
+
+          const prependedLines = contents.split('\n').length - 1;
+
+          // Offset source map: each ';' in mappings represents a new line.
+          // Prepending N ';' chars adds N unmapped lines at the start,
+          // aligning the rest of the map with compileResult.code's position.
+          if (prependedLines > 0) {
+            remapped.mappings = ';'.repeat(prependedLines) + remapped.mappings;
+          }
+
+          const mapBase64 = Buffer.from(remapped.toString()).toString('base64');
+          const sourceMapComment = `\n//# sourceMappingURL=data:application/json;base64,${mapBase64}`;
+
           contents += compileResult.code;
 
           if (refreshEpilogue) {
