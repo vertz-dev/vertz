@@ -1,5 +1,30 @@
 # @vertz/cli
 
+## 0.2.5
+
+### Patch Changes
+
+- [#897](https://github.com/vertz-dev/vertz/pull/897) [`d72c099`](https://github.com/vertz-dev/vertz/commit/d72c0997f38c723a4b8c077a91b09f15eaea931f) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(release): use workspace:^ protocol and unify fixed version group
+
+  Two changes to prevent broken npm installs caused by version gaps:
+
+  1. Changed all `workspace:*` to `workspace:^` so published packages use
+     caret ranges (e.g., `"^0.2.3"`) instead of exact versions (`"0.2.3"`).
+     This makes installs resilient when an exact patch version is missing.
+
+  2. Expanded the changeset `fixed` group to include all 20 publishable
+     packages. Every release now bumps all packages to the same version,
+     eliminating version gaps between sibling dependencies.
+
+- Updated dependencies []:
+  - @vertz/codegen@0.2.5
+  - @vertz/compiler@0.2.5
+  - @vertz/create-vertz-app@0.2.5
+  - @vertz/db@0.2.5
+  - @vertz/errors@0.2.5
+  - @vertz/tui@0.2.5
+  - @vertz/ui-server@0.2.5
+
 ## 0.2.4
 
 ### Patch Changes
