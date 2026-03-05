@@ -1,6 +1,6 @@
 {
   "name": "@vertz/ui",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "type": "module",
   "license": "MIT",
   "description": "Vertz UI framework — signals, components, JSX runtime",

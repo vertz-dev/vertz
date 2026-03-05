@@ -1,5 +1,20 @@
 # @vertz/cli
 
+## 0.2.7
+
+### Patch Changes
+
+- chore: republish as 0.2.7 (0.2.6 stuck in npm ghost state)
+
+- Updated dependencies []:
+  - @vertz/codegen@0.2.7
+  - @vertz/compiler@0.2.7
+  - @vertz/create-vertz-app@0.2.7
+  - @vertz/db@0.2.7
+  - @vertz/errors@0.2.7
+  - @vertz/tui@0.2.7
+  - @vertz/ui-server@0.2.7
+
 ## 0.2.6
 
 ### Patch Changes
