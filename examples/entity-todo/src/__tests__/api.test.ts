@@ -1,7 +1,9 @@
 import type { EntityDbAdapter } from '@vertz/server';
 import { createServer } from '@vertz/server';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { webhooks } from '../api/actions/webhooks/webhooks.action';
 import { todos } from '../api/entities/todos/todos.entity';
+import { clearEmailLog, getEmailLog } from '../api/services/notifications';
 
 // In-memory DB adapter for testing
 function createInMemoryDb(): EntityDbAdapter {
@@ -57,6 +59,7 @@ function createInMemoryDb(): EntityDbAdapter {
 function createTestApp(db: EntityDbAdapter) {
   return createServer({
     entities: [todos],
+    actions: [webhooks],
     db,
   });
 }
@@ -76,6 +79,10 @@ function request(
 }
 
 describe('Entity Todo API', () => {
+  beforeEach(() => {
+    clearEmailLog();
+  });
+
   it('creates a todo via POST /api/todos', async () => {
     const db = createInMemoryDb();
     const app = createTestApp(db);
@@ -165,5 +172,65 @@ describe('Entity Todo API', () => {
     // Response should be valid JSON
     const body = await res.text();
     expect(() => JSON.parse(body)).not.toThrow();
+  });
+
+  it('sends email notification when a todo is created', async () => {
+    const db = createInMemoryDb();
+    const app = createTestApp(db);
+    await request(app, 'POST', '/api/todos', { title: 'Notify me' });
+    const log = getEmailLog();
+    expect(log).toHaveLength(1);
+    expect(log[0]?.to).toBe('team@example.com');
+    expect(log[0]?.subject).toContain('Notify me');
+  });
+
+  it('creates a todo via webhook task.created', async () => {
+    const db = createInMemoryDb();
+    const app = createTestApp(db);
+    const res = await request(app, 'POST', '/api/webhooks/sync', {
+      event: 'task.created',
+      task: { externalId: 'ext-1', title: 'From webhook', completed: false },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.ok).toBe(true);
+    expect(body.todoId).toBeDefined();
+
+    // Verify the todo was actually created
+    const listRes = await request(app, 'GET', '/api/todos');
+    const list = (await listRes.json()) as { items: Record<string, unknown>[] };
+    expect(list.items.some((t) => t.title === 'From webhook')).toBe(true);
+  });
+
+  it('marks a todo complete via webhook task.completed', async () => {
+    const db = createInMemoryDb();
+    const app = createTestApp(db);
+    // Create a todo first
+    await request(app, 'POST', '/api/todos', { title: 'Complete me', completed: false });
+
+    // Send webhook to mark it complete
+    const res = await request(app, 'POST', '/api/webhooks/sync', {
+      event: 'task.completed',
+      task: { externalId: 'ext-2', title: 'Complete me', completed: true },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.ok).toBe(true);
+    expect(body.todoId).toBeDefined();
+
+    // Verify the todo was updated
+    const getRes = await request(app, 'GET', `/api/todos/${body.todoId}`);
+    const todo = (await getRes.json()) as Record<string, unknown>;
+    expect(todo.completed).toBe(true);
+  });
+
+  it('returns 400 for invalid webhook payload', async () => {
+    const db = createInMemoryDb();
+    const app = createTestApp(db);
+    const res = await request(app, 'POST', '/api/webhooks/sync', {
+      event: 'invalid.event',
+      task: { title: 'Bad' },
+    });
+    expect(res.status).toBe(400);
   });
 });
