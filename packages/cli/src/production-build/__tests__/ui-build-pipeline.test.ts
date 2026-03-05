@@ -41,25 +41,7 @@ describe('buildUI', () => {
     tmpDir = join(import.meta.dir, `.tmp-ui-build-test-${Date.now()}`);
     mkdirSync(join(tmpDir, 'src'), { recursive: true });
 
-    // Create minimal project files
-    writeFileSync(
-      join(tmpDir, 'index.html'),
-      `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="./public/favicon.svg" />
-    <title>Test App</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <!-- Fast Refresh runtime MUST load before app to populate globalThis -->
-    <script type="module" src="./node_modules/@vertz/ui-server/dist/bun-plugin/fast-refresh-runtime.js"></script>
-    <script type="module" src="./src/entry-client.ts"></script>
-  </body>
-</html>`,
-    );
-
+    // Create minimal project files (no index.html — build generates it)
     writeFileSync(join(tmpDir, 'src', 'entry-client.ts'), 'console.log("client");');
     writeFileSync(
       join(tmpDir, 'src', 'app.tsx'),
@@ -152,24 +134,7 @@ describe('buildUI', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should return failure when index.html is missing', async () => {
-    rmSync(join(tmpDir, 'index.html'));
-
-    const result = await buildUI(config);
-
-    expect(result.success).toBe(false);
-    expect(result.error).toContain('index.html not found');
-  });
-
-  it('should remove Fast Refresh runtime from HTML output', async () => {
-    await buildUI(config);
-
-    const html = readFileSync(join(tmpDir, 'dist', 'client', 'index.html'), 'utf-8');
-    expect(html).not.toContain('fast-refresh-runtime');
-    expect(html).not.toContain('Fast Refresh runtime');
-  });
-
-  it('should inject hashed JS script tag in HTML', async () => {
+  it('should generate HTML with hashed JS script tag', async () => {
     await buildUI(config);
 
     const html = readFileSync(join(tmpDir, 'dist', 'client', 'index.html'), 'utf-8');
@@ -178,40 +143,44 @@ describe('buildUI', () => {
     expect(html).not.toContain('entry-client.ts');
   });
 
-  it('should inject CSS link tags in HTML', async () => {
+  it('should generate HTML with CSS link tags', async () => {
     await buildUI(config);
 
     const html = readFileSync(join(tmpDir, 'dist', 'client', 'index.html'), 'utf-8');
     expect(html).toContain('<link rel="stylesheet" href="/assets/vertz.css">');
   });
 
-  it('should handle /src/entry-client.ts path prefix in HTML', async () => {
-    // entity-todo uses /src/entry-client.ts (no ./ prefix)
-    writeFileSync(
-      join(tmpDir, 'index.html'),
-      `<!doctype html>
-<html lang="en">
-  <head><title>Test</title></head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/entry-client.ts"></script>
-  </body>
-</html>`,
-    );
-
+  it('should generate HTML with default title', async () => {
     await buildUI(config);
 
     const html = readFileSync(join(tmpDir, 'dist', 'client', 'index.html'), 'utf-8');
-    expect(html).not.toContain('entry-client.ts');
-    expect(html).toContain('crossorigin');
+    expect(html).toContain('<title>Vertz App</title>');
   });
 
-  it('should fix ./public/ asset paths to /', async () => {
+  it('should generate HTML with custom title', async () => {
+    await buildUI({ ...config, title: 'My Todo App' });
+
+    const html = readFileSync(join(tmpDir, 'dist', 'client', 'index.html'), 'utf-8');
+    expect(html).toContain('<title>My Todo App</title>');
+  });
+
+  it('should generate valid HTML structure', async () => {
     await buildUI(config);
 
     const html = readFileSync(join(tmpDir, 'dist', 'client', 'index.html'), 'utf-8');
+    expect(html).toContain('<!doctype html>');
+    expect(html).toContain('<div id="app"></div>');
+    expect(html).toContain('<meta charset="UTF-8"');
+    expect(html).toContain('viewport');
+  });
+
+  it('should not contain any dev-only artifacts in HTML', async () => {
+    await buildUI(config);
+
+    const html = readFileSync(join(tmpDir, 'dist', 'client', 'index.html'), 'utf-8');
+    expect(html).not.toContain('fast-refresh-runtime');
+    expect(html).not.toContain('Fast Refresh runtime');
     expect(html).not.toContain('./public/');
-    expect(html).toContain('href="/favicon.svg"');
   });
 
   it('should return failure when client build fails', async () => {

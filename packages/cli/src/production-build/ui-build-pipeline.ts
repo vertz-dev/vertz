@@ -4,7 +4,7 @@
  * Handles the full production build using Bun.build() + createVertzBunPlugin:
  * 1. Client build → browser target, minified, split, hashed assets
  * 2. CSS extraction → vertz.css from component css() calls
- * 3. HTML template → inject built assets, strip dev scripts
+ * 3. HTML generation → programmatic HTML shell with built assets
  * 4. Public assets → copy to dist/client/
  * 5. Server build → bun target, SSR with JSX runtime swap
  *
@@ -13,8 +13,8 @@
  * TypeScript without requiring bun-types in the CLI package.
  */
 
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 // Minimal ambient declaration for Bun APIs used by this module.
 // The CLI runs under Bun at runtime; these declarations let tsc validate
@@ -40,6 +40,8 @@ export interface UIBuildConfig {
   minify: boolean;
   /** Generate sourcemaps */
   sourcemap: boolean;
+  /** HTML page title (default 'Vertz App') */
+  title?: string;
 }
 
 export interface UIBuildResult {
@@ -54,22 +56,12 @@ export interface UIBuildResult {
 export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
   const startTime = performance.now();
 
-  const { projectRoot, clientEntry, serverEntry, outputDir, minify, sourcemap } = config;
+  const { projectRoot, clientEntry, serverEntry, outputDir, minify, sourcemap, title = 'Vertz App' } = config;
   const distDir = resolve(projectRoot, outputDir);
   const distClient = resolve(distDir, 'client');
   const distServer = resolve(distDir, 'server');
 
   try {
-    // Validate index.html exists
-    const indexHtmlPath = resolve(projectRoot, 'index.html');
-    if (!existsSync(indexHtmlPath)) {
-      return {
-        success: false,
-        error: `index.html not found at ${indexHtmlPath}. UI apps require an index.html in the project root.`,
-        durationMs: performance.now() - startTime,
-      };
-    }
-
     // ── Clean & create output dirs ────────────────────────────────
     rmSync(distDir, { recursive: true, force: true });
     mkdirSync(resolve(distClient, 'assets'), { recursive: true });
@@ -139,39 +131,26 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
       console.log('  CSS (extracted): /assets/vertz.css');
     }
 
-    // ── 3. HTML template processing ───────────────────────────────
-    console.log('📄 Processing HTML template...');
+    // ── 3. Generate HTML shell ────────────────────────────────────
+    console.log('📄 Generating HTML...');
 
-    let html = readFileSync(indexHtmlPath, 'utf-8');
+    const cssLinks = clientCssPaths
+      .map((path) => `    <link rel="stylesheet" href="${path}">`)
+      .join('\n');
 
-    // Replace dev script tag with built entry.
-    // Use the basename of the client entry to match regardless of path prefix
-    // (handles both ./src/entry-client.ts and /src/entry-client.ts).
-    const entryBasename = basename(clientEntry);
-    const scriptRegex = new RegExp(
-      `<script[^>]*\\bsrc=["'][^"']*${escapeRegex(entryBasename)}["'][^>]*><\\/script>`,
-    );
-    html = html.replace(
-      scriptRegex,
-      `<script type="module" crossorigin src="${clientJsPath}"></script>`,
-    );
-
-    // Remove Fast Refresh runtime script + comment (no-op if absent)
-    html = html.replace(
-      /\s*<!-- Fast Refresh runtime.*?-->\s*<script[^>]*fast-refresh-runtime[^>]*><\/script>/s,
-      '',
-    );
-
-    // Inject CSS <link> tags before </head>
-    if (clientCssPaths.length > 0) {
-      const cssLinks = clientCssPaths
-        .map((path) => `  <link rel="stylesheet" href="${path}">`)
-        .join('\n');
-      html = html.replace('</head>', `${cssLinks}\n  </head>`);
-    }
-
-    // Fix ./public/ asset paths to / (e.g. ./public/favicon.svg → /favicon.svg)
-    html = html.replace(/(['"])\.\/public\//g, '$1/');
+    const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${title}</title>
+${cssLinks}
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" crossorigin src="${clientJsPath}"></script>
+  </body>
+</html>`;
 
     writeFileSync(resolve(distClient, 'index.html'), html);
 
@@ -244,9 +223,4 @@ export async function buildUI(config: UIBuildConfig): Promise<UIBuildResult> {
       durationMs: performance.now() - startTime,
     };
   }
-}
-
-/** Escape a string for use in a regular expression */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
