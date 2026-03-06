@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { createBunAdapter } from '../bun-adapter';
 
 // Types for Bun.serve
@@ -15,39 +15,41 @@ type BunServer = {
 };
 
 // Mock the global Bun.serve that the adapter depends on
-const mockStop = vi.fn<(closeActiveConnections?: boolean) => void>();
+const mockStop = mock<(closeActiveConnections?: boolean) => void>(() => {});
 const mockServer: BunServer = {
   port: 0,
   hostname: '',
   stop: mockStop,
 };
-const mockServe = vi.fn<(options: BunServeOptions) => BunServer>(() => mockServer);
+const mockServe = mock<(options: BunServeOptions) => BunServer>(() => mockServer);
+
+// Save original so we can restore after tests
+const originalServe = Bun.serve;
 
 beforeEach(() => {
-  // Install the global Bun mock before each test
-  (globalThis as Record<string, unknown>).Bun = { serve: mockServe };
+  // Override Bun.serve with our mock (Bun.serve is writable)
+  (Bun as Record<string, unknown>).serve = mockServe;
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
   mockServe.mockClear();
   mockStop.mockClear();
-  // Clean up global
-  delete (globalThis as Record<string, unknown>).Bun;
+  // Restore original Bun.serve
+  (Bun as Record<string, unknown>).serve = originalServe;
 });
 
 describe('createBunAdapter', () => {
   describe('listen', () => {
     it('passes the port and handler to Bun.serve', async () => {
       const adapter = createBunAdapter();
-      const handler = vi.fn();
+      const handler = mock(() => new Response());
 
       mockServer.port = 4000;
       mockServer.hostname = 'localhost';
 
       await adapter.listen(4000, handler);
 
-      expect(mockServe).toHaveBeenCalledOnce();
+      expect(mockServe).toHaveBeenCalledTimes(1);
       const serveArg = mockServe.mock.calls[0]?.[0];
       expect(serveArg?.port).toBe(4000);
       expect(serveArg?.fetch).toBe(handler);
@@ -55,7 +57,7 @@ describe('createBunAdapter', () => {
 
     it('passes hostname from options to Bun.serve', async () => {
       const adapter = createBunAdapter();
-      const handler = vi.fn();
+      const handler = mock(() => new Response());
 
       mockServer.port = 3000;
       mockServer.hostname = '0.0.0.0';
@@ -68,7 +70,7 @@ describe('createBunAdapter', () => {
 
     it('passes undefined hostname when no options are provided', async () => {
       const adapter = createBunAdapter();
-      const handler = vi.fn();
+      const handler = mock(() => new Response());
 
       mockServer.port = 3000;
       mockServer.hostname = 'localhost';
@@ -81,7 +83,7 @@ describe('createBunAdapter', () => {
 
     it('passes undefined hostname when options exist but hostname is omitted', async () => {
       const adapter = createBunAdapter();
-      const handler = vi.fn();
+      const handler = mock(() => new Response());
 
       mockServer.port = 3000;
       mockServer.hostname = 'localhost';
@@ -99,7 +101,7 @@ describe('createBunAdapter', () => {
       // non-default hostname ensures a broken implementation like `options?.hostname ?? '0.0.0.0'`
       // would fail this test.
       const adapter = createBunAdapter();
-      const handler = vi.fn();
+      const handler = mock(() => new Response());
 
       mockServer.port = 3000;
       mockServer.hostname = '192.168.1.100'; // server returns this even though no hostname option was provided
@@ -111,7 +113,7 @@ describe('createBunAdapter', () => {
 
     it('propagates errors thrown by Bun.serve to the caller', async () => {
       const adapter = createBunAdapter();
-      const handler = vi.fn();
+      const handler = mock(() => new Response());
 
       mockServe.mockImplementationOnce(() => {
         throw new Error('address already in use');
@@ -122,7 +124,7 @@ describe('createBunAdapter', () => {
 
     it('returns a ServerHandle whose close() stops the server with active connections closed', async () => {
       const adapter = createBunAdapter();
-      const handler = vi.fn();
+      const handler = mock(() => new Response());
 
       mockServer.port = 3000;
       mockServer.hostname = 'localhost';
@@ -133,13 +135,13 @@ describe('createBunAdapter', () => {
 
       await handle.close();
 
-      expect(mockStop).toHaveBeenCalledOnce();
+      expect(mockStop).toHaveBeenCalledTimes(1);
       expect(mockStop).toHaveBeenCalledWith(true);
     });
 
     it('reflects the actual port Bun.serve binds to (e.g. when Bun picks a different port)', async () => {
       const adapter = createBunAdapter();
-      const handler = vi.fn();
+      const handler = mock(() => new Response());
 
       // Simulate Bun picking a different port than requested (e.g. port 0 → random port)
       mockServer.port = 54321;

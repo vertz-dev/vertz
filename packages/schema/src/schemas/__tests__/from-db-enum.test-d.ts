@@ -1,4 +1,5 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
+import type { Equal, Expect, Unwrap } from '../../__tests__/_type-helpers';
 import { s } from '../../index';
 
 describe('s.fromDbEnum type inference', () => {
@@ -10,8 +11,8 @@ describe('s.fromDbEnum type inference', () => {
     };
 
     const schema = s.fromDbEnum(dbColumn);
-    type Result = ReturnType<typeof schema.parse>;
-    expectTypeOf<Result>().toEqualTypeOf<'todo' | 'in_progress' | 'done'>();
+    type Result = Unwrap<ReturnType<typeof schema.parse>>;
+    type _t1 = Expect<Equal<Result, 'todo' | 'in_progress' | 'done'>>;
   });
 
   it('rejects columns without enumValues at type level', () => {

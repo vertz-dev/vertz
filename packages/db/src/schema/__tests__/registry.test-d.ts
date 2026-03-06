@@ -1,4 +1,5 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
+import type { Equal, Expect, Extends } from '../../__tests__/_type-helpers';
 import { d } from '../../d';
 import type { ModelEntry } from '../inference';
 import { createRegistry } from '../registry';
@@ -36,10 +37,10 @@ describe('d.entry() types', () => {
   it('returns ModelEntry with empty relations when called with table only', () => {
     const entry = d.entry(users);
 
-    expectTypeOf(entry).toMatchTypeOf<ModelEntry>();
-    expectTypeOf(entry.table).toEqualTypeOf<typeof users>();
+    type _t1 = Expect<Extends<typeof entry, ModelEntry>>;
+    type _t2 = Expect<Equal<typeof entry.table, typeof users>>;
     // biome-ignore lint/complexity/noBannedTypes: testing that the actual return type is {} (empty relations)
-    expectTypeOf(entry.relations).toEqualTypeOf<{}>();
+    type _t3 = Expect<Equal<typeof entry.relations, {}>>;
   });
 
   it('returns ModelEntry with typed relations when called with table and relations', () => {
@@ -50,10 +51,10 @@ describe('d.entry() types', () => {
 
     const entry = d.entry(posts, postRelations);
 
-    expectTypeOf(entry).toMatchTypeOf<ModelEntry>();
-    expectTypeOf(entry.table).toEqualTypeOf<typeof posts>();
-    expectTypeOf(entry.relations.author._type).toEqualTypeOf<'one'>();
-    expectTypeOf(entry.relations.comments._type).toEqualTypeOf<'many'>();
+    type _t1 = Expect<Extends<typeof entry, ModelEntry>>;
+    type _t2 = Expect<Equal<typeof entry.table, typeof posts>>;
+    type _t3 = Expect<Equal<typeof entry.relations.author._type, 'one'>>;
+    type _t4 = Expect<Equal<typeof entry.relations.comments._type, 'many'>>;
   });
 
   it('entry result satisfies Record<string, ModelEntry>', () => {
@@ -66,8 +67,8 @@ describe('d.entry() types', () => {
       posts: d.entry(posts, postRelations),
     } satisfies Record<string, ModelEntry>;
 
-    expectTypeOf(models.users).toMatchTypeOf<ModelEntry>();
-    expectTypeOf(models.posts).toMatchTypeOf<ModelEntry>();
+    type _t1 = Expect<Extends<typeof models.users, ModelEntry>>;
+    type _t2 = Expect<Extends<typeof models.posts, ModelEntry>>;
   });
 
   it('rejects non-table first argument', () => {
@@ -163,7 +164,7 @@ describe('createRegistry() types', () => {
       },
     }));
 
-    expectTypeOf(models).toMatchTypeOf<Record<string, ModelEntry>>();
+    type _t1 = Expect<Extends<typeof models, Record<string, ModelEntry>>>;
   });
 
   it('preserves specific table and relation types in output', () => {
@@ -174,12 +175,12 @@ describe('createRegistry() types', () => {
     }));
 
     // Table types are preserved
-    expectTypeOf(models.users.table).toEqualTypeOf<typeof users>();
-    expectTypeOf(models.posts.table).toEqualTypeOf<typeof posts>();
-    expectTypeOf(models.comments.table).toEqualTypeOf<typeof comments>();
+    type _t1 = Expect<Equal<typeof models.users.table, typeof users>>;
+    type _t2 = Expect<Equal<typeof models.posts.table, typeof posts>>;
+    type _t3 = Expect<Equal<typeof models.comments.table, typeof comments>>;
 
     // Relation types are preserved
-    expectTypeOf(models.posts.relations.author).toMatchTypeOf<RelationDef<typeof users, 'one'>>();
+    type _t4 = Expect<Extends<typeof models.posts.relations.author, RelationDef<typeof users, 'one'>>>;
   });
 
   it('tables without relations get empty relations object', () => {
@@ -191,6 +192,6 @@ describe('createRegistry() types', () => {
 
     // Users has no explicit relations — should have empty object type
     // biome-ignore lint/complexity/noBannedTypes: testing that the actual return type is {} (empty relations)
-    expectTypeOf(models.users.relations).toEqualTypeOf<{}>();
+    type _t1 = Expect<Equal<typeof models.users.relations, {}>>;
   });
 });
