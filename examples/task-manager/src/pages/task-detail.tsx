@@ -69,6 +69,21 @@ export function TaskDetailPage() {
   // Tab state — compiler transforms `let` to signal()
   let activeTab = 'details';
 
+  // Derived value — top-level so the compiler wraps in computed().
+  // Guard for when data hasn't loaded yet.
+  const transitions: Array<{ label: string; status: TaskStatus }> = !taskQuery.data
+    ? []
+    : taskQuery.data.status === 'todo'
+      ? [{ label: 'Start', status: 'in-progress' }]
+      : taskQuery.data.status === 'in-progress'
+        ? [
+            { label: 'Complete', status: 'done' },
+            { label: 'Back to Todo', status: 'todo' },
+          ]
+        : taskQuery.data.status === 'done'
+          ? [{ label: 'Reopen', status: 'in-progress' }]
+          : [];
+
   // ── queryMatch for exclusive-state rendering ───────
 
   const taskContent = queryMatch(taskQuery, {
@@ -78,20 +93,7 @@ export function TaskDetailPage() {
         {`Failed to load task: ${err instanceof Error ? err.message : String(err)}`}
       </div>
     ),
-    data: () => {
-      const transitions: Array<{ label: string; status: TaskStatus }> =
-        taskQuery.data.status === 'todo'
-          ? [{ label: 'Start', status: 'in-progress' }]
-          : taskQuery.data.status === 'in-progress'
-            ? [
-                { label: 'Complete', status: 'done' },
-                { label: 'Back to Todo', status: 'todo' },
-              ]
-            : taskQuery.data.status === 'done'
-              ? [{ label: 'Reopen', status: 'in-progress' }]
-              : [];
-
-      return (
+    data: () => (
         <div data-testid="task-content">
           <button
             class={button({ intent: 'ghost', size: 'sm' })}
@@ -209,8 +211,7 @@ export function TaskDetailPage() {
             )}
           </div>
         </div>
-      );
-    },
+    ),
   });
 
   return (
