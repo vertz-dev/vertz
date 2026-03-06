@@ -153,7 +153,7 @@ export function TaskDetailPage() {
                     console.error('Failed to update task:', result.error.message);
                     return;
                   }
-                  taskQuery.revalidate();
+                  taskQuery.refetch();
                 }}
               >
                 {tr.label}

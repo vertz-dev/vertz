@@ -5,15 +5,36 @@
  * - query() with descriptor-based data fetching
  * - queryMatch() for exclusive-state pattern matching (loading/error/data)
  * - Compiler `const` → computed transform for derived values from query()
- * - Compiler list transform: {items.map(...)} → __list()
+ * - ListTransition for animated list item enter/exit
  */
 
-import { css, query, queryMatch } from '@vertz/ui';
+import {
+  ANIMATION_DURATION,
+  ANIMATION_EASING,
+  ListTransition,
+  css,
+  fadeOut,
+  globalCss,
+  query,
+  queryMatch,
+  slideInFromTop,
+} from '@vertz/ui';
 import type { TodosResponse } from '../api/client';
 import { api } from '../api/client';
 import { TodoForm } from '../components/todo-form';
 import { TodoItem } from '../components/todo-item';
 import { emptyStateStyles } from '../styles/components';
+
+// Side-effect: injects global data-presence animation rules
+void globalCss({
+  '[data-presence="enter"]': {
+    animation: `${slideInFromTop} ${ANIMATION_DURATION} ${ANIMATION_EASING}`,
+  },
+  '[data-presence="exit"]': {
+    animation: `${fadeOut} ${ANIMATION_DURATION} ${ANIMATION_EASING}`,
+    overflow: 'hidden',
+  },
+});
 
 const pageStyles = css({
   container: ['py:2', 'w:full'],
@@ -57,9 +78,9 @@ export function TodoListPage() {
               {err instanceof Error ? err.message : String(err)}
             </div>
           ),
-          data: (response) => (
+          data: () => (
             <>
-              {response.items.length === 0 && (
+              {todosQuery.data.items.length === 0 && (
                 <div class={emptyStateStyles.container}>
                   <h3 class={emptyStateStyles.heading}>No todos yet</h3>
                   <p class={emptyStateStyles.description}>
@@ -68,16 +89,19 @@ export function TodoListPage() {
                 </div>
               )}
               <div data-testid="todo-list" class={pageStyles.todoList}>
-                {response.items.map((todo: TodosResponse) => (
-                  <TodoItem
-                    key={todo.id}
-                    id={todo.id}
-                    title={todo.title}
-                    completed={todo.completed}
-                    onToggle={handleToggle}
-                    onDelete={handleDelete}
-                  />
-                ))}
+                <ListTransition
+                  each={todosQuery.data.items}
+                  keyFn={(todo: TodosResponse) => todo.id}
+                  children={(todo: TodosResponse) => (
+                    <TodoItem
+                      id={todo.id}
+                      title={todo.title}
+                      completed={todo.completed}
+                      onToggle={handleToggle}
+                      onDelete={handleDelete}
+                    />
+                  )}
+                />
               </div>
             </>
           ),

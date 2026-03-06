@@ -224,7 +224,7 @@ describe('queryMatch()', () => {
     second.dispose();
   });
 
-  test('re-runs data handler when data signal changes within data branch', () => {
+  test('does NOT re-run data handler when data signal changes within data branch', () => {
     const qr = fakeQueryResult<{ count: number }>({
       loading: false,
       data: { count: 1 },
@@ -243,11 +243,13 @@ describe('queryMatch()', () => {
 
     expect(handlerCallCount).toBe(1);
 
-    // Data changes → handler re-runs (compiler doesn't yet generate __list()
-    // inside queryMatch callbacks, so .map() creates static DOM)
+    // Data changes within the same branch → handler does NOT re-run.
+    // The data handler receives a Proxy that reads from the data signal
+    // on every property access, so __list() and ListTransition domEffects
+    // re-run automatically when data changes.
     qr._data.value = { count: 2 };
 
-    expect(handlerCallCount).toBe(2);
+    expect(handlerCallCount).toBe(1);
 
     wrapper.dispose();
   });
