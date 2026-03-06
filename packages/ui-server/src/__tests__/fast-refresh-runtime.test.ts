@@ -351,7 +351,7 @@ describe('Fast Refresh Runtime', () => {
         el.textContent = 'v2';
         return el;
       };
-      __$refreshReg('mod1', 'App', factoryV2);
+      __$refreshReg('mod1', 'App', wrapFactory('mod1', 'App', factoryV2));
       __$refreshPerform('mod1');
 
       // Named signals restored by key — not position
@@ -391,7 +391,7 @@ describe('Fast Refresh Runtime', () => {
         el.textContent = 'v2';
         return el;
       };
-      __$refreshReg('mod1', 'App', factoryV2);
+      __$refreshReg('mod1', 'App', wrapFactory('mod1', 'App', factoryV2));
       __$refreshPerform('mod1');
 
       // Restored by name despite different positions
@@ -432,7 +432,7 @@ describe('Fast Refresh Runtime', () => {
         el.textContent = 'v2';
         return el;
       };
-      __$refreshReg('mod1', 'App', factoryV2);
+      __$refreshReg('mod1', 'App', wrapFactory('mod1', 'App', factoryV2));
       __$refreshPerform('mod1');
 
       expect(v2A!.peek()).toBe(42);
@@ -463,7 +463,7 @@ describe('Fast Refresh Runtime', () => {
         el.textContent = 'v2';
         return el;
       };
-      __$refreshReg('mod1', 'App', factoryV2);
+      __$refreshReg('mod1', 'App', wrapFactory('mod1', 'App', factoryV2));
       __$refreshPerform('mod1');
 
       // Different name → no match → keeps initial value
@@ -499,7 +499,7 @@ describe('Fast Refresh Runtime', () => {
         el.textContent = 'v2';
         return el;
       };
-      __$refreshReg('mod1', 'App', factoryV2);
+      __$refreshReg('mod1', 'App', wrapFactory('mod1', 'App', factoryV2));
       __$refreshPerform('mod1');
 
       // Unnamed: position-based matching (same count, same order)
