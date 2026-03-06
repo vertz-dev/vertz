@@ -94,123 +94,126 @@ export function TaskDetailPage() {
       </div>
     ),
     data: () => (
-        <div data-testid="task-content">
-          <button
-            class={button({ intent: 'ghost', size: 'sm' })}
-            style="margin-bottom: 1rem"
-            onClick={() => navigate('/')}
-          >
-            <Icon name="ArrowLeft" size={14} />
-            Back to Tasks
-          </button>
-          <div class={detailStyles.header}>
-            <div class={detailStyles.titleArea}>
-              <h1 class={detailStyles.title} data-testid="task-title">
-                {taskQuery.data.title}
-              </h1>
-              <div class={detailStyles.meta}>
-                {`Created ${new Date(taskQuery.data.createdAt).toLocaleDateString()} · Updated ${new Date(taskQuery.data.updatedAt).toLocaleDateString()}`}
-              </div>
-            </div>
-            <div class={detailStyles.actions}>
-              <ConfirmDialog
-                triggerLabel="Delete"
-                title="Delete Task"
-                description={`Are you sure you want to delete "${taskQuery.data.title}"? This action cannot be undone.`}
-                confirmLabel="Delete Task"
-                onConfirm={async () => {
-                  const result = await api.tasks.delete(taskId);
-                  if (!result.ok) {
-                    console.error('Failed to delete task:', result.error.message);
-                    return;
-                  }
-                  navigate('/');
-                }}
-              />
+      <div data-testid="task-content">
+        <button
+          type="button"
+          class={button({ intent: 'ghost', size: 'sm' })}
+          style="margin-bottom: 1rem"
+          onClick={() => navigate('/')}
+        >
+          <Icon name="ArrowLeft" size={14} />
+          Back to Tasks
+        </button>
+        <div class={detailStyles.header}>
+          <div class={detailStyles.titleArea}>
+            <h1 class={detailStyles.title} data-testid="task-title">
+              {taskQuery.data.title}
+            </h1>
+            <div class={detailStyles.meta}>
+              {`Created ${new Date(taskQuery.data.createdAt).toLocaleDateString()} · Updated ${new Date(taskQuery.data.updatedAt).toLocaleDateString()}`}
             </div>
           </div>
-          <div class={detailStyles.statusBar} data-testid="status-bar">
-            <span
-              class={badge({
-                color:
-                  taskQuery.data.status === 'done'
-                    ? 'green'
-                    : taskQuery.data.status === 'in-progress'
-                      ? 'blue'
-                      : 'gray',
-              })}
-            >
-              {taskQuery.data.status === 'in-progress'
-                ? 'In Progress'
-                : taskQuery.data.status === 'done'
-                  ? 'Done'
-                  : 'To Do'}
-            </span>
-            {transitions.map((tr) => (
-              <button
-                class={button({ intent: 'secondary', size: 'sm' })}
-                onClick={async () => {
-                  const result = await api.tasks.update(taskId, { status: tr.status });
-                  if (!result.ok) {
-                    console.error('Failed to update task:', result.error.message);
-                    return;
-                  }
-                  taskQuery.refetch();
-                }}
-              >
-                {tr.label}
-              </button>
-            ))}
-          </div>
-          <div style="margin-top: 1.5rem">
-            <div
-              role="tablist"
-              style="display: flex; gap: 0.5rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.5rem; margin-bottom: 1rem"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'details' ? 'true' : 'false'}
-                class={button({
-                  intent: activeTab === 'details' ? 'primary' : 'ghost',
-                  size: 'sm',
-                })}
-                onClick={() => {
-                  activeTab = 'details';
-                }}
-              >
-                Details
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'activity' ? 'true' : 'false'}
-                class={button({
-                  intent: activeTab === 'activity' ? 'primary' : 'ghost',
-                  size: 'sm',
-                })}
-                onClick={() => {
-                  activeTab = 'activity';
-                }}
-              >
-                Activity
-              </button>
-            </div>
-            {activeTab === 'details' && (
-              <div class={detailStyles.section}>
-                <h3 class={detailStyles.sectionTitle}>Description</h3>
-                <div class={detailStyles.description} data-testid="task-description">
-                  {taskQuery.data.description}
-                </div>
-              </div>
-            )}
-            {activeTab === 'activity' && (
-              <div class={detailStyles.timeline}>
-                No activity yet. Status changes and comments will appear here.
-              </div>
-            )}
+          <div class={detailStyles.actions}>
+            <ConfirmDialog
+              triggerLabel="Delete"
+              title="Delete Task"
+              description={`Are you sure you want to delete "${taskQuery.data.title}"? This action cannot be undone.`}
+              confirmLabel="Delete Task"
+              onConfirm={async () => {
+                const result = await api.tasks.delete(taskId);
+                if (!result.ok) {
+                  console.error('Failed to delete task:', result.error.message);
+                  return;
+                }
+                navigate('/');
+              }}
+            />
           </div>
         </div>
+        <div class={detailStyles.statusBar} data-testid="status-bar">
+          <span
+            class={badge({
+              color:
+                taskQuery.data.status === 'done'
+                  ? 'green'
+                  : taskQuery.data.status === 'in-progress'
+                    ? 'blue'
+                    : 'gray',
+            })}
+          >
+            {taskQuery.data.status === 'in-progress'
+              ? 'In Progress'
+              : taskQuery.data.status === 'done'
+                ? 'Done'
+                : 'To Do'}
+          </span>
+          {transitions.map((tr) => (
+            <button
+              type="button"
+              key={tr.status}
+              class={button({ intent: 'secondary', size: 'sm' })}
+              onClick={async () => {
+                const result = await api.tasks.update(taskId, { status: tr.status });
+                if (!result.ok) {
+                  console.error('Failed to update task:', result.error.message);
+                  return;
+                }
+                taskQuery.refetch();
+              }}
+            >
+              {tr.label}
+            </button>
+          ))}
+        </div>
+        <div style="margin-top: 1.5rem">
+          <div
+            role="tablist"
+            style="display: flex; gap: 0.5rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.5rem; margin-bottom: 1rem"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'details' ? 'true' : 'false'}
+              class={button({
+                intent: activeTab === 'details' ? 'primary' : 'ghost',
+                size: 'sm',
+              })}
+              onClick={() => {
+                activeTab = 'details';
+              }}
+            >
+              Details
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'activity' ? 'true' : 'false'}
+              class={button({
+                intent: activeTab === 'activity' ? 'primary' : 'ghost',
+                size: 'sm',
+              })}
+              onClick={() => {
+                activeTab = 'activity';
+              }}
+            >
+              Activity
+            </button>
+          </div>
+          {activeTab === 'details' && (
+            <div class={detailStyles.section}>
+              <h3 class={detailStyles.sectionTitle}>Description</h3>
+              <div class={detailStyles.description} data-testid="task-description">
+                {taskQuery.data.description}
+              </div>
+            </div>
+          )}
+          {activeTab === 'activity' && (
+            <div class={detailStyles.timeline}>
+              No activity yet. Status changes and comments will appear here.
+            </div>
+          )}
+        </div>
+      </div>
     ),
   });
 
