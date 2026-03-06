@@ -101,6 +101,15 @@ const dirtyModules: Set<string> = ((globalThis as Record<symbol, Set<string>>)[D
 let performingRefresh = false;
 
 /**
+ * During __$refreshPerform, the factory wrapper's signal collection intercepts
+ * all signals before __$refreshPerform's own collector can see them (stack-based
+ * nesting). The wrapper passes collected signals to __$refreshTrack, which
+ * normally discards them during refresh. Instead, we stash them here so
+ * __$refreshPerform can retrieve them.
+ */
+let refreshSignals: SignalRef[] | null = null;
+
+/**
  * Get or create the component map for a module.
  */
 function getModule(moduleId: string): Map<string, ComponentRecord> {
@@ -159,7 +168,12 @@ export function __$refreshTrack(
 ): HTMLElement {
   // During __$refreshPerform, the factory wrapper calls __$refreshTrack.
   // Skip tracking here — __$refreshPerform manages instances itself.
-  if (performingRefresh) return element;
+  // But stash the signals so __$refreshPerform can retrieve them (the wrapper's
+  // signal collection intercepts them before __$refreshPerform's collector).
+  if (performingRefresh) {
+    refreshSignals = signals;
+    return element;
+  }
 
   const mod = registry.get(moduleId);
   if (!mod) return element;
@@ -219,16 +233,20 @@ export function __$refreshPerform(moduleId: string): void {
       let newSignals: SignalRef[];
       let newContextScope: ContextScope | null;
       try {
-        // 3. Collect signals during factory re-execution
-        startSignalCollection();
+        // 3. Re-execute the factory. Signal collection is handled by the
+        //    factory wrapper (which calls startSignalCollection/stopSignalCollection
+        //    internally). The wrapper passes collected signals to __$refreshTrack,
+        //    which stashes them in `refreshSignals` during refresh mode.
+        refreshSignals = null;
         newElement = factory(...args);
-        newSignals = stopSignalCollection() as SignalRef[];
+        newSignals = refreshSignals ?? ([] as SignalRef[]);
+        refreshSignals = null;
         // Capture the context scope established during factory execution
         newContextScope = getContextScope();
       } catch (err) {
-        // Factory failed — clean up signal collection, run any partial
-        // cleanups registered during the failed execution, and keep old instance.
-        stopSignalCollection();
+        // Factory failed — run any partial cleanups registered during
+        // the failed execution, and keep old instance.
+        refreshSignals = null;
         runCleanups(newCleanups);
         popScope();
         setContextScope(prevScope);
