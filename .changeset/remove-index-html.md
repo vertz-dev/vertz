@@ -1,6 +1,6 @@
 ---
-'@vertz/cli': minor
-'@vertz/ui-server': minor
+'@vertz/cli': patch
+'@vertz/ui-server': patch
 ---
 
 Remove index.html from the framework
