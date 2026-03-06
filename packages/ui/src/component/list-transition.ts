@@ -15,7 +15,7 @@ export interface ListTransitionProps<T> {
  * Props are accessed as getters (not destructured) so the compiler-generated
  * reactive getters are tracked by the underlying domEffect.
  */
-export function ListTransition<T>(props: ListTransitionProps<T>): Node {
+export function ListTransition<T>(props: ListTransitionProps<T>): DocumentFragment {
   const startMarker = document.createComment('lt-start');
   const endMarker = document.createComment('lt-end');
   const fragment = document.createDocumentFragment();
