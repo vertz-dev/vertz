@@ -5,7 +5,10 @@ import type { RouteConfigLike, RouteDefinitionMap } from './define-routes';
 import type { Router } from './navigate';
 import type { ExtractParams } from './params';
 
-export const RouterContext: Context<Router> = createContext<Router>();
+export const RouterContext: Context<Router> = createContext<Router>(
+  undefined,
+  '@vertz/ui::RouterContext',
+);
 
 export function useRouter<
   T extends Record<string, RouteConfigLike> = RouteDefinitionMap,

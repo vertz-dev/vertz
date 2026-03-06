@@ -316,6 +316,33 @@ describe('__conditional', () => {
     expect(container.textContent).not.toContain('false');
   });
 
+  it('nested conditional: DOM content is cleaned up when outer branch switches', () => {
+    const status = signal('done');
+    const container = document.createElement('div');
+
+    // Simulates: {status === 'in-progress' ? 'In Progress' : status === 'done' ? 'Done' : 'To Do'}
+    const fragment = __conditional(
+      () => status.value === 'in-progress',
+      () => 'In Progress' as unknown as Node,
+      () =>
+        __conditional(
+          () => status.value === 'done',
+          () => 'Done' as unknown as Node,
+          () => 'To Do' as unknown as Node,
+        ),
+    );
+    container.appendChild(fragment);
+    expect(container.textContent).toBe('Done');
+
+    // Switch to in-progress — old "Done" must be removed
+    status.value = 'in-progress';
+    expect(container.textContent).toBe('In Progress');
+
+    // Switch back to done — old "In Progress" must be removed
+    status.value = 'done';
+    expect(container.textContent).toBe('Done');
+  });
+
   it('handles both branches returning null without crashing', () => {
     const show = signal(true);
     const container = document.createElement('div');
