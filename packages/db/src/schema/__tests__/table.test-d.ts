@@ -1,4 +1,5 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
+import type { Equal, Expect, HasKey, Not } from '../../__tests__/_type-helpers';
 import { d } from '../../d';
 
 // ---------------------------------------------------------------------------
@@ -24,32 +25,32 @@ describe('$infer', () => {
   it('includes all non-hidden columns with correct types', () => {
     type User = typeof users.$infer;
 
-    expectTypeOf<User>().toHaveProperty('id');
-    expectTypeOf<User>().toHaveProperty('email');
-    expectTypeOf<User>().toHaveProperty('name');
-    expectTypeOf<User>().toHaveProperty('role');
-    expectTypeOf<User>().toHaveProperty('bio');
-    expectTypeOf<User>().toHaveProperty('active');
-    expectTypeOf<User>().toHaveProperty('createdAt');
+    type _t1 = Expect<HasKey<User, 'id'>>;
+    type _t2 = Expect<HasKey<User, 'email'>>;
+    type _t3 = Expect<HasKey<User, 'name'>>;
+    type _t4 = Expect<HasKey<User, 'role'>>;
+    type _t5 = Expect<HasKey<User, 'bio'>>;
+    type _t6 = Expect<HasKey<User, 'active'>>;
+    type _t7 = Expect<HasKey<User, 'createdAt'>>;
   });
 
   it('excludes hidden columns from $infer', () => {
     type User = typeof users.$infer;
 
     // passwordHash is .is('hidden') -- should NOT appear on $infer
-    expectTypeOf<User>().not.toHaveProperty('passwordHash');
+    type _t1 = Expect<Not<HasKey<User, 'passwordHash'>>>;
   });
 
   it('infers correct TypeScript types for each column', () => {
     type User = typeof users.$infer;
 
-    expectTypeOf<User['id']>().toEqualTypeOf<string>();
-    expectTypeOf<User['email']>().toEqualTypeOf<string>();
-    expectTypeOf<User['name']>().toEqualTypeOf<string>();
-    expectTypeOf<User['role']>().toEqualTypeOf<'admin' | 'editor' | 'viewer'>();
-    expectTypeOf<User['bio']>().toEqualTypeOf<string | null>();
-    expectTypeOf<User['active']>().toEqualTypeOf<boolean>();
-    expectTypeOf<User['createdAt']>().toEqualTypeOf<Date>();
+    type _t1 = Expect<Equal<User['id'], string>>;
+    type _t2 = Expect<Equal<User['email'], string>>;
+    type _t3 = Expect<Equal<User['name'], string>>;
+    type _t4 = Expect<Equal<User['role'], 'admin' | 'editor' | 'viewer'>>;
+    type _t5 = Expect<Equal<User['bio'], string | null>>;
+    type _t6 = Expect<Equal<User['active'], boolean>>;
+    type _t7 = Expect<Equal<User['createdAt'], Date>>;
   });
 });
 
@@ -61,19 +62,19 @@ describe('$infer_all', () => {
   it('includes ALL columns including hidden', () => {
     type UserFull = typeof users.$infer_all;
 
-    expectTypeOf<UserFull>().toHaveProperty('id');
-    expectTypeOf<UserFull>().toHaveProperty('email');
-    expectTypeOf<UserFull>().toHaveProperty('passwordHash');
-    expectTypeOf<UserFull>().toHaveProperty('name');
-    expectTypeOf<UserFull>().toHaveProperty('role');
-    expectTypeOf<UserFull>().toHaveProperty('bio');
-    expectTypeOf<UserFull>().toHaveProperty('active');
-    expectTypeOf<UserFull>().toHaveProperty('createdAt');
+    type _t1 = Expect<HasKey<UserFull, 'id'>>;
+    type _t2 = Expect<HasKey<UserFull, 'email'>>;
+    type _t3 = Expect<HasKey<UserFull, 'passwordHash'>>;
+    type _t4 = Expect<HasKey<UserFull, 'name'>>;
+    type _t5 = Expect<HasKey<UserFull, 'role'>>;
+    type _t6 = Expect<HasKey<UserFull, 'bio'>>;
+    type _t7 = Expect<HasKey<UserFull, 'active'>>;
+    type _t8 = Expect<HasKey<UserFull, 'createdAt'>>;
   });
 
   it('passwordHash is string in $infer_all', () => {
     type UserFull = typeof users.$infer_all;
-    expectTypeOf<UserFull['passwordHash']>().toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<UserFull['passwordHash'], string>>;
   });
 });
 
@@ -173,7 +174,7 @@ describe('$update', () => {
     type UserUpdate = typeof users.$update;
 
     // id is primary -- should NOT appear on $update
-    expectTypeOf<UserUpdate>().not.toHaveProperty('id');
+    type _t1 = Expect<Not<HasKey<UserUpdate, 'id'>>>;
   });
 
   it('includes hidden columns in update (visibility is read-side only)', () => {
@@ -209,7 +210,7 @@ const tenantUsers = d.table('tenant_users', {
 describe('d.tenant() type inference', () => {
   it('tenant column infers as string (UUID type)', () => {
     type TUser = typeof tenantUsers.$infer;
-    expectTypeOf<TUser['organizationId']>().toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<TUser['organizationId'], string>>;
   });
 
   it('tenant column carries isTenant: true in metadata type', () => {
@@ -222,7 +223,7 @@ describe('d.tenant() type inference', () => {
 
   it('tenant column carries references metadata in type', () => {
     type Refs = typeof tenantUsers._columns.organizationId._meta.references;
-    expectTypeOf<Refs>().toEqualTypeOf<{ readonly table: string; readonly column: string }>();
+    type _t1 = Expect<Equal<Refs, { readonly table: string; readonly column: string }>>;
   });
 
   it('non-tenant columns have isTenant: false in metadata type', () => {
@@ -260,8 +261,8 @@ describe('.shared() type', () => {
       .shared();
 
     type Flag = typeof flags.$infer;
-    expectTypeOf<Flag['id']>().toEqualTypeOf<string>();
-    expectTypeOf<Flag['name']>().toEqualTypeOf<string>();
-    expectTypeOf<Flag['enabled']>().toEqualTypeOf<boolean>();
+    type _t1 = Expect<Equal<Flag['id'], string>>;
+    type _t2 = Expect<Equal<Flag['name'], string>>;
+    type _t3 = Expect<Equal<Flag['enabled'], boolean>>;
   });
 });

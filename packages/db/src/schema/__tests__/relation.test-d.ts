@@ -1,4 +1,5 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
+import type { Equal, Expect, Extends, HasKey } from '../../__tests__/_type-helpers';
 import { d } from '../../d';
 import type { RelationDef } from '../relation';
 import type { ColumnRecord, TableDef } from '../table';
@@ -32,24 +33,24 @@ describe('relation types', () => {
   it('d.ref.one() carries target table type', () => {
     const rel = d.ref.one(() => users, 'authorId');
 
-    expectTypeOf(rel).toMatchTypeOf<RelationDef<typeof users, 'one'>>();
-    expectTypeOf(rel._type).toEqualTypeOf<'one'>();
-    expectTypeOf(rel._target()).toEqualTypeOf<typeof users>();
+    type _t1 = Expect<Extends<typeof rel, RelationDef<typeof users, 'one'>>>;
+    type _t2 = Expect<Equal<typeof rel._type, 'one'>>;
+    type _t3 = Expect<Equal<ReturnType<typeof rel._target>, typeof users>>;
   });
 
   it('d.ref.many() carries target table type', () => {
     const rel = d.ref.many(() => posts, 'authorId');
 
-    expectTypeOf(rel).toMatchTypeOf<RelationDef<typeof posts, 'many'>>();
-    expectTypeOf(rel._type).toEqualTypeOf<'many'>();
-    expectTypeOf(rel._target()).toEqualTypeOf<typeof posts>();
+    type _t1 = Expect<Extends<typeof rel, RelationDef<typeof posts, 'many'>>>;
+    type _t2 = Expect<Equal<typeof rel._type, 'many'>>;
+    type _t3 = Expect<Equal<ReturnType<typeof rel._target>, typeof posts>>;
   });
 
   it('d.ref.many().through() carries target table type', () => {
     const rel = d.ref.many(() => posts).through(() => postTags, 'tagId', 'postId');
 
-    expectTypeOf(rel).toMatchTypeOf<RelationDef<typeof posts, 'many'>>();
-    expectTypeOf(rel._type).toEqualTypeOf<'many'>();
+    type _t1 = Expect<Extends<typeof rel, RelationDef<typeof posts, 'many'>>>;
+    type _t2 = Expect<Equal<typeof rel._type, 'many'>>;
   });
 
   it('target table type is specific, not generic TableDef', () => {
@@ -57,9 +58,9 @@ describe('relation types', () => {
     const target = rel._target();
 
     // Should resolve to the specific table type with its columns
-    expectTypeOf<typeof target._name>().toEqualTypeOf<string>();
-    expectTypeOf(target._columns).toHaveProperty('id');
-    expectTypeOf(target._columns).toHaveProperty('name');
+    type _t1 = Expect<Equal<typeof target._name, string>>;
+    type _t2 = Expect<HasKey<typeof target._columns, 'id'>>;
+    type _t3 = Expect<HasKey<typeof target._columns, 'name'>>;
   });
 
   it('relation _type only accepts one or many', () => {

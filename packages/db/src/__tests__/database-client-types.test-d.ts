@@ -1,4 +1,5 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
+import type { Equal, Expect, Extends, HasKey, IsFunction } from './_type-helpers';
 import type { DatabaseClient, ModelDelegate } from '../client/database';
 import { d } from '../d';
 import type { ModelEntry } from '../schema/inference';
@@ -42,11 +43,11 @@ type PostsModel = (typeof models)['posts'];
 
 describe('Model delegates exist as typed properties', () => {
   it('db.users is a ModelDelegate typed for users', () => {
-    expectTypeOf<DB['users']>().toMatchTypeOf<ModelDelegate<UsersModel>>();
+    type _t1 = Expect<Extends<DB['users'], ModelDelegate<UsersModel>>>;
   });
 
   it('db.posts is a ModelDelegate typed for posts', () => {
-    expectTypeOf<DB['posts']>().toMatchTypeOf<ModelDelegate<PostsModel>>();
+    type _t1 = Expect<Extends<DB['posts'], ModelDelegate<PostsModel>>>;
   });
 
   it('non-existent model key is a compile error', () => {
@@ -61,63 +62,63 @@ describe('Model delegates exist as typed properties', () => {
 
 describe('Model delegate has all CRUD methods', () => {
   it('get method exists', () => {
-    expectTypeOf<DB['users']['get']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['get']>>;
   });
 
   it('getOrThrow method exists', () => {
-    expectTypeOf<DB['users']['getOrThrow']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['getOrThrow']>>;
   });
 
   it('list method exists', () => {
-    expectTypeOf<DB['users']['list']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['list']>>;
   });
 
   it('listAndCount method exists', () => {
-    expectTypeOf<DB['users']['listAndCount']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['listAndCount']>>;
   });
 
   it('create method exists', () => {
-    expectTypeOf<DB['users']['create']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['create']>>;
   });
 
   it('createMany method exists', () => {
-    expectTypeOf<DB['users']['createMany']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['createMany']>>;
   });
 
   it('createManyAndReturn method exists', () => {
-    expectTypeOf<DB['users']['createManyAndReturn']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['createManyAndReturn']>>;
   });
 
   it('update method exists', () => {
-    expectTypeOf<DB['users']['update']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['update']>>;
   });
 
   it('updateMany method exists', () => {
-    expectTypeOf<DB['users']['updateMany']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['updateMany']>>;
   });
 
   it('upsert method exists', () => {
-    expectTypeOf<DB['users']['upsert']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['upsert']>>;
   });
 
   it('delete method exists', () => {
-    expectTypeOf<DB['users']['delete']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['delete']>>;
   });
 
   it('deleteMany method exists', () => {
-    expectTypeOf<DB['users']['deleteMany']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['deleteMany']>>;
   });
 
   it('count method exists', () => {
-    expectTypeOf<DB['users']['count']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['count']>>;
   });
 
   it('aggregate method exists', () => {
-    expectTypeOf<DB['users']['aggregate']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['aggregate']>>;
   });
 
   it('groupBy method exists', () => {
-    expectTypeOf<DB['users']['groupBy']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['users']['groupBy']>>;
   });
 });
 
@@ -127,15 +128,15 @@ describe('Model delegate has all CRUD methods', () => {
 
 describe('Top-level methods exist', () => {
   it('query method exists', () => {
-    expectTypeOf<DB['query']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['query']>>;
   });
 
   it('close method exists', () => {
-    expectTypeOf<DB['close']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['close']>>;
   });
 
   it('isHealthy method exists', () => {
-    expectTypeOf<DB['isHealthy']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['isHealthy']>>;
   });
 });
 
@@ -145,15 +146,15 @@ describe('Top-level methods exist', () => {
 
 describe('_internals groups internal properties', () => {
   it('_internals.models is the TModels type', () => {
-    expectTypeOf<DB['_internals']['models']>().toEqualTypeOf<typeof models>();
+    type _t1 = Expect<Equal<DB['_internals']['models'], typeof models>>;
   });
 
   it('_internals.dialect exists', () => {
-    expectTypeOf<DB['_internals']>().toHaveProperty('dialect');
+    type _t1 = Expect<HasKey<DB['_internals'], 'dialect'>>;
   });
 
   it('_internals.tenantGraph exists', () => {
-    expectTypeOf<DB['_internals']>().toHaveProperty('tenantGraph');
+    type _t1 = Expect<HasKey<DB['_internals'], 'tenantGraph'>>;
   });
 });
 

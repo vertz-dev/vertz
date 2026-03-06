@@ -1,4 +1,5 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
+import type { Expect, HasKey, Not } from '../../__tests__/_type-helpers';
 import { d } from '../../d';
 
 // ---------------------------------------------------------------------------
@@ -57,7 +58,7 @@ describe('$response', () => {
     type Response = typeof users.$response;
 
     // passwordHash is .is('hidden') — should NOT appear on $response
-    expectTypeOf<Response>().not.toHaveProperty('passwordHash');
+    type _t1 = Expect<Not<HasKey<Response, 'passwordHash'>>>;
   });
 });
 
@@ -70,16 +71,16 @@ describe('$create_input', () => {
     type CreateInput = typeof users.$create_input;
 
     // createdAt is .readOnly() — should NOT appear on $create_input
-    expectTypeOf<CreateInput>().not.toHaveProperty('createdAt');
+    type _t1 = Expect<Not<HasKey<CreateInput, 'createdAt'>>>;
     // updatedAt is .autoUpdate() (implies readOnly) — should NOT appear
-    expectTypeOf<CreateInput>().not.toHaveProperty('updatedAt');
+    type _t2 = Expect<Not<HasKey<CreateInput, 'updatedAt'>>>;
   });
 
   it('excludes primary key columns', () => {
     type CreateInput = typeof users.$create_input;
 
     // id is .primary() — should NOT appear on $create_input
-    expectTypeOf<CreateInput>().not.toHaveProperty('id');
+    type _t1 = Expect<Not<HasKey<CreateInput, 'id'>>>;
   });
 
   it('includes non-readOnly, non-PK columns and makes defaulted ones optional', () => {
@@ -113,16 +114,16 @@ describe('$update_input', () => {
     type UpdateInput = typeof users.$update_input;
 
     // createdAt is .readOnly() — should NOT appear
-    expectTypeOf<UpdateInput>().not.toHaveProperty('createdAt');
+    type _t1 = Expect<Not<HasKey<UpdateInput, 'createdAt'>>>;
     // updatedAt is .autoUpdate() — should NOT appear
-    expectTypeOf<UpdateInput>().not.toHaveProperty('updatedAt');
+    type _t2 = Expect<Not<HasKey<UpdateInput, 'updatedAt'>>>;
   });
 
   it('excludes primary key and makes all remaining fields optional', () => {
     type UpdateInput = typeof users.$update_input;
 
     // id is .primary() — should NOT appear
-    expectTypeOf<UpdateInput>().not.toHaveProperty('id');
+    type _t1 = Expect<Not<HasKey<UpdateInput, 'id'>>>;
 
     // All remaining fields are optional — empty object is valid
     const _empty: UpdateInput = {};

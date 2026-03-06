@@ -1,4 +1,5 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
+import type { Equal, Expect, Extends, HasKey, Not } from '../../__tests__/_type-helpers';
 import { d } from '../../d';
 import type {
   Database,
@@ -254,53 +255,53 @@ describe('SelectNarrow', () => {
   it('narrows to picked fields when select has explicit keys', () => {
     type Result = SelectNarrow<typeof users._columns, { id: true; name: true }>;
 
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('name');
-    expectTypeOf<Result>().not.toHaveProperty('email');
-    expectTypeOf<Result>().not.toHaveProperty('passwordHash');
-    expectTypeOf<Result>().not.toHaveProperty('role');
+    type _t1 = Expect<HasKey<Result, 'id'>>;
+    type _t2 = Expect<HasKey<Result, 'name'>>;
+    type _t3 = Expect<Not<HasKey<Result, 'email'>>>;
+    type _t4 = Expect<Not<HasKey<Result, 'passwordHash'>>>;
+    type _t5 = Expect<Not<HasKey<Result, 'role'>>>;
   });
 
   it('preserves correct types on narrowed fields', () => {
     type Result = SelectNarrow<typeof users._columns, { id: true; bio: true; active: true }>;
 
-    expectTypeOf<Result['id']>().toEqualTypeOf<string>();
-    expectTypeOf<Result['bio']>().toEqualTypeOf<string | null>();
-    expectTypeOf<Result['active']>().toEqualTypeOf<boolean>();
+    type _t1 = Expect<Equal<Result['id'], string>>;
+    type _t2 = Expect<Equal<Result['bio'], string | null>>;
+    type _t3 = Expect<Equal<Result['active'], boolean>>;
   });
 
   it('excludes sensitive columns when not: sensitive', () => {
     type Result = SelectNarrow<typeof users._columns, { not: 'sensitive' }>;
 
     // email is sensitive, passwordHash is hidden -- both excluded
-    expectTypeOf<Result>().not.toHaveProperty('email');
-    expectTypeOf<Result>().not.toHaveProperty('passwordHash');
+    type _t1 = Expect<Not<HasKey<Result, 'email'>>>;
+    type _t2 = Expect<Not<HasKey<Result, 'passwordHash'>>>;
 
     // Normal columns included
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('name');
-    expectTypeOf<Result>().toHaveProperty('role');
+    type _t3 = Expect<HasKey<Result, 'id'>>;
+    type _t4 = Expect<HasKey<Result, 'name'>>;
+    type _t5 = Expect<HasKey<Result, 'role'>>;
   });
 
   it('excludes hidden columns when not: hidden', () => {
     type Result = SelectNarrow<typeof users._columns, { not: 'hidden' }>;
 
     // passwordHash is hidden -- excluded
-    expectTypeOf<Result>().not.toHaveProperty('passwordHash');
+    type _t1 = Expect<Not<HasKey<Result, 'passwordHash'>>>;
 
     // email is sensitive but NOT hidden -- included
-    expectTypeOf<Result>().toHaveProperty('email');
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('name');
+    type _t2 = Expect<HasKey<Result, 'email'>>;
+    type _t3 = Expect<HasKey<Result, 'id'>>;
+    type _t4 = Expect<HasKey<Result, 'name'>>;
   });
 
   it('defaults to excluding hidden columns (same as $infer)', () => {
     type Result = SelectNarrow<typeof users._columns, undefined>;
 
-    expectTypeOf<Result>().not.toHaveProperty('passwordHash');
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('email');
-    expectTypeOf<Result>().toHaveProperty('name');
+    type _t1 = Expect<Not<HasKey<Result, 'passwordHash'>>>;
+    type _t2 = Expect<HasKey<Result, 'id'>>;
+    type _t3 = Expect<HasKey<Result, 'email'>>;
+    type _t4 = Expect<HasKey<Result, 'name'>>;
   });
 });
 
@@ -312,29 +313,29 @@ describe('IncludeResolve', () => {
   it('adds relation as object for one relation', () => {
     type Result = IncludeResolve<typeof postRelations, { author: true }>;
 
-    expectTypeOf<Result>().toHaveProperty('author');
+    type _t1 = Expect<HasKey<Result, 'author'>>;
     // author is a 'one' relation to users -- should be a single object
     type AuthorType = Result['author'];
-    expectTypeOf<AuthorType>().toHaveProperty('id');
-    expectTypeOf<AuthorType>().toHaveProperty('name');
+    type _t2 = Expect<HasKey<AuthorType, 'id'>>;
+    type _t3 = Expect<HasKey<AuthorType, 'name'>>;
   });
 
   it('adds relation as array for many relation', () => {
     type Result = IncludeResolve<typeof postRelations, { comments: true }>;
 
-    expectTypeOf<Result>().toHaveProperty('comments');
+    type _t1 = Expect<HasKey<Result, 'comments'>>;
     // comments is a 'many' relation -- should be an array
     type CommentsType = Result['comments'];
-    expectTypeOf<CommentsType>().toMatchTypeOf<unknown[]>();
+    type _t2 = Expect<Extends<CommentsType, unknown[]>>;
   });
 
   it('narrows included relation with select sub-clause', () => {
     type Result = IncludeResolve<typeof postRelations, { author: { select: { name: true } } }>;
 
     type AuthorType = Result['author'];
-    expectTypeOf<AuthorType>().toHaveProperty('name');
-    expectTypeOf<AuthorType>().not.toHaveProperty('id');
-    expectTypeOf<AuthorType>().not.toHaveProperty('email');
+    type _t1 = Expect<HasKey<AuthorType, 'name'>>;
+    type _t2 = Expect<Not<HasKey<AuthorType, 'id'>>>;
+    type _t3 = Expect<Not<HasKey<AuthorType, 'email'>>>;
   });
 
   it('excludes hidden columns in default include', () => {
@@ -342,7 +343,7 @@ describe('IncludeResolve', () => {
 
     type AuthorType = Result['author'];
     // passwordHash is hidden on users -- should not appear
-    expectTypeOf<AuthorType>().not.toHaveProperty('passwordHash');
+    type _t1 = Expect<Not<HasKey<AuthorType, 'passwordHash'>>>;
   });
 });
 
@@ -354,21 +355,21 @@ describe('FindResult', () => {
   it('narrows to selected fields', () => {
     type Result = FindResult<typeof posts, { select: { id: true; title: true } }>;
 
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('title');
-    expectTypeOf<Result>().not.toHaveProperty('body');
-    expectTypeOf<Result>().not.toHaveProperty('published');
+    type _t1 = Expect<HasKey<Result, 'id'>>;
+    type _t2 = Expect<HasKey<Result, 'title'>>;
+    type _t3 = Expect<Not<HasKey<Result, 'body'>>>;
+    type _t4 = Expect<Not<HasKey<Result, 'published'>>>;
   });
 
   it('adds included relation', () => {
     type Result = FindResult<typeof posts, { include: { author: true } }, typeof postRelations>;
 
     // Should have post columns (default select excludes hidden)
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('title');
+    type _t1 = Expect<HasKey<Result, 'id'>>;
+    type _t2 = Expect<HasKey<Result, 'title'>>;
 
     // Should have author from include
-    expectTypeOf<Result>().toHaveProperty('author');
+    type _t3 = Expect<HasKey<Result, 'author'>>;
   });
 
   it('narrows included relation with select', () => {
@@ -380,27 +381,27 @@ describe('FindResult', () => {
 
     // Author should only have name
     type AuthorType = Result['author'];
-    expectTypeOf<AuthorType>().toHaveProperty('name');
-    expectTypeOf<AuthorType>().not.toHaveProperty('id');
+    type _t1 = Expect<HasKey<AuthorType, 'name'>>;
+    type _t2 = Expect<Not<HasKey<AuthorType, 'id'>>>;
   });
 
   it('excludes sensitive columns from result with not: sensitive', () => {
     type Result = FindResult<typeof users, { select: { not: 'sensitive' } }>;
 
-    expectTypeOf<Result>().not.toHaveProperty('email');
-    expectTypeOf<Result>().not.toHaveProperty('passwordHash');
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('name');
+    type _t1 = Expect<Not<HasKey<Result, 'email'>>>;
+    type _t2 = Expect<Not<HasKey<Result, 'passwordHash'>>>;
+    type _t3 = Expect<HasKey<Result, 'id'>>;
+    type _t4 = Expect<HasKey<Result, 'name'>>;
   });
 
   it('returns default columns when no options specified', () => {
     type Result = FindResult<typeof users>;
 
     // Default behavior: excludes hidden
-    expectTypeOf<Result>().not.toHaveProperty('passwordHash');
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('email');
-    expectTypeOf<Result>().toHaveProperty('name');
+    type _t1 = Expect<Not<HasKey<Result, 'passwordHash'>>>;
+    type _t2 = Expect<HasKey<Result, 'id'>>;
+    type _t3 = Expect<HasKey<Result, 'email'>>;
+    type _t4 = Expect<HasKey<Result, 'name'>>;
   });
 });
 
@@ -453,7 +454,7 @@ describe('UpdateInput', () => {
   it('excludes primary key', () => {
     type UserUpdate = UpdateInput<typeof users>;
 
-    expectTypeOf<UserUpdate>().not.toHaveProperty('id');
+    type _t1 = Expect<Not<HasKey<UserUpdate, 'id'>>>;
   });
 });
 
@@ -469,8 +470,8 @@ describe('Database', () => {
     }>;
 
     type Tables = MyDB['_models'];
-    expectTypeOf<Tables>().toHaveProperty('users');
-    expectTypeOf<Tables>().toHaveProperty('posts');
+    type _t1 = Expect<HasKey<Tables, 'users'>>;
+    type _t2 = Expect<HasKey<Tables, 'posts'>>;
   });
 
   it('table entries carry correct types', () => {
@@ -479,7 +480,7 @@ describe('Database', () => {
     }>;
 
     type UsersEntry = MyDB['_models']['users'];
-    expectTypeOf<UsersEntry['table']>().toEqualTypeOf<typeof users>();
+    type _t1 = Expect<Equal<UsersEntry['table'], typeof users>>;
   });
 });
 
@@ -490,7 +491,7 @@ describe('Database', () => {
 describe('Include depth cap', () => {
   it('resolves at depth 0 (normal case)', () => {
     type Result = IncludeResolve<typeof postRelations, { author: true }>;
-    expectTypeOf<Result>().toHaveProperty('author');
+    type _t1 = Expect<HasKey<Result, 'author'>>;
   });
 
   // Depth cap at 2 means depth tuple of length 3 produces `unknown`.
@@ -503,6 +504,6 @@ describe('Include depth cap', () => {
       [unknown, unknown, unknown]
     >;
 
-    expectTypeOf<CappedResult>().toBeUnknown();
+    type _t1 = Expect<Equal<CappedResult, unknown>>;
   });
 });

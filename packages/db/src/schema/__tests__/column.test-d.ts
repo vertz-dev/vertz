@@ -1,76 +1,77 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
+import type { Equal, Expect } from '../../__tests__/_type-helpers';
 import { d } from '../../d';
 import type { InferColumnType } from '../column';
 
 describe('column type inference', () => {
   it('d.uuid() infers string', () => {
     const col = d.uuid();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string>>;
   });
 
   it('d.text() infers string', () => {
     const col = d.text();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string>>;
   });
 
   it('d.varchar(n) infers string', () => {
     const col = d.varchar(255);
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string>>;
   });
 
   it('d.email() infers string', () => {
     const col = d.email();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string>>;
   });
 
   it('d.boolean() infers boolean', () => {
     const col = d.boolean();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<boolean>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, boolean>>;
   });
 
   it('d.integer() infers number', () => {
     const col = d.integer();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<number>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, number>>;
   });
 
   it('d.bigint() infers bigint', () => {
     const col = d.bigint();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<bigint>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, bigint>>;
   });
 
   it('d.decimal(p, s) infers string (precision-safe)', () => {
     const col = d.decimal(10, 2);
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string>>;
   });
 
   it('d.real() infers number', () => {
     const col = d.real();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<number>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, number>>;
   });
 
   it('d.doublePrecision() infers number', () => {
     const col = d.doublePrecision();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<number>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, number>>;
   });
 
   it('d.serial() infers number', () => {
     const col = d.serial();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<number>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, number>>;
   });
 
   it('d.timestamp() infers Date', () => {
     const col = d.timestamp();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<Date>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, Date>>;
   });
 
   it('d.date() infers string', () => {
     const col = d.date();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string>>;
   });
 
   it('d.time() infers string', () => {
     const col = d.time();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string>>;
   });
 
   it('d.jsonb<T>() infers T', () => {
@@ -78,59 +79,59 @@ describe('column type inference', () => {
       theme: string;
     }
     const col = d.jsonb<Settings>();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<Settings>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, Settings>>;
   });
 
   it('d.textArray() infers string[]', () => {
     const col = d.textArray();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<string[]>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string[]>>;
   });
 
   it('d.integerArray() infers number[]', () => {
     const col = d.integerArray();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<number[]>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, number[]>>;
   });
 
   it('d.enum(name, values) infers union literal type', () => {
     const col = d.enum('role', ['admin', 'editor']);
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<'admin' | 'editor'>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, 'admin' | 'editor'>>;
   });
 });
 
 describe('chainable builder type inference', () => {
   it('.nullable() adds | null to the inferred type', () => {
     const col = d.text().nullable();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<string | null>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string | null>>;
   });
 
   it('.nullable() on boolean adds | null', () => {
     const col = d.boolean().nullable();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<boolean | null>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, boolean | null>>;
   });
 
   it('.nullable() on integer adds | null', () => {
     const col = d.integer().nullable();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<number | null>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, number | null>>;
   });
 
   it('.nullable() on enum adds | null', () => {
     const col = d.enum('role', ['admin', 'editor']).nullable();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<'admin' | 'editor' | null>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, 'admin' | 'editor' | null>>;
   });
 
   it('.primary() does not change the inferred type', () => {
     const col = d.uuid().primary();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string>>;
   });
 
   it('.default() does not change the inferred type', () => {
     const col = d.boolean().default(true);
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<boolean>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, boolean>>;
   });
 
   it('chaining preserves type correctly', () => {
     const col = d.text().unique().nullable().default('hello');
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<string | null>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string | null>>;
   });
 });
 
@@ -199,13 +200,13 @@ describe('d.tenant() type inference', () => {
   it('d.tenant() infers string', () => {
     const orgs = d.table('orgs', { id: d.uuid().primary() });
     const col = d.tenant(orgs);
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string>>;
   });
 
   it('d.tenant().nullable() infers string | null', () => {
     const orgs = d.table('orgs', { id: d.uuid().primary() });
     const col = d.tenant(orgs).nullable();
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<string | null>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, string | null>>;
   });
 });
 
@@ -282,15 +283,18 @@ describe('metadata type-level tracking', () => {
     }
     const validator = { parse: (v: unknown): Settings => v as Settings };
     const col = d.jsonb<Settings>({ validator });
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<Settings>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, Settings>>;
   });
 
   it('d.jsonb() with schema passed directly preserves type parameter', () => {
     interface Settings {
       theme: string;
     }
-    const schema = { parse: (v: unknown): Settings => v as Settings };
+    const schema = {
+      parse: (v: unknown): { ok: true; data: Settings } | { ok: false; error: Error } =>
+        ({ ok: true, data: v as Settings }) as const,
+    };
     const col = d.jsonb<Settings>(schema);
-    expectTypeOf<InferColumnType<typeof col>>().toEqualTypeOf<Settings>();
+    type _t1 = Expect<Equal<InferColumnType<typeof col>, Settings>>;
   });
 });

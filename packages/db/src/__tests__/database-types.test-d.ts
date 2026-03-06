@@ -1,4 +1,5 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
+import type { Equal, Expect, Extends, HasKey, IsFunction, Not } from './_type-helpers';
 import type { DatabaseClient } from '../client/database';
 import { d } from '../d';
 import type {
@@ -100,29 +101,29 @@ describe('Cycle 1: get return type', () => {
   it('returns correct field types for organizations (default select)', () => {
     type Result = FindResult<OrgModel['table'], Record<string, never>, OrgModel['relations']>;
 
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('name');
-    expectTypeOf<Result>().toHaveProperty('slug');
-    expectTypeOf<Result>().toHaveProperty('createdAt');
-    expectTypeOf<Result['id']>().toBeString();
-    expectTypeOf<Result['createdAt']>().toEqualTypeOf<Date>();
+    type _t1 = Expect<HasKey<Result, 'id'>>;
+    type _t2 = Expect<HasKey<Result, 'name'>>;
+    type _t3 = Expect<HasKey<Result, 'slug'>>;
+    type _t4 = Expect<HasKey<Result, 'createdAt'>>;
+    type _t5 = Expect<Extends<Result['id'], string>>;
+    type _t6 = Expect<Equal<Result['createdAt'], Date>>;
   });
 
   it('excludes hidden fields by default (passwordHash on users)', () => {
     type Result = FindResult<UserModel['table'], Record<string, never>, UserModel['relations']>;
 
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('name');
-    expectTypeOf<Result>().toHaveProperty('email');
-    expectTypeOf<Result>().not.toHaveProperty('passwordHash');
+    type _t1 = Expect<HasKey<Result, 'id'>>;
+    type _t2 = Expect<HasKey<Result, 'name'>>;
+    type _t3 = Expect<HasKey<Result, 'email'>>;
+    type _t4 = Expect<Not<HasKey<Result, 'passwordHash'>>>;
   });
 
   it('DatabaseClient organizations delegate has get method', () => {
-    expectTypeOf<DB['organizations']['get']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['organizations']['get']>>;
   });
 
   it('DatabaseClient organizations delegate has getOrThrow method', () => {
-    expectTypeOf<DB['organizations']['getOrThrow']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['organizations']['getOrThrow']>>;
   });
 });
 
@@ -134,21 +135,21 @@ describe('Cycle 2: list return type', () => {
   it('array elements have correct types', () => {
     type Result = FindResult<PostModel['table'], Record<string, never>, PostModel['relations']>;
 
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('title');
-    expectTypeOf<Result>().toHaveProperty('content');
-    expectTypeOf<Result>().toHaveProperty('views');
-    expectTypeOf<Result['views']>().toBeNumber();
+    type _t1 = Expect<HasKey<Result, 'id'>>;
+    type _t2 = Expect<HasKey<Result, 'title'>>;
+    type _t3 = Expect<HasKey<Result, 'content'>>;
+    type _t4 = Expect<HasKey<Result, 'views'>>;
+    type _t5 = Expect<Extends<Result['views'], number>>;
   });
 
   it('listAndCount result structure', () => {
     type Element = FindResult<PostModel['table'], Record<string, never>, PostModel['relations']>;
     type Result = { data: Element[]; total: number };
 
-    expectTypeOf<Result>().toHaveProperty('data');
-    expectTypeOf<Result>().toHaveProperty('total');
-    expectTypeOf<Result['data'][number]>().toHaveProperty('id');
-    expectTypeOf<Result['total']>().toBeNumber();
+    type _t1 = Expect<HasKey<Result, 'data'>>;
+    type _t2 = Expect<HasKey<Result, 'total'>>;
+    type _t3 = Expect<HasKey<Result['data'][number], 'id'>>;
+    type _t4 = Expect<Extends<Result['total'], number>>;
   });
 });
 
@@ -213,16 +214,16 @@ describe('Cycle 4: update, upsert, delete return types', () => {
   it('UpdateInput excludes primary key', () => {
     type PostUpdate = UpdateInput<typeof posts>;
 
-    expectTypeOf<PostUpdate>().not.toHaveProperty('id');
+    type _t1 = Expect<Not<HasKey<PostUpdate, 'id'>>>;
   });
 
   it('featureFlags result has correct fields', () => {
     type Result = FindResult<FlagModel['table'], Record<string, never>, FlagModel['relations']>;
 
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('name');
-    expectTypeOf<Result>().toHaveProperty('enabled');
-    expectTypeOf<Result['enabled']>().toBeBoolean();
+    type _t1 = Expect<HasKey<Result, 'id'>>;
+    type _t2 = Expect<HasKey<Result, 'name'>>;
+    type _t3 = Expect<HasKey<Result, 'enabled'>>;
+    type _t4 = Expect<Extends<Result['enabled'], boolean>>;
   });
 
   it('comment result has correct fields', () => {
@@ -232,10 +233,10 @@ describe('Cycle 4: update, upsert, delete return types', () => {
       CommentModel['relations']
     >;
 
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('body');
-    expectTypeOf<Result>().toHaveProperty('postId');
-    expectTypeOf<Result>().toHaveProperty('authorId');
+    type _t1 = Expect<HasKey<Result, 'id'>>;
+    type _t2 = Expect<HasKey<Result, 'body'>>;
+    type _t3 = Expect<HasKey<Result, 'postId'>>;
+    type _t4 = Expect<HasKey<Result, 'authorId'>>;
   });
 });
 
@@ -251,10 +252,10 @@ describe('Cycle 5: select narrowing', () => {
       PostModel['relations']
     >;
 
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('title');
-    expectTypeOf<Result>().not.toHaveProperty('content');
-    expectTypeOf<Result>().not.toHaveProperty('views');
+    type _t1 = Expect<HasKey<Result, 'id'>>;
+    type _t2 = Expect<HasKey<Result, 'title'>>;
+    type _t3 = Expect<Not<HasKey<Result, 'content'>>>;
+    type _t4 = Expect<Not<HasKey<Result, 'views'>>>;
   });
 
   it('select with not:sensitive excludes sensitive+hidden fields', () => {
@@ -264,10 +265,10 @@ describe('Cycle 5: select narrowing', () => {
       UserModel['relations']
     >;
 
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('name');
-    expectTypeOf<Result>().not.toHaveProperty('email');
-    expectTypeOf<Result>().not.toHaveProperty('passwordHash');
+    type _t1 = Expect<HasKey<Result, 'id'>>;
+    type _t2 = Expect<HasKey<Result, 'name'>>;
+    type _t3 = Expect<Not<HasKey<Result, 'email'>>>;
+    type _t4 = Expect<Not<HasKey<Result, 'passwordHash'>>>;
   });
 });
 
@@ -283,9 +284,9 @@ describe('Cycle 6: include resolution', () => {
       PostModel['relations']
     >;
 
-    expectTypeOf<Result>().toHaveProperty('author');
-    expectTypeOf<Result>().toHaveProperty('id');
-    expectTypeOf<Result>().toHaveProperty('title');
+    type _t1 = Expect<HasKey<Result, 'author'>>;
+    type _t2 = Expect<HasKey<Result, 'id'>>;
+    type _t3 = Expect<HasKey<Result, 'title'>>;
   });
 
   it('includes many relation as array', () => {
@@ -295,7 +296,7 @@ describe('Cycle 6: include resolution', () => {
       PostModel['relations']
     >;
 
-    expectTypeOf<Result>().toHaveProperty('comments');
+    type _t1 = Expect<HasKey<Result, 'comments'>>;
   });
 
   it('includes relation with select sub-clause', () => {
@@ -305,7 +306,7 @@ describe('Cycle 6: include resolution', () => {
       PostModel['relations']
     >;
 
-    expectTypeOf<Result>().toHaveProperty('author');
+    type _t1 = Expect<HasKey<Result, 'author'>>;
   });
 });
 
@@ -354,46 +355,46 @@ describe('Cycle 7: where/filter typing', () => {
 
 describe('Cycle 8: DatabaseClient model delegate method signatures', () => {
   it('posts delegate get method is defined', () => {
-    expectTypeOf<DB['posts']['get']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['posts']['get']>>;
   });
 
   it('posts delegate list method is defined', () => {
-    expectTypeOf<DB['posts']['list']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['posts']['list']>>;
   });
 
   it('posts delegate create method is defined', () => {
-    expectTypeOf<DB['posts']['create']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['posts']['create']>>;
   });
 
   it('posts delegate update method is defined', () => {
-    expectTypeOf<DB['posts']['update']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['posts']['update']>>;
   });
 
   it('posts delegate upsert method is defined', () => {
-    expectTypeOf<DB['posts']['upsert']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['posts']['upsert']>>;
   });
 
   it('posts delegate delete method is defined', () => {
-    expectTypeOf<DB['posts']['delete']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['posts']['delete']>>;
   });
 
   it('posts delegate count method is defined', () => {
-    expectTypeOf<DB['posts']['count']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['posts']['count']>>;
   });
 
   it('posts delegate createMany method is defined', () => {
-    expectTypeOf<DB['posts']['createMany']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['posts']['createMany']>>;
   });
 
   it('posts delegate createManyAndReturn method is defined', () => {
-    expectTypeOf<DB['posts']['createManyAndReturn']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['posts']['createManyAndReturn']>>;
   });
 
   it('top-level query method is defined', () => {
-    expectTypeOf<DB['query']>().toBeFunction();
+    type _t1 = Expect<IsFunction<DB['query']>>;
   });
 
   it('_internals.models is accessible', () => {
-    expectTypeOf<DB['_internals']>().toHaveProperty('models');
+    type _t1 = Expect<HasKey<DB['_internals'], 'models'>>;
   });
 });
