@@ -93,7 +93,7 @@ export function TaskDetailPage() {
         {`Failed to load task: ${err instanceof Error ? err.message : String(err)}`}
       </div>
     ),
-    data: () => (
+    data: (task) => (
       <div data-testid="task-content">
         <button
           type="button"
@@ -107,17 +107,17 @@ export function TaskDetailPage() {
         <div class={detailStyles.header}>
           <div class={detailStyles.titleArea}>
             <h1 class={detailStyles.title} data-testid="task-title">
-              {taskQuery.data.title}
+              {task.title}
             </h1>
             <div class={detailStyles.meta}>
-              {`Created ${new Date(taskQuery.data.createdAt).toLocaleDateString()} · Updated ${new Date(taskQuery.data.updatedAt).toLocaleDateString()}`}
+              {`Created ${new Date(task.createdAt).toLocaleDateString()} · Updated ${new Date(task.updatedAt).toLocaleDateString()}`}
             </div>
           </div>
           <div class={detailStyles.actions}>
             <ConfirmDialog
               triggerLabel="Delete"
               title="Delete Task"
-              description={`Are you sure you want to delete "${taskQuery.data.title}"? This action cannot be undone.`}
+              description={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
               confirmLabel="Delete Task"
               onConfirm={async () => {
                 const result = await api.tasks.delete(taskId);
@@ -134,16 +134,12 @@ export function TaskDetailPage() {
           <span
             class={badge({
               color:
-                taskQuery.data.status === 'done'
-                  ? 'green'
-                  : taskQuery.data.status === 'in-progress'
-                    ? 'blue'
-                    : 'gray',
+                task.status === 'done' ? 'green' : task.status === 'in-progress' ? 'blue' : 'gray',
             })}
           >
-            {taskQuery.data.status === 'in-progress'
+            {task.status === 'in-progress'
               ? 'In Progress'
-              : taskQuery.data.status === 'done'
+              : task.status === 'done'
                 ? 'Done'
                 : 'To Do'}
           </span>
@@ -203,7 +199,7 @@ export function TaskDetailPage() {
             <div class={detailStyles.section}>
               <h3 class={detailStyles.sectionTitle}>Description</h3>
               <div class={detailStyles.description} data-testid="task-description">
-                {taskQuery.data.description}
+                {task.description}
               </div>
             </div>
           )}
