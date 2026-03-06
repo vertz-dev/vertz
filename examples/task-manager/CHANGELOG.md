@@ -1,5 +1,12 @@
 # @vertz-examples/task-manager
 
+## 0.0.11
+
+### Patch Changes
+
+- Updated dependencies [[`9789532`](https://github.com/vertz-dev/vertz/commit/9789532ab8b15a9b0260ce3941b2cf7f10be58f0)]:
+  - @vertz/icons@0.0.2
+
 ## 0.0.10
 
 ### Patch Changes
