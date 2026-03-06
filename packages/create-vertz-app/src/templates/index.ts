@@ -49,13 +49,13 @@ export function tsconfigTemplate(): string {
       module: 'ESNext',
       moduleResolution: 'bundler',
       outDir: 'dist',
-      rootDir: 'src',
+      rootDir: '.',
       skipLibCheck: true,
       strict: true,
       target: 'ES2022',
       types: ['bun-types'],
     },
-    include: ['src'],
+    include: ['src', '.vertz/generated'],
   };
 
   return JSON.stringify(tsconfig, null, 2);

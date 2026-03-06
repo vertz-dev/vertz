@@ -63,15 +63,15 @@ export function listTransition<T>(
   endMarker: Comment,
   items: Signal<T[]> | (() => T[]),
   keyFn: (item: T, index: number) => string | number,
-  renderFn: (item: T) => HTMLElement,
+  renderFn: (item: T) => HTMLElement | SVGElement,
 ): DisposeFn {
   const getItems = typeof items === 'function' ? items : () => items.value;
 
-  const nodeMap = new Map<string | number, HTMLElement>();
+  const nodeMap = new Map<string | number, Element>();
   const scopeMap = new Map<string | number, DisposeFn[]>();
   const itemSignalMap = new Map<string | number, Signal<T>>();
-  const exitingNodes = new Set<HTMLElement>();
-  const exitingKeyMap = new Map<string | number, HTMLElement>();
+  const exitingNodes = new Set<Element>();
+  const exitingKeyMap = new Map<string | number, Element>();
   const keyGeneration = new Map<string | number, number>();
 
   let isFirstRun = true;
@@ -128,8 +128,8 @@ export function listTransition<T>(
       }
 
       // --- Enter/reuse: current items ---
-      const desiredNodes: HTMLElement[] = [];
-      const enterNodes: Array<{ node: HTMLElement; key: string | number }> = [];
+      const desiredNodes: Element[] = [];
+      const enterNodes: Array<{ node: Element; key: string | number }> = [];
       for (const [i, item] of newItems.entries()) {
         const key = keyFn(item, i);
         let node = nodeMap.get(key);

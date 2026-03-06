@@ -22,7 +22,7 @@ export namespace JSX {
   /**
    * The return type of JSX expressions
    */
-  export type Element = HTMLElement | SVGElement;
+  export type Element = HTMLElement | SVGElement | DocumentFragment;
 
   /**
    * Component function type
