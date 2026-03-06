@@ -265,39 +265,45 @@ export function __$refreshPerform(moduleId: string): void {
         continue;
       }
 
-      // 4. Restore signal values: named signals by key, unnamed by position
-      if (savedValues.length > 0) {
-        // Partition old signals into named (key → value) and unnamed (positional)
-        const namedSaved = new Map<string, unknown>();
-        const unnamedSaved: unknown[] = [];
-        for (const s of oldSignals) {
-          if (s._hmrKey) namedSaved.set(s._hmrKey, s.peek());
-          else unnamedSaved.push(s.peek());
-        }
-
-        // Restore new signals: named by key, unnamed by position fallback
-        let unnamedIdx = 0;
-        for (const sig of newSignals) {
-          if (sig._hmrKey && namedSaved.has(sig._hmrKey)) {
-            sig.value = namedSaved.get(sig._hmrKey);
-          } else if (!sig._hmrKey && unnamedIdx < unnamedSaved.length) {
-            sig.value = unnamedSaved[unnamedIdx++];
+      // 4. Post-factory work wrapped in try/finally to GUARANTEE context
+      //    scope restoration. If anything here throws (runCleanups, signal
+      //    restore, etc.), the global context scope would be permanently
+      //    corrupted — breaking all subsequent component mounts/navigation.
+      try {
+        // Restore signal values: named signals by key, unnamed by position
+        if (savedValues.length > 0) {
+          // Partition old signals into named (key → value) and unnamed (positional)
+          const namedSaved = new Map<string, unknown>();
+          const unnamedSaved: unknown[] = [];
+          for (const s of oldSignals) {
+            if (s._hmrKey) namedSaved.set(s._hmrKey, s.peek());
+            else unnamedSaved.push(s.peek());
           }
-          // else: new signal (no matching key or unnamed overflow), keep initial value
+
+          // Restore new signals: named by key, unnamed by position fallback
+          let unnamedIdx = 0;
+          for (const sig of newSignals) {
+            if (sig._hmrKey && namedSaved.has(sig._hmrKey)) {
+              sig.value = namedSaved.get(sig._hmrKey);
+            } else if (!sig._hmrKey && unnamedIdx < unnamedSaved.length) {
+              sig.value = unnamedSaved[unnamedIdx++];
+            }
+            // else: new signal (no matching key or unnamed overflow), keep initial value
+          }
         }
+
+        popScope();
+
+        // 5. Now that we have a successful new element, run old cleanups
+        runCleanups(cleanups);
+
+        // Forward inner cleanups to parent scope (like RouterView does)
+        if (newCleanups.length > 0) {
+          _tryOnCleanup(() => runCleanups(newCleanups));
+        }
+      } finally {
+        setContextScope(prevScope);
       }
-
-      popScope();
-
-      // 5. Now that we have a successful new element, run old cleanups
-      runCleanups(cleanups);
-
-      // Forward inner cleanups to parent scope (like RouterView does)
-      if (newCleanups.length > 0) {
-        _tryOnCleanup(() => runCleanups(newCleanups));
-      }
-
-      setContextScope(prevScope);
 
       // 6. Capture DOM state, replace node, restore state
       let domSnapshot: DOMStateSnapshot | null = null;

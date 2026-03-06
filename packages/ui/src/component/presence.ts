@@ -15,7 +15,7 @@ export interface PresenceProps {
  * Props are accessed as getters (not destructured) so the compiler-generated
  * reactive getters are tracked by domEffect.
  */
-export function Presence(props: PresenceProps): Node {
+export function Presence(props: PresenceProps): DocumentFragment {
   const anchor = document.createComment('presence');
   let currentNode: HTMLElement | null = null;
   let exitingNode: HTMLElement | null = null;

@@ -1,5 +1,15 @@
 # @vertz-examples/component-catalog
 
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies [[`c7e3ec2`](https://github.com/vertz-dev/vertz/commit/c7e3ec2e926b0a2cd6d35f58124f3d7f50fc6fb9)]:
+  - @vertz/ui@0.2.12
+  - @vertz/ui-server@0.2.12
+  - @vertz/theme-shadcn@0.2.12
+  - @vertz/ui-primitives@0.2.12
+
 ## 0.0.9
 
 ### Patch Changes
