@@ -1,5 +1,7 @@
 # @vertz/create-vertz-app
 
+## 0.2.12
+
 ## 0.2.11
 
 ## 0.2.8
