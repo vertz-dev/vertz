@@ -19,11 +19,11 @@
   "dependencies": {
     "@vertz/errors": "workspace:*",
     "@vertz/fetch": "workspace:*",
+    "@vertz/icons": "workspace:*",
     "@vertz/theme-shadcn": "workspace:*",
     "@vertz/ui": "workspace:*",
     "@vertz/ui-primitives": "workspace:*",
-    "@vertz/ui-server": "workspace:*",
-    "lucide-static": "^0.575.0"
+    "@vertz/ui-server": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

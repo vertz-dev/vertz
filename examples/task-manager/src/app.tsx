@@ -11,6 +11,7 @@
  * ensuring elements are created top-down for hydration compatibility.
  */
 
+import { ListTodoIcon, MoonIcon, PlusCircleIcon, SettingsIcon, SunIcon } from '@vertz/icons';
 import {
   css,
   getInjectedCSS,
@@ -19,7 +20,6 @@ import {
   RouterView,
   ThemeProvider,
 } from '@vertz/ui';
-import { Icon } from './components/icon';
 import { createSettingsValue, SettingsContext, useSettings } from './lib/settings-context';
 import { appRouter, Link } from './router';
 import { layoutStyles } from './styles/components';
@@ -106,19 +106,19 @@ function Sidebar() {
       <div class={navStyles.navTitle}>Task Manager</div>
       <div class={navStyles.navList}>
         <div class={navStyles.navItem}>
-          <Icon name="ListTodo" size={16} />
+          <ListTodoIcon size={16} />
           <Link href="/" activeClass="font-bold">
             All Tasks
           </Link>
         </div>
         <div class={navStyles.navItem}>
-          <Icon name="PlusCircle" size={16} />
+          <PlusCircleIcon size={16} />
           <Link href="/tasks/new" activeClass="font-bold">
             Create Task
           </Link>
         </div>
         <div class={navStyles.navItem}>
-          <Icon name="Settings" size={16} />
+          <SettingsIcon size={16} />
           <Link href="/settings" activeClass="font-bold">
             Settings
           </Link>
@@ -138,9 +138,9 @@ function Sidebar() {
         }}
       >
         {settings.theme === 'light' ? (
-          <Icon name="Moon" size={16} />
+          <MoonIcon size={16} />
         ) : (
-          <Icon name="Sun" size={16} />
+          <SunIcon size={16} />
         )}
         {settings.theme === 'light' ? 'Dark Mode' : 'Light Mode'}
       </div>

@@ -59,6 +59,11 @@ const PACKAGES: { name: string; singleImport: string; distEntry: string }[] = [
     singleImport: `import { ref } from '@vertz/ui'; console.log(ref);`,
     distEntry: 'packages/ui/dist/index.js',
   },
+  {
+    name: '@vertz/icons',
+    singleImport: `import { MoonIcon } from '@vertz/icons'; console.log(MoonIcon);`,
+    distEntry: 'packages/icons/dist/index.js',
+  },
 ];
 
 /**

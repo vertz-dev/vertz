@@ -10,8 +10,8 @@
  * - Reactive class toggling via JSX expressions
  */
 
+import { MoonIcon, SunIcon } from '@vertz/icons';
 import { css, useContext } from '@vertz/ui';
-import { Icon } from '../components/icon';
 import { SettingsContext } from '../lib/settings-context';
 import { formStyles } from '../styles/components';
 
@@ -77,7 +77,7 @@ export function SettingsPage() {
               class={settingsStyles.previewBox}
               style="background-color: #ffffff; display: flex; align-items: center; justify-content: center"
             >
-              <Icon name="Sun" size={24} />
+              <SunIcon size={24} />
             </div>
             <div style="font-weight: 500">Light</div>
           </div>
@@ -96,7 +96,7 @@ export function SettingsPage() {
               class={settingsStyles.previewBox}
               style="background-color: #111827; color: #ffffff; display: flex; align-items: center; justify-content: center"
             >
-              <Icon name="Moon" size={24} />
+              <MoonIcon size={24} />
             </div>
             <div style="font-weight: 500">Dark</div>
           </div>

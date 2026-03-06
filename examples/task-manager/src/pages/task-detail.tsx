@@ -12,10 +12,10 @@
  * - Declarative tab switching with `let` signal state
  */
 
+import { ArrowLeftIcon } from '@vertz/icons';
 import { css, query, queryMatch, useParams } from '@vertz/ui';
 import { api } from '../api/mock-data';
 import { ConfirmDialog } from '../components/confirm-dialog';
-import { Icon } from '../components/icon';
 import type { TaskStatus } from '../lib/types';
 import { useAppRouter } from '../router';
 import { badge, button } from '../styles/components';
@@ -103,7 +103,7 @@ export function TaskDetailPage() {
           style="margin-bottom: 1rem"
           onClick={() => navigate('/')}
         >
-          <Icon name="ArrowLeft" size={14} />
+          <ArrowLeftIcon size={14} />
           Back to Tasks
         </button>
         <div class={detailStyles.header}>
