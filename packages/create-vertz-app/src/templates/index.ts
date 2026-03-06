@@ -337,8 +337,29 @@ export const themeGlobals = globals;
  * src/pages/home.tsx — task list + create form with query + css
  */
 export function homePageTemplate(): string {
-  return `import { css, query, queryMatch } from '@vertz/ui';
+  return `import {
+  ANIMATION_DURATION,
+  ANIMATION_EASING,
+  ListTransition,
+  css,
+  fadeOut,
+  globalCss,
+  query,
+  queryMatch,
+  slideInFromTop,
+} from '@vertz/ui';
 import { api } from '../client';
+
+// Inject global CSS for list item enter/exit animations
+void globalCss({
+  '[data-presence="enter"]': {
+    animation: \`\${slideInFromTop} \${ANIMATION_DURATION} \${ANIMATION_EASING}\`,
+  },
+  '[data-presence="exit"]': {
+    animation: \`\${fadeOut} \${ANIMATION_DURATION} \${ANIMATION_EASING}\`,
+    overflow: 'hidden',
+  },
+});
 
 const pageStyles = css({
   container: ['py:2', 'w:full'],
@@ -428,11 +449,15 @@ export function HomePage() {
               </div>
             )}
             <div data-testid="task-list" class={pageStyles.list}>
-              {response.items.map((task) => (
-                <div key={task.id} class={pageStyles.item}>
-                  <span>{task.title}</span>
-                </div>
-              ))}
+              <ListTransition
+                each={response.items}
+                keyFn={(task) => task.id}
+                children={(task) => (
+                  <div class={pageStyles.item}>
+                    <span>{task.title}</span>
+                  </div>
+                )}
+              />
             </div>
           </>
         ),

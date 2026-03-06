@@ -11,10 +11,10 @@
 import {
   ANIMATION_DURATION,
   ANIMATION_EASING,
-  ListTransition,
   css,
   fadeOut,
   globalCss,
+  ListTransition,
   query,
   queryMatch,
   slideInFromTop,
@@ -63,10 +63,7 @@ export function TodoListPage() {
     <div class={pageStyles.container} data-testid="todo-list-page">
       <TodoForm onSuccess={handleCreate} />
 
-      <div
-        class={pageStyles.listContainer}
-        style={todosQuery.revalidating ? 'opacity: 0.6' : ''}
-      >
+      <div class={pageStyles.listContainer} style={todosQuery.revalidating ? 'opacity: 0.6' : ''}>
         {queryMatch(todosQuery, {
           loading: () => (
             <div data-testid="loading" class={pageStyles.loading}>
@@ -78,9 +75,9 @@ export function TodoListPage() {
               {err instanceof Error ? err.message : String(err)}
             </div>
           ),
-          data: () => (
+          data: (response) => (
             <>
-              {todosQuery.data.items.length === 0 && (
+              {response.items.length === 0 && (
                 <div class={emptyStateStyles.container}>
                   <h3 class={emptyStateStyles.heading}>No todos yet</h3>
                   <p class={emptyStateStyles.description}>
@@ -90,7 +87,7 @@ export function TodoListPage() {
               )}
               <div data-testid="todo-list" class={pageStyles.todoList}>
                 <ListTransition
-                  each={todosQuery.data.items}
+                  each={response.items}
                   keyFn={(todo: TodosResponse) => todo.id}
                   children={(todo: TodosResponse) => (
                     <TodoItem
