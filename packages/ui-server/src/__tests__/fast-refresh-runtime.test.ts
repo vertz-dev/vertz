@@ -127,6 +127,32 @@ describe('Fast Refresh Runtime', () => {
       expect(dirty.has('mod1')).toBe(true);
     });
 
+    it('skips dirty marking when hash is unchanged', () => {
+      const factory1 = createFactory('v1');
+      const factory2 = createFactory('v1-same-hash');
+
+      __$refreshReg('mod1', 'App', factory1, 'hash-abc');
+      const dirty = (globalThis as Record<symbol, Set<string>>)[DIRTY_KEY];
+      expect(dirty.has('mod1')).toBe(false);
+
+      // Re-registration with same hash — NOT dirty (no real change)
+      __$refreshReg('mod1', 'App', factory2, 'hash-abc');
+      expect(dirty.has('mod1')).toBe(false);
+    });
+
+    it('marks dirty when hash changes', () => {
+      const factory1 = createFactory('v1');
+      const factory2 = createFactory('v2');
+
+      __$refreshReg('mod1', 'App', factory1, 'hash-abc');
+      const dirty = (globalThis as Record<symbol, Set<string>>)[DIRTY_KEY];
+      expect(dirty.has('mod1')).toBe(false);
+
+      // Re-registration with different hash — dirty
+      __$refreshReg('mod1', 'App', factory2, 'hash-def');
+      expect(dirty.has('mod1')).toBe(true);
+    });
+
     it('supports multiple components per module', () => {
       __$refreshReg('mod1', 'Header', createFactory('Header'));
       __$refreshReg('mod1', 'Footer', createFactory('Footer'));

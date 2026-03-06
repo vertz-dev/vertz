@@ -5,6 +5,21 @@ import { endHydration, startHydration } from './hydrate/hydration-context';
 import { popScope, pushScope, runCleanups } from './runtime/disposal';
 
 /**
+ * Tracks which root elements have been mounted.
+ *
+ * Uses globalThis so the map survives Bun's HMR module re-evaluation.
+ * Bun bundles all modules into a single chunk and re-evaluates them all
+ * immediately after initial load (HMR init). Without globalThis, the
+ * WeakMap would be recreated empty on each re-evaluation, defeating the guard.
+ *
+ * Same persistence pattern as the Fast Refresh registry.
+ */
+const MOUNTED_KEY = Symbol.for('vertz:mounted-roots');
+const _global = globalThis as Record<symbol, WeakMap<HTMLElement, MountHandle>>;
+if (!_global[MOUNTED_KEY]) _global[MOUNTED_KEY] = new WeakMap();
+const mountedRoots: WeakMap<HTMLElement, MountHandle> = _global[MOUNTED_KEY];
+
+/**
  * Options for mounting an app to the DOM.
  */
 export interface MountOptions {
@@ -56,6 +71,13 @@ export function mount<AppFn extends () => Element>(
     throw new Error(`mount(): root element "${selector}" not found`);
   }
 
+  // HMR guard: if this root was already mounted, return existing handle.
+  // Bun's HMR runtime re-evaluates all modules after initial load,
+  // which re-runs mount(). Without this guard, duplicate component instances
+  // cause the first HMR save to lose signal state.
+  const existingHandle = mountedRoots.get(root);
+  if (existingHandle) return existingHandle;
+
   // Inject theme CSS
   if (options?.theme) {
     const { css } = compileTheme(options.theme);
@@ -78,13 +100,16 @@ export function mount<AppFn extends () => Element>(
       endHydration();
       popScope();
       options?.onMount?.(root);
-      return {
+      const handle: MountHandle = {
         unmount: () => {
+          mountedRoots.delete(root);
           runCleanups(scope);
           root.textContent = '';
         },
         root,
       };
+      mountedRoots.set(root, handle);
+      return handle;
     } catch (e) {
       // Bail out: hydration failed, fall back to full CSR
       endHydration();
@@ -106,11 +131,14 @@ export function mount<AppFn extends () => Element>(
 
   options?.onMount?.(root);
 
-  return {
+  const handle: MountHandle = {
     unmount: () => {
+      mountedRoots.delete(root);
       runCleanups(scope);
       root.textContent = '';
     },
     root,
   };
+  mountedRoots.set(root, handle);
+  return handle;
 }

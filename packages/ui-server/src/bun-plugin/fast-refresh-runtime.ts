@@ -76,6 +76,8 @@ interface ComponentRecord {
   factory: (...args: unknown[]) => HTMLElement;
   /** All tracked live instances of this component. */
   instances: ComponentInstance[];
+  /** Content hash for change detection (prevents cascading re-mounts). */
+  hash?: string;
 }
 
 // moduleId → componentName → ComponentRecord
@@ -136,16 +138,22 @@ export function __$refreshReg(
   moduleId: string,
   name: string,
   factory: (...args: unknown[]) => HTMLElement,
+  hash?: string,
 ): void {
   const mod = getModule(moduleId);
   const existing = mod.get(name);
   if (existing) {
     // HMR re-evaluation — update factory, keep instances.
+    // When a content hash is provided, skip the update if unchanged.
+    // This prevents cascading re-mounts when Bun re-evaluates all modules
+    // in a single chunk even though only one file actually changed.
+    if (hash && existing.hash === hash) return;
     existing.factory = factory;
+    existing.hash = hash;
     dirtyModules.add(moduleId);
   } else {
     // First load — create record (not dirty, nothing to re-mount)
-    mod.set(name, { factory, instances: [] });
+    mod.set(name, { factory, instances: [], hash });
   }
 }
 

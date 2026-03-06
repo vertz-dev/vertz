@@ -131,7 +131,11 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
 
           if (fastRefresh) {
             const components = componentAnalyzer.analyze(hydrationSourceFile);
-            const refreshCode = generateRefreshCode(args.path, components);
+            // Content hash prevents cascading re-mounts: when Bun re-evaluates all
+            // modules in a single chunk, only the module whose content actually changed
+            // gets marked dirty. Unchanged modules skip __$refreshPerform entirely.
+            const contentHash = Bun.hash(source).toString(36);
+            const refreshCode = generateRefreshCode(args.path, components, contentHash);
             if (refreshCode) {
               refreshPreamble = refreshCode.preamble;
               refreshEpilogue = refreshCode.epilogue;

@@ -139,7 +139,37 @@ describe('mount()', () => {
     expect(root.textContent).toBe('fresh');
   });
 
-  // Test 10: mount calls onMount callback after mounting
+  // Test 10: second mount() on same root returns existing handle (HMR guard)
+  test('second mount on same root returns existing handle without re-running app', () => {
+    const app = vi.fn(() => document.createElement('div'));
+
+    const handle1 = mount(app, root);
+    expect(app).toHaveBeenCalledTimes(1);
+    expect(root.children.length).toBe(1);
+
+    // Second mount on same root — should return existing handle, NOT re-run app
+    const handle2 = mount(app, root);
+    expect(app).toHaveBeenCalledTimes(1); // NOT called again
+    expect(handle2).toBe(handle1);
+    expect(root.children.length).toBe(1); // DOM unchanged
+  });
+
+  // Test 11: unmount clears HMR guard so re-mount is possible
+  test('unmount clears HMR guard allowing re-mount', () => {
+    const app = vi.fn(() => document.createElement('div'));
+
+    const handle1 = mount(app, root);
+    handle1.unmount();
+    expect(root.children.length).toBe(0);
+
+    // After unmount, mount() should work again on the same root
+    const handle2 = mount(app, root);
+    expect(app).toHaveBeenCalledTimes(2);
+    expect(handle2).not.toBe(handle1);
+    expect(root.children.length).toBe(1);
+  });
+
+  // Test 12: mount calls onMount callback after mounting
   test('mount calls onMount callback after mounting', () => {
     const app = () => document.createElement('div');
     const onMount = vi.fn();

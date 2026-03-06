@@ -521,6 +521,23 @@ describe('signal collection', () => {
   });
 });
 
+describe('signal collector globalThis persistence', () => {
+  it('shares signalCollectorStack via globalThis so separate module instances collect correctly', () => {
+    const COLLECTOR_KEY = Symbol.for('vertz:signal-collector-stack');
+    const stack = (globalThis as Record<symbol, unknown>)[COLLECTOR_KEY];
+    // The stack must be on globalThis — not module-scoped
+    expect(stack).toBeInstanceOf(Array);
+
+    // Starting collection via the exported function should push to the globalThis stack
+    startSignalCollection();
+    expect((stack as unknown[]).length).toBeGreaterThan(0);
+    const s = signal(42, 'test');
+    const collected = stopSignalCollection();
+    expect(collected).toHaveLength(1);
+    expect(collected[0]).toBe(s);
+  });
+});
+
 describe('diamond dependency', () => {
   it('deduplicates updates through diamond graph', () => {
     const a = signal(1);

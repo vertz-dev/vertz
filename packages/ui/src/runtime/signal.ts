@@ -25,8 +25,18 @@ function isSSR(): boolean {
 // Stack-based collector for capturing signal references during component
 // factory execution. Used by Fast Refresh to snapshot/restore signal values
 // across HMR cycles. Mirrors the cleanupStack pattern in disposal.ts.
+//
+// Uses globalThis so the stack survives Bun's HMR module re-evaluation.
+// Bun bundles all modules into a single chunk and re-evaluates them all
+// on HMR. Without globalThis, the fast-refresh runtime (importing from
+// @vertz/ui/internals) and component code (importing from @vertz/ui)
+// may get separate module instances with separate stacks — causing signal
+// collection to silently fail during HMR factory re-execution.
 
-const signalCollectorStack: Signal<unknown>[][] = [];
+const COLLECTOR_KEY = Symbol.for('vertz:signal-collector-stack');
+const _global = globalThis as Record<symbol, Signal<unknown>[][]>;
+if (!_global[COLLECTOR_KEY]) _global[COLLECTOR_KEY] = [];
+const signalCollectorStack: Signal<unknown>[][] = _global[COLLECTOR_KEY];
 
 export function startSignalCollection(): void {
   signalCollectorStack.push([]);
