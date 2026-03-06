@@ -6,6 +6,8 @@ export { createContext, useContext } from './component/context';
 export type { ErrorBoundaryProps } from './component/error-boundary';
 export { ErrorBoundary } from './component/error-boundary';
 export { onMount } from './component/lifecycle';
+export type { ListTransitionProps } from './component/list-transition';
+export { ListTransition } from './component/list-transition';
 export type { PresenceProps } from './component/presence';
 export { Presence } from './component/presence';
 export type { Ref } from './component/refs';

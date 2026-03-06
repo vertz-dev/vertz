@@ -263,9 +263,10 @@ describe('Signal Auto-Unwrap', () => {
 
     const result = compile(source, 'test.tsx');
 
-    // Middle accessor alone (field name) is NOT a signal — should not be reactive
-    expect(result.code).not.toContain('__child(');
-    expect(result.code).toContain('__insert(');
+    // Middle accessor alone (field name) is NOT a signal — no .value inserted.
+    // But it IS non-literal, so it gets __child for runtime tracking.
+    expect(result.code).toContain('__child(');
+    expect(result.code).not.toContain('__insert(');
     expect(result.code).not.toContain('taskForm.title.value');
     expect(result.diagnostics).toHaveLength(0);
   });

@@ -86,13 +86,10 @@ export function queryMatch<T, E>(
       branch = 'data';
     }
 
-    // Same branch → skip DOM work.
-    // Exception: data branch always re-renders when data changes, because
-    // the compiler does not yet generate __list() inside queryMatch callbacks.
-    // Without __list(), .map() creates static DOM that won't update. Once
-    // the compiler transforms .map() → __list(), the data branch can skip
-    // here too (the Proxy + __list domEffect handles reactive updates).
-    if (branch === currentBranch && branch !== 'data') {
+    // Same branch → skip DOM work. The data handler receives a Proxy that
+    // reads from dataSignal.value on every property access, so __list() and
+    // ListTransition domEffects re-run automatically when data changes.
+    if (branch === currentBranch) {
       return;
     }
 

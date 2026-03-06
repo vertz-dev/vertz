@@ -353,9 +353,11 @@ function App() {
     `.trim(),
     );
 
-    // Without @vertz/ui import, this is NOT a reactive source
-    // ctx.theme should be static (no __child thunk wrapping)
-    expect(result.code).not.toContain('__child(');
+    // Without @vertz/ui import, this is NOT a reactive source.
+    // ctx.theme is non-literal so it gets __child for runtime tracking,
+    // but no .value is inserted (not recognized as signal API).
+    expect(result.code).toContain('__child(');
+    expect(result.code).not.toContain('.value');
   });
 
   it('Context: const depending on reactive source is computed', () => {

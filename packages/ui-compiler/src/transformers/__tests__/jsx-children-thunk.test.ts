@@ -1,6 +1,6 @@
+import { describe, expect, it } from 'bun:test';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
-import { describe, expect, it } from 'bun:test';
 import { ComponentAnalyzer } from '../../analyzers/component-analyzer';
 import { JsxAnalyzer } from '../../analyzers/jsx-analyzer';
 import { compile } from '../../compiler';
@@ -87,9 +87,9 @@ describe('JSX children thunks for components', () => {
 
   it('explicit children prop wins over JSX children', () => {
     const result = transform(`function App() {\n  return <MyComp children={fn}>text</MyComp>;\n}`);
-    expect(result).toContain('children: fn');
-    // Should NOT contain a thunk — explicit prop wins
-    expect(result).not.toContain('children: () =>');
+    // fn is non-literal so it becomes a getter — but explicit prop still wins over JSX children
+    expect(result).toContain('get children()');
+    expect(result).toContain('return fn');
   });
 
   it('handles fragment inside component children', () => {
@@ -119,14 +119,12 @@ describe('JSX children thunks — pipeline integration', () => {
     expect(result.code).toContain('children: () =>');
   });
 
-  it('peek() in component JSX attribute is not reactive', () => {
-    // Use the unit-level transform to test JSX transform in isolation.
-    // When jsxExpressions marks peek() as non-reactive, it should NOT
-    // produce a reactive getter.
+  it('peek() in component JSX attribute gets getter (semantically fine)', () => {
+    // s.peek() is non-literal so it gets a getter. This is semantically fine —
+    // the getter defers evaluation but .peek() still doesn't track reactivity.
     const result = transform(`function App() {\n  return <Wrapper val={s.peek()} />;\n}`);
-    // .peek() should be a static prop, not a reactive getter
-    expect(result).toContain('val: s.peek()');
-    expect(result).not.toContain('get val()');
+    expect(result).toContain('get val()');
+    expect(result).toContain('s.peek()');
   });
 });
 
@@ -229,7 +227,8 @@ describe('JSX inside arrow function props', () => {
       `function App() {\n  return <RouterView fallback={() => <div>Not found</div>} />;\n}`,
     );
     expect(result).toContain('RouterView(');
-    expect(result).toContain('fallback: () =>');
+    // Arrow function is non-literal so it becomes a getter
+    expect(result).toContain('get fallback()');
     expect(result).toContain('__element("div")');
     // Should NOT contain raw JSX
     expect(result).not.toContain('<div>');
