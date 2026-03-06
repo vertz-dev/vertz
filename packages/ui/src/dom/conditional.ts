@@ -10,6 +10,29 @@ export interface DisposableNode extends Node {
 }
 
 /**
+ * Normalize a branch result into a single replaceable Node.
+ *
+ * DocumentFragments (nodeType 11) lose their children after insertion,
+ * breaking subsequent replaceChild calls (currentNode.parentNode is null).
+ * Wrap them in a display:contents span so the parent reference stays valid.
+ */
+function normalizeNode(branchResult: unknown): Node {
+  if (branchResult == null || typeof branchResult === 'boolean') {
+    return getAdapter().createComment('empty') as unknown as Node;
+  }
+  if (isRenderNode(branchResult)) {
+    if ((branchResult as Node).nodeType === 11) {
+      const wrap = getAdapter().createElement('span') as unknown as HTMLElement;
+      wrap.style.display = 'contents';
+      wrap.appendChild(branchResult as Node);
+      return wrap;
+    }
+    return branchResult as Node;
+  }
+  return getAdapter().createTextNode(String(branchResult)) as unknown as Node;
+}
+
+/**
  * Reactive conditional rendering.
  * When condFn() is true, renders trueFn(); otherwise renders falseFn().
  * Manages DOM insertion and cleanup automatically.
@@ -86,14 +109,7 @@ function hydrateConditional(
     popScope();
     branchCleanups = scope;
 
-    let newNode: Node;
-    if (branchResult == null || typeof branchResult === 'boolean') {
-      newNode = getAdapter().createComment('empty') as unknown as Node;
-    } else if (isRenderNode(branchResult)) {
-      newNode = branchResult;
-    } else {
-      newNode = getAdapter().createTextNode(String(branchResult)) as unknown as Node;
-    }
+    const newNode = normalizeNode(branchResult);
 
     if (currentNode?.parentNode) {
       currentNode.parentNode.replaceChild(newNode, currentNode);
@@ -149,18 +165,7 @@ function csrConditional(
     popScope();
     branchCleanups = scope;
 
-    // Branch may return null (e.g. false-branch of {show && <el/>}).
-    // Use a comment placeholder so replaceChild always has a valid Node.
-    // Branches may also return primitives (strings, numbers) from ternary
-    // expressions like {loading ? 'Loading...' : 'Done'} — convert to text nodes.
-    let newNode: Node;
-    if (branchResult == null || typeof branchResult === 'boolean') {
-      newNode = getAdapter().createComment('empty') as unknown as Node;
-    } else if (isRenderNode(branchResult)) {
-      newNode = branchResult;
-    } else {
-      newNode = getAdapter().createTextNode(String(branchResult)) as unknown as Node;
-    }
+    const newNode = normalizeNode(branchResult);
 
     if (currentNode?.parentNode) {
       // Replace old node with new node
