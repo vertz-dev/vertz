@@ -1,5 +1,31 @@
 # @vertz/cli
 
+## 0.2.11
+
+### Patch Changes
+
+- [#918](https://github.com/vertz-dev/vertz/pull/918) [`1fc9e33`](https://github.com/vertz-dev/vertz/commit/1fc9e33a9aa5283898c8974084f519a3caacbabb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove index.html from the framework
+
+  UI apps no longer require an `index.html` file in the project root. The production build now generates the HTML shell programmatically with the correct asset references, eliminating the need for:
+
+  - Manual `index.html` maintenance
+  - Fast Refresh runtime stripping during build
+  - Dev script tag replacement with hashed entries
+  - `./public/` path rewriting
+
+  The `createIndexHtmlStasher` dev server mechanism (which renamed `index.html` during development to prevent Bun from auto-serving it) has been removed entirely.
+
+  `UIBuildConfig` gains an optional `title` field (default: `'Vertz App'`) to set the HTML page title.
+
+- Updated dependencies [[`b2878cf`](https://github.com/vertz-dev/vertz/commit/b2878cfe2acb3d1155ca5e0da13b2ee91c9aea9a), [`5ed4c1a`](https://github.com/vertz-dev/vertz/commit/5ed4c1a4c5c9ea946e97b1636011251c6287eaf4), [`1fc9e33`](https://github.com/vertz-dev/vertz/commit/1fc9e33a9aa5283898c8974084f519a3caacbabb)]:
+  - @vertz/ui-server@0.2.11
+  - @vertz/codegen@0.2.11
+  - @vertz/compiler@0.2.11
+  - @vertz/create-vertz-app@0.2.11
+  - @vertz/db@0.2.11
+  - @vertz/errors@0.2.11
+  - @vertz/tui@0.2.11
+
 ## 0.2.8
 
 ### Patch Changes

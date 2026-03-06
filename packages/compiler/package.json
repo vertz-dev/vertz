@@ -1,6 +1,6 @@
 {
   "name": "@vertz/compiler",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "type": "module",
   "license": "MIT",
   "description": "Vertz compiler — internal, no stability guarantee",
