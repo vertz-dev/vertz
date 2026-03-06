@@ -1,9 +1,16 @@
-import { isQueryDescriptor, type QueryDescriptor, type Result } from '@vertz/fetch';
+import {
+  type EntityQueryMeta,
+  isQueryDescriptor,
+  type QueryDescriptor,
+  type Result,
+} from '@vertz/fetch';
 import { isNavPrefetchActive } from '../router/server-nav';
 import { _tryOnCleanup } from '../runtime/disposal';
 import { computed, lifecycleEffect, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal, Unwrapped } from '../runtime/signal-types';
 import { setReadValueCallback, untrack } from '../runtime/tracking';
+import { getEntityStore, getQueryEnvelopeStore } from '../store/entity-store-singleton';
+import type { QueryEnvelope } from '../store/query-envelope-store';
 import { type CacheStore, MemoryCache } from './cache';
 import { deriveKey, hashString } from './key-derivation';
 import { hydrateQueryFromSSR } from './ssr-hydration';
@@ -48,6 +55,8 @@ export interface QueryOptions<T> {
    *   when the function returns `false`).
    */
   refetchInterval?: number | false | ((data: T | undefined, iteration: number) => number | false);
+  /** @internal Entity metadata for entity-backed queries. Set by descriptor overload. */
+  _entityMeta?: EntityQueryMeta;
 }
 
 /** The reactive object returned by query(). */
@@ -126,13 +135,14 @@ export function query<T, E = unknown>(
   options: QueryOptions<T> = {},
 ): QueryResult<T, E> {
   if (isQueryDescriptor<T, E>(source)) {
+    const entityMeta = source._entity;
     return query(
       async () => {
         const result = (await source._fetch()) as Result<T, E>;
         if (!result.ok) throw result.error;
         return result.data;
       },
-      { ...options, key: source._key },
+      { ...options, key: source._key, _entityMeta: entityMeta },
     ) as QueryResult<T, E>;
   }
 
@@ -143,6 +153,7 @@ export function query<T, E = unknown>(
     enabled = true,
     key: customKey,
     cache = defaultCache as CacheStore<T>,
+    _entityMeta: entityMeta,
   } = options;
 
   const baseKey = deriveKey(thunk);
@@ -187,10 +198,62 @@ export function query<T, E = unknown>(
   }
 
   // -- Reactive signals --
-  const data: Signal<T | undefined> = signal<T | undefined>(initialData);
+  const rawData: Signal<T | undefined> = signal<T | undefined>(initialData);
   const loading: Signal<boolean> = signal<boolean>(initialData === undefined && enabled);
   const revalidating: Signal<boolean> = signal<boolean>(false);
   const error: Signal<unknown> = signal<unknown>(undefined);
+
+  // Entity-backed source switcher: when entityMeta is present,
+  // data reads from EntityStore instead of rawData.
+  let entityBacked = false;
+
+  /**
+   * Normalize fetch result into EntityStore for entity-backed queries.
+   * For 'get' queries: merges the single entity.
+   * For 'list' queries: merges all items and stores the ID index.
+   */
+  function normalizeToEntityStore(result: T): void {
+    if (!entityMeta) return;
+    const store = getEntityStore();
+    if (entityMeta.kind === 'get' && result && typeof result === 'object' && 'id' in result) {
+      store.merge(entityMeta.entityType, result as { id: string });
+      entityBacked = true;
+    }
+    if (entityMeta.kind === 'list' && result && typeof result === 'object') {
+      const listResult = result as { items?: { id: string }[] };
+      if (Array.isArray(listResult.items)) {
+        store.merge(entityMeta.entityType, listResult.items);
+        const ids = listResult.items.map((item) => item.id);
+        const queryKey = customKey ?? entityMeta.entityType;
+        store.queryIndices.set(queryKey, ids);
+        // Store envelope metadata (pagination info) separately
+        const { items: _, ...rest } = result as Record<string, unknown>;
+        if (Object.keys(rest).length > 0) {
+          getQueryEnvelopeStore().set(customKey ?? getCacheKey(), rest as unknown as QueryEnvelope);
+        }
+        entityBacked = true;
+      }
+    }
+  }
+
+  const data: ReadonlySignal<T | undefined> = entityMeta
+    ? computed(() => {
+        if (!entityBacked) return rawData.value;
+        const store = getEntityStore();
+        if (entityMeta.kind === 'get' && entityMeta.id) {
+          return store.get<T>(entityMeta.entityType, entityMeta.id).value;
+        }
+        // For list queries, reconstruct from query index + store
+        const queryKey = customKey ?? entityMeta.entityType;
+        const ids = store.queryIndices.get(queryKey);
+        if (ids) {
+          const items = ids.map((id) => store.get(entityMeta.entityType, id).value).filter(Boolean);
+          // Return items as the data (caller sees the array)
+          return items as unknown as T;
+        }
+        return rawData.value;
+      })
+    : rawData;
 
   // If initialData was provided, seed the cache.
   if (initialData !== undefined) {
@@ -212,7 +275,7 @@ export function query<T, E = unknown>(
     if (cached !== undefined) {
       // Cache hit: populate signals immediately and suppress the thunk promise.
       promise.catch(() => {});
-      data.value = cached;
+      rawData.value = cached;
       loading.value = false;
     } else {
       // Cache miss: register promise for renderToHTML() to await.
@@ -226,7 +289,7 @@ export function query<T, E = unknown>(
           promise,
           timeout: ssrTimeout,
           resolve: (result: unknown) => {
-            data.value = result as T;
+            rawData.value = result as T;
             loading.value = false;
             cache.set(key, result as T);
           },
@@ -255,7 +318,7 @@ export function query<T, E = unknown>(
     ssrHydrationCleanup = hydrateQueryFromSSR(
       hydrationKey,
       (result: unknown) => {
-        data.value = result as T;
+        rawData.value = result as T;
         loading.value = false;
         cache.set(hydrationKey, result as T);
         ssrHydrated = true;
@@ -273,7 +336,7 @@ export function query<T, E = unknown>(
       if (customKey) {
         const cached = cache.get(customKey);
         if (cached !== undefined) {
-          data.value = cached;
+          rawData.value = cached;
           loading.value = false;
           ssrHydrated = true; // Prevents the effect from re-fetching
         }
@@ -285,7 +348,7 @@ export function query<T, E = unknown>(
       const doneHandler = () => {
         document.removeEventListener('vertz:nav-prefetch-done', doneHandler);
         // Only trigger refetch if no data arrived yet (from cache, SSE, or client fetch)
-        if (data.peek() === undefined && !ssrHydrated) {
+        if (rawData.peek() === undefined && !ssrHydrated) {
           refetchTrigger.value = refetchTrigger.peek() + 1;
         }
       };
@@ -326,7 +389,7 @@ export function query<T, E = unknown>(
 
     let ms: number | false;
     if (typeof refetchIntervalOption === 'function') {
-      ms = refetchIntervalOption(data.peek() as T | undefined, intervalIteration);
+      ms = refetchIntervalOption(rawData.peek() as T | undefined, intervalIteration);
     } else {
       ms = refetchIntervalOption as number;
     }
@@ -372,7 +435,8 @@ export function query<T, E = unknown>(
         inflightKeys.delete(key);
         if (id !== fetchId) return; // stale
         cache.set(key, result);
-        data.value = result;
+        normalizeToEntityStore(result);
+        rawData.value = result;
         loading.value = false;
         revalidating.value = false;
         scheduleInterval();
@@ -398,7 +462,7 @@ export function query<T, E = unknown>(
     const id = ++fetchId;
 
     untrack(() => {
-      if (data.value !== undefined) {
+      if (rawData.value !== undefined) {
         // Data already exists — this is a revalidation, not a first load
         revalidating.value = true;
       } else {
@@ -463,7 +527,7 @@ export function query<T, E = unknown>(
           const cached = untrack(() => cache.get(customKey));
           if (cached !== undefined) {
             untrack(() => {
-              data.value = cached;
+              rawData.value = cached;
               loading.value = false;
             });
             isFirst = false;
@@ -477,7 +541,7 @@ export function query<T, E = unknown>(
           const cached = untrack(() => cache.get(derivedKey));
           if (cached !== undefined) {
             untrack(() => {
-              data.value = cached;
+              rawData.value = cached;
               loading.value = false;
             });
             isFirst = false;
@@ -496,7 +560,7 @@ export function query<T, E = unknown>(
         if (existing) {
           const id = ++fetchId;
           untrack(() => {
-            if (data.value !== undefined) {
+            if (rawData.value !== undefined) {
               revalidating.value = true;
             } else {
               loading.value = true;
@@ -529,7 +593,7 @@ export function query<T, E = unknown>(
           promise.catch(() => {});
           const id = ++fetchId;
           untrack(() => {
-            if (data.value !== undefined) {
+            if (rawData.value !== undefined) {
               revalidating.value = true;
             } else {
               loading.value = true;
@@ -560,7 +624,7 @@ export function query<T, E = unknown>(
         if (cached !== undefined) {
           promise.catch(() => {});
           untrack(() => {
-            data.value = cached;
+            rawData.value = cached;
             loading.value = false;
             error.value = undefined;
           });

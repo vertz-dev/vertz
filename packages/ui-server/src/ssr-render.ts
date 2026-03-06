@@ -166,6 +166,8 @@ async function ssrRenderToStringUnsafe(
     // cause queries to skip SSR registration (they see cache hits instead).
     // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
     (globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__?.();
+    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+    (globalThis as any).__VERTZ_CLEAR_ENTITY_STORE__?.();
 
     try {
       setGlobalSSRTimeout(ssrTimeout);
@@ -279,6 +281,8 @@ async function ssrDiscoverQueriesUnsafe(
     // Clear query cache (same reason as ssrRenderToString — stale module state)
     // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
     (globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__?.();
+    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+    (globalThis as any).__VERTZ_CLEAR_ENTITY_STORE__?.();
 
     try {
       setGlobalSSRTimeout(ssrTimeout);
@@ -374,6 +378,8 @@ export async function ssrStreamNavQueries(
 
       // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
       (globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__?.();
+      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+      (globalThis as any).__VERTZ_CLEAR_ENTITY_STORE__?.();
 
       try {
         setGlobalSSRTimeout(ssrTimeout);

@@ -66,3 +66,30 @@ export interface ListResponse<T> {
   nextCursor: string | null;
   hasNextPage: boolean;
 }
+
+/** Metadata for entity-backed query descriptors. */
+export interface EntityQueryMeta {
+  readonly entityType: string;
+  readonly kind: 'get' | 'list';
+  readonly id?: string;
+}
+
+/** Metadata for mutation descriptors. */
+export interface MutationMeta {
+  readonly entityType: string;
+  readonly kind: 'update' | 'delete' | 'create';
+  readonly id?: string;
+  readonly body?: unknown;
+}
+
+/**
+ * Callback interface for optimistic updates.
+ * Decouples @vertz/fetch from @vertz/ui — fetch defines the contract,
+ * ui provides the implementation via EntityStore.
+ */
+export interface OptimisticHandler {
+  /** Apply optimistic patch. Returns a rollback function. */
+  apply(meta: MutationMeta, mutationId: string): (() => void) | undefined;
+  /** Commit server-confirmed data after successful mutation. */
+  commit(meta: MutationMeta, mutationId: string, data: unknown): void;
+}

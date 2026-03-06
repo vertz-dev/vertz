@@ -3,6 +3,11 @@ import { ok } from '@vertz/fetch';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { signal } from '../../runtime/signal';
 import type { DisposeFn } from '../../runtime/signal-types';
+import {
+  getEntityStore,
+  getQueryEnvelopeStore,
+  resetEntityStore,
+} from '../../store/entity-store-singleton';
 import { MemoryCache } from '../cache';
 import { __inflightSize, query } from '../query';
 
@@ -1420,5 +1425,248 @@ describe('query()', () => {
     expect(iterations[2]).toBe(0);
 
     result.dispose();
+  });
+
+  describe('entity-backed queries', () => {
+    beforeEach(() => {
+      resetEntityStore();
+    });
+
+    test('get descriptor with _entity normalizes data into EntityStore', async () => {
+      const descriptor = {
+        _tag: 'QueryDescriptor' as const,
+        _key: 'GET:/todos/1',
+        _entity: { entityType: 'todos', kind: 'get' as const, id: '1' },
+        _fetch: () => Promise.resolve(ok({ id: '1', title: 'Buy milk', completed: false })),
+        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+
+      const result = query(descriptor);
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Data should be populated
+      expect(result.data.value).toEqual({ id: '1', title: 'Buy milk', completed: false });
+
+      // Entity should be in the store
+      const store = getEntityStore();
+      expect(store.has('todos', '1')).toBe(true);
+      expect(store.get('todos', '1').peek()).toEqual({
+        id: '1',
+        title: 'Buy milk',
+        completed: false,
+      });
+
+      result.dispose();
+    });
+
+    test('entity-backed query data updates when EntityStore changes via applyLayer', async () => {
+      const descriptor = {
+        _tag: 'QueryDescriptor' as const,
+        _key: 'GET:/todos/2',
+        _entity: { entityType: 'todos', kind: 'get' as const, id: '2' },
+        _fetch: () => Promise.resolve(ok({ id: '2', title: 'Buy milk', completed: false })),
+        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+
+      const result = query(descriptor);
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(result.data.value).toEqual({ id: '2', title: 'Buy milk', completed: false });
+
+      // Apply optimistic layer
+      const store = getEntityStore();
+      store.applyLayer('todos', '2', 'm_1', { completed: true });
+
+      // Query data should reflect the optimistic update
+      expect(result.data.value).toEqual({ id: '2', title: 'Buy milk', completed: true });
+
+      result.dispose();
+    });
+
+    test('list descriptor normalizes items into EntityStore', async () => {
+      const descriptor = {
+        _tag: 'QueryDescriptor' as const,
+        _key: 'GET:/todos',
+        _entity: { entityType: 'todos', kind: 'list' as const },
+        _fetch: () =>
+          Promise.resolve(
+            ok({
+              items: [
+                { id: '10', title: 'First', completed: false },
+                { id: '11', title: 'Second', completed: true },
+              ],
+              total: 2,
+            }),
+          ),
+        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+
+      const result = query(descriptor);
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // List data should be the items array
+      const data = result.data.value as any[];
+      expect(data).toHaveLength(2);
+      expect(data[0]).toEqual({ id: '10', title: 'First', completed: false });
+      expect(data[1]).toEqual({ id: '11', title: 'Second', completed: true });
+
+      // Both entities should be in the store
+      const store = getEntityStore();
+      expect(store.has('todos', '10')).toBe(true);
+      expect(store.has('todos', '11')).toBe(true);
+
+      result.dispose();
+    });
+
+    test('list + get queries — applying layer updates both', async () => {
+      const listDescriptor = {
+        _tag: 'QueryDescriptor' as const,
+        _key: 'GET:/todos-shared',
+        _entity: { entityType: 'shared-todos', kind: 'list' as const },
+        _fetch: () =>
+          Promise.resolve(
+            ok({
+              items: [
+                { id: '20', title: 'Buy milk', completed: false },
+                { id: '21', title: 'Walk dog', completed: false },
+              ],
+              total: 2,
+            }),
+          ),
+        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+
+      const getDescriptor = {
+        _tag: 'QueryDescriptor' as const,
+        _key: 'GET:/todos-shared/20',
+        _entity: { entityType: 'shared-todos', kind: 'get' as const, id: '20' },
+        _fetch: () => Promise.resolve(ok({ id: '20', title: 'Buy milk', completed: false })),
+        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+
+      const listResult = query(listDescriptor);
+      const getResult = query(getDescriptor);
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Both queries should have data
+      expect((listResult.data.value as any[])?.length).toBe(2);
+      expect(getResult.data.value).toEqual({ id: '20', title: 'Buy milk', completed: false });
+
+      // Apply optimistic layer to entity '20'
+      const store = getEntityStore();
+      store.applyLayer('shared-todos', '20', 'm_shared', { completed: true });
+
+      // Both queries should reflect the change
+      expect(getResult.data.value).toEqual({ id: '20', title: 'Buy milk', completed: true });
+      const listItems = listResult.data.value as any[];
+      expect(listItems[0]).toEqual({ id: '20', title: 'Buy milk', completed: true });
+      expect(listItems[1]).toEqual({ id: '21', title: 'Walk dog', completed: false });
+
+      listResult.dispose();
+      getResult.dispose();
+    });
+
+    test('list query stores envelope metadata', async () => {
+      const descriptor = {
+        _tag: 'QueryDescriptor' as const,
+        _key: 'GET:/todos-envelope',
+        _entity: { entityType: 'todos', kind: 'list' as const },
+        _fetch: () =>
+          Promise.resolve(
+            ok({
+              items: [
+                { id: '40', title: 'Item A', completed: false },
+                { id: '41', title: 'Item B', completed: true },
+              ],
+              total: 42,
+              limit: 10,
+              nextCursor: 'cursor_abc',
+              hasNextPage: true,
+            }),
+          ),
+        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+
+      const result = query(descriptor);
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Envelope metadata should be stored
+      const envelopeStore = getQueryEnvelopeStore();
+      const envelope = envelopeStore.get('GET:/todos-envelope');
+      expect(envelope).toEqual({
+        total: 42,
+        limit: 10,
+        nextCursor: 'cursor_abc',
+        hasNextPage: true,
+      });
+
+      result.dispose();
+    });
+
+    test('entity persists in store after query disposal', async () => {
+      const descriptor = {
+        _tag: 'QueryDescriptor' as const,
+        _key: 'GET:/todos/30',
+        _entity: { entityType: 'todos', kind: 'get' as const, id: '30' },
+        _fetch: () => Promise.resolve(ok({ id: '30', title: 'Persist me', completed: false })),
+        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+
+      const result = query(descriptor);
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(result.data.value).toEqual({ id: '30', title: 'Persist me', completed: false });
+
+      // Dispose the query
+      result.dispose();
+
+      // Entity should still be in the store
+      const store = getEntityStore();
+      expect(store.has('todos', '30')).toBe(true);
+      expect(store.get('todos', '30').peek()).toEqual({
+        id: '30',
+        title: 'Persist me',
+        completed: false,
+      });
+    });
   });
 });

@@ -39,6 +39,20 @@ export class QueryResultIndex {
   }
 
   /**
+   * Snapshot all indices containing the given entity ID.
+   * Returns a Map of queryKey → full ID array (copy) for rollback support.
+   */
+  snapshotEntity(entityId: string): Map<string, string[]> {
+    const result = new Map<string, string[]>();
+    for (const [queryKey, ids] of this._indices.entries()) {
+      if (ids.includes(entityId)) {
+        result.set(queryKey, [...ids]);
+      }
+    }
+    return result;
+  }
+
+  /**
    * Get all query keys (for serialization).
    */
   keys(): string[] {

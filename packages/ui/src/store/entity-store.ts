@@ -7,15 +7,33 @@ import { QueryResultIndex } from './query-result-index';
 import type { EntityStoreOptions, SerializedStore } from './types';
 
 /**
+ * Internal entry for each entity in the store.
+ * Supports optimistic layer stack for concurrent mutations.
+ */
+interface EntityEntry {
+  /** The reactive signal exposed to consumers — always reflects visible state. */
+  signal: Signal<any>;
+  /** Server-confirmed ground truth. */
+  base: Record<string, unknown>;
+  /** Optimistic layers keyed by mutation ID. Inserted order preserved by Map. */
+  layers: Map<string, Record<string, unknown>>;
+}
+
+/**
  * EntityStore - Normalized, signal-backed entity cache for @vertz/ui.
  *
  * Stores entities by type and ID, with signal-per-entity reactivity.
- * Supports field-level merge, SSR hydration, and query result indices.
+ * Supports field-level merge, SSR hydration, optimistic layers, and query result indices.
  */
 export class EntityStore {
-  private _entities = new Map<string, Map<string, Signal<any>>>();
+  private _entities = new Map<string, Map<string, EntityEntry>>();
   private _typeListeners = new Map<string, Set<() => void>>();
   private _queryIndices = new QueryResultIndex();
+
+  /** Public accessor for query indices — used by optimistic handlers and tests. */
+  get queryIndices(): QueryResultIndex {
+    return this._queryIndices;
+  }
 
   constructor(options?: EntityStoreOptions) {
     if (options?.initialData) {
@@ -29,14 +47,20 @@ export class EntityStore {
    */
   get<T>(type: string, id: string): ReadonlySignal<T | undefined> {
     const typeMap = this._entities.get(type);
+    const entry = typeMap?.get(id);
 
-    if (typeMap?.has(id)) {
-      return typeMap.get(id)! as ReadonlySignal<T | undefined>;
+    if (entry) {
+      return entry.signal as ReadonlySignal<T | undefined>;
     }
 
-    // Create undefined signal for missing entity (allows reactive queries to work)
+    // Create undefined entry for missing entity (allows reactive queries to work)
     const sig = signal<T | undefined>(undefined);
-    this._getOrCreateTypeMap(type).set(id, sig);
+    const newEntry: EntityEntry = {
+      signal: sig,
+      base: {},
+      layers: new Map(),
+    };
+    this._getOrCreateTypeMap(type).set(id, newEntry);
     return sig as ReadonlySignal<T | undefined>;
   }
 
@@ -64,24 +88,26 @@ export class EntityStore {
     batch(() => {
       for (const item of items) {
         const typeMap = this._entities.get(type);
-        const existing = typeMap?.get(item.id);
+        const entry = typeMap?.get(item.id);
 
-        if (existing) {
-          // Update existing entity
-          const current = existing.peek(); // read without subscribing
-          const merged = shallowMerge(current || {}, item);
+        if (entry) {
+          // Update existing entity — merge into base, recompute visible
+          const mergedBase = shallowMerge(entry.base, item);
 
-          if (!shallowEqual(current || {}, merged)) {
-            // Data changed - update signal (wrapped in untrack to prevent circular effects)
-            untrack(() => {
-              existing.value = merged;
-            });
+          if (!shallowEqual(entry.base, mergedBase)) {
+            entry.base = mergedBase;
+            // Recompute visible state: base + all layers
+            this._recomputeVisible(entry);
           }
-          // If shallowEqual → no signal update → no re-renders
         } else {
-          // New entity - create signal and notify type listeners
+          // New entity - create entry and notify type listeners
           const newSignal = signal<T>(item);
-          this._getOrCreateTypeMap(type).set(item.id, newSignal);
+          const newEntry: EntityEntry = {
+            signal: newSignal,
+            base: item as Record<string, unknown>,
+            layers: new Map(),
+          };
+          this._getOrCreateTypeMap(type).set(item.id, newEntry);
           this._notifyTypeChange(type);
         }
       }
@@ -100,9 +126,9 @@ export class EntityStore {
     }
 
     // Set signal to undefined before deleting
-    const existing = typeMap.get(id);
-    if (existing) {
-      existing.value = undefined;
+    const entry = typeMap.get(id);
+    if (entry) {
+      entry.signal.value = undefined;
     }
 
     typeMap.delete(id);
@@ -136,8 +162,8 @@ export class EntityStore {
       return false;
     }
 
-    const signal = typeMap.get(id);
-    return signal?.peek() !== undefined;
+    const entry = typeMap.get(id);
+    return entry?.signal.peek() !== undefined;
   }
 
   /**
@@ -151,8 +177,8 @@ export class EntityStore {
 
     // Count only entities with non-undefined values
     let count = 0;
-    for (const signal of typeMap.values()) {
-      if (signal.peek() !== undefined) {
+    for (const entry of typeMap.values()) {
+      if (entry.signal.peek() !== undefined) {
         count++;
       }
     }
@@ -161,6 +187,7 @@ export class EntityStore {
 
   /**
    * Serialize the store for SSR transfer.
+   * Serializes base values only — optimistic layers are transient.
    */
   dehydrate(): SerializedStore {
     const entities: Record<string, Record<string, unknown>> = {};
@@ -168,8 +195,8 @@ export class EntityStore {
     for (const [type, typeMap] of this._entities.entries()) {
       const typeEntities: Record<string, unknown> = {};
 
-      for (const [id, signal] of typeMap.entries()) {
-        const value = signal.peek();
+      for (const [id, entry] of typeMap.entries()) {
+        const value = entry.signal.peek();
         if (value !== undefined) {
           typeEntities[id] = value;
         }
@@ -215,9 +242,119 @@ export class EntityStore {
     }
   }
 
+  /**
+   * Apply an optimistic layer to an entity.
+   * The layer is stacked on top of base, recomputing the visible signal value.
+   */
+  applyLayer(type: string, id: string, mutationId: string, patch: Record<string, unknown>): void {
+    const entry = this._entities.get(type)?.get(id);
+    if (!entry) return;
+
+    entry.layers.set(mutationId, patch);
+    this._recomputeVisible(entry);
+  }
+
+  /**
+   * Inspect the internal state of an entity — for debugging and testing.
+   * Returns base, layers, and visible (computed) state.
+   */
+  inspect(
+    type: string,
+    id: string,
+  ):
+    | {
+        base: Record<string, unknown>;
+        layers: Map<string, Record<string, unknown>>;
+        visible: unknown;
+      }
+    | undefined {
+    const entry = this._entities.get(type)?.get(id);
+    if (!entry) return undefined;
+
+    return {
+      base: entry.base,
+      layers: entry.layers,
+      visible: entry.signal.peek(),
+    };
+  }
+
+  /**
+   * Rollback an optimistic layer (mutation failed).
+   * Removes the layer and recomputes visible from base + remaining layers.
+   */
+  rollbackLayer(type: string, id: string, mutationId: string): void {
+    const entry = this._entities.get(type)?.get(id);
+    if (!entry) return;
+
+    entry.layers.delete(mutationId);
+    this._recomputeVisible(entry);
+  }
+
+  /**
+   * Optimistically remove an entity (for delete mutations).
+   * Removes the entity from the store and query indices.
+   * Caller should snapshot entity + indices beforehand for rollback.
+   */
+  removeOptimistic(type: string, id: string, _mutationId: string): void {
+    this.remove(type, id);
+  }
+
+  /**
+   * Restore an entity after a failed optimistic delete.
+   * Re-merges the entity and restores query index positions.
+   */
+  restoreOptimistic(
+    type: string,
+    _id: string,
+    _mutationId: string,
+    entitySnapshot: unknown,
+    indexSnapshot: Map<string, string[]>,
+  ): void {
+    if (entitySnapshot) {
+      this.merge(type, entitySnapshot as { id: string });
+    }
+    for (const [queryKey, ids] of indexSnapshot) {
+      this._queryIndices.set(queryKey, ids);
+    }
+  }
+
+  /**
+   * Commit an optimistic layer after server confirms the mutation.
+   * Sets base to server data, removes the layer, recomputes visible.
+   */
+  commitLayer(
+    type: string,
+    id: string,
+    mutationId: string,
+    serverData: Record<string, unknown>,
+  ): void {
+    const entry = this._entities.get(type)?.get(id);
+    if (!entry) return;
+
+    entry.base = serverData;
+    entry.layers.delete(mutationId);
+    this._recomputeVisible(entry);
+  }
+
   // --- Private helpers ---
 
-  private _getOrCreateTypeMap(type: string): Map<string, Signal<any>> {
+  /**
+   * Recompute the visible signal value from base + all layers.
+   */
+  private _recomputeVisible(entry: EntityEntry): void {
+    let visible = { ...entry.base };
+    for (const patch of entry.layers.values()) {
+      visible = shallowMerge(visible, patch);
+    }
+
+    if (!shallowEqual(entry.signal.peek() || {}, visible)) {
+      untrack(() => {
+        entry.signal.value = visible;
+      });
+    }
+  }
+
+  private _getOrCreateTypeMap(type: string): Map<string, EntityEntry> {
     let typeMap = this._entities.get(type);
     if (!typeMap) {
       typeMap = new Map();

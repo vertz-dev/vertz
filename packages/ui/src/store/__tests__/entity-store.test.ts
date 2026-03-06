@@ -374,6 +374,182 @@ describe('EntityStore - onTypeChange', () => {
   });
 });
 
+describe('EntityStore - optimistic layers', () => {
+  it('applyLayer adds optimistic layer and updates visible state', () => {
+    const store = new EntityStore();
+    store.merge('todos', { id: '1', completed: false, title: 'Buy milk' });
+
+    store.applyLayer('todos', '1', 'm1', { completed: true });
+
+    expect(store.get('todos', '1').value).toEqual({
+      id: '1',
+      completed: true,
+      title: 'Buy milk',
+    });
+  });
+
+  it('rollbackLayer removes layer and reverts to base', () => {
+    const store = new EntityStore();
+    store.merge('todos', { id: '1', completed: false, title: 'Buy milk' });
+
+    store.applyLayer('todos', '1', 'm1', { completed: true });
+    expect(store.get('todos', '1').value).toEqual({
+      id: '1',
+      completed: true,
+      title: 'Buy milk',
+    });
+
+    store.rollbackLayer('todos', '1', 'm1');
+    expect(store.get('todos', '1').value).toEqual({
+      id: '1',
+      completed: false,
+      title: 'Buy milk',
+    });
+  });
+
+  it('commitLayer updates base with server data and removes layer', () => {
+    const store = new EntityStore();
+    store.merge('todos', { id: '1', completed: false, title: 'Buy milk' });
+
+    store.applyLayer('todos', '1', 'm1', { completed: true });
+    store.commitLayer('todos', '1', 'm1', {
+      id: '1',
+      completed: true,
+      title: 'Buy milk',
+      updatedAt: '2026-03-03',
+    });
+
+    expect(store.get('todos', '1').value).toEqual({
+      id: '1',
+      completed: true,
+      title: 'Buy milk',
+      updatedAt: '2026-03-03',
+    });
+  });
+
+  it('handles concurrent mutations independently', () => {
+    const store = new EntityStore();
+    store.merge('todos', { id: '1', completed: false, title: 'Buy milk' });
+
+    // Two concurrent mutations
+    store.applyLayer('todos', '1', 'm1', { completed: true });
+    store.applyLayer('todos', '1', 'm2', { title: 'Buy eggs' });
+
+    // Both layers applied
+    expect(store.get('todos', '1').value).toEqual({
+      id: '1',
+      completed: true,
+      title: 'Buy eggs',
+    });
+
+    // Rollback m1 — m2 survives
+    store.rollbackLayer('todos', '1', 'm1');
+    expect(store.get('todos', '1').value).toEqual({
+      id: '1',
+      completed: false,
+      title: 'Buy eggs',
+    });
+
+    // Commit m2 with server data
+    store.commitLayer('todos', '1', 'm2', {
+      id: '1',
+      completed: false,
+      title: 'Buy eggs',
+      updatedAt: '2026-03-03',
+    });
+    expect(store.get('todos', '1').value).toEqual({
+      id: '1',
+      completed: false,
+      title: 'Buy eggs',
+      updatedAt: '2026-03-03',
+    });
+  });
+
+  it('merge after applyLayer updates base but preserves layers', () => {
+    const store = new EntityStore();
+    store.merge('todos', { id: '1', completed: false, title: 'Buy milk' });
+
+    // Optimistic layer says completed: true
+    store.applyLayer('todos', '1', 'm1', { completed: true });
+
+    // Server refetch returns stale data (completed: false)
+    store.merge('todos', { id: '1', completed: false, title: 'Buy milk', updatedAt: '2026-01-01' });
+
+    // Layer still applied on top — visible shows completed: true
+    expect(store.get('todos', '1').value).toEqual({
+      id: '1',
+      completed: true,
+      title: 'Buy milk',
+      updatedAt: '2026-01-01',
+    });
+  });
+
+  it('removeOptimistic removes entity and updates query indices', () => {
+    const store = new EntityStore();
+    store.merge('todos', [
+      { id: '1', title: 'A' },
+      { id: '2', title: 'B' },
+      { id: '3', title: 'C' },
+    ]);
+    // Simulate query index registration (via public queryIndices accessor)
+    store.queryIndices.set('GET:/todos', ['1', '2', '3']);
+
+    store.removeOptimistic('todos', '2', 'm1');
+
+    expect(store.has('todos', '2')).toBe(false);
+    expect(store.queryIndices.get('GET:/todos')).toEqual(['1', '3']);
+  });
+
+  it('restoreOptimistic restores entity and query indices after failed delete', () => {
+    const store = new EntityStore();
+    store.merge('todos', [
+      { id: '1', title: 'A' },
+      { id: '2', title: 'B' },
+      { id: '3', title: 'C' },
+    ]);
+    store.queryIndices.set('GET:/todos', ['1', '2', '3']);
+
+    // Snapshot before delete
+    const entitySnapshot = store.get('todos', '2').peek();
+    const indexSnapshot = store.queryIndices.snapshotEntity('2');
+
+    // Optimistic delete
+    store.removeOptimistic('todos', '2', 'm1');
+    expect(store.queryIndices.get('GET:/todos')).toEqual(['1', '3']);
+
+    // Rollback
+    store.restoreOptimistic('todos', '2', 'm1', entitySnapshot, indexSnapshot);
+    expect(store.queryIndices.get('GET:/todos')).toEqual(['1', '2', '3']);
+    expect(store.get('todos', '2').value).toEqual({ id: '2', title: 'B' });
+  });
+
+  it('inspect returns base, layers, and visible state', () => {
+    const store = new EntityStore();
+    store.merge('todos', { id: '1', completed: false, title: 'Buy milk' });
+    store.applyLayer('todos', '1', 'm1', { completed: true });
+
+    const state = store.inspect('todos', '1');
+
+    expect(state).toEqual({
+      base: { id: '1', completed: false, title: 'Buy milk' },
+      layers: new Map([['m1', { completed: true }]]),
+      visible: { id: '1', completed: true, title: 'Buy milk' },
+    });
+  });
+
+  it('inspect returns undefined for missing entity', () => {
+    const store = new EntityStore();
+    expect(store.inspect('todos', '999')).toBeUndefined();
+  });
+
+  it('layer operations on missing entities are safe no-ops', () => {
+    const store = new EntityStore();
+    expect(() => store.applyLayer('todos', '999', 'm1', { a: 1 })).not.toThrow();
+    expect(() => store.rollbackLayer('todos', '999', 'm1')).not.toThrow();
+    expect(() => store.commitLayer('todos', '999', 'm1', { a: 1 })).not.toThrow();
+  });
+});
+
 describe('EntityStore - edge cases', () => {
   it('multiple entity types coexist without interference', () => {
     const store = new EntityStore();

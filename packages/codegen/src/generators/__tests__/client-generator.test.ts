@@ -101,6 +101,126 @@ describe('ClientGenerator', () => {
       expect(clientFile?.content).toContain('blogPost: createBlogPostSdk(client)');
     });
 
+    it('passes auto-wired optimistic handler to entity SDKs with mutations', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todo',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/todo',
+              operationId: 'listTodo',
+              outputSchema: 'TodoResponse',
+            },
+            {
+              kind: 'update',
+              method: 'PATCH',
+              path: '/todo/:id',
+              operationId: 'updateTodo',
+              inputSchema: 'UpdateTodoInput',
+              outputSchema: 'TodoResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain('optimistic?: OptimisticHandler | false');
+      expect(clientFile?.content).toContain('createTodoSdk(client, optimistic)');
+    });
+
+    it('auto-wires optimistic handler from @vertz/ui when mutations exist', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todo',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/todo',
+              operationId: 'listTodo',
+              outputSchema: 'TodoResponse',
+            },
+            {
+              kind: 'update',
+              method: 'PATCH',
+              path: '/todo/:id',
+              operationId: 'updateTodo',
+              inputSchema: 'UpdateTodoInput',
+              outputSchema: 'TodoResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      // Should import from @vertz/ui
+      expect(clientFile?.content).toContain(
+        "import { createOptimisticHandler, getEntityStore } from '@vertz/ui'",
+      );
+      // Should auto-create handler inside createClient
+      expect(clientFile?.content).toContain('createOptimisticHandler(getEntityStore())');
+      // optimistic option should allow opting out with false
+      expect(clientFile?.content).toContain('optimistic?: OptimisticHandler | false');
+    });
+
+    it('opt-out with optimistic: false produces undefined handler', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todo',
+          operations: [
+            {
+              kind: 'update',
+              method: 'PATCH',
+              path: '/todo/:id',
+              operationId: 'updateTodo',
+              inputSchema: 'UpdateTodoInput',
+              outputSchema: 'TodoResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      // Generated code uses ternary that evaluates to undefined when optimistic === false
+      expect(clientFile?.content).toContain('options.optimistic !== false');
+      expect(clientFile?.content).toContain(': undefined');
+    });
+
+    it('does not pass optimistic handler when entity has no mutations', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todo',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/todo',
+              operationId: 'listTodo',
+              outputSchema: 'TodoResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain('createTodoSdk(client)');
+      expect(clientFile?.content).not.toContain('optimistic');
+    });
+
     it('includes ClientOptions with headers and timeoutMs', () => {
       const ir = createBasicIR([]);
 

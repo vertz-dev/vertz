@@ -461,6 +461,159 @@ describe('EntitySdkGenerator', () => {
     });
   });
 
+  describe('mutation descriptors', () => {
+    it('uses createMutationDescriptor for update operations', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todo',
+          operations: [
+            {
+              kind: 'update',
+              method: 'PATCH',
+              path: '/todo/:id',
+              operationId: 'updateTodo',
+              inputSchema: 'UpdateTodoInput',
+              outputSchema: 'TodoResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const todoFile = files.find((f) => f.path === 'entities/todo.ts');
+
+      expect(todoFile?.content).toContain('createMutationDescriptor');
+      expect(todoFile?.content).toContain("entityType: 'todo'");
+      expect(todoFile?.content).toContain("kind: 'update'");
+    });
+
+    it('uses createMutationDescriptor for delete operations', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todo',
+          operations: [
+            {
+              kind: 'delete',
+              method: 'DELETE',
+              path: '/todo/:id',
+              operationId: 'deleteTodo',
+              outputSchema: 'TodoResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const todoFile = files.find((f) => f.path === 'entities/todo.ts');
+
+      expect(todoFile?.content).toContain('createMutationDescriptor');
+      expect(todoFile?.content).toContain("entityType: 'todo'");
+      expect(todoFile?.content).toContain("kind: 'delete'");
+    });
+
+    it('passes entity metadata to get operations via createDescriptor', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todo',
+          operations: [
+            {
+              kind: 'get',
+              method: 'GET',
+              path: '/todo/:id',
+              operationId: 'getTodo',
+              outputSchema: 'TodoResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const todoFile = files.find((f) => f.path === 'entities/todo.ts');
+
+      expect(todoFile?.content).toContain("entityType: 'todo'");
+      expect(todoFile?.content).toContain("kind: 'get'");
+      expect(todoFile?.content).not.toContain('createMutationDescriptor');
+    });
+
+    it('passes entity metadata to list operations via createDescriptor', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todo',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/todo',
+              operationId: 'listTodo',
+              outputSchema: 'TodoResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const todoFile = files.find((f) => f.path === 'entities/todo.ts');
+
+      expect(todoFile?.content).toContain("entityType: 'todo'");
+      expect(todoFile?.content).toContain("kind: 'list'");
+    });
+
+    it('SDK function accepts optimistic handler when mutations exist', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todo',
+          operations: [
+            {
+              kind: 'update',
+              method: 'PATCH',
+              path: '/todo/:id',
+              operationId: 'updateTodo',
+              inputSchema: 'UpdateTodoInput',
+              outputSchema: 'TodoResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const todoFile = files.find((f) => f.path === 'entities/todo.ts');
+
+      expect(todoFile?.content).toContain(
+        'createTodoSdk(client: FetchClient, optimistic?: OptimisticHandler)',
+      );
+      expect(todoFile?.content).toContain('type OptimisticHandler');
+    });
+
+    it('SDK function does not accept optimistic handler when no mutations', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'todo',
+          operations: [
+            {
+              kind: 'list',
+              method: 'GET',
+              path: '/todo',
+              operationId: 'listTodo',
+              outputSchema: 'TodoResponse',
+            },
+          ],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const todoFile = files.find((f) => f.path === 'entities/todo.ts');
+
+      expect(todoFile?.content).toContain('createTodoSdk(client: FetchClient)');
+      expect(todoFile?.content).not.toContain('optimistic');
+    });
+  });
+
   it('includes createDescriptor import in generated output', () => {
     const ir = createBasicIR([
       {

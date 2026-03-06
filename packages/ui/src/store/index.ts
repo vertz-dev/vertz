@@ -6,7 +6,11 @@
  */
 
 export { EntityStore } from './entity-store';
+export { getEntityStore, getQueryEnvelopeStore, resetEntityStore } from './entity-store-singleton';
 export { shallowEqual, shallowMerge } from './merge';
+export { createOptimisticHandler } from './optimistic-handler';
+export type { QueryEnvelope } from './query-envelope-store';
+export { QueryEnvelopeStore } from './query-envelope-store';
 export { QueryResultIndex } from './query-result-index';
 export { createTestStore } from './test-utils';
 export type { EntityStoreOptions, SerializedStore } from './types';
