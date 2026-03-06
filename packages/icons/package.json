@@ -1,13 +1,13 @@
 {
-  "name": "@vertz/ui-primitives",
-  "version": "0.2.11",
+  "name": "@vertz/icons",
+  "version": "0.0.1",
   "type": "module",
   "license": "MIT",
-  "description": "Headless UI primitives for Vertz — Accordion, Dialog, Select, and more",
+  "description": "Tree-shakeable Lucide icon components for Vertz",
   "repository": {
     "type": "git",
     "url": "https://github.com/vertz-dev/vertz.git",
-    "directory": "packages/ui-primitives"
+    "directory": "packages/icons"
   },
   "publishConfig": {
     "access": "public",
@@ -19,10 +19,6 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    },
-    "./utils": {
-      "import": "./dist/utils.js",
-      "types": "./dist/utils.d.ts"
     }
   },
   "files": [
@@ -30,19 +26,16 @@
   ],
   "scripts": {
     "build": "bunup",
+    "generate": "bun run scripts/generate.ts",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "@floating-ui/dom": "^1.7.5",
-    "@vertz/ui": "workspace:^"
-  },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.7.0",
-    "@vertz/ui-compiler": "workspace:^",
     "bunup": "^0.16.31",
     "happy-dom": "^20.7.0",
+    "lucide-static": "^0.575.0",
     "typescript": "^5.7.0"
   },
   "engines": {

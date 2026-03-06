@@ -1,5 +1,35 @@
 # @vertz/ui-compiler
 
+## 0.2.11
+
+### Patch Changes
+
+- [#909](https://github.com/vertz-dev/vertz/pull/909) [`275e4c7`](https://github.com/vertz-dev/vertz/commit/275e4c770f55b9e75b44d90f2cb586fff3eaeede) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix signal API variables (form(), query(), createLoader()) being incorrectly wrapped in computed() when they reference other signal API vars through closures. This caused form().\_\_bindElement to be undefined at runtime and form state to be lost on re-evaluation.
+
+- [#917](https://github.com/vertz-dev/vertz/pull/917) [`5ed4c1a`](https://github.com/vertz-dev/vertz/commit/5ed4c1a4c5c9ea946e97b1636011251c6287eaf4) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix HMR fast-refresh stability: SSR module reload now uses .ts wrapper to preserve plugin processing, compiler unwraps NonNullExpression in reactivity analyzer, and dev server includes diagnostic logging (VERTZ_DEBUG) and health check endpoint (/\_\_vertz_diagnostics).
+
+- [#920](https://github.com/vertz-dev/vertz/pull/920) [`523bbcb`](https://github.com/vertz-dev/vertz/commit/523bbcb12c1866a8334d5dac278cb51b157a5c7b) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - fix(compiler): classify signal API variables passed as function arguments as reactive
+
+  Expressions like `{queryMatch(todosQuery, ...)}` were classified as static because
+  `todosQuery` (a signal API variable from `query()`) was only recognized via property
+  accesses (`.data`, `.loading`), not when passed as a bare argument. This caused the
+  compiler to emit `__insert()` instead of `__child()`, breaking hydration — the SSR
+  `<span style="display:contents">` wrapper was never claimed, so reactive content
+  (delete dialogs, form updates, checkbox toggles) was invisible after hydration.
+
+- [#926](https://github.com/vertz-dev/vertz/pull/926) [`5607c59`](https://github.com/vertz-dev/vertz/commit/5607c598c1c55485222fa2da192d0e0321f8b14a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Replace reactive-vs-static classification with literal-vs-non-literal for JSX codegen decisions.
+
+  Previously, the compiler used static analysis to determine if an expression was reactive (depends on signals) and only wrapped reactive expressions in `__child()` / `__attr()` / getters. This broke when reactive values flowed through function boundaries (callback parameters, HOFs, proxy-backed objects) because the parameter was classified as static.
+
+  Now, the compiler only checks if an expression is a **literal** (string, number, boolean, null). All non-literal expressions get reactive wrappers (`__child`, `__attr`, getters), and the runtime (`domEffect`) handles actual tracking. Idle effects with no signal dependencies have zero ongoing cost.
+
+  This fixes `.map()` render function parameters, `queryMatch` data handler parameters, and any user-defined HOF that receives reactive data — without workarounds.
+
+- [#913](https://github.com/vertz-dev/vertz/pull/913) [`859e3da`](https://github.com/vertz-dev/vertz/commit/859e3dae660629d5d4f1e13c305c9201ee1d738d) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Distinguish reactive reads from stable closure references in computed classification. Callbacks that only call plain methods (`.refetch()`, `.revalidate()`) on signal API vars now stay `static` instead of being unnecessarily wrapped in `computed()`. Only accesses to signal properties (`.data`, `.error`, `.loading`) trigger computed classification.
+
+- Updated dependencies [[`5607c59`](https://github.com/vertz-dev/vertz/commit/5607c598c1c55485222fa2da192d0e0321f8b14a)]:
+  - @vertz/ui@0.2.11
+
 ## 0.2.8
 
 ### Patch Changes

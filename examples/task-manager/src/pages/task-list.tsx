@@ -11,9 +11,9 @@
  * - <TaskCard /> JSX component embedding
  */
 
+import { InboxIcon, PlusIcon } from '@vertz/icons';
 import { query, queryMatch } from "@vertz/ui";
 import { api } from "../api/mock-data";
-import { Icon } from "../components/icon";
 import { TaskCard } from "../components/task-card";
 import type { Task, TaskStatus } from "../lib/types";
 import { useAppRouter } from "../router";
@@ -65,7 +65,7 @@ export function TaskListPage() {
           data-testid="create-task-btn"
           onClick={() => navigate("/tasks/new")}
         >
-          <Icon name="Plus" size={14} />
+          <PlusIcon size={14} />
           New Task
         </button>
       </div>
@@ -97,7 +97,7 @@ export function TaskListPage() {
             {filteredTasks.length === 0 && (
               <div class={emptyStateStyles.container}>
                 <div class={emptyStateStyles.icon}>
-                  <Icon name="Inbox" size={48} />
+                  <InboxIcon size={48} />
                 </div>
                 <h3 class={emptyStateStyles.title}>No tasks found</h3>
                 <p class={emptyStateStyles.description}>
