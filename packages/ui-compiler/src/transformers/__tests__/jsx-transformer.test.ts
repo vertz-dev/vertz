@@ -1,6 +1,6 @@
+import { describe, expect, it } from 'bun:test';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
-import { describe, expect, it } from 'bun:test';
 import { ComponentAnalyzer } from '../../analyzers/component-analyzer';
 import { JsxAnalyzer } from '../../analyzers/jsx-analyzer';
 import { compile } from '../../compiler';
@@ -40,14 +40,21 @@ describe('JsxTransformer', () => {
     expect(result).toContain('() =>');
   });
 
-  it('uses __insert for static expressions', () => {
+  it('uses __child for non-literal static expressions', () => {
     const result = transform(`function App() {\n  return <div>{title}</div>;\n}`, [
       { name: 'title', kind: 'static', start: 0, end: 0 },
     ]);
-    // Static expressions use __insert (no effect overhead)
+    // Non-literal expressions use __child (wraps in effect for reactivity tracking)
+    expect(result).toContain('__child(');
+    expect(result).toContain('() => title');
+    expect(result).not.toContain('__insert(');
+  });
+
+  it('uses __insert for literal expressions', () => {
+    const result = transform(`function App() {\n  return <div>{"hello"}</div>;\n}`, []);
+    // Literal expressions use __insert (no effect overhead)
     expect(result).toContain('__insert(');
     expect(result).not.toContain('__child(');
-    expect(result).not.toContain('createTextNode(String');
   });
 
   it('transforms onClick to __on', () => {

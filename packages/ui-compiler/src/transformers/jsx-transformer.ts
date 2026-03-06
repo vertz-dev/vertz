@@ -4,6 +4,23 @@ import type { ComponentInfo, JsxExpressionInfo, VariableInfo } from '../types';
 import { findBodyNode } from '../utils';
 
 /**
+ * Check if an AST node is a literal expression (string, number, boolean, null).
+ * Literal expressions are guaranteed static — they can never be reactive.
+ * Non-literal expressions (identifiers, property accesses, calls, etc.) MAY be
+ * reactive, so the runtime should wrap them for tracking.
+ */
+function isLiteralExpression(node: Node): boolean {
+  return (
+    node.isKind(SyntaxKind.StringLiteral) ||
+    node.isKind(SyntaxKind.NumericLiteral) ||
+    node.isKind(SyntaxKind.TrueKeyword) ||
+    node.isKind(SyntaxKind.FalseKeyword) ||
+    node.isKind(SyntaxKind.NullKeyword) ||
+    node.isKind(SyntaxKind.NoSubstitutionTemplateLiteral)
+  );
+}
+
+/**
  * JSX whitespace handling: collapse newline-related whitespace (indentation,
  * trailing whitespace around line breaks) while preserving inline spaces
  * within a single line.  This matches the React/Babel JSX text algorithm.
@@ -210,7 +227,7 @@ function transformJsxElement(
   const attrs = openingElement.getAttributes();
   for (const attr of attrs) {
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
-    const attrStmt = processAttribute(attr, elVar, jsxMap, source);
+    const attrStmt = processAttribute(attr, elVar, source);
     if (attrStmt) statements.push(attrStmt);
   }
 
@@ -263,7 +280,7 @@ function transformSelfClosingElement(
   const attrs = node.getAttributes();
   for (const attr of attrs) {
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
-    const attrStmt = processAttribute(attr, elVar, jsxMap, source);
+    const attrStmt = processAttribute(attr, elVar, source);
     if (attrStmt) statements.push(attrStmt);
   }
 
@@ -294,12 +311,7 @@ function transformFragment(
   return `(() => {\n${statements.map((s) => `  ${s};`).join('\n')}\n  return ${fragVar};\n})()`;
 }
 
-function processAttribute(
-  attr: Node,
-  elVar: string,
-  jsxMap: Map<number, JsxExpressionInfo>,
-  source: MagicString,
-): string | null {
+function processAttribute(attr: Node, elVar: string, source: MagicString): string | null {
   if (!attr.isKind(SyntaxKind.JsxAttribute)) return null;
   const attrName = attr.getNameNode().getText();
   const init = attr.getInitializer();
@@ -324,15 +336,14 @@ function processAttribute(
 
   // Expression attribute
   if (init.isKind(SyntaxKind.JsxExpression)) {
-    const exprInfo = jsxMap.get(init.getStart());
     const exprNode = init.getExpression();
     // Read from MagicString
     const exprText = exprNode ? source.slice(exprNode.getStart(), exprNode.getEnd()) : '';
 
-    if (exprInfo?.reactive) {
+    if (exprNode && !isLiteralExpression(exprNode)) {
       return `__attr(${elVar}, ${JSON.stringify(attrName)}, () => ${exprText})`;
     }
-    // Guard static attributes against null/false/undefined so that boolean
+    // Guard literal attributes against null/false/undefined so that boolean
     // HTML attributes (disabled, checked, etc.) are not set when falsy.
     // setAttribute stringifies all values, so disabled={false} would produce
     // disabled="false" which still disables the element per HTML spec.
@@ -361,14 +372,17 @@ function transformChild(
     const exprNode = child.getExpression();
     if (!exprNode) return null;
 
-    // Check for conditional pattern (reactive ternary or logical AND)
-    if (exprInfo?.reactive) {
+    // Check for conditional pattern (any non-literal ternary or logical AND)
+    if (!isLiteralExpression(exprNode)) {
       const conditionalCode = tryTransformConditional(exprNode, reactiveNames, jsxMap, source);
       if (conditionalCode) {
         // __conditional returns a Node (DocumentFragment) directly — no .node property
         return `__append(${parentVar}, ${conditionalCode})`;
       }
+    }
 
+    // List patterns: keep gated by reactive flag (static arrays don't need reconciliation)
+    if (exprInfo?.reactive) {
       const listCode = tryTransformList(exprNode, reactiveNames, jsxMap, parentVar, source);
       if (listCode) {
         return listCode;
@@ -379,9 +393,9 @@ function transformChild(
     // and transform any JSX nodes nested inside the expression (e.g., in arrow function args)
     const exprText = sliceWithTransformedJsx(exprNode, reactiveNames, jsxMap, source, formVarNames);
 
-    // Use __child() for reactive expressions (wraps in effect)
-    // Use __insert() for static expressions (direct insertion, no effect overhead)
-    if (exprInfo?.reactive) {
+    // Use __child() for non-literal expressions (wraps in effect for reactivity tracking)
+    // Use __insert() for literal expressions (direct insertion, no effect overhead)
+    if (!isLiteralExpression(exprNode)) {
       return `__append(${parentVar}, __child(() => ${exprText}))`;
     }
     return `__insert(${parentVar}, ${exprText})`;
@@ -421,11 +435,10 @@ function transformChildAsValue(
   }
 
   if (child.isKind(SyntaxKind.JsxExpression)) {
-    const exprInfo = jsxMap.get(child.getStart());
     const exprNode = child.getExpression();
     if (!exprNode) return null;
 
-    if (exprInfo?.reactive) {
+    if (!isLiteralExpression(exprNode)) {
       const conditionalCode = tryTransformConditional(exprNode, reactiveNames, jsxMap, source);
       if (conditionalCode) {
         return conditionalCode;
@@ -434,7 +447,7 @@ function transformChildAsValue(
 
     const exprText = sliceWithTransformedJsx(exprNode, reactiveNames, jsxMap, source, formVarNames);
 
-    if (exprInfo?.reactive) {
+    if (!isLiteralExpression(exprNode)) {
       return `__child(() => ${exprText})`;
     }
     return exprText;
@@ -792,14 +805,13 @@ function buildPropsObject(
     }
 
     if (init.isKind(SyntaxKind.JsxExpression)) {
-      const exprInfo = jsxMap.get(init.getStart());
       const exprNode = init.getExpression();
       // Read from MagicString, transforming any JSX within the expression
       const exprText = exprNode
         ? sliceWithTransformedJsx(exprNode, reactiveNames, jsxMap, source, formVarNames)
         : '';
 
-      if (exprInfo?.reactive) {
+      if (exprNode && !isLiteralExpression(exprNode)) {
         props.push(`get ${name}() { return ${exprText}; }`);
       } else {
         props.push(`${name}: ${exprText}`);

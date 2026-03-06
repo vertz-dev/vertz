@@ -22,7 +22,7 @@ function App() {
       expect(result.code).toContain('() => null');
     });
 
-    it('does NOT transform static {flag && <div>text</div>} to __conditional()', () => {
+    it('transforms non-literal static {flag && <div>text</div>} to __conditional()', () => {
       const result = compile(
         `
 function App() {
@@ -32,8 +32,8 @@ function App() {
         `.trim(),
       );
 
-      // Static conditions should not use __conditional
-      expect(result.code).not.toContain('__conditional(');
+      // Non-literal expressions always use __conditional for conditionals
+      expect(result.code).toContain('__conditional(');
     });
   });
 
@@ -73,7 +73,7 @@ function App() {
       expect(matches?.length).toBe(2);
     });
 
-    it('does NOT transform static ternary to __conditional()', () => {
+    it('transforms non-literal static ternary to __conditional()', () => {
       const result = compile(
         `
 function App() {
@@ -83,8 +83,8 @@ function App() {
         `.trim(),
       );
 
-      // Static conditions should not use __conditional
-      expect(result.code).not.toContain('__conditional(');
+      // Non-literal expressions always use __conditional for conditionals
+      expect(result.code).toContain('__conditional(');
     });
   });
 
