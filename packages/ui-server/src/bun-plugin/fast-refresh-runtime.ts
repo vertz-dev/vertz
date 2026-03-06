@@ -54,6 +54,8 @@ type ContextScope = NonNullable<ReturnType<typeof getContextScope>>;
 interface SignalRef {
   peek(): unknown;
   value: unknown;
+  /** Optional HMR key for name-based signal matching (set by compiler). */
+  _hmrKey?: string;
 }
 
 interface ComponentInstance {
@@ -255,17 +257,26 @@ export function __$refreshPerform(moduleId: string): void {
         continue;
       }
 
-      // 4. Restore signal values by position (same strategy as React hooks)
-      if (savedValues.length > 0 && newSignals.length === savedValues.length) {
-        for (let i = 0; i < newSignals.length; i++) {
-          const sig = newSignals[i];
-          if (sig) sig.value = savedValues[i];
+      // 4. Restore signal values: named signals by key, unnamed by position
+      if (savedValues.length > 0) {
+        // Partition old signals into named (key → value) and unnamed (positional)
+        const namedSaved = new Map<string, unknown>();
+        const unnamedSaved: unknown[] = [];
+        for (const s of oldSignals) {
+          if (s._hmrKey) namedSaved.set(s._hmrKey, s.peek());
+          else unnamedSaved.push(s.peek());
         }
-      } else if (savedValues.length > 0 && newSignals.length !== savedValues.length) {
-        console.warn(
-          `[vertz-hmr] Signal count changed in ${name} ` +
-            `(${savedValues.length} → ${newSignals.length}). State reset.`,
-        );
+
+        // Restore new signals: named by key, unnamed by position fallback
+        let unnamedIdx = 0;
+        for (const sig of newSignals) {
+          if (sig._hmrKey && namedSaved.has(sig._hmrKey)) {
+            sig.value = namedSaved.get(sig._hmrKey);
+          } else if (!sig._hmrKey && unnamedIdx < unnamedSaved.length) {
+            sig.value = unnamedSaved[unnamedIdx++];
+          }
+          // else: new signal (no matching key or unnamed overflow), keep initial value
+        }
       }
 
       popScope();

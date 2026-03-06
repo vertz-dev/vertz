@@ -44,9 +44,11 @@ let nextId = 0;
 class SignalImpl<T> implements Signal<T> {
   _value: T;
   _subscribers: Set<Subscriber> = new Set();
+  _hmrKey: string | undefined;
 
-  constructor(initial: T) {
+  constructor(initial: T, key?: string) {
     this._value = initial;
+    this._hmrKey = key;
   }
 
   get value(): T {
@@ -89,9 +91,10 @@ class SignalImpl<T> implements Signal<T> {
 
 /**
  * Create a reactive signal with an initial value.
+ * Optional key is used by HMR to match signals by name across re-mounts.
  */
-export function signal<T>(initial: T): Signal<T> {
-  const s = new SignalImpl(initial);
+export function signal<T>(initial: T, key?: string): Signal<T> {
+  const s = new SignalImpl(initial, key);
   const collector = signalCollectorStack[signalCollectorStack.length - 1];
   if (collector) {
     collector.push(s as Signal<unknown>);

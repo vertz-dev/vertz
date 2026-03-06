@@ -16,6 +16,54 @@ function Counter() {
     expect(result.code).toContain('count.value');
   });
 
+  it('emits variable name as second argument to signal()', () => {
+    const result = compile(
+      `
+function Counter() {
+  let count = 0;
+  return <div>{count}</div>;
+}
+    `.trim(),
+    );
+
+    expect(result.code).toContain("signal(0, 'count')");
+  });
+
+  it('emits unique keys for same-named signals in different components', () => {
+    const result = compile(
+      `
+function Counter() {
+  let count = 0;
+  return <div>{count}</div>;
+}
+
+function Other() {
+  let count = 0;
+  return <div>{count}</div>;
+}
+    `.trim(),
+    );
+
+    // Both should have 'count' key — scoping is per-component
+    const matches = result.code.match(/signal\(0, 'count'\)/g);
+    expect(matches).toHaveLength(2);
+  });
+
+  it('emits suffixed keys for duplicate names within one component', () => {
+    const result = compile(
+      `
+function Counter() {
+  let count = 0;
+  let count = 10;
+  return <div>{count}</div>;
+}
+    `.trim(),
+    );
+
+    expect(result.code).toContain("signal(0, 'count')");
+    expect(result.code).toContain("signal(10, 'count$1')");
+  });
+
   it('returns source map with mappings', () => {
     const result = compile(
       `

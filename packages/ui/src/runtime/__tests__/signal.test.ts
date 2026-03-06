@@ -503,6 +503,22 @@ describe('signal collection', () => {
     const collected = stopSignalCollection();
     expect(collected).toHaveLength(0);
   });
+
+  it('stores _hmrKey when signal is created with a key', () => {
+    startSignalCollection();
+    signal(0, 'count');
+    const collected = stopSignalCollection();
+    expect(collected).toHaveLength(1);
+    expect((collected[0] as { _hmrKey?: string })._hmrKey).toBe('count');
+  });
+
+  it('_hmrKey is undefined when signal is created without a key', () => {
+    startSignalCollection();
+    signal(0);
+    const collected = stopSignalCollection();
+    expect(collected).toHaveLength(1);
+    expect((collected[0] as { _hmrKey?: string })._hmrKey).toBeUndefined();
+  });
 });
 
 describe('diamond dependency', () => {

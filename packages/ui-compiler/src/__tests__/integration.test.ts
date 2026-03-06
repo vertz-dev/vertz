@@ -13,7 +13,7 @@ function Counter() {
     );
 
     // Signal transform
-    expect(result.code).toContain('const count = signal(0)');
+    expect(result.code).toContain("const count = signal(0, 'count')");
     // Read in JSX becomes .value
     expect(result.code).toContain('count.value');
     // Runtime imports from @vertz/ui
@@ -41,7 +41,7 @@ function Pricing() {
     );
 
     // Signal
-    expect(result.code).toContain('const quantity = signal(1)');
+    expect(result.code).toContain("const quantity = signal(1, 'quantity')");
     // Computed chain
     expect(result.code).toContain('computed(() =>');
     // Reads use .value

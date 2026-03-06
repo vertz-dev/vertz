@@ -315,25 +315,196 @@ describe('Fast Refresh Runtime', () => {
       expect(el.textContent).toBe('v1');
     });
 
-    it('logs warning when signal count changes across re-mount', () => {
-      // Create signals that match the SignalRef interface
-      const signal1 = { peek: () => 42, value: 42 };
-      const signal2 = { peek: () => 'hello', value: 'hello' as unknown };
+    it('preserves named signal state by key when signal is inserted', () => {
+      // V1 factory: two named signals [count=0, disabled=false]
+      // After user mutates: count=42, disabled=true
+      // V2 factory: three signals [count=0, theme='light', disabled=false]
+      // Expect: count restored to 42, theme keeps 'light' (new), disabled restored to true
+      let v1Count: ReturnType<typeof signal<number>>;
+      let v1Disabled: ReturnType<typeof signal<boolean>>;
+      const factoryV1 = () => {
+        v1Count = signal(0, 'count');
+        v1Disabled = signal(false, 'disabled');
+        const el = document.createElement('div');
+        el.textContent = 'v1';
+        return el;
+      };
+      __$refreshReg('mod1', 'App', factoryV1);
 
-      const factory1 = createFactory('v1');
-      __$refreshReg('mod1', 'App', factory1);
-
-      const el = factory1();
+      const el = factoryV1();
       mount(el);
-      // Track with 2 signals — but the new factory will produce 0 (no signal collection)
-      __$refreshTrack('mod1', 'App', el, [], [], null, [signal1, signal2]);
+      __$refreshTrack('mod1', 'App', el, [], [], null, [v1Count!, v1Disabled!]);
 
-      __$refreshReg('mod1', 'App', createFactory('v2'));
-      // Should warn about signal count mismatch (2 → 0) but still replace
+      // Simulate user interaction: mutate signal values
+      v1Count!.value = 42;
+      v1Disabled!.value = true;
+
+      // V2: insert a signal between the existing two
+      let v2Count: ReturnType<typeof signal<number>>;
+      let v2Theme: ReturnType<typeof signal<string>>;
+      let v2Disabled: ReturnType<typeof signal<boolean>>;
+      const factoryV2 = () => {
+        v2Count = signal(0, 'count');
+        v2Theme = signal('light', 'theme');
+        v2Disabled = signal(false, 'disabled');
+        const el = document.createElement('div');
+        el.textContent = 'v2';
+        return el;
+      };
+      __$refreshReg('mod1', 'App', factoryV2);
       __$refreshPerform('mod1');
 
-      // DOM should be updated despite signal mismatch
+      // Named signals restored by key — not position
+      expect(v2Count!.peek()).toBe(42);
+      expect(v2Theme!.peek()).toBe('light'); // new signal, keeps initial
+      expect(v2Disabled!.peek()).toBe(true);
       expect(document.body.textContent).toBe('v2');
+    });
+
+    it('preserves named signal state when signals are reordered', () => {
+      // V1: [a=0, b='hello']  V2: [b='', a=0] — reversed order
+      let v1A: ReturnType<typeof signal<number>>;
+      let v1B: ReturnType<typeof signal<string>>;
+      const factoryV1 = () => {
+        v1A = signal(0, 'a');
+        v1B = signal('hello', 'b');
+        const el = document.createElement('div');
+        el.textContent = 'v1';
+        return el;
+      };
+      __$refreshReg('mod1', 'App', factoryV1);
+
+      const el = factoryV1();
+      mount(el);
+      __$refreshTrack('mod1', 'App', el, [], [], null, [v1A!, v1B!]);
+
+      v1A!.value = 99;
+      v1B!.value = 'world';
+
+      // V2 reverses the signal order
+      let v2B: ReturnType<typeof signal<string>>;
+      let v2A: ReturnType<typeof signal<number>>;
+      const factoryV2 = () => {
+        v2B = signal('', 'b');
+        v2A = signal(0, 'a');
+        const el = document.createElement('div');
+        el.textContent = 'v2';
+        return el;
+      };
+      __$refreshReg('mod1', 'App', factoryV2);
+      __$refreshPerform('mod1');
+
+      // Restored by name despite different positions
+      expect(v2A!.peek()).toBe(99);
+      expect(v2B!.peek()).toBe('world');
+    });
+
+    it('preserves named signal state when a signal is deleted', () => {
+      // V1: [a=0, b='hello', c=true]  V2: [a=0, c=false] — b removed
+      let v1A: ReturnType<typeof signal<number>>;
+      let v1B: ReturnType<typeof signal<string>>;
+      let v1C: ReturnType<typeof signal<boolean>>;
+      const factoryV1 = () => {
+        v1A = signal(0, 'a');
+        v1B = signal('hello', 'b');
+        v1C = signal(true, 'c');
+        const el = document.createElement('div');
+        el.textContent = 'v1';
+        return el;
+      };
+      __$refreshReg('mod1', 'App', factoryV1);
+
+      const el = factoryV1();
+      mount(el);
+      __$refreshTrack('mod1', 'App', el, [], [], null, [v1A!, v1B!, v1C!]);
+
+      v1A!.value = 42;
+      v1B!.value = 'world';
+      v1C!.value = false;
+
+      // V2: remove b
+      let v2A: ReturnType<typeof signal<number>>;
+      let v2C: ReturnType<typeof signal<boolean>>;
+      const factoryV2 = () => {
+        v2A = signal(0, 'a');
+        v2C = signal(true, 'c');
+        const el = document.createElement('div');
+        el.textContent = 'v2';
+        return el;
+      };
+      __$refreshReg('mod1', 'App', factoryV2);
+      __$refreshPerform('mod1');
+
+      expect(v2A!.peek()).toBe(42);
+      expect(v2C!.peek()).toBe(false); // restored from old c
+    });
+
+    it('resets state when signal is renamed (correct behavior)', () => {
+      // V1: [count=0]  V2: [total=0] — renamed, so total should NOT get count's old value
+      let v1Count: ReturnType<typeof signal<number>>;
+      const factoryV1 = () => {
+        v1Count = signal(0, 'count');
+        const el = document.createElement('div');
+        el.textContent = 'v1';
+        return el;
+      };
+      __$refreshReg('mod1', 'App', factoryV1);
+
+      const el = factoryV1();
+      mount(el);
+      __$refreshTrack('mod1', 'App', el, [], [], null, [v1Count!]);
+
+      v1Count!.value = 42;
+
+      let v2Total: ReturnType<typeof signal<number>>;
+      const factoryV2 = () => {
+        v2Total = signal(0, 'total');
+        const el = document.createElement('div');
+        el.textContent = 'v2';
+        return el;
+      };
+      __$refreshReg('mod1', 'App', factoryV2);
+      __$refreshPerform('mod1');
+
+      // Different name → no match → keeps initial value
+      expect(v2Total!.peek()).toBe(0);
+    });
+
+    it('uses position-based fallback for unnamed signals', () => {
+      // Unnamed signals (from query/form internals) still use position-based matching
+      let v1Unnamed1: ReturnType<typeof signal<number>>;
+      let v1Unnamed2: ReturnType<typeof signal<string>>;
+      const factoryV1 = () => {
+        v1Unnamed1 = signal(0); // no key — unnamed
+        v1Unnamed2 = signal('hello'); // no key — unnamed
+        const el = document.createElement('div');
+        el.textContent = 'v1';
+        return el;
+      };
+      __$refreshReg('mod1', 'App', factoryV1);
+
+      const el = factoryV1();
+      mount(el);
+      __$refreshTrack('mod1', 'App', el, [], [], null, [v1Unnamed1!, v1Unnamed2!]);
+
+      v1Unnamed1!.value = 42;
+      v1Unnamed2!.value = 'world';
+
+      let v2Unnamed1: ReturnType<typeof signal<number>>;
+      let v2Unnamed2: ReturnType<typeof signal<string>>;
+      const factoryV2 = () => {
+        v2Unnamed1 = signal(0);
+        v2Unnamed2 = signal('');
+        const el = document.createElement('div');
+        el.textContent = 'v2';
+        return el;
+      };
+      __$refreshReg('mod1', 'App', factoryV2);
+      __$refreshPerform('mod1');
+
+      // Unnamed: position-based matching (same count, same order)
+      expect(v2Unnamed1!.peek()).toBe(42);
+      expect(v2Unnamed2!.peek()).toBe('world');
     });
 
     it('handles factory errors gracefully — keeps old instance', () => {

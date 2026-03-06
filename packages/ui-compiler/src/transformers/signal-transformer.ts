@@ -57,6 +57,8 @@ export class SignalTransformer {
 }
 
 function transformDeclarations(source: MagicString, bodyNode: Node, signals: Set<string>): void {
+  const seenNames = new Map<string, number>();
+
   for (const stmt of bodyNode.getChildSyntaxList()?.getChildren() ?? []) {
     if (!stmt.isKind(SyntaxKind.VariableStatement)) continue;
     const declList = stmt.getChildrenOfKind(SyntaxKind.VariableDeclarationList)[0];
@@ -74,8 +76,13 @@ function transformDeclarations(source: MagicString, bodyNode: Node, signals: Set
         source.overwrite(letKeyword.getStart(), letKeyword.getEnd(), 'const');
       }
 
+      // Build unique HMR key: first occurrence uses bare name, subsequent get $N suffix
+      const count = seenNames.get(name) ?? 0;
+      seenNames.set(name, count + 1);
+      const hmrKey = count === 0 ? name : `${name}$${count}`;
+
       source.appendLeft(init.getStart(), 'signal(');
-      source.appendRight(init.getEnd(), ')');
+      source.appendRight(init.getEnd(), `, '${hmrKey}')`);
     }
   }
 }
