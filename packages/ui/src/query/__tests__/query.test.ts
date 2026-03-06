@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
-import { ok } from '@vertz/fetch';
+import { createMutationDescriptor, ok } from '@vertz/fetch';
 import { popScope, pushScope, runCleanups } from '../../runtime/disposal';
 import { signal } from '../../runtime/signal';
 import type { DisposeFn } from '../../runtime/signal-types';
@@ -8,6 +8,7 @@ import {
   getQueryEnvelopeStore,
   resetEntityStore,
 } from '../../store/entity-store-singleton';
+import { createOptimisticHandler } from '../../store/optimistic-handler';
 import { MemoryCache } from '../cache';
 import { __inflightSize, query } from '../query';
 
@@ -1669,6 +1670,91 @@ describe('query()', () => {
         title: 'Persist me',
         completed: false,
       });
+    });
+
+    test('full optimistic update lifecycle: query + mutation + rollback', async () => {
+      // 1. Set up entity-backed list query
+      const listDescriptor = {
+        _tag: 'QueryDescriptor' as const,
+        _key: 'GET:/lifecycle-todos',
+        _entity: { entityType: 'lifecycle-todos', kind: 'list' as const },
+        _fetch: () =>
+          Promise.resolve(
+            ok({
+              items: [
+                { id: '50', title: 'Buy milk', completed: false },
+                { id: '51', title: 'Walk dog', completed: false },
+              ],
+              total: 2,
+            }),
+          ),
+        // biome-ignore lint/suspicious/noThenProperty: intentional PromiseLike implementation for mock descriptor
+        then(onFulfilled: any, onRejected: any) {
+          return this._fetch().then(onFulfilled, onRejected);
+        },
+      };
+
+      const listResult = query(listDescriptor);
+
+      vi.advanceTimersByTime(0);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // Verify initial data
+      const initialData = listResult.data.value as { items: any[]; total: number };
+      expect(initialData.items[0].completed).toBe(false);
+
+      // 2. Create optimistic handler and mutation descriptor
+      const store = getEntityStore();
+      const handler = createOptimisticHandler(store);
+
+      let resolveMutation: (value: unknown) => void;
+      const fetchPromise = new Promise((resolve) => {
+        resolveMutation = resolve;
+      });
+
+      const mutation = createMutationDescriptor(
+        'PATCH',
+        '/lifecycle-todos/50',
+        () =>
+          fetchPromise.then(() =>
+            ok({
+              data: { id: '50', title: 'Buy milk', completed: true },
+              status: 200,
+              headers: new Headers(),
+            }),
+          ) as ReturnType<typeof ok>,
+        { entityType: 'lifecycle-todos', kind: 'update', id: '50', body: { completed: true } },
+        handler,
+      );
+
+      // 3. Start the mutation (triggers optimistic update)
+      const mutationPromise = mutation.then();
+
+      // Query data should reflect optimistic update immediately
+      const optimisticData = listResult.data.value as { items: any[]; total: number };
+      expect(optimisticData.items[0]).toEqual({
+        id: '50',
+        title: 'Buy milk',
+        completed: true,
+      });
+      // Second item unchanged
+      expect(optimisticData.items[1].completed).toBe(false);
+
+      // 4. Resolve the server mutation
+      resolveMutation!(undefined);
+      await mutationPromise;
+
+      // After commit, data should still show completed: true (now from base)
+      const committedData = listResult.data.value as { items: any[]; total: number };
+      expect(committedData.items[0].completed).toBe(true);
+
+      // Verify the base was updated (not just the layer)
+      const inspected = store.inspect('lifecycle-todos', '50');
+      expect(inspected?.base).toEqual({ id: '50', title: 'Buy milk', completed: true });
+      expect(inspected?.layers.size).toBe(0);
+
+      listResult.dispose();
     });
   });
 });
