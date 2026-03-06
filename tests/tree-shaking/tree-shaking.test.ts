@@ -11,7 +11,7 @@
 import * as esbuild from 'esbuild';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 
 const ROOT = path.resolve(__dirname, '../..');
 const TMP = path.join(ROOT, 'tests/tree-shaking/.tmp');

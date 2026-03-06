@@ -1,5 +1,5 @@
 import { FetchError } from '@vertz/errors';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { FetchClient } from './client';
 
 function createStream(chunks: string[]): ReadableStream<Uint8Array> {
@@ -19,7 +19,7 @@ describe('FetchClient.requestStream (SSE)', () => {
     const sseBody = 'data: {"id":1,"message":"hello"}\n\ndata: {"id":2,"message":"world"}\n\n';
     const stream = createStream([sseBody]);
 
-    const mockFetch = vi.fn().mockResolvedValue(
+    const mockFetch = mock().mockResolvedValue(
       new Response(stream, {
         status: 200,
         headers: { 'Content-Type': 'text/event-stream' },
@@ -49,7 +49,7 @@ describe('FetchClient.requestStream (SSE)', () => {
   it('handles SSE events split across chunks', async () => {
     const stream = createStream(['data: {"id":1}\n', '\ndata: {"id":2}\n\n']);
 
-    const mockFetch = vi.fn().mockResolvedValue(new Response(stream, { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(stream, { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -71,7 +71,7 @@ describe('FetchClient.requestStream (SSE)', () => {
   it('ignores non-data SSE fields (event, id, retry)', async () => {
     const sseBody = 'event: update\nid: 42\nretry: 3000\ndata: {"type":"update"}\n\n';
     const stream = createStream([sseBody]);
-    const mockFetch = vi.fn().mockResolvedValue(new Response(stream, { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(stream, { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -91,7 +91,7 @@ describe('FetchClient.requestStream (SSE)', () => {
   });
 
   it('throws on non-OK response', async () => {
-    const mockFetch = vi.fn(
+    const mockFetch = mock(
       () =>
         Promise.resolve(
           new Response('Unauthorized', { status: 401, statusText: 'Unauthorized' }),
@@ -123,7 +123,7 @@ describe('FetchClient.requestStream (SSE)', () => {
 
   it('sets Accept header for SSE', async () => {
     const stream = createStream([]);
-    const mockFetch = vi.fn().mockResolvedValue(new Response(stream, { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(stream, { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -147,7 +147,7 @@ describe('FetchClient.requestStream (NDJSON)', () => {
   it('yields parsed NDJSON lines', async () => {
     const ndjsonBody = '{"id":1,"name":"alice"}\n{"id":2,"name":"bob"}\n';
     const stream = createStream([ndjsonBody]);
-    const mockFetch = vi.fn().mockResolvedValue(new Response(stream, { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(stream, { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -171,7 +171,7 @@ describe('FetchClient.requestStream (NDJSON)', () => {
 
   it('handles NDJSON split across chunks', async () => {
     const stream = createStream(['{"id":1}\n{"id', '":2}\n']);
-    const mockFetch = vi.fn().mockResolvedValue(new Response(stream, { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(stream, { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -193,7 +193,7 @@ describe('FetchClient.requestStream (NDJSON)', () => {
   it('skips blank lines in NDJSON', async () => {
     const ndjsonBody = '{"id":1}\n\n{"id":2}\n';
     const stream = createStream([ndjsonBody]);
-    const mockFetch = vi.fn().mockResolvedValue(new Response(stream, { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(stream, { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -214,7 +214,7 @@ describe('FetchClient.requestStream (NDJSON)', () => {
 
   it('sets Accept header for NDJSON', async () => {
     const stream = createStream([]);
-    const mockFetch = vi.fn().mockResolvedValue(new Response(stream, { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(stream, { status: 200 }));
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',
@@ -237,11 +237,11 @@ describe('FetchClient.requestStream (NDJSON)', () => {
 describe('FetchClient.requestStream hooks', () => {
   it('calls onStreamStart, onStreamChunk, and onStreamEnd hooks', async () => {
     const stream = createStream(['data: {"id":1}\n\ndata: {"id":2}\n\n']);
-    const mockFetch = vi.fn().mockResolvedValue(new Response(stream, { status: 200 }));
+    const mockFetch = mock().mockResolvedValue(new Response(stream, { status: 200 }));
 
-    const onStreamStart = vi.fn();
-    const onStreamChunk = vi.fn();
-    const onStreamEnd = vi.fn();
+    const onStreamStart = mock();
+    const onStreamChunk = mock();
+    const onStreamEnd = mock();
 
     const client = new FetchClient({
       baseURL: 'http://localhost:3000',

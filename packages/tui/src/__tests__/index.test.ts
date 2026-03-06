@@ -1,5 +1,5 @@
+import { describe, expect, it } from 'bun:test';
 import { batch, signal } from '@vertz/ui';
-import { describe, expect, it } from 'vitest';
 import { Message, SelectList, Task, TaskList } from '../legacy';
 import { symbols } from '../theme';
 

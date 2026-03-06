@@ -1,5 +1,5 @@
 import { Project, ts } from 'ts-morph';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import type { VariableInfo } from '../../types';
 import { ComponentAnalyzer } from '../component-analyzer';
 import { JsxAnalyzer } from '../jsx-analyzer';

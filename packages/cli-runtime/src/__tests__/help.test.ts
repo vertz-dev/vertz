@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { generateCommandHelp, generateHelp, generateNamespaceHelp } from '../help';
 import type { CommandManifest } from '../types';
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { CSSCodeSplitter } from '../code-splitting';
 import { DeadCSSEliminator } from '../dead-css';
 import { CSSExtractor } from '../extractor';

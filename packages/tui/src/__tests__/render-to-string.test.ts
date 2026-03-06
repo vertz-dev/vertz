@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { jsx } from '../jsx-runtime/index';
 import type { TuiNode } from '../nodes/types';
 import { renderToString } from '../render-to-string';

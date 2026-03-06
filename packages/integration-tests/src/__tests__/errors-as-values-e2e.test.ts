@@ -8,7 +8,7 @@
  * 4. matchError exhaustive handling
  */
 
-import { describe, expect, it, beforeAll, afterAll, vi } from 'vitest';
+import { describe, expect, it, beforeAll, afterAll, mock } from 'bun:test';
 import { createIntegrationApp, type TestServer } from '../app/create-app';
 import {
   isErr,
@@ -157,7 +157,7 @@ describe('Fetch client → Result flow', () => {
     it('produces err Result with FetchNotFoundError and serverCode', async () => {
       // Server returns { error: { code: 'NotFound', message: '...' } }
       // Client parses error.code into serverCode on HttpError
-      const mockFetch = vi.fn().mockResolvedValue(
+      const mockFetch = mock().mockResolvedValue(
         new Response(JSON.stringify({ error: { code: 'NotFound', message: 'Not found' } }), {
           status: 404, statusText: 'Not Found',
           headers: { 'Content-Type': 'application/json' },
@@ -183,7 +183,7 @@ describe('Fetch client → Result flow', () => {
   describe('401 returns err Result with FetchUnauthorizedError', () => {
     it('produces err Result with FetchUnauthorizedError and serverCode', async () => {
       // Server returns { error: { code: 'Unauthorized', message: '...' } }
-      const mockFetch = vi.fn().mockResolvedValue(
+      const mockFetch = mock().mockResolvedValue(
         new Response(JSON.stringify({ error: { code: 'Unauthorized', message: 'Unauthorized' } }), {
           status: 401, statusText: 'Unauthorized',
           headers: { 'Content-Type': 'application/json' },
@@ -226,7 +226,7 @@ describe('Fetch client → Result flow', () => {
   describe('Timeout returns err Result with FetchTimeoutError', () => {
     it('produces err Result with FetchTimeoutError', async () => {
       // Mock a timeout using AbortSignal
-      const mockFetch = vi.fn().mockImplementation(() => {
+      const mockFetch = mock().mockImplementation(() => {
         const cause = new Error("Timeout"); cause.name = "TimeoutError"; const e = new DOMException("The operation was aborted", "AbortError"); Object.defineProperty(e, "cause", { value: cause }); return Promise.reject(e);
       });
 
@@ -247,7 +247,7 @@ describe('Fetch client → Result flow', () => {
 
   describe('Validation error returns err Result with FetchValidationError', () => {
     it('produces err Result with FetchValidationError', async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
+      const mockFetch = mock().mockResolvedValue(
         new Response(
           JSON.stringify({
             error: {
@@ -284,7 +284,7 @@ describe('Fetch client → Result flow', () => {
 
   describe('Result pattern matching', () => {
     it('allows handling ok and err cases with match()', async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
+      const mockFetch = mock().mockResolvedValue(
         new Response(JSON.stringify({ id: 1, name: 'Test' }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
@@ -308,7 +308,7 @@ describe('Fetch client → Result flow', () => {
 
     it('handles error case with match()', async () => {
       // Server returns { error: { code: 'NotFound', message: '...' } }
-      const mockFetch = vi.fn().mockResolvedValue(
+      const mockFetch = mock().mockResolvedValue(
         new Response(JSON.stringify({ error: { code: 'NotFound', message: 'Not found' } }), {
           status: 404, statusText: 'Not Found',
           headers: { 'Content-Type': 'application/json' },

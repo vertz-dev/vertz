@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { parseKey } from '../input/key-parser';
 import { TestStdin } from '../test/test-stdin';
 

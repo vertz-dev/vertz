@@ -1,4 +1,4 @@
-import { describe, it } from 'vitest';
+import { describe, it } from 'bun:test';
 import type { ResolvedConfig, VertzConfig } from '../config';
 import type { Diagnostic } from '../errors';
 import { createEmptyDependencyGraph } from '../ir/builder';

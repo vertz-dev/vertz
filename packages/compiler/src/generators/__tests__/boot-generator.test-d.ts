@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
 import type { Generator } from '../base-generator';
 import type { BootGenerator, BootManifest, BootModuleEntry } from '../boot-generator';
 
@@ -14,10 +14,12 @@ describe('BootGenerator type-level tests', () => {
       importPath: 'src/core.ts',
       variableName: 'coreModule',
     };
-    expectTypeOf(_ok).toMatchTypeOf<BootModuleEntry>();
+    const _check: BootModuleEntry = _ok;
+    void _check;
   });
 
   it('BootGenerator satisfies Generator interface', () => {
-    expectTypeOf<BootGenerator>().toMatchTypeOf<Generator>();
+    const _check: Generator = {} as BootGenerator;
+    void _check;
   });
 });

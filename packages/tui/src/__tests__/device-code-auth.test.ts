@@ -1,5 +1,5 @@
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { signal } from '@vertz/ui';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 import { tui } from '../app';
 import type { AuthConfig, AuthStatus, DeviceCodeResponse } from '../auth/index';
 import {
@@ -16,7 +16,7 @@ import { TestStdin } from '../test/test-stdin';
 
 function createMockFetcher(responses: Array<{ status: number; body: unknown }>) {
   let callIndex = 0;
-  return vi.fn(async () => {
+  return mock(async () => {
     const resp = responses[callIndex++] ?? { status: 500, body: { error: 'no_more_responses' } };
     return new Response(JSON.stringify(resp.body), {
       status: resp.status,
@@ -182,7 +182,7 @@ describe('pollTokenUntilComplete', () => {
   });
 
   it('calls onTokens callback on success', async () => {
-    const onTokens = vi.fn();
+    const onTokens = mock();
     const fetcher = createMockFetcher([{ status: 200, body: MOCK_TOKEN_RESPONSE }]);
 
     const config: AuthConfig = {
@@ -387,7 +387,7 @@ describe('DeviceCodeAuth', () => {
     });
 
     let callIndex = 0;
-    const fetcher = vi.fn(async () => {
+    const fetcher = mock(async () => {
       callIndex++;
       if (callIndex === 1) {
         // Device code request
@@ -574,7 +574,7 @@ describe('DeviceCodeDisplay', () => {
   });
 
   it('pressing Escape calls onCancel', () => {
-    const cancelFn = vi.fn();
+    const cancelFn = mock();
     const adapter = new TestAdapter(60, 20);
     const testStdin = new TestStdin();
     const handle = tui.mount(
@@ -595,7 +595,7 @@ describe('DeviceCodeDisplay', () => {
   });
 
   it('pressing Enter calls onOpenBrowser', () => {
-    const browserFn = vi.fn();
+    const browserFn = mock();
     const adapter = new TestAdapter(60, 20);
     const testStdin = new TestStdin();
     const handle = tui.mount(

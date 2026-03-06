@@ -48,10 +48,8 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.14",
     "@types/node": "^25.3.1",
-    "@vitest/coverage-v8": "^4.0.18",
     "bunup": "^0.16.23",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "typescript": "^5.9.3"
   },
   "optionalDependencies": {
     "postgres": "^3.4.0"

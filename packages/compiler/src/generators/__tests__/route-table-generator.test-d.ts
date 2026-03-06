@@ -1,4 +1,4 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
 import type { Generator } from '../base-generator';
 import type { RouteTableEntry, RouteTableGenerator } from '../route-table-generator';
 
@@ -9,6 +9,7 @@ describe('RouteTableGenerator type-level tests', () => {
   });
 
   it('RouteTableGenerator satisfies Generator interface', () => {
-    expectTypeOf<RouteTableGenerator>().toMatchTypeOf<Generator>();
+    const _check: Generator = {} as RouteTableGenerator;
+    void _check;
   });
 });

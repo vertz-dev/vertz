@@ -11,8 +11,6 @@
 // Uses only public package imports — never relative imports.
 // ===========================================================================
 
-// @vitest-environment happy-dom
-
 import type { Router } from '@vertz/ui';
 import {
   createRouter,
@@ -22,7 +20,7 @@ import {
   RouterView,
   useRouter,
 } from '@vertz/ui';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // Helper: create a simple DOM element with text content

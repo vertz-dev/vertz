@@ -1,5 +1,5 @@
+import { describe, expect, it } from 'bun:test';
 import { signal } from '@vertz/ui';
-import { describe, expect, it } from 'vitest';
 import { tui } from '../app';
 import { useKeyboard } from '../input/hooks';
 import type { KeyEvent } from '../input/key-parser';

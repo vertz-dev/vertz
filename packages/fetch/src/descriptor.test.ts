@@ -1,18 +1,18 @@
 import { FetchNetworkError, ok } from '@vertz/errors';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 import { createDescriptor, isQueryDescriptor } from './descriptor';
 import type { FetchResponse } from './types';
 
 describe('createDescriptor', () => {
   it('produces correct key from method + path', () => {
-    const fetchFn = vi.fn() as unknown as () => Promise<FetchResponse<string>>;
+    const fetchFn = mock() as unknown as () => Promise<FetchResponse<string>>;
     const descriptor = createDescriptor('GET', '/tasks', fetchFn);
 
     expect(descriptor._key).toBe('GET:/tasks');
   });
 
   it('produces sorted deterministic key with query params', () => {
-    const fetchFn = vi.fn() as unknown as () => Promise<FetchResponse<string>>;
+    const fetchFn = mock() as unknown as () => Promise<FetchResponse<string>>;
     const descriptor = createDescriptor('GET', '/tasks', fetchFn, {
       status: 'active',
       page: 1,
@@ -22,7 +22,7 @@ describe('createDescriptor', () => {
   });
 
   it('excludes null and undefined query values from key', () => {
-    const fetchFn = vi.fn() as unknown as () => Promise<FetchResponse<string>>;
+    const fetchFn = mock() as unknown as () => Promise<FetchResponse<string>>;
     const descriptor = createDescriptor('GET', '/tasks', fetchFn, {
       page: 1,
       filter: undefined,
@@ -33,7 +33,7 @@ describe('createDescriptor', () => {
   });
 
   it('produces key without query string when query is empty after filtering', () => {
-    const fetchFn = vi.fn() as unknown as () => Promise<FetchResponse<string>>;
+    const fetchFn = mock() as unknown as () => Promise<FetchResponse<string>>;
     const descriptor = createDescriptor('GET', '/tasks', fetchFn, {
       filter: undefined,
     });
@@ -42,8 +42,7 @@ describe('createDescriptor', () => {
   });
 
   it('await descriptor resolves to Ok<T> on success', async () => {
-    const fetchFn = vi
-      .fn()
+    const fetchFn = mock()
       .mockResolvedValue(
         ok({ data: { id: 1, title: 'Test' }, status: 200, headers: new Headers() }),
       );
@@ -56,7 +55,7 @@ describe('createDescriptor', () => {
 
   it('await descriptor resolves to Err<FetchError> on error result', async () => {
     const error = new FetchNetworkError('Network failure');
-    const fetchFn = vi.fn().mockResolvedValue({ ok: false, error });
+    const fetchFn = mock().mockResolvedValue({ ok: false, error });
     const descriptor = createDescriptor('GET', '/tasks/1', fetchFn);
 
     const result = await descriptor;
@@ -69,11 +68,9 @@ describe('createDescriptor', () => {
   });
 
   it('Promise.all works with multiple descriptors', async () => {
-    const fetchFn1 = vi
-      .fn()
+    const fetchFn1 = mock()
       .mockResolvedValue(ok({ data: 'result-1', status: 200, headers: new Headers() }));
-    const fetchFn2 = vi
-      .fn()
+    const fetchFn2 = mock()
       .mockResolvedValue(ok({ data: 'result-2', status: 200, headers: new Headers() }));
 
     const d1 = createDescriptor('GET', '/a', fetchFn1);
@@ -87,8 +84,7 @@ describe('createDescriptor', () => {
   });
 
   it('204 DELETE resolves to Ok<undefined>', async () => {
-    const fetchFn = vi
-      .fn()
+    const fetchFn = mock()
       .mockResolvedValue(ok({ data: undefined, status: 204, headers: new Headers() }));
     const descriptor = createDescriptor<void>('DELETE', '/tasks/1', fetchFn);
 
@@ -99,7 +95,7 @@ describe('createDescriptor', () => {
 
 describe('isQueryDescriptor', () => {
   it('returns true for descriptors', () => {
-    const fetchFn = vi.fn() as unknown as () => Promise<FetchResponse<string>>;
+    const fetchFn = mock() as unknown as () => Promise<FetchResponse<string>>;
     const descriptor = createDescriptor('GET', '/tasks', fetchFn);
 
     expect(isQueryDescriptor(descriptor)).toBe(true);

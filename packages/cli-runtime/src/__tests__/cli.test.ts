@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, spyOn } from 'bun:test';
 import { createCLI } from '../cli';
 import type { CLIConfig, CommandManifest } from '../types';
 
@@ -130,12 +130,13 @@ describe('createCLI', () => {
 });
 
 describe('command execution', () => {
+  const originalFetch = globalThis.fetch;
   afterEach(() => {
-    vi.restoreAllMocks();
+    globalThis.fetch = originalFetch;
   });
 
   it('executes a GET command and outputs JSON', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify([{ id: '1', name: 'Alice' }]), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -151,7 +152,7 @@ describe('command execution', () => {
   });
 
   it('executes a GET command with path params', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
       expect(url).toContain('/api/v1/users/abc');
       return new Response(JSON.stringify({ id: 'abc', name: 'Alice' }), {
@@ -169,7 +170,7 @@ describe('command execution', () => {
   });
 
   it('executes a GET command with query params', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
       expect(url).toContain('page=2');
       return new Response(JSON.stringify([{ id: '1', name: 'Alice' }]), {
@@ -185,7 +186,7 @@ describe('command execution', () => {
   });
 
   it('executes a POST command with body params', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const req = input as Request;
       const body = await req.json();
       expect(body).toEqual({ name: 'Bob' });
@@ -204,7 +205,7 @@ describe('command execution', () => {
   });
 
   it('handles HTTP error responses', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ message: 'Not found' }), {
         status: 404,
         statusText: 'Not Found',

@@ -23,8 +23,7 @@
   "scripts": {
     "build": "bunup",
     "test": "bun test",
-    "test:type": "vitest typecheck",
-    "test:watch": "vitest",
+    "test:watch": "bun test --watch",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {
@@ -32,10 +31,9 @@
   },
   "devDependencies": {
     "@types/node": "^25.3.1",
-    "@vitest/coverage-v8": "^4.0.18",
+    "bun-types": "^1.3.10",
     "bunup": "^0.16.31",
-    "typescript": "^5.7.0",
-    "vitest": "^4.0.18"
+    "typescript": "^5.7.0"
   },
   "engines": {
     "node": ">=22"

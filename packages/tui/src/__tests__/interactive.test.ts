@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { isInteractive, NonInteractiveError } from '../interactive';
 import { prompt } from '../prompt';
 
@@ -179,7 +179,7 @@ describe('prompt CI mode', () => {
 
   it('spinner degrades to static log lines in CI', () => {
     process.env.CI = 'true';
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const writeSpy = spyOn(process.stdout, 'write').mockImplementation(() => true);
     const s = prompt.spinner();
     s.start('Building...');
     s.stop('Done');

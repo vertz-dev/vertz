@@ -1,6 +1,6 @@
 import type { EntityDbAdapter } from '@vertz/server';
 import { createServer } from '@vertz/server';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { webhooks } from '../api/actions/webhooks/webhooks.action';
 import { todos } from '../api/entities/todos/todos.entity';
 import { clearEmailLog, getEmailLog } from '../api/services/notifications';

@@ -38,7 +38,7 @@
   "scripts": {
     "build": "bunup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "bun test",
     "lint": "biome check src/"
   },
   "dependencies": {
@@ -46,10 +46,8 @@
   },
   "devDependencies": {
     "@types/node": "^25.3.1",
-    "@vitest/coverage-v8": "^4.0.18",
     "bunup": "^0.16.23",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=22"

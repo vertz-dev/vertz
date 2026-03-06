@@ -1,7 +1,7 @@
 /**
  * @file Tests for __bindElement transform on form elements
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { compile } from '../compiler';
 
 describe('__bindElement transform', () => {

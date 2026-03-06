@@ -1,5 +1,5 @@
 import { createMiddleware } from '@vertz/server';
-import { describe, it } from 'vitest';
+import { describe, it } from 'bun:test';
 
 import { createTestApp, type RouteMapEntry, type TestResponse } from '../test-app';
 

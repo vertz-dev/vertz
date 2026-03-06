@@ -14,7 +14,7 @@
 import { configureTheme } from '@vertz/theme-shadcn';
 import { buttonConfig, badgeConfig } from '@vertz/theme-shadcn/configs';
 import { compileTheme, variants } from '@vertz/ui';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 describe('Theme Shadcn Walkthrough', () => {
   // ── configureTheme() returns valid result ────────────────────

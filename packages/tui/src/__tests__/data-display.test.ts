@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { tui } from '../app';
 import { Log } from '../components/Log';
 import { ProgressBar } from '../components/ProgressBar';

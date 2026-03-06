@@ -1,5 +1,5 @@
+import { describe, expect, it, jest, spyOn } from 'bun:test';
 import { signal } from '@vertz/ui';
-import { describe, expect, it, vi } from 'vitest';
 import { tui } from '../app';
 import { Confirm } from '../components/Confirm';
 import { MultiSelect } from '../components/MultiSelect';
@@ -174,7 +174,7 @@ describe('MultiSelect', () => {
   it('warns when defaultValue contains values not in options', () => {
     const adapter = new TestAdapter(40, 10);
     const testStdin = new TestStdin();
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
     let result: string[] = [];
 
     function App(): TuiNode {
@@ -521,7 +521,7 @@ describe('Spinner', () => {
   });
 
   it('animates through frames over time', () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     const adapter = new TestAdapter(40, 10);
 
     function App(): TuiNode {
@@ -531,16 +531,16 @@ describe('Spinner', () => {
     const handle = tui.mount(App, { adapter });
     const initial = adapter.text();
 
-    vi.advanceTimersByTime(80);
+    jest.advanceTimersByTime(80);
     const after = adapter.text();
     expect(after).not.toBe(initial);
 
     handle.unmount();
-    vi.useRealTimers();
+    jest.useRealTimers();
   });
 
   it('cleans up interval on unmount', () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     const adapter = new TestAdapter(40, 10);
 
     function App(): TuiNode {
@@ -551,7 +551,7 @@ describe('Spinner', () => {
     handle.unmount();
 
     // Advancing timers after unmount should not throw
-    expect(() => vi.advanceTimersByTime(200)).not.toThrow();
-    vi.useRealTimers();
+    expect(() => jest.advanceTimersByTime(200)).not.toThrow();
+    jest.useRealTimers();
   });
 });

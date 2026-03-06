@@ -1,16 +1,16 @@
 import type { AppBuilder } from '@vertz/core';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { createHandler, generateHTMLTemplate, generateNonce } from '../src/handler.js';
 
 function mockApp(handler?: (...args: unknown[]) => Promise<Response>): AppBuilder {
   return {
-    handler: handler ?? vi.fn().mockResolvedValue(new Response('OK')),
+    handler: handler ?? mock().mockResolvedValue(new Response('OK')),
   } as unknown as AppBuilder;
 }
 
 describe('createHandler', () => {
   it('returns proper Worker export with fetch method', () => {
-    const mockHandler = vi.fn().mockResolvedValue(new Response('OK'));
+    const mockHandler = mock().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -23,7 +23,7 @@ describe('createHandler', () => {
 
   it('forwards requests to the vertz handler', async () => {
     const mockResponse = new Response('Hello from handler');
-    const mockHandler = vi.fn().mockResolvedValue(mockResponse);
+    const mockHandler = mock().mockResolvedValue(mockResponse);
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -40,7 +40,7 @@ describe('createHandler', () => {
   });
 
   it('strips basePath prefix from pathname', async () => {
-    const mockHandler = vi.fn().mockResolvedValue(new Response('OK'));
+    const mockHandler = mock().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -59,7 +59,7 @@ describe('createHandler', () => {
   });
 
   it('strips basePath with trailing slash correctly', async () => {
-    const mockHandler = vi.fn().mockResolvedValue(new Response('OK'));
+    const mockHandler = mock().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -77,7 +77,7 @@ describe('createHandler', () => {
   });
 
   it('handles basePath when pathname does not start with basePath', async () => {
-    const mockHandler = vi.fn().mockResolvedValue(new Response('OK'));
+    const mockHandler = mock().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -95,7 +95,7 @@ describe('createHandler', () => {
   });
 
   it('preserves query parameters when stripping basePath', async () => {
-    const mockHandler = vi.fn().mockResolvedValue(new Response('OK'));
+    const mockHandler = mock().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -115,7 +115,7 @@ describe('createHandler', () => {
   });
 
   it('preserves request headers and method', async () => {
-    const mockHandler = vi.fn().mockResolvedValue(new Response('OK'));
+    const mockHandler = mock().mockResolvedValue(new Response('OK'));
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -141,7 +141,7 @@ describe('createHandler', () => {
 
   it('works without basePath option', async () => {
     const mockResponse = new Response('No basePath');
-    const mockHandler = vi.fn().mockResolvedValue(mockResponse);
+    const mockHandler = mock().mockResolvedValue(mockResponse);
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -160,9 +160,9 @@ describe('createHandler', () => {
   });
 
   it('returns 500 response when handler throws an error', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {});
     const testError = new Error('Test error');
-    const mockHandler = vi.fn().mockRejectedValue(testError);
+    const mockHandler = mock().mockRejectedValue(testError);
     const mockApp = {
       handler: mockHandler,
     } as unknown as AppBuilder;
@@ -192,12 +192,12 @@ describe('createHandler (config object)', () => {
   const mockCtx = {} as ExecutionContext;
 
   it('routes API requests to app handler and SSR to ssr handler', async () => {
-    const apiHandler = vi.fn().mockResolvedValue(
+    const apiHandler = mock().mockResolvedValue(
       new Response('{"items":[]}', {
         headers: { 'Content-Type': 'application/json' },
       }),
     );
-    const ssrHandler = vi.fn().mockResolvedValue(
+    const ssrHandler = mock().mockResolvedValue(
       new Response('<html>SSR</html>', {
         headers: { 'Content-Type': 'text/html' },
       }),
@@ -225,8 +225,8 @@ describe('createHandler (config object)', () => {
   });
 
   it('passes env to the app factory and caches the result', async () => {
-    const apiHandler = vi.fn().mockResolvedValue(new Response('OK'));
-    const appFactory = vi.fn().mockReturnValue(mockApp(apiHandler));
+    const apiHandler = mock().mockResolvedValue(new Response('OK'));
+    const appFactory = mock().mockReturnValue(mockApp(apiHandler));
 
     const worker = createHandler({
       app: appFactory,
@@ -245,7 +245,7 @@ describe('createHandler (config object)', () => {
 
   it('adds security headers when securityHeaders is true', async () => {
     const worker = createHandler({
-      app: () => mockApp(vi.fn().mockResolvedValue(new Response('OK'))),
+      app: () => mockApp(mock().mockResolvedValue(new Response('OK'))),
       basePath: '/api',
       securityHeaders: true,
     });
@@ -276,7 +276,7 @@ describe('createHandler (config object)', () => {
   });
 
   it('passes full URL to app handler (no basePath stripping)', async () => {
-    const apiHandler = vi.fn().mockResolvedValue(new Response('OK'));
+    const apiHandler = mock().mockResolvedValue(new Response('OK'));
 
     const worker = createHandler({
       app: () => mockApp(apiHandler),
@@ -291,10 +291,10 @@ describe('createHandler (config object)', () => {
   });
 
   it('returns 500 with error message when app handler throws', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {});
 
     const worker = createHandler({
-      app: () => mockApp(vi.fn().mockRejectedValue(new Error('DB connection failed'))),
+      app: () => mockApp(mock().mockRejectedValue(new Error('DB connection failed'))),
       basePath: '/api',
     });
 
@@ -310,7 +310,7 @@ describe('createHandler (config object)', () => {
   });
 
   it('returns 500 with error message when SSR handler throws', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {});
 
     const worker = createHandler({
       app: () => mockApp(),
@@ -368,23 +368,19 @@ describe('createHandler (SSR module config)', () => {
 
   // We mock @vertz/ui-server's createSSRHandler to isolate wiring logic.
   // The mock returns a handler that echoes 'SSR Module' so we can verify routing.
-  const mockSSRRequestHandler = vi.fn().mockResolvedValue(
+  const mockSSRRequestHandler = mock().mockResolvedValue(
     new Response('<html>SSR Module</html>', {
       headers: { 'Content-Type': 'text/html' },
     }),
   );
-  const mockCreateSSRHandler = vi.fn().mockReturnValue(mockSSRRequestHandler);
+  const mockCreateSSRHandler = mock().mockReturnValue(mockSSRRequestHandler);
 
   beforeEach(() => {
-    vi.doMock('@vertz/ui-server/ssr', () => ({
+    mock.module('@vertz/ui-server/ssr', () => ({
       createSSRHandler: mockCreateSSRHandler,
     }));
     mockSSRRequestHandler.mockClear();
     mockCreateSSRHandler.mockClear();
-  });
-
-  afterEach(() => {
-    vi.doUnmock('@vertz/ui-server/ssr');
   });
 
   it('routes non-API requests through the SSR handler created from module config', async () => {
@@ -463,7 +459,7 @@ describe('createHandler (SSR module config)', () => {
   it('still works with ssr callback (backward compat)', async () => {
     const { createHandler: freshCreateHandler } = await import('../src/handler.js');
 
-    const ssrCallback = vi.fn().mockResolvedValue(
+    const ssrCallback = mock().mockResolvedValue(
       new Response('<html>Callback SSR</html>', {
         headers: { 'Content-Type': 'text/html' },
       }),
@@ -486,7 +482,7 @@ describe('createHandler (SSR module config)', () => {
   it('routes API requests to app handler even with SSR module config', async () => {
     const { createHandler: freshCreateHandler } = await import('../src/handler.js');
 
-    const apiHandler = vi.fn().mockResolvedValue(
+    const apiHandler = mock().mockResolvedValue(
       new Response('{"items":[]}', {
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -540,7 +536,7 @@ describe('nonce-based CSP headers', () => {
 
   it('CSP header contains nonce (not unsafe-inline) for script-src', async () => {
     const worker = createHandler({
-      app: () => mockApp(vi.fn().mockResolvedValue(new Response('OK'))),
+      app: () => mockApp(mock().mockResolvedValue(new Response('OK'))),
       basePath: '/api',
       securityHeaders: true,
     });
@@ -563,7 +559,7 @@ describe('nonce-based CSP headers', () => {
 
   it('CSP header keeps unsafe-inline for style-src', async () => {
     const worker = createHandler({
-      app: () => mockApp(vi.fn().mockResolvedValue(new Response('OK'))),
+      app: () => mockApp(mock().mockResolvedValue(new Response('OK'))),
       basePath: '/api',
       securityHeaders: true,
     });
@@ -580,7 +576,7 @@ describe('nonce-based CSP headers', () => {
 
   it('each request gets a different nonce in the CSP header', async () => {
     const worker = createHandler({
-      app: () => mockApp(vi.fn().mockResolvedValue(new Response('OK'))),
+      app: () => mockApp(mock().mockResolvedValue(new Response('OK'))),
       basePath: '/api',
       securityHeaders: true,
     });
@@ -637,10 +633,10 @@ describe('nonce-based CSP headers', () => {
   });
 
   it('applies nonce-based CSP to 500 error responses', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = spyOn(console, 'error').mockImplementation(() => {});
 
     const worker = createHandler({
-      app: () => mockApp(vi.fn().mockRejectedValue(new Error('fail'))),
+      app: () => mockApp(mock().mockRejectedValue(new Error('fail'))),
       basePath: '/api',
       securityHeaders: true,
     });

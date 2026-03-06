@@ -15,7 +15,7 @@ import { err, ok } from '@vertz/fetch';
 import { s } from '@vertz/schema';
 import type { FormOptions, SdkMethod, SdkMethodWithMeta } from '@vertz/ui/form';
 import { form, formDataToObject } from '@vertz/ui/form';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 // ---------------------------------------------------------------------------
 // 1. Mock SDK method — simulates generated SDK output
@@ -99,7 +99,7 @@ describe('Form API Developer Walkthrough', () => {
 
   describe('Submission pipeline', () => {
     it('submit() calls SDK method with validated data and invokes onSuccess', async () => {
-      const onSuccess = vi.fn();
+      const onSuccess = mock();
       const userForm = form(mockSdk(), {
         schema: createUserSchema,
         onSuccess,
@@ -119,7 +119,7 @@ describe('Form API Developer Walkthrough', () => {
     });
 
     it('submit() validates and calls onError on invalid data', async () => {
-      const onError = vi.fn();
+      const onError = mock();
       const userForm = form(mockSdk(), {
         schema: createUserSchema,
         onError,
@@ -141,7 +141,7 @@ describe('Form API Developer Walkthrough', () => {
         { url: '/api/users', method: 'POST' },
       );
 
-      const onError = vi.fn();
+      const onError = mock();
       const userForm = form(failingSdk, {
         schema: createUserSchema,
         onError,
@@ -170,7 +170,7 @@ describe('Form API Developer Walkthrough', () => {
     });
 
     it('field.error is populated after failed validation', async () => {
-      const onError = vi.fn();
+      const onError = mock();
       const userForm = form(mockSdk(), {
         schema: createUserSchema,
         onError,
@@ -301,7 +301,7 @@ describe('Form API Developer Walkthrough', () => {
     });
 
     it('resetOnSuccess resets after successful submission', async () => {
-      const onSuccess = vi.fn();
+      const onSuccess = mock();
       const userForm = form(mockSdk(), {
         schema: createUserSchema,
         onSuccess,
@@ -329,7 +329,7 @@ describe('Form API Developer Walkthrough', () => {
 
   describe('SDK meta.bodySchema auto-extraction', () => {
     it('form() auto-validates from .meta.bodySchema (no explicit schema needed)', async () => {
-      const onError = vi.fn();
+      const onError = mock();
       // No explicit schema — uses .meta.bodySchema
       const userForm = form(mockSdkWithMeta(), { onError });
 
@@ -348,7 +348,7 @@ describe('Form API Developer Walkthrough', () => {
         name: s.string().min(5),
         email: s.string().min(1),
       });
-      const onError = vi.fn();
+      const onError = mock();
       const userForm = form(mockSdkWithMeta(), { schema: strictSchema, onError });
 
       const fd = new FormData();

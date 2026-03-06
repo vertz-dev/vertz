@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { createVertzLibraryPlugin } from '../library-plugin';
 import { runPluginOnLoad } from './helpers/plugin-test-utils';
 

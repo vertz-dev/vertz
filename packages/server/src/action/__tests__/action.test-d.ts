@@ -1,5 +1,5 @@
 import { d } from '@vertz/db';
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
 import { entity } from '../../entity/entity';
 import type { BaseContext } from '../../entity/types';
 import { action } from '../action';
@@ -44,7 +44,8 @@ const responseSchema = {
 describe('ActionContext type flow', () => {
   it('ActionContext extends BaseContext', () => {
     type Ctx = ActionContext<{ users: typeof usersEntity }>;
-    expectTypeOf<Ctx>().toMatchTypeOf<BaseContext>();
+    const _check: BaseContext = {} as Ctx;
+    void _check;
   });
 
   it('ActionContext.entities has typed injected entity', () => {
@@ -52,8 +53,10 @@ describe('ActionContext type flow', () => {
     type UsersOps = Ctx['entities']['users'];
     type GetReturn = Awaited<ReturnType<UsersOps['get']>>;
 
-    expectTypeOf<GetReturn>().toHaveProperty('email');
-    expectTypeOf<GetReturn>().toHaveProperty('name');
+    const _check1: GetReturn['email'] = {} as GetReturn['email'];
+    void _check1;
+    const _check2: GetReturn['name'] = {} as GetReturn['name'];
+    void _check2;
   });
 
   it('ActionContext.entities rejects non-injected entity', () => {
@@ -77,11 +80,14 @@ describe('ActionContext type flow', () => {
     }>;
 
     type UsersGet = Awaited<ReturnType<Ctx['entities']['users']['get']>>;
-    expectTypeOf<UsersGet>().toHaveProperty('email');
+    const _check1: UsersGet['email'] = {} as UsersGet['email'];
+    void _check1;
 
     type ProductsGet = Awaited<ReturnType<Ctx['entities']['products']['get']>>;
-    expectTypeOf<ProductsGet>().toHaveProperty('title');
-    expectTypeOf<ProductsGet>().toHaveProperty('price');
+    const _check2: ProductsGet['title'] = {} as ProductsGet['title'];
+    void _check2;
+    const _check3: ProductsGet['price'] = {} as ProductsGet['price'];
+    void _check3;
   });
 });
 
@@ -101,8 +107,11 @@ describe('action() definition type flow', () => {
       },
     });
 
-    expectTypeOf(def.kind).toEqualTypeOf<'action'>();
-    expectTypeOf(def.name).toBeString();
+    const _check1: 'action' = def.kind;
+    const _check1r: typeof def.kind = 'action' as const;
+    void _check1; void _check1r;
+    const _check2: string = def.name;
+    void _check2;
   });
 
   it('action() with inject stores the inject map', () => {
@@ -117,6 +126,7 @@ describe('action() definition type flow', () => {
       },
     });
 
-    expectTypeOf(def.inject).toMatchTypeOf<Record<string, unknown>>();
+    const _check: Record<string, unknown> = def.inject;
+    void _check;
   });
 });
