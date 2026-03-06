@@ -53,7 +53,7 @@ export interface MountHandle {
  * @param options - Mount options (theme, styles, onMount, etc.)
  * @returns MountHandle with unmount function and root element
  */
-export function mount<AppFn extends () => Element>(
+export function mount<AppFn extends () => Element | DocumentFragment>(
   app: AppFn,
   selector: string | HTMLElement,
   options?: MountOptions,
