@@ -1,9 +1,10 @@
 /** Envelope metadata for list queries (pagination info without entity data). */
 export interface QueryEnvelope {
-  total: number;
-  limit: number;
-  nextCursor: string | null;
-  hasNextPage: boolean;
+  total?: number;
+  limit?: number;
+  nextCursor?: string | null;
+  hasNextPage?: boolean;
+  [key: string]: unknown;
 }
 
 /**

@@ -205,19 +205,23 @@ export function query<T, E = unknown>(
 
   // Entity-backed source switcher: when entityMeta is present,
   // data reads from EntityStore instead of rawData.
-  let entityBacked = false;
+  // Uses a signal so the computed properly tracks the transition.
+  const entityBacked: Signal<boolean> = signal<boolean>(false);
 
   /**
    * Normalize fetch result into EntityStore for entity-backed queries.
    * For 'get' queries: merges the single entity.
-   * For 'list' queries: merges all items and stores the ID index.
+   * For 'list' queries: merges all items and stores the ID index + envelope.
+   *
+   * IMPORTANT: This must be called BEFORE setting rawData.value so that
+   * entityBacked is true when the computed re-evaluates from the rawData write.
    */
   function normalizeToEntityStore(result: T): void {
     if (!entityMeta) return;
     const store = getEntityStore();
     if (entityMeta.kind === 'get' && result && typeof result === 'object' && 'id' in result) {
       store.merge(entityMeta.entityType, result as { id: string });
-      entityBacked = true;
+      entityBacked.value = true;
     }
     if (entityMeta.kind === 'list' && result && typeof result === 'object') {
       const listResult = result as { items?: { id: string }[] };
@@ -229,27 +233,30 @@ export function query<T, E = unknown>(
         // Store envelope metadata (pagination info) separately
         const { items: _, ...rest } = result as Record<string, unknown>;
         if (Object.keys(rest).length > 0) {
-          getQueryEnvelopeStore().set(customKey ?? getCacheKey(), rest as unknown as QueryEnvelope);
+          getQueryEnvelopeStore().set(queryKey, rest as QueryEnvelope);
         }
-        entityBacked = true;
+        entityBacked.value = true;
       }
     }
   }
 
   const data: ReadonlySignal<T | undefined> = entityMeta
     ? computed(() => {
-        if (!entityBacked) return rawData.value;
+        if (!entityBacked.value) return rawData.value;
         const store = getEntityStore();
         if (entityMeta.kind === 'get' && entityMeta.id) {
           return store.get<T>(entityMeta.entityType, entityMeta.id).value;
         }
-        // For list queries, reconstruct from query index + store
+        // For list queries, reconstruct envelope + items from store
         const queryKey = customKey ?? entityMeta.entityType;
         const ids = store.queryIndices.get(queryKey);
         if (ids) {
-          const items = ids.map((id) => store.get(entityMeta.entityType, id).value).filter(Boolean);
-          // Return items as the data (caller sees the array)
-          return items as unknown as T;
+          const items = ids
+            .map((id) => store.get(entityMeta.entityType, id).value)
+            .filter((item): item is NonNullable<typeof item> => item != null);
+          // Reconstruct the original response shape with live entity data
+          const envelope = getQueryEnvelopeStore().get(queryKey);
+          return { ...envelope, items } as unknown as T;
         }
         return rawData.value;
       })

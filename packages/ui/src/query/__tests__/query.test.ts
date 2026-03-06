@@ -1522,11 +1522,12 @@ describe('query()', () => {
       await Promise.resolve();
       await Promise.resolve();
 
-      // List data should be the items array
-      const data = result.data.value as any[];
-      expect(data).toHaveLength(2);
-      expect(data[0]).toEqual({ id: '10', title: 'First', completed: false });
-      expect(data[1]).toEqual({ id: '11', title: 'Second', completed: true });
+      // List data should preserve the envelope shape with live items
+      const data = result.data.value as { items: any[]; total: number };
+      expect(data.items).toHaveLength(2);
+      expect(data.items[0]).toEqual({ id: '10', title: 'First', completed: false });
+      expect(data.items[1]).toEqual({ id: '11', title: 'Second', completed: true });
+      expect(data.total).toBe(2);
 
       // Both entities should be in the store
       const store = getEntityStore();
@@ -1576,7 +1577,8 @@ describe('query()', () => {
       await Promise.resolve();
 
       // Both queries should have data
-      expect((listResult.data.value as any[])?.length).toBe(2);
+      const listData = listResult.data.value as { items: any[]; total: number };
+      expect(listData.items).toHaveLength(2);
       expect(getResult.data.value).toEqual({ id: '20', title: 'Buy milk', completed: false });
 
       // Apply optimistic layer to entity '20'
@@ -1585,9 +1587,9 @@ describe('query()', () => {
 
       // Both queries should reflect the change
       expect(getResult.data.value).toEqual({ id: '20', title: 'Buy milk', completed: true });
-      const listItems = listResult.data.value as any[];
-      expect(listItems[0]).toEqual({ id: '20', title: 'Buy milk', completed: true });
-      expect(listItems[1]).toEqual({ id: '21', title: 'Walk dog', completed: false });
+      const updatedData = listResult.data.value as { items: any[]; total: number };
+      expect(updatedData.items[0]).toEqual({ id: '20', title: 'Buy milk', completed: true });
+      expect(updatedData.items[1]).toEqual({ id: '21', title: 'Walk dog', completed: false });
 
       listResult.dispose();
       getResult.dispose();

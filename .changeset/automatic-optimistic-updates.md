@@ -2,6 +2,7 @@
 '@vertz/ui': patch
 '@vertz/fetch': patch
 '@vertz/codegen': patch
+'@vertz/ui-server': patch
 ---
 
 Automatic optimistic updates for entity mutations.

@@ -196,9 +196,9 @@ export class EntityStore {
       const typeEntities: Record<string, unknown> = {};
 
       for (const [id, entry] of typeMap.entries()) {
-        const value = entry.signal.peek();
-        if (value !== undefined) {
-          typeEntities[id] = value;
+        // Serialize base values only — layers are transient (in-flight mutations).
+        if (entry.base !== undefined) {
+          typeEntities[id] = entry.base;
         }
       }
 
@@ -227,10 +227,9 @@ export class EntityStore {
   hydrate(data: SerializedStore): void {
     // Hydrate entities
     for (const [type, typeEntities] of Object.entries(data.entities)) {
-      const entities = Object.values(typeEntities).map((entity) => ({
-        ...(entity as any),
-        id: (entity as any).id,
-      }));
+      const entities = Object.values(typeEntities).map(
+        (entity) => entity as Record<string, unknown> & { id: string },
+      );
       this.merge(type, entities);
     }
 
@@ -347,7 +346,8 @@ export class EntityStore {
       visible = shallowMerge(visible, patch);
     }
 
-    if (!shallowEqual(entry.signal.peek() || {}, visible)) {
+    const current = entry.signal.peek();
+    if (current == null || !shallowEqual(current, visible)) {
       untrack(() => {
         entry.signal.value = visible;
       });
