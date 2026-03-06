@@ -3,7 +3,10 @@
     "exactOptionalPropertyTypes": false,
     "noEmit": true,
     "noUncheckedIndexedAccess": false,
-    "skipLibCheck": true
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "skipLibCheck": true,
+    "types": ["bun-types"]
   },
   "extends": "../../tsconfig.json",
   "include": ["src"]

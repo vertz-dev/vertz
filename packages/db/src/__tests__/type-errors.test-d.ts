@@ -1,4 +1,5 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
+import type { Equal, Expect } from './_type-helpers';
 import { d } from '../d';
 import type { FilterType, SelectOption } from '../schema/inference';
 import type {
@@ -38,12 +39,12 @@ void d.table('posts', {
 describe('InvalidColumn branded type', () => {
   it('produces a readable error string type', () => {
     type Err = InvalidColumn<'nonExistent', 'users'>;
-    expectTypeOf<Err>().toEqualTypeOf<"ERROR: Column 'nonExistent' does not exist on table 'users'.">();
+    type _t1 = Expect<Equal<Err, "ERROR: Column 'nonExistent' does not exist on table 'users'.">>;
   });
 
   it('produces error for different table names', () => {
     type Err = InvalidColumn<'bogus', 'posts'>;
-    expectTypeOf<Err>().toEqualTypeOf<"ERROR: Column 'bogus' does not exist on table 'posts'.">();
+    type _t1 = Expect<Equal<Err, "ERROR: Column 'bogus' does not exist on table 'posts'.">>;
   });
 });
 
@@ -54,7 +55,7 @@ describe('InvalidColumn branded type', () => {
 describe('InvalidFilterType branded type', () => {
   it('produces readable filter error', () => {
     type Err = InvalidFilterType<'age', 'number', 'string'>;
-    expectTypeOf<Err>().toEqualTypeOf<"ERROR: Filter on 'age' expects type 'number', got 'string'.">();
+    type _t1 = Expect<Equal<Err, "ERROR: Filter on 'age' expects type 'number', got 'string'.">>;
   });
 });
 
@@ -65,7 +66,7 @@ describe('InvalidFilterType branded type', () => {
 describe('InvalidRelation branded type', () => {
   it('produces readable relation error', () => {
     type Err = InvalidRelation<'bogus', 'author, comments'>;
-    expectTypeOf<Err>().toEqualTypeOf<"ERROR: Relation 'bogus' does not exist. Available relations: author, comments.">();
+    type _t1 = Expect<Equal<Err, "ERROR: Relation 'bogus' does not exist. Available relations: author, comments.">>;
   });
 });
 
@@ -76,14 +77,14 @@ describe('InvalidRelation branded type', () => {
 describe('ValidateKeys', () => {
   it('passes through valid keys unchanged', () => {
     type Result = ValidateKeys<{ id: true; name: true }, 'id' | 'name' | 'email', 'users'>;
-    expectTypeOf<Result>().toEqualTypeOf<{ id: true; name: true }>();
+    type _t1 = Expect<Equal<Result, { id: true; name: true }>>;
   });
 
   it('maps invalid keys to branded error type', () => {
     type Result = ValidateKeys<{ id: true; bogus: true }, 'id' | 'name' | 'email', 'users'>;
     // The 'bogus' key should be mapped to the error type
-    expectTypeOf<Result['id']>().toEqualTypeOf<true>();
-    expectTypeOf<Result['bogus']>().toEqualTypeOf<InvalidColumn<'bogus', 'users'>>();
+    type _t1 = Expect<Equal<Result['id'], true>>;
+    type _t2 = Expect<Equal<Result['bogus'], InvalidColumn<'bogus', 'users'>>>;
   });
 });
 

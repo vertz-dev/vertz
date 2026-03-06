@@ -1,11 +1,12 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
+import type { Equal, Expect } from '../../__tests__/_type-helpers';
 import { s } from '../../index';
 import type { Infer, Input, Output } from '../type-inference';
 
 describe('Infer', () => {
   it('extracts output type', () => {
     const schema = s.string();
-    expectTypeOf<Infer<typeof schema>>().toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<Infer<typeof schema>, string>>;
   });
 
   it('rejects non-schema types', () => {
@@ -17,8 +18,8 @@ describe('Infer', () => {
 describe('Input', () => {
   it('differs from output on transform', () => {
     const schema = s.string().transform((v) => v.length);
-    expectTypeOf<Input<typeof schema>>().toEqualTypeOf<string>();
-    expectTypeOf<Infer<typeof schema>>().toEqualTypeOf<number>();
+    type _t1 = Expect<Equal<Input<typeof schema>, string>>;
+    type _t2 = Expect<Equal<Infer<typeof schema>, number>>;
   });
 
   it('rejects non-schema types', () => {
@@ -30,6 +31,6 @@ describe('Input', () => {
 describe('Output', () => {
   it('equivalent to Infer', () => {
     const schema = s.number();
-    expectTypeOf<Output<typeof schema>>().toEqualTypeOf<Infer<typeof schema>>();
+    type _t1 = Expect<Equal<Output<typeof schema>, Infer<typeof schema>>>;
   });
 });

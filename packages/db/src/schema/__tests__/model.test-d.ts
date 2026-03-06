@@ -1,4 +1,5 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
+import type { Expect, Extends, HasKey, Not, Unwrap } from '../../__tests__/_type-helpers';
 import { d } from '../../d';
 
 // ---------------------------------------------------------------------------
@@ -23,18 +24,18 @@ const usersModel = d.model(users);
 
 describe('ModelDef schemas.response type', () => {
   it('excludes hidden columns from the parsed result', () => {
-    type ResponseType = ReturnType<typeof usersModel.schemas.response.parse>;
+    type ResponseType = Unwrap<ReturnType<typeof usersModel.schemas.response.parse>>;
 
     // passwordHash is .is('hidden') — should NOT appear
-    expectTypeOf<ResponseType>().not.toHaveProperty('passwordHash');
+    type _t1 = Expect<Not<HasKey<ResponseType, 'passwordHash'>>>;
   });
 
   it('includes non-hidden columns', () => {
-    type ResponseType = ReturnType<typeof usersModel.schemas.response.parse>;
+    type ResponseType = Unwrap<ReturnType<typeof usersModel.schemas.response.parse>>;
 
-    expectTypeOf<ResponseType>().toHaveProperty('id');
-    expectTypeOf<ResponseType>().toHaveProperty('email');
-    expectTypeOf<ResponseType>().toHaveProperty('name');
+    type _t1 = Expect<HasKey<ResponseType, 'id'>>;
+    type _t2 = Expect<HasKey<ResponseType, 'email'>>;
+    type _t3 = Expect<HasKey<ResponseType, 'name'>>;
   });
 });
 
@@ -44,27 +45,27 @@ describe('ModelDef schemas.response type', () => {
 
 describe('ModelDef schemas.createInput type', () => {
   it('excludes readOnly columns from the parsed result', () => {
-    type CreateType = ReturnType<typeof usersModel.schemas.createInput.parse>;
+    type CreateType = Unwrap<ReturnType<typeof usersModel.schemas.createInput.parse>>;
 
     // createdAt is .readOnly() — should NOT appear
-    expectTypeOf<CreateType>().not.toHaveProperty('createdAt');
+    type _t1 = Expect<Not<HasKey<CreateType, 'createdAt'>>>;
     // updatedAt is .autoUpdate() (implies readOnly) — should NOT appear
-    expectTypeOf<CreateType>().not.toHaveProperty('updatedAt');
+    type _t2 = Expect<Not<HasKey<CreateType, 'updatedAt'>>>;
   });
 
   it('excludes primary key columns', () => {
-    type CreateType = ReturnType<typeof usersModel.schemas.createInput.parse>;
+    type CreateType = Unwrap<ReturnType<typeof usersModel.schemas.createInput.parse>>;
 
-    expectTypeOf<CreateType>().not.toHaveProperty('id');
+    type _t1 = Expect<Not<HasKey<CreateType, 'id'>>>;
   });
 
   it('includes non-readOnly, non-PK columns', () => {
-    type CreateType = ReturnType<typeof usersModel.schemas.createInput.parse>;
+    type CreateType = Unwrap<ReturnType<typeof usersModel.schemas.createInput.parse>>;
 
-    expectTypeOf<CreateType>().toHaveProperty('email');
-    expectTypeOf<CreateType>().toHaveProperty('name');
+    type _t1 = Expect<HasKey<CreateType, 'email'>>;
+    type _t2 = Expect<HasKey<CreateType, 'name'>>;
     // hidden but non-readOnly — included in createInput
-    expectTypeOf<CreateType>().toHaveProperty('passwordHash');
+    type _t3 = Expect<HasKey<CreateType, 'passwordHash'>>;
   });
 });
 
@@ -74,23 +75,23 @@ describe('ModelDef schemas.createInput type', () => {
 
 describe('ModelDef schemas.updateInput type', () => {
   it('excludes readOnly columns', () => {
-    type UpdateType = ReturnType<typeof usersModel.schemas.updateInput.parse>;
+    type UpdateType = Unwrap<ReturnType<typeof usersModel.schemas.updateInput.parse>>;
 
-    expectTypeOf<UpdateType>().not.toHaveProperty('createdAt');
-    expectTypeOf<UpdateType>().not.toHaveProperty('updatedAt');
+    type _t1 = Expect<Not<HasKey<UpdateType, 'createdAt'>>>;
+    type _t2 = Expect<Not<HasKey<UpdateType, 'updatedAt'>>>;
   });
 
   it('excludes primary key columns', () => {
-    type UpdateType = ReturnType<typeof usersModel.schemas.updateInput.parse>;
+    type UpdateType = Unwrap<ReturnType<typeof usersModel.schemas.updateInput.parse>>;
 
-    expectTypeOf<UpdateType>().not.toHaveProperty('id');
+    type _t1 = Expect<Not<HasKey<UpdateType, 'id'>>>;
   });
 
   it('makes all remaining fields optional (empty object is valid)', () => {
-    type UpdateType = ReturnType<typeof usersModel.schemas.updateInput.parse>;
+    type UpdateType = Unwrap<ReturnType<typeof usersModel.schemas.updateInput.parse>>;
 
     // An empty object should be assignable to UpdateType since all fields are optional
-    expectTypeOf<{}>().toMatchTypeOf<UpdateType>();
+    type _t1 = Expect<Extends<{}, UpdateType>>;
   });
 });
 
@@ -100,13 +101,13 @@ describe('ModelDef schemas.updateInput type', () => {
 
 describe('ModelDef schemas.createInput required vs optional', () => {
   it('columns with defaults are optional', () => {
-    type CreateType = ReturnType<typeof usersModel.schemas.createInput.parse>;
+    type CreateType = Unwrap<ReturnType<typeof usersModel.schemas.createInput.parse>>;
 
     // Should compile: role is optional (has default 'viewer'), omitting it is valid
-    expectTypeOf<{
+    type _t1 = Expect<Extends<{
       email: string;
       name: string;
       passwordHash: string;
-    }>().toMatchTypeOf<CreateType>();
+    }, CreateType>>;
   });
 });

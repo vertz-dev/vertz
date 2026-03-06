@@ -1,11 +1,12 @@
-import { describe, expectTypeOf, it } from 'vitest';
+import { describe, it } from 'bun:test';
+import type { Equal, Expect, Unwrap } from './_type-helpers';
 import type { ReadonlySchema, SchemaAny } from '../core/schema';
 import { s } from '../index';
 
 describe('optional', () => {
   it('adds undefined to output', () => {
     const schema = s.string().optional();
-    expectTypeOf(schema.parse(undefined)).toEqualTypeOf<string | undefined>();
+    type _t1 = Expect<Equal<Unwrap<ReturnType<typeof schema.parse>>, string | undefined>>;
   });
 
   it('rejects non-matching type', () => {
@@ -20,7 +21,7 @@ describe('optional', () => {
 describe('nullable', () => {
   it('adds null to output', () => {
     const schema = s.string().nullable();
-    expectTypeOf(schema.parse(null)).toEqualTypeOf<string | null>();
+    type _t1 = Expect<Equal<Unwrap<ReturnType<typeof schema.parse>>, string | null>>;
   });
 
   it('rejects non-matching type', () => {
@@ -35,7 +36,7 @@ describe('nullable', () => {
 describe('default', () => {
   it('output excludes undefined', () => {
     const schema = s.string().default('fallback');
-    expectTypeOf(schema.parse(undefined)).toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<Unwrap<ReturnType<typeof schema.parse>>, string>>;
 
     const result = schema.parse(undefined);
     // @ts-expect-error — string is not assignable to undefined
@@ -47,7 +48,7 @@ describe('default', () => {
 describe('transform', () => {
   it('changes output type', () => {
     const schema = s.string().transform((v) => v.length);
-    expectTypeOf(schema.parse('hello')).toEqualTypeOf<number>();
+    type _t1 = Expect<Equal<Unwrap<ReturnType<typeof schema.parse>>, number>>;
   });
 
   it('rejects original type as output', () => {
@@ -62,7 +63,7 @@ describe('transform', () => {
 describe('pipe', () => {
   it('changes output to second schema', () => {
     const schema = s.string().transform(Number).pipe(s.number());
-    expectTypeOf(schema.parse('42')).toEqualTypeOf<number>();
+    type _t1 = Expect<Equal<Unwrap<ReturnType<typeof schema.parse>>, number>>;
   });
 
   it('rejects first schema output type', () => {
@@ -118,14 +119,14 @@ describe('SchemaAny assignability', () => {
 describe('catch', () => {
   it('preserves output type', () => {
     const schema = s.string().catch('default');
-    expectTypeOf(schema.parse(undefined)).toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<Unwrap<ReturnType<typeof schema.parse>>, string>>;
   });
 });
 
 describe('refine', () => {
   it('preserves schema output type', () => {
     const schema = s.string().refine((v) => v.length > 0);
-    expectTypeOf(schema.parse('hello')).toEqualTypeOf<string>();
+    type _t1 = Expect<Equal<Unwrap<ReturnType<typeof schema.parse>>, string>>;
   });
 
   it('rejects wrong type', () => {
