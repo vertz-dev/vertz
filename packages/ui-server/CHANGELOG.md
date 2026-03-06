@@ -1,5 +1,33 @@
 # @vertz/ui-server
 
+## 0.2.11
+
+### Patch Changes
+
+- [#919](https://github.com/vertz-dev/vertz/pull/919) [`b2878cf`](https://github.com/vertz-dev/vertz/commit/b2878cfe2acb3d1155ca5e0da13b2ee91c9aea9a) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix source map line offset in dev server
+
+  Breakpoints in browser DevTools were landing 2-3 lines below the intended position. The Bun plugin prepends CSS import and Fast Refresh preamble lines before the compiled code, but the source map was not adjusted for these extra lines. Now the source map mappings are offset by the number of prepended lines, so breakpoints land on the correct line.
+
+- [#917](https://github.com/vertz-dev/vertz/pull/917) [`5ed4c1a`](https://github.com/vertz-dev/vertz/commit/5ed4c1a4c5c9ea946e97b1636011251c6287eaf4) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Fix HMR fast-refresh stability: SSR module reload now uses .ts wrapper to preserve plugin processing, compiler unwraps NonNullExpression in reactivity analyzer, and dev server includes diagnostic logging (VERTZ_DEBUG) and health check endpoint (/\_\_vertz_diagnostics).
+
+- [#918](https://github.com/vertz-dev/vertz/pull/918) [`1fc9e33`](https://github.com/vertz-dev/vertz/commit/1fc9e33a9aa5283898c8974084f519a3caacbabb) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Remove index.html from the framework
+
+  UI apps no longer require an `index.html` file in the project root. The production build now generates the HTML shell programmatically with the correct asset references, eliminating the need for:
+
+  - Manual `index.html` maintenance
+  - Fast Refresh runtime stripping during build
+  - Dev script tag replacement with hashed entries
+  - `./public/` path rewriting
+
+  The `createIndexHtmlStasher` dev server mechanism (which renamed `index.html` during development to prevent Bun from auto-serving it) has been removed entirely.
+
+  `UIBuildConfig` gains an optional `title` field (default: `'Vertz App'`) to set the HTML page title.
+
+- Updated dependencies [[`275e4c7`](https://github.com/vertz-dev/vertz/commit/275e4c770f55b9e75b44d90f2cb586fff3eaeede), [`5ed4c1a`](https://github.com/vertz-dev/vertz/commit/5ed4c1a4c5c9ea946e97b1636011251c6287eaf4), [`5607c59`](https://github.com/vertz-dev/vertz/commit/5607c598c1c55485222fa2da192d0e0321f8b14a), [`523bbcb`](https://github.com/vertz-dev/vertz/commit/523bbcb12c1866a8334d5dac278cb51b157a5c7b), [`5607c59`](https://github.com/vertz-dev/vertz/commit/5607c598c1c55485222fa2da192d0e0321f8b14a), [`859e3da`](https://github.com/vertz-dev/vertz/commit/859e3dae660629d5d4f1e13c305c9201ee1d738d)]:
+  - @vertz/ui-compiler@0.2.11
+  - @vertz/ui@0.2.11
+  - @vertz/core@0.2.11
+
 ## 0.2.8
 
 ### Patch Changes
