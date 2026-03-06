@@ -8,6 +8,8 @@ afterAll(() => {
   GlobalRegistrator.unregister();
 });
 
+import { signal } from '@vertz/ui';
+import { startSignalCollection, stopSignalCollection } from '@vertz/ui/internals';
 import {
   __$refreshPerform,
   __$refreshReg,
@@ -30,12 +32,37 @@ function clearRegistry(): void {
 
 // ── Helpers ───────────────────────────────────────────────────────
 
+/** Signal ref used for state preservation in tests. */
+interface SignalRef {
+  peek(): unknown;
+  value: unknown;
+}
+
 /** Create a simple factory that produces a div with text. */
 function createFactory(text: string) {
   return () => {
     const el = document.createElement('div');
     el.textContent = text;
     return el;
+  };
+}
+
+/**
+ * Wrap a factory with the same signal collection + tracking pattern
+ * that the Fast Refresh codegen generates. This simulates:
+ *   __$startSigCol(); const el = orig(); const sigs = __$stopSigCol();
+ *   return __$refreshTrack(moduleId, name, el, args, scope, ctx, sigs);
+ */
+function wrapFactory(
+  moduleId: string,
+  name: string,
+  factory: () => HTMLElement,
+): () => HTMLElement {
+  return () => {
+    startSignalCollection();
+    const el = factory();
+    const sigs = stopSignalCollection() as SignalRef[];
+    return __$refreshTrack(moduleId, name, el, [], [], null, sigs);
   };
 }
 
@@ -380,6 +407,48 @@ describe('Fast Refresh Runtime', () => {
       expect(document.body.children.length).toBe(2);
       expect(document.body.children[0]?.textContent).toBe('Updated Item');
       expect(document.body.children[1]?.textContent).toBe('Updated Item');
+    });
+
+    it('preserves signal state across HMR when wrapper collects signals', () => {
+      // Simulates real HMR: the codegen wrapper calls startSignalCollection/
+      // stopSignalCollection around the factory, then passes signals to
+      // __$refreshTrack. Without the refreshSignals stash fix, the nested
+      // signal collection causes __$refreshPerform to get empty signals.
+
+      // V1 factory creates a real signal (like `let count = 0` → signal(0))
+      let sig1 = signal(0); // placeholder, overwritten by factory
+      const rawV1 = () => {
+        sig1 = signal(0);
+        const el = document.createElement('div');
+        el.textContent = 'v1';
+        return el;
+      };
+      const factoryV1 = wrapFactory('mod1', 'App', rawV1);
+      __$refreshReg('mod1', 'App', factoryV1);
+
+      // Initial mount — wrapper collects sig1
+      const el = factoryV1();
+      mount(el);
+
+      // User interaction: increment the signal
+      sig1.value = 42;
+
+      // HMR: new factory creates a fresh signal (initial value 0)
+      let sig2 = signal(0); // placeholder, overwritten by factory
+      const rawV2 = () => {
+        sig2 = signal(0);
+        const el = document.createElement('div');
+        el.textContent = 'v2';
+        return el;
+      };
+      const factoryV2 = wrapFactory('mod1', 'App', rawV2);
+      __$refreshReg('mod1', 'App', factoryV2);
+
+      __$refreshPerform('mod1');
+
+      // Signal value should be restored: 42 from old signal → new signal
+      expect(sig2.value).toBe(42);
+      expect(document.body.textContent).toBe('v2');
     });
 
     it('updates all instances with different args inside a container (like .map())', () => {
