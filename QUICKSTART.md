@@ -1,24 +1,25 @@
-# Vertz Quickstart — 5 Minutes to Your First API
+# Vertz Quickstart — 5 Minutes to Your First App
 
-Get a working Vertz API server running in under 5 minutes. Copy-paste friendly.
+Get a working Vertz full-stack app running in under 5 minutes. Copy-paste friendly.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) installed (or Node.js 22+)
+- [Bun](https://bun.sh) installed
 - That's it!
 
 ## Step 1: Create Your App
 
 ```bash
-npx create-vertz-app my-api --example
-cd my-api
+npx @vertz/create-vertz-app my-app
+cd my-app
 ```
 
 This creates a new Vertz project with:
-- ✅ A working health check endpoint
-- ✅ TypeScript configured
-- ✅ Environment validation
-- ✅ All dependencies installed
+- A full-stack app (API + UI)
+- SQLite database with auto-migrations
+- A tasks CRUD entity
+- Themed UI with `@vertz/theme-shadcn`
+- TypeScript configured
 
 ## Step 2: Install Dependencies
 
@@ -26,9 +27,15 @@ This creates a new Vertz project with:
 bun install
 ```
 
-(Or `npm install` if using Node)
+## Step 3: Generate Types
 
-## Step 3: Start the Server
+```bash
+bun run codegen
+```
+
+This generates the typed client at `.vertz/generated/` — used by the UI to call the API with full type safety.
+
+## Step 4: Start the Dev Server
 
 ```bash
 bun run dev
@@ -37,187 +44,14 @@ bun run dev
 You should see:
 
 ```
-✓ Server running at http://localhost:3000/api
+Server running at http://localhost:3000/api
 ```
 
-## Step 4: Test It
+Open [http://localhost:3000](http://localhost:3000) in your browser to see the task list UI.
+
+## Step 5: Test the API
 
 Open another terminal and try:
-
-```bash
-# Health check
-curl http://localhost:3000/api/health
-
-# Readiness check
-curl http://localhost:3000/api/health/ready
-```
-
-You should see:
-
-```json
-{
-  "status": "ok",
-  "timestamp": "2026-02-18T16:41:00.000Z"
-}
-```
-
-## What You Got
-
-Your app includes:
-
-```
-my-api/
-├── src/
-│   ├── app.ts              # App configuration
-│   ├── main.ts             # Entry point
-│   ├── env.ts              # Environment validation
-│   └── modules/
-│       └── health/         # Example health module
-│           ├── health.module-def.ts
-│           ├── health.service.ts
-│           ├── health.router.ts
-│           └── health.module.ts
-├── package.json
-└── tsconfig.json
-```
-
-## Step 5: Add Your First Route
-
-Let's add a new endpoint to the health module. Open `src/modules/health.router.ts` and add a new route:
-
-```typescript
-import { s } from '@vertz/schema';
-import { healthDef } from './health.module-def.js';
-import { healthService } from './health.service.js';
-
-const HealthResponseSchema = s.object({
-  status: s.string(),
-  timestamp: s.string(),
-});
-
-export const healthRouter = healthDef
-  .router({ prefix: '/health', inject: { healthService } })
-  .get('/', {
-    response: HealthResponseSchema,
-    handler: (ctx) => ctx.healthService.check(),
-  })
-  .get('/ready', {
-    response: s.object({ ready: s.boolean() }),
-    handler: () => ({ ready: true }),
-  })
-  // Add this new route ↓
-  .get('/ping', {
-    response: s.object({ message: s.string() }),
-    handler: () => ({ message: 'pong' }),
-  });
-```
-
-Save the file. The dev server will automatically reload. Test it:
-
-```bash
-curl http://localhost:3000/api/health/ping
-# {"message":"pong"}
-```
-
-## Step 6: Create a New Module
-
-Now let's create a full module with business logic. Create a new file `src/modules/tasks/task.module-def.ts`:
-
-```typescript
-import { vertz } from '@vertz/core';
-
-export const taskDef = vertz.moduleDef({ name: 'tasks' });
-```
-
-Create `src/modules/tasks/task.service.ts`:
-
-```typescript
-import { taskDef } from './task.module-def.js';
-
-type Task = { id: string; title: string; done: boolean };
-
-const tasks: Task[] = [
-  { id: '1', title: 'Learn Vertz', done: false },
-];
-
-export const taskService = taskDef.service({
-  methods: () => ({
-    list: () => tasks,
-    getById: (id: string) => tasks.find((t) => t.id === id),
-    create: (title: string) => {
-      const task = { id: String(Date.now()), title, done: false };
-      tasks.push(task);
-      return task;
-    },
-  }),
-});
-```
-
-Create `src/modules/tasks/task.router.ts`:
-
-```typescript
-import { s } from '@vertz/schema';
-import { taskDef } from './task.module-def.js';
-import { taskService } from './task.service.js';
-
-const TaskSchema = s.object({
-  id: s.string(),
-  title: s.string(),
-  done: s.boolean(),
-});
-
-export const taskRouter = taskDef
-  .router({ prefix: '/tasks', inject: { taskService } })
-  .get('/', {
-    response: s.array(TaskSchema),
-    handler: (ctx) => ctx.taskService.list(),
-  })
-  .get('/:id', {
-    params: s.object({ id: s.string() }),
-    response: TaskSchema,
-    handler: (ctx) => {
-      const task = ctx.taskService.getById(ctx.params.id);
-      if (!task) throw new Error('Task not found');
-      return task;
-    },
-  })
-  .post('/', {
-    body: s.object({ title: s.string().min(1) }),
-    response: TaskSchema,
-    handler: (ctx) => ctx.taskService.create(ctx.body.title),
-  });
-```
-
-Create `src/modules/tasks/task.module.ts`:
-
-```typescript
-import { vertz } from '@vertz/core';
-import { taskDef } from './task.module-def.js';
-import { taskRouter } from './task.router.js';
-import { taskService } from './task.service.js';
-
-export const taskModule = vertz.module(taskDef, {
-  services: [taskService],
-  routers: [taskRouter],
-});
-```
-
-Now register the module in `src/app.ts`:
-
-```typescript
-import { vertz } from '@vertz/core';
-import { healthModule } from './modules/health.module.js';
-import { taskModule } from './modules/tasks/task.module.js';  // ← Add this
-
-const app = vertz
-  .app({ basePath: '/api' })
-  .register(healthModule)
-  .register(taskModule);  // ← Add this
-
-export { app };
-```
-
-Save and test:
 
 ```bash
 # List tasks
@@ -226,32 +60,129 @@ curl http://localhost:3000/api/tasks
 # Create a task
 curl -X POST http://localhost:3000/api/tasks \
   -H 'Content-Type: application/json' \
-  -d '{"title":"Build something awesome"}'
+  -d '{"title":"Learn Vertz"}'
 
-# Get a task by ID (use the ID from the response above)
-curl http://localhost:3000/api/tasks/1
+# List tasks again — your new task is there
+curl http://localhost:3000/api/tasks
+```
+
+## What You Got
+
+Your app includes:
+
+```
+my-app/
+├── src/
+│   ├── api/
+│   │   ├── server.ts              # createServer with entities + db
+│   │   ├── schema.ts              # Database schema (tasks table)
+│   │   ├── db.ts                  # SQLite adapter
+│   │   └── entities/
+│   │       └── tasks.entity.ts    # Tasks entity with CRUD access
+│   ├── pages/
+│   │   └── home.tsx               # Task list UI page
+│   ├── styles/
+│   │   └── theme.ts               # Theme configuration
+│   ├── app.tsx                    # App shell (SSR + theme)
+│   ├── client.ts                  # Typed API client
+│   └── entry-client.ts            # Client-side mount
+├── vertz.config.ts
+├── bunfig.toml
+├── package.json
+└── tsconfig.json
+```
+
+## Step 6: Add a New Entity
+
+Create a new entity by adding a table to the schema. Open `src/api/schema.ts` and add:
+
+```typescript
+import { d } from '@vertz/db';
+
+export const tasksTable = d.table('tasks', {
+  id: d.uuid().primary({ generate: 'uuid' }),
+  title: d.text(),
+  completed: d.boolean().default(false),
+  createdAt: d.timestamp().default('now').readOnly(),
+  updatedAt: d.timestamp().autoUpdate().readOnly(),
+});
+
+export const tasksModel = d.model(tasksTable);
+
+// Add a new table ↓
+export const notesTable = d.table('notes', {
+  id: d.uuid().primary({ generate: 'uuid' }),
+  content: d.text(),
+  createdAt: d.timestamp().default('now').readOnly(),
+});
+
+export const notesModel = d.model(notesTable);
+```
+
+Create the entity at `src/api/entities/notes.entity.ts`:
+
+```typescript
+import { entity } from '@vertz/server';
+import { notesModel } from '../schema';
+
+export const notes = entity('notes', {
+  model: notesModel,
+  access: {
+    list: () => true,
+    get: () => true,
+    create: () => true,
+    update: () => true,
+    delete: () => true,
+  },
+});
+```
+
+Register it in `src/api/server.ts`:
+
+```typescript
+import { createServer } from '@vertz/server';
+import { db } from './db';
+import { tasks } from './entities/tasks.entity';
+import { notes } from './entities/notes.entity';  // ← Add this
+
+const app = createServer({
+  basePath: '/api',
+  entities: [tasks, notes],  // ← Add notes here
+  db,
+});
+
+export default app;
+```
+
+Re-run codegen to update the typed client, then restart the dev server:
+
+```bash
+bun run codegen
+bun run dev
+```
+
+Test it:
+
+```bash
+curl -X POST http://localhost:3000/api/notes \
+  -H 'Content-Type: application/json' \
+  -d '{"content":"My first note"}'
+
+curl http://localhost:3000/api/notes
 ```
 
 ## Next Steps
 
 You now have:
-- ✅ A working API server
-- ✅ Type-safe routes with validation
-- ✅ Module-based architecture
-- ✅ In-memory data service
+- A working full-stack app
+- Type-safe API with auto-generated client
+- SQLite database with auto-migrations
+- Themed UI with reactive components
 
 **Learn more:**
 
-- [Full Documentation](https://docs.vertz.dev)
 - [Vision & Principles](./VISION.md)
-- [Task API Example](./examples/task-api)
 - [Contributing Guide](./CONTRIBUTING.md)
-
-**Ready for production?**
-
-- Add a database with `@vertz/db`
-- Add authentication with `@vertz/server`
-- Deploy to Cloudflare Workers, Deno Deploy, or any runtime
 
 ---
 
