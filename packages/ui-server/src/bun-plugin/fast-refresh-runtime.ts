@@ -54,6 +54,8 @@ type ContextScope = NonNullable<ReturnType<typeof getContextScope>>;
 interface SignalRef {
   peek(): unknown;
   value: unknown;
+  /** Optional HMR key for name-based signal matching (set by compiler). */
+  _hmrKey?: string;
 }
 
 interface ComponentInstance {
@@ -74,6 +76,8 @@ interface ComponentRecord {
   factory: (...args: unknown[]) => HTMLElement;
   /** All tracked live instances of this component. */
   instances: ComponentInstance[];
+  /** Content hash for change detection (prevents cascading re-mounts). */
+  hash?: string;
 }
 
 // moduleId → componentName → ComponentRecord
@@ -134,16 +138,22 @@ export function __$refreshReg(
   moduleId: string,
   name: string,
   factory: (...args: unknown[]) => HTMLElement,
+  hash?: string,
 ): void {
   const mod = getModule(moduleId);
   const existing = mod.get(name);
   if (existing) {
     // HMR re-evaluation — update factory, keep instances.
+    // When a content hash is provided, skip the update if unchanged.
+    // This prevents cascading re-mounts when Bun re-evaluates all modules
+    // in a single chunk even though only one file actually changed.
+    if (hash && existing.hash === hash) return;
     existing.factory = factory;
+    existing.hash = hash;
     dirtyModules.add(moduleId);
   } else {
     // First load — create record (not dirty, nothing to re-mount)
-    mod.set(name, { factory, instances: [] });
+    mod.set(name, { factory, instances: [], hash });
   }
 }
 
@@ -255,17 +265,26 @@ export function __$refreshPerform(moduleId: string): void {
         continue;
       }
 
-      // 4. Restore signal values by position (same strategy as React hooks)
-      if (savedValues.length > 0 && newSignals.length === savedValues.length) {
-        for (let i = 0; i < newSignals.length; i++) {
-          const sig = newSignals[i];
-          if (sig) sig.value = savedValues[i];
+      // 4. Restore signal values: named signals by key, unnamed by position
+      if (savedValues.length > 0) {
+        // Partition old signals into named (key → value) and unnamed (positional)
+        const namedSaved = new Map<string, unknown>();
+        const unnamedSaved: unknown[] = [];
+        for (const s of oldSignals) {
+          if (s._hmrKey) namedSaved.set(s._hmrKey, s.peek());
+          else unnamedSaved.push(s.peek());
         }
-      } else if (savedValues.length > 0 && newSignals.length !== savedValues.length) {
-        console.warn(
-          `[vertz-hmr] Signal count changed in ${name} ` +
-            `(${savedValues.length} → ${newSignals.length}). State reset.`,
-        );
+
+        // Restore new signals: named by key, unnamed by position fallback
+        let unnamedIdx = 0;
+        for (const sig of newSignals) {
+          if (sig._hmrKey && namedSaved.has(sig._hmrKey)) {
+            sig.value = namedSaved.get(sig._hmrKey);
+          } else if (!sig._hmrKey && unnamedIdx < unnamedSaved.length) {
+            sig.value = unnamedSaved[unnamedIdx++];
+          }
+          // else: new signal (no matching key or unnamed overflow), keep initial value
+        }
       }
 
       popScope();

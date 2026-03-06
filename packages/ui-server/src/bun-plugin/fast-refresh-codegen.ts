@@ -8,17 +8,20 @@ import type { ComponentInfo } from '@vertz/ui-compiler';
  * Adding imports to @vertz/ui/internals would cause those chunks to appear in
  * HMR updates, triggering full page reloads.
  */
-export function generateRefreshPreamble(moduleId: string): string {
+export function generateRefreshPreamble(moduleId: string, contentHash?: string): string {
   const escapedId = moduleId.replace(/['\\]/g, '\\$&');
-  return (
+  let code =
     `const __$fr = globalThis[Symbol.for('vertz:fast-refresh')];\n` +
     `const { __$refreshReg, __$refreshTrack, __$refreshPerform, ` +
     `pushScope: __$pushScope, popScope: __$popScope, ` +
     `_tryOnCleanup: __$tryCleanup, runCleanups: __$runCleanups, ` +
     `getContextScope: __$getCtx, setContextScope: __$setCtx, ` +
     `startSignalCollection: __$startSigCol, stopSignalCollection: __$stopSigCol } = __$fr;\n` +
-    `const __$moduleId = '${escapedId}';\n`
-  );
+    `const __$moduleId = '${escapedId}';\n`;
+  if (contentHash) {
+    code += `const __$moduleHash = '${contentHash}';\n`;
+  }
+  return code;
 }
 
 /**
@@ -43,7 +46,7 @@ export function generateRefreshWrapper(componentName: string): string {
     `  }\n` +
     `  return __$refreshTrack(__$moduleId, '${componentName}', __$ret, __$args, __$scope, __$ctx, __$sigs);\n` +
     `};\n` +
-    `__$refreshReg(__$moduleId, '${componentName}', ${componentName});\n`
+    `__$refreshReg(__$moduleId, '${componentName}', ${componentName}, __$moduleHash);\n`
   );
 }
 
@@ -65,10 +68,11 @@ export function generateRefreshPerform(): string {
 export function generateRefreshCode(
   moduleId: string,
   components: ComponentInfo[],
+  contentHash?: string,
 ): { preamble: string; epilogue: string } | null {
   if (components.length === 0) return null;
 
-  const preamble = generateRefreshPreamble(moduleId);
+  const preamble = generateRefreshPreamble(moduleId, contentHash);
 
   let epilogue = '';
   for (const comp of components) {

@@ -25,8 +25,18 @@ function isSSR(): boolean {
 // Stack-based collector for capturing signal references during component
 // factory execution. Used by Fast Refresh to snapshot/restore signal values
 // across HMR cycles. Mirrors the cleanupStack pattern in disposal.ts.
+//
+// Uses globalThis so the stack survives Bun's HMR module re-evaluation.
+// Bun bundles all modules into a single chunk and re-evaluates them all
+// on HMR. Without globalThis, the fast-refresh runtime (importing from
+// @vertz/ui/internals) and component code (importing from @vertz/ui)
+// may get separate module instances with separate stacks — causing signal
+// collection to silently fail during HMR factory re-execution.
 
-const signalCollectorStack: Signal<unknown>[][] = [];
+const COLLECTOR_KEY = Symbol.for('vertz:signal-collector-stack');
+const _global = globalThis as Record<symbol, Signal<unknown>[][]>;
+if (!_global[COLLECTOR_KEY]) _global[COLLECTOR_KEY] = [];
+const signalCollectorStack: Signal<unknown>[][] = _global[COLLECTOR_KEY];
 
 export function startSignalCollection(): void {
   signalCollectorStack.push([]);
@@ -44,9 +54,11 @@ let nextId = 0;
 class SignalImpl<T> implements Signal<T> {
   _value: T;
   _subscribers: Set<Subscriber> = new Set();
+  _hmrKey: string | undefined;
 
-  constructor(initial: T) {
+  constructor(initial: T, key?: string) {
     this._value = initial;
+    this._hmrKey = key;
   }
 
   get value(): T {
@@ -89,9 +101,10 @@ class SignalImpl<T> implements Signal<T> {
 
 /**
  * Create a reactive signal with an initial value.
+ * Optional key is used by HMR to match signals by name across re-mounts.
  */
-export function signal<T>(initial: T): Signal<T> {
-  const s = new SignalImpl(initial);
+export function signal<T>(initial: T, key?: string): Signal<T> {
+  const s = new SignalImpl(initial, key);
   const collector = signalCollectorStack[signalCollectorStack.length - 1];
   if (collector) {
     collector.push(s as Signal<unknown>);

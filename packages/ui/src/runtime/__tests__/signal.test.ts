@@ -503,6 +503,39 @@ describe('signal collection', () => {
     const collected = stopSignalCollection();
     expect(collected).toHaveLength(0);
   });
+
+  it('stores _hmrKey when signal is created with a key', () => {
+    startSignalCollection();
+    signal(0, 'count');
+    const collected = stopSignalCollection();
+    expect(collected).toHaveLength(1);
+    expect((collected[0] as { _hmrKey?: string })._hmrKey).toBe('count');
+  });
+
+  it('_hmrKey is undefined when signal is created without a key', () => {
+    startSignalCollection();
+    signal(0);
+    const collected = stopSignalCollection();
+    expect(collected).toHaveLength(1);
+    expect((collected[0] as { _hmrKey?: string })._hmrKey).toBeUndefined();
+  });
+});
+
+describe('signal collector globalThis persistence', () => {
+  it('shares signalCollectorStack via globalThis so separate module instances collect correctly', () => {
+    const COLLECTOR_KEY = Symbol.for('vertz:signal-collector-stack');
+    const stack = (globalThis as Record<symbol, unknown>)[COLLECTOR_KEY];
+    // The stack must be on globalThis — not module-scoped
+    expect(stack).toBeInstanceOf(Array);
+
+    // Starting collection via the exported function should push to the globalThis stack
+    startSignalCollection();
+    expect((stack as unknown[]).length).toBeGreaterThan(0);
+    const s = signal(42, 'test');
+    const collected = stopSignalCollection();
+    expect(collected).toHaveLength(1);
+    expect(collected[0]).toBe(s);
+  });
 });
 
 describe('diamond dependency', () => {
