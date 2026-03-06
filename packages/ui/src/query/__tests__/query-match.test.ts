@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { signal } from '../../runtime/signal';
+import { __list } from '../../dom/list';
+import { computed, domEffect, signal } from '../../runtime/signal';
 import type { Signal } from '../../runtime/signal-types';
 import type { QueryResult } from '../query';
 import { queryMatch } from '../query-match';
@@ -343,6 +344,117 @@ describe('queryMatch()', () => {
 
     // data handler should receive exactly 1 argument (data proxy)
     expect(handlerArgCount).toBe(1);
+
+    wrapper.dispose();
+  });
+
+  test('computed derived from query data updates __list inside data handler (content-based keys)', () => {
+    const qr = fakeQueryResult<{ status: string }>({
+      loading: false,
+      data: { status: 'todo' },
+    });
+
+    const dataSignal = qr._data;
+    const transitions = computed(() => {
+      const d = dataSignal.value;
+      if (!d) return [];
+      return d.status === 'todo'
+        ? [{ label: 'Start', key: 'start' }]
+        : [{ label: 'Complete', key: 'complete' }];
+    });
+
+    const container = document.createElement('div');
+
+    const wrapper = queryMatch(qr, {
+      loading: () => document.createElement('div'),
+      error: () => document.createElement('div'),
+      data: () => {
+        const el = document.createElement('div');
+        __list(
+          el,
+          () => transitions.value,
+          (item) => item.key,
+          (item) => {
+            const btn = document.createElement('button');
+            btn.textContent = item.label;
+            return btn;
+          },
+        );
+        return el;
+      },
+    });
+    container.appendChild(wrapper);
+
+    const dataEl = wrapper.children[0] as HTMLElement;
+    expect(dataEl.children.length).toBe(1);
+    expect(dataEl.children[0]?.textContent).toBe('Start');
+
+    qr._data.value = { status: 'in-progress' };
+
+    expect(dataEl.children.length).toBe(1);
+    expect(dataEl.children[0]?.textContent).toBe('Complete');
+
+    wrapper.dispose();
+  });
+
+  test('__list updates reactive bindings when item changes at same index key', () => {
+    // Reproduces the compiler-generated scenario: .map() without explicit key
+    // generates index-based keyFn. __list wraps each item in a reactive proxy,
+    // so when the item at a key changes, reactive bindings (domEffect, __child)
+    // inside the node update automatically.
+    const qr = fakeQueryResult<{ status: string }>({
+      loading: false,
+      data: { status: 'todo' },
+    });
+
+    const dataSignal = qr._data;
+    const transitions = computed(() => {
+      const d = dataSignal.value;
+      if (!d) return [];
+      return d.status === 'todo'
+        ? [{ label: 'Start' }]
+        : [{ label: 'Complete' }, { label: 'Back to Todo' }];
+    });
+
+    const container = document.createElement('div');
+
+    const wrapper = queryMatch(qr, {
+      loading: () => document.createElement('div'),
+      error: () => document.createElement('div'),
+      data: () => {
+        const el = document.createElement('div');
+        // Index-based key — matches compiler output for .map() without key prop.
+        // renderFn uses domEffect for text content — matches compiler's __child().
+        __list(
+          el,
+          () => transitions.value,
+          (_item, __i) => __i,
+          (item) => {
+            const btn = document.createElement('button');
+            // Simulate compiler-generated __child: reactive text binding
+            domEffect(() => {
+              btn.textContent = item.label;
+            });
+            return btn;
+          },
+        );
+        return el;
+      },
+    });
+    container.appendChild(wrapper);
+
+    const dataEl = wrapper.children[0] as HTMLElement;
+    expect(dataEl.children.length).toBe(1);
+    expect(dataEl.children[0]?.textContent).toBe('Start');
+
+    // Simulate refetch: status changes from 'todo' to 'in-progress'
+    qr._data.value = { status: 'in-progress' };
+
+    // Index key 0: node reused, but item proxy now reads from 'Complete'
+    // Index key 1: new node created for 'Back to Todo'
+    expect(dataEl.children.length).toBe(2);
+    expect(dataEl.children[0]?.textContent).toBe('Complete');
+    expect(dataEl.children[1]?.textContent).toBe('Back to Todo');
 
     wrapper.dispose();
   });

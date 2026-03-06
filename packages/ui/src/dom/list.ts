@@ -1,12 +1,60 @@
 import { getIsHydrating } from '../hydrate/hydration-context';
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
-import { domEffect } from '../runtime/signal';
+import { domEffect, signal } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
+
+/**
+ * Create a reactive proxy over an item signal.
+ * Property accesses read from `itemSignal.value`, so any domEffect
+ * that reads through the proxy automatically subscribes to the signal.
+ * When `itemSignal.value` is updated, those effects re-run.
+ */
+function createItemProxy<T>(itemSignal: Signal<T>): T {
+  if (typeof itemSignal.peek() !== 'object' || itemSignal.peek() == null) {
+    // Primitives and null can't be proxied — return the value directly.
+    // These items won't get reactive updates on key reuse.
+    return itemSignal.peek();
+  }
+  return new Proxy(
+    {},
+    {
+      get(_target, prop, receiver) {
+        const current = itemSignal.value;
+        if (current == null) return undefined;
+        const value = Reflect.get(current as object, prop, receiver);
+        if (typeof value === 'function') {
+          return value.bind(current);
+        }
+        return value;
+      },
+      has(_target, prop) {
+        const current = itemSignal.value;
+        if (current == null) return false;
+        return Reflect.has(current as object, prop);
+      },
+      ownKeys() {
+        const current = itemSignal.value;
+        if (current == null) return [];
+        return Reflect.ownKeys(current as object);
+      },
+      getOwnPropertyDescriptor(_target, prop) {
+        const current = itemSignal.value;
+        if (current == null) return undefined;
+        return Reflect.getOwnPropertyDescriptor(current as object, prop);
+      },
+    },
+  ) as T;
+}
 
 /**
  * Keyed list reconciliation.
  * Efficiently updates a container's children when the items signal changes.
  * Reuses existing DOM nodes based on key identity — no virtual DOM.
+ *
+ * Each item is wrapped in a reactive proxy backed by a signal. When the item
+ * at an existing key changes (e.g., after refetch), the signal updates and
+ * any reactive bindings inside the node (domEffect, __child) re-run
+ * automatically — without re-creating the DOM node.
  *
  * Compiler output target for .map() / for-each expressions in JSX.
  *
@@ -32,6 +80,9 @@ export function __list<T>(
   const nodeMap = new Map<string | number, Node>();
   // Map from key to the disposal scope for that item's reactive children
   const scopeMap = new Map<string | number, DisposeFn[]>();
+  // Map from key to the item signal — updated when the item at a key changes,
+  // triggering reactive bindings inside the node via the proxy.
+  const itemSignalMap = new Map<string | number, Signal<T>>();
 
   const isHydrationRun = getIsHydrating();
 
@@ -50,11 +101,14 @@ export function __list<T>(
       // are already in the correct order.
       for (const [i, item] of newItems.entries()) {
         const key = keyFn(item, i);
+        const itemSig = signal(item);
+        const proxy = createItemProxy(itemSig);
         const scope = pushScope();
-        const node = renderFn(item);
+        const node = renderFn(proxy);
         popScope();
         nodeMap.set(key, node);
         scopeMap.set(key, scope);
+        itemSignalMap.set(key, itemSig);
       }
       return;
     }
@@ -72,21 +126,33 @@ export function __list<T>(
         }
         node.parentNode?.removeChild(node);
         nodeMap.delete(key);
+        itemSignalMap.delete(key);
       }
     }
 
-    // Create nodes for new keys and build the desired order
+    // Create nodes for new keys and build the desired order.
+    // For existing keys, update the item signal so reactive bindings
+    // inside the node see the latest item data.
     const desiredNodes: Node[] = [];
     for (const [i, item] of newItems.entries()) {
       const key = keyFn(item, i);
       let node = nodeMap.get(key);
       if (!node) {
-        // Wrap renderFn in a disposal scope to capture any effects/computeds
+        // New key — create node with a reactive item proxy
+        const itemSig = signal(item);
+        const proxy = createItemProxy(itemSig);
         const scope = pushScope();
-        node = renderFn(item);
+        node = renderFn(proxy);
         popScope();
         nodeMap.set(key, node);
         scopeMap.set(key, scope);
+        itemSignalMap.set(key, itemSig);
+      } else {
+        // Existing key — update the item signal to trigger reactive bindings
+        const itemSig = itemSignalMap.get(key);
+        if (itemSig) {
+          itemSig.value = item;
+        }
       }
       desiredNodes.push(node);
     }

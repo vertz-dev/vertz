@@ -1,7 +1,47 @@
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
-import { domEffect } from '../runtime/signal';
+import { domEffect, signal } from '../runtime/signal';
 import type { DisposeFn, Signal } from '../runtime/signal-types';
 import { onAnimationsComplete } from './animation';
+
+/**
+ * Create a reactive proxy over an item signal.
+ * Property accesses read from `itemSignal.value`, so any domEffect
+ * that reads through the proxy automatically subscribes to the signal.
+ */
+function createItemProxy<T>(itemSignal: Signal<T>): T {
+  if (typeof itemSignal.peek() !== 'object' || itemSignal.peek() == null) {
+    return itemSignal.peek();
+  }
+  return new Proxy(
+    {},
+    {
+      get(_target, prop, receiver) {
+        const current = itemSignal.value;
+        if (current == null) return undefined;
+        const value = Reflect.get(current as object, prop, receiver);
+        if (typeof value === 'function') {
+          return value.bind(current);
+        }
+        return value;
+      },
+      has(_target, prop) {
+        const current = itemSignal.value;
+        if (current == null) return false;
+        return Reflect.has(current as object, prop);
+      },
+      ownKeys() {
+        const current = itemSignal.value;
+        if (current == null) return [];
+        return Reflect.ownKeys(current as object);
+      },
+      getOwnPropertyDescriptor(_target, prop) {
+        const current = itemSignal.value;
+        if (current == null) return undefined;
+        return Reflect.getOwnPropertyDescriptor(current as object, prop);
+      },
+    },
+  ) as T;
+}
 
 /**
  * Keyed list reconciliation with enter/exit animations.
@@ -29,6 +69,7 @@ export function listTransition<T>(
 
   const nodeMap = new Map<string | number, HTMLElement>();
   const scopeMap = new Map<string | number, DisposeFn[]>();
+  const itemSignalMap = new Map<string | number, Signal<T>>();
   const exitingNodes = new Set<HTMLElement>();
   const exitingKeyMap = new Map<string | number, HTMLElement>();
   const keyGeneration = new Map<string | number, number>();
@@ -45,11 +86,14 @@ export function listTransition<T>(
         isFirstRun = false;
         for (const [i, item] of newItems.entries()) {
           const key = keyFn(item, i);
+          const itemSig = signal(item);
+          const proxy = createItemProxy(itemSig);
           const scope = pushScope();
-          const node = renderFn(item);
+          const node = renderFn(proxy as T);
           popScope();
           nodeMap.set(key, node);
           scopeMap.set(key, scope);
+          itemSignalMap.set(key, itemSig);
           endMarker.parentNode?.insertBefore(node, endMarker);
         }
         return;
@@ -64,6 +108,7 @@ export function listTransition<T>(
             scopeMap.delete(key);
           }
           nodeMap.delete(key);
+          itemSignalMap.delete(key);
 
           const gen = (keyGeneration.get(key) ?? 0) + 1;
           keyGeneration.set(key, gen);
@@ -101,15 +146,24 @@ export function listTransition<T>(
           const gen = (keyGeneration.get(key) ?? 0) + 1;
           keyGeneration.set(key, gen);
 
+          const itemSig = signal(item);
+          const proxy = createItemProxy(itemSig);
           const scope = pushScope();
-          node = renderFn(item);
+          node = renderFn(proxy as T);
           popScope();
 
           nodeMap.set(key, node);
           scopeMap.set(key, scope);
+          itemSignalMap.set(key, itemSig);
 
           node.setAttribute('data-presence', 'enter');
           enterNodes.push({ node, key });
+        } else {
+          // Existing key — update the item signal to trigger reactive bindings
+          const itemSig = itemSignalMap.get(key);
+          if (itemSig) {
+            itemSig.value = item;
+          }
         }
         desiredNodes.push(node);
       }
