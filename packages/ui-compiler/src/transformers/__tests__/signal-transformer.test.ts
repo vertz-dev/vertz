@@ -38,7 +38,7 @@ describe('SignalTransformer', () => {
       `function Counter() {\n  let count = 0;\n  return <div>{count}</div>;\n}`,
       [{ name: 'count', kind: 'signal', start: 0, end: 0 }],
     );
-    expect(result).toContain('const count = signal(0)');
+    expect(result).toContain("const count = signal(0, 'count')");
   });
 
   it('transforms reads to .value', () => {
