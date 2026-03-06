@@ -40,12 +40,14 @@ export function generateIconSource(): string {
   return lines.join('\n');
 }
 
-// Run when executed directly
-const outputPath = path.resolve(__dirname, '../src/generated-icons.ts');
-const source = generateIconSource();
-fs.writeFileSync(outputPath, source);
+// Run when executed directly (not when imported for testing)
+if (import.meta.main) {
+  const outputPath = path.resolve(__dirname, '../src/generated-icons.ts');
+  const source = generateIconSource();
+  fs.writeFileSync(outputPath, source);
 
-const iconCount = Object.keys(icons).filter(
-  (k) => k !== 'default' && typeof (icons as Record<string, unknown>)[k] === 'string',
-).length;
-console.log(`Generated ${outputPath} with ${iconCount} icons`);
+  const iconCount = Object.keys(icons).filter(
+    (k) => k !== 'default' && typeof (icons as Record<string, unknown>)[k] === 'string',
+  ).length;
+  console.log(`Generated ${outputPath} with ${iconCount} icons`);
+}

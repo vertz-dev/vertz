@@ -6,7 +6,7 @@ export function renderIcon(svgString: string, props?: IconProps): HTMLSpanElemen
   span.style.cssText = `display: inline-flex; align-items: center; width: ${size}px; height: ${size}px; flex-shrink: 0`;
   if (className) span.className = className;
   span.innerHTML = svgString
-    .replace(/width="\d+"/, `width="${size}"`)
-    .replace(/height="\d+"/, `height="${size}"`);
+    .replace(/\bwidth="\d+"/, `width="${size}"`)
+    .replace(/\bheight="\d+"/, `height="${size}"`);
   return span;
 }
