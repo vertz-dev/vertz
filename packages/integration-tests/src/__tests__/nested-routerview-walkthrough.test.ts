@@ -11,11 +11,6 @@
 // Uses only public package imports — never relative imports.
 // ===========================================================================
 
-// NOTE: This test requires a DOM environment. Run with:
-//   bun test --preload ./src/__tests__/happy-dom-preload.ts
-// Currently skipped in default `bun test` due to happy-dom/CSSStyleSheet
-// incompatibility when globals are manually registered (#900).
-
 import type { Router } from '@vertz/ui';
 import {
   createRouter,

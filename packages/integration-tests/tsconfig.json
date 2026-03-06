@@ -5,7 +5,7 @@
     "skipLibCheck": true,
     "types": ["bun-types"]
   },
-  "exclude": ["node_modules", "**/*.test.ts", "**/*.test-vitest.ts"],
+  "exclude": ["node_modules", "**/*.test.ts"],
   "extends": "../../tsconfig.json",
   "include": ["src"]
 }
