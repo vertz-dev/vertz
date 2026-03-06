@@ -25,7 +25,10 @@ export interface OutletContextValue {
 }
 
 /** Shared context used by RouterView and Outlet. */
-export const OutletContext: Context<OutletContextValue> = createContext<OutletContextValue>();
+export const OutletContext: Context<OutletContextValue> = createContext<OutletContextValue>(
+  undefined,
+  '@vertz/ui::OutletContext',
+);
 
 /**
  * Outlet component — renders the nested child route.

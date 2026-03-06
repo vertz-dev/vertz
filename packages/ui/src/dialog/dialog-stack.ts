@@ -8,7 +8,10 @@ import type { DisposeFn } from '../runtime/signal-types';
 
 import type { Context } from '../component/context';
 
-export const DialogStackContext: Context<DialogStack> = createContext<DialogStack>();
+export const DialogStackContext: Context<DialogStack> = createContext<DialogStack>(
+  undefined,
+  '@vertz/ui::DialogStackContext',
+);
 
 export function useDialogStack(): DialogStack {
   const stack = useContext(DialogStackContext);
