@@ -3,6 +3,7 @@ import { defaultPostgresDialect } from '../dialect';
 import { camelToSnake } from '../sql/casing';
 import type { DiffChange } from './differ';
 import type { ColumnSnapshot, TableSnapshot } from './snapshot';
+import { validateIndexes } from './validate-indexes';
 
 /**
  * Context needed by the SQL generator to produce full DDL.
@@ -151,6 +152,14 @@ export function generateMigrationSql(
   const statements: string[] = [];
   const tables = ctx?.tables;
   const enums = ctx?.enums;
+
+  // Emit warnings for unsupported index features
+  if (tables) {
+    const warnings = validateIndexes(tables, dialect.name);
+    for (const warning of warnings) {
+      console.warn(warning);
+    }
+  }
 
   for (const change of changes) {
     switch (change.type) {

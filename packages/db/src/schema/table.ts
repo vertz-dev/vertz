@@ -22,7 +22,12 @@ export interface IndexOptions {
   where?: string;
 }
 
+const DANGEROUS_SQL_PATTERN = /;|--|\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|EXEC)\b/i;
+
 export function createIndex(columns: string | string[], options?: IndexOptions): IndexDef {
+  if (options?.where && DANGEROUS_SQL_PATTERN.test(options.where)) {
+    throw new Error(`Unsafe WHERE clause expression in index: "${options.where}"`);
+  }
   return {
     columns: Array.isArray(columns) ? columns : [columns],
     ...options,

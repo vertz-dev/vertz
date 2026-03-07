@@ -60,6 +60,19 @@ export async function introspectSqlite(queryFn: MigrationQueryFn): Promise<Schem
 
     // Detect indexes and unique constraints via index_list
     const indexes: IndexSnapshot[] = [];
+
+    // Pre-fetch partial index WHERE clauses from sqlite_master
+    const { rows: indexSqlRows } = await queryFn(
+      `SELECT name, sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ?`,
+      [tableName],
+    );
+    const indexSqlMap = new Map<string, string>();
+    for (const row of indexSqlRows) {
+      if (row.name && row.sql) {
+        indexSqlMap.set(row.name as string, row.sql as string);
+      }
+    }
+
     const { rows: indexRows } = await queryFn(
       `PRAGMA index_list("${validateIdentifier(tableName)}")`,
       [],
@@ -85,11 +98,22 @@ export async function introspectSqlite(queryFn: MigrationQueryFn): Promise<Schem
 
       // Only include explicitly created indexes (origin 'c'), not auto-created ones
       if (origin === 'c') {
-        indexes.push({
+        const snap: IndexSnapshot = {
           columns: idxColumns,
           name: idxName,
           unique: isUnique,
-        });
+        };
+
+        // Extract WHERE clause from CREATE INDEX SQL
+        const createSql = indexSqlMap.get(idxName);
+        if (createSql) {
+          const whereMatch = createSql.match(/\bWHERE\s+(.+)$/i);
+          if (whereMatch?.[1]) {
+            snap.where = whereMatch[1];
+          }
+        }
+
+        indexes.push(snap);
       }
     }
 
@@ -239,26 +263,38 @@ export async function introspectPostgres(queryFn: MigrationQueryFn): Promise<Sch
     const { rows: idxRows } = await queryFn(
       `SELECT i.relname AS index_name,
               array_agg(a.attname ORDER BY k.n) AS columns,
-              ix.indisunique AS is_unique
+              ix.indisunique AS is_unique,
+              am.amname AS access_method,
+              pg_get_expr(ix.indpred, ix.indrelid) AS predicate
        FROM pg_index ix
        JOIN pg_class i ON i.oid = ix.indexrelid
        JOIN pg_class t ON t.oid = ix.indrelid
        JOIN pg_namespace ns ON ns.oid = t.relnamespace
+       JOIN pg_am am ON am.oid = i.relam
        JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS k(attnum, n) ON true
        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
        WHERE t.relname = $1
          AND ns.nspname = 'public'
          AND NOT ix.indisprimary
          AND NOT ix.indisunique
-       GROUP BY i.relname, ix.indisunique`,
+       GROUP BY i.relname, ix.indisunique, am.amname, ix.indpred, ix.indrelid`,
       [tableName],
     );
     for (const idx of idxRows) {
-      indexes.push({
+      const snap: IndexSnapshot = {
         columns: idx.columns as string[],
         name: idx.index_name as string,
         unique: idx.is_unique as boolean,
-      });
+      };
+      const accessMethod = idx.access_method as string;
+      if (accessMethod && accessMethod !== 'btree') {
+        snap.type = accessMethod as IndexSnapshot['type'];
+      }
+      const predicate = idx.predicate as string | null;
+      if (predicate) {
+        snap.where = predicate;
+      }
+      indexes.push(snap);
     }
 
     snapshot.tables[tableName] = {

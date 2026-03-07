@@ -57,6 +57,18 @@ describe('d.index()', () => {
     expect(idx.unique).toBe(true);
     expect(idx.type).toBe('btree');
   });
+
+  it('rejects where clause containing dangerous SQL patterns', () => {
+    expect(() => d.index('email', { where: '1=1; DROP TABLE users;--' })).toThrow(
+      'Unsafe WHERE clause',
+    );
+  });
+
+  it('allows safe where clause expressions', () => {
+    expect(() => d.index('email', { where: "status = 'active'" })).not.toThrow();
+    expect(() => d.index('email', { where: 'is_deleted = false' })).not.toThrow();
+    expect(() => d.index('email', { where: "status != 'archived'" })).not.toThrow();
+  });
 });
 
 describe('table options', () => {

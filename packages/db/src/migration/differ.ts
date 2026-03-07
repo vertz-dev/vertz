@@ -67,15 +67,11 @@ function columnSimilarity(a: ColumnSnapshot, b: ColumnSnapshot): number {
 }
 
 /**
- * Serialize an index to a string for comparison.
- * Includes columns, type, where, and unique to detect property changes.
+ * Serialize an index to a stable string for comparison.
+ * Uses JSON.stringify to avoid separator collisions with SQL content.
  */
 function indexKey(idx: IndexSnapshot): string {
-  const parts = [idx.columns.join(',')];
-  if (idx.type) parts.push(`type:${idx.type}`);
-  if (idx.where) parts.push(`where:${idx.where}`);
-  if (idx.unique) parts.push('unique');
-  return parts.join('|');
+  return JSON.stringify([idx.columns, idx.type ?? null, idx.where ?? null, idx.unique ?? false]);
 }
 
 export function computeDiff(before: SchemaSnapshot, after: SchemaSnapshot): DiffResult {
