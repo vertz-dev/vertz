@@ -4,6 +4,8 @@ export interface CompileOptions {
   filename?: string;
   /** Compilation target. 'dom' uses @vertz/ui/internals, 'tui' uses @vertz/tui/internals. */
   target?: 'dom' | 'tui';
+  /** Pre-loaded reactivity manifests keyed by module specifier (e.g., '@vertz/ui'). */
+  manifests?: Record<string, LoadedReactivityManifest>;
 }
 
 /** Severity of a compiler diagnostic. */
@@ -129,6 +131,67 @@ export interface JsxExpressionInfo {
   /** Names of reactive variables referenced. */
   deps: string[];
 }
+
+// ─── Reactivity Manifest Types ──────────────────────────────────────
+
+/** Schema for a per-file reactivity manifest. */
+export interface ReactivityManifest {
+  /** Schema version for forward compatibility. */
+  version: 1;
+  /** The source file path (resolved, absolute) or package name. */
+  filePath: string;
+  /** Exports and their reactivity shapes. */
+  exports: Record<string, ExportReactivityInfo>;
+}
+
+/** Reactivity info for a single export. */
+export interface ExportReactivityInfo {
+  /** What kind of export this is. */
+  kind: 'function' | 'variable' | 'component' | 'class';
+  /** Reactivity shape of this export. */
+  reactivity: ReactivityShape;
+}
+
+/** Reactivity shape of a value or function return. */
+export type ReactivityShape =
+  | { type: 'static' }
+  | { type: 'signal' }
+  | {
+      type: 'signal-api';
+      signalProperties: Set<string> | string[];
+      plainProperties: Set<string> | string[];
+      fieldSignalProperties?: Set<string> | string[];
+    }
+  | { type: 'reactive-source' }
+  | { type: 'unknown' };
+
+/** Loaded manifest with Sets (after JSON deserialization). */
+export interface LoadedReactivityManifest {
+  version: 1;
+  filePath: string;
+  exports: Record<string, LoadedExportReactivityInfo>;
+}
+
+/** Export info with signal-api properties converted to Sets. */
+export interface LoadedExportReactivityInfo {
+  kind: 'function' | 'variable' | 'component' | 'class';
+  reactivity: LoadedReactivityShape;
+}
+
+/** Reactivity shape with all arrays converted to Sets. */
+export type LoadedReactivityShape =
+  | { type: 'static' }
+  | { type: 'signal' }
+  | {
+      type: 'signal-api';
+      signalProperties: Set<string>;
+      plainProperties: Set<string>;
+      fieldSignalProperties?: Set<string>;
+    }
+  | { type: 'reactive-source' }
+  | { type: 'unknown' };
+
+// ─── Mutation Types ─────────────────────────────────────────────────
 
 /** Kinds of in-place mutations on signal variables. */
 export type MutationKind =

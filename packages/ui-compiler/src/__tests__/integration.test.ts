@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { compile } from '../compiler';
+import { loadManifestFromJson } from '../reactivity-manifest';
+import type { ReactivityManifest } from '../types';
 
 describe('Integration Tests', () => {
   it('IT-1B-1: Counter component — let count → signal, {count} → subscription', () => {
@@ -458,5 +460,131 @@ function Card() {
     expect(result.code).toContain('__staticText("Hello World")');
     // Should NOT have leading/trailing spaces from indentation.
     expect(result.code).not.toContain('__staticText("\\n');
+  });
+
+  // ─── Callback classification e2e (#988) ──────────────
+
+  it('arrow function referencing signal is NOT wrapped in computed()', () => {
+    const result = compile(
+      `
+function Counter() {
+  let count = 0;
+  const increment = () => { count++; };
+  const doubled = count * 2;
+  return <button onClick={increment}>{doubled}</button>;
+}
+    `.trim(),
+    );
+
+    // increment is an arrow function — stable reference, NOT computed
+    expect(result.code).not.toContain('computed(() => () =>');
+    expect(result.code).toContain('const increment = () =>');
+    // doubled is a value expression referencing a signal — IS computed
+    expect(result.code).toContain('computed(() =>');
+    expect(result.code).toContain('count.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('arrow function referencing query signal property is NOT wrapped in computed()', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query('/api/tasks');
+  const handleError = () => { if (tasks.error) console.log(tasks.error); };
+  const hasError = tasks.error ? 'yes' : 'no';
+  return <div onClick={handleError}>{hasError}</div>;
+}
+    `.trim(),
+    );
+
+    // handleError is an arrow function — NOT computed
+    expect(result.code).not.toContain('computed(() => () =>');
+    expect(result.code).toContain('const handleError = () =>');
+    // hasError is a value expression reading signal property — IS computed
+    expect(result.code).toContain('computed(() =>');
+    expect(result.code).toContain('tasks.error.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('function expression referencing signal is NOT wrapped in computed()', () => {
+    const result = compile(
+      `
+function Counter() {
+  let count = 0;
+  const format = function() { return 'Count: ' + count; };
+  return <div>{format}</div>;
+}
+    `.trim(),
+    );
+
+    // format is a function expression — stable reference, NOT computed
+    expect(result.code).not.toContain('computed(() => function');
+    expect(result.code).toContain('const format = function()');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  // ─── Manifest-based compilation (#989) ──────────────
+
+  it('uses manifest instead of hardcoded registry when manifests are provided', () => {
+    // Manifest says query has 'customProp' as signal property (NOT the default registry values)
+    const manifest = loadManifestFromJson({
+      version: 1,
+      filePath: '@vertz/ui',
+      exports: {
+        query: {
+          kind: 'function',
+          reactivity: {
+            type: 'signal-api',
+            signalProperties: ['customProp'],
+            plainProperties: ['data', 'loading', 'error', 'refetch'],
+          },
+        },
+      },
+    } as ReactivityManifest);
+
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query('/api/tasks');
+  const x = tasks.customProp ? 'yes' : 'no';
+  const y = tasks.data ? 'yes' : 'no';
+  return <div>{x}{y}</div>;
+}
+    `.trim(),
+      { manifests: { '@vertz/ui': manifest } },
+    );
+
+    // x depends on customProp (signal in manifest) → computed
+    expect(result.code).toContain('computed(() =>');
+    // tasks.customProp should get .value (it's a signal property per manifest)
+    expect(result.code).toContain('tasks.customProp.value');
+    // tasks.data is plain in this manifest → should NOT get .value
+    expect(result.code).not.toContain('tasks.data.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('auto-loads framework manifest for @vertz/ui without explicit manifests option', () => {
+    // No manifests option — the compiler should auto-load the framework manifest
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query('/api/tasks');
+  const x = tasks.data ? 'yes' : 'no';
+  return <div>{x}</div>;
+}
+    `.trim(),
+    );
+
+    // tasks.data should get .value (it's a signal property in the framework manifest)
+    expect(result.code).toContain('tasks.data.value');
+    // x depends on tasks.data (signal) → computed
+    expect(result.code).toContain('computed(() =>');
+    expect(result.diagnostics).toHaveLength(0);
   });
 });

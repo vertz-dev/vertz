@@ -1,11 +1,7 @@
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
-import {
-  getSignalApiConfig,
-  isReactiveSourceApi,
-  isSignalApi,
-  type SignalApiConfig,
-} from '../signal-api-registry';
-import type { ComponentInfo, VariableInfo } from '../types';
+import { loadFrameworkManifest } from '../reactivity-manifest';
+import type { SignalApiConfig } from '../signal-api-registry';
+import type { ComponentInfo, LoadedReactivityManifest, VariableInfo } from '../types';
 import { findBodyNode } from '../utils';
 
 /**
@@ -18,13 +14,24 @@ import { findBodyNode } from '../utils';
  *         Those `let` vars become signals, and the intermediate consts become computeds.
  */
 export class ReactivityAnalyzer {
-  analyze(sourceFile: SourceFile, component: ComponentInfo): VariableInfo[] {
+  analyze(
+    sourceFile: SourceFile,
+    component: ComponentInfo,
+    manifests?: Record<string, LoadedReactivityManifest>,
+  ): VariableInfo[] {
     const bodyNode = findBodyNode(sourceFile, component);
     if (!bodyNode) return [];
 
     // Build import alias maps for signal APIs and reactive source APIs
-    const { signalApiAliases: importAliases, reactiveSourceAliases } =
-      buildImportAliasMap(sourceFile);
+    const {
+      signalApiAliases: importAliases,
+      reactiveSourceAliases,
+      manifestConfigs,
+    } = buildImportAliasMap(sourceFile, manifests);
+
+    const resolveSignalApiConfig = (originalName: string): SignalApiConfig | undefined => {
+      return manifestConfigs.get(originalName);
+    };
 
     // Collect all declared variable names to avoid synthetic name collisions
     const declaredNames = collectDeclaredNames(bodyNode);
@@ -36,7 +43,13 @@ export class ReactivityAnalyzer {
     >();
     const consts = new Map<
       string,
-      { start: number; end: number; deps: string[]; propertyAccesses: Map<string, Set<string>> }
+      {
+        start: number;
+        end: number;
+        deps: string[];
+        propertyAccesses: Map<string, Set<string>>;
+        isFunctionDef: boolean;
+      }
     >();
     const signalApiVars = new Map<string, SignalApiConfig>(); // Track variables assigned from signal APIs
     const reactiveSourceVars = new Set<string>(); // Track variables assigned from reactive source APIs (e.g., useContext)
@@ -91,7 +104,7 @@ export class ReactivityAnalyzer {
               const fnName = callName.getText();
               const originalName = importAliases.get(fnName);
               if (originalName) {
-                signalApiConfig = getSignalApiConfig(originalName);
+                signalApiConfig = resolveSignalApiConfig(originalName);
                 if (signalApiConfig) {
                   let counter = syntheticCounters.get(originalName) ?? 0;
                   syntheticName = `__${originalName}_${counter}`;
@@ -108,6 +121,7 @@ export class ReactivityAnalyzer {
                     end: decl.getEnd(),
                     deps: [],
                     propertyAccesses: new Map(),
+                    isFunctionDef: false,
                   });
                 }
               }
@@ -131,6 +145,7 @@ export class ReactivityAnalyzer {
                 end: decl.getEnd(),
                 deps,
                 propertyAccesses: propAccesses,
+                isFunctionDef: false,
               };
               consts.set(bindingName, entry);
               destructuredFromMap.set(bindingName, syntheticName);
@@ -138,7 +153,13 @@ export class ReactivityAnalyzer {
               const { refs: deps, propertyAccesses } = init
                 ? collectDeps(init)
                 : { refs: [] as string[], propertyAccesses: new Map<string, Set<string>>() };
-              const entry = { start: decl.getStart(), end: decl.getEnd(), deps, propertyAccesses };
+              const entry = {
+                start: decl.getStart(),
+                end: decl.getEnd(),
+                deps,
+                propertyAccesses,
+                isFunctionDef: false,
+              };
               if (isLet) {
                 lets.set(bindingName, entry);
               } else if (isConst) {
@@ -150,10 +171,23 @@ export class ReactivityAnalyzer {
         }
 
         const name = decl.getName();
+        // Check if the initializer is a function definition (arrow function or function expression).
+        // Function defs are stable references — they should never be wrapped in computed().
+        // Unwrap type wrappers (parenthesized, as, satisfies) to find the underlying node.
+        const unwrappedInit = init ? unwrapTypeWrappers(init) : undefined;
+        const isFunctionDef =
+          unwrappedInit?.isKind(SyntaxKind.ArrowFunction) === true ||
+          unwrappedInit?.isKind(SyntaxKind.FunctionExpression) === true;
         const { refs: deps, propertyAccesses } = init
           ? collectDeps(init)
           : { refs: [] as string[], propertyAccesses: new Map<string, Set<string>>() };
-        const entry = { start: decl.getStart(), end: decl.getEnd(), deps, propertyAccesses };
+        const entry = {
+          start: decl.getStart(),
+          end: decl.getEnd(),
+          deps,
+          propertyAccesses,
+          isFunctionDef,
+        };
 
         // Check if this is assigned from a signal API call or reactive source API call.
         // Unwrap NonNullExpression (the ! operator) to handle patterns like:
@@ -170,7 +204,7 @@ export class ReactivityAnalyzer {
             // Signal API check
             const originalName = importAliases.get(fnName);
             if (originalName) {
-              const config = getSignalApiConfig(originalName);
+              const config = resolveSignalApiConfig(originalName);
               if (config) {
                 signalApiVars.set(name, config);
               }
@@ -232,6 +266,8 @@ export class ReactivityAnalyzer {
     // Signal API vars themselves are excluded — they are constructor calls (form(), query()),
     // not pure derivations. Wrapping them in computed() would re-create them on every
     // evaluation, losing internal state (form fields, query cache, etc.).
+    // Function definitions (arrow functions, function expressions) are excluded —
+    // they are stable references. Reactivity is handled at call sites by the JSX runtime.
     const computeds = new Set<string>();
     changed = true;
     while (changed) {
@@ -239,6 +275,7 @@ export class ReactivityAnalyzer {
       for (const [name, info] of consts) {
         if (computeds.has(name)) continue;
         if (signalApiVars.has(name)) continue;
+        if (info.isFunctionDef) continue;
         const dependsOnReactive = info.deps.some((dep) => {
           if (signals.has(dep) || computeds.has(dep) || reactiveSourceVars.has(dep)) return true;
           const apiConfig = signalApiVars.get(dep);
@@ -363,37 +400,61 @@ function collectDeps(node: Node): {
 }
 
 /**
- * Build maps of imported API names from @vertz/ui.
+ * Build maps of imported API names.
+ *
+ * When manifests are provided, uses them to classify imports from any module.
+ * Falls back to the hardcoded signal API registry for @vertz/ui imports
+ * when no manifest is available for a module.
+ *
  * - signalApiAliases: local name → original name for signal APIs (query, form, etc.)
  * - reactiveSourceAliases: set of local names for reactive source APIs (useContext)
  */
-function buildImportAliasMap(sourceFile: SourceFile): {
+function buildImportAliasMap(
+  sourceFile: SourceFile,
+  manifests?: Record<string, LoadedReactivityManifest>,
+): {
   signalApiAliases: Map<string, string>;
   reactiveSourceAliases: Set<string>;
+  manifestConfigs: Map<string, SignalApiConfig>;
 } {
   const signalApiAliases = new Map<string, string>();
   const reactiveSourceAliases = new Set<string>();
+  const manifestConfigs = new Map<string, SignalApiConfig>();
 
   for (const importDecl of sourceFile.getImportDeclarations()) {
     const moduleSpecifier = importDecl.getModuleSpecifierValue();
-    // Only process imports from @vertz/ui
-    if (moduleSpecifier !== '@vertz/ui') continue;
+    // Auto-load framework manifest for @vertz/ui when not explicitly provided
+    const manifest =
+      manifests?.[moduleSpecifier] ??
+      (moduleSpecifier === '@vertz/ui' ? loadFrameworkManifest() : undefined);
+
+    if (!manifest) continue;
 
     const namedImports = importDecl.getNamedImports();
     for (const namedImport of namedImports) {
       const originalName = namedImport.getName();
       const localName = namedImport.getAliasNode()?.getText() ?? originalName;
 
-      if (isSignalApi(originalName)) {
-        signalApiAliases.set(localName, originalName);
-      }
-      if (isReactiveSourceApi(originalName)) {
-        reactiveSourceAliases.add(localName);
+      const exportInfo = manifest.exports[originalName];
+      if (exportInfo) {
+        const { reactivity } = exportInfo;
+        if (reactivity.type === 'signal-api') {
+          signalApiAliases.set(localName, originalName);
+          manifestConfigs.set(originalName, {
+            signalProperties: reactivity.signalProperties,
+            plainProperties: reactivity.plainProperties,
+            ...(reactivity.fieldSignalProperties
+              ? { fieldSignalProperties: reactivity.fieldSignalProperties }
+              : {}),
+          });
+        } else if (reactivity.type === 'reactive-source') {
+          reactiveSourceAliases.add(localName);
+        }
       }
     }
   }
 
-  return { signalApiAliases, reactiveSourceAliases };
+  return { signalApiAliases, reactiveSourceAliases, manifestConfigs };
 }
 
 /** Collect all declared variable names in a component body. */
@@ -411,4 +472,26 @@ function collectDeclaredNames(bodyNode: Node): Set<string> {
     }
   }
   return names;
+}
+
+/**
+ * Unwrap TypeScript syntax wrappers to find the underlying expression.
+ * Peels through ParenthesizedExpression, AsExpression, SatisfiesExpression,
+ * and TypeAssertion nodes to expose the actual initializer kind.
+ */
+function unwrapTypeWrappers(node: Node): Node {
+  let current = node;
+  while (true) {
+    if (current.isKind(SyntaxKind.ParenthesizedExpression)) {
+      current = current.getExpression();
+    } else if (current.isKind(SyntaxKind.AsExpression)) {
+      current = current.getExpression();
+    } else if (current.isKind(SyntaxKind.SatisfiesExpression)) {
+      current = current.getExpression();
+    } else if (current.isKind(SyntaxKind.TypeAssertionExpression)) {
+      current = current.getExpression();
+    } else {
+      return current;
+    }
+  }
 }
