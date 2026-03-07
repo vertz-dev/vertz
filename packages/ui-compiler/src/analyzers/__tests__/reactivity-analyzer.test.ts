@@ -555,4 +555,18 @@ describe('ReactivityAnalyzer', () => {
     // No const declarations derived from props — no computeds created
     expect(result?.variables).toHaveLength(0);
   });
+
+  it('does not treat non-props named parameter as reactive', () => {
+    const [result] = analyze(`
+      function DialogRoot(options: DialogOptions) {
+        const { defaultOpen, onOpenChange } = options;
+        const content = <div role="dialog" />;
+        return { content };
+      }
+    `);
+    // Factory functions use "options"/"config" — not reactive props
+    expect(findVar(result?.variables, 'defaultOpen')?.kind).toBe('static');
+    expect(findVar(result?.variables, 'onOpenChange')?.kind).toBe('static');
+    expect(findVar(result?.variables, 'content')?.kind).toBe('static');
+  });
 });
