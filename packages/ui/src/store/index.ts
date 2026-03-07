@@ -8,6 +8,9 @@
 export { EntityStore } from './entity-store';
 export { getEntityStore, getQueryEnvelopeStore } from './entity-store-singleton';
 export { shallowEqual, shallowMerge } from './merge';
+export type { MutationEventBus } from './mutation-event-bus';
+export { createMutationEventBus } from './mutation-event-bus';
+export { getMutationEventBus, resetMutationEventBus } from './mutation-event-bus-singleton';
 export { createOptimisticHandler } from './optimistic-handler';
 export type { QueryEnvelope } from './query-envelope-store';
 export { QueryEnvelopeStore } from './query-envelope-store';
