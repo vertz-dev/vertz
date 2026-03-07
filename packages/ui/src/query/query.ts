@@ -717,8 +717,10 @@ export function query<T, E = unknown>(
 
   // Subscribe to MutationEventBus for same-type revalidation.
   // When a mutation commits for this entity type, revalidate the query.
+  // Skip during SSR — mutations don't fire server-side, and subscriptions
+  // would leak until the bus is reset between requests.
   let unsubscribeBus: (() => void) | undefined;
-  if (entityMeta && enabled) {
+  if (entityMeta && enabled && !isSSR()) {
     unsubscribeBus = getMutationEventBus().subscribe(entityMeta.entityType, refetch);
   }
 
