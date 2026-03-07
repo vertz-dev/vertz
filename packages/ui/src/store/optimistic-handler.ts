@@ -1,11 +1,19 @@
 import type { MutationMeta, OptimisticHandler } from '@vertz/fetch';
 import type { EntityStore } from './entity-store';
+import type { MutationEventBus } from './mutation-event-bus';
+
+interface OptimisticHandlerOptions {
+  mutationEventBus?: MutationEventBus;
+}
 
 /**
  * Create an OptimisticHandler that bridges @vertz/fetch mutations
  * to EntityStore's optimistic layer API.
  */
-export function createOptimisticHandler(store: EntityStore): OptimisticHandler {
+export function createOptimisticHandler(
+  store: EntityStore,
+  options?: OptimisticHandlerOptions,
+): OptimisticHandler {
   return {
     apply(meta: MutationMeta, mutationId: string): (() => void) | undefined {
       const { entityType, kind, id, body } = meta;
@@ -37,6 +45,10 @@ export function createOptimisticHandler(store: EntityStore): OptimisticHandler {
       // For create: server returns the new entity — merge it into the store
       if (kind === 'create' && data && typeof data === 'object' && 'id' in data) {
         store.merge(entityType, data as { id: string });
+      }
+
+      if (!meta.skipInvalidation) {
+        options?.mutationEventBus?.emit(entityType);
       }
     },
   };
