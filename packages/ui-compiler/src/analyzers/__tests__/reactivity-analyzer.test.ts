@@ -469,6 +469,39 @@ describe('ReactivityAnalyzer', () => {
     expect(findVar(result?.variables, 'doubled')?.kind).toBe('computed');
   });
 
+  it('classifies parenthesized arrow function as static', () => {
+    const [result] = analyze(`
+      function Counter() {
+        let count = 0;
+        const fn = (() => count * 2);
+        return <div>{fn}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'fn')?.kind).toBe('static');
+  });
+
+  it('classifies type-asserted arrow function as static', () => {
+    const [result] = analyze(`
+      function Counter() {
+        let count = 0;
+        const fn = (() => count * 2) as () => number;
+        return <div>{fn}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'fn')?.kind).toBe('static');
+  });
+
+  it('classifies satisfies-wrapped arrow function as static', () => {
+    const [result] = analyze(`
+      function Counter() {
+        let count = 0;
+        const fn = (() => count * 2) satisfies () => number;
+        return <div>{fn}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'fn')?.kind).toBe('static');
+  });
+
   it('still classifies value expression reading signal as computed (regression)', () => {
     const [result] = analyze(`
       function Counter() {
