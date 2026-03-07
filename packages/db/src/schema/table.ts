@@ -5,16 +5,29 @@ import type { RelationDef } from './relation';
 // Index Definition
 // ---------------------------------------------------------------------------
 
+export type IndexType = 'btree' | 'hash' | 'gin' | 'gist' | 'brin';
+
 export interface IndexDef {
   readonly columns: readonly string[];
   readonly name?: string;
   readonly unique?: boolean;
+  readonly type?: IndexType;
+  readonly where?: string;
 }
 
-export function createIndex(
-  columns: string | string[],
-  options?: { name?: string; unique?: boolean },
-): IndexDef {
+export interface IndexOptions {
+  name?: string;
+  unique?: boolean;
+  type?: IndexType;
+  where?: string;
+}
+
+const DANGEROUS_SQL_PATTERN = /;|--|\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|EXEC)\b/i;
+
+export function createIndex(columns: string | string[], options?: IndexOptions): IndexDef {
+  if (options?.where && DANGEROUS_SQL_PATTERN.test(options.where)) {
+    throw new Error(`Unsafe WHERE clause expression in index: "${options.where}"`);
+  }
   return {
     columns: Array.isArray(columns) ? columns : [columns],
     ...options,

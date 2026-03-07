@@ -1,4 +1,4 @@
-import type { ColumnSnapshot, SchemaSnapshot } from './snapshot';
+import type { ColumnSnapshot, IndexSnapshot, SchemaSnapshot } from './snapshot';
 
 export type ChangeType =
   | 'table_added'
@@ -30,6 +30,9 @@ export interface DiffChange {
   removedValues?: string[];
   columns?: string[];
   confidence?: number;
+  indexType?: string;
+  indexWhere?: string;
+  indexUnique?: boolean;
 }
 
 export interface DiffResult {
@@ -64,10 +67,11 @@ function columnSimilarity(a: ColumnSnapshot, b: ColumnSnapshot): number {
 }
 
 /**
- * Serialize an index's columns to a string for comparison.
+ * Serialize an index to a stable string for comparison.
+ * Uses JSON.stringify to avoid separator collisions with SQL content.
  */
-function indexKey(columns: string[]): string {
-  return columns.join(',');
+function indexKey(idx: IndexSnapshot): string {
+  return JSON.stringify([idx.columns, idx.type ?? null, idx.where ?? null, idx.unique ?? false]);
 }
 
 export function computeDiff(before: SchemaSnapshot, after: SchemaSnapshot): DiffResult {
@@ -188,20 +192,36 @@ export function computeDiff(before: SchemaSnapshot, after: SchemaSnapshot): Diff
     }
 
     // Index changes
-    const beforeIndexKeys = new Set(beforeTable.indexes.map((i) => indexKey(i.columns)));
-    const afterIndexKeys = new Set(afterTable.indexes.map((i) => indexKey(i.columns)));
+    const beforeIndexKeys = new Set(beforeTable.indexes.map((i) => indexKey(i)));
+    const afterIndexKeys = new Set(afterTable.indexes.map((i) => indexKey(i)));
 
     for (const idx of afterTable.indexes) {
-      const key = indexKey(idx.columns);
+      const key = indexKey(idx);
       if (!beforeIndexKeys.has(key)) {
-        changes.push({ type: 'index_added', table: tableName, columns: [...idx.columns] });
+        const change: DiffChange = {
+          type: 'index_added',
+          table: tableName,
+          columns: [...idx.columns],
+        };
+        if (idx.type) change.indexType = idx.type;
+        if (idx.where) change.indexWhere = idx.where;
+        if (idx.unique) change.indexUnique = idx.unique;
+        changes.push(change);
       }
     }
 
     for (const idx of beforeTable.indexes) {
-      const key = indexKey(idx.columns);
+      const key = indexKey(idx);
       if (!afterIndexKeys.has(key)) {
-        changes.push({ type: 'index_removed', table: tableName, columns: [...idx.columns] });
+        const change: DiffChange = {
+          type: 'index_removed',
+          table: tableName,
+          columns: [...idx.columns],
+        };
+        if (idx.type) change.indexType = idx.type;
+        if (idx.where) change.indexWhere = idx.where;
+        if (idx.unique) change.indexUnique = idx.unique;
+        changes.push(change);
       }
     }
   }

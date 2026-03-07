@@ -323,7 +323,7 @@ async function startFullStack(
 /**
  * Discover CSS files to inline from the client build.
  */
-function discoverInlineCSS(projectRoot: string): Record<string, string> | undefined {
+export function discoverInlineCSS(projectRoot: string): Record<string, string> | undefined {
   const cssDir = resolve(projectRoot, 'dist', 'client', 'assets');
   if (!existsSync(cssDir)) return undefined;
 
@@ -342,7 +342,7 @@ function discoverInlineCSS(projectRoot: string): Record<string, string> | undefi
  * Serve a static file from the client directory.
  * Returns null if the file doesn't exist or the path is outside the directory.
  */
-function serveStaticFile(clientDir: string, pathname: string): Response | null {
+export function serveStaticFile(clientDir: string, pathname: string): Response | null {
   // Skip root and html requests — let SSR handle those
   if (pathname === '/' || pathname === '/index.html') return null;
 

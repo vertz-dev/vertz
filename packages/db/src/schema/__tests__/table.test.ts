@@ -38,6 +38,37 @@ describe('d.index()', () => {
     const idx = d.index(['authorId', 'createdAt']);
     expect(idx.columns).toEqual(['authorId', 'createdAt']);
   });
+
+  it('creates an index with type option', () => {
+    const idx = d.index('title', { type: 'gin' });
+    expect(idx.columns).toEqual(['title']);
+    expect(idx.type).toBe('gin');
+  });
+
+  it('creates an index with where option (partial index)', () => {
+    const idx = d.index('email', { where: 'is_active = true' });
+    expect(idx.columns).toEqual(['email']);
+    expect(idx.where).toBe('is_active = true');
+  });
+
+  it('creates an index with unique and type options combined', () => {
+    const idx = d.index(['email'], { unique: true, type: 'btree' });
+    expect(idx.columns).toEqual(['email']);
+    expect(idx.unique).toBe(true);
+    expect(idx.type).toBe('btree');
+  });
+
+  it('rejects where clause containing dangerous SQL patterns', () => {
+    expect(() => d.index('email', { where: '1=1; DROP TABLE users;--' })).toThrow(
+      'Unsafe WHERE clause',
+    );
+  });
+
+  it('allows safe where clause expressions', () => {
+    expect(() => d.index('email', { where: "status = 'active'" })).not.toThrow();
+    expect(() => d.index('email', { where: 'is_deleted = false' })).not.toThrow();
+    expect(() => d.index('email', { where: "status != 'archived'" })).not.toThrow();
+  });
 });
 
 describe('table options', () => {

@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { defaultPostgresDialect, defaultSqliteDialect } from '../../dialect';
 import type { DiffChange } from '../differ';
-import { generateMigrationSql, generateRollbackSql } from '../sql-generator';
+import { generateMigrationSql } from '../sql-generator';
 
 describe('generateMigrationSql with PostgresDialect (regression)', () => {
   it('CREATE TABLE with PostgresDialect produces Postgres types', () => {
@@ -140,6 +140,98 @@ describe('generateMigrationSql with SqliteDialect', () => {
 
     // SQLite should use CHECK constraint for enum values
     expect(sql).toContain("CHECK(\"status\" IN ('draft', 'published', 'archived'))");
+  });
+
+  afterEach(() => {
+    mock.restore();
+  });
+
+  it('ignores index type for SQLite (no USING clause)', () => {
+    const changes: DiffChange[] = [
+      { type: 'index_added', table: 'posts', columns: ['title'], indexType: 'gin' },
+    ];
+    const sql = generateMigrationSql(changes, {}, defaultSqliteDialect);
+
+    // SQLite doesn't support USING clause — should omit it
+    expect(sql).toBe('CREATE INDEX "idx_posts_title" ON "posts" ("title");');
+    expect(sql).not.toContain('USING');
+  });
+
+  it('emits console.warn for unsupported index type on SQLite', () => {
+    const warnSpy = mock(() => {});
+    console.warn = warnSpy;
+
+    const changes: DiffChange[] = [{ type: 'table_added', table: 'posts' }];
+    generateMigrationSql(
+      changes,
+      {
+        tables: {
+          posts: {
+            columns: {
+              id: { type: 'TEXT', nullable: false, primary: true, unique: false },
+              title: { type: 'TEXT', nullable: false, primary: false, unique: false },
+            },
+            indexes: [{ columns: ['title'], type: 'gin' }],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+      },
+      defaultSqliteDialect,
+    );
+
+    expect(warnSpy).toHaveBeenCalled();
+    expect(warnSpy.mock.calls[0][0]).toContain('gin');
+    expect(warnSpy.mock.calls[0][0]).toContain('sqlite');
+  });
+
+  it('supports partial indexes (WHERE) on SQLite', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'index_added',
+        table: 'posts',
+        columns: ['email'],
+        indexWhere: "status = 'active'",
+      },
+    ];
+    const sql = generateMigrationSql(changes, {}, defaultSqliteDialect);
+
+    expect(sql).toBe(
+      'CREATE INDEX "idx_posts_email" ON "posts" ("email") WHERE status = \'active\';',
+    );
+  });
+
+  it('supports UNIQUE indexes on SQLite', () => {
+    const changes: DiffChange[] = [
+      { type: 'index_added', table: 'users', columns: ['email'], indexUnique: true },
+    ];
+    const sql = generateMigrationSql(changes, {}, defaultSqliteDialect);
+
+    expect(sql).toBe('CREATE UNIQUE INDEX "idx_users_email" ON "users" ("email");');
+  });
+
+  it('table_added with typed index omits USING on SQLite', () => {
+    const changes: DiffChange[] = [{ type: 'table_added', table: 'posts' }];
+    const sql = generateMigrationSql(
+      changes,
+      {
+        tables: {
+          posts: {
+            columns: {
+              id: { type: 'TEXT', nullable: false, primary: true, unique: false },
+              title: { type: 'TEXT', nullable: false, primary: false, unique: false },
+            },
+            indexes: [{ columns: ['title'], type: 'gin' }],
+            foreignKeys: [],
+            _metadata: {},
+          },
+        },
+      },
+      defaultSqliteDialect,
+    );
+
+    expect(sql).toContain('CREATE INDEX');
+    expect(sql).not.toContain('USING');
   });
 
   it('CREATE INDEX is identical for both dialects', () => {

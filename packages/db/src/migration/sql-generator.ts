@@ -3,6 +3,7 @@ import { defaultPostgresDialect } from '../dialect';
 import { camelToSnake } from '../sql/casing';
 import type { DiffChange } from './differ';
 import type { ColumnSnapshot, TableSnapshot } from './snapshot';
+import { validateIndexes } from './validate-indexes';
 
 /**
  * Context needed by the SQL generator to produce full DDL.
@@ -152,6 +153,14 @@ export function generateMigrationSql(
   const tables = ctx?.tables;
   const enums = ctx?.enums;
 
+  // Emit warnings for unsupported index features
+  if (tables) {
+    const warnings = validateIndexes(tables, dialect.name);
+    for (const warning of warnings) {
+      console.warn(warning);
+    }
+  }
+
   for (const change of changes) {
     switch (change.type) {
       case 'enum_added': {
@@ -218,7 +227,12 @@ export function generateMigrationSql(
         for (const idx of table.indexes) {
           const idxCols = idx.columns.map((c) => `"${camelToSnake(c)}"`).join(', ');
           const idxName = `idx_${tableName}_${idx.columns.map((c) => camelToSnake(c)).join('_')}`;
-          statements.push(`CREATE INDEX "${idxName}" ON "${tableName}" (${idxCols});`);
+          const unique = idx.unique ? 'UNIQUE ' : '';
+          const using = idx.type && dialect.name === 'postgres' ? ` USING ${idx.type}` : '';
+          const where = idx.where ? ` WHERE ${idx.where}` : '';
+          statements.push(
+            `CREATE ${unique}INDEX "${idxName}" ON "${tableName}"${using} (${idxCols})${where};`,
+          );
         }
         break;
       }
@@ -293,7 +307,14 @@ export function generateMigrationSql(
         const snakeTable = camelToSnake(change.table);
         const idxCols = change.columns.map((c) => `"${camelToSnake(c)}"`).join(', ');
         const idxName = `idx_${snakeTable}_${change.columns.map((c) => camelToSnake(c)).join('_')}`;
-        statements.push(`CREATE INDEX "${idxName}" ON "${snakeTable}" (${idxCols});`);
+        const unique = change.indexUnique ? 'UNIQUE ' : '';
+        // USING clause only supported on Postgres
+        const using =
+          change.indexType && dialect.name === 'postgres' ? ` USING ${change.indexType}` : '';
+        const where = change.indexWhere ? ` WHERE ${change.indexWhere}` : '';
+        statements.push(
+          `CREATE ${unique}INDEX "${idxName}" ON "${snakeTable}"${using} (${idxCols})${where};`,
+        );
         break;
       }
 

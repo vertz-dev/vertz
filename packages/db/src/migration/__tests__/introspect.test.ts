@@ -145,6 +145,23 @@ describe('introspectSqlite', () => {
     });
   });
 
+  it('detects partial indexes with WHERE clause', async () => {
+    db.run(`
+      CREATE TABLE tasks (
+        id INTEGER PRIMARY KEY,
+        status TEXT NOT NULL,
+        title TEXT NOT NULL
+      )
+    `);
+    db.run("CREATE INDEX idx_tasks_status ON tasks(status) WHERE status = 'active'");
+
+    const snapshot = await introspectSqlite(queryFn);
+    const indexes = snapshot.tables.tasks?.indexes;
+
+    const statusIdx = indexes?.find((i) => i.name === 'idx_tasks_status');
+    expect(statusIdx?.where).toBe("status = 'active'");
+  });
+
   it('excludes internal tables', async () => {
     db.run(`
       CREATE TABLE _vertz_migrations (
@@ -269,6 +286,23 @@ describe('introspectPostgres', () => {
       name: 'idx_posts_title',
       unique: false,
     });
+  });
+
+  it('detects index access method (type) and partial index predicate', async () => {
+    await db.exec('CREATE INDEX idx_users_name_hash ON users USING hash (name)');
+    await db.exec("CREATE INDEX idx_posts_title_partial ON posts(title) WHERE title != 'draft'");
+
+    const snapshot = await introspectPostgres(queryFn);
+
+    const hashIdx = snapshot.tables.users?.indexes?.find((i) => i.name === 'idx_users_name_hash');
+    expect(hashIdx?.type).toBe('hash');
+    expect(hashIdx?.where).toBeUndefined();
+
+    const partialIdx = snapshot.tables.posts?.indexes?.find(
+      (i) => i.name === 'idx_posts_title_partial',
+    );
+    expect(partialIdx?.where).toBeDefined();
+    expect(partialIdx?.where).toContain('draft');
   });
 
   it('excludes internal tables', async () => {
