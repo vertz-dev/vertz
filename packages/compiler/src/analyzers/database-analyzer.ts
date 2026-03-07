@@ -1,7 +1,7 @@
-import type { CallExpression, SourceFile } from 'ts-morph';
+import type { CallExpression, Expression, ObjectLiteralExpression, SourceFile } from 'ts-morph';
 import { SyntaxKind } from 'ts-morph';
-import type { DatabaseIR } from '../ir/types';
-import { extractObjectLiteral, getProperties, getSourceLocation } from '../utils/ast-helpers';
+import type { DatabaseIR, SourceLocation } from '../ir/types';
+import { extractObjectLiteral, getPropertyValue, getSourceLocation } from '../utils/ast-helpers';
 import { isFromImport } from '../utils/import-resolver';
 import { BaseAnalyzer } from './base-analyzer';
 
@@ -66,16 +66,76 @@ export class DatabaseAnalyzer extends BaseAnalyzer<DatabaseAnalyzerResult> {
     const config = extractObjectLiteral(call, 0);
     if (!config) return null;
 
-    const modelsExpr = config
-      .getProperty('models')
-      ?.asKind(SyntaxKind.PropertyAssignment)
-      ?.getInitializer()
-      ?.asKind(SyntaxKind.ObjectLiteralExpression);
+    // getPropertyValue handles both PropertyAssignment and ShorthandPropertyAssignment
+    const modelsValue = getPropertyValue(config, 'models');
+    if (!modelsValue) return null;
 
-    if (!modelsExpr) return null;
+    const modelsObj = this.resolveObjectLiteral(modelsValue);
+    if (!modelsObj) return null;
 
-    const modelKeys = getProperties(modelsExpr).map((p) => p.name);
-
+    const modelKeys = this.extractModelKeys(modelsObj, loc);
     return { modelKeys, ...loc };
+  }
+
+  /**
+   * Resolves an expression to an ObjectLiteralExpression.
+   * Handles inline object literals and variable references.
+   */
+  private resolveObjectLiteral(expr: Expression): ObjectLiteralExpression | null {
+    // Inline: { users: usersModel }
+    if (expr.isKind(SyntaxKind.ObjectLiteralExpression)) return expr;
+
+    // Variable reference: models or myModels
+    if (expr.isKind(SyntaxKind.Identifier)) {
+      const defs = expr.getDefinitionNodes();
+      for (const def of defs) {
+        if (def.isKind(SyntaxKind.VariableDeclaration)) {
+          const init = def.getInitializer();
+          if (init?.isKind(SyntaxKind.ObjectLiteralExpression)) return init;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Extracts property keys from a models object, emitting warnings for
+   * spread assignments and computed property names that can't be resolved.
+   */
+  private extractModelKeys(obj: ObjectLiteralExpression, loc: SourceLocation): string[] {
+    const keys: string[] = [];
+
+    for (const prop of obj.getProperties()) {
+      if (prop.isKind(SyntaxKind.PropertyAssignment)) {
+        if (prop.getNameNode().isKind(SyntaxKind.ComputedPropertyName)) {
+          this.addDiagnostic({
+            severity: 'warning',
+            code: 'ENTITY_MODEL_NOT_REGISTERED',
+            message:
+              'createDb() models object contains a computed property name. ' +
+              'Entity-model registration check may be incomplete — ' +
+              'computed keys cannot be statically resolved.',
+            ...loc,
+          });
+        } else {
+          keys.push(prop.getName());
+        }
+      } else if (prop.isKind(SyntaxKind.ShorthandPropertyAssignment)) {
+        keys.push(prop.getName());
+      } else if (prop.isKind(SyntaxKind.SpreadAssignment)) {
+        this.addDiagnostic({
+          severity: 'warning',
+          code: 'ENTITY_MODEL_NOT_REGISTERED',
+          message:
+            'createDb() models object contains a spread assignment. ' +
+            'Entity-model registration check may be incomplete — ' +
+            'spread properties cannot be statically resolved.',
+          ...loc,
+        });
+      }
+    }
+
+    return keys;
   }
 }

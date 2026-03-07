@@ -311,12 +311,14 @@ export class CompletenessValidator implements Validator {
       }
     }
 
-    const registeredList = ir.databases
-      .flatMap((db) => db.modelKeys.map((key) => `"${key}" (${db.sourceFile}:${db.sourceLine})`))
-      .join(', ');
-
     for (const entity of ir.entities) {
       if (!allModelKeys.has(entity.name)) {
+        const registeredList = ir.databases
+          .flatMap((db) =>
+            db.modelKeys.map((key) => `"${key}" (${db.sourceFile}:${db.sourceLine})`),
+          )
+          .join(', ');
+
         diagnostics.push(
           createDiagnosticFromLocation(entity, {
             severity: 'error',
@@ -324,7 +326,9 @@ export class CompletenessValidator implements Validator {
             message:
               `Entity "${entity.name}" is not registered in any createDb() call. ` +
               `Add "${entity.name}: ${entity.modelRef.variableName}" to the models object in createDb().`,
-            suggestion: `Registered models: ${registeredList}`,
+            suggestion: registeredList
+              ? `Registered models: ${registeredList}`
+              : 'No models registered in any createDb() call.',
           }),
         );
       }

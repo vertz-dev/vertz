@@ -127,6 +127,75 @@ const db = createDb({
     });
   });
 
+  describe('Model extraction patterns', () => {
+    it('handles shorthand models property', async () => {
+      createFile(
+        '/worker.ts',
+        `
+        import { createDb } from '@vertz/db';
+        const models = { users: usersModel, tasks: tasksModel };
+        const db = createDb({ models });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.databases).toHaveLength(1);
+      expect(result.databases[0]?.modelKeys).toEqual(['users', 'tasks']);
+    });
+
+    it('handles models as a variable reference', async () => {
+      createFile(
+        '/worker.ts',
+        `
+        import { createDb } from '@vertz/db';
+        const myModels = { users: usersModel, tasks: tasksModel };
+        const db = createDb({ models: myModels });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.databases).toHaveLength(1);
+      expect(result.databases[0]?.modelKeys).toEqual(['users', 'tasks']);
+    });
+
+    it('detects createDb across multiple files', async () => {
+      createFile(
+        '/worker1.ts',
+        `
+        import { createDb } from '@vertz/db';
+        const db = createDb({ models: { users: usersModel } });
+      `,
+      );
+      createFile(
+        '/worker2.ts',
+        `
+        import { createDb } from '@vertz/db';
+        const db = createDb({ models: { tasks: tasksModel } });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.databases).toHaveLength(2);
+      const allKeys = result.databases.flatMap((d) => d.modelKeys);
+      expect(allKeys).toContain('users');
+      expect(allKeys).toContain('tasks');
+    });
+
+    it('handles empty models object', async () => {
+      createFile(
+        '/worker.ts',
+        `
+        import { createDb } from '@vertz/db';
+        const db = createDb({ models: {} });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.databases).toHaveLength(1);
+      expect(result.databases[0]?.modelKeys).toEqual([]);
+    });
+  });
+
   describe('Edge cases', () => {
     it('skips createDb calls without models property', async () => {
       createFile(
@@ -155,6 +224,52 @@ const db = createDb({
 
       const result = await analyze();
       expect(result.databases).toHaveLength(0);
+    });
+
+    it('emits warning for spread in models object', async () => {
+      createFile(
+        '/worker.ts',
+        `
+        import { createDb } from '@vertz/db';
+        const baseModels = { users: usersModel };
+        const db = createDb({
+          models: { ...baseModels, tasks: tasksModel },
+        });
+      `,
+      );
+
+      const analyzer = new DatabaseAnalyzer(project, config);
+      const result = await analyzer.analyze();
+      const diagnostics = analyzer.getDiagnostics();
+
+      expect(result.databases).toHaveLength(1);
+      expect(result.databases[0]?.modelKeys).toEqual(['tasks']);
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics[0]?.severity).toBe('warning');
+      expect(diagnostics[0]?.message).toContain('spread');
+    });
+
+    it('emits warning for computed property names in models', async () => {
+      createFile(
+        '/worker.ts',
+        `
+        import { createDb } from '@vertz/db';
+        const tableName = 'users';
+        const db = createDb({
+          models: { [tableName]: usersModel, tasks: tasksModel },
+        });
+      `,
+      );
+
+      const analyzer = new DatabaseAnalyzer(project, config);
+      const result = await analyzer.analyze();
+      const diagnostics = analyzer.getDiagnostics();
+
+      expect(result.databases).toHaveLength(1);
+      expect(result.databases[0]?.modelKeys).toEqual(['tasks']);
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics[0]?.severity).toBe('warning');
+      expect(diagnostics[0]?.message).toContain('computed');
     });
   });
 
@@ -248,6 +363,49 @@ const db = createDb({
       const entityModelDiags = diagnostics.filter((d) => d.code === 'ENTITY_MODEL_NOT_REGISTERED');
 
       expect(entityModelDiags).toHaveLength(0);
+    });
+
+    it('emits error when createDb has empty models and entities exist', async () => {
+      const ir = createIR({
+        entities: [
+          {
+            name: 'tasks',
+            sourceFile: 'src/entities/tasks.ts',
+            sourceLine: 5,
+            sourceColumn: 1,
+            modelRef: {
+              variableName: 'tasksModel',
+              schemaRefs: { resolved: false },
+            },
+            access: {
+              list: 'none',
+              get: 'none',
+              create: 'none',
+              update: 'none',
+              delete: 'none',
+              custom: {},
+            },
+            hooks: { before: [], after: [] },
+            actions: [],
+            relations: [],
+          },
+        ],
+        databases: [
+          {
+            modelKeys: [],
+            sourceFile: 'src/worker.ts',
+            sourceLine: 12,
+            sourceColumn: 1,
+          },
+        ],
+      });
+
+      const validator = new CompletenessValidator();
+      const diagnostics = await validator.validate(ir);
+      const entityModelDiags = diagnostics.filter((d) => d.code === 'ENTITY_MODEL_NOT_REGISTERED');
+
+      expect(entityModelDiags).toHaveLength(1);
+      expect(entityModelDiags[0]?.message).toContain('tasks');
     });
 
     it('skips validation when no createDb calls exist', async () => {
