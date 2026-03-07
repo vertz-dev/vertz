@@ -226,7 +226,8 @@ export function generateMigrationSql(
 
         for (const idx of table.indexes) {
           const idxCols = idx.columns.map((c) => `"${camelToSnake(c)}"`).join(', ');
-          const idxName = `idx_${tableName}_${idx.columns.map((c) => camelToSnake(c)).join('_')}`;
+          const idxName =
+            idx.name ?? `idx_${tableName}_${idx.columns.map((c) => camelToSnake(c)).join('_')}`;
           const unique = idx.unique ? 'UNIQUE ' : '';
           const using = idx.type && dialect.name === 'postgres' ? ` USING ${idx.type}` : '';
           const where = idx.where ? ` WHERE ${idx.where}` : '';
@@ -306,7 +307,9 @@ export function generateMigrationSql(
         if (!change.table || !change.columns) break;
         const snakeTable = camelToSnake(change.table);
         const idxCols = change.columns.map((c) => `"${camelToSnake(c)}"`).join(', ');
-        const idxName = `idx_${snakeTable}_${change.columns.map((c) => camelToSnake(c)).join('_')}`;
+        const idxName =
+          change.indexName ??
+          `idx_${snakeTable}_${change.columns.map((c) => camelToSnake(c)).join('_')}`;
         const unique = change.indexUnique ? 'UNIQUE ' : '';
         // USING clause only supported on Postgres
         const using =
@@ -321,7 +324,9 @@ export function generateMigrationSql(
       case 'index_removed': {
         if (!change.table || !change.columns) break;
         const snakeTable = camelToSnake(change.table);
-        const idxName = `idx_${snakeTable}_${change.columns.map((c) => camelToSnake(c)).join('_')}`;
+        const idxName =
+          change.indexName ??
+          `idx_${snakeTable}_${change.columns.map((c) => camelToSnake(c)).join('_')}`;
         statements.push(`DROP INDEX "${idxName}";`);
         break;
       }

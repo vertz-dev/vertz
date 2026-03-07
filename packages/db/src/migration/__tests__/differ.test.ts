@@ -378,6 +378,84 @@ describe('computeDiff', () => {
     ]);
   });
 
+  it('carries custom index name in index_added change', () => {
+    const before: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        users: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            email: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+    const after: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        users: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            email: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [{ columns: ['email'], name: 'idx_custom_email' }],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+
+    const result = computeDiff(before, after);
+
+    expect(result.changes).toEqual([
+      { type: 'index_added', table: 'users', columns: ['email'], indexName: 'idx_custom_email' },
+    ]);
+  });
+
+  it('carries custom index name in index_removed change', () => {
+    const before: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        users: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            email: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [{ columns: ['email'], name: 'idx_custom_email' }],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+    const after: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        users: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            email: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+
+    const result = computeDiff(before, after);
+
+    expect(result.changes).toEqual([
+      { type: 'index_removed', table: 'users', columns: ['email'], indexName: 'idx_custom_email' },
+    ]);
+  });
+
   it('detects index change when type is added to existing index', () => {
     const before: SchemaSnapshot = {
       version: 1,

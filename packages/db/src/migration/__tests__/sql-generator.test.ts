@@ -107,10 +107,26 @@ describe('generateMigrationSql', () => {
     expect(sql).toBe('CREATE INDEX "idx_users_email" ON "users" ("email");');
   });
 
+  it('generates CREATE INDEX with custom name for index_added', () => {
+    const changes: DiffChange[] = [
+      { type: 'index_added', table: 'users', columns: ['email'], indexName: 'idx_custom_email' },
+    ];
+    const sql = generateMigrationSql(changes);
+    expect(sql).toBe('CREATE INDEX "idx_custom_email" ON "users" ("email");');
+  });
+
   it('generates DROP INDEX for index_removed', () => {
     const changes: DiffChange[] = [{ type: 'index_removed', table: 'users', columns: ['email'] }];
     const sql = generateMigrationSql(changes);
     expect(sql).toBe('DROP INDEX "idx_users_email";');
+  });
+
+  it('generates DROP INDEX with custom name for index_removed', () => {
+    const changes: DiffChange[] = [
+      { type: 'index_removed', table: 'users', columns: ['email'], indexName: 'idx_custom_email' },
+    ];
+    const sql = generateMigrationSql(changes);
+    expect(sql).toBe('DROP INDEX "idx_custom_email";');
   });
 
   it('generates CREATE INDEX with USING clause for index type', () => {
