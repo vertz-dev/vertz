@@ -168,6 +168,8 @@ async function ssrRenderToStringUnsafe(
     (globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__?.();
     // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
     (globalThis as any).__VERTZ_CLEAR_ENTITY_STORE__?.();
+    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+    (globalThis as any).__VERTZ_CLEAR_MUTATION_EVENT_BUS__?.();
 
     try {
       setGlobalSSRTimeout(ssrTimeout);
@@ -283,6 +285,8 @@ async function ssrDiscoverQueriesUnsafe(
     (globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__?.();
     // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
     (globalThis as any).__VERTZ_CLEAR_ENTITY_STORE__?.();
+    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
+    (globalThis as any).__VERTZ_CLEAR_MUTATION_EVENT_BUS__?.();
 
     try {
       setGlobalSSRTimeout(ssrTimeout);

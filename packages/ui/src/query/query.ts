@@ -10,6 +10,7 @@ import { computed, lifecycleEffect, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal, Unwrapped } from '../runtime/signal-types';
 import { setReadValueCallback, untrack } from '../runtime/tracking';
 import { getEntityStore, getQueryEnvelopeStore } from '../store/entity-store-singleton';
+import { getMutationEventBus } from '../store/mutation-event-bus-singleton';
 import type { QueryEnvelope } from '../store/query-envelope-store';
 import { type CacheStore, MemoryCache } from './cache';
 import { deriveKey, hashString } from './key-derivation';
@@ -687,6 +688,8 @@ export function query<T, E = unknown>(
   function dispose(): void {
     // Dispose the reactive effect to stop re-running on dep changes.
     disposeFn?.();
+    // Unsubscribe from mutation event bus.
+    unsubscribeBus?.();
     // Clean up SSR hydration listener if still active.
     ssrHydrationCleanup?.();
     // Clear any pending debounce or interval timer.
@@ -706,6 +709,13 @@ export function query<T, E = unknown>(
       inflight.delete(key);
     }
     inflightKeys.clear();
+  }
+
+  // Subscribe to MutationEventBus for same-type revalidation.
+  // When a mutation commits for this entity type, revalidate the query.
+  let unsubscribeBus: (() => void) | undefined;
+  if (entityMeta && enabled) {
+    unsubscribeBus = getMutationEventBus().subscribe(entityMeta.entityType, refetch);
   }
 
   // Auto-register disposal with the current scope (component/page/app).
