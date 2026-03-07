@@ -1,11 +1,10 @@
 import { computed, createLink, createRouter, defineRoutes } from '@vertz/ui';
-import type { ComponentEntry } from './demos';
 import { componentRegistry } from './demos';
 import { DemoPage } from './pages/demo';
 import { HomePage } from './pages/home';
 
 function buildRoutes() {
-  const map: Record<string, { component: () => Element }> = {
+  const map: Record<string, { component: () => Node }> = {
     '/': { component: () => HomePage() },
   };
 
@@ -23,7 +22,7 @@ export const routes = buildRoutes();
 const initialPath =
   typeof window !== 'undefined' && window.location
     ? window.location.pathname
-    : (globalThis as any).__SSR_URL__ || '/';
+    : ((globalThis as Record<string, unknown>).__SSR_URL__ as string) || '/';
 
 export const appRouter = createRouter(routes, initialPath);
 
