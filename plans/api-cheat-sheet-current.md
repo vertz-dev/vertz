@@ -282,7 +282,7 @@ const router = createRouter(routes, '/')
 
 ---
 
-## @vertz/ui-server
+## vertz/ui-server
 
 **Version**: Internal package
 **Location**: `packages/ui-server/src/index.ts`
@@ -306,7 +306,7 @@ export function createDevServer(options: DevServerOptions): DevServer
 ### Usage Example
 
 ```typescript
-import { renderPage } from '@vertz/ui-server'
+import { renderPage } from 'vertz/ui-server'
 import { App } from './app'
 
 export default {
