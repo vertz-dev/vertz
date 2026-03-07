@@ -61,7 +61,8 @@ export type DiagnosticCode =
   | 'ENTITY_UNKNOWN_ACCESS_OP'
   | 'ENTITY_UNRESOLVED_IMPORT'
   | 'ENTITY_ROUTE_COLLISION'
-  | 'ENTITY_NO_ROUTES';
+  | 'ENTITY_NO_ROUTES'
+  | 'ENTITY_MODEL_NOT_REGISTERED';
 
 export interface SourceContext {
   lines: { number: number; text: string }[];
