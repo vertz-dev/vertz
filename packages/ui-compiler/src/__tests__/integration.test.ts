@@ -629,4 +629,56 @@ function TodoList({ items }: { items: any[] }) {
     expect(result.code).toContain('__list(');
     expect(result.diagnostics).toHaveLength(0);
   });
+
+  it('emits guarded setAttribute for static attribute expressions', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+function Dashboard() {
+  const tasks = query(api.todos.list());
+  const THEME = 'dark';
+  return <div class={THEME} data-loading={tasks.loading}>Hello</div>;
+}
+    `.trim(),
+    );
+
+    // Static const attribute should use guarded setAttribute, not __attr
+    expect(result.code).toContain('setAttribute("class"');
+    expect(result.code).not.toContain('__attr(__el0, "class"');
+    // Reactive attribute still uses __attr
+    expect(result.code).toContain('__attr(');
+    expect(result.code).toContain('tasks.loading.value');
+  });
+
+  it('handles boolean HTML attributes correctly for static expressions', () => {
+    const result = compile(
+      `
+function Button() {
+  const IS_DISABLED = false;
+  return <button disabled={IS_DISABLED}>Click</button>;
+}
+    `.trim(),
+    );
+
+    // Must have the null/false/true guard
+    expect(result.code).toContain('__v !== false');
+    expect(result.code).toContain('__v === true ? ""');
+    expect(result.code).not.toContain('__attr(');
+  });
+
+  it('keeps __attr for destructured prop attributes', () => {
+    const result = compile(
+      `
+function Card({ className }: { className: string }) {
+  const ROLE = 'article';
+  return <div class={className} role={ROLE}>Content</div>;
+}
+    `.trim(),
+    );
+
+    // Prop attribute is reactive — must use __attr
+    expect(result.code).toContain('__attr(');
+    // Static const attribute should use setAttribute
+    expect(result.code).toContain('setAttribute("role"');
+  });
 });
