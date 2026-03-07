@@ -1,5 +1,15 @@
 # @vertz/db
 
+## 0.2.13
+
+### Patch Changes
+
+- [#959](https://github.com/vertz-dev/vertz/pull/959) [`127df59`](https://github.com/vertz-dev/vertz/commit/127df59424102142ac1aee9dfcc31b22c2959343) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Wire auto-migrate into the dev server pipeline. Schema file changes now automatically sync the database during `vertz dev`, with graceful skipping for UI-only projects and destructive change warnings.
+
+- Updated dependencies []:
+  - @vertz/errors@0.2.13
+  - @vertz/schema@0.2.13
+
 ## 0.2.12
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @vertz/ui-compiler
 
+## 0.2.13
+
+### Patch Changes
+
+- [#1007](https://github.com/vertz-dev/vertz/pull/1007) [`a9211ca`](https://github.com/vertz-dev/vertz/commit/a9211ca751305f541987b93d493d349838cf4822) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Skip effect wrapping for static JSX expressions. Non-reactive attributes now emit guarded `setAttribute` instead of `__attr()`, and non-reactive children emit `__insert()` instead of `__child(() => ...)`. This eliminates unnecessary `domEffect()` allocations and wrapper `<span>` elements for static expressions like `css()` style references, imported constants, and utility calls. Also fixes a JsxAnalyzer blind spot where destructured props were not classified as reactive sources.
+
+- Updated dependencies [[`a5ceec8`](https://github.com/vertz-dev/vertz/commit/a5ceec812613d92f7261407e86b1a39993687a7a), [`1011e51`](https://github.com/vertz-dev/vertz/commit/1011e51fbfe528e35930e3dd5c32b76568b0684a)]:
+  - @vertz/ui@0.2.13
+
 ## 0.2.12
 
 ### Patch Changes
