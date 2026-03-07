@@ -722,4 +722,81 @@ function Badge({ label }: { label: string }) {
     // Prop is reactive — must use __child
     expect(result.code).toContain('__child(');
   });
+
+  // ─── Phase 3: Edge cases and regression guards ──────────────
+
+  it('mixed static and reactive children in same element', () => {
+    const result = compile(
+      `
+function App() {
+  let count = 0;
+  const LABEL = 'Count';
+  return <div>{LABEL}: {count}</div>;
+}
+    `.trim(),
+    );
+
+    // LABEL is static — __insert
+    expect(result.code).toContain('__insert(');
+    // count is reactive — __child
+    expect(result.code).toContain('__child(');
+    expect(result.code).toContain('count.value');
+  });
+
+  it('static utility function call on static args uses __insert', () => {
+    const result = compile(
+      `
+function App() {
+  const DATE = '2024-01-01';
+  return <span>{formatDate(DATE)}</span>;
+}
+    `.trim(),
+    );
+
+    // formatDate(DATE) has no reactive deps — should use __insert
+    expect(result.code).toContain('__insert(');
+    expect(result.code).not.toContain('__child(');
+  });
+
+  it('list transform still fires for reactive arrays (no regression)', () => {
+    const result = compile(
+      `
+function App() {
+  let items = [1, 2, 3];
+  return <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul>;
+}
+    `.trim(),
+    );
+
+    // items is a signal — .map() should use __list
+    expect(result.code).toContain('__list(');
+  });
+
+  it('conditional transform still fires before reactive check (no regression)', () => {
+    const result = compile(
+      `
+function App() {
+  let show = true;
+  return <div>{show ? <span>yes</span> : <span>no</span>}</div>;
+}
+    `.trim(),
+    );
+
+    // Ternary in child position should use __conditional
+    expect(result.code).toContain('__conditional(');
+  });
+
+  it('prop-backed array in .map() uses __list (Phase 0 regression guard)', () => {
+    const result = compile(
+      `
+function List({ items }: { items: any[] }) {
+  return <ul>{items.map((item: any) => <li key={item.id}>{item.name}</li>)}</ul>;
+}
+    `.trim(),
+    );
+
+    // Prop array .map() must use __list, not __insert
+    expect(result.code).toContain('__list(');
+    expect(result.code).not.toContain('__insert(__el0, items.map');
+  });
 });
