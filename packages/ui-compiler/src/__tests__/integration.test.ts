@@ -459,4 +459,67 @@ function Card() {
     // Should NOT have leading/trailing spaces from indentation.
     expect(result.code).not.toContain('__staticText("\\n');
   });
+
+  // ─── Callback classification e2e (#988) ──────────────
+
+  it('arrow function referencing signal is NOT wrapped in computed()', () => {
+    const result = compile(
+      `
+function Counter() {
+  let count = 0;
+  const increment = () => { count++; };
+  const doubled = count * 2;
+  return <button onClick={increment}>{doubled}</button>;
+}
+    `.trim(),
+    );
+
+    // increment is an arrow function — stable reference, NOT computed
+    expect(result.code).not.toContain('computed(() => () =>');
+    expect(result.code).toContain('const increment = () =>');
+    // doubled is a value expression referencing a signal — IS computed
+    expect(result.code).toContain('computed(() =>');
+    expect(result.code).toContain('count.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('arrow function referencing query signal property is NOT wrapped in computed()', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query('/api/tasks');
+  const handleError = () => { if (tasks.error) console.log(tasks.error); };
+  const hasError = tasks.error ? 'yes' : 'no';
+  return <div onClick={handleError}>{hasError}</div>;
+}
+    `.trim(),
+    );
+
+    // handleError is an arrow function — NOT computed
+    expect(result.code).not.toContain('computed(() => () =>');
+    expect(result.code).toContain('const handleError = () =>');
+    // hasError is a value expression reading signal property — IS computed
+    expect(result.code).toContain('computed(() =>');
+    expect(result.code).toContain('tasks.error.value');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('function expression referencing signal is NOT wrapped in computed()', () => {
+    const result = compile(
+      `
+function Counter() {
+  let count = 0;
+  const format = function() { return 'Count: ' + count; };
+  return <div>{format}</div>;
+}
+    `.trim(),
+    );
+
+    // format is a function expression — stable reference, NOT computed
+    expect(result.code).not.toContain('computed(() => function');
+    expect(result.code).toContain('const format = function()');
+    expect(result.diagnostics).toHaveLength(0);
+  });
 });
