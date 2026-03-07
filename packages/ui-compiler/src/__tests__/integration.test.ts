@@ -587,4 +587,46 @@ function TaskList() {
     expect(result.code).toContain('computed(() =>');
     expect(result.diagnostics).toHaveLength(0);
   });
+
+  it('classifies destructured prop in child as reactive (props are getter-backed)', () => {
+    const result = compile(
+      `
+function Badge({ label }: { label: string }) {
+  return <span>{label}</span>;
+}
+    `.trim(),
+    );
+
+    // Props compile to __props.xxx getters — must use __child for reactive tracking
+    expect(result.code).toContain('__child(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('classifies destructured prop in attribute as reactive', () => {
+    const result = compile(
+      `
+function Card({ className }: { className: string }) {
+  return <div class={className}>Content</div>;
+}
+    `.trim(),
+    );
+
+    // Prop attribute must use __attr for reactive tracking
+    expect(result.code).toContain('__attr(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('applies list reconciliation for prop-backed arrays', () => {
+    const result = compile(
+      `
+function TodoList({ items }: { items: any[] }) {
+  return <ul>{items.map((item: any) => <li key={item.id}>{item.title}</li>)}</ul>;
+}
+    `.trim(),
+    );
+
+    // Prop array must go through __list, not __child or __insert
+    expect(result.code).toContain('__list(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
 });

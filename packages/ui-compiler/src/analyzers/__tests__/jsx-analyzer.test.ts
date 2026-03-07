@@ -1,5 +1,5 @@
-import { Project, ts } from 'ts-morph';
 import { describe, expect, it } from 'bun:test';
+import { Project, ts } from 'ts-morph';
 import type { VariableInfo } from '../../types';
 import { ComponentAnalyzer } from '../component-analyzer';
 import { JsxAnalyzer } from '../jsx-analyzer';
@@ -147,6 +147,18 @@ describe('JsxAnalyzer', () => {
     ];
     const [result] = analyze(code, variables);
     // Should still be reactive (via containsSignalApiPropertyAccess), but not via the ref check
+    expect(result?.[0]?.reactive).toBe(true);
+  });
+
+  it('classifies bare destructured prop reference as reactive', () => {
+    const code = `
+      function Badge({ label }: { label: string }) {
+        return <span>{label}</span>;
+      }
+    `;
+    const variables: VariableInfo[] = [];
+    const [result] = analyze(code, variables);
+    expect(result).toHaveLength(1);
     expect(result?.[0]?.reactive).toBe(true);
   });
 
