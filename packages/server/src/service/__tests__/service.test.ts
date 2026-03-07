@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { action } from '../action';
+import { service } from '../service';
 
 // ---------------------------------------------------------------------------
 // Minimal schema fixtures
@@ -21,11 +21,11 @@ const responseSchema = {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('Feature: action() definition', () => {
-  describe('Given a valid action config with actions', () => {
-    describe('When calling action("auth", config)', () => {
-      it('Then returns an object with kind "action" and name "auth"', () => {
-        const def = action('auth', {
+describe('Feature: service() definition', () => {
+  describe('Given a valid service config with actions', () => {
+    describe('When calling service("auth", config)', () => {
+      it('Then returns an object with kind "service" and name "auth"', () => {
+        const def = service('auth', {
           actions: {
             login: {
               body: bodySchema,
@@ -35,12 +35,12 @@ describe('Feature: action() definition', () => {
           },
         });
 
-        expect(def.kind).toBe('action');
+        expect(def.kind).toBe('service');
         expect(def.name).toBe('auth');
       });
 
       it('Then the returned object is frozen (deep freeze)', () => {
-        const def = action('auth', {
+        const def = service('auth', {
           actions: {
             login: {
               body: bodySchema,
@@ -58,7 +58,7 @@ describe('Feature: action() definition', () => {
 
       it('Then .access contains the passed access rules', () => {
         const loginRule = () => true;
-        const def = action('auth', {
+        const def = service('auth', {
           access: { login: loginRule },
           actions: {
             login: {
@@ -73,7 +73,7 @@ describe('Feature: action() definition', () => {
       });
 
       it('Then .inject defaults to {} when not provided', () => {
-        const def = action('auth', {
+        const def = service('auth', {
           actions: {
             login: {
               body: bodySchema,
@@ -88,11 +88,11 @@ describe('Feature: action() definition', () => {
     });
   });
 
-  describe('Given an invalid action name', () => {
-    describe('When calling action() with empty name', () => {
+  describe('Given an invalid service name', () => {
+    describe('When calling service() with empty name', () => {
       it('Then throws with a descriptive error', () => {
         expect(() =>
-          action('', {
+          service('', {
             actions: {
               login: {
                 body: bodySchema,
@@ -101,14 +101,14 @@ describe('Feature: action() definition', () => {
               },
             },
           }),
-        ).toThrow(/action\(\) name must be a non-empty lowercase string/);
+        ).toThrow(/service\(\) name must be a non-empty lowercase string/);
       });
     });
 
-    describe('When calling action() with uppercase name', () => {
+    describe('When calling service() with uppercase name', () => {
       it('Then rejects the name', () => {
         expect(() =>
-          action('Auth', {
+          service('Auth', {
             actions: {
               login: {
                 body: bodySchema,
@@ -117,14 +117,14 @@ describe('Feature: action() definition', () => {
               },
             },
           }),
-        ).toThrow(/action\(\) name/);
+        ).toThrow(/service\(\) name/);
       });
     });
 
-    describe('When calling action() with valid names', () => {
+    describe('When calling service() with valid names', () => {
       it('Then accepts lowercase with hyphens and numbers', () => {
         expect(() =>
-          action('auth-v2', {
+          service('auth-v2', {
             actions: {
               login: {
                 body: bodySchema,
@@ -138,14 +138,14 @@ describe('Feature: action() definition', () => {
     });
   });
 
-  describe('Given an action config with no actions', () => {
-    describe('When calling action() with empty actions', () => {
+  describe('Given a service config with no actions', () => {
+    describe('When calling service() with empty actions', () => {
       it('Then throws with a descriptive error', () => {
         expect(() =>
-          action('auth', {
+          service('auth', {
             actions: {},
           }),
-        ).toThrow(/action\(\) requires at least one action/);
+        ).toThrow(/service\(\) requires at least one action/);
       });
     });
   });

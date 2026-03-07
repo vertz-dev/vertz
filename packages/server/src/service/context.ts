@@ -1,15 +1,15 @@
 import type { RequestInfo } from '../entity/context';
 import type { EntityOperations } from '../entity/entity-operations';
-import type { ActionContext } from './types';
+import type { ServiceContext } from './types';
 
 /**
- * Creates an ActionContext from request info and registry proxy.
+ * Creates a ServiceContext from request info and registry proxy.
  * Mirrors createEntityContext() but without the `entity` (self-CRUD) property.
  */
-export function createActionContext(
+export function createServiceContext(
   request: RequestInfo,
   registryProxy: Record<string, EntityOperations>,
-): ActionContext {
+): ServiceContext {
   const userId = request.userId ?? null;
   const roles = request.roles ?? [];
   const tenantId = request.tenantId ?? null;

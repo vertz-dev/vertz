@@ -1,10 +1,10 @@
 // ===========================================================================
-// Action Developer Walkthrough — Public API Validation Test
+// Service Developer Walkthrough — Public API Validation Test
 //
-// This test validates that a developer can use the standalone action() API
+// This test validates that a developer can use the standalone service() API
 // using ONLY public imports from @vertz/server and @vertz/db.
 //
-// action() provides non-entity endpoints (webhooks, OAuth, health checks)
+// service() provides non-entity endpoints (webhooks, OAuth, health checks)
 // with typed entity DI — no model, no CRUD, just custom handlers.
 //
 // Written as RED in Phase 1 — will fail until Phase 2 wires route generation.
@@ -12,7 +12,7 @@
 
 import { d } from '@vertz/db';
 import type { EntityDbAdapter } from '@vertz/server';
-import { action, createServer, entity } from '@vertz/server';
+import { createServer, entity, service } from '@vertz/server';
 import { describe, expect, it } from 'bun:test';
 
 // ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ function createInMemoryDb(initial: Record<string, unknown>[] = []): EntityDbAdap
 }
 
 // ---------------------------------------------------------------------------
-// 3. Standalone action — uses entity DI to access users
+// 3. Standalone service — uses entity DI to access users
 // ---------------------------------------------------------------------------
 
 const loginBodySchema = {
@@ -96,7 +96,7 @@ const healthResponseSchema = {
   },
 };
 
-const authAction = action('auth', {
+const authService = service('auth', {
   inject: { users: usersEntity },
   access: {
     login: () => true,
@@ -151,14 +151,14 @@ function request(
 // Tests
 // ===========================================================================
 
-describe('Action Developer Walkthrough (public API only)', () => {
+describe('Service Developer Walkthrough (public API only)', () => {
   it('POST /api/auth/login returns 200 with token when user exists', async () => {
     const db = createInMemoryDb([
       { id: 'u1', email: 'alice@example.com', name: 'Alice', role: 'user' },
     ]);
     const app = createServer({
       entities: [usersEntity],
-      actions: [authAction],
+      services: [authService],
       db,
     });
 
@@ -176,7 +176,7 @@ describe('Action Developer Walkthrough (public API only)', () => {
     const db = createInMemoryDb();
     const app = createServer({
       entities: [usersEntity],
-      actions: [authAction],
+      services: [authService],
       db,
     });
 
@@ -193,7 +193,7 @@ describe('Action Developer Walkthrough (public API only)', () => {
     const db = createInMemoryDb();
     const app = createServer({
       entities: [usersEntity],
-      actions: [authAction],
+      services: [authService],
       db,
     });
 
@@ -206,7 +206,7 @@ describe('Action Developer Walkthrough (public API only)', () => {
     const db = createInMemoryDb();
     const app = createServer({
       entities: [usersEntity],
-      actions: [authAction],
+      services: [authService],
       db,
     });
 
@@ -215,9 +215,9 @@ describe('Action Developer Walkthrough (public API only)', () => {
     expect(res.status).toBe(404);
   });
 
-  it('action() definition has kind discriminator', () => {
-    expect(authAction.kind).toBe('action');
-    expect(authAction.name).toBe('auth');
+  it('service() definition has kind discriminator', () => {
+    expect(authService.kind).toBe('service');
+    expect(authService.name).toBe('auth');
   });
 
   it('entity definition has kind discriminator', () => {

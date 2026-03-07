@@ -2,8 +2,8 @@ import { describe, expect, it } from 'bun:test';
 import { d } from '@vertz/db';
 import { entity } from '../../entity/entity';
 import { EntityRegistry } from '../../entity/entity-registry';
-import { action } from '../action';
-import { generateActionRoutes } from '../route-generator';
+import { generateServiceRoutes } from '../route-generator';
+import { service } from '../service';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -38,11 +38,11 @@ const responseSchema = {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('Feature: generateActionRoutes', () => {
-  describe('Given an action with access rules', () => {
+describe('Feature: generateServiceRoutes', () => {
+  describe('Given a service with access rules', () => {
     describe('When generating routes', () => {
-      it('Then generates POST route for action handler with access rule', () => {
-        const authAction = action('auth', {
+      it('Then generates POST route for service handler with access rule', () => {
+        const authService = service('auth', {
           access: { login: () => true },
           actions: {
             login: {
@@ -54,7 +54,7 @@ describe('Feature: generateActionRoutes', () => {
         });
 
         const registry = new EntityRegistry();
-        const routes = generateActionRoutes(authAction, registry);
+        const routes = generateServiceRoutes(authService, registry);
 
         expect(routes).toHaveLength(1);
         expect(routes[0]?.method).toBe('POST');
@@ -63,10 +63,10 @@ describe('Feature: generateActionRoutes', () => {
     });
   });
 
-  describe('Given an action handler with no access rule', () => {
+  describe('Given a service handler with no access rule', () => {
     describe('When generating routes', () => {
       it('Then skips the handler (deny by default)', () => {
-        const authAction = action('auth', {
+        const authService = service('auth', {
           access: { login: () => true },
           actions: {
             login: {
@@ -83,7 +83,7 @@ describe('Feature: generateActionRoutes', () => {
         });
 
         const registry = new EntityRegistry();
-        const routes = generateActionRoutes(authAction, registry);
+        const routes = generateServiceRoutes(authService, registry);
 
         // Only 'login' has access rule, 'secret' is skipped
         expect(routes).toHaveLength(1);
@@ -92,10 +92,10 @@ describe('Feature: generateActionRoutes', () => {
     });
   });
 
-  describe('Given an action with custom apiPrefix', () => {
+  describe('Given a service with custom apiPrefix', () => {
     describe('When generating routes', () => {
       it('Then uses the custom prefix', () => {
-        const authAction = action('auth', {
+        const authService = service('auth', {
           access: { login: () => true },
           actions: {
             login: {
@@ -107,17 +107,17 @@ describe('Feature: generateActionRoutes', () => {
         });
 
         const registry = new EntityRegistry();
-        const routes = generateActionRoutes(authAction, registry, { apiPrefix: '/v2' });
+        const routes = generateServiceRoutes(authService, registry, { apiPrefix: '/v2' });
 
         expect(routes[0]?.path).toBe('/v2/auth/login');
       });
     });
   });
 
-  describe('Given an action with access: false (disabled)', () => {
+  describe('Given a service with access: false (disabled)', () => {
     describe('When generating routes', () => {
       it('Then generates 405 handler', async () => {
-        const authAction = action('auth', {
+        const authService = service('auth', {
           access: { login: false },
           actions: {
             login: {
@@ -129,7 +129,7 @@ describe('Feature: generateActionRoutes', () => {
         });
 
         const registry = new EntityRegistry();
-        const routes = generateActionRoutes(authAction, registry);
+        const routes = generateServiceRoutes(authService, registry);
 
         expect(routes).toHaveLength(1);
         const response = await routes[0]?.handler({});
@@ -138,10 +138,10 @@ describe('Feature: generateActionRoutes', () => {
     });
   });
 
-  describe('Given an action handler that returns data', () => {
+  describe('Given a service handler that returns data', () => {
     describe('When the route handler is called with valid input', () => {
       it('Then returns 200 with the handler result', async () => {
-        const authAction = action('auth', {
+        const authService = service('auth', {
           access: { login: () => true },
           actions: {
             login: {
@@ -153,7 +153,7 @@ describe('Feature: generateActionRoutes', () => {
         });
 
         const registry = new EntityRegistry();
-        const routes = generateActionRoutes(authAction, registry);
+        const routes = generateServiceRoutes(authService, registry);
 
         const response = await routes[0]?.handler({
           body: { email: 'alice@example.com' },
@@ -166,10 +166,10 @@ describe('Feature: generateActionRoutes', () => {
     });
   });
 
-  describe('Given an action handler with body validation', () => {
+  describe('Given a service handler with body validation', () => {
     describe('When called with invalid body', () => {
       it('Then returns 400 with validation error', async () => {
-        const authAction = action('auth', {
+        const authService = service('auth', {
           access: { login: () => true },
           actions: {
             login: {
@@ -181,7 +181,7 @@ describe('Feature: generateActionRoutes', () => {
         });
 
         const registry = new EntityRegistry();
-        const routes = generateActionRoutes(authAction, registry);
+        const routes = generateServiceRoutes(authService, registry);
 
         const response = await routes[0]?.handler({
           body: {},
@@ -192,10 +192,10 @@ describe('Feature: generateActionRoutes', () => {
     });
   });
 
-  describe('Given an action with entity DI', () => {
+  describe('Given a service with entity DI', () => {
     describe('When the handler accesses injected entities', () => {
       it('Then ctx.entities provides the registry proxy', async () => {
-        const authAction = action('auth', {
+        const authService = service('auth', {
           inject: { users: usersEntity },
           access: { login: () => true },
           actions: {
@@ -212,7 +212,7 @@ describe('Feature: generateActionRoutes', () => {
         });
 
         const registry = new EntityRegistry();
-        const routes = generateActionRoutes(authAction, registry);
+        const routes = generateServiceRoutes(authService, registry);
 
         await routes[0]?.handler({
           body: { email: 'alice@example.com' },
@@ -221,10 +221,10 @@ describe('Feature: generateActionRoutes', () => {
     });
   });
 
-  describe('Given an action with access rule that denies', () => {
+  describe('Given a service with access rule that denies', () => {
     describe('When the route handler is called', () => {
       it('Then returns 403', async () => {
-        const authAction = action('auth', {
+        const authService = service('auth', {
           access: { login: () => false },
           actions: {
             login: {
@@ -236,7 +236,7 @@ describe('Feature: generateActionRoutes', () => {
         });
 
         const registry = new EntityRegistry();
-        const routes = generateActionRoutes(authAction, registry);
+        const routes = generateServiceRoutes(authService, registry);
 
         const response = await routes[0]?.handler({
           body: { email: 'alice@example.com' },
