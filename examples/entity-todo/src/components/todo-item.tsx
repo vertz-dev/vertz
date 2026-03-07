@@ -2,8 +2,8 @@
  * TodoItem - Single todo item component with toggle and delete actions.
  *
  * Demonstrates:
- * - Generated SDK mutations returning Result (error-as-values)
- * - Optimistic toggle with rollback on error
+ * - Automatic optimistic updates — no manual state management needed
+ * - Generated SDK mutations with auto-wired optimistic handler
  * - Declarative confirm dialog with `let` signal for open/close state
  */
 
@@ -19,25 +19,18 @@ export interface TodoItemProps {
   id: string;
   title: string;
   completed: boolean;
-  onToggle: (id: string, completed: boolean) => void;
-  onDelete: (id: string) => void;
 }
 
-export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemProps) {
-  let isCompleted = completed;
+export function TodoItem({ id, title, completed }: TodoItemProps) {
   let isConfirmOpen = false;
 
   const handleToggle = async () => {
-    const previousValue = isCompleted;
-    isCompleted = !isCompleted;
-
-    const result = await api.todos.update(id, { completed: isCompleted });
+    // Automatic optimistic update: the framework applies the patch to EntityStore
+    // immediately, and rolls back if the server returns an error.
+    const result = await api.todos.update(id, { completed: !completed });
     if (!result.ok) {
-      isCompleted = previousValue;
       console.error('Failed to update todo:', result.error.message);
-      return;
     }
-    onToggle(id, isCompleted);
   };
 
   const handleDelete = async () => {
@@ -46,10 +39,7 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
     const result = await api.todos.delete(id);
     if (!result.ok) {
       console.error('Failed to delete todo:', result.error.message);
-      return;
     }
-
-    onDelete(id);
   };
 
   return (
@@ -57,12 +47,12 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
       <input
         type="checkbox"
         class={todoItemStyles.checkbox}
-        checked={isCompleted}
+        checked={completed}
         onChange={handleToggle}
         data-testid={`todo-checkbox-${id}`}
       />
       <span
-        class={isCompleted ? todoItemStyles.labelCompleted : todoItemStyles.label}
+        class={completed ? todoItemStyles.labelCompleted : todoItemStyles.label}
         data-testid={`todo-title-${id}`}
       >
         {title}

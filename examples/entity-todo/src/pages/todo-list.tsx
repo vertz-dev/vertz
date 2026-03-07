@@ -4,7 +4,7 @@
  * Demonstrates:
  * - query() with descriptor-based data fetching
  * - queryMatch() for exclusive-state pattern matching (loading/error/data)
- * - Compiler `const` → computed transform for derived values from query()
+ * - Automatic optimistic updates — no refetch callbacks needed for toggle/delete
  * - ListTransition for animated list item enter/exit
  */
 
@@ -32,7 +32,6 @@ void globalCss({
   },
   '[data-presence="exit"]': {
     animation: `${fadeOut} ${ANIMATION_DURATION} ${ANIMATION_EASING}`,
-    overflow: 'hidden',
   },
 });
 
@@ -47,14 +46,7 @@ const pageStyles = css({
 export function TodoListPage() {
   const todosQuery = query(api.todos.list());
 
-  const handleToggle = (_id: string, _completed: boolean) => {
-    todosQuery.refetch();
-  };
-
-  const handleDelete = (_id: string) => {
-    todosQuery.refetch();
-  };
-
+  // Create still needs a refetch since the new entity's ID isn't in the query index yet
   const handleCreate = (_todo: TodosResponse) => {
     todosQuery.refetch();
   };
@@ -94,8 +86,6 @@ export function TodoListPage() {
                       id={todo.id}
                       title={todo.title}
                       completed={todo.completed}
-                      onToggle={handleToggle}
-                      onDelete={handleDelete}
                     />
                   )}
                 />
