@@ -503,4 +503,56 @@ describe('ReactivityAnalyzer', () => {
     `);
     expect(findVar(result?.variables, 'title')?.kind).toBe('static');
   });
+
+  it('classifies const derived from named props in arrow function as computed', () => {
+    const [result] = analyze(`
+      const Card = (props: CardProps) => {
+        const label = props.title;
+        return <div>{label}</div>;
+      };
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('classifies const derived from destructured props in arrow function as computed', () => {
+    const [result] = analyze(`
+      const Card = ({ title, subtitle }: CardProps) => {
+        const label = title + ' - ' + subtitle;
+        return <div>{label}</div>;
+      };
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('classifies const derived from props with default values as computed', () => {
+    const [result] = analyze(`
+      function Card({ size = 'md', title }: CardProps) {
+        const label = size + ': ' + title;
+        return <div>{label}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('classifies callback const derived from props as computed', () => {
+    const [result] = analyze(`
+      function Card(props: CardProps) {
+        const handler = () => props.onClick();
+        return <button onClick={handler}>Click</button>;
+      }
+    `);
+    // Callbacks capturing props are classified as computed (conservative approach).
+    // See #978 for potential future optimization to skip arrow/function expressions.
+    expect(findVar(result?.variables, 'handler')?.kind).toBe('computed');
+  });
+
+  it('does not create computed for component using props only in JSX', () => {
+    const [result] = analyze(`
+      function Card(props: CardProps) {
+        return <div>{props.title}</div>;
+      }
+    `);
+    // No const declarations derived from props — no computeds created
+    expect(result?.variables).toHaveLength(0);
+  });
 });
