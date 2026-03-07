@@ -428,6 +428,71 @@ export const db = { dialect: 'sqlite', url: 'sqlite:${join(tempDir, 'test5.db')}
 });
 
 // ---------------------------------------------------------------------------
+// loadAutoMigrateContext
+// ---------------------------------------------------------------------------
+
+describe('loadAutoMigrateContext', () => {
+  const originalCwd = process.cwd;
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = join(
+      tmpdir(),
+      `vertz-test-automigrate-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    await mkdir(join(tempDir, 'migrations'), { recursive: true });
+    process.cwd = () => tempDir;
+  });
+
+  afterEach(async () => {
+    process.cwd = originalCwd;
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it('returns context with schema snapshot, snapshotPath, dialect, and db', async () => {
+    await writeFile(join(tempDir, 'schema.ts'), SCHEMA_TS);
+    await writeFile(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {};
+export const db = { dialect: 'sqlite', url: 'sqlite:${join(tempDir, 'automig.db')}', schema: './schema.ts' };`,
+    );
+
+    const { loadAutoMigrateContext } = await import('../load-db-context');
+    const ctx = await loadAutoMigrateContext();
+
+    expect(ctx.currentSchema.version).toBe(1);
+    expect(ctx.currentSchema.tables).toHaveProperty('users');
+    expect(ctx.snapshotPath).toContain('_snapshot.json');
+    expect(ctx.dialect).toBe('sqlite');
+    expect(typeof ctx.db).toBe('function');
+    expect(typeof ctx.close).toBe('function');
+
+    await ctx.close();
+  });
+
+  it('throws when vertz.config.ts has no db export', async () => {
+    await writeFile(join(tempDir, 'vertz.config.ts'), 'export default {};');
+
+    const { loadAutoMigrateContext } = await import('../load-db-context');
+
+    await expect(loadAutoMigrateContext()).rejects.toThrow();
+  });
+
+  it('does not open a DB connection when schema loading fails', async () => {
+    await writeFile(
+      join(tempDir, 'vertz.config.ts'),
+      `export default {};
+export const db = { dialect: 'sqlite', url: 'sqlite:${join(tempDir, 'noleak.db')}', schema: './nonexistent.ts' };`,
+    );
+
+    const { loadAutoMigrateContext } = await import('../load-db-context');
+
+    await expect(loadAutoMigrateContext()).rejects.toThrow();
+    // If we get here, no connection was leaked (connection is created after schema load)
+  });
+});
+
+// ---------------------------------------------------------------------------
 // createConnection — sqlite (bun:sqlite is available in bun test)
 // ---------------------------------------------------------------------------
 

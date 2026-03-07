@@ -266,3 +266,75 @@ export async function loadMigrationFiles(dir: string): Promise<MigrationFile[]> 
 
   return files.sort((a, b) => a.timestamp - b.timestamp);
 }
+
+/**
+ * Lightweight context for autoMigrate() — avoids loading migration files,
+ * previous snapshots, or creating storage. Schema is loaded with cache-busting
+ * so changes are always picked up on repeat calls.
+ */
+export interface AutoMigrateContext {
+  currentSchema: SchemaSnapshot;
+  snapshotPath: string;
+  dialect: 'sqlite';
+  db: MigrationQueryFn;
+  close: () => Promise<void>;
+}
+
+export async function loadAutoMigrateContext(): Promise<AutoMigrateContext> {
+  const configPath = resolve(process.cwd(), 'vertz.config.ts');
+  const jiti = createJiti(import.meta.url, { interopDefault: true });
+
+  let configModule: Record<string, unknown>;
+  try {
+    configModule = (await jiti.import(configPath)) as Record<string, unknown>;
+  } catch {
+    try {
+      await access(configPath);
+    } catch {
+      throw new Error(`Could not find vertz.config.ts in ${process.cwd()}.`);
+    }
+    throw new Error('Failed to load vertz.config.ts.');
+  }
+
+  const dbConfig = configModule.db as DbConfig | undefined;
+  if (!dbConfig || !dbConfig.dialect || !dbConfig.schema) {
+    throw new Error('No valid `db` config found in vertz.config.ts.');
+  }
+
+  if (dbConfig.dialect !== 'sqlite') {
+    throw new Error('Auto-migrate in dev currently only supports sqlite.');
+  }
+
+  const cwd = process.cwd();
+  const migrationsDir = resolve(cwd, dbConfig.migrationsDir ?? './migrations');
+  const snapshotPath = dbConfig.snapshotPath
+    ? resolve(cwd, dbConfig.snapshotPath)
+    : join(migrationsDir, '_snapshot.json');
+
+  // Load schema with cache-busting to pick up changes on repeat calls
+  const schemaPath = resolve(cwd, dbConfig.schema);
+  try {
+    await access(schemaPath);
+  } catch {
+    throw new Error(`Schema file not found: ${schemaPath}.`);
+  }
+
+  const schemaModule = (await import(`${schemaPath}?t=${Date.now()}`)) as Record<string, unknown>;
+  const tables = extractTables(schemaModule);
+  if (tables.length === 0) {
+    throw new Error(`No table definitions found in ${schemaPath}.`);
+  }
+
+  const currentSchema = createSnapshot(tables);
+
+  // Open connection only after schema loads successfully (no leak on schema errors)
+  const connection = await createConnection(dbConfig);
+
+  return {
+    currentSchema,
+    snapshotPath,
+    dialect: 'sqlite',
+    db: connection.queryFn,
+    close: connection.close,
+  };
+}
