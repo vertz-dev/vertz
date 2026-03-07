@@ -1,5 +1,16 @@
 # @vertz/server
 
+## 0.2.13
+
+### Patch Changes
+
+- [#967](https://github.com/vertz-dev/vertz/pull/967) [`eab229b`](https://github.com/vertz-dev/vertz/commit/eab229bc63a08ae6877ff4905d99c364a8694358) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Validate entity models are registered in createDb() at server creation time. When an entity name doesn't match a key in the DatabaseClient's model registry, createServer() now throws a clear error listing all missing models and showing which models are registered. Previously this caused a cryptic runtime TypeError when the entity was first accessed.
+
+- Updated dependencies [[`127df59`](https://github.com/vertz-dev/vertz/commit/127df59424102142ac1aee9dfcc31b22c2959343)]:
+  - @vertz/db@0.2.13
+  - @vertz/core@0.2.13
+  - @vertz/errors@0.2.13
+
 ## 0.2.12
 
 ### Patch Changes

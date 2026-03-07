@@ -1,5 +1,22 @@
 # @vertz/cli
 
+## 0.2.13
+
+### Patch Changes
+
+- [#959](https://github.com/vertz-dev/vertz/pull/959) [`127df59`](https://github.com/vertz-dev/vertz/commit/127df59424102142ac1aee9dfcc31b22c2959343) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Wire auto-migrate into the dev server pipeline. Schema file changes now automatically sync the database during `vertz dev`, with graceful skipping for UI-only projects and destructive change warnings.
+
+- [#944](https://github.com/vertz-dev/vertz/pull/944) [`cbda042`](https://github.com/vertz-dev/vertz/commit/cbda042603f9137cea2f032b7c842edc4c341dd7) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `vertz start` command to serve production builds. Supports API-only, UI-only, and full-stack modes with SSR, static file serving, CSS inlining, and graceful shutdown.
+
+- Updated dependencies [[`127df59`](https://github.com/vertz-dev/vertz/commit/127df59424102142ac1aee9dfcc31b22c2959343), [`a5ceec8`](https://github.com/vertz-dev/vertz/commit/a5ceec812613d92f7261407e86b1a39993687a7a), [`cbda042`](https://github.com/vertz-dev/vertz/commit/cbda042603f9137cea2f032b7c842edc4c341dd7)]:
+  - @vertz/db@0.2.13
+  - @vertz/codegen@0.2.13
+  - @vertz/ui-server@0.2.13
+  - @vertz/create-vertz-app@0.2.13
+  - @vertz/compiler@0.2.13
+  - @vertz/errors@0.2.13
+  - @vertz/tui@0.2.13
+
 ## 0.2.12
 
 ### Patch Changes

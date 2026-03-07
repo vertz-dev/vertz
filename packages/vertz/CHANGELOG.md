@@ -1,5 +1,25 @@
 # vertz
 
+## 0.2.13
+
+### Patch Changes
+
+- [#961](https://github.com/vertz-dev/vertz/pull/961) [`4bcfa46`](https://github.com/vertz-dev/vertz/commit/4bcfa46b97623c8d42b174cf3ac3d627c4ef3491) Thanks [@viniciusdacal](https://github.com/viniciusdacal)! - Add `vertz/ui-server` subpath export to meta package
+
+- Updated dependencies [[`127df59`](https://github.com/vertz-dev/vertz/commit/127df59424102142ac1aee9dfcc31b22c2959343), [`a5ceec8`](https://github.com/vertz-dev/vertz/commit/a5ceec812613d92f7261407e86b1a39993687a7a), [`a9211ca`](https://github.com/vertz-dev/vertz/commit/a9211ca751305f541987b93d493d349838cf4822), [`1011e51`](https://github.com/vertz-dev/vertz/commit/1011e51fbfe528e35930e3dd5c32b76568b0684a), [`eab229b`](https://github.com/vertz-dev/vertz/commit/eab229bc63a08ae6877ff4905d99c364a8694358)]:
+  - @vertz/db@0.2.13
+  - @vertz/ui@0.2.13
+  - @vertz/fetch@0.2.13
+  - @vertz/ui-server@0.2.13
+  - @vertz/ui-compiler@0.2.13
+  - @vertz/server@0.2.13
+  - @vertz/cloudflare@0.2.13
+  - @vertz/errors@0.2.13
+  - @vertz/schema@0.2.13
+  - @vertz/testing@0.2.13
+  - @vertz/tui@0.2.13
+  - @vertz/ui-primitives@0.2.13
+
 ## 0.2.12
 
 ### Patch Changes
