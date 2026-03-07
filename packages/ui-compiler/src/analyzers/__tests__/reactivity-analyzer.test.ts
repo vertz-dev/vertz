@@ -389,7 +389,7 @@ describe('ReactivityAnalyzer', () => {
     expect(findVar(result?.variables, 'x')?.kind).toBe('computed');
   });
 
-  it('classifies nested closure reading signal property as computed', () => {
+  it('classifies arrow function reading signal property as static (not computed)', () => {
     const [result] = analyze(`
       import { query } from '@vertz/ui';
       function TaskList() {
@@ -398,7 +398,9 @@ describe('ReactivityAnalyzer', () => {
         return <div>{fn}</div>;
       }
     `);
-    expect(findVar(result?.variables, 'fn')?.kind).toBe('computed');
+    // Arrow functions are stable references — the function itself doesn't change
+    // when signals change. Reactivity is handled at call sites by the JSX runtime.
+    expect(findVar(result?.variables, 'fn')?.kind).toBe('static');
   });
 
   it('classifies identity reference to signal API var as static', () => {
@@ -425,6 +427,60 @@ describe('ReactivityAnalyzer', () => {
     `);
     expect(findVar(result?.variables, 'reload')?.kind).toBe('static');
     expect(findVar(result?.variables, 'handler')?.kind).toBe('static');
+  });
+
+  // ─── Callback classification (#988) ──────────────
+
+  it('classifies function expression reading signal as static', () => {
+    const [result] = analyze(`
+      import { query } from '@vertz/ui';
+      function TaskList() {
+        const tasks = query('/api/tasks');
+        const fn = function() { return tasks.data; };
+        return <div>{fn}</div>;
+      }
+    `);
+    // Function expressions are stable references — not wrapped in computed()
+    expect(findVar(result?.variables, 'fn')?.kind).toBe('static');
+  });
+
+  it('classifies arrow thunk capturing let signal as static', () => {
+    const [result] = analyze(`
+      function Counter() {
+        let count = 0;
+        const increment = () => { count++; };
+        return <button onClick={increment}>{count}</button>;
+      }
+    `);
+    // Arrow function is a stable reference even though it captures a signal
+    expect(findVar(result?.variables, 'increment')?.kind).toBe('static');
+  });
+
+  it('classifies IIFE reading signal as computed', () => {
+    const [result] = analyze(`
+      function Counter() {
+        let count = 0;
+        const doubled = (() => count * 2)();
+        return <div>{doubled}</div>;
+      }
+    `);
+    // IIFE is a value expression (the call evaluates immediately), not a function definition.
+    // Its result depends on the signal, so it should be computed.
+    expect(findVar(result?.variables, 'doubled')?.kind).toBe('computed');
+  });
+
+  it('still classifies value expression reading signal as computed (regression)', () => {
+    const [result] = analyze(`
+      function Counter() {
+        let count = 0;
+        const doubled = count * 2;
+        const label = 'Count: ' + count;
+        return <div>{doubled}{label}</div>;
+      }
+    `);
+    // Value expressions that directly reference signals are computed — this must not regress
+    expect(findVar(result?.variables, 'doubled')?.kind).toBe('computed');
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
   });
 
   it('handles aliased import of useContext', () => {
@@ -534,16 +590,16 @@ describe('ReactivityAnalyzer', () => {
     expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
   });
 
-  it('classifies callback const derived from props as computed', () => {
+  it('classifies callback const derived from props as static (not computed)', () => {
     const [result] = analyze(`
       function Card(props: CardProps) {
         const handler = () => props.onClick();
         return <button onClick={handler}>Click</button>;
       }
     `);
-    // Callbacks capturing props are classified as computed (conservative approach).
-    // See #978 for potential future optimization to skip arrow/function expressions.
-    expect(findVar(result?.variables, 'handler')?.kind).toBe('computed');
+    // Arrow functions are stable references — they should not be wrapped in computed().
+    // The JSX runtime handles reactivity at call sites via __attr()/__child() thunks.
+    expect(findVar(result?.variables, 'handler')?.kind).toBe('static');
   });
 
   it('does not create computed for component using props only in JSX', () => {

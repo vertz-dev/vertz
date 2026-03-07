@@ -36,7 +36,13 @@ export class ReactivityAnalyzer {
     >();
     const consts = new Map<
       string,
-      { start: number; end: number; deps: string[]; propertyAccesses: Map<string, Set<string>> }
+      {
+        start: number;
+        end: number;
+        deps: string[];
+        propertyAccesses: Map<string, Set<string>>;
+        isFunctionDef: boolean;
+      }
     >();
     const signalApiVars = new Map<string, SignalApiConfig>(); // Track variables assigned from signal APIs
     const reactiveSourceVars = new Set<string>(); // Track variables assigned from reactive source APIs (e.g., useContext)
@@ -108,6 +114,7 @@ export class ReactivityAnalyzer {
                     end: decl.getEnd(),
                     deps: [],
                     propertyAccesses: new Map(),
+                    isFunctionDef: false,
                   });
                 }
               }
@@ -131,6 +138,7 @@ export class ReactivityAnalyzer {
                 end: decl.getEnd(),
                 deps,
                 propertyAccesses: propAccesses,
+                isFunctionDef: false,
               };
               consts.set(bindingName, entry);
               destructuredFromMap.set(bindingName, syntheticName);
@@ -138,7 +146,13 @@ export class ReactivityAnalyzer {
               const { refs: deps, propertyAccesses } = init
                 ? collectDeps(init)
                 : { refs: [] as string[], propertyAccesses: new Map<string, Set<string>>() };
-              const entry = { start: decl.getStart(), end: decl.getEnd(), deps, propertyAccesses };
+              const entry = {
+                start: decl.getStart(),
+                end: decl.getEnd(),
+                deps,
+                propertyAccesses,
+                isFunctionDef: false,
+              };
               if (isLet) {
                 lets.set(bindingName, entry);
               } else if (isConst) {
@@ -150,10 +164,21 @@ export class ReactivityAnalyzer {
         }
 
         const name = decl.getName();
+        // Check if the initializer is a function definition (arrow function or function expression).
+        // Function defs are stable references — they should never be wrapped in computed().
+        const isFunctionDef =
+          init?.isKind(SyntaxKind.ArrowFunction) === true ||
+          init?.isKind(SyntaxKind.FunctionExpression) === true;
         const { refs: deps, propertyAccesses } = init
           ? collectDeps(init)
           : { refs: [] as string[], propertyAccesses: new Map<string, Set<string>>() };
-        const entry = { start: decl.getStart(), end: decl.getEnd(), deps, propertyAccesses };
+        const entry = {
+          start: decl.getStart(),
+          end: decl.getEnd(),
+          deps,
+          propertyAccesses,
+          isFunctionDef,
+        };
 
         // Check if this is assigned from a signal API call or reactive source API call.
         // Unwrap NonNullExpression (the ! operator) to handle patterns like:
@@ -232,6 +257,8 @@ export class ReactivityAnalyzer {
     // Signal API vars themselves are excluded — they are constructor calls (form(), query()),
     // not pure derivations. Wrapping them in computed() would re-create them on every
     // evaluation, losing internal state (form fields, query cache, etc.).
+    // Function definitions (arrow functions, function expressions) are excluded —
+    // they are stable references. Reactivity is handled at call sites by the JSX runtime.
     const computeds = new Set<string>();
     changed = true;
     while (changed) {
@@ -239,6 +266,7 @@ export class ReactivityAnalyzer {
       for (const [name, info] of consts) {
         if (computeds.has(name)) continue;
         if (signalApiVars.has(name)) continue;
+        if (info.isFunctionDef) continue;
         const dependsOnReactive = info.deps.some((dep) => {
           if (signals.has(dep) || computeds.has(dep) || reactiveSourceVars.has(dep)) return true;
           const apiConfig = signalApiVars.get(dep);
