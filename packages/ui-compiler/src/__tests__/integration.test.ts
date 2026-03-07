@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { compile } from '../compiler';
+import { loadManifestFromJson } from '../reactivity-manifest';
+import type { ReactivityManifest } from '../types';
 
 describe('Integration Tests', () => {
   it('IT-1B-1: Counter component — let count → signal, {count} → subscription', () => {
@@ -520,6 +522,48 @@ function Counter() {
     // format is a function expression — stable reference, NOT computed
     expect(result.code).not.toContain('computed(() => function');
     expect(result.code).toContain('const format = function()');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  // ─── Manifest-based compilation (#989) ──────────────
+
+  it('uses manifest instead of hardcoded registry when manifests are provided', () => {
+    // Manifest says query has 'customProp' as signal property (NOT the default registry values)
+    const manifest = loadManifestFromJson({
+      version: 1,
+      filePath: '@vertz/ui',
+      exports: {
+        query: {
+          kind: 'function',
+          reactivity: {
+            type: 'signal-api',
+            signalProperties: ['customProp'],
+            plainProperties: ['data', 'loading', 'error', 'refetch'],
+          },
+        },
+      },
+    } as ReactivityManifest);
+
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query('/api/tasks');
+  const x = tasks.customProp ? 'yes' : 'no';
+  const y = tasks.data ? 'yes' : 'no';
+  return <div>{x}{y}</div>;
+}
+    `.trim(),
+      { manifests: { '@vertz/ui': manifest } },
+    );
+
+    // x depends on customProp (signal in manifest) → computed
+    expect(result.code).toContain('computed(() =>');
+    // tasks.customProp should get .value (it's a signal property per manifest)
+    expect(result.code).toContain('tasks.customProp.value');
+    // tasks.data is plain in this manifest → should NOT get .value
+    expect(result.code).not.toContain('tasks.data.value');
     expect(result.diagnostics).toHaveLength(0);
   });
 });

@@ -5,7 +5,7 @@ import {
   isSignalApi,
   type SignalApiConfig,
 } from '../signal-api-registry';
-import type { ComponentInfo, VariableInfo } from '../types';
+import type { ComponentInfo, LoadedReactivityManifest, VariableInfo } from '../types';
 import { findBodyNode } from '../utils';
 
 /**
@@ -18,13 +18,25 @@ import { findBodyNode } from '../utils';
  *         Those `let` vars become signals, and the intermediate consts become computeds.
  */
 export class ReactivityAnalyzer {
-  analyze(sourceFile: SourceFile, component: ComponentInfo): VariableInfo[] {
+  analyze(
+    sourceFile: SourceFile,
+    component: ComponentInfo,
+    manifests?: Record<string, LoadedReactivityManifest>,
+  ): VariableInfo[] {
     const bodyNode = findBodyNode(sourceFile, component);
     if (!bodyNode) return [];
 
     // Build import alias maps for signal APIs and reactive source APIs
-    const { signalApiAliases: importAliases, reactiveSourceAliases } =
-      buildImportAliasMap(sourceFile);
+    const {
+      signalApiAliases: importAliases,
+      reactiveSourceAliases,
+      manifestConfigs,
+    } = buildImportAliasMap(sourceFile, manifests);
+
+    // Resolve signal API config: manifest first, then hardcoded registry
+    const resolveSignalApiConfig = (originalName: string): SignalApiConfig | undefined => {
+      return manifestConfigs.get(originalName) ?? getSignalApiConfig(originalName);
+    };
 
     // Collect all declared variable names to avoid synthetic name collisions
     const declaredNames = collectDeclaredNames(bodyNode);
@@ -97,7 +109,7 @@ export class ReactivityAnalyzer {
               const fnName = callName.getText();
               const originalName = importAliases.get(fnName);
               if (originalName) {
-                signalApiConfig = getSignalApiConfig(originalName);
+                signalApiConfig = resolveSignalApiConfig(originalName);
                 if (signalApiConfig) {
                   let counter = syntheticCounters.get(originalName) ?? 0;
                   syntheticName = `__${originalName}_${counter}`;
@@ -195,7 +207,7 @@ export class ReactivityAnalyzer {
             // Signal API check
             const originalName = importAliases.get(fnName);
             if (originalName) {
-              const config = getSignalApiConfig(originalName);
+              const config = resolveSignalApiConfig(originalName);
               if (config) {
                 signalApiVars.set(name, config);
               }
@@ -391,37 +403,71 @@ function collectDeps(node: Node): {
 }
 
 /**
- * Build maps of imported API names from @vertz/ui.
+ * Build maps of imported API names.
+ *
+ * When manifests are provided, uses them to classify imports from any module.
+ * Falls back to the hardcoded signal API registry for @vertz/ui imports
+ * when no manifest is available for a module.
+ *
  * - signalApiAliases: local name → original name for signal APIs (query, form, etc.)
  * - reactiveSourceAliases: set of local names for reactive source APIs (useContext)
  */
-function buildImportAliasMap(sourceFile: SourceFile): {
+function buildImportAliasMap(
+  sourceFile: SourceFile,
+  manifests?: Record<string, LoadedReactivityManifest>,
+): {
   signalApiAliases: Map<string, string>;
   reactiveSourceAliases: Set<string>;
+  manifestConfigs: Map<string, SignalApiConfig>;
 } {
   const signalApiAliases = new Map<string, string>();
   const reactiveSourceAliases = new Set<string>();
+  const manifestConfigs = new Map<string, SignalApiConfig>();
 
   for (const importDecl of sourceFile.getImportDeclarations()) {
     const moduleSpecifier = importDecl.getModuleSpecifierValue();
-    // Only process imports from @vertz/ui
-    if (moduleSpecifier !== '@vertz/ui') continue;
+    const manifest = manifests?.[moduleSpecifier];
+
+    // If no manifest, only process @vertz/ui via the hardcoded registry
+    if (!manifest && moduleSpecifier !== '@vertz/ui') continue;
 
     const namedImports = importDecl.getNamedImports();
     for (const namedImport of namedImports) {
       const originalName = namedImport.getName();
       const localName = namedImport.getAliasNode()?.getText() ?? originalName;
 
-      if (isSignalApi(originalName)) {
-        signalApiAliases.set(localName, originalName);
-      }
-      if (isReactiveSourceApi(originalName)) {
-        reactiveSourceAliases.add(localName);
+      if (manifest) {
+        // Use manifest to classify
+        const exportInfo = manifest.exports[originalName];
+        if (exportInfo) {
+          const { reactivity } = exportInfo;
+          if (reactivity.type === 'signal-api') {
+            signalApiAliases.set(localName, originalName);
+            // Build SignalApiConfig from manifest shape
+            manifestConfigs.set(originalName, {
+              signalProperties: reactivity.signalProperties,
+              plainProperties: reactivity.plainProperties,
+              ...(reactivity.fieldSignalProperties
+                ? { fieldSignalProperties: reactivity.fieldSignalProperties }
+                : {}),
+            });
+          } else if (reactivity.type === 'reactive-source') {
+            reactiveSourceAliases.add(localName);
+          }
+        }
+      } else {
+        // Fall back to hardcoded registry for @vertz/ui
+        if (isSignalApi(originalName)) {
+          signalApiAliases.set(localName, originalName);
+        }
+        if (isReactiveSourceApi(originalName)) {
+          reactiveSourceAliases.add(localName);
+        }
       }
     }
   }
 
-  return { signalApiAliases, reactiveSourceAliases };
+  return { signalApiAliases, reactiveSourceAliases, manifestConfigs };
 }
 
 /** Collect all declared variable names in a component body. */

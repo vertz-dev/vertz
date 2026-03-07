@@ -1,0 +1,43 @@
+{
+  "exports": {
+    "createLoader": {
+      "kind": "function",
+      "reactivity": {
+        "plainProperties": ["refetch"],
+        "signalProperties": ["data", "loading", "error"],
+        "type": "signal-api"
+      }
+    },
+    "form": {
+      "kind": "function",
+      "reactivity": {
+        "fieldSignalProperties": ["value", "error", "dirty", "touched"],
+        "plainProperties": ["action", "method", "onSubmit", "reset", "setFieldError", "submit"],
+        "signalProperties": ["submitting", "dirty", "valid"],
+        "type": "signal-api"
+      }
+    },
+    "query": {
+      "kind": "function",
+      "reactivity": {
+        "plainProperties": ["refetch", "revalidate", "dispose"],
+        "signalProperties": ["data", "loading", "error", "revalidating"],
+        "type": "signal-api"
+      }
+    },
+    "signal": {
+      "kind": "function",
+      "reactivity": {
+        "type": "signal"
+      }
+    },
+    "useContext": {
+      "kind": "function",
+      "reactivity": {
+        "type": "reactive-source"
+      }
+    }
+  },
+  "filePath": "@vertz/ui",
+  "version": 1
+}
