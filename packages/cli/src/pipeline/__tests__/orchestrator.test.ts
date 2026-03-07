@@ -4,7 +4,7 @@ import { type PipelineConfig, PipelineOrchestrator } from '../orchestrator';
 // Mock the compiler and codegen modules
 vi.mock('@vertz/compiler', () => {
   const mockGenerate = vi.fn().mockResolvedValue(undefined);
-  
+
   return {
     createCompiler: vi.fn(() => ({
       analyze: vi.fn().mockResolvedValue({
@@ -101,12 +101,13 @@ describe('PipelineOrchestrator', () => {
   });
 
   describe('runFull', () => {
-    it('should run the full pipeline', async () => {
+    it('should run the full pipeline including db-sync', async () => {
       const result = await orchestrator.runFull();
 
       expect(result.success).toBe(true);
-      expect(result.stages).toHaveLength(3); // analyze + codegen + openapi
+      expect(result.stages).toHaveLength(4); // analyze + db-sync + codegen + openapi
       expect(result.stages.map((s) => s.stage)).toContain('analyze');
+      expect(result.stages.map((s) => s.stage)).toContain('db-sync');
       expect(result.stages.map((s) => s.stage)).toContain('codegen');
       expect(result.stages.map((s) => s.stage)).toContain('openapi');
     });
@@ -167,6 +168,37 @@ describe('PipelineOrchestrator', () => {
       expect(result).toBeDefined();
       expect(result?.stage).toBe('analyze');
       expect(result?.success).toBe(true);
+    });
+  });
+
+  describe('db-sync stage', () => {
+    it('should skip db-sync when autoSyncDb is false', async () => {
+      const result = await orchestrator.runStages(['db-sync']);
+
+      expect(result.success).toBe(true);
+      expect(result.stages[0]?.stage).toBe('db-sync');
+      expect(result.stages[0]?.output).toContain('skipped');
+    });
+
+    it('should attempt db-sync when autoSyncDb is true', async () => {
+      const dbOrchestrator = new PipelineOrchestrator({
+        sourceDir: 'src',
+        outputDir: '.vertz/generated',
+        typecheck: false,
+        autoSyncDb: true,
+        port: 3000,
+        host: 'localhost',
+      });
+
+      const result = await dbOrchestrator.runStages(['db-sync']);
+
+      // Should not crash — returns success (skipped) or failure with error
+      expect(result.stages[0]?.stage).toBe('db-sync');
+      // Without a vertz.config.ts, it should skip gracefully
+      expect(result.success).toBe(true);
+      expect(result.stages[0]?.output).toContain('skipped');
+
+      await dbOrchestrator.dispose();
     });
   });
 

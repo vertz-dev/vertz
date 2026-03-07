@@ -1,6 +1,6 @@
 /**
  * Pipeline Orchestrator - Phase 1
- * 
+ *
  * Unified `vertz dev` command that orchestrates:
  * 1. Analyze - runs @vertz/compiler to produce AppIR
  * 2. Generate - runs @vertz/codegen to emit types, route map, DB client
@@ -8,11 +8,19 @@
  * 4. Serve - dev server with HMR
  */
 
+import type { CodegenConfig, GenerateResult, ResolvedCodegenConfig } from '@vertz/codegen';
+import { createCodegenPipeline, generate } from '@vertz/codegen';
 import type { AppIR } from '@vertz/compiler';
-import type { GenerateResult, ResolvedCodegenConfig, CodegenConfig } from '@vertz/codegen';
-import { createCompiler, type Compiler, type CompilerDependencies, type CompileResult, type Diagnostic, OpenAPIGenerator } from '@vertz/compiler';
-import { generate, createCodegenPipeline } from '@vertz/codegen';
-import type { PipelineStage, FileCategory } from './types';
+import {
+  type CompileResult,
+  type Compiler,
+  type CompilerDependencies,
+  createCompiler,
+  type Diagnostic,
+  OpenAPIGenerator,
+} from '@vertz/compiler';
+import { loadAutoMigrateContext } from '../commands/load-db-context';
+import type { FileCategory, PipelineStage } from './types';
 
 /**
  * Configuration for the pipeline orchestrator
@@ -71,7 +79,7 @@ export const defaultPipelineConfig: PipelineConfig = {
 
 /**
  * Pipeline Orchestrator
- * 
+ *
  * Coordinates the full development pipeline:
  * 1. Analyze (compiler → AppIR)
  * 2. Generate (codegen → types, route map, DB client)
@@ -132,7 +140,16 @@ export class PipelineOrchestrator {
         success = false;
       }
 
-      // Stage 2: Generate code (types, route map, DB client)
+      // Stage 2: DB sync (auto-migrate before codegen so DB schema is current)
+      if (success) {
+        const dbSyncResult = await this.runDbSync();
+        stages.push(dbSyncResult);
+        if (!dbSyncResult.success) {
+          success = false;
+        }
+      }
+
+      // Stage 3: Generate code (types, route map, DB client)
       // OpenAPI depends on the IR being ready from codegen
       if (success && this.appIR) {
         const generateResult = await this.runCodegen();
@@ -153,7 +170,6 @@ export class PipelineOrchestrator {
 
       // Stage 4: Build UI (could run in parallel with other stages)
       // For now, we'll defer to the dev server to handle this
-
     } catch (error) {
       success = false;
       stages.push({
@@ -181,7 +197,7 @@ export class PipelineOrchestrator {
 
     for (const stage of stages) {
       let result: StageResult;
-      
+
       switch (stage) {
         case 'analyze':
           result = await this.runAnalyze();
@@ -201,13 +217,13 @@ export class PipelineOrchestrator {
         default:
           continue;
       }
-      
+
       results.push(result);
       this.stages.set(stage, result);
     }
 
-    const allSuccess = results.every(r => r.success);
-    
+    const allSuccess = results.every((r) => r.success);
+
     return {
       success: allSuccess,
       stages: results,
@@ -221,7 +237,7 @@ export class PipelineOrchestrator {
    */
   private async runAnalyze(): Promise<StageResult> {
     const startTime = performance.now();
-    
+
     if (!this.compiler) {
       await this.initialize();
     }
@@ -229,14 +245,14 @@ export class PipelineOrchestrator {
     try {
       this.appIR = await this.compiler!.analyze();
       const diagnostics = await this.compiler!.validate(this.appIR);
-      const hasErrors = diagnostics.some(d => d.severity === 'error');
-      
+      const hasErrors = diagnostics.some((d) => d.severity === 'error');
+
       return {
         stage: 'analyze',
         success: !hasErrors,
         durationMs: performance.now() - startTime,
-        output: hasErrors 
-          ? `${diagnostics.filter(d => d.severity === 'error').length} errors`
+        output: hasErrors
+          ? `${diagnostics.filter((d) => d.severity === 'error').length} errors`
           : 'Analysis complete',
       };
     } catch (error) {
@@ -254,7 +270,7 @@ export class PipelineOrchestrator {
    */
   private async runOpenAPIGenerate(): Promise<StageResult> {
     const startTime = performance.now();
-    
+
     if (!this.appIR) {
       return {
         stage: 'openapi',
@@ -269,7 +285,7 @@ export class PipelineOrchestrator {
       const config = this.compiler!.getConfig();
       const openApiGenerator = new OpenAPIGenerator(config);
       await openApiGenerator.generate(this.appIR, config.compiler.outputDir);
-      
+
       return {
         stage: 'openapi',
         success: true,
@@ -291,7 +307,7 @@ export class PipelineOrchestrator {
    */
   private async runCodegen(): Promise<StageResult> {
     const startTime = performance.now();
-    
+
     if (!this.appIR) {
       return {
         stage: 'codegen',
@@ -303,7 +319,7 @@ export class PipelineOrchestrator {
 
     try {
       const pipeline = createCodegenPipeline();
-      
+
       // For now, use basic typescript generator config
       const config: CodegenConfig = {
         generators: ['typescript'],
@@ -311,10 +327,10 @@ export class PipelineOrchestrator {
         format: true,
         incremental: true,
       };
-      
+
       const resolvedConfig = pipeline.resolveConfig(config);
       const result = await generate(this.appIR, resolvedConfig);
-      
+
       return {
         stage: 'codegen',
         success: true,
@@ -337,10 +353,10 @@ export class PipelineOrchestrator {
    */
   private async runBuildUI(): Promise<StageResult> {
     const startTime = performance.now();
-    
+
     // TODO: Integrate @vertz/ui-compiler for component-level builds
     // For now, we just acknowledge the stage
-    
+
     return {
       stage: 'build-ui',
       success: true,
@@ -354,16 +370,54 @@ export class PipelineOrchestrator {
    */
   private async runDbSync(): Promise<StageResult> {
     const startTime = performance.now();
-    
-    // TODO: Integrate @vertz/db for schema sync
-    // For now, we just acknowledge the stage
-    
-    return {
-      stage: 'db-sync',
-      success: true,
-      durationMs: performance.now() - startTime,
-      output: 'DB sync complete (noop for now)',
-    };
+
+    if (!this.config.autoSyncDb) {
+      return {
+        stage: 'db-sync',
+        success: true,
+        durationMs: performance.now() - startTime,
+        output: 'DB sync skipped (disabled)',
+      };
+    }
+
+    let ctx: Awaited<ReturnType<typeof loadAutoMigrateContext>> | undefined;
+    try {
+      ctx = await loadAutoMigrateContext();
+    } catch {
+      // No db config or schema — skip gracefully (e.g., UI-only projects)
+      return {
+        stage: 'db-sync',
+        success: true,
+        durationMs: performance.now() - startTime,
+        output: 'DB sync skipped (no db config)',
+      };
+    }
+
+    try {
+      const { autoMigrate } = await import('@vertz/db/internals');
+      await autoMigrate({
+        currentSchema: ctx.currentSchema,
+        snapshotPath: ctx.snapshotPath,
+        dialect: ctx.dialect,
+        db: ctx.db,
+      });
+
+      return {
+        stage: 'db-sync',
+        success: true,
+        durationMs: performance.now() - startTime,
+        output: 'DB sync complete',
+      };
+    } catch (error) {
+      return {
+        stage: 'db-sync',
+        success: false,
+        durationMs: performance.now() - startTime,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    } finally {
+      await ctx.close();
+    }
   }
 
   /**

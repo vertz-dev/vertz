@@ -60,6 +60,7 @@ export interface PipelineWatcherHandlers {
   analyze: (changes: FileChange[]) => void;
   codegen: (changes: FileChange[]) => void;
   'build-ui': (changes: FileChange[]) => void;
+  'db-sync': (changes: FileChange[]) => void;
   error: (error: Error) => void;
 }
 

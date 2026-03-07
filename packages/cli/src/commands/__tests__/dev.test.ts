@@ -54,11 +54,21 @@ describe('Pipeline Orchestrator', () => {
       expect(stages).toContain('codegen');
     });
 
-    it('should return codegen only for schema changes', () => {
+    it('should return db-sync, codegen, and openapi for schema changes', () => {
       const category = categorizeFileChange('src/schemas/user.schema.ts');
       const stages = getAffectedStages(category);
+      expect(stages).toContain('db-sync');
       expect(stages).toContain('codegen');
+      expect(stages).toContain('openapi');
       expect(stages).not.toContain('analyze');
+    });
+
+    it('should return db-sync before codegen for schema changes', () => {
+      const category = categorizeFileChange('src/schemas/user.schema.ts');
+      const stages = getAffectedStages(category);
+      const dbSyncIdx = stages.indexOf('db-sync');
+      const codegenIdx = stages.indexOf('codegen');
+      expect(dbSyncIdx).toBeLessThan(codegenIdx);
     });
 
     it('should return build-ui only for component changes', () => {
@@ -79,12 +89,11 @@ describe('Pipeline Orchestrator', () => {
   });
 
   describe('dependency graph', () => {
-    it('should identify that schema changes trigger codegen but not UI build', () => {
+    it('should identify that schema changes trigger db-sync and codegen but not UI build', () => {
       const category = categorizeFileChange('src/schemas/user.schema.ts');
       const stages = getAffectedStages(category);
 
-      // Schema changes should only affect codegen
-      expect(stages).toEqual(expect.arrayContaining(['codegen']));
+      expect(stages).toEqual(expect.arrayContaining(['db-sync', 'codegen']));
       expect(stages).not.toContain('build-ui');
     });
 

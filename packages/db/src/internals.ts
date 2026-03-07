@@ -5,6 +5,8 @@
 // Other @vertz packages may import from here; application code should not.
 // ---------------------------------------------------------------------------
 
+// Auto-migrate (used by @vertz/cli dev server pipeline)
+export { type AutoMigrateOptions, autoMigrate } from './migration/auto-migrate';
 // Snapshot storage (Node.js — uses node:fs, node:path)
 export { NodeSnapshotStorage } from './migration/snapshot-storage';
 // Aggregate
