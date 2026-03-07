@@ -14,7 +14,7 @@ import { taskManagerTheme } from './styles/theme';
 // Bun's file watcher). Component-level Fast Refresh handles actual changes.
 import.meta.hot.accept();
 
-mount(App, '#app', {
+mount(App, {
   theme: taskManagerTheme,
   styles,
 });

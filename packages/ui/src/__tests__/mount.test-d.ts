@@ -8,21 +8,20 @@
 import { mount } from '../mount';
 
 const App = () => document.createElement('div');
-const root = document.createElement('div');
 
 // ─── Valid usage ─────────────────────────────────────────────
 
-mount(App, root); // default (no options)
-mount(App, root, {}); // empty options
-mount(App, root, { theme: undefined }); // valid option
+mount(App); // default (no options)
+mount(App, {}); // empty options
+mount(App, { theme: undefined }); // valid option
 
 // ─── Invalid: hydration option no longer exists ──────────────
 
 // @ts-expect-error — hydration option has been removed; tolerant is always used
-mount(App, root, { hydration: 'tolerant' });
+mount(App, { hydration: 'tolerant' });
 
 // @ts-expect-error — hydration option has been removed
-mount(App, root, { hydration: 'replace' });
+mount(App, { hydration: 'replace' });
 
 // @ts-expect-error — hydration option has been removed
-mount(App, root, { hydration: 'strict' });
+mount(App, { hydration: 'strict' });

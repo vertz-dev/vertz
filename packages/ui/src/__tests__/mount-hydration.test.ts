@@ -20,6 +20,7 @@ describe('mount() — tolerant hydration', () => {
 
   beforeEach(() => {
     root = document.createElement('div');
+    root.id = 'app';
     document.body.appendChild(root);
     resetInjectedStyles();
   });
@@ -45,7 +46,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    const handle = mount(App, root);
+    const handle = mount(App);
 
     // Content preserved (no flash)
     expect(root.innerHTML).toContain('Hello');
@@ -71,7 +72,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    const handle = mount(App, root);
+    const handle = mount(App);
 
     expect(root.innerHTML).toContain('text');
     expect(root.querySelector('p')).not.toBeNull();
@@ -98,7 +99,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    mount(App, root);
+    mount(App);
 
     const button = root.querySelector('button')!;
     button.click();
@@ -119,7 +120,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    mount(App, root);
+    mount(App);
     expect(root.textContent).toContain('Count: 0');
 
     count.value = 42;
@@ -134,7 +135,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    mount(App, root);
+    mount(App);
 
     expect(root.textContent).toBe('fresh');
   });
@@ -156,7 +157,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    mount(App, root);
+    mount(App);
 
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('Hydration failed'),
@@ -191,7 +192,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    mount(App, root);
+    mount(App);
 
     // The effect from the failed hydration ran once during setup
     const runCountAfterMount = effectRunCount;
@@ -215,7 +216,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    mount(App, root, { onMount });
+    mount(App, { onMount });
 
     expect(onMount).toHaveBeenCalledTimes(1);
     expect(onMount).toHaveBeenCalledWith(root);
@@ -249,7 +250,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    mount(App, root);
+    mount(App);
 
     // SSR nodes were adopted — same DOM references
     const currentDiv = root.firstChild as HTMLElement;
@@ -302,7 +303,7 @@ describe('mount() — tolerant hydration', () => {
       return el;
     };
 
-    mount(App, root);
+    mount(App);
 
     // Button should be the SSR button (adopted, not recreated)
     expect(ssrDiv.querySelector('button')).toBe(ssrButton);
@@ -414,7 +415,7 @@ describe('mount() — tolerant hydration', () => {
 
     const App = () => Layout({ children: () => PageContent() });
 
-    mount(App, root);
+    mount(App);
 
     // Button should be the SSR button (adopted, not recreated)
     expect(root.querySelector('button')).toBe(ssrButton);
@@ -458,7 +459,7 @@ describe('mount() — tolerant hydration', () => {
     };
 
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    mount(App, root);
+    mount(App);
 
     // No claim verification warnings (no false positives)
     const claimWarns = warnSpy.mock.calls.filter(
@@ -555,7 +556,7 @@ describe('mount() — tolerant hydration', () => {
     const App = () => Layout({ children: () => PageContent() });
 
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    mount(App, root);
+    mount(App);
 
     const claimWarns = warnSpy.mock.calls.filter(
       (args) => typeof args[0] === 'string' && args[0].includes('not claimed'),
@@ -612,7 +613,7 @@ describe('mount() — tolerant hydration', () => {
         children: () => InnerLayout({ children: () => Content() }),
       });
 
-    mount(App, root);
+    mount(App);
 
     // Button should be the SSR button (adopted via claim)
     expect(root.querySelector('button')).toBe(ssrButton);
@@ -675,7 +676,7 @@ describe('mount() — tolerant hydration', () => {
       return ret;
     };
 
-    mount(App, root);
+    mount(App);
 
     // Button should be the SSR button (adopted, not recreated)
     expect((root.firstChild as HTMLElement).querySelector('button')).toBe(ssrButton);

@@ -8,7 +8,7 @@ A **global cursor** tracks position in the tree. Compiler output functions
 cursor and return matching nodes.
 
 ```
-mount(App, root)
+mount(App)
   │
   ├─ root has children? ─── no ──→ CSR: create from scratch
   │          │

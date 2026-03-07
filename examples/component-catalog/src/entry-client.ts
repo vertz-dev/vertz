@@ -4,7 +4,7 @@ import { catalogTheme } from './styles/theme';
 
 import.meta.hot.accept();
 
-mount(App, '#app', {
+mount(App, {
   theme: catalogTheme,
   styles,
 });

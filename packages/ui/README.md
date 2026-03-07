@@ -103,7 +103,7 @@ function App() {
   return <button onClick={() => count++}>Count: {count}</button>;
 }
 
-const { unmount, root } = mount(App, '#app');
+const { unmount, root } = mount(App);
 ```
 
 **With options:**
@@ -116,20 +116,17 @@ const theme = defineTheme({
   colors: { primary: { 500: '#3b82f6' } },
 });
 
-mount(App, '#app', {
+mount(App, {
   theme,
   styles: ['body { margin: 0; }'],
   onMount: (root) => console.log('Mounted to', root),
 });
 ```
 
-`mount(app, selector, options?)` accepts:
+`mount(app, options?)` accepts:
 
-- `selector` — CSS selector string or `HTMLElement`
 - `options.theme` — theme definition for CSS vars
 - `options.styles` — global CSS strings to inject
-- `options.hydration` — `'replace'` (default) or `false`
-- `options.registry` — component registry for per-component hydration
 - `options.onMount` — callback after mount completes
 
 Returns a `MountHandle` with `unmount()` and `root`.

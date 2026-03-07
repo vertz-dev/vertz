@@ -45,7 +45,7 @@ export const styles = [globalStyles.css];
 // Mount on the client — the compiler skips this during SSR
 const isSSR = typeof (globalThis as any).__SSR_URL__ !== 'undefined' || typeof document === 'undefined';
 if (!isSSR) {
-  mount(App, '#app', { styles: [globalStyles.css] });
+  mount(App, { styles: [globalStyles.css] });
 }
 ```
 

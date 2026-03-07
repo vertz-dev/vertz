@@ -1225,7 +1225,7 @@ import { mount } from '@vertz/ui';
 import { App, styles } from './app';
 import { benchmarkTheme } from './styles/theme';
 
-mount(App, '#app', {
+mount(App, {
   theme: benchmarkTheme,
   styles,
 });
