@@ -12,6 +12,7 @@ export function packageJsonTemplate(projectName: string): string {
     scripts: {
       dev: 'vertz dev',
       build: 'vertz build',
+      start: 'vertz start',
       codegen: 'vertz codegen',
     },
     imports: {

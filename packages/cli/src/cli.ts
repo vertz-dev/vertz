@@ -16,6 +16,7 @@ import {
 import { devAction } from './commands/dev';
 import { generateAction } from './commands/generate';
 import { loadDbContext } from './commands/load-db-context';
+import { startAction } from './commands/start';
 
 export function createCLI(): Command {
   const program = new Command();
@@ -84,6 +85,25 @@ export function createCLI(): Command {
         host: opts.host,
         open: opts.open,
         typecheck: opts.typecheck !== false && !opts.noTypecheck,
+        verbose: opts.verbose,
+      });
+      if (!result.ok) {
+        console.error(result.error.message);
+        process.exit(1);
+      }
+    });
+
+  // Start command - serve the production build
+  program
+    .command('start')
+    .description('Start the production server (run "vertz build" first)')
+    .option('-p, --port <port>', 'Server port (default: PORT env or 3000)')
+    .option('--host <host>', 'Server host', '0.0.0.0')
+    .option('-v, --verbose', 'Verbose output')
+    .action(async (opts) => {
+      const result = await startAction({
+        port: opts.port ? parseInt(opts.port, 10) : undefined,
+        host: opts.host,
         verbose: opts.verbose,
       });
       if (!result.ok) {

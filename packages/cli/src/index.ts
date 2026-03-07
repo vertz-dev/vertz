@@ -17,6 +17,7 @@ export { deployAction } from './commands/deploy';
 export { devAction, registerDevCommand } from './commands/dev';
 export { generateAction } from './commands/generate';
 export { routesAction } from './commands/routes';
+export { startAction } from './commands/start';
 export type { CLIConfig, DevConfig, GeneratedFile, GeneratorDefinition } from './config/defaults';
 export { defaultCLIConfig } from './config/defaults';
 export { findConfigFile, loadConfig } from './config/loader';
