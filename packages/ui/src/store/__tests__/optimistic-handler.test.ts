@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { EntityStore } from '../entity-store';
+import { createMutationEventBus } from '../mutation-event-bus';
 import { createOptimisticHandler } from '../optimistic-handler';
 
 describe('createOptimisticHandler', () => {
@@ -109,5 +110,105 @@ describe('createOptimisticHandler', () => {
     );
 
     expect(rollback).toBeUndefined();
+  });
+
+  it('commit() with kind update emits to mutation event bus', () => {
+    const store = new EntityStore();
+    const bus = createMutationEventBus();
+    const handler = createOptimisticHandler(store, { mutationEventBus: bus });
+    store.merge('todos', { id: '1', title: 'Buy milk', completed: false });
+
+    const emitted: string[] = [];
+    bus.subscribe('todos', () => emitted.push('todos'));
+
+    handler.apply(
+      { entityType: 'todos', kind: 'update', id: '1', body: { completed: true } },
+      'm_1',
+    );
+    handler.commit({ entityType: 'todos', kind: 'update', id: '1' }, 'm_1', {
+      id: '1',
+      title: 'Buy milk',
+      completed: true,
+    });
+
+    expect(emitted).toEqual(['todos']);
+  });
+
+  it('commit() with kind create emits to mutation event bus', () => {
+    const store = new EntityStore();
+    const bus = createMutationEventBus();
+    const handler = createOptimisticHandler(store, { mutationEventBus: bus });
+
+    const emitted: string[] = [];
+    bus.subscribe('todos', () => emitted.push('todos'));
+
+    handler.commit({ entityType: 'todos', kind: 'create' }, 'm_1', {
+      id: '2',
+      title: 'New todo',
+      completed: false,
+    });
+
+    expect(emitted).toEqual(['todos']);
+  });
+
+  it('commit() with kind delete emits to mutation event bus', () => {
+    const store = new EntityStore();
+    const bus = createMutationEventBus();
+    const handler = createOptimisticHandler(store, { mutationEventBus: bus });
+    store.merge('todos', { id: '1', title: 'Buy milk', completed: false });
+
+    const emitted: string[] = [];
+    bus.subscribe('todos', () => emitted.push('todos'));
+
+    handler.apply({ entityType: 'todos', kind: 'delete', id: '1' }, 'm_1');
+    handler.commit({ entityType: 'todos', kind: 'delete', id: '1' }, 'm_1', undefined);
+
+    expect(emitted).toEqual(['todos']);
+  });
+
+  it('commit() with skipInvalidation skips bus emission', () => {
+    const store = new EntityStore();
+    const bus = createMutationEventBus();
+    const handler = createOptimisticHandler(store, { mutationEventBus: bus });
+    store.merge('todos', { id: '1', title: 'Buy milk', completed: false });
+
+    const emitted: string[] = [];
+    bus.subscribe('todos', () => emitted.push('todos'));
+
+    handler.apply(
+      { entityType: 'todos', kind: 'update', id: '1', body: { completed: true } },
+      'm_1',
+    );
+    handler.commit(
+      { entityType: 'todos', kind: 'update', id: '1', skipInvalidation: true },
+      'm_1',
+      { id: '1', title: 'Buy milk', completed: true },
+    );
+
+    expect(emitted).toEqual([]);
+  });
+
+  it('works without mutation event bus (backward compat)', () => {
+    const store = new EntityStore();
+    const handler = createOptimisticHandler(store);
+    store.merge('todos', { id: '1', title: 'Buy milk', completed: false });
+
+    handler.apply(
+      { entityType: 'todos', kind: 'update', id: '1', body: { completed: true } },
+      'm_1',
+    );
+
+    // commit without bus should not throw
+    handler.commit({ entityType: 'todos', kind: 'update', id: '1' }, 'm_1', {
+      id: '1',
+      title: 'Buy milk',
+      completed: true,
+    });
+
+    expect(store.get('todos', '1').peek()).toEqual({
+      id: '1',
+      title: 'Buy milk',
+      completed: true,
+    });
   });
 });

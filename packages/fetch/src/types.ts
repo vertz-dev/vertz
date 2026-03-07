@@ -80,6 +80,8 @@ export interface MutationMeta {
   readonly kind: 'update' | 'delete' | 'create';
   readonly id?: string;
   readonly body?: unknown;
+  /** Skip MutationEventBus emission on commit. Defaults to false. */
+  readonly skipInvalidation?: boolean;
 }
 
 /**
