@@ -25,14 +25,14 @@ describe('Relation loading (DB-011)', () => {
     id: d.uuid().primary().default('gen_random_uuid()'),
     title: d.text(),
     body: d.text().nullable(),
-    authorId: d.uuid().references('users'),
+    authorId: d.uuid(),
   });
 
   const commentsTable = d.table('comments', {
     id: d.uuid().primary().default('gen_random_uuid()'),
     text: d.text(),
-    postId: d.uuid().references('posts'),
-    authorId: d.uuid().references('users'),
+    postId: d.uuid(),
+    authorId: d.uuid(),
   });
 
   const models = {
@@ -426,14 +426,14 @@ describe('Many-to-many relation loading (B2)', () => {
 
   const postTagsTable = d.table('post_tags', {
     id: d.uuid().primary().default('gen_random_uuid()'),
-    postId: d.uuid().references('posts'),
-    tagId: d.uuid().references('tags'),
+    postId: d.uuid(),
+    tagId: d.uuid(),
   });
 
   const postsTable = d.table('posts', {
     id: d.uuid().primary().default('gen_random_uuid()'),
     title: d.text(),
-    authorId: d.uuid().references('users'),
+    authorId: d.uuid(),
   });
 
   const models = {
@@ -654,7 +654,7 @@ describe('Relation loading with non-standard PK', () => {
   const citiesTable = d.table('cities', {
     cityId: d.uuid().primary().default('gen_random_uuid()'),
     name: d.text(),
-    countryCode: d.text().references('countries'),
+    countryCode: d.text(),
   });
 
   const models = {

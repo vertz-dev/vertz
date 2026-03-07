@@ -16,13 +16,13 @@ const users = d.table('users', {
 const posts = d.table('posts', {
   id: d.uuid().primary(),
   title: d.text(),
-  authorId: d.uuid().references('users'),
+  authorId: d.uuid(),
 });
 
 const postTags = d.table('post_tags', {
   id: d.uuid().primary(),
-  postId: d.uuid().references('posts'),
-  tagId: d.uuid().references('tags'),
+  postId: d.uuid(),
+  tagId: d.uuid(),
 });
 
 // ---------------------------------------------------------------------------

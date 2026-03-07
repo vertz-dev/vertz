@@ -28,7 +28,7 @@ void d.table('posts', {
   id: d.uuid().primary(),
   title: d.text(),
   content: d.text(),
-  authorId: d.uuid().references('users', 'id'),
+  authorId: d.uuid(),
   status: d.enum('post_status', ['draft', 'published']).default('draft'),
 });
 

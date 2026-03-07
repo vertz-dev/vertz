@@ -1,3 +1,5 @@
+import type { ModelDef } from '../schema/model';
+import type { RelationDef } from '../schema/relation';
 import type { ColumnRecord, TableDef } from '../schema/table';
 
 export interface ColumnSnapshot {
@@ -34,16 +36,73 @@ export interface SchemaSnapshot {
   enums: Record<string, string[]>;
 }
 
-export function createSnapshot(tables: TableDef<ColumnRecord>[]): SchemaSnapshot {
+function isModelDef(v: unknown): v is ModelDef {
+  return (
+    v !== null &&
+    typeof v === 'object' &&
+    'table' in v &&
+    'relations' in v &&
+    typeof (v as Record<string, unknown>).table === 'object'
+  );
+}
+
+function resolveTable(entry: TableDef<ColumnRecord> | ModelDef): TableDef<ColumnRecord> {
+  return isModelDef(entry) ? entry.table : entry;
+}
+
+function resolveRelations(entry: TableDef<ColumnRecord> | ModelDef): Record<string, RelationDef> {
+  return isModelDef(entry) ? entry.relations : {};
+}
+
+function findPkColumn(table: TableDef<ColumnRecord>): string {
+  for (const [colName, col] of Object.entries(table._columns)) {
+    if (col._meta.primary) return colName;
+  }
+  return 'id';
+}
+
+function deriveForeignKeys(
+  table: TableDef<ColumnRecord>,
+  relations: Record<string, RelationDef>,
+): ForeignKeySnapshot[] {
+  const foreignKeys: ForeignKeySnapshot[] = [];
+
+  for (const [relName, rel] of Object.entries(relations)) {
+    // Only d.ref.one() produces FK constraints on this table.
+    // d.ref.many() means the FK lives on the target table, not here.
+    if (rel._type !== 'one') continue;
+    if (!rel._foreignKey) continue;
+
+    if (!(rel._foreignKey in table._columns)) {
+      throw new Error(
+        `Relation "${relName}" on table "${table._name}" references column "${rel._foreignKey}" which does not exist`,
+      );
+    }
+
+    const targetTable = rel._target();
+    const targetColumn = findPkColumn(targetTable);
+
+    foreignKeys.push({
+      column: rel._foreignKey,
+      targetTable: targetTable._name,
+      targetColumn,
+    });
+  }
+
+  return foreignKeys;
+}
+
+export function createSnapshot(entries: (TableDef<ColumnRecord> | ModelDef)[]): SchemaSnapshot {
   const snapshot: SchemaSnapshot = {
     version: 1,
     tables: {},
     enums: {},
   };
 
-  for (const table of tables) {
+  for (const entry of entries) {
+    const table = resolveTable(entry);
+    const relations = resolveRelations(entry);
     const columns: Record<string, ColumnSnapshot> = {};
-    const foreignKeys: ForeignKeySnapshot[] = [];
     const indexes: IndexSnapshot[] = [];
 
     for (const [colName, col] of Object.entries(table._columns)) {
@@ -57,7 +116,6 @@ export function createSnapshot(tables: TableDef<ColumnRecord>[]): SchemaSnapshot
 
       if (meta.hasDefault && meta.defaultValue !== undefined) {
         const rawDefault = String(meta.defaultValue);
-        // Convert special default markers to SQL expressions
         colSnap.default = rawDefault === 'now' ? 'now()' : rawDefault;
       }
 
@@ -68,14 +126,6 @@ export function createSnapshot(tables: TableDef<ColumnRecord>[]): SchemaSnapshot
 
       columns[colName] = colSnap;
 
-      if (meta.references) {
-        foreignKeys.push({
-          column: colName,
-          targetTable: meta.references.table,
-          targetColumn: meta.references.column,
-        });
-      }
-
       if (meta.enumName && meta.enumValues) {
         snapshot.enums[meta.enumName] = [...meta.enumValues];
       }
@@ -84,6 +134,8 @@ export function createSnapshot(tables: TableDef<ColumnRecord>[]): SchemaSnapshot
     for (const idx of table._indexes) {
       indexes.push({ columns: [...idx.columns] });
     }
+
+    const foreignKeys = deriveForeignKeys(table, relations);
 
     snapshot.tables[table._name] = {
       columns,

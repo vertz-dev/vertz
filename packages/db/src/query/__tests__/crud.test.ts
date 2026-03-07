@@ -27,7 +27,7 @@ describe('CRUD queries (DB-010)', () => {
     id: d.uuid().primary().default('gen_random_uuid()'),
     title: d.text(),
     body: d.text().nullable(),
-    authorId: d.uuid().references('users'),
+    authorId: d.uuid(),
     published: d.boolean().default(false),
   });
 

@@ -6,7 +6,14 @@ import {
   readdir,
 } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import type { Dialect, MigrationFile, MigrationQueryFn, SchemaSnapshot, TableDef } from '@vertz/db';
+import type {
+  Dialect,
+  MigrationFile,
+  MigrationQueryFn,
+  ModelDef,
+  SchemaSnapshot,
+  TableDef,
+} from '@vertz/db';
 import {
   createSnapshot,
   defaultPostgresDialect,
@@ -111,15 +118,15 @@ export async function loadDbContext(): Promise<DbCommandContext> {
     throw new Error(`Failed to load schema file at ${schemaPath}. Check for syntax errors.`);
   }
 
-  const tables = extractTables(schemaModule);
-  if (tables.length === 0) {
+  const entries = extractSchemaEntries(schemaModule);
+  if (entries.length === 0) {
     throw new Error(
       `No table definitions found in ${schemaPath}. Export your tables as named exports:\n\n` +
         `  export const users = d.table('users', { ... });\n`,
     );
   }
 
-  const currentSnapshot = createSnapshot(tables);
+  const currentSnapshot = createSnapshot(entries);
 
   const storage = new NodeSnapshotStorage();
   const savedSnapshot = await storage.load(snapshotPath);
@@ -168,9 +175,39 @@ function isTableDef(v: unknown): v is TableDef {
   );
 }
 
-export function extractTables(module: Record<string, unknown>): TableDef[] {
-  // TODO: consider tightening the duck-type check (e.g., Symbol brand) if false positives arise
-  return Object.values(module).filter(isTableDef);
+/** Check if a module export looks like a ModelDef (duck-typing on table + relations). */
+function isModelDef(v: unknown): v is ModelDef {
+  return (
+    v !== null &&
+    typeof v === 'object' &&
+    'table' in v &&
+    'relations' in v &&
+    isTableDef((v as Record<string, unknown>).table)
+  );
+}
+
+/**
+ * Extract schema entries (ModelDef or TableDef) from a module's exports.
+ * When both a bare TableDef and a ModelDef wrapping it are exported,
+ * the ModelDef wins (deduplication by table name).
+ */
+export function extractSchemaEntries(module: Record<string, unknown>): (TableDef | ModelDef)[] {
+  const models: ModelDef[] = [];
+  const tables: TableDef[] = [];
+
+  for (const value of Object.values(module)) {
+    if (isModelDef(value)) {
+      models.push(value);
+    } else if (isTableDef(value)) {
+      tables.push(value);
+    }
+  }
+
+  // Deduplicate: if a ModelDef wraps a TableDef that's also exported, prefer the ModelDef
+  const modelTableNames = new Set(models.map((m) => m.table._name));
+  const dedupedTables = tables.filter((t) => !modelTableNames.has(t._name));
+
+  return [...models, ...dedupedTables];
 }
 
 /** Parse a sqlite: URL into a file path. Handles sqlite:path, sqlite:///path, and bare paths. */
@@ -320,12 +357,12 @@ export async function loadAutoMigrateContext(): Promise<AutoMigrateContext> {
   }
 
   const schemaModule = (await import(`${schemaPath}?t=${Date.now()}`)) as Record<string, unknown>;
-  const tables = extractTables(schemaModule);
-  if (tables.length === 0) {
+  const entries = extractSchemaEntries(schemaModule);
+  if (entries.length === 0) {
     throw new Error(`No table definitions found in ${schemaPath}.`);
   }
 
-  const currentSchema = createSnapshot(tables);
+  const currentSchema = createSnapshot(entries);
 
   // Open connection only after schema loads successfully (no leak on schema errors)
   const connection = await createConnection(dbConfig);
