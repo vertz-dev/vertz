@@ -73,6 +73,26 @@ describe('createSnapshot — FK from relations', () => {
     ]);
   });
 
+  it('throws when target table has no primary key column', () => {
+    const tags = d.table('tags', {
+      name: d.text().unique(),
+      slug: d.text(),
+    });
+
+    const posts = d.table('posts', {
+      id: d.uuid().primary(),
+      tagName: d.text(),
+    });
+
+    const postsModel = d.model(posts, {
+      tag: d.ref.one(() => tags, 'tagName'),
+    });
+
+    expect(() => createSnapshot([postsModel])).toThrow(
+      'Target table "tags" referenced by relation "tag" on table "posts" has no primary key column',
+    );
+  });
+
   it('throws when relation FK column does not exist on source table', () => {
     const users = d.table('users', {
       id: d.uuid().primary(),

@@ -58,7 +58,7 @@ function findPkColumn(table: TableDef<ColumnRecord>): string {
   for (const [colName, col] of Object.entries(table._columns)) {
     if (col._meta.primary) return colName;
   }
-  return 'id';
+  throw new Error(`Table "${table._name}" has no primary key column`);
 }
 
 function deriveForeignKeys(
@@ -80,7 +80,14 @@ function deriveForeignKeys(
     }
 
     const targetTable = rel._target();
-    const targetColumn = findPkColumn(targetTable);
+    let targetColumn: string;
+    try {
+      targetColumn = findPkColumn(targetTable);
+    } catch {
+      throw new Error(
+        `Target table "${targetTable._name}" referenced by relation "${relName}" on table "${table._name}" has no primary key column`,
+      );
+    }
 
     foreignKeys.push({
       column: rel._foreignKey,
