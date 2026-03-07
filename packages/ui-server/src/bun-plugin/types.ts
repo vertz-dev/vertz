@@ -23,6 +23,8 @@ export interface VertzBunPluginOptions {
   fastRefresh?: boolean;
   /** Project root for computing relative paths. */
   projectRoot?: string;
+  /** Source directory for manifest generation pre-pass. Defaults to `src/` relative to projectRoot. */
+  srcDir?: string;
   /** Debug logger for opt-in diagnostic logging. */
   logger?: DebugLogger;
   /** Diagnostics collector for the health check endpoint. */

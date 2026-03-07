@@ -28,6 +28,11 @@ export interface DiagnosticsSnapshot {
     bundledScriptUrl: string | null;
     bootstrapDiscovered: boolean;
   };
+  manifest: {
+    fileCount: number;
+    durationMs: number;
+    warnings: { type: string; message: string }[];
+  };
   errors: {
     current: ErrorCategory | null;
     lastCategory: ErrorCategory | null;
@@ -64,6 +69,11 @@ export class DiagnosticsCollector {
   // HMR state
   private hmrBundledScriptUrl: string | null = null;
   private hmrBootstrapDiscovered = false;
+
+  // Manifest state
+  private manifestFileCount = 0;
+  private manifestDurationMs = 0;
+  private manifestWarnings: { type: string; message: string }[] = [];
 
   // Error state
   private errorCurrent: ErrorCategory | null = null;
@@ -104,6 +114,16 @@ export class DiagnosticsCollector {
       this.ssrLastReloadError = error ?? null;
       this.ssrFailedReloadCount++;
     }
+  }
+
+  recordManifestPrepass(
+    fileCount: number,
+    durationMs: number,
+    warnings: { type: string; message: string }[],
+  ): void {
+    this.manifestFileCount = fileCount;
+    this.manifestDurationMs = durationMs;
+    this.manifestWarnings = warnings;
   }
 
   recordHMRAssets(bundledScriptUrl: string | null, bootstrapDiscovered: boolean): void {
@@ -169,6 +189,11 @@ export class DiagnosticsCollector {
       hmr: {
         bundledScriptUrl: this.hmrBundledScriptUrl,
         bootstrapDiscovered: this.hmrBootstrapDiscovered,
+      },
+      manifest: {
+        fileCount: this.manifestFileCount,
+        durationMs: this.manifestDurationMs,
+        warnings: [...this.manifestWarnings],
       },
       errors: {
         current: this.errorCurrent,
