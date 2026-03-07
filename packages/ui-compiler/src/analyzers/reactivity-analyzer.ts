@@ -1,6 +1,6 @@
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
 import { loadFrameworkManifest } from '../reactivity-manifest';
-import { getSignalApiConfig, type SignalApiConfig } from '../signal-api-registry';
+import type { SignalApiConfig } from '../signal-api-registry';
 import type { ComponentInfo, LoadedReactivityManifest, VariableInfo } from '../types';
 import { findBodyNode } from '../utils';
 
@@ -29,9 +29,8 @@ export class ReactivityAnalyzer {
       manifestConfigs,
     } = buildImportAliasMap(sourceFile, manifests);
 
-    // Resolve signal API config: manifest first, then hardcoded registry
     const resolveSignalApiConfig = (originalName: string): SignalApiConfig | undefined => {
-      return manifestConfigs.get(originalName) ?? getSignalApiConfig(originalName);
+      return manifestConfigs.get(originalName);
     };
 
     // Collect all declared variable names to avoid synthetic name collisions

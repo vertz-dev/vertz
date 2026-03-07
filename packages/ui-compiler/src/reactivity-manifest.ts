@@ -4,7 +4,6 @@
  * Converts JSON manifest files (with string[] arrays) into runtime
  * representations (with Set<string>) for O(1) lookups.
  */
-import { resolve } from 'node:path';
 import type {
   LoadedExportReactivityInfo,
   LoadedReactivityManifest,
@@ -84,8 +83,7 @@ let cachedFrameworkManifest: LoadedReactivityManifest | null = null;
 export function loadFrameworkManifest(): LoadedReactivityManifest {
   if (cachedFrameworkManifest) return cachedFrameworkManifest;
 
-  // Resolve relative to this file → up to ui-compiler → up to packages → ui/reactivity.json
-  const manifestPath = resolve(__dirname, '../../ui/reactivity.json');
+  const manifestPath = require.resolve('@vertz/ui/reactivity.json');
   const json = require(manifestPath) as ReactivityManifest;
   cachedFrameworkManifest = loadManifestFromJson(json);
   return cachedFrameworkManifest;
