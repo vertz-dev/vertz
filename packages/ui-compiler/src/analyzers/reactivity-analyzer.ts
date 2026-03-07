@@ -43,6 +43,21 @@ export class ReactivityAnalyzer {
     const destructuredFromMap = new Map<string, string>(); // binding name → synthetic var name
     const syntheticCounters = new Map<string, number>(); // API name → counter for unique naming
 
+    // Classify component props as reactive sources (#964).
+    // Props are passed as getter-backed objects, so any derived const must be computed.
+    // Destructured props are always the component convention (the transform reverses them).
+    // Named props only when the parameter is literally "props" or "__props" — factory
+    // functions (e.g., ui-primitives) use "options"/"config" and must NOT be reactive.
+    if (component.destructuredProps) {
+      for (const binding of component.destructuredProps.bindings) {
+        if (!binding.isRest) {
+          reactiveSourceVars.add(binding.bindingName);
+        }
+      }
+    } else if (component.propsParam === 'props' || component.propsParam === '__props') {
+      reactiveSourceVars.add(component.propsParam);
+    }
+
     for (const stmt of bodyNode.getChildSyntaxList()?.getChildren() ?? []) {
       if (!stmt.isKind(SyntaxKind.VariableStatement)) continue;
       const declList = stmt.getChildrenOfKind(SyntaxKind.VariableDeclarationList)[0];

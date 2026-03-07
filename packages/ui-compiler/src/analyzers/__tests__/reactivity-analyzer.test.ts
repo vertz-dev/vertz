@@ -1,5 +1,5 @@
-import { Project, ts } from 'ts-morph';
 import { describe, expect, it } from 'bun:test';
+import { Project, ts } from 'ts-morph';
 import type { VariableInfo } from '../../types';
 import { ComponentAnalyzer } from '../component-analyzer';
 import { ReactivityAnalyzer } from '../reactivity-analyzer';
@@ -438,5 +438,135 @@ describe('ReactivityAnalyzer', () => {
     const v = findVar(result?.variables, 'ctx') as VariableInfo;
     expect(v).toBeDefined();
     expect(v.isReactiveSource).toBe(true);
+  });
+
+  // ─── Component props as reactive sources (#964) ──────────────
+
+  it('classifies const derived from named props param as computed', () => {
+    const [result] = analyze(`
+      function Card(props: CardProps) {
+        const label = props.title + ' - ' + props.subtitle;
+        return <div>{label}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('classifies const derived from destructured props as computed', () => {
+    const [result] = analyze(`
+      function Card({ title, subtitle }: CardProps) {
+        const label = title + ' - ' + subtitle;
+        return <div>{label}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('classifies const derived from aliased destructured prop as computed', () => {
+    const [result] = analyze(`
+      function Card({ id: cardId }: CardProps) {
+        const label = 'Card #' + cardId;
+        return <div>{label}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('does not make rest binding from destructured props reactive', () => {
+    const [result] = analyze(`
+      function Card({ title, ...rest }: CardProps) {
+        const label = 'Title: ' + title;
+        return <div>{label}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('resolves transitive chain through props-derived computed', () => {
+    const [result] = analyze(`
+      function Card(props: CardProps) {
+        const title = props.title;
+        const upper = title.toUpperCase();
+        return <div>{upper}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'title')?.kind).toBe('computed');
+    expect(findVar(result?.variables, 'upper')?.kind).toBe('computed');
+  });
+
+  it('does not affect component without props', () => {
+    const [result] = analyze(`
+      function Header() {
+        const title = 'Hello';
+        return <div>{title}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'title')?.kind).toBe('static');
+  });
+
+  it('classifies const derived from named props in arrow function as computed', () => {
+    const [result] = analyze(`
+      const Card = (props: CardProps) => {
+        const label = props.title;
+        return <div>{label}</div>;
+      };
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('classifies const derived from destructured props in arrow function as computed', () => {
+    const [result] = analyze(`
+      const Card = ({ title, subtitle }: CardProps) => {
+        const label = title + ' - ' + subtitle;
+        return <div>{label}</div>;
+      };
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('classifies const derived from props with default values as computed', () => {
+    const [result] = analyze(`
+      function Card({ size = 'md', title }: CardProps) {
+        const label = size + ': ' + title;
+        return <div>{label}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('classifies callback const derived from props as computed', () => {
+    const [result] = analyze(`
+      function Card(props: CardProps) {
+        const handler = () => props.onClick();
+        return <button onClick={handler}>Click</button>;
+      }
+    `);
+    // Callbacks capturing props are classified as computed (conservative approach).
+    // See #978 for potential future optimization to skip arrow/function expressions.
+    expect(findVar(result?.variables, 'handler')?.kind).toBe('computed');
+  });
+
+  it('does not create computed for component using props only in JSX', () => {
+    const [result] = analyze(`
+      function Card(props: CardProps) {
+        return <div>{props.title}</div>;
+      }
+    `);
+    // No const declarations derived from props — no computeds created
+    expect(result?.variables).toHaveLength(0);
+  });
+
+  it('does not treat non-props named parameter as reactive', () => {
+    const [result] = analyze(`
+      function DialogRoot(options: DialogOptions) {
+        const { defaultOpen, onOpenChange } = options;
+        const content = <div role="dialog" />;
+        return { content };
+      }
+    `);
+    // Factory functions use "options"/"config" — not reactive props
+    expect(findVar(result?.variables, 'defaultOpen')?.kind).toBe('static');
+    expect(findVar(result?.variables, 'onOpenChange')?.kind).toBe('static');
+    expect(findVar(result?.variables, 'content')?.kind).toBe('static');
   });
 });
