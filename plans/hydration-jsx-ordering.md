@@ -348,7 +348,7 @@ function App() {
 // SSR renders to HTML string
 const html = ssrRenderToString(App);
 // Client hydrates — adopts SSR nodes, attaches reactivity
-mount(App, '#app');
+mount(App);
 // Click handler works, conditional renders, no cursor errors
 ```
 

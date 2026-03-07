@@ -310,7 +310,7 @@ import { App, globalStyles, theme } from './app';
 
 import.meta.hot.accept();
 
-mount(App, '#app', {
+mount(App, {
   theme,
   styles: globalStyles,
 });

@@ -19,6 +19,7 @@ describe('tolerant hydration e2e', () => {
 
   beforeEach(() => {
     root = document.createElement('div');
+    root.id = 'app';
     document.body.appendChild(root);
     resetInjectedStyles();
   });
@@ -75,7 +76,7 @@ describe('tolerant hydration e2e', () => {
       return el;
     };
 
-    const handle = mount(App, root);
+    const handle = mount(App);
 
     // 4. Verify: no flash (SSR nodes adopted, not recreated)
     expect(root.innerHTML).toContain('Hello');
@@ -135,7 +136,7 @@ describe('tolerant hydration e2e', () => {
       return el;
     };
 
-    mount(App, root);
+    mount(App);
 
     // The SSR span must still be in the DOM — not ripped out
     expect(root.querySelector('span')).toBe(ssrSpan);
@@ -164,7 +165,7 @@ describe('tolerant hydration e2e', () => {
       return btn;
     };
 
-    mount(App, root);
+    mount(App);
 
     // After hydration, button should show "Add Todo" (no duplication)
     const btn = root.querySelector('button')!;
@@ -208,7 +209,7 @@ describe('tolerant hydration e2e', () => {
       return ul;
     };
 
-    mount(App, root);
+    mount(App);
 
     // SSR li nodes were adopted (same references)
     const currentItems = Array.from(root.querySelectorAll('li'));

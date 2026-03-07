@@ -68,7 +68,7 @@ import { App } from './app';
 // Prevents full page reloads — component-level Fast Refresh handles actual changes.
 import.meta.hot.accept();
 
-mount(App, '#app');
+mount(App);
 ```
 
 > Pass `theme` and `styles` options to `mount()` as needed — see `examples/task-manager/src/entry-client.ts`.

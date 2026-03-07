@@ -42,33 +42,24 @@ export interface MountHandle {
 }
 
 /**
- * Mount an app to a DOM element.
+ * Mount an app to the `#app` root element.
  *
  * Uses tolerant hydration automatically: if the root element has SSR content,
  * it walks the existing DOM and attaches reactivity without re-creating nodes.
  * If the root is empty (CSR), it renders from scratch.
  *
  * @param app - App function that returns an HTMLElement
- * @param selector - CSS selector string or HTMLElement
  * @param options - Mount options (theme, styles, onMount, etc.)
  * @returns MountHandle with unmount function and root element
  */
 export function mount<AppFn extends () => Element | DocumentFragment>(
   app: AppFn,
-  selector: string | HTMLElement,
   options?: MountOptions,
 ): MountHandle {
-  // Validate selector type
-  if (typeof selector !== 'string' && !(selector instanceof HTMLElement)) {
-    throw new Error(`mount(): selector must be a string or HTMLElement, got ${typeof selector}`);
-  }
-
-  // Resolve root element
-  const root: HTMLElement =
-    typeof selector === 'string' ? (document.querySelector(selector) as HTMLElement) : selector;
+  const root = document.getElementById('app');
 
   if (!root) {
-    throw new Error(`mount(): root element "${selector}" not found`);
+    throw new Error('mount(): root element "#app" not found');
   }
 
   // HMR guard: if this root was already mounted, return existing handle.
