@@ -19,7 +19,6 @@ import {
   type Diagnostic,
   OpenAPIGenerator,
 } from '@vertz/compiler';
-import { loadAutoMigrateContext } from '../commands/load-db-context';
 import type { FileCategory, PipelineStage } from './types';
 
 /**
@@ -38,6 +37,8 @@ export interface PipelineConfig {
   open: boolean;
   /** Port for dev server */
   port: number;
+  /** @internal — override for testing */
+  _dbSyncRunner?: () => Promise<{ run: () => Promise<void>; close: () => Promise<void> }>;
   /** Host for dev server */
   host: string;
 }
@@ -159,7 +160,7 @@ export class PipelineOrchestrator {
         }
       }
 
-      // Stage 3: Generate OpenAPI spec (only if codegen succeeded)
+      // Stage 4: Generate OpenAPI spec (only if codegen succeeded)
       if (success && this.appIR) {
         const openapiResult = await this.runOpenAPIGenerate();
         stages.push(openapiResult);
@@ -380,9 +381,25 @@ export class PipelineOrchestrator {
       };
     }
 
-    let ctx: Awaited<ReturnType<typeof loadAutoMigrateContext>> | undefined;
+    let runner: { run: () => Promise<void>; close: () => Promise<void> } | undefined;
     try {
-      ctx = await loadAutoMigrateContext();
+      if (this.config._dbSyncRunner) {
+        runner = await this.config._dbSyncRunner();
+      } else {
+        const { loadAutoMigrateContext } = await import('../commands/load-db-context');
+        const ctx = await loadAutoMigrateContext();
+        const { autoMigrate } = await import('@vertz/db/internals');
+        runner = {
+          run: () =>
+            autoMigrate({
+              currentSchema: ctx.currentSchema,
+              snapshotPath: ctx.snapshotPath,
+              dialect: ctx.dialect,
+              db: ctx.db,
+            }),
+          close: ctx.close,
+        };
+      }
     } catch {
       // No db config or schema — skip gracefully (e.g., UI-only projects)
       return {
@@ -394,13 +411,7 @@ export class PipelineOrchestrator {
     }
 
     try {
-      const { autoMigrate } = await import('@vertz/db/internals');
-      await autoMigrate({
-        currentSchema: ctx.currentSchema,
-        snapshotPath: ctx.snapshotPath,
-        dialect: ctx.dialect,
-        db: ctx.db,
-      });
+      await runner.run();
 
       return {
         stage: 'db-sync',
@@ -416,7 +427,11 @@ export class PipelineOrchestrator {
         error: error instanceof Error ? error : new Error(String(error)),
       };
     } finally {
-      await ctx.close();
+      try {
+        await runner.close();
+      } catch {
+        // Connection cleanup failure should not mask migration errors
+      }
     }
   }
 

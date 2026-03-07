@@ -107,6 +107,12 @@ export function getAffectedStages(category: FileCategory): PipelineStage[] {
 }
 
 /**
+ * Canonical stage execution order. Stages run in this order regardless of
+ * insertion order from getAffectedStages.
+ */
+const STAGE_ORDER: PipelineStage[] = ['analyze', 'db-sync', 'codegen', 'openapi', 'build-ui'];
+
+/**
  * Determine which pipeline stages are affected by a set of file changes
  */
 export function getStagesForChanges(changes: FileChange[]): PipelineStage[] {
@@ -123,7 +129,7 @@ export function getStagesForChanges(changes: FileChange[]): PipelineStage[] {
     stages.add('analyze');
   }
 
-  return Array.from(stages);
+  return STAGE_ORDER.filter((s) => stages.has(s));
 }
 
 /**

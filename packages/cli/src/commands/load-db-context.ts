@@ -301,6 +301,10 @@ export async function loadAutoMigrateContext(): Promise<AutoMigrateContext> {
     throw new Error('No valid `db` config found in vertz.config.ts.');
   }
 
+  if (dbConfig.dialect !== 'sqlite') {
+    throw new Error('Auto-migrate in dev currently only supports sqlite.');
+  }
+
   const cwd = process.cwd();
   const migrationsDir = resolve(cwd, dbConfig.migrationsDir ?? './migrations');
   const snapshotPath = dbConfig.snapshotPath

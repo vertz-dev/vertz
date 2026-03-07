@@ -175,6 +175,27 @@ describe('Pipeline Orchestrator', () => {
           expect(stages).toContain('codegen');
           expect(stages).toContain('analyze');
         });
+
+        it('should return stages in canonical execution order', () => {
+          // Mixed changes: schema + module + component triggers all stages
+          const changes: FileChange[] = [
+            { type: 'change', path: 'src/schemas/user.schema.ts' },
+            { type: 'change', path: 'src/modules/auth.module.ts' },
+            { type: 'change', path: 'src/components/Button.tsx' },
+          ];
+
+          const stages = getStagesForChanges(changes);
+
+          // Canonical order: analyze, db-sync, codegen, openapi, build-ui
+          expect(stages[0]).toBe('analyze');
+          const dbSyncIdx = stages.indexOf('db-sync');
+          const codegenIdx = stages.indexOf('codegen');
+          const openapiIdx = stages.indexOf('openapi');
+          const buildUiIdx = stages.indexOf('build-ui');
+          expect(dbSyncIdx).toBeLessThan(codegenIdx);
+          expect(codegenIdx).toBeLessThan(openapiIdx);
+          expect(openapiIdx).toBeLessThan(buildUiIdx);
+        });
       });
     });
 
