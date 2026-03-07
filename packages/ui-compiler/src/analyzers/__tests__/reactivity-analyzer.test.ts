@@ -491,10 +491,31 @@ describe('ReactivityAnalyzer', () => {
     expect(findVar(result?.variables, 'fn')?.kind).toBe('static');
   });
 
-  // Note: TypeAssertionExpression (<Type>expr) is handled by unwrapTypeWrappers
-  // but cannot be tested here — angle-bracket casts are invalid in .tsx files
-  // (the parser treats <Type> as JSX). Since components must be in .tsx files,
-  // this path is unreachable in practice but handled defensively.
+  it('classifies angle-bracket type-asserted arrow function as static (.ts file)', () => {
+    // Angle-bracket casts (<Type>expr) are only valid in .ts files, not .tsx.
+    // We construct ComponentInfo manually since ComponentAnalyzer requires JSX returns.
+    const code = `function Counter() {
+  let count = 0;
+  const fn = <() => number>(() => count * 2);
+  return fn;
+}`;
+    const project = new Project({
+      useInMemoryFileSystem: true,
+      compilerOptions: { strict: true },
+    });
+    const sf = project.createSourceFile('test.ts', code);
+    const body = sf.getFunctions()[0].getBody()!;
+    const component: import('../../types').ComponentInfo = {
+      name: 'Counter',
+      propsParam: null,
+      hasDestructuredProps: false,
+      bodyStart: body.getStart(),
+      bodyEnd: body.getEnd(),
+    };
+    const analyzer = new ReactivityAnalyzer();
+    const variables = analyzer.analyze(sf, component);
+    expect(findVar(variables, 'fn')?.kind).toBe('static');
+  });
 
   it('classifies satisfies-wrapped arrow function as static', () => {
     const [result] = analyze(`
