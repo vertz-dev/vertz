@@ -10,6 +10,7 @@ import { SSRSafetyDiagnostics } from './diagnostics/ssr-safety-diagnostics';
 import { ComputedTransformer } from './transformers/computed-transformer';
 import { JsxTransformer } from './transformers/jsx-transformer';
 import { MutationTransformer } from './transformers/mutation-transformer';
+import { PropsDestructuringTransformer } from './transformers/props-destructuring-transformer';
 import { SignalTransformer } from './transformers/signal-transformer';
 import type { CompileOptions, CompileOutput, CompilerDiagnostic } from './types';
 
@@ -54,6 +55,12 @@ export function compile(
       map: s.generateMap({ source: filename, includeContent: true }),
       diagnostics: [],
     };
+  }
+
+  // 2.5. Props destructuring transform (before reactivity analysis)
+  const propsTransformer = new PropsDestructuringTransformer();
+  for (const component of components) {
+    propsTransformer.transform(s, sourceFile, component);
   }
 
   // Track which runtime features are used

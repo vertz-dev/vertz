@@ -74,6 +74,34 @@ export interface VariableInfo {
   isReactiveSource?: boolean;
 }
 
+/** Information about a single binding from a destructured props parameter. */
+export interface PropsBindingInfo {
+  /** Property name in the props object (e.g., 'id' in `{ id: cardId }`). */
+  propName: string;
+  /** Local binding name (e.g., 'cardId' in `{ id: cardId }`, or same as propName). */
+  bindingName: string;
+  /** Default value expression text, if any. */
+  defaultValue?: string;
+  /** Whether this is a rest element (`...rest`). */
+  isRest: boolean;
+}
+
+/** Detailed info about a destructured props parameter, for the transform. */
+export interface DestructuredPropsInfo {
+  /** All bindings from the destructuring pattern. */
+  bindings: PropsBindingInfo[];
+  /** Whether the pattern includes a rest element. */
+  hasRest: boolean;
+  /** Whether the pattern includes nested destructuring. */
+  hasNestedDestructuring: boolean;
+  /** 0-based start position of the entire parameter (including type annotation). */
+  paramStart: number;
+  /** 0-based end position of the entire parameter (including type annotation). */
+  paramEnd: number;
+  /** The type annotation text (e.g., ': TodoItemProps'), or null if none. */
+  typeAnnotation: string | null;
+}
+
 /** Information about a detected component function. */
 export interface ComponentInfo {
   /** Component function name. */
@@ -86,6 +114,8 @@ export interface ComponentInfo {
   bodyStart: number;
   /** 0-based end position of the function body. */
   bodyEnd: number;
+  /** Detailed destructuring info, populated when hasDestructuredProps is true. */
+  destructuredProps?: DestructuredPropsInfo;
 }
 
 /** Classification of a JSX expression's reactivity. */
