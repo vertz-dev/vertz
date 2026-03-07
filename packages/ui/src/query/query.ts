@@ -243,6 +243,10 @@ export function query<T, E = unknown>(
   const data: ReadonlySignal<T | undefined> = entityMeta
     ? computed(() => {
         if (!entityBacked.value) return rawData.value;
+        // Subscribe to rawData so refetches trigger re-evaluation.
+        // normalizeToEntityStore updates query indices before rawData is written,
+        // so re-reading indices here picks up new/removed entity IDs.
+        const raw = rawData.value;
         const store = getEntityStore();
         if (entityMeta.kind === 'get' && entityMeta.id) {
           return store.get<T>(entityMeta.entityType, entityMeta.id).value;
@@ -258,7 +262,7 @@ export function query<T, E = unknown>(
           const envelope = getQueryEnvelopeStore().get(queryKey);
           return { ...envelope, items } as unknown as T;
         }
-        return rawData.value;
+        return raw;
       })
     : rawData;
 
@@ -282,6 +286,7 @@ export function query<T, E = unknown>(
     if (cached !== undefined) {
       // Cache hit: populate signals immediately and suppress the thunk promise.
       promise.catch(() => {});
+      normalizeToEntityStore(cached);
       rawData.value = cached;
       loading.value = false;
     } else {
@@ -296,6 +301,7 @@ export function query<T, E = unknown>(
           promise,
           timeout: ssrTimeout,
           resolve: (result: unknown) => {
+            normalizeToEntityStore(result as T);
             rawData.value = result as T;
             loading.value = false;
             cache.set(key, result as T);
@@ -325,6 +331,7 @@ export function query<T, E = unknown>(
     ssrHydrationCleanup = hydrateQueryFromSSR(
       hydrationKey,
       (result: unknown) => {
+        normalizeToEntityStore(result as T);
         rawData.value = result as T;
         loading.value = false;
         cache.set(hydrationKey, result as T);
@@ -343,6 +350,7 @@ export function query<T, E = unknown>(
       if (customKey) {
         const cached = cache.get(customKey);
         if (cached !== undefined) {
+          normalizeToEntityStore(cached);
           rawData.value = cached;
           loading.value = false;
           ssrHydrated = true; // Prevents the effect from re-fetching
