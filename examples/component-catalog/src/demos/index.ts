@@ -32,7 +32,7 @@ export interface ComponentEntry {
   slug: string;
   category: 'form' | 'layout' | 'data-display' | 'overlay' | 'navigation' | 'feedback';
   description: string;
-  demo: () => Element;
+  demo: () => Node;
 }
 
 export const componentRegistry: ComponentEntry[] = [
@@ -267,4 +267,11 @@ export const categoryLabels: Record<string, string> = {
 };
 
 /** Category order. */
-export const categoryOrder = ['form', 'layout', 'data-display', 'overlay', 'navigation', 'feedback'];
+export const categoryOrder = [
+  'form',
+  'layout',
+  'data-display',
+  'overlay',
+  'navigation',
+  'feedback',
+];

@@ -4,7 +4,7 @@ import { _tryOnCleanup } from '../runtime/disposal';
 export interface ListTransitionProps<T> {
   each: T[];
   keyFn: (item: T, index: number) => string | number;
-  children: (item: T) => HTMLElement | SVGElement;
+  children: (item: T) => Node;
 }
 
 /**

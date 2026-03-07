@@ -55,7 +55,7 @@ function createItemProxy<T>(itemSignal: Signal<T>): T {
  * @param endMarker - End comment boundary
  * @param items - A signal or getter for the items array
  * @param keyFn - Extracts a unique key from each item
- * @param renderFn - Creates an HTMLElement for an item (called once per key)
+ * @param renderFn - Creates a DOM node for an item (called once per key)
  * @returns A dispose function to stop the reactive list
  */
 export function listTransition<T>(
@@ -63,15 +63,15 @@ export function listTransition<T>(
   endMarker: Comment,
   items: Signal<T[]> | (() => T[]),
   keyFn: (item: T, index: number) => string | number,
-  renderFn: (item: T) => HTMLElement | SVGElement,
+  renderFn: (item: T) => Node,
 ): DisposeFn {
   const getItems = typeof items === 'function' ? items : () => items.value;
 
-  const nodeMap = new Map<string | number, Element>();
+  const nodeMap = new Map<string | number, Node>();
   const scopeMap = new Map<string | number, DisposeFn[]>();
   const itemSignalMap = new Map<string | number, Signal<T>>();
-  const exitingNodes = new Set<Element>();
-  const exitingKeyMap = new Map<string | number, Element>();
+  const exitingNodes = new Set<Node>();
+  const exitingKeyMap = new Map<string | number, Node>();
   const keyGeneration = new Map<string | number, number>();
 
   let isFirstRun = true;
@@ -115,9 +115,9 @@ export function listTransition<T>(
 
           exitingNodes.add(node);
           exitingKeyMap.set(key, node);
-          node.setAttribute('data-presence', 'exit');
+          if (node instanceof Element) node.setAttribute('data-presence', 'exit');
 
-          onAnimationsComplete(node, () => {
+          onAnimationsComplete(node as Element, () => {
             if (keyGeneration.get(key) === gen) {
               node.parentNode?.removeChild(node);
               exitingNodes.delete(node);
@@ -128,8 +128,8 @@ export function listTransition<T>(
       }
 
       // --- Enter/reuse: current items ---
-      const desiredNodes: Element[] = [];
-      const enterNodes: Array<{ node: Element; key: string | number }> = [];
+      const desiredNodes: Node[] = [];
+      const enterNodes: Array<{ node: Node; key: string | number }> = [];
       for (const [i, item] of newItems.entries()) {
         const key = keyFn(item, i);
         let node = nodeMap.get(key);
@@ -156,7 +156,7 @@ export function listTransition<T>(
           scopeMap.set(key, scope);
           itemSignalMap.set(key, itemSig);
 
-          node.setAttribute('data-presence', 'enter');
+          if (node instanceof Element) node.setAttribute('data-presence', 'enter');
           enterNodes.push({ node, key });
         } else {
           // Existing key — update the item signal to trigger reactive bindings
@@ -173,7 +173,7 @@ export function listTransition<T>(
       if (parent) {
         let cursor: ChildNode | null = startMarker.nextSibling;
         for (const desired of desiredNodes) {
-          while (cursor && cursor !== endMarker && exitingNodes.has(cursor as HTMLElement)) {
+          while (cursor && cursor !== endMarker && exitingNodes.has(cursor as Node)) {
             cursor = cursor.nextSibling;
           }
           if (cursor === desired) {
@@ -186,6 +186,7 @@ export function listTransition<T>(
 
       // --- Schedule enter animation cleanup AFTER nodes are in the DOM ---
       for (const { node: enterNode, key } of enterNodes) {
+        if (!(enterNode instanceof Element)) continue;
         onAnimationsComplete(enterNode, () => {
           if (nodeMap.get(key) === enterNode) {
             enterNode.removeAttribute('data-presence');
