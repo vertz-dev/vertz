@@ -80,17 +80,33 @@ function Counter() {
     expect(result.map.sources).toEqual(['input.tsx']);
   });
 
-  it('returns diagnostics', () => {
+  it('returns diagnostics for unsupported destructuring patterns', () => {
+    // Nested destructuring is not auto-transformed — diagnostic should fire
     const result = compile(
       `
-function Card({ title }) {
-  return <div>{title}</div>;
+function Card({ style: { color } }: { style: { color: string } }) {
+  return <div>{color}</div>;
 }
     `.trim(),
     );
 
     expect(result.diagnostics.length).toBeGreaterThanOrEqual(1);
     expect(result.diagnostics[0]?.code).toBe('props-destructuring');
+  });
+
+  it('does not emit props-destructuring diagnostic for auto-transformed components', () => {
+    const result = compile(
+      `
+function Card({ title }: { title: string }) {
+  return <div>{title}</div>;
+}
+    `.trim(),
+    );
+
+    const propsDestructuringDiags = result.diagnostics.filter(
+      (d) => d.code === 'props-destructuring',
+    );
+    expect(propsDestructuringDiags.length).toBe(0);
   });
 
   it('adds runtime imports based on used features', () => {

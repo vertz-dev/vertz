@@ -1,11 +1,12 @@
 import {
   type FunctionDeclaration,
   type Node,
+  type ParameterDeclaration,
   type SourceFile,
   SyntaxKind,
   type VariableDeclaration,
 } from 'ts-morph';
-import type { ComponentInfo } from '../types';
+import type { ComponentInfo, PropsBindingInfo } from '../types';
 
 /**
  * Detect functions that return JSX — the component boundaries
@@ -82,23 +83,11 @@ export class ComponentAnalyzer {
     const bodyEnd = body ? body.getEnd() : fn.getEnd();
 
     const param = fn.getParameters()[0];
-    let propsParam: string | null = null;
-    let hasDestructuredProps = false;
-
-    if (param) {
-      const nameNode = param.getNameNode();
-      if (nameNode.isKind(SyntaxKind.ObjectBindingPattern)) {
-        hasDestructuredProps = true;
-        propsParam = null;
-      } else {
-        propsParam = param.getName();
-      }
-    }
+    const propsInfo = this._extractPropsInfo(param);
 
     return {
       name: fn.getName() ?? 'anonymous',
-      propsParam,
-      hasDestructuredProps,
+      ...propsInfo,
       bodyStart,
       bodyEnd,
     };
@@ -106,9 +95,6 @@ export class ComponentAnalyzer {
 
   private _fromVariableDeclaration(decl: VariableDeclaration, init: Node): ComponentInfo {
     const name = decl.getName();
-
-    let propsParam: string | null = null;
-    let hasDestructuredProps = false;
 
     // Get parameters from arrow function or function expression
     const params = init.isKind(SyntaxKind.ArrowFunction)
@@ -118,15 +104,7 @@ export class ComponentAnalyzer {
         : [];
 
     const param = params[0];
-    if (param) {
-      const nameNode = param.getNameNode();
-      if (nameNode.isKind(SyntaxKind.ObjectBindingPattern)) {
-        hasDestructuredProps = true;
-        propsParam = null;
-      } else {
-        propsParam = param.getName();
-      }
-    }
+    const propsInfo = this._extractPropsInfo(param);
 
     // Body range
     let bodyNode: Node;
@@ -140,10 +118,77 @@ export class ComponentAnalyzer {
 
     return {
       name,
-      propsParam,
-      hasDestructuredProps,
+      ...propsInfo,
       bodyStart: bodyNode.getStart(),
       bodyEnd: bodyNode.getEnd(),
+    };
+  }
+
+  private _extractPropsInfo(
+    param: ParameterDeclaration | undefined,
+  ): Pick<ComponentInfo, 'propsParam' | 'hasDestructuredProps' | 'destructuredProps'> {
+    if (!param) {
+      return { propsParam: null, hasDestructuredProps: false };
+    }
+
+    const nameNode = param.getNameNode();
+    if (!nameNode.isKind(SyntaxKind.ObjectBindingPattern)) {
+      return { propsParam: param.getName(), hasDestructuredProps: false };
+    }
+
+    // Extract binding details from the ObjectBindingPattern
+    const bindings: PropsBindingInfo[] = [];
+    let hasRest = false;
+    let hasNestedDestructuring = false;
+
+    for (const element of nameNode.getElements()) {
+      if (element.getDotDotDotToken()) {
+        hasRest = true;
+        bindings.push({
+          propName: element.getName(),
+          bindingName: element.getName(),
+          isRest: true,
+        });
+        continue;
+      }
+
+      // Check for nested destructuring
+      const elementName = element.getNameNode();
+      if (
+        elementName.isKind(SyntaxKind.ObjectBindingPattern) ||
+        elementName.isKind(SyntaxKind.ArrayBindingPattern)
+      ) {
+        hasNestedDestructuring = true;
+        continue;
+      }
+
+      const bindingName = element.getName();
+      const propertyNameNode = element.getPropertyNameNode();
+      const propName = propertyNameNode ? propertyNameNode.getText() : bindingName;
+      const initializer = element.getInitializer();
+
+      bindings.push({
+        propName,
+        bindingName,
+        defaultValue: initializer?.getText(),
+        isRest: false,
+      });
+    }
+
+    const typeNode = param.getTypeNode();
+    const typeAnnotation = typeNode ? `: ${typeNode.getText()}` : null;
+
+    return {
+      propsParam: null,
+      hasDestructuredProps: true,
+      destructuredProps: {
+        bindings,
+        hasRest,
+        hasNestedDestructuring,
+        paramStart: param.getStart(),
+        paramEnd: param.getEnd(),
+        typeAnnotation,
+      },
     };
   }
 }
