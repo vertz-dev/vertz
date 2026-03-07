@@ -142,6 +142,7 @@ export function createSnapshot(entries: (TableDef<ColumnRecord> | ModelDef)[]): 
 
     for (const idx of table._indexes) {
       const snap: IndexSnapshot = { columns: [...idx.columns] };
+      if (idx.name) snap.name = idx.name;
       if (idx.unique) snap.unique = idx.unique;
       if (idx.type) snap.type = idx.type;
       if (idx.where) snap.where = idx.where;
