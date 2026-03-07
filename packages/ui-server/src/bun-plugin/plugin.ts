@@ -16,7 +16,14 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import type { EncodedSourceMap } from '@ampproject/remapping';
 import remapping from '@ampproject/remapping';
-import { ComponentAnalyzer, CSSExtractor, compile, HydrationTransformer } from '@vertz/ui-compiler';
+import {
+  ComponentAnalyzer,
+  CSSExtractor,
+  compile,
+  generateAllManifests,
+  HydrationTransformer,
+} from '@vertz/ui-compiler';
+import type { LoadedReactivityManifest } from '@vertz/ui-compiler';
 import type { BunPlugin } from 'bun';
 import MagicString from 'magic-string';
 import { Project, ts } from 'ts-morph';
@@ -50,6 +57,63 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
 
   const fileExtractions: FileExtractionsMap = new Map();
   const cssSidecarMap: CSSSidecarMap = new Map();
+
+  // ── 0. Manifest generation pre-pass (cross-file reactivity) ──────
+  // Generate reactivity manifests for all source files at plugin construction
+  // time. This enables the compiler to understand the reactivity shape of
+  // imports from user files (custom hooks, barrel re-exports, etc.).
+  const srcDir = options?.srcDir ?? resolve(projectRoot, 'src');
+  // Load the raw JSON manifest to avoid Set→Array round-trip
+  const frameworkManifestJson = require(
+    require.resolve('@vertz/ui/reactivity.json'),
+  ) as import('@vertz/ui-compiler').ReactivityManifest;
+  const manifestResult = generateAllManifests({
+    srcDir,
+    packageManifests: { '@vertz/ui': frameworkManifestJson },
+  });
+
+  // Mutable manifest map — HMR updates can modify it
+  const manifests: Map<string, LoadedReactivityManifest> = manifestResult.manifests;
+
+  // Cached Record view of the manifest map — rebuilt only when dirty
+  let manifestsRecord: Record<string, LoadedReactivityManifest> | null = null;
+  const getManifestsRecord = (): Record<string, LoadedReactivityManifest> => {
+    if (manifestsRecord) return manifestsRecord;
+    const record: Record<string, LoadedReactivityManifest> = {};
+    for (const [key, value] of manifests) {
+      record[key] = value;
+    }
+    manifestsRecord = record;
+    return record;
+  };
+
+  if (logger?.isEnabled('manifest')) {
+    logger.log('manifest', 'pre-pass', {
+      files: manifests.size,
+      durationMs: Math.round(manifestResult.durationMs),
+      warnings: manifestResult.warnings.length,
+    });
+    for (const [filePath, manifest] of manifests) {
+      const exportShapes: Record<string, string> = {};
+      for (const [name, info] of Object.entries(manifest.exports)) {
+        exportShapes[name] = info.reactivity.type;
+      }
+      logger.log('manifest', 'file', {
+        file: relative(projectRoot, filePath),
+        exports: exportShapes,
+      });
+    }
+    for (const warning of manifestResult.warnings) {
+      logger.log('manifest', 'warning', { type: warning.type, message: warning.message });
+    }
+  }
+
+  // Record manifest pre-pass in diagnostics
+  diagnostics?.recordManifestPrepass(
+    manifests.size,
+    Math.round(manifestResult.durationMs),
+    manifestResult.warnings.map((w) => ({ type: w.type, message: w.message })),
+  );
 
   // Ensure CSS output directory exists
   mkdirSync(cssOutDir, { recursive: true });
@@ -94,6 +158,7 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
           const compileResult = compile(hydratedCode, {
             filename: args.path,
             target: options?.target,
+            manifests: getManifestsRecord(),
           });
 
           // ── 4. Source map chaining ──────────────────────────────

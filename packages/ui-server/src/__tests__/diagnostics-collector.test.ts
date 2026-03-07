@@ -186,4 +186,27 @@ describe('DiagnosticsCollector', () => {
     const snapshot = collector.getSnapshot();
     expect(snapshot.runtimeErrors[0].source).toBeNull();
   });
+
+  it('starts with empty manifest state', () => {
+    const collector = new DiagnosticsCollector();
+    const snapshot = collector.getSnapshot();
+
+    expect(snapshot.manifest.fileCount).toBe(0);
+    expect(snapshot.manifest.durationMs).toBe(0);
+    expect(snapshot.manifest.warnings).toEqual([]);
+  });
+
+  it('recordManifestPrepass() tracks manifest generation', () => {
+    const collector = new DiagnosticsCollector();
+
+    collector.recordManifestPrepass(42, 78, [
+      { type: 'circular-dependency', message: 'a.ts <-> b.ts' },
+    ]);
+
+    const snapshot = collector.getSnapshot();
+    expect(snapshot.manifest.fileCount).toBe(42);
+    expect(snapshot.manifest.durationMs).toBe(78);
+    expect(snapshot.manifest.warnings).toHaveLength(1);
+    expect(snapshot.manifest.warnings[0].type).toBe('circular-dependency');
+  });
 });
