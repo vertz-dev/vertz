@@ -227,7 +227,7 @@ function transformJsxElement(
   const attrs = openingElement.getAttributes();
   for (const attr of attrs) {
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
-    const attrStmt = processAttribute(attr, elVar, source);
+    const attrStmt = processAttribute(attr, elVar, source, jsxMap);
     if (attrStmt) statements.push(attrStmt);
   }
 
@@ -280,7 +280,7 @@ function transformSelfClosingElement(
   const attrs = node.getAttributes();
   for (const attr of attrs) {
     if (!attr.isKind(SyntaxKind.JsxAttribute)) continue;
-    const attrStmt = processAttribute(attr, elVar, source);
+    const attrStmt = processAttribute(attr, elVar, source, jsxMap);
     if (attrStmt) statements.push(attrStmt);
   }
 
@@ -311,7 +311,12 @@ function transformFragment(
   return `(() => {\n${statements.map((s) => `  ${s};`).join('\n')}\n  return ${fragVar};\n})()`;
 }
 
-function processAttribute(attr: Node, elVar: string, source: MagicString): string | null {
+function processAttribute(
+  attr: Node,
+  elVar: string,
+  source: MagicString,
+  jsxMap: Map<number, JsxExpressionInfo>,
+): string | null {
   if (!attr.isKind(SyntaxKind.JsxAttribute)) return null;
   const attrName = attr.getNameNode().getText();
   const init = attr.getInitializer();
@@ -341,7 +346,13 @@ function processAttribute(attr: Node, elVar: string, source: MagicString): strin
     const exprText = exprNode ? source.slice(exprNode.getStart(), exprNode.getEnd()) : '';
 
     if (exprNode && !isLiteralExpression(exprNode)) {
-      return `__attr(${elVar}, ${JSON.stringify(attrName)}, () => ${exprText})`;
+      // Check if the expression is reactive via JsxExpressionInfo
+      const exprInfo = jsxMap.get(init.getStart());
+      if (exprInfo?.reactive) {
+        return `__attr(${elVar}, ${JSON.stringify(attrName)}, () => ${exprText})`;
+      }
+      // Static non-literal: use guarded setAttribute (handles null/false/true correctly)
+      return `{ const __v = ${exprText}; if (__v != null && __v !== false) ${elVar}.setAttribute(${JSON.stringify(attrName)}, __v === true ? "" : __v); }`;
     }
     // Guard literal attributes against null/false/undefined so that boolean
     // HTML attributes (disabled, checked, etc.) are not set when falsy.
@@ -393,9 +404,9 @@ function transformChild(
     // and transform any JSX nodes nested inside the expression (e.g., in arrow function args)
     const exprText = sliceWithTransformedJsx(exprNode, reactiveNames, jsxMap, source, formVarNames);
 
-    // Use __child() for non-literal expressions (wraps in effect for reactivity tracking)
-    // Use __insert() for literal expressions (direct insertion, no effect overhead)
-    if (!isLiteralExpression(exprNode)) {
+    // Use __child() for reactive non-literal expressions (wraps in effect for tracking)
+    // Use __insert() for static or literal expressions (direct insertion, no effect overhead)
+    if (!isLiteralExpression(exprNode) && exprInfo?.reactive) {
       return `__append(${parentVar}, __child(() => ${exprText}))`;
     }
     return `__insert(${parentVar}, ${exprText})`;
@@ -445,9 +456,10 @@ function transformChildAsValue(
       }
     }
 
+    const exprInfo = jsxMap.get(child.getStart());
     const exprText = sliceWithTransformedJsx(exprNode, reactiveNames, jsxMap, source, formVarNames);
 
-    if (!isLiteralExpression(exprNode)) {
+    if (!isLiteralExpression(exprNode) && exprInfo?.reactive) {
       return `__child(() => ${exprText})`;
     }
     return exprText;

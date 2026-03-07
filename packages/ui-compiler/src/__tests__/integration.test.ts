@@ -356,9 +356,10 @@ function App() {
     );
 
     // Without @vertz/ui import, this is NOT a reactive source.
-    // ctx.theme is non-literal so it gets __child for runtime tracking,
-    // but no .value is inserted (not recognized as signal API).
-    expect(result.code).toContain('__child(');
+    // ctx.theme is non-reactive, so it uses __insert (no effect overhead).
+    // No .value is inserted (not recognized as signal API).
+    expect(result.code).toContain('__insert(');
+    expect(result.code).not.toContain('__child(');
     expect(result.code).not.toContain('.value');
   });
 
@@ -586,5 +587,216 @@ function TaskList() {
     // x depends on tasks.data (signal) → computed
     expect(result.code).toContain('computed(() =>');
     expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('classifies destructured prop in child as reactive (props are getter-backed)', () => {
+    const result = compile(
+      `
+function Badge({ label }: { label: string }) {
+  return <span>{label}</span>;
+}
+    `.trim(),
+    );
+
+    // Props compile to __props.xxx getters — must use __child for reactive tracking
+    expect(result.code).toContain('__child(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('classifies destructured prop in attribute as reactive', () => {
+    const result = compile(
+      `
+function Card({ className }: { className: string }) {
+  return <div class={className}>Content</div>;
+}
+    `.trim(),
+    );
+
+    // Prop attribute must use __attr for reactive tracking
+    expect(result.code).toContain('__attr(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('applies list reconciliation for prop-backed arrays', () => {
+    const result = compile(
+      `
+function TodoList({ items }: { items: any[] }) {
+  return <ul>{items.map((item: any) => <li key={item.id}>{item.title}</li>)}</ul>;
+}
+    `.trim(),
+    );
+
+    // Prop array must go through __list, not __child or __insert
+    expect(result.code).toContain('__list(');
+    expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it('emits guarded setAttribute for static attribute expressions', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+function Dashboard() {
+  const tasks = query(api.todos.list());
+  const THEME = 'dark';
+  return <div class={THEME} data-loading={tasks.loading}>Hello</div>;
+}
+    `.trim(),
+    );
+
+    // Static const attribute should use guarded setAttribute, not __attr
+    expect(result.code).toContain('setAttribute("class"');
+    expect(result.code).not.toContain('__attr(__el0, "class"');
+    // Reactive attribute still uses __attr
+    expect(result.code).toContain('__attr(');
+    expect(result.code).toContain('tasks.loading.value');
+  });
+
+  it('handles boolean HTML attributes correctly for static expressions', () => {
+    const result = compile(
+      `
+function Button() {
+  const IS_DISABLED = false;
+  return <button disabled={IS_DISABLED}>Click</button>;
+}
+    `.trim(),
+    );
+
+    // Must have the null/false/true guard
+    expect(result.code).toContain('__v !== false');
+    expect(result.code).toContain('__v === true ? ""');
+    expect(result.code).not.toContain('__attr(');
+  });
+
+  it('keeps __attr for destructured prop attributes', () => {
+    const result = compile(
+      `
+function Card({ className }: { className: string }) {
+  const ROLE = 'article';
+  return <div class={className} role={ROLE}>Content</div>;
+}
+    `.trim(),
+    );
+
+    // Prop attribute is reactive — must use __attr
+    expect(result.code).toContain('__attr(');
+    // Static const attribute should use setAttribute
+    expect(result.code).toContain('setAttribute("role"');
+  });
+
+  it('emits __insert for static non-literal child expressions', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+function TaskList() {
+  const tasks = query(api.todos.list());
+  const HEADER = 'My Tasks';
+  return (
+    <div>
+      <h1>{HEADER}</h1>
+      <span>{tasks.loading}</span>
+    </div>
+  );
+}
+    `.trim(),
+    );
+
+    // Static const child should use __insert, not __child
+    expect(result.code).toContain('__insert(');
+    expect(result.code).not.toContain('__child(() => HEADER)');
+    // Reactive child still uses __child
+    expect(result.code).toContain('__child(() => tasks.loading.value)');
+  });
+
+  it('keeps __child for destructured prop child expressions', () => {
+    const result = compile(
+      `
+function Badge({ label }: { label: string }) {
+  const ICON = '*';
+  return <span>{ICON}{label}</span>;
+}
+    `.trim(),
+    );
+
+    // Static const uses __insert
+    expect(result.code).toContain('__insert(');
+    // Prop is reactive — must use __child
+    expect(result.code).toContain('__child(');
+  });
+
+  // ─── Phase 3: Edge cases and regression guards ──────────────
+
+  it('mixed static and reactive children in same element', () => {
+    const result = compile(
+      `
+function App() {
+  let count = 0;
+  const LABEL = 'Count';
+  return <div>{LABEL}: {count}</div>;
+}
+    `.trim(),
+    );
+
+    // LABEL is static — __insert
+    expect(result.code).toContain('__insert(');
+    // count is reactive — __child
+    expect(result.code).toContain('__child(');
+    expect(result.code).toContain('count.value');
+  });
+
+  it('static utility function call on static args uses __insert', () => {
+    const result = compile(
+      `
+function App() {
+  const DATE = '2024-01-01';
+  return <span>{formatDate(DATE)}</span>;
+}
+    `.trim(),
+    );
+
+    // formatDate(DATE) has no reactive deps — should use __insert
+    expect(result.code).toContain('__insert(');
+    expect(result.code).not.toContain('__child(');
+  });
+
+  it('list transform still fires for reactive arrays (no regression)', () => {
+    const result = compile(
+      `
+function App() {
+  let items = [1, 2, 3];
+  return <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul>;
+}
+    `.trim(),
+    );
+
+    // items is a signal — .map() should use __list
+    expect(result.code).toContain('__list(');
+  });
+
+  it('conditional transform still fires before reactive check (no regression)', () => {
+    const result = compile(
+      `
+function App() {
+  let show = true;
+  return <div>{show ? <span>yes</span> : <span>no</span>}</div>;
+}
+    `.trim(),
+    );
+
+    // Ternary in child position should use __conditional
+    expect(result.code).toContain('__conditional(');
+  });
+
+  it('prop-backed array in .map() uses __list (Phase 0 regression guard)', () => {
+    const result = compile(
+      `
+function List({ items }: { items: any[] }) {
+  return <ul>{items.map((item: any) => <li key={item.id}>{item.name}</li>)}</ul>;
+}
+    `.trim(),
+    );
+
+    // Prop array .map() must use __list, not __insert
+    expect(result.code).toContain('__list(');
+    expect(result.code).not.toContain('__insert(__el0, items.map');
   });
 });

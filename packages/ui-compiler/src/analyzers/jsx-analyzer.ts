@@ -22,6 +22,16 @@ export class JsxAnalyzer {
     const plainPropVars = new Map<string, Set<string>>();
     const fieldSignalPropVars = new Map<string, Set<string>>();
     const reactiveSourceVars = new Set<string>();
+    // Destructured props are getter-backed (__props.xxx) — they must be
+    // classified as reactive sources so JSX expressions referencing them
+    // get effect wrapping for signal tracking.
+    if (component.destructuredProps) {
+      for (const binding of component.destructuredProps.bindings) {
+        if (!binding.isRest) {
+          reactiveSourceVars.add(binding.bindingName);
+        }
+      }
+    }
     for (const v of variables) {
       if (v.signalProperties && v.signalProperties.size > 0) {
         signalApiVars.set(v.name, v.signalProperties);
@@ -61,10 +71,7 @@ export class JsxAnalyzer {
         start: expr.getStart(),
         end: expr.getEnd(),
         reactive:
-          uniqueDeps.length > 0 ||
-          hasSignalApiAccess ||
-          hasSignalApiRef ||
-          hasReactiveSourceAccess,
+          uniqueDeps.length > 0 || hasSignalApiAccess || hasSignalApiRef || hasReactiveSourceAccess,
         deps: uniqueDeps,
       });
     }
@@ -138,10 +145,7 @@ function containsSignalApiPropertyAccess(
  * Does NOT match property accesses like `todosQuery.data` or `taskForm.title`
  * — those are handled by containsSignalApiPropertyAccess.
  */
-function containsSignalApiReference(
-  node: Node,
-  signalApiVars: Map<string, Set<string>>,
-): boolean {
+function containsSignalApiReference(node: Node, signalApiVars: Map<string, Set<string>>): boolean {
   if (signalApiVars.size === 0) return false;
 
   const callExprs = node.getDescendantsOfKind(SyntaxKind.CallExpression);

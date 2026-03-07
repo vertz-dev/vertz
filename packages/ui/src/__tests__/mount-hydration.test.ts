@@ -623,6 +623,57 @@ describe('mount() — tolerant hydration', () => {
     expect(clicked).toBe(true);
   });
 
+  it('hydrates correctly with mixed __insert (static) and __child (reactive) children', () => {
+    // SSR output: HEADER is a bare text node (via __insert), reactive value is in <span>
+    root.innerHTML =
+      '<div><h1>My Tasks</h1><span><span style="display: contents">0</span></span></div>';
+
+    const count = signal(0);
+
+    const App = () => {
+      const el = __element('div');
+      __enterChildren(el);
+
+      // Static const child — uses __insert (no effect overhead)
+      const h1 = __element('h1');
+      __enterChildren(h1);
+      __insert(h1, 'My Tasks');
+      __exitChildren();
+      __append(el, h1);
+
+      // Reactive child — uses __child (effect-wrapped)
+      const span = __element('span');
+      __enterChildren(span);
+      __append(
+        span,
+        __child(() => count.value),
+      );
+      __exitChildren();
+      __append(el, span);
+
+      __exitChildren();
+      return el;
+    };
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mount(App);
+
+    // (a) correct DOM structure — static content preserved
+    expect(root.querySelector('h1')?.textContent).toBe('My Tasks');
+
+    // (b) reactive child updates after hydration
+    count.value = 42;
+    expect(root.querySelector('span span')?.textContent).toBe('42');
+
+    // (c) no hydration warnings
+    const claimWarns = warnSpy.mock.calls.filter(
+      (args) => typeof args[0] === 'string' && args[0].includes('not claimed'),
+    );
+    expect(claimWarns).toHaveLength(0);
+
+    warnSpy.mockRestore();
+  });
+
   it('onClick works with Fast Refresh wrapper on Counter pattern', () => {
     // Same SSR HTML as Counter pattern test
     root.innerHTML =

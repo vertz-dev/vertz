@@ -40,14 +40,13 @@ describe('JsxTransformer', () => {
     expect(result).toContain('() =>');
   });
 
-  it('uses __child for non-literal static expressions', () => {
+  it('uses __insert for non-literal static expressions', () => {
     const result = transform(`function App() {\n  return <div>{title}</div>;\n}`, [
       { name: 'title', kind: 'static', start: 0, end: 0 },
     ]);
-    // Non-literal expressions use __child (wraps in effect for reactivity tracking)
-    expect(result).toContain('__child(');
-    expect(result).toContain('() => title');
-    expect(result).not.toContain('__insert(');
+    // Static non-literal expressions use __insert (no effect overhead)
+    expect(result).toContain('__insert(');
+    expect(result).not.toContain('__child(');
   });
 
   it('uses __insert for literal expressions', () => {
