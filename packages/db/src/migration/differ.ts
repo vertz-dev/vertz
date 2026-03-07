@@ -30,6 +30,7 @@ export interface DiffChange {
   removedValues?: string[];
   columns?: string[];
   confidence?: number;
+  indexName?: string;
   indexType?: string;
   indexWhere?: string;
   indexUnique?: boolean;
@@ -203,6 +204,7 @@ export function computeDiff(before: SchemaSnapshot, after: SchemaSnapshot): Diff
           table: tableName,
           columns: [...idx.columns],
         };
+        if (idx.name) change.indexName = idx.name;
         if (idx.type) change.indexType = idx.type;
         if (idx.where) change.indexWhere = idx.where;
         if (idx.unique) change.indexUnique = idx.unique;
@@ -218,6 +220,7 @@ export function computeDiff(before: SchemaSnapshot, after: SchemaSnapshot): Diff
           table: tableName,
           columns: [...idx.columns],
         };
+        if (idx.name) change.indexName = idx.name;
         if (idx.type) change.indexType = idx.type;
         if (idx.where) change.indexWhere = idx.where;
         if (idx.unique) change.indexUnique = idx.unique;
