@@ -130,6 +130,64 @@ const users = d.table('users', {
 });
 ```
 
+### Indexes
+
+Define indexes on tables via the `indexes` option:
+
+```typescript
+const posts = d.table('posts', {
+  id: d.uuid().primary(),
+  title: d.text(),
+  status: d.text(),
+  authorId: d.uuid(),
+}, {
+  indexes: [
+    d.index('title'),                          // basic index
+    d.index('authorId', { unique: true }),      // unique index
+    d.index(['status', 'authorId']),            // composite index
+  ],
+});
+```
+
+#### Index Types (PostgreSQL)
+
+PostgreSQL supports multiple index types via the `type` option. The default is `btree`.
+
+```typescript
+d.index('title', { type: 'gin' })    // GIN — full-text search, arrays, JSONB
+d.index('location', { type: 'gist' }) // GiST — geometric/spatial data
+d.index('email', { type: 'hash' })   // Hash — equality-only lookups
+d.index('created_at', { type: 'brin' }) // BRIN — large sorted datasets
+d.index('name', { type: 'btree' })   // B-tree (default)
+```
+
+Available types: `'btree' | 'hash' | 'gin' | 'gist' | 'brin'`
+
+When targeting SQLite, non-btree index types are silently ignored (SQLite only supports B-tree). A console warning is emitted during migration generation.
+
+#### Partial Indexes
+
+Use the `where` option to create partial indexes that only index rows matching a condition:
+
+```typescript
+d.index('email', {
+  unique: true,
+  where: "status = 'active'",
+})
+// SQL: CREATE UNIQUE INDEX ... ON ... ("email") WHERE status = 'active';
+```
+
+Partial indexes are supported on both PostgreSQL and SQLite.
+
+#### Index Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `unique` | `boolean` | Create a UNIQUE index |
+| `type` | `IndexType` | Index type — PostgreSQL only (`btree`, `hash`, `gin`, `gist`, `brin`) |
+| `where` | `string` | WHERE clause for partial indexes |
+| `name` | `string` | Custom index name (auto-generated if omitted) |
+
 ### Annotations
 
 Column annotations control visibility and mutability across the stack:
