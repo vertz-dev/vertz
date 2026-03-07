@@ -6,12 +6,18 @@ export { AppAnalyzer } from './analyzers/app-analyzer';
 // Base classes
 export type { Analyzer } from './analyzers/base-analyzer';
 export { BaseAnalyzer } from './analyzers/base-analyzer';
+// Database analyzer
+export type { DatabaseAnalyzerResult } from './analyzers/database-analyzer';
+export { DatabaseAnalyzer } from './analyzers/database-analyzer';
 // Dependency graph analyzer
 export type {
   DependencyGraphInput,
   DependencyGraphResult,
 } from './analyzers/dependency-graph-analyzer';
 export { DependencyGraphAnalyzer } from './analyzers/dependency-graph-analyzer';
+// Entity analyzer
+export type { EntityAnalyzerResult } from './analyzers/entity-analyzer';
+export { EntityAnalyzer } from './analyzers/entity-analyzer';
 // Env analyzer
 export type { EnvAnalyzerResult } from './analyzers/env-analyzer';
 export { EnvAnalyzer } from './analyzers/env-analyzer';
@@ -24,9 +30,6 @@ export { extractIdentifierNames, ModuleAnalyzer, parseImports } from './analyzer
 // Route analyzer
 export type { RouteAnalyzerResult } from './analyzers/route-analyzer';
 export { RouteAnalyzer } from './analyzers/route-analyzer';
-// Entity analyzer
-export type { EntityAnalyzerResult } from './analyzers/entity-analyzer';
-export { EntityAnalyzer } from './analyzers/entity-analyzer';
 // Schema analyzer
 export type { SchemaAnalyzerResult } from './analyzers/schema-analyzer';
 export {
@@ -153,6 +156,7 @@ export { mergeIR } from './ir/merge';
 export type {
   AppDefinition,
   AppIR,
+  DatabaseIR,
   DependencyEdge,
   DependencyEdgeKind,
   DependencyGraphIR,

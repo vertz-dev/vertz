@@ -66,6 +66,13 @@ function stubDependencies(calls: string[]): CompilerDependencies {
         },
         getDiagnostics: () => [],
       },
+      database: {
+        analyze: async () => {
+          calls.push('analyze:database');
+          return { databases: [] };
+        },
+        getDiagnostics: () => [],
+      },
       dependencyGraph: {
         analyze: async () => {
           calls.push('analyze:dependencyGraph');
@@ -141,6 +148,7 @@ function typedDependencies(): CompilerDependencies {
       module: { analyze: async () => ({ modules }), getDiagnostics: () => [] },
       app: { analyze: async () => ({ app }), getDiagnostics: () => [] },
       entity: { analyze: async () => ({ entities: [] }), getDiagnostics: () => [] },
+      database: { analyze: async () => ({ databases: [] }), getDiagnostics: () => [] },
       dependencyGraph: { analyze: async () => ({ graph }), getDiagnostics: () => [] },
     },
     validators: [],
@@ -423,6 +431,7 @@ describe('Compiler', () => {
         module: { analyze: async () => ({ modules }), getDiagnostics: () => [] },
         app: { analyze: async () => ({ app }), getDiagnostics: () => [] },
         entity: { analyze: async () => ({ entities: [] }), getDiagnostics: () => [] },
+        database: { analyze: async () => ({ databases: [] }), getDiagnostics: () => [] },
         dependencyGraph: {
           analyze: async () => ({ graph: createEmptyDependencyGraph() }),
           getDiagnostics: () => [],

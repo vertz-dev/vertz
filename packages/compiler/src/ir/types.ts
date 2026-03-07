@@ -17,6 +17,7 @@ export interface AppIR {
   middleware: MiddlewareIR[];
   schemas: SchemaIR[];
   entities: EntityIR[];
+  databases: DatabaseIR[];
   dependencyGraph: DependencyGraphIR;
   diagnostics: Diagnostic[];
 }
@@ -176,6 +177,12 @@ export interface ResolvedField {
   name: string;
   tsType: 'string' | 'number' | 'boolean' | 'date' | 'unknown';
   optional: boolean;
+}
+
+// ── Database ──────────────────────────────────────────────────────
+
+export interface DatabaseIR extends SourceLocation {
+  modelKeys: string[];
 }
 
 // ── Entity ─────────────────────────────────────────────────────────

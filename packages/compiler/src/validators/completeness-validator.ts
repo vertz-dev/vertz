@@ -37,6 +37,7 @@ export class CompletenessValidator implements Validator {
     this.checkPathParamMatch(ir, diagnostics);
     this.checkModuleOptions(ir, diagnostics);
     this.checkRoutePathFormat(ir, diagnostics);
+    this.checkEntityModelRegistration(ir, diagnostics);
 
     return diagnostics;
   }
@@ -295,6 +296,37 @@ export class CompletenessValidator implements Validator {
             seen.set(key, router.name);
           }
         }
+      }
+    }
+  }
+
+  private checkEntityModelRegistration(ir: AppIR, diagnostics: Diagnostic[]): void {
+    // Skip if no createDb() calls found (e.g., using plain EntityDbAdapter)
+    if (ir.databases.length === 0) return;
+
+    const allModelKeys = new Set<string>();
+    for (const db of ir.databases) {
+      for (const key of db.modelKeys) {
+        allModelKeys.add(key);
+      }
+    }
+
+    const registeredList = ir.databases
+      .flatMap((db) => db.modelKeys.map((key) => `"${key}" (${db.sourceFile}:${db.sourceLine})`))
+      .join(', ');
+
+    for (const entity of ir.entities) {
+      if (!allModelKeys.has(entity.name)) {
+        diagnostics.push(
+          createDiagnosticFromLocation(entity, {
+            severity: 'error',
+            code: 'ENTITY_MODEL_NOT_REGISTERED',
+            message:
+              `Entity "${entity.name}" is not registered in any createDb() call. ` +
+              `Add "${entity.name}: ${entity.modelRef.variableName}" to the models object in createDb().`,
+            suggestion: `Registered models: ${registeredList}`,
+          }),
+        );
       }
     }
   }

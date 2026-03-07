@@ -1,0 +1,288 @@
+import { beforeEach, describe, expect, it } from 'bun:test';
+import { Project } from 'ts-morph';
+import type { ResolvedConfig } from '../../config';
+import { createEmptyAppIR } from '../../ir/builder';
+import type { AppIR } from '../../ir/types';
+import { CompletenessValidator } from '../../validators/completeness-validator';
+import { DatabaseAnalyzer } from '../database-analyzer';
+
+describe('DatabaseAnalyzer', () => {
+  let project: Project;
+  let config: ResolvedConfig;
+
+  beforeEach(() => {
+    project = new Project({ useInMemoryFileSystem: true });
+    config = {
+      rootDir: '/',
+      entryFile: 'index.ts',
+      compiler: {
+        outputDir: '.vertz',
+        exclude: [],
+      },
+      forceGenerate: false,
+    };
+  });
+
+  function createFile(path: string, content: string) {
+    return project.createSourceFile(path, content, { overwrite: true });
+  }
+
+  function analyze() {
+    const analyzer = new DatabaseAnalyzer(project, config);
+    return analyzer.analyze();
+  }
+
+  describe('Detection', () => {
+    it('detects createDb() with named import from @vertz/db', async () => {
+      createFile(
+        '/worker.ts',
+        `
+        import { createDb } from '@vertz/db';
+        const db = createDb({
+          models: { users: usersModel, tasks: tasksModel },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.databases).toHaveLength(1);
+      expect(result.databases[0]?.modelKeys).toEqual(['users', 'tasks']);
+    });
+
+    it('detects with aliased import', async () => {
+      createFile(
+        '/worker.ts',
+        `
+        import { createDb as makeDb } from '@vertz/db';
+        const db = makeDb({
+          models: { orders: ordersModel },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.databases).toHaveLength(1);
+      expect(result.databases[0]?.modelKeys).toEqual(['orders']);
+    });
+
+    it('detects with namespace import', async () => {
+      createFile(
+        '/worker.ts',
+        `
+        import * as db from '@vertz/db';
+        const client = db.createDb({
+          models: { products: productsModel },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.databases).toHaveLength(1);
+      expect(result.databases[0]?.modelKeys).toEqual(['products']);
+    });
+
+    it('ignores createDb from other packages', async () => {
+      createFile(
+        '/worker.ts',
+        `
+        import { createDb } from 'some-other-package';
+        const db = createDb({
+          models: { users: usersModel },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.databases).toHaveLength(0);
+    });
+
+    it('returns empty when no createDb calls exist', async () => {
+      createFile(
+        '/worker.ts',
+        `
+        import { entity } from '@vertz/server';
+        const userEntity = entity('user', { model: userModel });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.databases).toHaveLength(0);
+    });
+  });
+
+  describe('Source location', () => {
+    it('records source file, line, and column', async () => {
+      createFile(
+        '/src/worker.ts',
+        `import { createDb } from '@vertz/db';
+const db = createDb({
+  models: { users: usersModel },
+});`,
+      );
+
+      const result = await analyze();
+      expect(result.databases).toHaveLength(1);
+      expect(result.databases[0]?.sourceFile).toBe('/src/worker.ts');
+      expect(result.databases[0]?.sourceLine).toBe(2);
+    });
+  });
+
+  describe('Edge cases', () => {
+    it('skips createDb calls without models property', async () => {
+      createFile(
+        '/worker.ts',
+        `
+        import { createDb } from '@vertz/db';
+        const db = createDb({
+          url: 'postgres://localhost/test',
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.databases).toHaveLength(0);
+    });
+
+    it('skips createDb calls without object literal argument', async () => {
+      createFile(
+        '/worker.ts',
+        `
+        import { createDb } from '@vertz/db';
+        const opts = { models: { users: usersModel } };
+        const db = createDb(opts);
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.databases).toHaveLength(0);
+    });
+  });
+
+  describe('Cross-validation: entity ↔ database', () => {
+    function createIR(overrides: Partial<AppIR>): AppIR {
+      return { ...createEmptyAppIR(), ...overrides };
+    }
+
+    it('emits ENTITY_MODEL_NOT_REGISTERED when entity name is not in any createDb models', async () => {
+      const ir = createIR({
+        entities: [
+          {
+            name: 'tasks',
+            sourceFile: 'src/entities/tasks.ts',
+            sourceLine: 5,
+            sourceColumn: 1,
+            modelRef: {
+              variableName: 'tasksModel',
+              schemaRefs: { resolved: false },
+            },
+            access: {
+              list: 'none',
+              get: 'none',
+              create: 'none',
+              update: 'none',
+              delete: 'none',
+              custom: {},
+            },
+            hooks: { before: [], after: [] },
+            actions: [],
+            relations: [],
+          },
+        ],
+        databases: [
+          {
+            modelKeys: ['users'],
+            sourceFile: 'src/worker.ts',
+            sourceLine: 12,
+            sourceColumn: 1,
+          },
+        ],
+      });
+
+      const validator = new CompletenessValidator();
+      const diagnostics = await validator.validate(ir);
+      const entityModelDiags = diagnostics.filter((d) => d.code === 'ENTITY_MODEL_NOT_REGISTERED');
+
+      expect(entityModelDiags).toHaveLength(1);
+      expect(entityModelDiags[0]?.message).toContain('tasks');
+      expect(entityModelDiags[0]?.suggestion).toContain('users');
+      expect(entityModelDiags[0]?.severity).toBe('error');
+    });
+
+    it('emits no diagnostic when entity name matches a model key', async () => {
+      const ir = createIR({
+        entities: [
+          {
+            name: 'users',
+            sourceFile: 'src/entities/users.ts',
+            sourceLine: 5,
+            sourceColumn: 1,
+            modelRef: {
+              variableName: 'usersModel',
+              schemaRefs: { resolved: false },
+            },
+            access: {
+              list: 'none',
+              get: 'none',
+              create: 'none',
+              update: 'none',
+              delete: 'none',
+              custom: {},
+            },
+            hooks: { before: [], after: [] },
+            actions: [],
+            relations: [],
+          },
+        ],
+        databases: [
+          {
+            modelKeys: ['users', 'tasks'],
+            sourceFile: 'src/worker.ts',
+            sourceLine: 12,
+            sourceColumn: 1,
+          },
+        ],
+      });
+
+      const validator = new CompletenessValidator();
+      const diagnostics = await validator.validate(ir);
+      const entityModelDiags = diagnostics.filter((d) => d.code === 'ENTITY_MODEL_NOT_REGISTERED');
+
+      expect(entityModelDiags).toHaveLength(0);
+    });
+
+    it('skips validation when no createDb calls exist', async () => {
+      const ir = createIR({
+        entities: [
+          {
+            name: 'tasks',
+            sourceFile: 'src/entities/tasks.ts',
+            sourceLine: 5,
+            sourceColumn: 1,
+            modelRef: {
+              variableName: 'tasksModel',
+              schemaRefs: { resolved: false },
+            },
+            access: {
+              list: 'none',
+              get: 'none',
+              create: 'none',
+              update: 'none',
+              delete: 'none',
+              custom: {},
+            },
+            hooks: { before: [], after: [] },
+            actions: [],
+            relations: [],
+          },
+        ],
+        databases: [],
+      });
+
+      const validator = new CompletenessValidator();
+      const diagnostics = await validator.validate(ir);
+      const entityModelDiags = diagnostics.filter((d) => d.code === 'ENTITY_MODEL_NOT_REGISTERED');
+
+      expect(entityModelDiags).toHaveLength(0);
+    });
+  });
+});

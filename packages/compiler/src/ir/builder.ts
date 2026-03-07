@@ -24,6 +24,7 @@ export function createEmptyAppIR(): AppIR {
     middleware: [],
     schemas: [],
     entities: [],
+    databases: [],
     dependencyGraph: createEmptyDependencyGraph(),
     diagnostics: [],
   };
