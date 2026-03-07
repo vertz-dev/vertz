@@ -178,9 +178,11 @@ export class ReactivityAnalyzer {
         const name = decl.getName();
         // Check if the initializer is a function definition (arrow function or function expression).
         // Function defs are stable references — they should never be wrapped in computed().
+        // Unwrap type wrappers (parenthesized, as, satisfies) to find the underlying node.
+        const unwrappedInit = init ? unwrapTypeWrappers(init) : undefined;
         const isFunctionDef =
-          init?.isKind(SyntaxKind.ArrowFunction) === true ||
-          init?.isKind(SyntaxKind.FunctionExpression) === true;
+          unwrappedInit?.isKind(SyntaxKind.ArrowFunction) === true ||
+          unwrappedInit?.isKind(SyntaxKind.FunctionExpression) === true;
         const { refs: deps, propertyAccesses } = init
           ? collectDeps(init)
           : { refs: [] as string[], propertyAccesses: new Map<string, Set<string>>() };
@@ -485,4 +487,26 @@ function collectDeclaredNames(bodyNode: Node): Set<string> {
     }
   }
   return names;
+}
+
+/**
+ * Unwrap TypeScript syntax wrappers to find the underlying expression.
+ * Peels through ParenthesizedExpression, AsExpression, SatisfiesExpression,
+ * and TypeAssertion nodes to expose the actual initializer kind.
+ */
+function unwrapTypeWrappers(node: Node): Node {
+  let current = node;
+  while (true) {
+    if (current.isKind(SyntaxKind.ParenthesizedExpression)) {
+      current = current.getExpression();
+    } else if (current.isKind(SyntaxKind.AsExpression)) {
+      current = current.getExpression();
+    } else if (current.isKind(SyntaxKind.SatisfiesExpression)) {
+      current = current.getExpression();
+    } else if (current.isKind(SyntaxKind.TypeAssertionExpression)) {
+      current = current.getExpression();
+    } else {
+      return current;
+    }
+  }
 }
