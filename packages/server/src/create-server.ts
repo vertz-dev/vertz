@@ -148,9 +148,10 @@ export function createServer(config: ServerConfig): AppBuilder {
         const registered = Object.keys(dbModels)
           .map((k) => `"${k}"`)
           .join(', ');
+        const plural = missing.length > 1;
         throw new Error(
-          `Entity ${missing.join(', ')} uses a model not registered in createDb(). ` +
-            `Add the missing model(s) to the models object in your createDb() call. ` +
+          `${plural ? 'Entities' : 'Entity'} ${missing.join(', ')} ${plural ? 'are' : 'is'} not registered in createDb(). ` +
+            `Add the missing model${plural ? 's' : ''} to the models object in your createDb() call. ` +
             `Registered models: ${registered || '(none)'}`,
         );
       }

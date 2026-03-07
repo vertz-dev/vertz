@@ -283,7 +283,7 @@ describe('createServer', () => {
           },
         ] as never[],
       }),
-    ).toThrow(/Entity "tasks" uses a model not registered in createDb/);
+    ).toThrow(/Entity "tasks" is not registered in createDb/);
   });
 
   it('lists all missing entity names in the error message', () => {
