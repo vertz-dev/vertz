@@ -6,6 +6,7 @@
  * on the nodes themselves.
  */
 
+import { getSSRContext } from '../ssr/ssr-render-context';
 import { createDOMAdapter } from './dom-adapter';
 
 /**
@@ -62,6 +63,8 @@ let currentAdapter: RenderAdapter | null = null;
  * Auto-detects DOMAdapter if document exists and no adapter has been set.
  */
 export function getAdapter(): RenderAdapter {
+  const ctx = getSSRContext();
+  if (ctx) return ctx.adapter;
   if (!currentAdapter) {
     currentAdapter = createDOMAdapter();
   }

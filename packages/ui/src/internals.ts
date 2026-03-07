@@ -72,3 +72,6 @@ export {
   startSignalCollection,
   stopSignalCollection,
 } from './runtime/signal';
+// SSR per-request isolation (used by @vertz/ui-server to register the ALS-backed resolver)
+export type { SSRRenderContext } from './ssr/ssr-render-context';
+export { getSSRContext, registerSSRResolver } from './ssr/ssr-render-context';
