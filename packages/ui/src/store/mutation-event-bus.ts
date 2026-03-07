@@ -30,7 +30,8 @@ export function createMutationEventBus(): MutationEventBus {
     emit(entityType: string): void {
       const set = listeners.get(entityType);
       if (set) {
-        for (const cb of set) cb();
+        // Snapshot to avoid re-entrancy issues if a callback unsubscribes during iteration.
+        for (const cb of [...set]) cb();
       }
     },
     clear(): void {

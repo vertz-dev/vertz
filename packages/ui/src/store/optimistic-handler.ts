@@ -1,19 +1,25 @@
 import type { MutationMeta, OptimisticHandler } from '@vertz/fetch';
 import type { EntityStore } from './entity-store';
 import type { MutationEventBus } from './mutation-event-bus';
+import { getMutationEventBus } from './mutation-event-bus-singleton';
 
-interface OptimisticHandlerOptions {
+export interface OptimisticHandlerOptions {
+  /** Custom MutationEventBus instance. Defaults to the singleton bus. */
   mutationEventBus?: MutationEventBus;
 }
 
 /**
  * Create an OptimisticHandler that bridges @vertz/fetch mutations
  * to EntityStore's optimistic layer API.
+ *
+ * By default, emits mutation events to the singleton MutationEventBus
+ * so that entity-backed queries revalidate automatically.
  */
 export function createOptimisticHandler(
   store: EntityStore,
   options?: OptimisticHandlerOptions,
 ): OptimisticHandler {
+  const bus = options?.mutationEventBus ?? getMutationEventBus();
   return {
     apply(meta: MutationMeta, mutationId: string): (() => void) | undefined {
       const { entityType, kind, id, body } = meta;
@@ -48,7 +54,7 @@ export function createOptimisticHandler(
       }
 
       if (!meta.skipInvalidation) {
-        options?.mutationEventBus?.emit(entityType);
+        bus.emit(entityType);
       }
     },
   };
