@@ -115,15 +115,21 @@ export function listTransition<T>(
 
           exitingNodes.add(node);
           exitingKeyMap.set(key, node);
-          if (node instanceof Element) node.setAttribute('data-presence', 'exit');
 
-          onAnimationsComplete(node as Element, () => {
-            if (keyGeneration.get(key) === gen) {
-              node.parentNode?.removeChild(node);
-              exitingNodes.delete(node);
-              exitingKeyMap.delete(key);
-            }
-          });
+          if (node instanceof Element) {
+            node.setAttribute('data-presence', 'exit');
+            onAnimationsComplete(node, () => {
+              if (keyGeneration.get(key) === gen) {
+                node.parentNode?.removeChild(node);
+                exitingNodes.delete(node);
+                exitingKeyMap.delete(key);
+              }
+            });
+          } else {
+            node.parentNode?.removeChild(node);
+            exitingNodes.delete(node);
+            exitingKeyMap.delete(key);
+          }
         }
       }
 
