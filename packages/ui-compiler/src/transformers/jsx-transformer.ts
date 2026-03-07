@@ -404,9 +404,9 @@ function transformChild(
     // and transform any JSX nodes nested inside the expression (e.g., in arrow function args)
     const exprText = sliceWithTransformedJsx(exprNode, reactiveNames, jsxMap, source, formVarNames);
 
-    // Use __child() for non-literal expressions (wraps in effect for reactivity tracking)
-    // Use __insert() for literal expressions (direct insertion, no effect overhead)
-    if (!isLiteralExpression(exprNode)) {
+    // Use __child() for reactive non-literal expressions (wraps in effect for tracking)
+    // Use __insert() for static or literal expressions (direct insertion, no effect overhead)
+    if (!isLiteralExpression(exprNode) && exprInfo?.reactive) {
       return `__append(${parentVar}, __child(() => ${exprText}))`;
     }
     return `__insert(${parentVar}, ${exprText})`;
@@ -456,9 +456,10 @@ function transformChildAsValue(
       }
     }
 
+    const exprInfo = jsxMap.get(child.getStart());
     const exprText = sliceWithTransformedJsx(exprNode, reactiveNames, jsxMap, source, formVarNames);
 
-    if (!isLiteralExpression(exprNode)) {
+    if (!isLiteralExpression(exprNode) && exprInfo?.reactive) {
       return `__child(() => ${exprText})`;
     }
     return exprText;

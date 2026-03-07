@@ -356,9 +356,10 @@ function App() {
     );
 
     // Without @vertz/ui import, this is NOT a reactive source.
-    // ctx.theme is non-literal so it gets __child for runtime tracking,
-    // but no .value is inserted (not recognized as signal API).
-    expect(result.code).toContain('__child(');
+    // ctx.theme is non-reactive, so it uses __insert (no effect overhead).
+    // No .value is inserted (not recognized as signal API).
+    expect(result.code).toContain('__insert(');
+    expect(result.code).not.toContain('__child(');
     expect(result.code).not.toContain('.value');
   });
 
@@ -680,5 +681,45 @@ function Card({ className }: { className: string }) {
     expect(result.code).toContain('__attr(');
     // Static const attribute should use setAttribute
     expect(result.code).toContain('setAttribute("role"');
+  });
+
+  it('emits __insert for static non-literal child expressions', () => {
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+function TaskList() {
+  const tasks = query(api.todos.list());
+  const HEADER = 'My Tasks';
+  return (
+    <div>
+      <h1>{HEADER}</h1>
+      <span>{tasks.loading}</span>
+    </div>
+  );
+}
+    `.trim(),
+    );
+
+    // Static const child should use __insert, not __child
+    expect(result.code).toContain('__insert(');
+    expect(result.code).not.toContain('__child(() => HEADER)');
+    // Reactive child still uses __child
+    expect(result.code).toContain('__child(() => tasks.loading.value)');
+  });
+
+  it('keeps __child for destructured prop child expressions', () => {
+    const result = compile(
+      `
+function Badge({ label }: { label: string }) {
+  const ICON = '*';
+  return <span>{ICON}{label}</span>;
+}
+    `.trim(),
+    );
+
+    // Static const uses __insert
+    expect(result.code).toContain('__insert(');
+    // Prop is reactive — must use __child
+    expect(result.code).toContain('__child(');
   });
 });
