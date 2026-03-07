@@ -5,16 +5,20 @@
 import { matchPath } from './matcher';
 import type { ExtractParams } from './params';
 
-/** Simple schema interface for search param parsing. */
+/** Schema interface for parsing and validating values (search params, path params). */
 export interface SearchParamSchema<T> {
   parse(data: unknown): { ok: true; data: T } | { ok: false; error: unknown };
 }
+
+/** Schema interface for parsing and validating route path params. */
+export type ParamSchema<T> = SearchParamSchema<T>;
 
 /** A route configuration for a single path. */
 export interface RouteConfig<
   TPath extends string = string,
   TLoaderData = unknown,
   TSearch = unknown,
+  TParams = unknown,
 > {
   /** Component factory (lazy for code splitting). */
   component: () => Node | Promise<{ default: () => Node }>;
@@ -25,6 +29,8 @@ export interface RouteConfig<
   }) => Promise<TLoaderData> | TLoaderData;
   /** Optional error component rendered when loader throws. */
   errorComponent?: (error: Error) => Node;
+  /** Optional path params schema for validation/parsing. */
+  params?: ParamSchema<TParams>;
   /** Optional search params schema for validation/coercion. */
   searchParams?: SearchParamSchema<TSearch>;
   /** Nested child routes. */
@@ -52,6 +58,7 @@ export interface RouteConfigLike {
    */
   loader?(ctx: { params: Record<string, string>; signal: AbortSignal }): unknown;
   errorComponent?: (error: Error) => Node;
+  params?: ParamSchema<unknown>;
   searchParams?: SearchParamSchema<unknown>;
   children?: Record<string, RouteConfigLike>;
 }
@@ -84,6 +91,8 @@ export interface CompiledRoute {
     signal: AbortSignal;
   }) => Promise<unknown> | unknown;
   errorComponent?: RouteConfig['errorComponent'];
+  /** Optional path params schema for validation/parsing. */
+  params?: ParamSchema<unknown>;
   searchParams?: RouteConfig['searchParams'];
   /** Compiled children. */
   children?: CompiledRoute[];
@@ -99,6 +108,8 @@ export interface MatchedRoute {
 export interface RouteMatch {
   /** All params extracted from the full URL path. */
   params: Record<string, string>;
+  /** Parsed params via schema (set when route has a params schema and parse succeeds). */
+  parsedParams?: Record<string, unknown>;
   /** The leaf route config that matched. */
   route: CompiledRoute;
   /** The chain of matched routes from root to leaf (for nested layouts). */
@@ -132,6 +143,7 @@ export function defineRoutes<const T extends Record<string, RouteConfigLike>>(
       component: config.component,
       errorComponent: config.errorComponent,
       loader: config.loader as CompiledRoute['loader'],
+      params: config.params,
       pattern,
       searchParams: config.searchParams,
     };
@@ -165,6 +177,18 @@ export function matchRoute(routes: CompiledRoute[], url: string): RouteMatch | n
   const leaf = matchRouteRecursive(routes, pathname as string, matched, allParams);
   if (!leaf) return null;
 
+  // Parse path params through schema if the leaf route has one
+  let parsedParams: Record<string, unknown> | undefined;
+  if (leaf.params) {
+    try {
+      const parseResult = leaf.params.parse(allParams);
+      if (!parseResult.ok) return null;
+      parsedParams = parseResult.data as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
   // Parse search params through schema if the leaf route has one
   let search: Record<string, unknown> = {};
   // Walk matched routes to find a searchParams schema
@@ -185,6 +209,7 @@ export function matchRoute(routes: CompiledRoute[], url: string): RouteMatch | n
   return {
     matched,
     params: allParams,
+    parsedParams,
     route: leaf,
     search,
     searchParams,

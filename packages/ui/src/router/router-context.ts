@@ -23,10 +23,22 @@ export function useRouter<
   return router as UnwrapSignals<Router<T>>;
 }
 
-export function useParams<TPath extends string = string>(): ExtractParams<TPath> {
+/**
+ * Read route params from the current matched route.
+ *
+ * Overload 1: `useParams<'/tasks/:id'>()` — returns `{ id: string }` (backward compat).
+ * Overload 2: `useParams<{ id: number }>()` — returns parsed type assertion
+ *   (reads `parsedParams` when a route has a `params` schema).
+ *
+ * At runtime, both overloads prefer `parsedParams` (schema-parsed) when available,
+ * falling back to raw `params` (string values).
+ */
+export function useParams<TPath extends string = string>(): ExtractParams<TPath>;
+export function useParams<T extends Record<string, unknown>>(): T;
+export function useParams(): unknown {
   const router = useContext(RouterContext);
   if (!router) {
     throw new Error('useParams() must be called within RouterContext.Provider');
   }
-  return (router.current?.params ?? {}) as ExtractParams<TPath>;
+  return router.current?.parsedParams ?? router.current?.params ?? {};
 }

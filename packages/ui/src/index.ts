@@ -111,6 +111,7 @@ export type {
   InferRouteMap,
   LoaderData,
   MatchedRoute,
+  ParamSchema,
   RouteConfig,
   RouteDefinitionMap,
   RouteMatch,

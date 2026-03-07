@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import type { ParamSchema } from '../define-routes';
 import { defineRoutes, matchRoute } from '../define-routes';
 
 describe('defineRoutes', () => {
@@ -149,5 +150,141 @@ describe('matchRoute', () => {
     const match = matchRoute(routes, '/users');
     expect(match).not.toBeNull();
     expect(match?.route.errorComponent).toBe(errorComp);
+  });
+});
+
+describe('defineRoutes with params schema', () => {
+  test('stores params schema on compiled route', () => {
+    const schema: ParamSchema<{ id: string }> = {
+      parse(raw) {
+        const { id } = raw as { id: string };
+        return { ok: true, data: { id } };
+      },
+    };
+    const routes = defineRoutes({
+      '/tasks/:id': {
+        component: () => document.createElement('div'),
+        params: schema,
+      },
+    });
+    expect(routes[0]?.params).toBe(schema);
+  });
+
+  test('compiled route has no params schema when not provided', () => {
+    const routes = defineRoutes({
+      '/tasks/:id': {
+        component: () => document.createElement('div'),
+      },
+    });
+    expect(routes[0]?.params).toBeUndefined();
+  });
+});
+
+describe('matchRoute with params schema', () => {
+  const uuidSchema: ParamSchema<{ id: string }> = {
+    parse(raw) {
+      const { id } = raw as { id: string };
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(id)) return { ok: false, error: `Invalid UUID: ${id}` };
+      return { ok: true, data: { id } };
+    },
+  };
+
+  test('sets parsedParams when schema succeeds', () => {
+    const routes = defineRoutes({
+      '/tasks/:id': {
+        component: () => document.createElement('div'),
+        params: uuidSchema,
+      },
+    });
+    const match = matchRoute(routes, '/tasks/550e8400-e29b-41d4-a716-446655440000');
+    expect(match).not.toBeNull();
+    expect(match!.params).toEqual({ id: '550e8400-e29b-41d4-a716-446655440000' });
+    expect(match!.parsedParams).toEqual({ id: '550e8400-e29b-41d4-a716-446655440000' });
+  });
+
+  test('returns null when schema rejects params', () => {
+    const routes = defineRoutes({
+      '/tasks/:id': {
+        component: () => document.createElement('div'),
+        params: uuidSchema,
+      },
+    });
+    const match = matchRoute(routes, '/tasks/not-a-uuid');
+    expect(match).toBeNull();
+  });
+
+  test('returns null when schema parse() throws', () => {
+    const throwingSchema: ParamSchema<{ id: string }> = {
+      parse() {
+        throw new Error('unexpected');
+      },
+    };
+    const routes = defineRoutes({
+      '/tasks/:id': {
+        component: () => document.createElement('div'),
+        params: throwingSchema,
+      },
+    });
+    const match = matchRoute(routes, '/tasks/123');
+    expect(match).toBeNull();
+  });
+
+  test('no parsedParams when no schema is provided (backward compat)', () => {
+    const routes = defineRoutes({
+      '/tasks/:id': {
+        component: () => document.createElement('div'),
+      },
+    });
+    const match = matchRoute(routes, '/tasks/123');
+    expect(match).not.toBeNull();
+    expect(match!.params).toEqual({ id: '123' });
+    expect(match!.parsedParams).toBeUndefined();
+  });
+
+  test('nested route: leaf schema receives all accumulated params', () => {
+    const multiSchema: ParamSchema<{ userId: string; postId: string }> = {
+      parse(raw) {
+        const { userId, postId } = raw as { userId: string; postId: string };
+        if (!userId || !postId) return { ok: false, error: 'missing params' };
+        return { ok: true, data: { userId, postId } };
+      },
+    };
+    const routes = defineRoutes({
+      '/users/:userId': {
+        component: () => document.createElement('div'),
+        children: {
+          '/posts/:postId': {
+            component: () => document.createElement('span'),
+            params: multiSchema,
+          },
+        },
+      },
+    });
+    const match = matchRoute(routes, '/users/alice/posts/42');
+    expect(match).not.toBeNull();
+    expect(match!.params).toEqual({ userId: 'alice', postId: '42' });
+    expect(match!.parsedParams).toEqual({ userId: 'alice', postId: '42' });
+  });
+
+  test('schema can transform param values', () => {
+    const numSchema: ParamSchema<{ id: number }> = {
+      parse(raw) {
+        const { id } = raw as { id: string };
+        const num = Number(id);
+        if (Number.isNaN(num)) return { ok: false, error: 'not a number' };
+        return { ok: true, data: { id: num } };
+      },
+    };
+    const routes = defineRoutes({
+      '/items/:id': {
+        component: () => document.createElement('div'),
+        params: numSchema,
+      },
+    });
+    const match = matchRoute(routes, '/items/42');
+    expect(match).not.toBeNull();
+    expect(match!.params).toEqual({ id: '42' });
+    expect(match!.parsedParams).toEqual({ id: 42 });
   });
 });
