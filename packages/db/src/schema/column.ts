@@ -11,7 +11,6 @@ export interface ColumnMetadata {
   readonly _annotations: Record<string, true>;
   readonly isReadOnly: boolean;
   readonly isAutoUpdate: boolean;
-  readonly references: { readonly table: string; readonly column: string } | null;
   readonly check: string | null;
   readonly defaultValue?: unknown;
   readonly format?: string;
@@ -65,15 +64,6 @@ export interface ColumnBuilder<TType, TMeta extends ColumnMetadata = ColumnMetad
     }
   >;
   check(sql: string): ColumnBuilder<TType, Omit<TMeta, 'check'> & { readonly check: string }>;
-  references(
-    table: string,
-    column?: string,
-  ): ColumnBuilder<
-    TType,
-    Omit<TMeta, 'references'> & {
-      readonly references: { readonly table: string; readonly column: string };
-    }
-  >;
 }
 
 export type InferColumnType<C> = C extends ColumnBuilder<infer T, ColumnMetadata> ? T : never;
@@ -87,7 +77,6 @@ export type DefaultMeta<TSqlType extends string> = {
   readonly _annotations: {};
   readonly isReadOnly: false;
   readonly isAutoUpdate: false;
-  readonly references: null;
   readonly check: null;
 };
 
@@ -176,11 +165,6 @@ function createColumnWithMeta(meta: ColumnMetadata): ColumnBuilder<unknown, Colu
         ColumnBuilder<unknown, ColumnMetadata>['check']
       >;
     },
-    references(table: string, column?: string) {
-      return cloneWith(this, {
-        references: { table, column: column ?? 'id' },
-      }) as ReturnType<ColumnBuilder<unknown, ColumnMetadata>['references']>;
-    },
   } as ColumnBuilder<unknown, ColumnMetadata>;
   return col;
 }
@@ -195,7 +179,6 @@ function defaultMeta<TSqlType extends string>(sqlType: TSqlType): DefaultMeta<TS
     _annotations: {},
     isReadOnly: false,
     isAutoUpdate: false,
-    references: null,
     check: null,
   };
 }
@@ -219,7 +202,6 @@ export type SerialMeta = {
   readonly _annotations: {};
   readonly isReadOnly: false;
   readonly isAutoUpdate: false;
-  readonly references: null;
   readonly check: null;
 };
 
@@ -233,7 +215,6 @@ export function createSerialColumn(): ColumnBuilder<number, SerialMeta> {
     _annotations: {},
     isReadOnly: false,
     isAutoUpdate: false,
-    references: null,
     check: null,
   }) as ColumnBuilder<number, SerialMeta>;
 }

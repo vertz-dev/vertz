@@ -19,7 +19,7 @@ const usersTable = d.table('users', {
 
 const postsTable = d.table('posts', {
   id: d.uuid().primary(),
-  authorId: d.uuid().references('users', 'id'),
+  authorId: d.uuid(),
   title: d.text(),
   content: d.text(),
   createdAt: d.timestamp().default('now'),

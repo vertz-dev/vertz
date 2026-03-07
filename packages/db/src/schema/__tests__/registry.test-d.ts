@@ -17,15 +17,15 @@ const users = d.table('users', {
 
 const posts = d.table('posts', {
   id: d.uuid().primary(),
-  authorId: d.uuid().references('users', 'id'),
+  authorId: d.uuid(),
   title: d.text(),
   content: d.text(),
 });
 
 const comments = d.table('comments', {
   id: d.uuid().primary(),
-  postId: d.uuid().references('posts', 'id'),
-  authorId: d.uuid().references('users', 'id'),
+  postId: d.uuid(),
+  authorId: d.uuid(),
   body: d.text(),
 });
 

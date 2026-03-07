@@ -184,14 +184,22 @@ describe('Migration Integration Tests', () => {
     const emptySnapshot = createSnapshot([]);
 
     // Define new schema
+    const posts = d.table('posts', {
+      id: d.uuid().primary(),
+    });
+
     const comments = d.table('comments', {
       id: d.uuid().primary(),
-      postId: d.uuid().references('posts', 'id'),
+      postId: d.uuid(),
       body: d.text(),
       createdAt: d.timestamp().default('now'),
     });
 
-    const newSnapshot = createSnapshot([comments]);
+    const commentsModel = d.model(comments, {
+      post: d.ref.one(() => posts, 'postId'),
+    });
+
+    const newSnapshot = createSnapshot([commentsModel]);
 
     // Compute diff
     const diff = computeDiff(emptySnapshot, newSnapshot);

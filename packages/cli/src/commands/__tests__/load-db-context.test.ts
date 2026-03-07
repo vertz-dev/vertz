@@ -2,18 +2,19 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { ModelDef } from '@vertz/db/internals';
 import {
   createConnection,
-  extractTables,
+  extractSchemaEntries,
   loadMigrationFiles,
   parseSqliteUrl,
 } from '../load-db-context';
 
 // ---------------------------------------------------------------------------
-// extractTables
+// extractSchemaEntries
 // ---------------------------------------------------------------------------
 
-describe('extractTables', () => {
+describe('extractSchemaEntries', () => {
   it('finds objects with _name and _columns as TableDefs', () => {
     const module = {
       users: { _name: 'users', _columns: { id: {} }, _indexes: [], _shared: false },
@@ -23,41 +24,71 @@ describe('extractTables', () => {
       nullValue: null,
     };
 
-    const tables = extractTables(module as Record<string, unknown>);
+    const entries = extractSchemaEntries(module as Record<string, unknown>);
 
-    expect(tables).toHaveLength(2);
-    expect(tables.map((t) => t._name).sort()).toEqual(['posts', 'users']);
+    expect(entries).toHaveLength(2);
   });
 
-  it('returns empty array when no TableDefs found', () => {
+  it('finds ModelDef objects (table + relations)', () => {
+    const fakeTable = { _name: 'users', _columns: { id: {} }, _indexes: [], _shared: false };
+    const module = {
+      users: { table: fakeTable, relations: {}, schemas: {}, _tenant: null },
+    };
+
+    const entries = extractSchemaEntries(module as Record<string, unknown>);
+
+    expect(entries).toHaveLength(1);
+    // Should be the ModelDef itself, not the inner table
+    const entry = entries[0] as ModelDef;
+    expect(entry.table).toBe(fakeTable);
+    expect(entry.relations).toEqual({});
+  });
+
+  it('deduplicates when both table and model wrapping it are exported', () => {
+    const fakeTable = { _name: 'users', _columns: { id: {} }, _indexes: [], _shared: false };
+    const module = {
+      usersTable: fakeTable,
+      users: { table: fakeTable, relations: { org: {} }, schemas: {}, _tenant: null },
+    };
+
+    const entries = extractSchemaEntries(module as Record<string, unknown>);
+
+    // Should deduplicate — prefer ModelDef over bare TableDef
+    expect(entries).toHaveLength(1);
+    const entry = entries[0] as ModelDef;
+    expect(entry.table).toBe(fakeTable);
+    expect(entry.relations).toEqual({ org: {} });
+  });
+
+  it('returns empty array when no entries found', () => {
     const module = {
       config: { setting: true },
       name: 'my-app',
     };
 
-    const tables = extractTables(module as Record<string, unknown>);
+    const entries = extractSchemaEntries(module as Record<string, unknown>);
 
-    expect(tables).toHaveLength(0);
+    expect(entries).toHaveLength(0);
   });
 
-  it('skips objects missing _columns', () => {
+  it('skips objects missing _columns (not a TableDef)', () => {
     const module = {
       partial: { _name: 'partial' },
     };
 
-    const tables = extractTables(module as Record<string, unknown>);
+    const entries = extractSchemaEntries(module as Record<string, unknown>);
 
-    expect(tables).toHaveLength(0);
+    expect(entries).toHaveLength(0);
   });
 
-  it('skips objects missing _name', () => {
+  it('skips objects missing _name (not a TableDef)', () => {
     const module = {
       partial: { _columns: {} },
     };
 
-    const tables = extractTables(module as Record<string, unknown>);
+    const entries = extractSchemaEntries(module as Record<string, unknown>);
 
-    expect(tables).toHaveLength(0);
+    expect(entries).toHaveLength(0);
   });
 
   it('skips objects where _columns is not an object', () => {
@@ -65,9 +96,9 @@ describe('extractTables', () => {
       bad: { _name: 'bad', _columns: 'not-an-object' },
     };
 
-    const tables = extractTables(module as Record<string, unknown>);
+    const entries = extractSchemaEntries(module as Record<string, unknown>);
 
-    expect(tables).toHaveLength(0);
+    expect(entries).toHaveLength(0);
   });
 
   it('skips objects where _columns is null', () => {
@@ -75,9 +106,9 @@ describe('extractTables', () => {
       bad: { _name: 'bad', _columns: null },
     };
 
-    const tables = extractTables(module as Record<string, unknown>);
+    const entries = extractSchemaEntries(module as Record<string, unknown>);
 
-    expect(tables).toHaveLength(0);
+    expect(entries).toHaveLength(0);
   });
 });
 

@@ -2,6 +2,117 @@ import { describe, expect, it } from 'bun:test';
 import { d } from '../../d';
 import { createSnapshot } from '../snapshot';
 
+describe('createSnapshot — FK from relations', () => {
+  it('derives foreign keys from d.ref.one() relations', () => {
+    const orgs = d.table('organizations', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+
+    const users = d.table('users', {
+      id: d.uuid().primary(),
+      orgId: d.uuid(),
+    });
+
+    const orgsModel = d.model(orgs);
+    const usersModel = d.model(users, {
+      org: d.ref.one(() => orgs, 'orgId'),
+    });
+
+    const snapshot = createSnapshot([orgsModel, usersModel]);
+
+    expect(snapshot.tables.users.foreignKeys).toEqual([
+      { column: 'orgId', targetTable: 'organizations', targetColumn: 'id' },
+    ]);
+    expect(snapshot.tables.organizations.foreignKeys).toEqual([]);
+  });
+
+  it('does not derive FK from d.ref.many() — FK lives on the target table', () => {
+    const posts = d.table('posts', {
+      id: d.uuid().primary(),
+      title: d.text(),
+    });
+
+    const comments = d.table('comments', {
+      id: d.uuid().primary(),
+      postId: d.uuid(),
+      body: d.text(),
+    });
+
+    const postsModel = d.model(posts, {
+      comments: d.ref.many(() => comments, 'postId'),
+    });
+    const commentsModel = d.model(comments, {
+      post: d.ref.one(() => posts, 'postId'),
+    });
+
+    const snapshot = createSnapshot([postsModel, commentsModel]);
+
+    // FK should be on comments (ref.one), not on posts (ref.many)
+    expect(snapshot.tables.posts.foreignKeys).toEqual([]);
+    expect(snapshot.tables.comments.foreignKeys).toEqual([
+      { column: 'postId', targetTable: 'posts', targetColumn: 'id' },
+    ]);
+  });
+
+  it('handles self-referencing FK (e.g., categories with parentId)', () => {
+    const categories = d.table('categories', {
+      id: d.uuid().primary(),
+      name: d.text(),
+      parentId: d.uuid().nullable(),
+    });
+
+    const categoriesModel = d.model(categories, {
+      parent: d.ref.one(() => categories, 'parentId'),
+    });
+
+    const snapshot = createSnapshot([categoriesModel]);
+
+    expect(snapshot.tables.categories.foreignKeys).toEqual([
+      { column: 'parentId', targetTable: 'categories', targetColumn: 'id' },
+    ]);
+  });
+
+  it('throws when target table has no primary key column', () => {
+    const tags = d.table('tags', {
+      name: d.text().unique(),
+      slug: d.text(),
+    });
+
+    const posts = d.table('posts', {
+      id: d.uuid().primary(),
+      tagName: d.text(),
+    });
+
+    const postsModel = d.model(posts, {
+      tag: d.ref.one(() => tags, 'tagName'),
+    });
+
+    expect(() => createSnapshot([postsModel])).toThrow(
+      'Target table "tags" referenced by relation "tag" on table "posts" has no primary key column',
+    );
+  });
+
+  it('throws when relation FK column does not exist on source table', () => {
+    const users = d.table('users', {
+      id: d.uuid().primary(),
+    });
+
+    const posts = d.table('posts', {
+      id: d.uuid().primary(),
+      title: d.text(),
+    });
+
+    const postsModel = d.model(posts, {
+      author: d.ref.one(() => users, 'authorId'), // authorId doesn't exist on posts
+    });
+
+    expect(() => createSnapshot([postsModel])).toThrow(
+      'Relation "author" on table "posts" references column "authorId" which does not exist',
+    );
+  });
+});
+
 describe('createSnapshot', () => {
   it('creates a snapshot with version 1 and table entries', () => {
     const users = d.table('users', {
@@ -75,7 +186,7 @@ describe('createSnapshot', () => {
     });
   });
 
-  it('captures foreign keys from column references', () => {
+  it('captures foreign keys from model relations', () => {
     const orgs = d.table('organizations', {
       id: d.uuid().primary(),
       name: d.text(),
@@ -83,10 +194,14 @@ describe('createSnapshot', () => {
 
     const users = d.table('users', {
       id: d.uuid().primary(),
-      orgId: d.uuid().references('organizations', 'id'),
+      orgId: d.uuid(),
     });
 
-    const snapshot = createSnapshot([orgs, users]);
+    const usersModel = d.model(users, {
+      org: d.ref.one(() => orgs, 'orgId'),
+    });
+
+    const snapshot = createSnapshot([orgs, usersModel]);
 
     expect(snapshot.tables.users.foreignKeys).toEqual([
       { column: 'orgId', targetTable: 'organizations', targetColumn: 'id' },

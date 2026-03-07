@@ -142,15 +142,6 @@ describe('chainable builders', () => {
     expect(col._meta.check).toBe('value > 0');
   });
 
-  it('.references(table, column) stores foreign key reference', () => {
-    const col = d.uuid().references('users', 'id');
-    expect(col._meta.references).toEqual({ table: 'users', column: 'id' });
-  });
-
-  it('.references(table) defaults column to id', () => {
-    const col = d.uuid().references('users');
-    expect(col._meta.references).toEqual({ table: 'users', column: 'id' });
-  });
 
   it('chaining multiple builders preserves all metadata', () => {
     const col = d.text().unique().nullable().default('hello');

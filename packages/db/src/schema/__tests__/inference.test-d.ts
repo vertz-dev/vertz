@@ -36,15 +36,15 @@ const posts = d.table('posts', {
   title: d.text(),
   body: d.text(),
   published: d.boolean().default(false),
-  authorId: d.uuid().references('users'),
+  authorId: d.uuid(),
   createdAt: d.timestamp().default('now'),
 });
 
 const comments = d.table('comments', {
   id: d.uuid().primary(),
   text: d.text(),
-  postId: d.uuid().references('posts'),
-  authorId: d.uuid().references('users'),
+  postId: d.uuid(),
+  authorId: d.uuid(),
 });
 
 // Relations for posts
