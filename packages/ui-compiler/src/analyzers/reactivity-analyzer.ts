@@ -1,10 +1,6 @@
 import { type Node, type SourceFile, SyntaxKind } from 'ts-morph';
-import {
-  getSignalApiConfig,
-  isReactiveSourceApi,
-  isSignalApi,
-  type SignalApiConfig,
-} from '../signal-api-registry';
+import { loadFrameworkManifest } from '../reactivity-manifest';
+import { getSignalApiConfig, type SignalApiConfig } from '../signal-api-registry';
 import type { ComponentInfo, LoadedReactivityManifest, VariableInfo } from '../types';
 import { findBodyNode } from '../utils';
 
@@ -428,41 +424,31 @@ function buildImportAliasMap(
 
   for (const importDecl of sourceFile.getImportDeclarations()) {
     const moduleSpecifier = importDecl.getModuleSpecifierValue();
-    const manifest = manifests?.[moduleSpecifier];
+    // Auto-load framework manifest for @vertz/ui when not explicitly provided
+    const manifest =
+      manifests?.[moduleSpecifier] ??
+      (moduleSpecifier === '@vertz/ui' ? loadFrameworkManifest() : undefined);
 
-    // If no manifest, only process @vertz/ui via the hardcoded registry
-    if (!manifest && moduleSpecifier !== '@vertz/ui') continue;
+    if (!manifest) continue;
 
     const namedImports = importDecl.getNamedImports();
     for (const namedImport of namedImports) {
       const originalName = namedImport.getName();
       const localName = namedImport.getAliasNode()?.getText() ?? originalName;
 
-      if (manifest) {
-        // Use manifest to classify
-        const exportInfo = manifest.exports[originalName];
-        if (exportInfo) {
-          const { reactivity } = exportInfo;
-          if (reactivity.type === 'signal-api') {
-            signalApiAliases.set(localName, originalName);
-            // Build SignalApiConfig from manifest shape
-            manifestConfigs.set(originalName, {
-              signalProperties: reactivity.signalProperties,
-              plainProperties: reactivity.plainProperties,
-              ...(reactivity.fieldSignalProperties
-                ? { fieldSignalProperties: reactivity.fieldSignalProperties }
-                : {}),
-            });
-          } else if (reactivity.type === 'reactive-source') {
-            reactiveSourceAliases.add(localName);
-          }
-        }
-      } else {
-        // Fall back to hardcoded registry for @vertz/ui
-        if (isSignalApi(originalName)) {
+      const exportInfo = manifest.exports[originalName];
+      if (exportInfo) {
+        const { reactivity } = exportInfo;
+        if (reactivity.type === 'signal-api') {
           signalApiAliases.set(localName, originalName);
-        }
-        if (isReactiveSourceApi(originalName)) {
+          manifestConfigs.set(originalName, {
+            signalProperties: reactivity.signalProperties,
+            plainProperties: reactivity.plainProperties,
+            ...(reactivity.fieldSignalProperties
+              ? { fieldSignalProperties: reactivity.fieldSignalProperties }
+              : {}),
+          });
+        } else if (reactivity.type === 'reactive-source') {
           reactiveSourceAliases.add(localName);
         }
       }

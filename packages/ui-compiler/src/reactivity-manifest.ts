@@ -21,6 +21,10 @@ const SUPPORTED_VERSION = 1;
  */
 export function loadManifestFromJson(json: ReactivityManifest): LoadedReactivityManifest {
   if (json.version !== SUPPORTED_VERSION) {
+    console.warn(
+      `Unsupported reactivity manifest version ${json.version} in "${json.filePath}". ` +
+        `Expected version ${SUPPORTED_VERSION}. All exports will be treated as unknown.`,
+    );
     const unknownExports: Record<string, LoadedExportReactivityInfo> = {};
     for (const [name, info] of Object.entries(json.exports)) {
       unknownExports[name] = {
