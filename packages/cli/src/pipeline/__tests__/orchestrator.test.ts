@@ -4,7 +4,7 @@ import { type PipelineConfig, PipelineOrchestrator } from '../orchestrator';
 // Mock the compiler and codegen modules
 vi.mock('@vertz/compiler', () => {
   const mockGenerate = vi.fn().mockResolvedValue(undefined);
-  
+
   return {
     createCompiler: vi.fn(() => ({
       analyze: vi.fn().mockResolvedValue({
@@ -65,6 +65,9 @@ vi.mock('@vertz/codegen', () => ({
   }),
 }));
 
+const mockRun = vi.fn().mockResolvedValue(undefined);
+const mockClose = vi.fn().mockResolvedValue(undefined);
+
 describe('PipelineOrchestrator', () => {
   let orchestrator: PipelineOrchestrator;
 
@@ -101,14 +104,18 @@ describe('PipelineOrchestrator', () => {
   });
 
   describe('runFull', () => {
-    it('should run the full pipeline', async () => {
+    it('should run the full pipeline including db-sync', async () => {
       const result = await orchestrator.runFull();
 
       expect(result.success).toBe(true);
-      expect(result.stages).toHaveLength(3); // analyze + codegen + openapi
-      expect(result.stages.map((s) => s.stage)).toContain('analyze');
-      expect(result.stages.map((s) => s.stage)).toContain('codegen');
-      expect(result.stages.map((s) => s.stage)).toContain('openapi');
+      expect(result.stages).toHaveLength(4); // analyze + db-sync + codegen + openapi
+      const stageNames = result.stages.map((s) => s.stage);
+      expect(stageNames).toContain('analyze');
+      expect(stageNames).toContain('db-sync');
+      expect(stageNames).toContain('codegen');
+      expect(stageNames).toContain('openapi');
+      // db-sync must run before codegen
+      expect(stageNames.indexOf('db-sync')).toBeLessThan(stageNames.indexOf('codegen'));
     });
 
     it('should return AppIR after successful analysis', async () => {
@@ -167,6 +174,87 @@ describe('PipelineOrchestrator', () => {
       expect(result).toBeDefined();
       expect(result?.stage).toBe('analyze');
       expect(result?.success).toBe(true);
+    });
+  });
+
+  describe('db-sync stage', () => {
+    beforeEach(() => {
+      mockRun.mockReset().mockResolvedValue(undefined);
+      mockClose.mockReset().mockResolvedValue(undefined);
+    });
+
+    it('should skip db-sync when autoSyncDb is false', async () => {
+      const result = await orchestrator.runStages(['db-sync']);
+
+      expect(result.success).toBe(true);
+      expect(result.stages[0]?.stage).toBe('db-sync');
+      expect(result.stages[0]?.output).toContain('skipped');
+      expect(mockRun).not.toHaveBeenCalled();
+    });
+
+    it('should skip gracefully when runner factory throws', async () => {
+      const dbOrchestrator = new PipelineOrchestrator({
+        sourceDir: 'src',
+        outputDir: '.vertz/generated',
+        typecheck: false,
+        autoSyncDb: true,
+        port: 3000,
+        host: 'localhost',
+        _dbSyncRunner: async () => {
+          throw new Error('No valid `db` config');
+        },
+      });
+
+      const result = await dbOrchestrator.runStages(['db-sync']);
+
+      expect(result.success).toBe(true);
+      expect(result.stages[0]?.output).toContain('skipped');
+      expect(mockRun).not.toHaveBeenCalled();
+
+      await dbOrchestrator.dispose();
+    });
+
+    it('should run db-sync when config exists and autoSyncDb is true', async () => {
+      const dbOrchestrator = new PipelineOrchestrator({
+        sourceDir: 'src',
+        outputDir: '.vertz/generated',
+        typecheck: false,
+        autoSyncDb: true,
+        port: 3000,
+        host: 'localhost',
+        _dbSyncRunner: async () => ({ run: mockRun, close: mockClose }),
+      });
+
+      const result = await dbOrchestrator.runStages(['db-sync']);
+
+      expect(result.success).toBe(true);
+      expect(result.stages[0]?.output).toBe('DB sync complete');
+      expect(mockRun).toHaveBeenCalled();
+      expect(mockClose).toHaveBeenCalled();
+
+      await dbOrchestrator.dispose();
+    });
+
+    it('should close connection even when run throws', async () => {
+      mockRun.mockRejectedValue(new Error('Migration failed'));
+
+      const dbOrchestrator = new PipelineOrchestrator({
+        sourceDir: 'src',
+        outputDir: '.vertz/generated',
+        typecheck: false,
+        autoSyncDb: true,
+        port: 3000,
+        host: 'localhost',
+        _dbSyncRunner: async () => ({ run: mockRun, close: mockClose }),
+      });
+
+      const result = await dbOrchestrator.runStages(['db-sync']);
+
+      expect(result.success).toBe(false);
+      expect(result.stages[0]?.error?.message).toBe('Migration failed');
+      expect(mockClose).toHaveBeenCalled();
+
+      await dbOrchestrator.dispose();
     });
   });
 

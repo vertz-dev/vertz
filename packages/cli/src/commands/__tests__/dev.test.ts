@@ -54,11 +54,21 @@ describe('Pipeline Orchestrator', () => {
       expect(stages).toContain('codegen');
     });
 
-    it('should return codegen only for schema changes', () => {
+    it('should return db-sync, codegen, and openapi for schema changes', () => {
       const category = categorizeFileChange('src/schemas/user.schema.ts');
       const stages = getAffectedStages(category);
+      expect(stages).toContain('db-sync');
       expect(stages).toContain('codegen');
+      expect(stages).toContain('openapi');
       expect(stages).not.toContain('analyze');
+    });
+
+    it('should return db-sync before codegen for schema changes', () => {
+      const category = categorizeFileChange('src/schemas/user.schema.ts');
+      const stages = getAffectedStages(category);
+      const dbSyncIdx = stages.indexOf('db-sync');
+      const codegenIdx = stages.indexOf('codegen');
+      expect(dbSyncIdx).toBeLessThan(codegenIdx);
     });
 
     it('should return build-ui only for component changes', () => {
@@ -79,12 +89,11 @@ describe('Pipeline Orchestrator', () => {
   });
 
   describe('dependency graph', () => {
-    it('should identify that schema changes trigger codegen but not UI build', () => {
+    it('should identify that schema changes trigger db-sync and codegen but not UI build', () => {
       const category = categorizeFileChange('src/schemas/user.schema.ts');
       const stages = getAffectedStages(category);
 
-      // Schema changes should only affect codegen
-      expect(stages).toEqual(expect.arrayContaining(['codegen']));
+      expect(stages).toEqual(expect.arrayContaining(['db-sync', 'codegen']));
       expect(stages).not.toContain('build-ui');
     });
 
@@ -165,6 +174,27 @@ describe('Pipeline Orchestrator', () => {
           // Schema changes trigger codegen, but analyze should be auto-added
           expect(stages).toContain('codegen');
           expect(stages).toContain('analyze');
+        });
+
+        it('should return stages in canonical execution order', () => {
+          // Mixed changes: schema + module + component triggers all stages
+          const changes: FileChange[] = [
+            { type: 'change', path: 'src/schemas/user.schema.ts' },
+            { type: 'change', path: 'src/modules/auth.module.ts' },
+            { type: 'change', path: 'src/components/Button.tsx' },
+          ];
+
+          const stages = getStagesForChanges(changes);
+
+          // Canonical order: analyze, db-sync, codegen, openapi, build-ui
+          expect(stages[0]).toBe('analyze');
+          const dbSyncIdx = stages.indexOf('db-sync');
+          const codegenIdx = stages.indexOf('codegen');
+          const openapiIdx = stages.indexOf('openapi');
+          const buildUiIdx = stages.indexOf('build-ui');
+          expect(dbSyncIdx).toBeLessThan(codegenIdx);
+          expect(codegenIdx).toBeLessThan(openapiIdx);
+          expect(openapiIdx).toBeLessThan(buildUiIdx);
         });
       });
     });
