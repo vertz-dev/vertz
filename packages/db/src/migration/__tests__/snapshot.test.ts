@@ -229,6 +229,25 @@ describe('createSnapshot', () => {
     ]);
   });
 
+  it('captures custom index name in snapshot', () => {
+    const posts = d.table(
+      'posts',
+      {
+        id: d.uuid().primary(),
+        status: d.text(),
+      },
+      {
+        indexes: [d.index('status', { name: 'idx_posts_status_custom' })],
+      },
+    );
+
+    const snapshot = createSnapshot([posts]);
+
+    expect(snapshot.tables.posts.indexes).toEqual([
+      { columns: ['status'], name: 'idx_posts_status_custom' },
+    ]);
+  });
+
   it('captures index type and where in snapshot', () => {
     const posts = d.table(
       'posts',
