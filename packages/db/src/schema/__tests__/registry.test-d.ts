@@ -180,7 +180,9 @@ describe('createRegistry() types', () => {
     type _t3 = Expect<Equal<typeof models.comments.table, typeof comments>>;
 
     // Relation types are preserved
-    type _t4 = Expect<Extends<typeof models.posts.relations.author, RelationDef<typeof users, 'one'>>>;
+    type _t4 = Expect<
+      Extends<typeof models.posts.relations.author, RelationDef<typeof users, 'one'>>
+    >;
   });
 
   it('tables without relations get empty relations object', () => {

@@ -1,6 +1,6 @@
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/schema';
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { createDb } from '../client';
 import { d } from '../d';
 
@@ -94,9 +94,7 @@ describe('CRUD ID Generation', () => {
 
   // Test 17: create() with user-provided ID — explicit ID used, not overwritten
   it('respects user-provided ID', async () => {
-    const user = unwrap(
-      await db.usersCuid.create({ data: { id: 'my-custom-id', name: 'Dave' } }),
-    );
+    const user = unwrap(await db.usersCuid.create({ data: { id: 'my-custom-id', name: 'Dave' } }));
     expect(user.id).toBe('my-custom-id');
     expect(user.name).toBe('Dave');
   });

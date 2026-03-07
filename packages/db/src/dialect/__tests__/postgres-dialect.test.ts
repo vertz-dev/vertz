@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { PostgresDialect, defaultPostgresDialect } from '../postgres';
+import { defaultPostgresDialect, PostgresDialect } from '../postgres';
 
 describe('PostgresDialect', () => {
   const dialect = new PostgresDialect();

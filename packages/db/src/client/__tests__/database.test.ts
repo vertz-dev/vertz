@@ -13,20 +13,20 @@ const organizations = d.table('organizations', {
 
 const users = d.table('users', {
   id: d.uuid().primary(),
-  organizationId: d.tenant(organizations),
+  organizationId: d.uuid(),
   name: d.text(),
   email: d.email(),
 });
 
 const projects = d.table('projects', {
   id: d.uuid().primary(),
-  organizationId: d.tenant(organizations),
+  organizationId: d.uuid(),
   name: d.text(),
 });
 
 const tasks = d.table('tasks', {
   id: d.uuid().primary(),
-  projectId: d.uuid().references('projects', 'id'),
+  projectId: d.uuid(),
   title: d.text(),
 });
 
@@ -66,11 +66,25 @@ describe('createDb', () => {
     const db = createDb({
       url: 'postgres://localhost:5432/test',
       models: {
-        organizations: { table: organizations, relations: {} },
-        users: { table: users, relations: {} },
-        projects: { table: projects, relations: {} },
-        tasks: { table: tasks, relations: {} },
-        featureFlags: { table: featureFlags, relations: {} },
+        organizations: d.model(organizations),
+        users: d.model(
+          users,
+          {
+            organization: d.ref.one(() => organizations, 'organizationId'),
+          },
+          { tenant: 'organization' },
+        ),
+        projects: d.model(
+          projects,
+          {
+            organization: d.ref.one(() => organizations, 'organizationId'),
+          },
+          { tenant: 'organization' },
+        ),
+        tasks: d.model(tasks, {
+          project: d.ref.one(() => projects, 'projectId'),
+        }),
+        featureFlags: d.model(featureFlags),
       },
     });
 
@@ -88,9 +102,15 @@ describe('createDb', () => {
     createDb({
       url: 'postgres://localhost:5432/test',
       models: {
-        organizations: { table: organizations, relations: {} },
-        users: { table: users, relations: {} },
-        auditLogs: { table: auditLogs, relations: {} },
+        organizations: d.model(organizations),
+        users: d.model(
+          users,
+          {
+            organization: d.ref.one(() => organizations, 'organizationId'),
+          },
+          { tenant: 'organization' },
+        ),
+        auditLogs: d.model(auditLogs),
       },
       log: logFn,
     });
@@ -104,9 +124,15 @@ describe('createDb', () => {
     createDb({
       url: 'postgres://localhost:5432/test',
       models: {
-        organizations: { table: organizations, relations: {} },
-        users: { table: users, relations: {} },
-        featureFlags: { table: featureFlags, relations: {} },
+        organizations: d.model(organizations),
+        users: d.model(
+          users,
+          {
+            organization: d.ref.one(() => organizations, 'organizationId'),
+          },
+          { tenant: 'organization' },
+        ),
+        featureFlags: d.model(featureFlags),
       },
       log: logFn,
     });

@@ -14,8 +14,8 @@
  * Column names are converted from camelCase to snake_case.
  */
 
-import { type CasingOverrides, camelToSnake } from './casing';
 import { type Dialect, defaultPostgresDialect } from '../dialect';
+import { type CasingOverrides, camelToSnake } from './casing';
 
 export interface WhereResult {
   readonly sql: string;

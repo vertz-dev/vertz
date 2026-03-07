@@ -1,6 +1,6 @@
 import { describe, it } from 'bun:test';
-import type { Equal, Expect, HasKey, Not } from './_type-helpers';
 import { d } from '../d';
+import type { Equal, Expect, HasKey, Not } from './_type-helpers';
 
 // ---------------------------------------------------------------------------
 // Column-type-specific metadata — type-level tests

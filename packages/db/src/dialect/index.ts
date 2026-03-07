@@ -1,3 +1,3 @@
+export { defaultPostgresDialect, PostgresDialect } from './postgres';
+export { defaultSqliteDialect, SqliteDialect } from './sqlite';
 export type { ColumnTypeMeta, Dialect, IdStrategy } from './types';
-export { PostgresDialect, defaultPostgresDialect } from './postgres';
-export { SqliteDialect, defaultSqliteDialect } from './sqlite';

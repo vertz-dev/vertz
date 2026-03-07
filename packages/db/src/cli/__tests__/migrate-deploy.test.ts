@@ -1,5 +1,5 @@
-import { unwrap } from '@vertz/errors';
 import { describe, expect, it, mock } from 'bun:test';
+import { unwrap } from '@vertz/errors';
 import type { MigrationFile, MigrationQueryFn } from '../../migration';
 import { migrateDeploy } from '../migrate-deploy';
 
@@ -83,9 +83,7 @@ describe('migrateDeploy', () => {
         throw new Error('relation "_vertz_migrations" does not exist');
       });
 
-      const result = unwrap(
-        await migrateDeploy({ queryFn, migrationFiles: files, dryRun: true }),
-      );
+      const result = unwrap(await migrateDeploy({ queryFn, migrationFiles: files, dryRun: true }));
 
       expect(result.dryRun).toBe(true);
       expect(result.applied).toEqual(['0001_init.sql', '0002_add_users.sql']);
@@ -127,9 +125,7 @@ describe('migrateDeploy', () => {
         throw new Error('Unexpected SQL in dry-run mode');
       });
 
-      const result = unwrap(
-        await migrateDeploy({ queryFn, migrationFiles: files, dryRun: true }),
-      );
+      const result = unwrap(await migrateDeploy({ queryFn, migrationFiles: files, dryRun: true }));
 
       expect(result.dryRun).toBe(true);
       expect(result.applied).toEqual(['0002_add_users.sql']);
@@ -175,9 +171,7 @@ describe('migrateDeploy', () => {
         return { rows: [], rowCount: 0 };
       });
 
-      const result = unwrap(
-        await migrateDeploy({ queryFn, migrationFiles: files, dryRun: true }),
-      );
+      const result = unwrap(await migrateDeploy({ queryFn, migrationFiles: files, dryRun: true }));
 
       expect(result.dryRun).toBe(true);
       expect(result.applied).toEqual([]);

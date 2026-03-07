@@ -6,12 +6,11 @@ import type {
   FormatMeta,
   JsonbValidator,
   SerialMeta,
-  TenantMeta,
   VarcharMeta,
 } from './schema/column';
-import { createColumn, createSerialColumn, createTenantColumn } from './schema/column';
+import { createColumn, createSerialColumn } from './schema/column';
 import type { ModelEntry } from './schema/inference';
-import type { ModelDef } from './schema/model';
+import type { ModelDef, ModelOptions } from './schema/model';
 import { createModel } from './schema/model';
 import type { SchemaLike } from './schema/model-schemas';
 import type { ManyRelationDef, RelationDef } from './schema/relation';
@@ -56,7 +55,6 @@ export const d: {
     name: TName,
     schema: EnumSchemaLike<TValues>,
   ): ColumnBuilder<TValues[number], EnumMeta<TName, TValues>>;
-  tenant(targetTable: TableDef<ColumnRecord>): ColumnBuilder<string, TenantMeta>;
   table<TColumns extends ColumnRecord>(
     name: string,
     columns: TColumns,
@@ -85,6 +83,11 @@ export const d: {
   model<TTable extends TableDef<ColumnRecord>, TRelations extends Record<string, RelationDef>>(
     table: TTable,
     relations: TRelations,
+  ): ModelDef<TTable, TRelations>;
+  model<TTable extends TableDef<ColumnRecord>, TRelations extends Record<string, RelationDef>>(
+    table: TTable,
+    relations: TRelations,
+    options: ModelOptions<TRelations>,
   ): ModelDef<TTable, TRelations>;
 } = {
   uuid: () => createColumn<string, DefaultMeta<'uuid'>>('uuid'),
@@ -134,7 +137,6 @@ export const d: {
       enumValues: values,
     });
   },
-  tenant: (targetTable: TableDef<ColumnRecord>) => createTenantColumn(targetTable._name),
   table: <TColumns extends ColumnRecord>(name: string, columns: TColumns, options?: TableOptions) =>
     createTable(name, columns, options),
   index: (columns: string | string[]) => createIndex(columns),
@@ -148,6 +150,9 @@ export const d: {
     table,
     relations,
   }),
-  model: (table: TableDef<ColumnRecord>, relations: Record<string, RelationDef> = {}) =>
-    createModel(table, relations),
+  model: (
+    table: TableDef<ColumnRecord>,
+    relations: Record<string, RelationDef> = {},
+    options?: ModelOptions<Record<string, RelationDef>>,
+  ) => createModel(table, relations, options),
 };

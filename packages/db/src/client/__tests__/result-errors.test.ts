@@ -13,14 +13,14 @@ const organizations = d.table('organizations', {
 
 const users = d.table('users', {
   id: d.uuid().primary(),
-  organizationId: d.tenant(organizations),
+  organizationId: d.uuid(),
   name: d.text(),
   email: d.email().unique(),
 });
 
 const _projects = d.table('projects', {
   id: d.uuid().primary(),
-  organizationId: d.tenant(organizations),
+  organizationId: d.uuid(),
   name: d.text(),
 });
 

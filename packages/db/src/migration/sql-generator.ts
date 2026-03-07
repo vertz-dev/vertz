@@ -1,6 +1,6 @@
-import { camelToSnake } from '../sql/casing';
 import type { Dialect } from '../dialect';
 import { defaultPostgresDialect } from '../dialect';
+import { camelToSnake } from '../sql/casing';
 import type { DiffChange } from './differ';
 import type { ColumnSnapshot, TableSnapshot } from './snapshot';
 
@@ -39,7 +39,10 @@ function isEnumType(col: ColumnSnapshot, enums?: Record<string, string[]>): bool
 /**
  * Get enum values for a column type.
  */
-function getEnumValues(col: ColumnSnapshot, enums?: Record<string, string[]>): string[] | undefined {
+function getEnumValues(
+  col: ColumnSnapshot,
+  enums?: Record<string, string[]>,
+): string[] | undefined {
   if (!enums) return undefined;
   for (const [enumName, values] of Object.entries(enums)) {
     if (col.type.toLowerCase() === enumName.toLowerCase() || col.type === enumName) {
@@ -60,11 +63,11 @@ function columnDef(
 ): string {
   const snakeName = camelToSnake(name);
   const isEnum = isEnumType(col, enums);
-  
+
   // Map the column type using dialect
   let sqlType: string;
   let checkConstraint: string | undefined;
-  
+
   if (isEnum && dialect.name === 'sqlite') {
     // SQLite: use TEXT with CHECK constraint for enums
     sqlType = dialect.mapColumnType('text');
@@ -75,7 +78,7 @@ function columnDef(
     }
   } else {
     // Use dialect's type mapping
-    // For backward compatibility: 
+    // For backward compatibility:
     // - PostgresDialect with lowercase types preserves them as-is
     // - SQLiteDialect always applies mapping (uuid->TEXT, boolean->INTEGER, etc.)
     // - Uppercase types are normalized and mapped via dialect
@@ -180,8 +183,8 @@ export function generateMigrationSql(
               if (enumValues && enumValues.length > 0) {
                 // Check if we already emitted this enum type
                 const enumSnakeName = camelToSnake(col.type);
-                const alreadyEmitted = statements.some(
-                  (s) => s.includes(`CREATE TYPE "${enumSnakeName}"`),
+                const alreadyEmitted = statements.some((s) =>
+                  s.includes(`CREATE TYPE "${enumSnakeName}"`),
                 );
                 if (!alreadyEmitted) {
                   const valuesStr = enumValues.map((v) => `'${escapeSqlString(v)}'`).join(', ');

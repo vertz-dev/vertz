@@ -1,12 +1,12 @@
-import { describe, expect, it, beforeEach, afterEach, mock, spyOn } from 'bun:test';
-import { autoMigrate } from '../auto-migrate';
-import type { SchemaSnapshot } from '../snapshot';
-import type { MigrationQueryFn } from '../runner';
-import { createSnapshot } from '../snapshot';
-import { d } from '../../d';
+import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { d } from '../../d';
+import { autoMigrate } from '../auto-migrate';
+import type { MigrationQueryFn } from '../runner';
+import type { SchemaSnapshot } from '../snapshot';
+import { createSnapshot } from '../snapshot';
 
 describe('auto-migrate', () => {
   let tmpDir: string;
@@ -47,8 +47,10 @@ describe('auto-migrate', () => {
       });
 
       // Should have created history table and the users table
-      const createHistoryQuery = db.queries.find(q => q.sql.includes('_vertz_migrations'));
-      const createTableQuery = db.queries.find(q => q.sql.includes('CREATE TABLE') && q.sql.includes('users'));
+      const createHistoryQuery = db.queries.find((q) => q.sql.includes('_vertz_migrations'));
+      const createTableQuery = db.queries.find(
+        (q) => q.sql.includes('CREATE TABLE') && q.sql.includes('users'),
+      );
 
       expect(createHistoryQuery).toBeDefined();
       expect(createTableQuery).toBeDefined();
@@ -68,7 +70,9 @@ describe('auto-migrate', () => {
       });
 
       // Should only create history table, no table creations
-      const createTableQueries = db.queries.filter(q => q.sql.includes('CREATE TABLE') && !q.sql.includes('_vertz_migrations'));
+      const createTableQueries = db.queries.filter(
+        (q) => q.sql.includes('CREATE TABLE') && !q.sql.includes('_vertz_migrations'),
+      );
       expect(createTableQueries).toHaveLength(0);
     });
   });
@@ -103,7 +107,9 @@ describe('auto-migrate', () => {
       });
 
       // Should only query the migrations history table (no new migrations applied)
-      const migrationInserts = db.queries.filter(q => q.sql.includes('INSERT INTO "_vertz_migrations"'));
+      const migrationInserts = db.queries.filter((q) =>
+        q.sql.includes('INSERT INTO "_vertz_migrations"'),
+      );
       expect(migrationInserts).toHaveLength(0);
     });
   });
@@ -146,7 +152,7 @@ describe('auto-migrate', () => {
       });
 
       // Should have generated ALTER TABLE for the new column
-      const alterTableQueries = db.queries.filter(q => q.sql.includes('ALTER TABLE'));
+      const alterTableQueries = db.queries.filter((q) => q.sql.includes('ALTER TABLE'));
       expect(alterTableQueries.length).toBeGreaterThan(0);
     });
 
@@ -185,7 +191,9 @@ describe('auto-migrate', () => {
       });
 
       // Should have created the posts table
-      const createPostsQuery = db.queries.find(q => q.sql.includes('CREATE TABLE') && q.sql.includes('posts'));
+      const createPostsQuery = db.queries.find(
+        (q) => q.sql.includes('CREATE TABLE') && q.sql.includes('posts'),
+      );
       expect(createPostsQuery).toBeDefined();
     });
   });
@@ -233,9 +241,9 @@ describe('auto-migrate', () => {
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         expect.stringContaining('Warning: Destructive change detected'),
       );
-      expect(consoleWarnSpy.mock.calls.some(call => 
-        call[0]?.includes('column_removed')
-      )).toBe(true);
+      expect(consoleWarnSpy.mock.calls.some((call) => call[0]?.includes('column_removed'))).toBe(
+        true,
+      );
 
       console.warn = originalWarn;
     });
@@ -276,9 +284,9 @@ describe('auto-migrate', () => {
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         expect.stringContaining('Warning: Destructive change detected'),
       );
-      expect(consoleWarnSpy.mock.calls.some(call => 
-        call[0]?.includes('table_removed')
-      )).toBe(true);
+      expect(consoleWarnSpy.mock.calls.some((call) => call[0]?.includes('table_removed'))).toBe(
+        true,
+      );
 
       console.warn = originalWarn;
     });

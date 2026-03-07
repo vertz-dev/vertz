@@ -168,6 +168,48 @@ describe('Feature: d.model() and derived schemas', () => {
     });
   });
 
+  describe('Given a model with tenant option', () => {
+    const orgsTable = d.table('organizations', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+
+    const employeesTable = d.table('employees', {
+      id: d.uuid().primary(),
+      organizationId: d.uuid(),
+      name: d.text(),
+    });
+
+    describe('When calling d.model(table) without relations or options', () => {
+      it('Then ._tenant defaults to null', () => {
+        const model = d.model(usersTable);
+        expect(model._tenant).toBeNull();
+      });
+    });
+
+    describe('When calling d.model(table, relations) without options', () => {
+      it('Then ._tenant defaults to null', () => {
+        const model = d.model(employeesTable, {
+          organization: d.ref.one(() => orgsTable, 'organizationId'),
+        });
+        expect(model._tenant).toBeNull();
+      });
+    });
+
+    describe('When calling d.model(table, relations, { tenant }) with a valid relation name', () => {
+      it('Then ._tenant equals the relation name', () => {
+        const model = d.model(
+          employeesTable,
+          {
+            organization: d.ref.one(() => orgsTable, 'organizationId'),
+          },
+          { tenant: 'organization' },
+        );
+        expect(model._tenant).toBe('organization');
+      });
+    });
+  });
+
   describe('Given a table and relations', () => {
     const postsTable = d.table('posts', {
       id: d.uuid().primary(),

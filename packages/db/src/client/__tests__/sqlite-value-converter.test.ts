@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { toSqliteValue, fromSqliteValue } from '../sqlite-value-converter';
+import { fromSqliteValue, toSqliteValue } from '../sqlite-value-converter';
 
 describe('toSqliteValue', () => {
   it('converts true to 1', () => {

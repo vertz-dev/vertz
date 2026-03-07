@@ -196,20 +196,6 @@ describe('type-level negative tests', () => {
   });
 });
 
-describe('d.tenant() type inference', () => {
-  it('d.tenant() infers string', () => {
-    const orgs = d.table('orgs', { id: d.uuid().primary() });
-    const col = d.tenant(orgs);
-    type _t1 = Expect<Equal<InferColumnType<typeof col>, string>>;
-  });
-
-  it('d.tenant().nullable() infers string | null', () => {
-    const orgs = d.table('orgs', { id: d.uuid().primary() });
-    const col = d.tenant(orgs).nullable();
-    type _t1 = Expect<Equal<InferColumnType<typeof col>, string | null>>;
-  });
-});
-
 describe('metadata type-level tracking', () => {
   it('.primary() sets primary to true in metadata type', () => {
     const col = d.uuid().primary();

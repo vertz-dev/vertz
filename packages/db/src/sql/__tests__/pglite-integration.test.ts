@@ -1,5 +1,5 @@
-import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { PGlite } from '@electric-sql/pglite';
 import { buildDelete } from '../delete';
 import { buildInsert } from '../insert';
 import { buildSelect } from '../select';

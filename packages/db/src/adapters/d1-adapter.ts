@@ -6,9 +6,9 @@
  */
 
 import type { DbDriver } from '../client/driver';
-import type { TableDef, ColumnRecord } from '../schema/table';
+import type { ColumnRecord, TableDef } from '../schema/table';
 import type { EntityDbAdapter } from '../types/adapter';
-import { generateCreateTableSql, generateIndexSql, BaseSqlAdapter } from './sql-utils';
+import { BaseSqlAdapter, generateCreateTableSql, generateIndexSql } from './sql-utils';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -89,13 +89,13 @@ export class D1Adapter<T extends ColumnRecord> extends BaseSqlAdapter<T> {
 
 /**
  * Create a D1 EntityDbAdapter from a schema and D1 binding.
- * 
- * NOTE: For production D1 deployments, migrations should be run via 
+ *
+ * NOTE: For production D1 deployments, migrations should be run via
  * `wrangler d1 migrations apply` during deployment, NOT at runtime.
  * Set `migrations.autoApply = false` or omit the migrations option for production.
  */
 export function createD1Adapter<T extends ColumnRecord>(
-  options: D1AdapterOptions<T>
+  options: D1AdapterOptions<T>,
 ): EntityDbAdapter {
   const { schema, d1, migrations } = options;
 

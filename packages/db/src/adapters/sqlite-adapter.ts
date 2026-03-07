@@ -9,9 +9,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import type { DbDriver } from '../client/driver';
-import type { TableDef, ColumnRecord } from '../schema/table';
+import type { ColumnRecord, TableDef } from '../schema/table';
 import type { EntityDbAdapter } from '../types/adapter';
-import { generateCreateTableSql, generateIndexSql, BaseSqlAdapter } from './sql-utils';
+import { BaseSqlAdapter, generateCreateTableSql, generateIndexSql } from './sql-utils';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -81,8 +81,8 @@ export function createSqliteDriver(dbPath: string): DbDriver {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       throw new Error(
         `Failed to create SQLite database at "${dbPath}". ` +
-        `Please ensure the directory exists and you have write permissions. ` +
-        `Error: ${errorMessage}`
+          `Please ensure the directory exists and you have write permissions. ` +
+          `Error: ${errorMessage}`,
       );
     }
   }
@@ -130,7 +130,7 @@ export class SqliteAdapter<T extends ColumnRecord> extends BaseSqlAdapter<T> {
  * Create a SQLite EntityDbAdapter from a schema.
  */
 export async function createSqliteAdapter<T extends ColumnRecord>(
-  options: SqliteAdapterOptions<T>
+  options: SqliteAdapterOptions<T>,
 ): Promise<EntityDbAdapter> {
   const { schema, dbPath, dataDir, migrations } = options;
 

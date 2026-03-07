@@ -6,8 +6,8 @@
  * no breaking changes were introduced during SQLite dialect implementation.
  */
 
-import { PGlite } from '@electric-sql/pglite';
 import { describe, expect, it } from 'bun:test';
+import { PGlite } from '@electric-sql/pglite';
 import { createDb } from '../client/database';
 import { d } from '../d';
 

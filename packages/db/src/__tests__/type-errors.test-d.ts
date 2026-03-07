@@ -1,5 +1,4 @@
 import { describe, it } from 'bun:test';
-import type { Equal, Expect } from './_type-helpers';
 import { d } from '../d';
 import type { FilterType, SelectOption } from '../schema/inference';
 import type {
@@ -8,6 +7,7 @@ import type {
   InvalidRelation,
   ValidateKeys,
 } from '../types/branded-errors';
+import type { Equal, Expect } from './_type-helpers';
 
 // ---------------------------------------------------------------------------
 // Fixture tables
@@ -66,7 +66,9 @@ describe('InvalidFilterType branded type', () => {
 describe('InvalidRelation branded type', () => {
   it('produces readable relation error', () => {
     type Err = InvalidRelation<'bogus', 'author, comments'>;
-    type _t1 = Expect<Equal<Err, "ERROR: Relation 'bogus' does not exist. Available relations: author, comments.">>;
+    type _t1 = Expect<
+      Equal<Err, "ERROR: Relation 'bogus' does not exist. Available relations: author, comments.">
+    >;
   });
 });
 

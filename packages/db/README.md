@@ -82,8 +82,7 @@ d.textArray()               // TEXT[] → string[]
 d.integerArray()            // INTEGER[] → number[]
 d.enum('status', ['active', 'inactive'])  // ENUM → 'active' | 'inactive'
 
-// Multi-tenancy
-d.tenant(orgsTable)         // UUID FK to tenant root → string
+// Multi-tenancy — see d.model() options below
 ```
 
 ### Column Modifiers
@@ -476,11 +475,15 @@ const orgsTable = d.table('organizations', {
 const usersTable = d.table('users', {
   id: d.uuid().primary(),
   email: d.email(),
-  orgId: d.tenant(orgsTable),  // scopes this table to a tenant
+  orgId: d.uuid(),
 });
 
 const orgsModel = d.model(orgsTable);
-const usersModel = d.model(usersTable);
+const usersModel = d.model(
+  usersTable,
+  { organization: d.ref.one(() => orgsTable, 'orgId') },
+  { tenant: 'organization' },  // scopes this model to a tenant via relation
+);
 
 const tenantGraph = computeTenantGraph({ organizations: orgsModel, users: usersModel });
 

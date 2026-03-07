@@ -16,7 +16,7 @@ describe('s.fromDbEnum', () => {
         hasDefault: false,
         sensitive: false,
         hidden: false,
-        isTenant: false,
+
         references: null,
         check: null,
       },
@@ -41,7 +41,7 @@ describe('s.fromDbEnum', () => {
         hasDefault: false,
         sensitive: false,
         hidden: false,
-        isTenant: false,
+
         references: null,
         check: null,
       },
@@ -62,7 +62,7 @@ describe('s.fromDbEnum', () => {
         hasDefault: false,
         sensitive: false,
         hidden: false,
-        isTenant: false,
+
         references: null,
         check: null,
       },
@@ -83,7 +83,7 @@ describe('s.fromDbEnum', () => {
         hasDefault: false,
         sensitive: false,
         hidden: false,
-        isTenant: false,
+
         references: null,
         check: null,
       },
