@@ -2,34 +2,45 @@
  * Manifest generator — produces a ReactivityManifest for a single file.
  *
  * Uses the raw TypeScript Compiler API (ts.createSourceFile) for performance.
- * No ts-morph, no Program, no type checker. Pure AST pattern matching.
+ * Pure AST pattern matching — no Program, no type checker.
  *
  * @see plans/cross-file-reactivity-analysis.md Section 2.2.2
  */
 import { ts } from 'ts-morph';
+import {
+  REACTIVE_SOURCE_APIS,
+  SIGNAL_API_REGISTRY,
+} from './signal-api-registry';
 import type { ExportReactivityInfo, ReactivityManifest, ReactivityShape } from './types';
 
-/** Known framework APIs whose reactivity shapes are pre-defined. */
-const FRAMEWORK_REACTIVE_APIS: Record<string, ReactivityShape> = {
-  query: {
-    type: 'signal-api',
-    signalProperties: ['data', 'loading', 'error', 'revalidating'],
-    plainProperties: ['refetch', 'revalidate', 'dispose'],
-  },
-  form: {
-    type: 'signal-api',
-    signalProperties: ['submitting', 'dirty', 'valid'],
-    plainProperties: ['action', 'method', 'onSubmit', 'reset', 'setFieldError', 'submit'],
-    fieldSignalProperties: ['value', 'error', 'dirty', 'touched'],
-  },
-  createLoader: {
-    type: 'signal-api',
-    signalProperties: ['data', 'loading', 'error'],
-    plainProperties: ['refetch'],
-  },
-  signal: { type: 'signal' },
-  useContext: { type: 'reactive-source' },
-};
+/**
+ * Framework reactive API shapes derived from SIGNAL_API_REGISTRY.
+ * Single source of truth — no duplication.
+ */
+const FRAMEWORK_REACTIVE_APIS: Record<string, ReactivityShape> = buildFrameworkApis();
+
+function buildFrameworkApis(): Record<string, ReactivityShape> {
+  const apis: Record<string, ReactivityShape> = {};
+
+  for (const [name, config] of Object.entries(SIGNAL_API_REGISTRY)) {
+    apis[name] = {
+      type: 'signal-api',
+      signalProperties: [...config.signalProperties],
+      plainProperties: [...config.plainProperties],
+      ...(config.fieldSignalProperties
+        ? { fieldSignalProperties: [...config.fieldSignalProperties] }
+        : {}),
+    };
+  }
+
+  for (const name of REACTIVE_SOURCE_APIS) {
+    apis[name] = { type: 'reactive-source' };
+  }
+
+  apis.signal = { type: 'signal' };
+
+  return apis;
+}
 
 /**
  * Result of analyzing a single file for manifest generation.
@@ -68,8 +79,9 @@ export function analyzeFile(filePath: string, sourceText: string): FileAnalysis 
   const reExports: ReExportRef[] = [];
   const exports: Record<string, ExportReactivityInfo> = {};
 
-  // Track local variables assigned from known API calls
+  // Track local declarations for same-file resolution
   const localVarShapes = new Map<string, ReactivityShape>();
+  const localFnShapes = new Map<string, ExportReactivityInfo>();
   // Track which imports map to which API names
   const importedApis = new Map<string, string>(); // localName → originalName
 
@@ -84,23 +96,47 @@ export function analyzeFile(filePath: string, sourceText: string): FileAnalysis 
           const localName = el.name.getText(sourceFile);
           imports.push({ localName, originalName, moduleSpecifier });
 
-          // Track framework API imports for local variable resolution
           if (FRAMEWORK_REACTIVE_APIS[originalName]) {
             importedApis.set(localName, originalName);
           }
         }
       }
+      // Track default imports
+      if (clause?.name) {
+        const localName = clause.name.getText(sourceFile);
+        imports.push({ localName, originalName: 'default', moduleSpecifier });
+      }
     }
   }
 
-  // Second pass: analyze exports
+  // Second pass: analyze exports and track local declarations
   for (const stmt of sourceFile.statements) {
     // export function foo() { ... }
     if (ts.isFunctionDeclaration(stmt) && hasExportModifier(stmt)) {
       const name = stmt.name?.getText(sourceFile);
       if (name) {
-        exports[name] = analyzeFunctionDeclaration(stmt, sourceFile, importedApis);
+        const info = analyzeFunctionDeclaration(stmt, sourceFile, importedApis);
+        exports[name] = info;
+        localFnShapes.set(name, info);
       }
+      continue;
+    }
+
+    // export default function foo() { ... } or export default function() { ... }
+    if (ts.isFunctionDeclaration(stmt) && hasDefaultExportModifier(stmt)) {
+      const info = analyzeFunctionDeclaration(stmt, sourceFile, importedApis);
+      exports.default = info;
+      const name = stmt.name?.getText(sourceFile);
+      if (name) {
+        localFnShapes.set(name, info);
+      }
+      continue;
+    }
+
+    // export default <expression>
+    if (ts.isExportAssignment(stmt) && !stmt.isExportEquals) {
+      const info = analyzeExpression(stmt.expression, sourceFile, importedApis);
+      exports.default = info;
       continue;
     }
 
@@ -111,8 +147,10 @@ export function analyzeFile(filePath: string, sourceText: string): FileAnalysis 
           const name = decl.name.getText(sourceFile);
           const info = analyzeVariableDeclaration(decl, sourceFile, importedApis);
           exports[name] = info;
-          // Track local shape for same-file resolution
           localVarShapes.set(name, info.reactivity);
+          if (info.kind === 'function') {
+            localFnShapes.set(name, info);
+          }
         }
       }
       continue;
@@ -131,20 +169,21 @@ export function analyzeFile(filePath: string, sourceText: string): FileAnalysis 
           const exportName = el.name.getText(sourceFile);
 
           if (moduleSpecifier) {
-            // Re-export from another module: export { foo } from './bar'
             reExports.push({ exportName, originalName, moduleSpecifier });
           } else {
             // Local re-export: export { foo }
-            // Try to resolve from local variable shapes
+            // Check local variables and functions
             const localShape = localVarShapes.get(originalName);
             if (localShape) {
               exports[exportName] = { kind: 'variable', reactivity: localShape };
+            } else {
+              const fnInfo = localFnShapes.get(originalName);
+              if (fnInfo) {
+                exports[exportName] = fnInfo;
+              }
             }
-            // Otherwise left unresolved — the resolver will handle it
           }
         }
-      } else if (stmt.exportClause && ts.isNamespaceExport(stmt.exportClause)) {
-        // export * as ns from './bar' — skip for now
       } else if (!stmt.exportClause && moduleSpecifier) {
         // export * from './bar' — star re-export
         reExports.push({ exportName: '*', originalName: '*', moduleSpecifier });
@@ -152,7 +191,7 @@ export function analyzeFile(filePath: string, sourceText: string): FileAnalysis 
       continue;
     }
 
-    // Non-exported variable statements — track locally for same-file resolution
+    // Non-exported declarations — track locally for same-file resolution
     if (ts.isVariableStatement(stmt) && !hasExportModifier(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
         if (ts.isIdentifier(decl.name) && decl.initializer) {
@@ -162,6 +201,13 @@ export function analyzeFile(filePath: string, sourceText: string): FileAnalysis 
             localVarShapes.set(name, shape);
           }
         }
+      }
+    }
+
+    if (ts.isFunctionDeclaration(stmt) && !hasExportModifier(stmt) && !hasDefaultExportModifier(stmt)) {
+      const name = stmt.name?.getText(sourceFile);
+      if (name) {
+        localFnShapes.set(name, analyzeFunctionDeclaration(stmt, sourceFile, importedApis));
       }
     }
   }
@@ -182,13 +228,43 @@ function analyzeFunctionDeclaration(
     return { kind: 'function', reactivity: { type: 'unknown' } };
   }
 
-  // Check if this is a component (returns JSX)
   if (isComponentFunction(node, sourceFile)) {
     return { kind: 'component', reactivity: { type: 'static' } };
   }
 
   const returnShape = inferFunctionReturnShape(node.body, sourceFile, importedApis);
   return { kind: 'function', reactivity: returnShape };
+}
+
+/** Analyze a standalone expression (used for export default <expr>). */
+function analyzeExpression(
+  expr: ts.Expression,
+  sourceFile: ts.SourceFile,
+  importedApis: Map<string, string>,
+): ExportReactivityInfo {
+  expr = unwrapExpression(expr);
+
+  if (ts.isArrowFunction(expr) || ts.isFunctionExpression(expr)) {
+    if (isComponentFunction(expr, sourceFile)) {
+      return { kind: 'component', reactivity: { type: 'static' } };
+    }
+    if (expr.body && ts.isBlock(expr.body)) {
+      const returnShape = inferFunctionReturnShape(expr.body, sourceFile, importedApis);
+      return { kind: 'function', reactivity: returnShape };
+    }
+    if (expr.body && !ts.isBlock(expr.body)) {
+      const shape = inferExpressionShape(expr.body, sourceFile, importedApis);
+      return { kind: 'function', reactivity: shape ?? { type: 'unknown' } };
+    }
+    return { kind: 'function', reactivity: { type: 'unknown' } };
+  }
+
+  const shape = inferInitializerShape(expr, sourceFile, importedApis);
+  if (shape) {
+    return { kind: 'variable', reactivity: shape };
+  }
+
+  return { kind: 'variable', reactivity: { type: 'static' } };
 }
 
 function analyzeVariableDeclaration(
@@ -202,7 +278,6 @@ function analyzeVariableDeclaration(
 
   const init = decl.initializer;
 
-  // Arrow function or function expression
   if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) {
     if (isComponentFunction(init, sourceFile)) {
       return { kind: 'component', reactivity: { type: 'static' } };
@@ -213,7 +288,6 @@ function analyzeVariableDeclaration(
       return { kind: 'function', reactivity: returnShape };
     }
 
-    // Concise arrow: () => expr
     if (init.body && !ts.isBlock(init.body)) {
       const shape = inferExpressionShape(init.body, sourceFile, importedApis);
       return { kind: 'function', reactivity: shape ?? { type: 'unknown' } };
@@ -222,7 +296,6 @@ function analyzeVariableDeclaration(
     return { kind: 'function', reactivity: { type: 'unknown' } };
   }
 
-  // Direct call expression: const foo = query(...)
   const shape = inferInitializerShape(init, sourceFile, importedApis);
   if (shape) {
     return { kind: 'variable', reactivity: shape };
@@ -233,7 +306,6 @@ function analyzeVariableDeclaration(
 
 /**
  * Infer the reactivity shape of a function body by analyzing return statements.
- *
  * If there are multiple return paths with different shapes, uses the most reactive.
  */
 function inferFunctionReturnShape(
@@ -241,10 +313,8 @@ function inferFunctionReturnShape(
   sourceFile: ts.SourceFile,
   importedApis: Map<string, string>,
 ): ReactivityShape {
-  // Track local variables in the function body
   const localVars = new Map<string, ReactivityShape>();
 
-  // First, scan for local variable assignments
   for (const stmt of body.statements) {
     if (ts.isVariableStatement(stmt)) {
       for (const decl of stmt.declarationList.declarations) {
@@ -259,7 +329,6 @@ function inferFunctionReturnShape(
     }
   }
 
-  // Then analyze return statements
   const returnShapes: ReactivityShape[] = [];
   collectReturnShapes(body, sourceFile, importedApis, localVars, returnShapes);
 
@@ -267,7 +336,6 @@ function inferFunctionReturnShape(
     return { type: 'static' };
   }
 
-  // Use the most reactive shape (conservative)
   return mostReactiveShape(returnShapes);
 }
 
@@ -278,16 +346,6 @@ function collectReturnShapes(
   localVars: Map<string, ReactivityShape>,
   shapes: ReactivityShape[],
 ): void {
-  // Don't descend into nested function bodies
-  if (
-    node !== node &&
-    (ts.isFunctionDeclaration(node) ||
-      ts.isFunctionExpression(node) ||
-      ts.isArrowFunction(node))
-  ) {
-    return;
-  }
-
   if (ts.isReturnStatement(node) && node.expression) {
     const shape = inferExpressionShape(node.expression, sourceFile, importedApis, localVars);
     if (shape) {
@@ -298,16 +356,22 @@ function collectReturnShapes(
   }
 
   ts.forEachChild(node, (child) => {
-    // Skip nested function bodies
-    if (
-      ts.isFunctionDeclaration(child) ||
-      ts.isFunctionExpression(child) ||
-      ts.isArrowFunction(child)
-    ) {
-      return;
-    }
+    // Skip nested function/method bodies — their returns don't belong to us
+    if (isNestedFunctionLike(child)) return;
     collectReturnShapes(child, sourceFile, importedApis, localVars, shapes);
   });
+}
+
+/** Check if a node is a nested function-like declaration that should not be descended into. */
+function isNestedFunctionLike(node: ts.Node): boolean {
+  return (
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isArrowFunction(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) ||
+    ts.isSetAccessorDeclaration(node)
+  );
 }
 
 /**
@@ -320,10 +384,8 @@ function inferExpressionShape(
   importedApis: Map<string, string>,
   localVars?: Map<string, ReactivityShape>,
 ): ReactivityShape | null {
-  // Unwrap parentheses, as, satisfies, non-null assertions
   expr = unwrapExpression(expr);
 
-  // Call expression: query(...), useContext(...), etc.
   if (ts.isCallExpression(expr)) {
     const callee = expr.expression;
     if (ts.isIdentifier(callee)) {
@@ -332,7 +394,6 @@ function inferExpressionShape(
       if (apiName && FRAMEWORK_REACTIVE_APIS[apiName]) {
         return FRAMEWORK_REACTIVE_APIS[apiName];
       }
-      // Check local variable (same-file function call)
       if (localVars?.has(calleeName)) {
         return localVars.get(calleeName)!;
       }
@@ -340,7 +401,6 @@ function inferExpressionShape(
     return null;
   }
 
-  // Identifier: return someVar
   if (ts.isIdentifier(expr)) {
     const name = expr.getText(sourceFile);
     if (localVars?.has(name)) {
@@ -349,12 +409,11 @@ function inferExpressionShape(
     return null;
   }
 
-  // Conditional: cond ? exprA : exprB — use most reactive
   if (ts.isConditionalExpression(expr)) {
     const whenTrue = inferExpressionShape(expr.whenTrue, sourceFile, importedApis, localVars);
     const whenFalse = inferExpressionShape(expr.whenFalse, sourceFile, importedApis, localVars);
-    const shapes = [whenTrue, whenFalse].filter((s): s is ReactivityShape => s !== null);
-    return shapes.length > 0 ? mostReactiveShape(shapes) : null;
+    const allShapes = [whenTrue, whenFalse].filter((s): s is ReactivityShape => s !== null);
+    return allShapes.length > 0 ? mostReactiveShape(allShapes) : null;
   }
 
   return null;
@@ -362,7 +421,6 @@ function inferExpressionShape(
 
 /**
  * Infer shape from a variable initializer (non-function).
- * Used for: const foo = query(...), const bar = someReactiveVar, etc.
  */
 function inferInitializerShape(
   init: ts.Expression,
@@ -390,45 +448,36 @@ function isComponentFunction(
   node: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression,
   sourceFile: ts.SourceFile,
 ): boolean {
-  // Check function name starts with uppercase (convention for components)
   let name: string | undefined;
   if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node)) {
     name = node.name?.getText(sourceFile);
   }
-  // For arrow functions, we can't check the name here — the caller handles it
 
   if (name && !/^[A-Z]/.test(name)) {
     return false;
   }
 
-  // Check if body contains JSX returns
   if (node.body) {
     return containsJsxReturn(node.body, sourceFile);
   }
   return false;
 }
 
-function containsJsxReturn(node: ts.Node, sourceFile: ts.SourceFile): boolean {
+function containsJsxReturn(node: ts.Node, _sourceFile: ts.SourceFile): boolean {
   if (ts.isReturnStatement(node) && node.expression) {
     return isJsxExpression(node.expression);
   }
 
-  // Concise arrow body
   if (isJsxExpression(node)) {
     return true;
   }
 
   let found = false;
   ts.forEachChild(node, (child) => {
-    // Don't descend into nested functions
-    if (
-      ts.isFunctionDeclaration(child) ||
-      ts.isFunctionExpression(child) ||
-      ts.isArrowFunction(child)
-    ) {
-      return;
-    }
-    if (containsJsxReturn(child, sourceFile)) {
+    if (found) return;
+    // Skip nested function/method bodies
+    if (isNestedFunctionLike(child)) return;
+    if (containsJsxReturn(child, _sourceFile)) {
       found = true;
     }
   });
@@ -440,7 +489,7 @@ function isJsxExpression(node: ts.Node): boolean {
     ts.isJsxElement(node) ||
     ts.isJsxSelfClosingElement(node) ||
     ts.isJsxFragment(node) ||
-    ts.isParenthesizedExpression(node) && isJsxExpression(node.expression)
+    (ts.isParenthesizedExpression(node) && isJsxExpression(node.expression))
   );
 }
 
@@ -464,17 +513,25 @@ function unwrapExpression(expr: ts.Expression): ts.Expression {
 }
 
 function hasExportModifier(node: ts.Statement): boolean {
-  return (
-    ts.canHaveModifiers(node) &&
-    ts.getModifiers(node)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) === true
-  );
+  if (!ts.canHaveModifiers(node)) return false;
+  const mods = ts.getModifiers(node);
+  if (!mods) return false;
+  return mods.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) &&
+    !mods.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
+}
+
+function hasDefaultExportModifier(node: ts.Statement): boolean {
+  if (!ts.canHaveModifiers(node)) return false;
+  const mods = ts.getModifiers(node);
+  if (!mods) return false;
+  return mods.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) &&
+    mods.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
 }
 
 function stripQuotes(text: string): string {
   return text.replace(/^['"]|['"]$/g, '');
 }
 
-/** Rank reactivity shapes from most to least reactive. */
 const REACTIVITY_RANK: Record<string, number> = {
   'signal-api': 4,
   'reactive-source': 3,

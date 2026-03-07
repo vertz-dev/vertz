@@ -5,7 +5,11 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { generateAllManifests, resolveModuleSpecifier } from '../manifest-resolver';
+import {
+  generateAllManifests,
+  regenerateFileManifest,
+  resolveModuleSpecifier,
+} from '../manifest-resolver';
 import type { ReactivityManifest } from '../types';
 
 /** Helper to create a temp project structure for testing. */
@@ -208,6 +212,12 @@ describe('manifest-resolver', () => {
 
       expect(result.warnings.length).toBeGreaterThanOrEqual(1);
       expect(result.warnings.some((w) => w.type === 'circular-dependency')).toBe(true);
+
+      // Circular deps should still produce manifests with unknown exports
+      const aManifest = result.manifests.get(join(project.dir, 'src/hooks/a.ts'));
+      const bManifest = result.manifests.get(join(project.dir, 'src/hooks/b.ts'));
+      expect(aManifest).toBeDefined();
+      expect(bManifest).toBeDefined();
     });
 
     it('skips test files', () => {
@@ -323,6 +333,73 @@ describe('manifest-resolver', () => {
         project.dir,
       );
       expect(resolved).toBe('@vertz/ui');
+    });
+  });
+
+  describe('regenerateFileManifest', () => {
+    it('updates manifest for a changed file', () => {
+      const filePath = project.write(
+        'hooks/use-tasks.ts',
+        `
+        export function useTasks() {
+          return 'static';
+        }
+      `,
+      );
+
+      // Generate initial manifests
+      const result = generateAllManifests({
+        srcDir: join(project.dir, 'src'),
+        packageManifests: { '@vertz/ui': FRAMEWORK_MANIFEST },
+      });
+
+      expect(result.manifests.get(filePath)!.exports.useTasks.reactivity.type).toBe('static');
+
+      // Now update the file to return query()
+      const newSource = `
+        import { query } from '@vertz/ui';
+        export function useTasks() {
+          return query(() => fetch('/api'));
+        }
+      `;
+
+      const updated = regenerateFileManifest(filePath, newSource, result.manifests, {
+        srcDir: join(project.dir, 'src'),
+      });
+
+      expect(updated.manifest.exports.useTasks.reactivity.type).toBe('signal-api');
+      // The manifests map should also be updated
+      expect(result.manifests.get(filePath)!.exports.useTasks.reactivity.type).toBe('signal-api');
+    });
+
+    it('replaces stale entry instead of keeping old one', () => {
+      const filePath = project.write(
+        'hooks/use-data.ts',
+        `
+        import { query } from '@vertz/ui';
+        export function useData() { return query(() => fetch('/api')); }
+        export function useOther() { return 'static'; }
+      `,
+      );
+
+      const result = generateAllManifests({
+        srcDir: join(project.dir, 'src'),
+        packageManifests: { '@vertz/ui': FRAMEWORK_MANIFEST },
+      });
+
+      // Remove useOther in the updated version
+      const newSource = `
+        export function useData() { return 'now static'; }
+      `;
+
+      regenerateFileManifest(filePath, newSource, result.manifests, {
+        srcDir: join(project.dir, 'src'),
+      });
+
+      const manifest = result.manifests.get(filePath)!;
+      expect(manifest.exports.useData.reactivity.type).toBe('static');
+      // useOther should no longer exist
+      expect(manifest.exports.useOther).toBeUndefined();
     });
   });
 

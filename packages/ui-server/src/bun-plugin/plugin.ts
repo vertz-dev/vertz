@@ -22,7 +22,6 @@ import {
   compile,
   generateAllManifests,
   HydrationTransformer,
-  loadFrameworkManifest,
   regenerateFileManifest,
 } from '@vertz/ui-compiler';
 import type { LoadedReactivityManifest } from '@vertz/ui-compiler';
@@ -65,44 +64,27 @@ export function createVertzBunPlugin(options?: VertzBunPluginOptions): VertzBunP
   // time. This enables the compiler to understand the reactivity shape of
   // imports from user files (custom hooks, barrel re-exports, etc.).
   const srcDir = options?.srcDir ?? resolve(projectRoot, 'src');
-  const frameworkManifest = loadFrameworkManifest();
+  // Load the raw JSON manifest to avoid Set→Array round-trip
+  const frameworkManifestJson = require(
+    require.resolve('@vertz/ui/reactivity.json'),
+  ) as import('@vertz/ui-compiler').ReactivityManifest;
   const manifestResult = generateAllManifests({
     srcDir,
-    packageManifests: {
-      '@vertz/ui': {
-        version: 1,
-        filePath: '@vertz/ui',
-        exports: Object.fromEntries(
-          Object.entries(frameworkManifest.exports).map(([name, info]) => [
-            name,
-            {
-              kind: info.kind,
-              reactivity: info.reactivity.type === 'signal-api'
-                ? {
-                    type: 'signal-api' as const,
-                    signalProperties: [...info.reactivity.signalProperties],
-                    plainProperties: [...info.reactivity.plainProperties],
-                    ...(info.reactivity.fieldSignalProperties
-                      ? { fieldSignalProperties: [...info.reactivity.fieldSignalProperties] }
-                      : {}),
-                  }
-                : info.reactivity,
-            },
-          ]),
-        ),
-      },
-    },
+    packageManifests: { '@vertz/ui': frameworkManifestJson },
   });
 
   // Mutable manifest map — HMR updates can modify it
   const manifests: Map<string, LoadedReactivityManifest> = manifestResult.manifests;
 
-  // Build a Record<string, LoadedReactivityManifest> for passing to compile()
+  // Cached Record view of the manifest map — rebuilt only when dirty
+  let manifestsRecord: Record<string, LoadedReactivityManifest> | null = null;
   const getManifestsRecord = (): Record<string, LoadedReactivityManifest> => {
+    if (manifestsRecord) return manifestsRecord;
     const record: Record<string, LoadedReactivityManifest> = {};
     for (const [key, value] of manifests) {
       record[key] = value;
     }
+    manifestsRecord = record;
     return record;
   };
 

@@ -263,6 +263,76 @@ describe('manifest-generator', () => {
       });
     });
 
+    describe('export default', () => {
+      it('classifies export default function returning query() as signal-api', () => {
+        const source = `
+          import { query } from '@vertz/ui';
+          export default function useTasks() {
+            return query(() => fetchTasks());
+          }
+        `;
+        const analysis = analyzeFile('src/hooks/use-tasks.ts', source);
+        expect(analysis.manifest.exports.default).toBeDefined();
+        expect(analysis.manifest.exports.default.kind).toBe('function');
+        expect(analysis.manifest.exports.default.reactivity.type).toBe('signal-api');
+      });
+
+      it('classifies export default arrow function as component', () => {
+        const source = `
+          export default function TaskList() {
+            return <div>Hello</div>;
+          }
+        `;
+        const analysis = analyzeFile('src/components/task-list.tsx', source);
+        expect(analysis.manifest.exports.default.kind).toBe('component');
+      });
+
+      it('classifies export default expression', () => {
+        const source = `
+          import { query } from '@vertz/ui';
+          const tasks = query(() => fetchTasks());
+          export default tasks;
+        `;
+        const analysis = analyzeFile('src/hooks/tasks.ts', source);
+        expect(analysis.manifest.exports.default).toBeDefined();
+      });
+    });
+
+    describe('method declarations in returned objects', () => {
+      it('does not descend into method declarations when collecting return shapes', () => {
+        const source = `
+          import { query } from '@vertz/ui';
+          export function useApi() {
+            const q = query(() => fetch('/api'));
+            return q;
+          }
+          function helper() {
+            return {
+              getData() { return query(() => fetch('/other')); },
+            };
+          }
+        `;
+        const analysis = analyzeFile('src/hooks/use-api.ts', source);
+        // The exported function returns q directly → signal-api
+        expect(analysis.manifest.exports.useApi.reactivity.type).toBe('signal-api');
+      });
+    });
+
+    describe('local function tracking for export { foo }', () => {
+      it('resolves local function exported via export { foo }', () => {
+        const source = `
+          import { query } from '@vertz/ui';
+          function useTasks() {
+            return query(() => fetchTasks());
+          }
+          export { useTasks };
+        `;
+        const analysis = analyzeFile('src/hooks/use-tasks.ts', source);
+        expect(analysis.manifest.exports.useTasks).toBeDefined();
+        expect(analysis.manifest.exports.useTasks.reactivity.type).toBe('signal-api');
+      });
+    });
+
     describe('type wrappers', () => {
       it('handles as expression in return', () => {
         const source = `

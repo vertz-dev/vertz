@@ -12,7 +12,7 @@
  *
  * @see plans/cross-file-reactivity-analysis.md Section 2.2.4
  */
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { type FileAnalysis, type ReExportRef, analyzeFile } from './manifest-generator';
 import { loadManifestFromJson } from './reactivity-manifest';
@@ -67,9 +67,13 @@ export function generateAllManifests(options: GenerateManifestsOptions): Manifes
   // 2. Parse and analyze each file (single-file analysis)
   const fileAnalyses = new Map<string, FileAnalysis>();
   for (const filePath of sourceFiles) {
-    const sourceText = readFileSync(filePath, 'utf-8');
-    const analysis = analyzeFile(filePath, sourceText);
-    fileAnalyses.set(filePath, analysis);
+    try {
+      const sourceText = readFileSync(filePath, 'utf-8');
+      const analysis = analyzeFile(filePath, sourceText);
+      fileAnalyses.set(filePath, analysis);
+    } catch {
+      // Skip files that can't be read (deleted between scan and read, permissions, etc.)
+    }
   }
 
   // 3. Load pre-built package manifests
@@ -114,6 +118,9 @@ export function regenerateFileManifest(
   const fileAnalyses = new Map<string, FileAnalysis>();
   fileAnalyses.set(filePath, analysis);
 
+  // Delete stale entry so resolveFileManifest re-resolves from scratch
+  existingManifests.delete(filePath);
+
   const resolveCtx: ResolveContext = {
     fileAnalyses,
     resolvedManifests: existingManifests,
@@ -150,13 +157,27 @@ function resolveFileManifest(
     return ctx.resolvedManifests.get(filePath);
   }
 
-  // Circular dependency detection
+  // Circular dependency detection — produce manifest with unknown exports
   if (ctx.resolving.has(filePath)) {
     ctx.warnings.push({
       type: 'circular-dependency',
       message: `Circular dependency detected involving ${filePath}. Exports in the cycle are treated as unknown.`,
       files: [...ctx.resolving],
     });
+    const analysis = ctx.fileAnalyses.get(filePath);
+    if (analysis) {
+      const unknownExports: Record<string, ReactivityManifest['exports'][string]> = {};
+      for (const name of Object.keys(analysis.manifest.exports)) {
+        unknownExports[name] = { kind: 'function', reactivity: { type: 'unknown' } };
+      }
+      const unknownManifest = loadManifestFromJson({
+        version: 1,
+        filePath,
+        exports: unknownExports,
+      });
+      ctx.resolvedManifests.set(filePath, unknownManifest);
+      return unknownManifest;
+    }
     return undefined;
   }
 
@@ -280,23 +301,23 @@ export function resolveModuleSpecifier(
  */
 function probeFile(basePath: string): string | undefined {
   // Exact match (already has extension)
-  if (existsSync(basePath) && isFile(basePath)) {
+  if (isFile(basePath)) {
     return basePath;
   }
 
   // Extension probing
   for (const ext of EXTENSIONS) {
     const candidate = basePath + ext;
-    if (existsSync(candidate) && isFile(candidate)) {
+    if (isFile(candidate)) {
       return candidate;
     }
   }
 
   // Directory index probing
-  if (existsSync(basePath) && isDirectory(basePath)) {
+  if (isDirectory(basePath)) {
     for (const indexFile of INDEX_FILES) {
       const candidate = join(basePath, indexFile);
-      if (existsSync(candidate) && isFile(candidate)) {
+      if (isFile(candidate)) {
         return candidate;
       }
     }
