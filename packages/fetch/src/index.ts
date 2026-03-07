@@ -3,8 +3,13 @@ export type { EntityErrorType, FetchErrorType, Result } from '@vertz/errors';
 // Re-export matchError for error handling
 export { err, isErr, isOk, matchError, ok, unwrap, unwrapOr } from '@vertz/errors';
 export { FetchClient } from './client';
-export type { QueryDescriptor } from './descriptor';
-export { createDescriptor, isQueryDescriptor } from './descriptor';
+export type { MutationDescriptor, QueryDescriptor } from './descriptor';
+export {
+  createDescriptor,
+  createMutationDescriptor,
+  isMutationDescriptor,
+  isQueryDescriptor,
+} from './descriptor';
 export {
   BadRequestError,
   ConflictError,
@@ -21,10 +26,13 @@ export {
 } from './errors';
 export type {
   AuthStrategy,
+  EntityQueryMeta,
   FetchClientConfig,
   FetchResponse,
   HooksConfig,
   ListResponse,
+  MutationMeta,
+  OptimisticHandler,
   RequestOptions,
   RetryConfig,
   StreamingFormat,

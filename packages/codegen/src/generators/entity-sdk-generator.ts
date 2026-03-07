@@ -57,6 +57,9 @@ export class EntitySdkGenerator implements Generator {
     // Import types (when schema is resolved)
     const hasTypes = entity.operations.some((op) => op.outputSchema || op.inputSchema);
     const hasListOp = entity.operations.some((op) => op.kind === 'list');
+    const hasMutationOp = entity.operations.some(
+      (op) => op.kind === 'update' || op.kind === 'delete',
+    );
     if (hasTypes) {
       const typeImports = new Set<string>();
       for (const op of entity.operations) {
@@ -70,15 +73,23 @@ export class EntitySdkGenerator implements Generator {
       lines.push(
         `import type { ${[...typeImports].join(', ')} } from '../types/${entity.entityName}';`,
       );
-      const fetchImports = hasListOp
-        ? 'type FetchClient, type ListResponse, createDescriptor'
-        : 'type FetchClient, createDescriptor';
-      lines.push(`import { ${fetchImports} } from '@vertz/fetch';`);
+      const fetchImportParts: string[] = ['type FetchClient'];
+      if (hasListOp) fetchImportParts.push('type ListResponse');
+      if (hasMutationOp) fetchImportParts.push('type OptimisticHandler');
+      fetchImportParts.push('createDescriptor');
+      if (hasMutationOp) fetchImportParts.push('createMutationDescriptor');
+      lines.push(`import { ${fetchImportParts.join(', ')} } from '@vertz/fetch';`);
       lines.push('');
     }
 
     // Generate SDK object
-    lines.push(`export function create${pascal}Sdk(client: FetchClient) {`);
+    if (hasMutationOp) {
+      lines.push(
+        `export function create${pascal}Sdk(client: FetchClient, optimistic?: OptimisticHandler) {`,
+      );
+    } else {
+      lines.push(`export function create${pascal}Sdk(client: FetchClient) {`);
+    }
     lines.push('  return {');
 
     for (const op of entity.operations) {
@@ -90,7 +101,7 @@ export class EntitySdkGenerator implements Generator {
         case 'list':
           lines.push(`    list: Object.assign(`);
           lines.push(
-            `      (query?: Record<string, unknown>) => createDescriptor('GET', '${op.path}', () => client.get<${listOutput}>('${op.path}', { query }), query),`,
+            `      (query?: Record<string, unknown>) => createDescriptor('GET', '${op.path}', () => client.get<${listOutput}>('${op.path}', { query }), query, { entityType: '${entity.entityName}', kind: 'list' as const }),`,
           );
           lines.push(`      { url: '${op.path}', method: 'GET' as const },`);
           lines.push(`    ),`);
@@ -98,7 +109,7 @@ export class EntitySdkGenerator implements Generator {
         case 'get':
           lines.push(`    get: Object.assign(`);
           lines.push(
-            `      (id: string) => createDescriptor('GET', \`${op.path.replace(':id', '${id}')}\`, () => client.get<${outputType}>(\`${op.path.replace(':id', '${id}')}\`)),`,
+            `      (id: string) => createDescriptor('GET', \`${op.path.replace(':id', '${id}')}\`, () => client.get<${outputType}>(\`${op.path.replace(':id', '${id}')}\`), undefined, { entityType: '${entity.entityName}', kind: 'get' as const, id }),`,
           );
           lines.push(`      { url: '${op.path}', method: 'GET' as const },`);
           lines.push(`    ),`);
@@ -129,7 +140,7 @@ export class EntitySdkGenerator implements Generator {
         case 'update':
           lines.push(`    update: Object.assign(`);
           lines.push(
-            `      (id: string, body: ${inputType}) => createDescriptor('PATCH', \`${op.path.replace(':id', '${id}')}\`, () => client.patch<${outputType}>(\`${op.path.replace(':id', '${id}')}\`, body)),`,
+            `      (id: string, body: ${inputType}) => createMutationDescriptor('PATCH', \`${op.path.replace(':id', '${id}')}\`, () => client.patch<${outputType}>(\`${op.path.replace(':id', '${id}')}\`, body), { entityType: '${entity.entityName}', kind: 'update' as const, id, body }, optimistic),`,
           );
           lines.push(`      { url: '${op.path}', method: 'PATCH' as const },`);
           lines.push(`    ),`);
@@ -137,7 +148,7 @@ export class EntitySdkGenerator implements Generator {
         case 'delete':
           lines.push(`    delete: Object.assign(`);
           lines.push(
-            `      (id: string) => createDescriptor('DELETE', \`${op.path.replace(':id', '${id}')}\`, () => client.delete<${outputType}>(\`${op.path.replace(':id', '${id}')}\`)),`,
+            `      (id: string) => createMutationDescriptor('DELETE', \`${op.path.replace(':id', '${id}')}\`, () => client.delete<${outputType}>(\`${op.path.replace(':id', '${id}')}\`), { entityType: '${entity.entityName}', kind: 'delete' as const, id }, optimistic),`,
           );
           lines.push(`      { url: '${op.path}', method: 'DELETE' as const },`);
           lines.push(`    ),`);

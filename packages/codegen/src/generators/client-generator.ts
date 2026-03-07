@@ -23,10 +23,18 @@ export class ClientGenerator implements Generator {
 
   private generateClient(ir: CodegenIR): GeneratedFile {
     const entities = ir.entities ?? [];
+    const hasMutations = entities.some((e) =>
+      e.operations.some((op) => op.kind === 'update' || op.kind === 'delete'),
+    );
     const lines: string[] = [FILE_HEADER];
 
     if (entities.length > 0) {
-      lines.push("import { FetchClient } from '@vertz/fetch';");
+      if (hasMutations) {
+        lines.push("import { FetchClient, type OptimisticHandler } from '@vertz/fetch';");
+        lines.push("import { createOptimisticHandler, getEntityStore } from '@vertz/ui';");
+      } else {
+        lines.push("import { FetchClient } from '@vertz/fetch';");
+      }
 
       for (const entity of entities) {
         const pascal = toPascalCase(entity.entityName);
@@ -39,6 +47,9 @@ export class ClientGenerator implements Generator {
     lines.push('  baseURL?: string;');
     lines.push('  headers?: Record<string, string>;');
     lines.push('  timeoutMs?: number;');
+    if (hasMutations) {
+      lines.push('  optimistic?: OptimisticHandler | false;');
+    }
     lines.push('}');
     lines.push('');
 
@@ -48,11 +59,23 @@ export class ClientGenerator implements Generator {
       lines.push(
         `  const client = new FetchClient({ baseURL: options.baseURL ?? '/api', headers: options.headers, timeoutMs: options.timeoutMs });`,
       );
+      if (hasMutations) {
+        lines.push(
+          '  const optimistic = options.optimistic !== false ? (options.optimistic ?? createOptimisticHandler(getEntityStore())) : undefined;',
+        );
+      }
       lines.push('  return {');
       for (const entity of entities) {
         const pascal = toPascalCase(entity.entityName);
         const camel = toCamelCase(entity.entityName);
-        lines.push(`    ${camel}: create${pascal}Sdk(client),`);
+        const entityHasMutations = entity.operations.some(
+          (op) => op.kind === 'update' || op.kind === 'delete',
+        );
+        if (entityHasMutations) {
+          lines.push(`    ${camel}: create${pascal}Sdk(client, optimistic),`);
+        } else {
+          lines.push(`    ${camel}: create${pascal}Sdk(client),`);
+        }
       }
       lines.push('  };');
     } else {

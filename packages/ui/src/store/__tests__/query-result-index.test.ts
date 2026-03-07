@@ -69,4 +69,27 @@ describe('QueryResultIndex', () => {
     const index = new QueryResultIndex();
     expect(() => index.removeEntity('1')).not.toThrow();
   });
+
+  it('snapshotEntity returns all indices containing the entity ID', () => {
+    const index = new QueryResultIndex();
+    index.set('query1', ['1', '2', '3']);
+    index.set('query2', ['2', '4', '5']);
+    index.set('query3', ['6', '7']);
+
+    const snapshot = index.snapshotEntity('2');
+
+    expect(snapshot.size).toBe(2);
+    expect(snapshot.get('query1')).toEqual(['1', '2', '3']);
+    expect(snapshot.get('query2')).toEqual(['2', '4', '5']);
+    expect(snapshot.has('query3')).toBe(false);
+  });
+
+  it('snapshotEntity returns empty map for missing entity', () => {
+    const index = new QueryResultIndex();
+    index.set('query1', ['1', '3']);
+
+    const snapshot = index.snapshotEntity('999');
+
+    expect(snapshot.size).toBe(0);
+  });
 });

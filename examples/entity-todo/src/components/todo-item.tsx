@@ -2,8 +2,8 @@
  * TodoItem - Single todo item component with toggle and delete actions.
  *
  * Demonstrates:
- * - Generated SDK mutations returning Result (error-as-values)
- * - Optimistic toggle with rollback on error
+ * - Automatic optimistic updates — no manual state management needed
+ * - Generated SDK mutations with auto-wired optimistic handler
  * - Declarative confirm dialog with `let` signal for open/close state
  */
 
@@ -19,53 +19,43 @@ export interface TodoItemProps {
   id: string;
   title: string;
   completed: boolean;
-  onToggle: (id: string, completed: boolean) => void;
-  onDelete: (id: string) => void;
 }
 
-export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemProps) {
-  let isCompleted = completed;
+export function TodoItem(props: TodoItemProps) {
   let isConfirmOpen = false;
 
   const handleToggle = async () => {
-    const previousValue = isCompleted;
-    isCompleted = !isCompleted;
-
-    const result = await api.todos.update(id, { completed: isCompleted });
+    // Automatic optimistic update: the framework applies the patch to EntityStore
+    // immediately, and rolls back if the server returns an error.
+    const result = await api.todos.update(props.id, { completed: !props.completed });
     if (!result.ok) {
-      isCompleted = previousValue;
       console.error('Failed to update todo:', result.error.message);
-      return;
     }
-    onToggle(id, isCompleted);
   };
 
   const handleDelete = async () => {
     isConfirmOpen = false;
 
-    const result = await api.todos.delete(id);
+    const result = await api.todos.delete(props.id);
     if (!result.ok) {
       console.error('Failed to delete todo:', result.error.message);
-      return;
     }
-
-    onDelete(id);
   };
 
   return (
-    <div class={todoItemStyles.item} data-testid={`todo-item-${id}`}>
+    <div class={todoItemStyles.item} data-testid={`todo-item-${props.id}`}>
       <input
         type="checkbox"
         class={todoItemStyles.checkbox}
-        checked={isCompleted}
+        checked={props.completed}
         onChange={handleToggle}
-        data-testid={`todo-checkbox-${id}`}
+        data-testid={`todo-checkbox-${props.id}`}
       />
       <span
-        class={isCompleted ? todoItemStyles.labelCompleted : todoItemStyles.label}
-        data-testid={`todo-title-${id}`}
+        class={props.completed ? todoItemStyles.labelCompleted : todoItemStyles.label}
+        data-testid={`todo-title-${props.id}`}
       >
-        {title}
+        {props.title}
       </span>
       <button
         type="button"
@@ -73,7 +63,7 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
         onClick={() => {
           isConfirmOpen = true;
         }}
-        data-testid={`todo-delete-${id}`}
+        data-testid={`todo-delete-${props.id}`}
       >
         Delete
       </button>
@@ -93,7 +83,7 @@ export function TodoItem({ id, title, completed, onToggle, onDelete }: TodoItemP
         >
           <h2 class={alertDialogStyles.title}>Delete todo?</h2>
           <p class={alertDialogStyles.description}>
-            This will permanently delete "{title}". This action cannot be undone.
+            This will permanently delete "{props.title}". This action cannot be undone.
           </p>
           <div class={alertDialogStyles.footer}>
             <button
