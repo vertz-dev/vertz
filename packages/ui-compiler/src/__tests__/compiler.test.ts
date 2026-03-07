@@ -278,4 +278,32 @@ function App() {
     expect(ssrDiags[0]?.message).toContain('localStorage');
     expect(ssrDiags[0]?.severity).toBe('warning');
   });
+
+  // ─── Props-derived computed (#964) ──────────────
+
+  it('wraps const derived from named props in computed()', () => {
+    const result = compile(
+      `
+function Card(props: CardProps) {
+  const label = props.title + ' - ' + props.subtitle;
+  return <div>{label}</div>;
+}
+      `.trim(),
+    );
+    expect(result.code).toContain('computed(() => props.title');
+    expect(result.code).toContain('label.value');
+  });
+
+  it('wraps const derived from destructured props in computed()', () => {
+    const result = compile(
+      `
+function Card({ title, subtitle }: CardProps) {
+  const label = title + ' - ' + subtitle;
+  return <div>{label}</div>;
+}
+      `.trim(),
+    );
+    expect(result.code).toContain('computed(() => __props.title');
+    expect(result.code).toContain('label.value');
+  });
 });

@@ -1,5 +1,5 @@
-import { Project, ts } from 'ts-morph';
 import { describe, expect, it } from 'bun:test';
+import { Project, ts } from 'ts-morph';
 import type { VariableInfo } from '../../types';
 import { ComponentAnalyzer } from '../component-analyzer';
 import { ReactivityAnalyzer } from '../reactivity-analyzer';
@@ -438,5 +438,69 @@ describe('ReactivityAnalyzer', () => {
     const v = findVar(result?.variables, 'ctx') as VariableInfo;
     expect(v).toBeDefined();
     expect(v.isReactiveSource).toBe(true);
+  });
+
+  // ─── Component props as reactive sources (#964) ──────────────
+
+  it('classifies const derived from named props param as computed', () => {
+    const [result] = analyze(`
+      function Card(props: CardProps) {
+        const label = props.title + ' - ' + props.subtitle;
+        return <div>{label}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('classifies const derived from destructured props as computed', () => {
+    const [result] = analyze(`
+      function Card({ title, subtitle }: CardProps) {
+        const label = title + ' - ' + subtitle;
+        return <div>{label}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('classifies const derived from aliased destructured prop as computed', () => {
+    const [result] = analyze(`
+      function Card({ id: cardId }: CardProps) {
+        const label = 'Card #' + cardId;
+        return <div>{label}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('does not make rest binding from destructured props reactive', () => {
+    const [result] = analyze(`
+      function Card({ title, ...rest }: CardProps) {
+        const label = 'Title: ' + title;
+        return <div>{label}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'label')?.kind).toBe('computed');
+  });
+
+  it('resolves transitive chain through props-derived computed', () => {
+    const [result] = analyze(`
+      function Card(props: CardProps) {
+        const title = props.title;
+        const upper = title.toUpperCase();
+        return <div>{upper}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'title')?.kind).toBe('computed');
+    expect(findVar(result?.variables, 'upper')?.kind).toBe('computed');
+  });
+
+  it('does not affect component without props', () => {
+    const [result] = analyze(`
+      function Header() {
+        const title = 'Hello';
+        return <div>{title}</div>;
+      }
+    `);
+    expect(findVar(result?.variables, 'title')?.kind).toBe('static');
   });
 });
