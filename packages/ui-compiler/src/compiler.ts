@@ -70,7 +70,7 @@ export function compile(
   for (const component of components) {
     // 3. Reactivity analysis
     const reactivityAnalyzer = new ReactivityAnalyzer();
-    const variables = reactivityAnalyzer.analyze(sourceFile, component);
+    const variables = reactivityAnalyzer.analyze(sourceFile, component, options.manifests);
 
     const hasSignals = variables.some((v) => v.kind === 'signal');
     const hasComputeds = variables.some((v) => v.kind === 'computed');
