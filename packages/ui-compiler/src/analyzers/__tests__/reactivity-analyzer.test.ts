@@ -491,6 +491,11 @@ describe('ReactivityAnalyzer', () => {
     expect(findVar(result?.variables, 'fn')?.kind).toBe('static');
   });
 
+  // Note: TypeAssertionExpression (<Type>expr) is handled by unwrapTypeWrappers
+  // but cannot be tested here — angle-bracket casts are invalid in .tsx files
+  // (the parser treats <Type> as JSX). Since components must be in .tsx files,
+  // this path is unreachable in practice but handled defensively.
+
   it('classifies satisfies-wrapped arrow function as static', () => {
     const [result] = analyze(`
       function Counter() {
