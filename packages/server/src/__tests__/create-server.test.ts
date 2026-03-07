@@ -169,7 +169,6 @@ describe('createServer', () => {
     const mockDelegate = {
       get: async () => ok(mockUser),
       getOrThrow: async () => ok(mockUser),
-      getOrThrow: async () => ok(mockUser),
       list: async () => ok([mockUser]),
       listAndCount: async () => ok({ data: [mockUser], total: 1 }),
       create: async () => ok(mockUser),
@@ -229,6 +228,213 @@ describe('createServer', () => {
     expect(getResponse.status).toBe(200);
     const getBody = await getResponse.json();
     expect(getBody.name).toBe('Alice');
+  });
+
+  it('throws when entity model is not registered in DatabaseClient', () => {
+    const tasksTable = d.table('tasks', {
+      id: d.uuid().primary(),
+      title: d.text(),
+    });
+    const tasksModel = d.model(tasksTable);
+
+    const mockDatabaseClient = {
+      users: {},
+      close: async () => {},
+      isHealthy: async () => true,
+      query: async () => ok({ rows: [], rowCount: 0 }),
+      _internals: {
+        models: { users: { table: usersTable, relations: {} } },
+        dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
+        tenantGraph: {
+          root: null,
+          directlyScoped: new Set(),
+          indirectlyScoped: new Set(),
+          shared: new Set(),
+        },
+      },
+    };
+
+    expect(() =>
+      createServer({
+        basePath: '/',
+        db: mockDatabaseClient,
+        entities: [
+          {
+            kind: 'entity',
+            name: 'users',
+            model: usersModel,
+            inject: {},
+            access: {},
+            before: {},
+            after: {},
+            actions: {},
+            relations: {},
+          },
+          {
+            kind: 'entity',
+            name: 'tasks',
+            model: tasksModel,
+            inject: {},
+            access: {},
+            before: {},
+            after: {},
+            actions: {},
+            relations: {},
+          },
+        ] as never[],
+      }),
+    ).toThrow(/Entity "tasks" is not registered in createDb/);
+  });
+
+  it('lists all missing entity names in the error message', () => {
+    const tasksTable = d.table('tasks', {
+      id: d.uuid().primary(),
+      title: d.text(),
+    });
+    const tasksModel = d.model(tasksTable);
+    const projectsTable = d.table('projects', {
+      id: d.uuid().primary(),
+      name: d.text(),
+    });
+    const projectsModel = d.model(projectsTable);
+
+    const mockDatabaseClient = {
+      users: {},
+      close: async () => {},
+      isHealthy: async () => true,
+      query: async () => ok({ rows: [], rowCount: 0 }),
+      _internals: {
+        models: { users: { table: usersTable, relations: {} } },
+        dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
+        tenantGraph: {
+          root: null,
+          directlyScoped: new Set(),
+          indirectlyScoped: new Set(),
+          shared: new Set(),
+        },
+      },
+    };
+
+    expect(() =>
+      createServer({
+        basePath: '/',
+        db: mockDatabaseClient,
+        entities: [
+          {
+            kind: 'entity',
+            name: 'users',
+            model: usersModel,
+            inject: {},
+            access: {},
+            before: {},
+            after: {},
+            actions: {},
+            relations: {},
+          },
+          {
+            kind: 'entity',
+            name: 'tasks',
+            model: tasksModel,
+            inject: {},
+            access: {},
+            before: {},
+            after: {},
+            actions: {},
+            relations: {},
+          },
+          {
+            kind: 'entity',
+            name: 'projects',
+            model: projectsModel,
+            inject: {},
+            access: {},
+            before: {},
+            after: {},
+            actions: {},
+            relations: {},
+          },
+        ] as never[],
+      }),
+    ).toThrow(/"tasks", "projects"/);
+  });
+
+  it('does not throw when all entity models are registered in DatabaseClient', () => {
+    const mockDatabaseClient = {
+      users: {},
+      close: async () => {},
+      isHealthy: async () => true,
+      query: async () => ok({ rows: [], rowCount: 0 }),
+      _internals: {
+        models: { users: { table: usersTable, relations: {} } },
+        dialect: { paramPlaceholder: () => '?', quoteName: (n: string) => `"${n}"` },
+        tenantGraph: {
+          root: null,
+          directlyScoped: new Set(),
+          indirectlyScoped: new Set(),
+          shared: new Set(),
+        },
+      },
+    };
+
+    expect(() =>
+      createServer({
+        basePath: '/',
+        db: mockDatabaseClient,
+        entities: [
+          {
+            kind: 'entity',
+            name: 'users',
+            model: usersModel,
+            inject: {},
+            access: {},
+            before: {},
+            after: {},
+            actions: {},
+            relations: {},
+          },
+        ] as never[],
+      }),
+    ).not.toThrow();
+  });
+
+  it('skips validation when db is a plain EntityDbAdapter', () => {
+    const plainDbAdapter = {
+      async get() {
+        return null;
+      },
+      async list() {
+        return { data: [], total: 0 };
+      },
+      async create(data: Record<string, unknown>) {
+        return data;
+      },
+      async update(_id: string, data: Record<string, unknown>) {
+        return data;
+      },
+      async delete() {
+        return null;
+      },
+    };
+
+    expect(() =>
+      createServer({
+        basePath: '/',
+        db: plainDbAdapter,
+        entities: [
+          {
+            kind: 'entity',
+            name: 'nonexistent',
+            model: usersModel,
+            inject: {},
+            access: {},
+            before: {},
+            after: {},
+            actions: {},
+            relations: {},
+          },
+        ] as never[],
+      }),
+    ).not.toThrow();
   });
 
   it('uses default /api prefix when apiPrefix is not specified', () => {

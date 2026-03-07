@@ -139,6 +139,23 @@ export function createServer(config: ServerConfig): AppBuilder {
     let dbFactory: (entityDef: EntityDefinition) => EntityDbAdapter;
 
     if (db && isDatabaseClient(db)) {
+      // Validate all entity models are registered in the DatabaseClient
+      const dbModels = db._internals.models;
+      const missing = config.entities
+        .filter((e) => !(e.name in dbModels))
+        .map((e) => `"${e.name}"`);
+      if (missing.length > 0) {
+        const registered = Object.keys(dbModels)
+          .map((k) => `"${k}"`)
+          .join(', ');
+        const plural = missing.length > 1;
+        throw new Error(
+          `${plural ? 'Entities' : 'Entity'} ${missing.join(', ')} ${plural ? 'are' : 'is'} not registered in createDb(). ` +
+            `Add the missing model${plural ? 's' : ''} to the models object in your createDb() call. ` +
+            `Registered models: ${registered || '(none)'}`,
+        );
+      }
+
       dbFactory = (entityDef) =>
         createDatabaseBridgeAdapter(
           db as DatabaseClient<Record<string, ModelEntry>>,
