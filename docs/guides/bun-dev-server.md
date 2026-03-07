@@ -90,7 +90,7 @@ export default plugin;
 
 ```ts
 import { createVertzBunPlugin } from '@vertz/ui-server/bun-plugin';
-import { ssrRenderToString, ssrDiscoverQueries, safeSerialize } from '@vertz/ui-server';
+import { ssrRenderToString, ssrDiscoverQueries, safeSerialize } from 'vertz/ui-server';
 import { resolve } from 'node:path';
 import { watch } from 'node:fs';
 
@@ -349,7 +349,7 @@ See the [task-manager build.ts](../../examples/task-manager/build.ts) for the co
 ### Production server
 
 ```ts
-import { createSSRHandler } from '@vertz/ui-server';
+import { createSSRHandler } from 'vertz/ui-server';
 
 const ssrModule = await import('./dist/server/index.js');
 const template = await Bun.file('./dist/client/index.html').text();

@@ -58,6 +58,10 @@
     "./ui-primitives": {
       "import": "./src/ui-primitives.ts",
       "types": "./src/ui-primitives.ts"
+    },
+    "./ui-server": {
+      "import": "./src/ui-server.ts",
+      "types": "./src/ui-server.ts"
     }
   },
   "scripts": {
@@ -75,7 +79,8 @@
     "@vertz/errors": "workspace:^",
     "@vertz/cloudflare": "workspace:^",
     "@vertz/tui": "workspace:^",
-    "@vertz/ui-primitives": "workspace:^"
+    "@vertz/ui-primitives": "workspace:^",
+    "@vertz/ui-server": "workspace:^"
   },
   "devDependencies": {}
 }

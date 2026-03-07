@@ -2,13 +2,13 @@
 
 Server-Side Rendering (SSR) in vertz sends pre-rendered HTML to the browser so users see content instantly. **Tolerant hydration** then attaches reactivity to that existing DOM — no re-render, no flash, no content loss.
 
-This guide covers the full SSR-to-hydration pipeline using `@vertz/ui-server` and `@vertz/ui`.
+This guide covers the full SSR-to-hydration pipeline using `vertz/ui-server` and `vertz/ui`.
 
 ---
 
 ## How SSR Works
 
-The `@vertz/ui-server` package provides two main rendering functions:
+The `vertz/ui-server` package provides two main rendering functions:
 
 ### `renderToStream(vnode, options?)`
 
@@ -19,7 +19,7 @@ Renders a VNode tree to a `ReadableStream<Uint8Array>` of HTML chunks. This is t
 - Enables **out-of-order streaming** — the browser paints fallback content first, then swaps in resolved content
 
 ```ts
-import { renderToStream } from '@vertz/ui-server';
+import { renderToStream } from 'vertz/ui-server';
 
 const stream = renderToStream(App());
 ```
@@ -29,7 +29,7 @@ const stream = renderToStream(App());
 High-level helper that wraps `renderToStream` in a full HTML document and returns a `Response` object — ready to send from any server or edge runtime.
 
 ```ts
-import { renderPage } from '@vertz/ui-server';
+import { renderPage } from 'vertz/ui-server';
 
 const response = renderPage(App(), {
   title: 'My App',
@@ -121,7 +121,7 @@ src/
 ### `entry-server.ts` — Server rendering
 
 ```ts
-import { renderPage } from '@vertz/ui-server';
+import { renderPage } from 'vertz/ui-server';
 import { App } from './App';
 
 export function render(url: string): Response {
@@ -251,8 +251,8 @@ mount(App, '#root', { hydration: 'tolerant' });
 
 | What | How |
 |------|-----|
-| Server-side render | `renderPage(App(), { ... })` from `@vertz/ui-server` |
-| Stream raw HTML | `renderToStream(vnode)` from `@vertz/ui-server` |
+| Server-side render | `renderPage(App(), { ... })` from `vertz/ui-server` |
+| Stream raw HTML | `renderToStream(vnode)` from `vertz/ui-server` |
 | Client hydration | `mount(App, '#root', { hydration: 'tolerant' })` from `@vertz/ui` |
 | Error recovery | Automatic — falls back to CSR on mismatch |
 | Island hydration | Use `hydrate(registry)` — auto strategy via IntersectionObserver |
