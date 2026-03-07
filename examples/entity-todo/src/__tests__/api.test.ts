@@ -1,7 +1,7 @@
 import type { EntityDbAdapter } from '@vertz/server';
 import { createServer } from '@vertz/server';
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { webhooks } from '../api/actions/webhooks/webhooks.action';
+import { webhooks } from '../api/actions/webhooks/webhooks.service';
 import { todos } from '../api/entities/todos/todos.entity';
 import { clearEmailLog, getEmailLog } from '../api/services/notifications';
 
@@ -59,7 +59,7 @@ function createInMemoryDb(): EntityDbAdapter {
 function createTestApp(db: EntityDbAdapter) {
   return createServer({
     entities: [todos],
-    actions: [webhooks],
+    services: [webhooks],
     db,
   });
 }

@@ -3,14 +3,14 @@ import { enforceAccess } from '../entity/access-enforcer';
 import type { RequestInfo } from '../entity/context';
 import type { EntityOperations } from '../entity/entity-operations';
 import type { EntityRegistry } from '../entity/entity-registry';
-import { createActionContext } from './context';
-import type { ActionDefinition } from './types';
+import { createServiceContext } from './context';
+import type { ServiceDefinition } from './types';
 
 // ---------------------------------------------------------------------------
 // Options
 // ---------------------------------------------------------------------------
 
-export interface ActionRouteOptions {
+export interface ServiceRouteOptions {
   apiPrefix?: string;
 }
 
@@ -42,16 +42,16 @@ function extractRequestInfo(ctx: Record<string, unknown>): RequestInfo {
 // ---------------------------------------------------------------------------
 
 /**
- * Generates HTTP route entries for a standalone action definition.
+ * Generates HTTP route entries for a standalone service definition.
  *
- * Each action handler produces one route: `{method} /{prefix}/{actionName}/{handlerName}`.
+ * Each action handler produces one route: `{method} /{prefix}/{serviceName}/{handlerName}`.
  * Handlers with no access rule are skipped (deny by default = no route).
  * Handlers with `access: false` get a 405 handler.
  */
-export function generateActionRoutes(
-  def: ActionDefinition,
+export function generateServiceRoutes(
+  def: ServiceDefinition,
   registry: EntityRegistry,
-  options?: ActionRouteOptions,
+  options?: ServiceRouteOptions,
 ): EntityRouteEntry[] {
   const prefix = options?.apiPrefix ?? '/api';
   const inject = def.inject ?? {};
@@ -98,10 +98,10 @@ export function generateActionRoutes(
       handler: async (ctx) => {
         try {
           const requestInfo = extractRequestInfo(ctx);
-          const actionCtx = createActionContext(requestInfo, registryProxy);
+          const serviceCtx = createServiceContext(requestInfo, registryProxy);
 
           // Enforce access rule
-          const accessResult = await enforceAccess(handlerName, def.access, actionCtx);
+          const accessResult = await enforceAccess(handlerName, def.access, serviceCtx);
           if (!accessResult.ok) {
             return jsonResponse(
               { error: { code: 'Forbidden', message: accessResult.error.message } },
@@ -119,7 +119,7 @@ export function generateActionRoutes(
           }
 
           // Execute handler
-          const result = await handlerDef.handler(parsed.data, actionCtx);
+          const result = await handlerDef.handler(parsed.data, serviceCtx);
 
           // Validate response
           const responseParsed = handlerDef.response.parse(result);
@@ -128,7 +128,7 @@ export function generateActionRoutes(
               responseParsed.error instanceof Error
                 ? responseParsed.error.message
                 : 'Response validation failed';
-            console.warn(`[vertz] Action response validation warning: ${message}`);
+            console.warn(`[vertz] Service response validation warning: ${message}`);
           }
 
           return jsonResponse(result, 200);

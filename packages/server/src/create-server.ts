@@ -6,13 +6,13 @@ import {
   type EntityDbAdapter,
   type ModelEntry,
 } from '@vertz/db';
-import { generateActionRoutes } from './action/route-generator';
-import type { ActionDefinition } from './action/types';
 import type { EntityOperations } from './entity/entity-operations';
 import { EntityRegistry } from './entity/entity-registry';
 import { stripHiddenFields } from './entity/field-filter';
 import { generateEntityRoutes } from './entity/route-generator';
 import type { EntityDefinition } from './entity/types';
+import { generateServiceRoutes } from './service/route-generator';
+import type { ServiceDefinition } from './service/types';
 
 // ---------------------------------------------------------------------------
 // DatabaseClient detection
@@ -38,8 +38,8 @@ function isDatabaseClient(
 export interface ServerConfig extends Omit<AppConfig, '_entityDbFactory' | 'entities'> {
   /** Entity definitions created via entity() from @vertz/server */
   entities?: EntityDefinition[];
-  /** Standalone action definitions created via action() from @vertz/server */
-  actions?: ActionDefinition[];
+  /** Standalone service definitions created via service() from @vertz/server */
+  services?: ServiceDefinition[];
   /**
    * Database for entity CRUD operations.
    * Accepts either:
@@ -167,10 +167,10 @@ export function createServer(config: ServerConfig): AppBuilder {
     }
   }
 
-  // Process actions after entities (actions use registry for entity DI)
-  if (config.actions && config.actions.length > 0) {
-    for (const actionDef of config.actions) {
-      const routes = generateActionRoutes(actionDef, registry, { apiPrefix });
+  // Process services after entities (services use registry for entity DI)
+  if (config.services && config.services.length > 0) {
+    for (const serviceDef of config.services) {
+      const routes = generateServiceRoutes(serviceDef, registry, { apiPrefix });
       allRoutes.push(...routes);
     }
   }

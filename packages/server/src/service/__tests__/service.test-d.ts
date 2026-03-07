@@ -1,9 +1,9 @@
-import { d } from '@vertz/db';
 import { describe, it } from 'bun:test';
+import { d } from '@vertz/db';
 import { entity } from '../../entity/entity';
 import type { BaseContext } from '../../entity/types';
-import { action } from '../action';
-import type { ActionContext } from '../types';
+import { service } from '../service';
+import type { ServiceContext } from '../types';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -38,18 +38,18 @@ const responseSchema = {
 };
 
 // ---------------------------------------------------------------------------
-// ActionContext type flow
+// ServiceContext type flow
 // ---------------------------------------------------------------------------
 
-describe('ActionContext type flow', () => {
-  it('ActionContext extends BaseContext', () => {
-    type Ctx = ActionContext<{ users: typeof usersEntity }>;
+describe('ServiceContext type flow', () => {
+  it('ServiceContext extends BaseContext', () => {
+    type Ctx = ServiceContext<{ users: typeof usersEntity }>;
     const _check: BaseContext = {} as Ctx;
     void _check;
   });
 
-  it('ActionContext.entities has typed injected entity', () => {
-    type Ctx = ActionContext<{ users: typeof usersEntity }>;
+  it('ServiceContext.entities has typed injected entity', () => {
+    type Ctx = ServiceContext<{ users: typeof usersEntity }>;
     type UsersOps = Ctx['entities']['users'];
     type GetReturn = Awaited<ReturnType<UsersOps['get']>>;
 
@@ -59,22 +59,22 @@ describe('ActionContext type flow', () => {
     void _check2;
   });
 
-  it('ActionContext.entities rejects non-injected entity', () => {
-    type Ctx = ActionContext<{ users: typeof usersEntity }>;
+  it('ServiceContext.entities rejects non-injected entity', () => {
+    type Ctx = ServiceContext<{ users: typeof usersEntity }>;
 
     // @ts-expect-error — products not in inject map
     type _Test = Ctx['entities']['products'];
   });
 
-  it('ActionContext has NO entity property (no self-CRUD)', () => {
-    type Ctx = ActionContext<{ users: typeof usersEntity }>;
+  it('ServiceContext has NO entity property (no self-CRUD)', () => {
+    type Ctx = ServiceContext<{ users: typeof usersEntity }>;
 
-    // @ts-expect-error — actions don't have self-CRUD
+    // @ts-expect-error — services don't have self-CRUD
     type _Test = Ctx['entity'];
   });
 
-  it('ActionContext with multiple injected entities are all typed', () => {
-    type Ctx = ActionContext<{
+  it('ServiceContext with multiple injected entities are all typed', () => {
+    type Ctx = ServiceContext<{
       users: typeof usersEntity;
       products: typeof productsEntity;
     }>;
@@ -92,12 +92,12 @@ describe('ActionContext type flow', () => {
 });
 
 // ---------------------------------------------------------------------------
-// action() definition type flow
+// service() definition type flow
 // ---------------------------------------------------------------------------
 
-describe('action() definition type flow', () => {
-  it('action() returns ActionDefinition with kind "action"', () => {
-    const def = action('auth', {
+describe('service() definition type flow', () => {
+  it('service() returns ServiceDefinition with kind "service"', () => {
+    const def = service('auth', {
       actions: {
         login: {
           body: bodySchema,
@@ -107,15 +107,16 @@ describe('action() definition type flow', () => {
       },
     });
 
-    const _check1: 'action' = def.kind;
-    const _check1r: typeof def.kind = 'action' as const;
-    void _check1; void _check1r;
+    const _check1: 'service' = def.kind;
+    const _check1r: typeof def.kind = 'service' as const;
+    void _check1;
+    void _check1r;
     const _check2: string = def.name;
     void _check2;
   });
 
-  it('action() with inject stores the inject map', () => {
-    const def = action('auth', {
+  it('service() with inject stores the inject map', () => {
+    const def = service('auth', {
       inject: { users: usersEntity },
       actions: {
         login: {

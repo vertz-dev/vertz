@@ -5,7 +5,7 @@ import type { AccessRule, BaseContext } from './types';
  * Evaluates an access rule for the given operation.
  * Returns err(EntityForbiddenError) if access is denied.
  *
- * Accepts BaseContext so both EntityContext and ActionContext can use it.
+ * Accepts BaseContext so both EntityContext and ServiceContext can use it.
  *
  * - No rule defined → deny (deny by default)
  * - Rule is false → operation is disabled

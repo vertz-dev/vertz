@@ -42,9 +42,6 @@ export {
   VertzException,
   vertz,
 } from '@vertz/core';
-// Action API
-export type { ActionActionDef, ActionConfig, ActionContext, ActionDefinition } from './action';
-export { action } from './action';
 export type {
   AccessConfig,
   AccessInstance,
@@ -111,3 +108,6 @@ export {
   stripHiddenFields,
   stripReadOnlyFields,
 } from './entity';
+// Service API
+export type { ServiceActionDef, ServiceConfig, ServiceContext, ServiceDefinition } from './service';
+export { service } from './service';

@@ -19,10 +19,10 @@ type InjectToOperations<TInject extends Record<string, EntityDefinition> = {}> =
 };
 
 // ---------------------------------------------------------------------------
-// ActionContext — runtime context for action handlers
+// ServiceContext — runtime context for service handlers
 // ---------------------------------------------------------------------------
 
-export interface ActionContext<
+export interface ServiceContext<
   // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
   TInject extends Record<string, EntityDefinition> = {},
 > extends BaseContext {
@@ -31,13 +31,13 @@ export interface ActionContext<
 }
 
 // ---------------------------------------------------------------------------
-// ActionActionDef — definition of a single handler within an action group
+// ServiceActionDef — definition of a single handler within a service
 // ---------------------------------------------------------------------------
 
-export interface ActionActionDef<
+export interface ServiceActionDef<
   TInput = unknown,
   TOutput = unknown,
-  TCtx extends ActionContext = ActionContext,
+  TCtx extends ServiceContext = ServiceContext,
 > {
   readonly method?: string;
   readonly path?: string;
@@ -47,15 +47,15 @@ export interface ActionActionDef<
 }
 
 // ---------------------------------------------------------------------------
-// ActionConfig — what developers pass to action()
+// ServiceConfig — what developers pass to service()
 // ---------------------------------------------------------------------------
 
-export interface ActionConfig<
+export interface ServiceConfig<
   // biome-ignore lint/suspicious/noExplicitAny: constraint uses any to accept all action type parameter combinations
-  TActions extends Record<string, ActionActionDef<any, any, any>> = Record<
+  TActions extends Record<string, ServiceActionDef<any, any, any>> = Record<
     string,
     // biome-ignore lint/suspicious/noExplicitAny: constraint uses any to accept all action type parameter combinations
-    ActionActionDef<any, any, any>
+    ServiceActionDef<any, any, any>
   >,
   // biome-ignore lint/complexity/noBannedTypes: {} represents no injected entities — the correct default
   TInject extends Record<string, EntityDefinition> = {},
@@ -66,13 +66,13 @@ export interface ActionConfig<
 }
 
 // ---------------------------------------------------------------------------
-// ActionDefinition — the frozen output of action()
+// ServiceDefinition — the frozen output of service()
 // ---------------------------------------------------------------------------
 
-export interface ActionDefinition {
-  readonly kind: 'action';
+export interface ServiceDefinition {
+  readonly kind: 'service';
   readonly name: string;
   readonly inject: Record<string, EntityDefinition>;
   readonly access: Partial<Record<string, AccessRule>>;
-  readonly actions: Record<string, ActionActionDef>;
+  readonly actions: Record<string, ServiceActionDef>;
 }

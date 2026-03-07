@@ -18,7 +18,7 @@ type InjectToOperations<TInject extends Record<string, EntityDefinition> = {}> =
 };
 
 // ---------------------------------------------------------------------------
-// BaseContext — shared by EntityContext and ActionContext
+// BaseContext — shared by EntityContext and ServiceContext
 // ---------------------------------------------------------------------------
 
 export interface BaseContext {

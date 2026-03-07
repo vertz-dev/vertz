@@ -1,5 +1,5 @@
 import { s } from '@vertz/schema';
-import { action } from '@vertz/server';
+import { service } from '@vertz/server';
 import { todos } from '../../entities/todos/todos.entity';
 
 const webhookEvents = ['task.created', 'task.completed'] as const;
@@ -18,7 +18,7 @@ const syncResponse = s.object({
   todoId: s.string().optional(),
 });
 
-export const webhooks = action('webhooks', {
+export const webhooks = service('webhooks', {
   inject: { todos },
   // Open access for demo — production would validate a webhook secret header
   access: { sync: () => true },
