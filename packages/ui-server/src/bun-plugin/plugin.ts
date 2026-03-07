@@ -22,7 +22,6 @@ import {
   compile,
   generateAllManifests,
   HydrationTransformer,
-  regenerateFileManifest,
 } from '@vertz/ui-compiler';
 import type { LoadedReactivityManifest } from '@vertz/ui-compiler';
 import type { BunPlugin } from 'bun';
