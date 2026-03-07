@@ -38,9 +38,7 @@ export class PostgresDialect implements Dialect {
       case 'json':
         return 'JSONB';
       case 'decimal':
-        return meta?.precision
-          ? `NUMERIC(${meta.precision},${meta.scale ?? 0})`
-          : 'NUMERIC';
+        return meta?.precision ? `NUMERIC(${meta.precision},${meta.scale ?? 0})` : 'NUMERIC';
       case 'varchar':
         return meta?.length ? `VARCHAR(${meta.length})` : 'VARCHAR';
       case 'enum':

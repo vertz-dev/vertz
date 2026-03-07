@@ -9,9 +9,9 @@
  * Unique identifiers per test group prevent cross-test collisions.
  */
 
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/schema';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { createDb } from '../client/database';
 import { d } from '../d';
 import type { QueryFn } from '../query/executor';
@@ -30,7 +30,7 @@ const organizations = d.table('organizations', {
 
 const users = d.table('users', {
   id: d.uuid().primary(),
-  organizationId: d.tenant(organizations),
+  organizationId: d.uuid(),
   name: d.text(),
   email: d.email().unique().is('sensitive'),
   passwordHash: d.text().is('hidden'),

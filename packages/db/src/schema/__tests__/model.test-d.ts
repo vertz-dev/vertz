@@ -19,6 +19,56 @@ const users = d.table('users', {
 const usersModel = d.model(users);
 
 // ---------------------------------------------------------------------------
+// _tenant — model-level tenant option
+// ---------------------------------------------------------------------------
+
+const orgs = d.table('organizations', {
+  id: d.uuid().primary(),
+  name: d.text(),
+});
+
+const employees = d.table('employees', {
+  id: d.uuid().primary(),
+  organizationId: d.uuid(),
+  name: d.text(),
+});
+
+describe('ModelDef._tenant type', () => {
+  it('is string | null', () => {
+    const model = d.model(
+      employees,
+      {
+        organization: d.ref.one(() => orgs, 'organizationId'),
+      },
+      { tenant: 'organization' },
+    );
+
+    type _t1 = Expect<Extends<typeof model._tenant, string | null>>;
+  });
+
+  it('is string | null when no options provided', () => {
+    type _t1 = Expect<Extends<typeof usersModel._tenant, string | null>>;
+  });
+
+  it('rejects invalid relation names in tenant option', () => {
+    const relations = { organization: d.ref.one(() => orgs, 'organizationId') };
+    // @ts-expect-error — 'nonexistent' is not a key of the relations record
+    d.model(employees, relations, { tenant: 'nonexistent' });
+  });
+
+  it('accepts valid relation names in tenant option', () => {
+    // Should compile without error
+    d.model(
+      employees,
+      {
+        organization: d.ref.one(() => orgs, 'organizationId'),
+      },
+      { tenant: 'organization' },
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // schemas.response — type excludes hidden columns
 // ---------------------------------------------------------------------------
 
@@ -104,10 +154,15 @@ describe('ModelDef schemas.createInput required vs optional', () => {
     type CreateType = Unwrap<ReturnType<typeof usersModel.schemas.createInput.parse>>;
 
     // Should compile: role is optional (has default 'viewer'), omitting it is valid
-    type _t1 = Expect<Extends<{
-      email: string;
-      name: string;
-      passwordHash: string;
-    }, CreateType>>;
+    type _t1 = Expect<
+      Extends<
+        {
+          email: string;
+          name: string;
+          passwordHash: string;
+        },
+        CreateType
+      >
+    >;
   });
 });

@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'bun:test';
-import { SqliteDialect, defaultSqliteDialect } from '../sqlite';
+import { describe, expect, it } from 'bun:test';
+import { defaultSqliteDialect, SqliteDialect } from '../sqlite';
 
 describe('SqliteDialect', () => {
   const dialect = new SqliteDialect();

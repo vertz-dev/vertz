@@ -428,8 +428,8 @@ const RESERVED_MODEL_NAMES = new Set(['query', 'close', 'isHealthy', '_internals
  * Each model in the registry becomes a property on the returned client
  * with all CRUD methods typed for that specific model.
  *
- * Computes the tenant graph at creation time from d.tenant() metadata,
- * traversing references to find indirect tenant paths.
+ * Computes the tenant graph at creation time from model-level { tenant }
+ * options, traversing relations to find indirect tenant paths.
  * Logs notices for tables without tenant paths and not .shared().
  *
  * When `url` is provided and `_queryFn` is NOT provided, creates a real

@@ -1,4 +1,4 @@
-import type { ColumnBuilder, ColumnMetadata } from '../schema/column';
+import type { RelationDef } from '../schema/relation';
 import type { ColumnRecord, TableDef } from '../schema/table';
 
 // ---------------------------------------------------------------------------
@@ -6,13 +6,13 @@ import type { ColumnRecord, TableDef } from '../schema/table';
 // ---------------------------------------------------------------------------
 
 export interface TenantGraph {
-  /** The tenant root table name (e.g., "organizations"). Null if no tenant columns exist. */
+  /** The tenant root table key (e.g., "organizations"). Null if no tenant declarations exist. */
   readonly root: string | null;
-  /** Tables with a direct d.tenant() column pointing to the root. */
+  /** Model keys with a direct { tenant } declaration pointing to the root. */
   readonly directlyScoped: readonly string[];
-  /** Tables reachable from directly scoped tables via .references() chains. */
+  /** Model keys reachable from scoped models via relation chains. */
   readonly indirectlyScoped: readonly string[];
-  /** Tables marked with .shared(). */
+  /** Model keys whose tables are marked with .shared(). */
   readonly shared: readonly string[];
 }
 
@@ -20,27 +20,31 @@ export interface TenantGraph {
 // Registry types (subset of what createDb receives)
 // ---------------------------------------------------------------------------
 
-interface TableRegistryEntry {
+interface ModelRegistryEntry {
   readonly table: TableDef<ColumnRecord>;
-  readonly relations: Record<string, unknown>;
+  readonly relations: Record<string, RelationDef>;
+  readonly _tenant?: string | null;
 }
 
-type TableRegistry = Record<string, TableRegistryEntry>;
+type ModelRegistry = Record<string, ModelRegistryEntry>;
 
 // ---------------------------------------------------------------------------
 // computeTenantGraph
 // ---------------------------------------------------------------------------
 
 /**
- * Analyzes a table registry to compute the tenant scoping graph.
+ * Analyzes a model registry to compute the tenant scoping graph.
  *
- * 1. Finds the tenant root — the table that tenant columns point to.
- * 2. Classifies tables as directly scoped (has d.tenant()), indirectly scoped
- *    (references a scoped table via .references()), or shared (.shared()).
- * 3. Tables that are none of the above are unscoped — the caller should
+ * Fully relation-derived — reads _tenant from model options and follows
+ * relation chains for indirect scoping. Does NOT scan column metadata.
+ *
+ * 1. Finds the tenant root — the table that tenant relations point to.
+ * 2. Classifies models as directly scoped (has { tenant } option),
+ *    indirectly scoped (has a relation to a scoped model), or shared (.shared()).
+ * 3. Models that are none of the above are unscoped — the caller should
  *    log a notice for those.
  */
-export function computeTenantGraph(registry: TableRegistry): TenantGraph {
+export function computeTenantGraph(registry: ModelRegistry): TenantGraph {
   const entries = Object.entries(registry);
 
   // Build a map of table name -> registry key for lookup
@@ -49,7 +53,7 @@ export function computeTenantGraph(registry: TableRegistry): TenantGraph {
     tableNameToKey.set(entry.table._name, key);
   }
 
-  // Step 1: Find tenant root and directly scoped tables
+  // Step 1: Find tenant root, directly scoped, and shared models
   let root: string | null = null;
   const directlyScoped: string[] = [];
   const shared: string[] = [];
@@ -61,26 +65,32 @@ export function computeTenantGraph(registry: TableRegistry): TenantGraph {
       continue;
     }
 
-    // Check columns for tenant marker
-    const columns = entry.table._columns;
-    for (const colKey of Object.keys(columns)) {
-      const col = columns[colKey] as ColumnBuilder<unknown, ColumnMetadata>;
-      if (col._meta.isTenant && col._meta.references) {
-        // This table is directly scoped
-        if (!directlyScoped.includes(key)) {
-          directlyScoped.push(key);
+    // Check for tenant option
+    if (entry._tenant) {
+      const tenantRel = entry.relations[entry._tenant] as RelationDef | undefined;
+      if (!tenantRel) {
+        throw new Error(
+          `Model "${key}": tenant relation "${entry._tenant}" not found in relations`,
+        );
+      }
+      if (!directlyScoped.includes(key)) {
+        directlyScoped.push(key);
+      }
+      // The referenced table is the tenant root
+      const rootTableName = tenantRel._target()._name;
+      const rootKey = tableNameToKey.get(rootTableName);
+      if (rootKey) {
+        if (root !== null && root !== rootKey) {
+          throw new Error(
+            `Conflicting tenant roots: "${root}" and "${rootKey}". All tenant declarations must point to the same root table.`,
+          );
         }
-        // The referenced table is the tenant root
-        const rootTableName = col._meta.references.table;
-        const rootKey = tableNameToKey.get(rootTableName);
-        if (rootKey && root === null) {
-          root = rootKey;
-        }
+        root = rootKey;
       }
     }
   }
 
-  // Step 2: Find indirectly scoped tables via .references() chains
+  // Step 2: Find indirectly scoped models via relation chains
   // Build a set of table names that are scoped (root + directly scoped)
   const scopedTableNames = new Set<string>();
   if (root !== null) {
@@ -99,7 +109,7 @@ export function computeTenantGraph(registry: TableRegistry): TenantGraph {
   const indirectlyScoped: string[] = [];
   const indirectlyScopedNames = new Set<string>();
 
-  // Iteratively resolve indirect scoping until no new tables are found
+  // Iteratively resolve indirect scoping until no new models are found
   let changed = true;
   while (changed) {
     changed = false;
@@ -114,19 +124,15 @@ export function computeTenantGraph(registry: TableRegistry): TenantGraph {
         continue;
       }
 
-      // Check if any column references a scoped or indirectly scoped table
-      const columns = entry.table._columns;
-      for (const colKey of Object.keys(columns)) {
-        const col = columns[colKey] as ColumnBuilder<unknown, ColumnMetadata>;
-        if (col._meta.references && !col._meta.isTenant) {
-          const refTable = col._meta.references.table;
-          if (scopedTableNames.has(refTable) || indirectlyScopedNames.has(refTable)) {
-            indirectlyScoped.push(key);
-            indirectlyScopedNames.add(entry.table._name);
-            scopedTableNames.add(entry.table._name);
-            changed = true;
-            break;
-          }
+      // Check if any relation targets a scoped or indirectly scoped table
+      for (const rel of Object.values(entry.relations)) {
+        const targetTableName = (rel as RelationDef)._target()._name;
+        if (scopedTableNames.has(targetTableName) || indirectlyScopedNames.has(targetTableName)) {
+          indirectlyScoped.push(key);
+          indirectlyScopedNames.add(entry.table._name);
+          scopedTableNames.add(entry.table._name);
+          changed = true;
+          break;
         }
       }
     }

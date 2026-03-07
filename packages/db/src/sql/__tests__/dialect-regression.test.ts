@@ -36,7 +36,9 @@ describe('buildInsert with PostgresDialect (regression)', () => {
       defaultPostgresDialect,
     );
 
-    expect(result.sql).toBe('INSERT INTO "users" ("id", "created_at") VALUES ($1, NOW()) RETURNING *');
+    expect(result.sql).toBe(
+      'INSERT INTO "users" ("id", "created_at") VALUES ($1, NOW()) RETURNING *',
+    );
     expect(result.params).toEqual(['123']);
   });
 

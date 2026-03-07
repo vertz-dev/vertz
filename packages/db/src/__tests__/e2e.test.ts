@@ -1,6 +1,6 @@
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { PGlite } from '@electric-sql/pglite';
 import { unwrap } from '@vertz/schema';
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { createDb } from '../client/database';
 import { d } from '../d';
 import type { QueryFn } from '../query/executor';
@@ -19,7 +19,7 @@ const organizations = d.table('organizations', {
 
 const users = d.table('users', {
   id: d.uuid().primary(),
-  organizationId: d.tenant(organizations),
+  organizationId: d.uuid(),
   name: d.text(),
   email: d.email().unique().is('sensitive'),
   passwordHash: d.text().is('hidden'),
@@ -61,7 +61,13 @@ const featureFlags = d
 
 const models = {
   organizations: d.model(organizations),
-  users: d.model(users),
+  users: d.model(
+    users,
+    {
+      organization: d.ref.one(() => organizations, 'organizationId'),
+    },
+    { tenant: 'organization' },
+  ),
   posts: d.model(posts, {
     author: d.ref.one(() => users, 'authorId'),
     comments: d.ref.many(() => comments, 'postId'),
@@ -631,14 +637,14 @@ describe('E2E Acceptance Test (db-018)', () => {
     it('computes tenant graph correctly', () => {
       const graph = db._internals.tenantGraph;
 
-      // organizations is the root (users have d.tenant(organizations))
+      // organizations is the root (users model has { tenant: 'organization' })
       expect(graph.root).toBe('organizations');
 
-      // users is directly scoped (has d.tenant(organizations))
+      // users is directly scoped (has { tenant: 'organization' })
       expect(graph.directlyScoped).toContain('users');
 
-      // posts references users -> indirectly scoped
-      // comments references posts -> indirectly scoped
+      // posts references users via relation -> indirectly scoped
+      // comments references posts via relation -> indirectly scoped
       expect(graph.indirectlyScoped).toContain('posts');
       expect(graph.indirectlyScoped).toContain('comments');
 

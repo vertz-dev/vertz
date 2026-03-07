@@ -1,8 +1,8 @@
 import { describe, it } from 'bun:test';
-import type { Equal, Expect, Extends, HasKey, IsFunction } from './_type-helpers';
 import type { DatabaseClient, ModelDelegate } from '../client/database';
 import { d } from '../d';
 import type { ModelEntry } from '../schema/inference';
+import type { Equal, Expect, Extends, HasKey, IsFunction } from './_type-helpers';
 
 // ---------------------------------------------------------------------------
 // Fixture: minimal schema with relations

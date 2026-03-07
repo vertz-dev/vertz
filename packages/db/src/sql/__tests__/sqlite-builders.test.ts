@@ -34,7 +34,9 @@ describe('buildInsert with SqliteDialect', () => {
       sqliteDialect,
     );
 
-    expect(result.sql).toBe('INSERT INTO "users" ("id", "created_at") VALUES (?, datetime(\'now\')) RETURNING *');
+    expect(result.sql).toBe(
+      'INSERT INTO "users" ("id", "created_at") VALUES (?, datetime(\'now\')) RETURNING *',
+    );
     expect(result.params).toEqual(['123']);
   });
 
@@ -121,7 +123,9 @@ describe('buildUpdate with SqliteDialect', () => {
       sqliteDialect,
     );
 
-    expect(result.sql).toBe('UPDATE "users" SET "updated_at" = datetime(\'now\') WHERE "id" = ? RETURNING *');
+    expect(result.sql).toBe(
+      'UPDATE "users" SET "updated_at" = datetime(\'now\') WHERE "id" = ? RETURNING *',
+    );
     expect(result.params).toEqual(['123']);
   });
 });
@@ -155,9 +159,7 @@ describe('buildWhere with SqliteDialect', () => {
       sqliteDialect,
     );
 
-    expect(result.sql).toBe(
-      '"age" > ? AND "age" <= ? AND "name" LIKE ? AND "status" IN (?, ?)',
-    );
+    expect(result.sql).toBe('"age" > ? AND "age" <= ? AND "name" LIKE ? AND "status" IN (?, ?)');
     expect(result.params).toEqual([18, 65, '%alice%', 'active', 'pending']);
   });
 
@@ -179,45 +181,31 @@ describe('buildWhere with SqliteDialect', () => {
 describe('SQLite feature guards', () => {
   it('throws descriptive error for arrayContains with SqliteDialect', () => {
     expect(() =>
-      buildWhere(
-        { tags: { arrayContains: ['admin'] } },
-        0,
-        undefined,
-        sqliteDialect,
-      ),
-    ).toThrow('Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite');
+      buildWhere({ tags: { arrayContains: ['admin'] } }, 0, undefined, sqliteDialect),
+    ).toThrow(
+      'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite',
+    );
   });
 
   it('throws descriptive error for arrayContainedBy with SqliteDialect', () => {
     expect(() =>
-      buildWhere(
-        { tags: { arrayContainedBy: ['admin'] } },
-        0,
-        undefined,
-        sqliteDialect,
-      ),
-    ).toThrow('Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite');
+      buildWhere({ tags: { arrayContainedBy: ['admin'] } }, 0, undefined, sqliteDialect),
+    ).toThrow(
+      'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite',
+    );
   });
 
   it('throws descriptive error for arrayOverlaps with SqliteDialect', () => {
     expect(() =>
-      buildWhere(
-        { tags: { arrayOverlaps: ['admin'] } },
-        0,
-        undefined,
-        sqliteDialect,
-      ),
-    ).toThrow('Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite');
+      buildWhere({ tags: { arrayOverlaps: ['admin'] } }, 0, undefined, sqliteDialect),
+    ).toThrow(
+      'Array operators (arrayContains, arrayContainedBy, arrayOverlaps) are not supported on SQLite',
+    );
   });
 
   it('throws descriptive error for JSONB path operator with SqliteDialect', () => {
     expect(() =>
-      buildWhere(
-        { 'metadata->role': { eq: 'admin' } },
-        0,
-        undefined,
-        sqliteDialect,
-      ),
+      buildWhere({ 'metadata->role': { eq: 'admin' } }, 0, undefined, sqliteDialect),
     ).toThrow('JSONB path operators (->>, ->) are not supported on SQLite');
   });
 

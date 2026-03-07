@@ -11,7 +11,6 @@ export interface ColumnMetadata {
   readonly _annotations: Record<string, true>;
   readonly isReadOnly: boolean;
   readonly isAutoUpdate: boolean;
-  readonly isTenant: boolean;
   readonly references: { readonly table: string; readonly column: string } | null;
   readonly check: string | null;
   readonly defaultValue?: unknown;
@@ -88,7 +87,6 @@ export type DefaultMeta<TSqlType extends string> = {
   readonly _annotations: {};
   readonly isReadOnly: false;
   readonly isAutoUpdate: false;
-  readonly isTenant: false;
   readonly references: null;
   readonly check: null;
 };
@@ -197,7 +195,6 @@ function defaultMeta<TSqlType extends string>(sqlType: TSqlType): DefaultMeta<TS
     _annotations: {},
     isReadOnly: false,
     isAutoUpdate: false,
-    isTenant: false,
     references: null,
     check: null,
   };
@@ -222,7 +219,6 @@ export type SerialMeta = {
   readonly _annotations: {};
   readonly isReadOnly: false;
   readonly isAutoUpdate: false;
-  readonly isTenant: false;
   readonly references: null;
   readonly check: null;
 };
@@ -237,38 +233,7 @@ export function createSerialColumn(): ColumnBuilder<number, SerialMeta> {
     _annotations: {},
     isReadOnly: false,
     isAutoUpdate: false,
-    isTenant: false,
     references: null,
     check: null,
   }) as ColumnBuilder<number, SerialMeta>;
-}
-
-export type TenantMeta = {
-  readonly sqlType: 'uuid';
-  readonly primary: false;
-  readonly unique: false;
-  readonly nullable: false;
-  readonly hasDefault: false;
-  readonly _annotations: {};
-  readonly isReadOnly: false;
-  readonly isAutoUpdate: false;
-  readonly isTenant: true;
-  readonly references: { readonly table: string; readonly column: string };
-  readonly check: null;
-};
-
-export function createTenantColumn(targetTableName: string): ColumnBuilder<string, TenantMeta> {
-  return createColumnWithMeta({
-    sqlType: 'uuid',
-    primary: false,
-    unique: false,
-    nullable: false,
-    hasDefault: false,
-    _annotations: {},
-    isReadOnly: false,
-    isAutoUpdate: false,
-    isTenant: true,
-    references: { table: targetTableName, column: 'id' },
-    check: null,
-  }) as ColumnBuilder<string, TenantMeta>;
 }
