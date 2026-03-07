@@ -229,6 +229,32 @@ describe('createSnapshot', () => {
     ]);
   });
 
+  it('captures index type and where in snapshot', () => {
+    const posts = d.table(
+      'posts',
+      {
+        id: d.uuid().primary(),
+        title: d.text(),
+        status: d.text(),
+      },
+      {
+        indexes: [
+          d.index('title', { type: 'gin' }),
+          d.index('status', { where: "status != 'archived'" }),
+          d.index(['title', 'status'], { unique: true, type: 'btree' }),
+        ],
+      },
+    );
+
+    const snapshot = createSnapshot([posts]);
+
+    expect(snapshot.tables.posts.indexes).toEqual([
+      { columns: ['title'], type: 'gin' },
+      { columns: ['status'], where: "status != 'archived'" },
+      { columns: ['title', 'status'], unique: true, type: 'btree' },
+    ]);
+  });
+
   it('captures enum types from columns', () => {
     const users = d.table('users', {
       id: d.uuid().primary(),

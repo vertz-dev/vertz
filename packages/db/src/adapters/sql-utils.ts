@@ -126,8 +126,9 @@ export function generateIndexSql<T extends ColumnRecord>(schema: TableDef<T>): s
   for (const index of schema._indexes) {
     const indexName = index.name || `idx_${tableName}_${index.columns.join('_')}`;
     const unique = index.unique ? 'UNIQUE ' : '';
+    const where = index.where ? ` WHERE ${index.where}` : '';
     sqls.push(
-      `CREATE ${unique}INDEX IF NOT EXISTS ${indexName} ON ${tableName} (${index.columns.join(', ')})`,
+      `CREATE ${unique}INDEX IF NOT EXISTS ${indexName} ON ${tableName} (${index.columns.join(', ')})${where}`,
     );
   }
 

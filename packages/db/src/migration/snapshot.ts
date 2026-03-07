@@ -1,6 +1,6 @@
 import type { ModelDef } from '../schema/model';
 import type { RelationDef } from '../schema/relation';
-import type { ColumnRecord, TableDef } from '../schema/table';
+import type { ColumnRecord, IndexType, TableDef } from '../schema/table';
 
 export interface ColumnSnapshot {
   type: string;
@@ -15,6 +15,8 @@ export interface IndexSnapshot {
   columns: string[];
   name?: string;
   unique?: boolean;
+  type?: IndexType;
+  where?: string;
 }
 
 export interface ForeignKeySnapshot {
@@ -139,7 +141,11 @@ export function createSnapshot(entries: (TableDef<ColumnRecord> | ModelDef)[]): 
     }
 
     for (const idx of table._indexes) {
-      indexes.push({ columns: [...idx.columns] });
+      const snap: IndexSnapshot = { columns: [...idx.columns] };
+      if (idx.unique) snap.unique = idx.unique;
+      if (idx.type) snap.type = idx.type;
+      if (idx.where) snap.where = idx.where;
+      indexes.push(snap);
     }
 
     const foreignKeys = deriveForeignKeys(table, relations);

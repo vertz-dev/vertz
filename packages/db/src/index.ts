@@ -126,6 +126,7 @@ export type { MigrationFile, MigrationQueryFn } from './migration/runner';
 export { parseMigrationName } from './migration/runner';
 export type { SchemaSnapshot } from './migration/snapshot';
 export { createSnapshot } from './migration/snapshot';
+export { validateIndexes } from './migration/validate-indexes';
 // Schema types
 export type {
   ColumnBuilder,
@@ -157,7 +158,7 @@ export type { ModelDef, ModelOptions } from './schema/model';
 export type { ModelSchemas, SchemaLike } from './schema/model-schemas';
 export { createRegistry } from './schema/registry';
 export type { RelationDef } from './schema/relation';
-export type { IndexDef, TableDef } from './schema/table';
+export type { IndexDef, IndexOptions, IndexType, TableDef } from './schema/table';
 export type { EntityDbAdapter, ListOptions } from './types/adapter';
 // Branded error types
 export type {

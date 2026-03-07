@@ -333,6 +333,94 @@ describe('computeDiff', () => {
     expect(result.changes).toEqual([{ type: 'index_removed', table: 'users', columns: ['email'] }]);
   });
 
+  it('carries index type and where in index_added change', () => {
+    const before: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        posts: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            title: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+    const after: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        posts: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            title: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [{ columns: ['title'], type: 'gin', where: "status = 'active'" }],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+
+    const result = computeDiff(before, after);
+
+    expect(result.changes).toEqual([
+      {
+        type: 'index_added',
+        table: 'posts',
+        columns: ['title'],
+        indexType: 'gin',
+        indexWhere: "status = 'active'",
+      },
+    ]);
+  });
+
+  it('detects index change when type is added to existing index', () => {
+    const before: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        posts: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            title: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [{ columns: ['title'] }],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+    const after: SchemaSnapshot = {
+      version: 1,
+      tables: {
+        posts: {
+          columns: {
+            id: { type: 'uuid', nullable: false, primary: true, unique: false },
+            title: { type: 'text', nullable: false, primary: false, unique: false },
+          },
+          indexes: [{ columns: ['title'], type: 'gin' }],
+          foreignKeys: [],
+          _metadata: {},
+        },
+      },
+      enums: {},
+    };
+
+    const result = computeDiff(before, after);
+
+    // Should detect as remove old + add new
+    expect(result.changes).toHaveLength(2);
+    const added = result.changes.find((c) => c.type === 'index_added');
+    const removed = result.changes.find((c) => c.type === 'index_removed');
+    expect(added).toBeDefined();
+    expect(removed).toBeDefined();
+    expect(added?.indexType).toBe('gin');
+  });
+
   it('detects column rename with confidence scoring', () => {
     const before: SchemaSnapshot = {
       version: 1,

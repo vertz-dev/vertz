@@ -113,6 +113,54 @@ describe('generateMigrationSql', () => {
     expect(sql).toBe('DROP INDEX "idx_users_email";');
   });
 
+  it('generates CREATE INDEX with USING clause for index type', () => {
+    const changes: DiffChange[] = [
+      { type: 'index_added', table: 'posts', columns: ['title'], indexType: 'gin' },
+    ];
+    const sql = generateMigrationSql(changes);
+    expect(sql).toBe('CREATE INDEX "idx_posts_title" ON "posts" USING gin ("title");');
+  });
+
+  it('generates CREATE INDEX with WHERE clause for partial index', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'index_added',
+        table: 'posts',
+        columns: ['email'],
+        indexWhere: "status = 'active'",
+      },
+    ];
+    const sql = generateMigrationSql(changes);
+    expect(sql).toBe(
+      'CREATE INDEX "idx_posts_email" ON "posts" ("email") WHERE status = \'active\';',
+    );
+  });
+
+  it('generates CREATE UNIQUE INDEX for unique indexes', () => {
+    const changes: DiffChange[] = [
+      { type: 'index_added', table: 'users', columns: ['email'], indexUnique: true },
+    ];
+    const sql = generateMigrationSql(changes);
+    expect(sql).toBe('CREATE UNIQUE INDEX "idx_users_email" ON "users" ("email");');
+  });
+
+  it('generates CREATE INDEX with type, unique, and where combined', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'index_added',
+        table: 'posts',
+        columns: ['title'],
+        indexType: 'btree',
+        indexUnique: true,
+        indexWhere: "status != 'archived'",
+      },
+    ];
+    const sql = generateMigrationSql(changes);
+    expect(sql).toBe(
+      'CREATE UNIQUE INDEX "idx_posts_title" ON "posts" USING btree ("title") WHERE status != \'archived\';',
+    );
+  });
+
   it('generates CREATE TYPE for enum_added', () => {
     const changes: DiffChange[] = [{ type: 'enum_added', enumName: 'user_role' }];
     const sql = generateMigrationSql(changes, {
@@ -273,6 +321,14 @@ describe('generateRollbackSql', () => {
     ];
     const sql = generateRollbackSql(changes);
     expect(sql).toBe('ALTER TABLE "users" ALTER COLUMN "age" TYPE integer;');
+  });
+
+  it('reverses index_added with type to DROP INDEX', () => {
+    const changes: DiffChange[] = [
+      { type: 'index_added', table: 'posts', columns: ['title'], indexType: 'gin' },
+    ];
+    const sql = generateRollbackSql(changes);
+    expect(sql).toBe('DROP INDEX "idx_posts_title";');
   });
 
   it('reverses column_renamed', () => {

@@ -5,16 +5,24 @@ import type { RelationDef } from './relation';
 // Index Definition
 // ---------------------------------------------------------------------------
 
+export type IndexType = 'btree' | 'hash' | 'gin' | 'gist' | 'brin';
+
 export interface IndexDef {
   readonly columns: readonly string[];
   readonly name?: string;
   readonly unique?: boolean;
+  readonly type?: IndexType;
+  readonly where?: string;
 }
 
-export function createIndex(
-  columns: string | string[],
-  options?: { name?: string; unique?: boolean },
-): IndexDef {
+export interface IndexOptions {
+  name?: string;
+  unique?: boolean;
+  type?: IndexType;
+  where?: string;
+}
+
+export function createIndex(columns: string | string[], options?: IndexOptions): IndexDef {
   return {
     columns: Array.isArray(columns) ? columns : [columns],
     ...options,

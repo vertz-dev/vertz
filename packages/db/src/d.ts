@@ -15,7 +15,7 @@ import { createModel } from './schema/model';
 import type { SchemaLike } from './schema/model-schemas';
 import type { ManyRelationDef, RelationDef } from './schema/relation';
 import { createManyRelation, createOneRelation } from './schema/relation';
-import type { ColumnRecord, IndexDef, TableDef, TableOptions } from './schema/table';
+import type { ColumnRecord, IndexDef, IndexOptions, TableDef, TableOptions } from './schema/table';
 import { createIndex, createTable } from './schema/table';
 
 // Duck-typing interface so @vertz/db can accept EnumSchema from @vertz/schema
@@ -60,7 +60,7 @@ export const d: {
     columns: TColumns,
     options?: TableOptions,
   ): TableDef<TColumns>;
-  index(columns: string | string[]): IndexDef;
+  index(columns: string | string[], options?: IndexOptions): IndexDef;
   ref: {
     one<TTarget extends TableDef<ColumnRecord>>(
       target: () => TTarget,
@@ -139,7 +139,7 @@ export const d: {
   },
   table: <TColumns extends ColumnRecord>(name: string, columns: TColumns, options?: TableOptions) =>
     createTable(name, columns, options),
-  index: (columns: string | string[]) => createIndex(columns),
+  index: (columns: string | string[], options?: IndexOptions) => createIndex(columns, options),
   ref: {
     one: <TTarget extends TableDef<ColumnRecord>>(target: () => TTarget, foreignKey: string) =>
       createOneRelation(target, foreignKey),

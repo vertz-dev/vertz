@@ -292,6 +292,26 @@ describe('generateIndexSql', () => {
     expect(sqls.some((s) => s.includes('idx_users_active'))).toBe(true);
   });
 
+  it('generates UNIQUE INDEX when index has unique flag', () => {
+    const table = d.table(
+      'users',
+      { id: d.uuid().primary(), email: d.text() },
+      { indexes: [d.index('email', { unique: true })] },
+    );
+    const sqls = generateIndexSql(table);
+    expect(sqls.some((s) => s.includes('CREATE UNIQUE INDEX'))).toBe(true);
+  });
+
+  it('generates WHERE clause for partial index', () => {
+    const table = d.table(
+      'posts',
+      { id: d.uuid().primary(), status: d.text() },
+      { indexes: [d.index('status', { where: "status = 'active'" })] },
+    );
+    const sqls = generateIndexSql(table);
+    expect(sqls.some((s) => s.includes("WHERE status = 'active'"))).toBe(true);
+  });
+
   it('does not add automatic index for primary or unique columns', () => {
     const table = d.table('users', {
       id: d.uuid().primary(),
