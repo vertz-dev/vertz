@@ -347,6 +347,32 @@ describe('generateRollbackSql', () => {
     expect(sql).toBe('DROP INDEX "idx_posts_title";');
   });
 
+  it('reverses index_added with custom name to DROP INDEX using custom name', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'index_added',
+        table: 'users',
+        columns: ['email'],
+        indexName: 'idx_custom_email',
+      },
+    ];
+    const sql = generateRollbackSql(changes);
+    expect(sql).toBe('DROP INDEX "idx_custom_email";');
+  });
+
+  it('reverses index_removed with custom name to CREATE INDEX using custom name', () => {
+    const changes: DiffChange[] = [
+      {
+        type: 'index_removed',
+        table: 'users',
+        columns: ['email'],
+        indexName: 'idx_custom_email',
+      },
+    ];
+    const sql = generateRollbackSql(changes);
+    expect(sql).toBe('CREATE INDEX "idx_custom_email" ON "users" ("email");');
+  });
+
   it('reverses column_renamed', () => {
     const changes: DiffChange[] = [
       {
