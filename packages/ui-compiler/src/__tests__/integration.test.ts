@@ -566,4 +566,25 @@ function TaskList() {
     expect(result.code).not.toContain('tasks.data.value');
     expect(result.diagnostics).toHaveLength(0);
   });
+
+  it('auto-loads framework manifest for @vertz/ui without explicit manifests option', () => {
+    // No manifests option — the compiler should auto-load the framework manifest
+    const result = compile(
+      `
+import { query } from '@vertz/ui';
+
+function TaskList() {
+  const tasks = query('/api/tasks');
+  const x = tasks.data ? 'yes' : 'no';
+  return <div>{x}</div>;
+}
+    `.trim(),
+    );
+
+    // tasks.data should get .value (it's a signal property in the framework manifest)
+    expect(result.code).toContain('tasks.data.value');
+    // x depends on tasks.data (signal) → computed
+    expect(result.code).toContain('computed(() =>');
+    expect(result.diagnostics).toHaveLength(0);
+  });
 });

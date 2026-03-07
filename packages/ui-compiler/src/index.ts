@@ -25,6 +25,8 @@ export { SSRSafetyDiagnostics } from './diagnostics/ssr-safety-diagnostics';
 export type { VertzLibraryPluginOptions } from './library-plugin';
 // Library compilation plugin
 export { createVertzLibraryPlugin } from './library-plugin';
+// Reactivity manifest
+export { loadFrameworkManifest, loadManifestFromJson } from './reactivity-manifest';
 export { ComputedTransformer } from './transformers/computed-transformer';
 export type { CSSTransformResult } from './transformers/css-transformer';
 export { CSSTransformer } from './transformers/css-transformer';
@@ -45,10 +47,16 @@ export type {
   CompilerDiagnostic,
   ComponentInfo,
   DiagnosticSeverity,
+  ExportReactivityInfo,
   JsxExpressionInfo,
+  LoadedExportReactivityInfo,
+  LoadedReactivityManifest,
+  LoadedReactivityShape,
   MutationInfo,
   MutationKind,
   ReactivityKind,
+  ReactivityManifest,
+  ReactivityShape,
   VariableInfo,
 } from './types';
 // Note: Vite plugin has been removed. Use the Bun plugin from @vertz/ui-server/bun-plugin.

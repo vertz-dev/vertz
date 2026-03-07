@@ -81,15 +81,28 @@ describe('reactivity-manifest', () => {
     });
 
     it('warns and falls back to unknown for unsupported version', () => {
-      const json = {
-        version: 999,
-        filePath: 'test',
-        exports: {
-          foo: { kind: 'function', reactivity: { type: 'static' } },
-        },
-      } as unknown as ReactivityManifest;
-      const loaded = loadManifestFromJson(json);
-      expect(loaded.exports.foo.reactivity.type).toBe('unknown');
+      const originalWarn = console.warn;
+      const warnings: string[] = [];
+      console.warn = (...args: unknown[]) => {
+        warnings.push(args.map(String).join(' '));
+      };
+      try {
+        const json = {
+          version: 999,
+          filePath: 'test',
+          exports: {
+            foo: { kind: 'function', reactivity: { type: 'static' } },
+          },
+        } as unknown as ReactivityManifest;
+        const loaded = loadManifestFromJson(json);
+        expect(loaded.exports.foo.reactivity.type).toBe('unknown');
+        expect(warnings.length).toBe(1);
+        expect(warnings[0]).toContain('Unsupported reactivity manifest version');
+        expect(warnings[0]).toContain('999');
+        expect(warnings[0]).toContain('test');
+      } finally {
+        console.warn = originalWarn;
+      }
     });
   });
 

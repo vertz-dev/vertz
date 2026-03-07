@@ -51,10 +51,12 @@
     "./jsx-dev-runtime": {
       "types": "./dist/jsx-runtime/index.d.ts",
       "import": "./dist/jsx-runtime/index.js"
-    }
+    },
+    "./reactivity.json": "./reactivity.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "reactivity.json"
   ],
   "scripts": {
     "build": "bunup",
