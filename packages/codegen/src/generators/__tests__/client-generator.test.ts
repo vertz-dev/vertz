@@ -318,4 +318,87 @@ describe('ClientGenerator', () => {
     expect(files).toHaveLength(3);
     expect(files.map((f) => f.path).sort()).toEqual(['README.md', 'client.ts', 'package.json']);
   });
+
+  describe('relation manifest', () => {
+    it('imports registerRelationSchema when entities have relations', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'posts',
+          operations: [],
+          actions: [],
+          relations: [{ name: 'author', type: 'one', entity: 'users' }],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain("import { registerRelationSchema } from '@vertz/ui'");
+    });
+
+    it('emits registerRelationSchema call for each entity', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'posts',
+          operations: [],
+          actions: [],
+          relations: [
+            { name: 'author', type: 'one', entity: 'users' },
+            { name: 'tags', type: 'many', entity: 'tags' },
+          ],
+        },
+        {
+          entityName: 'users',
+          operations: [],
+          actions: [],
+          relations: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).toContain("registerRelationSchema('posts'");
+      expect(clientFile?.content).toContain("author: { type: 'one', entity: 'users' }");
+      expect(clientFile?.content).toContain("tags: { type: 'many', entity: 'tags' }");
+      expect(clientFile?.content).toContain("registerRelationSchema('users', {})");
+    });
+
+    it('emits registerRelationSchema before createClient function', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'posts',
+          operations: [],
+          actions: [],
+          relations: [{ name: 'author', type: 'one', entity: 'users' }],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+      const content = clientFile?.content ?? '';
+
+      const registerIdx = content.indexOf('registerRelationSchema(');
+      const createClientIdx = content.indexOf('export function createClient');
+
+      expect(registerIdx).toBeGreaterThan(-1);
+      expect(createClientIdx).toBeGreaterThan(-1);
+      expect(registerIdx).toBeLessThan(createClientIdx);
+    });
+
+    it('does not import registerRelationSchema when no entities have relations', () => {
+      const ir = createBasicIR([
+        {
+          entityName: 'users',
+          operations: [],
+          actions: [],
+        },
+      ]);
+
+      const files = generator.generate(ir, { outputDir: '.vertz', options: {} });
+      const clientFile = files.find((f) => f.path === 'client.ts');
+
+      expect(clientFile?.content).not.toContain('registerRelationSchema');
+    });
+  });
 });

@@ -110,10 +110,17 @@ export interface SchemaNamingParts {
 
 // ── Entity ──────────────────────────────────────────────────────
 
+export interface CodegenRelation {
+  name: string;
+  type: 'one' | 'many';
+  entity: string;
+}
+
 export interface CodegenEntityModule {
   entityName: string;
   operations: CodegenEntityOperation[];
   actions: CodegenEntityAction[];
+  relations?: CodegenRelation[];
 }
 
 export interface CodegenEntityOperation {
