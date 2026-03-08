@@ -755,14 +755,21 @@ const access = defineAccess({
   },
 
   entitlements: {
+    // Project entitlements (scoped to the project itself)
     'project:view':   { roles: ['viewer', 'contributor', 'manager'] },
     'project:edit':   { roles: ['contributor', 'manager'] },
-    'project:create': { roles: ['manager', 'lead', 'admin', 'owner'] },
     'project:delete': { roles: ['manager'] },
     'project:export': { roles: ['manager'], plans: ['enterprise'], flags: ['export-v2'] },
+    // Create belongs to the PARENT — it's the org that "can have projects"
+    'org:create-project': { roles: ['manager', 'lead', 'admin', 'owner'] },
+    // Task entitlements
     'task:view':      { roles: ['viewer', 'assignee'] },
     'task:edit':      { roles: ['assignee'] },
     'task:complete':  { roles: ['assignee'] },
+    // Create task belongs to the parent (project)
+    'project:create-task': { roles: ['contributor', 'manager'] },
+    // Org-level entitlements
+    'org:create-team': { roles: ['admin', 'owner'] },
     'team:invite':    { roles: ['lead', 'admin', 'owner'] },
     'org:billing':    { roles: ['owner', 'admin'] },
     'org:audit-log':  { roles: ['owner', 'admin'], plans: ['enterprise'] },
@@ -770,19 +777,19 @@ const access = defineAccess({
 
   plans: {
     free: {
-      entitlements: ['project:create', 'project:view', 'project:edit'],
-      limits: { 'project:create': { per: 'month', max: 5 } },
+      entitlements: ['org:create-project', 'project:view', 'project:edit'],
+      limits: { 'org:create-project': { per: 'month', max: 5 } },
     },
     pro: {
-      entitlements: ['project:create', 'project:view', 'project:edit', 'project:export'],
-      limits: { 'project:create': { per: 'month', max: 100 } },
+      entitlements: ['org:create-project', 'project:view', 'project:edit', 'project:export'],
+      limits: { 'org:create-project': { per: 'month', max: 100 } },
     },
     enterprise: {
       entitlements: [
-        'project:create', 'project:view', 'project:edit', 'project:export',
+        'org:create-project', 'project:view', 'project:edit', 'project:export',
         'org:audit-log', 'org:sso',
       ],
-      limits: { 'project:create': { per: 'month', max: Infinity } },
+      limits: { 'org:create-project': { per: 'month', max: Infinity } },
     },
   },
 
@@ -794,7 +801,11 @@ const access = defineAccess({
 
 ### 6.2 Entity Access Rules with `rules.*`
 
-Access rules are declared on entities using composable `rules.*` builders. `rules.where()` uses the same query syntax as the DB layer:
+Access rules are declared on entities using composable `rules.*` builders. `rules.where()` uses the same query syntax as the DB layer.
+
+**Entitlement-first design:** Entity access rules should check **entitlements**, not raw roles. The entitlement → role/plan/flag mapping is already defined centrally in `defineAccess()`, so entity rules reference entitlements to avoid duplicating role lists across entities. This is the standard RBAC pattern: roles are "who", entitlements are "what they can do", and the mapping lives in one place. When the `org:create-project` entitlement's allowed roles change, every entity referencing it picks up the change automatically.
+
+`rules.role()` remains available for cases where an entity needs a role check that doesn't map to a named entitlement (e.g., ownership-based rules, one-off admin gates), but the **default** should be `rules.entitlement()`.
 
 ```ts
 import { entity, rules } from '@vertz/server';
@@ -807,24 +818,36 @@ const isNotArchived = rules.where({ archived: false });
 const Project = entity('projects', {
   model: projectModel,
   access: {
-    list:   rules.all(rules.role('viewer', 'contributor', 'manager'), isNotArchived),
-    get:    rules.role('viewer', 'contributor', 'manager'),
-    create: rules.role('manager', 'lead', 'admin', 'owner'),
-    update: rules.any(rules.role('contributor', 'manager'), isOwner),
-    delete: rules.any(rules.role('manager'), isOwner),
-    export: rules.all(
-      rules.role('manager'),
-      rules.plan('enterprise'),
-      rules.flag('export-v2'),
-    ),
+    // Preferred: check entitlements (role/plan/flag mapping defined in defineAccess)
+    list:   rules.all(rules.entitlement('project:view'), isNotArchived),
+    get:    rules.entitlement('project:view'),
+    // Create is scoped to the PARENT (org) — it's the org that "can have projects"
+    // The plan limit (e.g., 5 projects/month on free) and wallet check also live on the org
+    create: rules.entitlement('org:create-project'),
+    update: rules.any(rules.entitlement('project:edit'), isOwner),
+    delete: rules.any(rules.entitlement('project:delete'), isOwner),
+    export: rules.entitlement('project:export'),  // plan + flag checks resolved via entitlement definition
   },
 });
+```
+
+> **Why not `rules.role()` here?** Consider `project:export` — it requires the `manager` role AND `enterprise` plan AND `export-v2` flag. With `rules.entitlement('project:export')`, all three checks are resolved from the central `defineAccess()` config. With `rules.role('manager')` + `rules.plan('enterprise')` + `rules.flag('export-v2')`, the entity duplicates logic that already exists in the entitlement definition. If the export requirements change (e.g., add `lead` role), you'd need to update both places.
+
+> **Why `create` is parent-scoped:** Creation is an action on the parent, not the child. An organization "can have projects" — the create entitlement, the plan limit (5 projects/month on free), and the wallet check all belong to the org. The naming convention `org:create-project` makes this explicit. Similarly, `project:create-task` scopes task creation to the project.
+
+**When `rules.role()` is still appropriate:** Ownership and row-level conditions that don't map to named entitlements:
+```ts
+access: {
+  update: rules.any(rules.entitlement('task:edit'), isOwner, isAssignee),
+  //                 ↑ entitlement check          ↑ row-level conditions
+}
 ```
 
 ### 6.3 Rules Builders
 
 ```ts
-rules.role('editor', 'admin')        // User has at least one role (OR)
+rules.entitlement('org:create-project')  // User has entitlement (resolves role+plan+flag from defineAccess)
+rules.role('editor', 'admin')        // User has at least one role (OR) — prefer entitlement() when possible
 rules.plan('pro', 'enterprise')      // Org is on at least one plan (OR)
 rules.flag('export-v2')              // Feature flag is enabled
 rules.where({ field: value })        // Row-level condition (DB query syntax)
