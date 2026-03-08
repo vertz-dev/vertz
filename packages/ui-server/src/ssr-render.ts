@@ -52,7 +52,10 @@ export function createRequestContext(url: string): SSRRenderContext {
 let domShimInstalled = false;
 
 function ensureDomShim(): void {
-  if (domShimInstalled) return;
+  // Check both our flag AND whether document actually exists.
+  // removeDomShim() can delete document without resetting our flag
+  // (e.g., in test teardown), leaving us with a stale flag.
+  if (domShimInstalled && typeof document !== 'undefined') return;
   domShimInstalled = true;
   installDomShim();
 }
