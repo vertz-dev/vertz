@@ -80,14 +80,16 @@ export function injectCSS(cssText: string): void {
 
   // Always track CSS for SSR collection via getInjectedCSS().
   // In browser mode, also use it for dedup (skip if already injected).
-  // In SSR, skip the dedup check — document.head is freshly created per
-  // request by installDomShim(), but the Set persists across requests.
   if (!isSSR && injectedCSS.has(cssText)) return;
   injectedCSS.add(cssText);
 
+  // In SSR, skip DOM injection entirely — CSS is tracked in injectedCSS
+  // and available via getInjectedCSS(). Writing to document.head is not
+  // safe with concurrent SSR renders (shared global DOM shim).
+  if (isSSR) return;
+
   // Skip DOM injection when document is unavailable (e.g. module-level
   // css() calls during SSR import, before the DOM shim is installed).
-  // The CSS is still tracked in injectedCSS for getInjectedCSS().
   if (typeof document === 'undefined') return;
 
   // Prefer adoptedStyleSheets when available (better perf, no DOM mutation)

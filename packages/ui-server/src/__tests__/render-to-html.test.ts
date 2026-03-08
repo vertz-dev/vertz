@@ -98,17 +98,14 @@ describe('renderToHTML', () => {
     expect(html).toContain('<link rel="icon" href="/favicon.ico">');
   });
 
-  it('collects component CSS injected into document.head during app()', async () => {
-    const { SSRElement } = await import('../dom-shim/ssr-element');
+  it('collects component CSS via getInjectedCSS during render', async () => {
+    // Simulate injectCSS() by calling it during the render.
+    // In SSR, injectCSS tracks CSS in the injectedCSS Set (available via getInjectedCSS).
+    // renderToHTML reads getInjectedCSS() to collect component styles.
+    const { injectCSS } = await import('@vertz/ui');
 
     const appWithCSS = () => {
-      // Simulate what css()/injectCSS() does: append a <style> element to document.head
-      const doc = (globalThis as any).document;
-      if (doc?.head) {
-        const styleEl = new SSRElement('style');
-        styleEl.children = ['.component-btn { color: red; }'];
-        doc.head.appendChild(styleEl);
-      }
+      injectCSS('.component-btn { color: red; }');
       return {
         tag: 'div',
         attrs: { id: 'app' },

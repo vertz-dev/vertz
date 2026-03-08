@@ -398,26 +398,21 @@ describe('per-request isolation', () => {
     }
   });
 
-  it('collects CSS from component injectCSS calls via document.head', async () => {
+  it('collects CSS via module.getInjectedCSS', async () => {
+    const trackedCSS = ['.my-component { color: red; }'];
     const module = {
       default: () => {
-        // Simulate what compiled css() output does:
-        // injectCSS appends <style data-vertz-css> to document.head
-        const style = document.createElement('style');
-        style.setAttribute('data-vertz-css', '');
-        style.textContent = '.my-component { color: red; }';
-        document.head.appendChild(style);
-
         const el = document.createElement('div');
         el.setAttribute('class', 'my-component');
         el.textContent = 'Styled';
         return el;
       },
+      getInjectedCSS: () => trackedCSS,
     };
 
     const result = await ssrRenderToString(module, '/');
 
-    // CSS injected via document.head should be collected
+    // CSS collected via module.getInjectedCSS should be in output
     expect(result.css).toContain('.my-component { color: red; }');
     expect(result.css).toContain('data-vertz-css');
   });

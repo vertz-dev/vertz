@@ -80,10 +80,15 @@ describe('injectCSS SSR behavior', () => {
     const countAfterBrowser = getAdoptedCSSText().length;
     expect(countAfterBrowser).toBe(1);
 
-    // Enable SSR context and inject same CSS — should bypass dedup
+    // Enable SSR context and inject same CSS — should skip DOM injection
+    // but still add to the Set for collection via getInjectedCSS()
     enableTestSSR();
     injectCSS(cssText);
-    expect(getAdoptedCSSText().length).toBe(2);
+    // DOM adopted sheets unchanged (SSR skips DOM injection)
+    expect(getAdoptedCSSText().length).toBe(1);
+    // But injectedCSS Set still tracks it (bypasses dedup in SSR)
+    const collected = getInjectedCSS();
+    expect(collected).toContain(cssText);
   });
 
   it('adds to dedup Set during SSR for collection via getInjectedCSS', () => {
@@ -99,18 +104,18 @@ describe('injectCSS SSR behavior', () => {
     expect(collected).toContain(cssText);
   });
 
-  it('produces styles on consecutive SSR requests with fresh document.head', () => {
+  it('tracks CSS on consecutive SSR requests via getInjectedCSS', () => {
     // Simulate two SSR "requests" using css() (which calls injectCSS internally)
     for (let req = 1; req <= 2; req++) {
-      // Reset per request (simulating installDomShim)
       resetInjectedStyles();
       enableTestSSR(createTestSSRContext(`/page-${req}`));
 
       css({ card: ['p:4', 'bg:background'] }, 'ssr-multi.tsx');
 
-      const sheets = getAdoptedCSSText();
-      expect(sheets.length).toBe(1);
-      expect(sheets[0]).toContain('padding: 1rem');
+      // CSS is tracked in the Set, not in DOM
+      const collected = getInjectedCSS();
+      expect(collected.length).toBe(1);
+      expect(collected[0]).toContain('padding: 1rem');
     }
   });
 });
