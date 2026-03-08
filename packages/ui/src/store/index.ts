@@ -17,6 +17,10 @@ export type { QueryEnvelope } from './query-envelope-store';
 export { QueryEnvelopeStore } from './query-envelope-store';
 export { QueryResultIndex } from './query-result-index';
 export type { RelationFieldDef, RelationSchema } from './relation-registry';
-export { getRelationSchema, registerRelationSchema } from './relation-registry';
+export {
+  getRelationSchema,
+  registerRelationSchema,
+  resetRelationSchemas_TEST_ONLY,
+} from './relation-registry';
 export { createTestStore } from './test-utils';
 export type { EntityStoreOptions, SerializedStore } from './types';

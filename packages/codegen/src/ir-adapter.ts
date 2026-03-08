@@ -134,7 +134,19 @@ export function adaptIR(appIR: AppIR): CodegenIR {
         };
       });
 
-    return { entityName: entity.name, operations, actions };
+    // Map fully-resolved relations (both type and entity known)
+    const resolvedRelations = entity.relations
+      .filter(
+        (r): r is typeof r & { type: 'one' | 'many'; entity: string } => !!r.type && !!r.entity,
+      )
+      .map((r) => ({ name: r.name, type: r.type, entity: r.entity }));
+
+    return {
+      entityName: entity.name,
+      operations,
+      actions,
+      relations: resolvedRelations.length > 0 ? resolvedRelations : undefined,
+    };
   });
 
   return {
