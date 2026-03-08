@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { createRouter, defineRoutes, defineTheme, RouterContext, RouterView } from '@vertz/ui';
+import { installDomShim } from '../dom-shim';
 import { registerSSRQuery } from '../ssr-context';
 import { ssrDiscoverQueries, ssrRenderToString, ssrStreamNavQueries } from '../ssr-render';
+
+// Install DOM shim for tests that create routers outside SSR context.
+// In production, ensureDomShim() runs at startup; tests need it too.
+installDomShim();
 
 describe('ssrRenderToString', () => {
   it('returns { html, css, ssrData } shape', async () => {
@@ -417,10 +422,10 @@ describe('per-request isolation', () => {
     expect(result.css).toContain('data-vertz-css');
   });
 
-  it('renders correct page for each URL when router is module-level singleton', async () => {
-    // Simulate the real-world pattern: router is created at module level
-    // (before SSR runs), then SSR renders with different URLs.
-    // The router must sync to the current SSR context URL for each render.
+  it('renders correct page for each URL when router is created per-render', async () => {
+    // In SSR with per-request isolation, routers must be created inside the
+    // render function (where SSR context is active). createRouter() detects
+    // SSR context and returns a lightweight read-only router matched to ctx.url.
     const routes = defineRoutes({
       '/': {
         component: () => {
@@ -448,12 +453,10 @@ describe('per-request isolation', () => {
       },
     });
 
-    // Module-level router created with '/' — simulates what happens
-    // when the module is imported at server startup
-    const router = createRouter(routes, '/');
-
     const module = {
       default: () => {
+        // Router created per-render — detects SSR context and uses ctx.url
+        const router = createRouter(routes);
         const container = document.createElement('div');
         RouterContext.Provider(router, () => {
           const view = RouterView({ router });
