@@ -33,6 +33,12 @@ export function normalizeEntity(
 
     if (rel.type === 'one') {
       if (typeof value === 'string') continue;
+      if (typeof value !== 'object' || Array.isArray(value)) {
+        console.warn(
+          `[vertz] ${entityType}.${field}: expected object or string for 'one' relation, got ${typeof value}`,
+        );
+        continue;
+      }
       if (typeof value === 'object' && !Array.isArray(value)) {
         const nested = value as Record<string, unknown>;
         if (typeof nested.id !== 'string') continue;
@@ -59,7 +65,12 @@ export function normalizeEntity(
         normalized[field] = nested.id;
       }
     } else if (rel.type === 'many') {
-      if (!Array.isArray(value)) continue;
+      if (!Array.isArray(value)) {
+        console.warn(
+          `[vertz] ${entityType}.${field}: expected array for 'many' relation, got ${typeof value}`,
+        );
+        continue;
+      }
 
       const ids: unknown[] = [];
       for (const element of value) {

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 import { normalizeEntity } from '../normalize';
 import { registerRelationSchema, resetRelationSchemas_TEST_ONLY } from '../relation-registry';
 
@@ -243,6 +243,34 @@ describe('normalizeEntity', () => {
     expect(result.normalized.title).toBe('Hello');
     expect(result.normalized.views).toBe(42);
     expect(result.normalized.metadata).toEqual({ foo: 'bar' });
+  });
+
+  it('warns in dev mode when one-relation field is an unexpected type', () => {
+    registerRelationSchema('posts', {
+      author: { type: 'one', entity: 'users' },
+    });
+
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const entity = { id: 'p1', title: 'Hello', author: 42 };
+    normalizeEntity('posts', entity);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0]).toContain('posts.author');
+    spy.mockRestore();
+  });
+
+  it('warns in dev mode when many-relation field is not an array', () => {
+    registerRelationSchema('posts', {
+      tags: { type: 'many', entity: 'tags' },
+    });
+
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const entity = { id: 'p1', title: 'Hello', tags: 'not-an-array' };
+    normalizeEntity('posts', entity);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0]).toContain('posts.tags');
+    spy.mockRestore();
   });
 
   it('groups multiple extracted entities by type', () => {
