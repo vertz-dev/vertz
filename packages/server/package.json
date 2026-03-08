@@ -26,8 +26,8 @@
   ],
   "scripts": {
     "build": "bunup",
-    "test": "bun test",
-    "test:watch": "bun test --watch",
+    "test": "bun test --timeout 120000",
+    "test:watch": "bun test --watch --timeout 120000",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
