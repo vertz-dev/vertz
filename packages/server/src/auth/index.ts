@@ -10,6 +10,10 @@ import {
   createAuthRateLimitedError,
   createAuthValidationError,
   createInvalidCredentialsError,
+  createMfaAlreadyEnabledError,
+  createMfaInvalidCodeError,
+  createMfaNotEnabledError,
+  createMfaRequiredError,
   createSessionExpiredError,
   createSessionNotFoundError,
   createUserExistsError,
@@ -18,6 +22,7 @@ import {
   type Result,
 } from '@vertz/errors';
 import {
+  buildMfaChallengeCookie,
   buildOAuthStateCookie,
   buildRefreshCookie,
   buildSessionCookie,
@@ -33,10 +38,19 @@ import {
 } from './crypto';
 import { parseDeviceName } from './device-name';
 import { createJWT, parseDuration, verifyJWT } from './jwt';
+import { InMemoryMFAStore } from './mfa-store';
 import { InMemoryOAuthAccountStore } from './oauth-account-store';
 import { hashPassword, validatePassword, verifyPassword } from './password';
 import { InMemoryRateLimitStore } from './rate-limit-store';
 import { InMemorySessionStore } from './session-store';
+import {
+  generateBackupCodes,
+  generateTotpSecret,
+  generateTotpUri,
+  hashBackupCode,
+  verifyBackupCode,
+  verifyTotpCode,
+} from './totp';
 import type {
   AuthApi,
   AuthConfig,
@@ -144,6 +158,16 @@ export function createAuth(config: AuthConfig): AuthInstance {
   const oauthSuccessRedirect = config.oauthSuccessRedirect ?? '/';
   const oauthErrorRedirect = config.oauthErrorRedirect ?? '/auth/error';
 
+  // MFA setup
+  const mfaConfig = config.mfa;
+  const mfaEnabled = mfaConfig?.enabled ?? false;
+  const mfaIssuer = mfaConfig?.issuer ?? 'Vertz';
+  const mfaBackupCodeCount = mfaConfig?.backupCodeCount ?? 10;
+  const mfaStore = config.mfaStore ?? (mfaEnabled ? new InMemoryMFAStore() : undefined);
+  // Pending MFA secrets: userId → { secret, createdAt } (cleared after verify-setup or after 10min TTL)
+  const PENDING_MFA_TTL = 10 * 60 * 1000; // 10 minutes
+  const pendingMfaSecrets = new Map<string, { secret: string; createdAt: number }>();
+
   // Rate limiting
   const rateLimitStore = config.rateLimitStore ?? new InMemoryRateLimitStore();
   const signInWindowMs = parseDuration(emailPassword?.rateLimit?.window || '15m');
@@ -157,14 +181,17 @@ export function createAuth(config: AuthConfig): AuthInstance {
   async function createSessionTokens(
     user: AuthUser,
     sessionId: string,
+    options?: { fva?: number },
   ): Promise<{ jwt: string; refreshToken: string; payload: SessionPayload; expiresAt: Date }> {
     const jti = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + ttlMs);
 
     const userClaims = claims ? claims(user) : {};
+    const fvaClaim = options?.fva !== undefined ? { fva: options.fva } : {};
 
     const jwt = await createJWT(user, jwtSecret, ttlMs, jwtAlgorithm, () => ({
       ...userClaims,
+      ...fvaClaim,
       jti,
       sid: sessionId,
     }));
@@ -183,6 +210,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       jti,
       sid: sessionId,
       claims: userClaims || undefined,
+      ...(options?.fva !== undefined ? { fva: options.fva } : {}),
     };
 
     return { jwt, refreshToken, payload, expiresAt };
@@ -311,6 +339,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
 
     const user = stored.user;
+
+    // Check if MFA is enabled — return challenge instead of session
+    if (mfaStore && (await mfaStore.isMfaEnabled(user.id))) {
+      return err(createMfaRequiredError('MFA verification required'));
+    }
 
     // Pre-generate session ID so tokens are created once with the correct sid
     const sessionId = crypto.randomUUID();
@@ -462,8 +495,20 @@ export function createAuth(config: AuthConfig): AuthInstance {
       }
     }
 
+    // Preserve fva claim from the old session JWT (if present)
+    let existingFva: number | undefined;
+    const oldTokens = await sessionStore.getCurrentTokens(storedSession.id);
+    if (oldTokens) {
+      const oldPayload = await verifyJWT(oldTokens.jwt, jwtSecret, jwtAlgorithm);
+      existingFva = oldPayload?.fva;
+    }
+
     // Generate new tokens (rotation)
-    const newTokens = await createSessionTokens(user, storedSession.id);
+    const newTokens = await createSessionTokens(
+      user,
+      storedSession.id,
+      existingFva !== undefined ? { fva: existingFva } : undefined,
+    );
     const newRefreshHash = await sha256Hex(newTokens.refreshToken);
 
     await sessionStore.updateSession(storedSession.id, {
@@ -687,6 +732,29 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const result = await signIn(body, { headers: request.headers });
 
         if (!result.ok) {
+          // MFA challenge: encrypt userId into challenge cookie
+          if (result.error.code === 'MFA_REQUIRED' && oauthEncryptionKey) {
+            const stored = await userStore.findByEmail(body.email.toLowerCase());
+            if (stored) {
+              const challengeData = JSON.stringify({
+                userId: stored.user.id,
+                expiresAt: Date.now() + 300_000, // 5 min
+              });
+              const encryptedChallenge = await encrypt(challengeData, oauthEncryptionKey);
+              const headers = new Headers({
+                'Content-Type': 'application/json',
+                ...securityHeaders(),
+              });
+              headers.append(
+                'Set-Cookie',
+                buildMfaChallengeCookie(encryptedChallenge, cookieConfig),
+              );
+              return new Response(JSON.stringify({ error: result.error }), {
+                status: 403,
+                headers,
+              });
+            }
+          }
           return new Response(JSON.stringify({ error: result.error }), {
             status: authErrorToStatus(result.error),
             headers: { 'Content-Type': 'application/json', ...securityHeaders() },
@@ -1112,6 +1180,507 @@ export function createAuth(config: AuthConfig): AuthInstance {
         }
       }
 
+      // =================================================================
+      // MFA Routes
+      // =================================================================
+
+      // Route: POST /api/auth/mfa/challenge
+      if (method === 'POST' && path === '/mfa/challenge') {
+        if (!mfaStore || !oauthEncryptionKey) {
+          return new Response(JSON.stringify({ error: 'MFA not configured' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        // Rate limit: 5 attempts per 15min per IP
+        const challengeIp =
+          request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'default';
+        const challengeRateLimit = rateLimitStore.check(
+          `mfa-challenge:${challengeIp}`,
+          5,
+          signInWindowMs,
+        );
+        if (!challengeRateLimit.allowed) {
+          return new Response(
+            JSON.stringify({ error: createAuthRateLimitedError('Too many MFA attempts') }),
+            {
+              status: 429,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        // Read vertz.mfa cookie
+        const mfaCookieEntry = request.headers
+          .get('cookie')
+          ?.split(';')
+          .find((c) => c.trim().startsWith('vertz.mfa='));
+        const mfaToken = mfaCookieEntry
+          ? mfaCookieEntry.trim().slice('vertz.mfa='.length)
+          : undefined;
+
+        if (!mfaToken) {
+          return new Response(
+            JSON.stringify({
+              error: { code: 'SESSION_EXPIRED', message: 'No MFA challenge token' },
+            }),
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        // Decrypt challenge token
+        const decrypted = await decrypt(mfaToken, oauthEncryptionKey);
+        if (!decrypted) {
+          return new Response(
+            JSON.stringify({
+              error: { code: 'SESSION_EXPIRED', message: 'Invalid MFA challenge token' },
+            }),
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const challengeData = JSON.parse(decrypted) as { userId: string; expiresAt: number };
+
+        // Check expiry
+        if (challengeData.expiresAt < Date.now()) {
+          return new Response(
+            JSON.stringify({
+              error: { code: 'SESSION_EXPIRED', message: 'MFA challenge expired' },
+            }),
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const body = (await request.json()) as { code: string };
+        const userId = challengeData.userId;
+
+        // Get encrypted TOTP secret
+        const encryptedSecret = await mfaStore.getSecret(userId);
+        if (!encryptedSecret) {
+          return new Response(JSON.stringify({ error: createMfaNotEnabledError() }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        // Decrypt the TOTP secret
+        const totpSecret = await decrypt(encryptedSecret, oauthEncryptionKey);
+        if (!totpSecret) {
+          return new Response(JSON.stringify({ error: 'Internal error' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        // Try TOTP verification
+        let codeValid = await verifyTotpCode(totpSecret, body.code);
+
+        // If TOTP fails, try backup codes
+        if (!codeValid) {
+          const hashedCodes = await mfaStore.getBackupCodes(userId);
+          for (const hashed of hashedCodes) {
+            if (await verifyBackupCode(body.code, hashed)) {
+              await mfaStore.consumeBackupCode(userId, hashed);
+              codeValid = true;
+              break;
+            }
+          }
+        }
+
+        if (!codeValid) {
+          return new Response(JSON.stringify({ error: createMfaInvalidCodeError() }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        // Create session (same dual-token flow)
+        const user = await userStore.findById(userId);
+        if (!user) {
+          return new Response(JSON.stringify({ error: 'User not found' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const sessionId = crypto.randomUUID();
+        const fvaTimestamp = Math.floor(Date.now() / 1000);
+        const tokens = await createSessionTokens(user, sessionId, { fva: fvaTimestamp });
+        const refreshTokenHash = await sha256Hex(tokens.refreshToken);
+
+        const ipAddress =
+          request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+          request.headers.get('x-real-ip') ??
+          '';
+        const userAgent = request.headers.get('user-agent') ?? '';
+
+        await sessionStore.createSessionWithId(sessionId, {
+          userId: user.id,
+          refreshTokenHash,
+          ipAddress,
+          userAgent,
+          expiresAt: new Date(Date.now() + refreshTtlMs),
+          currentTokens: { jwt: tokens.jwt, refreshToken: tokens.refreshToken },
+        });
+
+        const headers = new Headers({
+          'Content-Type': 'application/json',
+          ...securityHeaders(),
+        });
+        headers.append('Set-Cookie', buildSessionCookie(tokens.jwt, cookieConfig));
+        headers.append(
+          'Set-Cookie',
+          buildRefreshCookie(tokens.refreshToken, cookieConfig, refreshName, refreshMaxAge),
+        );
+        // Clear MFA challenge cookie
+        headers.append('Set-Cookie', buildMfaChallengeCookie('', cookieConfig, true));
+
+        return new Response(JSON.stringify({ user }), {
+          status: 200,
+          headers,
+        });
+      }
+
+      // Route: POST /api/auth/mfa/setup
+      if (method === 'POST' && path === '/mfa/setup') {
+        if (!mfaStore) {
+          return new Response(JSON.stringify({ error: 'MFA not configured' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const sessionResult = await getSession(request.headers);
+        if (!sessionResult.ok || !sessionResult.data) {
+          return new Response(
+            JSON.stringify({ error: { code: 'SESSION_EXPIRED', message: 'Not authenticated' } }),
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const userId = sessionResult.data.user.id;
+        const alreadyEnabled = await mfaStore.isMfaEnabled(userId);
+        if (alreadyEnabled) {
+          return new Response(JSON.stringify({ error: createMfaAlreadyEnabledError() }), {
+            status: 409,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const secret = generateTotpSecret();
+        const uri = generateTotpUri(secret, sessionResult.data.user.email, mfaIssuer);
+
+        // Store pending secret (not yet enabled, TTL 10min)
+        pendingMfaSecrets.set(userId, { secret, createdAt: Date.now() });
+
+        return new Response(JSON.stringify({ secret, uri }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+        });
+      }
+
+      // Route: POST /api/auth/mfa/verify-setup
+      if (method === 'POST' && path === '/mfa/verify-setup') {
+        if (!mfaStore || !oauthEncryptionKey) {
+          return new Response(JSON.stringify({ error: 'MFA not configured' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const sessionResult = await getSession(request.headers);
+        if (!sessionResult.ok || !sessionResult.data) {
+          return new Response(
+            JSON.stringify({ error: { code: 'SESSION_EXPIRED', message: 'Not authenticated' } }),
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const userId = sessionResult.data.user.id;
+        const pendingEntry = pendingMfaSecrets.get(userId);
+        if (!pendingEntry || Date.now() - pendingEntry.createdAt > PENDING_MFA_TTL) {
+          if (pendingEntry) pendingMfaSecrets.delete(userId); // clean expired
+          return new Response(
+            JSON.stringify({ error: createMfaNotEnabledError('No pending MFA setup') }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const body = (await request.json()) as { code: string };
+        const valid = await verifyTotpCode(pendingEntry.secret, body.code);
+        if (!valid) {
+          return new Response(JSON.stringify({ error: createMfaInvalidCodeError() }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        // Encrypt and store the secret
+        const encryptedSecret = await encrypt(pendingEntry.secret, oauthEncryptionKey);
+        await mfaStore.enableMfa(userId, encryptedSecret);
+        pendingMfaSecrets.delete(userId);
+
+        // Generate backup codes
+        const backupCodes = generateBackupCodes(mfaBackupCodeCount);
+        const hashedCodes = await Promise.all(backupCodes.map((c) => hashBackupCode(c)));
+        await mfaStore.setBackupCodes(userId, hashedCodes);
+
+        return new Response(JSON.stringify({ backupCodes }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+        });
+      }
+
+      // Route: POST /api/auth/mfa/disable
+      if (method === 'POST' && path === '/mfa/disable') {
+        if (!mfaStore) {
+          return new Response(JSON.stringify({ error: 'MFA not configured' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const sessionResult = await getSession(request.headers);
+        if (!sessionResult.ok || !sessionResult.data) {
+          return new Response(
+            JSON.stringify({ error: { code: 'SESSION_EXPIRED', message: 'Not authenticated' } }),
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const userId = sessionResult.data.user.id;
+        const body = (await request.json()) as { password: string };
+
+        // Verify password
+        const stored = await userStore.findByEmail(sessionResult.data.user.email);
+        if (!stored || !stored.passwordHash) {
+          return new Response(JSON.stringify({ error: createInvalidCredentialsError() }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const valid = await verifyPassword(body.password, stored.passwordHash);
+        if (!valid) {
+          return new Response(JSON.stringify({ error: createInvalidCredentialsError() }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        await mfaStore.disableMfa(userId);
+
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+        });
+      }
+
+      // Route: POST /api/auth/mfa/backup-codes
+      if (method === 'POST' && path === '/mfa/backup-codes') {
+        if (!mfaStore) {
+          return new Response(JSON.stringify({ error: 'MFA not configured' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const sessionResult = await getSession(request.headers);
+        if (!sessionResult.ok || !sessionResult.data) {
+          return new Response(
+            JSON.stringify({ error: { code: 'SESSION_EXPIRED', message: 'Not authenticated' } }),
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const body = (await request.json()) as { password: string };
+
+        // Verify password
+        const stored = await userStore.findByEmail(sessionResult.data.user.email);
+        if (!stored || !stored.passwordHash) {
+          return new Response(JSON.stringify({ error: createInvalidCredentialsError() }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const valid = await verifyPassword(body.password, stored.passwordHash);
+        if (!valid) {
+          return new Response(JSON.stringify({ error: createInvalidCredentialsError() }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const userId = sessionResult.data.user.id;
+        const backupCodes = generateBackupCodes(mfaBackupCodeCount);
+        const hashedCodes = await Promise.all(backupCodes.map((c) => hashBackupCode(c)));
+        await mfaStore.setBackupCodes(userId, hashedCodes);
+
+        return new Response(JSON.stringify({ backupCodes }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+        });
+      }
+
+      // Route: GET /api/auth/mfa/status
+      if (method === 'GET' && path === '/mfa/status') {
+        if (!mfaStore) {
+          return new Response(JSON.stringify({ error: 'MFA not configured' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const sessionResult = await getSession(request.headers);
+        if (!sessionResult.ok || !sessionResult.data) {
+          return new Response(
+            JSON.stringify({ error: { code: 'SESSION_EXPIRED', message: 'Not authenticated' } }),
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const userId = sessionResult.data.user.id;
+        const enabled = await mfaStore.isMfaEnabled(userId);
+        const codes = await mfaStore.getBackupCodes(userId);
+
+        return new Response(
+          JSON.stringify({
+            enabled,
+            hasBackupCodes: codes.length > 0,
+            backupCodesRemaining: codes.length,
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          },
+        );
+      }
+
+      // Route: POST /api/auth/mfa/step-up
+      if (method === 'POST' && path === '/mfa/step-up') {
+        if (!mfaStore || !oauthEncryptionKey) {
+          return new Response(JSON.stringify({ error: 'MFA not configured' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        // Rate limit: 5 attempts per 15min per IP
+        const stepUpIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'default';
+        const stepUpRateLimit = rateLimitStore.check(`mfa-stepup:${stepUpIp}`, 5, signInWindowMs);
+        if (!stepUpRateLimit.allowed) {
+          return new Response(
+            JSON.stringify({ error: createAuthRateLimitedError('Too many step-up attempts') }),
+            {
+              status: 429,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const sessionResult = await getSession(request.headers);
+        if (!sessionResult.ok || !sessionResult.data) {
+          return new Response(
+            JSON.stringify({ error: { code: 'SESSION_EXPIRED', message: 'Not authenticated' } }),
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const userId = sessionResult.data.user.id;
+        const encryptedSecret = await mfaStore.getSecret(userId);
+        if (!encryptedSecret) {
+          return new Response(JSON.stringify({ error: createMfaNotEnabledError() }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const totpSecret = await decrypt(encryptedSecret, oauthEncryptionKey);
+        if (!totpSecret) {
+          return new Response(JSON.stringify({ error: 'Internal error' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const body = (await request.json()) as { code: string };
+        const valid = await verifyTotpCode(totpSecret, body.code);
+        if (!valid) {
+          return new Response(JSON.stringify({ error: createMfaInvalidCodeError() }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        // Issue new JWT with updated fva and persist to session store
+        const user = sessionResult.data.user;
+        const currentSid = sessionResult.data.payload.sid;
+        const fvaTimestamp = Math.floor(Date.now() / 1000);
+        const tokens = await createSessionTokens(user, currentSid, { fva: fvaTimestamp });
+        const newRefreshHash = await sha256Hex(tokens.refreshToken);
+
+        // Get old refresh hash so we can do proper rotation
+        const oldTokens = await sessionStore.getCurrentTokens(currentSid);
+        const previousRefreshHash = oldTokens
+          ? await sha256Hex(oldTokens.refreshToken)
+          : newRefreshHash;
+
+        // Update stored session so fva survives token refresh
+        await sessionStore.updateSession(currentSid, {
+          refreshTokenHash: newRefreshHash,
+          previousRefreshHash,
+          lastActiveAt: new Date(),
+          currentTokens: { jwt: tokens.jwt, refreshToken: tokens.refreshToken },
+        });
+
+        const headers = new Headers({
+          'Content-Type': 'application/json',
+          ...securityHeaders(),
+        });
+        headers.append('Set-Cookie', buildSessionCookie(tokens.jwt, cookieConfig));
+        headers.append(
+          'Set-Cookie',
+          buildRefreshCookie(tokens.refreshToken, cookieConfig, refreshName, refreshMaxAge),
+        );
+
+        return new Response(JSON.stringify({ user }), {
+          status: 200,
+          headers,
+        });
+      }
+
       return new Response(JSON.stringify({ error: 'Not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
@@ -1173,6 +1742,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
       sessionStore.dispose();
       rateLimitStore.dispose();
       oauthAccountStore?.dispose();
+      mfaStore?.dispose();
+      pendingMfaSecrets.clear();
     },
   };
 }
@@ -1186,6 +1757,8 @@ export type {
 } from './access';
 // Re-export access control from auth/access.ts
 export { AuthorizationError, createAccess, defaultAccess } from './access';
+export { checkFva } from './fva';
+export { InMemoryMFAStore } from './mfa-store';
 export { InMemoryOAuthAccountStore } from './oauth-account-store';
 // Re-export provider factories
 export { discord, github, google } from './providers';
@@ -1202,6 +1775,10 @@ export type {
   AuthUser,
   CookieConfig,
   EmailPasswordConfig,
+  MFAStore,
+  MfaChallengeData,
+  MfaConfig,
+  MfaSetupData,
   OAuthAccountStore,
   OAuthProvider,
   OAuthProviderConfig,

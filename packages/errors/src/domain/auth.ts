@@ -287,6 +287,131 @@ export function isOAuthError(error: { readonly code: string }): error is OAuthEr
 }
 
 // ============================================================================
+// MFA Errors
+// ============================================================================
+
+/**
+ * MFA required error.
+ *
+ * Returned when sign-in succeeds but MFA verification is needed.
+ */
+export interface MfaRequiredError {
+  readonly code: 'MFA_REQUIRED';
+  readonly message: string;
+}
+
+/**
+ * Creates an MfaRequiredError.
+ */
+export function createMfaRequiredError(message = 'MFA verification required'): MfaRequiredError {
+  return {
+    code: 'MFA_REQUIRED',
+    message,
+  };
+}
+
+/**
+ * Type guard for MfaRequiredError.
+ */
+export function isMfaRequiredError(error: { readonly code: string }): error is MfaRequiredError {
+  return error.code === 'MFA_REQUIRED';
+}
+
+/**
+ * MFA invalid code error.
+ *
+ * Returned when an MFA code (TOTP or backup) is incorrect.
+ */
+export interface MfaInvalidCodeError {
+  readonly code: 'MFA_INVALID_CODE';
+  readonly message: string;
+  readonly attemptsRemaining?: number;
+}
+
+/**
+ * Creates an MfaInvalidCodeError.
+ */
+export function createMfaInvalidCodeError(
+  message = 'Invalid MFA code',
+  attemptsRemaining?: number,
+): MfaInvalidCodeError {
+  return {
+    code: 'MFA_INVALID_CODE',
+    message,
+    attemptsRemaining,
+  };
+}
+
+/**
+ * Type guard for MfaInvalidCodeError.
+ */
+export function isMfaInvalidCodeError(error: {
+  readonly code: string;
+}): error is MfaInvalidCodeError {
+  return error.code === 'MFA_INVALID_CODE';
+}
+
+/**
+ * MFA already enabled error.
+ *
+ * Returned when trying to enable MFA on an account that already has it.
+ */
+export interface MfaAlreadyEnabledError {
+  readonly code: 'MFA_ALREADY_ENABLED';
+  readonly message: string;
+}
+
+/**
+ * Creates an MfaAlreadyEnabledError.
+ */
+export function createMfaAlreadyEnabledError(
+  message = 'MFA is already enabled',
+): MfaAlreadyEnabledError {
+  return {
+    code: 'MFA_ALREADY_ENABLED',
+    message,
+  };
+}
+
+/**
+ * Type guard for MfaAlreadyEnabledError.
+ */
+export function isMfaAlreadyEnabledError(error: {
+  readonly code: string;
+}): error is MfaAlreadyEnabledError {
+  return error.code === 'MFA_ALREADY_ENABLED';
+}
+
+/**
+ * MFA not enabled error.
+ *
+ * Returned when trying to disable MFA or regenerate backup codes when MFA is not enabled.
+ */
+export interface MfaNotEnabledError {
+  readonly code: 'MFA_NOT_ENABLED';
+  readonly message: string;
+}
+
+/**
+ * Creates an MfaNotEnabledError.
+ */
+export function createMfaNotEnabledError(message = 'MFA is not enabled'): MfaNotEnabledError {
+  return {
+    code: 'MFA_NOT_ENABLED',
+    message,
+  };
+}
+
+/**
+ * Type guard for MfaNotEnabledError.
+ */
+export function isMfaNotEnabledError(error: {
+  readonly code: string;
+}): error is MfaNotEnabledError {
+  return error.code === 'MFA_NOT_ENABLED';
+}
+
+// ============================================================================
 // Combined Types
 // ============================================================================
 
@@ -301,4 +426,8 @@ export type AuthError =
   | PermissionDeniedError
   | RateLimitedError
   | AuthValidationError
-  | OAuthError;
+  | OAuthError
+  | MfaRequiredError
+  | MfaInvalidCodeError
+  | MfaAlreadyEnabledError
+  | MfaNotEnabledError;
