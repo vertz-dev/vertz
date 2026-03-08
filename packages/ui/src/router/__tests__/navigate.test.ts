@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, test, vi } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'bun:test';
+import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { defineRoutes } from '../define-routes';
 import type { RouterOptions } from '../navigate';
 import { createRouter } from '../navigate';
@@ -806,5 +807,144 @@ describe('createRouter serverNav', () => {
 
     expect(mockPrefetch).toHaveBeenCalledWith('/', {});
     router.dispose();
+  });
+});
+
+// ─── SSR-Aware Getters ──────────────────────────────────
+
+describe('createRouter SSR', () => {
+  afterEach(() => {
+    disableTestSSR();
+  });
+
+  test('returns lightweight router in SSR context', () => {
+    const ctx = enableTestSSR(createTestSSRContext('/about'));
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+
+    expect(router.current.value).not.toBeNull();
+    expect(router.current.value?.route.pattern).toBe('/about');
+  });
+
+  test('SSR router current.value uses per-request URL from context', () => {
+    const ctx = createTestSSRContext('/tasks');
+    enableTestSSR(ctx);
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/tasks': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+
+    expect(router.current.value?.route.pattern).toBe('/tasks');
+
+    // Change context URL — getter should reflect new URL
+    ctx.url = '/';
+    expect(router.current.value?.route.pattern).toBe('/');
+  });
+
+  test('SSR router current.peek() returns per-request match', () => {
+    enableTestSSR(createTestSSRContext('/about'));
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/about': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+
+    expect(router.current.peek()?.route.pattern).toBe('/about');
+  });
+
+  test('SSR router searchParams.value returns empty for routes without schema', () => {
+    enableTestSSR(createTestSSRContext('/tasks?status=done'));
+    const routes = defineRoutes({
+      '/tasks': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+
+    // Without a searchParams schema, search is empty
+    expect(router.searchParams.value).toEqual({});
+  });
+
+  test('SSR router searchParams.peek() returns empty for routes without schema', () => {
+    enableTestSSR(createTestSSRContext('/tasks?q=hello'));
+    const routes = defineRoutes({
+      '/tasks': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+
+    expect(router.searchParams.peek()).toEqual({});
+  });
+
+  test('SSR router navigate/revalidate/dispose are no-ops', async () => {
+    enableTestSSR(createTestSSRContext('/'));
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+
+    // Should not throw
+    await router.navigate('/');
+    await router.revalidate();
+    router.dispose();
+  });
+
+  test('SSR router loaderData and loaderError are static', () => {
+    enableTestSSR(createTestSSRContext('/'));
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+
+    expect(router.loaderData.value).toEqual([]);
+    expect(router.loaderData.peek()).toEqual([]);
+    expect(router.loaderError.value).toBeNull();
+    expect(router.loaderError.peek()).toBeNull();
+  });
+
+  test('SSR router falls back to initialUrl when no SSR context URL', () => {
+    // Enable SSR but the getter returns per-request URL from context
+    enableTestSSR(createTestSSRContext('/settings'));
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+      '/settings': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+
+    expect(router.current.value?.route.pattern).toBe('/settings');
+  });
+
+  test('SSR router current.value returns null for unmatched URL', () => {
+    enableTestSSR(createTestSSRContext('/nonexistent'));
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+
+    expect(router.current.value).toBeNull();
+  });
+
+  test('SSR router searchParams returns empty object for unmatched URL', () => {
+    enableTestSSR(createTestSSRContext('/nonexistent'));
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+
+    expect(router.searchParams.value).toEqual({});
+    expect(router.searchParams.peek()).toEqual({});
+  });
+
+  test('SSR router current.notify is a no-op', () => {
+    enableTestSSR(createTestSSRContext('/'));
+    const routes = defineRoutes({
+      '/': { component: () => document.createElement('div') },
+    });
+    const router = createRouter(routes);
+
+    // Should not throw
+    router.current.notify();
+    router.searchParams.notify();
   });
 });
