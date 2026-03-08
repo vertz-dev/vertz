@@ -33,7 +33,17 @@ export function shallowEqual<T extends Record<string, unknown>>(a: T, b: T): boo
   }
 
   for (const key of keysA) {
-    if (a[key] !== b[key]) {
+    const valA = a[key];
+    const valB = b[key];
+
+    if (valA !== valB) {
+      if (Array.isArray(valA) && Array.isArray(valB)) {
+        if (valA.length !== valB.length) return false;
+        for (let i = 0; i < valA.length; i++) {
+          if (valA[i] !== valB[i]) return false;
+        }
+        continue;
+      }
       return false;
     }
   }

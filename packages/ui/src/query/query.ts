@@ -10,9 +10,11 @@ import { computed, lifecycleEffect, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal, Unwrapped } from '../runtime/signal-types';
 import { setReadValueCallback, untrack } from '../runtime/tracking';
 import { getSSRContext } from '../ssr/ssr-render-context';
+import type { EntityStore as EntityStoreType } from '../store/entity-store';
 import { getEntityStore, getQueryEnvelopeStore } from '../store/entity-store-singleton';
 import { getMutationEventBus } from '../store/mutation-event-bus-singleton';
 import type { QueryEnvelope } from '../store/query-envelope-store';
+import { resolveReferences } from '../store/resolve';
 import { type CacheStore, MemoryCache } from './cache';
 import { registerActiveQuery } from './invalidate';
 import { deriveKey, hashString } from './key-derivation';
@@ -247,6 +249,9 @@ export function query<T, E = unknown>(
     }
   }
 
+  // Track referenced entity keys for ref counting (Phase 4)
+  const referencedKeys = new Set<string>();
+
   const data: ReadonlySignal<T | undefined> = entityMeta
     ? computed(() => {
         if (!entityBacked.value) return rawData.value;
@@ -255,20 +260,47 @@ export function query<T, E = unknown>(
         // so re-reading indices here picks up new/removed entity IDs.
         const raw = rawData.value;
         const store = getEntityStore();
+        const newKeys = new Set<string>();
+
         if (entityMeta.kind === 'get' && entityMeta.id) {
-          return store.get<T>(entityMeta.entityType, entityMeta.id).value;
+          const entity = store.get(entityMeta.entityType, entityMeta.id).value;
+          if (!entity) {
+            updateRefCounts(store, referencedKeys, newKeys);
+            return undefined;
+          }
+          const resolved = resolveReferences(
+            entity as Record<string, unknown>,
+            entityMeta.entityType,
+            store,
+            undefined,
+            newKeys,
+          ) as T;
+          updateRefCounts(store, referencedKeys, newKeys);
+          return resolved;
         }
         // For list queries, reconstruct envelope + items from store
         const queryKey = customKey ?? entityMeta.entityType;
         const ids = store.queryIndices.get(queryKey);
         if (ids) {
           const items = ids
-            .map((id) => store.get(entityMeta.entityType, id).value)
+            .map((id) => {
+              const entity = store.get(entityMeta.entityType, id).value;
+              if (!entity) return null;
+              return resolveReferences(
+                entity as Record<string, unknown>,
+                entityMeta.entityType,
+                store,
+                undefined,
+                newKeys,
+              );
+            })
             .filter((item): item is NonNullable<typeof item> => item != null);
           // Reconstruct the original response shape with live entity data
           const envelope = getQueryEnvelopeStore().get(queryKey);
+          updateRefCounts(store, referencedKeys, newKeys);
           return { ...envelope, items } as unknown as T;
         }
+        updateRefCounts(store, referencedKeys, newKeys);
         return raw;
       })
     : rawData;
@@ -691,6 +723,15 @@ export function query<T, E = unknown>(
    * Dispose the query — stops the reactive effect and cleans up inflight state.
    */
   function dispose(): void {
+    // Decrement ref counts for all referenced entities
+    if (referencedKeys.size > 0) {
+      const store = getEntityStore();
+      for (const key of referencedKeys) {
+        const [type, id] = splitRefKey(key);
+        store.removeRef(type, id);
+      }
+      referencedKeys.clear();
+    }
     // Dispose the reactive effect to stop re-running on dep changes.
     disposeFn?.();
     // Unsubscribe from mutation event bus.
@@ -743,4 +784,29 @@ export function query<T, E = unknown>(
     revalidate: refetch,
     dispose,
   };
+}
+
+/**
+ * Diff old and new ref key sets — increment/decrement ref counts accordingly.
+ */
+function updateRefCounts(store: EntityStoreType, oldKeys: Set<string>, newKeys: Set<string>): void {
+  for (const key of oldKeys) {
+    if (!newKeys.has(key)) {
+      const [type, id] = splitRefKey(key);
+      store.removeRef(type, id);
+    }
+  }
+  for (const key of newKeys) {
+    if (!oldKeys.has(key)) {
+      const [type, id] = splitRefKey(key);
+      store.addRef(type, id);
+    }
+  }
+  oldKeys.clear();
+  for (const key of newKeys) oldKeys.add(key);
+}
+
+function splitRefKey(key: string): [string, string] {
+  const idx = key.indexOf(':');
+  return [key.slice(0, idx), key.slice(idx + 1)];
 }

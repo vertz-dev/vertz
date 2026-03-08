@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 import { domEffect } from '../../runtime/signal';
 import { EntityStore } from '../entity-store';
+import { registerRelationSchema, resetRelationSchemas_TEST_ONLY } from '../relation-registry';
 
 interface User {
   id: string;
@@ -523,7 +524,7 @@ describe('EntityStore - optimistic layers', () => {
     expect(store.get('todos', '2').value).toEqual({ id: '2', title: 'B' });
   });
 
-  it('inspect returns base, layers, and visible state', () => {
+  it('inspect returns base, layers, visible state, refCount and orphanedAt', () => {
     const store = new EntityStore();
     store.merge('todos', { id: '1', completed: false, title: 'Buy milk' });
     store.applyLayer('todos', '1', 'm1', { completed: true });
@@ -534,6 +535,8 @@ describe('EntityStore - optimistic layers', () => {
       base: { id: '1', completed: false, title: 'Buy milk' },
       layers: new Map([['m1', { completed: true }]]),
       visible: { id: '1', completed: true, title: 'Buy milk' },
+      refCount: 0,
+      orphanedAt: null,
     });
   });
 
@@ -586,5 +589,427 @@ describe('EntityStore - edge cases', () => {
 
     // Should still only trigger one effect run
     expect(effectRuns).toBe(initialRuns + 1);
+  });
+});
+
+describe('EntityStore - deep normalization', () => {
+  afterEach(() => {
+    resetRelationSchemas_TEST_ONLY();
+  });
+
+  it('merge extracts nested one-relation and stores both entities', () => {
+    registerRelationSchema('posts', {
+      author: { type: 'one', entity: 'users' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', {
+      id: 'p1',
+      title: 'Hello',
+      author: { id: 'u1', name: 'John' },
+    });
+
+    // Post stored with bare ID
+    expect(store.get('posts', 'p1').value).toEqual({
+      id: 'p1',
+      title: 'Hello',
+      author: 'u1',
+    });
+    // Author extracted into users bucket
+    expect(store.get('users', 'u1').value).toEqual({
+      id: 'u1',
+      name: 'John',
+    });
+  });
+
+  it('merge with multiple posts sharing same author merges author once', () => {
+    registerRelationSchema('posts', {
+      author: { type: 'one', entity: 'users' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', [
+      { id: 'p1', title: 'Post 1', author: { id: 'u1', name: 'John' } },
+      { id: 'p2', title: 'Post 2', author: { id: 'u1', name: 'John' } },
+    ]);
+
+    expect(store.get('posts', 'p1').value).toEqual({
+      id: 'p1',
+      title: 'Post 1',
+      author: 'u1',
+    });
+    expect(store.get('posts', 'p2').value).toEqual({
+      id: 'p2',
+      title: 'Post 2',
+      author: 'u1',
+    });
+    expect(store.size('users')).toBe(1);
+  });
+
+  it('merge without schema stores entities as-is (backward compat)', () => {
+    const store = new EntityStore();
+    store.merge('posts', {
+      id: 'p1',
+      title: 'Hello',
+      author: { id: 'u1', name: 'John' },
+    });
+
+    // Stored as-is since no schema registered
+    expect(store.get('posts', 'p1').value).toEqual({
+      id: 'p1',
+      title: 'Hello',
+      author: { id: 'u1', name: 'John' },
+    });
+  });
+
+  it('merge with already-bare ID leaves field unchanged', () => {
+    registerRelationSchema('posts', {
+      author: { type: 'one', entity: 'users' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', { id: 'p1', title: 'Hello', author: 'u1' });
+
+    expect(store.get('posts', 'p1').value).toEqual({
+      id: 'p1',
+      title: 'Hello',
+      author: 'u1',
+    });
+  });
+
+  it('merge with many-relation extracts nested array', () => {
+    registerRelationSchema('posts', {
+      tags: { type: 'many', entity: 'tags' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', {
+      id: 'p1',
+      title: 'Hello',
+      tags: [
+        { id: 't1', name: 'TS' },
+        { id: 't2', name: 'Bun' },
+      ],
+    });
+
+    expect(store.get('posts', 'p1').value).toEqual({
+      id: 'p1',
+      title: 'Hello',
+      tags: ['t1', 't2'],
+    });
+    expect(store.get('tags', 't1').value).toEqual({ id: 't1', name: 'TS' });
+    expect(store.get('tags', 't2').value).toEqual({ id: 't2', name: 'Bun' });
+  });
+
+  it('re-merge with identical normalized data does NOT trigger signal update', () => {
+    registerRelationSchema('posts', {
+      tags: { type: 'many', entity: 'tags' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', {
+      id: 'p1',
+      title: 'Hello',
+      tags: [{ id: 't1', name: 'TS' }],
+    });
+
+    const postSignal = store.get('posts', 'p1');
+    let updateCount = 0;
+    domEffect(() => {
+      postSignal.value;
+      updateCount++;
+    });
+
+    const initialCount = updateCount;
+    // Re-merge same data — should not trigger update
+    store.merge('posts', {
+      id: 'p1',
+      title: 'Hello',
+      tags: [{ id: 't1', name: 'TS' }],
+    });
+
+    expect(updateCount).toBe(initialCount);
+  });
+
+  it('commitLayer normalizes server response', () => {
+    registerRelationSchema('posts', {
+      author: { type: 'one', entity: 'users' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', { id: 'p1', title: 'Draft', author: 'u1' });
+    store.merge('users', { id: 'u1', name: 'John' });
+
+    store.applyLayer('posts', 'p1', 'm1', { title: 'Published' });
+    store.commitLayer('posts', 'p1', 'm1', {
+      id: 'p1',
+      title: 'Published',
+      author: { id: 'u1', name: 'John Updated' },
+    });
+
+    // Base should be normalized
+    const state = store.inspect('posts', 'p1');
+    expect(state?.base).toEqual({
+      id: 'p1',
+      title: 'Published',
+      author: 'u1',
+    });
+    // Nested entity updated
+    expect(store.get('users', 'u1').value).toEqual({
+      id: 'u1',
+      name: 'John Updated',
+    });
+  });
+
+  it('deep nesting via merge: post → author → org', () => {
+    registerRelationSchema('posts', {
+      author: { type: 'one', entity: 'users' },
+    });
+    registerRelationSchema('users', {
+      organization: { type: 'one', entity: 'orgs' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', {
+      id: 'p1',
+      title: 'Hello',
+      author: {
+        id: 'u1',
+        name: 'John',
+        organization: { id: 'o1', name: 'Acme' },
+      },
+    });
+
+    expect(store.get('posts', 'p1').value).toEqual({
+      id: 'p1',
+      title: 'Hello',
+      author: 'u1',
+    });
+    expect(store.get('users', 'u1').value).toEqual({
+      id: 'u1',
+      name: 'John',
+      organization: 'o1',
+    });
+    expect(store.get('orgs', 'o1').value).toEqual({
+      id: 'o1',
+      name: 'Acme',
+    });
+  });
+});
+
+describe('EntityStore - reference counting', () => {
+  it('addRef increments refCount from 0 to 1', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+
+    store.addRef('users', 'u1');
+
+    const state = store.inspect('users', 'u1');
+    expect(state?.refCount).toBe(1);
+  });
+
+  it('addRef called twice increments to 2', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+
+    store.addRef('users', 'u1');
+    store.addRef('users', 'u1');
+
+    expect(store.inspect('users', 'u1')?.refCount).toBe(2);
+  });
+
+  it('addRef clears orphanedAt', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1'); // sets orphanedAt
+    expect(store.inspect('users', 'u1')?.orphanedAt).not.toBeNull();
+
+    store.addRef('users', 'u1'); // clears orphanedAt
+    expect(store.inspect('users', 'u1')?.orphanedAt).toBeNull();
+  });
+
+  it('addRef on non-existent entity is a no-op', () => {
+    const store = new EntityStore();
+    expect(() => store.addRef('users', 'u999')).not.toThrow();
+  });
+
+  it('removeRef decrements refCount from 1 to 0', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1');
+
+    expect(store.inspect('users', 'u1')?.refCount).toBe(0);
+  });
+
+  it('removeRef sets orphanedAt when refCount reaches 0', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1');
+
+    const state = store.inspect('users', 'u1');
+    expect(state?.orphanedAt).toBeNumber();
+  });
+
+  it('removeRef never goes below 0', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+
+    store.removeRef('users', 'u1');
+    store.removeRef('users', 'u1');
+
+    expect(store.inspect('users', 'u1')?.refCount).toBe(0);
+  });
+
+  it('removeRef on non-existent entity is a no-op', () => {
+    const store = new EntityStore();
+    expect(() => store.removeRef('users', 'u999')).not.toThrow();
+  });
+
+  it('removeRef on entity with refCount > 1 does NOT set orphanedAt', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+
+    store.addRef('users', 'u1');
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1');
+
+    const state = store.inspect('users', 'u1');
+    expect(state?.refCount).toBe(1);
+    expect(state?.orphanedAt).toBeNull();
+  });
+
+  it('inspect returns refCount and orphanedAt fields', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+
+    const state = store.inspect('users', 'u1');
+    expect(state?.refCount).toBe(0);
+    expect(state?.orphanedAt).toBeNull();
+  });
+
+  it('new entities created via merge have refCount=0, orphanedAt=null', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+
+    const state = store.inspect('users', 'u1');
+    expect(state?.refCount).toBe(0);
+    expect(state?.orphanedAt).toBeNull();
+  });
+
+  it('new entries created via get (missing entity) have refCount=0, orphanedAt=null', () => {
+    const store = new EntityStore();
+    store.get('users', 'u999'); // creates placeholder
+
+    const state = store.inspect('users', 'u999');
+    expect(state?.refCount).toBe(0);
+    expect(state?.orphanedAt).toBeNull();
+  });
+});
+
+describe('EntityStore - evictOrphans', () => {
+  it('evicts entities with refCount=0 and orphanedAt set (maxAge=0)', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1'); // orphaned
+
+    const count = store.evictOrphans(0);
+
+    expect(count).toBe(1);
+    expect(store.has('users', 'u1')).toBe(false);
+  });
+
+  it('respects maxAge — only evicts entities orphaned longer than maxAge', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1'); // orphaned just now
+
+    // maxAge = 60 seconds, entity just orphaned — should NOT be evicted
+    const count = store.evictOrphans(60_000);
+
+    expect(count).toBe(0);
+    expect(store.has('users', 'u1')).toBe(true);
+  });
+
+  it('never evicts entities with refCount > 0', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+    store.addRef('users', 'u1');
+
+    const count = store.evictOrphans(0);
+
+    expect(count).toBe(0);
+    expect(store.has('users', 'u1')).toBe(true);
+  });
+
+  it('never evicts entities with pending optimistic layers', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1'); // orphaned
+    store.applyLayer('users', 'u1', 'm1', { name: 'Jane' }); // has layer
+
+    const count = store.evictOrphans(0);
+
+    expect(count).toBe(0);
+    expect(store.has('users', 'u1')).toBe(true);
+  });
+
+  it('sets evicted entity signal to undefined', () => {
+    const store = new EntityStore();
+    store.merge('users', { id: 'u1', name: 'John' });
+    const sig = store.get('users', 'u1');
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1');
+
+    store.evictOrphans(0);
+
+    expect(sig.value).toBeUndefined();
+  });
+
+  it('removes evicted entity from query indices', () => {
+    const store = new EntityStore();
+    store.merge('users', [
+      { id: 'u1', name: 'John' },
+      { id: 'u2', name: 'Jane' },
+    ]);
+    store.queryIndices.set('GET:/users', ['u1', 'u2']);
+
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1'); // orphan u1
+    store.addRef('users', 'u2'); // u2 still referenced
+
+    store.evictOrphans(0);
+
+    expect(store.queryIndices.get('GET:/users')).toEqual(['u2']);
+  });
+
+  it('returns count of evicted entities', () => {
+    const store = new EntityStore();
+    store.merge('users', [
+      { id: 'u1', name: 'John' },
+      { id: 'u2', name: 'Jane' },
+      { id: 'u3', name: 'Bob' },
+    ]);
+
+    store.addRef('users', 'u1');
+    store.removeRef('users', 'u1'); // orphan
+    store.addRef('users', 'u2');
+    store.removeRef('users', 'u2'); // orphan
+    store.addRef('users', 'u3'); // still referenced
+
+    expect(store.evictOrphans(0)).toBe(2);
+  });
+
+  it('returns 0 on empty store', () => {
+    const store = new EntityStore();
+    expect(store.evictOrphans(0)).toBe(0);
   });
 });

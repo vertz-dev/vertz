@@ -94,4 +94,34 @@ describe('shallowEqual', () => {
     const b = { id: '1', name: undefined };
     expect(shallowEqual(a, b)).toBe(false);
   });
+
+  it('returns true for arrays with identical string elements', () => {
+    const a = { id: '1', tags: ['t1', 't2'] };
+    const b = { id: '1', tags: ['t1', 't2'] };
+    expect(shallowEqual(a, b)).toBe(true);
+  });
+
+  it('returns false for arrays with different elements', () => {
+    const a = { id: '1', tags: ['t1', 't2'] };
+    const b = { id: '1', tags: ['t1', 't3'] };
+    expect(shallowEqual(a, b)).toBe(false);
+  });
+
+  it('returns false for arrays with different lengths', () => {
+    const a = { id: '1', tags: ['t1', 't2'] };
+    const b = { id: '1', tags: ['t1'] };
+    expect(shallowEqual(a, b)).toBe(false);
+  });
+
+  it('returns true for empty arrays', () => {
+    const a = { id: '1', tags: [] };
+    const b = { id: '1', tags: [] };
+    expect(shallowEqual(a, b)).toBe(true);
+  });
+
+  it('returns false when one value is array and other is not', () => {
+    const a = { id: '1', tags: ['t1'] };
+    const b = { id: '1', tags: 't1' };
+    expect(shallowEqual(a, b)).toBe(false);
+  });
 });

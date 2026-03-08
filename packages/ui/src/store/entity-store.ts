@@ -3,6 +3,7 @@ import { computed, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
 import { untrack } from '../runtime/tracking';
 import { shallowEqual, shallowMerge } from './merge';
+import { normalizeEntity } from './normalize';
 import { QueryResultIndex } from './query-result-index';
 import type { EntityStoreOptions, SerializedStore } from './types';
 
@@ -17,6 +18,10 @@ interface EntityEntry {
   base: Record<string, unknown>;
   /** Optimistic layers keyed by mutation ID. Inserted order preserved by Map. */
   layers: Map<string, Record<string, unknown>>;
+  /** Number of active queries referencing this entity. */
+  refCount: number;
+  /** Timestamp when refCount dropped to 0, or null if still referenced. */
+  orphanedAt: number | null;
 }
 
 /**
@@ -59,6 +64,8 @@ export class EntityStore {
       signal: sig,
       base: {},
       layers: new Map(),
+      refCount: 0,
+      orphanedAt: null,
     };
     this._getOrCreateTypeMap(type).set(id, newEntry);
     return sig as ReadonlySignal<T | undefined>;
@@ -87,29 +94,17 @@ export class EntityStore {
 
     batch(() => {
       for (const item of items) {
-        const typeMap = this._entities.get(type);
-        const entry = typeMap?.get(item.id);
+        const { normalized, extracted } = normalizeEntity(type, item as Record<string, unknown>);
 
-        if (entry) {
-          // Update existing entity — merge into base, recompute visible
-          const mergedBase = shallowMerge(entry.base, item);
-
-          if (!shallowEqual(entry.base, mergedBase)) {
-            entry.base = mergedBase;
-            // Recompute visible state: base + all layers
-            this._recomputeVisible(entry);
+        // Merge extracted nested entities first
+        for (const [nestedType, nestedItems] of extracted) {
+          for (const nestedItem of nestedItems) {
+            this._mergeOne(nestedType, nestedItem);
           }
-        } else {
-          // New entity - create entry and notify type listeners
-          const newSignal = signal<T>(item);
-          const newEntry: EntityEntry = {
-            signal: newSignal,
-            base: item as Record<string, unknown>,
-            layers: new Map(),
-          };
-          this._getOrCreateTypeMap(type).set(item.id, newEntry);
-          this._notifyTypeChange(type);
         }
+
+        // Then merge the normalized parent
+        this._mergeOne(type, normalized);
       }
     });
   }
@@ -254,8 +249,64 @@ export class EntityStore {
   }
 
   /**
+   * Increment the reference count for an entity.
+   * Clears orphanedAt timestamp. No-op if entity doesn't exist.
+   */
+  addRef(type: string, id: string): void {
+    const entry = this._entities.get(type)?.get(id);
+    if (!entry) return;
+
+    entry.refCount++;
+    entry.orphanedAt = null;
+  }
+
+  /**
+   * Decrement the reference count for an entity.
+   * Sets orphanedAt when refCount reaches 0. No-op if entity doesn't exist.
+   */
+  removeRef(type: string, id: string): void {
+    const entry = this._entities.get(type)?.get(id);
+    if (!entry) return;
+
+    if (entry.refCount > 0) {
+      entry.refCount--;
+    }
+    if (entry.refCount === 0) {
+      entry.orphanedAt = Date.now();
+    }
+  }
+
+  /**
+   * Evict orphaned entities (refCount=0) that have been unreferenced
+   * for longer than maxAge ms. Entities with pending layers are preserved.
+   * Default maxAge: 5 minutes.
+   */
+  evictOrphans(maxAge = 300_000): number {
+    const now = Date.now();
+    let count = 0;
+
+    for (const [_type, typeMap] of this._entities) {
+      for (const [id, entry] of typeMap) {
+        if (
+          entry.refCount === 0 &&
+          entry.orphanedAt !== null &&
+          now - entry.orphanedAt >= maxAge &&
+          entry.layers.size === 0
+        ) {
+          entry.signal.value = undefined;
+          typeMap.delete(id);
+          this._queryIndices.removeEntity(id);
+          count++;
+        }
+      }
+    }
+
+    return count;
+  }
+
+  /**
    * Inspect the internal state of an entity — for debugging and testing.
-   * Returns base, layers, and visible (computed) state.
+   * Returns base, layers, visible (computed) state, refCount, and orphanedAt.
    */
   inspect(
     type: string,
@@ -265,6 +316,8 @@ export class EntityStore {
         base: Record<string, unknown>;
         layers: Map<string, Record<string, unknown>>;
         visible: unknown;
+        refCount: number;
+        orphanedAt: number | null;
       }
     | undefined {
     const entry = this._entities.get(type)?.get(id);
@@ -274,6 +327,8 @@ export class EntityStore {
       base: entry.base,
       layers: entry.layers,
       visible: entry.signal.peek(),
+      refCount: entry.refCount,
+      orphanedAt: entry.orphanedAt,
     };
   }
 
@@ -330,12 +385,49 @@ export class EntityStore {
     const entry = this._entities.get(type)?.get(id);
     if (!entry) return;
 
-    entry.base = serverData;
+    const { normalized, extracted } = normalizeEntity(type, serverData);
+
+    // Merge extracted nested entities
+    for (const [nestedType, nestedItems] of extracted) {
+      for (const nestedItem of nestedItems) {
+        this._mergeOne(nestedType, nestedItem);
+      }
+    }
+
+    entry.base = normalized;
     entry.layers.delete(mutationId);
     this._recomputeVisible(entry);
   }
 
   // --- Private helpers ---
+
+  /**
+   * Merge a single (already normalized) entity into the store.
+   */
+  private _mergeOne(type: string, item: Record<string, unknown>): void {
+    const id = item.id as string;
+    const typeMap = this._entities.get(type);
+    const entry = typeMap?.get(id);
+
+    if (entry) {
+      const mergedBase = shallowMerge(entry.base, item);
+      if (!shallowEqual(entry.base, mergedBase)) {
+        entry.base = mergedBase;
+        this._recomputeVisible(entry);
+      }
+    } else {
+      const newSignal = signal(item);
+      const newEntry: EntityEntry = {
+        signal: newSignal,
+        base: item,
+        layers: new Map(),
+        refCount: 0,
+        orphanedAt: null,
+      };
+      this._getOrCreateTypeMap(type).set(id, newEntry);
+      this._notifyTypeChange(type);
+    }
+  }
 
   /**
    * Recompute the visible signal value from base + all layers.
