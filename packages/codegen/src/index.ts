@@ -17,6 +17,8 @@ export { ClientGenerator } from './generators/client-generator';
 export { EntitySchemaGenerator } from './generators/entity-schema-generator';
 export { EntitySdkGenerator } from './generators/entity-sdk-generator';
 export { EntityTypesGenerator } from './generators/entity-types-generator';
+export type { RelationManifestEntry } from './generators/relation-manifest-generator';
+export { generateRelationManifest } from './generators/relation-manifest-generator';
 export { hashContent } from './hasher';
 export type { IncrementalOptions, IncrementalResult } from './incremental';
 export { writeIncremental } from './incremental';
@@ -34,6 +36,7 @@ export type {
   CodegenIR,
   CodegenModule,
   CodegenOperation,
+  CodegenRelation,
   CodegenResolvedField,
   CodegenSchema,
   FileFragment,

@@ -144,12 +144,21 @@ export type {
 } from './runtime/signal-types';
 export { untrack } from './runtime/tracking';
 // Entity store
-export type { EntityStoreOptions, QueryEnvelope, SerializedStore } from './store';
+export type {
+  EntityStoreOptions,
+  QueryEnvelope,
+  RelationFieldDef,
+  RelationSchema,
+  SerializedStore,
+} from './store';
 export {
   createOptimisticHandler,
   createTestStore,
   EntityStore,
   getEntityStore,
   getQueryEnvelopeStore,
+  getRelationSchema,
   QueryEnvelopeStore,
+  registerRelationSchema,
+  resetRelationSchemas_TEST_ONLY,
 } from './store';
