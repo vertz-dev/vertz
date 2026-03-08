@@ -1,13 +1,12 @@
 /**
- * Auth Module Implementation - Phase 1
- * JWT sessions, email/password authentication
+ * Auth Module Implementation - Phase 2
+ * Dual-token sessions, email/password authentication
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   type AuthError,
-  type AuthValidationError,
   createAuthRateLimitedError,
   createAuthValidationError,
   createInvalidCredentialsError,
@@ -17,211 +16,28 @@ import {
   ok,
   type Result,
 } from '@vertz/errors';
-import bcrypt from 'bcryptjs';
-import * as jose from 'jose';
+import { buildRefreshCookie, buildSessionCookie, DEFAULT_COOKIE_CONFIG } from './cookies';
+import { sha256Hex } from './crypto';
+import { parseDeviceName } from './device-name';
+import { createJWT, parseDuration, verifyJWT } from './jwt';
+import { hashPassword, validatePassword, verifyPassword } from './password';
+import { InMemoryRateLimitStore } from './rate-limit-store';
+import { InMemorySessionStore } from './session-store';
 import type {
   AuthApi,
   AuthConfig,
   AuthInstance,
   AuthUser,
-  CookieConfig,
-  PasswordRequirements,
-  RateLimitResult,
   Session,
+  SessionInfo,
   SessionPayload,
   SignInInput,
   SignUpInput,
 } from './types';
+import { InMemoryUserStore } from './user-store';
 
-// ============================================================================
-// Rate Limiter (in-memory for Phase 1)
-// ============================================================================
-
-interface RateLimitEntry {
-  count: number;
-  resetAt: Date;
-}
-
-class RateLimiter {
-  private store = new Map<string, RateLimitEntry>();
-  private windowMs: number;
-
-  constructor(window: string) {
-    this.windowMs = this.parseDuration(window);
-  }
-
-  private parseDuration(duration: string): number {
-    const match = duration.match(/^(\d+)([smh])$/);
-    if (!match) throw new Error(`Invalid duration: ${duration}`);
-    const value = parseInt(match[1], 10);
-    const unit = match[2];
-    const multipliers: Record<string, number> = { s: 1000, m: 60000, h: 3600000 };
-    return value * multipliers[unit];
-  }
-
-  check(key: string, maxAttempts: number): RateLimitResult {
-    const now = new Date();
-    const entry = this.store.get(key);
-
-    if (!entry || entry.resetAt < now) {
-      // New window
-      const resetAt = new Date(now.getTime() + this.windowMs);
-      this.store.set(key, { count: 1, resetAt });
-      return { allowed: true, remaining: maxAttempts - 1, resetAt };
-    }
-
-    if (entry.count >= maxAttempts) {
-      return { allowed: false, remaining: 0, resetAt: entry.resetAt };
-    }
-
-    entry.count++;
-    return { allowed: true, remaining: maxAttempts - entry.count, resetAt: entry.resetAt };
-  }
-
-  // Cleanup old entries periodically
-  cleanup(): void {
-    const now = new Date();
-    for (const [key, entry] of this.store) {
-      if (entry.resetAt < now) {
-        this.store.delete(key);
-      }
-    }
-  }
-}
-
-// ============================================================================
-// Password Utilities
-// ============================================================================
-
-const DEFAULT_PASSWORD_REQUIREMENTS: PasswordRequirements = {
-  minLength: 8,
-  requireUppercase: false,
-  requireNumbers: false,
-  requireSymbols: false,
-};
-
-const BCRYPT_ROUNDS = 12;
-
-export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, BCRYPT_ROUNDS);
-}
-
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(password, hash);
-}
-
-export function validatePassword(
-  password: string,
-  requirements?: PasswordRequirements,
-): AuthValidationError | null {
-  const req = { ...DEFAULT_PASSWORD_REQUIREMENTS, ...requirements };
-
-  if (password.length < (req.minLength ?? 8)) {
-    return createAuthValidationError(
-      `Password must be at least ${req.minLength} characters`,
-      'password',
-      'TOO_SHORT',
-    );
-  }
-
-  if (req.requireUppercase && !/[A-Z]/.test(password)) {
-    return createAuthValidationError(
-      'Password must contain at least one uppercase letter',
-      'password',
-      'NO_UPPERCASE',
-    );
-  }
-
-  if (req.requireNumbers && !/\d/.test(password)) {
-    return createAuthValidationError(
-      'Password must contain at least one number',
-      'password',
-      'NO_NUMBER',
-    );
-  }
-
-  if (req.requireSymbols && !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-    return createAuthValidationError(
-      'Password must contain at least one symbol',
-      'password',
-      'NO_SYMBOL',
-    );
-  }
-
-  return null;
-}
-
-// ============================================================================
-// JWT Utilities
-// ============================================================================
-
-const DEFAULT_COOKIE_CONFIG: CookieConfig = {
-  name: 'vertz.sid',
-  httpOnly: true,
-  secure: true,
-  sameSite: 'lax',
-  path: '/',
-  maxAge: 60 * 60 * 24 * 7, // 7 days
-};
-
-function parseDuration(duration: string | number): number {
-  if (typeof duration === 'number') return duration;
-
-  const match = duration.match(/^(\d+)([smhd])$/);
-  if (!match) throw new Error(`Invalid duration: ${duration}`);
-  const value = parseInt(match[1], 10);
-  const unit = match[2];
-  const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
-  return value * multipliers[unit] * 1000;
-}
-
-async function createJWT(
-  user: AuthUser,
-  secret: string,
-  ttl: number,
-  algorithm: string,
-  customClaims?: (user: AuthUser) => Record<string, unknown>,
-): Promise<string> {
-  const claims = customClaims ? customClaims(user) : {};
-
-  const jwt = await new jose.SignJWT({
-    sub: user.id,
-    email: user.email,
-    role: user.role,
-    ...claims,
-  })
-    .setProtectedHeader({ alg: algorithm })
-    .setIssuedAt()
-    .setExpirationTime(Math.floor(ttl / 1000))
-    .sign(new TextEncoder().encode(secret));
-
-  return jwt;
-}
-
-async function verifyJWT(
-  token: string,
-  secret: string,
-  algorithm: string,
-): Promise<SessionPayload | null> {
-  try {
-    const { payload } = await jose.jwtVerify(token, new TextEncoder().encode(secret), {
-      algorithms: [algorithm],
-    });
-    return payload as unknown as SessionPayload;
-  } catch {
-    return null;
-  }
-}
-
-// ============================================================================
-// Auth Instance
-// ============================================================================
-
-// In-memory user store for Phase 1 (will be replaced with DB in future)
-const users = new Map<string, { user: AuthUser; passwordHash: string }>();
-
-// In-memory sessions (for refresh - JWT is stateless)
-const sessions = new Map<string, { userId: string; expiresAt: Date }>();
+// Re-export password utilities for backward compatibility
+export { hashPassword, validatePassword, verifyPassword } from './password';
 
 export function createAuth(config: AuthConfig): AuthInstance {
   const {
@@ -233,8 +49,6 @@ export function createAuth(config: AuthConfig): AuthInstance {
   } = config;
 
   // Determine production mode: explicit config > process.env > secure default (true)
-  // When process is unavailable (edge runtimes) or NODE_ENV is unset, default to production (secure).
-  // Only explicit NODE_ENV=development or NODE_ENV=test opts into non-production mode.
   const isProduction =
     config.isProduction ??
     (typeof process === 'undefined' ||
@@ -250,7 +64,6 @@ export function createAuth(config: AuthConfig): AuthInstance {
       'jwtSecret is required in production. Provide it via createAuth({ jwtSecret: "..." }).',
     );
   } else {
-    // Auto-generate a stable dev secret, persisted to disk so it survives restarts
     const secretDir = config.devSecretPath ?? join(process.cwd(), '.vertz');
     const secretFile = join(secretDir, 'jwt-secret');
 
@@ -267,6 +80,9 @@ export function createAuth(config: AuthConfig): AuthInstance {
   }
 
   const cookieConfig = { ...DEFAULT_COOKIE_CONFIG, ...session.cookie };
+  const refreshName = session.refreshName ?? 'vertz.ref';
+  const refreshTtlMs = parseDuration(session.refreshTtl ?? '7d');
+  const refreshMaxAge = Math.floor(refreshTtlMs / 1000);
 
   // Validate cookie security configuration
   if (cookieConfig.sameSite === 'none' && cookieConfig.secure !== true) {
@@ -285,17 +101,15 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
   const ttlMs = parseDuration(session.ttl);
 
-  // Rate limiters
-  const signInLimiter = new RateLimiter(emailPassword?.rateLimit?.window || '15m');
-  const signUpLimiter = new RateLimiter('1h');
-  const refreshLimiter = new RateLimiter('1m');
+  // Stores — use provided or create defaults
+  const sessionStore = config.sessionStore ?? new InMemorySessionStore();
+  const userStore = config.userStore ?? new InMemoryUserStore();
 
-  // Cleanup rate limiters periodically
-  setInterval(() => {
-    signInLimiter.cleanup();
-    signUpLimiter.cleanup();
-    refreshLimiter.cleanup();
-  }, 60000);
+  // Rate limiting
+  const rateLimitStore = config.rateLimitStore ?? new InMemoryRateLimitStore();
+  const signInWindowMs = parseDuration(emailPassword?.rateLimit?.window || '15m');
+  const signUpWindowMs = parseDuration('1h');
+  const refreshWindowMs = parseDuration('1m');
 
   // ==========================================================================
   // Helper: Build user from stored data
@@ -306,56 +120,28 @@ export function createAuth(config: AuthConfig): AuthInstance {
   }
 
   // ==========================================================================
-  // API: Sign Up
+  // Helper: Create session tokens
   // ==========================================================================
 
-  async function signUp(data: SignUpInput): Promise<Result<Session, AuthError>> {
-    const { email, password, role = 'user', ...additionalFields } = data;
-
-    // Check email format
-    if (!email || !email.includes('@')) {
-      return err(createAuthValidationError('Invalid email format', 'email', 'INVALID_FORMAT'));
-    }
-
-    // Check password requirements
-    const passwordError = validatePassword(password, emailPassword?.password);
-    if (passwordError) {
-      return err(passwordError);
-    }
-
-    // Check if user exists
-    if (users.has(email.toLowerCase())) {
-      return err(createUserExistsError('User already exists', email.toLowerCase()));
-    }
-
-    // Rate limit on sign up
-    const signUpRateLimit = signUpLimiter.check(
-      `signup:${email.toLowerCase()}`,
-      emailPassword?.rateLimit?.maxAttempts || 3,
-    );
-    if (!signUpRateLimit.allowed) {
-      return err(createAuthRateLimitedError('Too many sign up attempts'));
-    }
-
-    // Hash password
-    const passwordHash = await hashPassword(password);
-
-    // Create user
-    const now = new Date();
-    const user: AuthUser = {
-      id: crypto.randomUUID(),
-      email: email.toLowerCase(),
-      role,
-      createdAt: now,
-      updatedAt: now,
-      ...additionalFields,
-    };
-
-    users.set(email.toLowerCase(), { user, passwordHash });
-
-    // Create session
-    const token = await createJWT(user, jwtSecret, ttlMs, jwtAlgorithm, claims);
+  async function createSessionTokens(
+    user: AuthUser,
+    sessionId: string,
+  ): Promise<{ jwt: string; refreshToken: string; payload: SessionPayload; expiresAt: Date }> {
+    const jti = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + ttlMs);
+
+    const userClaims = claims ? claims(user) : {};
+
+    const jwt = await createJWT(user, jwtSecret, ttlMs, jwtAlgorithm, () => ({
+      ...userClaims,
+      jti,
+      sid: sessionId,
+    }));
+
+    const refreshToken = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
 
     const payload: SessionPayload = {
       sub: user.id,
@@ -363,37 +149,122 @@ export function createAuth(config: AuthConfig): AuthInstance {
       role: user.role,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(expiresAt.getTime() / 1000),
-      claims: claims ? claims(user) : undefined,
+      jti,
+      sid: sessionId,
+      claims: userClaims || undefined,
     };
 
-    sessions.set(token, { userId: user.id, expiresAt });
+    return { jwt, refreshToken, payload, expiresAt };
+  }
 
-    return ok({ user, expiresAt, payload });
+  // ==========================================================================
+  // API: Sign Up
+  // ==========================================================================
+
+  async function signUp(
+    data: SignUpInput,
+    ctx?: { headers: Headers },
+  ): Promise<Result<Session, AuthError>> {
+    const { email, password, role = 'user', ...additionalFields } = data;
+
+    if (!email || !email.includes('@')) {
+      return err(createAuthValidationError('Invalid email format', 'email', 'INVALID_FORMAT'));
+    }
+
+    const passwordError = validatePassword(password, emailPassword?.password);
+    if (passwordError) {
+      return err(passwordError);
+    }
+
+    // Rate limit check BEFORE user lookup to prevent email enumeration via timing
+    const signUpRateLimit = rateLimitStore.check(
+      `signup:${email.toLowerCase()}`,
+      emailPassword?.rateLimit?.maxAttempts || 3,
+      signUpWindowMs,
+    );
+    if (!signUpRateLimit.allowed) {
+      return err(createAuthRateLimitedError('Too many sign up attempts'));
+    }
+
+    const existing = await userStore.findByEmail(email.toLowerCase());
+    if (existing) {
+      return err(createUserExistsError('User already exists', email.toLowerCase()));
+    }
+
+    const passwordHash = await hashPassword(password);
+
+    const now = new Date();
+    // Spread additionalFields first so core fields cannot be overridden
+    const {
+      id: _id,
+      createdAt: _c,
+      updatedAt: _u,
+      ...safeFields
+    } = additionalFields as Record<string, unknown>;
+    const user: AuthUser = {
+      ...safeFields,
+      id: crypto.randomUUID(),
+      email: email.toLowerCase(),
+      role,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await userStore.createUser(user, passwordHash);
+
+    // Pre-generate session ID so tokens are created once with the correct sid
+    const sessionId = crypto.randomUUID();
+    const tokens = await createSessionTokens(user, sessionId);
+    const refreshTokenHash = await sha256Hex(tokens.refreshToken);
+
+    const ipAddress =
+      ctx?.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      ctx?.headers.get('x-real-ip') ??
+      '';
+    const userAgent = ctx?.headers.get('user-agent') ?? '';
+
+    await sessionStore.createSessionWithId(sessionId, {
+      userId: user.id,
+      refreshTokenHash,
+      ipAddress,
+      userAgent,
+      expiresAt: new Date(Date.now() + refreshTtlMs),
+      currentTokens: { jwt: tokens.jwt, refreshToken: tokens.refreshToken },
+    });
+
+    return ok({
+      user,
+      expiresAt: tokens.expiresAt,
+      payload: tokens.payload,
+      tokens: { jwt: tokens.jwt, refreshToken: tokens.refreshToken },
+    });
   }
 
   // ==========================================================================
   // API: Sign In
   // ==========================================================================
 
-  async function signIn(data: SignInInput): Promise<Result<Session, AuthError>> {
+  async function signIn(
+    data: SignInInput,
+    ctx?: { headers: Headers },
+  ): Promise<Result<Session, AuthError>> {
     const { email, password } = data;
 
-    // Check if user exists
-    const stored = users.get(email.toLowerCase());
-    if (!stored) {
-      return err(createInvalidCredentialsError());
-    }
-
-    // Rate limit on sign in
-    const signInRateLimit = signInLimiter.check(
+    // Rate limit check BEFORE user lookup to prevent email enumeration via timing
+    const signInRateLimit = rateLimitStore.check(
       `signin:${email.toLowerCase()}`,
       emailPassword?.rateLimit?.maxAttempts || 5,
+      signInWindowMs,
     );
     if (!signInRateLimit.allowed) {
       return err(createAuthRateLimitedError('Too many sign in attempts'));
     }
 
-    // Verify password
+    const stored = await userStore.findByEmail(email.toLowerCase());
+    if (!stored) {
+      return err(createInvalidCredentialsError());
+    }
+
     const valid = await verifyPassword(password, stored.passwordHash);
     if (!valid) {
       return err(createInvalidCredentialsError());
@@ -401,22 +272,32 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
     const user = buildAuthUser(stored);
 
-    // Create session
-    const token = await createJWT(user, jwtSecret, ttlMs, jwtAlgorithm, claims);
-    const expiresAt = new Date(Date.now() + ttlMs);
+    // Pre-generate session ID so tokens are created once with the correct sid
+    const sessionId = crypto.randomUUID();
+    const tokens = await createSessionTokens(user, sessionId);
+    const refreshTokenHash = await sha256Hex(tokens.refreshToken);
 
-    const payload: SessionPayload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(expiresAt.getTime() / 1000),
-      claims: claims ? claims(user) : undefined,
-    };
+    const ipAddress =
+      ctx?.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      ctx?.headers.get('x-real-ip') ??
+      '';
+    const userAgent = ctx?.headers.get('user-agent') ?? '';
 
-    sessions.set(token, { userId: user.id, expiresAt });
+    await sessionStore.createSessionWithId(sessionId, {
+      userId: user.id,
+      refreshTokenHash,
+      ipAddress,
+      userAgent,
+      expiresAt: new Date(Date.now() + refreshTtlMs),
+      currentTokens: { jwt: tokens.jwt, refreshToken: tokens.refreshToken },
+    });
 
-    return ok({ user, expiresAt, payload });
+    return ok({
+      user,
+      expiresAt: tokens.expiresAt,
+      payload: tokens.payload,
+      tokens: { jwt: tokens.jwt, refreshToken: tokens.refreshToken },
+    });
   }
 
   // ==========================================================================
@@ -424,57 +305,38 @@ export function createAuth(config: AuthConfig): AuthInstance {
   // ==========================================================================
 
   async function signOut(ctx: { headers: Headers }): Promise<Result<void, AuthError>> {
-    const cookieName = cookieConfig.name || 'vertz.sid';
-    const token = ctx.headers
-      .get('cookie')
-      ?.split(';')
-      .find((c) => c.trim().startsWith(`${cookieName}=`))
-      ?.split('=')[1];
-
-    if (token) {
-      sessions.delete(token);
+    // Get session from JWT to find session ID
+    const sessionResult = await getSession(ctx.headers);
+    if (sessionResult.ok && sessionResult.data) {
+      await sessionStore.revokeSession(sessionResult.data.payload.sid);
     }
-
     return ok(undefined);
   }
 
   // ==========================================================================
-  // API: Get Session
+  // API: Get Session (JWT-only verification — stateless for 60s window)
   // ==========================================================================
 
   async function getSession(headers: Headers): Promise<Result<Session | null, AuthError>> {
     const cookieName = cookieConfig.name || 'vertz.sid';
-    const token = headers
+    const cookieEntry = headers
       .get('cookie')
       ?.split(';')
-      .find((c) => c.trim().startsWith(`${cookieName}=`))
-      ?.split('=')[1];
+      .find((c) => c.trim().startsWith(`${cookieName}=`));
+    const token = cookieEntry ? cookieEntry.trim().slice(`${cookieName}=`.length) : undefined;
 
     if (!token) {
       return ok(null);
     }
 
-    // Check session exists
-    const session = sessions.get(token);
-    if (!session) {
-      return ok(null);
-    }
-
-    // Check if expired
-    if (session.expiresAt < new Date()) {
-      sessions.delete(token);
-      return ok(null);
-    }
-
-    // Verify JWT
+    // Phase 2: JWT-only verification — no session Map lookup
     const payload = await verifyJWT(token, jwtSecret, jwtAlgorithm);
     if (!payload) {
-      sessions.delete(token);
       return ok(null);
     }
 
-    // Get user
-    const stored = users.get(payload.email);
+    // Get user from store
+    const stored = await userStore.findByEmail(payload.email);
     if (!stored) {
       return ok(null);
     }
@@ -490,42 +352,160 @@ export function createAuth(config: AuthConfig): AuthInstance {
   // ==========================================================================
 
   async function refreshSession(ctx: { headers: Headers }): Promise<Result<Session, AuthError>> {
-    // Rate limit
-    const refreshRateLimit = refreshLimiter.check(
-      `refresh:${ctx.headers.get('x-forwarded-ip') || 'default'}`,
+    const refreshRateLimit = rateLimitStore.check(
+      `refresh:${ctx.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'default'}`,
       10,
+      refreshWindowMs,
     );
     if (!refreshRateLimit.allowed) {
       return err(createAuthRateLimitedError('Too many refresh attempts'));
     }
 
-    const sessionResult = await getSession(ctx.headers);
-    if (!sessionResult.ok) {
-      return sessionResult;
+    // Read refresh token from vertz.ref cookie
+    const refreshEntry = ctx.headers
+      .get('cookie')
+      ?.split(';')
+      .find((c) => c.trim().startsWith(`${refreshName}=`));
+    const refreshToken = refreshEntry
+      ? refreshEntry.trim().slice(`${refreshName}=`.length)
+      : undefined;
+
+    if (!refreshToken) {
+      return err(createSessionExpiredError('No refresh token'));
     }
 
+    const refreshHash = await sha256Hex(refreshToken);
+
+    // Find session by current refresh hash
+    let storedSession = await sessionStore.findByRefreshHash(refreshHash);
+    let isGracePeriod = false;
+
+    if (!storedSession) {
+      // Check grace period — old token within 10s
+      storedSession = await sessionStore.findByPreviousRefreshHash(refreshHash);
+      if (storedSession && storedSession.lastActiveAt.getTime() + 10_000 > Date.now()) {
+        isGracePeriod = true;
+      } else {
+        return err(createSessionExpiredError('Invalid refresh token'));
+      }
+    }
+
+    // Load fresh user data
+    const user = await userStore.findById(storedSession.userId);
+    if (!user) {
+      return err(createSessionExpiredError('User not found'));
+    }
+
+    if (isGracePeriod) {
+      // Idempotent: return the current tokens, don't generate new ones
+      const currentTokens = await sessionStore.getCurrentTokens(storedSession.id);
+      if (currentTokens) {
+        const payload = await verifyJWT(currentTokens.jwt, jwtSecret, jwtAlgorithm);
+        if (payload) {
+          return ok({
+            user,
+            expiresAt: new Date(payload.exp * 1000),
+            payload,
+            tokens: currentTokens,
+          });
+        }
+      }
+    }
+
+    // Generate new tokens (rotation)
+    const newTokens = await createSessionTokens(user, storedSession.id);
+    const newRefreshHash = await sha256Hex(newTokens.refreshToken);
+
+    await sessionStore.updateSession(storedSession.id, {
+      refreshTokenHash: newRefreshHash,
+      previousRefreshHash: storedSession.refreshTokenHash,
+      lastActiveAt: new Date(),
+      currentTokens: { jwt: newTokens.jwt, refreshToken: newTokens.refreshToken },
+    });
+
+    return ok({
+      user,
+      expiresAt: newTokens.expiresAt,
+      payload: newTokens.payload,
+      tokens: { jwt: newTokens.jwt, refreshToken: newTokens.refreshToken },
+    });
+  }
+
+  // ==========================================================================
+  // API: List Sessions
+  // ==========================================================================
+
+  async function listSessions(headers: Headers): Promise<Result<SessionInfo[], AuthError>> {
+    const sessionResult = await getSession(headers);
+    if (!sessionResult.ok) return sessionResult as Result<SessionInfo[], AuthError>;
     if (!sessionResult.data) {
-      return err(createSessionExpiredError('No active session'));
+      return err(createSessionExpiredError('Not authenticated'));
     }
 
-    const user = sessionResult.data.user;
+    const currentSid = sessionResult.data.payload.sid;
+    const sessions = await sessionStore.listActiveSessions(sessionResult.data.user.id);
 
-    // Create new token
-    const token = await createJWT(user, jwtSecret, ttlMs, jwtAlgorithm, claims);
-    const expiresAt = new Date(Date.now() + ttlMs);
+    const infos: SessionInfo[] = sessions.map((s) => ({
+      id: s.id,
+      userId: s.userId,
+      ipAddress: s.ipAddress,
+      userAgent: s.userAgent,
+      deviceName: parseDeviceName(s.userAgent),
+      createdAt: s.createdAt,
+      lastActiveAt: s.lastActiveAt,
+      expiresAt: s.expiresAt,
+      isCurrent: s.id === currentSid,
+    }));
 
-    const payload: SessionPayload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(expiresAt.getTime() / 1000),
-      claims: claims ? claims(user) : undefined,
-    };
+    return ok(infos);
+  }
 
-    sessions.set(token, { userId: user.id, expiresAt });
+  // ==========================================================================
+  // API: Revoke Session
+  // ==========================================================================
 
-    return ok({ user, expiresAt, payload });
+  async function revokeSessionById(
+    sessionId: string,
+    headers: Headers,
+  ): Promise<Result<void, AuthError>> {
+    const sessionResult = await getSession(headers);
+    if (!sessionResult.ok) return sessionResult as Result<void, AuthError>;
+    if (!sessionResult.data) {
+      return err(createSessionExpiredError('Not authenticated'));
+    }
+
+    // Verify ownership
+    const targetSessions = await sessionStore.listActiveSessions(sessionResult.data.user.id);
+    const target = targetSessions.find((s) => s.id === sessionId);
+    if (!target) {
+      return err(createSessionExpiredError('Session not found'));
+    }
+
+    await sessionStore.revokeSession(sessionId);
+    return ok(undefined);
+  }
+
+  // ==========================================================================
+  // API: Revoke All Sessions (except current)
+  // ==========================================================================
+
+  async function revokeAllSessions(headers: Headers): Promise<Result<void, AuthError>> {
+    const sessionResult = await getSession(headers);
+    if (!sessionResult.ok) return sessionResult as Result<void, AuthError>;
+    if (!sessionResult.data) {
+      return err(createSessionExpiredError('Not authenticated'));
+    }
+
+    const currentSid = sessionResult.data.payload.sid;
+    const sessions = await sessionStore.listActiveSessions(sessionResult.data.user.id);
+
+    for (const s of sessions) {
+      if (s.id !== currentSid) {
+        await sessionStore.revokeSession(s.id);
+      }
+    }
+
+    return ok(undefined);
   }
 
   // ==========================================================================
@@ -551,6 +531,10 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
   }
 
+  function securityHeaders(): Record<string, string> {
+    return { 'Cache-Control': 'no-store' };
+  }
+
   async function handleAuthRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname.replace('/api/auth', '') || '/';
@@ -562,7 +546,6 @@ export function createAuth(config: AuthConfig): AuthInstance {
       const referer = request.headers.get('referer');
       const expectedOrigin = new URL(request.url).origin;
 
-      // Validate Origin or Referer matches the expected origin
       let originValid = false;
 
       if (origin) {
@@ -589,7 +572,6 @@ export function createAuth(config: AuthConfig): AuthInstance {
         }
       }
 
-      // Require X-VTZ-Request custom header for state-changing methods
       const vtzHeader = request.headers.get('x-vtz-request');
 
       if (vtzHeader !== '1') {
@@ -610,56 +592,70 @@ export function createAuth(config: AuthConfig): AuthInstance {
       // Route: POST /api/auth/signup
       if (method === 'POST' && path === '/signup') {
         const body = (await request.json()) as SignUpInput;
-        const result = await signUp(body);
+        const result = await signUp(body, { headers: request.headers });
 
         if (!result.ok) {
           return new Response(JSON.stringify({ error: result.error }), {
             status: authErrorToStatus(result.error),
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
           });
         }
 
-        const cookieValue = await createJWT(
-          result.data.user,
-          jwtSecret,
-          ttlMs,
-          jwtAlgorithm,
-          claims,
-        );
+        const headers = new Headers({
+          'Content-Type': 'application/json',
+          ...securityHeaders(),
+        });
+        if (result.data.tokens) {
+          headers.append('Set-Cookie', buildSessionCookie(result.data.tokens.jwt, cookieConfig));
+          headers.append(
+            'Set-Cookie',
+            buildRefreshCookie(
+              result.data.tokens.refreshToken,
+              cookieConfig,
+              refreshName,
+              refreshMaxAge,
+            ),
+          );
+        }
+
         return new Response(JSON.stringify({ user: result.data.user }), {
           status: 201,
-          headers: {
-            'Content-Type': 'application/json',
-            'Set-Cookie': buildCookie(cookieValue),
-          },
+          headers,
         });
       }
 
       // Route: POST /api/auth/signin
       if (method === 'POST' && path === '/signin') {
         const body = (await request.json()) as SignInInput;
-        const result = await signIn(body);
+        const result = await signIn(body, { headers: request.headers });
 
         if (!result.ok) {
           return new Response(JSON.stringify({ error: result.error }), {
             status: authErrorToStatus(result.error),
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
           });
         }
 
-        const cookieValue = await createJWT(
-          result.data.user,
-          jwtSecret,
-          ttlMs,
-          jwtAlgorithm,
-          claims,
-        );
+        const headers = new Headers({
+          'Content-Type': 'application/json',
+          ...securityHeaders(),
+        });
+        if (result.data.tokens) {
+          headers.append('Set-Cookie', buildSessionCookie(result.data.tokens.jwt, cookieConfig));
+          headers.append(
+            'Set-Cookie',
+            buildRefreshCookie(
+              result.data.tokens.refreshToken,
+              cookieConfig,
+              refreshName,
+              refreshMaxAge,
+            ),
+          );
+        }
+
         return new Response(JSON.stringify({ user: result.data.user }), {
           status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'Set-Cookie': buildCookie(cookieValue),
-          },
+          headers,
         });
       }
 
@@ -667,12 +663,19 @@ export function createAuth(config: AuthConfig): AuthInstance {
       if (method === 'POST' && path === '/signout') {
         await signOut({ headers: request.headers });
 
+        const headers = new Headers({
+          'Content-Type': 'application/json',
+          ...securityHeaders(),
+        });
+        headers.append('Set-Cookie', buildSessionCookie('', cookieConfig, true));
+        headers.append(
+          'Set-Cookie',
+          buildRefreshCookie('', cookieConfig, refreshName, refreshMaxAge, true),
+        );
+
         return new Response(JSON.stringify({ ok: true }), {
           status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'Set-Cookie': buildCookie('', true),
-          },
+          headers,
         });
       }
 
@@ -683,13 +686,13 @@ export function createAuth(config: AuthConfig): AuthInstance {
         if (!result.ok) {
           return new Response(JSON.stringify({ error: result.error }), {
             status: 500,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
           });
         }
 
         return new Response(JSON.stringify({ session: result.data }), {
           status: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...securityHeaders() },
         });
       }
 
@@ -698,25 +701,94 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const result = await refreshSession({ headers: request.headers });
 
         if (!result.ok) {
+          const headers = new Headers({
+            'Content-Type': 'application/json',
+            ...securityHeaders(),
+          });
+          // Clear both cookies on failure
+          headers.append('Set-Cookie', buildSessionCookie('', cookieConfig, true));
+          headers.append(
+            'Set-Cookie',
+            buildRefreshCookie('', cookieConfig, refreshName, refreshMaxAge, true),
+          );
           return new Response(JSON.stringify({ error: result.error }), {
             status: authErrorToStatus(result.error),
-            headers: { 'Content-Type': 'application/json' },
+            headers,
           });
         }
 
-        const cookieValue = await createJWT(
-          result.data.user,
-          jwtSecret,
-          ttlMs,
-          jwtAlgorithm,
-          claims,
-        );
+        const headers = new Headers({
+          'Content-Type': 'application/json',
+          ...securityHeaders(),
+        });
+        if (result.data.tokens) {
+          headers.append('Set-Cookie', buildSessionCookie(result.data.tokens.jwt, cookieConfig));
+          headers.append(
+            'Set-Cookie',
+            buildRefreshCookie(
+              result.data.tokens.refreshToken,
+              cookieConfig,
+              refreshName,
+              refreshMaxAge,
+            ),
+          );
+        }
+
         return new Response(JSON.stringify({ user: result.data.user }), {
           status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'Set-Cookie': buildCookie(cookieValue),
-          },
+          headers,
+        });
+      }
+
+      // Route: GET /api/auth/sessions
+      if (method === 'GET' && path === '/sessions') {
+        const result = await listSessions(request.headers);
+
+        if (!result.ok) {
+          return new Response(JSON.stringify({ error: result.error }), {
+            status: authErrorToStatus(result.error),
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        return new Response(JSON.stringify({ sessions: result.data }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+        });
+      }
+
+      // Route: DELETE /api/auth/sessions/:id
+      if (method === 'DELETE' && path.startsWith('/sessions/')) {
+        const sessionId = path.replace('/sessions/', '');
+        const result = await revokeSessionById(sessionId, request.headers);
+
+        if (!result.ok) {
+          return new Response(JSON.stringify({ error: result.error }), {
+            status: authErrorToStatus(result.error),
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+        });
+      }
+
+      // Route: DELETE /api/auth/sessions
+      if (method === 'DELETE' && path === '/sessions') {
+        const result = await revokeAllSessions(request.headers);
+
+        if (!result.ok) {
+          return new Response(JSON.stringify({ error: result.error }), {
+            status: authErrorToStatus(result.error),
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...securityHeaders() },
         });
       }
 
@@ -732,27 +804,13 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
   }
 
-  function buildCookie(value: string, clear = false): string {
-    const name = cookieConfig.name || 'vertz.sid';
-    const maxAge = cookieConfig.maxAge ?? 60 * 60 * 24 * 7;
-    const path = cookieConfig.path || '/';
-    const sameSite = cookieConfig.sameSite || 'lax';
-    const secure = cookieConfig.secure ?? true;
-
-    if (clear) {
-      return `${name}=; Path=${path}; HttpOnly; SameSite=${sameSite}; Max-Age=0`;
-    }
-
-    return `${name}=${value}; Path=${path}; HttpOnly${secure ? '; Secure' : ''}; SameSite=${sameSite}; Max-Age=${maxAge}`;
-  }
-
   // ==========================================================================
   // Middleware
   // ==========================================================================
 
   function createMiddleware() {
-    return async (ctx: any, next: () => Promise<void>) => {
-      const sessionResult = await getSession(ctx.headers);
+    return async (ctx: Record<string, unknown>, next: () => Promise<void>) => {
+      const sessionResult = await getSession(ctx.headers as Headers);
 
       if (sessionResult.ok && sessionResult.data) {
         ctx.user = sessionResult.data.user;
@@ -771,18 +829,19 @@ export function createAuth(config: AuthConfig): AuthInstance {
   // ==========================================================================
 
   async function initialize(): Promise<void> {
-    // Phase 1: In-memory store, no initialization needed
-    // Future: Create tables, run migrations
     console.log('[Auth] Initialized with JWT strategy');
   }
 
   // Return the auth instance
   const api: AuthApi = {
-    signUp,
-    signIn,
+    signUp: (data: SignUpInput) => signUp(data),
+    signIn: (data: SignInInput) => signIn(data),
     signOut,
     getSession,
     refreshSession,
+    listSessions,
+    revokeSession: revokeSessionById,
+    revokeAllSessions,
   };
 
   return {
@@ -790,6 +849,10 @@ export function createAuth(config: AuthConfig): AuthInstance {
     api,
     middleware: createMiddleware,
     initialize,
+    dispose() {
+      sessionStore.dispose();
+      rateLimitStore.dispose();
+    },
   };
 }
 
@@ -802,25 +865,35 @@ export type {
 } from './access';
 // Re-export access control from auth/access.ts
 export { AuthorizationError, createAccess, defaultAccess } from './access';
+export { InMemoryRateLimitStore } from './rate-limit-store';
 
+// Re-export store implementations
+export { InMemorySessionStore } from './session-store';
 // Re-export types from types.ts
 export type {
   AuthApi,
   AuthConfig,
   AuthContext,
   AuthInstance,
+  AuthTokens,
   AuthUser,
   CookieConfig,
   EmailPasswordConfig,
   PasswordRequirements,
   RateLimitConfig,
   RateLimitResult,
+  RateLimitStore,
   RoleAssignmentTableEntry,
   Session,
   SessionConfig,
+  SessionInfo,
   SessionPayload,
+  SessionStore,
   SessionStrategy,
   SignInInput,
   SignUpInput,
+  StoredSession,
+  UserStore,
   UserTableEntry,
 } from './types';
+export { InMemoryUserStore } from './user-store';
