@@ -127,7 +127,7 @@ Or use a function for dynamic initial values:
 const editForm = form(api.tasks.update, {
   schema: updateTaskSchema,
   initial: () => ({
-    title: task.data.value?.title ?? '',
+    title: task.data?.title ?? '',
   }),
 });
 ```

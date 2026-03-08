@@ -49,17 +49,15 @@ A query result exposes four reactive properties:
 | `revalidating` | `boolean` | `true` when refetching with existing data |
 | `error` | `Error \| undefined` | The error from the last failed fetch |
 
-These are signals — they auto-unwrap in JSX:
+These are reactive — use them directly in JSX and event handlers:
 
 ```tsx
-// In JSX — no .value needed
 <div>{tasks.data?.items.length} tasks</div>
 <button disabled={tasks.loading}>Refresh</button>
 
-// Outside JSX — use .value
 onClick={() => {
-  if (tasks.data.value) {
-    console.log(tasks.data.value.items.length);
+  if (tasks.data) {
+    console.log(tasks.data.items.length);
   }
 }}
 ```

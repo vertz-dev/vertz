@@ -54,44 +54,27 @@ export function TaskForm({ onSuccess }: TaskFormProps): HTMLElement {
 
 ### `let` for local state
 
-Never call `signal()` manually for local state — use `let`. The compiler handles the transformation.
+Use `let` for local state. The compiler transforms it into a signal automatically.
 
 ```tsx
-// Preferred
 let count = 0;
 let isOpen = false;
 
-// Avoid
-const count = signal(0);
-const isOpen = signal(false);
+return (
+  <button onClick={() => { count++; isOpen = true; }}>
+    {count}
+  </button>
+);
 ```
 
 ### `const` for derived values
 
-Never use `let` + `watch()` to sync derived values — use `const`. The compiler wraps it in `computed()` automatically.
+Use `const` for values derived from state. The compiler wraps it in `computed()` automatically.
 
 ```tsx
-// Preferred
 let count = 0;
 const doubled = count * 2;
-
-// Avoid
-let count = 0;
-let doubled = 0;
-watch(() => count, (c) => { doubled = c * 2; });
-```
-
-### `watch()` for side effects
-
-Use `watch()` only for side effects — logging, analytics, DOM manipulation outside JSX. Never for deriving values.
-
-```tsx
-watch(
-  () => settings.theme,
-  (theme) => {
-    document.documentElement.className = theme;
-  },
-);
+const label = count === 0 ? 'empty' : `${count} items`;
 ```
 
 ## JSX
@@ -171,34 +154,56 @@ const button = variants({
 
 Use `css()` tokens for anything theme-related. Reserve inline styles for one-off layout values like margins, transforms, or dynamic positioning.
 
+```tsx
+// Theme values — use css() tokens
+const styles = css({
+  panel: ['bg:card', 'rounded:lg', 'p:6'],
+});
+
+// Dynamic one-off layout — inline style is fine
+<div class={styles.panel} style={`margin-top: ${offset}px`}>
+  {content}
+</div>
+```
+
 ## Data fetching
 
 ### `query()` is auto-disposed
 
-Don't manually dispose queries — they auto-register cleanup with the component scope.
+Don't manually manage query lifecycle — queries auto-register cleanup with the component scope. When the component unmounts, the query stops reactive effects and timers automatically.
 
 ```tsx
-// Preferred — auto-disposed when component unmounts
 const tasks = query(api.tasks.list());
 
-// Unnecessary
-onMount(() => () => tasks.dispose());
+// Just use it — no cleanup needed
+return (
+  <ul>
+    {tasks.data?.items.map((task) => (
+      <li key={task.id}>{task.title}</li>
+    ))}
+  </ul>
+);
 ```
 
-### `.value` only outside JSX
+### Access query properties directly
 
-Signal properties like `.data`, `.loading`, `.error` auto-unwrap in JSX. Use `.value` only in event handlers, `watch()`, or other non-JSX contexts.
+Query properties like `.data`, `.loading`, and `.error` work directly in both JSX and event handlers — no unwrapping needed.
 
 ```tsx
-// In JSX — auto-unwraps, no .value needed
-<div>{tasks.data?.items.length}</div>
+const tasks = query(api.tasks.list());
 
-// In event handler — use .value
-onClick={() => {
-  if (tasks.data.value) {
-    console.log(tasks.data.value.items.length);
-  }
-}}
+return (
+  <div>
+    {tasks.loading && <span>Loading...</span>}
+    {tasks.error && <span>Failed to load</span>}
+    {tasks.data?.items.map((task) => (
+      <li key={task.id}>{task.title}</li>
+    ))}
+    <button onClick={() => console.log(tasks.data?.items.length)}>
+      Log count
+    </button>
+  </div>
+);
 ```
 
 ## Context
