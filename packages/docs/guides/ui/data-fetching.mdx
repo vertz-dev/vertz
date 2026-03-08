@@ -188,14 +188,16 @@ For edge cases not covered by automatic revalidation (e.g., a custom server-side
 ```tsx
 import { invalidate } from 'vertz/ui';
 
-// Revalidate all active todo list queries
+// Revalidate all active todo list queries — including filtered ones
 invalidate(api.todos.list());
 
 // Revalidate a specific get query
 invalidate(api.todos.get('123'));
 ```
 
-`invalidate()` triggers a background refetch (SWR pattern) — existing data stays visible while the fresh data loads. It accepts the same query descriptors used with `query()`.
+`invalidate()` matches by **entity type and operation kind**, not by cache key. This means `invalidate(api.todos.list())` revalidates ALL active todo list queries — including `query(api.todos.list({ status: 'done' }))` and `query(api.todos.list({ assignee: userId }))`. You don't need to invalidate each filter variation individually.
+
+Existing data stays visible while the refetch happens in the background (SWR pattern).
 
 <Note>`invalidate()` is an escape hatch. In most cases, automatic revalidation from entity mutations handles everything. Use it only for operations outside the standard entity CRUD flow.</Note>
 
