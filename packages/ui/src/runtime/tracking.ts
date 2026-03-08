@@ -1,3 +1,4 @@
+import { getSSRContext } from '../ssr/ssr-render-context';
 import type { Subscriber } from './signal-types';
 
 /**
@@ -18,6 +19,8 @@ let readValueCallback: ((value: unknown) => void) | null = null;
  * Get the currently active subscriber (if any).
  */
 export function getSubscriber(): Subscriber | null {
+  const ctx = getSSRContext();
+  if (ctx) return ctx.subscriber;
   return currentSubscriber;
 }
 
@@ -26,6 +29,12 @@ export function getSubscriber(): Subscriber | null {
  * Returns the previous subscriber so it can be restored.
  */
 export function setSubscriber(sub: Subscriber | null): Subscriber | null {
+  const ctx = getSSRContext();
+  if (ctx) {
+    const prev = ctx.subscriber;
+    ctx.subscriber = sub;
+    return prev;
+  }
   const prev = currentSubscriber;
   currentSubscriber = sub;
   return prev;
@@ -35,6 +44,8 @@ export function setSubscriber(sub: Subscriber | null): Subscriber | null {
  * Get the current read-value callback (if any).
  */
 export function getReadValueCallback(): ((value: unknown) => void) | null {
+  const ctx = getSSRContext();
+  if (ctx) return ctx.readValueCb;
   return readValueCallback;
 }
 
@@ -46,6 +57,12 @@ export function getReadValueCallback(): ((value: unknown) => void) | null {
 export function setReadValueCallback(
   cb: ((value: unknown) => void) | null,
 ): ((value: unknown) => void) | null {
+  const ctx = getSSRContext();
+  if (ctx) {
+    const prev = ctx.readValueCb;
+    ctx.readValueCb = cb;
+    return prev;
+  }
   const prev = readValueCallback;
   readValueCallback = cb;
   return prev;
@@ -56,11 +73,10 @@ export function setReadValueCallback(
  * Useful for reading signals without creating subscriptions.
  */
 export function untrack<T>(fn: () => T): T {
-  const prev = currentSubscriber;
-  currentSubscriber = null;
+  const prev = setSubscriber(null);
   try {
     return fn();
   } finally {
-    currentSubscriber = prev;
+    setSubscriber(prev);
   }
 }

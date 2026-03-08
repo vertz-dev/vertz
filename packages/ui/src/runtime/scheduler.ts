@@ -1,3 +1,4 @@
+import { getSSRContext } from '../ssr/ssr-render-context';
 import type { Subscriber } from './signal-types';
 
 /**
@@ -24,9 +25,13 @@ export function scheduleNotify(subscriber: Subscriber): void {
     return;
   }
 
+  const ctx = getSSRContext();
+  const depth = ctx ? ctx.batchDepth : batchDepth;
+  const effects = ctx ? ctx.pendingEffects : pendingEffects;
+
   // Effect: queue when batching, immediate otherwise
-  if (batchDepth > 0) {
-    pendingEffects.set(subscriber._id, subscriber);
+  if (depth > 0) {
+    effects.set(subscriber._id, subscriber);
   } else {
     subscriber._notify();
   }
@@ -35,11 +40,11 @@ export function scheduleNotify(subscriber: Subscriber): void {
 /**
  * Flush all pending effect notifications.
  */
-function flush(): void {
+function flush(effects: Map<number, Subscriber>): void {
   // Iteratively flush until stable — effects may trigger new signals
-  while (pendingEffects.size > 0) {
-    const queue = [...pendingEffects.values()];
-    pendingEffects.clear();
+  while (effects.size > 0) {
+    const queue = [...effects.values()];
+    effects.clear();
     for (const sub of queue) {
       sub._notify();
     }
@@ -51,13 +56,26 @@ function flush(): void {
  * Nested batches are supported — only the outermost batch triggers the flush.
  */
 export function batch(fn: () => void): void {
-  batchDepth++;
-  try {
-    fn();
-  } finally {
-    batchDepth--;
-    if (batchDepth === 0) {
-      flush();
+  const ctx = getSSRContext();
+  if (ctx) {
+    ctx.batchDepth++;
+    try {
+      fn();
+    } finally {
+      ctx.batchDepth--;
+      if (ctx.batchDepth === 0) {
+        flush(ctx.pendingEffects);
+      }
+    }
+  } else {
+    batchDepth++;
+    try {
+      fn();
+    } finally {
+      batchDepth--;
+      if (batchDepth === 0) {
+        flush(pendingEffects);
+      }
     }
   }
 }
