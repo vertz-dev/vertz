@@ -23,6 +23,7 @@ export interface RoleAssignmentStore {
   assign(userId: string, resourceType: string, resourceId: string, role: string): void;
   revoke(userId: string, resourceType: string, resourceId: string, role: string): void;
   getRoles(userId: string, resourceType: string, resourceId: string): string[];
+  getRolesForUser(userId: string): RoleAssignment[];
   getEffectiveRole(
     userId: string,
     resourceType: string,
@@ -73,6 +74,10 @@ export class InMemoryRoleAssignmentStore implements RoleAssignmentStore {
           a.userId === userId && a.resourceType === resourceType && a.resourceId === resourceId,
       )
       .map((a) => a.role);
+  }
+
+  getRolesForUser(userId: string): RoleAssignment[] {
+    return this.assignments.filter((a) => a.userId === userId);
   }
 
   /**

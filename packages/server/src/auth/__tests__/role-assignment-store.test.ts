@@ -179,4 +179,34 @@ describe('InMemoryRoleAssignmentStore', () => {
     const roles = store.getRoles('user-1', 'Organization', 'org-1');
     expect(roles).toEqual([]);
   });
+
+  it('getRolesForUser returns all assignments for a user', () => {
+    const store = new InMemoryRoleAssignmentStore();
+    store.assign('user-1', 'Organization', 'org-1', 'admin');
+    store.assign('user-1', 'Team', 'team-1', 'lead');
+    store.assign('user-2', 'Organization', 'org-1', 'member');
+
+    const assignments = store.getRolesForUser('user-1');
+    expect(assignments).toHaveLength(2);
+    expect(assignments).toContainEqual({
+      userId: 'user-1',
+      resourceType: 'Organization',
+      resourceId: 'org-1',
+      role: 'admin',
+    });
+    expect(assignments).toContainEqual({
+      userId: 'user-1',
+      resourceType: 'Team',
+      resourceId: 'team-1',
+      role: 'lead',
+    });
+  });
+
+  it('getRolesForUser returns empty array for unknown user', () => {
+    const store = new InMemoryRoleAssignmentStore();
+    store.assign('user-1', 'Organization', 'org-1', 'admin');
+
+    const assignments = store.getRolesForUser('user-999');
+    expect(assignments).toEqual([]);
+  });
 });

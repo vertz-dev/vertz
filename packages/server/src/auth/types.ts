@@ -307,6 +307,15 @@ export interface AuthConfig {
   passwordReset?: PasswordResetConfig;
   /** Pluggable password reset store — defaults to InMemoryPasswordResetStore */
   passwordResetStore?: PasswordResetStore;
+  /** Access control configuration — enables ACL claim in JWT */
+  access?: AuthAccessConfig;
+}
+
+/** Access control configuration for JWT acl claim computation. */
+export interface AuthAccessConfig {
+  definition: import('./define-access').AccessDefinition;
+  roleStore: import('./role-assignment-store').RoleAssignmentStore;
+  closureStore: import('./closure-store').ClosureStore;
 }
 
 // ============================================================================
@@ -335,6 +344,17 @@ export interface SessionPayload {
   sid: string; // Session ID — links JWT to session record
   claims?: Record<string, unknown>;
   fva?: number; // Factor verification age — timestamp of last MFA verification
+  acl?: AclClaim; // Access set claim — computed entitlements
+}
+
+/** JWT acl claim — embedded access set with overflow strategy. */
+export interface AclClaim {
+  /** Full sparse set when fits within 2KB budget */
+  set?: import('./access-set').EncodedAccessSet;
+  /** SHA-256 hex of canonical JSON — always present */
+  hash: string;
+  /** True when set omitted due to size */
+  overflow: boolean;
 }
 
 export interface AuthTokens {

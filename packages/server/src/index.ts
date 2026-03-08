@@ -43,6 +43,8 @@ export {
   vertz,
 } from '@vertz/core';
 export type {
+  // Phase 7: Access set types
+  AccessCheckData,
   // Phase 6: Resource hierarchy types
   AccessCheckResult,
   AccessConfig,
@@ -50,6 +52,8 @@ export type {
   AccessContextConfig,
   AccessDefinition,
   AccessInstance,
+  AccessSet,
+  AclClaim,
   AuthApi,
   AuthConfig,
   AuthContext,
@@ -59,6 +63,7 @@ export type {
   ClosureEntry,
   ClosureRow,
   ClosureStore,
+  ComputeAccessSetConfig,
   CookieConfig,
   DefineAccessInput,
   DenialMeta,
@@ -66,6 +71,7 @@ export type {
   EmailPasswordConfig,
   EmailVerificationConfig,
   EmailVerificationStore,
+  EncodedAccessSet,
   Entitlement,
   EntitlementDef,
   EntitlementDefinition,
@@ -108,12 +114,16 @@ export type {
 export {
   AuthorizationError,
   checkFva,
+  computeAccessSet,
+  computeEntityAccess,
   createAccess,
   createAccessContext,
   createAuth,
+  decodeAccessSet,
   defaultAccess,
   defineAccess,
   discord,
+  encodeAccessSet,
   github,
   google,
   hashPassword,

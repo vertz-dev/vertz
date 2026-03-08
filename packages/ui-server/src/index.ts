@@ -9,6 +9,7 @@ export type { RenderToHTMLOptions, RenderToHTMLStreamOptions } from './render-to
 export { renderToHTML, renderToHTMLStream } from './render-to-html';
 export { renderToStream } from './render-to-stream';
 export { createSlotPlaceholder, resetSlotCounter } from './slot-placeholder';
+export { createAccessSetScript, getAccessSetForSSR } from './ssr-access-set';
 export { createSSRAdapter } from './ssr-adapter';
 export type { SSRQueryEntry } from './ssr-context';
 export {

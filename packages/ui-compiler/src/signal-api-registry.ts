@@ -28,6 +28,10 @@ export const SIGNAL_API_REGISTRY: Record<string, SignalApiConfig> = {
     signalProperties: new Set(['data', 'loading', 'error']),
     plainProperties: new Set(['refetch']),
   },
+  can: {
+    signalProperties: new Set(['allowed', 'reasons', 'reason', 'meta', 'loading']),
+    plainProperties: new Set([]),
+  },
 };
 
 /**

@@ -23,6 +23,7 @@ import {
   ok,
   type Result,
 } from '@vertz/errors';
+import { computeAccessSet, type EncodedAccessSet, encodeAccessSet } from './access-set';
 import {
   buildMfaChallengeCookie,
   buildOAuthStateCookie,
@@ -210,9 +211,39 @@ export function createAuth(config: AuthConfig): AuthInstance {
     const userClaims = claims ? claims(user) : {};
     const fvaClaim = options?.fva !== undefined ? { fva: options.fva } : {};
 
+    // Compute ACL claim if access config is present
+    let aclClaim: { acl: { set?: EncodedAccessSet; hash: string; overflow: boolean } } | object =
+      {};
+    if (config.access) {
+      const accessSet = await computeAccessSet({
+        userId: user.id,
+        accessDef: config.access.definition,
+        roleStore: config.access.roleStore,
+        closureStore: config.access.closureStore,
+        plan: user.plan ?? null,
+      });
+      const encoded = encodeAccessSet(accessSet);
+      const canonicalJson = JSON.stringify(encoded);
+      // Hash only stable fields (not computedAt) for cache comparison
+      const stablePayload = {
+        entitlements: encoded.entitlements,
+        flags: encoded.flags,
+        plan: encoded.plan,
+      };
+      const hash = await sha256Hex(JSON.stringify(stablePayload));
+      const byteLength = new TextEncoder().encode(canonicalJson).length;
+
+      if (byteLength <= 2048) {
+        aclClaim = { acl: { set: encoded, hash, overflow: false } };
+      } else {
+        aclClaim = { acl: { hash, overflow: true } };
+      }
+    }
+
     const jwt = await createJWT(user, jwtSecret, ttlMs, jwtAlgorithm, () => ({
       ...userClaims,
       ...fvaClaim,
+      ...aclClaim,
       jti,
       sid: sessionId,
     }));
@@ -232,6 +263,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       sid: sessionId,
       claims: userClaims || undefined,
       ...(options?.fva !== undefined ? { fva: options.fva } : {}),
+      ...aclClaim,
     };
 
     return { jwt, refreshToken, payload, expiresAt };
@@ -863,6 +895,67 @@ export function createAuth(config: AuthConfig): AuthInstance {
         return new Response(JSON.stringify({ session: result.data }), {
           status: 200,
           headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+        });
+      }
+
+      // Route: GET /api/auth/access-set
+      if (method === 'GET' && path === '/access-set') {
+        if (!config.access) {
+          return new Response(JSON.stringify({ error: 'Access control not configured' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const sessionResult = await getSession(request.headers);
+        if (!sessionResult.ok || !sessionResult.data) {
+          return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const accessSet = await computeAccessSet({
+          userId: sessionResult.data.user.id,
+          accessDef: config.access.definition,
+          roleStore: config.access.roleStore,
+          closureStore: config.access.closureStore,
+          plan: sessionResult.data.user.plan ?? null,
+        });
+
+        const encoded = encodeAccessSet(accessSet);
+        // Hash only the stable fields (entitlements, flags, plan) — not computedAt
+        const hashPayload = {
+          entitlements: encoded.entitlements,
+          flags: encoded.flags,
+          plan: encoded.plan,
+        };
+        const hash = await sha256Hex(JSON.stringify(hashPayload));
+
+        // ETag support for 304 Not Modified (RFC 7232: ETags must be quoted)
+        const quotedEtag = `"${hash}"`;
+        const ifNoneMatch = request.headers.get('If-None-Match');
+        if (ifNoneMatch && ifNoneMatch.replace(/"/g, '') === hash) {
+          return new Response(null, {
+            status: 304,
+            headers: {
+              ETag: quotedEtag,
+              ...securityHeaders(),
+              // Override no-store: allow conditional requests with ETag
+              'Cache-Control': 'no-cache',
+            },
+          });
+        }
+
+        return new Response(JSON.stringify({ accessSet }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            ETag: quotedEtag,
+            ...securityHeaders(),
+            // Override no-store: allow conditional requests with ETag
+            'Cache-Control': 'no-cache',
+          },
         });
       }
 
@@ -2066,6 +2159,13 @@ export { AuthorizationError, createAccess, defaultAccess } from './access';
 export type { AccessContext, AccessContextConfig, ResourceRef } from './access-context';
 // Phase 6: Resource Hierarchy & defineAccess
 export { createAccessContext } from './access-context';
+export type {
+  AccessCheckData,
+  AccessSet,
+  ComputeAccessSetConfig,
+  EncodedAccessSet,
+} from './access-set';
+export { computeAccessSet, decodeAccessSet, encodeAccessSet } from './access-set';
 export type { ClosureEntry, ClosureRow, ClosureStore, ParentRef } from './closure-store';
 export { InMemoryClosureStore } from './closure-store';
 export type {
@@ -2078,6 +2178,7 @@ export type {
 } from './define-access';
 export { defineAccess } from './define-access';
 export { InMemoryEmailVerificationStore } from './email-verification-store';
+export { computeEntityAccess } from './entity-access';
 export { checkFva } from './fva';
 export { InMemoryMFAStore } from './mfa-store';
 export { InMemoryOAuthAccountStore } from './oauth-account-store';
@@ -2103,6 +2204,8 @@ export { rules } from './rules';
 export { InMemorySessionStore } from './session-store';
 // Re-export types from types.ts
 export type {
+  AclClaim,
+  AuthAccessConfig,
   AuthApi,
   AuthConfig,
   AuthContext,
