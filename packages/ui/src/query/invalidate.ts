@@ -46,10 +46,16 @@ export function invalidate<T, E>(descriptor: QueryDescriptor<T, E>): void {
   const meta = descriptor._entity;
   if (!meta) return;
 
-  for (const reg of registry) {
+  // Get descriptors require an id to match — a get descriptor without
+  // an id is ambiguous and treated as a no-op.
+  if (meta.kind === 'get' && !meta.id) return;
+
+  // Snapshot the registry to avoid re-entrancy issues if refetch()
+  // triggers synchronous effects that modify the registry.
+  for (const reg of [...registry]) {
     if (reg.entityMeta.entityType !== meta.entityType) continue;
     if (reg.entityMeta.kind !== meta.kind) continue;
-    if (meta.kind === 'get' && meta.id && reg.entityMeta.id !== meta.id) continue;
+    if (meta.kind === 'get' && reg.entityMeta.id !== meta.id) continue;
     reg.refetch();
   }
 }
@@ -64,8 +70,8 @@ export function __registrySize(): number {
 
 /**
  * Clear the active query registry.
- * Used for SSR per-request isolation and test cleanup.
- * @internal
+ * @internal — test utility only, not part of the public API.
+ * Ensures clean state between test cases.
  */
 export function resetQueryRegistry(): void {
   registry.clear();

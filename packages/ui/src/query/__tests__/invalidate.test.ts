@@ -135,6 +135,30 @@ describe('invalidate()', () => {
     });
   });
 
+  describe('invalidate with get descriptor without id', () => {
+    it('is a no-op — does not match any get queries', () => {
+      const refetch1 = vi.fn();
+      const refetch2 = vi.fn();
+
+      registerActiveQuery({ entityType: 'tasks', kind: 'get', id: '1' }, refetch1);
+      registerActiveQuery({ entityType: 'tasks', kind: 'get', id: '2' }, refetch2);
+
+      const descriptor = createDescriptor(
+        'GET',
+        '/tasks',
+        () => Promise.resolve({ ok: true as const, data: { data: {} } }),
+        undefined,
+        // get descriptor without id — should be a no-op
+        { entityType: 'tasks', kind: 'get' },
+      );
+
+      invalidate(descriptor);
+
+      expect(refetch1).not.toHaveBeenCalled();
+      expect(refetch2).not.toHaveBeenCalled();
+    });
+  });
+
   describe('after unregister', () => {
     it('invalidate does not call refetch on unregistered queries', () => {
       const refetch = vi.fn();
