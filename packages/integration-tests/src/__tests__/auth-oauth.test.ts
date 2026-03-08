@@ -45,7 +45,7 @@ function createTestAuth(overrides?: Partial<AuthConfig>): AuthInstance {
     jwtSecret: 'integration-test-secret-at-least-32-chars!!',
     isProduction: false,
     oauthEncryptionKey: 'test-oauth-encryption-key-at-least-32!',
-    oauthCallbackUrl: 'http://localhost:3000',
+
     ...overrides,
   });
 }

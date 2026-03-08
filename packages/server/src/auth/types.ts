@@ -143,7 +143,7 @@ export interface OAuthProvider {
   trustEmail: boolean;
   getAuthorizationUrl: (state: string, codeChallenge?: string, nonce?: string) => string;
   exchangeCode: (code: string, codeVerifier?: string) => Promise<OAuthTokens>;
-  getUserInfo: (accessToken: string, idToken?: string) => Promise<OAuthUserInfo>;
+  getUserInfo: (accessToken: string, idToken?: string, nonce?: string) => Promise<OAuthUserInfo>;
 }
 
 export interface OAuthAccountStore {
@@ -160,7 +160,6 @@ export interface OAuthStateData {
   codeVerifier: string;
   nonce?: string;
   expiresAt: number;
-  redirectUrl?: string;
 }
 
 // ============================================================================
@@ -198,8 +197,6 @@ export interface AuthConfig {
   oauthAccountStore?: OAuthAccountStore;
   /** Encryption key for OAuth state cookies — required when providers are configured */
   oauthEncryptionKey?: string;
-  /** Base URL for OAuth callbacks (e.g., 'http://localhost:3000') */
-  oauthCallbackUrl?: string;
   /** Redirect URL after successful OAuth (default '/') */
   oauthSuccessRedirect?: string;
   /** Redirect URL on OAuth error (default '/auth/error') */

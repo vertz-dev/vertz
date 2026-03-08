@@ -75,7 +75,11 @@ export function google(config: OAuthProviderConfig): OAuthProvider {
       };
     },
 
-    async getUserInfo(_accessToken: string, idToken?: string): Promise<OAuthUserInfo> {
+    async getUserInfo(
+      _accessToken: string,
+      idToken?: string,
+      nonce?: string,
+    ): Promise<OAuthUserInfo> {
       if (!idToken) {
         throw new Error('Google provider requires an ID token');
       }
@@ -91,6 +95,11 @@ export function google(config: OAuthProviderConfig): OAuthProvider {
         picture?: string;
         nonce?: string;
       };
+
+      // Validate nonce to prevent ID token replay attacks
+      if (nonce && payload.nonce !== nonce) {
+        throw new Error('ID token nonce mismatch');
+      }
 
       return {
         providerId: payload.sub,

@@ -29,8 +29,11 @@ export class InMemoryOAuthAccountStore implements OAuthAccountStore {
     this.byProviderAccount.set(this.providerKey(provider, providerId), link);
 
     const userLinks = this.byUserId.get(userId) ?? [];
-    userLinks.push(link);
-    this.byUserId.set(userId, userLinks);
+    const exists = userLinks.some((l) => l.provider === provider && l.providerId === providerId);
+    if (!exists) {
+      userLinks.push(link);
+      this.byUserId.set(userId, userLinks);
+    }
   }
 
   async findByProviderAccount(provider: string, providerId: string): Promise<string | null> {

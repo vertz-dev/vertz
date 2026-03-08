@@ -865,6 +865,16 @@ export function createAuth(config: AuthConfig): AuthInstance {
           });
         }
 
+        // Rate limit: 10 OAuth initiations per 5 minutes per IP
+        const oauthIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'default';
+        const oauthRateLimit = rateLimitStore.check(`oauth:${oauthIp}`, 10, 5 * 60 * 1000);
+        if (!oauthRateLimit.allowed) {
+          return new Response(JSON.stringify({ error: 'Too many requests' }), {
+            status: 429,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
         if (!oauthEncryptionKey) {
           return new Response(JSON.stringify({ error: 'OAuth not configured' }), {
             status: 500,
@@ -948,6 +958,17 @@ export function createAuth(config: AuthConfig): AuthInstance {
         const queryState = url.searchParams.get('state');
         const code = url.searchParams.get('code');
 
+        // Handle provider-side errors (e.g., user cancelled)
+        const providerError = url.searchParams.get('error');
+        if (providerError) {
+          const headers = new Headers({
+            Location: `${errorRedirect}?error=${encodeURIComponent(providerError)}`,
+            ...securityHeaders(),
+          });
+          headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
+          return new Response(null, { status: 302, headers });
+        }
+
         // Validate state
         if (stateData.state !== queryState || stateData.provider !== providerId) {
           const headers = new Headers({
@@ -972,8 +993,12 @@ export function createAuth(config: AuthConfig): AuthInstance {
           // Exchange code for tokens
           const tokens = await provider.exchangeCode(code ?? '', stateData.codeVerifier);
 
-          // Get user info
-          const userInfo = await provider.getUserInfo(tokens.accessToken, tokens.idToken);
+          // Get user info (pass nonce for OIDC providers to validate)
+          const userInfo = await provider.getUserInfo(
+            tokens.accessToken,
+            tokens.idToken,
+            stateData.nonce,
+          );
 
           // Clear OAuth state cookie
           const responseHeaders = new Headers({
@@ -1005,6 +1030,15 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
             // 3. Create new user
             if (!userId) {
+              // Validate email before creating user
+              if (!userInfo.email || !userInfo.email.includes('@')) {
+                const headers = new Headers({
+                  Location: `${errorRedirect}?error=email_required`,
+                  ...securityHeaders(),
+                });
+                headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
+                return new Response(null, { status: 302, headers });
+              }
               const now = new Date();
               const newUser: AuthUser = {
                 id: crypto.randomUUID(),
@@ -1138,6 +1172,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
     dispose() {
       sessionStore.dispose();
       rateLimitStore.dispose();
+      oauthAccountStore?.dispose();
     },
   };
 }

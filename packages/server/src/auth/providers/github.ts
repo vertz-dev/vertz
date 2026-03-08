@@ -61,10 +61,16 @@ export function github(config: OAuthProviderConfig): OAuthProvider {
     async getUserInfo(accessToken: string): Promise<OAuthUserInfo> {
       const [userResponse, emailsResponse] = await Promise.all([
         fetch(USER_URL, {
-          headers: { Authorization: `Bearer ${accessToken}` },
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'User-Agent': 'vertz-auth/1.0',
+          },
         }),
         fetch(EMAILS_URL, {
-          headers: { Authorization: `Bearer ${accessToken}` },
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'User-Agent': 'vertz-auth/1.0',
+          },
         }),
       ]);
 

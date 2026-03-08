@@ -111,5 +111,39 @@ describe('google provider', () => {
       expect(userInfo.name).toBe('Test User');
       expect(userInfo.avatarUrl).toBe('https://example.com/avatar.jpg');
     });
+
+    it('validates nonce when provided', async () => {
+      const payload = {
+        sub: 'google-user-123',
+        email: 'user@gmail.com',
+        email_verified: true,
+        nonce: 'correct-nonce',
+      };
+      const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+      const body = btoa(JSON.stringify(payload));
+      const mockIdToken = `${header}.${body}.fake-signature`;
+
+      const provider = google(config);
+      // Correct nonce should succeed
+      const userInfo = await provider.getUserInfo('access-token', mockIdToken, 'correct-nonce');
+      expect(userInfo.providerId).toBe('google-user-123');
+    });
+
+    it('rejects ID token with mismatched nonce', async () => {
+      const payload = {
+        sub: 'google-user-123',
+        email: 'user@gmail.com',
+        email_verified: true,
+        nonce: 'original-nonce',
+      };
+      const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+      const body = btoa(JSON.stringify(payload));
+      const mockIdToken = `${header}.${body}.fake-signature`;
+
+      const provider = google(config);
+      expect(provider.getUserInfo('access-token', mockIdToken, 'wrong-nonce')).rejects.toThrow(
+        'ID token nonce mismatch',
+      );
+    });
   });
 });

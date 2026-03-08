@@ -41,7 +41,7 @@ function createTestAuth(overrides?: Partial<AuthConfig>): ReturnType<typeof crea
     jwtSecret: 'oauth-test-secret-at-least-32-characters!!',
     isProduction: false,
     oauthEncryptionKey: 'test-oauth-encryption-key-at-least-32!',
-    oauthCallbackUrl: 'http://localhost:3000',
+
     ...overrides,
   });
 }
@@ -400,6 +400,74 @@ describe('OAuth Routes', () => {
       );
 
       expect(callbackResponse.headers.get('Cache-Control')).toContain('no-store');
+    });
+
+    it('with provider error (access_denied) redirects with provider error', async () => {
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      const callbackResponse = await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?error=access_denied&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      expect(callbackResponse.status).toBe(302);
+      const location = callbackResponse.headers.get('Location') ?? '';
+      expect(location).toContain('error=access_denied');
+    });
+
+    it('with empty email from provider redirects to error', async () => {
+      const auth = createTestAuth({
+        providers: [
+          createMockProvider({
+            getUserInfo: async () => ({
+              providerId: 'mock-provider-id-456',
+              email: '',
+              emailVerified: false,
+              name: 'No Email User',
+            }),
+          }),
+        ],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+      });
+
+      const { state, cookie } = await initiateAndGetState(auth);
+
+      const callbackResponse = await auth.handler(
+        new Request(
+          `http://localhost:3000/api/auth/oauth/mock/callback?code=auth-code&state=${state}`,
+          { headers: { cookie } },
+        ),
+      );
+
+      expect(callbackResponse.status).toBe(302);
+      const location = callbackResponse.headers.get('Location') ?? '';
+      expect(location).toContain('error=email_required');
+    });
+  });
+
+  describe('OAuth rate limiting', () => {
+    it('returns 429 after 10 initiations', async () => {
+      const auth = createTestAuth({
+        providers: [createMockProvider()],
+        oauthAccountStore: new InMemoryOAuthAccountStore(),
+      });
+
+      // Make 10 requests (should all succeed)
+      for (let i = 0; i < 10; i++) {
+        const res = await auth.handler(new Request('http://localhost:3000/api/auth/oauth/mock'));
+        expect(res.status).toBe(302);
+      }
+
+      // 11th should be rate limited
+      const res = await auth.handler(new Request('http://localhost:3000/api/auth/oauth/mock'));
+      expect(res.status).toBe(429);
     });
   });
 });
