@@ -17,10 +17,23 @@ import {
   ok,
   type Result,
 } from '@vertz/errors';
-import { buildRefreshCookie, buildSessionCookie, DEFAULT_COOKIE_CONFIG } from './cookies';
-import { sha256Hex } from './crypto';
+import {
+  buildOAuthStateCookie,
+  buildRefreshCookie,
+  buildSessionCookie,
+  DEFAULT_COOKIE_CONFIG,
+} from './cookies';
+import {
+  decrypt,
+  encrypt,
+  generateCodeChallenge,
+  generateCodeVerifier,
+  generateNonce,
+  sha256Hex,
+} from './crypto';
 import { parseDeviceName } from './device-name';
 import { createJWT, parseDuration, verifyJWT } from './jwt';
+import { InMemoryOAuthAccountStore } from './oauth-account-store';
 import { hashPassword, validatePassword, verifyPassword } from './password';
 import { InMemoryRateLimitStore } from './rate-limit-store';
 import { InMemorySessionStore } from './session-store';
@@ -29,6 +42,8 @@ import type {
   AuthConfig,
   AuthInstance,
   AuthUser,
+  OAuthProvider,
+  OAuthStateData,
   Session,
   SessionInfo,
   SessionPayload,
@@ -115,6 +130,19 @@ export function createAuth(config: AuthConfig): AuthInstance {
   // Stores — use provided or create defaults
   const sessionStore = config.sessionStore ?? new InMemorySessionStore();
   const userStore = config.userStore ?? new InMemoryUserStore();
+
+  // OAuth setup
+  const providers = new Map<string, OAuthProvider>();
+  if (config.providers) {
+    for (const provider of config.providers) {
+      providers.set(provider.id, provider);
+    }
+  }
+  const oauthAccountStore =
+    config.oauthAccountStore ?? (providers.size > 0 ? new InMemoryOAuthAccountStore() : undefined);
+  const oauthEncryptionKey = config.oauthEncryptionKey;
+  const oauthSuccessRedirect = config.oauthSuccessRedirect ?? '/';
+  const oauthErrorRedirect = config.oauthErrorRedirect ?? '/auth/error';
 
   // Rate limiting
   const rateLimitStore = config.rateLimitStore ?? new InMemoryRateLimitStore();
@@ -819,6 +847,235 @@ export function createAuth(config: AuthConfig): AuthInstance {
           status: 200,
           headers: { 'Content-Type': 'application/json', ...securityHeaders() },
         });
+      }
+
+      // =================================================================
+      // OAuth Routes
+      // =================================================================
+
+      // Route: GET /api/auth/oauth/:provider
+      if (method === 'GET' && path.startsWith('/oauth/') && !path.includes('/callback')) {
+        const providerId = path.replace('/oauth/', '');
+        const provider = providers.get(providerId);
+
+        if (!provider) {
+          return new Response(JSON.stringify({ error: 'Provider not found' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        if (!oauthEncryptionKey) {
+          return new Response(JSON.stringify({ error: 'OAuth not configured' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const codeVerifier = generateCodeVerifier();
+        const codeChallenge = await generateCodeChallenge(codeVerifier);
+        const state = generateNonce();
+        const nonce = generateNonce();
+
+        const stateData: OAuthStateData = {
+          provider: providerId,
+          state,
+          codeVerifier,
+          nonce,
+          expiresAt: Date.now() + 300_000, // 5 minutes
+        };
+
+        const encryptedState = await encrypt(JSON.stringify(stateData), oauthEncryptionKey);
+        const authUrl = provider.getAuthorizationUrl(state, codeChallenge, nonce);
+
+        const headers = new Headers({
+          Location: authUrl,
+          ...securityHeaders(),
+        });
+        headers.append('Set-Cookie', buildOAuthStateCookie(encryptedState, cookieConfig));
+
+        return new Response(null, { status: 302, headers });
+      }
+
+      // Route: GET /api/auth/oauth/:provider/callback
+      if (method === 'GET' && path.includes('/oauth/') && path.endsWith('/callback')) {
+        const providerId = path.replace('/oauth/', '').replace('/callback', '');
+        const provider = providers.get(providerId);
+
+        const errorRedirect = oauthErrorRedirect;
+
+        if (!provider || !oauthEncryptionKey || !oauthAccountStore) {
+          return new Response(null, {
+            status: 302,
+            headers: {
+              Location: `${errorRedirect}?error=provider_not_configured`,
+              ...securityHeaders(),
+            },
+          });
+        }
+
+        // Read and decrypt OAuth state cookie
+        const oauthCookieEntry = request.headers
+          .get('cookie')
+          ?.split(';')
+          .find((c) => c.trim().startsWith('vertz.oauth='));
+        const encryptedState = oauthCookieEntry
+          ? oauthCookieEntry.trim().slice('vertz.oauth='.length)
+          : undefined;
+
+        if (!encryptedState) {
+          return new Response(null, {
+            status: 302,
+            headers: {
+              Location: `${errorRedirect}?error=invalid_state`,
+              ...securityHeaders(),
+            },
+          });
+        }
+
+        const decryptedState = await decrypt(encryptedState, oauthEncryptionKey);
+        if (!decryptedState) {
+          return new Response(null, {
+            status: 302,
+            headers: {
+              Location: `${errorRedirect}?error=invalid_state`,
+              ...securityHeaders(),
+            },
+          });
+        }
+
+        const stateData = JSON.parse(decryptedState) as OAuthStateData;
+        const queryState = url.searchParams.get('state');
+        const code = url.searchParams.get('code');
+
+        // Validate state
+        if (stateData.state !== queryState || stateData.provider !== providerId) {
+          const headers = new Headers({
+            Location: `${errorRedirect}?error=invalid_state`,
+            ...securityHeaders(),
+          });
+          headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
+          return new Response(null, { status: 302, headers });
+        }
+
+        // Validate expiration
+        if (stateData.expiresAt < Date.now()) {
+          const headers = new Headers({
+            Location: `${errorRedirect}?error=invalid_state`,
+            ...securityHeaders(),
+          });
+          headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
+          return new Response(null, { status: 302, headers });
+        }
+
+        try {
+          // Exchange code for tokens
+          const tokens = await provider.exchangeCode(code ?? '', stateData.codeVerifier);
+
+          // Get user info
+          const userInfo = await provider.getUserInfo(tokens.accessToken, tokens.idToken);
+
+          // Clear OAuth state cookie
+          const responseHeaders = new Headers({
+            Location: oauthSuccessRedirect,
+            ...securityHeaders(),
+          });
+          responseHeaders.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
+
+          // Account linking logic
+          let userId: string | null = null;
+
+          // 1. Check existing OAuth link
+          userId = await oauthAccountStore.findByProviderAccount(provider.id, userInfo.providerId);
+
+          if (!userId) {
+            // 2. Trusted provider + verified email → auto-link
+            if (provider.trustEmail && userInfo.emailVerified) {
+              const existingUser = await userStore.findByEmail(userInfo.email.toLowerCase());
+              if (existingUser) {
+                userId = existingUser.user.id;
+                await oauthAccountStore.linkAccount(
+                  userId,
+                  provider.id,
+                  userInfo.providerId,
+                  userInfo.email,
+                );
+              }
+            }
+
+            // 3. Create new user
+            if (!userId) {
+              const now = new Date();
+              const newUser: AuthUser = {
+                id: crypto.randomUUID(),
+                email: userInfo.email.toLowerCase(),
+                role: 'user',
+                createdAt: now,
+                updatedAt: now,
+              };
+              await userStore.createUser(newUser, null);
+              userId = newUser.id;
+              await oauthAccountStore.linkAccount(
+                userId,
+                provider.id,
+                userInfo.providerId,
+                userInfo.email,
+              );
+            }
+          }
+
+          // Get user from store
+          const user = await userStore.findById(userId);
+          if (!user) {
+            return new Response(null, {
+              status: 302,
+              headers: {
+                Location: `${errorRedirect}?error=user_info_failed`,
+                ...securityHeaders(),
+              },
+            });
+          }
+
+          // Create session (same flow as email/password)
+          const sessionId = crypto.randomUUID();
+          const sessionTokens = await createSessionTokens(user, sessionId);
+          const refreshTokenHash = await sha256Hex(sessionTokens.refreshToken);
+
+          const ipAddress =
+            request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+            request.headers.get('x-real-ip') ??
+            '';
+          const userAgent = request.headers.get('user-agent') ?? '';
+
+          await sessionStore.createSessionWithId(sessionId, {
+            userId: user.id,
+            refreshTokenHash,
+            ipAddress,
+            userAgent,
+            expiresAt: new Date(Date.now() + refreshTtlMs),
+            currentTokens: { jwt: sessionTokens.jwt, refreshToken: sessionTokens.refreshToken },
+          });
+
+          responseHeaders.append('Set-Cookie', buildSessionCookie(sessionTokens.jwt, cookieConfig));
+          responseHeaders.append(
+            'Set-Cookie',
+            buildRefreshCookie(
+              sessionTokens.refreshToken,
+              cookieConfig,
+              refreshName,
+              refreshMaxAge,
+            ),
+          );
+
+          return new Response(null, { status: 302, headers: responseHeaders });
+        } catch {
+          const headers = new Headers({
+            Location: `${errorRedirect}?error=token_exchange_failed`,
+            ...securityHeaders(),
+          });
+          headers.append('Set-Cookie', buildOAuthStateCookie('', cookieConfig, true));
+          return new Response(null, { status: 302, headers });
+        }
       }
 
       return new Response(JSON.stringify({ error: 'Not found' }), {
