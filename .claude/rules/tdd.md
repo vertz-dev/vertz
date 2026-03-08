@@ -54,6 +54,13 @@ After GREEN, run `bun run typecheck` — `@ts-expect-error` only verifies interf
 - **Don't rely solely on intermediate variables** — `const data = tasks.data; <div>{data}</div>` doesn't exercise MagicString interaction. Add: `<div>{tasks.data}</div>`
 - **Test multi-transform interactions** — isolated transform tests don't catch interaction bugs
 
+## Code Coverage
+
+- **Target: 90%+ line coverage for every source file.** Run `bun test --coverage` to verify.
+- Before pushing, check that all changed source files meet the 90% threshold.
+- If a file drops below 90%, add tests for uncovered branches before merging.
+- Coverage is measured per-file, not per-package — no file gets a free pass because the aggregate is high.
+
 ## Never Skip Quality Gates
 
 - Never skip linting rules — fix the code, not the rule
