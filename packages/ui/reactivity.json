@@ -39,6 +39,22 @@
         "type": "signal"
       }
     },
+    "useAuth": {
+      "kind": "function",
+      "reactivity": {
+        "plainProperties": [
+          "signIn",
+          "signUp",
+          "signOut",
+          "refresh",
+          "mfaChallenge",
+          "forgotPassword",
+          "resetPassword"
+        ],
+        "signalProperties": ["user", "status", "isAuthenticated", "isLoading", "error"],
+        "type": "signal-api"
+      }
+    },
     "useContext": {
       "kind": "function",
       "reactivity": {
