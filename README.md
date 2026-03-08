@@ -200,7 +200,7 @@ Pre-release. APIs will change. The architecture and philosophy are stable. We're
 - [Vision](./VISION.md) — the 8 principles behind every decision
 - [Manifesto](./MANIFESTO.md) — what we believe and why
 - [Design docs](./plans/) — how features are planned before they're built
-- [@viniciusdacal](https://x.com/viniciusdacal) on X — build-in-public updates
+- [@vinicius_dacal](https://x.com/vinicius_dacal) on X — build-in-public updates
 - [@matheeuspoleza](https://x.com/matheeuspoleza) on X — build-in-public updates
 
 ## Contributing
