@@ -1151,8 +1151,10 @@ export type {
 } from './access';
 // Re-export access control from auth/access.ts
 export { AuthorizationError, createAccess, defaultAccess } from './access';
+export { InMemoryOAuthAccountStore } from './oauth-account-store';
+// Re-export provider factories
+export { discord, github, google } from './providers';
 export { InMemoryRateLimitStore } from './rate-limit-store';
-
 // Re-export store implementations
 export { InMemorySessionStore } from './session-store';
 // Re-export types from types.ts
@@ -1165,6 +1167,11 @@ export type {
   AuthUser,
   CookieConfig,
   EmailPasswordConfig,
+  OAuthAccountStore,
+  OAuthProvider,
+  OAuthProviderConfig,
+  OAuthTokens,
+  OAuthUserInfo,
   PasswordRequirements,
   RateLimitConfig,
   RateLimitResult,
