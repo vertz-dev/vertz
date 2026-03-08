@@ -76,14 +76,6 @@ export function installDomShim(): void {
   // Also install the SSR adapter for backward compat
   setAdapter(createSSRAdapter());
 
-  // In a real browser, the document will have a proper doctype and won't be Happy-DOM
-  // Check if we're inside an SSR render context (AsyncLocalStorage.run)
-  const isSSRContext = ssrStorage.getStore() !== undefined;
-
-  if (typeof document !== 'undefined' && !isSSRContext && !shimInstalled) {
-    return; // Already in a real browser, don't override
-  }
-
   // Save existing globals so removeDomShim() can restore them
   // (prevents wiping happydom or other DOM environments in single-process test runners)
   // Only save on first install — re-installs should keep the original pre-shim state.
