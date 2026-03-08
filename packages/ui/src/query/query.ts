@@ -14,6 +14,7 @@ import { getEntityStore, getQueryEnvelopeStore } from '../store/entity-store-sin
 import { getMutationEventBus } from '../store/mutation-event-bus-singleton';
 import type { QueryEnvelope } from '../store/query-envelope-store';
 import { type CacheStore, MemoryCache } from './cache';
+import { registerActiveQuery } from './invalidate';
 import { deriveKey, hashString } from './key-derivation';
 import { hydrateQueryFromSSR } from './ssr-hydration';
 
@@ -694,6 +695,8 @@ export function query<T, E = unknown>(
     disposeFn?.();
     // Unsubscribe from mutation event bus.
     unsubscribeBus?.();
+    // Unregister from active query registry (invalidate() lookups).
+    unregisterFromRegistry?.();
     // Clean up SSR hydration listener if still active.
     ssrHydrationCleanup?.();
     // Clear any pending debounce or interval timer.
@@ -720,8 +723,10 @@ export function query<T, E = unknown>(
   // Skip during SSR — mutations don't fire server-side, and subscriptions
   // would leak until the bus is reset between requests.
   let unsubscribeBus: (() => void) | undefined;
+  let unregisterFromRegistry: (() => void) | undefined;
   if (entityMeta && enabled && !isSSR()) {
     unsubscribeBus = getMutationEventBus().subscribe(entityMeta.entityType, refetch);
+    unregisterFromRegistry = registerActiveQuery(entityMeta, refetch);
   }
 
   // Auto-register disposal with the current scope (component/page/app).
