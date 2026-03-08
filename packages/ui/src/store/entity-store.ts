@@ -18,6 +18,10 @@ interface EntityEntry {
   base: Record<string, unknown>;
   /** Optimistic layers keyed by mutation ID. Inserted order preserved by Map. */
   layers: Map<string, Record<string, unknown>>;
+  /** Number of active queries referencing this entity. */
+  refCount: number;
+  /** Timestamp when refCount dropped to 0, or null if still referenced. */
+  orphanedAt: number | null;
 }
 
 /**
@@ -60,6 +64,8 @@ export class EntityStore {
       signal: sig,
       base: {},
       layers: new Map(),
+      refCount: 0,
+      orphanedAt: null,
     };
     this._getOrCreateTypeMap(type).set(id, newEntry);
     return sig as ReadonlySignal<T | undefined>;
@@ -243,8 +249,64 @@ export class EntityStore {
   }
 
   /**
+   * Increment the reference count for an entity.
+   * Clears orphanedAt timestamp. No-op if entity doesn't exist.
+   */
+  addRef(type: string, id: string): void {
+    const entry = this._entities.get(type)?.get(id);
+    if (!entry) return;
+
+    entry.refCount++;
+    entry.orphanedAt = null;
+  }
+
+  /**
+   * Decrement the reference count for an entity.
+   * Sets orphanedAt when refCount reaches 0. No-op if entity doesn't exist.
+   */
+  removeRef(type: string, id: string): void {
+    const entry = this._entities.get(type)?.get(id);
+    if (!entry) return;
+
+    if (entry.refCount > 0) {
+      entry.refCount--;
+    }
+    if (entry.refCount === 0) {
+      entry.orphanedAt = Date.now();
+    }
+  }
+
+  /**
+   * Evict orphaned entities (refCount=0) that have been unreferenced
+   * for longer than maxAge ms. Entities with pending layers are preserved.
+   * Default maxAge: 5 minutes.
+   */
+  evictOrphans(maxAge = 300_000): number {
+    const now = Date.now();
+    let count = 0;
+
+    for (const [_type, typeMap] of this._entities) {
+      for (const [id, entry] of typeMap) {
+        if (
+          entry.refCount === 0 &&
+          entry.orphanedAt !== null &&
+          now - entry.orphanedAt >= maxAge &&
+          entry.layers.size === 0
+        ) {
+          entry.signal.value = undefined;
+          typeMap.delete(id);
+          this._queryIndices.removeEntity(id);
+          count++;
+        }
+      }
+    }
+
+    return count;
+  }
+
+  /**
    * Inspect the internal state of an entity — for debugging and testing.
-   * Returns base, layers, and visible (computed) state.
+   * Returns base, layers, visible (computed) state, refCount, and orphanedAt.
    */
   inspect(
     type: string,
@@ -254,6 +316,8 @@ export class EntityStore {
         base: Record<string, unknown>;
         layers: Map<string, Record<string, unknown>>;
         visible: unknown;
+        refCount: number;
+        orphanedAt: number | null;
       }
     | undefined {
     const entry = this._entities.get(type)?.get(id);
@@ -263,6 +327,8 @@ export class EntityStore {
       base: entry.base,
       layers: entry.layers,
       visible: entry.signal.peek(),
+      refCount: entry.refCount,
+      orphanedAt: entry.orphanedAt,
     };
   }
 
@@ -355,6 +421,8 @@ export class EntityStore {
         signal: newSignal,
         base: item,
         layers: new Map(),
+        refCount: 0,
+        orphanedAt: null,
       };
       this._getOrCreateTypeMap(type).set(id, newEntry);
       this._notifyTypeChange(type);
