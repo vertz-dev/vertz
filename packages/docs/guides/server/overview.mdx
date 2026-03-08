@@ -26,6 +26,7 @@ description: "vertz/server — entity-driven backend with auto-generated CRUD, a
 | **Entities** | Declarative data models with CRUD, access rules, hooks, and custom actions |
 | **Services** | Standalone operations not tied to a single entity |
 | **Access control** | Deny-by-default, per-operation access rules with row-level checks |
+| **Environment** | Validated, typed, frozen config via `createEnv()` |
 | **Middleware** | Request pipeline with typed context propagation |
 | **SDK generation** | Auto-generated typed client from entity definitions |
 
@@ -98,5 +99,8 @@ Types flow from your schema definition through the server, into the generated SD
   </Card>
   <Card title="Services" icon="bolt" href="/guides/server/services">
     Standalone operations and cross-entity workflows.
+  </Card>
+  <Card title="Environment" icon="lock" href="/guides/env">
+    Validate and type-check env variables with `createEnv()`.
   </Card>
 </CardGroup>

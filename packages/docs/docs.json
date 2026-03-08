@@ -71,7 +71,8 @@
             "pages": [
               "guides/server/overview",
               "guides/server/entities",
-              "guides/server/services"
+              "guides/server/services",
+              "guides/env"
             ]
           },
           {

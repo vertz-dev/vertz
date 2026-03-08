@@ -52,18 +52,25 @@ Vertz is a TypeScript stack that covers database, API, and UI. Define your schem
   <Tab title="Server">
     ```typescript
     import { createDb } from 'vertz/db';
-    import { createServer } from 'vertz/server';
+    import { createEnv, createServer } from 'vertz/server';
+    import { s } from 'vertz/schema';
     import { todosModel } from './schema';
     import { todos } from './entities/todos';
 
+    const env = createEnv({
+      schema: s.object({
+        PORT: s.coerce.number().default(3000),
+        DATABASE_URL: s.string(),
+      }),
+    });
+
     const db = createDb({
-      url: process.env.DATABASE_URL!,
+      url: env.DATABASE_URL,
       models: { todos: todosModel },
     });
 
-    createServer({ entities: [todos], db }).listen(3000);
+    createServer({ entities: [todos], db }).listen(env.PORT);
     // POST /api/todos, GET /api/todos, GET /api/todos/:id — done.
-    // OpenAPI spec at /api/openapi.json — auto-generated.
     ```
   </Tab>
   <Tab title="UI">
@@ -110,7 +117,7 @@ Vertz is a TypeScript stack that covers database, API, and UI. Define your schem
 |-------|------|---------|
 | **Schema** | 40+ column types, runtime validation, JSON Schema output | `vertz/schema` |
 | **Database** | Typed queries, migrations, PostgreSQL + SQLite + D1 | `vertz/db` |
-| **Server** | Entity CRUD, services, access control, CORS, env validation | `vertz/server` |
+| **Server** | Entity CRUD, services, access control, CORS, `createEnv()` | `vertz/server` |
 | **UI** | Compiled signals, JSX, router, `query()`, `form()`, scoped CSS, SSR | `vertz/ui` |
 | **Primitives** | Headless a11y components — Dialog, Select, Tabs, Menu | `vertz/ui-primitives` |
 | **Tooling** | Dev server, build, codegen, static analysis | `vertz` (CLI) |

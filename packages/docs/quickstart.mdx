@@ -34,6 +34,7 @@ The scaffolded project is a full-stack app:
 my-app/
   src/
     api/
+      env.ts               # Validated environment variables
       schema.ts            # Table + model definition
       db.ts                # SQLite with auto-migrations
       server.ts            # API server
@@ -46,6 +47,7 @@ my-app/
     app.tsx                # App shell with SSR exports
     client.ts              # Typed API client
     entry-client.ts        # Client-side mount + HMR
+  .env                     # Environment variables
   vertz.config.ts
   tsconfig.json
   package.json

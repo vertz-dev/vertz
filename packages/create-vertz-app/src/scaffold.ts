@@ -8,6 +8,7 @@ import {
   dbTemplate,
   entryClientTemplate,
   envExampleTemplate,
+  envModuleTemplate,
   envTemplate,
   gitignoreTemplate,
   homePageTemplate,
@@ -77,6 +78,7 @@ export async function scaffold(parentDir: string, options: ScaffoldOptions): Pro
     writeFile(projectDir, 'bun-plugin-shim.ts', bunPluginShimTemplate()),
 
     // API source files
+    writeFile(apiDir, 'env.ts', envModuleTemplate()),
     writeFile(apiDir, 'server.ts', serverTemplate()),
     writeFile(apiDir, 'schema.ts', schemaTemplate()),
     writeFile(apiDir, 'db.ts', dbTemplate()),

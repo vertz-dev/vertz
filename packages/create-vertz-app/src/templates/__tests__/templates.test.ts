@@ -7,6 +7,7 @@ import {
   dbTemplate,
   entryClientTemplate,
   envExampleTemplate,
+  envModuleTemplate,
   envTemplate,
   gitignoreTemplate,
   homePageTemplate,
@@ -148,11 +149,39 @@ describe('templates', () => {
     });
   });
 
+  describe('envModuleTemplate', () => {
+    it('uses createEnv from @vertz/server', () => {
+      const result = envModuleTemplate();
+      expect(result).toContain("from '@vertz/server'");
+      expect(result).toContain('createEnv');
+    });
+
+    it('defines a schema with PORT and DATABASE_URL', () => {
+      const result = envModuleTemplate();
+      expect(result).toContain('PORT');
+      expect(result).toContain('DATABASE_URL');
+    });
+
+    it('exports env as a named export', () => {
+      expect(envModuleTemplate()).toContain('export const env');
+    });
+  });
+
   describe('serverTemplate', () => {
     it('uses createServer from @vertz/server', () => {
       const result = serverTemplate();
       expect(result).toContain("from '@vertz/server'");
       expect(result).toContain('createServer');
+    });
+
+    it('imports env from ./env', () => {
+      expect(serverTemplate()).toContain("from './env'");
+    });
+
+    it('uses env.PORT instead of process.env', () => {
+      const result = serverTemplate();
+      expect(result).toContain('env.PORT');
+      expect(result).not.toContain('process.env');
     });
 
     it('exports default app', () => {
@@ -254,6 +283,7 @@ describe('templates', () => {
         vertzConfigTemplate,
         envTemplate,
         envExampleTemplate,
+        envModuleTemplate,
         gitignoreTemplate,
         bunfigTemplate,
         bunPluginShimTemplate,
