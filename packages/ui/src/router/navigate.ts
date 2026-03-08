@@ -104,14 +104,44 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   // This avoids shared signal corruption across concurrent SSR renders,
   // and prevents crashes when createRouter() is called in Bun tests
   // without an active SSR context.
+  //
+  // The current/searchParams use SSR-aware getters so that module-level
+  // routers (created once at import time) return per-request route matches
+  // when accessed inside ssrStorage.run() during SSR rendering.
   if (isSSR || typeof window === 'undefined') {
     const ssrUrl = initialUrl ?? ssrCtx?.url ?? '/';
-    const match = matchRoute(routes, ssrUrl);
+    const fallbackMatch = matchRoute(routes, ssrUrl);
     return {
-      current: { value: match, peek: () => match, notify() {} } as Signal<RouteMatch | null>,
+      current: {
+        get value(): RouteMatch | null {
+          const ctx = getSSRContext();
+          if (ctx) return matchRoute(routes, ctx.url);
+          return fallbackMatch;
+        },
+        peek(): RouteMatch | null {
+          const ctx = getSSRContext();
+          if (ctx) return matchRoute(routes, ctx.url);
+          return fallbackMatch;
+        },
+        notify() {},
+      } as Signal<RouteMatch | null>,
       searchParams: {
-        value: match?.search ?? {},
-        peek: () => match?.search ?? {},
+        get value(): Record<string, unknown> {
+          const ctx = getSSRContext();
+          if (ctx) {
+            const m = matchRoute(routes, ctx.url);
+            return m?.search ?? {};
+          }
+          return fallbackMatch?.search ?? {};
+        },
+        peek(): Record<string, unknown> {
+          const ctx = getSSRContext();
+          if (ctx) {
+            const m = matchRoute(routes, ctx.url);
+            return m?.search ?? {};
+          }
+          return fallbackMatch?.search ?? {};
+        },
         notify() {},
       } as Signal<Record<string, unknown>>,
       loaderData: { value: [], peek: () => [], notify() {} } as Signal<unknown[]>,
@@ -144,10 +174,56 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   const visitedUrls = new Set<string>();
   if (initialMatch) visitedUrls.add(normalizeUrl(url));
 
-  const current = signal<RouteMatch | null>(initialMatch);
+  const _current = signal<RouteMatch | null>(initialMatch);
   const loaderData = signal<unknown[]>([]);
   const loaderError = signal<Error | null>(null);
-  const searchParams = signal<Record<string, unknown>>(initialMatch?.search ?? {});
+  const _searchParams = signal<Record<string, unknown>>(initialMatch?.search ?? {});
+
+  // SSR-aware proxies: module-level routers created outside SSR context
+  // need to return the per-request URL match when accessed during SSR.
+  // In the browser, these just delegate to the underlying signals.
+  const current = {
+    get value(): RouteMatch | null {
+      const ctx = getSSRContext();
+      if (ctx) return matchRoute(routes, ctx.url);
+      return _current.value;
+    },
+    set value(v: RouteMatch | null) {
+      _current.value = v;
+    },
+    peek(): RouteMatch | null {
+      const ctx = getSSRContext();
+      if (ctx) return matchRoute(routes, ctx.url);
+      return _current.peek();
+    },
+    notify() {
+      _current.notify();
+    },
+  } as Signal<RouteMatch | null>;
+  const searchParams = {
+    get value(): Record<string, unknown> {
+      const ctx = getSSRContext();
+      if (ctx) {
+        const match = matchRoute(routes, ctx.url);
+        return match?.search ?? {};
+      }
+      return _searchParams.value;
+    },
+    set value(v: Record<string, unknown>) {
+      _searchParams.value = v;
+    },
+    peek(): Record<string, unknown> {
+      const ctx = getSSRContext();
+      if (ctx) {
+        const match = matchRoute(routes, ctx.url);
+        return match?.search ?? {};
+      }
+      return _searchParams.peek();
+    },
+    notify() {
+      _searchParams.notify();
+    },
+  } as Signal<Record<string, unknown>>;
 
   /** Navigation generation counter for stale-loader detection (inside applyNavigation). */
   let navigationGen = 0;

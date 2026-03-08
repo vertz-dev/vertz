@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import { onMount } from '../../component/lifecycle';
 import { __element, __enterChildren, __exitChildren } from '../../dom/element';
 import { endHydration, startHydration } from '../../hydrate/hydration-context';
-import { disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
+import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { defineRoutes } from '../define-routes';
 import { createRouter } from '../navigate';
 import { Outlet } from '../outlet';
@@ -801,7 +801,7 @@ describe('RouterView', () => {
   });
 
   test('SSR renders nested route content in single pass', () => {
-    enableTestSSR();
+    enableTestSSR(createTestSSRContext('/dashboard/settings'));
     try {
       const routes = defineRoutes({
         '/dashboard': {
