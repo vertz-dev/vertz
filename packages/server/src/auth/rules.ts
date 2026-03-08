@@ -63,7 +63,7 @@ export interface UserMarker {
 const userMarkers = {
   id: Object.freeze({ __marker: 'user.id' }) as UserMarker,
   tenantId: Object.freeze({ __marker: 'user.tenantId' }) as UserMarker,
-} as const;
+};
 
 // ============================================================================
 // rules.* builders
@@ -106,5 +106,5 @@ export const rules = {
   },
 
   /** Declarative user markers — resolved at evaluation time */
-  user: userMarkers,
-} as const;
+  user: userMarkers as { readonly id: UserMarker; readonly tenantId: UserMarker },
+};
