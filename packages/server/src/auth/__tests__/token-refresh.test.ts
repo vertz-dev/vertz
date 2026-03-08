@@ -125,6 +125,54 @@ describe('Token Refresh', () => {
     );
     expect(res.status).toBe(401);
   });
+
+  it('expired session returns 401 on refresh', async () => {
+    // Create auth with very short refresh TTL
+    const shortAuth = createTestAuth({
+      session: { strategy: 'jwt', ttl: '60s', refreshTtl: '1s' },
+    });
+
+    const signUpResult = await shortAuth.api.signUp({
+      email: 'expired-refresh@test.com',
+      password: 'password123',
+    });
+    expect(signUpResult.ok).toBe(true);
+    if (!signUpResult.ok) return;
+
+    // Wait for refresh token to expire
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    const refreshResult = await shortAuth.api.refreshSession({
+      headers: new Headers({
+        cookie: `vertz.ref=${signUpResult.data.tokens?.refreshToken}`,
+      }),
+      request: new Request('http://localhost/api/auth/refresh'),
+    });
+    expect(refreshResult.ok).toBe(false);
+  });
+
+  it('refresh loads fresh user data', async () => {
+    const signUpResult = await auth.api.signUp({
+      email: 'freshdata@test.com',
+      password: 'password123',
+    });
+    expect(signUpResult.ok).toBe(true);
+    if (!signUpResult.ok) return;
+
+    // Refresh should return user data
+    const refreshResult = await auth.api.refreshSession({
+      headers: new Headers({
+        cookie: `vertz.ref=${signUpResult.data.tokens?.refreshToken}`,
+      }),
+      request: new Request('http://localhost/api/auth/refresh'),
+    });
+    expect(refreshResult.ok).toBe(true);
+    if (!refreshResult.ok) return;
+
+    // User data should be present and match original
+    expect(refreshResult.data.user.email).toBe('freshdata@test.com');
+    expect(refreshResult.data.user.id).toBe(signUpResult.data.user.id);
+  });
 });
 
 describe('Sign Out', () => {

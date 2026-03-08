@@ -64,6 +64,17 @@ export interface SessionStore {
     userAgent: string;
     expiresAt: Date;
   }): Promise<StoredSession>;
+  createSessionWithId(
+    id: string,
+    data: {
+      userId: string;
+      refreshTokenHash: string;
+      ipAddress: string;
+      userAgent: string;
+      expiresAt: Date;
+      currentTokens?: AuthTokens;
+    },
+  ): Promise<StoredSession>;
   findByRefreshHash(hash: string): Promise<StoredSession | null>;
   findByPreviousRefreshHash(hash: string): Promise<StoredSession | null>;
   revokeSession(id: string): Promise<void>;
@@ -225,9 +236,11 @@ export interface AuthInstance {
   /** Server-side API */
   api: AuthApi;
   /** Session middleware that injects ctx.user */
-  middleware: () => any;
+  middleware: () => (ctx: Record<string, unknown>, next: () => Promise<void>) => Promise<void>;
   /** Initialize auth (create tables, etc.) */
   initialize: () => Promise<void>;
+  /** Dispose stores and cleanup intervals */
+  dispose: () => void;
 }
 
 // ============================================================================

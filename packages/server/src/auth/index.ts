@@ -176,11 +176,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       return err(passwordError);
     }
 
-    const existing = await userStore.findByEmail(email.toLowerCase());
-    if (existing) {
-      return err(createUserExistsError('User already exists', email.toLowerCase()));
-    }
-
+    // Rate limit check BEFORE user lookup to prevent email enumeration via timing
     const signUpRateLimit = rateLimitStore.check(
       `signup:${email.toLowerCase()}`,
       emailPassword?.rateLimit?.maxAttempts || 3,
@@ -190,23 +186,35 @@ export function createAuth(config: AuthConfig): AuthInstance {
       return err(createAuthRateLimitedError('Too many sign up attempts'));
     }
 
+    const existing = await userStore.findByEmail(email.toLowerCase());
+    if (existing) {
+      return err(createUserExistsError('User already exists', email.toLowerCase()));
+    }
+
     const passwordHash = await hashPassword(password);
 
     const now = new Date();
+    // Spread additionalFields first so core fields cannot be overridden
+    const {
+      id: _id,
+      createdAt: _c,
+      updatedAt: _u,
+      ...safeFields
+    } = additionalFields as Record<string, unknown>;
     const user: AuthUser = {
+      ...safeFields,
       id: crypto.randomUUID(),
       email: email.toLowerCase(),
       role,
       createdAt: now,
       updatedAt: now,
-      ...additionalFields,
     };
 
     await userStore.createUser(user, passwordHash);
 
-    // Create session with dual tokens
-    const tempId = crypto.randomUUID();
-    const tokens = await createSessionTokens(user, tempId);
+    // Pre-generate session ID so tokens are created once with the correct sid
+    const sessionId = crypto.randomUUID();
+    const tokens = await createSessionTokens(user, sessionId);
     const refreshTokenHash = await sha256Hex(tokens.refreshToken);
 
     const ipAddress =
@@ -215,29 +223,20 @@ export function createAuth(config: AuthConfig): AuthInstance {
       '';
     const userAgent = ctx?.headers.get('user-agent') ?? '';
 
-    const storedSession = await sessionStore.createSession({
+    await sessionStore.createSessionWithId(sessionId, {
       userId: user.id,
       refreshTokenHash,
       ipAddress,
       userAgent,
       expiresAt: new Date(Date.now() + refreshTtlMs),
-    });
-
-    // Re-create tokens with actual session ID
-    const finalTokens = await createSessionTokens(user, storedSession.id);
-    const finalRefreshHash = await sha256Hex(finalTokens.refreshToken);
-    await sessionStore.updateSession(storedSession.id, {
-      refreshTokenHash: finalRefreshHash,
-      previousRefreshHash: '',
-      lastActiveAt: new Date(),
-      currentTokens: { jwt: finalTokens.jwt, refreshToken: finalTokens.refreshToken },
+      currentTokens: { jwt: tokens.jwt, refreshToken: tokens.refreshToken },
     });
 
     return ok({
       user,
-      expiresAt: finalTokens.expiresAt,
-      payload: finalTokens.payload,
-      tokens: { jwt: finalTokens.jwt, refreshToken: finalTokens.refreshToken },
+      expiresAt: tokens.expiresAt,
+      payload: tokens.payload,
+      tokens: { jwt: tokens.jwt, refreshToken: tokens.refreshToken },
     });
   }
 
@@ -251,11 +250,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
   ): Promise<Result<Session, AuthError>> {
     const { email, password } = data;
 
-    const stored = await userStore.findByEmail(email.toLowerCase());
-    if (!stored) {
-      return err(createInvalidCredentialsError());
-    }
-
+    // Rate limit check BEFORE user lookup to prevent email enumeration via timing
     const signInRateLimit = rateLimitStore.check(
       `signin:${email.toLowerCase()}`,
       emailPassword?.rateLimit?.maxAttempts || 5,
@@ -265,6 +260,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
       return err(createAuthRateLimitedError('Too many sign in attempts'));
     }
 
+    const stored = await userStore.findByEmail(email.toLowerCase());
+    if (!stored) {
+      return err(createInvalidCredentialsError());
+    }
+
     const valid = await verifyPassword(password, stored.passwordHash);
     if (!valid) {
       return err(createInvalidCredentialsError());
@@ -272,9 +272,9 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
     const user = buildAuthUser(stored);
 
-    // Create session with dual tokens
-    const tempId = crypto.randomUUID();
-    const tokens = await createSessionTokens(user, tempId);
+    // Pre-generate session ID so tokens are created once with the correct sid
+    const sessionId = crypto.randomUUID();
+    const tokens = await createSessionTokens(user, sessionId);
     const refreshTokenHash = await sha256Hex(tokens.refreshToken);
 
     const ipAddress =
@@ -283,29 +283,20 @@ export function createAuth(config: AuthConfig): AuthInstance {
       '';
     const userAgent = ctx?.headers.get('user-agent') ?? '';
 
-    const storedSession = await sessionStore.createSession({
+    await sessionStore.createSessionWithId(sessionId, {
       userId: user.id,
       refreshTokenHash,
       ipAddress,
       userAgent,
       expiresAt: new Date(Date.now() + refreshTtlMs),
-    });
-
-    // Re-create tokens with actual session ID
-    const finalTokens = await createSessionTokens(user, storedSession.id);
-    const finalRefreshHash = await sha256Hex(finalTokens.refreshToken);
-    await sessionStore.updateSession(storedSession.id, {
-      refreshTokenHash: finalRefreshHash,
-      previousRefreshHash: '',
-      lastActiveAt: new Date(),
-      currentTokens: { jwt: finalTokens.jwt, refreshToken: finalTokens.refreshToken },
+      currentTokens: { jwt: tokens.jwt, refreshToken: tokens.refreshToken },
     });
 
     return ok({
       user,
-      expiresAt: finalTokens.expiresAt,
-      payload: finalTokens.payload,
-      tokens: { jwt: finalTokens.jwt, refreshToken: finalTokens.refreshToken },
+      expiresAt: tokens.expiresAt,
+      payload: tokens.payload,
+      tokens: { jwt: tokens.jwt, refreshToken: tokens.refreshToken },
     });
   }
 
@@ -328,11 +319,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
   async function getSession(headers: Headers): Promise<Result<Session | null, AuthError>> {
     const cookieName = cookieConfig.name || 'vertz.sid';
-    const token = headers
+    const cookieEntry = headers
       .get('cookie')
       ?.split(';')
-      .find((c) => c.trim().startsWith(`${cookieName}=`))
-      ?.split('=')[1];
+      .find((c) => c.trim().startsWith(`${cookieName}=`));
+    const token = cookieEntry ? cookieEntry.trim().slice(`${cookieName}=`.length) : undefined;
 
     if (!token) {
       return ok(null);
@@ -362,7 +353,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
   async function refreshSession(ctx: { headers: Headers }): Promise<Result<Session, AuthError>> {
     const refreshRateLimit = rateLimitStore.check(
-      `refresh:${ctx.headers.get('x-forwarded-ip') || 'default'}`,
+      `refresh:${ctx.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'default'}`,
       10,
       refreshWindowMs,
     );
@@ -371,11 +362,13 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
 
     // Read refresh token from vertz.ref cookie
-    const refreshToken = ctx.headers
+    const refreshEntry = ctx.headers
       .get('cookie')
       ?.split(';')
-      .find((c) => c.trim().startsWith(`${refreshName}=`))
-      ?.split('=')[1];
+      .find((c) => c.trim().startsWith(`${refreshName}=`));
+    const refreshToken = refreshEntry
+      ? refreshEntry.trim().slice(`${refreshName}=`.length)
+      : undefined;
 
     if (!refreshToken) {
       return err(createSessionExpiredError('No refresh token'));
@@ -816,8 +809,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
   // ==========================================================================
 
   function createMiddleware() {
-    return async (ctx: any, next: () => Promise<void>) => {
-      const sessionResult = await getSession(ctx.headers);
+    return async (ctx: Record<string, unknown>, next: () => Promise<void>) => {
+      const sessionResult = await getSession(ctx.headers as Headers);
 
       if (sessionResult.ok && sessionResult.data) {
         ctx.user = sessionResult.data.user;
@@ -856,6 +849,10 @@ export function createAuth(config: AuthConfig): AuthInstance {
     api,
     middleware: createMiddleware,
     initialize,
+    dispose() {
+      sessionStore.dispose();
+      rateLimitStore.dispose();
+    },
   };
 }
 

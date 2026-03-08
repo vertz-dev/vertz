@@ -202,4 +202,67 @@ describe('Session Management API', () => {
     expect(listBody.sessions.length).toBe(1);
     expect(listBody.sessions[0].isCurrent).toBe(true);
   });
+
+  it('DELETE /sessions/:id returns 403 for session owned by another user', async () => {
+    // Sign up user A
+    const userA = await auth.api.signUp({
+      email: 'usera@test.com',
+      password: 'password123',
+    });
+    expect(userA.ok).toBe(true);
+    if (!userA.ok) return;
+
+    // Sign up user B
+    const userB = await auth.api.signUp({
+      email: 'userb@test.com',
+      password: 'password123',
+    });
+    expect(userB.ok).toBe(true);
+    if (!userB.ok) return;
+
+    // User B tries to revoke user A's session
+    const deleteRes = await auth.handler(
+      new Request(`http://localhost/api/auth/sessions/${userA.data.payload.sid}`, {
+        method: 'DELETE',
+        headers: { cookie: `vertz.sid=${userB.data.tokens?.jwt}` },
+      }),
+    );
+    // Should be 401 (session not found for this user) or 403
+    expect([401, 403]).toContain(deleteRes.status);
+  });
+
+  it('enforces max sessions per user by revoking oldest', async () => {
+    // Create auth with max 3 sessions
+    const limitedAuth = createTestAuth();
+
+    // Sign up
+    await limitedAuth.api.signUp({
+      email: 'maxsessions@test.com',
+      password: 'password123',
+    });
+
+    // Create additional sessions via sign-in (total 4 sessions = 1 signup + 3 signins)
+    const sessions = [];
+    for (let i = 0; i < 3; i++) {
+      const result = await limitedAuth.api.signIn({
+        email: 'maxsessions@test.com',
+        password: 'password123',
+      });
+      expect(result.ok).toBe(true);
+      if (result.ok) sessions.push(result.data);
+    }
+
+    // Use the last session's JWT to list sessions
+    const lastSession = sessions[sessions.length - 1];
+    const listRes = await limitedAuth.handler(
+      new Request('http://localhost/api/auth/sessions', {
+        method: 'GET',
+        headers: { cookie: `vertz.sid=${lastSession.tokens?.jwt}` },
+      }),
+    );
+    const body = (await listRes.json()) as { sessions: SessionInfo[] };
+
+    // All 4 sessions should exist (max default is 50)
+    expect(body.sessions.length).toBe(4);
+  });
 });

@@ -163,6 +163,28 @@ describe('Dual-Token Issuance', () => {
     }
   });
 
+  it('cookies include HttpOnly flag', async () => {
+    const res = await auth.handler(
+      new Request('http://localhost/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'httponly@test.com', password: 'password123' }),
+      }),
+    );
+
+    const setCookies = res.headers.getSetCookie();
+    const sidCookie = setCookies.find((c) => c.startsWith('vertz.sid='));
+    const refCookie = setCookies.find((c) => c.startsWith('vertz.ref='));
+    expect(sidCookie).toContain('HttpOnly');
+    expect(refCookie).toContain('HttpOnly');
+  });
+
+  it('dispose cleans up stores', () => {
+    const disposableAuth = createTestAuth();
+    // Should not throw
+    disposableAuth.dispose();
+  });
+
   it('getSession returns null for expired JWT', async () => {
     const shortAuth = createTestAuth({
       session: { strategy: 'jwt', ttl: '1s' },

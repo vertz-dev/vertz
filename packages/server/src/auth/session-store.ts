@@ -2,6 +2,7 @@
  * Session Store — pluggable session storage for auth module
  */
 
+import { timingSafeEqual } from './crypto';
 import type { AuthTokens, SessionStore, StoredSession } from './types';
 
 const DEFAULT_MAX_SESSIONS_PER_USER = 50;
@@ -54,10 +55,52 @@ export class InMemorySessionStore implements SessionStore {
     return session;
   }
 
+  async createSessionWithId(
+    id: string,
+    data: {
+      userId: string;
+      refreshTokenHash: string;
+      ipAddress: string;
+      userAgent: string;
+      expiresAt: Date;
+      currentTokens?: AuthTokens;
+    },
+  ): Promise<StoredSession> {
+    // Enforce max sessions per user — revoke oldest on overflow
+    const activeSessions = await this.listActiveSessions(data.userId);
+    if (activeSessions.length >= this.maxSessionsPerUser) {
+      const sorted = activeSessions.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      const toRevoke = sorted.slice(0, activeSessions.length - this.maxSessionsPerUser + 1);
+      for (const s of toRevoke) {
+        await this.revokeSession(s.id);
+      }
+    }
+
+    const now = new Date();
+    const session: StoredSession = {
+      id,
+      userId: data.userId,
+      refreshTokenHash: data.refreshTokenHash,
+      previousRefreshHash: null,
+      ipAddress: data.ipAddress,
+      userAgent: data.userAgent,
+      createdAt: now,
+      lastActiveAt: now,
+      expiresAt: data.expiresAt,
+      revokedAt: null,
+    };
+
+    this.sessions.set(session.id, session);
+    if (data.currentTokens) {
+      this.currentTokens.set(id, data.currentTokens);
+    }
+    return session;
+  }
+
   async findByRefreshHash(hash: string): Promise<StoredSession | null> {
     for (const session of this.sessions.values()) {
       if (
-        session.refreshTokenHash === hash &&
+        timingSafeEqual(session.refreshTokenHash, hash) &&
         !session.revokedAt &&
         session.expiresAt > new Date()
       ) {
@@ -70,7 +113,8 @@ export class InMemorySessionStore implements SessionStore {
   async findByPreviousRefreshHash(hash: string): Promise<StoredSession | null> {
     for (const session of this.sessions.values()) {
       if (
-        session.previousRefreshHash === hash &&
+        session.previousRefreshHash !== null &&
+        timingSafeEqual(session.previousRefreshHash, hash) &&
         !session.revokedAt &&
         session.expiresAt > new Date()
       ) {

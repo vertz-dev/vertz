@@ -27,7 +27,7 @@ export function buildSessionCookie(
   const secure = cookieConfig.secure ?? true;
 
   if (clear) {
-    return `${name}=; Path=${path}; HttpOnly; SameSite=${sameSite}; Max-Age=0`;
+    return `${name}=; Path=${path}; HttpOnly${secure ? '; Secure' : ''}; SameSite=${sameSite}; Max-Age=0`;
   }
 
   return `${name}=${value}; Path=${path}; HttpOnly${secure ? '; Secure' : ''}; SameSite=${sameSite}; Max-Age=${maxAge}`;
@@ -46,7 +46,7 @@ export function buildRefreshCookie(
   const path = '/api/auth/refresh';
 
   if (clear) {
-    return `${name}=; Path=${path}; HttpOnly; SameSite=${sameSite}; Max-Age=0`;
+    return `${name}=; Path=${path}; HttpOnly${secure ? '; Secure' : ''}; SameSite=${sameSite}; Max-Age=0`;
   }
 
   return `${name}=${value}; Path=${path}; HttpOnly${secure ? '; Secure' : ''}; SameSite=${sameSite}; Max-Age=${refreshMaxAge}`;
