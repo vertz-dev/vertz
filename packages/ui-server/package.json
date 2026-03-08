@@ -39,6 +39,10 @@
     "./bun-dev-server": {
       "import": "./dist/bun-dev-server.js",
       "types": "./dist/bun-dev-server.d.ts"
+    },
+    "./fetch-scope": {
+      "import": "./dist/fetch-scope.js",
+      "types": "./dist/fetch-scope.d.ts"
     }
   },
   "files": [

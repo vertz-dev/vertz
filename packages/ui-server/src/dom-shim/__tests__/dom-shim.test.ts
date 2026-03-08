@@ -1,17 +1,40 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { installDomShim, removeDomShim, toVNode } from '../index';
+import type { SSRRenderContext } from '@vertz/ui/internals';
+import { ssrStorage } from '../../ssr-context';
+import {
+  installDomShim,
+  removeDomShim,
+  SSRComment,
+  SSRDocumentFragment,
+  SSRElement,
+  SSRNode,
+  SSRTextNode,
+  toVNode,
+} from '../index';
+
+/** Create a minimal SSRRenderContext for testing. */
+function testCtx(url: string): SSRRenderContext {
+  return {
+    url,
+    adapter: {} as SSRRenderContext['adapter'],
+    subscriber: null,
+    readValueCb: null,
+    cleanupStack: [],
+    batchDepth: 0,
+    pendingEffects: new Map(),
+    contextScope: null,
+    entityStore: {} as SSRRenderContext['entityStore'],
+    envelopeStore: {} as SSRRenderContext['envelopeStore'],
+    queryCache: {} as SSRRenderContext['queryCache'],
+    inflight: new Map(),
+    queries: [],
+    errors: [],
+  };
+}
 
 describe('DOM Shim', () => {
-  beforeEach(() => {
-    // Set SSR context flag
-    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
-    (globalThis as any).__SSR_URL__ = '/test-path';
-  });
-
   afterEach(() => {
     removeDomShim();
-    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
-    delete (globalThis as any).__SSR_URL__;
   });
 
   describe('installDomShim', () => {
@@ -21,11 +44,13 @@ describe('DOM Shim', () => {
       expect(document.createElement).toBeDefined();
     });
 
-    it('should create a minimal window object', () => {
-      installDomShim();
-      expect(globalThis).toHaveProperty('window');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
-      expect((window as any).location.pathname).toBe('/test-path');
+    it('should create a minimal window object with SSR URL', () => {
+      ssrStorage.run(testCtx('/test-path'), () => {
+        installDomShim();
+        expect(globalThis).toHaveProperty('window');
+        // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+        expect((window as any).location.pathname).toBe('/test-path');
+      });
     });
 
     it('should expose DOM constructor globals', () => {
@@ -455,6 +480,190 @@ describe('DOM Shim', () => {
       expect(globalThis).not.toHaveProperty('cancelAnimationFrame');
       expect(globalThis).not.toHaveProperty('requestIdleCallback');
       expect(globalThis).not.toHaveProperty('cancelIdleCallback');
+    });
+  });
+
+  describe('SSRComment', () => {
+    it('should store text via constructor', () => {
+      const comment = new SSRComment('hello');
+      expect(comment.text).toBe('hello');
+    });
+
+    it('should expose text via data getter', () => {
+      const comment = new SSRComment('hello');
+      expect(comment.data).toBe('hello');
+    });
+
+    it('should update text via data setter', () => {
+      const comment = new SSRComment('hello');
+      comment.data = 'world';
+      expect(comment.text).toBe('world');
+      expect(comment.data).toBe('world');
+    });
+  });
+
+  describe('SSRNode', () => {
+    it('firstChild returns null when no children', () => {
+      const node = new SSRNode();
+      expect(node.firstChild).toBeNull();
+    });
+
+    it('firstChild returns the first child node', () => {
+      const parent = new SSRNode();
+      const child1 = new SSRNode();
+      const child2 = new SSRNode();
+      parent.childNodes.push(child1, child2);
+      expect(parent.firstChild).toBe(child1);
+    });
+
+    it('nextSibling returns null when no parent', () => {
+      const node = new SSRNode();
+      expect(node.nextSibling).toBeNull();
+    });
+
+    it('nextSibling returns the next sibling node', () => {
+      const parent = new SSRNode();
+      const child1 = new SSRNode();
+      const child2 = new SSRNode();
+      parent.childNodes.push(child1, child2);
+      child1.parentNode = parent;
+      child2.parentNode = parent;
+      expect(child1.nextSibling).toBe(child2);
+    });
+
+    it('nextSibling returns null for the last child', () => {
+      const parent = new SSRNode();
+      const child = new SSRNode();
+      parent.childNodes.push(child);
+      child.parentNode = parent;
+      expect(child.nextSibling).toBeNull();
+    });
+  });
+
+  describe('SSRElement removeAttribute', () => {
+    it('should remove an attribute', () => {
+      const el = new SSRElement('div');
+      el.setAttribute('id', 'test');
+      expect(el.getAttribute('id')).toBe('test');
+      el.removeAttribute('id');
+      expect(el.getAttribute('id')).toBeNull();
+    });
+
+    it('should clear classList when removing class attribute', () => {
+      const el = new SSRElement('div');
+      el.setAttribute('class', 'foo bar');
+      el.removeAttribute('class');
+      expect(el.getAttribute('class')).toBeNull();
+      expect(el.className).toBe('');
+    });
+  });
+
+  describe('SSRElement textContent', () => {
+    it('should set and get textContent', () => {
+      const el = new SSRElement('div');
+      el.textContent = 'Hello world';
+      expect(el.textContent).toBe('Hello world');
+    });
+
+    it('should replace children when setting textContent', () => {
+      const el = new SSRElement('div');
+      el.appendChild(new SSRElement('span'));
+      el.textContent = 'replaced';
+      expect(el.children).toEqual(['replaced']);
+      expect(el.childNodes).toEqual([]);
+    });
+
+    it('should clear children when setting textContent to null', () => {
+      const el = new SSRElement('div');
+      el.textContent = 'text';
+      el.textContent = null;
+      expect(el.children).toEqual([]);
+      expect(el.textContent).toBeNull();
+    });
+  });
+
+  describe('SSRElement innerHTML', () => {
+    it('should set and get innerHTML', () => {
+      const el = new SSRElement('div');
+      el.innerHTML = '<b>bold</b>';
+      expect(el.innerHTML).toBe('<b>bold</b>');
+    });
+
+    it('should return empty string when innerHTML is not set', () => {
+      const el = new SSRElement('div');
+      expect(el.innerHTML).toBe('');
+    });
+
+    it('should replace children when setting innerHTML', () => {
+      const el = new SSRElement('div');
+      el.appendChild(new SSRElement('span'));
+      el.innerHTML = '<em>new</em>';
+      expect(el.children).toEqual(['<em>new</em>']);
+      expect(el.childNodes).toEqual([]);
+    });
+
+    it('should clear children when setting innerHTML to empty string', () => {
+      const el = new SSRElement('div');
+      el.innerHTML = '<b>bold</b>';
+      el.innerHTML = '';
+      expect(el.children).toEqual([]);
+    });
+  });
+
+  describe('toVNode fallback', () => {
+    it('should wrap primitive numbers in a span', () => {
+      const vnode = toVNode(42);
+      expect(vnode).toEqual({ tag: 'span', attrs: {}, children: ['42'] });
+    });
+
+    it('should wrap primitive strings in a span', () => {
+      const vnode = toVNode('hello');
+      expect(vnode).toEqual({ tag: 'span', attrs: {}, children: ['hello'] });
+    });
+  });
+
+  describe('toVNode with innerHTML content', () => {
+    it('should emit innerHTML as raw HTML', () => {
+      const el = new SSRElement('div');
+      el.innerHTML = '<b>bold</b>';
+      const vnode = el.toVNode();
+      expect(vnode.children).toHaveLength(1);
+      // innerHTML content should be wrapped as rawHtml
+      const child = vnode.children[0];
+      expect(typeof child).toBe('object');
+      expect((child as { __raw: true; html: string }).html).toBe('<b>bold</b>');
+    });
+  });
+
+  describe('toVNode with SSRComment child', () => {
+    it('should serialize SSRComment as raw HTML comment', () => {
+      const el = new SSRElement('div');
+      const comment = new SSRComment('anchor');
+      el.appendChild(comment);
+      const vnode = el.toVNode();
+      expect(vnode.children).toHaveLength(1);
+      const child = vnode.children[0];
+      expect(typeof child).toBe('object');
+      expect((child as { __raw: true; html: string }).html).toBe('<!--anchor-->');
+    });
+  });
+
+  describe('installDomShim with existing window', () => {
+    it('should update window.location.pathname when window already exists', () => {
+      // Pre-create a window-like global
+      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+      (globalThis as any).window = {
+        location: { pathname: '/old', search: '', hash: '' },
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        history: { pushState: () => {}, replaceState: () => {} },
+      };
+
+      ssrStorage.run(testCtx('/new-path'), () => {
+        installDomShim();
+        // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim test
+        expect((window as any).location.pathname).toBe('/new-path');
+      });
     });
   });
 

@@ -27,6 +27,7 @@
  * ```
  */
 
+import { getSSRContext } from '../ssr/ssr-render-context';
 import { generateClassName } from './class-generator';
 import { parseShorthand } from './shorthand-parser';
 import type { CSSDeclaration } from './token-resolver';
@@ -70,23 +71,25 @@ const vertzSheets = new Set<CSSStyleSheet>();
  * In SSR, document.head is freshly created per request by installDomShim().
  * The module-level dedup Set would incorrectly block injection on request 2+
  * since the Set persists across requests while document.head is replaced.
- * We bypass dedup when __SSR_URL__ is set (SSR context).
+ * We bypass dedup when SSR context is active.
  */
 export function injectCSS(cssText: string): void {
   if (!cssText) return;
 
-  const isSSR = typeof globalThis.__SSR_URL__ === 'string';
+  const isSSR = getSSRContext() !== undefined;
 
   // Always track CSS for SSR collection via getInjectedCSS().
   // In browser mode, also use it for dedup (skip if already injected).
-  // In SSR, skip the dedup check — document.head is freshly created per
-  // request by installDomShim(), but the Set persists across requests.
   if (!isSSR && injectedCSS.has(cssText)) return;
   injectedCSS.add(cssText);
 
+  // In SSR, skip DOM injection entirely — CSS is tracked in injectedCSS
+  // and available via getInjectedCSS(). Writing to document.head is not
+  // safe with concurrent SSR renders (shared global DOM shim).
+  if (isSSR) return;
+
   // Skip DOM injection when document is unavailable (e.g. module-level
   // css() calls during SSR import, before the DOM shim is installed).
-  // The CSS is still tracked in injectedCSS for getInjectedCSS().
   if (typeof document === 'undefined') return;
 
   // Prefer adoptedStyleSheets when available (better perf, no DOM mutation)

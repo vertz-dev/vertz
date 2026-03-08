@@ -1,4 +1,5 @@
 import type { UnwrapSignals } from '../runtime/signal-types';
+import { getSSRContext } from '../ssr/ssr-render-context';
 
 export type { UnwrapSignals } from '../runtime/signal-types';
 
@@ -140,18 +141,17 @@ export function createContext<T>(defaultValue?: T, __stableId?: string): Context
       if (fn !== undefined) {
         // Callback pattern: Provider(value, fn)
         const value = wrapSignalProps(valueOrProps as T);
-        const parentScope = currentScope;
+        const parentScope = getContextScope();
         const scope: ContextScope = parentScope ? new Map(parentScope) : new Map();
         scope.set(asKey(ctx), value);
 
         ctx._stack.push(value);
-        const prevScope = currentScope;
-        currentScope = scope;
+        const prevScope = setContextScope(scope);
         try {
           fn();
         } finally {
           ctx._stack.pop();
-          currentScope = prevScope;
+          setContextScope(prevScope);
         }
         return;
       }
@@ -161,13 +161,12 @@ export function createContext<T>(defaultValue?: T, __stableId?: string): Context
       const { value: rawValue, children } = props;
       const value = wrapSignalProps(rawValue);
 
-      const parentScope = currentScope;
+      const parentScope = getContextScope();
       const scope: ContextScope = parentScope ? new Map(parentScope) : new Map();
       scope.set(asKey(ctx), value);
 
       ctx._stack.push(value);
-      const prevScope = currentScope;
-      currentScope = scope;
+      const prevScope = setContextScope(scope);
       try {
         // Children may be a thunk (compiler output) or a raw value
         // (JSX runtime / test code). Handle both.
@@ -185,7 +184,7 @@ export function createContext<T>(defaultValue?: T, __stableId?: string): Context
         return result as HTMLElement;
       } finally {
         ctx._stack.pop();
-        currentScope = prevScope;
+        setContextScope(prevScope);
       }
     },
     _default: defaultValue,
@@ -213,8 +212,9 @@ export function useContext<T>(ctx: Context<T>): UnwrapSignals<T> | undefined {
   }
   // Async path: check the captured context scope
   const key = asKey(ctx);
-  if (currentScope?.has(key)) {
-    return currentScope.get(key) as UnwrapSignals<T>;
+  const scope = getContextScope();
+  if (scope?.has(key)) {
+    return scope.get(key) as UnwrapSignals<T>;
   }
   return ctx._default as UnwrapSignals<T> | undefined;
 }
@@ -224,6 +224,8 @@ export function useContext<T>(ctx: Context<T>): UnwrapSignals<T> | undefined {
  * @internal
  */
 export function getContextScope(): ContextScope | null {
+  const ctx = getSSRContext();
+  if (ctx) return ctx.contextScope;
   return currentScope;
 }
 
@@ -233,6 +235,12 @@ export function getContextScope(): ContextScope | null {
  * @internal
  */
 export function setContextScope(scope: ContextScope | null): ContextScope | null {
+  const ctx = getSSRContext();
+  if (ctx) {
+    const prev = ctx.contextScope;
+    ctx.contextScope = scope;
+    return prev;
+  }
   const prev = currentScope;
   currentScope = scope;
   return prev;

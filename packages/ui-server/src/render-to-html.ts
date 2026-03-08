@@ -1,8 +1,5 @@
-import { compileTheme, type Theme } from '@vertz/ui';
-import { setAdapter } from '@vertz/ui/internals';
-import { installDomShim, removeDomShim, SSRElement } from './dom-shim';
+import { compileTheme, getInjectedCSS, type Theme } from '@vertz/ui';
 import { renderPage } from './render-page';
-import { createSSRAdapter } from './ssr-adapter';
 import {
   clearGlobalSSRTimeout,
   getSSRQueries,
@@ -10,6 +7,7 @@ import {
   setGlobalSSRTimeout,
   ssrStorage,
 } from './ssr-context';
+import { createRequestContext } from './ssr-render';
 import { createSSRDataChunk, getStreamingRuntimeScript } from './ssr-streaming-runtime';
 import { encodeChunk } from './streaming';
 import type { VNode } from './types';
@@ -41,25 +39,6 @@ export interface RenderToHTMLStreamOptions<AppFn extends () => VNode>
   ssrTimeout?: number;
   /** Hard timeout for entire stream (ms, default 30000) */
   streamTimeout?: number;
-}
-
-/**
- * Install the SSR adapter and minimal global shim.
- * Sets the render adapter to SSR mode and installs the DOM shim
- * for globals that components still access (document.head, window.location, etc.)
- */
-function installSSR(): void {
-  setAdapter(createSSRAdapter());
-  installDomShim();
-}
-
-/**
- * Remove the SSR adapter and global shim.
- * Resets the render adapter to auto-detect (DOMAdapter) and cleans up globals.
- */
-function removeSSR(): void {
-  setAdapter(null);
-  removeDomShim();
 }
 
 /**
@@ -98,18 +77,9 @@ async function twoPassRender<AppFn extends () => VNode>(
   // Pass 2: Render with data — signals now have resolved values.
   const vnode = options.app();
 
-  // Collect CSS injected into fake document.head during render
-  // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
-  const fakeDoc = (globalThis as any).document;
-  const collectedCSS: string[] = [];
-  if (fakeDoc?.head?.children) {
-    for (const child of fakeDoc.head.children) {
-      if (child instanceof SSRElement && child.tag === 'style') {
-        const cssText = child.children?.join('') ?? '';
-        if (cssText) collectedCSS.push(cssText);
-      }
-    }
-  }
+  // Collect CSS tracked by injectCSS() during SSR.
+  // In SSR, injectCSS() adds to the injectedCSS Set but skips DOM injection.
+  const collectedCSS = getInjectedCSS();
 
   // Compile theme CSS
   const themeCss = options.theme ? compileTheme(options.theme).css : '';
@@ -162,11 +132,9 @@ async function twoPassRender<AppFn extends () => VNode>(
 export async function renderToHTMLStream<AppFn extends () => VNode>(
   options: RenderToHTMLStreamOptions<AppFn>,
 ): Promise<Response> {
-  installSSR();
-
   const streamTimeout = options.streamTimeout ?? 30_000;
 
-  return ssrStorage.run({ url: options.url, errors: [], queries: [] }, async () => {
+  return ssrStorage.run(createRequestContext(options.url), async () => {
     try {
       // Set global ssrTimeout if provided
       if (options.ssrTimeout !== undefined) {
@@ -178,17 +146,13 @@ export async function renderToHTMLStream<AppFn extends () => VNode>(
       // No pending queries — return a simple non-streaming response
       if (pendingQueries.length === 0) {
         clearGlobalSSRTimeout();
-        removeSSR();
         return new Response(html, {
           status: 200,
           headers: { 'content-type': 'text/html; charset=utf-8' },
         });
       }
 
-      // Cleanup is safe now — the two-pass render is done and the streaming
-      // phase only serializes data (no DOM shim or SSR context needed).
       clearGlobalSSRTimeout();
-      removeSSR();
 
       // Unique sentinel for timeout detection (not a string that could collide with data)
       const TIMEOUT_SENTINEL = Symbol('stream-timeout');
@@ -234,7 +198,6 @@ export async function renderToHTMLStream<AppFn extends () => VNode>(
       });
     } catch (err) {
       clearGlobalSSRTimeout();
-      removeSSR();
       throw err;
     }
   });
@@ -288,14 +251,12 @@ export async function renderToHTML<AppFn extends () => VNode>(
 
   // Direct path: uses twoPassRender without streaming overhead.
   // This avoids creating a ReadableStream, encoding to Uint8Array, then decoding back.
-  installSSR();
-  return ssrStorage.run({ url: options.url, errors: [], queries: [] }, async () => {
+  return ssrStorage.run(createRequestContext(options.url), async () => {
     try {
       const { html } = await twoPassRender(options);
       return html;
     } finally {
       clearGlobalSSRTimeout();
-      removeSSR();
     }
   });
 }

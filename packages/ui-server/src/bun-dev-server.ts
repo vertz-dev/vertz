@@ -23,6 +23,7 @@ import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:
 import { dirname, normalize, resolve } from 'node:path';
 import { createDebugLogger } from './debug-logger';
 import { DiagnosticsCollector } from './diagnostics-collector';
+import { installFetchProxy, runWithScopedFetch } from './fetch-scope';
 import { createSourceMapResolver, readLineText } from './source-map-resolver';
 import type { SSRModule } from './ssr-render';
 import { ssrRenderToString, ssrStreamNavQueries } from './ssr-render';
@@ -623,6 +624,11 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
 
   const editor = detectEditor(editorOption);
 
+  // Install per-request fetch proxy (one-time, idempotent)
+  if (apiHandler) {
+    installFetchProxy();
+  }
+
   // ── Debug logger & diagnostics ──────────────────────────────
   const devDir = resolve(projectRoot, '.vertz', 'dev');
   mkdirSync(devDir, { recursive: true });
@@ -1155,20 +1161,20 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         }
 
         try {
-          // Patch globalThis.fetch during SSR so API requests (e.g. query()
-          // calling fetch('/api/todos')) route through the in-memory apiHandler
-          // instead of HTTP self-fetch. Matches production (Cloudflare) behavior.
-          const originalFetch = globalThis.fetch;
-          if (apiHandler) {
-            globalThis.fetch = createFetchInterceptor({
-              apiHandler,
-              origin: `http://${host}:${server?.port}`,
-              skipSSRPaths,
-              originalFetch,
-            });
-          }
+          // Scope fetch interception per-request via AsyncLocalStorage.
+          // API requests (e.g. query() calling fetch('/api/todos')) route
+          // through the in-memory apiHandler. Concurrent SSR renders each
+          // get their own scope — no globalThis.fetch mutation.
+          const interceptor = apiHandler
+            ? createFetchInterceptor({
+                apiHandler,
+                origin: `http://${host}:${server?.port}`,
+                skipSSRPaths,
+                originalFetch: globalThis.fetch,
+              })
+            : null;
 
-          try {
+          const doRender = async () => {
             logger.log('ssr', 'render-start', { url: pathname });
             const ssrStart = performance.now();
             const result = await ssrRenderToString(ssrMod, pathname, { ssrTimeout: 300 });
@@ -1194,11 +1200,9 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
                 'Cache-Control': 'no-store',
               },
             });
-          } finally {
-            if (apiHandler) {
-              globalThis.fetch = originalFetch;
-            }
-          }
+          };
+
+          return interceptor ? await runWithScopedFetch(interceptor, doRender) : await doRender();
         } catch (err) {
           console.error('[Server] SSR error:', err);
 
@@ -1581,7 +1585,6 @@ export function createBunDevServer(options: BunDevServerOptions): BunDevServer {
         server.stop(true);
         server = null;
       }
-
     },
   };
 }

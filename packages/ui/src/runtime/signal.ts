@@ -1,4 +1,5 @@
 import { type ContextScope, getContextScope, setContextScope } from '../component/context';
+import { getSSRContext } from '../ssr/ssr-render-context';
 import { _tryOnCleanup } from './disposal';
 import { batch, scheduleNotify } from './scheduler';
 import type { Computed, DisposeFn, Signal, Subscriber, SubscriberSource } from './signal-types';
@@ -7,17 +8,11 @@ import { getReadValueCallback, getSubscriber, setSubscriber } from './tracking';
 /**
  * Detect if running in SSR/server-side context.
  *
- * IMPORTANT: "no document" does NOT mean SSR — TUI runs in Node without
- * document but still needs effects. And `import.meta.env.SSR` is true in
- * all Vitest tests, so it's also unreliable.
- *
- * The only reliable signal is the global function hook __VERTZ_IS_SSR__,
- * which is installed by @vertz/ui-server's ssr-context.ts (AsyncLocalStorage-backed).
- * This avoids circular deps between ui and ui-server.
+ * Uses the SSRRenderContext resolver — returns true when inside an
+ * AsyncLocalStorage.run() scope set up by @vertz/ui-server.
  */
 function isSSR(): boolean {
-  const check = typeof globalThis !== 'undefined' && (globalThis as any).__VERTZ_IS_SSR__;
-  return typeof check === 'function' ? check() : false;
+  return getSSRContext() !== undefined;
 }
 
 // ─── Signal Collection ────────────────────────────────────────────────────

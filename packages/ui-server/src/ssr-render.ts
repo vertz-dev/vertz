@@ -6,8 +6,11 @@
  */
 
 import { compileTheme, type Theme } from '@vertz/ui';
-import { installDomShim, removeDomShim, SSRElement, toVNode } from './dom-shim';
+import type { SSRRenderContext } from '@vertz/ui/internals';
+import { EntityStore, MemoryCache, QueryEnvelopeStore } from '@vertz/ui/internals';
+import { installDomShim, toVNode } from './dom-shim';
 import { renderToStream } from './render-to-stream';
+import { createSSRAdapter } from './ssr-adapter';
 import {
   clearGlobalSSRTimeout,
   getSSRQueries,
@@ -17,23 +20,44 @@ import {
 import { safeSerialize } from './ssr-streaming-runtime';
 import { streamToString } from './streaming';
 
-/**
- * Mutex to serialize SSR renders.
- *
- * The SSR pipeline depends on global mutable state (document, window,
- * injectedCSS set, __SSR_URL__) that cannot be isolated per-request.
- * Concurrent renders race on this state, causing crashes. A mutex ensures
- * only one render runs at a time while still being async-safe.
- */
-let renderLock: Promise<unknown> = Promise.resolve();
+/** Create a fresh SSRRenderContext for a new request. */
+export function createRequestContext(url: string): SSRRenderContext {
+  return {
+    url,
+    adapter: createSSRAdapter(),
+    subscriber: null,
+    readValueCb: null,
+    cleanupStack: [],
+    batchDepth: 0,
+    pendingEffects: new Map(),
+    contextScope: null,
+    entityStore: new EntityStore(),
+    envelopeStore: new QueryEnvelopeStore(),
+    queryCache: new MemoryCache<unknown>(),
+    inflight: new Map(),
+    queries: [],
+    errors: [],
+  };
+}
 
-function withRenderLock<T>(fn: () => Promise<T>): Promise<T> {
-  const prev = renderLock;
-  let release: () => void;
-  renderLock = new Promise<void>((r) => {
-    release = r;
-  });
-  return prev.then(fn).finally(() => release());
+/**
+ * Install the DOM shim once (idempotent).
+ *
+ * The DOM shim provides `document`, `window`, and other browser globals
+ * needed by framework code that directly accesses globals (e.g.,
+ * jsx-runtime's document.createElement, presence.ts, list-transition.ts).
+ * It is installed once per process — not per-render — because all SSR
+ * state is isolated via AsyncLocalStorage (SSRRenderContext).
+ */
+let domShimInstalled = false;
+
+function ensureDomShim(): void {
+  // Check both our flag AND whether document actually exists.
+  // removeDomShim() can delete document without resetting our flag
+  // (e.g., in test teardown), leaving us with a stale flag.
+  if (domShimInstalled && typeof document !== 'undefined') return;
+  domShimInstalled = true;
+  installDomShim();
 }
 
 export interface SSRModule {
@@ -84,9 +108,8 @@ function resolveAppFactory(module: SSRModule): () => unknown {
  * This means our own getInjectedCSS() reads a DIFFERENT Set than what
  * the bundled injectCSS() writes to.
  *
- * To bridge the gap, the SSR module can export `getInjectedCSS` from
+ * To bridge the gap, the SSR module must export `getInjectedCSS` from
  * @vertz/ui, giving us access to the bundled instance's tracked CSS.
- * Falls back to reading from the DOM shim's document.head.
  */
 function collectCSS(themeCss: string, module: SSRModule): string {
   const themeTag = themeCss ? `<style data-vertz-css>${themeCss}</style>` : '';
@@ -102,29 +125,9 @@ function collectCSS(themeCss: string, module: SSRModule): string {
     for (const s of module.styles) alreadyIncluded.add(s);
   }
 
-  // Prefer the module's getInjectedCSS (bundled @vertz/ui instance)
-  let componentCss: string[];
-  if (module.getInjectedCSS) {
-    componentCss = module.getInjectedCSS().filter((s) => !alreadyIncluded.has(s));
-  } else {
-    // Fallback: read CSS from DOM shim's document.head
-    componentCss = [];
-    // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
-    const head = (globalThis as any).document?.head;
-    if (head instanceof SSRElement) {
-      for (const child of head.children) {
-        if (
-          child instanceof SSRElement &&
-          child.tag === 'style' &&
-          'data-vertz-css' in child.attrs &&
-          child.textContent &&
-          !alreadyIncluded.has(child.textContent)
-        ) {
-          componentCss.push(child.textContent);
-        }
-      }
-    }
-  }
+  const componentCss = module.getInjectedCSS
+    ? module.getInjectedCSS().filter((s) => !alreadyIncluded.has(s))
+    : [];
 
   const componentStyles = componentCss.map((s) => `<style data-vertz-css>${s}</style>`).join('\n');
   return [themeTag, globalTags, componentStyles].filter(Boolean).join('\n');
@@ -142,33 +145,16 @@ export async function ssrRenderToString(
   url: string,
   options?: { ssrTimeout?: number },
 ): Promise<SSRRenderResult> {
-  return withRenderLock(() => ssrRenderToStringUnsafe(module, url, options));
-}
-
-async function ssrRenderToStringUnsafe(
-  module: SSRModule,
-  url: string,
-  options?: { ssrTimeout?: number },
-): Promise<SSRRenderResult> {
   const normalizedUrl = url.endsWith('/index.html')
     ? url.slice(0, -'/index.html'.length) || '/'
     : url;
 
   const ssrTimeout = options?.ssrTimeout ?? 300;
 
-  return ssrStorage.run({ url: normalizedUrl, errors: [], queries: [] }, async () => {
-    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-    (globalThis as any).__SSR_URL__ = normalizedUrl;
-    installDomShim();
+  ensureDomShim();
+  const ctx = createRequestContext(normalizedUrl);
 
-    // Clear the query cache before each render. In production, the SSR module
-    // stays loaded across requests, so stale cache entries from previous renders
-    // cause queries to skip SSR registration (they see cache hits instead).
-    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-    (globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__?.();
-    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-    (globalThis as any).__VERTZ_CLEAR_ENTITY_STORE__?.();
-
+  return ssrStorage.run(ctx, async () => {
     try {
       setGlobalSSRTimeout(ssrTimeout);
 
@@ -186,12 +172,6 @@ async function ssrRenderToStringUnsafe(
           );
         }
       }
-
-      // Sync any module-level routers to the current request URL.
-      // Routers created at module import time (before __SSR_URL__ is set)
-      // remain stuck on their initial URL without this call.
-      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-      (globalThis as any).__VERTZ_SSR_SYNC_ROUTER__?.(normalizedUrl);
 
       // Pass 1: Discovery — triggers query() registrations
       createApp();
@@ -236,15 +216,6 @@ async function ssrRenderToStringUnsafe(
       return { html, css, ssrData };
     } finally {
       clearGlobalSSRTimeout();
-      // NOTE: Do NOT call resetInjectedStyles() here.
-      // In Cloudflare Workers, wrangler deduplicates @vertz/ui into a single
-      // module instance shared between the app and @vertz/ui-server. Clearing
-      // injectedCSS would permanently destroy component CSS from module-level
-      // css() calls (which only run once at import time). The injectedCSS Set
-      // naturally deduplicates, so CSS from previous renders doesn't leak.
-      removeDomShim();
-      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-      delete (globalThis as any).__SSR_URL__;
     }
   });
 }
@@ -259,39 +230,20 @@ export async function ssrDiscoverQueries(
   url: string,
   options?: { ssrTimeout?: number },
 ): Promise<SSRDiscoverResult> {
-  return withRenderLock(() => ssrDiscoverQueriesUnsafe(module, url, options));
-}
-
-async function ssrDiscoverQueriesUnsafe(
-  module: SSRModule,
-  url: string,
-  options?: { ssrTimeout?: number },
-): Promise<SSRDiscoverResult> {
   const normalizedUrl = url.endsWith('/index.html')
     ? url.slice(0, -'/index.html'.length) || '/'
     : url;
 
   const ssrTimeout = options?.ssrTimeout ?? 300;
 
-  return ssrStorage.run({ url: normalizedUrl, errors: [], queries: [] }, async () => {
-    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-    (globalThis as any).__SSR_URL__ = normalizedUrl;
-    installDomShim();
+  ensureDomShim();
+  const ctx = createRequestContext(normalizedUrl);
 
-    // Clear query cache (same reason as ssrRenderToString — stale module state)
-    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-    (globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__?.();
-    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-    (globalThis as any).__VERTZ_CLEAR_ENTITY_STORE__?.();
-
+  return ssrStorage.run(ctx, async () => {
     try {
       setGlobalSSRTimeout(ssrTimeout);
 
       const createApp = resolveAppFactory(module);
-
-      // Sync module-level routers (same reason as ssrRenderToString)
-      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-      (globalThis as any).__VERTZ_SSR_SYNC_ROUTER__?.(normalizedUrl);
 
       // Pass 1 only: Discovery — triggers query() registrations
       createApp();
@@ -332,10 +284,6 @@ async function ssrDiscoverQueriesUnsafe(
       };
     } finally {
       clearGlobalSSRTimeout();
-      // NOTE: Do NOT call resetInjectedStyles() — same reason as ssrRenderToStringUnsafe.
-      removeDomShim();
-      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-      delete (globalThis as any).__SSR_URL__;
     }
   });
 }
@@ -368,46 +316,29 @@ export async function ssrStreamNavQueries(
   const ssrTimeout = options?.ssrTimeout ?? 300;
   const navTimeout = options?.navSsrTimeout ?? 5000;
 
-  // Acquire the render lock for query discovery only.
-  // We run Pass 1 inside the lock, then release it before streaming.
-  const queries = await withRenderLock(() =>
-    ssrStorage.run({ url: normalizedUrl, errors: [], queries: [] }, async () => {
-      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-      (globalThis as any).__SSR_URL__ = normalizedUrl;
-      installDomShim();
+  ensureDomShim();
+  const ctx = createRequestContext(normalizedUrl);
+  const queries = await ssrStorage.run(ctx, async () => {
+    try {
+      setGlobalSSRTimeout(ssrTimeout);
 
-      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-      (globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__?.();
-      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-      (globalThis as any).__VERTZ_CLEAR_ENTITY_STORE__?.();
+      const createApp = resolveAppFactory(module);
 
-      try {
-        setGlobalSSRTimeout(ssrTimeout);
+      // Pass 1 only: Discovery
+      createApp();
 
-        const createApp = resolveAppFactory(module);
+      const discovered = getSSRQueries();
 
-        // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-        (globalThis as any).__VERTZ_SSR_SYNC_ROUTER__?.(normalizedUrl);
-
-        // Pass 1 only: Discovery
-        createApp();
-
-        const discovered = getSSRQueries();
-
-        return discovered.map((q) => ({
-          promise: q.promise,
-          timeout: q.timeout || ssrTimeout,
-          resolve: q.resolve,
-          key: q.key,
-        }));
-      } finally {
-        clearGlobalSSRTimeout();
-        removeDomShim();
-        // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-        delete (globalThis as any).__SSR_URL__;
-      }
-    }),
-  );
+      return discovered.map((q) => ({
+        promise: q.promise,
+        timeout: q.timeout || ssrTimeout,
+        resolve: q.resolve,
+        key: q.key,
+      }));
+    } finally {
+      clearGlobalSSRTimeout();
+    }
+  });
 
   // No queries — return a stream with just the done event
   if (queries.length === 0) {

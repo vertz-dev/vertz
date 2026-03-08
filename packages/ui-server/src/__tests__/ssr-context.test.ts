@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'bun:test';
+import type { SSRRenderContext } from '@vertz/ui/internals';
 import {
   clearGlobalSSRTimeout,
   collectSSRError,
+  getGlobalSSRTimeout,
   getSSRErrors,
   getSSRQueries,
   registerSSRQuery,
@@ -9,16 +11,37 @@ import {
   ssrStorage,
 } from '../ssr-context';
 
+/** Create a minimal SSRRenderContext for testing. Only url/errors/queries are populated. */
+function testCtx(overrides: Partial<SSRRenderContext> & { url: string }): SSRRenderContext {
+  return {
+    url: overrides.url,
+    adapter: {} as SSRRenderContext['adapter'],
+    subscriber: null,
+    readValueCb: null,
+    cleanupStack: [],
+    batchDepth: 0,
+    pendingEffects: new Map(),
+    contextScope: null,
+    entityStore: {} as SSRRenderContext['entityStore'],
+    envelopeStore: {} as SSRRenderContext['envelopeStore'],
+    queryCache: {} as SSRRenderContext['queryCache'],
+    inflight: new Map(),
+    queries: [],
+    errors: [],
+    ...overrides,
+  };
+}
+
 describe('SSR error collection', () => {
   it('SSRContext.errors is initialized as empty array', () => {
-    ssrStorage.run({ url: '/test', errors: [], queries: [] }, () => {
+    ssrStorage.run(testCtx({ url: '/test' }), () => {
       const errors = getSSRErrors();
       expect(errors).toEqual([]);
     });
   });
 
   it('collectSSRError adds errors to the context', () => {
-    ssrStorage.run({ url: '/test', errors: [], queries: [] }, () => {
+    ssrStorage.run(testCtx({ url: '/test' }), () => {
       const err = new Error('domEffect failed');
       collectSSRError(err);
       const errors = getSSRErrors();
@@ -27,7 +50,7 @@ describe('SSR error collection', () => {
   });
 
   it('collectSSRError accumulates multiple errors', () => {
-    ssrStorage.run({ url: '/test', errors: [], queries: [] }, () => {
+    ssrStorage.run(testCtx({ url: '/test' }), () => {
       collectSSRError(new Error('first'));
       collectSSRError(new Error('second'));
       collectSSRError('string error');
@@ -51,7 +74,7 @@ describe('SSR error collection', () => {
 
 describe('SSR query registration', () => {
   it('registerSSRQuery adds entry to context queries array', () => {
-    ssrStorage.run({ url: '/test', errors: [], queries: [] }, () => {
+    ssrStorage.run(testCtx({ url: '/test' }), () => {
       const entry = {
         promise: Promise.resolve('data'),
         timeout: 100,
@@ -66,7 +89,7 @@ describe('SSR query registration', () => {
   });
 
   it('registered entry preserves key for streaming identification', () => {
-    ssrStorage.run({ url: '/test', errors: [], queries: [] }, () => {
+    ssrStorage.run(testCtx({ url: '/test' }), () => {
       registerSSRQuery({
         promise: Promise.resolve('data'),
         timeout: 100,
@@ -79,7 +102,7 @@ describe('SSR query registration', () => {
   });
 
   it('registerSSRQuery accumulates multiple entries', () => {
-    ssrStorage.run({ url: '/test', errors: [], queries: [] }, () => {
+    ssrStorage.run(testCtx({ url: '/test' }), () => {
       registerSSRQuery({ promise: Promise.resolve(1), timeout: 50, resolve: () => {}, key: 'q1' });
       registerSSRQuery({ promise: Promise.resolve(2), timeout: 100, resolve: () => {}, key: 'q2' });
       registerSSRQuery({ promise: Promise.resolve(3), timeout: 200, resolve: () => {}, key: 'q3' });
@@ -106,25 +129,21 @@ describe('SSR query registration', () => {
 describe('global ssrTimeout — per-request isolation', () => {
   it('ssrTimeout is scoped to the current SSR context, not globalThis', async () => {
     // Simulate two concurrent requests with different ssrTimeouts
-    const results: number[] = [];
+    const results: (number | undefined)[] = [];
 
-    const request1 = ssrStorage.run({ url: '/r1', errors: [], queries: [] }, async () => {
+    const request1 = ssrStorage.run(testCtx({ url: '/r1' }), async () => {
       setGlobalSSRTimeout(500);
       // Yield to let request2 run
       await new Promise((r) => setTimeout(r, 10));
       // Read the timeout — should still be 500, not clobbered by request2
-      // biome-ignore lint/suspicious/noExplicitAny: testing SSR global hook
-      const getTimeout = (globalThis as any).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__;
-      results.push(typeof getTimeout === 'function' ? getTimeout() : -1);
+      results.push(getGlobalSSRTimeout());
       clearGlobalSSRTimeout();
     });
 
-    const request2 = ssrStorage.run({ url: '/r2', errors: [], queries: [] }, async () => {
+    const request2 = ssrStorage.run(testCtx({ url: '/r2' }), async () => {
       setGlobalSSRTimeout(50);
       await new Promise((r) => setTimeout(r, 5));
-      // biome-ignore lint/suspicious/noExplicitAny: testing SSR global hook
-      const getTimeout = (globalThis as any).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__;
-      results.push(typeof getTimeout === 'function' ? getTimeout() : -1);
+      results.push(getGlobalSSRTimeout());
       clearGlobalSSRTimeout();
     });
 

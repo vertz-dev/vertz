@@ -9,12 +9,25 @@
  * is not available in the worktree. Public API validation tests in
  * packages/integration-tests/ will use package imports.
  */
-import { describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { query } from '../../../ui/src/query/query';
+import { registerSSRResolver } from '../../../ui/src/ssr/ssr-render-context';
 import { installDomShim, removeDomShim } from '../dom-shim';
 import { renderPage } from '../render-page';
 import { getSSRQueries, ssrStorage } from '../ssr-context';
+import { createRequestContext } from '../ssr-render';
 import type { VNode } from '../types';
+
+// Bridge dual-module gap: this test imports query() from @vertz/ui SOURCE,
+// but ssrStorage is from @vertz/ui-server which registered the resolver on
+// the BUILT @vertz/ui. Register the same ALS-backed resolver on the SOURCE
+// module's _ssrResolver so query()'s getSSRContext() returns the correct context.
+beforeAll(() => {
+  registerSSRResolver(() => ssrStorage.getStore());
+});
+afterAll(() => {
+  registerSSRResolver(null);
+});
 
 /**
  * Helper to create a delayed promise that resolves after `ms` milliseconds.
@@ -29,7 +42,7 @@ function delayed<T>(value: T, ms: number): Promise<T> {
  */
 async function testRenderToHTML(app: () => VNode): Promise<string> {
   installDomShim();
-  return ssrStorage.run({ url: '/', errors: [], queries: [] }, async () => {
+  return ssrStorage.run(createRequestContext('/'), async () => {
     try {
       // Pass 1: discover queries
       app();

@@ -1,13 +1,23 @@
 /**
  * Tests for renderToHTMLStream() — the streaming SSR API.
  */
-import { describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { query } from '../../../ui/src/query/query';
-import { installDomShim, removeDomShim } from '../dom-shim';
+import { registerSSRResolver } from '../../../ui/src/ssr/ssr-render-context';
 import type { RenderToHTMLStreamOptions } from '../render-to-html';
 import { renderToHTML, renderToHTMLStream } from '../render-to-html';
+import { ssrStorage } from '../ssr-context';
 import { collectStreamChunks } from '../streaming';
 import type { VNode } from '../types';
+
+// Bridge dual-module gap: query() from SOURCE needs the resolver registered
+// on the SOURCE module's _ssrResolver (see query-ssr-threshold.test.ts).
+beforeAll(() => {
+  registerSSRResolver(() => ssrStorage.getStore());
+});
+afterAll(() => {
+  registerSSRResolver(null);
+});
 
 /**
  * Create a deferred promise that can be resolved externally.

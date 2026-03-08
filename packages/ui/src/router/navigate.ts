@@ -7,6 +7,7 @@
 
 import { signal } from '../runtime/signal';
 import type { Signal } from '../runtime/signal-types';
+import { getSSRContext } from '../ssr/ssr-render-context';
 import type { RouteConfigLike, RouteDefinitionMap, RouteMatch, TypedRoutes } from './define-routes';
 import { matchRoute } from './define-routes';
 import { executeLoaders } from './loader';
@@ -87,7 +88,7 @@ export type TypedRouter<T extends Record<string, RouteConfigLike> = RouteDefinit
  * Create a router instance.
  *
  * @param routes - Compiled route list from defineRoutes()
- * @param initialUrl - The initial URL to match (optional; auto-detects from window.location or __SSR_URL__)
+ * @param initialUrl - The initial URL to match (optional; auto-detects from window.location or SSR context)
  * @returns Router instance with reactive state and navigation methods
  */
 export function createRouter<T extends Record<string, RouteConfigLike> = RouteDefinitionMap>(
@@ -96,19 +97,63 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   options?: RouterOptions,
 ): Router<T> {
   // Auto-detect SSR context
-  const isSSR = typeof window === 'undefined' || typeof globalThis.__SSR_URL__ !== 'undefined';
+  const ssrCtx = getSSRContext();
+  const isSSR = ssrCtx !== undefined;
 
-  // Determine the initial URL
-  let url: string;
-  if (initialUrl) {
-    url = initialUrl;
-  } else if (isSSR) {
-    // In SSR, use the __SSR_URL__ global set by the SSR entry
-    url = globalThis.__SSR_URL__ || '/';
-  } else {
-    // In browser, use window.location
-    url = window.location.pathname + window.location.search;
+  // In SSR or non-browser environments, return a lightweight read-only router.
+  // This avoids shared signal corruption across concurrent SSR renders,
+  // and prevents crashes when createRouter() is called in Bun tests
+  // without an active SSR context.
+  //
+  // The current/searchParams use SSR-aware getters so that module-level
+  // routers (created once at import time) return per-request route matches
+  // when accessed inside ssrStorage.run() during SSR rendering.
+  if (isSSR || typeof window === 'undefined') {
+    const ssrUrl = initialUrl ?? ssrCtx?.url ?? '/';
+    const fallbackMatch = matchRoute(routes, ssrUrl);
+    return {
+      current: {
+        get value(): RouteMatch | null {
+          const ctx = getSSRContext();
+          if (ctx) return matchRoute(routes, ctx.url);
+          return fallbackMatch;
+        },
+        peek(): RouteMatch | null {
+          const ctx = getSSRContext();
+          if (ctx) return matchRoute(routes, ctx.url);
+          return fallbackMatch;
+        },
+        notify() {},
+      } as Signal<RouteMatch | null>,
+      searchParams: {
+        get value(): Record<string, unknown> {
+          const ctx = getSSRContext();
+          if (ctx) {
+            const m = matchRoute(routes, ctx.url);
+            return m?.search ?? {};
+          }
+          return fallbackMatch?.search ?? {};
+        },
+        peek(): Record<string, unknown> {
+          const ctx = getSSRContext();
+          if (ctx) {
+            const m = matchRoute(routes, ctx.url);
+            return m?.search ?? {};
+          }
+          return fallbackMatch?.search ?? {};
+        },
+        notify() {},
+      } as Signal<Record<string, unknown>>,
+      loaderData: { value: [], peek: () => [], notify() {} } as Signal<unknown[]>,
+      loaderError: { value: null, peek: () => null, notify() {} } as Signal<Error | null>,
+      navigate: () => Promise.resolve(),
+      revalidate: () => Promise.resolve(),
+      dispose: () => {},
+    } as Router<T>;
   }
+
+  // Determine the initial URL (browser only)
+  const url = initialUrl ?? window.location.pathname + window.location.search;
 
   const initialMatch = matchRoute(routes, url);
 
@@ -129,10 +174,56 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   const visitedUrls = new Set<string>();
   if (initialMatch) visitedUrls.add(normalizeUrl(url));
 
-  const current = signal<RouteMatch | null>(initialMatch);
+  const _current = signal<RouteMatch | null>(initialMatch);
   const loaderData = signal<unknown[]>([]);
   const loaderError = signal<Error | null>(null);
-  const searchParams = signal<Record<string, unknown>>(initialMatch?.search ?? {});
+  const _searchParams = signal<Record<string, unknown>>(initialMatch?.search ?? {});
+
+  // SSR-aware proxies: module-level routers created outside SSR context
+  // need to return the per-request URL match when accessed during SSR.
+  // In the browser, these just delegate to the underlying signals.
+  const current = {
+    get value(): RouteMatch | null {
+      const ctx = getSSRContext();
+      if (ctx) return matchRoute(routes, ctx.url);
+      return _current.value;
+    },
+    set value(v: RouteMatch | null) {
+      _current.value = v;
+    },
+    peek(): RouteMatch | null {
+      const ctx = getSSRContext();
+      if (ctx) return matchRoute(routes, ctx.url);
+      return _current.peek();
+    },
+    notify() {
+      _current.notify();
+    },
+  } as Signal<RouteMatch | null>;
+  const searchParams = {
+    get value(): Record<string, unknown> {
+      const ctx = getSSRContext();
+      if (ctx) {
+        const match = matchRoute(routes, ctx.url);
+        return match?.search ?? {};
+      }
+      return _searchParams.value;
+    },
+    set value(v: Record<string, unknown>) {
+      _searchParams.value = v;
+    },
+    peek(): Record<string, unknown> {
+      const ctx = getSSRContext();
+      if (ctx) {
+        const match = matchRoute(routes, ctx.url);
+        return match?.search ?? {};
+      }
+      return _searchParams.peek();
+    },
+    notify() {
+      _searchParams.notify();
+    },
+  } as Signal<Record<string, unknown>>;
 
   /** Navigation generation counter for stale-loader detection (inside applyNavigation). */
   let navigationGen = 0;
@@ -174,23 +265,6 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     const target = handle?.firstEvent ?? handle?.done;
     if (!target) return;
     await Promise.race([target, new Promise<void>((r) => setTimeout(r, DEFAULT_NAV_THRESHOLD_MS))]);
-  }
-
-  // In SSR, register a sync hook so the SSR pipeline can navigate
-  // module-level routers to the current request URL before each render.
-  // Without this, routers created at module import time (before __SSR_URL__
-  // is set) remain stuck on their initial URL for all subsequent renders.
-  if (isSSR) {
-    // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-    const g = globalThis as any;
-    const prev = g.__VERTZ_SSR_SYNC_ROUTER__;
-    g.__VERTZ_SSR_SYNC_ROUTER__ = (ssrUrl: string) => {
-      // Chain: call previously registered routers first
-      if (typeof prev === 'function') prev(ssrUrl);
-      const match = matchRoute(routes, ssrUrl);
-      current.value = match;
-      searchParams.value = match?.search ?? {};
-    };
   }
 
   // Run initial loaders
@@ -256,13 +330,11 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     // Start server nav prefetch before navigation
     const handle = startPrefetch(navUrl);
 
-    // Update browser history (skip in SSR)
-    if (!isSSR) {
-      if (navOptions?.replace) {
-        window.history.replaceState(null, '', navUrl);
-      } else {
-        window.history.pushState(null, '', navUrl);
-      }
+    // Update browser history
+    if (navOptions?.replace) {
+      window.history.replaceState(null, '', navUrl);
+    } else {
+      window.history.pushState(null, '', navUrl);
     }
 
     // Skip SSE wait for previously visited URLs — query cache will
@@ -292,24 +364,18 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
     }
   }
 
-  // Listen for popstate (back/forward browser buttons) — skip in SSR
-  let onPopState: (() => void) | null = null;
-
-  if (!isSSR) {
-    onPopState = () => {
-      const popUrl = window.location.pathname + window.location.search;
-      startPrefetch(popUrl);
-      applyNavigation(popUrl).catch(() => {
-        // Error is stored in loaderError signal
-      });
-    };
-    window.addEventListener('popstate', onPopState);
-  }
+  // Listen for popstate (back/forward browser buttons)
+  const onPopState = () => {
+    const popUrl = window.location.pathname + window.location.search;
+    startPrefetch(popUrl);
+    applyNavigation(popUrl).catch(() => {
+      // Error is stored in loaderError signal
+    });
+  };
+  window.addEventListener('popstate', onPopState);
 
   function dispose(): void {
-    if (onPopState) {
-      window.removeEventListener('popstate', onPopState);
-    }
+    window.removeEventListener('popstate', onPopState);
     if (currentAbort) {
       currentAbort.abort();
     }

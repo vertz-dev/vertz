@@ -7,6 +7,7 @@ export default defineConfig([
       'src/ssr/index.ts',
       'src/dom-shim/index.ts',
       'src/jsx-runtime/index.ts',
+      'src/fetch-scope.ts',
     ],
     dts: true,
   },
