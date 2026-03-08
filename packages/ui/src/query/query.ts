@@ -16,19 +16,14 @@ import { type CacheStore, MemoryCache } from './cache';
 import { deriveKey, hashString } from './key-derivation';
 import { hydrateQueryFromSSR } from './ssr-hydration';
 
-/** SSR detection — mirrors signal.ts isSSR() via the global hook. */
+/** SSR detection via the SSRRenderContext resolver. */
 function isSSR(): boolean {
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-  const check = typeof globalThis !== 'undefined' && (globalThis as any).__VERTZ_IS_SSR__;
-  return typeof check === 'function' ? check() : false;
+  return getSSRContext() !== undefined;
 }
 
-/** Read the global SSR timeout set by the dev server / renderToHTML. */
+/** Read the per-request SSR timeout from the SSR context. */
 function getGlobalSSRTimeout(): number | undefined {
-  // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-  const g = globalThis as any;
-  const getter = typeof globalThis !== 'undefined' && g.__VERTZ_GET_GLOBAL_SSR_TIMEOUT__;
-  return typeof getter === 'function' ? getter() : undefined;
+  return getSSRContext()?.globalSSRTimeout;
 }
 
 /** Options for query(). */
@@ -115,20 +110,15 @@ export function __inflightSize(): number {
 }
 
 /**
- * Clear the default query cache.
- * Called by SSR renders to ensure fresh query discovery on each request.
- * Without this, cached module state causes queries to skip registration
- * on subsequent SSR renders (they find stale cache hits from the first render).
+ * Reset the module-level default query cache and in-flight registry.
+ * Used by tests to ensure clean state between test cases.
+ * In SSR, per-request isolation provides fresh instances automatically.
+ * @internal — test utility only, not part of the public API.
  */
-function clearDefaultQueryCache(): void {
-  getDefaultCache().clear();
-  getInflight().clear();
+export function resetDefaultQueryCache(): void {
+  defaultCache.clear();
+  inflight.clear();
 }
-
-// Install global hook so ui-server can clear the query cache per-request
-// without importing @vertz/ui directly (avoids circular deps).
-// biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-(globalThis as any).__VERTZ_CLEAR_QUERY_CACHE__ = clearDefaultQueryCache;
 
 /**
  * Create a reactive data-fetching query.
@@ -309,10 +299,9 @@ export function query<T, E = unknown>(
       // Suppress unhandled rejection — SSR queries that reject are expected
       // (renderToHTML handles them via Promise.allSettled).
       promise.catch(() => {});
-      // biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-      const register = (globalThis as any).__VERTZ_SSR_REGISTER_QUERY__;
-      if (typeof register === 'function') {
-        register({
+      const ctx = getSSRContext();
+      if (ctx) {
+        ctx.queries.push({
           promise,
           timeout: ssrTimeout,
           resolve: (result: unknown) => {

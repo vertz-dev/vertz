@@ -1,3 +1,12 @@
+/** Entry registered by query() during SSR for renderToHTML() to await. */
+export interface SSRQueryEntry {
+  promise: Promise<unknown>;
+  timeout: number;
+  resolve: (data: unknown) => void;
+  key: string;
+  resolved?: boolean;
+}
+
 export interface SSRRenderContext {
   url: string;
   adapter: import('../dom/adapter').RenderAdapter;
@@ -11,13 +20,19 @@ export interface SSRRenderContext {
   envelopeStore: import('../store/query-envelope-store').QueryEnvelopeStore;
   queryCache: import('../query').MemoryCache<unknown>;
   inflight: Map<string, Promise<unknown>>;
+  /** SSR queries registered for awaiting before final render. */
+  queries: SSRQueryEntry[];
+  /** Errors collected during SSR rendering. */
+  errors: unknown[];
+  /** Global per-query timeout override (ms). */
+  globalSSRTimeout?: number;
 }
 
 type SSRContextResolver = () => SSRRenderContext | undefined;
 
 let _ssrResolver: SSRContextResolver | null = null;
 
-export function registerSSRResolver(resolver: SSRContextResolver): void {
+export function registerSSRResolver(resolver: SSRContextResolver | null): void {
   _ssrResolver = resolver;
 }
 

@@ -1,5 +1,5 @@
-import { defineTheme } from '@vertz/ui';
 import { describe, expect, it } from 'bun:test';
+import { defineTheme } from '@vertz/ui';
 import { renderToHTML } from '../render-to-html';
 import type { VNode } from '../types';
 
@@ -54,18 +54,10 @@ describe('renderToHTML', () => {
     expect(html).toContain('h1 { color: red; }');
   });
 
-  it('sets and cleans up __SSR_URL__', async () => {
-    // Before call - should not have __SSR_URL__ (or be undefined)
-    expect((globalThis as any).__SSR_URL__).toBeUndefined();
-
-    // During call - need to verify it's set. We'll do this by checking
-    // that render works with a URL (which requires the global to be set)
+  it('renders with URL and cleans up SSR context', async () => {
+    // Render works with a URL — SSR context is established internally
     const html = await renderToHTML(createApp, { url: '/test-url' });
     expect(html).toContain('Hello World');
-
-    // After call - should be cleaned up
-    const afterSSR = (globalThis as any).__SSR_URL__;
-    expect(afterSSR).toBeUndefined();
   });
 
   it('works with minimal options', async () => {
@@ -136,9 +128,6 @@ describe('renderToHTML', () => {
 
     // Expect the render to throw
     await expect(renderToHTML(failingApp, { url: '/' })).rejects.toThrow('Render failed');
-
-    // Verify cleanup happened - __SSR_URL__ should be undefined
-    expect((globalThis as any).__SSR_URL__).toBeUndefined();
 
     // Verify globals are cleaned up (document should be undefined)
     expect((globalThis as any).document).toBeUndefined();

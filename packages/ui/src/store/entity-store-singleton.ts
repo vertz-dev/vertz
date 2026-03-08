@@ -23,13 +23,13 @@ export function getQueryEnvelopeStore(): QueryEnvelopeStore {
   return _envelopeStore;
 }
 
-/** Reset the EntityStore singleton (for SSR per-request isolation). */
+/**
+ * Reset the module-level EntityStore and QueryEnvelopeStore singletons.
+ * Used by tests to ensure clean state between test cases.
+ * In SSR, per-request isolation provides fresh instances automatically.
+ * @internal — test utility only, not part of the public API.
+ */
 export function resetEntityStore(): void {
   _store = new EntityStore();
   _envelopeStore = new QueryEnvelopeStore();
 }
-
-// Install global hook so ui-server can reset the entity store per-request
-// without importing @vertz/ui directly (avoids circular deps).
-// biome-ignore lint/suspicious/noExplicitAny: SSR global hook requires globalThis augmentation
-(globalThis as any).__VERTZ_CLEAR_ENTITY_STORE__ = resetEntityStore;

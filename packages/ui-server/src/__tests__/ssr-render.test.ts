@@ -1,5 +1,5 @@
-import { createRouter, defineRoutes, defineTheme, RouterContext, RouterView } from '@vertz/ui';
 import { describe, expect, it } from 'bun:test';
+import { createRouter, defineRoutes, defineTheme, RouterContext, RouterView } from '@vertz/ui';
 import { registerSSRQuery } from '../ssr-context';
 import { ssrDiscoverQueries, ssrRenderToString, ssrStreamNavQueries } from '../ssr-render';
 
@@ -425,7 +425,7 @@ describe('per-request isolation', () => {
   it('renders correct page for each URL when router is module-level singleton', async () => {
     // Simulate the real-world pattern: router is created at module level
     // (before SSR runs), then SSR renders with different URLs.
-    // The router must sync to the current __SSR_URL__ for each render.
+    // The router must sync to the current SSR context URL for each render.
     const routes = defineRoutes({
       '/': {
         component: () => {

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { css, getInjectedCSS, injectCSS, resetInjectedStyles } from '../css';
 
 /** Read all CSS text from adopted stylesheets (used by injectCSS when available). */
@@ -61,10 +62,10 @@ describe('injectCSS SSR behavior', () => {
       el.remove();
     }
     resetInjectedStyles();
-    delete globalThis.__SSR_URL__;
+    disableTestSSR();
   });
 
-  it('bypasses dedup Set when __SSR_URL__ is set', () => {
+  it('bypasses dedup Set when SSR context is active', () => {
     const cssText = '.test-ssr { color: red; }';
 
     // First injection (browser mode) — populates dedup Set
@@ -79,8 +80,8 @@ describe('injectCSS SSR behavior', () => {
     const countAfterBrowser = getAdoptedCSSText().length;
     expect(countAfterBrowser).toBe(1);
 
-    // Set SSR flag and inject same CSS — should bypass dedup
-    globalThis.__SSR_URL__ = '/';
+    // Enable SSR context and inject same CSS — should bypass dedup
+    enableTestSSR();
     injectCSS(cssText);
     expect(getAdoptedCSSText().length).toBe(2);
   });
@@ -89,9 +90,9 @@ describe('injectCSS SSR behavior', () => {
     const cssText = '.test-set-tracking { color: blue; }';
 
     // Inject during SSR — should populate the Set for collection
-    globalThis.__SSR_URL__ = '/';
+    enableTestSSR();
     injectCSS(cssText);
-    delete globalThis.__SSR_URL__;
+    disableTestSSR();
 
     // getInjectedCSS should include the SSR-injected CSS
     const collected = getInjectedCSS();
@@ -103,7 +104,7 @@ describe('injectCSS SSR behavior', () => {
     for (let req = 1; req <= 2; req++) {
       // Reset per request (simulating installDomShim)
       resetInjectedStyles();
-      globalThis.__SSR_URL__ = `/page-${req}`;
+      enableTestSSR(createTestSSRContext(`/page-${req}`));
 
       css({ card: ['p:4', 'bg:background'] }, 'ssr-multi.tsx');
 

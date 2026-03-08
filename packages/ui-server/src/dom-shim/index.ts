@@ -10,6 +10,7 @@
 
 import { setAdapter } from '@vertz/ui/internals';
 import { createSSRAdapter } from '../ssr-adapter';
+import { ssrStorage } from '../ssr-context';
 import type { VNode } from '../types';
 import { SSRComment } from './ssr-comment';
 import { SSRElement } from './ssr-element';
@@ -76,9 +77,8 @@ export function installDomShim(): void {
   setAdapter(createSSRAdapter());
 
   // In a real browser, the document will have a proper doctype and won't be Happy-DOM
-  // Check for Happy-DOM or other test environments by looking for __SSR_URL__ global
-  // If __SSR_URL__ is set, we ALWAYS want to install our shim, even if document exists
-  const isSSRContext = typeof globalThis.__SSR_URL__ !== 'undefined';
+  // Check if we're inside an SSR render context (AsyncLocalStorage.run)
+  const isSSRContext = ssrStorage.getStore() !== undefined;
 
   if (typeof document !== 'undefined' && !isSSRContext && !shimInstalled) {
     return; // Already in a real browser, don't override
@@ -129,7 +129,7 @@ export function installDomShim(): void {
   if (typeof window === 'undefined') {
     // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
     (globalThis as any).window = {
-      location: { pathname: globalThis.__SSR_URL__ || '/', search: '', hash: '' },
+      location: { pathname: ssrStorage.getStore()?.url || '/', search: '', hash: '' },
       addEventListener: () => {},
       removeEventListener: () => {},
       history: {
@@ -145,7 +145,7 @@ export function installDomShim(): void {
     (globalThis as any).window.location = {
       // biome-ignore lint/suspicious/noExplicitAny: SSR shim requires globalThis augmentation
       ...((globalThis as any).window.location || {}),
-      pathname: globalThis.__SSR_URL__ || '/',
+      pathname: ssrStorage.getStore()?.url || '/',
     };
   }
 

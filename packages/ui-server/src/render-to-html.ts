@@ -10,6 +10,7 @@ import {
   setGlobalSSRTimeout,
   ssrStorage,
 } from './ssr-context';
+import { createRequestContext } from './ssr-render';
 import { createSSRDataChunk, getStreamingRuntimeScript } from './ssr-streaming-runtime';
 import { encodeChunk } from './streaming';
 import type { VNode } from './types';
@@ -166,7 +167,7 @@ export async function renderToHTMLStream<AppFn extends () => VNode>(
 
   const streamTimeout = options.streamTimeout ?? 30_000;
 
-  return ssrStorage.run({ url: options.url, errors: [], queries: [] }, async () => {
+  return ssrStorage.run(createRequestContext(options.url), async () => {
     try {
       // Set global ssrTimeout if provided
       if (options.ssrTimeout !== undefined) {
@@ -289,7 +290,7 @@ export async function renderToHTML<AppFn extends () => VNode>(
   // Direct path: uses twoPassRender without streaming overhead.
   // This avoids creating a ReadableStream, encoding to Uint8Array, then decoding back.
   installSSR();
-  return ssrStorage.run({ url: options.url, errors: [], queries: [] }, async () => {
+  return ssrStorage.run(createRequestContext(options.url), async () => {
     try {
       const { html } = await twoPassRender(options);
       return html;

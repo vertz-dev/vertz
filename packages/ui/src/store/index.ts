@@ -6,7 +6,7 @@
  */
 
 export { EntityStore } from './entity-store';
-export { getEntityStore, getQueryEnvelopeStore, resetEntityStore } from './entity-store-singleton';
+export { getEntityStore, getQueryEnvelopeStore } from './entity-store-singleton';
 export { shallowEqual, shallowMerge } from './merge';
 export { createOptimisticHandler } from './optimistic-handler';
 export type { QueryEnvelope } from './query-envelope-store';
