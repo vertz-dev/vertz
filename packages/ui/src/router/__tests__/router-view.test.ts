@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import { onMount } from '../../component/lifecycle';
 import { __element, __enterChildren, __exitChildren } from '../../dom/element';
 import { endHydration, startHydration } from '../../hydrate/hydration-context';
+import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { defineRoutes } from '../define-routes';
 import { createRouter } from '../navigate';
 import { Outlet } from '../outlet';
@@ -800,7 +801,7 @@ describe('RouterView', () => {
   });
 
   test('SSR renders nested route content in single pass', () => {
-    (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__ = () => true;
+    enableTestSSR(createTestSSRContext('/dashboard/settings'));
     try {
       const routes = defineRoutes({
         '/dashboard': {
@@ -835,13 +836,12 @@ describe('RouterView', () => {
       expect(view!.textContent).toContain('Settings Page');
       router.dispose();
     } finally {
-      delete (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__;
+      disableTestSSR();
     }
   });
 
   test('renders matched route content during SSR (domEffect runs once)', () => {
-    // Install SSR context so isSSR() returns true
-    (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__ = () => true;
+    enableTestSSR();
     try {
       const routes = defineRoutes({
         '/': {
@@ -860,7 +860,7 @@ describe('RouterView', () => {
       expect(view!.textContent).toBe('SSR Home');
       router.dispose();
     } finally {
-      delete (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__;
+      disableTestSSR();
     }
   });
 });

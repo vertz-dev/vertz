@@ -1,17 +1,31 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import type { SSRRenderContext } from '@vertz/ui/internals';
+import { ssrStorage } from '../../ssr-context';
 import { installDomShim, removeDomShim, toVNode } from '../index';
 
-describe('DOM Shim', () => {
-  beforeEach(() => {
-    // Set SSR context flag
-    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
-    (globalThis as any).__SSR_URL__ = '/test-path';
-  });
+/** Create a minimal SSRRenderContext for testing. */
+function testCtx(url: string): SSRRenderContext {
+  return {
+    url,
+    adapter: {} as SSRRenderContext['adapter'],
+    subscriber: null,
+    readValueCb: null,
+    cleanupStack: [],
+    batchDepth: 0,
+    pendingEffects: new Map(),
+    contextScope: null,
+    entityStore: {} as SSRRenderContext['entityStore'],
+    envelopeStore: {} as SSRRenderContext['envelopeStore'],
+    queryCache: {} as SSRRenderContext['queryCache'],
+    inflight: new Map(),
+    queries: [],
+    errors: [],
+  };
+}
 
+describe('DOM Shim', () => {
   afterEach(() => {
     removeDomShim();
-    // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
-    delete (globalThis as any).__SSR_URL__;
   });
 
   describe('installDomShim', () => {
@@ -21,11 +35,13 @@ describe('DOM Shim', () => {
       expect(document.createElement).toBeDefined();
     });
 
-    it('should create a minimal window object', () => {
-      installDomShim();
-      expect(globalThis).toHaveProperty('window');
-      // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
-      expect((window as any).location.pathname).toBe('/test-path');
+    it('should create a minimal window object with SSR URL', () => {
+      ssrStorage.run(testCtx('/test-path'), () => {
+        installDomShim();
+        expect(globalThis).toHaveProperty('window');
+        // biome-ignore lint/suspicious/noExplicitAny: SSR DOM shim requires dynamic typing
+        expect((window as any).location.pathname).toBe('/test-path');
+      });
     });
 
     it('should expose DOM constructor globals', () => {

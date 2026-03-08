@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'bun:test';
+import { disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { batch } from '../scheduler';
 import {
   computed,
@@ -313,16 +314,16 @@ describe('untrack', () => {
 
 describe('domEffect (SSR)', () => {
   function withSSR(fn: () => void): void {
-    (globalThis as any).__VERTZ_IS_SSR__ = () => true;
+    enableTestSSR();
     try {
       fn();
     } finally {
-      delete (globalThis as any).__VERTZ_IS_SSR__;
+      disableTestSSR();
     }
   }
 
   afterEach(() => {
-    delete (globalThis as any).__VERTZ_IS_SSR__;
+    disableTestSSR();
   });
 
   it('runs callback once in SSR without subscriptions', () => {
@@ -395,16 +396,16 @@ describe('domEffect (SSR)', () => {
 
 describe('lifecycleEffect', () => {
   function withSSR(fn: () => void): void {
-    (globalThis as any).__VERTZ_IS_SSR__ = () => true;
+    enableTestSSR();
     try {
       fn();
     } finally {
-      delete (globalThis as any).__VERTZ_IS_SSR__;
+      disableTestSSR();
     }
   }
 
   afterEach(() => {
-    delete (globalThis as any).__VERTZ_IS_SSR__;
+    disableTestSSR();
   });
 
   it('is a no-op during SSR', () => {

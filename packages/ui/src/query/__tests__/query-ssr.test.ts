@@ -1,50 +1,40 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { signal } from '../../runtime/signal';
+import type { SSRRenderContext } from '../../ssr/ssr-render-context';
+import { createTestSSRContext, disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { MemoryCache } from '../cache';
 import { query } from '../query';
 
 describe('query() SSR behavior', () => {
-  const registeredQueries: Array<{
-    promise: Promise<unknown>;
-    timeout: number;
-    resolve: (data: unknown) => void;
-    key?: string;
-  }> = [];
+  let ctx: SSRRenderContext;
 
   beforeEach(() => {
-    registeredQueries.length = 0;
-    (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__ = () => true;
-    (globalThis as Record<string, unknown>).__VERTZ_SSR_REGISTER_QUERY__ = (
-      entry: (typeof registeredQueries)[number],
-    ) => {
-      registeredQueries.push(entry);
-    };
+    ctx = enableTestSSR();
   });
 
   afterEach(() => {
-    delete (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__;
-    delete (globalThis as Record<string, unknown>).__VERTZ_SSR_REGISTER_QUERY__;
+    disableTestSSR();
   });
 
   it('registers a query promise with SSR context during SSR', () => {
     query(() => Promise.resolve('data'), { key: 'ssr-test' });
 
-    expect(registeredQueries).toHaveLength(1);
-    expect(registeredQueries[0]?.timeout).toBe(300); // default timeout matches plugin default
-    expect(registeredQueries[0]?.promise).toBeInstanceOf(Promise);
+    expect(ctx.queries).toHaveLength(1);
+    expect(ctx.queries[0]?.timeout).toBe(300); // default timeout matches plugin default
+    expect(ctx.queries[0]?.promise).toBeInstanceOf(Promise);
   });
 
   it('uses custom ssrTimeout when provided', () => {
     query(() => Promise.resolve('data'), { key: 'ssr-timeout-test', ssrTimeout: 50 });
 
-    expect(registeredQueries).toHaveLength(1);
-    expect(registeredQueries[0]?.timeout).toBe(50);
+    expect(ctx.queries).toHaveLength(1);
+    expect(ctx.queries[0]?.timeout).toBe(50);
   });
 
   it('does not register when ssrTimeout is 0', () => {
     query(() => Promise.resolve('data'), { key: 'ssr-disabled-test', ssrTimeout: 0 });
 
-    expect(registeredQueries).toHaveLength(0);
+    expect(ctx.queries).toHaveLength(0);
   });
 
   it('resolve callback updates data and loading signals', async () => {
@@ -52,10 +42,10 @@ describe('query() SSR behavior', () => {
       key: 'ssr-resolve-test',
     });
 
-    expect(registeredQueries).toHaveLength(1);
+    expect(ctx.queries).toHaveLength(1);
 
     // Simulate what renderToHTML does: await the promise, then call resolve
-    registeredQueries[0]?.resolve('server-data');
+    ctx.queries[0]?.resolve('server-data');
 
     expect(result.data.value).toBe('server-data');
     expect(result.loading.value).toBe(false);
@@ -67,7 +57,7 @@ describe('query() SSR behavior', () => {
       enabled: false,
     });
 
-    expect(registeredQueries).toHaveLength(0);
+    expect(ctx.queries).toHaveLength(0);
   });
 
   it('multiple queries register independently in parallel', () => {
@@ -75,10 +65,10 @@ describe('query() SSR behavior', () => {
     query(() => Promise.resolve('b'), { key: 'ssr-multi-b', ssrTimeout: 200 });
     query(() => Promise.resolve('c'), { key: 'ssr-multi-c', ssrTimeout: 50 });
 
-    expect(registeredQueries).toHaveLength(3);
-    expect(registeredQueries[0]?.timeout).toBe(300);
-    expect(registeredQueries[1]?.timeout).toBe(200);
-    expect(registeredQueries[2]?.timeout).toBe(50);
+    expect(ctx.queries).toHaveLength(3);
+    expect(ctx.queries[0]?.timeout).toBe(300);
+    expect(ctx.queries[1]?.timeout).toBe(200);
+    expect(ctx.queries[2]?.timeout).toBe(50);
   });
 
   it('does not register when initialData is provided', () => {
@@ -88,7 +78,7 @@ describe('query() SSR behavior', () => {
     });
 
     // initialData already provides the data — no need to SSR-fetch
-    expect(registeredQueries).toHaveLength(0);
+    expect(ctx.queries).toHaveLength(0);
     expect(result.data.value).toBe('cached');
   });
 
@@ -96,8 +86,8 @@ describe('query() SSR behavior', () => {
     const expected = Promise.resolve('test-data');
     query(() => expected, { key: 'ssr-promise-test' });
 
-    expect(registeredQueries).toHaveLength(1);
-    await expect(registeredQueries[0]?.promise).resolves.toBe('test-data');
+    expect(ctx.queries).toHaveLength(1);
+    await expect(ctx.queries[0]?.promise).resolves.toBe('test-data');
   });
 
   it('error in thunk does not crash — promise rejects but is registered', () => {
@@ -107,44 +97,36 @@ describe('query() SSR behavior', () => {
 
     query(() => rejectedPromise, { key: 'ssr-error-test' });
 
-    expect(registeredQueries).toHaveLength(1);
+    expect(ctx.queries).toHaveLength(1);
   });
 
   it('registered entry includes the query cache key for streaming', () => {
     query(() => Promise.resolve('data'), { key: 'streaming-key-test' });
 
-    expect(registeredQueries).toHaveLength(1);
-    expect(registeredQueries[0]?.key).toBe('streaming-key-test');
+    expect(ctx.queries).toHaveLength(1);
+    expect(ctx.queries[0]?.key).toBe('streaming-key-test');
   });
 
-  it('uses global ssrTimeout default when set via function hook and no per-query override', () => {
-    (globalThis as Record<string, unknown>).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__ = () => 250;
-    try {
-      query(() => Promise.resolve('data'), { key: 'global-timeout-test' });
-      expect(registeredQueries).toHaveLength(1);
-      expect(registeredQueries[0]?.timeout).toBe(250);
-    } finally {
-      delete (globalThis as Record<string, unknown>).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__;
-    }
+  it('uses global ssrTimeout default when set on context and no per-query override', () => {
+    ctx.globalSSRTimeout = 250;
+    query(() => Promise.resolve('data'), { key: 'global-timeout-test' });
+    expect(ctx.queries).toHaveLength(1);
+    expect(ctx.queries[0]?.timeout).toBe(250);
   });
 
-  it('falls back to 300 when global ssrTimeout hook is not set', () => {
+  it('falls back to 300 when global ssrTimeout is not set', () => {
     // Ensure no global is set
-    delete (globalThis as Record<string, unknown>).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__;
+    ctx.globalSSRTimeout = undefined;
     query(() => Promise.resolve('data'), { key: 'fallback-timeout-test' });
-    expect(registeredQueries).toHaveLength(1);
-    expect(registeredQueries[0]?.timeout).toBe(300);
+    expect(ctx.queries).toHaveLength(1);
+    expect(ctx.queries[0]?.timeout).toBe(300);
   });
 
   it('per-query ssrTimeout overrides global default', () => {
-    (globalThis as Record<string, unknown>).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__ = () => 250;
-    try {
-      query(() => Promise.resolve('data'), { key: 'override-timeout-test', ssrTimeout: 500 });
-      expect(registeredQueries).toHaveLength(1);
-      expect(registeredQueries[0]?.timeout).toBe(500);
-    } finally {
-      delete (globalThis as Record<string, unknown>).__VERTZ_GET_GLOBAL_SSR_TIMEOUT__;
-    }
+    ctx.globalSSRTimeout = 250;
+    query(() => Promise.resolve('data'), { key: 'override-timeout-test', ssrTimeout: 500 });
+    expect(ctx.queries).toHaveLength(1);
+    expect(ctx.queries[0]?.timeout).toBe(500);
   });
 });
 
@@ -155,8 +137,8 @@ describe('query() client-side SSR hydration', () => {
 
   beforeEach(() => {
     listeners.clear();
-    // NOT in SSR mode (client-side)
-    delete (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__;
+    // NOT in SSR mode (client-side) — no resolver set
+    disableTestSSR();
     // Mock document for event listeners
     (globalThis as Record<string, unknown>).document = {
       addEventListener: (type: string, fn: EventListener) => {
@@ -218,7 +200,7 @@ describe('query() client-side SSR hydration', () => {
 describe('query() nav prefetch integration', () => {
   beforeEach(() => {
     // Ensure we're NOT in SSR mode (client-side)
-    delete (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__;
+    disableTestSSR();
     // Clean up nav prefetch state
     delete (globalThis as Record<string, unknown>).__VERTZ_NAV_PREFETCH_ACTIVE__;
     delete (globalThis as Record<string, unknown>).__VERTZ_SSR_DATA__;

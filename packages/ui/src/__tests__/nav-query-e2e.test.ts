@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'bun:test';
 import { MemoryCache } from '../query/cache';
-import { query } from '../query/query';
+import { query, resetDefaultQueryCache } from '../query/query';
 import { defineRoutes } from '../router/define-routes';
 import { createRouter } from '../router/navigate';
 import { ensureSSRDataBus, pushNavData } from '../router/server-nav';
@@ -73,16 +73,14 @@ describe('Navigation → Query E2E Integration', () => {
     delete g.__VERTZ_SSR_DATA__;
     delete g.__VERTZ_SSR_PUSH__;
     delete g.__VERTZ_NAV_PREFETCH_ACTIVE__;
-    delete g.__VERTZ_IS_SSR__;
-    (g.__VERTZ_CLEAR_QUERY_CACHE__ as () => void)();
+    resetDefaultQueryCache();
   });
 
   afterEach(() => {
     delete g.__VERTZ_SSR_DATA__;
     delete g.__VERTZ_SSR_PUSH__;
     delete g.__VERTZ_NAV_PREFETCH_ACTIVE__;
-    delete g.__VERTZ_IS_SSR__;
-    (g.__VERTZ_CLEAR_QUERY_CACHE__ as () => void)();
+    resetDefaultQueryCache();
   });
 
   it('fast SSE data → query hydrates without loading flash', async () => {

@@ -152,5 +152,4 @@ export {
   getEntityStore,
   getQueryEnvelopeStore,
   QueryEnvelopeStore,
-  resetEntityStore,
 } from './store';

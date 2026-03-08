@@ -1,4 +1,5 @@
 import type { AppBuilder } from '@vertz/core';
+import { installFetchProxy, runWithScopedFetch } from '@vertz/ui-server/fetch-scope';
 import type { SSRModule } from '@vertz/ui-server/ssr';
 
 // ---------------------------------------------------------------------------
@@ -206,6 +207,8 @@ function isSSRModuleConfig(
 
 function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWorkerModule {
   const { basePath, ssr, securityHeaders } = config;
+  // Install per-request fetch proxy once (idempotent)
+  installFetchProxy();
   let cachedApp: AppBuilder | null = null;
   // SSR handler factory: when using SSRModuleConfig with nonce support, this
   // is called per-request with the current nonce. For custom callbacks it
@@ -277,34 +280,29 @@ function createFullStackHandler(config: CloudflareHandlerConfig): CloudflareWork
         const app = getApp(env);
         const ssrHandler = ssrHandlerFactory(nonce);
         const origin = url.origin;
-        // Patch fetch during SSR so API requests (e.g. query() calling
-        // fetch('/api/todos')) are routed through the in-memory app handler
-        // instead of attempting a network self-fetch (which fails on Workers).
-        const originalFetch = globalThis.fetch;
-        globalThis.fetch = (input, init) => {
-          // Determine the pathname from the input (string, URL, or Request)
+        // Scope fetch interception per-request via AsyncLocalStorage.
+        // API requests (e.g. query() calling fetch('/api/todos')) route
+        // through the in-memory app handler. No globalThis.fetch mutation.
+        const interceptor: typeof fetch = (input, init) => {
           const rawUrl =
             typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
           const isRelative = rawUrl.startsWith('/');
-          const pathname = isRelative ? rawUrl.split('?')[0] : new URL(rawUrl).pathname;
+          const pathname = isRelative ? (rawUrl.split('?')[0] ?? '/') : new URL(rawUrl).pathname;
           const isLocal = isRelative || new URL(rawUrl).origin === origin;
 
           if (isLocal && pathname.startsWith(basePath)) {
-            // Build an absolute URL so Request() doesn't reject relative URLs
             const absoluteUrl = isRelative ? `${origin}${rawUrl}` : rawUrl;
             const req = new Request(absoluteUrl, init);
             return app.handler(req);
           }
-          return originalFetch(input, init);
+          return globalThis.fetch(input, init);
         };
         try {
-          const response = await ssrHandler(request);
+          const response = await runWithScopedFetch(interceptor, () => ssrHandler(request));
           return applyHeaders(response, nonce);
         } catch (error) {
           console.error('Unhandled error in worker:', error);
           return applyHeaders(new Response('Internal Server Error', { status: 500 }), nonce);
-        } finally {
-          globalThis.fetch = originalFetch;
         }
       }
 

@@ -6,6 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { signal } from '../../runtime/signal';
+import { disableTestSSR, enableTestSSR } from '../../ssr/test-ssr-helpers';
 import { __attr, __classList, __show } from '../attributes';
 import { __conditional } from '../conditional';
 import { __child, __text } from '../element';
@@ -13,11 +14,11 @@ import { __list } from '../list';
 
 describe('two-tier effect model — SSR integration', () => {
   beforeEach(() => {
-    (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__ = () => true;
+    enableTestSSR();
   });
 
   afterEach(() => {
-    delete (globalThis as Record<string, unknown>).__VERTZ_IS_SSR__;
+    disableTestSSR();
   });
 
   it('__text produces correct text content in SSR', () => {

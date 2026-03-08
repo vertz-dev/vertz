@@ -1,5 +1,6 @@
 import { _tryOnCleanup, popScope, pushScope, runCleanups } from '../runtime/disposal';
 import { untrack } from '../runtime/tracking';
+import { getSSRContext } from '../ssr/ssr-render-context';
 
 /**
  * Runs callback once on mount. Never re-executes.
@@ -14,11 +15,7 @@ import { untrack } from '../runtime/tracking';
  */
 export function onMount(callback: () => (() => void) | void): void {
   // SSR safety: skip onMount during server-side rendering.
-  // Uses the global function hook __VERTZ_IS_SSR__ (AsyncLocalStorage-backed).
-  if (typeof globalThis !== 'undefined') {
-    const check = (globalThis as any).__VERTZ_IS_SSR__;
-    if (typeof check === 'function' && check()) return;
-  }
+  if (getSSRContext()) return;
 
   // Push a disposal scope so onCleanup() calls inside the callback are captured
   const scope = pushScope();

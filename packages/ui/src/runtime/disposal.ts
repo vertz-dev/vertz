@@ -1,3 +1,4 @@
+import { getSSRContext } from '../ssr/ssr-render-context';
 import type { DisposeFn } from './signal-types';
 
 /**
@@ -22,13 +23,20 @@ export class DisposalScopeError extends Error {
  */
 const cleanupStack: DisposeFn[][] = [];
 
+function getCleanupStack(): DisposeFn[][] {
+  const ctx = getSSRContext();
+  if (ctx) return ctx.cleanupStack;
+  return cleanupStack;
+}
+
 /**
  * Register a cleanup function with the current disposal scope.
  * Throws `DisposalScopeError` if no scope is active — fail-fast
  * so developers know their cleanup callback was not registered.
  */
 export function onCleanup(fn: DisposeFn): void {
-  const current = cleanupStack[cleanupStack.length - 1];
+  const stack = getCleanupStack();
+  const current = stack[stack.length - 1];
   if (!current) {
     throw new DisposalScopeError();
   }
@@ -43,7 +51,8 @@ export function onCleanup(fn: DisposeFn): void {
  * optionally register with a parent scope but work fine without one.
  */
 export function _tryOnCleanup(fn: DisposeFn): void {
-  const current = cleanupStack[cleanupStack.length - 1];
+  const stack = getCleanupStack();
+  const current = stack[stack.length - 1];
   if (current) {
     current.push(fn);
   }
@@ -54,8 +63,9 @@ export function _tryOnCleanup(fn: DisposeFn): void {
  * will be collected and returned when the scope is popped.
  */
 export function pushScope(): DisposeFn[] {
+  const stack = getCleanupStack();
   const scope: DisposeFn[] = [];
-  cleanupStack.push(scope);
+  stack.push(scope);
   return scope;
 }
 
@@ -63,7 +73,8 @@ export function pushScope(): DisposeFn[] {
  * Pop the current cleanup scope.
  */
 export function popScope(): void {
-  cleanupStack.pop();
+  const stack = getCleanupStack();
+  stack.pop();
 }
 
 /**
