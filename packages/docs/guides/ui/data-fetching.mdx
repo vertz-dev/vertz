@@ -108,7 +108,7 @@ const tasks = query(api.tasks.list());
 
 async function handleDelete(id: string) {
   await api.tasks.delete(id);
-  tasks.refetch(); // Clear cache and re-fetch
+  tasks.refetch(); // Re-fetch in background, update cache when done
 }
 ```
 
