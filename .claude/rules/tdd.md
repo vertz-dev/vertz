@@ -12,61 +12,51 @@ All framework development follows strict Test-Driven Development.
    - If any of these fail, you are NOT green. Fix before proceeding.
 3. **Refactor** — Clean up while keeping all checks green
 4. **Repeat** — Go back to step 1 with the next behavior
+
 ## Rules
 
 - Never write multiple tests before implementing
 - Never write implementation code without a failing test
 - Each cycle handles one behavior — not a batch
 - Run tests after every change to confirm red/green state
-- **Green = tests + typecheck + lint.** All three must pass. A test-only green with failing typecheck is NOT green.
+- **Green = tests + typecheck + lint.** All three must pass.
 - Tests are the specification — if it's not tested, it doesn't exist
-- **Before pushing:** Run full quality gates on all changed packages. Never push code that hasn't been typechecked.
+- **Before pushing:** Run full quality gates on all changed packages.
 
 ## Phase Acceptance Criteria
 
-Every phase in a design or implementation plan MUST define integration tests as part of its acceptance criteria (unless the phase is pure scaffolding with no runtime behavior). When writing plans:
+- Each phase must list concrete integration tests as acceptance criteria
+- Integration tests validate the phase works as a whole (outside-in)
+- A phase is not done until its integration tests pass
+- "add integration tests" is not an acceptance criterion — be specific
 
-- **Each phase must list its integration test(s)** — what end-to-end behavior is verified when the phase is complete?
-- **Integration tests validate the phase works as a whole** — not just unit tests on individual functions, but tests that exercise the feature from the outside in.
-- **A phase is not done until its integration tests pass** — shipping code without the defined integration tests is incomplete work.
-- **Tests should be concrete and specific** — "add integration tests" is not an acceptance criterion. "Integration test: `createRouter('/users').get('/:id', handler)` responds with 200 and typed JSON body" is.
+## Type Flow Verification
 
-## Type Flow Verification (Mandatory)
-
-**Context:** This rule was added after the @vertz/core middleware gap (see `backstage/research/process-reviews/core-middleware-gap-analysis.md`). Middleware `provides` types were defined with generics but never threaded through to handler `ctx`, because no phase owned the end-to-end type flow and no type-level tests were required.
-
-Every phase that introduces or uses generic type parameters MUST include type flow verification:
-
-- **Every generic type parameter must be tested end-to-end** — if a type is defined at layer A (e.g., middleware `TProvides`), there must be a `.test-d.ts` test proving it surfaces at layer Z (e.g., handler `ctx.someProperty`). A generic that is defined but never reaches the consumer is a dead generic — treat it as a bug.
-- **Type tests must cover both positive and negative cases** — positive: correct types compile. Negative: `@ts-expect-error` on wrong types. Both are required.
-- **Implementation plans must specify type flow paths** — when writing plans, explicitly state which types flow where. Example: "middleware `TProvides` → `AppBuilder<TMiddlewareCtx>` → `NamedRouterDef<TMiddleware>` → `TypedHandlerCtx<..., TMiddleware>` → handler `ctx`". This makes dead generics visible at plan time, not after implementation.
-- **Phase reviews must verify type flow** — reviewers should check: "Does every generic parameter introduced in this phase have a test proving it reaches the end user?" If not, the phase is incomplete.
+Every phase with generic type parameters MUST include:
+- `.test-d.ts` tests proving each generic flows from definition to consumer (dead generic = bug)
+- Both positive and negative type tests (`@ts-expect-error` on wrong types)
+- Plans must specify type flow paths explicitly
+- Reviewers verify: every generic has a test proving it reaches the end user
 
 ## Type-Level TDD
 
-Type-only changes (generics, constraints, narrowing) follow the same red-green-refactor cycle. The RED test for a type change is a `@ts-expect-error` directive on code the compiler should reject but doesn't yet.
-
-1. **Red** — Write a `@ts-expect-error` on a wrong-shaped call. The directive is "unused" (the compiler doesn't error) → test fails.
-2. **Green** — Tighten the type signature so the compiler rejects the call. The directive is now needed → test passes.
+1. **Red** — Write `@ts-expect-error` on a wrong-shaped call. Directive is "unused" → test fails.
+2. **Green** — Tighten the type signature so compiler rejects the call. Directive now needed → test passes.
 3. **Refactor** — Clean up types while tests stay green.
 
-Positive type tests ("correct shape compiles") are NOT valid RED tests — loose signatures like `unknown` already accept them. Write negative tests first to drive the type constraints.
+Positive type tests are NOT valid RED tests — loose signatures already accept them. Write negative tests first.
 
-**Important:** `@ts-expect-error` tests only verify **interface signatures** (the public API). They do NOT catch type errors in the **implementation body**. After GREEN, run `bun run typecheck` to ensure the implementation types are also correct. Type tests + typecheck together cover the full picture.
+After GREEN, run `bun run typecheck` — `@ts-expect-error` only verifies interface signatures, not implementation body types.
 
 ## Compiler Transform Testing
 
-**Context:** Added after a signal auto-unwrap bug where MagicString's `appendRight` vs `appendLeft` caused `.value` insertion to be silently dropped in JSX attributes. All existing tests used transforms in standalone-statement contexts (assign to variable, then use variable in JSX), hiding the MagicString interaction between the signal and JSX transformers. The e2e example tests caught the runtime symptom; these rules ensure compiler-level tests catch the root cause earlier.
-
-When testing compiler transforms that modify expressions:
-
-- **Always test transforms in direct JSX contexts** — every transform test must include at least one case where the transformed expression appears directly in a JSX attribute (`disabled={expr}`) and directly in a JSX child expression (`{expr}`). These are the two contexts where the JSX transformer reads transformed text via `source.slice()`, and transform interaction bugs only surface here.
-- **Don't rely solely on intermediate variables** — a test like `const data = tasks.data; return <div>{data}</div>` validates the transform at the assignment but NOT in the JSX context. The JSX transformer reads the variable name, not the original expression — so it never exercises the MagicString interaction. Add a companion test: `return <div>{tasks.data}</div>`.
-- **Test multi-transform interactions** — when two transforms operate on the same source range (e.g., signal `.value` insertion + JSX attribute transformation), test them together. Isolated transform tests don't catch interaction bugs.
+- **Always test in direct JSX contexts** — every transform test needs cases in JSX attributes (`disabled={expr}`) and JSX children (`{expr}`)
+- **Don't rely solely on intermediate variables** — `const data = tasks.data; <div>{data}</div>` doesn't exercise MagicString interaction. Add: `<div>{tasks.data}</div>`
+- **Test multi-transform interactions** — isolated transform tests don't catch interaction bugs
 
 ## Never Skip Quality Gates
 
-- **Never skip or disable linting rules.** Fix the code to comply, don't suppress or weaken the rule. If a rule flags your code, your code is wrong — not the rule. This includes `biome`, `eslint`, or any other configured linter.
-- **Never skip or disable type checking.** No `@ts-ignore`, no `as any` casts, no loosening `tsconfig` strictness. If types don't pass, fix the types.
-- **Never skip or disable tests.** No `.skip`, no `xit`, no commenting out. If a test fails, fix the code or fix the test — don't silence it.
-- **Never skip pre-commit hooks or CI checks.** No `--no-verify`, no `--force`. These gates exist for a reason.
+- Never skip linting rules — fix the code, not the rule
+- Never skip type checking — no `@ts-ignore`, no `as any`
+- Never skip tests — no `.skip`, no commenting out
+- Never skip pre-commit hooks — no `--no-verify`, no `--force`
