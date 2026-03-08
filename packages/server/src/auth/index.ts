@@ -1757,12 +1757,40 @@ export type {
 } from './access';
 // Re-export access control from auth/access.ts
 export { AuthorizationError, createAccess, defaultAccess } from './access';
+export type { AccessContext, AccessContextConfig, ResourceRef } from './access-context';
+// Phase 6: Resource Hierarchy & defineAccess
+export { createAccessContext } from './access-context';
+export type { ClosureEntry, ClosureRow, ClosureStore, ParentRef } from './closure-store';
+export { InMemoryClosureStore } from './closure-store';
+export type {
+  AccessCheckResult,
+  AccessDefinition,
+  DefineAccessInput,
+  DenialMeta,
+  DenialReason,
+  EntitlementDef,
+} from './define-access';
+export { defineAccess } from './define-access';
 export { checkFva } from './fva';
 export { InMemoryMFAStore } from './mfa-store';
 export { InMemoryOAuthAccountStore } from './oauth-account-store';
 // Re-export provider factories
 export { discord, github, google } from './providers';
 export { InMemoryRateLimitStore } from './rate-limit-store';
+export type { RoleAssignment, RoleAssignmentStore } from './role-assignment-store';
+export { InMemoryRoleAssignmentStore } from './role-assignment-store';
+export type {
+  AccessRule,
+  AllRule,
+  AnyRule,
+  AuthenticatedRule,
+  EntitlementRule,
+  FvaRule,
+  RoleRule,
+  UserMarker,
+  WhereRule,
+} from './rules';
+export { rules } from './rules';
 // Re-export store implementations
 export { InMemorySessionStore } from './session-store';
 // Re-export types from types.ts
