@@ -1,0 +1,235 @@
+---
+title: Conventions
+description: "Code style conventions for Vertz projects — no magic, just consistency"
+---
+
+Vertz has strong conventions. None of these are enforced by the compiler or runtime — they're patterns that keep your code consistent, readable, and predictable for both humans and LLMs.
+
+## Component signatures
+
+### Destructure props in the parameter
+
+```tsx
+// Preferred
+export function TaskCard({ task, onClick }: TaskCardProps) {
+  return <div onClick={() => onClick(task.id)}>{task.title}</div>;
+}
+
+// Avoid
+export function TaskCard(props: TaskCardProps) {
+  const { task, onClick } = props;
+  return <div onClick={() => onClick(task.id)}>{task.title}</div>;
+}
+```
+
+### Props interface naming
+
+Name the interface `ComponentNameProps`. Use the `on` prefix for callback props.
+
+```tsx
+interface TaskCardProps {
+  task: Task;
+  onClick: (id: string) => void;
+  onDelete?: (id: string) => void;
+}
+```
+
+### Don't annotate return types
+
+Let TypeScript infer component return types. The JSX factory maps tag names to specific element types — an explicit `: HTMLElement` annotation is a lossy upcast.
+
+```tsx
+// Preferred — TypeScript infers HTMLFormElement
+export function TaskForm({ onSuccess }: TaskFormProps) {
+  return <form>...</form>;
+}
+
+// Avoid — loses type specificity
+export function TaskForm({ onSuccess }: TaskFormProps): HTMLElement {
+  return <form>...</form>;
+}
+```
+
+## Reactivity
+
+### `let` for local state
+
+Never call `signal()` manually for local state — use `let`. The compiler handles the transformation.
+
+```tsx
+// Preferred
+let count = 0;
+let isOpen = false;
+
+// Avoid
+const count = signal(0);
+const isOpen = signal(false);
+```
+
+### `const` for derived values
+
+Never use `let` + `watch()` to sync derived values — use `const`. The compiler wraps it in `computed()` automatically.
+
+```tsx
+// Preferred
+let count = 0;
+const doubled = count * 2;
+
+// Avoid
+let count = 0;
+let doubled = 0;
+watch(() => count, (c) => { doubled = c * 2; });
+```
+
+### `watch()` for side effects
+
+Use `watch()` only for side effects — logging, analytics, DOM manipulation outside JSX. Never for deriving values.
+
+```tsx
+watch(
+  () => settings.theme,
+  (theme) => {
+    document.documentElement.className = theme;
+  },
+);
+```
+
+## JSX
+
+### Fully declarative
+
+All UI code must be declarative. No `appendChild`, `innerHTML`, `textContent` assignment, `setAttribute`, or `document.createElement`.
+
+```tsx
+// Preferred
+return <div class={styles.panel}>{title}</div>;
+
+// Avoid
+const el = document.createElement('div');
+el.textContent = title;
+el.className = styles.panel;
+```
+
+If you can't express something declaratively, that's a framework gap — not a reason to use imperative DOM APIs.
+
+### Use JSX for components, not function calls
+
+```tsx
+// Preferred
+<TaskCard task={task} onClick={handleClick} />
+
+// Avoid
+{TaskCard({ task, onClick: handleClick })}
+```
+
+### Conditionals with `&&` and ternary
+
+```tsx
+{isLoading && <div>Loading...</div>}
+{error ? <ErrorView error={error} /> : <Content data={data} />}
+```
+
+### Lists with `.map()` and `key`
+
+```tsx
+{tasks.map((task) => (
+  <TaskCard key={task.id} task={task} />
+))}
+```
+
+## Styling
+
+### `css()` for scoped styles
+
+```tsx
+const styles = css({
+  card: ['bg:card', 'rounded:lg', 'p:4'],
+  title: ['font:lg', 'font:bold'],
+});
+```
+
+### `variants()` for parameterized styles
+
+```tsx
+const button = variants({
+  base: ['inline-flex', 'rounded:md', 'font:medium'],
+  variants: {
+    intent: {
+      primary: ['bg:primary', 'text:white'],
+      ghost: ['bg:transparent', 'text:foreground'],
+    },
+    size: {
+      sm: ['text:xs', 'px:3'],
+      md: ['text:sm', 'px:4'],
+    },
+  },
+  defaultVariants: { intent: 'primary', size: 'md' },
+});
+```
+
+### Inline `style` only for dynamic values
+
+Use `css()` tokens for anything theme-related. Reserve inline styles for one-off layout values like margins, transforms, or dynamic positioning.
+
+## Data fetching
+
+### `query()` is auto-disposed
+
+Don't manually dispose queries — they auto-register cleanup with the component scope.
+
+```tsx
+// Preferred — auto-disposed when component unmounts
+const tasks = query(api.tasks.list());
+
+// Unnecessary
+onMount(() => () => tasks.dispose());
+```
+
+### `.value` only outside JSX
+
+Signal properties like `.data`, `.loading`, `.error` auto-unwrap in JSX. Use `.value` only in event handlers, `watch()`, or other non-JSX contexts.
+
+```tsx
+// In JSX — auto-unwraps, no .value needed
+<div>{tasks.data?.items.length}</div>
+
+// In event handler — use .value
+onClick={() => {
+  if (tasks.data.value) {
+    console.log(tasks.data.value.items.length);
+  }
+}}
+```
+
+## Context
+
+### Create a convenience hook
+
+Always create a typed `use*` accessor that throws on missing provider.
+
+```tsx
+export const SettingsContext = createContext<SettingsContextValue>();
+
+export function useSettings(): SettingsContextValue {
+  const ctx = useContext(SettingsContext);
+  if (!ctx) throw new Error('useSettings must be called within SettingsContext.Provider');
+  return ctx;
+}
+```
+
+## Router
+
+### Pages use `useRouter()`, not props
+
+Pages access the router via context — no prop threading.
+
+```tsx
+// Preferred — page gets router from context
+export function TaskListPage() {
+  const { navigate } = useAppRouter();
+  // ...
+}
+
+// Avoid — threading navigate through route definitions
+'/': { component: () => TaskListPage({ navigate: router.navigate }) }
+```

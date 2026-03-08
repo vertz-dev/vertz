@@ -1,0 +1,118 @@
+---
+title: Services
+description: "Standalone operations and cross-entity workflows"
+---
+
+Services are standalone operation groups that aren't tied to a single entity's CRUD lifecycle. Use them for domain services, cross-entity workflows, or any operation that doesn't fit the entity model.
+
+## Defining a service
+
+```ts
+import { service } from 'vertz/server';
+import { s } from 'vertz/schema';
+
+const notifications = service('notifications', {
+  inject: {
+    users: usersEntity,
+    tasks: tasksEntity,
+  },
+
+  access: {
+    sendEmail: () => true,
+    sendBulk: () => true,
+  },
+
+  actions: {
+    sendEmail: {
+      body: s.object({
+        to: s.string().email(),
+        subject: s.string(),
+        body: s.string(),
+      }),
+      response: s.object({
+        id: s.string().uuid(),
+        status: s.literal('sent'),
+      }),
+      handler: async (input, ctx) => {
+        await emailService.send(input);
+        return { id: crypto.randomUUID(), status: 'sent' as const };
+      },
+    },
+
+    sendBulk: {
+      body: s.object({
+        userIds: s.array(s.string().uuid()),
+        message: s.string(),
+      }),
+      response: s.object({ sent: s.number() }),
+      handler: async (input, ctx) => {
+        return { sent: input.userIds.length };
+      },
+    },
+  },
+});
+```
+
+## Services vs. entity custom actions
+
+| | Entity custom actions | Services |
+|---|---|---|
+| **Scope** | Tied to a single entity instance (`:id`) | Independent — no parent entity |
+| **Route** | `POST /api/tasks/:id/archive` | `POST /api/notifications/send-email` |
+| **Context** | Gets the existing record as 3rd argument | No record — just input and context |
+| **Use case** | Operations on a specific record | Cross-entity workflows, domain services |
+
+Use entity custom actions when the operation targets a specific record (archive a task, mark as complete). Use services when the operation spans multiple entities or doesn't belong to any single entity.
+
+## Dependency injection
+
+Services access entities through `inject`, just like entity hooks:
+
+```ts
+const reports = service('reports', {
+  inject: {
+    tasks: tasksEntity,
+    users: usersEntity,
+  },
+  actions: {
+    generate: {
+      body: s.object({ month: s.number(), year: s.number() }),
+      response: s.object({ totalTasks: s.number(), completionRate: s.number() }),
+      handler: async (input, ctx) => {
+        const tasks = await ctx.entities.tasks.list({
+          where: { /* filter by month/year */ },
+        });
+        return {
+          totalTasks: tasks.total,
+          completionRate: /* calculate */,
+        };
+      },
+    },
+  },
+});
+```
+
+## Access rules
+
+Services use the same access control as entities — deny-by-default, with the action name as the key:
+
+```ts
+access: {
+  sendEmail: () => true,
+  sendBulk: () => true,
+  // generate: undefined → route not created
+}
+```
+
+## Server setup
+
+Pass services alongside entities:
+
+```ts
+createServer({
+  entities: [users, tasks],
+  services: [notifications, reports],
+  db,
+})
+  .listen({ port: 3000 });
+```

@@ -1,0 +1,267 @@
+---
+title: Errors
+description: "Errors as values — typed Results, domain errors, and boundary mapping"
+---
+
+Vertz treats errors as **values, not exceptions**. Every operation that can fail returns a `Result<T, E>` — a discriminated union that makes success and failure explicit in the type system. You handle errors by matching on them, not by wrapping code in try-catch.
+
+## Why errors as values?
+
+Exceptions are invisible in TypeScript. A function signature `getUser(id: string): User` tells you nothing about what can go wrong. The caller has no idea they need to handle `NotFoundError` or `UniqueViolationError` until it blows up at runtime.
+
+With Result types, failures are visible in the signature:
+
+```ts
+// Exception style — failure is invisible
+function getUser(id: string): User { ... }
+
+// Result style — failure is part of the contract
+function getUser(id: string): Result<User, NotFoundError> { ... }
+```
+
+The compiler forces you to handle both branches. If you add a new error type to the union, every caller that doesn't handle it becomes a compile error — not a runtime surprise.
+
+## The Result type
+
+```ts
+import { ok, err, type Result } from 'vertz/errors';
+
+type Result<T, E> = Ok<T> | Err<E>;
+
+// Ok branch
+{ ok: true, data: T }
+
+// Err branch
+{ ok: false, error: E }
+```
+
+### Creating results
+
+```ts
+import { ok, err } from 'vertz/errors';
+
+// Success
+return ok(user);
+
+// Failure
+return err(createNotFoundError('users'));
+```
+
+### Handling results
+
+```ts
+const result = await db.users.get({ where: { id: userId } });
+
+if (result.ok) {
+  console.log(result.data.name);  // typed as User
+} else {
+  console.log(result.error.code);  // typed as error union
+}
+```
+
+### Pattern matching
+
+```ts
+import { match } from 'vertz/errors';
+
+const message = match(result, {
+  ok: (user) => `Hello, ${user.name}!`,
+  err: (error) => `Error: ${error.message}`,
+});
+```
+
+### Exhaustive error matching
+
+`matchErr` requires a handler for **every error code** in the union. Miss one and the compiler tells you:
+
+```ts
+import { matchErr } from 'vertz/errors';
+
+const response = matchErr(result, {
+  ok: (user) => json({ data: user }, 201),
+  NOT_FOUND: (e) => json({ error: 'User not found' }, 404),
+  UNIQUE_VIOLATION: (e) => json({ error: 'Email already exists', field: e.column }, 409),
+  // If the error union includes FK_VIOLATION and you don't list it here,
+  // TypeScript shows a compile error
+});
+```
+
+This is the key advantage over exceptions — the compiler enforces completeness.
+
+### Transforming results
+
+```ts
+import { map, flatMap, unwrapOr } from 'vertz/errors';
+
+// Transform the success value
+const nameResult = map(result, (user) => user.name);
+
+// Chain operations that each return Result
+const profileResult = await flatMap(result, async (user) => {
+  return await db.profiles.get({ where: { userId: user.id } });
+});
+
+// Provide a fallback
+const name = unwrapOr(result, 'Unknown');
+```
+
+### Unwrapping (tests and scripts only)
+
+```ts
+import { unwrap } from 'vertz/errors';
+
+// Throws if result is Err — only use in tests/scripts
+const user = unwrap(result);
+```
+
+<Warning>`unwrap` throws on error. Use it only in test setup, scripts, or contexts where you're certain the result is `Ok`. In application code, always handle both branches.</Warning>
+
+## Domain errors
+
+Errors are organized by **domain** — each boundary has its own error vocabulary.
+
+### Database errors
+
+Returned by `db.*` operations:
+
+| Error code | Meaning | Typical cause |
+|------------|---------|---------------|
+| `NotFound` | Record doesn't exist | `.get()` with a missing ID |
+| `UNIQUE_VIOLATION` | Duplicate unique value | Inserting an email that already exists |
+| `FK_VIOLATION` | Referenced record missing | Setting `assigneeId` to a non-existent user |
+| `NOT_NULL_VIOLATION` | Required field missing | Omitting a non-nullable column |
+| `CHECK_VIOLATION` | Constraint violated | Value outside allowed range |
+
+```ts
+const result = await db.users.create({
+  data: { email: 'alice@example.com', name: 'Alice' },
+});
+
+if (!result.ok) {
+  switch (result.error.code) {
+    case 'UNIQUE_VIOLATION':
+      console.log(`Duplicate: ${result.error.column}`);
+      break;
+    case 'NOT_NULL_VIOLATION':
+      console.log(`Missing: ${result.error.column}`);
+      break;
+  }
+}
+```
+
+### Client errors
+
+Returned by the generated SDK on the client side. These use a simpler vocabulary — no database internals leak to the frontend:
+
+| Error code | HTTP status | Meaning |
+|------------|-------------|---------|
+| `ValidationError` | 400/422 | Input validation failed |
+| `NotFound` | 404 | Resource doesn't exist |
+| `Conflict` | 409 | Duplicate value |
+| `Unauthorized` | 401 | Not authenticated |
+| `Forbidden` | 403 | Not authorized |
+| `RATE_LIMITED` | 429 | Too many requests |
+
+### Validation errors
+
+Returned by schema validation (`safeParse`):
+
+```ts
+const result = schema.safeParse(input);
+
+if (!result.ok) {
+  for (const issue of result.error.issues) {
+    console.log(`${issue.path.join('.')}: ${issue.message}`);
+    // "name: String must contain at least 1 character(s)"
+    // "age: Expected number, received string"
+  }
+}
+```
+
+## Error boundaries
+
+Errors cross three boundaries in a Vertz app. At each boundary, errors are **translated** to the appropriate vocabulary:
+
+```
+Database → Server → Client
+```
+
+### Database → Server
+
+Database errors map to HTTP status codes automatically:
+
+| DB error | HTTP status |
+|----------|-------------|
+| `NotFound` | 404 |
+| `UNIQUE_VIOLATION` | 409 |
+| `FK_VIOLATION` | 422 |
+| `NOT_NULL_VIOLATION` | 422 |
+| `CHECK_VIOLATION` | 422 |
+
+The entity framework handles this mapping — you don't write it manually.
+
+### Server → Client
+
+HTTP responses map to client error types:
+
+| HTTP status | Client error |
+|-------------|-------------|
+| 400 | `ValidationError` |
+| 401 | `Unauthorized` |
+| 403 | `Forbidden` |
+| 404 | `NotFound` |
+| 409 | `Conflict` |
+| 422 | `ValidationError` |
+| 429 | `RATE_LIMITED` |
+
+The generated SDK handles this mapping — the client receives typed `Result<T, ApiError>` values.
+
+### Why translate?
+
+A database `UNIQUE_VIOLATION` on column `email` with constraint `users_email_key` is an implementation detail. The client doesn't need to know about constraint names or column internals. It needs to know: "there's a conflict on the email field." The boundary mappings strip internal details and produce domain-appropriate errors at each layer.
+
+## Custom domain errors
+
+For application-specific errors, extend `AppError`:
+
+```ts
+import { AppError } from 'vertz/errors';
+
+class InsufficientBalanceError extends AppError<'INSUFFICIENT_BALANCE'> {
+  constructor(
+    public readonly required: number,
+    public readonly available: number,
+  ) {
+    super('INSUFFICIENT_BALANCE', `Need ${required}, have ${available}`);
+  }
+}
+```
+
+`AppError` provides:
+- A typed `code` field for pattern matching
+- `toJSON()` for automatic HTTP serialization
+- Consistent structure across all custom errors
+
+## Infrastructure errors
+
+Not all errors are domain errors. Infrastructure failures — database connection lost, request timeout, pool exhausted — are truly exceptional. These **do** throw, and are caught by global middleware that returns a 503:
+
+| Error | Meaning |
+|-------|---------|
+| `ConnectionError` | Database unreachable |
+| `PoolExhaustedError` | No connections available |
+| `TimeoutError` | Operation timed out |
+| `NetworkError` | HTTP request failed |
+
+You don't handle these in business logic. They're caught at the top level and produce appropriate error responses automatically.
+
+## The rule
+
+**Expected failures are values. Unexpected failures are exceptions.**
+
+- Record not found? Expected — return `Result`.
+- Unique constraint? Expected — return `Result`.
+- Validation failed? Expected — return `Result`.
+- Database crashed? Unexpected — throw, let middleware handle it.
+
+If you can enumerate it, it's a value. If you can't predict it, it's an exception.

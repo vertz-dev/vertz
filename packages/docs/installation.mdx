@@ -1,4 +1,120 @@
 ---
 title: Installation
-description: "Install @vertz/ui and configure the compiler"
+description: "Install Vertz and configure the compiler"
 ---
+
+## Using create-vertz-app (recommended)
+
+The fastest way to get started:
+
+```bash
+bunx @vertz/create-vertz-app my-app
+cd my-app
+bun install
+bun run dev
+```
+
+This scaffolds a project with the compiler, dev server, SSR, and a starter template — everything configured and ready to go.
+
+## Manual setup
+
+Add Vertz to an existing Bun project.
+
+### 1. Install packages
+
+```bash
+bun add vertz @vertz/theme-shadcn
+```
+
+The `vertz` meta package includes the UI runtime, compiler, and all core packages. `@vertz/theme-shadcn` provides design tokens for the `css()` utility (optional but recommended).
+
+### 2. Configure TypeScript
+
+Update your `tsconfig.json` to use the Vertz JSX runtime:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "@vertz/ui",
+    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "module": "ESNext"
+  }
+}
+```
+
+The key settings are `jsx: "react-jsx"` and `jsxImportSource: "@vertz/ui"` — this tells TypeScript to use the Vertz JSX factory instead of React's.
+
+### 3. Create the entry point
+
+Create `src/app.tsx`:
+
+```tsx
+import { mount } from 'vertz/ui';
+
+function App() {
+  return <h1>Hello, Vertz!</h1>;
+}
+
+mount(App);
+```
+
+### 4. Start the dev server
+
+The Vertz CLI provides a dev server with SSR and HMR:
+
+```bash
+bunx vertz dev
+```
+
+Or add it to your `package.json` scripts:
+
+```json
+{
+  "scripts": {
+    "dev": "vertz dev",
+    "build": "vertz build",
+    "start": "vertz start"
+  }
+}
+```
+
+The dev server:
+- Compiles `.tsx` files through the Vertz compiler plugin
+- Server-side renders on first load
+- Hot-reloads with state preservation (HMR)
+- Extracts and injects scoped CSS
+
+## Project structure
+
+A typical Vertz project looks like this:
+
+```bash
+my-app/
+  src/
+    app.tsx                # App shell — router, theme, layout
+    router.ts              # Route definitions
+    pages/
+      home.tsx
+      about.tsx
+    components/
+      header.tsx
+      footer.tsx
+    styles/
+      components.ts        # Shared variant styles
+  tsconfig.json
+  package.json
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Components" icon="puzzle-piece" href="/guides/ui/components">
+    Write your first component with props and children.
+  </Card>
+  <Card title="Styling" icon="paintbrush" href="/guides/ui/styling">
+    Scoped CSS with `css()` and parameterized styles with `variants()`.
+  </Card>
+</CardGroup>

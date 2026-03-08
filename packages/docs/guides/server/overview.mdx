@@ -1,0 +1,102 @@
+---
+title: Overview
+description: "vertz/server — entity-driven backend with auto-generated CRUD, access control, and SDK generation"
+---
+
+`vertz/server` is the backend layer of the Vertz stack. You define entities with schemas, access rules, and hooks — the framework generates typed CRUD routes, validates inputs, enforces access control, and produces a typed client SDK. No boilerplate controllers, no manual route wiring.
+
+## How it works
+
+<Steps>
+  <Step title="Define your entity">
+    Declare the data model, who can do what, and any side effects (hooks). One object, one place.
+  </Step>
+  <Step title="Framework generates routes">
+    CRUD endpoints are auto-generated with validation, access enforcement, and error handling built in.
+  </Step>
+  <Step title="SDK is generated">
+    A fully typed client SDK is produced from your entity definitions — used by the UI layer with `query()` and `form()`.
+  </Step>
+</Steps>
+
+## What's included
+
+| Feature | Description |
+|---------|-------------|
+| **Entities** | Declarative data models with CRUD, access rules, hooks, and custom actions |
+| **Services** | Standalone operations not tied to a single entity |
+| **Access control** | Deny-by-default, per-operation access rules with row-level checks |
+| **Middleware** | Request pipeline with typed context propagation |
+| **SDK generation** | Auto-generated typed client from entity definitions |
+
+## Quick example
+
+```ts
+import { createServer, entity } from 'vertz/server';
+import { createDb, d } from 'vertz/db';
+
+const tasksModel = d.model(
+  d.table('tasks', {
+    id: d.uuid().primary({ generate: 'cuid' }),
+    title: d.text(),
+    status: d.enum('task_status', ['todo', 'in_progress', 'done']).default('todo'),
+    createdAt: d.timestamp().default('now').readOnly(),
+  }),
+);
+
+const tasks = entity('tasks', {
+  model: tasksModel,
+  access: {
+    list: () => true,
+    get: () => true,
+    create: () => true,
+    update: () => true,
+    delete: () => true,
+  },
+});
+
+const db = createDb({
+  url: process.env.DATABASE_URL!,
+  models: { tasks: tasksModel },
+});
+
+createServer({ entities: [tasks], db })
+  .listen({ port: 3000 });
+```
+
+This generates:
+
+```
+GET    /api/tasks          → list (with filtering, pagination)
+GET    /api/tasks/:id      → get
+POST   /api/tasks          → create
+PATCH  /api/tasks/:id      → update
+DELETE /api/tasks/:id      → delete
+```
+
+No route handlers to write. Validation, access checks, and error responses are handled automatically.
+
+## Core principles
+
+### Entity-driven
+
+Entities are the central abstraction. A single entity definition covers the data model, validation, access control, lifecycle hooks, and custom actions. Everything flows from the entity.
+
+### Deny-by-default
+
+No access rule = no route generated. You explicitly declare who can perform each operation. There's no "open by default" — you opt in to access, not out.
+
+### Type-safe end-to-end
+
+Types flow from your schema definition through the server, into the generated SDK, and down to the UI layer. If it compiles, the types are correct across the entire stack.
+
+## Guides
+
+<CardGroup cols={2}>
+  <Card title="Entities" icon="database" href="/guides/server/entities">
+    Models, access rules, hooks, and custom actions.
+  </Card>
+  <Card title="Services" icon="bolt" href="/guides/server/services">
+    Standalone operations and cross-entity workflows.
+  </Card>
+</CardGroup>

@@ -2,3 +2,174 @@
 title: Styling
 description: "Scoped styles with css() and parameterized styles with variants()"
 ---
+
+Vertz provides a built-in styling system based on design tokens. No CSS files, no class name collisions, no build-step CSS tooling. You write styles in TypeScript and get scoped class names at runtime.
+
+## `css()` — scoped styles
+
+Create a group of scoped styles with `css()`:
+
+```tsx
+import { css } from 'vertz/ui';
+
+const styles = css({
+  card: ['bg:card', 'rounded:lg', 'p:4', 'border:1', 'border:border'],
+  title: ['font:lg', 'font:bold', 'text:foreground'],
+  meta: ['text:sm', 'text:muted-foreground'],
+});
+
+export function TaskCard({ task }: TaskCardProps) {
+  return (
+    <div class={styles.card}>
+      <h3 class={styles.title}>{task.title}</h3>
+      <span class={styles.meta}>Created {task.createdAt}</span>
+    </div>
+  );
+}
+```
+
+Each key in the object becomes a scoped class name. The token syntax (`bg:card`, `font:lg`, `rounded:lg`) maps to design tokens from your theme.
+
+### Token syntax
+
+Tokens follow the pattern `property:value`:
+
+| Token | CSS output |
+|-------|-----------|
+| `bg:card` | `background-color: var(--color-card)` |
+| `text:foreground` | `color: var(--color-foreground)` |
+| `font:lg` | `font-size: var(--font-size-lg)` |
+| `font:bold` | `font-weight: 700` |
+| `rounded:lg` | `border-radius: var(--radius-lg)` |
+| `p:4` | `padding: 1rem` |
+| `px:4` | `padding-left: 1rem; padding-right: 1rem` |
+| `flex` | `display: flex` |
+| `items:center` | `align-items: center` |
+| `gap:2` | `gap: 0.5rem` |
+
+The full token set comes from your theme (`@vertz/theme-shadcn` or a custom theme defined with `defineTheme()`).
+
+## `variants()` — parameterized styles
+
+Use `variants()` for components with multiple visual states:
+
+```tsx
+import { variants } from 'vertz/ui';
+
+const button = variants({
+  base: ['inline-flex', 'items:center', 'rounded:md', 'font:medium', 'transition'],
+  variants: {
+    intent: {
+      primary: ['bg:primary', 'text:primary-foreground'],
+      secondary: ['bg:secondary', 'text:secondary-foreground'],
+      ghost: ['bg:transparent', 'text:foreground'],
+      danger: ['bg:destructive', 'text:white'],
+    },
+    size: {
+      sm: ['text:xs', 'px:3', 'py:1'],
+      md: ['text:sm', 'px:4', 'py:2'],
+      lg: ['text:base', 'px:6', 'py:3'],
+    },
+  },
+  defaultVariants: { intent: 'primary', size: 'md' },
+});
+```
+
+Use it in JSX by calling the function with variant values:
+
+```tsx
+<button class={button({ intent: 'primary', size: 'lg' })}>
+  Save
+</button>
+
+<button class={button({ intent: 'ghost', size: 'sm' })}>
+  Cancel
+</button>
+
+{/* Uses defaultVariants when omitted */}
+<button class={button()}>
+  Default
+</button>
+```
+
+### Reactive variants
+
+Variant values can be reactive — the class name updates automatically when the signal changes:
+
+```tsx
+let isActive = false;
+
+return (
+  <button
+    class={button({ intent: isActive ? 'primary' : 'ghost' })}
+    onClick={() => { isActive = !isActive; }}
+  >
+    Toggle
+  </button>
+);
+```
+
+## Inline styles
+
+Use inline `style` for truly dynamic values that don't map to design tokens:
+
+```tsx
+<div style={`transform: translateX(${offset}px)`}>
+  Sliding content
+</div>
+
+<div style="display: flex; gap: 0.5rem; margin-top: 1rem">
+  Static layout
+</div>
+```
+
+Prefer `css()` tokens for anything theme-related. Use inline styles for one-off layout values (margins, transforms, dynamic positioning).
+
+## Theme
+
+Vertz uses CSS custom properties for theming. The `@vertz/theme-shadcn` package provides a shadcn/ui-inspired token set with light and dark mode support.
+
+```tsx
+import { defineTheme, ThemeProvider } from 'vertz/ui';
+import { shadcnTheme } from '@vertz/theme-shadcn';
+
+// Use the built-in theme
+ThemeProvider({ theme: shadcnTheme }, () => <App />);
+```
+
+### Custom themes
+
+Define your own theme with `defineTheme()`:
+
+```tsx
+import { defineTheme } from 'vertz/ui';
+
+const myTheme = defineTheme({
+  colors: {
+    background: '#ffffff',
+    foreground: '#0f0f12',
+    primary: '#3b82f6',
+    // ... other tokens
+  },
+  dark: {
+    background: '#0f0f12',
+    foreground: '#fafafa',
+    primary: '#60a5fa',
+  },
+});
+```
+
+## Global styles
+
+For reset styles or global base rules, use `globalCss()`:
+
+```tsx
+import { globalCss } from 'vertz/ui';
+
+globalCss({
+  '*': ['box-sizing:border-box', 'm:0', 'p:0'],
+  body: ['bg:background', 'text:foreground', 'font:sans'],
+});
+```
+
+Global styles are injected once and aren't scoped — use sparingly.

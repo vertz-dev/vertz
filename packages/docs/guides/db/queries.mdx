@@ -1,0 +1,246 @@
+---
+title: Queries
+description: "Typed CRUD operations, filters, pagination, and error handling"
+---
+
+The database client provides typed CRUD operations derived from your schema. Every query is type-checked — column names, filter values, and return types are all inferred from the model definition.
+
+## Creating the client
+
+```ts
+import { createDb } from 'vertz/db';
+
+const db = createDb({
+  url: process.env.DATABASE_URL!,
+  models: { users: usersModel, tasks: tasksModel },
+});
+```
+
+Each model becomes a property on `db` with typed query methods.
+
+## Read operations
+
+### Get a single record
+
+```ts
+const result = await db.users.get({
+  where: { id: userId },
+});
+
+if (result.ok) {
+  console.log(result.data.name); // typed
+}
+```
+
+### List with filtering
+
+```ts
+const result = await db.tasks.list({
+  where: { status: 'todo', assigneeId: userId },
+  orderBy: { createdAt: 'desc' },
+  limit: 20,
+});
+
+if (result.ok) {
+  console.log(result.data.items);    // Task[]
+  console.log(result.data.total);    // total count
+  console.log(result.data.hasNextPage);
+}
+```
+
+### Filter operators
+
+```ts
+where: {
+  // Equality
+  status: 'active',
+
+  // Comparison
+  age: { gt: 18, lte: 65 },
+
+  // Set membership
+  role: { in: ['admin', 'editor'] },
+  status: { notIn: ['deleted'] },
+
+  // String matching
+  name: { contains: 'Smith' },
+  email: { startsWith: 'admin' },
+  email: { endsWith: '@example.com' },
+
+  // Null checks
+  deletedAt: { isNull: true },
+}
+```
+
+### Select specific fields
+
+```ts
+const result = await db.users.list({
+  select: { id: true, name: true, email: true },
+});
+// result.data.items is { id: string; name: string; email: string }[]
+```
+
+### Include relations
+
+```ts
+const result = await db.posts.list({
+  include: { author: true, comments: true },
+});
+// result.data.items[0].author — the related user
+// result.data.items[0].comments — array of related comments
+```
+
+Narrow included relations to specific fields:
+
+```ts
+include: {
+  author: { select: { id: true, name: true } },
+}
+```
+
+### Count
+
+```ts
+const count = await db.users.count({
+  where: { isActive: true },
+});
+```
+
+### Aggregation
+
+```ts
+const stats = await db.orders.aggregate({
+  where: { status: 'completed' },
+  _count: true,
+  _sum: { price: true },
+  _avg: { amount: true },
+});
+```
+
+### Group by
+
+```ts
+const grouped = await db.orders.groupBy({
+  by: ['status'],
+  _count: true,
+  _sum: { total: true },
+});
+```
+
+## Write operations
+
+### Create
+
+```ts
+const result = await db.users.create({
+  data: { email: 'alice@example.com', name: 'Alice' },
+});
+
+if (result.ok) {
+  console.log(result.data.id); // auto-generated
+}
+```
+
+### Update
+
+```ts
+const result = await db.users.update({
+  where: { id: userId },
+  data: { name: 'Bob' },
+});
+```
+
+### Upsert
+
+Create if not found, update if exists:
+
+```ts
+const result = await db.users.upsert({
+  where: { email: 'alice@example.com' },
+  create: { email: 'alice@example.com', name: 'Alice' },
+  update: { name: 'Alice Updated' },
+});
+```
+
+### Delete
+
+```ts
+const result = await db.users.delete({
+  where: { id: userId },
+});
+```
+
+### Bulk operations
+
+```ts
+await db.users.createMany({
+  data: [
+    { email: 'alice@example.com', name: 'Alice' },
+    { email: 'bob@example.com', name: 'Bob' },
+  ],
+});
+
+await db.users.updateMany({
+  where: { isActive: false },
+  data: { isActive: true },
+});
+
+await db.users.deleteMany({
+  where: { deletedAt: { isNull: false } },
+});
+```
+
+## Error handling
+
+All operations return `Result<T, Error>` — they never throw. Error types map to specific database conditions:
+
+| Error | HTTP equivalent | Cause |
+|-------|----------------|-------|
+| `NotFoundError` | 404 | Record not found |
+| `UniqueConstraintError` | 409 | Duplicate unique value |
+| `ForeignKeyError` | 409 | Referenced record doesn't exist |
+| `NotNullError` | 422 | Required field missing |
+| `CheckConstraintError` | 422 | CHECK constraint violated |
+| `ConnectionError` | 503 | Database unreachable |
+
+Handle errors with pattern matching:
+
+```ts
+const result = await db.users.create({ data: { email: 'alice@example.com', name: 'Alice' } });
+
+if (!result.ok) {
+  switch (result.error.code) {
+    case 'UNIQUE_VIOLATION':
+      console.log('Email already exists');
+      break;
+    case 'NOT_NULL_VIOLATION':
+      console.log('Missing required field');
+      break;
+    default:
+      console.error('Unexpected error:', result.error);
+  }
+}
+```
+
+## Raw SQL
+
+For queries that the builder can't express, use tagged template SQL:
+
+```ts
+import { sql } from 'vertz/db/sql';
+
+const result = await db.query(
+  sql`SELECT * FROM users WHERE email = ${email} AND active = ${true}`
+);
+```
+
+Parameters are automatically escaped — no SQL injection risk.
+
+## Database support
+
+| Database | Import | Notes |
+|----------|--------|-------|
+| PostgreSQL | `vertz/db` | Default dialect, full feature support |
+| SQLite | `vertz/db/sqlite` | Development and embedded use |
+| Cloudflare D1 | `vertz/db/d1` | Edge deployment |

@@ -1,0 +1,254 @@
+---
+title: Entities
+description: "Define data models with CRUD, access rules, hooks, and custom actions"
+---
+
+An entity is a declarative definition of a data model and its behavior. It combines the schema, access rules, lifecycle hooks, and custom actions into a single object. The framework reads this definition and generates everything: routes, validation, access enforcement, error handling.
+
+## Defining an entity
+
+```ts
+import { entity } from 'vertz/server';
+import { d } from 'vertz/db';
+
+const usersModel = d.model(
+  d.table('users', {
+    id: d.uuid().primary({ generate: 'cuid' }),
+    email: d.email().unique(),
+    name: d.text(),
+    role: d.enum('user_role', ['admin', 'member']).default('member'),
+    createdAt: d.timestamp().default('now').readOnly(),
+  }),
+);
+
+const users = entity('users', {
+  model: usersModel,
+  access: { /* ... */ },
+  before: { /* ... */ },
+  after: { /* ... */ },
+  actions: { /* ... */ },
+});
+```
+
+The entity name (`'users'`) determines the API path (`/api/users`). The model defines the table structure and column annotations that control what's exposed to clients.
+
+### Column annotations
+
+| Annotation | Effect |
+|------------|--------|
+| `.hidden()` | Never sent to the client (e.g., internal fields) |
+| `.readOnly()` | Included in responses, excluded from create/update inputs |
+| `.default(value)` | Default value — field becomes optional in create input |
+
+These annotations drive automatic input/output filtering. You don't write serializers — the framework strips hidden fields from responses and rejects read-only fields in mutations automatically.
+
+## Access rules
+
+Access rules define who can perform each operation. They're evaluated at request time, before any data access.
+
+```ts
+const tasks = entity('tasks', {
+  model: tasksModel,
+  access: {
+    list: () => true,
+    get: () => true,
+    create: () => true,
+    update: () => true,
+    delete: () => true,
+  },
+});
+```
+
+Access rules receive the request context and return a boolean. You can use any logic — check headers, query parameters, or custom middleware-injected values.
+
+### Hiding operations
+
+Only operations with an access rule get a route. If you don't define an access rule for an operation, the route simply doesn't exist — no endpoint, no 404, nothing to discover:
+
+```ts
+const tasks = entity('tasks', {
+  model: tasksModel,
+  access: {
+    list: () => true,
+    get: () => true,
+    // create, update, delete — not defined, routes don't exist
+  },
+});
+// Only GET /api/tasks and GET /api/tasks/:id are generated
+```
+
+This is deny-by-default. You opt in to each operation explicitly — there's no "CRUD is on by default, disable what you don't want." The generated SDK also reflects this: if the route doesn't exist, the SDK method isn't generated either.
+
+### Row-level access
+
+For `update` and `delete`, the second argument is the existing row — enabling row-level checks:
+
+```ts
+update: (ctx, row) => row.status !== 'archived',
+```
+
+## Lifecycle hooks
+
+Hooks run before or after database operations. Use them for data transformation and side effects.
+
+### Before hooks
+
+Transform or enrich data before it's written to the database:
+
+```ts
+before: {
+  create: async (data, ctx) => ({
+    ...data,
+    createdAt: new Date(),
+  }),
+  update: async (data, ctx) => ({
+    ...data,
+    updatedAt: new Date(),
+  }),
+},
+```
+
+Before hooks receive the input data and return the (possibly modified) data to write.
+
+<Note>Before hooks are for data enrichment, not data transformation. The return type must match the input type — you can set or modify values within the schema's shape, but you can't add new fields or change field types. The schema defines the shape, the hook fills in values.</Note>
+
+### After hooks
+
+Run side effects after a successful write. After hooks are fire-and-forget — they don't affect the response:
+
+```ts
+after: {
+  create: async (record, ctx) => {
+    console.log(`User created: ${record.email}`);
+  },
+  update: async (prev, next, ctx) => {
+    if (prev.status !== next.status) {
+      await logStatusChange(next.id, prev.status, next.status);
+    }
+  },
+  delete: async (record, ctx) => {
+    await cleanupRelatedData(record.id);
+  },
+},
+```
+
+The `update` after hook receives both the previous and new state of the record.
+
+## Custom actions
+
+Add domain-specific operations beyond CRUD:
+
+```ts
+import { s } from 'vertz/schema';
+
+const tasks = entity('tasks', {
+  model: tasksModel,
+  access: {
+    // ... CRUD access rules
+    archive: () => true,
+  },
+  actions: {
+    archive: {
+      body: s.object({
+        reason: s.string().optional(),
+      }),
+      response: tasksModel.schemas.response,
+      handler: async (input, ctx, task) => {
+        return await ctx.entity.update(task.id, { status: 'archived' });
+      },
+    },
+  },
+});
+```
+
+This generates `POST /api/tasks/:id/archive`. The handler receives:
+- `input` — validated request body
+- `ctx` — the entity context
+- `task` — the existing record (loaded by `:id`)
+
+Custom actions get their own access rules in the `access` object, using the action name as the key.
+
+## Cross-entity access
+
+Entities can access other entities through dependency injection:
+
+```ts
+const tasks = entity('tasks', {
+  model: tasksModel,
+  inject: {
+    users: usersEntity,
+  },
+  after: {
+    create: async (task, ctx) => {
+      // ctx.entities.users is typed and scoped
+      const assignee = await ctx.entities.users.get(task.assigneeId);
+      console.log(`Task "${task.title}" assigned to ${assignee.name}`);
+    },
+  },
+});
+```
+
+Only injected entities are accessible — TypeScript prevents accessing any entity not declared in `inject` at compile time. Dependencies are explicit and auditable.
+
+## Entity operations
+
+Inside hooks and actions, `ctx.entity` provides typed CRUD operations for the current entity:
+
+```ts
+ctx.entity.get(id)
+ctx.entity.list({ where: { status: 'active' }, limit: 10 })
+ctx.entity.create(data)
+ctx.entity.update(id, data)
+ctx.entity.delete(id)
+```
+
+These bypass access rules (they're internal operations), but still run hooks and validation.
+
+## Generated routes
+
+For each entity, the framework generates up to 5 CRUD routes plus custom action routes:
+
+| Method | Path | Operation |
+|--------|------|-----------|
+| `GET` | `/api/{entity}` | List with filtering and pagination |
+| `GET` | `/api/{entity}/:id` | Get by ID |
+| `POST` | `/api/{entity}` | Create |
+| `PATCH` | `/api/{entity}/:id` | Update |
+| `DELETE` | `/api/{entity}/:id` | Delete |
+| `POST` | `/api/{entity}/:id/{action}` | Custom action |
+
+The request pipeline for each route:
+
+1. CORS check
+2. Middleware chain
+3. Access rule evaluation
+4. Before hook (for mutations)
+5. Database operation
+6. After hook (for mutations)
+7. Response serialization (strip hidden fields)
+
+## Server setup
+
+Pass entities to `createServer()`:
+
+```ts
+import { createServer } from 'vertz/server';
+import { createDb } from 'vertz/db';
+
+const db = createDb({
+  url: process.env.DATABASE_URL!,
+  models: { users: usersModel, tasks: tasksModel },
+});
+
+createServer({
+  entities: [users, tasks],
+  db,
+  apiPrefix: '/api',   // default
+  cors: { origin: '*' },
+})
+  .listen({ port: 3000 });
+```
+
+All entity routes are generated under `apiPrefix`. The server validates inputs against the model schema, enforces access rules, and returns appropriate HTTP status codes (200, 201, 204, 400, 403, 404, 405, 409, 500).
+
+<Note>Every entity's model must be registered in `createDb({ models })`. This is validated at two levels: the **compiler** catches missing models at build time (flagging `ENTITY_MODEL_NOT_REGISTERED` errors), and `createServer()` validates again at startup with a clear error listing all missing models. You'll never hit a cryptic runtime failure on first request.</Note>

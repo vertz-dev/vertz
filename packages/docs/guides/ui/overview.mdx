@@ -1,4 +1,100 @@
 ---
 title: Overview
-description: "@vertz/ui — a compiled TypeScript UI framework with fine-grained reactivity"
+description: "vertz/ui — a compiled UI layer with fine-grained reactivity, routing, and SSR"
 ---
+
+`vertz/ui` is the UI layer of the Vertz stack. You write standard TypeScript and JSX — the compiler transforms it into fine-grained DOM updates at build time. No virtual DOM, no hooks, no manual subscriptions.
+
+## How the compiler works
+
+The Vertz compiler runs as a build plugin (Bun or Vite). It analyzes your component code and applies three key transforms:
+
+<Steps>
+  <Step title="let becomes a signal">
+    `let count = 0` compiles to `const count = signal(0)`. Assignments like `count++` become `count.value++`. You never import or call `signal()` yourself.
+  </Step>
+  <Step title="const becomes computed">
+    `const double = count * 2` compiles to `const double = computed(() => count.value * 2)`. The compiler detects the dependency on `count` automatically.
+  </Step>
+  <Step title="Props become reactive getters">
+    When a parent passes `<Child title={task.title} />`, the compiler generates `{ get title() { return task.title; } }`. Changes propagate to the child without re-running it.
+  </Step>
+</Steps>
+
+The result: components run **once** to set up the DOM. After that, only the specific text nodes, attributes, or conditionals that depend on changed data are updated.
+
+## What's included
+
+`vertz/ui` is a single package that covers what typically requires multiple libraries:
+
+| Feature | What it replaces |
+|---------|-----------------|
+| **Reactive signals** | React hooks (`useState`, `useMemo`, `useEffect`) |
+| **JSX runtime** | React DOM |
+| **Router** | React Router / Next.js App Router |
+| **Data fetching** | TanStack Query / SWR |
+| **Form handling** | React Hook Form / Formik |
+| **Scoped CSS** | Tailwind / CSS Modules / styled-components |
+| **Context** | React Context |
+| **SSR + Hydration** | Next.js / Remix |
+
+## Architecture
+
+The UI layer is split into three packages:
+
+- **`vertz/ui`** — the runtime: signals, JSX factory, router, query, form, CSS, context
+- **`vertz/ui-compiler`** — the build plugin: transforms `let`/`const`, generates reactive props, compiles conditionals and lists
+- **`vertz/ui-server`** — SSR renderer, dev server with HMR, hydration support
+
+You install `vertz` and import from `vertz/ui` in your application code. The compiler and server are build-time concerns.
+
+```bash
+bun add vertz
+```
+
+## Core principles
+
+### Components run once
+
+Unlike React, Vertz components are not re-executed when state changes. The function runs once to create the DOM tree. Signals and effects handle all subsequent updates.
+
+This means:
+- No stale closure bugs
+- No dependency arrays
+- No `useCallback` / `useMemo` wrappers
+- Predictable execution — your component body runs exactly once
+
+### The compiler does the work
+
+You write natural TypeScript. The compiler adds the reactive wiring. This is not magic — the transforms are deterministic and predictable:
+
+- `let` → always a signal
+- `const` with reactive deps → always computed
+- JSX props with reactive expressions → always getters
+
+### Fine-grained updates
+
+When `count` changes, only the text node showing `count` updates. The parent `div`, sibling elements, and other text nodes are untouched. No tree diffing, no reconciliation.
+
+## Guides
+
+<CardGroup cols={2}>
+  <Card title="Components" icon="puzzle-piece" href="/guides/ui/components">
+    Props, children, conditionals, lists, and component patterns.
+  </Card>
+  <Card title="Reactivity" icon="bolt" href="/guides/ui/reactivity">
+    Signals, computed values, effects, and watch.
+  </Card>
+  <Card title="Styling" icon="paintbrush" href="/guides/ui/styling">
+    Scoped CSS with `css()` and parameterized styles with `variants()`.
+  </Card>
+  <Card title="Routing" icon="route" href="/guides/ui/routing">
+    Type-safe routing with `defineRoutes()` and `createRouter()`.
+  </Card>
+  <Card title="Data Fetching" icon="cloud-arrow-down" href="/guides/ui/data-fetching">
+    Fetch and cache data with `query()`.
+  </Card>
+  <Card title="Forms" icon="keyboard" href="/guides/ui/forms">
+    Type-safe forms with schema validation.
+  </Card>
+</CardGroup>
