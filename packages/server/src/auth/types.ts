@@ -57,13 +57,6 @@ export interface RateLimitConfig {
 // ============================================================================
 
 export interface SessionStore {
-  createSession(data: {
-    userId: string;
-    refreshTokenHash: string;
-    ipAddress: string;
-    userAgent: string;
-    expiresAt: Date;
-  }): Promise<StoredSession>;
   createSessionWithId(
     id: string,
     data: {
@@ -125,7 +118,7 @@ export interface AuthConfig {
   session: SessionConfig;
   emailPassword?: EmailPasswordConfig;
   jwtSecret?: string; // For JWT signing - required for JWT strategy
-  jwtAlgorithm?: 'HS256' | 'HS384' | 'HS512' | 'RS256';
+  jwtAlgorithm?: 'HS256' | 'HS384' | 'HS512';
   /** Custom claims function for JWT payload */
   claims?: (user: AuthUser) => Record<string, unknown>;
   /**
@@ -216,11 +209,11 @@ export interface SignInInput {
 }
 
 export interface AuthApi {
-  signUp: (data: SignUpInput) => Promise<Result<Session, AuthError>>;
-  signIn: (data: SignInInput) => Promise<Result<Session, AuthError>>;
-  signOut: (ctx: AuthContext) => Promise<Result<void, AuthError>>;
+  signUp: (data: SignUpInput, ctx?: { headers: Headers }) => Promise<Result<Session, AuthError>>;
+  signIn: (data: SignInInput, ctx?: { headers: Headers }) => Promise<Result<Session, AuthError>>;
+  signOut: (ctx: { headers: Headers }) => Promise<Result<void, AuthError>>;
   getSession: (headers: Headers) => Promise<Result<Session | null, AuthError>>;
-  refreshSession: (ctx: AuthContext) => Promise<Result<Session, AuthError>>;
+  refreshSession: (ctx: { headers: Headers }) => Promise<Result<Session, AuthError>>;
   listSessions: (headers: Headers) => Promise<Result<SessionInfo[], AuthError>>;
   revokeSession: (sessionId: string, headers: Headers) => Promise<Result<void, AuthError>>;
   revokeAllSessions: (headers: Headers) => Promise<Result<void, AuthError>>;

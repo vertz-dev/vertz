@@ -232,6 +232,6 @@ describe('Sign Out', () => {
         headers: {},
       }),
     );
-    expect(res.headers.get('Cache-Control')).toBe('no-store');
+    expect(res.headers.get('Cache-Control')).toBe('no-store, no-cache, must-revalidate');
   });
 });

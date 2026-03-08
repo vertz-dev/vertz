@@ -209,6 +209,39 @@ export function isAuthValidationError(error: {
 }
 
 // ============================================================================
+// Session Not Found
+// ============================================================================
+
+/**
+ * Session not found error.
+ *
+ * Returned when a session ID doesn't exist or doesn't belong to the user.
+ */
+export interface SessionNotFoundError {
+  readonly code: 'SESSION_NOT_FOUND';
+  readonly message: string;
+}
+
+/**
+ * Creates a SessionNotFoundError.
+ */
+export function createSessionNotFoundError(message = 'Session not found'): SessionNotFoundError {
+  return {
+    code: 'SESSION_NOT_FOUND',
+    message,
+  };
+}
+
+/**
+ * Type guard for SessionNotFoundError.
+ */
+export function isSessionNotFoundError(error: {
+  readonly code: string;
+}): error is SessionNotFoundError {
+  return error.code === 'SESSION_NOT_FOUND';
+}
+
+// ============================================================================
 // Combined Types
 // ============================================================================
 
@@ -219,6 +252,7 @@ export type AuthError =
   | InvalidCredentialsError
   | UserExistsError
   | SessionExpiredError
+  | SessionNotFoundError
   | PermissionDeniedError
   | RateLimitedError
   | AuthValidationError;

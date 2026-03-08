@@ -9,7 +9,11 @@ export function parseDuration(duration: string | number): number {
   if (typeof duration === 'number') return duration;
 
   const match = duration.match(/^(\d+)([smhd])$/);
-  if (!match) throw new Error(`Invalid duration: ${duration}`);
+  if (!match) {
+    throw new Error(
+      `Invalid duration: "${duration}". Expected format: <number><unit> where unit is s (seconds), m (minutes), h (hours), or d (days). Examples: "60s", "15m", "7d".`,
+    );
+  }
   const value = parseInt(match[1], 10);
   const unit = match[2];
   const multipliers: Record<string, number> = { s: 1, m: 60, h: 3600, d: 86400 };
@@ -48,6 +52,16 @@ export async function verifyJWT(
     const { payload } = await jose.jwtVerify(token, new TextEncoder().encode(secret), {
       algorithms: [algorithm],
     });
+    // Runtime validation: ensure required Phase 2 claims are present
+    if (
+      typeof payload.sub !== 'string' ||
+      typeof payload.email !== 'string' ||
+      typeof payload.role !== 'string' ||
+      typeof payload.jti !== 'string' ||
+      typeof payload.sid !== 'string'
+    ) {
+      return null;
+    }
     return payload as unknown as SessionPayload;
   } catch {
     return null;
