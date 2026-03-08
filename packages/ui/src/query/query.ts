@@ -13,6 +13,7 @@ import { getSSRContext } from '../ssr/ssr-render-context';
 import { getEntityStore, getQueryEnvelopeStore } from '../store/entity-store-singleton';
 import { getMutationEventBus } from '../store/mutation-event-bus-singleton';
 import type { QueryEnvelope } from '../store/query-envelope-store';
+import { resolveReferences } from '../store/resolve';
 import { type CacheStore, MemoryCache } from './cache';
 import { registerActiveQuery } from './invalidate';
 import { deriveKey, hashString } from './key-derivation';
@@ -256,14 +257,28 @@ export function query<T, E = unknown>(
         const raw = rawData.value;
         const store = getEntityStore();
         if (entityMeta.kind === 'get' && entityMeta.id) {
-          return store.get<T>(entityMeta.entityType, entityMeta.id).value;
+          const entity = store.get(entityMeta.entityType, entityMeta.id).value;
+          if (!entity) return undefined;
+          return resolveReferences(
+            entity as Record<string, unknown>,
+            entityMeta.entityType,
+            store,
+          ) as T;
         }
         // For list queries, reconstruct envelope + items from store
         const queryKey = customKey ?? entityMeta.entityType;
         const ids = store.queryIndices.get(queryKey);
         if (ids) {
           const items = ids
-            .map((id) => store.get(entityMeta.entityType, id).value)
+            .map((id) => {
+              const entity = store.get(entityMeta.entityType, id).value;
+              if (!entity) return null;
+              return resolveReferences(
+                entity as Record<string, unknown>,
+                entityMeta.entityType,
+                store,
+              );
+            })
             .filter((item): item is NonNullable<typeof item> => item != null);
           // Reconstruct the original response shape with live entity data
           const envelope = getQueryEnvelopeStore().get(queryKey);
