@@ -6,12 +6,14 @@ import {
   createPermissionDeniedError,
   createRateLimitedError,
   createSessionExpiredError,
+  createSessionNotFoundError,
   createUserExistsError,
   isAuthValidationError,
   isInvalidCredentialsError,
   isPermissionDeniedError,
   isRateLimitedError,
   isSessionExpiredError,
+  isSessionNotFoundError,
   isUserExistsError,
 } from '../../domain/auth';
 
@@ -136,18 +138,42 @@ describe('domain/auth', () => {
     });
   });
 
+  describe('SessionNotFoundError', () => {
+    it('creates with default message', () => {
+      const error = createSessionNotFoundError();
+      expect(error.code).toBe('SESSION_NOT_FOUND');
+      expect(error.message).toBe('Session not found');
+    });
+
+    it('creates with custom message', () => {
+      const error = createSessionNotFoundError('No such session');
+      expect(error.message).toBe('No such session');
+    });
+
+    it('type guard returns true for SessionNotFoundError', () => {
+      const error = createSessionNotFoundError();
+      expect(isSessionNotFoundError(error)).toBe(true);
+    });
+
+    it('type guard returns false for other errors', () => {
+      expect(isSessionNotFoundError(createInvalidCredentialsError())).toBe(false);
+      expect(isSessionNotFoundError(createSessionExpiredError())).toBe(false);
+    });
+  });
+
   describe('AuthError union', () => {
     it('accepts all auth error types', () => {
       const errors: AuthError[] = [
         createInvalidCredentialsError(),
         createUserExistsError(),
         createSessionExpiredError(),
+        createSessionNotFoundError(),
         createPermissionDeniedError(),
         createRateLimitedError(),
         createAuthValidationError('Invalid email', 'email'),
       ];
 
-      expect(errors.length).toBe(6);
+      expect(errors.length).toBe(7);
       expect(errors.every((e) => 'code' in e)).toBe(true);
     });
   });
