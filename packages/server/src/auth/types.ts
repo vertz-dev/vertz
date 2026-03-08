@@ -108,6 +108,8 @@ export interface UserStore {
   createUser(user: AuthUser, passwordHash: string | null): Promise<void>;
   findByEmail(email: string): Promise<{ user: AuthUser; passwordHash: string | null } | null>;
   findById(id: string): Promise<AuthUser | null>;
+  updatePasswordHash(userId: string, passwordHash: string): Promise<void>;
+  updateEmailVerified(userId: string, verified: boolean): Promise<void>;
 }
 
 // ============================================================================
@@ -195,6 +197,66 @@ export interface OAuthStateData {
 }
 
 // ============================================================================
+// Email Verification Types
+// ============================================================================
+
+export interface EmailVerificationConfig {
+  enabled: boolean;
+  tokenTtl?: string | number; // Duration like '24h' — defaults to '24h'
+  onSend: (user: AuthUser, token: string) => Promise<void>;
+}
+
+export interface StoredEmailVerification {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+export interface EmailVerificationStore {
+  createVerification(data: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }): Promise<StoredEmailVerification>;
+  findByTokenHash(tokenHash: string): Promise<StoredEmailVerification | null>;
+  deleteByUserId(userId: string): Promise<void>;
+  deleteByTokenHash(tokenHash: string): Promise<void>;
+  dispose(): void;
+}
+
+// ============================================================================
+// Password Reset Types
+// ============================================================================
+
+export interface PasswordResetConfig {
+  enabled: boolean;
+  tokenTtl?: string | number; // Duration like '1h' — defaults to '1h'
+  revokeSessionsOnReset?: boolean; // Default: true
+  onSend: (user: AuthUser, token: string) => Promise<void>;
+}
+
+export interface StoredPasswordReset {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
+export interface PasswordResetStore {
+  createReset(data: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+  }): Promise<StoredPasswordReset>;
+  findByTokenHash(tokenHash: string): Promise<StoredPasswordReset | null>;
+  deleteByUserId(userId: string): Promise<void>;
+  dispose(): void;
+}
+
+// ============================================================================
 // Auth Configuration
 // ============================================================================
 
@@ -237,6 +299,14 @@ export interface AuthConfig {
   mfa?: MfaConfig;
   /** Pluggable MFA store — defaults to InMemoryMFAStore */
   mfaStore?: MFAStore;
+  /** Email verification configuration */
+  emailVerification?: EmailVerificationConfig;
+  /** Pluggable email verification store — defaults to InMemoryEmailVerificationStore */
+  emailVerificationStore?: EmailVerificationStore;
+  /** Password reset configuration */
+  passwordReset?: PasswordResetConfig;
+  /** Pluggable password reset store — defaults to InMemoryPasswordResetStore */
+  passwordResetStore?: PasswordResetStore;
 }
 
 // ============================================================================

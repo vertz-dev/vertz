@@ -22,4 +22,21 @@ export class InMemoryUserStore implements UserStore {
   async findById(id: string): Promise<AuthUser | null> {
     return this.byId.get(id) ?? null;
   }
+
+  async updatePasswordHash(userId: string, passwordHash: string): Promise<void> {
+    const user = this.byId.get(userId);
+    if (user) {
+      const entry = this.byEmail.get(user.email.toLowerCase());
+      if (entry) {
+        entry.passwordHash = passwordHash;
+      }
+    }
+  }
+
+  async updateEmailVerified(userId: string, verified: boolean): Promise<void> {
+    const user = this.byId.get(userId);
+    if (user) {
+      user.emailVerified = verified;
+    }
+  }
 }
