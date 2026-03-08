@@ -1,3 +1,4 @@
+import { getSSRContext } from '../ssr/ssr-render-context';
 import { EntityStore } from './entity-store';
 import { QueryEnvelopeStore } from './query-envelope-store';
 
@@ -10,11 +11,15 @@ let _envelopeStore = new QueryEnvelopeStore();
 
 /** Get the global EntityStore singleton. */
 export function getEntityStore(): EntityStore {
+  const ctx = getSSRContext();
+  if (ctx) return ctx.entityStore;
   return _store;
 }
 
 /** Get the global QueryEnvelopeStore singleton. */
 export function getQueryEnvelopeStore(): QueryEnvelopeStore {
+  const ctx = getSSRContext();
+  if (ctx) return ctx.envelopeStore;
   return _envelopeStore;
 }
 

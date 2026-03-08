@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { createContext, getContextScope, setContextScope, useContext } from '../component/context';
 import { getAdapter } from '../dom/adapter';
 import { popScope, pushScope } from '../runtime/disposal';
 import { batch } from '../runtime/scheduler';
@@ -237,5 +238,111 @@ describe('SSRRenderContext', () => {
     // Both reset after batch
     expect(ctx1.batchDepth).toBe(0);
     expect(ctx2.batchDepth).toBe(0);
+  });
+
+  it('context scope is isolated per request', async () => {
+    const { AsyncLocalStorage } = require('node:async_hooks');
+    const als = new AsyncLocalStorage<SSRRenderContext>();
+    registerSSRResolver(() => als.getStore());
+
+    const mockAdapter = {} as import('../dom/adapter').RenderAdapter;
+    const ctx1: SSRRenderContext = {
+      url: '/a',
+      adapter: mockAdapter,
+      subscriber: null,
+      readValueCb: null,
+      cleanupStack: [],
+      batchDepth: 0,
+      pendingEffects: new Map(),
+      contextScope: null,
+    };
+    const ctx2: SSRRenderContext = {
+      url: '/b',
+      adapter: mockAdapter,
+      subscriber: null,
+      readValueCb: null,
+      cleanupStack: [],
+      batchDepth: 0,
+      pendingEffects: new Map(),
+      contextScope: null,
+    };
+
+    const ThemeCtx = createContext<string>('light');
+
+    await Promise.all([
+      als.run(ctx1, async () => {
+        const scope = new Map();
+        scope.set(ThemeCtx, 'dark');
+        setContextScope(scope);
+        await new Promise((r) => setTimeout(r, 10));
+        // Should still see ctx1's scope
+        expect(getContextScope()?.get(ThemeCtx)).toBe('dark');
+      }),
+      als.run(ctx2, async () => {
+        // ctx2 has no scope set — should not see ctx1's scope
+        await new Promise((r) => setTimeout(r, 10));
+        expect(getContextScope()).toBeNull();
+      }),
+    ]);
+  });
+
+  it('entity store and query envelope store are isolated per request', async () => {
+    const { AsyncLocalStorage } = require('node:async_hooks');
+    const als = new AsyncLocalStorage<SSRRenderContext>();
+    registerSSRResolver(() => als.getStore());
+
+    const { EntityStore } = await import('../store/entity-store');
+    const { QueryEnvelopeStore } = await import('../store/query-envelope-store');
+    const { getEntityStore, getQueryEnvelopeStore } = await import(
+      '../store/entity-store-singleton'
+    );
+
+    const store1 = new EntityStore();
+    const store2 = new EntityStore();
+    const envelope1 = new QueryEnvelopeStore();
+    const envelope2 = new QueryEnvelopeStore();
+
+    const mockAdapter = {} as import('../dom/adapter').RenderAdapter;
+    const ctx1: SSRRenderContext = {
+      url: '/a',
+      adapter: mockAdapter,
+      entityStore: store1,
+      envelopeStore: envelope1,
+    };
+    const ctx2: SSRRenderContext = {
+      url: '/b',
+      adapter: mockAdapter,
+      entityStore: store2,
+      envelopeStore: envelope2,
+    };
+
+    let result1EntityStore: unknown;
+    let result2EntityStore: unknown;
+    let result1EnvelopeStore: unknown;
+    let result2EnvelopeStore: unknown;
+
+    await Promise.all([
+      als.run(ctx1, async () => {
+        result1EntityStore = getEntityStore();
+        result1EnvelopeStore = getQueryEnvelopeStore();
+        await new Promise((r) => setTimeout(r, 10));
+        // Still the same after async work
+        expect(getEntityStore()).toBe(store1);
+      }),
+      als.run(ctx2, async () => {
+        result2EntityStore = getEntityStore();
+        result2EnvelopeStore = getQueryEnvelopeStore();
+        await new Promise((r) => setTimeout(r, 10));
+        expect(getEntityStore()).toBe(store2);
+      }),
+    ]);
+
+    // Each request got its own stores
+    expect(result1EntityStore).toBe(store1);
+    expect(result2EntityStore).toBe(store2);
+    expect(result1EntityStore).not.toBe(result2EntityStore);
+    expect(result1EnvelopeStore).toBe(envelope1);
+    expect(result2EnvelopeStore).toBe(envelope2);
+    expect(result1EnvelopeStore).not.toBe(result2EnvelopeStore);
   });
 });

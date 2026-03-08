@@ -6,6 +6,11 @@ export interface SSRRenderContext {
   cleanupStack: import('../runtime/signal-types').DisposeFn[][];
   batchDepth: number;
   pendingEffects: Map<number, import('../runtime/signal-types').Subscriber>;
+  contextScope: import('../component/context').ContextScope | null;
+  entityStore: import('../store/entity-store').EntityStore;
+  envelopeStore: import('../store/query-envelope-store').QueryEnvelopeStore;
+  queryCache: import('../query').MemoryCache<unknown>;
+  inflight: Map<string, Promise<unknown>>;
 }
 
 type SSRContextResolver = () => SSRRenderContext | undefined;

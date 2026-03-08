@@ -9,6 +9,7 @@ import { _tryOnCleanup } from '../runtime/disposal';
 import { computed, lifecycleEffect, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal, Unwrapped } from '../runtime/signal-types';
 import { setReadValueCallback, untrack } from '../runtime/tracking';
+import { getSSRContext } from '../ssr/ssr-render-context';
 import { getEntityStore, getQueryEnvelopeStore } from '../store/entity-store-singleton';
 import type { QueryEnvelope } from '../store/query-envelope-store';
 import { type CacheStore, MemoryCache } from './cache';
@@ -91,12 +92,26 @@ const defaultCache = new MemoryCache<unknown>();
  */
 const inflight = new Map<string, Promise<unknown>>();
 
+/** Get the active query cache (SSR context-aware). */
+function getDefaultCache(): MemoryCache<unknown> {
+  const ctx = getSSRContext();
+  if (ctx) return ctx.queryCache;
+  return defaultCache;
+}
+
+/** Get the active inflight map (SSR context-aware). */
+function getInflight(): Map<string, Promise<unknown>> {
+  const ctx = getSSRContext();
+  if (ctx) return ctx.inflight;
+  return inflight;
+}
+
 /**
  * Exposed for testing — returns the current size of the in-flight registry.
  * @internal
  */
 export function __inflightSize(): number {
-  return inflight.size;
+  return getInflight().size;
 }
 
 /**
@@ -106,8 +121,8 @@ export function __inflightSize(): number {
  * on subsequent SSR renders (they find stale cache hits from the first render).
  */
 function clearDefaultQueryCache(): void {
-  defaultCache.clear();
-  inflight.clear();
+  getDefaultCache().clear();
+  getInflight().clear();
 }
 
 // Install global hook so ui-server can clear the query cache per-request
@@ -152,7 +167,7 @@ export function query<T, E = unknown>(
     debounce: debounceMs,
     enabled = true,
     key: customKey,
-    cache = defaultCache as CacheStore<T>,
+    cache = getDefaultCache() as CacheStore<T>,
     _entityMeta: entityMeta,
   } = options;
 
@@ -446,7 +461,7 @@ export function query<T, E = unknown>(
   function handleFetchPromise(promise: Promise<T>, id: number, key: string): void {
     promise.then(
       (result) => {
-        inflight.delete(key);
+        getInflight().delete(key);
         inflightKeys.delete(key);
         if (id !== fetchId) return; // stale
         cache.set(key, result);
@@ -457,7 +472,7 @@ export function query<T, E = unknown>(
         scheduleInterval();
       },
       (err: unknown) => {
-        inflight.delete(key);
+        getInflight().delete(key);
         inflightKeys.delete(key);
         if (id !== fetchId) return; // stale
         error.value = err;
@@ -487,14 +502,14 @@ export function query<T, E = unknown>(
     });
 
     // Deduplication: reuse in-flight promise for the same cache key.
-    const existing = inflight.get(key) as Promise<T> | undefined;
+    const existing = getInflight().get(key) as Promise<T> | undefined;
     if (existing) {
       handleFetchPromise(existing, id, key);
       return;
     }
 
     // Register and handle the fetch promise.
-    inflight.set(key, fetchPromise);
+    getInflight().set(key, fetchPromise);
     inflightKeys.add(key);
     handleFetchPromise(fetchPromise, id, key);
   }
@@ -505,7 +520,7 @@ export function query<T, E = unknown>(
   function refetch(): void {
     const key = getCacheKey();
     cache.delete(key);
-    inflight.delete(key);
+    getInflight().delete(key);
     // Bump the trigger to cause the effect to re-run.
     refetchTrigger.value = refetchTrigger.peek() + 1;
   }
@@ -571,7 +586,7 @@ export function query<T, E = unknown>(
       // When a custom key is provided, deduplication can be checked before
       // calling the thunk — the key is static so the check is reliable.
       if (customKey) {
-        const existing = untrack(() => inflight.get(customKey) as Promise<T> | undefined);
+        const existing = untrack(() => getInflight().get(customKey) as Promise<T> | undefined);
         if (existing) {
           const id = ++fetchId;
           untrack(() => {
@@ -603,7 +618,7 @@ export function query<T, E = unknown>(
       // called and the dep hash updated, check if an in-flight request
       // exists for this key.
       if (!customKey) {
-        const existing = untrack(() => inflight.get(key) as Promise<T> | undefined);
+        const existing = untrack(() => getInflight().get(key) as Promise<T> | undefined);
         if (existing) {
           promise.catch(() => {});
           const id = ++fetchId;
@@ -703,7 +718,7 @@ export function query<T, E = unknown>(
     // leak in the global inflight map if the query is disposed while multiple
     // fetches are still pending (BLOCKING 2 fix).
     for (const key of inflightKeys) {
-      inflight.delete(key);
+      getInflight().delete(key);
     }
     inflightKeys.clear();
   }
