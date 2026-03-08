@@ -1,7 +1,18 @@
 import { describe, it } from 'bun:test';
 import { InMemoryRateLimitStore } from '../rate-limit-store';
 import { InMemorySessionStore } from '../session-store';
-import type { AuthConfig, RateLimitStore, SessionPayload, SessionStore, UserStore } from '../types';
+import type {
+  AuthConfig,
+  OAuthAccountStore,
+  OAuthProvider,
+  OAuthProviderConfig,
+  OAuthTokens,
+  OAuthUserInfo,
+  RateLimitStore,
+  SessionPayload,
+  SessionStore,
+  UserStore,
+} from '../types';
 import { InMemoryUserStore } from '../user-store';
 
 describe('Type-level tests', () => {
@@ -57,6 +68,129 @@ describe('Type-level tests', () => {
       iat: 1000,
       exp: 2000,
       sid: 'session-id',
+    };
+  });
+
+  it('OAuthProvider interface is structurally correct', () => {
+    const _provider: OAuthProvider = {
+      id: 'google',
+      name: 'Google',
+      scopes: ['openid', 'email'],
+      trustEmail: true,
+      getAuthorizationUrl: (_state: string, _codeChallenge?: string, _nonce?: string) =>
+        'https://accounts.google.com/o/oauth2/v2/auth',
+      exchangeCode: async (_code: string, _codeVerifier?: string) => ({
+        accessToken: 'token',
+      }),
+      getUserInfo: async (_accessToken: string, _idToken?: string) => ({
+        providerId: '123',
+        email: 'user@example.com',
+        emailVerified: true,
+      }),
+    };
+  });
+
+  it('AuthConfig accepts providers array', () => {
+    const provider: OAuthProvider = {
+      id: 'google',
+      name: 'Google',
+      scopes: ['openid'],
+      trustEmail: true,
+      getAuthorizationUrl: () => 'https://example.com',
+      exchangeCode: async () => ({ accessToken: 'tok' }),
+      getUserInfo: async () => ({ providerId: '1', email: 'a@b.c', emailVerified: true }),
+    };
+    const _config: AuthConfig = {
+      session: { strategy: 'jwt', ttl: '60s' },
+      providers: [provider],
+    };
+  });
+
+  it('AuthConfig accepts oauthAccountStore', () => {
+    const _config: AuthConfig = {
+      session: { strategy: 'jwt', ttl: '60s' },
+      oauthAccountStore: {
+        linkAccount: async () => {},
+        findByProviderAccount: async () => null,
+        findByUserId: async () => [],
+        unlinkAccount: async () => {},
+        dispose: () => {},
+      } satisfies OAuthAccountStore,
+    };
+  });
+
+  it('AuthConfig rejects wrong provider type', () => {
+    // @ts-expect-error — providers must be OAuthProvider[], not random objects
+    const _config: AuthConfig = {
+      session: { strategy: 'jwt', ttl: '60s' },
+      providers: [{ notAProvider: true }],
+    };
+  });
+
+  it('UserStore.createUser accepts null passwordHash', () => {
+    const store = new InMemoryUserStore();
+    // null passwordHash should be accepted for OAuth-only users
+    store.createUser(
+      {
+        id: '1',
+        email: 'a@b.c',
+        role: 'user',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      null,
+    );
+  });
+
+  it('OAuthProvider without trustEmail is incomplete', () => {
+    // @ts-expect-error — trustEmail is required on OAuthProvider
+    const _provider: OAuthProvider = {
+      id: 'google',
+      name: 'Google',
+      scopes: ['openid'],
+      getAuthorizationUrl: () => 'https://example.com',
+      exchangeCode: async () => ({ accessToken: 'tok' }),
+      getUserInfo: async () => ({ providerId: '1', email: 'a@b.c', emailVerified: true }),
+    };
+  });
+
+  it('OAuthTokens interface is correct', () => {
+    const _tokens: OAuthTokens = {
+      accessToken: 'access',
+    };
+    const _tokensWithOptional: OAuthTokens = {
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      expiresIn: 3600,
+      idToken: 'id-token',
+    };
+  });
+
+  it('OAuthUserInfo interface is correct', () => {
+    const _info: OAuthUserInfo = {
+      providerId: '123',
+      email: 'user@example.com',
+      emailVerified: true,
+    };
+    const _infoWithOptional: OAuthUserInfo = {
+      providerId: '123',
+      email: 'user@example.com',
+      emailVerified: true,
+      name: 'User',
+      avatarUrl: 'https://example.com/avatar.png',
+    };
+  });
+
+  it('OAuthProviderConfig interface is correct', () => {
+    const _config: OAuthProviderConfig = {
+      clientId: 'id',
+      clientSecret: 'secret',
+    };
+    const _configFull: OAuthProviderConfig = {
+      clientId: 'id',
+      clientSecret: 'secret',
+      redirectUrl: 'https://example.com/callback',
+      scopes: ['openid'],
     };
   });
 });

@@ -242,6 +242,51 @@ export function isSessionNotFoundError(error: {
 }
 
 // ============================================================================
+// OAuth Error
+// ============================================================================
+
+/**
+ * OAuth error.
+ *
+ * Returned when an OAuth operation fails (provider not configured, invalid state, etc.).
+ */
+export interface OAuthError {
+  readonly code: 'OAUTH_ERROR';
+  readonly message: string;
+  readonly provider?: string;
+  readonly reason?:
+    | 'provider_not_configured'
+    | 'invalid_state'
+    | 'token_exchange_failed'
+    | 'user_info_failed'
+    | 'account_already_linked'
+    | 'cannot_unlink_last_method';
+}
+
+/**
+ * Creates an OAuthError.
+ */
+export function createOAuthError(
+  message: string,
+  provider?: string,
+  reason?: OAuthError['reason'],
+): OAuthError {
+  return {
+    code: 'OAUTH_ERROR',
+    message,
+    provider,
+    reason,
+  };
+}
+
+/**
+ * Type guard for OAuthError.
+ */
+export function isOAuthError(error: { readonly code: string }): error is OAuthError {
+  return error.code === 'OAUTH_ERROR';
+}
+
+// ============================================================================
 // Combined Types
 // ============================================================================
 
@@ -255,4 +300,5 @@ export type AuthError =
   | SessionNotFoundError
   | PermissionDeniedError
   | RateLimitedError
-  | AuthValidationError;
+  | AuthValidationError
+  | OAuthError;

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 import { existsSync, rmSync } from 'node:fs';
+import { buildOAuthStateCookie } from '../cookies';
 import { createAuth } from '../index';
 import type { AuthConfig } from '../types';
 
@@ -202,5 +203,27 @@ describe('JWT secret handling', () => {
 
     warnSpy.mockRestore();
     logSpy.mockRestore();
+  });
+});
+
+describe('buildOAuthStateCookie', () => {
+  it('sets cookie name to vertz.oauth', () => {
+    const cookie = buildOAuthStateCookie('encrypted-state', { secure: true });
+    expect(cookie.startsWith('vertz.oauth=')).toBe(true);
+  });
+
+  it('sets Path=/api/auth/oauth', () => {
+    const cookie = buildOAuthStateCookie('encrypted-state', { secure: true });
+    expect(cookie).toContain('Path=/api/auth/oauth');
+  });
+
+  it('sets Max-Age=300', () => {
+    const cookie = buildOAuthStateCookie('encrypted-state', { secure: true });
+    expect(cookie).toContain('Max-Age=300');
+  });
+
+  it('clear mode sets Max-Age=0', () => {
+    const cookie = buildOAuthStateCookie('', { secure: true }, true);
+    expect(cookie).toContain('Max-Age=0');
   });
 });

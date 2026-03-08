@@ -209,4 +209,39 @@ describe('Dual-Token Issuance', () => {
       expect(sessionResult.data).toBeNull();
     }
   });
+
+  it('signIn with email/password returns INVALID_CREDENTIALS for OAuth-only user', async () => {
+    const auth = createTestAuth();
+
+    // Create an OAuth-only user (null passwordHash) directly via the user store
+    const { InMemoryUserStore } = await import('../user-store');
+    const userStore = new InMemoryUserStore();
+    await userStore.createUser(
+      {
+        id: 'oauth-user-1',
+        email: 'oauth@example.com',
+        role: 'user',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      null,
+    );
+
+    const authWithStore = createAuth({
+      session: { strategy: 'jwt', ttl: '60s', refreshTtl: '7d' },
+      jwtSecret: 'dual-token-test-secret-at-least-32-chars',
+      isProduction: false,
+      userStore,
+    });
+
+    const result = await authWithStore.api.signIn({
+      email: 'oauth@example.com',
+      password: 'any-password',
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('INVALID_CREDENTIALS');
+    }
+  });
 });

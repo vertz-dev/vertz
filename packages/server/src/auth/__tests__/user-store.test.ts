@@ -47,4 +47,25 @@ describe('InMemoryUserStore', () => {
     const byId = await store.findById('nonexistent');
     expect(byId).toBeNull();
   });
+
+  it('createUser accepts null passwordHash (OAuth-only user)', async () => {
+    const store = new InMemoryUserStore();
+    const user = makeUser({ email: 'oauth@example.com' });
+
+    await store.createUser(user, null);
+
+    const found = await store.findByEmail('oauth@example.com');
+    expect(found).not.toBeNull();
+    expect(found?.user.id).toBe(user.id);
+    expect(found?.passwordHash).toBeNull();
+  });
+
+  it('findByEmail returns null passwordHash for OAuth-only user', async () => {
+    const store = new InMemoryUserStore();
+    const user = makeUser({ email: 'oauth2@example.com' });
+    await store.createUser(user, null);
+
+    const found = await store.findByEmail('oauth2@example.com');
+    expect(found?.passwordHash).toBeNull();
+  });
 });
