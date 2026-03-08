@@ -55,6 +55,10 @@ export type {
   EmailPasswordConfig,
   Entitlement,
   EntitlementDefinition,
+  MFAStore,
+  MfaChallengeData,
+  MfaConfig,
+  MfaSetupData,
   OAuthAccountStore,
   OAuthProvider,
   OAuthProviderConfig,
@@ -81,6 +85,7 @@ export type {
 // Auth Module
 export {
   AuthorizationError,
+  checkFva,
   createAccess,
   createAuth,
   defaultAccess,
@@ -88,6 +93,7 @@ export {
   github,
   google,
   hashPassword,
+  InMemoryMFAStore,
   InMemoryOAuthAccountStore,
   InMemoryRateLimitStore,
   InMemorySessionStore,

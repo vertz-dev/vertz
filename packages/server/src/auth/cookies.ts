@@ -52,6 +52,23 @@ export function buildRefreshCookie(
   return `${name}=${value}; Path=${path}; HttpOnly${secure ? '; Secure' : ''}; SameSite=${sameSite}; Max-Age=${refreshMaxAge}`;
 }
 
+export function buildMfaChallengeCookie(
+  value: string,
+  cookieConfig: CookieConfig,
+  clear = false,
+): string {
+  const name = 'vertz.mfa';
+  const path = '/api/auth/mfa';
+  const sameSite = cookieConfig.sameSite || 'lax';
+  const secure = cookieConfig.secure ?? true;
+
+  if (clear) {
+    return `${name}=; Path=${path}; HttpOnly${secure ? '; Secure' : ''}; SameSite=${sameSite}; Max-Age=0`;
+  }
+
+  return `${name}=${value}; Path=${path}; HttpOnly${secure ? '; Secure' : ''}; SameSite=${sameSite}; Max-Age=300`;
+}
+
 export function buildOAuthStateCookie(
   value: string,
   cookieConfig: CookieConfig,

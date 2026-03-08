@@ -111,6 +111,38 @@ export interface UserStore {
 }
 
 // ============================================================================
+// MFA Types
+// ============================================================================
+
+export interface MfaConfig {
+  enabled?: boolean;
+  issuer?: string;
+  backupCodeCount?: number;
+}
+
+export interface MFAStore {
+  enableMfa(userId: string, encryptedSecret: string): Promise<void>;
+  disableMfa(userId: string): Promise<void>;
+  getSecret(userId: string): Promise<string | null>;
+  isMfaEnabled(userId: string): Promise<boolean>;
+  setBackupCodes(userId: string, hashedCodes: string[]): Promise<void>;
+  getBackupCodes(userId: string): Promise<string[]>;
+  consumeBackupCode(userId: string, hashedCode: string): Promise<void>;
+  dispose(): void;
+}
+
+export interface MfaSetupData {
+  secret: string;
+  uri: string;
+}
+
+export interface MfaChallengeData {
+  userId: string;
+  sessionId?: string;
+  expiresAt: number;
+}
+
+// ============================================================================
 // OAuth Types
 // ============================================================================
 
@@ -201,6 +233,10 @@ export interface AuthConfig {
   oauthSuccessRedirect?: string;
   /** Redirect URL on OAuth error (default '/auth/error') */
   oauthErrorRedirect?: string;
+  /** MFA configuration */
+  mfa?: MfaConfig;
+  /** Pluggable MFA store — defaults to InMemoryMFAStore */
+  mfaStore?: MFAStore;
 }
 
 // ============================================================================
@@ -228,6 +264,7 @@ export interface SessionPayload {
   jti: string; // JWT ID — unique token identifier
   sid: string; // Session ID — links JWT to session record
   claims?: Record<string, unknown>;
+  fva?: number; // Factor verification age — timestamp of last MFA verification
 }
 
 export interface AuthTokens {

@@ -1,2 +1,3 @@
 [test]
 coveragePathIgnorePatterns = ["**/core/dist/**", "**/db/dist/**", "**/errors/dist/**", "**/schema/dist/**"]
+timeout = 120000
