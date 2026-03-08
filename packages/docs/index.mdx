@@ -1,4 +1,151 @@
 ---
 title: Introduction
-description: "Vertz — a TypeScript UI framework with a compiler, fine-grained reactivity, and SSR"
+description: "Vertz — the TypeScript stack where types flow from database to browser"
 ---
+
+Vertz is a TypeScript stack that covers database, API, and UI. Define your schema once — get a typed database layer, a typed API with auto-generated OpenAPI, and a compiled UI with fine-grained reactivity. If it builds, it works.
+
+<Steps>
+  <Step title="Define your schema" icon="database">
+    `d.table()` and `d.model()` — define columns, constraints, and relations. This is the single source of truth for your data shape. Types flow from here to every other layer.
+  </Step>
+  <Step title="Create an entity" icon="shield-check">
+    `entity()` — turn your schema into API endpoints. Define which operations to expose, who can access them, and add custom actions. One entity = a full REST API for that resource.
+  </Step>
+  <Step title="Serve the API" icon="server">
+    `createServer()` — wire up entities and serve your API. Routes and OpenAPI docs are auto-generated from your entities.
+  </Step>
+  <Step title="Build the UI" icon="desktop">
+    A compiled UI framework with fine-grained reactivity, scoped CSS, type-safe routing, SSR, and built-in data fetching — replacing React, Next.js, and Tailwind in one stack. Use `query()` and `form()` to connect to your API with full type safety end-to-end.
+  </Step>
+</Steps>
+
+## See it in action
+
+<Tabs>
+  <Tab title="Schema">
+    ```typescript
+    import { d } from 'vertz/db';
+
+    export const todosTable = d.table('todos', {
+      id: d.uuid().primary({ generate: 'uuid' }),
+      title: d.text(),
+      completed: d.boolean().default(false),
+      createdAt: d.timestamp().default('now').readOnly(),
+    });
+
+    export const todosModel = d.model(todosTable);
+    ```
+  </Tab>
+  <Tab title="API">
+    ```typescript
+    import { entity } from 'vertz/server';
+    import { todosModel } from './schema';
+
+    export const todos = entity('todos', {
+      model: todosModel,
+      access: { list: () => true, get: () => true, create: () => true },
+    });
+    ```
+    One entity = full CRUD API. Access control is required, not optional.
+  </Tab>
+  <Tab title="Server">
+    ```typescript
+    import { createDb } from 'vertz/db';
+    import { createEnv, createServer } from 'vertz/server';
+    import { s } from 'vertz/schema';
+    import { todosModel } from './schema';
+    import { todos } from './entities/todos';
+
+    const env = createEnv({
+      schema: s.object({
+        PORT: s.coerce.number().default(3000),
+        DATABASE_URL: s.string(),
+      }),
+    });
+
+    const db = createDb({
+      url: env.DATABASE_URL,
+      models: { todos: todosModel },
+    });
+
+    createServer({ entities: [todos], db }).listen(env.PORT);
+    // POST /api/todos, GET /api/todos, GET /api/todos/:id — done.
+    ```
+  </Tab>
+  <Tab title="UI">
+    ```tsx
+    import { query } from 'vertz/ui';
+    import { api } from './generated/client';
+
+    export function TodoApp() {
+      const todos = query(api.todos.list());
+
+      return (
+        <ul>
+          {todos.data?.items.map((todo) => (
+            <li key={todo.id}>{todo.title}</li>
+          ))}
+        </ul>
+      );
+    }
+    ```
+    Fully typed from schema to UI. Change a column type — `tsc` lights up red across every layer.
+  </Tab>
+</Tabs>
+
+## Key ideas
+
+<CardGroup cols={2}>
+  <Card title="Types flow everywhere" icon="arrows-left-right">
+    One schema definition drives your database, API, and UI types. Change a column — the type error shows up in your component, not at runtime.
+  </Card>
+  <Card title="Compiler-driven reactivity" icon="microchip">
+    Write plain `let` and `const` in your UI. The compiler handles signals, computed values, and reactive props — you never call `signal()` directly.
+  </Card>
+  <Card title="Production-ready by default" icon="shield-check">
+    OpenAPI generation, access control, environment validation, SSR — built in from day one, not bolted on later.
+  </Card>
+  <Card title="One way to do things" icon="route">
+    Strong conventions mean less guessing for your team and your LLM. If there's a Vertz way, that's the only way.
+  </Card>
+</CardGroup>
+
+## The stack
+
+| Layer | What | Package |
+|-------|------|---------|
+| **Schema** | 40+ column types, runtime validation, JSON Schema output | `vertz/schema` |
+| **Database** | Typed queries, migrations, PostgreSQL + SQLite + D1 | `vertz/db` |
+| **Server** | Entity CRUD, services, access control, CORS, `createEnv()` | `vertz/server` |
+| **UI** | Compiled signals, JSX, router, `query()`, `form()`, scoped CSS, SSR | `vertz/ui` |
+| **Primitives** | Headless a11y components — Dialog, Select, Tabs, Menu | `vertz/ui-primitives` |
+| **Tooling** | Dev server, build, codegen, static analysis | `vertz` (CLI) |
+| **Deploy** | Cloudflare Workers adapter | `vertz/cloudflare` |
+| **Testing** | `createTestApp()` with service mocking | `vertz/testing` |
+| **HTTP** | Type-safe client with retries, streaming, auth strategies | `vertz/fetch` |
+
+Install everything with one dependency:
+
+```bash
+bun add vertz
+```
+
+Then import what you need: `vertz/server`, `vertz/db`, `vertz/ui`, `vertz/schema`, `vertz/testing`.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build your first Vertz app in 5 minutes.
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Add Vertz to an existing project.
+  </Card>
+  <Card title="UI Components" icon="puzzle-piece" href="/guides/ui/components">
+    Write components with JSX and the compiler.
+  </Card>
+  <Card title="Reactivity" icon="bolt" href="/guides/ui/reactivity">
+    Understand signals, computed values, and effects.
+  </Card>
+</CardGroup>

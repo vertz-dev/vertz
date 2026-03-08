@@ -1,0 +1,169 @@
+---
+title: OAuth Providers
+description: "Add Google, GitHub, or Discord sign-in with provider factory functions"
+---
+
+Vertz ships factory functions for OAuth providers. Configure your credentials, add the provider to `createAuth()`, and the framework handles the full flow: authorization redirect, callback handling, PKCE, token exchange, and account linking.
+
+## Setup
+
+```ts
+import { createAuth, google, github, discord } from 'vertz/server';
+
+const auth = createAuth({
+  session: { strategy: 'jwt', ttl: '60s' },
+  providers: [
+    google({
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      redirectUrl: 'http://localhost:3000/api/auth/oauth/google/callback',
+    }),
+    github({
+      clientId: env.GITHUB_CLIENT_ID,
+      clientSecret: env.GITHUB_CLIENT_SECRET,
+      redirectUrl: 'http://localhost:3000/api/auth/oauth/github/callback',
+    }),
+    discord({
+      clientId: env.DISCORD_CLIENT_ID,
+      clientSecret: env.DISCORD_CLIENT_SECRET,
+      redirectUrl: 'http://localhost:3000/api/auth/oauth/discord/callback',
+    }),
+  ],
+  oauthEncryptionKey: env.OAUTH_ENCRYPTION_KEY,
+  oauthAccountStore: myOAuthAccountStore,
+});
+```
+
+This generates two routes per provider:
+
+```
+GET /api/auth/oauth/google          → Redirect to Google consent screen
+GET /api/auth/oauth/google/callback → Handle Google callback
+
+GET /api/auth/oauth/github          → Redirect to GitHub
+GET /api/auth/oauth/github/callback → Handle GitHub callback
+
+GET /api/auth/oauth/discord         → Redirect to Discord
+GET /api/auth/oauth/discord/callback → Handle Discord callback
+```
+
+## Provider configuration
+
+All providers share the same config interface:
+
+```ts
+interface OAuthProviderConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUrl?: string;   // Callback URL registered with the provider
+  scopes?: string[];      // Override default scopes
+}
+```
+
+### Default scopes
+
+| Provider | Default scopes | Email trust |
+|----------|---------------|-------------|
+| **Google** | `openid`, `email`, `profile` | Trusted (verified by OIDC) |
+| **GitHub** | `read:user`, `user:email` | Untrusted |
+| **Discord** | `identify`, `email` | Untrusted |
+
+## Account linking
+
+When a user signs in via OAuth, the system follows a three-path resolution:
+
+1. **Existing link found** — The provider account is already linked to a user. Sign them in.
+2. **Trusted email match** — The provider verifies the email (Google OIDC). If a user with that email exists, auto-link the provider account and sign in.
+3. **No match** — Create a new user account and link the provider account.
+
+<Note>
+GitHub and Discord don't verify email ownership at the OAuth level, so they never auto-link to existing accounts. Each GitHub/Discord sign-in creates a new account unless a link already exists in the `OAuthAccountStore`.
+</Note>
+
+## Required configuration
+
+### Encryption key
+
+OAuth state is stored in an encrypted cookie (AES-256-GCM). You must provide an encryption key:
+
+```ts
+oauthEncryptionKey: env.OAUTH_ENCRYPTION_KEY, // any string — HKDF derives the actual key
+```
+
+Generate one:
+
+```bash
+openssl rand -base64 32
+```
+
+### OAuthAccountStore
+
+The account store tracks which provider accounts are linked to which users:
+
+```ts
+interface OAuthAccountStore {
+  linkAccount(userId: string, provider: string, providerId: string, email?: string): Promise<void>;
+  findByProviderAccount(provider: string, providerId: string): Promise<string | null>;
+  findByUserId(userId: string): Promise<{ provider: string; providerId: string }[]>;
+  unlinkAccount(userId: string, provider: string): Promise<void>;
+  dispose(): void;
+}
+```
+
+For development, use the built-in in-memory store:
+
+```ts
+import { InMemoryOAuthAccountStore } from 'vertz/server';
+
+const auth = createAuth({
+  // ...
+  oauthAccountStore: new InMemoryOAuthAccountStore(),
+});
+```
+
+For production, implement the interface backed by your database.
+
+## Redirect configuration
+
+Control where users land after OAuth:
+
+```ts
+const auth = createAuth({
+  // ...
+  oauthSuccessRedirect: '/dashboard',     // Default: '/'
+  oauthErrorRedirect: '/auth/error',      // Default: '/auth/error'
+});
+```
+
+## Security
+
+| Protection | How |
+|-----------|-----|
+| **PKCE** | S256 code challenge for Google and Discord (GitHub doesn't support PKCE) |
+| **State cookie** | AES-256-GCM encrypted, prevents CSRF on the callback |
+| **OIDC nonce** | Validated in Google ID tokens to prevent replay attacks |
+| **Rate limiting** | 10 OAuth initiations per 5 minutes per IP |
+| **Email validation** | Empty emails rejected before user creation |
+
+## Environment variables
+
+Use `createEnv()` to validate OAuth credentials at startup:
+
+```ts
+import { createEnv } from 'vertz/server';
+import { s } from 'vertz/schema';
+
+export const env = createEnv({
+  schema: s.object({
+    GOOGLE_CLIENT_ID: s.string(),
+    GOOGLE_CLIENT_SECRET: s.string(),
+    GITHUB_CLIENT_ID: s.string(),
+    GITHUB_CLIENT_SECRET: s.string(),
+    OAUTH_ENCRYPTION_KEY: s.string(),
+  }),
+});
+```
+
+## OAuth-only users
+
+Users created via OAuth have a `null` password hash. If they attempt email/password sign-in, the auth system runs a timing-safe dummy bcrypt comparison — same response time, always fails. This prevents user enumeration via the sign-in endpoint.

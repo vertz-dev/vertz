@@ -1,4 +1,152 @@
 ---
 title: Quickstart
-description: "Get up and running with @vertz/ui in under 5 minutes"
+description: "Get up and running with Vertz in under 5 minutes"
 ---
+
+Scaffold a full-stack task manager with a database, API, and UI — all typed end-to-end.
+
+## Create a new project
+
+<Steps>
+  <Step title="Scaffold the app">
+    ```bash
+    bunx @vertz/create-vertz-app my-app
+    cd my-app
+    bun install
+    ```
+
+    This creates a complete project with a SQLite database, a REST API, and a styled UI with a shadcn-inspired theme — not empty boilerplate.
+  </Step>
+  <Step title="Start the dev server">
+    ```bash
+    bun run dev
+    ```
+
+    Open [http://localhost:3000](http://localhost:3000). You should see a working task manager where you can create and complete tasks.
+  </Step>
+</Steps>
+
+## What you just got
+
+The scaffolded project is a full-stack app:
+
+```bash
+my-app/
+  src/
+    api/
+      env.ts               # Validated environment variables
+      schema.ts            # Table + model definition
+      db.ts                # SQLite with auto-migrations
+      server.ts            # API server
+      entities/
+        tasks.entity.ts    # CRUD + access control
+    pages/
+      home.tsx             # Task list with query + form
+    styles/
+      theme.ts             # shadcn-inspired theme
+    app.tsx                # App shell with SSR exports
+    client.ts              # Typed API client
+    entry-client.ts        # Client-side mount + HMR
+  .env                     # Environment variables
+  vertz.config.ts
+  tsconfig.json
+  package.json
+```
+
+## Walk through the code
+
+### Schema — the source of truth
+
+Open `src/api/schema.ts`. This defines the tasks table and model:
+
+```typescript
+import { d } from 'vertz/db';
+
+export const tasksTable = d.table('tasks', {
+  id: d.uuid().primary({ generate: 'uuid' }),
+  title: d.text(),
+  completed: d.boolean().default(false),
+  createdAt: d.timestamp().default('now').readOnly(),
+  updatedAt: d.timestamp().default('now'),
+});
+
+export const tasksModel = d.model(tasksTable);
+```
+
+Every type in your API, client, and UI traces back to this definition. Change a column here and `tsc` shows errors everywhere that column is used.
+
+### Entity — schema to API endpoints
+
+Open `src/api/entities/tasks.entity.ts`:
+
+```typescript
+import { entity } from 'vertz/server';
+import { tasksModel } from '../schema';
+
+export const tasks = entity('tasks', {
+  model: tasksModel,
+  access: { list: () => true, get: () => true, create: () => true },
+});
+```
+
+This single declaration generates `GET /api/tasks`, `GET /api/tasks/:id`, `POST /api/tasks`, and more — with access control required for every operation.
+
+### UI — reactive task list
+
+Open `src/pages/home.tsx`. This is where `query()` and `form()` connect the UI to your API:
+
+```tsx
+import { query, form, css } from 'vertz/ui';
+import { api } from '../client';
+
+export function HomePage() {
+  const tasks = query(api.tasks.list());
+
+  return (
+    <div>
+      {tasks.data?.items.map((task) => (
+        <div key={task.id}>
+          <span>{task.title}</span>
+          <span>{task.completed ? 'Done' : 'Todo'}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+`query()` fetches data reactively — when the data loads, only the list updates. The `api` client is fully typed from your schema, so `task.title` is a `string` and `task.completed` is a `boolean` without any manual type definitions.
+
+## Try it
+
+With the dev server running:
+
+1. **Add a task** — use the form in the UI to create a new task
+2. **Check it off** — mark a task as completed
+3. **Edit the schema** — try renaming `title` to `name` in `tasksTable` and watch `tsc` flag every place that references the old column — entity, client, and UI
+
+## Available commands
+
+```bash
+bun run dev        # Start dev server (API + UI + SSR + HMR)
+bun run build      # Build for production
+bun run start      # Start production server (after build)
+bun run codegen    # Regenerate typed API client
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Add Vertz to an existing project manually.
+  </Card>
+  <Card title="Components" icon="puzzle-piece" href="/guides/ui/components">
+    Props, children, and component patterns.
+  </Card>
+  <Card title="Reactivity" icon="bolt" href="/guides/ui/reactivity">
+    Deep dive into signals, computed, and effects.
+  </Card>
+  <Card title="Routing" icon="route" href="/guides/ui/routing">
+    Set up pages with type-safe routing.
+  </Card>
+</CardGroup>

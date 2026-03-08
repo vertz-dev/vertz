@@ -85,6 +85,7 @@ export const codegen = {
  */
 export function envTemplate(): string {
   return `PORT=3000
+DATABASE_URL=local.db
 `;
 }
 
@@ -93,6 +94,7 @@ export function envTemplate(): string {
  */
 export function envExampleTemplate(): string {
   return `PORT=3000
+DATABASE_URL=local.db
 `;
 }
 
@@ -161,11 +163,28 @@ Thumbs.db
 // ── Source file templates ───────────────────────────────────
 
 /**
+ * src/api/env.ts — validated environment variables
+ */
+export function envModuleTemplate(): string {
+  return `import { createEnv } from '@vertz/server';
+import { s } from '@vertz/schema';
+
+export const env = createEnv({
+  schema: s.object({
+    PORT: s.coerce.number().default(3000),
+    DATABASE_URL: s.string().default('local.db'),
+  }),
+});
+`;
+}
+
+/**
  * src/api/server.ts — createServer with entities + db
  */
 export function serverTemplate(): string {
   return `import { createServer } from '@vertz/server';
 import { db } from './db';
+import { env } from './env';
 import { tasks } from './entities/tasks.entity';
 
 const app = createServer({
@@ -177,8 +196,7 @@ const app = createServer({
 export default app;
 
 if (import.meta.main) {
-  const PORT = Number(process.env.PORT) || 3000;
-  app.listen(PORT).then((handle) => {
+  app.listen(env.PORT).then((handle) => {
     console.log(\`Server running at http://localhost:\${handle.port}/api\`);
   });
 }

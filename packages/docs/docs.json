@@ -1,10 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "colors": {
-    "background": {
-      "dark": "#0F0F12",
-      "light": "#FFFFFF"
-    },
     "dark": "#2563eb",
     "light": "#60a5fa",
     "primary": "#3b82f6"
@@ -43,10 +39,10 @@
         "groups": [
           {
             "group": "Getting Started",
-            "pages": ["index", "quickstart", "installation"]
+            "pages": ["index", "quickstart", "installation", "conventions"]
           },
           {
-            "group": "@vertz/ui",
+            "group": "vertz/ui",
             "pages": [
               "guides/ui/overview",
               "guides/ui/components",
@@ -59,8 +55,40 @@
             ]
           },
           {
-            "group": "@vertz/ui-compiler",
+            "group": "vertz/ui-compiler",
             "pages": ["guides/ui/compiler"]
+          },
+          {
+            "group": "vertz/schema",
+            "pages": ["guides/schema"]
+          },
+          {
+            "group": "vertz/errors",
+            "pages": ["guides/errors"]
+          },
+          {
+            "group": "vertz/server",
+            "pages": [
+              "guides/server/overview",
+              "guides/server/entities",
+              "guides/server/auth",
+              "guides/server/oauth",
+              "guides/server/services",
+              "guides/env"
+            ]
+          },
+          {
+            "group": "vertz/db",
+            "pages": [
+              "guides/db/overview",
+              "guides/db/schema",
+              "guides/db/queries",
+              "guides/db/migrations"
+            ]
+          },
+          {
+            "group": "vertz/fetch",
+            "pages": ["guides/fetch"]
           }
         ],
         "tab": "Guides"
@@ -68,7 +96,7 @@
       {
         "groups": [
           {
-            "group": "@vertz/ui",
+            "group": "vertz/ui",
             "pages": [
               "api-reference/ui/jsx-runtime",
               "api-reference/ui/signals",
@@ -81,11 +109,11 @@
             ]
           },
           {
-            "group": "@vertz/ui-server",
+            "group": "vertz/ui-server",
             "pages": ["api-reference/ui/ssr-handler"]
           },
           {
-            "group": "@vertz/ui-compiler",
+            "group": "vertz/ui-compiler",
             "pages": ["api-reference/ui/compiler-plugin"]
           }
         ],

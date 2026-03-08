@@ -2,3 +2,236 @@
 title: Data Fetching
 description: "Fetch and cache data with query()"
 ---
+
+`query()` connects your UI to your API with reactive data fetching, caching, and automatic cleanup.
+
+## Basic usage
+
+```tsx
+import { query } from 'vertz/ui';
+import { api } from '../client';
+
+export function TaskListPage() {
+  const tasks = query(api.tasks.list());
+
+  return (
+    <div>
+      {tasks.loading && <div>Loading...</div>}
+      {tasks.error && <div>Error: {tasks.error.message}</div>}
+      {tasks.data?.items.map((task) => (
+        <TaskCard key={task.id} task={task} />
+      ))}
+    </div>
+  );
+}
+```
+
+`query()` accepts a query descriptor (from the typed API client) or a thunk that returns a promise:
+
+```tsx
+// From API client — key is auto-derived from the endpoint
+const tasks = query(api.tasks.list());
+
+// From a thunk — provide a key for caching
+const data = query(() => fetch('/api/data').then(r => r.json()), {
+  key: 'my-data',
+});
+```
+
+## Reactive properties
+
+A query result exposes four reactive properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `data` | `T \| undefined` | The fetched data, or `undefined` while loading |
+| `loading` | `boolean` | `true` only on initial load (not during revalidation) |
+| `revalidating` | `boolean` | `true` when refetching with existing data |
+| `error` | `Error \| undefined` | The error from the last failed fetch |
+
+These are reactive — use them directly in JSX and event handlers:
+
+```tsx
+<div>{tasks.data?.items.length} tasks</div>
+<button disabled={tasks.loading}>Refresh</button>
+
+onClick={() => {
+  if (tasks.data) {
+    console.log(tasks.data.items.length);
+  }
+}}
+```
+
+## Reactive dependencies
+
+When the thunk reads a signal, the query automatically re-fetches when that signal changes:
+
+```tsx
+let statusFilter = 'all';
+
+const tasks = query(api.tasks.list({ status: statusFilter }));
+// When statusFilter changes, query re-fetches with the new value
+```
+
+The dependency tracking happens automatically — any signal read before the first `await` in the thunk becomes a dependency.
+
+## Pattern matching with queryMatch
+
+Use `queryMatch()` to render different content for each query state:
+
+```tsx
+import { queryMatch } from 'vertz/ui';
+
+export function TaskListPage() {
+  const tasks = query(api.tasks.list());
+
+  return queryMatch(tasks, {
+    loading: () => <div>Loading tasks...</div>,
+    error: (err) => <div>Failed: {err.message}</div>,
+    data: (data) => (
+      <ul>
+        {data.items.map((task) => (
+          <TaskCard key={task.id} task={task} />
+        ))}
+      </ul>
+    ),
+  });
+}
+```
+
+## Refetching
+
+Call `refetch()` to manually re-fetch:
+
+```tsx
+const tasks = query(api.tasks.list());
+
+async function handleDelete(id: string) {
+  await api.tasks.delete(id);
+  tasks.refetch(); // Re-fetch in background, update cache when done
+}
+```
+
+## Polling
+
+Use `refetchInterval` to poll at a fixed interval:
+
+```tsx
+const status = query(api.jobs.status(jobId), {
+  refetchInterval: 2000, // Poll every 2 seconds
+});
+```
+
+Dynamic polling — adjust the interval based on data:
+
+```tsx
+const status = query(api.jobs.status(jobId), {
+  refetchInterval: (data, iteration) => {
+    if (data?.completed) return false; // Stop polling
+    return Math.min(1000 * 2 ** iteration, 30000); // Exponential backoff
+  },
+});
+```
+
+Polling automatically pauses when the browser tab is hidden and resumes when visible.
+
+## Options
+
+```tsx
+const tasks = query(api.tasks.list(), {
+  // Pre-populate data (skips initial fetch)
+  initialData: cachedTasks,
+
+  // Debounce re-fetches when dependencies change
+  debounce: 300,
+
+  // Disable fetching until a condition is met
+  enabled: !!selectedId,
+
+  // Poll at a fixed interval
+  refetchInterval: 5000,
+});
+```
+
+## Caching
+
+Queries are cached in a shared in-memory cache. For entity-backed queries (from the typed API client), the cache key is derived from the HTTP method, path, and query parameters:
+
+- `api.tasks.list()` → `GET:/api/tasks`
+- `api.tasks.get('abc')` → `GET:/api/tasks/abc`
+- `api.tasks.list({ status: 'done' })` → `GET:/api/tasks?status=done`
+
+Each unique combination of endpoint + parameters gets its own cache entry. Query parameters are sorted alphabetically, so `{ status: 'done', page: 1 }` and `{ page: 1, status: 'done' }` produce the same key.
+
+For plain thunks (not using the API client), the cache key is derived from the function body and the reactive signal values it reads. Returning to a previously-seen set of dependency values produces the same cache key — enabling cache hits without re-fetching.
+
+### Stale-while-revalidate
+
+When you navigate away and back, cached data is served instantly while a background revalidation runs. The user sees content immediately — no loading spinner for data that was already fetched.
+
+### Disposal preserves cache
+
+Queries are auto-disposed when their component unmounts — no manual cleanup needed. Disposal stops reactive effects and timers but preserves the shared cache, so navigating back serves data instantly.
+
+## Auto-revalidation
+
+When an entity mutation completes (create, update, delete), all active queries for that entity type are automatically revalidated in the background. No configuration needed — the mutation event bus handles it:
+
+```tsx
+// Two queries on the same page watching different task lists
+const activeTasks = query(api.tasks.list({ status: 'active' }));
+const doneTasks = query(api.tasks.list({ status: 'done' }));
+
+// When any task mutation completes, BOTH queries revalidate
+await api.tasks.update(taskId, { status: 'done' });
+// activeTasks and doneTasks both refetch automatically
+```
+
+This works across components — if a sidebar shows task counts and the main area shows a task list, both update when a task is mutated.
+
+## Manual invalidation
+
+For edge cases not covered by automatic revalidation (e.g., a custom server-side operation that affects entity data), use `invalidate()`:
+
+```tsx
+import { invalidate } from 'vertz/ui';
+
+// Revalidate all active todo list queries — including filtered ones
+invalidate(api.todos.list());
+
+// Revalidate a specific get query
+invalidate(api.todos.get('123'));
+```
+
+`invalidate()` matches by **entity type and operation kind**, not by cache key. This means `invalidate(api.todos.list())` revalidates ALL active todo list queries — including `query(api.todos.list({ status: 'done' }))` and `query(api.todos.list({ assignee: userId }))`. You don't need to invalidate each filter variation individually.
+
+Existing data stays visible while the refetch happens in the background (SWR pattern).
+
+<Note>`invalidate()` is an escape hatch. In most cases, automatic revalidation from entity mutations handles everything. Use it only for operations outside the standard entity CRUD flow.</Note>
+
+## Optimistic updates
+
+Entity mutations automatically apply optimistic updates — the UI reflects changes instantly while the server request is in flight:
+
+```tsx
+// This updates the UI immediately, then confirms with the server
+await api.tasks.update(taskId, { status: 'done' });
+```
+
+No configuration needed. The generated SDK automatically:
+1. **Applies** the mutation optimistically to all queries that reference the entity
+2. **Commits** when the server confirms success
+3. **Rolls back** if the server returns an error
+
+This works across all queries — if a task list and a task detail are both on screen, both update instantly when you mutate a task.
+
+### How it works
+
+Entity data is stored in a normalized `EntityStore`. When a mutation fires:
+
+1. An optimistic layer is pushed onto the store with the pending changes
+2. All entity-backed queries read through the layer stack, seeing the optimistic state
+3. On server success, the layer is committed (merged into base data)
+4. On server error, the layer is rolled back (UI reverts to server truth)
+
+This is automatic for all CRUD operations (`create`, `update`, `delete`) on generated SDK methods.

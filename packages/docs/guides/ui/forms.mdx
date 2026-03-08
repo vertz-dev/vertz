@@ -2,3 +2,190 @@
 title: Forms
 description: "Type-safe form handling with schema validation"
 ---
+
+`form()` connects an HTML form to your API with client-side validation, per-field error tracking, and progressive enhancement.
+
+## Basic usage
+
+```tsx
+import { form } from 'vertz/ui';
+import { api } from '../client';
+
+export function CreateTaskForm({ onSuccess }: CreateTaskFormProps) {
+  const taskForm = form(api.tasks.create, { onSuccess });
+
+  return (
+    <form
+      action={taskForm.action}
+      method={taskForm.method}
+      onSubmit={taskForm.onSubmit}
+    >
+      <input name="title" placeholder="Task title" />
+      {taskForm.title.error && <span>{taskForm.title.error}</span>}
+
+      <button type="submit" disabled={taskForm.submitting}>
+        Create
+      </button>
+    </form>
+  );
+}
+```
+
+<Note>When using a generated SDK method, `form()` automatically extracts the validation schema from the method's metadata — no need to pass `schema` manually. You only need to provide a schema explicitly when using a custom (non-generated) SDK method.</Note>
+
+## How it works
+
+1. `form()` takes an SDK method (from your typed API client) and optional config
+2. On submit, it validates against the schema before sending the request
+3. Validation errors are available per-field via `taskForm.fieldName.error`
+4. On success, calls `onSuccess` with the API response
+5. On server error, sets a `_form` error
+
+## Field access
+
+Access per-field state via the form instance using the field name:
+
+```tsx
+const taskForm = form(api.tasks.create, { schema });
+
+// Per-field reactive properties
+taskForm.title.error     // Validation error message (signal)
+taskForm.title.value     // Current value (signal)
+taskForm.title.dirty     // Changed from initial value (signal)
+taskForm.title.touched   // User has focused and blurred (signal)
+
+// Methods
+taskForm.title.setValue('New title');
+taskForm.title.reset();
+```
+
+All field properties are signals — they auto-unwrap in JSX:
+
+```tsx
+// In JSX — no .value needed
+<span>{taskForm.title.error}</span>
+<button disabled={taskForm.submitting}>Submit</button>
+```
+
+## Validation
+
+### Schema validation
+
+Pass a schema to validate before submission:
+
+```tsx
+const taskForm = form(api.tasks.create, {
+  schema: createTaskSchema,
+});
+```
+
+The schema must implement a `parse` method:
+
+```tsx
+interface FormSchema<T> {
+  parse(data: unknown):
+    | { ok: true; data: T }
+    | { ok: false; error: unknown };
+}
+```
+
+This is compatible with `vertz/schema` parsers. Validation errors are automatically mapped to per-field errors.
+
+### Manual field errors
+
+Set errors programmatically:
+
+```tsx
+taskForm.setFieldError('title', 'Title already exists');
+```
+
+## Form-level state
+
+```tsx
+taskForm.submitting   // true while the API call is in progress
+taskForm.dirty        // true if any field has changed from initial values
+taskForm.valid        // true if no field errors exist
+```
+
+## Initial values
+
+Pre-populate fields with initial values:
+
+```tsx
+const editForm = form(api.tasks.update, {
+  schema: updateTaskSchema,
+  initial: {
+    title: task.title,
+    description: task.description,
+  },
+});
+```
+
+Or use a function for dynamic initial values:
+
+```tsx
+const editForm = form(api.tasks.update, {
+  schema: updateTaskSchema,
+  initial: () => ({
+    title: task.data?.title ?? '',
+  }),
+});
+```
+
+## Callbacks
+
+```tsx
+const taskForm = form(api.tasks.create, {
+  schema: createTaskSchema,
+
+  // Called with the API response on success
+  onSuccess: (result) => {
+    navigate(`/tasks/${result.id}`);
+  },
+
+  // Called with field error map on validation failure
+  onError: (errors) => {
+    console.log('Validation failed:', errors);
+  },
+
+  // Reset all fields after successful submission
+  resetOnSuccess: true,
+});
+```
+
+## Programmatic submission
+
+Submit without a form element:
+
+```tsx
+await taskForm.submit();
+
+// Or with custom FormData
+const formData = new FormData();
+formData.set('title', 'My task');
+await taskForm.submit(formData);
+```
+
+## Progressive enhancement
+
+The `action` and `method` properties enable forms that work without JavaScript:
+
+```tsx
+<form
+  action={taskForm.action}
+  method={taskForm.method}
+  onSubmit={taskForm.onSubmit}
+>
+```
+
+Without JS, the form submits directly to the API endpoint. With JS, `onSubmit` intercepts and handles it client-side with validation.
+
+## Reset
+
+Reset all fields to their initial values:
+
+```tsx
+<button type="button" onClick={() => taskForm.reset()}>
+  Cancel
+</button>
+```

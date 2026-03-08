@@ -1,4 +1,171 @@
 ---
 title: Server-Side Rendering
-description: "SSR with @vertz/ui-server — two-pass rendering, query pre-fetch, and hydration"
+description: "SSR — two-pass rendering, query pre-fetch, and hydration"
 ---
+
+Vertz SSR is built into the stack — not bolted on. The dev server renders every page on the server, pre-fetches query data, and hydrates on the client. No separate SSR configuration needed.
+
+## No server/client split
+
+There are no server components, no client components, no `'use client'` directives. Every component you write works on both the server and the client automatically.
+
+In frameworks like Next.js, you constantly decide: "Is this a server component or a client component? Can I use hooks here? Do I need a directive?" In Vertz, you don't think about it. Write your component with state, event handlers, and queries — the framework runs it on the server for the initial HTML and on the client for interactivity. Same code, both environments, zero configuration.
+
+## How it works
+
+1. **Discovery pass** — The server renders your app to find all `query()` calls and await their data
+2. **Render pass** — With data resolved, the server renders the final HTML
+3. **Hydration** — The client picks up the server-rendered DOM and data without re-fetching
+
+## App entry
+
+Your `app.tsx` exports the app component and metadata for SSR:
+
+```tsx
+// src/app.tsx
+import { getInjectedCSS } from 'vertz/ui';
+import { createRouter, RouterContext, RouterView } from 'vertz/ui';
+import { routes } from './router';
+import { appTheme } from './styles/theme';
+import { globalStyles } from './styles/globals';
+
+// SSR exports
+export { getInjectedCSS };
+export const theme = appTheme;
+export const styles = [globalStyles.css];
+
+export function App() {
+  const appRouter = createRouter(routes, initialPath);
+
+  return (
+    <RouterContext.Provider value={appRouter}>
+      <main>
+        <RouterView router={appRouter} />
+      </main>
+    </RouterContext.Provider>
+  );
+}
+```
+
+The SSR handler reads these exports:
+- `App` (or `default`) — the app component
+- `theme` — design tokens compiled to CSS
+- `styles` — global CSS strings injected into `<head>`
+- `getInjectedCSS` — collects component-level CSS from `css()` calls
+
+## Client entry
+
+The client entry hydrates the server-rendered HTML:
+
+```tsx
+// src/entry-client.ts
+import { mount } from 'vertz/ui';
+import { App, styles } from './app';
+import { appTheme } from './styles/theme';
+
+mount(App, {
+  theme: appTheme,
+  styles,
+});
+```
+
+`mount()` always targets `#app` — the framework controls the HTML in every context (SSR, dev server, templates), so there's no selector to configure. It performs tolerant hydration — walking the existing server-rendered DOM and adopting it instead of replacing it. If hydration fails, it falls back to full client-side rendering.
+
+## Query pre-fetching
+
+Queries declared with `query()` are automatically pre-fetched during SSR:
+
+```tsx
+export function TaskListPage() {
+  const tasks = query(api.tasks.list());
+
+  // During SSR:
+  // 1. Discovery pass registers this query
+  // 2. Server awaits the data
+  // 3. Render pass uses the resolved data
+  // 4. Client hydrates from server data — no re-fetch
+
+  return (
+    <div>
+      {tasks.data?.items.map((task) => (
+        <TaskCard key={task.id} task={task} />
+      ))}
+    </div>
+  );
+}
+```
+
+No special SSR configuration on the query — it just works.
+
+### Slow queries and streaming
+
+Queries have an SSR timeout (default 300ms). If a query doesn't resolve in time, the server sends the initial HTML with that query in its loading state — but it doesn't give up. The server keeps waiting for the query to resolve and **streams** the result to the client as an inline `<script>` chunk once it's ready.
+
+The client listens for these streamed chunks and hydrates the query data without making a new HTTP request. No double-fetch, no wasted work.
+
+You can override the timeout for a specific query if it's expected to be slow:
+
+```tsx
+const reports = query(api.reports.generate(), {
+  ssrTimeout: 1000, // Allow up to 1 second before streaming
+});
+```
+
+## Router SSR
+
+The router detects SSR automatically. During server rendering, it reads the URL from the SSR context instead of `window.location`:
+
+```tsx
+// src/router.ts
+const initialPath =
+  typeof window !== 'undefined' && window.location
+    ? window.location.pathname
+    : (globalThis as any).__SSR_URL__ || '/';
+
+export const appRouter = createRouter(routes, initialPath);
+```
+
+## Dev server
+
+The Vertz dev server handles SSR automatically:
+
+```bash
+bun run dev
+# or
+bunx vertz dev
+```
+
+The dev server:
+- Compiles `.tsx` files through the Vertz compiler
+- Server-side renders every page request
+- Pre-fetches query data during SSR
+- Injects scoped CSS into the response
+- Hot-reloads with state preservation (HMR)
+
+## CSS during SSR
+
+CSS is collected and injected during server rendering:
+
+1. **Theme CSS** — compiled from your `defineTheme()` tokens
+2. **Global styles** — from the `styles` export
+3. **Component CSS** — from `css()` and `globalCss()` calls, collected via `getInjectedCSS()`
+
+All CSS is inlined in the HTML response — no extra network requests, no flash of unstyled content.
+
+## Server-side navigation
+
+When navigating between pages on the client, Vertz can pre-fetch the next page's data from the server:
+
+```tsx
+const appRouter = createRouter(routes, initialPath, {
+  serverNav: true,
+});
+```
+
+With `serverNav` enabled:
+1. Client sends a pre-fetch request with `X-Vertz-Nav: 1` header
+2. Server runs the discovery pass for the target page
+3. Data streams back via Server-Sent Events
+4. Client receives data before rendering the new page
+
+This gives SPA navigation the data freshness of server rendering.

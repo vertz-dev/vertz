@@ -1,0 +1,106 @@
+---
+title: Migrations
+description: "Automatic schema migrations during development, explicit migrations for production"
+---
+
+Vertz handles migrations by diffing your TypeScript schema against the database. During development, migrations run automatically when you save a schema file — no commands needed. For production, you generate migration files and apply them explicitly.
+
+## Development workflow
+
+During `vertz dev`, schema changes are detected and applied automatically:
+
+```
+# Start the dev server
+vertz dev
+
+# Edit a schema file — migration runs automatically:
+# [DB] Schema change detected: tasks.schema.ts
+# [DB] Applied: added column "priority" to "tasks"
+```
+
+Change your schema, save the file, keep building. The dev server:
+
+1. Detects `.schema.ts` file changes
+2. Diffs the current schema against the last snapshot
+3. Generates and applies the necessary SQL
+4. Warns on destructive changes (table or column drops)
+5. Updates the snapshot
+
+No migration files are written during development.
+
+### Manual commands
+
+If you need to run migrations outside the dev server:
+
+```bash
+# Generate and apply migration from schema diff
+vertz db migrate
+
+# Push schema changes directly (no migration file)
+vertz db push
+
+# Drop everything and re-apply from scratch
+vertz db reset
+```
+
+<Warning>`vertz db reset` destroys all data. Use only in development.</Warning>
+
+## Production workflow
+
+For production deployments, use explicit migration files:
+
+```bash
+# Generate a migration file from schema changes
+vertz db migrate
+
+# Apply pending migration files (production-safe)
+vertz db deploy
+```
+
+`vertz db deploy` only applies existing migration files — it never generates new ones. This ensures production databases only receive reviewed, committed migrations.
+
+### Check migration status
+
+```bash
+vertz db status
+```
+
+Shows which migrations have been applied and which are pending.
+
+### Baseline
+
+For existing databases, create a baseline migration that represents the current state:
+
+```bash
+vertz db baseline
+```
+
+This marks the current database state as the starting point for future migrations — no SQL is applied.
+
+## Programmatic API
+
+For custom tooling or test setup:
+
+```ts
+import { migrateDev, migrateDeploy, migrateStatus } from 'vertz/db';
+
+// Development: generate and apply migration
+await migrateDev({
+  queryFn: db.queryFn,
+  currentSnapshot: db.snapshot,
+  previousSnapshot: loadFromFile(),
+  migrationsDir: './migrations',
+});
+
+// Production: apply pending migration files
+await migrateDeploy({
+  queryFn: db.queryFn,
+  migrationsDir: './migrations',
+});
+
+// Check status
+const status = await migrateStatus({
+  queryFn: db.queryFn,
+  migrationsDir: './migrations',
+});
+```
