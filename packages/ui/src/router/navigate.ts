@@ -100,11 +100,12 @@ export function createRouter<T extends Record<string, RouteConfigLike> = RouteDe
   const ssrCtx = getSSRContext();
   const isSSR = ssrCtx !== undefined;
 
-  // In SSR, return a lightweight read-only router that computes match
-  // from the per-request URL. This avoids shared signal corruption
-  // across concurrent SSR renders.
-  if (isSSR) {
-    const ssrUrl = initialUrl ?? ssrCtx.url ?? '/';
+  // In SSR or non-browser environments, return a lightweight read-only router.
+  // This avoids shared signal corruption across concurrent SSR renders,
+  // and prevents crashes when createRouter() is called in Bun tests
+  // without an active SSR context.
+  if (isSSR || typeof window === 'undefined') {
+    const ssrUrl = initialUrl ?? ssrCtx?.url ?? '/';
     const match = matchRoute(routes, ssrUrl);
     return {
       current: { value: match, peek: () => match, notify() {} } as Signal<RouteMatch | null>,
