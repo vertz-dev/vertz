@@ -155,15 +155,23 @@ const tasks = query(api.tasks.list(), {
 
 ## Caching
 
-Queries are cached by default in a shared in-memory cache. The cache key is auto-derived from the API endpoint and parameters:
+Queries are cached in a shared in-memory cache. For entity-backed queries (from the typed API client), the cache key is derived from the HTTP method, path, and query parameters:
 
-- `api.tasks.list()` → `GET:/tasks`
-- `api.tasks.get('abc')` → `GET:/tasks/abc`
-- `api.tasks.list({ status: 'done' })` → `GET:/tasks?status=done`
+- `api.tasks.list()` → `GET:/api/tasks`
+- `api.tasks.get('abc')` → `GET:/api/tasks/abc`
+- `api.tasks.list({ status: 'done' })` → `GET:/api/tasks?status=done`
 
-When you navigate away and back, cached data is served instantly while a background revalidation runs.
+Each unique combination of endpoint + parameters gets its own cache entry. Query parameters are sorted alphabetically, so `{ status: 'done', page: 1 }` and `{ page: 1, status: 'done' }` produce the same key.
 
-<Note>Queries are auto-disposed when their component unmounts — no manual cleanup needed. Disposal stops reactive effects and timers but preserves the shared cache.</Note>
+For plain thunks (not using the API client), the cache key is derived from the function body and the reactive signal values it reads. Returning to a previously-seen set of dependency values produces the same cache key — enabling cache hits without re-fetching.
+
+### Stale-while-revalidate
+
+When you navigate away and back, cached data is served instantly while a background revalidation runs. The user sees content immediately — no loading spinner for data that was already fetched.
+
+### Disposal preserves cache
+
+Queries are auto-disposed when their component unmounts — no manual cleanup needed. Disposal stops reactive effects and timers but preserves the shared cache, so navigating back serves data instantly.
 
 ## Auto-revalidation
 
