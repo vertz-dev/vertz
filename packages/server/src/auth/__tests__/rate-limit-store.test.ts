@@ -46,4 +46,38 @@ describe('InMemoryRateLimitStore', () => {
     s.dispose();
     s.dispose(); // double dispose is safe
   });
+
+  it('tracks separate keys independently', () => {
+    store.check('key-a', 1, 60_000);
+    const result = store.check('key-b', 1, 60_000);
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(0);
+  });
+
+  it('returns resetAt in the result', () => {
+    const before = Date.now();
+    const result = store.check('key-reset', 5, 60_000);
+    const after = Date.now();
+
+    expect(result.resetAt).toBeInstanceOf(Date);
+    expect(result.resetAt.getTime()).toBeGreaterThanOrEqual(before + 60_000);
+    expect(result.resetAt.getTime()).toBeLessThanOrEqual(after + 60_000);
+  });
+
+  it('decrements remaining correctly across multiple checks', () => {
+    const r1 = store.check('key-dec', 3, 60_000);
+    expect(r1.remaining).toBe(2);
+
+    const r2 = store.check('key-dec', 3, 60_000);
+    expect(r2.remaining).toBe(1);
+
+    const r3 = store.check('key-dec', 3, 60_000);
+    expect(r3.remaining).toBe(0);
+    expect(r3.allowed).toBe(true);
+
+    // Next should be denied
+    const r4 = store.check('key-dec', 3, 60_000);
+    expect(r4.allowed).toBe(false);
+    expect(r4.remaining).toBe(0);
+  });
 });
