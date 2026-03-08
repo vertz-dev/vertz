@@ -16,6 +16,8 @@ import {
   createMfaRequiredError,
   createSessionExpiredError,
   createSessionNotFoundError,
+  createTokenExpiredError,
+  createTokenInvalidError,
   createUserExistsError,
   err,
   ok,
@@ -37,10 +39,12 @@ import {
   sha256Hex,
 } from './crypto';
 import { parseDeviceName } from './device-name';
+import { InMemoryEmailVerificationStore } from './email-verification-store';
 import { createJWT, parseDuration, verifyJWT } from './jwt';
 import { InMemoryMFAStore } from './mfa-store';
 import { InMemoryOAuthAccountStore } from './oauth-account-store';
 import { hashPassword, validatePassword, verifyPassword } from './password';
+import { InMemoryPasswordResetStore } from './password-reset-store';
 import { InMemoryRateLimitStore } from './rate-limit-store';
 import { InMemorySessionStore } from './session-store';
 import {
@@ -168,6 +172,23 @@ export function createAuth(config: AuthConfig): AuthInstance {
   const PENDING_MFA_TTL = 10 * 60 * 1000; // 10 minutes
   const pendingMfaSecrets = new Map<string, { secret: string; createdAt: number }>();
 
+  // Email verification setup
+  const emailVerificationConfig = config.emailVerification;
+  const emailVerificationEnabled = emailVerificationConfig?.enabled ?? false;
+  const emailVerificationTtlMs = parseDuration(emailVerificationConfig?.tokenTtl ?? '24h');
+  const emailVerificationStore =
+    config.emailVerificationStore ??
+    (emailVerificationEnabled ? new InMemoryEmailVerificationStore() : undefined);
+
+  // Password reset setup
+  const passwordResetConfig = config.passwordReset;
+  const passwordResetEnabled = passwordResetConfig?.enabled ?? false;
+  const passwordResetTtlMs = parseDuration(passwordResetConfig?.tokenTtl ?? '1h');
+  const revokeSessionsOnReset = passwordResetConfig?.revokeSessionsOnReset ?? true;
+  const passwordResetStore =
+    config.passwordResetStore ??
+    (passwordResetEnabled ? new InMemoryPasswordResetStore() : undefined);
+
   // Rate limiting
   const rateLimitStore = config.rateLimitStore ?? new InMemoryRateLimitStore();
   const signInWindowMs = parseDuration(emailPassword?.rateLimit?.window || '15m');
@@ -214,6 +235,17 @@ export function createAuth(config: AuthConfig): AuthInstance {
     };
 
     return { jwt, refreshToken, payload, expiresAt };
+  }
+
+  // ==========================================================================
+  // Helper: Generate random hex token (32 bytes = 64 hex chars)
+  // ==========================================================================
+
+  function generateToken(): string {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    return Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
   }
 
   // ==========================================================================
@@ -265,11 +297,24 @@ export function createAuth(config: AuthConfig): AuthInstance {
       id: crypto.randomUUID(),
       email: email.toLowerCase(),
       role,
+      emailVerified: !emailVerificationEnabled,
       createdAt: now,
       updatedAt: now,
     };
 
     await userStore.createUser(user, passwordHash);
+
+    // Send verification email if enabled
+    if (emailVerificationEnabled && emailVerificationStore && emailVerificationConfig?.onSend) {
+      const token = generateToken();
+      const tokenHash = await sha256Hex(token);
+      await emailVerificationStore.createVerification({
+        userId: user.id,
+        tokenHash,
+        expiresAt: new Date(Date.now() + emailVerificationTtlMs),
+      });
+      await emailVerificationConfig.onSend(user, token);
+    }
 
     // Pre-generate session ID so tokens are created once with the correct sid
     const sessionId = crypto.randomUUID();
@@ -1681,6 +1726,265 @@ export function createAuth(config: AuthConfig): AuthInstance {
         });
       }
 
+      // =================================================================
+      // Email Verification Routes
+      // =================================================================
+
+      // Route: POST /api/auth/verify-email
+      if (method === 'POST' && path === '/verify-email') {
+        if (!emailVerificationStore || !emailVerificationEnabled) {
+          return new Response(
+            JSON.stringify({
+              error: {
+                code: 'AUTH_VALIDATION_ERROR',
+                message: 'Email verification not configured',
+              },
+            }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const body = (await request.json()) as { token: string };
+        if (!body.token) {
+          return new Response(
+            JSON.stringify({ error: createTokenInvalidError('Token is required') }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const tokenHash = await sha256Hex(body.token);
+        const verification = await emailVerificationStore.findByTokenHash(tokenHash);
+
+        if (!verification) {
+          return new Response(JSON.stringify({ error: createTokenInvalidError() }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        if (verification.expiresAt < new Date()) {
+          await emailVerificationStore.deleteByTokenHash(tokenHash);
+          return new Response(JSON.stringify({ error: createTokenExpiredError() }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        // Mark email as verified
+        await userStore.updateEmailVerified(verification.userId, true);
+
+        // Delete all verification tokens for this user
+        await emailVerificationStore.deleteByUserId(verification.userId);
+
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+        });
+      }
+
+      // Route: POST /api/auth/resend-verification
+      if (method === 'POST' && path === '/resend-verification') {
+        if (
+          !emailVerificationStore ||
+          !emailVerificationEnabled ||
+          !emailVerificationConfig?.onSend
+        ) {
+          return new Response(
+            JSON.stringify({
+              error: {
+                code: 'AUTH_VALIDATION_ERROR',
+                message: 'Email verification not configured',
+              },
+            }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        // Requires authentication
+        const sessionResult = await getSession(request.headers);
+        if (!sessionResult.ok || !sessionResult.data) {
+          return new Response(
+            JSON.stringify({ error: { code: 'SESSION_EXPIRED', message: 'Not authenticated' } }),
+            {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const userId = sessionResult.data.user.id;
+
+        // Rate limit: 3 resend per hour per userId
+        const resendRateLimit = rateLimitStore.check(
+          `resend-verification:${userId}`,
+          3,
+          parseDuration('1h'),
+        );
+        if (!resendRateLimit.allowed) {
+          return new Response(
+            JSON.stringify({ error: createAuthRateLimitedError('Too many resend attempts') }),
+            {
+              status: 429,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        // Delete old verification tokens
+        await emailVerificationStore.deleteByUserId(userId);
+
+        // Generate new token
+        const token = generateToken();
+        const tokenHash = await sha256Hex(token);
+        await emailVerificationStore.createVerification({
+          userId,
+          tokenHash,
+          expiresAt: new Date(Date.now() + emailVerificationTtlMs),
+        });
+
+        await emailVerificationConfig.onSend(sessionResult.data.user, token);
+
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+        });
+      }
+
+      // =================================================================
+      // Password Reset Routes
+      // =================================================================
+
+      // Route: POST /api/auth/forgot-password
+      if (method === 'POST' && path === '/forgot-password') {
+        if (!passwordResetStore || !passwordResetEnabled || !passwordResetConfig?.onSend) {
+          return new Response(
+            JSON.stringify({
+              error: { code: 'AUTH_VALIDATION_ERROR', message: 'Password reset not configured' },
+            }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const body = (await request.json()) as { email: string };
+
+        // Rate limit: 3 per hour per email
+        const forgotRateLimit = rateLimitStore.check(
+          `forgot-password:${(body.email ?? '').toLowerCase()}`,
+          3,
+          parseDuration('1h'),
+        );
+        if (!forgotRateLimit.allowed) {
+          // Still return 200 to prevent email enumeration
+          return new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        // Always return 200 regardless of whether user exists
+        const stored = await userStore.findByEmail((body.email ?? '').toLowerCase());
+        if (stored) {
+          const token = generateToken();
+          const tokenHash = await sha256Hex(token);
+          await passwordResetStore.createReset({
+            userId: stored.user.id,
+            tokenHash,
+            expiresAt: new Date(Date.now() + passwordResetTtlMs),
+          });
+          await passwordResetConfig.onSend(stored.user, token);
+        }
+
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+        });
+      }
+
+      // Route: POST /api/auth/reset-password
+      if (method === 'POST' && path === '/reset-password') {
+        if (!passwordResetStore || !passwordResetEnabled) {
+          return new Response(
+            JSON.stringify({
+              error: { code: 'AUTH_VALIDATION_ERROR', message: 'Password reset not configured' },
+            }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        const body = (await request.json()) as { token: string; password: string };
+        if (!body.token) {
+          return new Response(
+            JSON.stringify({ error: createTokenInvalidError('Token is required') }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+            },
+          );
+        }
+
+        // Validate new password
+        const passwordError = validatePassword(body.password, emailPassword?.password);
+        if (passwordError) {
+          return new Response(JSON.stringify({ error: passwordError }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        const tokenHash = await sha256Hex(body.token);
+        const resetRecord = await passwordResetStore.findByTokenHash(tokenHash);
+
+        if (!resetRecord) {
+          return new Response(JSON.stringify({ error: createTokenInvalidError() }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        if (resetRecord.expiresAt < new Date()) {
+          await passwordResetStore.deleteByUserId(resetRecord.userId);
+          return new Response(JSON.stringify({ error: createTokenExpiredError() }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+          });
+        }
+
+        // Update password hash
+        const newPasswordHash = await hashPassword(body.password);
+        await userStore.updatePasswordHash(resetRecord.userId, newPasswordHash);
+
+        // Delete all reset tokens for this user
+        await passwordResetStore.deleteByUserId(resetRecord.userId);
+
+        // Revoke all sessions (configurable, default: true)
+        if (revokeSessionsOnReset) {
+          const activeSessions = await sessionStore.listActiveSessions(resetRecord.userId);
+          for (const s of activeSessions) {
+            await sessionStore.revokeSession(s.id);
+          }
+        }
+
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...securityHeaders() },
+        });
+      }
+
       return new Response(JSON.stringify({ error: 'Not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
@@ -1743,6 +2047,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
       rateLimitStore.dispose();
       oauthAccountStore?.dispose();
       mfaStore?.dispose();
+      emailVerificationStore?.dispose();
+      passwordResetStore?.dispose();
       pendingMfaSecrets.clear();
     },
   };
@@ -1771,9 +2077,11 @@ export type {
   EntitlementDef,
 } from './define-access';
 export { defineAccess } from './define-access';
+export { InMemoryEmailVerificationStore } from './email-verification-store';
 export { checkFva } from './fva';
 export { InMemoryMFAStore } from './mfa-store';
 export { InMemoryOAuthAccountStore } from './oauth-account-store';
+export { InMemoryPasswordResetStore } from './password-reset-store';
 // Re-export provider factories
 export { discord, github, google } from './providers';
 export { InMemoryRateLimitStore } from './rate-limit-store';
@@ -1803,6 +2111,8 @@ export type {
   AuthUser,
   CookieConfig,
   EmailPasswordConfig,
+  EmailVerificationConfig,
+  EmailVerificationStore,
   MFAStore,
   MfaChallengeData,
   MfaConfig,
@@ -1813,6 +2123,8 @@ export type {
   OAuthTokens,
   OAuthUserInfo,
   PasswordRequirements,
+  PasswordResetConfig,
+  PasswordResetStore,
   RateLimitConfig,
   RateLimitResult,
   RateLimitStore,
@@ -1825,6 +2137,8 @@ export type {
   SessionStrategy,
   SignInInput,
   SignUpInput,
+  StoredEmailVerification,
+  StoredPasswordReset,
   StoredSession,
   UserStore,
   UserTableEntry,
