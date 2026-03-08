@@ -1,6 +1,6 @@
 /**
- * Auth Module Types - Phase 1
- * JWT sessions, email/password authentication, RBAC
+ * Auth Module Types - Phase 2
+ * Dual-token sessions, email/password authentication, RBAC
  */
 
 import type { ModelEntry } from '@vertz/db';
@@ -23,9 +23,11 @@ export interface CookieConfig {
 
 export interface SessionConfig {
   strategy: SessionStrategy;
-  ttl: string | number; // Duration like '7d' or milliseconds
+  ttl: string | number; // Duration like '60s' or milliseconds
+  refreshTtl?: string | number; // Duration like '7d' — defaults to '7d'
   refreshable?: boolean;
   cookie?: CookieConfig;
+  refreshName?: string; // Cookie name for refresh token — defaults to 'vertz.ref'
 }
 
 // ============================================================================
@@ -51,6 +53,60 @@ export interface RateLimitConfig {
 }
 
 // ============================================================================
+// Store Interfaces
+// ============================================================================
+
+export interface SessionStore {
+  createSession(data: {
+    userId: string;
+    refreshTokenHash: string;
+    ipAddress: string;
+    userAgent: string;
+    expiresAt: Date;
+  }): Promise<StoredSession>;
+  findByRefreshHash(hash: string): Promise<StoredSession | null>;
+  findByPreviousRefreshHash(hash: string): Promise<StoredSession | null>;
+  revokeSession(id: string): Promise<void>;
+  listActiveSessions(userId: string): Promise<StoredSession[]>;
+  countActiveSessions(userId: string): Promise<number>;
+  getCurrentTokens(sessionId: string): Promise<AuthTokens | null>;
+  updateSession(
+    id: string,
+    data: {
+      refreshTokenHash: string;
+      previousRefreshHash: string;
+      lastActiveAt: Date;
+      currentTokens?: AuthTokens;
+    },
+  ): Promise<void>;
+  dispose(): void;
+}
+
+export interface StoredSession {
+  id: string;
+  userId: string;
+  refreshTokenHash: string;
+  previousRefreshHash: string | null;
+  ipAddress: string;
+  userAgent: string;
+  createdAt: Date;
+  lastActiveAt: Date;
+  expiresAt: Date;
+  revokedAt: Date | null;
+}
+
+export interface RateLimitStore {
+  check(key: string, maxAttempts: number, windowMs: number): RateLimitResult;
+  dispose(): void;
+}
+
+export interface UserStore {
+  createUser(user: AuthUser, passwordHash: string): Promise<void>;
+  findByEmail(email: string): Promise<{ user: AuthUser; passwordHash: string } | null>;
+  findById(id: string): Promise<AuthUser | null>;
+}
+
+// ============================================================================
 // Auth Configuration
 // ============================================================================
 
@@ -73,6 +129,12 @@ export interface AuthConfig {
    * Only used in non-production mode when jwtSecret is not provided.
    */
   devSecretPath?: string;
+  /** Pluggable session store — defaults to InMemorySessionStore */
+  sessionStore?: SessionStore;
+  /** Pluggable rate limit store — defaults to InMemoryRateLimitStore */
+  rateLimitStore?: RateLimitStore;
+  /** Pluggable user store — defaults to InMemoryUserStore */
+  userStore?: UserStore;
 }
 
 // ============================================================================
@@ -84,6 +146,7 @@ export interface AuthUser {
   email: string;
   role: string;
   plan?: string;
+  emailVerified?: boolean;
   createdAt: Date;
   updatedAt: Date;
   // Additional fields from user's table
@@ -96,13 +159,33 @@ export interface SessionPayload {
   role: string;
   iat: number;
   exp: number;
+  jti: string; // JWT ID — unique token identifier
+  sid: string; // Session ID — links JWT to session record
   claims?: Record<string, unknown>;
+}
+
+export interface AuthTokens {
+  jwt: string;
+  refreshToken: string;
 }
 
 export interface Session {
   user: AuthUser;
   expiresAt: Date;
   payload: SessionPayload;
+  tokens?: AuthTokens;
+}
+
+export interface SessionInfo {
+  id: string;
+  userId: string;
+  ipAddress: string;
+  userAgent: string;
+  deviceName: string;
+  createdAt: Date;
+  lastActiveAt: Date;
+  expiresAt: Date;
+  isCurrent: boolean;
 }
 
 // ============================================================================
@@ -127,6 +210,9 @@ export interface AuthApi {
   signOut: (ctx: AuthContext) => Promise<Result<void, AuthError>>;
   getSession: (headers: Headers) => Promise<Result<Session | null, AuthError>>;
   refreshSession: (ctx: AuthContext) => Promise<Result<Session, AuthError>>;
+  listSessions: (headers: Headers) => Promise<Result<SessionInfo[], AuthError>>;
+  revokeSession: (sessionId: string, headers: Headers) => Promise<Result<void, AuthError>>;
+  revokeAllSessions: (headers: Headers) => Promise<Result<void, AuthError>>;
 }
 
 // ============================================================================
