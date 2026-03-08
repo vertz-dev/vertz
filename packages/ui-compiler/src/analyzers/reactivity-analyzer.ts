@@ -423,10 +423,12 @@ function buildImportAliasMap(
 
   for (const importDecl of sourceFile.getImportDeclarations()) {
     const moduleSpecifier = importDecl.getModuleSpecifierValue();
-    // Auto-load framework manifest for @vertz/ui when not explicitly provided
+    // Auto-load framework manifest for @vertz/ui and subpaths (@vertz/ui/*) when not explicitly provided
     const manifest =
       manifests?.[moduleSpecifier] ??
-      (moduleSpecifier === '@vertz/ui' ? loadFrameworkManifest() : undefined);
+      (moduleSpecifier === '@vertz/ui' || moduleSpecifier.startsWith('@vertz/ui/')
+        ? loadFrameworkManifest()
+        : undefined);
 
     if (!manifest) continue;
 

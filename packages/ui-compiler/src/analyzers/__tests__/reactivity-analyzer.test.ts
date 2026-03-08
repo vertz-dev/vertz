@@ -684,4 +684,37 @@ describe('ReactivityAnalyzer', () => {
     expect(findVar(result?.variables, 'onOpenChange')?.kind).toBe('static');
     expect(findVar(result?.variables, 'content')?.kind).toBe('static');
   });
+
+  it('manifest loader discovers can from @vertz/ui/auth import', () => {
+    const [result] = analyze(`
+      import { can } from '@vertz/ui/auth';
+      function ProtectedButton() {
+        const access = can('project:edit');
+        return <button disabled={access.loading}>{access.allowed}</button>;
+      }
+    `);
+    const v = findVar(result?.variables, 'access');
+    expect(v?.kind).toBe('static');
+    expect(v?.signalProperties).toEqual(
+      new Set(['allowed', 'reasons', 'reason', 'meta', 'loading']),
+    );
+    expect(v?.plainProperties).toEqual(new Set([]));
+  });
+
+  it('can is classified as signal-api with correct signal properties', () => {
+    const [result] = analyze(`
+      import { can } from '@vertz/ui/auth';
+      function AccessCheck() {
+        const check = can('project:view');
+        const isAllowed = check.allowed;
+        return <div>{isAllowed}</div>;
+      }
+    `);
+    const checkVar = findVar(result?.variables, 'check');
+    expect(checkVar?.kind).toBe('static');
+    expect(checkVar?.signalProperties?.has('allowed')).toBe(true);
+    expect(checkVar?.signalProperties?.has('loading')).toBe(true);
+    // Derived from signal property → computed
+    expect(findVar(result?.variables, 'isAllowed')?.kind).toBe('computed');
+  });
 });

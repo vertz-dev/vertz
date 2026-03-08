@@ -1,5 +1,13 @@
 {
   "exports": {
+    "can": {
+      "kind": "function",
+      "reactivity": {
+        "plainProperties": [],
+        "signalProperties": ["allowed", "reasons", "reason", "meta", "loading"],
+        "type": "signal-api"
+      }
+    },
     "createLoader": {
       "kind": "function",
       "reactivity": {
