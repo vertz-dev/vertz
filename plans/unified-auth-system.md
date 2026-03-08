@@ -1179,21 +1179,23 @@ export function ProjectActions({ projectId }: { projectId: string }) {
 ```ts
 interface AccessCheck {
   /** Whether the user is allowed to perform the action. */
-  readonly allowed: boolean;
+  readonly allowed: Unwrapped<ReadonlySignal<boolean>>;
   /** All denial reasons, ordered by actionability (most actionable first). */
-  readonly reasons: DenialReason[];
+  readonly reasons: Unwrapped<ReadonlySignal<DenialReason[]>>;
   /** Primary denial reason (first in reasons array). undefined when allowed or loading. */
-  readonly reason: DenialReason | undefined;
+  readonly reason: Unwrapped<ReadonlySignal<DenialReason | undefined>>;
   /** Denial metadata (required plans, roles, limits). */
-  readonly meta: DenialMeta | undefined;
+  readonly meta: Unwrapped<ReadonlySignal<DenialMeta | undefined>>;
   /** True while the entity data is still loading (resource-scoped checks only). */
-  readonly loading: boolean;
+  readonly loading: Unwrapped<ReadonlySignal<boolean>>;
 }
 ```
 
-Properties are **getters** backed by internal signals — not raw signals. The developer never uses `.value`. `canExport.allowed` returns `boolean` everywhere — in JSX, in event handlers, in `watch()` callbacks. This is consistent with the framework's principle that developers never interact with signal internals.
+Properties are `ReadonlySignal`s — consistent with `query()` and `form()`. The compiler auto-inserts `.value` everywhere: in JSX, in event handlers, in computed derivations, in nested callbacks. Developers never write `.value` manually.
 
-The compiler treats `can()` as a `reactive-source` (registered in the reactivity manifest). Any `const` that depends on an `AccessCheck` property becomes `computed` automatically. The getters read from internal signals, so reactivity flows correctly without `.value`.
+> **Note:** The original design chose getter-backed objects because #1014 assumed the compiler didn't auto-unwrap `.value` in event handlers. Investigation proved this was wrong — `transformSignalApiProperties()` uses `forEachDescendant()` on the entire component body, covering all scopes. Using `ReadonlySignal` properties aligns with the "one way to do things" principle.
+
+The compiler treats `can()` as a signal API (registered in the reactivity manifest, same as `query()` and `form()`). Any `const` that depends on an `AccessCheck` property becomes `computed` automatically. The compiler inserts `.value` on signal property accesses.
 
 ### 8.3 Resolution
 
@@ -1329,7 +1331,7 @@ For SSR apps using `createBunDevServer`, the framework automatically wraps the S
 }
 ```
 
-Zero compiler changes required — uses existing `REACTIVE_SOURCE_APIS` infrastructure via the cross-file manifest system. The `reactive-source` type means `can()` returns a getter-backed object (not raw signals). Any `const` depending on an `AccessCheck` property becomes `computed`. No `.value` insertion needed — the getters handle reactivity internally.
+Zero compiler changes required — uses existing `REACTIVE_SOURCE_APIS` infrastructure via the cross-file manifest system. The compiler treats `can()` the same as `query()` and `form()`: it tracks which variables hold `can()` results and auto-inserts `.value` on signal property accesses (`.allowed`, `.loading`, `.reason`, `.reasons`, `.meta`). Any `const` depending on an `AccessCheck` property becomes `computed`.
 
 ---
 
@@ -1867,14 +1869,14 @@ JWT `acl` claim
 
 can(Entitlement) [client, from @vertz/ui/auth]
   → reads AccessContext signal
-  → AccessCheck { allowed, reasons, reason, meta, loading } (getter-backed, reactive-source)
+  → AccessCheck { allowed, reasons, reason, meta, loading } (ReadonlySignal properties, same as query())
 
 can(Entitlement, entity) [client]
   → reads entity.__access[entitlement]
-  → AccessCheck { allowed, reasons, reason, meta, loading } (getter-backed, reactive-source)
+  → AccessCheck { allowed, reasons, reason, meta, loading } (ReadonlySignal properties, same as query())
 
 Compiler reactivity manifest (@vertz/ui/auth):
-  can → reactive-source (all properties auto-unwrapped)
+  can → signal API (compiler auto-inserts .value on signal properties)
 ```
 
 Each arrow is a mandatory type-level test during implementation.
@@ -1925,7 +1927,7 @@ Each arrow is a mandatory type-level test during implementation.
 | Clerk/Auth.js integration | External portal, schema constraints, doesn't own session store |
 | Separate `rules.where()` DSL | DB query syntax means one language everywhere |
 | RS256 JWT | ES256 is smaller, equally secure; RS256 is legacy overhead |
-| `ReadonlySignal` properties on `AccessCheck` | Getters backed by internal signals — developers never use `.value` |
+| Getter-backed properties on `AccessCheck` | `ReadonlySignal` properties (same as `query()`/`form()`) — compiler auto-unwraps `.value` everywhere, "one way to do things" |
 | Single `reason` in `check()` response | `reasons` array returns all failing layers; `reason` is the primary (most actionable) |
 | `globalThis` for SSR access set | Request-scoped storage (SyncLocalStorage) prevents cross-user leakage |
 | Auto-link OAuth by email for all providers | Only `trustEmail: true` providers (OIDC with verified email) auto-link |
