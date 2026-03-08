@@ -1,68 +1,81 @@
 # Deep Normalization — Remaining Gaps
 
-**PR:** #1038
+**PR:** #1038 (main feature), follow-up PRs for gaps
 **Issue:** #993
 **Date:** 2026-03-08
 **Updated:** 2026-03-08
 
-This documents everything from the design plan (`plans/deep-normalization.md`) that was NOT implemented in the PR, organized by priority and category.
+This documents everything from the design plan (`plans/deep-normalization.md`) that was NOT implemented in the original PR, and their resolution status.
 
 ---
 
-## 1. Missing Tests
+## 1. Missing Tests — ALL RESOLVED
 
-### 1.1 Type-level tests (.test-d.ts) — DONE ✓
+### 1.1 Type-level tests (.test-d.ts) — DONE
 
-Implemented in commit `d47ff78c`. Created `packages/ui/src/store/__tests__/deep-normalization.test-d.ts` with `@ts-expect-error` directives verifying `RelationFieldDef` rejects invalid types and missing fields.
+Created `packages/ui/src/store/__tests__/deep-normalization.test-d.ts` with `@ts-expect-error` directives verifying `RelationFieldDef` rejects invalid types and missing fields.
 
-### 1.2 Full `query()` integration test with QueryDescriptor — DONE ✓
+### 1.2 Full `query()` integration test with QueryDescriptor — DONE
 
-Implemented in commit `d47ff78c`. Created `packages/ui/src/query/__tests__/query-deep-normalization.test.ts` with mock `QueryDescriptor` objects that exercise the full pipeline: `query()` → `normalizeToEntityStore()` → `resolveReferences` → cross-entity reactive updates.
+Created `packages/ui/src/query/__tests__/query-deep-normalization.test.ts` with mock `QueryDescriptor` objects that exercise the full pipeline: `query()` → `normalizeToEntityStore()` → `resolveReferences` → cross-entity reactive updates.
 
-### 1.3 `query()` ref counting integration tests — DONE ✓
+### 1.3 `query()` ref counting integration tests — DONE
 
-Implemented in commit `d47ff78c`. The `query-deep-normalization.test.ts` file includes:
+The `query-deep-normalization.test.ts` file includes:
 1. Get query increments refCount and decrements on dispose
 2. Two queries sharing an entity accumulate refCount
 3. Transitive refs: post → author → org all get refCount
 
-### 1.4 E2E acceptance test — PARTIAL (acceptable)
+### 1.4 E2E acceptance test — DONE (consolidated)
 
-The behaviors ARE tested across unit and integration test files. Consolidating into a single E2E file is organizational, not functional. The query-deep-normalization integration tests cover the critical end-to-end path.
-
----
-
-## 2. Missing Implementation
-
-### 2.1 Dev-mode warnings for unexpected relation field types — DONE ✓
-
-Implemented in commit `d47ff78c`. Added `console.warn` in `normalize.ts` for unexpected relation field types.
-
-### 2.2 Codegen: relation config filtering (`config === false`) — DONE ✓ (at IR level)
-
-The EntityAnalyzer already filters out relations with `config === false` at the IR generation level (`entity-analyzer.ts` line 671: `return boolVal !== false`). Relations marked `false` never enter `EntityRelationIR`, so they never reach codegen. The existing test `'excludes false relations'` in entity-analyzer.test.ts verifies this.
-
-### 2.3 Codegen: integration test for generated client registering schemas — LOW PRIORITY
-
-The generated code is thoroughly string-tested in `client-generator.test.ts` (4 tests covering import, emission, ordering, and absence of `registerRelationSchema`). The `registerRelationSchema` function itself is unit-tested. A full eval test would add marginal value.
+`deep-normalization.integration.test.ts` now covers all test groups from the design doc:
+- Write-side: one-relation, many-relation, deep nesting, merge enrichment
+- Read-side: bare ID resolution, missing → null, transitive refKeys
+- Cross-entity reactive propagation
+- Memory efficiency
+- Ref counting lifecycle (addRef/removeRef through resolve pipeline)
+- Backward compat: no schema, passthrough, non-normalized objects
 
 ---
 
-## 3. Additional Work (this session)
+## 2. Missing Implementation — ALL RESOLVED
 
-### 3.1 Compiler: EntityRelationIR enrichment — DONE ✓
+### 2.1 Dev-mode warnings for unexpected relation field types — DONE
 
-Added `type` ('one'/'many') and `entity` (target entity name) fields to `EntityRelationIR` in `packages/compiler/src/ir/types.ts`.
+Added `console.warn` in `normalize.ts` for unexpected relation field types.
+
+### 2.2 Codegen: relation config filtering (`config === false`) — DONE (at IR level)
+
+The EntityAnalyzer already filters out relations with `config === false` at the IR generation level (`entity-analyzer.ts`: `return boolVal !== false`). Relations marked `false` never enter `EntityRelationIR`, so they never reach codegen.
+
+### 2.3 Codegen: integration test for generated client registering schemas — DONE
+
+Created `packages/integration-tests/src/__tests__/codegen-relation-manifest-eval.test.ts`:
+- Cross-package test: `@vertz/codegen` → `@vertz/ui` runtime
+- Pipeline: `generateRelationManifest()` → `registerRelationSchema()` → `getRelationSchema()`
+- 5 tests covering registration, retrieval, immutability, empty schemas, multi-entity
+
+---
+
+## 3. Additional Work
+
+### 3.1 Compiler: EntityRelationIR enrichment — DONE
+
+Added `type` ('one'/'many') and `entity` (target entity name) fields to `EntityRelationIR`.
 
 - **Type extraction:** `resolveModelRelationTypes()` reads `_type` literal from the model's `RelationDef` generic parameter via ts-morph type resolution.
 - **Entity resolution:** `resolveRelationEntities()` builds a table-type-text → entity-name map across all entities and matches relation `_target` return types to identify target entities.
-- **Type text matching:** Uses `getText()` instead of symbol identity to distinguish generic instantiations (e.g., `TableDef<"users">` vs `TableDef<"posts">`) that share the same `TableDef` symbol.
 
-### 3.2 IR Adapter: relation mapping — DONE ✓
+### 3.2 IR Adapter: relation mapping — DONE
 
 Updated `packages/codegen/src/ir-adapter.ts` to map `EntityRelationIR` → `CodegenRelation`:
 - Filters to only include relations where both `type` and `entity` are resolved
-- Sets `relations` to `undefined` when no relations are fully resolved (preserves backward compat)
+- Sets `relations` to `undefined` when no relations are fully resolved
+
+### 3.3 Public API exports — DONE
+
+- Exported `registerRelationSchema`, `getRelationSchema`, `resetRelationSchemas_TEST_ONLY` from `@vertz/ui` (required by generated `client.ts`)
+- Exported `generateRelationManifest`, `RelationManifestEntry`, `CodegenRelation` from `@vertz/codegen`
 
 ---
 
@@ -70,14 +83,15 @@ Updated `packages/codegen/src/ir-adapter.ts` to map `EntityRelationIR` → `Code
 
 | # | Gap | Status |
 |---|-----|--------|
-| 1.1 | Type-level tests (.test-d.ts) | ✓ Done |
-| 1.2 | query() + QueryDescriptor integration test | ✓ Done |
-| 1.3 | query() ref counting integration tests | ✓ Done |
-| 1.4 | E2E test consolidation | Partial (acceptable) |
-| 2.1 | Dev-mode warnings in normalize.ts | ✓ Done |
-| 2.2 | Codegen relation config filtering | ✓ Done (at IR level) |
-| 2.3 | Codegen eval integration test | Low priority — deferred |
-| 3.1 | Compiler EntityRelationIR enrichment | ✓ Done |
-| 3.2 | IR Adapter relation mapping | ✓ Done |
+| 1.1 | Type-level tests (.test-d.ts) | DONE |
+| 1.2 | query() + QueryDescriptor integration test | DONE |
+| 1.3 | query() ref counting integration tests | DONE |
+| 1.4 | E2E test consolidation | DONE |
+| 2.1 | Dev-mode warnings in normalize.ts | DONE |
+| 2.2 | Codegen relation config filtering | DONE |
+| 2.3 | Codegen eval integration test | DONE |
+| 3.1 | Compiler EntityRelationIR enrichment | DONE |
+| 3.2 | IR Adapter relation mapping | DONE |
+| 3.3 | Public API exports | DONE |
 
-**All functionally blocking gaps are resolved.** The only remaining items are organizational (E2E consolidation) and low-priority (codegen eval test).
+**All gaps from the design plan are resolved.**
