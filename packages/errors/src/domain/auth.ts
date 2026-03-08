@@ -412,6 +412,68 @@ export function isMfaNotEnabledError(error: {
 }
 
 // ============================================================================
+// Token Expired Error
+// ============================================================================
+
+/**
+ * Token expired error.
+ *
+ * Returned when a verification or reset token has expired.
+ */
+export interface TokenExpiredError {
+  readonly code: 'TOKEN_EXPIRED';
+  readonly message: string;
+}
+
+/**
+ * Creates a TokenExpiredError.
+ */
+export function createTokenExpiredError(message = 'Token has expired'): TokenExpiredError {
+  return {
+    code: 'TOKEN_EXPIRED',
+    message,
+  };
+}
+
+/**
+ * Type guard for TokenExpiredError.
+ */
+export function isTokenExpiredError(error: { readonly code: string }): error is TokenExpiredError {
+  return error.code === 'TOKEN_EXPIRED';
+}
+
+// ============================================================================
+// Token Invalid Error
+// ============================================================================
+
+/**
+ * Token invalid error.
+ *
+ * Returned when a verification or reset token is invalid or not found.
+ */
+export interface TokenInvalidError {
+  readonly code: 'TOKEN_INVALID';
+  readonly message: string;
+}
+
+/**
+ * Creates a TokenInvalidError.
+ */
+export function createTokenInvalidError(message = 'Invalid token'): TokenInvalidError {
+  return {
+    code: 'TOKEN_INVALID',
+    message,
+  };
+}
+
+/**
+ * Type guard for TokenInvalidError.
+ */
+export function isTokenInvalidError(error: { readonly code: string }): error is TokenInvalidError {
+  return error.code === 'TOKEN_INVALID';
+}
+
+// ============================================================================
 // Combined Types
 // ============================================================================
 
@@ -430,4 +492,6 @@ export type AuthError =
   | MfaRequiredError
   | MfaInvalidCodeError
   | MfaAlreadyEnabledError
-  | MfaNotEnabledError;
+  | MfaNotEnabledError
+  | TokenExpiredError
+  | TokenInvalidError;

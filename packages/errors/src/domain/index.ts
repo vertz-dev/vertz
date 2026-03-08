@@ -20,6 +20,8 @@ export {
   createRateLimitedError as createAuthRateLimitedError,
   createSessionExpiredError,
   createSessionNotFoundError,
+  createTokenExpiredError,
+  createTokenInvalidError,
   createUserExistsError,
   type InvalidCredentialsError,
   isAuthValidationError,
@@ -33,6 +35,8 @@ export {
   isRateLimitedError as isAuthRateLimitedError,
   isSessionExpiredError,
   isSessionNotFoundError,
+  isTokenExpiredError,
+  isTokenInvalidError,
   isUserExistsError,
   type MfaAlreadyEnabledError,
   type MfaInvalidCodeError,
@@ -43,6 +47,8 @@ export {
   type RateLimitedError as AuthRateLimitedError,
   type SessionExpiredError,
   type SessionNotFoundError,
+  type TokenExpiredError,
+  type TokenInvalidError,
   type UserExistsError,
 } from './auth.js';
 // Client errors
