@@ -141,7 +141,7 @@ describe('Dual-Token Issuance', () => {
       }),
     );
 
-    expect(res.headers.get('Cache-Control')).toBe('no-store');
+    expect(res.headers.get('Cache-Control')).toBe('no-store, no-cache, must-revalidate');
   });
 
   it('getSession returns session from valid JWT without session Map lookup', async () => {

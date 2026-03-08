@@ -11,6 +11,7 @@ import {
   createAuthValidationError,
   createInvalidCredentialsError,
   createSessionExpiredError,
+  createSessionNotFoundError,
   createUserExistsError,
   err,
   ok,
@@ -79,6 +80,13 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
   }
 
+  // Validate session strategy
+  if (session.strategy !== 'jwt') {
+    throw new Error(
+      `Session strategy "${session.strategy}" is not yet supported. Use "jwt".`,
+    );
+  }
+
   const cookieConfig = { ...DEFAULT_COOKIE_CONFIG, ...session.cookie };
   const refreshName = session.refreshName ?? 'vertz.ref';
   const refreshTtlMs = parseDuration(session.refreshTtl ?? '7d');
@@ -101,6 +109,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
   const ttlMs = parseDuration(session.ttl);
 
+  // Pre-computed dummy hash for timing-safe user enumeration protection.
+  // When a sign-in attempt uses an unknown email, we bcrypt.compare against this
+  // hash to equalize response time with valid-email attempts.
+  const DUMMY_HASH = '$2a$12$000000000000000000000uGWDREoC/y2KhZ5l2QkI4j0LpDjWcaq';
+
   // Stores — use provided or create defaults
   const sessionStore = config.sessionStore ?? new InMemorySessionStore();
   const userStore = config.userStore ?? new InMemoryUserStore();
@@ -110,14 +123,6 @@ export function createAuth(config: AuthConfig): AuthInstance {
   const signInWindowMs = parseDuration(emailPassword?.rateLimit?.window || '15m');
   const signUpWindowMs = parseDuration('1h');
   const refreshWindowMs = parseDuration('1m');
-
-  // ==========================================================================
-  // Helper: Build user from stored data
-  // ==========================================================================
-
-  function buildAuthUser(stored: { user: AuthUser; passwordHash: string }): AuthUser {
-    return stored.user;
-  }
 
   // ==========================================================================
   // Helper: Create session tokens
@@ -262,6 +267,9 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
     const stored = await userStore.findByEmail(email.toLowerCase());
     if (!stored) {
+      // Timing-safe: perform dummy bcrypt compare to equalize response time
+      // with valid-email attempts, preventing user enumeration via timing.
+      await verifyPassword(password, DUMMY_HASH);
       return err(createInvalidCredentialsError());
     }
 
@@ -270,7 +278,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
       return err(createInvalidCredentialsError());
     }
 
-    const user = buildAuthUser(stored);
+    const user = stored.user;
 
     // Pre-generate session ID so tokens are created once with the correct sid
     const sessionId = crypto.randomUUID();
@@ -335,13 +343,12 @@ export function createAuth(config: AuthConfig): AuthInstance {
       return ok(null);
     }
 
-    // Get user from store
-    const stored = await userStore.findByEmail(payload.email);
-    if (!stored) {
+    // Get user from store by ID (not email — email can change)
+    const user = await userStore.findById(payload.sub);
+    if (!user) {
       return ok(null);
     }
 
-    const user = buildAuthUser(stored);
     const expiresAt = new Date(payload.exp * 1000);
 
     return ok({ user, expiresAt, payload });
@@ -397,18 +404,29 @@ export function createAuth(config: AuthConfig): AuthInstance {
     }
 
     if (isGracePeriod) {
-      // Idempotent: return the current tokens, don't generate new ones
+      // Idempotent: return the current tokens without re-verification.
+      // The tokens were just issued during the rotation that created the grace period,
+      // so re-verifying the JWT is unnecessary and would fail if the JWT TTL is very short.
       const currentTokens = await sessionStore.getCurrentTokens(storedSession.id);
       if (currentTokens) {
+        // Decode (without verify) to get the payload for the response
         const payload = await verifyJWT(currentTokens.jwt, jwtSecret, jwtAlgorithm);
-        if (payload) {
-          return ok({
-            user,
-            expiresAt: new Date(payload.exp * 1000),
-            payload,
-            tokens: currentTokens,
-          });
-        }
+        // Even if JWT is expired, return the cached tokens — the client will get
+        // a fresh JWT on the next refresh after the grace period ends
+        return ok({
+          user,
+          expiresAt: payload ? new Date(payload.exp * 1000) : new Date(Date.now() + ttlMs),
+          payload: payload ?? {
+            sub: user.id,
+            email: user.email,
+            role: user.role,
+            iat: Math.floor(Date.now() / 1000),
+            exp: Math.floor((Date.now() + ttlMs) / 1000),
+            jti: '',
+            sid: storedSession.id,
+          },
+          tokens: currentTokens,
+        });
       }
     }
 
@@ -474,11 +492,11 @@ export function createAuth(config: AuthConfig): AuthInstance {
       return err(createSessionExpiredError('Not authenticated'));
     }
 
-    // Verify ownership
+    // Verify ownership — only allow revoking sessions that belong to the current user
     const targetSessions = await sessionStore.listActiveSessions(sessionResult.data.user.id);
     const target = targetSessions.find((s) => s.id === sessionId);
     if (!target) {
-      return err(createSessionExpiredError('Session not found'));
+      return err(createSessionNotFoundError('Session not found'));
     }
 
     await sessionStore.revokeSession(sessionId);
@@ -520,6 +538,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
         return 401;
       case 'SESSION_EXPIRED':
         return 401;
+      case 'SESSION_NOT_FOUND':
+        return 404;
       case 'USER_EXISTS':
         return 409;
       case 'RATE_LIMITED':
@@ -532,7 +552,12 @@ export function createAuth(config: AuthConfig): AuthInstance {
   }
 
   function securityHeaders(): Record<string, string> {
-    return { 'Cache-Control': 'no-store' };
+    return {
+      'Cache-Control': 'no-store, no-cache, must-revalidate',
+      'Pragma': 'no-cache',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+    };
   }
 
   async function handleAuthRequest(request: Request): Promise<Response> {
@@ -563,7 +588,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         if (isProduction) {
           return new Response(JSON.stringify({ error: 'CSRF validation failed' }), {
             status: 403,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
           });
         } else {
           console.warn(
@@ -578,7 +603,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
         if (isProduction) {
           return new Response(JSON.stringify({ error: 'Missing required X-VTZ-Request header' }), {
             status: 403,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...securityHeaders() },
           });
         } else {
           console.warn(
@@ -834,8 +859,8 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
   // Return the auth instance
   const api: AuthApi = {
-    signUp: (data: SignUpInput) => signUp(data),
-    signIn: (data: SignInInput) => signIn(data),
+    signUp,
+    signIn,
     signOut,
     getSession,
     refreshSession,

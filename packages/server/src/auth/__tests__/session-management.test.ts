@@ -161,8 +161,8 @@ describe('Session Management API', () => {
         headers: { cookie: `vertz.sid=${signUp.data.tokens?.jwt}` },
       }),
     );
-    // Session not found returns 401 (SESSION_EXPIRED error code maps to 401)
-    expect(res.status).toBe(401);
+    // Session not found returns 404 (SESSION_NOT_FOUND error code)
+    expect(res.status).toBe(404);
   });
 
   it('DELETE /sessions revokes all sessions except current', async () => {
@@ -227,8 +227,8 @@ describe('Session Management API', () => {
         headers: { cookie: `vertz.sid=${userB.data.tokens?.jwt}` },
       }),
     );
-    // Should be 401 (session not found for this user) or 403
-    expect([401, 403]).toContain(deleteRes.status);
+    // Should be 404 (session not found for this user — ownership check)
+    expect(deleteRes.status).toBe(404);
   });
 
   it('enforces max sessions per user by revoking oldest', async () => {

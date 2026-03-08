@@ -14,6 +14,7 @@ export {
   createPermissionDeniedError,
   createRateLimitedError as createAuthRateLimitedError,
   createSessionExpiredError,
+  createSessionNotFoundError,
   createUserExistsError,
   type InvalidCredentialsError,
   isAuthValidationError,
@@ -21,10 +22,12 @@ export {
   isPermissionDeniedError,
   isRateLimitedError as isAuthRateLimitedError,
   isSessionExpiredError,
+  isSessionNotFoundError,
   isUserExistsError,
   type PermissionDeniedError,
   type RateLimitedError as AuthRateLimitedError,
   type SessionExpiredError,
+  type SessionNotFoundError,
   type UserExistsError,
 } from './auth.js';
 // Client errors
