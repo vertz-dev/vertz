@@ -168,6 +168,53 @@ describe('IR Adapter - Entities', () => {
     expect(createOp?.outputSchema).toBeUndefined();
   });
 
+  it('maps fully-resolved relations to CodegenRelation[]', () => {
+    const appIR = createEmptyAppIR();
+    const entity = createBasicEntity('posts');
+    entity.relations = [
+      { name: 'author', type: 'one', entity: 'users', selection: 'all' },
+      { name: 'tags', type: 'many', entity: 'tags', selection: 'all' },
+    ];
+    appIR.entities = [entity];
+
+    const result = adaptIR(appIR);
+
+    expect(result.entities[0]?.relations).toEqual([
+      { name: 'author', type: 'one', entity: 'users' },
+      { name: 'tags', type: 'many', entity: 'tags' },
+    ]);
+  });
+
+  it('filters out relations with missing type or entity', () => {
+    const appIR = createEmptyAppIR();
+    const entity = createBasicEntity('posts');
+    entity.relations = [
+      { name: 'author', type: 'one', entity: 'users', selection: 'all' },
+      { name: 'category', selection: 'all' }, // missing type and entity
+      { name: 'reviewer', type: 'one', selection: 'all' }, // missing entity
+    ];
+    appIR.entities = [entity];
+
+    const result = adaptIR(appIR);
+
+    expect(result.entities[0]?.relations).toEqual([
+      { name: 'author', type: 'one', entity: 'users' },
+    ]);
+  });
+
+  it('omits relations when none are fully resolved', () => {
+    const appIR = createEmptyAppIR();
+    const entity = createBasicEntity('posts');
+    entity.relations = [
+      { name: 'author', selection: 'all' }, // no type, no entity
+    ];
+    appIR.entities = [entity];
+
+    const result = adaptIR(appIR);
+
+    expect(result.entities[0]?.relations).toBeUndefined();
+  });
+
   it('handles empty entities array', () => {
     const appIR = createEmptyAppIR();
     appIR.entities = [];

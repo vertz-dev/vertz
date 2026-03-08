@@ -239,6 +239,8 @@ export interface EntityActionIR extends SourceLocation {
 
 export interface EntityRelationIR {
   name: string;
+  type?: 'one' | 'many';
+  entity?: string;
   selection: 'all' | string[];
 }
 

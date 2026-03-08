@@ -50,6 +50,7 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
   async analyze(): Promise<EntityAnalyzerResult> {
     const entities: EntityIR[] = [];
     const seenNames = new Map<string, SourceLocation>();
+    const modelExprs = new Map<string, Expression>();
 
     const files = this.project.getSourceFiles();
     this.debug(`Scanning ${files.length} source files...`);
@@ -59,8 +60,10 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
       // This allows us to emit diagnostics for unresolved entity calls
       const calls = this.findEntityCalls(file);
       for (const call of calls) {
-        const entity = this.extractEntity(file, call);
-        if (!entity) continue;
+        const result = this.extractEntity(file, call);
+        if (!result) continue;
+
+        const { entity, modelExpr } = result;
 
         // Check for duplicate names
         const existing = seenNames.get(entity.name);
@@ -76,6 +79,8 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
 
         seenNames.set(entity.name, entity);
         entities.push(entity);
+        if (modelExpr) modelExprs.set(entity.name, modelExpr);
+
         this.debug(
           `Detected entity: "${entity.name}" at ${entity.sourceFile}:${entity.sourceLine}`,
         );
@@ -102,6 +107,9 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
         }
       }
     }
+
+    // Post-processing: resolve relation target entity names across entities
+    this.resolveRelationEntities(entities, modelExprs);
 
     return { entities };
   }
@@ -154,7 +162,10 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
     return validCalls;
   }
 
-  private extractEntity(_file: SourceFile, call: CallExpression): EntityIR | null {
+  private extractEntity(
+    _file: SourceFile,
+    call: CallExpression,
+  ): { entity: EntityIR; modelExpr?: Expression } | null {
     const args = call.getArguments();
     const loc = getSourceLocation(call);
 
@@ -208,7 +219,8 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
     const access = this.extractAccess(configObj);
     const hooks = this.extractHooks(configObj);
     const actions = this.extractActions(configObj);
-    const relations = this.extractRelations(configObj);
+    const modelExpr = getPropertyValue(configObj, 'model');
+    const relations = this.extractRelations(configObj, modelExpr ?? undefined);
 
     // 5. Validate action names don't collide with CRUD ops
     for (const action of actions) {
@@ -234,7 +246,10 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
       }
     }
 
-    return { name, modelRef, access, hooks, actions, relations, ...loc };
+    return {
+      entity: { name, modelRef, access, hooks, actions, relations, ...loc },
+      modelExpr: modelExpr ?? undefined,
+    };
   }
 
   private extractModelRef(
@@ -640,9 +655,15 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
     }
   }
 
-  private extractRelations(configObj: ObjectLiteralExpression): EntityRelationIR[] {
+  private extractRelations(
+    configObj: ObjectLiteralExpression,
+    modelExpr?: Expression,
+  ): EntityRelationIR[] {
     const relExpr = getPropertyValue(configObj, 'relations');
     if (!relExpr?.isKind(SyntaxKind.ObjectLiteralExpression)) return [];
+
+    // Resolve model relation types if the model expression is available
+    const modelRelTypes = modelExpr ? this.resolveModelRelationTypes(modelExpr) : new Map();
 
     return getProperties(relExpr)
       .filter(({ value }) => {
@@ -651,15 +672,125 @@ export class EntityAnalyzer extends BaseAnalyzer<EntityAnalyzerResult> {
       })
       .map(({ name, value }) => {
         const boolVal = getBooleanValue(value);
-        if (boolVal === true) return { name, selection: 'all' as const };
+        const selection: 'all' | string[] =
+          boolVal === true
+            ? 'all'
+            : value.isKind(SyntaxKind.ObjectLiteralExpression)
+              ? getProperties(value).map((p) => p.name)
+              : 'all';
 
-        // Object literal with field keys
-        if (value.isKind(SyntaxKind.ObjectLiteralExpression)) {
-          const fields = getProperties(value).map((p) => p.name);
-          return { name, selection: fields };
-        }
+        const relType = modelRelTypes.get(name);
 
-        return { name, selection: 'all' as const };
+        return {
+          name,
+          type: relType?.type,
+          entity: relType?.entity,
+          selection,
+        };
       });
+  }
+
+  /**
+   * Resolve relation types from the model's TypeScript type.
+   * Navigates ModelDef.relations to extract _type ('one'/'many') for each relation.
+   */
+  private resolveModelRelationTypes(
+    modelExpr: Expression,
+  ): Map<string, { type: 'one' | 'many'; entity?: string }> {
+    const result = new Map<string, { type: 'one' | 'many'; entity?: string }>();
+
+    try {
+      const modelType = modelExpr.getType();
+      const relProp = modelType.getProperty('relations');
+      if (!relProp) return result;
+
+      const relType = relProp.getTypeAtLocation(modelExpr);
+
+      for (const prop of relType.getProperties()) {
+        const propName = prop.getName();
+        const propType = prop.getTypeAtLocation(modelExpr);
+
+        // Extract _type literal ('one' or 'many')
+        const typeProp = propType.getProperty('_type');
+        if (!typeProp) continue;
+
+        const typeType = typeProp.getTypeAtLocation(modelExpr);
+        if (typeType.isStringLiteral()) {
+          const literal = typeType.getLiteralValue();
+          if (literal === 'one' || literal === 'many') {
+            result.set(propName, { type: literal });
+          }
+        }
+      }
+    } catch {
+      // Type resolution failed — gracefully return empty map
+    }
+
+    return result;
+  }
+
+  /**
+   * Post-processing: resolve relation `entity` fields by matching
+   * each relation's _target return type to the table type of known entities.
+   */
+  private resolveRelationEntities(entities: EntityIR[], modelExprs: Map<string, Expression>): void {
+    try {
+      // Build table type declaration → entity name map
+      const tableToEntity = new Map<string, string>();
+
+      for (const entity of entities) {
+        const modelExpr = modelExprs.get(entity.name);
+        if (!modelExpr) continue;
+
+        const modelType = modelExpr.getType();
+        const tableProp = modelType.getProperty('table');
+        if (!tableProp) continue;
+
+        const tableType = tableProp.getTypeAtLocation(modelExpr);
+        // Use type text as key — distinguishes generic instantiations
+        // (e.g. TableDef<"users"> vs TableDef<"posts">) that share
+        // the same symbol/declaration.
+        const typeText = tableType.getText(modelExpr);
+        tableToEntity.set(typeText, entity.name);
+      }
+
+      if (tableToEntity.size === 0) return;
+
+      // Resolve relation targets
+      for (const entity of entities) {
+        const modelExpr = modelExprs.get(entity.name);
+        if (!modelExpr) continue;
+
+        const modelType = modelExpr.getType();
+        const relProp = modelType.getProperty('relations');
+        if (!relProp) continue;
+
+        const relType = relProp.getTypeAtLocation(modelExpr);
+
+        for (const relation of entity.relations) {
+          if (relation.entity) continue; // already resolved
+
+          const prop = relType.getProperty(relation.name);
+          if (!prop) continue;
+
+          const propType = prop.getTypeAtLocation(modelExpr);
+          const targetProp = propType.getProperty('_target');
+          if (!targetProp) continue;
+
+          const targetType = targetProp.getTypeAtLocation(modelExpr);
+          const callSigs = targetType.getCallSignatures();
+          if (callSigs.length === 0) continue;
+
+          const returnType = callSigs[0].getReturnType();
+          const targetTypeText = returnType.getText(modelExpr);
+          const targetEntity = tableToEntity.get(targetTypeText);
+          if (targetEntity) {
+            relation.entity = targetEntity;
+          }
+        }
+      }
+    } catch {
+      // Cross-entity resolution failed — leave entity fields undefined
+    }
   }
 }

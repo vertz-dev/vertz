@@ -840,6 +840,142 @@ describe('EntityAnalyzer', () => {
       const result = await analyze();
       expect(result.entities[0]?.relations).toEqual([]);
     });
+
+    it('extracts relation type (one/many) from model type', async () => {
+      createFile(
+        '/models.ts',
+        `
+        export interface RelationDef<TTarget = any, TType extends 'one' | 'many' = 'one' | 'many'> {
+          readonly _type: TType;
+          readonly _target: () => TTarget;
+        }
+        export interface PostModel {
+          table: any;
+          relations: {
+            author: RelationDef<any, 'one'>;
+            tags: RelationDef<any, 'many'>;
+          };
+          schemas: {};
+        }
+        export const postModel: PostModel = {} as PostModel;
+      `,
+      );
+
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { postModel } from './models';
+
+        export const postEntity = entity('posts', {
+          model: postModel,
+          relations: {
+            author: true,
+            tags: true,
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      const relations = result.entities[0]?.relations;
+      expect(relations).toHaveLength(2);
+      expect(relations?.[0]?.name).toBe('author');
+      expect(relations?.[0]?.type).toBe('one');
+      expect(relations?.[1]?.name).toBe('tags');
+      expect(relations?.[1]?.type).toBe('many');
+    });
+
+    it('gracefully handles unresolved model type (type is undefined)', async () => {
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel } from './models';
+
+        export const userEntity = entity('user', {
+          model: userModel,
+          relations: {
+            posts: true,
+          },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      const relations = result.entities[0]?.relations;
+      expect(relations).toHaveLength(1);
+      expect(relations?.[0]?.name).toBe('posts');
+      // Type is undefined when model can't be resolved
+      expect(relations?.[0]?.type).toBeUndefined();
+    });
+
+    it('resolves relation entity target via cross-entity type matching', async () => {
+      createFile(
+        '/models.ts',
+        `
+        export interface TableDef<TName extends string = string> {
+          readonly _name: TName;
+        }
+        export interface RelationDef<TTarget = any, TType extends 'one' | 'many' = 'one' | 'many'> {
+          readonly _type: TType;
+          readonly _target: () => TTarget;
+        }
+
+        export const usersTable: TableDef<'users'> = { _name: 'users' } as any;
+        export const postsTable: TableDef<'posts'> = { _name: 'posts' } as any;
+
+        export interface UserModel {
+          table: typeof usersTable;
+          relations: {
+            posts: RelationDef<typeof postsTable, 'many'>;
+          };
+          schemas: {};
+        }
+        export interface PostModel {
+          table: typeof postsTable;
+          relations: {
+            author: RelationDef<typeof usersTable, 'one'>;
+          };
+          schemas: {};
+        }
+
+        export const userModel: UserModel = {} as UserModel;
+        export const postModel: PostModel = {} as PostModel;
+      `,
+      );
+
+      createFile(
+        '/entities.ts',
+        `
+        import { entity } from '@vertz/server';
+        import { userModel, postModel } from './models';
+
+        export const userEntity = entity('users', {
+          model: userModel,
+          relations: { posts: true },
+        });
+
+        export const postEntity = entity('posts', {
+          model: postModel,
+          relations: { author: true },
+        });
+      `,
+      );
+
+      const result = await analyze();
+      expect(result.entities).toHaveLength(2);
+
+      const userRels = result.entities.find((e) => e.name === 'users')?.relations;
+      expect(userRels?.[0]?.name).toBe('posts');
+      expect(userRels?.[0]?.type).toBe('many');
+      expect(userRels?.[0]?.entity).toBe('posts');
+
+      const postRels = result.entities.find((e) => e.name === 'posts')?.relations;
+      expect(postRels?.[0]?.name).toBe('author');
+      expect(postRels?.[0]?.type).toBe('one');
+      expect(postRels?.[0]?.entity).toBe('users');
+    });
   });
 
   describe('Resolved Fields', () => {
