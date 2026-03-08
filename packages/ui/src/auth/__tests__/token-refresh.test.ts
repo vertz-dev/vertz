@@ -116,6 +116,30 @@ describe('createTokenRefresh', () => {
     expect(callCount).toBe(2);
   });
 
+  it('clears inflight after onRefresh rejection and allows subsequent calls', async () => {
+    let callCount = 0;
+    const onRefresh = mock(() => {
+      callCount++;
+      if (callCount === 1) return Promise.reject(new Error('refresh failed'));
+      return Promise.resolve();
+    });
+
+    const tr = createTokenRefresh({ onRefresh });
+    tr.schedule(Date.now() + 60_000);
+
+    // First fire — onRefresh rejects
+    timers[0].callback();
+    expect(callCount).toBe(1);
+
+    // Wait for rejection to settle
+    await new Promise((r) => originalSetTimeout(r, 10));
+
+    // Schedule and fire again — should work since inflight was cleared
+    tr.schedule(Date.now() + 60_000);
+    timers[0].callback();
+    expect(callCount).toBe(2);
+  });
+
   it('dispose clears timer and visibility listener', () => {
     const origDocument = globalThis.document;
     const listeners: (() => void)[] = [];

@@ -283,7 +283,9 @@ export function AuthProvider({
     }
   };
 
-  const refresh = async () => {
+  let refreshInFlight: Promise<void> | null = null;
+
+  const doRefresh = async () => {
     statusSignal.value = 'loading';
     try {
       const res = await fetch(`${basePath}/refresh`, {
@@ -304,6 +306,14 @@ export function AuthProvider({
       statusSignal.value = 'unauthenticated';
       errorSignal.value = null;
     }
+  };
+
+  const refresh = async () => {
+    if (refreshInFlight) return refreshInFlight;
+    refreshInFlight = doRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+    return refreshInFlight;
   };
 
   // Register disposal for timer cleanup

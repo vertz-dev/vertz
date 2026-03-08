@@ -331,6 +331,28 @@ describe('AuthProvider', () => {
       fetchSpy.mockRestore();
     });
 
+    it('deduplicates concurrent refresh calls', async () => {
+      const responseData = {
+        user: { id: '1', email: 'a@b.com', role: 'user' },
+        expiresAt: Date.now() + 60_000,
+      };
+      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(JSON.stringify(responseData), { status: 200 }),
+      );
+
+      const auth = captureAuth();
+
+      // Fire two concurrent refreshes
+      const [r1, r2] = await Promise.all([auth.refresh(), auth.refresh()]);
+
+      // Both should resolve, but only one fetch should have been made
+      expect(r1).toBeUndefined();
+      expect(r2).toBeUndefined();
+      expect(fetchSpy.mock.calls.length).toBe(1);
+
+      fetchSpy.mockRestore();
+    });
+
     it('clears error on failed refresh', async () => {
       const fetchSpy = spyOn(globalThis, 'fetch')
         .mockResolvedValueOnce(
@@ -390,6 +412,33 @@ describe('AuthProvider', () => {
       fetchSpy.mockRestore();
     });
 
+    it('mfaChallenge transitions to error on invalid code', async () => {
+      const fetchSpy = spyOn(globalThis, 'fetch')
+        // signIn → MFA_REQUIRED
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ code: 'MFA_REQUIRED', message: 'MFA needed' }), {
+            status: 403,
+          }),
+        )
+        // mfaChallenge → invalid code
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ code: 'INVALID_MFA_CODE', message: 'Invalid code' }), {
+            status: 401,
+          }),
+        );
+
+      const auth = captureAuth();
+      await auth.signIn({ email: 'a@b.com', password: 'pass123' });
+      expect(auth.status).toBe('mfa_required');
+
+      const result = await auth.mfaChallenge({ code: '000000' });
+      expect(result.ok).toBe(false);
+      expect(auth.status).toBe('error');
+      expect(auth.error?.code).toBe('INVALID_MFA_CODE');
+
+      fetchSpy.mockRestore();
+    });
+
     it('provides forgotPassword as SdkMethodWithMeta', () => {
       const auth = captureAuth();
 
@@ -397,11 +446,45 @@ describe('AuthProvider', () => {
       expect(auth.forgotPassword.method).toBe('POST');
     });
 
+    it('forgotPassword sends POST to forgot-password endpoint', async () => {
+      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(JSON.stringify(null), { status: 200 }),
+      );
+
+      const auth = captureAuth();
+      const result = await auth.forgotPassword({ email: 'a@b.com' });
+
+      expect(result.ok).toBe(true);
+      const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('/api/auth/forgot-password');
+      expect(init.method).toBe('POST');
+      expect(init.credentials).toBe('include');
+
+      fetchSpy.mockRestore();
+    });
+
     it('provides resetPassword as SdkMethodWithMeta', () => {
       const auth = captureAuth();
 
       expect(auth.resetPassword.url).toBe('/api/auth/reset-password');
       expect(auth.resetPassword.method).toBe('POST');
+    });
+
+    it('resetPassword sends POST to reset-password endpoint', async () => {
+      const fetchSpy = spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        new Response(JSON.stringify(null), { status: 200 }),
+      );
+
+      const auth = captureAuth();
+      const result = await auth.resetPassword({ token: 'tok', password: 'newpass' });
+
+      expect(result.ok).toBe(true);
+      const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('/api/auth/reset-password');
+      expect(init.method).toBe('POST');
+      expect(init.credentials).toBe('include');
+
+      fetchSpy.mockRestore();
     });
 
     it('schedules proactive token refresh after successful signIn', async () => {

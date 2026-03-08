@@ -39,6 +39,8 @@ export function createTokenRefresh({ onRefresh }: TokenRefreshOptions): TokenRef
     inflightPromise = onRefresh().finally(() => {
       inflightPromise = null;
     });
+    // Suppress unhandled rejection — error handling is the caller's responsibility
+    inflightPromise.catch(() => {});
   }
 
   function clearTimer(): void {
