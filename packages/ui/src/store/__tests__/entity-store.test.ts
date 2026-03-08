@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'bun:test';
+import { afterEach, describe, expect, it, vi } from 'bun:test';
 import { domEffect } from '../../runtime/signal';
 import { EntityStore } from '../entity-store';
+import { registerRelationSchema, resetRelationSchemas_TEST_ONLY } from '../relation-registry';
 
 interface User {
   id: string;
@@ -586,5 +587,210 @@ describe('EntityStore - edge cases', () => {
 
     // Should still only trigger one effect run
     expect(effectRuns).toBe(initialRuns + 1);
+  });
+});
+
+describe('EntityStore - deep normalization', () => {
+  afterEach(() => {
+    resetRelationSchemas_TEST_ONLY();
+  });
+
+  it('merge extracts nested one-relation and stores both entities', () => {
+    registerRelationSchema('posts', {
+      author: { type: 'one', entity: 'users' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', {
+      id: 'p1',
+      title: 'Hello',
+      author: { id: 'u1', name: 'John' },
+    });
+
+    // Post stored with bare ID
+    expect(store.get('posts', 'p1').value).toEqual({
+      id: 'p1',
+      title: 'Hello',
+      author: 'u1',
+    });
+    // Author extracted into users bucket
+    expect(store.get('users', 'u1').value).toEqual({
+      id: 'u1',
+      name: 'John',
+    });
+  });
+
+  it('merge with multiple posts sharing same author merges author once', () => {
+    registerRelationSchema('posts', {
+      author: { type: 'one', entity: 'users' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', [
+      { id: 'p1', title: 'Post 1', author: { id: 'u1', name: 'John' } },
+      { id: 'p2', title: 'Post 2', author: { id: 'u1', name: 'John' } },
+    ]);
+
+    expect(store.get('posts', 'p1').value).toEqual({
+      id: 'p1',
+      title: 'Post 1',
+      author: 'u1',
+    });
+    expect(store.get('posts', 'p2').value).toEqual({
+      id: 'p2',
+      title: 'Post 2',
+      author: 'u1',
+    });
+    expect(store.size('users')).toBe(1);
+  });
+
+  it('merge without schema stores entities as-is (backward compat)', () => {
+    const store = new EntityStore();
+    store.merge('posts', {
+      id: 'p1',
+      title: 'Hello',
+      author: { id: 'u1', name: 'John' },
+    });
+
+    // Stored as-is since no schema registered
+    expect(store.get('posts', 'p1').value).toEqual({
+      id: 'p1',
+      title: 'Hello',
+      author: { id: 'u1', name: 'John' },
+    });
+  });
+
+  it('merge with already-bare ID leaves field unchanged', () => {
+    registerRelationSchema('posts', {
+      author: { type: 'one', entity: 'users' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', { id: 'p1', title: 'Hello', author: 'u1' });
+
+    expect(store.get('posts', 'p1').value).toEqual({
+      id: 'p1',
+      title: 'Hello',
+      author: 'u1',
+    });
+  });
+
+  it('merge with many-relation extracts nested array', () => {
+    registerRelationSchema('posts', {
+      tags: { type: 'many', entity: 'tags' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', {
+      id: 'p1',
+      title: 'Hello',
+      tags: [
+        { id: 't1', name: 'TS' },
+        { id: 't2', name: 'Bun' },
+      ],
+    });
+
+    expect(store.get('posts', 'p1').value).toEqual({
+      id: 'p1',
+      title: 'Hello',
+      tags: ['t1', 't2'],
+    });
+    expect(store.get('tags', 't1').value).toEqual({ id: 't1', name: 'TS' });
+    expect(store.get('tags', 't2').value).toEqual({ id: 't2', name: 'Bun' });
+  });
+
+  it('re-merge with identical normalized data does NOT trigger signal update', () => {
+    registerRelationSchema('posts', {
+      tags: { type: 'many', entity: 'tags' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', {
+      id: 'p1',
+      title: 'Hello',
+      tags: [{ id: 't1', name: 'TS' }],
+    });
+
+    const postSignal = store.get('posts', 'p1');
+    let updateCount = 0;
+    domEffect(() => {
+      postSignal.value;
+      updateCount++;
+    });
+
+    const initialCount = updateCount;
+    // Re-merge same data — should not trigger update
+    store.merge('posts', {
+      id: 'p1',
+      title: 'Hello',
+      tags: [{ id: 't1', name: 'TS' }],
+    });
+
+    expect(updateCount).toBe(initialCount);
+  });
+
+  it('commitLayer normalizes server response', () => {
+    registerRelationSchema('posts', {
+      author: { type: 'one', entity: 'users' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', { id: 'p1', title: 'Draft', author: 'u1' });
+    store.merge('users', { id: 'u1', name: 'John' });
+
+    store.applyLayer('posts', 'p1', 'm1', { title: 'Published' });
+    store.commitLayer('posts', 'p1', 'm1', {
+      id: 'p1',
+      title: 'Published',
+      author: { id: 'u1', name: 'John Updated' },
+    });
+
+    // Base should be normalized
+    const state = store.inspect('posts', 'p1');
+    expect(state?.base).toEqual({
+      id: 'p1',
+      title: 'Published',
+      author: 'u1',
+    });
+    // Nested entity updated
+    expect(store.get('users', 'u1').value).toEqual({
+      id: 'u1',
+      name: 'John Updated',
+    });
+  });
+
+  it('deep nesting via merge: post → author → org', () => {
+    registerRelationSchema('posts', {
+      author: { type: 'one', entity: 'users' },
+    });
+    registerRelationSchema('users', {
+      organization: { type: 'one', entity: 'orgs' },
+    });
+
+    const store = new EntityStore();
+    store.merge('posts', {
+      id: 'p1',
+      title: 'Hello',
+      author: {
+        id: 'u1',
+        name: 'John',
+        organization: { id: 'o1', name: 'Acme' },
+      },
+    });
+
+    expect(store.get('posts', 'p1').value).toEqual({
+      id: 'p1',
+      title: 'Hello',
+      author: 'u1',
+    });
+    expect(store.get('users', 'u1').value).toEqual({
+      id: 'u1',
+      name: 'John',
+      organization: 'o1',
+    });
+    expect(store.get('orgs', 'o1').value).toEqual({
+      id: 'o1',
+      name: 'Acme',
+    });
   });
 });

@@ -3,6 +3,7 @@ import { computed, signal } from '../runtime/signal';
 import type { ReadonlySignal, Signal } from '../runtime/signal-types';
 import { untrack } from '../runtime/tracking';
 import { shallowEqual, shallowMerge } from './merge';
+import { normalizeEntity } from './normalize';
 import { QueryResultIndex } from './query-result-index';
 import type { EntityStoreOptions, SerializedStore } from './types';
 
@@ -87,29 +88,17 @@ export class EntityStore {
 
     batch(() => {
       for (const item of items) {
-        const typeMap = this._entities.get(type);
-        const entry = typeMap?.get(item.id);
+        const { normalized, extracted } = normalizeEntity(type, item as Record<string, unknown>);
 
-        if (entry) {
-          // Update existing entity — merge into base, recompute visible
-          const mergedBase = shallowMerge(entry.base, item);
-
-          if (!shallowEqual(entry.base, mergedBase)) {
-            entry.base = mergedBase;
-            // Recompute visible state: base + all layers
-            this._recomputeVisible(entry);
+        // Merge extracted nested entities first
+        for (const [nestedType, nestedItems] of extracted) {
+          for (const nestedItem of nestedItems) {
+            this._mergeOne(nestedType, nestedItem);
           }
-        } else {
-          // New entity - create entry and notify type listeners
-          const newSignal = signal<T>(item);
-          const newEntry: EntityEntry = {
-            signal: newSignal,
-            base: item as Record<string, unknown>,
-            layers: new Map(),
-          };
-          this._getOrCreateTypeMap(type).set(item.id, newEntry);
-          this._notifyTypeChange(type);
         }
+
+        // Then merge the normalized parent
+        this._mergeOne(type, normalized);
       }
     });
   }
@@ -330,12 +319,47 @@ export class EntityStore {
     const entry = this._entities.get(type)?.get(id);
     if (!entry) return;
 
-    entry.base = serverData;
+    const { normalized, extracted } = normalizeEntity(type, serverData);
+
+    // Merge extracted nested entities
+    for (const [nestedType, nestedItems] of extracted) {
+      for (const nestedItem of nestedItems) {
+        this._mergeOne(nestedType, nestedItem);
+      }
+    }
+
+    entry.base = normalized;
     entry.layers.delete(mutationId);
     this._recomputeVisible(entry);
   }
 
   // --- Private helpers ---
+
+  /**
+   * Merge a single (already normalized) entity into the store.
+   */
+  private _mergeOne(type: string, item: Record<string, unknown>): void {
+    const id = item.id as string;
+    const typeMap = this._entities.get(type);
+    const entry = typeMap?.get(id);
+
+    if (entry) {
+      const mergedBase = shallowMerge(entry.base, item);
+      if (!shallowEqual(entry.base, mergedBase)) {
+        entry.base = mergedBase;
+        this._recomputeVisible(entry);
+      }
+    } else {
+      const newSignal = signal(item);
+      const newEntry: EntityEntry = {
+        signal: newSignal,
+        base: item,
+        layers: new Map(),
+      };
+      this._getOrCreateTypeMap(type).set(id, newEntry);
+      this._notifyTypeChange(type);
+    }
+  }
 
   /**
    * Recompute the visible signal value from base + all layers.
