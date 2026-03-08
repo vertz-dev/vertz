@@ -27,6 +27,7 @@ description: "vertz/server — entity-driven backend with auto-generated CRUD, a
 | **Services** | Standalone operations not tied to a single entity |
 | **Access control** | Deny-by-default, per-operation access rules with row-level checks |
 | **Environment** | Validated, typed, frozen config via `createEnv()` |
+| **Authentication** | Email/password, JWT sessions, refresh rotation, OAuth providers |
 | **Middleware** | Request pipeline with typed context propagation |
 | **SDK generation** | Auto-generated typed client from entity definitions |
 
@@ -96,6 +97,12 @@ Types flow from your schema definition through the server, into the generated SD
 <CardGroup cols={2}>
   <Card title="Entities" icon="database" href="/guides/server/entities">
     Models, access rules, hooks, and custom actions.
+  </Card>
+  <Card title="Authentication" icon="shield-check" href="/guides/server/auth">
+    Email/password, JWT sessions, refresh tokens, and session management.
+  </Card>
+  <Card title="OAuth Providers" icon="key" href="/guides/server/oauth">
+    Add Google, GitHub, or Discord sign-in.
   </Card>
   <Card title="Services" icon="bolt" href="/guides/server/services">
     Standalone operations and cross-entity workflows.
