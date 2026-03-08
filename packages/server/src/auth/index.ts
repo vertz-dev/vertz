@@ -82,9 +82,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
 
   // Validate session strategy
   if (session.strategy !== 'jwt') {
-    throw new Error(
-      `Session strategy "${session.strategy}" is not yet supported. Use "jwt".`,
-    );
+    throw new Error(`Session strategy "${session.strategy}" is not yet supported. Use "jwt".`);
   }
 
   const cookieConfig = { ...DEFAULT_COOKIE_CONFIG, ...session.cookie };
@@ -269,6 +267,12 @@ export function createAuth(config: AuthConfig): AuthInstance {
     if (!stored) {
       // Timing-safe: perform dummy bcrypt compare to equalize response time
       // with valid-email attempts, preventing user enumeration via timing.
+      await verifyPassword(password, DUMMY_HASH);
+      return err(createInvalidCredentialsError());
+    }
+
+    // OAuth-only user (no password set) — reject email/password sign-in
+    if (stored.passwordHash === null) {
       await verifyPassword(password, DUMMY_HASH);
       return err(createInvalidCredentialsError());
     }
@@ -554,7 +558,7 @@ export function createAuth(config: AuthConfig): AuthInstance {
   function securityHeaders(): Record<string, string> {
     return {
       'Cache-Control': 'no-store, no-cache, must-revalidate',
-      'Pragma': 'no-cache',
+      Pragma: 'no-cache',
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'strict-origin-when-cross-origin',
     };

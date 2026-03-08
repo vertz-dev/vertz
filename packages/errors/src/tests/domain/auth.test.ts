@@ -3,6 +3,7 @@ import {
   type AuthError,
   createAuthValidationError,
   createInvalidCredentialsError,
+  createOAuthError,
   createPermissionDeniedError,
   createRateLimitedError,
   createSessionExpiredError,
@@ -10,6 +11,7 @@ import {
   createUserExistsError,
   isAuthValidationError,
   isInvalidCredentialsError,
+  isOAuthError,
   isPermissionDeniedError,
   isRateLimitedError,
   isSessionExpiredError,
@@ -161,6 +163,30 @@ describe('domain/auth', () => {
     });
   });
 
+  describe('OAuthError', () => {
+    it('creates with correct code and message', () => {
+      const error = createOAuthError('Token exchange failed');
+      expect(error.code).toBe('OAUTH_ERROR');
+      expect(error.message).toBe('Token exchange failed');
+    });
+
+    it('creates with provider and reason', () => {
+      const error = createOAuthError('Invalid state', 'google', 'invalid_state');
+      expect(error.provider).toBe('google');
+      expect(error.reason).toBe('invalid_state');
+    });
+
+    it('type guard returns true for OAuthError', () => {
+      const error = createOAuthError('fail');
+      expect(isOAuthError(error)).toBe(true);
+    });
+
+    it('type guard returns false for other errors', () => {
+      expect(isOAuthError(createInvalidCredentialsError())).toBe(false);
+      expect(isOAuthError(createSessionExpiredError())).toBe(false);
+    });
+  });
+
   describe('AuthError union', () => {
     it('accepts all auth error types', () => {
       const errors: AuthError[] = [
@@ -171,9 +197,10 @@ describe('domain/auth', () => {
         createPermissionDeniedError(),
         createRateLimitedError(),
         createAuthValidationError('Invalid email', 'email'),
+        createOAuthError('OAuth failed'),
       ];
 
-      expect(errors.length).toBe(7);
+      expect(errors.length).toBe(8);
       expect(errors.every((e) => 'code' in e)).toBe(true);
     });
   });

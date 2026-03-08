@@ -105,9 +105,62 @@ export interface RateLimitStore {
 }
 
 export interface UserStore {
-  createUser(user: AuthUser, passwordHash: string): Promise<void>;
-  findByEmail(email: string): Promise<{ user: AuthUser; passwordHash: string } | null>;
+  createUser(user: AuthUser, passwordHash: string | null): Promise<void>;
+  findByEmail(email: string): Promise<{ user: AuthUser; passwordHash: string | null } | null>;
   findById(id: string): Promise<AuthUser | null>;
+}
+
+// ============================================================================
+// OAuth Types
+// ============================================================================
+
+export interface OAuthProviderConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUrl?: string;
+  scopes?: string[];
+}
+
+export interface OAuthTokens {
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  idToken?: string;
+}
+
+export interface OAuthUserInfo {
+  providerId: string;
+  email: string;
+  emailVerified: boolean;
+  name?: string;
+  avatarUrl?: string;
+}
+
+export interface OAuthProvider {
+  id: string;
+  name: string;
+  scopes: string[];
+  trustEmail: boolean;
+  getAuthorizationUrl: (state: string, codeChallenge?: string, nonce?: string) => string;
+  exchangeCode: (code: string, codeVerifier?: string) => Promise<OAuthTokens>;
+  getUserInfo: (accessToken: string, idToken?: string) => Promise<OAuthUserInfo>;
+}
+
+export interface OAuthAccountStore {
+  linkAccount(userId: string, provider: string, providerId: string, email?: string): Promise<void>;
+  findByProviderAccount(provider: string, providerId: string): Promise<string | null>;
+  findByUserId(userId: string): Promise<{ provider: string; providerId: string }[]>;
+  unlinkAccount(userId: string, provider: string): Promise<void>;
+  dispose(): void;
+}
+
+export interface OAuthStateData {
+  provider: string;
+  state: string;
+  codeVerifier: string;
+  nonce?: string;
+  expiresAt: number;
+  redirectUrl?: string;
 }
 
 // ============================================================================
@@ -139,6 +192,18 @@ export interface AuthConfig {
   rateLimitStore?: RateLimitStore;
   /** Pluggable user store — defaults to InMemoryUserStore */
   userStore?: UserStore;
+  /** OAuth provider instances */
+  providers?: OAuthProvider[];
+  /** Pluggable OAuth account store — required when providers are configured */
+  oauthAccountStore?: OAuthAccountStore;
+  /** Encryption key for OAuth state cookies — required when providers are configured */
+  oauthEncryptionKey?: string;
+  /** Base URL for OAuth callbacks (e.g., 'http://localhost:3000') */
+  oauthCallbackUrl?: string;
+  /** Redirect URL after successful OAuth (default '/') */
+  oauthSuccessRedirect?: string;
+  /** Redirect URL on OAuth error (default '/auth/error') */
+  oauthErrorRedirect?: string;
 }
 
 // ============================================================================
