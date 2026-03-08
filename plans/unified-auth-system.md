@@ -138,6 +138,7 @@ const auth = createAuth({
 - Passwords hashed with bcrypt, cost 12
 - Email normalized to lowercase before lookup
 - Rate limiting: 5 sign-in attempts per 15min, 3 sign-up per hour
+- **Timing-safe unknown email handling:** When a sign-in attempt uses an email that does not exist in the database, the server performs a dummy `bcrypt.compare()` against a pre-computed hash before returning `INVALID_CREDENTIALS`. This equalizes response times between "email not found" (< 1ms without dummy) and "wrong password" (~250ms with bcrypt), preventing timing-based user enumeration.
 
 ### 3.2 OAuth Providers
 
@@ -173,7 +174,8 @@ interface OAuthProvider {
   id: string;                        // 'google', 'github', 'discord'
   name: string;                      // Display name
   scopes: string[];                  // OAuth scopes requested
-  getAuthorizationUrl(state: string, codeVerifier: string): string;
+  trustEmail: boolean;               // Whether to auto-link by email (see Account Linking)
+  getAuthorizationUrl(state: string, codeVerifier: string, nonce?: string): string;
   exchangeCode(code: string, codeVerifier: string): Promise<OAuthTokens>;
   getUserInfo(accessToken: string): Promise<OAuthUserInfo>;
 }
@@ -206,12 +208,14 @@ interface OAuthUserInfo {
 ```
 1. GET /api/auth/oauth/google
    → Generate state (CSRF) + PKCE code_verifier + code_challenge
-   → Store state + code_verifier in HttpOnly cookie (5min TTL)
-   → Redirect to Google's authorization URL
+   → For OIDC providers: generate cryptographic nonce
+   → Store state + code_verifier + nonce in encrypted HttpOnly cookie (AES-256-GCM, 5min TTL)
+   → Redirect to Google's authorization URL (with nonce in request)
 
 2. Google redirects to /api/auth/oauth/google/callback?code=XXX&state=YYY
-   → Validate state against cookie
+   → Validate state against cookie (must fail closed: no cookie = reject)
    → Exchange code + code_verifier for tokens (PKCE)
+   → For OIDC providers: validate nonce claim in ID token against cookie
    → Fetch user info from Google
    → Lookup oauth_accounts table:
      a. Existing link → sign in as linked user
@@ -240,18 +244,19 @@ CREATE INDEX idx_oauth_user ON oauth_accounts(user_id);
 ```
 
 **Linking rules:**
-- If OAuth email matches an existing verified user email, auto-link on first OAuth sign-in
+- **Auto-link only from trusted providers:** If `provider.trustEmail` is `true` AND the OAuth email matches an existing verified user email, auto-link on first OAuth sign-in. Google (OIDC with verified email in ID token) has `trustEmail: true` by default. GitHub and Discord have `trustEmail: false` by default -- they do not guarantee email ownership at the protocol level.
+- **Untrusted providers require manual linking:** If `provider.trustEmail` is `false`, the OAuth sign-in creates a new account even if the email matches. The user must log in to the existing account and manually link the OAuth provider via a "Link Account" flow. This prevents account takeover via providers with unreliable email verification.
 - If the user already has a password, OAuth becomes an additional sign-in method
 - If the user only has OAuth, they can add a password later via `/api/auth/set-password`
 - Unlinking the last auth method is blocked (user must always have at least one)
 
 #### Provider-Specific Configuration
 
-| Provider | Default Scopes | Userinfo Source |
-|----------|---------------|-----------------|
-| Google | `openid`, `email`, `profile` | OIDC ID token (decoded) |
-| GitHub | `read:user`, `user:email` | `/user` + `/user/emails` endpoints |
-| Discord | `identify`, `email` | `/users/@me` endpoint |
+| Provider | Default Scopes | Userinfo Source | `trustEmail` |
+|----------|---------------|-----------------|--------------|
+| Google | `openid`, `email`, `profile` | OIDC ID token (decoded, nonce-validated) | `true` |
+| GitHub | `read:user`, `user:email` | `/user` + `/user/emails` endpoints | `false` |
+| Discord | `identify`, `email` | `/users/@me` endpoint | `false` |
 
 ### 3.3 MFA/TOTP
 
@@ -287,7 +292,7 @@ CREATE TABLE user_mfa (
 | `/api/auth/mfa/setup` | POST | Session | Generate TOTP secret, return `otpauth://` URI |
 | `/api/auth/mfa/verify-setup` | POST | Session | Verify first TOTP code, enable MFA |
 | `/api/auth/mfa/challenge` | POST | MFA token | Submit TOTP/backup code during sign-in |
-| `/api/auth/mfa/disable` | POST | Session + re-auth | Disable MFA (requires current password) |
+| `/api/auth/mfa/disable` | POST | Session + re-auth + TOTP | Disable MFA (requires current password AND valid TOTP/backup code) |
 | `/api/auth/mfa/backup-codes` | POST | Session + re-auth | Regenerate backup codes |
 
 #### MFA Sign-In Flow
@@ -313,7 +318,9 @@ POST /api/auth/mfa/challenge { mfaToken: "eyJ...", code: "123456" }
 
 **MFA token:** A separate JWT (`alg: HS256`, `exp: 5 minutes`, claim: `{ sub: userId, purpose: 'mfa' }`). Cannot be used for API access -- only accepted by `/api/auth/mfa/challenge`.
 
-**Backup codes:** 10 codes, each 8 alphanumeric characters, displayed once during setup. Stored as bcrypt hashes. Each code is single-use (deleted after successful verification). Regeneration invalidates all existing codes.
+**Backup codes:** 10 codes, each 8 alphanumeric characters, displayed once during setup. Stored as bcrypt hashes. Each code is single-use (deleted after successful verification). Regeneration invalidates all existing codes. **Timing-safe iteration:** Validation always compares against all 10 hashes (never short-circuits on match) to prevent timing attacks that could reveal how many valid codes remain.
+
+**TOTP encryption key:** The TOTP secret is encrypted at rest with AES-256-GCM. The encryption key is separate from the JWT secret and stored as an environment variable (`VERTZ_TOTP_KEY`). The ciphertext column stores `nonce:ciphertext:tag` (base64). Key rotation: re-encrypt all TOTP secrets with the new key, keeping the old key for decryption during the transition window.
 
 **TOTP implementation:** Uses RFC 6238 (30-second time window, SHA-1, 6 digits). Accepts current window +/- 1 to account for clock drift.
 
@@ -515,7 +522,13 @@ Response:
   Body: { user: { id, email, role, ... } }
 ```
 
-**Refresh token rotation:** Every successful refresh generates a new refresh token and invalidates the old one. If an attacker steals a refresh token and uses it before the legitimate client, the legitimate client's next refresh fails (old token already rotated). This signals a compromise. The server does NOT auto-revoke on rotation failure -- it returns 401, forcing re-authentication. Auto-revoking all sessions on rotation failure is a denial-of-service vector (attacker steals one token, triggers mass logout).
+**Refresh token rotation with grace period:** Every successful refresh generates a new refresh token and invalidates the old one — but the old token remains valid for a **10-second grace window**. This handles the multi-tab race condition: two tabs firing their refresh timer simultaneously both send the same token; the first succeeds and rotates, the second arrives within the grace window and also succeeds (receiving its own new token). After 10 seconds, the old token is hard-invalidated.
+
+Without the grace period, multi-tab users would be frequently logged out — Tab A rotates T1→T2, Tab B's request with T1 gets 401. This is a common scenario, not an edge case.
+
+If an attacker steals a refresh token and uses it after the grace window, the legitimate client's next refresh fails (old token expired). This signals a compromise. The server does NOT auto-revoke on rotation failure — it returns 401, forcing re-authentication. Auto-revoking all sessions on rotation failure is a denial-of-service vector (attacker steals one token, triggers mass logout).
+
+**Refresh token revocation check:** The refresh endpoint's UPDATE query must include `WHERE revoked_at IS NULL` to ensure revoked sessions cannot be refreshed, even if the revocation happened between the SELECT and UPDATE in a concurrent request.
 
 **Client-side refresh:** The client SDK runs a background timer every 50 seconds to refresh the JWT before it expires. If the user has the tab backgrounded and the JWT expires, the next API call returns 401, triggering an immediate refresh attempt.
 
@@ -577,6 +590,8 @@ const billing = entity('billing', {
 });
 ```
 
+**`fva` check formula:** `effectiveFva = (now - jwt.iat) + jwt.fva`. If `effectiveFva > maxAge`, the step-up is stale. The `fva` value in the JWT is static (set at issuance), so the elapsed time since JWT issuance must be added to get the actual factor verification age.
+
 When `fva` is stale:
 1. Server returns `403` with `{ code: 'STEP_UP_REQUIRED', maxAge: 600 }`
 2. Client shows MFA prompt
@@ -607,10 +622,11 @@ const auth = createAuth({
 ```
 
 **Cookie security invariants (enforced, not configurable):**
-- `HttpOnly: true` -- always, for both cookies
-- `Secure: true` -- required in production, relaxed in development with warning
-- `SameSite: none` requires `Secure: true` -- validated at startup
-- Refresh cookie `Path: /api/auth/refresh` -- never sent on other requests
+- `HttpOnly: true` — always, for both cookies
+- `Secure: true` — required in production, relaxed in development with warning
+- `SameSite: none` requires `Secure: true` — validated at startup
+- Refresh cookie `Path: /api/auth/refresh` — never sent on other requests
+- **Domain warning:** Setting `cookie.domain` to a wildcard (e.g., `.example.com`) exposes session cookies to all subdomains and is a security risk. The framework validates at startup and warns if `domain` is set to a wildcard. Without explicit `Domain`, cookies default to the exact hostname (no subdomain sharing).
 
 ---
 
@@ -643,37 +659,48 @@ async function ssrAuthMiddleware(request: Request): Promise<AuthContext> {
   const session = await lookupSession(refreshToken);
   if (!session || session.revokedAt) return ANONYMOUS_CONTEXT;
 
-  // Session valid → compute fresh access set, issue new JWT
+  // Session valid → compute fresh access set, issue new JWT, rotate refresh token
   const user = await loadUser(session.userId);
   const accessSet = await computeAccessSet(user);
   const newJwt = issueJWT(user, session.id, accessSet);
+  const newRefreshToken = generateRefreshToken();
+  await rotateRefreshToken(session.id, newRefreshToken);
 
-  // Return context with Set-Cookie header for the response
+  // Return context with Set-Cookie headers for both cookies
   return {
     user,
     accessSet,
     session: { id: session.id },
-    setCookieHeader: buildSessionCookie(newJwt),
+    setCookieHeaders: [
+      buildSessionCookie(newJwt),
+      buildRefreshCookie(newRefreshToken),
+    ],
   };
 }
 ```
 
-**No redirect:** Unlike Clerk's handshake flow, Vertz never redirects to resolve authentication during SSR. The DB fallback is a direct lookup -- Vertz owns the session store. This eliminates the redirect-based auth resolution that causes flash-of-content issues.
+**No redirect:** Unlike Clerk's handshake flow, Vertz never redirects to resolve authentication during SSR. The DB fallback is a direct lookup — Vertz owns the session store. This eliminates the redirect-based auth resolution that causes flash-of-content issues.
+
+**Refresh token rotation on SSR fallback:** The SSR middleware rotates the refresh token (issues new token, invalidates old) to prevent an attacker who steals a refresh token from silently obtaining new JWTs via SSR pages without triggering rotation detection. Both `vertz.sid` and `vertz.ref` cookies are set in the SSR response.
 
 ### 5.2 Access Set in SSR
 
 During SSR, the access set is available synchronously from the JWT payload (or the DB fallback). `can()` calls during SSR are synchronous reads from this pre-computed set:
 
 ```ts
-// SSR render context
-(globalThis as any).__VERTZ_ACCESS_SET__ = accessSet;
+// SSR render context — request-scoped via SyncLocalStorage (not globalThis)
+// Using SyncLocalStorage ensures concurrent SSR requests never leak access sets
+// between users. See separate PR for SyncLocalStorage implementation.
+requestScope.set('accessSet', accessSet);
 
-// can() during SSR reads from global
+// can() during SSR reads from request-scoped storage
 function can(entitlement: Entitlement): AccessCheck {
-  const set = (globalThis as any).__VERTZ_ACCESS_SET__;
-  return set.entitlements[entitlement] ?? { allowed: false, reason: 'not_authenticated' };
+  const set = requestScope.get('accessSet');
+  return set?.entitlements[entitlement] ?? { allowed: false, reason: 'not_authenticated' };
 }
 ```
+
+**Important:** The access set MUST be stored in request-scoped context, NOT on `globalThis`. With concurrent SSR requests, `globalThis` would allow Request A to read Request B's access set — a cross-user permission leakage vulnerability. The request-scoped storage (SyncLocalStorage) is being implemented in a separate PR.
 
 ### 5.3 No Hydration Mismatch
 
@@ -687,6 +714,8 @@ The access set is computed once and used in both SSR and client hydration:
 ```
 
 The client hydrates from `window.__VERTZ_ACCESS_SET__`. Same data, same render output, no mismatch.
+
+**XSS prevention:** The `__VERTZ_ACCESS_SET__` serialization uses `JSON.stringify()` on the `AccessSet` type only (never the raw JWT payload with custom claims). The output is HTML-escaped: `</` → `<\/`, `<!--` → `<\!--`. This prevents script injection via entitlement names or denial reason strings.
 
 ---
 
@@ -814,13 +843,15 @@ rules.fva(maxAge)                    // MFA verified within maxAge seconds
 
 ### 6.4 `ctx.can()` Server API
 
+**Automatic enforcement:** Entity-level access rules declared in `access: {}` are automatically enforced by the framework on all CRUD operations. The client-side `can()` is advisory — it controls UI visibility, not authorization. The server ALWAYS re-validates before executing mutations. A developer who skips `ctx.authorize()` in a custom handler has a privilege escalation bug — the framework-generated entity routes do not have this gap.
+
 ```ts
 interface AccessContext {
-  /** Check if user can perform action. Returns boolean. */
+  /** Check if user can perform action. Returns boolean. Short-circuits on first denial (cheapest-first). */
   can(entitlement: Entitlement): Promise<boolean>;
   can(entitlement: Entitlement, resource: Resource): Promise<boolean>;
 
-  /** Check with structured response (denial reasons). */
+  /** Check with structured response. Evaluates ALL layers (no short-circuit) to return the most actionable denial reason. */
   check(entitlement: Entitlement, resource?: Resource): Promise<AccessCheckData>;
 
   /** Throws AuthorizationError if denied. */
@@ -829,12 +860,18 @@ interface AccessContext {
   /** Atomic check + wallet increment for limited entitlements. */
   canAndConsume(entitlement: Entitlement, resource?: Resource, amount?: number): Promise<boolean>;
 
-  /** Bulk check -- returns map of entitlement+resourceId → boolean. */
+  /** Atomic rollback of a previous canAndConsume(). Use when the operation fails after consumption. */
+  unconsume(entitlement: Entitlement, resource?: Resource, amount?: number): Promise<void>;
+
+  /** Bulk check -- returns map of entitlement+resourceId → boolean. Batches hierarchy queries into a single DB query. Max 100 checks per call. */
   canAll(checks: Array<{ entitlement: Entitlement; resource?: Resource }>): Promise<Map<string, boolean>>;
 }
 
 interface AccessCheckData {
   allowed: boolean;
+  /** All denial reasons (every failing layer), ordered by actionability: plan > role > flag > hierarchy > wallet. */
+  reasons: DenialReason[];
+  /** Primary reason (first in reasons array) — the most actionable for UI display. */
   reason?: DenialReason;
   meta?: DenialMeta;
 }
@@ -857,6 +894,8 @@ interface DenialMeta {
 ```
 
 ### 6.5 Resolution Algorithm
+
+**`can()` — short-circuits (cheapest-first, for performance):**
 
 ```ts
 async function can(ctx: Context, entitlement: Entitlement, resource?: Resource): Promise<boolean> {
@@ -899,6 +938,21 @@ async function can(ctx: Context, entitlement: Entitlement, resource?: Resource):
 }
 ```
 
+**`check()` — evaluates ALL layers (for actionable denial reasons):**
+
+Unlike `can()`, `check()` does not short-circuit. It evaluates every layer and collects all denial reasons. The reasons are ordered by actionability (the most useful reason for UI display comes first):
+
+1. `plan_required` — most actionable (user can upgrade)
+2. `role_required` — actionable (user can request access from admin)
+3. `limit_reached` — actionable (user can wait for period reset or upgrade)
+4. `flag_disabled` — informational (feature not yet available)
+5. `hierarchy_denied` — informational (no path to resource)
+6. `step_up_required` — actionable (user can complete MFA)
+
+This prevents the "misleading denial reason" problem where a feature-flag short-circuit hides the more actionable `plan_required` reason from the UI. The `reason` field returns the primary (most actionable) reason; `reasons` returns all failing layers.
+
+**Note on `can()` and wallet:** `can()` performs a read-only wallet check at Layer 5. This is non-atomic — between `can()` returning `true` and the developer acting on it, another request could exhaust the limit. For limited entitlements, always use `canAndConsume()` for the actual operation. `can()` is appropriate for UI display ("show the create button") but not for gating the actual creation.
+
 ### 6.6 Resource Hierarchy (Closure Table)
 
 Resources form trees: Org -> Team -> Project -> Task. The closure table precomputes all ancestor/descendant paths:
@@ -919,7 +973,11 @@ CREATE INDEX idx_closure_ancestor ON resource_closure(ancestor_type, ancestor_id
 
 **Hierarchy depth cap:** 4 levels. Beyond 4, flatten the hierarchy or use Zanzibar-style tuples.
 
-**Automatic maintenance:** Entity create/delete hooks (compiler-generated) maintain the closure table. Developers never write closure table code.
+**Self-references:** Every resource has a depth-0 self-reference row `(type, id, type, id, 0)`. This simplifies queries — a resource is always its own ancestor.
+
+**Automatic maintenance:** Entity create/delete hooks (compiler-generated) maintain the closure table. On entity creation, hooks insert the self-reference row plus all ancestor paths. On entity deletion, hooks remove all closure rows where the entity is an ancestor or descendant. Developers never write closure table code.
+
+**Scaling note:** For an org with 1,000 teams, 10,000 projects, and 100,000 tasks, the closure table contains ~430K rows. This is well within Postgres capabilities. Entity creation adds 2-4 closure rows (O(hierarchy depth)). Entity reparent is the expensive operation (DELETE old paths + INSERT new paths for the entity and all its descendants) — for a project with 100 tasks, expect 15-50ms under load.
 
 ### 6.7 Role Inheritance
 
@@ -933,7 +991,11 @@ User has admin on Org A
   → User gets contributor on Project C (child of Team B)
 ```
 
-**Effective role resolution:** Direct assignment > inherited role. If user has both `admin` on Org and `viewer` on Team (direct), the direct `viewer` wins for that Team. For access checks, the most permissive role from all paths is used.
+**Effective role resolution — additive model:** The effective role for a resource is the **most permissive** role across the union of all direct assignments and all inherited roles. Roles only add permissions, never restrict.
+
+Example: User has `admin` on Org A (inherits `editor` on Team B) and a direct `viewer` assignment on Team B. The effective role on Team B is `editor` (more permissive), not `viewer`. The direct assignment does not override the inherited role — both contribute to the effective permissions.
+
+**To restrict access**, remove the parent role or use `rules.where()` conditions on the entity. Direct role assignments cannot be used to restrict below inherited permissions. This is the standard model used by Google IAM, AWS IAM, and Zanzibar-based systems.
 
 ### 6.8 Role Assignment Database Schema
 
@@ -995,9 +1057,13 @@ interface AccessSet {
 }
 ```
 
-**What is included:** Only global entitlements (role + plan + flag checks). No per-resource roles -- those come from `__access` on entity responses.
+**What is included:** Only **global entitlements** — resolved from RBAC (role), plan, and feature flag layers. These are the layers that can be evaluated without knowing the specific resource. Per-resource checks (hierarchy, `rules.where()` conditions like ownership) are NOT included in the global access set — those come from `__access` metadata on entity responses.
+
+**Relationship between global access set and entity `__access`:** When `can()` is called with an entity argument, the entity's `__access` is authoritative. It includes the full 5-layer resolution for that specific resource. When `can()` is called without an entity (global check), the global access set is used. The two are independent — the global set does not override entity `__access` or vice versa.
 
 **Size:** ~5KB for a typical app (50 entitlements, 10 flags, 5 limits). Embedded in the JWT `acl` claim.
+
+**Overflow strategy for large apps (100+ entitlements):** If the access set exceeds the JWT size budget (~3.5KB for the `acl` claim, keeping total JWT under the 4KB cookie limit), the server falls back to a **hydration model**: the JWT `acl` claim contains only a reference hash, and the full access set is hydrated into client memory via the SSR `<script>` tag (no cookie size limit) and kept updated via WebSocket events and the 50-second refresh cycle. This is transparent to the client — `can()` reads from the in-memory access set signal regardless of how it was populated.
 
 ### 7.2 Bootstrap Flow
 
@@ -1089,22 +1155,85 @@ export function ProjectActions({ projectId }: { projectId: string }) {
 
 ```ts
 interface AccessCheck {
-  readonly allowed: ReadonlySignal<boolean>;
-  readonly reason: ReadonlySignal<DenialReason | undefined>;
-  readonly meta: ReadonlySignal<DenialMeta | undefined>;
+  /** Whether the user is allowed to perform the action. */
+  readonly allowed: boolean;
+  /** All denial reasons, ordered by actionability (most actionable first). */
+  readonly reasons: DenialReason[];
+  /** Primary denial reason (first in reasons array). undefined when allowed or loading. */
+  readonly reason: DenialReason | undefined;
+  /** Denial metadata (required plans, roles, limits). */
+  readonly meta: DenialMeta | undefined;
+  /** True while the entity data is still loading (resource-scoped checks only). */
+  readonly loading: boolean;
 }
 ```
 
-Properties are signals. The compiler auto-unwraps them via the reactivity manifest (registered as a reactive source). In JSX, `canExport.allowed` reads the signal value without `.value`.
+Properties are **getters** backed by internal signals — not raw signals. The developer never uses `.value`. `canExport.allowed` returns `boolean` everywhere — in JSX, in event handlers, in `watch()` callbacks. This is consistent with the framework's principle that developers never interact with signal internals.
+
+The compiler treats `can()` as a `reactive-source` (registered in the reactivity manifest). Any `const` that depends on an `AccessCheck` property becomes `computed` automatically. The getters read from internal signals, so reactivity flows correctly without `.value`.
 
 ### 8.3 Resolution
 
 - **Global entitlement** (no entity argument): reads from `AccessContext` signal (populated from `__VERTZ_ACCESS_SET__` or latest JWT refresh).
-- **Resource-scoped** (with entity argument): reads from `entity.__access[entitlement]`. If `__access` is not present (entity still loading), returns `{ allowed: false, reason: undefined }`.
+- **Resource-scoped** (with entity argument): reads from `entity.__access[entitlement]`. If `__access` is not present (entity still loading), returns `{ allowed: false, loading: true, reason: undefined }`.
+
+**Missing provider behavior:** If `can()` is called outside `AccessContext.Provider`, it returns `{ allowed: false, reason: 'not_authenticated', loading: false }` (fail-secure). In development mode, a `console.warn` is emitted to help catch "forgot to add provider" bugs.
+
+### 8.3.1 `AuthGate` — Session Loading Guard
+
+`AuthGate` prevents its children from rendering until the session and access set are fully loaded. This eliminates loading state handling in components that are guaranteed to be behind the gate:
+
+```tsx
+import { AuthGate } from '@vertz/ui/auth';
+
+export function App() {
+  return (
+    <AccessContext.Provider value={accessSet}>
+      <AuthGate fallback={<LoadingScreen />}>
+        {/* Children only render when session is loaded */}
+        {/* can() calls here will never have loading: true */}
+        <RouterContext.Provider value={router}>
+          <RouterView router={router} />
+        </RouterContext.Provider>
+      </AuthGate>
+    </AccessContext.Provider>
+  );
+}
+```
+
+**Two patterns, explicit choice:**
+
+1. **Behind `AuthGate`** — session is guaranteed loaded. `can().loading` is always `false`. No loading state handling needed. Use for authenticated-only routes and components.
+
+2. **Outside `AuthGate`** — session may still be loading. Developer must handle `can().loading`. Use for public pages that show different UI for authenticated vs anonymous users.
+
+```tsx
+// Pattern 1: Behind AuthGate — no loading state needed
+function ProjectActions({ projectId }: { projectId: string }) {
+  const canCreate = can('project:create');
+  // canCreate.loading is always false here
+  return canCreate.allowed ? <button>New</button> : null;
+}
+
+// Pattern 2: Outside AuthGate — handle loading
+function NavBar() {
+  const canAdmin = can('org:billing');
+  return (
+    <nav>
+      {canAdmin.loading && <Skeleton />}
+      {!canAdmin.loading && canAdmin.allowed && <a href="/admin">Admin</a>}
+    </nav>
+  );
+}
+```
+
+**Open question:** Whether a compile-time or static-analysis mechanism can verify that a component using `can()` without loading checks is indeed behind an `AuthGate`. This would prevent runtime errors from components that assume the session is loaded but are rendered outside a gate. Deferred to implementation — if no good static solution exists, the `loading` property and runtime behavior are sufficient.
 
 ### 8.4 Memoization
 
-`can()` memoizes by `entitlement + entity?.id`. Same arguments return the same `AccessCheck` object. This prevents creating duplicate signals for the same check -- a page with 50 task cards checking `can('task:edit', task)` creates 50 `AccessCheck` objects (one per task.id), not 50 per render.
+`can()` memoizes by `entitlement + entity?.id`. Same arguments return the same `AccessCheck` object. This prevents creating duplicate reactive subscriptions — a page with 50 task cards checking `can('task:edit', task)` creates 50 `AccessCheck` objects (one per task.id), not 50 per render.
+
+**Reactivity after entity revalidation:** The memoized `AccessCheck` object holds a reactive dependency on the entity's `__access` data (via internal `computed()`). When the entity query revalidates (e.g., after a mutation or WebSocket event), the new `__access` data flows through the getter, and the `AccessCheck` properties update automatically. The memoization is by signal identity — same entity signal, updated value — so the `AccessCheck` stays current without the developer calling `can()` again.
 
 ### 8.5 Entity-Level `__access` Metadata
 
@@ -1119,7 +1248,7 @@ Entity responses include `__access` showing what the current user can do with th
   __access: {
     'project:edit':   { allowed: true },
     'project:delete': { allowed: true },
-    'project:export': { allowed: false, reason: 'plan_required', meta: { requiredPlans: ['enterprise'] } },
+    'project:export': { allowed: false, reasons: ['plan_required', 'flag_disabled'], reason: 'plan_required', meta: { requiredPlans: ['enterprise'] } },
   },
 }
 ```
@@ -1158,7 +1287,7 @@ export function App() {
 }
 ```
 
-For SSR apps, the provider is injected by the framework automatically.
+For SSR apps using `createBunDevServer`, the framework automatically wraps the SSR render in `AccessContext.Provider` with the access set from the request's auth context. Developers using custom SSR setups must add the provider manually as shown above.
 
 ### 8.7 Compiler Integration
 
@@ -1177,7 +1306,7 @@ For SSR apps, the provider is injected by the framework automatically.
 }
 ```
 
-Zero compiler changes required -- uses existing `REACTIVE_SOURCE_APIS` infrastructure via the cross-file manifest system.
+Zero compiler changes required — uses existing `REACTIVE_SOURCE_APIS` infrastructure via the cross-file manifest system. The `reactive-source` type means `can()` returns a getter-backed object (not raw signals). Any `const` depending on an `AccessCheck` property becomes `computed`. No `.value` insertion needed — the getters handle reactivity internally.
 
 ---
 
@@ -1210,11 +1339,27 @@ await setCustomerOverride(orgId, {
 });
 ```
 
-Resolution: `customer override > plan limit > Infinity (no limit defined)`.
+Resolution: `max(customer override, plan limit)`. Overrides can only **increase** limits, never restrict below the plan default. This prevents the scenario where an override set for a lower plan accidentally restricts a higher plan after upgrade.
+
+**Override lifecycle on plan change:** Overrides are scoped to the org, not the plan. When a plan changes, overrides persist but can never reduce permissions below the new plan's defaults (because of the `max()` resolution). If an admin wants to clear overrides after a plan change, they call `clearCustomerOverrides(orgId)`.
+
+### 9.2.1 Plan Expiration
+
+When `org_plans.expires_at` passes:
+
+1. **Fallback:** The org's effective plan becomes `free` (the lowest tier). All plan-gated entitlements are re-evaluated against the free plan.
+2. **Grace period (optional):** `defineAccess()` accepts a `planGracePeriod` (default: `0`). During the grace period, the plan remains active but a `plan_expiring: true` flag is set in the access set for UI warnings.
+3. **Notification:** `access:plan_expiring` WebSocket event sent when `expires_at - gracePeriod` is reached. `access:plan_expired` sent when `expires_at` passes.
+4. **Resolution:** The plan lookup query includes `WHERE expires_at IS NULL OR expires_at > NOW() - grace_interval`. After the grace period, the effective plan is `free`.
+5. **Existing resources are not affected.** A downgrade (including expiration) does not delete or archive resources. See section 9.5.1.
 
 ### 9.3 Consumption Wallet
 
-The wallet tracks how much of each limited entitlement an org has consumed in the current billing period:
+The wallet tracks how much of each limited entitlement an org has consumed in the current billing period.
+
+**Limits are creation-velocity limits (per billing period), not resource-count limits.** Existing resources are never affected by plan downgrades or period resets. An org that created 200 projects on enterprise and downgrades to free keeps all 200 projects — the limit only gates new creations. To enforce resource-count limits, use `rules.where()` conditions that count existing resources.
+
+**Billing period:** Anchored to `org_plans.started_at`. A "month" period runs from `started_at` to `started_at + 1 month` (using PostgreSQL `interval '1 month'`). Subsequent periods chain from the previous period's end.
 
 ```sql
 CREATE TABLE consumption_wallet (
@@ -1245,19 +1390,52 @@ if (await ctx.canAndConsume('project:create')) {
 }
 ```
 
-`canAndConsume()` runs the full `can()` resolution and, if all layers pass, atomically increments the wallet:
+`canAndConsume()` runs the full `can()` resolution and, if all layers pass, atomically increments the wallet using a two-step operation:
+
+**Step 1 — Lazy initialization (ensure wallet row exists):**
+
+```sql
+INSERT INTO consumption_wallet (org_id, entitlement, period_start, period_end, consumed)
+VALUES ($1, $2, $3, $4, 0)
+ON CONFLICT (org_id, entitlement, period_start) DO NOTHING;
+```
+
+This handles new orgs and period boundary transitions. Without this step, the UPDATE below would match 0 rows for a brand-new org (indistinguishable from "limit reached"), silently blocking all limited operations.
+
+**Step 2 — Atomic check + increment:**
 
 ```sql
 UPDATE consumption_wallet
-SET consumed = consumed + 1
+SET consumed = consumed + $5           -- $5 = amount (default 1)
 WHERE org_id = $1
   AND entitlement = $2
   AND period_end > NOW()
-  AND consumed + 1 <= $3     -- limit from plan
+  AND consumed + $5 <= $3              -- $3 = limit from plan (respects max(override, plan))
 RETURNING consumed
 ```
 
 If the UPDATE affects 0 rows (limit reached between check and increment), returns `false`.
+
+Both steps run in a single transaction.
+
+### 9.4.1 `unconsume()` — Rollback After Operation Failure
+
+If the operation following `canAndConsume()` fails (validation error, DB constraint violation), the wallet must be decremented to prevent permanent consumption drift:
+
+```ts
+// Correct pattern
+const consumed = await ctx.canAndConsume('project:create');
+if (consumed) {
+  try {
+    await createProject(data);
+  } catch (e) {
+    await ctx.unconsume('project:create');
+    throw e;
+  }
+}
+```
+
+For framework-generated entity routes, `canAndConsume()` and the entity creation run in the same database transaction, so a creation failure automatically rolls back the wallet increment. `unconsume()` is only needed in custom handlers where transactional wrapping is not automatic.
 
 ### 9.5 Client-Side Plan Visibility
 
@@ -1277,6 +1455,15 @@ if (canCreate.meta?.limit) {
   const { max, consumed, remaining } = canCreate.meta.limit;
   // "42/100 projects created this month"
 }
+```
+
+**Consumption counts are point-in-time snapshots.** Different users in the same org may see slightly different remaining counts because their JWTs were refreshed at different times. The server-side `canAndConsume()` is always authoritative.
+
+**Real-time consumption updates:** Every successful `canAndConsume()` call broadcasts an `access:limit_updated` WebSocket event to all active sessions in the same org. This keeps consumption counts reasonably current across all connected clients (O(sessions per org) fan-out).
+
+```ts
+// The server automatically broadcasts after canAndConsume():
+// { type: 'access:limit_updated', entitlement: 'project:create', consumed: 43, remaining: 57 }
 ```
 
 ---
@@ -1302,7 +1489,25 @@ if (canCreate.meta?.limit) {
 { type: 'access:limit_updated', entitlement: 'project:create', consumed: 43, remaining: 57 }
 ```
 
-**Role and plan changes** trigger a jittered refetch. The jitter (random 0-2s) prevents thundering herd when an admin changes a role that affects many users. Events are targeted by userId -- only affected users refetch.
+**Role and plan changes** trigger a jittered refetch. The jitter scales with the number of affected users: `random(0, min(30, affectedUsers / 100))` seconds, capped at 30 seconds. This prevents thundering herd when an admin changes a plan affecting thousands of users. Events are targeted by userId — only affected users refetch.
+
+### 10.1.1 WebSocket Authentication
+
+The WebSocket connection for access invalidation events is authenticated:
+
+1. **Upgrade handshake:** The client includes the `vertz.sid` cookie in the WebSocket upgrade request. The server validates the JWT before accepting the connection.
+2. **User scoping:** Each WebSocket connection is associated with the authenticated user's ID. Events are only sent to connections belonging to the affected user(s). An unauthenticated connection cannot receive other users' events.
+3. **Session revocation:** When a session is revoked, the server closes the associated WebSocket connection.
+4. **JWT expiry:** If the JWT expires during a WebSocket session, the connection remains open (it was authenticated at upgrade time). The next JWT refresh brings fresh credentials.
+
+### 10.1.2 Reconnection Strategy
+
+When the WebSocket connection drops (network change, laptop sleep, mobile background):
+
+1. **Auto-reconnect with exponential backoff:** 1s, 2s, 4s, 8s, 16s, capped at 30s. Jitter applied to each interval.
+2. **Immediate access set refresh on reconnect:** The client may have missed events while disconnected. On successful reconnection, the client immediately requests a fresh access set (does not wait for the 50-second timer).
+3. **Maximum stale window:** Between disconnection and the next JWT refresh (50-second timer), the client operates with potentially stale permissions. This is acceptable — the 50-second refresh cycle bounds the staleness regardless of WebSocket state.
+4. **No polling fallback:** If WebSockets are blocked (corporate firewalls), the client relies entirely on the 50-second JWT refresh cycle for access updates. This is documented as a known limitation.
 
 ### 10.2 Reactive Cascade
 
@@ -1334,6 +1539,10 @@ Already built. Cannot be disabled (Zeroth Law). Dual validation:
 | `/api/auth/mfa/step-up` | 15 min | 5 | `stepup:{userId}` |
 | `/api/auth/resend-verification` | 1 hour | 3 | `verify:{userId}` |
 | `/api/auth/oauth/:provider` | 5 min | 10 | `oauth:{ip}` |
+| `/api/auth/signup` (per IP) | 1 hour | 10 | `signup-ip:{ip}` |
+| `/api/auth/set-password` | 1 hour | 3 | `setpw:{userId}` |
+
+**Per-IP signup rate limiting:** The per-email limit (`signup:{email}`) prevents targeting a specific email, but an attacker can use unique emails to amplify CPU load via bcrypt. The per-IP limit bounds the total bcrypt work an attacker can trigger from a single source.
 
 **Phase 1:** In-memory rate limiter (already built).
 **Production:** Pluggable rate limit store interface. Redis adapter for multi-instance deployments.
@@ -1349,7 +1558,8 @@ interface RateLimitStore {
 - **Sign-in:** After 5 failed attempts per email within 15 minutes, subsequent attempts return 429 regardless of credentials. The response does not distinguish "rate limited" from "invalid credentials" to prevent timing attacks.
 - **MFA:** After 5 failed TOTP attempts per user within 15 minutes, MFA challenge returns 429.
 - **Password reset:** Always returns 200 regardless of whether the email exists (prevents email enumeration).
-- **Timing-safe comparison:** Password verification and TOTP validation use constant-time comparison to prevent timing side-channels.
+- **Timing-safe comparison:** Password verification, TOTP validation, refresh token hash comparison, and all token hash comparisons use constant-time comparison. Backup code validation always iterates all 10 hashes (never short-circuits on match) to prevent timing attacks that reveal the position of valid codes.
+- **MFA escalating lockout:** After 3 consecutive rate-limit windows (15 failed MFA attempts over 45 minutes), the account is locked and requires email verification to unlock. This prevents perpetual low-rate TOTP guessing.
 
 ### 11.4 Session Security
 
@@ -1372,8 +1582,8 @@ interface RateLimitStore {
 |-----------------|------------|-------------|
 | JWT secret | Required (throws on missing) | Auto-generated, persisted to `.vertz/` |
 | Cookie `Secure` flag | Required (throws if false) | Relaxed with console warning |
-| CSRF Origin check | Enforced (403 on failure) | Warning only |
-| CSRF `X-VTZ-Request` header | Enforced (403 on missing) | Warning only |
+| CSRF Origin check | Enforced (403 on failure) | Enforced (warning on failure) |
+| CSRF `X-VTZ-Request` header | Enforced (403 on missing) | Enforced (warning on failure) |
 | Rate limiting | Active | Active |
 | Password requirements | Active | Active |
 
@@ -1387,9 +1597,31 @@ The auth handler sets the following headers on auth responses:
 Cache-Control: no-store, no-cache, must-revalidate
 Pragma: no-cache
 X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
 ```
 
-Session-related responses (sign-in, sign-up, refresh) must never be cached by intermediaries.
+Session-related responses (sign-in, sign-up, refresh) must never be cached by intermediaries. The `Referrer-Policy` prevents OAuth callback URLs (which may contain authorization codes) from leaking via the `Referer` header.
+
+**Server access logs:** Auth middleware strips cookie values from request logs. JWT contents must never appear in logs.
+
+### 11.8 CORS
+
+Default: same-origin only (no `Access-Control-Allow-Origin` header). For cross-origin consumption (mobile apps, external clients):
+
+```ts
+const auth = createAuth({
+  // ...
+  cors: {
+    allowedOrigins: ['https://mobile.example.com'],
+  },
+});
+```
+
+`Access-Control-Allow-Origin: *` is never allowed when credentials (cookies) are used — the framework validates this at startup.
+
+### 11.9 Session Limits
+
+Maximum active sessions per user: 50 (configurable). When the limit is exceeded, the oldest session is automatically revoked. This prevents session accumulation from automated sign-in attacks and bounds the `listSessions()` response size.
 
 ---
 
@@ -1599,8 +1831,8 @@ Server ctx.can(Entitlement, Resource?)
   → boolean
 
 Server ctx.check(Entitlement, Resource?)
-  → 5-layer resolution
-  → AccessCheckData { allowed, reason: DenialReasonFor<E>, meta }
+  → 5-layer resolution (evaluates ALL layers, no short-circuit)
+  → AccessCheckData { allowed, reasons: DenialReasonFor<E>[], reason, meta }
 
 Session bootstrap (sign-in / refresh)
   → AccessSet { entitlements: Record<Entitlement, AccessCheckData>, flags, plan }
@@ -1612,11 +1844,11 @@ JWT `acl` claim
 
 can(Entitlement) [client, from @vertz/ui/auth]
   → reads AccessContext signal
-  → AccessCheck { allowed, reason, meta } (reactive signals)
+  → AccessCheck { allowed, reasons, reason, meta, loading } (getter-backed, reactive-source)
 
 can(Entitlement, entity) [client]
   → reads entity.__access[entitlement]
-  → AccessCheck { allowed, reason, meta } (reactive signals)
+  → AccessCheck { allowed, reasons, reason, meta, loading } (getter-backed, reactive-source)
 
 Compiler reactivity manifest (@vertz/ui/auth):
   can → reactive-source (all properties auto-unwrapped)
@@ -1670,6 +1902,10 @@ Each arrow is a mandatory type-level test during implementation.
 | Clerk/Auth.js integration | External portal, schema constraints, doesn't own session store |
 | Separate `rules.where()` DSL | DB query syntax means one language everywhere |
 | RS256 JWT | ES256 is smaller, equally secure; RS256 is legacy overhead |
+| `ReadonlySignal` properties on `AccessCheck` | Getters backed by internal signals — developers never use `.value` |
+| Single `reason` in `check()` response | `reasons` array returns all failing layers; `reason` is the primary (most actionable) |
+| `globalThis` for SSR access set | Request-scoped storage (SyncLocalStorage) prevents cross-user leakage |
+| Auto-link OAuth by email for all providers | Only `trustEmail: true` providers (OIDC with verified email) auto-link |
 
 ---
 
@@ -1693,7 +1929,11 @@ Each arrow is a mandatory type-level test during implementation.
 
 9. **Email sending** -- The framework calls `onSend` callbacks. Actual email delivery (SMTP, SES, Resend) is the developer's responsibility. Vertz Cloud will provide managed email.
 
-10. **Redis-backed wallet** -- Phase 1 uses Postgres. Redis adapter for high-frequency limits is a future optimization.
+10. **Redis-backed wallet** — Phase 1 uses Postgres. Redis adapter for high-frequency limits is a future optimization.
+
+11. **Sub-org billing** — Team-level budgets, per-user quotas, and department cost allocation are not supported. All limits are per-organization.
+
+12. **Per-user org creation limits** — Free tier abuse via creating unlimited orgs is mitigated by org creation rate limiting (post-auth, per-user) and monitoring. Automated enforcement of org count limits is deferred.
 
 ---
 
@@ -1704,6 +1944,10 @@ Each arrow is a mandatory type-level test during implementation.
 **Question:** Can the compiler generate the `Entitlement` string literal union from `defineAccess()` at dev-server startup, such that `can()` gets autocomplete before runtime?
 
 **Resolution strategy:** Needs POC. The existing compiler processes `.tsx` files per-request. `defineAccess()` lives in a `.ts` config file. Must verify the codegen pipeline can extract string literals and emit a `.d.ts` augmentation file.
+
+**Dependency:** The `DenialReasonFor<E>` conditional type (section 12.2) depends on this POC succeeding. If the POC fails, `DenialReasonFor<E>` collapses to the full `DenialReason` union (no per-entitlement narrowing). This is a DX degradation, not a correctness issue — runtime behavior is unaffected.
+
+**DX flow for adding entitlements:** The design must specify how the developer's type updates flow: add entitlement to `defineAccess()` → ??? → `can('new:entitlement')` has autocomplete. If a dev-server restart or explicit codegen step is required, the DX is poor. If it happens automatically on save (like Prisma's type generation), the DX is good. The POC should validate both the type generation mechanism and the update latency.
 
 ### 18.2 `rules.where()` Relational Query Depth (Discussion)
 
@@ -1736,7 +1980,18 @@ Each arrow is a mandatory type-level test during implementation.
 
 **Recommendation:** (a). State + code_verifier are small (< 200 bytes). Short TTL cookie (5 minutes) cleared after callback.
 
-### 18.5 Wallet Atomicity Across Instances (Discussion)
+### 18.5 Multi-Org User Flow (Discussion)
+
+**Question:** A user can belong to multiple organizations. How does org selection work?
+
+**Options:**
+- (a) Post-sign-in org selection step — user signs in, then selects/switches org
+- (b) Org encoded in the sign-in URL — `POST /api/auth/signin { email, password, orgId }`
+- (c) Separate session per org — each org gets its own JWT/refresh token pair
+
+**Recommendation:** (a). Add a `POST /api/auth/switch-org { orgId }` endpoint that re-computes the access set for the new org and issues a fresh JWT with the new `tenantId`. This does not require re-authentication — the user's identity is already verified. The `role` field in the JWT is the **global platform role** (from the `users` table), independent of any org. Org-level roles are resolved via `role_assignments`.
+
+### 18.6 Wallet Atomicity Across Instances (Discussion)
 
 **Question:** With multiple server instances, how do we ensure wallet increments are atomic?
 
@@ -1882,10 +2137,12 @@ Already built:
 
 - Replace 7-day JWT with 60-second JWT + 7-day refresh token (both configurable)
 - `sessions` table with refresh token hashing
-- Token rotation on refresh
+- Token rotation on refresh with 10-second grace period (multi-tab safety)
+- Refresh token revocation check (`WHERE revoked_at IS NULL`)
 - Session revocation API (revoke single, revoke all)
-- Session listing (device management)
+- Session listing (device management, paginated, max 50 active sessions per user)
 - Pluggable rate limit store interface
+- `POST /api/auth/switch-org` for multi-org users
 
 **Integration test:** Sign in, verify 60s JWT. Wait 61s, API returns 401. Refresh succeeds with new JWT. Revoke session, refresh fails.
 
@@ -1921,8 +2178,9 @@ Already built:
 
 **Integration test:** Sign up, receive verification callback. Verify email, confirm emailVerified=true. Request password reset, receive callback. Reset password, confirm old sessions revoked.
 
-### Phase 6: Resource Hierarchy
+### Phase 6: Resource Hierarchy + `defineAccess()`
 
+- Replace `createAccess()` with `defineAccess()` (breaking change — all existing consumers must migrate)
 - Closure table migration generation
 - Entity hooks for closure table maintenance
 - Role inheritance across hierarchy levels
@@ -1934,32 +2192,36 @@ Already built:
 ### Phase 7: Access Set Bootstrap + Client `can()`
 
 - Access set computation at session start
-- Access set embedded in JWT `acl` claim
-- SSR serialization (`__VERTZ_ACCESS_SET__`)
-- `can()` function in `@vertz/ui/auth`
+- Access set embedded in JWT `acl` claim (with hydration fallback for large access sets)
+- SSR serialization (`__VERTZ_ACCESS_SET__` with HTML escaping, request-scoped context)
+- `can()` function in `@vertz/ui/auth` (getter-backed `AccessCheck`, `reactive-source` manifest)
 - `AccessContext.Provider`
+- `AuthGate` component (session loading guard)
 - Reactivity manifest registration
-- Entity `__access` metadata in responses
-- `can()` memoization
+- Entity `__access` metadata in responses (with `reasons` array)
+- `can()` memoization (reactive to entity revalidation)
 
 **Integration test:** Sign in, verify JWT contains `acl`. SSR renders with access-gated content. Client hydrates, `can()` reads from access set. Modify role via API, verify WebSocket triggers access set refresh.
 
 ### Phase 8: Plans & Wallet
 
 - Plan definition in `defineAccess()`
-- `org_plans` table
-- Consumption wallet table
-- `canAndConsume()` atomic check + increment
-- Per-customer overrides
+- `org_plans` table with expiration + grace period
+- Consumption wallet table with lazy initialization
+- `canAndConsume()` atomic check + increment (with `amount` parameter)
+- `unconsume()` for rollback after operation failure
+- Per-customer overrides (additive only, `max(override, plan)`)
 - Client-side plan/limit visibility
+- `access:limit_updated` WebSocket fan-out from `canAndConsume()`
 
 **Integration test:** Assign org to `free` plan with limit 5 projects/month. Create 5 projects via `canAndConsume()`. Sixth attempt returns false. Upgrade to `pro`, sixth attempt succeeds.
 
 ### Phase 9: Reactive Invalidation + Feature Flags
 
 - Feature flag storage + toggle API
-- WebSocket events for access changes
-- Jittered refetch for role/plan changes
+- WebSocket events for access changes (with JWT-authenticated upgrade handshake)
+- WebSocket reconnection with exponential backoff + immediate access set refresh
+- Jittered refetch for role/plan changes (scaled jitter by affected user count)
 - Inline updates for flag/limit changes
 
 **Integration test:** Client has `can('project:export')` returning false (flag disabled). Toggle flag via API. Verify WebSocket delivers `access:flag_toggled`. Verify `can()` reactively returns true.
@@ -2102,13 +2364,14 @@ CREATE TABLE consumption_wallet (
 | `/api/auth/mfa/verify-setup` | POST | Session | Verify and enable MFA |
 | `/api/auth/mfa/challenge` | POST | MFA token | Submit MFA code during sign-in |
 | `/api/auth/mfa/step-up` | POST | Session | Step-up MFA for sensitive actions |
-| `/api/auth/mfa/disable` | POST | Session + re-auth | Disable MFA |
+| `/api/auth/mfa/disable` | POST | Session + re-auth + TOTP | Disable MFA (requires password + TOTP) |
 | `/api/auth/mfa/backup-codes` | POST | Session + re-auth | Regenerate backup codes |
 | `/api/auth/verify-email` | POST | No | Verify email with token |
 | `/api/auth/resend-verification` | POST | Session | Resend verification email |
 | `/api/auth/forgot-password` | POST | No | Request password reset |
 | `/api/auth/reset-password` | POST | No | Reset password with token |
 | `/api/auth/set-password` | POST | Session | Set password (for OAuth-only users) |
+| `/api/auth/switch-org` | POST | Session | Switch active org, re-issue JWT with new tenantId |
 
 ## Appendix C: Cookie Summary
 
@@ -2116,7 +2379,7 @@ CREATE TABLE consumption_wallet (
 |--------|-------|----------|--------|----------|------|---------|---------|
 | `vertz.sid` | JWT | Yes | Yes (prod) | Lax | `/` | 60s | Session identity + access set |
 | `vertz.ref` | Opaque token | Yes | Yes (prod) | Lax | `/api/auth/refresh` | 7 days (configurable) | Session refresh |
-| `vertz.oauth` | State + PKCE | Yes | Yes (prod) | Lax | `/api/auth/oauth` | 5 min | OAuth flow state |
+| `vertz.oauth` | Encrypted (AES-256-GCM) state + PKCE + nonce | Yes | Yes (prod) | Lax | `/api/auth/oauth` | 5 min | OAuth flow state |
 
 ---
 
