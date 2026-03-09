@@ -1,7 +1,7 @@
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { beforeEach, describe, expect, it } from 'bun:test';
 import { type ScaffoldOptions, scaffold } from '../index.js';
 
 describe('scaffold', () => {
@@ -93,15 +93,12 @@ describe('scaffold', () => {
       expect(pkg.name).toBe('my-awesome-app');
     });
 
-    it('package.json includes full-stack dependencies', async () => {
+    it('package.json uses vertz meta-package', async () => {
       await scaffold(tempDir, defaultOptions);
 
       const content = await fs.readFile(projectPath('package.json'), 'utf-8');
       const pkg = JSON.parse(content);
-      expect(pkg.dependencies['@vertz/server']).toBeDefined();
-      expect(pkg.dependencies['@vertz/db']).toBeDefined();
-      expect(pkg.dependencies['@vertz/ui']).toBeDefined();
-      expect(pkg.dependencies['@vertz/theme-shadcn']).toBeDefined();
+      expect(pkg.dependencies.vertz).toBeDefined();
     });
 
     it('package.json includes dev dependencies', async () => {
@@ -180,16 +177,16 @@ describe('scaffold', () => {
 
       const content = await fs.readFile(projectPath('bun-plugin-shim.ts'), 'utf-8');
       expect(content).toContain('createVertzBunPlugin');
-      expect(content).toContain("from '@vertz/ui-server/bun-plugin'");
+      expect(content).toContain("from 'vertz/ui-server/bun-plugin'");
       expect(content).toContain('export default plugin');
     });
 
-    it('package.json includes @vertz/ui-server in devDependencies', async () => {
+    it('package.json does not need @vertz/ui-server (provided by vertz meta-package)', async () => {
       await scaffold(tempDir, defaultOptions);
 
       const content = await fs.readFile(projectPath('package.json'), 'utf-8');
       const pkg = JSON.parse(content);
-      expect(pkg.devDependencies['@vertz/ui-server']).toBeDefined();
+      expect(pkg.dependencies.vertz).toBeDefined();
     });
 
     it('.gitignore includes .vertz/ and *.db', async () => {
@@ -210,7 +207,7 @@ describe('scaffold', () => {
 
       const content = await fs.readFile(projectPath('src', 'api', 'server.ts'), 'utf-8');
       expect(content).toContain('createServer');
-      expect(content).toContain("from '@vertz/server'");
+      expect(content).toContain("from 'vertz/server'");
       expect(content).toContain('export default app');
       expect(content).toContain('import.meta.main');
     });
@@ -245,7 +242,7 @@ describe('scaffold', () => {
         'utf-8',
       );
       expect(content).toContain("entity('tasks'");
-      expect(content).toContain("from '@vertz/server'");
+      expect(content).toContain("from 'vertz/server'");
       expect(content).toContain('tasksModel');
     });
   });

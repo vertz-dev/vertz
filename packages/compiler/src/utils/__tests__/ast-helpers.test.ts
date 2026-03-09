@@ -1,5 +1,5 @@
-import { Project, SyntaxKind } from 'ts-morph';
 import { describe, expect, it } from 'bun:test';
+import { Project, SyntaxKind } from 'ts-morph';
 import {
   extractObjectLiteral,
   findCallExpressions,

@@ -1,5 +1,5 @@
-import { Project, SyntaxKind } from 'ts-morph';
 import { describe, expect, it } from 'bun:test';
+import { Project, SyntaxKind } from 'ts-morph';
 import { isFromImport, resolveExport, resolveIdentifier } from '../import-resolver';
 
 const _sharedProject = new Project({ useInMemoryFileSystem: true });
@@ -126,5 +126,22 @@ describe('isFromImport', () => {
     const file = project.createSourceFile('test.ts', `const s = 1;\nconst x = s;`);
     const id = getIdentifierUsage(file, 'x');
     expect(isFromImport(id, '@vertz/schema')).toBe(false);
+  });
+
+  it('matches vertz/ meta-package equivalent of @vertz/ import', () => {
+    const project = createProject();
+    const file = project.createSourceFile(
+      'test.ts',
+      `import { entity } from 'vertz/server';\nconst x = entity;`,
+    );
+    const id = getIdentifierUsage(file, 'x');
+    expect(isFromImport(id, '@vertz/server')).toBe(true);
+  });
+
+  it('matches vertz/db meta-package for @vertz/db', () => {
+    const project = createProject();
+    const file = project.createSourceFile('test.ts', `import { d } from 'vertz/db';\nconst x = d;`);
+    const id = getIdentifierUsage(file, 'x');
+    expect(isFromImport(id, '@vertz/db')).toBe(true);
   });
 });

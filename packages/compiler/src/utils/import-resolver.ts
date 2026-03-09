@@ -50,7 +50,11 @@ export function resolveExport(
 export function isFromImport(identifier: Identifier, moduleSpecifier: string): boolean {
   const importInfo = findImportForIdentifier(identifier);
   if (!importInfo) return false;
-  return importInfo.importDecl.getModuleSpecifierValue() === moduleSpecifier;
+  const actual = importInfo.importDecl.getModuleSpecifierValue();
+  if (actual === moduleSpecifier) return true;
+  // Also accept the `vertz/` meta-package equivalent of `@vertz/<pkg>`
+  const metaEquivalent = moduleSpecifier.replace(/^@vertz\//, 'vertz/');
+  return actual === metaEquivalent;
 }
 
 // ── Internal helpers ────────────────────────────────────────────────
